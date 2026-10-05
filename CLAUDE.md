@@ -7,8 +7,8 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 
 ## Status
 - [x] Steg 1: Bas-recept – paket, Flatpaks, udev-regler, tjänster (bygger grönt)
-- [~] Ghostty som standardterminal (COPR `mineiro/ghostty`) – aldrig byggt: Ghostty-byggena 5 okt föll på GitHub-störning (ingen runner), inte på receptet
-- [~] Steg 3: KDE-utseende + varumärke – splash/utloggning/bakgrund/plasma-tema committade 5 okt, ej testat i VM än
+- [x] Ghostty som standardterminal (COPR `mineiro/ghostty`) – bygger grönt
+- [~] Steg 3: KDE-utseende + varumärke – första versionen testad i VM 6 okt (bakgrund, toppfält, docka syns). Efter det: linjeikoner i dockan, begränsat systemfält, klockformat, splash-text, egen inloggningsbakgrund – ej testat än
 - [ ] Steg 4: Förstagångs-installationsfönster (appväljare)
 - [ ] Steg 5: Ianseo i container
 - [ ] Steg 6: Egen installations-ISO
@@ -20,13 +20,14 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 - `files/system/usr/lib/modules-load.d/i2c-dev.conf` (ddcutil)
 - `files/system/etc/xdg/`: `kdeglobals` (Ghostty som terminal, IBM Plex Sans som systemtypsnitt, AnimationDurationFactor=0.5), `baloofilerc` (bara filnamn), `kwinrc` (knappar IAX till höger), `ksplashrc` (vår splash), `kscreenlockerrc` (piltavla på låsskärmen), `plasmarc` (plasma-tema goblincakes), `autostart/goblincakes-firstlogin.desktop`
 - `files/system/usr/libexec/goblincakes-firstlogin`: kör en gång per användare – `plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout` + `plasma-apply-colorscheme GoblinCakes`
-- `files/system/usr/share/plasma/look-and-feel/org.goblincakes.desktop/`: layout = toppfält (kickoff "Apps" med logga vänster; systray, klocka med datum bredvid, strömknapp lock_logout höger) + centrerad flytande docka (Firefox, Steam, Discord, VS Code, VLC, separator, kickerdash "alla appar") med `hiding = "dodgewindows"` + bakgrundsbild
-  - `contents/splash/Splash.qml`: svart, logga, "GOBLINCAKES" i Chakra Petch, blå laddningslinje (mått från designen, skalade efter skärmhöjd)
+- `files/system/usr/share/plasma/look-and-feel/org.goblincakes.desktop/`: layout = toppfält (kickoff "Apps" med logga vänster; systray bara nätverk/volym/notiser/batteri via extraItems+knownItems, klocka "ddd d MMM" bredvid tiden, strömknapp lock_logout höger) + centrerad flytande docka (Firefox, Steam, Discord, VS Code, VLC, separator, kickerdash "alla appar") med `hiding = "dodgewindows"` + bakgrundsbild
+  - `contents/splash/Splash.qml`: svart, logga, "GOBLINCAKES" i Chakra Petch, blå laddningslinje, "Booting into GOBLINCAKES OS…" (mått från designen, skalade efter skärmhöjd)
   - `contents/logout/Logout.qml`: svart, vinkande goblin, pratbubbla "Hejdå! / Vi syns nästa raid.", platta raka knappar kopplade till logout-greeterns signaler (logoutRequested, rebootRequested, haltRequested, cancelRequested)
 - `files/system/usr/share/icons/hicolor/scalable/apps/goblincakes.svg`: loggan (ikonnamn `goblincakes`)
 - `files/system/usr/share/color-schemes/GoblinCakes.colors`: designens palett
 - `files/system/usr/share/wallpapers/goblincakes/goblincakes.svg`: piltavla med tunna ringar, en pil, "GOBLINCAKES" nere till vänster (skrivbord, låsskärm, SDDM)
-- `files/system/usr/share/sddm/themes/breeze/theme.conf.user`: piltavlan på inloggningsskärmen
+- `files/system/usr/share/wallpapers/goblincakes/goblincakes-login.svg` + `files/system/usr/share/sddm/themes/breeze/theme.conf.user`: inloggningsskärmen = mörkblå (Deep #12203A) med goblin-loggan ton-i-ton till höger om mitten
+- `files/system/usr/share/icons/goblincakes/`: ikontema (ärver breeze-dark) med designens linjeikoner för Firefox, Steam, Discord, VS Code, VLC, Ianseo och "alla appar"; satt i kdeglobals och look-and-feel
 - `files/system/usr/share/plasma/desktoptheme/goblincakes/`: `dialogs/background.svg` (popups) och `widgets/panel-background.svg` (toppfält/docka) – raka hörn, 1px ram; resten faller tillbaka på Breeze
 
 ## Beslut och önskemål
@@ -36,6 +37,8 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
   - Typsnitt: Chakra Petch (rubriker), IBM Plex Sans (gränssnitt).
   - Logga: vit goblinhuvud-siluett med öron som är toppen på en blå cupcake-form.
   - Allt platt med raka hörn (fönster, docka, popups, knappar).
+- Avvikelser från designen som kräver egna widgets: strömknappen har utloggningsikon, "Apps" i IBM Plex (inte Chakra Petch), aktiv-app-markering är Breezes.
+- Efter ändringar i look-and-feel måste användaren köra `rm ~/.local/state/goblincakes/firstlogin-done` och logga ut/in för att se dem.
 - Utseende: GNOME-likt, behåll minimera/maximera/stäng. Tema efter intressen: WoW och bågskytte. Utloggningstexten på svenska.
 - Ej gjort: Plymouth-uppstartsskärm (kräver initramfs-ombyggnad).
 - Alltid installerat: Piper (G502 Hero), VIA via Chromium (Keychron V10), ddcutil.

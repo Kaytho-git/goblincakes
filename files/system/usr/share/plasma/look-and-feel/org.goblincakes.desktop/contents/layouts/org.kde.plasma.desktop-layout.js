@@ -21,12 +21,51 @@ apps.writeConfig("icon", "goblincakes");
 apps.writeConfig("menuLabel", "Apps");
 
 topBar.addWidget("org.kde.plasma.panelspacer");
-topBar.addWidget("org.kde.plasma.systemtray");
+// System tray: only network, volume and notifications, like the design
+// (battery appears on laptops only)
+var tray = topBar.addWidget("org.kde.plasma.systemtray");
+try {
+    var trayItems = desktopById(tray.readConfig("SystrayContainmentId"));
+    trayItems.currentConfigGroup = ["General"];
+    trayItems.writeConfig("extraItems", [
+        "org.kde.plasma.networkmanagement",
+        "org.kde.plasma.volume",
+        "org.kde.plasma.notifications",
+        "org.kde.plasma.battery"
+    ]);
+    // Everything listed here but not above stays switched off
+    trayItems.writeConfig("knownItems", [
+        "org.kde.plasma.networkmanagement",
+        "org.kde.plasma.volume",
+        "org.kde.plasma.notifications",
+        "org.kde.plasma.battery",
+        "org.kde.plasma.brightness",
+        "org.kde.kscreen",
+        "org.kde.plasma.devicenotifier",
+        "org.kde.plasma.clipboard",
+        "org.kde.plasma.bluetooth",
+        "org.kde.plasma.mediacontroller",
+        "org.kde.plasma.keyboardindicator",
+        "org.kde.plasma.keyboardlayout",
+        "org.kde.plasma.manage-inputmethod",
+        "org.kde.plasma.printmanager",
+        "org.kde.plasma.cameraindicator",
+        "org.kde.plasma.vault",
+        "org.kde.plasma.weather",
+        "org.kde.kdeconnect",
+        "org.kde.plasma.nightcolorcontrol",
+        "org.kde.plasma.nightlight",
+        "org.kde.plasma.diskquota",
+        "org.kde.discovernotifier"
+    ]);
+} catch (e) {}
 
 var clock = topBar.addWidget("org.kde.plasma.digitalclock");
 clock.currentConfigGroup = ["Appearance"];
 clock.writeConfig("showDate", true);
 clock.writeConfig("dateDisplayFormat", "BesideTime");
+clock.writeConfig("dateFormat", "custom");
+clock.writeConfig("customDateFormat", "ddd d MMM");   // "tis 6 okt", like the design
 
 // Power button: opens the GOBLINCAKES logout screen
 var power = topBar.addWidget("org.kde.plasma.lock_logout");

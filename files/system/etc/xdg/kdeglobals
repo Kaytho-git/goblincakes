@@ -9,6 +9,10 @@ menuFont=IBM Plex Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
 toolBarFont=IBM Plex Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
 smallestReadableFont=IBM Plex Sans,8,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
 
+[Icons]
+# Breeze Dark + the design's line icons for the dock apps
+Theme=goblincakes
+
 [KDE]
 # Faster animations (1.0 = default, lower = snappier)
 AnimationDurationFactor=0.5

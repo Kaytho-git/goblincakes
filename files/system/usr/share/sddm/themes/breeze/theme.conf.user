@@ -1,4 +1,4 @@
 [General]
 # GOBLINCAKES background on the login screen (SDDM Breeze theme)
-background=/usr/share/wallpapers/goblincakes/goblincakes.svg
+background=/usr/share/wallpapers/goblincakes/goblincakes-login.svg
 type=image

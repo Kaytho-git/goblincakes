@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 1920 1080">
+  <!-- GOBLINCAKES login screen: Deep blue with the goblin logo, tone-on-tone, right of centre -->
+  <rect width="1920" height="1080" fill="#12203A"/>
+
+  <g transform="translate(1060 280) scale(4)">
+    <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#1E3A6B"/>
+    <path d="M43 45 L55 50 L52 55 Z" fill="#12203A"/>
+    <path d="M77 45 L65 50 L68 55 Z" fill="#12203A"/>
+    <path d="M30 70 H90 L81 106 H39 Z" fill="#193461"/>
+    <path d="M49 73 L51 103 M60 73 V103 M71 73 L69 103" stroke="#12203A" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.6"/>
+  </g>
+</svg>

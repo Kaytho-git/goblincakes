@@ -52,6 +52,14 @@ Rectangle {
                 Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
             }
         }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "Booting into GOBLINCAKES OS…"
+            color: "#8B98AD"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: Math.round(22 * root.s)
+        }
     }
 
     OpacityAnimator {

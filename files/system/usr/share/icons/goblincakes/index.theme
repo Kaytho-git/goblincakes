@@ -1,0 +1,19 @@
+[Icon Theme]
+Name=GOBLINCAKES
+Comment=Breeze Dark with GOBLINCAKES line icons for the dock
+Inherits=breeze-dark,hicolor
+Directories=scalable/apps,scalable/actions
+
+[scalable/apps]
+Size=48
+MinSize=16
+MaxSize=512
+Type=Scalable
+Context=Applications
+
+[scalable/actions]
+Size=48
+MinSize=16
+MaxSize=512
+Type=Scalable
+Context=Actions

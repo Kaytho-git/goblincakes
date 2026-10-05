@@ -18,5 +18,6 @@
     <path d="M960 940 L944 918 M960 940 L982 956 M976 924 L960 902 M976 924 L998 940"/>
   </g>
 
-  <text x="96" y="1000" font-family="Chakra Petch, sans-serif" font-weight="700" font-size="32" letter-spacing="8" fill="#1E2C47">GOBLINCAKES</text>
+  <!-- Kept away from the edges so 16:10 and 4:3 screens don't crop it -->
+  <text x="260" y="990" font-family="Chakra Petch, sans-serif" font-weight="700" font-size="32" letter-spacing="8" fill="#1E2C47">GOBLINCAKES</text>
 </svg>
