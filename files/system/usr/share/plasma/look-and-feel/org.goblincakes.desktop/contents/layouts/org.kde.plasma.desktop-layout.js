@@ -9,15 +9,16 @@ for (var i = 0; i < allDesktops.length; i++) {
     d.writeConfig("Image", "file:///usr/share/wallpapers/goblincakes/goblincakes.svg");
 }
 
-// ---- Top bar: "Apps" with logo left, system icons + clock + power right ----
+// ---- Top bar: logo left, system icons + clock + power right ----
 var topBar = new Panel;
 topBar.location = "top";
 topBar.height = Math.round(gridUnit * 2.4);
 try { topBar.floating = false; } catch (e) {}
 
-var apps = topBar.addWidget("org.kde.plasma.kickoff");
+// The logo opens the Application Dashboard (full-screen app grid)
+var apps = topBar.addWidget("org.kde.plasma.kickerdash");
 apps.currentConfigGroup = ["General"];
-apps.writeConfig("icon", "goblincakes");   // logo only, no text label
+apps.writeConfig("icon", "goblincakes");
 
 topBar.addWidget("org.kde.plasma.panelspacer");
 // System tray: only network, volume and notifications, like the design
@@ -90,10 +91,3 @@ tasks.writeConfig("launchers", [
     "applications:code.desktop",
     "applications:org.videolan.VLC.desktop"
 ]);
-
-dock.addWidget("org.kde.plasma.marginsseparator");
-
-// "Show all apps" grid, like GNOME
-var allApps = dock.addWidget("org.kde.plasma.kickerdash");
-allApps.currentConfigGroup = ["General"];
-allApps.writeConfig("icon", "view-app-grid-symbolic");
