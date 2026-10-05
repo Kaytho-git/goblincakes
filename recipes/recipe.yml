@@ -20,9 +20,11 @@ modules:
         - vscode.repo                        # files/dnf/vscode.repo
       copr:
         - bieszczaders/kernel-cachyos-addons # ananicy-cpp + rules
+        - mineiro/ghostty                    # Ghostty terminal
     install:
       packages:
         - code                  # VS Code
+        - ghostty               # default terminal
         - libratbag-ratbagd     # backend for Piper (G502 Hero)
         - ddcutil               # monitor brightness over DDC/CI
         - gamemode              # performance mode while gaming
