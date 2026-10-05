@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=GOBLINCAKES
+Description=GOBLINCAKES boot screen: logo, name and a blue progress line on black
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/goblincakes
+ScriptFile=/usr/share/plymouth/themes/goblincakes/goblincakes.script

@@ -1,0 +1,94 @@
+// GOBLINCAKES boot screen (Plymouth), after the design's Boot artboard:
+// black, logo, "GOBLINCAKES" in Chakra Petch, thin blue progress line.
+// Measurements are the design's at 1920x1080; images are drawn at 2x.
+
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+
+W = Window.GetWidth();
+H = Window.GetHeight();
+s = H / 1080;                       // scale to the screen
+
+// Column: logo 180, gap 36, title 52, gap 60, line 3  -> 331 high, centred
+top = Math.Int((H - 331 * s) / 2);
+
+fun place(file, w, h, y) {
+    img = Image(file).Scale(Math.Int(w * s), Math.Int(h * s));
+    spr = Sprite(img);
+    spr.SetX(Math.Int((W - img.GetWidth()) / 2));
+    spr.SetY(y);
+    return spr;
+}
+
+logo  = place("logo.png", 180, 180, top);
+title = place("title.png", 400, 52, top + Math.Int(216 * s));
+
+// Progress line: 280 x 3, Deep track with Accent fill
+barW = Math.Int(280 * s);
+barH = Math.Max(2, Math.Int(3 * s));
+barX = Math.Int((W - barW) / 2);
+barY = top + Math.Int(328 * s);
+
+track = Sprite(Image("bar-bg.png").Scale(barW, barH));
+track.SetPosition(barX, barY, 1);
+fillImg = Image("bar-fg.png");
+fill = Sprite();
+fill.SetPosition(barX, barY, 2);
+
+fun progress_callback(duration, progress) {
+    w = Math.Int(barW * progress);
+    if (w < 1) w = 1;
+    fill.SetImage(fillImg.Scale(w, barH));
+}
+Plymouth.SetBootProgressFunction(progress_callback);
+
+// ---- Disk password (encrypted drives): square box with a padlock and bullets ----
+boxW = Math.Int(360 * s);
+boxH = Math.Int(48 * s);
+boxX = Math.Int((W - boxW) / 2);
+boxY = barY - Math.Int(12 * s);
+pwFrame = Sprite(Image("box-border.png").Scale(boxW, boxH));
+pwFrame.SetPosition(boxX, boxY, 10);
+pwInner = Sprite(Image("box.png").Scale(boxW - 2, boxH - 2));
+pwInner.SetPosition(boxX + 1, boxY + 1, 11);
+pwLock = Sprite(Image("lock.png").Scale(Math.Int(24 * s), Math.Int(24 * s)));
+pwLock.SetPosition(boxX + Math.Int(14 * s), boxY + Math.Int(12 * s), 12);
+bulletImg = Image("bullet.png").Scale(Math.Int(8 * s), Math.Int(8 * s));
+
+fun show_password(visible) {
+    o = 0;
+    if (visible) o = 1;
+    pwFrame.SetOpacity(o);
+    pwInner.SetOpacity(o);
+    pwLock.SetOpacity(o);
+    track.SetOpacity(1 - o);
+    fill.SetOpacity(1 - o);
+    if (!visible) {
+        for (i = 0; global.bullets[i]; i++) global.bullets[i].SetOpacity(0);
+    }
+}
+show_password(0);
+
+fun password_callback(prompt, count) {
+    show_password(1);
+    maxBullets = Math.Int((boxW - 60 * s) / (14 * s));
+    for (i = 0; i < maxBullets; i++) {
+        if (!global.bullets[i]) {
+            global.bullets[i] = Sprite(bulletImg);
+            global.bullets[i].SetPosition(boxX + Math.Int((50 + 14 * i) * s), boxY + Math.Int(20 * s), 13);
+        }
+        if (i < count) global.bullets[i].SetOpacity(1);
+        else global.bullets[i].SetOpacity(0);
+    }
+}
+Plymouth.SetDisplayPasswordFunction(password_callback);
+
+fun normal_callback() {
+    show_password(0);
+}
+Plymouth.SetDisplayNormalFunction(normal_callback);
+
+fun quit_callback() {
+    fill.SetImage(fillImg.Scale(barW, barH));
+}
+Plymouth.SetQuitFunction(quit_callback);

@@ -26,6 +26,7 @@ modules:
       packages:
         - code                  # VS Code
         - ghostty               # default terminal
+        - plymouth-plugin-script # engine for the GOBLINCAKES boot screen
         - plasma-applet-appgrid # app grid in the middle of the screen
         - aurorae               # engine for the GOBLINCAKES window frames
         - kvantum               # engine for the GOBLINCAKES widget theme
@@ -68,5 +69,9 @@ modules:
     properties:
       NAME: GOBLINCAKES
       PRETTY_NAME: GOBLINCAKES
+
+  # Rebuild the initramfs so the GOBLINCAKES boot screen (Plymouth) is used.
+  # Keep this near the end: it picks up everything done before it.
+  - type: initramfs
 
   - type: signing

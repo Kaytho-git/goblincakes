@@ -47,7 +47,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 - Avvikelser från designen som kräver egna widgets: strömknappen har utloggningsikon, "Apps" i IBM Plex (inte Chakra Petch), aktiv-app-markering är Breezes.
 - Efter ändringar i look-and-feel måste användaren köra `rm ~/.local/state/goblincakes/firstlogin-done` och logga ut/in för att se dem.
 - Utseende: GNOME-likt, behåll minimera/maximera/stäng. Tema efter intressen: WoW och bågskytte. Utloggningstexten på engelska: "Goodbye! See you next raid!" (knapparna på svenska).
-- Ej gjort: Plymouth-uppstartsskärm (kräver initramfs-ombyggnad).
+- Plymouth-uppstartsskärm: `files/system/usr/share/plymouth/themes/goblincakes/` (script-tema efter designens Boot-rityta: svart, logga, GOBLINCAKES, blå progresslinje 280×3; lösenordsruta med hänglås och fyrkantiga punkter för krypterade diskar, ingen text eftersom label-plugin saknas i initramfs). Satt i `files/system/etc/plymouth/plymouthd.conf`; kräver paketet `plymouth-plugin-script` och modulen `initramfs` sist i receptet. PNG:erna ritas med `tools/plymouth-render.js` (2x, skalas efter skärmhöjd).
 - Alltid installerat: Piper (G502 Hero), VIA via Chromium (Keychron V10), ddcutil.
 - Setup-väljaren (steg 4) ska erbjuda: Proton-hanterare (auto-hämta GE-Proton), WowUp, Raider.IO och Archon (AppImages via Gear Lever), OBS, LibreOffice, FileZilla, Flatseal, Gear Lever.
 - WoW via Lutris/Battle.net med GE-Proton, installerat *inne i* Wine-prefixet (krävs för att butiken/CEF ska fungera). Symlänkar `~/Games/WoW/Logs` och `~/Games/WoW/AddOns` pekar in i prefixet.
