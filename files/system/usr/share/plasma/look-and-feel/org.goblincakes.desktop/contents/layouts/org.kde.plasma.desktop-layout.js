@@ -17,8 +17,7 @@ try { topBar.floating = false; } catch (e) {}
 
 var apps = topBar.addWidget("org.kde.plasma.kickoff");
 apps.currentConfigGroup = ["General"];
-apps.writeConfig("icon", "goblincakes");
-apps.writeConfig("menuLabel", "Apps");
+apps.writeConfig("icon", "goblincakes");   // logo only, no text label
 
 topBar.addWidget("org.kde.plasma.panelspacer");
 // System tray: only network, volume and notifications, like the design
