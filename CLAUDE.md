@@ -39,7 +39,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
   - Typsnitt: Chakra Petch (rubriker), IBM Plex Sans (gränssnitt).
   - Logga: vit goblinhuvud-siluett med öron som är toppen på en blå cupcake-form.
   - Allt platt med raka hörn (fönster, docka, popups, knappar).
-- `files/system/usr/share/Kvantum/GoblinCakes/`: Kvantum-tema = KvFlat (Tsu Jan, GPL-3.0) omfärgat till paletten (färgkartan ligger i commit-historiken); styr knappar/reglage/flikar i Qt/KDE-program
+- `files/system/usr/share/Kvantum/GoblinCakes/`: Kvantum-tema = KvFlat (Tsu Jan, GPL-3.0) omfärgat till paletten (färgkarta: `tools/kvantum-colormap.sed`); styr knappar/reglage/flikar i Qt/KDE-program
 - Avvikelser från designen som kräver egna widgets: strömknappen har utloggningsikon, "Apps" i IBM Plex (inte Chakra Petch), aktiv-app-markering är Breezes.
 - Efter ändringar i look-and-feel måste användaren köra `rm ~/.local/state/goblincakes/firstlogin-done` och logga ut/in för att se dem.
 - Utseende: GNOME-likt, behåll minimera/maximera/stäng. Tema efter intressen: WoW och bågskytte. Utloggningstexten på engelska: "Goodbye! See you next raid!" (knapparna på svenska).
