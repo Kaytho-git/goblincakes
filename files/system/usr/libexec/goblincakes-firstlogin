@@ -1,17 +1,25 @@
 #!/bin/sh
-# Applies the GOBLINCAKES look once per user, on their first login.
+# Applies the GOBLINCAKES look once per user, and again whenever a new image
+# ships a changed desktop layout (bump LAYOUT_VERSION when the look-and-feel
+# layout, colour scheme or Ghostty defaults change).
+LAYOUT_VERSION=2
 MARK="$HOME/.local/state/goblincakes/firstlogin-done"
-[ -f "$MARK" ] && exit 0
+[ "$(cat "$MARK" 2>/dev/null)" = "$LAYOUT_VERSION" ] && exit 0
 
 sleep 3
 plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout
 plasma-apply-colorscheme GoblinCakes
 
 # Ghostty: GOBLINCAKES colours and font, slightly see-through.
-# Only written if the user has no Ghostty config of their own yet.
+# Written if the user has no Ghostty config, or only the empty template
+# Ghostty creates itself on first start (nothing but comments).
 GHOSTTY="${XDG_CONFIG_HOME:-$HOME/.config}/ghostty"
-if [ ! -e "$GHOSTTY/config.ghostty" ] && [ ! -e "$GHOSTTY/config" ]; then
+_gc_has_settings() {
+    [ -e "$1" ] && grep -qv '^[[:space:]]*\(#.*\)\{0,1\}$' "$1"
+}
+if ! _gc_has_settings "$GHOSTTY/config.ghostty" && ! _gc_has_settings "$GHOSTTY/config"; then
     mkdir -p "$GHOSTTY"
+    rm -f "$GHOSTTY/config"
     cat > "$GHOSTTY/config.ghostty" <<'EOF'
 # GOBLINCAKES defaults – change anything you like
 theme = GoblinCakes
@@ -26,4 +34,4 @@ EOF
 fi
 
 mkdir -p "$(dirname "$MARK")"
-touch "$MARK"
+echo "$LAYOUT_VERSION" > "$MARK"
