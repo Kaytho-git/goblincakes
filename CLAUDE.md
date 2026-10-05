@@ -25,7 +25,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
   - `contents/logout/Logout.qml`: svart, vinkande goblin, pratbubbla "Hejdå! / Vi syns nästa raid.", platta raka knappar kopplade till logout-greeterns signaler (logoutRequested, rebootRequested, haltRequested, cancelRequested)
 - `files/system/usr/share/icons/hicolor/scalable/apps/goblincakes.svg`: loggan (ikonnamn `goblincakes`)
 - `files/system/usr/share/color-schemes/GoblinCakes.colors`: designens palett
-- `files/system/usr/share/wallpapers/goblincakes/goblincakes.svg`: piltavla med tunna ringar, en pil, "GOBLINCAKES" nere till vänster (skrivbord, låsskärm, SDDM)
+- `files/system/usr/share/wallpapers/goblincakes/goblincakes.svg`: skrivbord + låsskärm = mörkblå (Deep #12203A) med goblin-loggan ton-i-ton som svingar en yxa (ersatte piltavlan 6 okt)
 - `files/system/usr/share/wallpapers/goblincakes/goblincakes-login.svg` + `files/system/usr/share/sddm/themes/breeze/theme.conf.user`: inloggningsskärmen = mörkblå (Deep #12203A) med goblin-loggan ton-i-ton till höger om mitten
 - `files/system/usr/share/icons/goblincakes/`: ikontema (ärver breeze-dark) med designens linjeikoner för Firefox, Steam, Discord, VS Code, VLC, Ianseo och "alla appar"; satt i kdeglobals och look-and-feel
 - `files/system/usr/share/plasma/desktoptheme/goblincakes/`: `dialogs/background.svg` (popups) och `widgets/panel-background.svg` (toppfält/docka) – raka hörn, 1px ram; resten faller tillbaka på Breeze
