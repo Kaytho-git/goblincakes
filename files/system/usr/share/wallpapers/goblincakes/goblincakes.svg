@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160">
+  <rect width="3840" height="2160" fill="#06080c"/>
+
+  <!-- Archery target face: ten rings, black and dark blue, kept subtle -->
+  <g transform="translate(2700 1180)">
+    <circle r="1000" fill="#07090f"/>
+    <circle r="800" fill="#080b14"/>
+    <circle r="600" fill="#090e1a"/>
+    <circle r="400" fill="#0b1222"/>
+    <circle r="200" fill="#0e1830"/>
+    <circle r="100" fill="#12204a"/>
+    <g fill="none" stroke="#1e3a8a" stroke-width="5">
+      <circle r="1000" stroke-opacity="0.35"/>
+      <circle r="900" stroke-opacity="0.25"/>
+      <circle r="800" stroke-opacity="0.35"/>
+      <circle r="700" stroke-opacity="0.25"/>
+      <circle r="600" stroke-opacity="0.35"/>
+      <circle r="500" stroke-opacity="0.25"/>
+      <circle r="400" stroke-opacity="0.35"/>
+      <circle r="300" stroke-opacity="0.25"/>
+      <circle r="200" stroke-opacity="0.45"/>
+      <circle r="100" stroke-opacity="0.55"/>
+      <circle r="50" stroke-opacity="0.45"/>
+    </g>
+  </g>
+
+  <!-- Arrows stuck in the target -->
+  <g stroke-linecap="round">
+    <g transform="translate(2715 1160) rotate(205)">
+      <line x1="0" y1="0" x2="520" y2="0" stroke="#2a3348" stroke-width="12"/>
+      <path d="M420 0 L520 -40 L538 -40 L468 0 Z" fill="#1e3a8a"/>
+      <path d="M420 0 L520 40 L538 40 L468 0 Z" fill="#172c66"/>
+    </g>
+    <g transform="translate(2585 1290) rotate(160)">
+      <line x1="0" y1="0" x2="480" y2="0" stroke="#2a3348" stroke-width="12"/>
+      <path d="M385 0 L480 -38 L498 -38 L433 0 Z" fill="#1e3a8a"/>
+      <path d="M385 0 L480 38 L498 38 L433 0 Z" fill="#172c66"/>
+    </g>
+    <g transform="translate(2830 1090) rotate(250)">
+      <line x1="0" y1="0" x2="500" y2="0" stroke="#2a3348" stroke-width="12"/>
+      <path d="M405 0 L500 -40 L518 -40 L453 0 Z" fill="#1e3a8a"/>
+      <path d="M405 0 L500 40 L518 40 L453 0 Z" fill="#172c66"/>
+    </g>
+  </g>
+</svg>

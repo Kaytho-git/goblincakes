@@ -1,0 +1,4 @@
+[KSplash]
+# GOBLINCAKES splash from the very first login
+Engine=KSplashQML
+Theme=org.goblincakes.desktop

@@ -7,8 +7,12 @@ ColorScheme=GoblinCakes
 [kdeglobals][Icons]
 Theme=breeze-dark
 
+[ksplashrc][KSplash]
+Engine=KSplashQML
+Theme=org.goblincakes.desktop
+
 [plasmarc][Theme]
-name=default
+name=goblincakes
 
 [kwinrc][org.kde.kdecoration2]
 library=org.kde.breeze

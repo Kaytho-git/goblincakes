@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">
+  <defs>
+    <!-- Hides everything below the rim, so the goblin sits inside the cupcake -->
+    <clipPath id="aboveRim"><rect width="500" height="300"/></clipPath>
+  </defs>
+  <g fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <g clip-path="url(#aboveRim)">
+      <!-- Head and ears -->
+      <ellipse cx="250" cy="236" rx="76" ry="66"/>
+      <path d="M178 214 L72 166 Q110 226 184 268"/>
+      <path d="M170 230 L112 196"/>
+      <path d="M322 214 L428 166 Q390 226 316 268"/>
+      <path d="M330 230 L388 196"/>
+
+      <!-- Face -->
+      <ellipse cx="222" cy="234" rx="17" ry="19"/>
+      <ellipse cx="278" cy="234" rx="17" ry="19"/>
+      <path d="M204 208 Q220 196 238 206"/>
+      <path d="M296 208 Q280 196 262 206"/>
+      <path d="M240 260 Q250 268 260 260"/>
+      <path d="M220 276 Q250 298 280 276"/>
+      <path d="M234 284 L238 294 L243 288"/>
+      <path d="M257 288 L262 294 L266 284"/>
+    </g>
+
+    <!-- Hands gripping the rim -->
+    <path d="M128 302 q6 -14 12 -2 q6 -14 12 -2 q6 -14 12 -2"/>
+    <path d="M336 302 q6 -14 12 -2 q6 -14 12 -2 q6 -14 12 -2"/>
+
+    <!-- Cupcake wrapper -->
+    <path d="M104 300 L396 300"/>
+    <path d="M112 300 L146 470 L354 470 L388 300"/>
+    <path d="M166 300 L180 470 M208 300 L215 470 M250 300 L250 470 M292 300 L285 470 M334 300 L320 470"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="224" cy="237" r="7"/>
+    <circle cx="276" cy="237" r="7"/>
+  </g>
+</svg>

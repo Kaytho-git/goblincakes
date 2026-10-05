@@ -1,5 +1,14 @@
 // GOBLINCAKES panel layout (applied on first login)
 
+// ---- Wallpaper on every desktop ----
+var allDesktops = desktops();
+for (var i = 0; i < allDesktops.length; i++) {
+    var d = allDesktops[i];
+    d.wallpaperPlugin = "org.kde.image";
+    d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
+    d.writeConfig("Image", "file:///usr/share/wallpapers/goblincakes/goblincakes.svg");
+}
+
 // ---- Top bar: app menu left, clock centre, system icons right ----
 var topBar = new Panel;
 topBar.location = "top";

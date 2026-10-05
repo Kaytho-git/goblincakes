@@ -1,0 +1,7 @@
+[Greeter]
+WallpaperPlugin=org.kde.image
+
+[Greeter][Wallpaper][org.kde.image][General]
+# Same background on the lock screen
+Image=file:///usr/share/wallpapers/goblincakes/goblincakes.svg
+PreviewImage=file:///usr/share/wallpapers/goblincakes/goblincakes.svg
