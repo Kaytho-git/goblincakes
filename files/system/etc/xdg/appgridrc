@@ -1,0 +1,12 @@
+# GOBLINCAKES defaults for AppGrid (the app grid behind the logo in the top bar).
+# The window itself uses our Plasma theme's popup frame (square, GOBLINCAKES colours).
+# Users can change all of this in AppGrid's own settings.
+[General]
+# Flat look: no drop shadows under the icons, no wobbling or shaking
+iconShadow=false
+hoverAnimation=0
+shakeOnOpen=false
+# Badge on newly installed apps is bright green, outside our palette
+showNewAppBadge=false
+# Never contact the AppGrid website (updates come with the image)
+checkForUpdates=false

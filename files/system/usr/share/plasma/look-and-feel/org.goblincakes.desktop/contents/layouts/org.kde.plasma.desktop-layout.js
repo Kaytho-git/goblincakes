@@ -15,8 +15,9 @@ topBar.location = "top";
 topBar.height = Math.round(gridUnit * 2.4);
 try { topBar.floating = false; } catch (e) {}
 
-// The logo opens the Application Dashboard (full-screen app grid)
-var apps = topBar.addWidget("org.kde.plasma.kickerdash");
+// The logo opens AppGrid: an app grid in the middle of the screen, like GNOME
+// (settings in /etc/xdg/appgridrc)
+var apps = topBar.addWidget("dev.xarbit.appgrid");
 apps.currentConfigGroup = ["General"];
 apps.writeConfig("icon", "goblincakes");
 

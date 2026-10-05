@@ -21,10 +21,12 @@ modules:
       copr:
         - bieszczaders/kernel-cachyos-addons # ananicy-cpp + rules
         - mineiro/ghostty                    # Ghostty terminal
+        - scujas/plasma-applet-appgrid       # AppGrid app launcher
     install:
       packages:
         - code                  # VS Code
         - ghostty               # default terminal
+        - plasma-applet-appgrid # app grid in the middle of the screen
         - aurorae               # engine for the GOBLINCAKES window frames
         - kvantum               # engine for the GOBLINCAKES widget theme
         - libratbag-ratbagd     # backend for Piper (G502 Hero)
