@@ -27,9 +27,9 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 - `files/system/usr/share/icons/hicolor/scalable/apps/goblincakes.svg`: loggan (ikonnamn `goblincakes`)
 - `files/system/usr/share/color-schemes/GoblinCakes.colors`: designens palett
 - `files/system/usr/share/wallpapers/goblincakes/goblincakes.svg`: skrivbord + låsskärm = mörkblå (Deep #12203A) med goblin-loggan ton-i-ton som svingar en yxa (ersatte piltavlan 6 okt)
-- `files/system/usr/share/wallpapers/goblincakes/goblincakes-login.svg` + `files/system/usr/share/sddm/themes/breeze/theme.conf.user`: inloggningsskärmen = mörkblå (Deep #12203A) med goblin-loggan ton-i-ton till höger om mitten
+- `files/system/usr/share/wallpapers/goblincakes/goblincakes-login.svg` + `theme.conf.user` i både `sddm/themes/breeze/` och Fedoras `sddm/themes/01-breeze-fedora/`: inloggningsskärmen = mörkblå (Deep #12203A) med goblin-loggan ton-i-ton till höger om mitten
 - `files/system/usr/share/icons/goblincakes/`: ikontema (ärver breeze-dark) med designens linjeikoner för Firefox, Steam, Discord, VS Code, VLC, Ianseo och "alla appar"; satt i kdeglobals och look-and-feel
-- `files/system/usr/share/plasma/desktoptheme/goblincakes/`: `dialogs/background.svg` (popups) och `widgets/panel-background.svg` (toppfält/docka) – raka hörn, 1px ram; resten faller tillbaka på Breeze
+- `files/system/usr/share/plasma/desktoptheme/goblincakes/`: `dialogs/background.svg` (popups) och `widgets/panel-background.svg` (toppfält/docka) – raka hörn, 1px ram; kopior i `translucent/` och `opaque/` krävs, annars tar Plasma Breezes genomskinliga varianter när blur finns; resten faller tillbaka på Breeze
 - `files/system/usr/share/aurorae/themes/goblincakes/`: fönsterramar efter designens Desktop-rityta – namnlist 44 px #0B1018, 1 px ram #1E2A40, titel vänster, platta linjeknappar 40×32 (stäng-hover röd #A4262C), inga skuggor/rundade hörn
 
 ## Beslut och önskemål

@@ -1,0 +1,4 @@
+[General]
+# GOBLINCAKES background on the login screen (Fedora's SDDM theme 01-breeze-fedora)
+background=/usr/share/wallpapers/goblincakes/goblincakes-login.svg
+type=image
