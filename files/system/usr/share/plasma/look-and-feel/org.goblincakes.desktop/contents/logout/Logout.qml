@@ -1,4 +1,4 @@
-// GOBLINCAKES logout screen: waving goblin + log out / restart / shut down
+// GOBLINCAKES logout screen: waving goblin, goodbye bubble, log out / restart / shut down
 import QtQuick
 
 Item {
@@ -16,13 +16,15 @@ Item {
     signal lockScreenRequested()
     signal cancelSoftwareUpdateRequested()
 
+    // Sizes from the 1920×1080 design, scaled to the screen
+    readonly property real s: height / 1080
+
     focus: true
     Keys.onEscapePressed: root.cancelRequested()
 
     Rectangle {
         anchors.fill: parent
-        color: "#0c1a3a"
-        opacity: 0.96
+        color: "#000000"
     }
 
     MouseArea {
@@ -30,69 +32,99 @@ Item {
         onClicked: root.cancelRequested()
     }
 
-    Column {
+    Row {
         anchors.centerIn: parent
-        spacing: 24
+        spacing: Math.round(56 * root.s)
 
         Image {
-            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
             source: "images/goblin-wave.svg"
-            sourceSize.width: Math.round(root.height / 3)
-            sourceSize.height: Math.round(root.height / 3)
+            sourceSize.width: Math.round(300 * root.s)
+            sourceSize.height: Math.round(260 * root.s)
         }
 
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: "Hejdå! Vi syns nästa raid!"
-            color: "#e6e9f0"
-            font.pixelSize: Math.round(root.height / 28)
-        }
+        Column {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Math.round(18 * root.s)
 
-        Row {
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 12
+            // Speech bubble
+            Rectangle {
+                width: bubble.implicitWidth + Math.round(80 * root.s)
+                height: bubble.implicitHeight + Math.round(56 * root.s)
+                color: "#0E1420"
+                border.color: "#1E2A40"
+                border.width: 1
 
-            GoblinButton {
-                label: "Logga ut"
-                visible: typeof canLogout === "undefined" || canLogout
-                primary: true
-                onClicked: root.logoutRequested()
+                Column {
+                    id: bubble
+                    anchors.centerIn: parent
+                    spacing: Math.round(14 * root.s)
+
+                    Text {
+                        text: "Hejdå!"
+                        color: "#E6ECF5"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.Bold
+                        font.pixelSize: Math.round(64 * root.s)
+                    }
+                    Text {
+                        text: "Vi syns nästa raid."
+                        color: "#8B98AD"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: Math.round(30 * root.s)
+                    }
+                }
             }
-            GoblinButton {
-                label: "Starta om"
-                visible: maysd
-                onClicked: root.rebootRequested()
-            }
-            GoblinButton {
-                label: "Stäng av"
-                visible: maysd
-                onClicked: root.haltRequested()
-            }
-            GoblinButton {
-                label: "Avbryt"
-                onClicked: root.cancelRequested()
+
+            Row {
+                spacing: Math.round(12 * root.s)
+
+                GoblinButton {
+                    label: "Logga ut"
+                    visible: typeof canLogout === "undefined" || canLogout
+                    primary: true
+                    onClicked: root.logoutRequested()
+                }
+                GoblinButton {
+                    label: "Starta om"
+                    visible: maysd
+                    onClicked: root.rebootRequested()
+                }
+                GoblinButton {
+                    label: "Stäng av"
+                    visible: maysd
+                    onClicked: root.haltRequested()
+                }
+                GoblinButton {
+                    label: "Avbryt"
+                    onClicked: root.cancelRequested()
+                }
             }
         }
     }
 
+    // Flat, square buttons like the design's Reset / Apply
     component GoblinButton: Rectangle {
         property string label
         property bool primary: false
         signal clicked()
 
-        width: Math.max(140, labelText.implicitWidth + 40)
-        height: 44
-        radius: 6
-        color: primary ? (area.containsMouse ? "#3b82f6" : "#1d4ed8")
-                       : (area.containsMouse ? "#1c2334" : "#161c2a")
-        border.color: "#1c2334"
+        width: labelText.implicitWidth + Math.round(44 * root.s)
+        height: Math.max(40, Math.round(44 * root.s))
+        color: primary ? (area.containsMouse ? "#4A82F0" : "#2F6FED")
+                       : (area.containsMouse ? "#12203A" : "transparent")
+        border.color: primary ? "transparent" : "#2A3852"
+        border.width: 1
 
         Text {
             id: labelText
             anchors.centerIn: parent
             text: parent.label
-            color: primary ? "#ffffff" : "#e6e9f0"
-            font.pixelSize: 16
+            color: primary ? "#FFFFFF" : "#E6ECF5"
+            font.family: "IBM Plex Sans"
+            font.weight: primary ? Font.Medium : Font.Normal
+            font.pixelSize: Math.max(14, Math.round(17 * root.s))
         }
 
         MouseArea {

@@ -2,7 +2,7 @@
     "KPackageStructure": "Plasma/Theme",
     "KPlugin": {
         "Authors": [{ "Name": "Kaytho" }],
-        "Description": "GOBLINCAKES: Breeze with square popups (app menu, calendar, system tray)",
+        "Description": "GOBLINCAKES: Breeze with square popups and panels in the GOBLINCAKES palette",
         "Id": "goblincakes",
         "License": "GPL-2.0-or-later",
         "Name": "GOBLINCAKES",

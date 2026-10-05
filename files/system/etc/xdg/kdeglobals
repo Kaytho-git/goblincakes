@@ -3,6 +3,15 @@
 TerminalApplication=ghostty
 TerminalService=com.mitchellh.ghostty.desktop
 
+# IBM Plex Sans for the interface (installed by the fonts module)
+font=IBM Plex Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+menuFont=IBM Plex Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+toolBarFont=IBM Plex Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+smallestReadableFont=IBM Plex Sans,8,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+
 [KDE]
 # Faster animations (1.0 = default, lower = snappier)
 AnimationDurationFactor=0.5
+
+[WM]
+activeFont=IBM Plex Sans,10,-1,5,500,0,0,0,0,0,0,0,0,0,0,1

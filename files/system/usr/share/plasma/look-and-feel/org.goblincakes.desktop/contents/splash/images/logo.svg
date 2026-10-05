@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- GOBLINCAKES logo: goblin head is the top of the cupcake -->
+  <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+  <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
+  <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
+  <path d="M30 70 H90 L81 106 H39 Z" fill="#2F6FED"/>
+  <path d="M49 73 L51 103 M60 73 V103 M71 73 L69 103" stroke="#07090D" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.45"/>
+</svg>

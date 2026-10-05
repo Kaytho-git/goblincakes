@@ -31,6 +31,13 @@ modules:
         - ananicy-cpp           # keeps the desktop responsive under load
         - cachyos-ananicy-rules
 
+  # GOBLINCAKES typefaces (downloaded from Google Fonts at build time)
+  - type: fonts
+    fonts:
+      google-fonts:
+        - Chakra Petch    # headings, splash, logout
+        - IBM Plex Sans   # interface and body text
+
   # Always-installed Flatpaks (validated against Flathub at build time)
   - type: default-flatpaks
     configurations:
