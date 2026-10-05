@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 130" width="300" height="260">
+  <!-- Waving arm and hand -->
+  <path d="M90 64 Q106 58 113 38" stroke="#E6ECF5" stroke-width="7" stroke-linecap="round" fill="none"/>
+  <circle cx="114" cy="32" r="7" fill="#E6ECF5"/>
+  <path d="M110 26 L108 19 M114 25 L114 17 M118 26 L120 19" stroke="#E6ECF5" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M128 22 Q134 30 130 40 M136 16 Q144 30 138 46" stroke="#2F6FED" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <!-- Head with happy closed eyes -->
+  <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+  <path d="M44 47 Q48 43 53 47" stroke="#000000" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M67 47 Q72 43 76 47" stroke="#000000" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M51 55 Q60 62 69 55" stroke="#000000" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <!-- Cupcake wrapper -->
+  <path d="M30 70 H90 L81 106 H39 Z" fill="#2F6FED"/>
+  <path d="M49 73 L51 103 M60 73 V103 M71 73 L69 103" stroke="#000000" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.45"/>
+</svg>

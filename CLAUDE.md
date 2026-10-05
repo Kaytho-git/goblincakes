@@ -22,7 +22,8 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 - `files/system/usr/libexec/goblincakes-firstlogin`: kör en gång per användare – `plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout` + `plasma-apply-colorscheme GoblinCakes`
 - `files/system/usr/share/plasma/look-and-feel/org.goblincakes.desktop/`: layout = toppfält (kickerdash (Instrumentpanel för program) med bara loggan vänster; systray bara nätverk/volym/notiser/batteri via extraItems+knownItems, klocka "ddd d MMM" bredvid tiden, strömknapp lock_logout höger) + centrerad flytande docka (Firefox, Steam, Discord, VS Code, VLC) med `hiding = "dodgewindows"` + bakgrundsbild
   - `contents/splash/Splash.qml`: svart, logga, "GOBLINCAKES" i Chakra Petch, blå laddningslinje, "Booting into GOBLINCAKES OS…" (mått från designen, skalade efter skärmhöjd)
-  - `contents/logout/Logout.qml`: svart, vinkande goblin, pratbubbla "Goodbye! / See you next raid!", platta raka knappar kopplade till logout-greeterns signaler (logoutRequested, rebootRequested, haltRequested, cancelRequested)
+  - `contents/logout/Logout.qml`: svart, vinkande goblin, pratbubbla "Goodbye! / See you next raid!", platta raka knappar (texter via Plasmas egna översättningar, användarens språk) kopplade till logout-greeterns signaler (logoutRequested, rebootRequested, haltRequested, cancelRequested)
+  - **Plasma 6.8+ läser utloggningsrutan från skalpaketet**, så en identisk kopia ligger i `files/system/usr/share/plasma/shells/org.kde.plasma.desktop/contents/logout/` (ersätter plasma-desktops egen). Ändra alltid båda kopiorna.
 - `files/system/usr/share/icons/hicolor/scalable/apps/goblincakes.svg`: loggan (ikonnamn `goblincakes`)
 - `files/system/usr/share/color-schemes/GoblinCakes.colors`: designens palett
 - `files/system/usr/share/wallpapers/goblincakes/goblincakes.svg`: skrivbord + låsskärm = mörkblå (Deep #12203A) med goblin-loggan ton-i-ton som svingar en yxa (ersatte piltavlan 6 okt)

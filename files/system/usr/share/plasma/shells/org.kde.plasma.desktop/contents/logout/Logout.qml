@@ -1,4 +1,7 @@
 // GOBLINCAKES logout screen: waving goblin, goodbye bubble, log out / restart / shut down
+// Copy of the look-and-feel logout screen. Plasma 6.8+ loads the logout UI from
+// the shell package instead of look-and-feel, so this file replaces the default
+// one shipped by plasma-desktop. Keep both copies identical.
 import QtQuick
 
 Item {
