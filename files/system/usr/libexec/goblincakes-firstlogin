@@ -7,5 +7,23 @@ sleep 3
 plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout
 plasma-apply-colorscheme GoblinCakes
 
+# Ghostty: GOBLINCAKES colours and font, slightly see-through.
+# Only written if the user has no Ghostty config of their own yet.
+GHOSTTY="${XDG_CONFIG_HOME:-$HOME/.config}/ghostty"
+if [ ! -e "$GHOSTTY/config.ghostty" ] && [ ! -e "$GHOSTTY/config" ]; then
+    mkdir -p "$GHOSTTY"
+    cat > "$GHOSTTY/config.ghostty" <<'EOF'
+# GOBLINCAKES defaults – change anything you like
+theme = GoblinCakes
+font-family = IBM Plex Mono
+font-size = 11
+background-opacity = 0.9
+background-blur = true
+window-decoration = server
+window-padding-x = 8
+window-padding-y = 8
+EOF
+fi
+
 mkdir -p "$(dirname "$MARK")"
 touch "$MARK"

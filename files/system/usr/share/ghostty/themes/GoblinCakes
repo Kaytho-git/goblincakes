@@ -1,0 +1,24 @@
+# GOBLINCAKES terminal colours (palette from the GOBLINCAKES design)
+background = #07090D
+foreground = #E6ECF5
+cursor-color = #2F6FED
+cursor-text = #07090D
+selection-background = #1E3A6B
+selection-foreground = #E6ECF5
+
+palette = 0=#0E1420
+palette = 1=#E5484D
+palette = 2=#3DD68C
+palette = 3=#F5B83D
+palette = 4=#2F6FED
+palette = 5=#A78BFA
+palette = 6=#38BDF8
+palette = 7=#C9D3E3
+palette = 8=#3F5070
+palette = 9=#FF6B70
+palette = 10=#6BE3A8
+palette = 11=#FFD27A
+palette = 12=#6E9BFF
+palette = 13=#C4B5FD
+palette = 14=#7DD3FC
+palette = 15=#E6ECF5

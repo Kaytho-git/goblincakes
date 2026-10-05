@@ -1,0 +1,3 @@
+[Icon Theme]
+# Light (white) mouse pointer for apps outside KDE too
+Inherits=Breeze_Light

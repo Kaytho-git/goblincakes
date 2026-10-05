@@ -39,6 +39,7 @@ modules:
       google-fonts:
         - Chakra Petch    # headings, splash, logout
         - IBM Plex Sans   # interface and body text
+        - IBM Plex Mono   # Ghostty terminal
 
   # Always-installed Flatpaks (validated against Flathub at build time)
   - type: default-flatpaks

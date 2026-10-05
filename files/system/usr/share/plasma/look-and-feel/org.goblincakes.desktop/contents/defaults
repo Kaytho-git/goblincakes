@@ -17,3 +17,6 @@ name=goblincakes
 [kwinrc][org.kde.kdecoration2]
 library=org.kde.kwin.aurorae
 theme=__aurorae__svg__goblincakes
+
+[kcminputrc][Mouse]
+cursorTheme=Breeze_Light
