@@ -22,7 +22,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 - `files/system/usr/libexec/goblincakes-firstlogin`: kör en gång per användare – `plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout` + `plasma-apply-colorscheme GoblinCakes`
 - `files/system/usr/share/plasma/look-and-feel/org.goblincakes.desktop/`: layout = toppfält (kickerdash (Instrumentpanel för program) med bara loggan vänster; systray bara nätverk/volym/notiser/batteri via extraItems+knownItems, klocka "ddd d MMM" bredvid tiden, strömknapp lock_logout höger) + centrerad flytande docka (Firefox, Steam, Discord, VS Code, VLC) med `hiding = "dodgewindows"` + bakgrundsbild
   - `contents/splash/Splash.qml`: svart, logga, "GOBLINCAKES" i Chakra Petch, blå laddningslinje, "Booting into GOBLINCAKES OS…" (mått från designen, skalade efter skärmhöjd)
-  - `contents/logout/Logout.qml`: svart, vinkande goblin, pratbubbla "Hejdå! / Vi syns nästa raid.", platta raka knappar kopplade till logout-greeterns signaler (logoutRequested, rebootRequested, haltRequested, cancelRequested)
+  - `contents/logout/Logout.qml`: svart, vinkande goblin, pratbubbla "Goodbye! / See you next raid!", platta raka knappar kopplade till logout-greeterns signaler (logoutRequested, rebootRequested, haltRequested, cancelRequested)
 - `files/system/usr/share/icons/hicolor/scalable/apps/goblincakes.svg`: loggan (ikonnamn `goblincakes`)
 - `files/system/usr/share/color-schemes/GoblinCakes.colors`: designens palett
 - `files/system/usr/share/wallpapers/goblincakes/goblincakes.svg`: skrivbord + låsskärm = mörkblå (Deep #12203A) med goblin-loggan ton-i-ton som svingar en yxa (ersatte piltavlan 6 okt)
@@ -39,7 +39,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
   - Allt platt med raka hörn (fönster, docka, popups, knappar).
 - Avvikelser från designen som kräver egna widgets: strömknappen har utloggningsikon, "Apps" i IBM Plex (inte Chakra Petch), aktiv-app-markering är Breezes.
 - Efter ändringar i look-and-feel måste användaren köra `rm ~/.local/state/goblincakes/firstlogin-done` och logga ut/in för att se dem.
-- Utseende: GNOME-likt, behåll minimera/maximera/stäng. Tema efter intressen: WoW och bågskytte. Utloggningstexten på svenska.
+- Utseende: GNOME-likt, behåll minimera/maximera/stäng. Tema efter intressen: WoW och bågskytte. Utloggningstexten på engelska: "Goodbye! See you next raid!" (knapparna på svenska).
 - Ej gjort: Plymouth-uppstartsskärm (kräver initramfs-ombyggnad).
 - Alltid installerat: Piper (G502 Hero), VIA via Chromium (Keychron V10), ddcutil.
 - Setup-väljaren (steg 4) ska erbjuda: Proton-hanterare (auto-hämta GE-Proton), WowUp, Raider.IO och Archon (AppImages via Gear Lever), OBS, LibreOffice, FileZilla, Flatseal, Gear Lever.

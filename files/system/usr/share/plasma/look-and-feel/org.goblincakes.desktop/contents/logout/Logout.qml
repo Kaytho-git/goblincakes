@@ -61,14 +61,14 @@ Item {
                     spacing: Math.round(14 * root.s)
 
                     Text {
-                        text: "Hejdå!"
+                        text: "Goodbye!"
                         color: "#E6ECF5"
                         font.family: "Chakra Petch"
                         font.weight: Font.Bold
                         font.pixelSize: Math.round(64 * root.s)
                     }
                     Text {
-                        text: "Vi syns nästa raid."
+                        text: "See you next raid!"
                         color: "#8B98AD"
                         font.family: "Chakra Petch"
                         font.weight: Font.DemiBold
