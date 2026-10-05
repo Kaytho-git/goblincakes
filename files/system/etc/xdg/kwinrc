@@ -1,4 +1,7 @@
 [org.kde.kdecoration2]
+# GOBLINCAKES window frames (Aurorae theme in /usr/share/aurorae/themes/goblincakes)
+library=org.kde.kwin.aurorae
+theme=__aurorae__svg__goblincakes
 # Keep minimise, maximise and close on the right
 ButtonsOnLeft=
 ButtonsOnRight=IAX

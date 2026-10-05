@@ -15,5 +15,5 @@ Theme=org.goblincakes.desktop
 name=goblincakes
 
 [kwinrc][org.kde.kdecoration2]
-library=org.kde.breeze
-theme=Breeze
+library=org.kde.kwin.aurorae
+theme=__aurorae__svg__goblincakes

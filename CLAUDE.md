@@ -14,11 +14,11 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 - [ ] Steg 6: Egen installations-ISO
 
 ## Vad som finns
-- `recipes/recipe.yml`: moduler `files`, `dnf` (VS Code, Ghostty, libratbag-ratbagd, ddcutil, gamemode, ananicy-cpp + cachyos-ananicy-rules från COPR `bieszczaders/kernel-cachyos-addons`), `fonts` (Google Fonts: Chakra Petch, IBM Plex Sans), `default-flatpaks` (Firefox, Steam, Discord, Lutris, VLC, Piper, Chromium – system scope), `systemd` (ratbagd, ananicy-cpp), `os-release` (NAME/PRETTY_NAME = GOBLINCAKES), `signing`.
+- `recipes/recipe.yml`: moduler `files`, `dnf` (VS Code, Ghostty, aurorae, libratbag-ratbagd, ddcutil, gamemode, ananicy-cpp + cachyos-ananicy-rules från COPR `bieszczaders/kernel-cachyos-addons`), `fonts` (Google Fonts: Chakra Petch, IBM Plex Sans), `default-flatpaks` (Firefox, Steam, Discord, Lutris, VLC, Piper, Chromium – system scope), `systemd` (ratbagd, ananicy-cpp), `os-release` (NAME/PRETTY_NAME = GOBLINCAKES), `signing`.
 - `files/dnf/vscode.repo`
 - `files/system/usr/lib/udev/rules.d/60-keychron.rules` (Keychron V10, vendor 3434, hidraw uaccess för VIA)
 - `files/system/usr/lib/modules-load.d/i2c-dev.conf` (ddcutil)
-- `files/system/etc/xdg/`: `kdeglobals` (Ghostty som terminal, IBM Plex Sans som systemtypsnitt, AnimationDurationFactor=0.5), `baloofilerc` (bara filnamn), `kwinrc` (knappar IAX till höger), `ksplashrc` (vår splash), `kscreenlockerrc` (piltavla på låsskärmen), `plasmarc` (plasma-tema goblincakes), `autostart/goblincakes-firstlogin.desktop`
+- `files/system/etc/xdg/`: `kdeglobals` (Ghostty som terminal, IBM Plex Sans som systemtypsnitt, AnimationDurationFactor=0.5), `baloofilerc` (bara filnamn), `kwinrc` (Aurorae-temat goblincakes, knappar IAX till höger), `ksplashrc` (vår splash), `kscreenlockerrc` (piltavla på låsskärmen), `plasmarc` (plasma-tema goblincakes), `autostart/goblincakes-firstlogin.desktop`
 - `files/system/usr/libexec/goblincakes-firstlogin`: kör en gång per användare – `plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout` + `plasma-apply-colorscheme GoblinCakes`
 - `files/system/usr/share/plasma/look-and-feel/org.goblincakes.desktop/`: layout = toppfält (kickerdash (Instrumentpanel för program) med bara loggan vänster; systray bara nätverk/volym/notiser/batteri via extraItems+knownItems, klocka "ddd d MMM" bredvid tiden, strömknapp lock_logout höger) + centrerad flytande docka (Firefox, Steam, Discord, VS Code, VLC) med `hiding = "dodgewindows"` + bakgrundsbild
   - `contents/splash/Splash.qml`: svart, logga, "GOBLINCAKES" i Chakra Petch, blå laddningslinje, "Booting into GOBLINCAKES OS…" (mått från designen, skalade efter skärmhöjd)
@@ -30,6 +30,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 - `files/system/usr/share/wallpapers/goblincakes/goblincakes-login.svg` + `files/system/usr/share/sddm/themes/breeze/theme.conf.user`: inloggningsskärmen = mörkblå (Deep #12203A) med goblin-loggan ton-i-ton till höger om mitten
 - `files/system/usr/share/icons/goblincakes/`: ikontema (ärver breeze-dark) med designens linjeikoner för Firefox, Steam, Discord, VS Code, VLC, Ianseo och "alla appar"; satt i kdeglobals och look-and-feel
 - `files/system/usr/share/plasma/desktoptheme/goblincakes/`: `dialogs/background.svg` (popups) och `widgets/panel-background.svg` (toppfält/docka) – raka hörn, 1px ram; resten faller tillbaka på Breeze
+- `files/system/usr/share/aurorae/themes/goblincakes/`: fönsterramar efter designens Desktop-rityta – namnlist 44 px #0B1018, 1 px ram #1E2A40, titel vänster, platta linjeknappar 40×32 (stäng-hover röd #A4262C), inga skuggor/rundade hörn
 
 ## Beslut och önskemål
 - Atomisk/immutabel, rollback ska fungera. Fedora-standardkärna. Inte baserad på Bazzite.
@@ -38,6 +39,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
   - Typsnitt: Chakra Petch (rubriker), IBM Plex Sans (gränssnitt).
   - Logga: vit goblinhuvud-siluett med öron som är toppen på en blå cupcake-form.
   - Allt platt med raka hörn (fönster, docka, popups, knappar).
+- Knappar/reglage i KDE-program är fortfarande Breeze (rundade); nästa steg vore ett Kvantum-tema.
 - Avvikelser från designen som kräver egna widgets: strömknappen har utloggningsikon, "Apps" i IBM Plex (inte Chakra Petch), aktiv-app-markering är Breezes.
 - Efter ändringar i look-and-feel måste användaren köra `rm ~/.local/state/goblincakes/firstlogin-done` och logga ut/in för att se dem.
 - Utseende: GNOME-likt, behåll minimera/maximera/stäng. Tema efter intressen: WoW och bågskytte. Utloggningstexten på engelska: "Goodbye! See you next raid!" (knapparna på svenska).
