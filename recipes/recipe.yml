@@ -1,45 +1,52 @@
----
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
-# image will be published to ghcr.io/<user>/<name>
 name: goblincakes
-# description will be included in the image's metadata
-description: This is my personal OS image.
+description: GOBLINCAKES - Fedora Kinoite with Nvidia, gaming, WoW and Ianseo tools
 
-# the base image to build on top of (FROM) and the version tag to use
-base-image: ghcr.io/ublue-os/silverblue-main
-image-version: latest # You can pin to a specific version of Fedora as well
+base-image: ghcr.io/ublue-os/kinoite-nvidia
+image-version: latest
 
-# module configuration, executed in order
-# you can include multiple instances of the same module
 modules:
+  # Copies everything in files/system/ into the image root
   - type: files
     files:
       - source: system
-        destination: / # copies files/system/* (* means everything inside it) into your image's root folder /
+        destination: /
 
+  # Layered RPM packages
   - type: dnf
     repos:
+      cleanup: true
+      files:
+        - vscode.repo                        # files/dnf/vscode.repo
       copr:
-        - atim/starship
+        - bieszczaders/kernel-cachyos-addons # ananicy-cpp + rules
     install:
       packages:
-        - micro
-        - starship
-    remove:
-      packages:
-        # example: removing firefox (in favor of the flatpak)
-        # "firefox" is the main package, "firefox-langpacks" is a dependency
-        - firefox
-        - firefox-langpacks # also remove firefox dependency (not required for all packages, this is a special case)
+        - code                  # VS Code
+        - libratbag-ratbagd     # backend for Piper (G502 Hero)
+        - ddcutil               # monitor brightness over DDC/CI
+        - gamemode              # performance mode while gaming
+        - ananicy-cpp           # keeps the desktop responsive under load
+        - cachyos-ananicy-rules
 
+  # Always-installed Flatpaks (validated against Flathub at build time)
   - type: default-flatpaks
     configurations:
-      - notify: true # Send notification after install/uninstall is finished (true/false)
-        scope: system
-        # If no repo information is specified, Flathub will be used by default
-        install: # system flatpaks we want all users to have and not remove
+      - scope: system
+        notify: true
+        install:
           - org.mozilla.firefox
-          - org.gnome.Loupe
-      - scope: user # Also add Flathub user repo, but no user packages
+          - com.valvesoftware.Steam
+          - com.discordapp.Discord
+          - net.lutris.Lutris
+          - org.videolan.VLC
+          - org.freedesktop.Piper   # mouse configurator
+          - org.chromium.Chromium   # for VIA / Keychron Launcher (WebHID)
 
-  - type: signing # this sets up the proper policy & signing files for signed images to work fully
+  - type: systemd
+    system:
+      enabled:
+        - ratbagd.service
+        - ananicy-cpp.service
+
+  - type: signing

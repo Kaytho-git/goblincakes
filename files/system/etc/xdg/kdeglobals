@@ -1,0 +1,3 @@
+[KDE]
+# Faster animations (1.0 = default, lower = snappier)
+AnimationDurationFactor=0.5
