@@ -1,0 +1,4 @@
+[org.kde.kdecoration2]
+# Keep minimise, maximise and close on the right
+ButtonsOnLeft=
+ButtonsOnRight=IAX

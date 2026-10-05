@@ -1,0 +1,11 @@
+#!/bin/sh
+# Applies the GOBLINCAKES look once per user, on their first login.
+MARK="$HOME/.local/state/goblincakes/firstlogin-done"
+[ -f "$MARK" ] && exit 0
+
+sleep 3
+plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout
+plasma-apply-colorscheme GoblinCakes
+
+mkdir -p "$(dirname "$MARK")"
+touch "$MARK"

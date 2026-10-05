@@ -51,4 +51,10 @@ modules:
         - ratbagd.service
         - ananicy-cpp.service
 
+  # GOBLINCAKES name in About this System and the boot menu
+  - type: os-release
+    properties:
+      NAME: GOBLINCAKES
+      PRETTY_NAME: GOBLINCAKES
+
   - type: signing

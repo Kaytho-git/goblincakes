@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES first login setup
+Exec=sh /usr/libexec/goblincakes-firstlogin
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2
