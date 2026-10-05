@@ -14,6 +14,8 @@ smallestReadableFont=IBM Plex Sans,8,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
 Theme=goblincakes
 
 [KDE]
+# Flat, square buttons and sliders (Kvantum theme GoblinCakes)
+widgetStyle=kvantum
 # Faster animations (1.0 = default, lower = snappier)
 AnimationDurationFactor=0.5
 

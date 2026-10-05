@@ -5,3 +5,10 @@ theme=__aurorae__svg__goblincakes
 # Keep minimise, maximise and close on the right
 ButtonsOnLeft=
 ButtonsOnRight=IAX
+
+[Plugins]
+# Windows turn see-through while you drag or resize them
+translucencyEnabled=true
+
+[Effect-translucency]
+MoveResize=75

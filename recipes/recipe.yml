@@ -26,6 +26,7 @@ modules:
         - code                  # VS Code
         - ghostty               # default terminal
         - aurorae               # engine for the GOBLINCAKES window frames
+        - kvantum               # engine for the GOBLINCAKES widget theme
         - libratbag-ratbagd     # backend for Piper (G502 Hero)
         - ddcutil               # monitor brightness over DDC/CI
         - gamemode              # performance mode while gaming
