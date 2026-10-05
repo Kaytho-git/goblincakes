@@ -5,7 +5,7 @@ widgetStyle=kvantum
 ColorScheme=GoblinCakes
 
 [kdeglobals][Icons]
-Theme=goblincakes
+Theme=breeze-dark
 
 [ksplashrc][KSplash]
 Engine=KSplashQML
