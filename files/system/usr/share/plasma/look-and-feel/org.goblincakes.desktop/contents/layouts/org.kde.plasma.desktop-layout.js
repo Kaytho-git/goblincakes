@@ -88,6 +88,6 @@ tasks.writeConfig("launchers", [
     "applications:org.mozilla.firefox.desktop",
     "applications:com.valvesoftware.Steam.desktop",
     "applications:com.discordapp.Discord.desktop",
-    "applications:code.desktop",
+    "applications:com.microsoft.VSCode.desktop",
     "applications:org.videolan.VLC.desktop"
 ]);
