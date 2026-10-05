@@ -32,7 +32,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 - **Fedora använder Plasma Login Manager, inte SDDM.** Inloggningsbakgrunden sätts i `files/system/usr/lib/plasmalogin/plasmalogin.conf.d/99-goblincakes.conf` ([Greeter][Wallpaper][org.kde.image][General] Image=…). `theme.conf.user` för SDDM (breeze, 01-breeze-fedora) finns kvar som reserv.
 - `files/system/usr/share/wallpapers/goblincakes/goblincakes-login.svg`: inloggningsskärmen = mörkblå (Deep #12203A) med goblin-loggan ton-i-ton till höger om mitten
 - Dockan: designens utseende (fyrkantig ram) men apparnas originalikoner – användaren vill inte ha linjeikoner. Ikontema = breeze-dark.
-- `files/system/usr/share/plasma/desktoptheme/goblincakes/`: `dialogs/background.svg` (popups) och `widgets/panel-background.svg` (toppfält/docka) – raka hörn, 1px ram; kopior i `translucent/` och `opaque/` krävs, annars tar Plasma Breezes genomskinliga varianter när blur finns; resten faller tillbaka på Breeze
+- `files/system/usr/share/plasma/desktoptheme/goblincakes/`: `dialogs/background.svg` (popups) och `widgets/panel-background.svg` (toppfält/docka) – raka hörn, 1px ram (panelram #2A3852, ljusare än designens #1A2438 som försvinner mot den blå bakgrunden); kopior i `translucent/`, `opaque/` och `solid/` krävs (solid = när ett fönster rör panelen), annars tar Plasma Breezes genomskinliga varianter när blur finns; resten faller tillbaka på Breeze
 - `files/system/usr/share/aurorae/themes/goblincakes/`: fönsterramar efter designens Desktop-rityta – namnlist 44 px #0B1018, 1 px ram #1E2A40, titel vänster, platta linjeknappar 40×32 (stäng-hover röd #A4262C), inga skuggor/rundade hörn
 
 ## Beslut och önskemål
