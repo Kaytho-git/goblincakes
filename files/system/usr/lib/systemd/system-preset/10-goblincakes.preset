@@ -1,0 +1,4 @@
+# GOBLINCAKES uses SDDM (with its own theme) as login manager, not Plasma Login Manager.
+# 10- so it wins over Fedora's presets if they are ever re-applied.
+enable sddm.service
+disable plasmalogin.service

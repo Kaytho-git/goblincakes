@@ -29,6 +29,8 @@ modules:
         - fastfetch             # system info with the GOBLINCAKES logo
         - plymouth-plugin-script # engine for the GOBLINCAKES boot screen
         - plasma-applet-appgrid # app grid in the middle of the screen
+        - sddm                  # login manager with the GOBLINCAKES theme
+        - sddm-wayland-plasma   # runs the SDDM login screen on Wayland (KWin)
         - aurorae               # engine for the GOBLINCAKES window frames
         - kvantum               # engine for the GOBLINCAKES widget theme
         - libratbag-ratbagd     # backend for Piper (G502 Hero)
@@ -36,6 +38,11 @@ modules:
         - gamemode              # performance mode while gaming
         - ananicy-cpp           # keeps the desktop responsive under load
         - cachyos-ananicy-rules
+
+  # Log in through SDDM (GOBLINCAKES theme) instead of Plasma Login Manager
+  - type: script
+    snippets:
+      - "ln -sf /usr/lib/systemd/system/sddm.service /etc/systemd/system/display-manager.service"
 
   # GOBLINCAKES typefaces (downloaded from Google Fonts at build time)
   - type: fonts

@@ -1,0 +1,12 @@
+[SddmGreeterTheme]
+Name=GOBLINCAKES
+Description=GOBLINCAKES login screen: background, date, time, user and password
+Author=Kaytho
+License=GPL-2.0-or-later
+Type=sddm-theme
+Version=1.0
+MainScript=Main.qml
+ConfigFile=theme.conf
+Theme-Id=goblincakes
+Theme-API=2.0
+QtVersion=6
