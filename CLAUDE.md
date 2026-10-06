@@ -13,7 +13,8 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
 - [x] Steg 1: Bas-recept – paket, Flatpaks, udev-regler, tjänster (bygger grönt)
 - [x] Ghostty som standardterminal (COPR `mineiro/ghostty`) – bygger grönt
 - [x] Steg 3: KDE-utseende + varumärke – klart och testat i VM 6 okt (tema, ramar, paneler, splash, Plymouth, utloggning, inloggningsbakgrund, Ghostty, fastfetch)
-- [ ] Ramen runt dockan och toppfältet ska vara skarp (användaren såg en mörk, suddig effekt runt ramen – ingen skugga finns i temat). Försök 1 (6 okt): `desktoptheme/goblincakes/plasmarc` stänger av KWins blur/contrast bakom paneler och popups. Om det inte räcker: be om skärmdump; nästa misstänkt är skalning (bråkdelsskala ger kantutjämnade 1–2 px-linjer).
+- [x] Ramen runt dockan och toppfältet ska vara skarp (användaren såg en mörk, suddig effekt runt ramen – ingen skugga finns i temat). Försök 1 (6 okt): `desktoptheme/goblincakes/plasmarc` stänger av KWins blur/contrast bakom paneler och popups. Om det inte räcker: be om skärmdump; nästa misstänkt är skalning (bråkdelsskala ger kantutjämnade 1–2 px-linjer). (ej testat i VM)
+- [x] AppGrid ser ut som resten av systemet: raka hörn (ombyggd i byggsteget `appgrid-square`) + raka sökfält/knappar/markeringar/tooltips i Plasma-temat (6 okt, ej testat i VM)
 - [ ] Kommandot `goblin update` (som Bazzites `ujust update`): uppdaterar systemet (`rpm-ostree upgrade`/`bootc upgrade`), Flatpaks och firmware (`fwupdmgr`) i ett svep och frågar om omstart. T.ex. ett skript i `files/system/usr/bin/goblin` med underkommandon, så fler kan läggas till senare.
 - [ ] Steg 4: Förstagångs-installationsfönster (appväljare)
 - [ ] Steg 5: Ianseo i container
