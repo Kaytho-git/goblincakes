@@ -17,6 +17,11 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
 - [ ] Steg 5: Ianseo i container
 - [ ] Steg 6: Egen installations-ISO
 - [ ] snapd installerat från start (obs: på atomiska Fedora kräver snap en `/snap`-länk i den skrivskyddade roten – behöver en lösning, t.ex. via `/var/lib/snapd/snap` + tmpfiles/systemd-mount)
+- [ ] Gaming-optimering av kärna/system (titta på, ej bestämt):
+  - sched-ext-schemaläggare (t.ex. `scx_lavd`) – stäng i så fall av `irqbalance` först (krockar → mikrohack). Obs: vi har redan ananicy-cpp, kolla att de inte krockar.
+  - `vm.max_map_count=2147483642` (behövs av vissa stora/moddade spel) – som fil i `files/system/usr/lib/sysctl.d/` i imagen i stället för `/etc/sysctl.d/90-override.conf`. Kolla först – Fedora har redan höjt standardvärdet.
+  - CPU-energiprofil: amd-pstate-epp / Intel-motsvarighet i aktivt läge med prestanda-EPP
+  - TuneD-profil `latency-performance` i stället för `balanced` (`tuned-adm profile latency-performance`) – kolla hur det samspelar med KDE:s energiprofiler (power-profiles-daemon/tuned-ppd) och gamemode
 
 ## Vad som finns
 - `recipes/recipe.yml`: moduler `files`, `dnf` (VS Code, Ghostty, aurorae, kvantum, libratbag-ratbagd, ddcutil, gamemode, ananicy-cpp + cachyos-ananicy-rules från COPR `bieszczaders/kernel-cachyos-addons`), `fonts` (Google Fonts: Chakra Petch, IBM Plex Sans, IBM Plex Mono), `default-flatpaks` (Firefox, Steam, Discord, Lutris, VLC, Piper, Chromium – system scope), `systemd` (ratbagd, ananicy-cpp), `os-release` (NAME/PRETTY_NAME = GOBLINCAKES), `signing`.
