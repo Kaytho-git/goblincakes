@@ -5,6 +5,16 @@ description: GOBLINCAKES - Fedora Kinoite with Nvidia, gaming, WoW and Ianseo to
 base-image: ghcr.io/ublue-os/kinoite-nvidia
 image-version: latest
 
+# Build stages: run separately, only their results are copied into the image
+stages:
+  # AppGrid with square corners (files/scripts/build-appgrid.sh)
+  - name: appgrid-square
+    from: ghcr.io/ublue-os/kinoite-nvidia:latest
+    modules:
+      - type: script
+        scripts:
+          - build-appgrid.sh
+
 modules:
   # Copies everything in files/system/ into the image root
   - type: files
@@ -31,6 +41,7 @@ modules:
         - plasma-applet-appgrid # app grid in the middle of the screen
         - sddm                  # login manager with the GOBLINCAKES theme
         - sddm-wayland-plasma   # runs the SDDM login screen on Wayland (KWin)
+        - snapd                 # snap packages (Claude desktop)
         - aurorae               # engine for the GOBLINCAKES window frames
         - kvantum               # engine for the GOBLINCAKES widget theme
         - libratbag-ratbagd     # backend for Piper (G502 Hero)
@@ -39,10 +50,22 @@ modules:
         - ananicy-cpp           # keeps the desktop responsive under load
         - cachyos-ananicy-rules
 
+  # AppGrid with square corners, built in the appgrid-square stage above,
+  # replaces the COPR package's files (the package still brings the dependencies)
+  - type: copy
+    from: appgrid-square
+    src: /out/
+    dest: /
+
   # Log in through SDDM (GOBLINCAKES theme) instead of Plasma Login Manager
   - type: script
     snippets:
       - "ln -sf /usr/lib/systemd/system/sddm.service /etc/systemd/system/display-manager.service"
+
+  # snapd: the /snap link in the read-only root and its folders in /var
+  - type: script
+    scripts:
+      - setup-snapd.sh
 
   # GOBLINCAKES typefaces (downloaded from Google Fonts at build time)
   - type: fonts
@@ -71,6 +94,8 @@ modules:
       enabled:
         - ratbagd.service
         - ananicy-cpp.service
+        - snapd.socket                    # snap daemon, started on demand
+        - goblincakes-snapd-setup.service # snap home folders + Claude desktop
 
   # GOBLINCAKES name in About this System and the boot menu
   - type: os-release
