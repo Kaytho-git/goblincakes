@@ -4,6 +4,7 @@ Personlig Linux-distro byggd med **BlueBuild** ovanpå `ghcr.io/ublue-os/kinoite
 Repo: `Kaytho-git/goblincakes` (publikt). Image: `ghcr.io/kaytho-git/goblincakes:latest`. Byggs via GitHub Actions (`.github/workflows/build.yml`, skapad av BlueBuild Workshop med cosign-signering).
 
 Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite → rebase till GOBLINCAKES). Hen redigerar ibland filer direkt på GitHub – kör alltid `git pull` innan du ändrar något.
+**Jobba direkt i `main`** (användarens beslut 6 okt): committa och pusha till `main`, inga egna grenar eller pull requests – även om sessionen föreslår en annan gren.
 
 ## När användaren hälsar ("hej" o.d.) i en ny session
 Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade steget nedan) och visa hela steglistan med status (klart / pågår / kvar). Kort, på svenska.
