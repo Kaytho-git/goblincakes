@@ -14,6 +14,8 @@ var topBar = new Panel;
 topBar.location = "top";
 topBar.height = Math.round(gridUnit * 2.4);
 try { topBar.floating = false; } catch (e) {}
+// Always opaque: draws solid/widgets/panel-background (with the white bottom line)
+try { topBar.opacity = "opaque"; } catch (e) {}
 
 // The logo opens AppGrid: an app grid in the middle of the screen, like GNOME
 // (settings in /etc/xdg/appgridrc)
@@ -22,51 +24,19 @@ apps.currentConfigGroup = ["General"];
 apps.writeConfig("icon", "goblincakes");
 
 topBar.addWidget("org.kde.plasma.panelspacer");
-// System tray: only network, volume and notifications, like the design
-// (battery appears on laptops only)
-var tray = topBar.addWidget("org.kde.plasma.systemtray");
-try {
-    var trayItems = desktopById(tray.readConfig("SystrayContainmentId"));
-    trayItems.currentConfigGroup = ["General"];
-    trayItems.writeConfig("extraItems", [
-        "org.kde.plasma.networkmanagement",
-        "org.kde.plasma.volume",
-        "org.kde.plasma.notifications",
-        "org.kde.plasma.battery"
-    ]);
-    // Everything listed here but not above stays switched off
-    trayItems.writeConfig("knownItems", [
-        "org.kde.plasma.networkmanagement",
-        "org.kde.plasma.volume",
-        "org.kde.plasma.notifications",
-        "org.kde.plasma.battery",
-        "org.kde.plasma.brightness",
-        "org.kde.kscreen",
-        "org.kde.plasma.devicenotifier",
-        "org.kde.plasma.clipboard",
-        "org.kde.plasma.bluetooth",
-        "org.kde.plasma.mediacontroller",
-        "org.kde.plasma.keyboardindicator",
-        "org.kde.plasma.keyboardlayout",
-        "org.kde.plasma.manage-inputmethod",
-        "org.kde.plasma.printmanager",
-        "org.kde.plasma.cameraindicator",
-        "org.kde.plasma.vault",
-        "org.kde.plasma.weather",
-        "org.kde.kdeconnect",
-        "org.kde.plasma.nightcolorcontrol",
-        "org.kde.plasma.nightlight",
-        "org.kde.plasma.diskquota",
-        "org.kde.discovernotifier"
-    ]);
-} catch (e) {}
+// System tray: trimmed to network, volume and notifications by
+// /usr/share/goblincakes/systray.js, which goblincakes-firstlogin runs once the
+// tray has started (its settings don't exist yet while this layout runs)
+topBar.addWidget("org.kde.plasma.systemtray");
 
 var clock = topBar.addWidget("org.kde.plasma.digitalclock");
 clock.currentConfigGroup = ["Appearance"];
 clock.writeConfig("showDate", true);
 clock.writeConfig("dateDisplayFormat", "BesideTime");
 clock.writeConfig("dateFormat", "custom");
-clock.writeConfig("customDateFormat", "ddd d MMM");   // "tis 6 okt", like the design
+// "tis 6 okt" + a gap before the time, like the design. The invisible word
+// joiner at the end keeps Plasma from trimming the two spaces.
+clock.writeConfig("customDateFormat", "ddd d MMM  \u2060");
 
 // Power button: opens the GOBLINCAKES logout screen
 var power = topBar.addWidget("org.kde.plasma.lock_logout");
@@ -80,6 +50,9 @@ dock.location = "bottom";
 dock.height = Math.round(gridUnit * 4);
 dock.alignment = "center";
 dock.hiding = "dodgewindows";
+// Translucent mode = always widgets/panel-background (thin frame all round);
+// our theme makes it solid #05070A anyway
+try { dock.opacity = "translucent"; } catch (e) {}
 try { dock.lengthMode = "fit"; } catch (e) {}
 try { dock.floating = true; } catch (e) {}
 
