@@ -26,6 +26,7 @@ modules:
       packages:
         - code                  # VS Code
         - ghostty               # default terminal
+        - fastfetch             # system info with the GOBLINCAKES logo
         - plymouth-plugin-script # engine for the GOBLINCAKES boot screen
         - plasma-applet-appgrid # app grid in the middle of the screen
         - aurorae               # engine for the GOBLINCAKES window frames

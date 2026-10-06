@@ -1,0 +1,38 @@
+// GOBLINCAKES default for fastfetch. Your own ~/.config/fastfetch/config.jsonc wins.
+{
+    "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+    "logo": {
+        "type": "file",
+        "source": "/usr/share/goblincakes/fastfetch-logo.txt",
+        "color": {
+            "1": "38;2;230;236;245",   // Frost: goblin head
+            "2": "38;2;47;111;237"     // Accent: cupcake
+        },
+        "padding": { "top": 1, "right": 3 }
+    },
+    "display": {
+        "separator": "  ",
+        "color": {
+            "keys": "38;2;47;111;237",
+            "title": "38;2;230;236;245"
+        }
+    },
+    "modules": [
+        "title",
+        "separator",
+        "os",
+        "host",
+        "kernel",
+        "uptime",
+        "packages",
+        "de",
+        "wm",
+        "terminal",
+        "cpu",
+        "gpu",
+        "memory",
+        "disk",
+        "break",
+        "colors"
+    ]
+}
