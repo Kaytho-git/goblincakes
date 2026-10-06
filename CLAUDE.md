@@ -5,6 +5,9 @@ Repo: `Kaytho-git/goblincakes` (publikt). Image: `ghcr.io/kaytho-git/goblincakes
 
 Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite → rebase till GOBLINCAKES). Hen redigerar ibland filer direkt på GitHub – kör alltid `git pull` innan du ändrar något.
 
+## När användaren hälsar ("hej" o.d.) i en ny session
+Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade steget nedan) och visa hela steglistan med status (klart / pågår / kvar). Kort, på svenska.
+
 ## Status
 - [x] Steg 1: Bas-recept – paket, Flatpaks, udev-regler, tjänster (bygger grönt)
 - [x] Ghostty som standardterminal (COPR `mineiro/ghostty`) – bygger grönt
