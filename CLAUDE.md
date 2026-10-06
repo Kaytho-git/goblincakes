@@ -17,6 +17,7 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
 - [ ] Steg 5: Ianseo i container
 - [ ] Steg 6: Egen installations-ISO
 - [ ] snapd installerat från start (obs: på atomiska Fedora kräver snap en `/snap`-länk i den skrivskyddade roten – behöver en lösning, t.ex. via `/var/lib/snapd/snap` + tmpfiles/systemd-mount)
+  - När snap fungerar: installera Claude desktop från start (snap `claudeai-desktop`, https://snapcraft.io/claudeai-desktop)
 - [ ] Spelverktyg:
   - GameMode – paketet `gamemode` finns redan i receptet; kvar: kolla att det fungerar (t.ex. `gamemoded -t`, Steam-startflagga `gamemoderun %command%`) och ev. `gamemode.ini`
   - Gamescope (paketet `gamescope`)
