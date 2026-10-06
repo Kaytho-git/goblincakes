@@ -17,6 +17,11 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
 - [ ] Steg 5: Ianseo i container
 - [ ] Steg 6: Egen installations-ISO
 - [ ] snapd installerat från start (obs: på atomiska Fedora kräver snap en `/snap`-länk i den skrivskyddade roten – behöver en lösning, t.ex. via `/var/lib/snapd/snap` + tmpfiles/systemd-mount)
+- [ ] Spelverktyg:
+  - GameMode – paketet `gamemode` finns redan i receptet; kvar: kolla att det fungerar (t.ex. `gamemoded -t`, Steam-startflagga `gamemoderun %command%`) och ev. `gamemode.ini`
+  - Gamescope (paketet `gamescope`)
+  - Heroic Games Launcher (Flatpak `com.heroicgameslauncher.hgl`)
+  - Wine, senaste versionen (Fedoras `wine` är ofta efter – kolla t.ex. WineHQ:s repo för staging/devel)
 - [ ] Gaming-optimering av kärna/system (titta på, ej bestämt):
   - sched-ext-schemaläggare (t.ex. `scx_lavd`) – stäng i så fall av `irqbalance` först (krockar → mikrohack). Obs: vi har redan ananicy-cpp, kolla att de inte krockar.
   - `vm.max_map_count=2147483642` (behövs av vissa stora/moddade spel) – som fil i `files/system/usr/lib/sysctl.d/` i imagen i stället för `/etc/sysctl.d/90-override.conf`. Kolla först – Fedora har redan höjt standardvärdet.
