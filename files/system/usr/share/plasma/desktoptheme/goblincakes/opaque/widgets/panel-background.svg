@@ -1,14 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="140" height="100" viewBox="0 0 140 100">
-  <!-- Square GOBLINCAKES frame. Everything not defined in this theme falls back to Breeze. -->
-  <rect id="topleft" x="0" y="0" width="1" height="1" fill="#2A3852"/>
-  <rect id="top" x="1" y="0" width="98" height="1" fill="#2A3852"/>
-  <rect id="topright" x="99" y="0" width="1" height="1" fill="#2A3852"/>
-  <rect id="left" x="0" y="1" width="1" height="98" fill="#2A3852"/>
-  <rect id="right" x="99" y="1" width="1" height="98" fill="#2A3852"/>
-  <rect id="bottomleft" x="0" y="99" width="1" height="1" fill="#2A3852"/>
-  <rect id="bottom" x="1" y="99" width="98" height="1" fill="#2A3852"/>
-  <rect id="bottomright" x="99" y="99" width="1" height="1" fill="#2A3852"/>
-  <rect id="center" x="1" y="1" width="98" height="98" fill="#05070A"/>
+  <!-- Square GOBLINCAKES frame, 2 px. Used by the dock (translucent mode).
+       Everything not defined in this theme falls back to Breeze. -->
+  <rect id="topleft" x="0" y="0" width="2" height="2" fill="#2A3852"/>
+  <rect id="top" x="2" y="0" width="96" height="2" fill="#2A3852"/>
+  <rect id="topright" x="98" y="0" width="2" height="2" fill="#2A3852"/>
+  <rect id="left" x="0" y="2" width="2" height="96" fill="#2A3852"/>
+  <rect id="right" x="98" y="2" width="2" height="96" fill="#2A3852"/>
+  <rect id="bottomleft" x="0" y="98" width="2" height="2" fill="#2A3852"/>
+  <rect id="bottom" x="2" y="98" width="96" height="2" fill="#2A3852"/>
+  <rect id="bottomright" x="98" y="98" width="2" height="2" fill="#2A3852"/>
+  <rect id="center" x="2" y="2" width="96" height="96" fill="#05070A"/>
 
   <!-- Inner padding -->
   <rect id="hint-top-margin" x="110" y="0" width="1" height="4" fill="none"/>
