@@ -31,6 +31,17 @@ start() {
     systemctl --user start ianseo-pod.service ianseo-db.service ianseo-web.service
 }
 
+release_url=https://ianseo.net/Release
+# Newest Ianseo_YYYYMMDD.zip linked from ianseo.net (the date in the name = the version).
+# If the site can't be read, the newest one we know of.
+latest_release() {
+    local page name
+    name=$(for page in "$release_url/" https://www.ianseo.net/ https://www.ianseo.net/Releases.php; do
+               curl -fsSL --max-time 20 "$page" 2>/dev/null | grep -oE 'Ianseo_[0-9]{8}\.zip' || true
+           done | sort -u | sort -t_ -k2 -n | tail -n1)
+    echo "${name:-Ianseo_20250210.zip}"
+}
+
 find_zip() {
     local dl
     dl=$(xdg-user-dir DOWNLOAD 2>/dev/null || echo "$HOME/Downloads")
@@ -56,10 +67,22 @@ install() {
     # shellcheck disable=SC1090
     . "$env_file"
 
-    # Ianseo itself: the zip from ianseo.net (they only publish it on their site)
+    # Ianseo itself: the newest Ianseo_YYYYMMDD.zip from ianseo.net
     if [ ! -e "$www/index.php" ]; then
-        zip=$(find_zip)
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        zip=
+        status "Letar efter senaste Ianseo…"
+        name=$(latest_release)
+        status "Hämtar $name…"
+        if curl -fL --progress-bar -o "$tmp/$name" "$release_url/$name"; then
+            zip="$tmp/$name"
+        else
+            # Offline or moved: a zip the user already downloaded
+            zip=$(find_zip)
+        fi
         if [ -z "$zip" ]; then
+            # Couldn't find it automatically: let the user download it
             status "Öppnar ianseo.net – ladda ner senaste Ianseo (zip-filen)…"
             xdg-open https://www.ianseo.net/ >/dev/null 2>&1 &
             for _ in $(seq 900); do
@@ -72,8 +95,6 @@ install() {
             [ -n "$zip" ] || { status "Hittade ingen Ianseo-zip i Hämtade filer"; exit 1; }
         fi
         status "Packar upp $(basename "$zip")…"
-        tmp=$(mktemp -d)
-        trap 'rm -rf "$tmp"' EXIT
         python3 -m zipfile -e "$zip" "$tmp"
         # Ianseo's own folder = the shallowest one with an index.php
         index=$(find "$tmp" -maxdepth 3 -name index.php | awk '{ print length, $0 }' | sort -n | head -n1 | cut -d' ' -f2- || true)
