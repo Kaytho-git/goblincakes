@@ -8,7 +8,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 ## Status
 - [x] Steg 1: Bas-recept – paket, Flatpaks, udev-regler, tjänster (bygger grönt)
 - [x] Ghostty som standardterminal (COPR `mineiro/ghostty`) – bygger grönt
-- [~] Steg 3: KDE-utseende + varumärke – första versionen testad i VM 6 okt (bakgrund, toppfält, docka syns). Efter det: linjeikoner i dockan, begränsat systemfält, klockformat, splash-text, egen inloggningsbakgrund – ej testat än
+- [x] Steg 3: KDE-utseende + varumärke – klart och testat i VM 6 okt (tema, ramar, paneler, splash, Plymouth, utloggning, inloggningsbakgrund, Ghostty, fastfetch)
 - [ ] Steg 4: Förstagångs-installationsfönster (appväljare)
 - [ ] Steg 5: Ianseo i container
 - [ ] Steg 6: Egen installations-ISO
