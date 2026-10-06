@@ -1,0 +1,16 @@
+[Unit]
+Description=Ianseo web server
+Requires=ianseo-db.service
+After=ianseo-db.service
+
+[Container]
+ContainerName=ianseo-web
+Image=localhost/goblincakes-ianseo:latest
+Pod=ianseo.pod
+Volume=%h/.local/share/goblincakes/ianseo/www:/var/www/html:Z
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

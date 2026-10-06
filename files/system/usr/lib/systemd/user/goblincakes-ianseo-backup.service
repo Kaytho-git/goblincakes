@@ -1,0 +1,6 @@
+[Unit]
+Description=GOBLINCAKES: backup of the Ianseo database
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/goblincakes-ianseo backup

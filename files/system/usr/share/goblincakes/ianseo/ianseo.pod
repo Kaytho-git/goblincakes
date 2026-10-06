@@ -1,0 +1,8 @@
+# Ianseo: web server + database in one pod.
+# Only reachable from this computer (127.0.0.1), not from the network.
+[Pod]
+PodName=ianseo
+PublishPort=127.0.0.1:8180:80
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,9 @@
+# Ianseo web server: PHP + Apache with the extensions Ianseo needs.
+# Built on the user's computer by /usr/libexec/goblincakes-ianseo.
+FROM docker.io/library/php:8.2-apache
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libcurl4-openssl-dev \
+ && docker-php-ext-configure gd --with-jpeg --with-freetype \
+ && docker-php-ext-install mysqli gd zip curl \
+ && rm -rf /var/lib/apt/lists/*
+COPY ianseo-php.ini /usr/local/etc/php/conf.d/ianseo.ini

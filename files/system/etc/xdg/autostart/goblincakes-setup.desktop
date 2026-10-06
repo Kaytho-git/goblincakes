@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES Setup
+Comment=Choose apps at the first login (shown once, then from AppGrid)
+Exec=goblincakes-setup --first-run
+Icon=goblincakes
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2

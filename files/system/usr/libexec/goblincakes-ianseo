@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# Ianseo (archery results) in containers, for the current user.
+#
+#   goblincakes-ianseo install   set up (from the GOBLINCAKES setup window)
+#   goblincakes-ianseo open      start if needed and open in the browser
+#   goblincakes-ianseo backup    database backup (run every 30 minutes by a timer)
+#
+# Only reachable from this computer: http://127.0.0.1:8180/
+# Lines starting with "@@ " are shown in the setup window.
+set -euo pipefail
+
+status() { echo "@@ $*"; }
+
+share=/usr/share/goblincakes/ianseo
+url=http://127.0.0.1:8180/
+home_dir="$HOME/Ianseo"
+backup_dir="$home_dir/Backup"
+www="$HOME/.local/share/goblincakes/ianseo/www"
+env_file="$HOME/.config/goblincakes/ianseo.env"
+quadlets="$HOME/.config/containers/systemd"
+
+wait_for_web() {
+    for _ in $(seq 120); do
+        curl -fsS -o /dev/null "$url" && return 0
+        sleep 2
+    done
+    return 1
+}
+
+start() {
+    systemctl --user start ianseo-pod.service ianseo-db.service ianseo-web.service
+}
+
+find_zip() {
+    local dl
+    dl=$(xdg-user-dir DOWNLOAD 2>/dev/null || echo "$HOME/Downloads")
+    find "$dl" "$HOME/Downloads" -maxdepth 1 -iname '*ianseo*.zip' -printf '%T@ %p\n' 2>/dev/null \
+        | sort -nr | head -n1 | cut -d' ' -f2- || true
+}
+
+install() {
+    mkdir -p "$home_dir" "$backup_dir" "$(dirname "$env_file")" "$quadlets" "$www"
+
+    # Database passwords, made once and kept private
+    if [ ! -e "$env_file" ]; then
+        umask 077
+        pw() { head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20; }
+        {
+            echo "MARIADB_ROOT_PASSWORD=$(pw)"
+            echo "MARIADB_DATABASE=ianseo"
+            echo "MARIADB_USER=ianseo"
+            echo "MARIADB_PASSWORD=$(pw)"
+        } > "$env_file"
+        umask 022
+    fi
+    # shellcheck disable=SC1090
+    . "$env_file"
+
+    # Ianseo itself: the zip from ianseo.net (they only publish it on their site)
+    if [ ! -e "$www/index.php" ]; then
+        zip=$(find_zip)
+        if [ -z "$zip" ]; then
+            status "Öppnar ianseo.net – ladda ner senaste Ianseo (zip-filen)…"
+            xdg-open https://www.ianseo.net/ >/dev/null 2>&1 &
+            for _ in $(seq 900); do
+                zip=$(find_zip)
+                # Wait until the download is finished (no .part file next to it)
+                [ -n "$zip" ] && [ ! -e "$zip.part" ] && break
+                zip=
+                sleep 2
+            done
+            [ -n "$zip" ] || { status "Hittade ingen Ianseo-zip i Hämtade filer"; exit 1; }
+        fi
+        status "Packar upp $(basename "$zip")…"
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        python3 -m zipfile -e "$zip" "$tmp"
+        # Ianseo's own folder = the shallowest one with an index.php
+        index=$(find "$tmp" -maxdepth 3 -name index.php | awk '{ print length, $0 }' | sort -n | head -n1 | cut -d' ' -f2- || true)
+        [ -n "$index" ] || { status "Zip-filen ser inte ut att vara Ianseo"; exit 1; }
+        root=$(dirname "$index")
+        cp -a "$root"/. "$www"/
+        # The web server runs as www-data (33) inside the container
+        podman unshare chown -R 33:33 "$www"
+    fi
+
+    status "Bygger Ianseos webbserver (tar några minuter första gången)…"
+    podman build --quiet -t localhost/goblincakes-ianseo:latest "$share" >/dev/null
+
+    status "Hämtar databasen…"
+    podman pull --quiet docker.io/library/mariadb:11 >/dev/null
+
+    status "Startar Ianseo…"
+    cp "$share"/ianseo.pod "$share"/ianseo-db.container "$share"/ianseo-web.container "$quadlets"/
+    systemctl --user daemon-reload
+    start
+    systemctl --user enable --now goblincakes-ianseo-backup.timer
+
+    mkdir -p "$HOME/.local/share/applications"
+    cp "$share"/ianseo.desktop "$HOME/.local/share/applications/goblincakes-ianseo.desktop"
+
+    cat > "$home_dir/Databas.txt" <<EOF
+Ianseo körs på $url (bara från den här datorn).
+
+Uppgifter till Ianseos installationssida:
+  Databasserver:  127.0.0.1
+  Databas:        ianseo
+  Användare:      ianseo
+  Lösenord:       $MARIADB_PASSWORD
+
+  root-lösenord (om Ianseo frågar efter det): $MARIADB_ROOT_PASSWORD
+
+Backuper av databasen sparas var 30:e minut i $backup_dir
+(bara när något har ändrats). Starta Ianseo från AppGrid.
+EOF
+
+    status "Väntar på att Ianseo svarar…"
+    wait_for_web || { status "Ianseo svarar inte – prova att starta om datorn"; exit 1; }
+    xdg-open "$url" >/dev/null 2>&1 &
+    status "Klart – databasuppgifterna finns i ~/Ianseo/Databas.txt"
+}
+
+open_ianseo() {
+    systemctl --user is-active --quiet ianseo-web.service || start
+    wait_for_web || true
+    xdg-open "$url"
+}
+
+backup() {
+    podman container exists ianseo-db 2>/dev/null || exit 0
+    [ "$(podman inspect -f '{{.State.Running}}' ianseo-db)" = true ] || exit 0
+    mkdir -p "$backup_dir"
+    new="$backup_dir/ianseo-$(date +%F_%H%M).sql.gz"
+    podman exec ianseo-db sh -c \
+        'mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" --single-transaction --skip-dump-date --databases ianseo' \
+        | gzip > "$new.tmp"
+    last=$(ls -1t "$backup_dir"/ianseo-*.sql.gz 2>/dev/null | head -n1 || true)
+    # Nothing changed since the last backup: don't keep a copy
+    if [ -n "$last" ] && cmp -s <(zcat "$last") <(zcat "$new.tmp"); then
+        rm -f "$new.tmp"
+    else
+        mv "$new.tmp" "$new"
+    fi
+    # Keep the newest 200
+    ls -1t "$backup_dir"/ianseo-*.sql.gz 2>/dev/null | tail -n +201 | xargs -r rm -f || true
+}
+
+case ${1:-} in
+    install) install ;;
+    open) open_ianseo ;;
+    backup) backup ;;
+    *) echo "Usage: $0 install|open|backup" >&2; exit 2 ;;
+esac

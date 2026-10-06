@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# Installs one step for the GOBLINCAKES setup window (goblincakes-setup).
+# Everything is installed for the current user, so no password is needed.
+#
+#   goblincakes-setup-install <step> [args…]     install
+#   goblincakes-setup-install check <kind> [args…]  exit 0 if already installed
+#
+# Lines starting with "@@ " are shown in the window as the current status.
+set -euo pipefail
+
+status() { echo "@@ $*"; }
+
+appimage_dir="$HOME/AppImages"
+
+flathub_user() {
+    flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+}
+
+github_latest() { # repo → JSON of the newest release
+    curl -fsSL -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$1/releases/latest"
+}
+
+json_asset() { # JSON on stdin, regex → first matching asset "name url"
+    python3 -c '
+import json, re, sys
+pattern = re.compile(sys.argv[1])
+for a in json.load(sys.stdin).get("assets", []):
+    if pattern.search(a["name"]):
+        print(a["name"], a["browser_download_url"])
+        break
+' "$1"
+}
+
+check() {
+    local kind=$1; shift
+    case $kind in
+        flatpak) flatpak info "$1" >/dev/null 2>&1 ;;
+        appimage)
+            ls "$appimage_dir"/*"$1"*.AppImage "$appimage_dir"/*"${1,,}"*.AppImage >/dev/null 2>&1 \
+                || ls "$HOME"/.local/share/applications/*"${1,,}"* >/dev/null 2>&1 \
+                || ls "$HOME"/.local/share/applications/*"$1"* >/dev/null 2>&1 ;;
+        ianseo) [ -e "$HOME/.config/containers/systemd/ianseo-web.container" ] ;;
+        *) return 1 ;;
+    esac
+}
+
+step=${1:?step}; shift
+case $step in
+    check)
+        check "$@"
+        ;;
+
+    flatpak)
+        status "Hämtar $1 från Flathub…"
+        flathub_user
+        flatpak install --user --noninteractive --assumeyes flathub "$1"
+        ;;
+
+    ge-proton)
+        # Newest GE-Proton straight into Steam (Flatpak and/or normal install)
+        status "Letar efter senaste GE-Proton…"
+        release=$(github_latest GloriousEggroll/proton-ge-custom)
+        read -r name url < <(echo "$release" | json_asset '\.tar\.gz$')
+        read -r _ sumurl < <(echo "$release" | json_asset '\.sha512sum$') || true
+        version=${name%.tar.gz}
+        targets=("$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/compatibilitytools.d")
+        [ -d "$HOME/.local/share/Steam" ] && targets+=("$HOME/.local/share/Steam/compatibilitytools.d")
+        if [ -d "${targets[0]}/$version" ]; then
+            status "$version finns redan"
+            exit 0
+        fi
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        status "Hämtar $version…"
+        curl -fL --progress-bar -o "$tmp/$name" "$url"
+        if [ -n "${sumurl:-}" ]; then
+            status "Kontrollerar $version…"
+            (cd "$tmp" && curl -fsSL "$sumurl" | sha512sum -c -)
+        fi
+        for t in "${targets[@]}"; do
+            status "Packar upp $version…"
+            mkdir -p "$t"
+            tar -xzf "$tmp/$name" -C "$t"
+        done
+        status "$version klar – välj den i Steam under Kompatibilitet"
+        ;;
+
+    appimage-github)
+        # repo, name → newest x86_64 AppImage, handed to Gear Lever
+        repo=$1 label=$2
+        status "Letar efter senaste $label…"
+        read -r name url < <(github_latest "$repo" | json_asset '^(?!.*(arm64|aarch64)).*\.AppImage$')
+        mkdir -p "$appimage_dir"
+        status "Hämtar $name…"
+        curl -fL --progress-bar -o "$appimage_dir/$name" "$url"
+        chmod +x "$appimage_dir/$name"
+        status "Lägger till $label via Gear Lever…"
+        if ! flatpak run it.mijorus.gearlever --integrate "$appimage_dir/$name" -y; then
+            # Older Gear Lever without the command line: let the user click
+            flatpak run it.mijorus.gearlever "$appimage_dir/$name" &
+            status "Gear Lever öppnat – klicka på Lägg till"
+        fi
+        ;;
+
+    open-url)
+        status "Öppnar nedladdningssidan…"
+        xdg-open "$1" >/dev/null 2>&1 &
+        status "Ladda ner Linux-versionen (AppImage) och öppna den med Gear Lever"
+        ;;
+
+    ianseo)
+        exec /usr/libexec/goblincakes-ianseo install
+        ;;
+
+    *)
+        echo "Unknown step: $step" >&2
+        exit 2
+        ;;
+esac

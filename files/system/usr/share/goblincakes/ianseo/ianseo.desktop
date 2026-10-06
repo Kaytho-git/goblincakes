@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Ianseo
+GenericName=Bågskytteresultat
+Comment=Ianseo resultatprogram (körs lokalt)
+Exec=/usr/libexec/goblincakes-ianseo open
+Icon=goblincakes-ianseo
+Categories=Office;

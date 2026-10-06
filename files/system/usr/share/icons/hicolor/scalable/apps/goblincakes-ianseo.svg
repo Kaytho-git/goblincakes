@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Ianseo: archery target in the GOBLINCAKES palette, flat -->
+  <rect width="64" height="64" fill="#12203A"/>
+  <circle cx="32" cy="32" r="26" fill="#E6ECF5"/>
+  <circle cx="32" cy="32" r="20" fill="#0E1420"/>
+  <circle cx="32" cy="32" r="14" fill="#2F6FED"/>
+  <circle cx="32" cy="32" r="8" fill="#A4262C"/>
+  <circle cx="32" cy="32" r="3" fill="#F2C94C"/>
+  <path d="M33 31 L54 10" stroke="#E6ECF5" stroke-width="2.5" stroke-linecap="square"/>
+  <path d="M50 8 L56 8 L56 14" fill="none" stroke="#E6ECF5" stroke-width="2.5"/>
+</svg>

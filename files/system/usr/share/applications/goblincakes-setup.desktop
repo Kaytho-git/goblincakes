@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES Setup
+GenericName=Installera program
+Comment=Välj och installera program till GOBLINCAKES
+Exec=goblincakes-setup
+Icon=goblincakes
+Categories=System;Settings;
+Keywords=install;apps;program;installera;setup;ianseo;
