@@ -14,6 +14,7 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
 - [x] Ghostty som standardterminal (COPR `mineiro/ghostty`) – bygger grönt
 - [x] Steg 3: KDE-utseende + varumärke – klart och testat i VM 6 okt (tema, ramar, paneler, splash, Plymouth, utloggning, inloggningsbakgrund, Ghostty, fastfetch)
 - [ ] Ramen runt dockan och toppfältet: bara en ren kantlinje, ingen skugga (panelernas skugga i Plasma-temat `goblincakes`, t.ex. `shadow-*`-elementen i `widgets/panel-background.svg` och kopiorna i `translucent/`, `opaque/`, `solid/`)
+- [ ] Kommandot `goblin update` (som Bazzites `ujust update`): uppdaterar systemet (`rpm-ostree upgrade`/`bootc upgrade`), Flatpaks och firmware (`fwupdmgr`) i ett svep och frågar om omstart. T.ex. ett skript i `files/system/usr/bin/goblin` med underkommandon, så fler kan läggas till senare.
 - [ ] Steg 4: Förstagångs-installationsfönster (appväljare)
 - [ ] Steg 5: Ianseo i container
 - [ ] Steg 6: Egen installations-ISO
