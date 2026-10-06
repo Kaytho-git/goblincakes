@@ -13,6 +13,7 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
 - [x] Steg 1: Bas-recept – paket, Flatpaks, udev-regler, tjänster (bygger grönt)
 - [x] Ghostty som standardterminal (COPR `mineiro/ghostty`) – bygger grönt
 - [x] Steg 3: KDE-utseende + varumärke – klart och testat i VM 6 okt (tema, ramar, paneler, splash, Plymouth, utloggning, inloggningsbakgrund, Ghostty, fastfetch)
+- [ ] Ramen runt dockan och toppfältet: bara en ren kantlinje, ingen skugga (panelernas skugga i Plasma-temat `goblincakes`, t.ex. `shadow-*`-elementen i `widgets/panel-background.svg` och kopiorna i `translucent/`, `opaque/`, `solid/`)
 - [ ] Steg 4: Förstagångs-installationsfönster (appväljare)
 - [ ] Steg 5: Ianseo i container
 - [ ] Steg 6: Egen installations-ISO
