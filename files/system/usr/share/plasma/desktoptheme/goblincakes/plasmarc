@@ -1,0 +1,12 @@
+# GOBLINCAKES Plasma theme settings.
+# Panels and popups are solid, so there is nothing to see through: no blur and no
+# contrast effect behind them. With these on, KWin smears a soft dark edge around
+# the dock and the top bar instead of a sharp frame line.
+[BlurBehindEffect]
+enabled=false
+
+[ContrastEffect]
+enabled=false
+
+[AdaptiveTransparency]
+enabled=false
