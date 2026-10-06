@@ -12,6 +12,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 - [ ] Steg 4: Förstagångs-installationsfönster (appväljare)
 - [ ] Steg 5: Ianseo i container
 - [ ] Steg 6: Egen installations-ISO
+- [ ] snapd installerat från start (obs: på atomiska Fedora kräver snap en `/snap`-länk i den skrivskyddade roten – behöver en lösning, t.ex. via `/var/lib/snapd/snap` + tmpfiles/systemd-mount)
 
 ## Vad som finns
 - `recipes/recipe.yml`: moduler `files`, `dnf` (VS Code, Ghostty, aurorae, kvantum, libratbag-ratbagd, ddcutil, gamemode, ananicy-cpp + cachyos-ananicy-rules från COPR `bieszczaders/kernel-cachyos-addons`), `fonts` (Google Fonts: Chakra Petch, IBM Plex Sans, IBM Plex Mono), `default-flatpaks` (Firefox, Steam, Discord, Lutris, VLC, Piper, Chromium – system scope), `systemd` (ratbagd, ananicy-cpp), `os-release` (NAME/PRETTY_NAME = GOBLINCAKES), `signing`.
