@@ -2,7 +2,7 @@
 Type=Application
 Name=GOBLINCAKES Config
 GenericName=Installera program
-Comment=Välj och installera program till GOBLINCAKES
+Comment=Program, spelinställningar och grafikdrivrutiner för GOBLINCAKES (Meta+C)
 Exec=goblincakes-config
 Icon=goblincakes
 Categories=System;Settings;

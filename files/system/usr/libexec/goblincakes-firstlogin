@@ -18,8 +18,8 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
         evaluateScript s "$(cat /usr/share/goblincakes/systray.js)" >/dev/null 2>&1 && break
 done
 
-# Crystal Dock chosen (goblin dock crystal): the layout just brought Plasma's dock back
-/usr/libexec/goblincakes-dock reapply
+# Leftovers from Crystal Dock (an option until 8 Oct, no longer in GOBLINCAKES)
+rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/crystal-dock.desktop" "${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/dock"
 
 # Ghostty: GOBLINCAKES colours and font, slightly see-through.
 # Written if the user has no Ghostty config, or only the empty template

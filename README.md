@@ -42,7 +42,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - **Fjärråtkomst:** nå Ianseo via internet bakom ett lösenord (Cloudflare-tunnel, inga ändringar i routern). En ikon i systemfältet visar när Ianseo är nåbart utifrån.
 
 ### GOBLINCAKES Config
-Ett eget fönster som öppnas vid första inloggningen (och finns i appmenyn):
+Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+C** eller från appmenyn:
 - **Program** – välj det du vill ha: Discord, Lutris, Heroic, OBS, Spotify, GIMP, LibreOffice, Claude, streamingtjänster (Netflix, SVT Play m.fl.) och mycket mer.
 - **Optimering** – spelinställningar som reglage.
 - **Grafik** – byt mellan AMD/Intel- och Nvidia-drivrutiner med en knapp.
@@ -112,4 +112,4 @@ cosign verify --key cosign.pub ghcr.io/kaytho-git/goblincakes
 
 ## Tack till
 
-Byggt av **Kaytho och en fin kille**, ovanpå andras fina arbete: [Fedora](https://fedoraproject.org/), [Universal Blue](https://universal-blue.org/), [BlueBuild](https://blue-build.org/), [KDE](https://kde.org/), [Ghostty](https://ghostty.org/), [AppGrid](https://github.com/xarbit/appgrid), [Crystal Dock](https://github.com/dangvd/crystal-dock) och Kvantum-temat KvFlat av Tsu Jan.
+Byggt av **Kaytho och en fin kille**, ovanpå andras fina arbete: [Fedora](https://fedoraproject.org/), [Universal Blue](https://universal-blue.org/), [BlueBuild](https://blue-build.org/), [KDE](https://kde.org/), [Ghostty](https://ghostty.org/), [AppGrid](https://github.com/xarbit/appgrid) och Kvantum-temat KvFlat av Tsu Jan.

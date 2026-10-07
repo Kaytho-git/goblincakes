@@ -71,12 +71,6 @@ modules:
     src: /out/
     dest: /
 
-  # Crystal Dock (zooming icons), built in the crystal-dock stage above
-  - type: copy
-    from: crystal-dock
-    src: /out/
-    dest: /
-
   # Log in through SDDM (GOBLINCAKES theme) instead of Plasma Login Manager
   - type: script
     snippets:

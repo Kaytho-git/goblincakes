@@ -5,7 +5,7 @@
 #   goblin ai          the Goblin AI window (Meta+A); with a question: answer in the terminal
 #   goblin tv          TV mode (Steam Big Picture in full screen)
 #   goblin wow         links every WoW version under ~/Games/WoW, updates WowUp
-#   goblin dock        crystal|plasma – which dock (Crystal Dock zooms like a Mac)
+#   goblin dock        reset – the desktop layout and dock back to the start (Meta shows the dock)
 #   goblin fast        system info with the GOBLINCAKES logo
 #   goblin motd        the command list shown in every new terminal (on/off)
 #   goblin help        list the commands
@@ -143,7 +143,7 @@ COMMANDS=(
     "ai setup|Ställ in gratis AI-tjänster (Gemini, Groq, OpenRouter, Mistral)"
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
     "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
-    "dock|Docka: crystal = ikonerna växer under musen (som Mac), plasma = standard, toggle = visa/dölj (Meta)"
+    "dock reset|Återställ skrivbordet och dockan (Meta visar dockan, Shift+Meta appmenyn)"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "fast|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
@@ -223,7 +223,7 @@ case ${1:-help} in
         exec /usr/libexec/goblincakes-ai "$@" ;;
     tv) exec goblincakes-tv ;;
     wow) heading "World of Warcraft"; exec /usr/libexec/goblincakes-wow-links --verbose ;;
-    dock) shift; exec /usr/libexec/goblincakes-dock "${1:-status}" ;;
+    dock) shift; exec /usr/libexec/goblincakes-dock "${1:-}" ;;
     gamemode) cmd_gamemode ;;
     fast|fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;

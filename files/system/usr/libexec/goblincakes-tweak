@@ -163,14 +163,6 @@ case $id in
                 done ;;
         esac ;;
 
-    crystal-dock)
-        # Crystal Dock (icons grow under the mouse, like on a Mac) instead of Plasma's dock
-        command -v crystal-dock >/dev/null || { [ "$cmd" = status ] && echo unavailable; exit 0; }
-        case $cmd in
-            status) [ "$(/usr/libexec/goblincakes-dock status)" = crystal ] && echo on || echo off ;;
-            set) /usr/libexec/goblincakes-dock "$([ "$value" = on ] && echo crystal || echo plasma)" >/dev/null ;;
-        esac ;;
-
     ianseo-network)
         # Ianseo's tournament mode (tablets/phones with Ianseo's scoring apps); only once Ianseo is installed
         case $cmd in

@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Meta+C opens GOBLINCAKES Config. kglobalacceld reads this at session start; it can be
+# changed in System Settings → Shortcuts.
+Type=Application
+Name=GOBLINCAKES Config
+Exec=goblincakes-config
+Icon=goblincakes
+OnlyShowIn=KDE;
+X-KDE-Shortcuts=Meta+C

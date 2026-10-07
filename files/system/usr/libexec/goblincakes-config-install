@@ -130,7 +130,7 @@ case $step in
         ;;
 
     dock)
-        # Pin the app in the dock (Plasma's or Crystal Dock), unless it is there already
+        # Pin the app in the dock, unless it is there already
         status "Lägger till i dockan…"
         /usr/libexec/goblincakes-dock pin "$1" >/dev/null 2>&1 \
             || status "Kunde inte lägga till i dockan (programmet är installerat ändå)"
