@@ -40,6 +40,12 @@ modules:
         - ananicy-cpp           # keeps the desktop responsive under load
         - cachyos-ananicy-rules
 
+  # Steam (RPM Fusion), with its 32-bit libraries – in the image so TV mode, disks,
+  # MangoHud and Gamescope work without Flatpak workarounds
+  - type: script
+    scripts:
+      - install-steam.sh
+
   # Xbox controllers: xone (wireless dongle, USB) and xpadneo (Bluetooth: rumble, right buttons),
   # pre-built by Universal Blue for this kernel and signed with their key (Secure Boot: Grafik tab)
   - type: akmods
@@ -88,7 +94,7 @@ modules:
         - IBM Plex Mono   # Ghostty terminal
 
   # Always-installed Flatpaks – kept to a minimum on purpose: everything else
-  # (Steam, Discord, Lutris, VLC …) is picked in GOBLINCAKES Config
+  # (Discord, Lutris, VLC …) is picked in GOBLINCAKES Config; Steam is in the image
   # (validated against Flathub at build time)
   - type: default-flatpaks
     configurations:

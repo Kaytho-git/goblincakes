@@ -78,7 +78,7 @@ for app in json.load(open(sys.argv[1]))["apps"]:
 update_proton() {
     # Only for those who use it (ProtonUp-Qt chosen in GOBLINCAKES Config, or GE-Proton already there)
     if flatpak info net.davidotek.pupgui2 >/dev/null 2>&1 \
-        || ls -d "$HOME"/.var/app/com.valvesoftware.Steam/.local/share/Steam/compatibilitytools.d/GE-Proton* >/dev/null 2>&1; then
+        || ls -d "$HOME"/.local/share/Steam/compatibilitytools.d/GE-Proton* >/dev/null 2>&1; then
         heading "GE-Proton"
         config_step ge-proton
     fi

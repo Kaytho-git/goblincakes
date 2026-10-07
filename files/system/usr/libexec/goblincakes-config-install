@@ -73,12 +73,12 @@ integrate_appimage() { # file label
 # for every runtime branch Steam, Lutris and Heroic use (e.g. 24.08 and 25.08)
 vulkan_layer() { # name
     local name=$1 app runtime branches=()
-    status "Letar efter Steams, Lutris och Heroics Flatpak-versioner…"
-    for app in com.valvesoftware.Steam net.lutris.Lutris com.heroicgameslauncher.hgl; do
+    status "Letar efter Lutris och Heroics Flatpak-versioner…"
+    for app in net.lutris.Lutris com.heroicgameslauncher.hgl; do
         runtime=$(flatpak info --show-runtime "$app" 2>/dev/null) || continue
         [[ " ${branches[*]} " == *" ${runtime##*/} "* ]] || branches+=("${runtime##*/}")
     done
-    [ ${#branches[@]} -gt 0 ] || { status "Hittade varken Steam, Lutris eller Heroic"; return 1; }
+    [ ${#branches[@]} -gt 0 ] || { status "Hittade varken Lutris eller Heroic – installera något av dem först"; return 1; }
     flathub_user
     for branch in "${branches[@]}"; do
         flatpak info "org.freedesktop.Platform.VulkanLayer.$name//$branch" >/dev/null 2>&1 && continue
@@ -167,9 +167,10 @@ DESKTOP
         ;;
 
     gamescope-flatpak)
-        # Steam, Lutris and Heroic are Flatpaks: they need gamescope as a Flatpak extension
+        # Lutris and Heroic are Flatpaks: they need gamescope as a Flatpak extension
+        # (Steam is in the image and uses the image's gamescope)
         vulkan_layer gamescope
-        status "Klart – i Steam: Egenskaper → Startalternativ: gamescope -f -- %command%"
+        status "Klart – i Lutris/Heroic: spelets inställningar → Gamescope"
         ;;
 
     vulkan-layer)
@@ -186,14 +187,15 @@ DESKTOP
         ;;
 
     ge-proton)
-        # Newest GE-Proton straight into Steam (Flatpak and/or normal install)
+        # Newest GE-Proton straight into Steam (in the image; also a Flatpak Steam if there is one)
         status "Letar efter senaste GE-Proton…"
         release=$(github_latest GloriousEggroll/proton-ge-custom)
         read -r name url < <(echo "$release" | json_asset '\.tar\.gz$')
         read -r _ sumurl < <(echo "$release" | json_asset '\.sha512sum$') || true
         version=${name%.tar.gz}
-        targets=("$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/compatibilitytools.d")
-        [ -d "$HOME/.local/share/Steam" ] && targets+=("$HOME/.local/share/Steam/compatibilitytools.d")
+        targets=("$HOME/.local/share/Steam/compatibilitytools.d")
+        [ -d "$HOME/.var/app/com.valvesoftware.Steam" ] \
+            && targets+=("$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/compatibilitytools.d")
         if [ -d "${targets[0]}/$version" ]; then
             status "$version finns redan"
             exit 0

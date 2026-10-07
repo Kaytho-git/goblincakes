@@ -8,11 +8,6 @@ notify() { notify-send -a "GOBLINCAKES" -i goblincakes "TV-läge" "$1" 2>/dev/nu
 
 case ${1:-start} in
     start)
-        if ! flatpak info com.valvesoftware.Steam >/dev/null 2>&1; then
-            notify "TV-läget kör Steam. Installera Steam i GOBLINCAKES Config först."
-            (setsid goblincakes-config >/dev/null 2>&1 &)
-            exit 1
-        fi
         pkexec /usr/libexec/goblincakes-session-select tv || { notify "Kunde inte byta till TV-läge."; exit 1; }
         # Log out without the dialog; SDDM then starts TV mode
         dbus-send --session --type=method_call --dest=org.kde.Shutdown /Shutdown org.kde.Shutdown.logout \

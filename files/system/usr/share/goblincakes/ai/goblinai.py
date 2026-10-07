@@ -221,7 +221,7 @@ Om datorn:
   Föreslå aldrig `dnf install` direkt på systemet – det fungerar inte här.
 - Uppdatera allt: `goblin update`. Systeminfo: `goblin fastfetch`. Installera program och spelinställningar:
   fönstret GOBLINCAKES Config (i AppGrid). Rollback: `rpm-ostree rollback`.
-- Spel: Steam, Lutris, Heroic och Discord är Flatpaks; GE-Proton finns via ProtonUp-Qt; GameMode finns (`gamemoderun %command%`).
+- Spel: Steam finns i imagen (RPM, bibliotek i ~/.local/share/Steam); Lutris, Heroic och Discord är Flatpaks; GE-Proton finns via ProtonUp-Qt; GameMode finns (`gamemoderun %command%`).
   MangoHud (FPS-mätare) slås på i GOBLINCAKES Config → Optimering, ställs in i GOverlay. NTSYNC är påslaget.
   Battle.net/WoW installeras via GOBLINCAKES Config (Lutris); `goblin wow` länkar ~/Games/WoW/Logs och AddOns.
   TV-läge (Steam Big Picture i helskärm): `goblin tv` eller TV-läge i AppGrid; tillbaka via Steams strömmeny.

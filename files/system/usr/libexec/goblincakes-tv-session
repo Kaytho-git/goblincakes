@@ -10,9 +10,12 @@ back_to_desktop() {
 }
 trap back_to_desktop EXIT
 
-# Steam asks the SteamOS tool steamos-session-select for "Switch to Desktop"; ours (in the
-# Flatpak's PATH through the host's /usr) just closes Steam, and the trap does the rest.
-tools=/run/host/usr/share/goblincakes/tv/bin
-gamescope -e -f --xwayland-count 2 -- \
-    flatpak run --filesystem=host-os:ro --env=PATH="$tools:/app/bin:/app/utils/bin:/usr/bin:/bin" \
-        com.valvesoftware.Steam -gamepadui -steamos3
+# Steam on SteamOS asks steamos-session-select for "Switch to Desktop" and steamos-update
+# for updates; GOBLINCAKES' own versions come first in PATH (only in this session).
+export PATH="/usr/libexec/goblincakes-tv:$PATH"
+
+# Laptops with two graphics cards: same choice as the Optimering switch
+flags="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes"
+[ -e "$flags/steam-dgpu" ] && while read -r var; do export "$var"; done < "$flags/steam-dgpu"
+
+gamescope -e -f --xwayland-count 2 -- steam -gamepadui -steamos3

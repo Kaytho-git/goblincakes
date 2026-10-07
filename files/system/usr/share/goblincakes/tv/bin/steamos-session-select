@@ -1,4 +1,0 @@
-#!/bin/sh
-# GOBLINCAKES TV mode, inside the Steam Flatpak: Steam's "Switch to Desktop" ends up here.
-# Closing Steam ends the TV session; goblincakes-tv-session then logs in to the desktop.
-exec steam -shutdown

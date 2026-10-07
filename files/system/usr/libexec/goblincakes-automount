@@ -4,7 +4,8 @@
 #    (internal disks, a second SSD, external drives) through udisks, exactly as clicking
 #    it in Dolphin does: /run/media/<user>/<name>. No password: polkit rule
 #    50-goblincakes-mount.rules. Skips EFI/recovery partitions and encrypted disks.
-#  - lets Steam, Lutris and Heroic (Flatpaks) reach those disks, for game libraries there.
+#  - lets Lutris and Heroic (Flatpaks) reach those disks, for game libraries there
+#    (Steam is in the image and reaches them anyway).
 # Disks plugged in later: KDE's own automounter (/etc/xdg/kded_device_automounterrc).
 set -uo pipefail
 
@@ -37,7 +38,7 @@ for d in walk(json.load(sys.stdin)["blockdevices"]):
 done
 
 # Game launchers from Flathub can't see /run/media unless allowed
-for app in com.valvesoftware.Steam net.lutris.Lutris com.heroicgameslauncher.hgl; do
+for app in net.lutris.Lutris com.heroicgameslauncher.hgl; do
     flatpak info "$app" >/dev/null 2>&1 || continue
     flatpak override --user --show "$app" 2>/dev/null | grep -q "/run/media/$USER" && continue
     flatpak override --user --filesystem="/run/media/$USER" "$app"
