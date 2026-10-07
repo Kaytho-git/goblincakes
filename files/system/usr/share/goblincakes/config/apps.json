@@ -1,6 +1,7 @@
 {
   "categories": [
     {"id": "games", "name": "Spel och WoW"},
+    {"id": "emulators", "name": "Emulatorer"},
     {"id": "media", "name": "Media och kreativt"},
     {"id": "streaming", "name": "Streaming"},
     {"id": "office", "name": "Kontor och verktyg"},
@@ -18,6 +19,8 @@
     {"id": "wowup", "name": "WowUp", "category": "games", "desc": "Addon-hanterare för WoW (CurseForge-versionen), senaste versionen.", "steps": [["appimage-github", "WowUp/WowUp.CF", "WowUp"]], "check": ["appimage", "WowUp"]},
     {"id": "raiderio", "name": "Raider.IO", "category": "games", "desc": "Raider.IO-klienten, senaste versionen.", "steps": [["appimage-github", "RaiderIO/raiderio-client-builds", "RaiderIO"]], "check": ["appimage", "RaiderIO"]},
     {"id": "archon", "name": "Archon", "category": "games", "desc": "Archon-appen (Warcraft Logs), senaste versionen.", "steps": [["appimage-github", "RPGLogs/Uploaders-archon", "Archon"]], "check": ["appimage", "Archon"]},
+    {"id": "retrodeck", "name": "RetroDECK", "category": "emulators", "desc": "Alla klassiska konsoler i ett: Super Nintendo, Mega Drive, N64, PlayStation 1–3, GameCube, Wii, Switch, DS, Game Boy med flera. Snyggt spelbibliotek som styrs med handkontroll – passar TV-läget. Dina egna spel och BIOS-filer läggs i ~/retrodeck.", "steps": [["flatpak", "net.retrodeck.retrodeck"]], "check": ["flatpak", "net.retrodeck.retrodeck"]},
+    {"id": "steamrommanager", "name": "Steam ROM Manager", "category": "emulators", "desc": "Lägger in dina emulatorspel i Steam med omslag, så att de startas som vanliga Steam-spel – även i TV-läget.", "steps": [["flatpak", "com.steamgriddb.steam-rom-manager"]], "check": ["flatpak", "com.steamgriddb.steam-rom-manager"]},
     {"id": "vlc", "name": "VLC", "category": "media", "desc": "Spelar upp alla sorters film- och ljudfiler.", "steps": [["flatpak", "org.videolan.VLC"]], "check": ["flatpak", "org.videolan.VLC"]},
     {"id": "easyeffects", "name": "EasyEffects", "category": "media", "desc": "Brusreducering och brusspärr för mikrofonen (Discord, röstchatt) och equalizer för hörlurar och högtalare.", "steps": [["flatpak", "com.github.wwmm.easyeffects"]], "check": ["flatpak", "com.github.wwmm.easyeffects"]},
     {"id": "obs", "name": "OBS Studio", "category": "media", "desc": "Spela in och streama.", "steps": [["flatpak", "com.obsproject.Studio"]], "check": ["flatpak", "com.obsproject.Studio"]},
