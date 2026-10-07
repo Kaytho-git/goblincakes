@@ -1,29 +1,57 @@
 #!/usr/bin/env bash
-# GOBLINCAKES: ~/Games/WoW/Logs and ~/Games/WoW/AddOns point into the WoW install inside
-# the Battle.net Wine prefix (Lutris), so Archon, WowUp and the file manager find them.
-# Runs at every login (does nothing until WoW is installed) and as `goblin wow`.
+# GOBLINCAKES: ~/Games/WoW/Logs and ~/Games/WoW/AddOns point to wherever WoW (retail)
+# really is, so Archon, WowUp and the file manager find them – inside a Wine prefix
+# (Lutris, ~/.wine, a Steam non-Steam-game prefix) or on another disk that Battle.net
+# installed it to through a Wine drive letter (D:, E: … → /run/media/…).
+# Runs at every login (does nothing until WoW is installed; follows WoW if it moves)
+# and as `goblin wow`.
 set -uo pipefail
 shopt -s nullglob
 
+verbose=0; [ "${1:-}" = --verbose ] && verbose=1
 links="$HOME/Games/WoW"
-found=0
-for retail in "$HOME"/Games/*/drive_c/"Program Files (x86)"/"World of Warcraft"/_retail_ \
-              "$HOME"/Games/*/drive_c/"Program Files"/"World of Warcraft"/_retail_; do
-    [ -d "$retail" ] || continue
-    found=1
-    mkdir -p "$links" "$retail/Logs" "$retail/Interface/AddOns"
-    for pair in "Logs|$retail/Logs" "AddOns|$retail/Interface/AddOns"; do
-        name=${pair%%|*} target=${pair#*|}
-        # Only our own links are replaced, never a real folder
-        if [ -L "$links/$name" ] || [ ! -e "$links/$name" ]; then
-            ln -sfn "$target" "$links/$name"
-        fi
-    done
-    [ "${1:-}" = --verbose ] && printf 'WoW: %s\n  ~/Games/WoW/Logs   → %s/Logs\n  ~/Games/WoW/AddOns → %s/Interface/AddOns\n' "$retail" "$retail" "$retail"
-    break
+
+# Wine prefixes: anything with a drive_c
+prefixes=()
+for p in "$HOME"/Games/*/ "$HOME"/.wine/ "$HOME"/.local/share/wineprefixes/*/ \
+         "$HOME"/.local/share/Steam/steamapps/compatdata/*/pfx/ \
+         "$HOME"/.var/app/net.lutris.Lutris/data/lutris/prefixes/*/; do
+    [ -d "$p/drive_c" ] && prefixes+=("${p%/}")
 done
-if [ "$found" = 0 ] && [ "${1:-}" = --verbose ]; then
-    echo "Hittade inte WoW. Installera Battle.net och WoW i GOBLINCAKES Config (Spel och WoW) först."
-    exit 1
+
+# Where to look: each prefix's C:, every other drive letter it has (other disks),
+# and the mounted disks themselves
+roots=()
+for p in "${prefixes[@]}"; do
+    roots+=("$p/drive_c")
+    for d in "$p"/dosdevices/[d-z]:; do
+        target=$(readlink -f "$d") && [ -d "$target" ] && [ "$target" != / ] && roots+=("$target")
+    done
+done
+for m in /run/media/"${USER:-$(id -un)}"/* /var/mnt/* /mnt/*; do [ -d "$m" ] && roots+=("$m"); done
+
+# WoW retail = the folder _retail_ with Wow.exe in it; the most recently played one wins
+retail=$(for r in "${roots[@]}"; do
+             find "$r" -maxdepth 5 -ipath '*/_retail_/wow.exe' -printf '%T@ %h\n' 2>/dev/null
+         done | sort -rn | head -n1 | cut -d' ' -f2-)
+
+if [ -z "$retail" ]; then
+    [ "$verbose" = 1 ] && echo "Hittade inte WoW. Installera Battle.net och WoW i GOBLINCAKES Config (Spel och WoW) först."
+    [ "$verbose" = 1 ] && exit 1
+    exit 0
+fi
+
+mkdir -p "$links" "$retail/Logs" "$retail/Interface/AddOns"
+for pair in "Logs|$retail/Logs" "AddOns|$retail/Interface/AddOns"; do
+    name=${pair%%|*} target=${pair#*|}
+    # Only our own links are replaced, never a real folder
+    if [ -L "$links/$name" ] || [ ! -e "$links/$name" ]; then
+        ln -sfn "$target" "$links/$name"
+    elif [ "$verbose" = 1 ]; then
+        echo "~/Games/WoW/$name är en riktig mapp – lämnar den orörd."
+    fi
+done
+if [ "$verbose" = 1 ]; then
+    printf 'WoW finns i: %s\n  ~/Games/WoW/Logs   → %s/Logs\n  ~/Games/WoW/AddOns → %s/Interface/AddOns\n' "$retail" "$retail" "$retail"
 fi
 exit 0
