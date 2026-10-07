@@ -125,6 +125,8 @@ modules:
     properties:
       NAME: GOBLINCAKES
       PRETTY_NAME: GOBLINCAKES
+      # Computer name when none is set (user@goblincakes in the terminal)
+      DEFAULT_HOSTNAME: goblincakes
 
   # Rebuild the initramfs so the GOBLINCAKES boot screen (Plymouth) is used.
   # Keep this near the end: it picks up everything done before it.

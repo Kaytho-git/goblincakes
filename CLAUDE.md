@@ -1,4 +1,4 @@
-# GOBLINCAKES – projektöversikt för Claude Code
+﻿# GOBLINCAKES – projektöversikt för Claude Code
 
 Personlig Linux-distro byggd med **BlueBuild** i två varianter (sedan 7 okt): `goblincakes` ovanpå `ghcr.io/ublue-os/kinoite-main` (AMD/Intel, och den som installeras från ISO:n – Nvidia startar med öppna drivrutinen) och `goblincakes-nvidia` ovanpå `ghcr.io/ublue-os/kinoite-nvidia` (Nvidia RTX 20xx+, byts till i GOBLINCAKES Config → Grafik). Fedora Kinoite, KDE Plasma 6.
 Repo: `Kaytho-git/goblincakes` (publikt). Images: `ghcr.io/kaytho-git/goblincakes:latest` och `ghcr.io/kaytho-git/goblincakes-nvidia:latest`. **Recepten:** `recipes/recipe.yml` (grund) och `recipes/recipe-nvidia.yml` har bara namn/bas-image; allt innehåll ligger i `recipes/common-modules.yml` (moduler) och `recipes/common-stages.yml` (byggsteg) via `from-file` – ändra där. Båda byggs i workflowens matris. Byggs via GitHub Actions (`.github/workflows/build.yml`, skapad av BlueBuild Workshop med cosign-signering).
@@ -56,7 +56,7 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
 - [x] Gaming-optimering – finns som reglage i GOBLINCAKES Config, fliken Optimering (7 okt, ej testat i VM): scx_lavd (stänger av irqbalance; obs: kolla att det inte krockar med ananicy-cpp), vm.max_map_count, split-lock, prestandaläge (powerprofilesctl – används i stället för TuneD-profilen latency-performance, som krockar med KDE:s energiprofiler), shader-cache för Nvidia.
 
 ## Vad som finns
-- `recipes/recipe.yml`: moduler `files`, `dnf` (VS Code, Ghostty, aurorae, kvantum, libratbag-ratbagd, ddcutil, gamemode, ananicy-cpp + cachyos-ananicy-rules från COPR `bieszczaders/kernel-cachyos-addons`), `fonts` (Google Fonts: Chakra Petch, IBM Plex Sans, IBM Plex Mono), `default-flatpaks` (bara Firefox, Piper, Chromium – system scope; resten väljs i GOBLINCAKES Config), `systemd` (ratbagd, ananicy-cpp), `os-release` (NAME/PRETTY_NAME = GOBLINCAKES), `signing`.
+- `recipes/recipe.yml`: moduler `files`, `dnf` (VS Code, Ghostty, aurorae, kvantum, libratbag-ratbagd, ddcutil, gamemode, ananicy-cpp + cachyos-ananicy-rules från COPR `bieszczaders/kernel-cachyos-addons`), `fonts` (Google Fonts: Chakra Petch, IBM Plex Sans, IBM Plex Mono), `default-flatpaks` (bara Firefox, Piper, Chromium – system scope; resten väljs i GOBLINCAKES Config), `systemd` (ratbagd, ananicy-cpp), `os-release` (NAME/PRETTY_NAME = GOBLINCAKES, DEFAULT_HOSTNAME = goblincakes), `signing`.
 - `files/dnf/vscode.repo`
 - `files/system/usr/lib/udev/rules.d/60-keychron.rules` (Keychron V10, vendor 3434, hidraw uaccess för VIA)
 - `files/system/usr/lib/modules-load.d/i2c-dev.conf` (ddcutil)
