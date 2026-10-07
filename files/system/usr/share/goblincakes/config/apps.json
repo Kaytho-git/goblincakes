@@ -2,6 +2,7 @@
   "categories": [
     {"id": "games", "name": "Spel och WoW"},
     {"id": "media", "name": "Media och kreativt"},
+    {"id": "streaming", "name": "Streaming"},
     {"id": "office", "name": "Kontor och verktyg"},
     {"id": "archery", "name": "Bågskytte"},
     {"id": "system", "name": "System"}
@@ -21,6 +22,14 @@
     {"id": "gimp", "name": "GIMP", "category": "media", "desc": "Bildredigering.", "steps": [["flatpak", "org.gimp.GIMP"]], "check": ["flatpak", "org.gimp.GIMP"]},
     {"id": "spotify", "name": "Spotify", "category": "media", "desc": "Musik och poddar.", "steps": [["flatpak", "com.spotify.Client"]], "check": ["flatpak", "com.spotify.Client"]},
     {"id": "quodlibet", "name": "Quod Libet", "category": "media", "desc": "Musikspelare för din egen musiksamling, i GOBLINCAKES-tema.", "steps": [["flatpak", "io.github.quodlibet.QuodLibet"], ["gtk-theme", "io.github.quodlibet.QuodLibet"]], "check": ["flatpak", "io.github.quodlibet.QuodLibet"]},
+    {"id": "netflix", "name": "Netflix", "category": "streaming", "desc": "Filmer och serier. (På Linux visar Netflix högst 720p.) Öppnas som en egen app.", "requires": ["chrome"], "steps": [["webapp", "netflix", "Netflix", "https://www.netflix.com/"]], "check": ["webapp", "netflix"]},
+    {"id": "disneyplus", "name": "Disney+", "category": "streaming", "desc": "Disney, Pixar, Marvel och Star Wars. Öppnas som en egen app.", "requires": ["chrome"], "steps": [["webapp", "disneyplus", "Disney+", "https://www.disneyplus.com/"]], "check": ["webapp", "disneyplus"]},
+    {"id": "max", "name": "HBO Max", "category": "streaming", "desc": "HBO-serier och filmer (hette tidigare Max). Öppnas som en egen app.", "requires": ["chrome"], "steps": [["webapp", "max", "HBO Max", "https://play.hbomax.com/"]], "check": ["webapp", "max"]},
+    {"id": "primevideo", "name": "Prime Video", "category": "streaming", "desc": "Amazons filmer och serier. Öppnas som en egen app.", "requires": ["chrome"], "steps": [["webapp", "primevideo", "Prime Video", "https://www.primevideo.com/"]], "check": ["webapp", "primevideo"]},
+    {"id": "youtube", "name": "YouTube", "category": "streaming", "desc": "Videor, musik och livesändningar. Öppnas som en egen app.", "requires": ["chrome"], "steps": [["webapp", "youtube", "YouTube", "https://www.youtube.com/"]], "check": ["webapp", "youtube"]},
+    {"id": "svtplay", "name": "SVT Play", "category": "streaming", "desc": "SVT:s program, nyheter och sport. Öppnas som en egen app.", "requires": ["chrome"], "steps": [["webapp", "svtplay", "SVT Play", "https://www.svtplay.se/"]], "check": ["webapp", "svtplay"]},
+    {"id": "tv4play", "name": "TV4 Play", "category": "streaming", "desc": "TV4:s program, serier och sport. Öppnas som en egen app.", "requires": ["chrome"], "steps": [["webapp", "tv4play", "TV4 Play", "https://www.tv4play.se/"]], "check": ["webapp", "tv4play"]},
+    {"id": "chrome", "name": "Google Chrome", "category": "streaming", "desc": "Kör streamingapparna (har kopieringsskyddet de kräver). Kommer med automatiskt.", "steps": [["flatpak", "com.google.Chrome"]], "check": ["flatpak", "com.google.Chrome"]},
     {"id": "libreoffice", "name": "LibreOffice", "category": "office", "desc": "Ordbehandling, kalkyl och presentationer.", "steps": [["flatpak", "org.libreoffice.LibreOffice"]], "check": ["flatpak", "org.libreoffice.LibreOffice"]},
     {"id": "okular", "name": "Okular", "category": "office", "desc": "Läs PDF:er, markera, fyll i formulär och signera.", "steps": [["flatpak", "org.kde.okular"]], "check": ["flatpak", "org.kde.okular"]},
     {"id": "ark", "name": "Ark", "category": "office", "desc": "Packa upp och skapa zip, rar och 7z. Finns i Dolphins högerklicksmeny.", "steps": [["flatpak", "org.kde.ark"]], "check": ["flatpak", "org.kde.ark"]},
