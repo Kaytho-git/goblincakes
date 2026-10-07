@@ -179,17 +179,17 @@ DESKTOP
         ;;
 
     snap)
-        # A snap from the Snap Store (snapd is in the image). snap only asks for the
-        # password when run in a terminal, so pkexec shows Plasma's password window instead.
-        status "Hämtar $1 från Snap Store…"
-        if ! out=$(snap wait system seed.loaded 2>&1); then
-            echo "$out" >&2
-            status "snapd svarar inte: $(echo "$out" | tail -n1)"
-            exit 1
-        fi
-        classic=
-        snap info --verbose "$1" 2>/dev/null | grep -q '^ *confinement: *classic' && classic=--classic
-        if ! out=$(pkexec snap install $classic "$1" 2>&1); then
+        # A snap from the Snap Store (snapd is in the image). Outside a terminal snapd
+        # answers "access denied" instead of asking for the password (even `snap wait`),
+        # so the whole step runs as root through pkexec: one password window from Plasma.
+        status "Hämtar $1 från Snap Store – skriv ditt lösenord i fönstret som öppnas…"
+        if ! out=$(pkexec /bin/sh -c '
+                snap wait system seed.loaded || exit 1
+                if snap info --verbose "$1" 2>/dev/null | grep -q "^ *confinement: *classic"; then
+                    snap install --classic "$1"
+                else
+                    snap install "$1"
+                fi' sh "$1" 2>&1); then
             echo "$out" >&2
             status "$(echo "$out" | tail -n1)"
             exit 1
