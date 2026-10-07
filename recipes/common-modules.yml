@@ -41,6 +41,11 @@ modules:
         - ananicy-cpp           # keeps the desktop responsive under load
         - cachyos-ananicy-rules
 
+  # Ghostty also opens in VirtualBox/VMware with 3D on (software OpenGL there only)
+  - type: script
+    scripts:
+      - ghostty-wrapper.sh
+
   # Steam (RPM Fusion), with its 32-bit libraries – in the image so TV mode, disks,
   # MangoHud and Gamescope work without Flatpak workarounds
   - type: script

@@ -11,7 +11,7 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
 
 ## Status
 - [x] Steg 1: Bas-recept – paket, Flatpaks, udev-regler, tjänster (bygger grönt)
-- [x] Ghostty som standardterminal (COPR `mineiro/ghostty`) – bygger grönt
+- [x] Ghostty som standardterminal (COPR `mineiro/ghostty`) – bygger grönt. **VM-fix (8 okt):** Ghostty kräver OpenGL 4.3, VirtualBox 3D ger bara 4.1 → `files/scripts/ghostty-wrapper.sh` flyttar `/usr/bin/ghostty` till `/usr/libexec/ghostty-bin` och lägger en wrapper som sätter `LIBGL_ALWAYS_SOFTWARE=1` bara när `systemd-detect-virt --vm` = oracle/vmware (resten av skrivbordet behåller 3D).
 - [x] Steg 3: KDE-utseende + varumärke – klart och testat i VM 6 okt (tema, ramar, paneler, splash, Plymouth, utloggning, inloggningsbakgrund, Ghostty, fastfetch)
 - [ ] Ramen runt dockan och toppfältet ska vara skarp (användaren ser en mörk, suddig effekt runt ramen – ingen skugga finns i temat). Försök 1 (6 okt): `desktoptheme/goblincakes/plasmarc` stänger av KWins blur/contrast – **räckte inte** (7 okt). Behöver skärmdump; nästa misstänkt är skalning (bråkdelsskala ger kantutjämnade 1–2 px-linjer).
 - [ ] AppGrid ser ut som resten av systemet: raka hörn (ombyggd i byggsteget `appgrid-square`) + raka sökfält/knappar/markeringar/tooltips i Plasma-temat (6 okt). Testat 7 okt: "kan se lite mer ut som resten" – behöver skärmdump/vad som skiljer.
