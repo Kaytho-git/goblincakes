@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# GOBLINCAKES: which dock at the bottom of the screen (`goblin dock`).
+#   goblincakes-dock crystal    Crystal Dock: icons grow under the mouse, like on a Mac
+#   goblincakes-dock plasma     Plasma's own dock (the standard)
+#   goblincakes-dock status     prints crystal or plasma
+#   goblincakes-dock pin <id>   pin an app (desktop file name) – used by GOBLINCAKES Config
+#   goblincakes-dock reapply    after the desktop layout was reset (goblincakes-firstlogin)
+# Crystal Dock's settings: ~/.config/crystal-dock/KDE (GOBLINCAKES' own in /etc/xdg/crystal-dock).
+set -uo pipefail
+
+state="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/dock"
+crystal_conf="${XDG_CONFIG_HOME:-$HOME/.config}/crystal-dock/KDE"
+autostart="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/crystal-dock.desktop"
+
+mode() { [ "$(cat "$state" 2>/dev/null)" = crystal ] && echo crystal || echo plasma; }
+
+plasma_js() { busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$1" >/dev/null; }
+
+remove_plasma_dock() {
+    # The dock is the panel at the bottom (the top bar stays)
+    plasma_js 'panels().forEach(function (p) { if (p.location === "bottom") p.remove(); });'
+}
+
+desktop_exists() { # desktop file name
+    for d in "${XDG_DATA_HOME:-$HOME/.local/share}/applications" /usr/share/applications \
+             /var/lib/flatpak/exports/share/applications \
+             "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share/applications"; do
+        [ -e "$d/$1" ] && return 0
+    done
+    return 1
+}
+
+# Same apps as the Plasma dock: Firefox, Steam, Discord, VS Code, VLC – those that exist
+default_launchers() {
+    local ids=() f
+    for f in org.mozilla.firefox.desktop steam.desktop com.discordapp.Discord.desktop \
+             code.desktop com.microsoft.VSCode.desktop org.videolan.VLC.desktop; do
+        desktop_exists "$f" && ids+=("$(basename "$f" .desktop | tr '[:upper:]' '[:lower:]')")
+    done
+    (IFS=';'; echo "${ids[*]}")
+}
+
+restart_crystal() {
+    pkill -x crystal-dock 2>/dev/null && sleep 1
+    (setsid crystal-dock >/dev/null 2>&1 &)
+}
+
+case ${1:-status} in
+    status) mode ;;
+    crystal)
+        command -v crystal-dock >/dev/null || { echo "Crystal Dock finns inte i den här versionen av GOBLINCAKES." >&2; exit 1; }
+        mkdir -p "$(dirname "$state")" "$(dirname "$autostart")"
+        echo crystal > "$state"
+        if [ ! -e "$crystal_conf/panel_1.conf" ]; then
+            mkdir -p "$crystal_conf"
+            cp /etc/xdg/crystal-dock/KDE/*.conf "$crystal_conf/"
+            sed -i "s|^launchers=.*|launchers=$(default_launchers)|" "$crystal_conf/panel_1.conf"
+        fi
+        cp /usr/share/applications/crystal-dock.desktop "$autostart"
+        remove_plasma_dock
+        restart_crystal
+        echo "Crystal Dock är på. Tillbaka: goblin dock plasma" ;;
+    plasma)
+        rm -f "$state" "$autostart"
+        pkill -x crystal-dock 2>/dev/null
+        # Puts the whole GOBLINCAKES desktop layout back, Plasma's dock included
+        rm -f "$HOME/.local/state/goblincakes/firstlogin-done"
+        /usr/libexec/goblincakes-firstlogin
+        echo "Plasmas docka är tillbaka." ;;
+    pin)
+        id=${2:?desktop file}
+        if [ "$(mode)" = crystal ]; then
+            app=$(basename "$id" .desktop | tr '[:upper:]' '[:lower:]')
+            conf="$crystal_conf/panel_1.conf"
+            [ -e "$conf" ] || exit 0
+            grep -qE "^launchers=(.*;)?$app(;|$)" "$conf" && exit 0
+            pkill -x crystal-dock 2>/dev/null && sleep 1
+            sed -i "s|^launchers=\(.*\)$|launchers=\1;$app|; s|^launchers=;|launchers=|" "$conf"
+            (setsid crystal-dock >/dev/null 2>&1 &)
+        else
+            plasma_js "$(sed "s|%LAUNCHER%|applications:$id|" /usr/share/goblincakes/dock-add.js)"
+        fi ;;
+    reapply)
+        [ "$(mode)" = crystal ] && remove_plasma_dock
+        exit 0 ;;
+    *) echo "Använd: goblin dock crystal|plasma" >&2; exit 2 ;;
+esac

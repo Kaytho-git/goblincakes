@@ -130,10 +130,9 @@ case $step in
         ;;
 
     dock)
-        # Pin the app in the dock (the icon task manager), unless it is there already
+        # Pin the app in the dock (Plasma's or Crystal Dock), unless it is there already
         status "Lägger till i dockan…"
-        script=$(sed "s|%LAUNCHER%|applications:$1|" /usr/share/goblincakes/dock-add.js)
-        busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$script" >/dev/null 2>&1 \
+        /usr/libexec/goblincakes-dock pin "$1" >/dev/null 2>&1 \
             || status "Kunde inte lägga till i dockan (programmet är installerat ändå)"
         ;;
 

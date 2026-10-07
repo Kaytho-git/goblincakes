@@ -18,6 +18,9 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
         evaluateScript s "$(cat /usr/share/goblincakes/systray.js)" >/dev/null 2>&1 && break
 done
 
+# Crystal Dock chosen (goblin dock crystal): the layout just brought Plasma's dock back
+/usr/libexec/goblincakes-dock reapply
+
 # Ghostty: GOBLINCAKES colours and font, slightly see-through.
 # Written if the user has no Ghostty config, or only the empty template
 # Ghostty creates itself on first start (nothing but comments).

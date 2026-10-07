@@ -9,3 +9,12 @@ stages:
       - type: script
         scripts:
           - build-appgrid.sh
+
+  # Crystal Dock: a dock with Mac-like zooming icons (files/scripts/build-crystal-dock.sh),
+  # not in Fedora – switched to with `goblin dock crystal`
+  - name: crystal-dock
+    from: ghcr.io/ublue-os/kinoite-main:latest
+    modules:
+      - type: script
+        scripts:
+          - build-crystal-dock.sh
