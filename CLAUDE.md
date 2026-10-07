@@ -1,4 +1,4 @@
-﻿# GOBLINCAKES – projektöversikt för Claude Code
+# GOBLINCAKES – projektöversikt för Claude Code
 
 Personlig Linux-distro byggd med **BlueBuild** i två varianter (sedan 7 okt): `goblincakes` ovanpå `ghcr.io/ublue-os/kinoite-main` (AMD/Intel, och den som installeras från ISO:n – Nvidia startar med öppna drivrutinen) och `goblincakes-nvidia` ovanpå `ghcr.io/ublue-os/kinoite-nvidia` (Nvidia RTX 20xx+, byts till i GOBLINCAKES Config → Grafik). Fedora Kinoite, KDE Plasma 6.
 Repo: `Kaytho-git/goblincakes` (publikt). Images: `ghcr.io/kaytho-git/goblincakes:latest` och `ghcr.io/kaytho-git/goblincakes-nvidia:latest`. **Recepten:** `recipes/recipe.yml` (grund) och `recipes/recipe-nvidia.yml` har bara namn/bas-image; allt innehåll ligger i `recipes/common-modules.yml` (moduler) och `recipes/common-stages.yml` (byggsteg) via `from-file` – ändra där. Båda byggs i workflowens matris. Byggs via GitHub Actions (`.github/workflows/build.yml`, skapad av BlueBuild Workshop med cosign-signering).
