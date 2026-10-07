@@ -180,6 +180,60 @@ Window {
         }
     }
 
+    // Flat, square scroll bar along the right edge of a list – only when it doesn't fit.
+    // Drag the handle, or click the track to jump there (the mouse wheel works as well).
+    component FlatScrollBar: Item {
+        id: bar
+        required property Flickable flick
+        readonly property bool needed: flick.visible && flick.contentHeight > flick.height + 1
+        anchors { right: flick.right; rightMargin: 6; top: flick.top; topMargin: 6; bottom: flick.bottom; bottomMargin: 6 }
+        width: 8
+        visible: needed
+        z: 2
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#0E1420"
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onPressed: mouse => {
+                const ratio = Math.max(0, Math.min(1, (mouse.y - handle.height / 2) / (bar.height - handle.height)));
+                bar.flick.contentY = ratio * (bar.flick.contentHeight - bar.flick.height);
+            }
+        }
+
+        Rectangle {
+            id: handle
+            width: parent.width
+            height: Math.max(32, bar.flick.visibleArea.heightRatio * bar.height)
+            y: bar.flick.visibleArea.yPosition / Math.max(0.0001, 1 - bar.flick.visibleArea.heightRatio)
+               * (bar.height - height)
+            color: handleArea.pressed ? "#2F6FED" : handleArea.containsMouse ? "#8B98AD" : "#2A3852"
+
+            MouseArea {
+                id: handleArea
+                anchors.fill: parent
+                hoverEnabled: true
+                property real startY
+                property real startContentY
+                onPressed: mouse => {
+                    startY = mapToItem(bar, 0, mouse.y).y;
+                    startContentY = bar.flick.contentY;
+                }
+                onPositionChanged: mouse => {
+                    if (!pressed)
+                        return;
+                    const dy = mapToItem(bar, 0, mouse.y).y - startY;
+                    const span = bar.flick.contentHeight - bar.flick.height;
+                    const y = startContentY + dy * span / Math.max(1, bar.height - handle.height);
+                    bar.flick.contentY = Math.max(0, Math.min(span, y));
+                }
+            }
+        }
+    }
+
     // ── Header ───────────────────────────────────────────────
 
     Item {
@@ -882,6 +936,12 @@ Window {
             }
         }
     }
+
+    // Scroll bars for the lists above (shown only when a list is longer than the window)
+    FlatScrollBar { flick: chooser }
+    FlatScrollBar { flick: progressView }
+    FlatScrollBar { flick: tweaksView }
+    FlatScrollBar { flick: graphicsView }
 
     // ── Footer ───────────────────────────────────────────────
 
