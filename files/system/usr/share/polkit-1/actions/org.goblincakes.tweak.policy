@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- GOBLINCAKES Config: the system-wide gaming optimisations need the admin password once -->
+<policyconfig>
+  <vendor>GOBLINCAKES</vendor>
+  <action id="org.goblincakes.tweak">
+    <description>Change GOBLINCAKES optimisations</description>
+    <description xml:lang="sv">Ändra GOBLINCAKES-optimeringar</description>
+    <message>Changing a system setting needs your password</message>
+    <message xml:lang="sv">För att ändra en systeminställning behövs ditt lösenord</message>
+    <icon_name>goblincakes</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/goblincakes-tweak</annotate>
+  </action>
+</policyconfig>

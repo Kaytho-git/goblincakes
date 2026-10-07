@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Gaming optimisations for the GOBLINCAKES Config window (Optimering tab).
+#
+#   goblincakes-tweak status <id>        prints on, off or unavailable
+#   goblincakes-tweak set <id> on|off    changes it (system ones run as root via pkexec)
+#
+# System settings go in /etc (writable on the atomic system) and survive updates;
+# switching off removes our file again, so the system default is back.
+set -euo pipefail
+
+sysctl_file() { echo "/etc/sysctl.d/90-goblincakes-$1.conf"; }
+
+sysctl_status() { # id key wanted
+    local now
+    now=$(cat "/proc/sys/${2//.//}" 2>/dev/null) || { echo unavailable; return; }
+    [ "$now" = "$3" ] && echo on || echo off
+}
+
+sysctl_set() { # id key value on|off
+    if [ "$4" = on ]; then
+        echo "$2 = $3" > "$(sysctl_file "$1")"
+        sysctl -q -w "$2=$3"
+    else
+        rm -f "$(sysctl_file "$1")"
+        sysctl -q --system >/dev/null
+    fi
+}
+
+shader_env="${XDG_CONFIG_HOME:-$HOME/.config}/environment.d/90-goblincakes-shadercache.conf"
+
+cmd=${1:?command}; id=${2:?id}; value=${3:-}
+
+case $id in
+    max-map-count)
+        # Some big or modded games (and Proton) need many memory maps
+        case $cmd in
+            status) now=$(cat /proc/sys/vm/max_map_count)
+                    [ "$now" -ge 2147483642 ] && echo on || echo off ;;
+            set) sysctl_set "$id" vm.max_map_count 2147483642 "$value" ;;
+        esac ;;
+
+    split-lock)
+        # The kernel slows down programs that use "split locks" – some Windows games do
+        case $cmd in
+            status) sysctl_status "$id" kernel.split_lock_mitigate 0 ;;
+            set) sysctl_set "$id" kernel.split_lock_mitigate 0 "$value" ;;
+        esac ;;
+
+    performance)
+        # Power profile (the same as the battery/power menu in the top bar)
+        command -v powerprofilesctl >/dev/null || { [ "$cmd" = status ] && echo unavailable; exit 0; }
+        case $cmd in
+            status) [ "$(powerprofilesctl get 2>/dev/null)" = performance ] && echo on || echo off ;;
+            set) powerprofilesctl set "$([ "$value" = on ] && echo performance || echo balanced)" ;;
+        esac ;;
+
+    scx-lavd)
+        # sched_ext scheduler from the CachyOS project, tuned for games and the desktop
+        if ! command -v scx_lavd >/dev/null || ! systemctl cat scx.service >/dev/null 2>&1; then
+            [ "$cmd" = status ] && echo unavailable
+            exit 0
+        fi
+        case $cmd in
+            status) systemctl is-active --quiet scx.service && echo on || echo off ;;
+            set)
+                if [ "$value" = on ]; then
+                    mkdir -p /etc/default
+                    printf 'SCX_SCHEDULER=scx_lavd\nSCX_FLAGS=\n' > /etc/default/scx
+                    # irqbalance fights with sched_ext and causes stutter
+                    systemctl disable --now irqbalance.service 2>/dev/null || true
+                    systemctl enable --now scx.service
+                else
+                    systemctl disable --now scx.service
+                    systemctl enable --now irqbalance.service 2>/dev/null || true
+                fi ;;
+        esac ;;
+
+    shader-cache)
+        # Nvidia: keep up to 12 GB of compiled shaders instead of 1 GB (less stutter)
+        case $cmd in
+            status) [ -e "$shader_env" ] && echo on || echo off ;;
+            set)
+                if [ "$value" = on ]; then
+                    mkdir -p "$(dirname "$shader_env")"
+                    printf '__GL_SHADER_DISK_CACHE_SIZE=12000000000\n__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1\n' > "$shader_env"
+                else
+                    rm -f "$shader_env"
+                fi ;;
+        esac ;;
+
+    *) echo "Unknown optimisation: $id" >&2; exit 2 ;;
+esac

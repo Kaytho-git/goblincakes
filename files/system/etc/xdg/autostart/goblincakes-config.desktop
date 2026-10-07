@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=GOBLINCAKES Setup
+Name=GOBLINCAKES Config
 Comment=Choose apps at the first login (shown once, then from AppGrid)
-Exec=goblincakes-setup --first-run
+Exec=goblincakes-config --first-run
 Icon=goblincakes
 OnlyShowIn=KDE;
 NoDisplay=true

@@ -1,5 +1,5 @@
-// GOBLINCAKES setup window: pick apps, watch them install.
-// Flat, square, in the GOBLINCAKES palette. Backend: /usr/bin/goblincakes-setup ("setup").
+// GOBLINCAKES Config: install apps (Program tab) and gaming optimisations (Optimering tab).
+// Flat, square, in the GOBLINCAKES palette. Backend: /usr/bin/goblincakes-config ("backend").
 import QtQuick
 import QtQuick.Window
 
@@ -11,14 +11,15 @@ Window {
     minimumWidth: 760
     minimumHeight: 560
     visible: true
-    title: "GOBLINCAKES Setup"
+    title: "GOBLINCAKES Config"
     color: "#07090D"
 
-    readonly property var catalog: JSON.parse(setup.catalog)
+    readonly property var catalog: JSON.parse(backend.catalog)
     property var chosen: ({})
     property int chosenCount: 0
     property string page: "choose" // choose → install → done
     property int failedCount: 0
+    property string tab: "apps" // apps | tweaks
 
     function toggle(id) {
         const c = Object.assign({}, chosen);
@@ -39,18 +40,26 @@ Window {
 
     function startInstall() {
         page = "install";
-        setup.install(JSON.stringify(Object.keys(chosen)));
+        backend.install(JSON.stringify(Object.keys(chosen)));
     }
 
     function finish() {
-        setup.markDone();
+        backend.markDone();
         Qt.quit();
     }
 
     ListModel { id: progressModel }
 
+    ListModel {
+        id: tweakModel
+        Component.onCompleted: {
+            for (const t of JSON.parse(backend.tweaks).tweaks)
+                append({ "tweakId": t.id, "name": t.name, "desc": t.desc, "status": t.state, "message": "" });
+        }
+    }
+
     Connections {
-        target: setup
+        target: backend
         function onProgress(id, state, message) {
             for (let i = 0; i < progressModel.count; i++) {
                 if (progressModel.get(i).appId === id) {
@@ -63,6 +72,11 @@ Window {
         function onAllDone(failed) {
             win.failedCount = failed;
             win.page = "done";
+        }
+        function onTweakChanged(id, state, message) {
+            for (let i = 0; i < tweakModel.count; i++)
+                if (tweakModel.get(i).tweakId === id)
+                    tweakModel.set(i, { "status": state, "message": message });
         }
     }
 
@@ -152,10 +166,10 @@ Window {
     Item {
         id: header
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        height: 132
+        height: 176
 
         Row {
-            anchors { left: parent.left; leftMargin: 48; verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; leftMargin: 48; top: parent.top; topMargin: 30 }
             spacing: 22
 
             Image {
@@ -169,7 +183,8 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6
                 Text {
-                    text: win.page === "choose" ? "VÄLJ DINA PROGRAM"
+                    text: win.tab === "tweaks" ? "OPTIMERING"
+                        : win.page === "choose" ? "VÄLJ DINA PROGRAM"
                         : win.page === "install" ? "INSTALLERAR…" : "KLART"
                     color: "#E6ECF5"
                     font.family: "Chakra Petch"
@@ -178,15 +193,59 @@ Window {
                     font.letterSpacing: 4
                 }
                 Text {
-                    text: win.page === "choose"
-                        ? "Kryssa i det du vill ha. Allt går att lägga till senare – sök på GOBLINCAKES Setup i AppGrid."
+                    text: win.tab === "tweaks"
+                        ? "Inställningar för spel. Slå på det du vill ha – allt går att slå av igen."
+                        : win.page === "choose"
+                        ? "Kryssa i det du vill ha. Allt går att lägga till senare – sök på GOBLINCAKES Config i AppGrid."
                         : win.page === "install"
                         ? "Du kan använda datorn under tiden. Stäng inte fönstret."
                         : win.failedCount === 0 ? "Allt är installerat. Programmen finns i AppGrid."
-                        : win.failedCount + " program gick inte att installera – öppna GOBLINCAKES Setup igen för att försöka på nytt."
+                        : win.failedCount + " program gick inte att installera – öppna GOBLINCAKES Config igen för att försöka på nytt."
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 15
+                }
+            }
+        }
+
+        // Tabs
+        Row {
+            anchors { left: parent.left; leftMargin: 48; bottom: parent.bottom }
+            spacing: 32
+
+            Repeater {
+                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "tweaks", "label": "OPTIMERING" }]
+
+                Item {
+                    id: tabItem
+                    required property var modelData
+                    readonly property bool active: win.tab === modelData.id
+                    width: tabLabel.implicitWidth
+                    height: 44
+
+                    Text {
+                        id: tabLabel
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: tabItem.modelData.label
+                        color: tabItem.active || tabArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 15
+                        font.letterSpacing: 2.5
+                    }
+                    Rectangle {
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                        height: 2
+                        color: "#2F6FED"
+                        visible: tabItem.active
+                    }
+                    MouseArea {
+                        id: tabArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: win.tab = tabItem.modelData.id
+                    }
                 }
             }
         }
@@ -195,6 +254,7 @@ Window {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
             height: 1
             color: "#1E2A40"
+            z: -1
         }
     }
 
@@ -202,7 +262,7 @@ Window {
 
     Flickable {
         id: chooser
-        visible: win.page === "choose"
+        visible: win.tab === "apps" && win.page === "choose"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
         contentHeight: sections.height + 64
         clip: true
@@ -318,7 +378,7 @@ Window {
 
     Flickable {
         id: progressView
-        visible: win.page !== "choose"
+        visible: win.tab === "apps" && win.page !== "choose"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
         contentHeight: rows.height + 64
         clip: true
@@ -428,6 +488,115 @@ Window {
         }
     }
 
+    // ── Optimisations ────────────────────────────────────────
+
+    // Square on/off switch: blue with the knob to the right when on
+    component ToggleSwitch: Rectangle {
+        id: sw
+        property bool on
+        property bool enabledState: true
+        signal toggled()
+        width: 48
+        height: 26
+        color: on ? "#2F6FED" : "transparent"
+        border.width: on ? 0 : 1
+        border.color: "#2A3852"
+        opacity: enabledState ? 1 : 0.35
+        Rectangle {
+            width: 18
+            height: 18
+            anchors.verticalCenter: parent.verticalCenter
+            x: sw.on ? parent.width - width - 4 : 4
+            color: sw.on ? "#E6ECF5" : "#8B98AD"
+            Behavior on x { NumberAnimation { duration: 120 } }
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: sw.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: if (sw.enabledState) sw.toggled()
+        }
+    }
+
+    Flickable {
+        id: tweaksView
+        visible: win.tab === "tweaks"
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
+        contentHeight: tweakRows.height + 64
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        Column {
+            id: tweakRows
+            x: 48
+            y: 32
+            width: tweaksView.width - 96
+            spacing: 12
+
+            Repeater {
+                model: tweakModel
+
+                Rectangle {
+                    id: tweakRow
+                    required property string tweakId
+                    required property string name
+                    required property string desc
+                    required property string status
+                    required property string message
+                    readonly property bool available: status !== "unavailable"
+
+                    width: tweakRows.width
+                    height: Math.max(92, tweakText.height + 36)
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: status === "on" ? "#2F6FED" : "#1E2A40"
+                    opacity: available ? 1 : 0.55
+
+                    Column {
+                        id: tweakText
+                        anchors {
+                            left: parent.left; leftMargin: 22
+                            right: tweakSwitch.left; rightMargin: 24
+                            verticalCenter: parent.verticalCenter
+                        }
+                        spacing: 5
+                        Text {
+                            width: parent.width
+                            text: tweakRow.name
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            width: parent.width
+                            text: tweakRow.available ? tweakRow.desc : tweakRow.desc + " (Finns inte på den här datorn.)"
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                            wrapMode: Text.WordWrap
+                            lineHeight: 1.15
+                        }
+                        Text {
+                            visible: tweakRow.message !== ""
+                            text: tweakRow.message
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                    }
+
+                    ToggleSwitch {
+                        id: tweakSwitch
+                        anchors { right: parent.right; rightMargin: 22; verticalCenter: parent.verticalCenter }
+                        on: tweakRow.status === "on"
+                        enabledState: tweakRow.available && tweakRow.status !== "busy"
+                        onToggled: backend.setTweak(tweakRow.tweakId, !on)
+                    }
+                }
+            }
+        }
+    }
+
     // ── Footer ───────────────────────────────────────────────
 
     Rectangle {
@@ -444,8 +613,9 @@ Window {
 
         Text {
             anchors { left: parent.left; leftMargin: 48; verticalCenter: parent.verticalCenter }
-            visible: win.page === "choose"
-            text: win.chosenCount === 0 ? "Inget valt" : win.chosenCount === 1 ? "1 program valt" : win.chosenCount + " program valda"
+            visible: win.tab === "tweaks" || win.page === "choose"
+            text: win.tab === "tweaks" ? "Ändringar gäller direkt. Systeminställningar frågar efter ditt lösenord."
+                : win.chosenCount === 0 ? "Inget valt" : win.chosenCount === 1 ? "1 program valt" : win.chosenCount + " program valda"
             color: "#8B98AD"
             font.family: "IBM Plex Sans"
             font.pixelSize: 15
@@ -456,22 +626,30 @@ Window {
             spacing: 12
 
             FlatButton {
-                visible: win.page === "choose"
+                visible: win.tab === "apps" && win.page === "choose"
                 text: "Hoppa över"
                 onClicked: win.finish()
             }
             FlatButton {
-                visible: win.page === "choose"
+                visible: win.tab === "apps" && win.page === "choose"
                 primary: true
                 enabledState: win.chosenCount > 0
                 text: "Installera"
                 onClicked: win.startInstall()
             }
             FlatButton {
-                visible: win.page !== "choose"
+                visible: win.tab === "apps" && win.page !== "choose"
                 primary: true
                 enabledState: win.page === "done"
                 text: "Klar"
+                onClicked: win.finish()
+            }
+            FlatButton {
+                visible: win.tab === "tweaks"
+                primary: true
+                // Not while apps are still installing
+                enabledState: win.page !== "install"
+                text: "Stäng"
                 onClicked: win.finish()
             }
         }

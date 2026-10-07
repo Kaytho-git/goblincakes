@@ -1,0 +1,14 @@
+{
+  "tweaks": [
+    { "id": "performance", "root": false, "name": "Prestandaläge",
+      "desc": "Energiprofilen Prestanda i stället för Balanserad: högre klockfrekvens, men mer ström och värme. Samma som i ström-menyn i toppfältet." },
+    { "id": "max-map-count", "root": true, "name": "Fler minnesområden för spel",
+      "desc": "Höjer vm.max_map_count. Vissa stora eller moddade spel (ofta via Proton) kraschar annars." },
+    { "id": "split-lock", "root": true, "name": "Ingen split-lock-broms",
+      "desc": "Kärnan saktar annars ner program som använder ”split locks”. Vissa Windows-spel gör det och hackar då." },
+    { "id": "scx-lavd", "root": true, "name": "Spelschemaläggare (scx_lavd)",
+      "desc": "CachyOS schemaläggare som prioriterar spel och skrivbordet för jämnare bildfrekvens. Stänger av irqbalance under tiden." },
+    { "id": "shader-cache", "root": false, "name": "Större shader-cache (Nvidia)",
+      "desc": "Sparar upp till 12 GB färdiga shaders i stället för 1 GB, så spel hackar mindre. Gäller från nästa inloggning." }
+  ]
+}

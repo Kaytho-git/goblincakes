@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Installs one step for the GOBLINCAKES setup window (goblincakes-setup).
+# Installs one step for the GOBLINCAKES Config window (goblincakes-config), Program tab.
 # Everything is installed for the current user, so no password is needed.
 #
-#   goblincakes-setup-install <step> [args…]     install
-#   goblincakes-setup-install check <kind> [args…]  exit 0 if already installed
+#   goblincakes-config-install <step> [args…]     install
+#   goblincakes-config-install check <kind> [args…]  exit 0 if already installed
 #
 # Lines starting with "@@ " are shown in the window as the current status.
 set -euo pipefail
@@ -31,14 +31,49 @@ for a in json.load(sys.stdin).get("assets", []):
 ' "$1"
 }
 
+# Menu entry + icon for an AppImage, taken from the desktop file inside it
+# (extracting works without FUSE). Same file name every time, so updates replace it.
+integrate_appimage() { # file label
+    local file=$1 label=$2 id tmp desktop icon_name icon apps icons
+    id=appimage-$(echo "$label" | tr '[:upper:] ' '[:lower:]-')
+    apps="$HOME/.local/share/applications"
+    icons="$HOME/.local/share/icons/hicolor/512x512/apps"
+    mkdir -p "$apps" "$icons"
+    tmp=$(mktemp -d)
+    (cd "$tmp" && "$file" --appimage-extract '*.desktop' >/dev/null 2>&1 || true)
+    desktop=$(find "$tmp/squashfs-root" -maxdepth 1 -name '*.desktop' 2>/dev/null | head -n1)
+    icon_name=$( [ -n "$desktop" ] && sed -n 's/^Icon=//p' "$desktop" | head -n1 )
+    if [ -n "$icon_name" ]; then
+        (cd "$tmp" && "$file" --appimage-extract "$icon_name.png" >/dev/null 2>&1 || true
+                      "$file" --appimage-extract "usr/share/icons/*" >/dev/null 2>&1 || true
+                      "$file" --appimage-extract ".DirIcon" >/dev/null 2>&1 || true)
+        # Biggest PNG with the icon's name, else the AppImage's .DirIcon
+        icon=$(find "$tmp/squashfs-root" -name "$icon_name.png" -printf '%s %p\n' 2>/dev/null | sort -nr | head -n1 | cut -d' ' -f2-)
+        [ -n "$icon" ] || icon=$(readlink -f "$tmp/squashfs-root/.DirIcon" 2>/dev/null || true)
+        [ -f "$icon" ] && cp "$icon" "$icons/$id.png"
+    fi
+    {
+        echo "[Desktop Entry]"
+        echo "Type=Application"
+        echo "Name=$( [ -n "$desktop" ] && sed -n 's/^Name=//p' "$desktop" | head -n1 || true)"
+        echo "Comment=$( [ -n "$desktop" ] && sed -n 's/^Comment=//p' "$desktop" | head -n1 || true)"
+        echo "Exec=\"$file\" %U"
+        echo "TryExec=$file"
+        echo "Icon=$( [ -f "$icons/$id.png" ] && echo "$id" || echo application-x-executable)"
+        echo "Categories=$( [ -n "$desktop" ] && sed -n 's/^Categories=//p' "$desktop" | head -n1 || echo Game\;)"
+        echo "StartupWMClass=$( [ -n "$desktop" ] && sed -n 's/^StartupWMClass=//p' "$desktop" | head -n1 || true)"
+        echo "X-GOBLINCAKES-AppImage=$file"
+    } > "$apps/$id.desktop"
+    sed -i "s/^Name=$/Name=$label/" "$apps/$id.desktop"
+    rm -rf "$tmp"
+    update-desktop-database "$apps" >/dev/null 2>&1 || true
+}
+
 check() {
     local kind=$1; shift
     case $kind in
         flatpak) flatpak info "$1" >/dev/null 2>&1 ;;
-        appimage)
-            ls "$appimage_dir"/*"$1"*.AppImage "$appimage_dir"/*"${1,,}"*.AppImage >/dev/null 2>&1 \
-                || ls "$HOME"/.local/share/applications/*"${1,,}"* >/dev/null 2>&1 \
-                || ls "$HOME"/.local/share/applications/*"$1"* >/dev/null 2>&1 ;;
+        appimage) [ -x "$appimage_dir/$1.AppImage" ] ;;
         ianseo) [ -e "$HOME/.config/containers/systemd/ianseo-web.container" ] ;;
         *) return 1 ;;
     esac
@@ -86,20 +121,19 @@ case $step in
         ;;
 
     appimage-github)
-        # repo, name → newest x86_64 AppImage, handed to Gear Lever
+        # repo, name → newest x86_64 AppImage in ~/AppImages, added to AppGrid with its own name and icon
         repo=$1 label=$2
         status "Letar efter senaste $label…"
-        read -r name url < <(github_latest "$repo" | json_asset '^(?!.*(arm64|aarch64)).*\.AppImage$')
+        read -r name url < <(github_latest "$repo" | json_asset '^(?!.*(arm64|aarch64|armv7)).*\.AppImage$')
         mkdir -p "$appimage_dir"
+        file="$appimage_dir/$label.AppImage"
         status "Hämtar $name…"
-        curl -fL --progress-bar -o "$appimage_dir/$name" "$url"
-        chmod +x "$appimage_dir/$name"
-        status "Lägger till $label via Gear Lever…"
-        if ! flatpak run it.mijorus.gearlever --integrate "$appimage_dir/$name" -y; then
-            # Older Gear Lever without the command line: let the user click
-            flatpak run it.mijorus.gearlever "$appimage_dir/$name" &
-            status "Gear Lever öppnat – klicka på Lägg till"
-        fi
+        curl -fL --progress-bar -o "$file.part" "$url"
+        mv "$file.part" "$file"
+        chmod +x "$file"
+        status "Lägger till $label i AppGrid…"
+        integrate_appimage "$file" "$label"
+        status "$label installerad (${name})"
         ;;
 
     open-url)

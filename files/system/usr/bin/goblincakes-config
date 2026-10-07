@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+"""GOBLINCAKES Config: install apps (Program tab) and gaming optimisations (Optimering tab).
+
+Shown once at the first login (--first-run) and always available from AppGrid.
+Catalogs: /usr/share/goblincakes/config/apps.json and tweaks.json, the window Main.qml
+next to them. Install steps are run by /usr/libexec/goblincakes-config-install,
+optimisations by /usr/libexec/goblincakes-tweak (through pkexec when they change the system).
+"""
+import json
+import os
+import sys
+from pathlib import Path
+
+from PySide6.QtCore import QObject, QProcess, QUrl, Property, Signal, Slot
+from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon
+from PySide6.QtQml import QQmlApplicationEngine
+
+SHARE = Path(os.environ.get("GOBLINCAKES_CONFIG_SHARE", "/usr/share/goblincakes/config"))
+HELPER = os.environ.get("GOBLINCAKES_CONFIG_HELPER", "/usr/libexec/goblincakes-config-install")
+TWEAK = os.environ.get("GOBLINCAKES_CONFIG_TWEAK", "/usr/libexec/goblincakes-tweak")
+STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
+DONE_FILE = STATE / "config-done"
+OLD_DONE_FILE = STATE / "setup-done"  # from when the window was called GOBLINCAKES Setup
+
+
+def run(program, args, timeout=15000):
+    """Runs a short command, returns (exit code, output)."""
+    proc = QProcess()
+    proc.start(program, args)
+    proc.waitForFinished(timeout)
+    out = bytes(proc.readAllStandardOutput()).decode(errors="replace").strip()
+    ok = proc.exitStatus() == QProcess.NormalExit
+    return (proc.exitCode() if ok else -1), out
+
+
+class Config(QObject):
+    """Talks to Main.qml: catalogs in, progress out."""
+
+    progress = Signal(str, str, str)  # app id, state (waiting/running/done/failed), message
+    allDone = Signal(int)  # number of failed apps
+    tweakChanged = Signal(str, str, str)  # tweak id, state (on/off/unavailable/busy), message
+
+    def __init__(self):
+        super().__init__()
+        catalog = json.loads((SHARE / "apps.json").read_text())
+        self._apps = {a["id"]: a for a in catalog["apps"]}
+        for app in catalog["apps"]:
+            app["installed"] = run(HELPER, ["check", *app["check"]])[0] == 0
+        self._catalog = json.dumps(catalog)
+
+        tweaks = json.loads((SHARE / "tweaks.json").read_text())
+        self._tweaks = {t["id"]: t for t in tweaks["tweaks"]}
+        for tweak in tweaks["tweaks"]:
+            tweak["state"] = self._tweak_status(tweak["id"])
+        self._tweak_catalog = json.dumps(tweaks)
+
+        self._queue = []  # [(app id, [step args])]
+        self._current = None
+        self._failed = set()
+        self._proc = None
+        self._last_message = {}  # app id → latest status line
+        self._tweak_procs = {}
+
+    # ── Apps ──────────────────────────────────────────────────
+
+    @Property(str, constant=True)
+    def catalog(self):
+        return self._catalog
+
+    @Slot(str)
+    def install(self, ids_json):
+        """Installs the chosen apps one step at a time, in catalog order."""
+        chosen = set(json.loads(ids_json))
+        # Apps that others need come first, and are added if missing
+        needed = {n for i in chosen for n in self._apps[i].get("requires", [])}
+        chosen |= {n for n in needed if not self._apps[n]["installed"]}
+        catalog_order = list(self._apps)
+        order = sorted(chosen, key=lambda i: (i not in needed, catalog_order.index(i)))
+        self._failed.clear()
+        for app_id in order:
+            self.progress.emit(app_id, "waiting", "Väntar")
+            for step in self._apps[app_id]["steps"]:
+                self._queue.append((app_id, step))
+        self._next()
+
+    def _next(self):
+        while self._queue and self._queue[0][0] in self._failed:
+            self._queue.pop(0)  # skip the rest of an app that already failed
+        if not self._queue:
+            self._finish_app(self._current)
+            self._current = None
+            self.allDone.emit(len(self._failed))
+            return
+        app_id, step = self._queue.pop(0)
+        if app_id != self._current:
+            self._finish_app(self._current)
+            self._current = app_id
+            self.progress.emit(app_id, "running", "Startar…")
+        self._proc = QProcess(self)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyReadStandardOutput.connect(self._read)
+        self._proc.finished.connect(self._step_finished)
+        self._proc.start(HELPER, step)
+
+    def _finish_app(self, app_id):
+        if app_id and app_id not in self._failed:
+            self._apps[app_id]["installed"] = True
+            self.progress.emit(app_id, "done", self._last_message.get(app_id, "Installerad"))
+
+    def _read(self):
+        for line in bytes(self._proc.readAllStandardOutput()).decode(errors="replace").splitlines():
+            print(line, flush=True)
+            if line.startswith("@@ "):
+                self._last_message[self._current] = line[3:]
+                self.progress.emit(self._current, "running", line[3:])
+
+    def _step_finished(self, code, exit_status):
+        if exit_status != QProcess.NormalExit or code != 0:
+            self._failed.add(self._current)
+            self.progress.emit(self._current, "failed",
+                               "Misslyckades – " + self._last_message.get(self._current, "kolla nätverket och försök igen"))
+        self._next()
+
+    # ── Optimisations ─────────────────────────────────────────
+
+    @Property(str, constant=True)
+    def tweaks(self):
+        return self._tweak_catalog
+
+    def _tweak_status(self, tweak_id):
+        code, out = run(TWEAK, ["status", tweak_id])
+        return out if code == 0 and out in ("on", "off", "unavailable") else "unavailable"
+
+    @Slot(str, bool)
+    def setTweak(self, tweak_id, on):
+        if tweak_id in self._tweak_procs:
+            return
+        tweak = self._tweaks[tweak_id]
+        args = [TWEAK, "set", tweak_id, "on" if on else "off"]
+        program, args = ("pkexec", args) if tweak.get("root") else (args[0], args[1:])
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+        proc.finished.connect(lambda code, status, i=tweak_id: self._tweak_finished(i, code, status))
+        proc.errorOccurred.connect(lambda error, i=tweak_id: self._tweak_failed_to_start(i, error))
+        self._tweak_procs[tweak_id] = proc
+        self.tweakChanged.emit(tweak_id, "busy", "Ändrar…")
+        proc.start(program, args)
+
+    def _tweak_failed_to_start(self, tweak_id, error):
+        # A program that never started doesn't send "finished"
+        if error == QProcess.FailedToStart and tweak_id in self._tweak_procs:
+            self._tweak_procs.pop(tweak_id)
+            self.tweakChanged.emit(tweak_id, self._tweak_status(tweak_id), "Gick inte att starta")
+
+    def _tweak_finished(self, tweak_id, code, exit_status):
+        proc = self._tweak_procs.pop(tweak_id, None)
+        if proc is None:
+            return
+        out = bytes(proc.readAllStandardOutput()).decode(errors="replace").strip()
+        if out:
+            print(out, flush=True)
+        state = self._tweak_status(tweak_id)
+        if exit_status != QProcess.NormalExit or code != 0:
+            # pkexec: 126 = the password dialog was closed, 127 = not allowed
+            message = "Avbröts" if code in (126, 127) else "Gick inte att ändra"
+        else:
+            message = ""
+        self.tweakChanged.emit(tweak_id, state, message)
+
+    # ── Window ────────────────────────────────────────────────
+
+    @Slot()
+    def markDone(self):
+        """Don't show the window automatically again."""
+        STATE.mkdir(parents=True, exist_ok=True)
+        DONE_FILE.touch()
+
+
+def main():
+    if "--first-run" in sys.argv and (DONE_FILE.exists() or OLD_DONE_FILE.exists()):
+        return 0
+    app = QGuiApplication(sys.argv)
+    app.setApplicationName("goblincakes-config")
+    app.setApplicationDisplayName("GOBLINCAKES Config")
+    app.setDesktopFileName("goblincakes-config")
+    app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+    for font in os.environ.get("GOBLINCAKES_CONFIG_FONTS", "").split(":"):
+        if font:
+            QFontDatabase.addApplicationFont(font)
+
+    backend = Config()
+    engine = QQmlApplicationEngine()
+    engine.rootContext().setContextProperty("backend", backend)
+    engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
+        os.environ.get("GOBLINCAKES_LOGO", "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")))
+    engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
+    if not engine.rootObjects():
+        return 1
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

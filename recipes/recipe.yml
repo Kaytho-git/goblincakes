@@ -42,7 +42,8 @@ modules:
         - sddm                  # login manager with the GOBLINCAKES theme
         - sddm-wayland-plasma   # runs the SDDM login screen on Wayland (KWin)
         - snapd                 # snap packages (Claude desktop)
-        - python3-pyside6       # GOBLINCAKES Setup window (Qt for Python)
+        - python3-pyside6       # GOBLINCAKES Config window (Qt for Python)
+        - fuse-libs             # lets AppImages run (WowUp, Raider.IO, Archon)
         - aurorae               # engine for the GOBLINCAKES window frames
         - kvantum               # engine for the GOBLINCAKES widget theme
         - libratbag-ratbagd     # backend for Piper (G502 Hero)
@@ -67,6 +68,11 @@ modules:
   - type: script
     scripts:
       - setup-snapd.sh
+
+  # scx_lavd game scheduler for the Optimering tab, if it can be found (off until switched on there)
+  - type: script
+    scripts:
+      - install-scx.sh
 
   # GOBLINCAKES typefaces (downloaded from Google Fonts at build time)
   - type: fonts
