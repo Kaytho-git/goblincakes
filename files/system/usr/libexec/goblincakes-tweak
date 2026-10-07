@@ -113,6 +113,53 @@ case $id in
                 done ;;
         esac ;;
 
+    mangohud)
+        # FPS, temperatures and load on top of games from Steam, Lutris and Heroic.
+        # Settings: GOverlay (or ~/.config/MangoHud/MangoHud.conf); Shift_R+F12 hides it in a game.
+        apps=()
+        for app in "${GAME_APPS[@]}"; do flatpak info "$app" >/dev/null 2>&1 && apps+=("$app"); done
+        if [ ${#apps[@]} -eq 0 ]; then
+            [ "$cmd" = status ] && echo unavailable
+            exit 0
+        fi
+        conf="${XDG_CONFIG_HOME:-$HOME/.config}/MangoHud/MangoHud.conf"
+        case $cmd in
+            status)
+                flatpak override --user --show "${apps[0]}" 2>/dev/null | grep -q '^MANGOHUD=1' && echo on || echo off ;;
+            set)
+                if [ "$value" = on ]; then
+                    /usr/libexec/goblincakes-config-install vulkan-layer MangoHud >/dev/null
+                    # GOBLINCAKES colours, unless the user already has their own settings
+                    [ -e "$conf" ] || install -Dm644 /usr/share/goblincakes/mangohud/MangoHud.conf "$conf"
+                fi
+                for app in "${apps[@]}"; do
+                    if [ "$value" = on ]; then
+                        flatpak override --user --env=MANGOHUD=1 --env=MANGOHUD_CONFIGFILE="$conf" \
+                            --filesystem=xdg-config/MangoHud:ro "$app"
+                    else
+                        flatpak override --user --unset-env=MANGOHUD --unset-env=MANGOHUD_CONFIGFILE "$app"
+                    fi
+                done ;;
+        esac ;;
+
+    low-latency-audio)
+        # PipeWire with smaller buffers: ~5 ms instead of ~21 ms between game/voice and the speakers
+        audio_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
+        audio_conf="$audio_dir/pipewire/pipewire.conf.d/90-goblincakes-lowlatency.conf"
+        pulse_conf="$audio_dir/pipewire/pipewire-pulse.conf.d/90-goblincakes-lowlatency.conf"
+        case $cmd in
+            status) [ -e "$audio_conf" ] && echo on || echo off ;;
+            set)
+                if [ "$value" = on ]; then
+                    install -Dm644 /usr/share/goblincakes/pipewire/90-goblincakes-lowlatency.conf "$audio_conf"
+                    # Games through Wine/Proton and Discord are PulseAudio clients
+                    install -Dm644 /usr/share/goblincakes/pipewire/90-goblincakes-lowlatency-pulse.conf "$pulse_conf"
+                else
+                    rm -f "$audio_conf" "$pulse_conf"
+                fi
+                systemctl --user restart pipewire.service pipewire-pulse.service wireplumber.service ;;
+        esac ;;
+
     shader-cache)
         # Nvidia: keep up to 12 GB of compiled shaders instead of 1 GB (less stutter)
         if [ "$(hw | json_get hasNvidia)" != true ]; then

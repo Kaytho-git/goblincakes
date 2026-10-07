@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# GOBLINCAKES: which session SDDM logs the user in to next (TV mode ↔ desktop).
+# Runs as root through pkexec (polkit action org.goblincakes.session, no password for the
+# person at the computer); only ever for the user who asked (PKEXEC_UID).
+#   tv       next login: TV mode automatically (also after a restart)
+#   desktop  next login: the Plasma desktop automatically (leaving TV mode)
+#   clear    back to the normal login screen (run once the desktop has started)
+set -euo pipefail
+conf=/etc/sddm.conf.d/zz-goblincakes-autologin.conf
+user=$(id -nu "${PKEXEC_UID:?run through pkexec}")
+write() { # session
+    mkdir -p /etc/sddm.conf.d
+    printf '# Written by goblincakes-session-select – removed again by the desktop\n[Autologin]\nUser=%s\nSession=%s\nRelogin=true\n' \
+        "$user" "$1" > "$conf"
+}
+case ${1:?tv|desktop|clear} in
+    tv) write goblincakes-tv.desktop ;;
+    desktop) write plasma.desktop ;;
+    clear) rm -f "$conf" ;;
+    *) echo "Use: tv|desktop|clear" >&2; exit 2 ;;
+esac

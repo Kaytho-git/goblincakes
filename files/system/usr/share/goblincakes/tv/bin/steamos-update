@@ -1,0 +1,4 @@
+#!/bin/sh
+# GOBLINCAKES TV mode: Steam's SteamOS update check. GOBLINCAKES updates with goblin update,
+# so: 7 = "no update available" in SteamOS' own protocol.
+exit 7

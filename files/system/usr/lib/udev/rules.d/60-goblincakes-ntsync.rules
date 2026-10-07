@@ -1,0 +1,2 @@
+# GOBLINCAKES: games (Wine/Proton, also inside Flatpak Steam) may use /dev/ntsync
+KERNEL=="ntsync", MODE="0666"

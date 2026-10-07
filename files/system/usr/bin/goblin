@@ -3,6 +3,8 @@
 #
 #   goblin update      update everything: system, Flatpaks, AppImages, GE-Proton, firmware
 #   goblin ai          the Goblin AI window (Meta+A); with a question: answer in the terminal
+#   goblin tv          TV mode (Steam Big Picture in full screen)
+#   goblin wow         where WoW is, links ~/Games/WoW/Logs and AddOns
 #   goblin fastfetch   system info with the GOBLINCAKES logo
 #   goblin motd        the command list shown in every new terminal (on/off)
 #   goblin help        list the commands
@@ -129,6 +131,8 @@ COMMANDS=(
     "ai|Öppna Goblin AI-fönstret (eller tryck Meta+A)"
     "ai [fråga]|Fråga Goblin AI direkt här – föreslagna kommandon körs bara om du säger ja"
     "ai setup|Ställ in gratis AI-tjänster (Gemini, Groq, OpenRouter, Mistral)"
+    "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
+    "wow|Visa var WoW finns och länka ~/Games/WoW/Logs och AddOns"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "fastfetch|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
@@ -206,6 +210,8 @@ case ${1:-help} in
             exit 0
         fi
         exec /usr/libexec/goblincakes-ai "$@" ;;
+    tv) exec goblincakes-tv ;;
+    wow) heading "World of Warcraft"; exec /usr/libexec/goblincakes-wow-links --verbose ;;
     gamemode) cmd_gamemode ;;
     fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;

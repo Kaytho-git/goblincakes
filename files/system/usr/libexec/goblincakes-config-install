@@ -69,6 +69,24 @@ integrate_appimage() { # file label
     update-desktop-database "$apps" >/dev/null 2>&1 || true
 }
 
+# Vulkan layer as a Flatpak extension (org.freedesktop.Platform.VulkanLayer.<name>), --user,
+# for every runtime branch Steam, Lutris and Heroic use (e.g. 24.08 and 25.08)
+vulkan_layer() { # name
+    local name=$1 app runtime branches=()
+    status "Letar efter Steams, Lutris och Heroics Flatpak-versioner…"
+    for app in com.valvesoftware.Steam net.lutris.Lutris com.heroicgameslauncher.hgl; do
+        runtime=$(flatpak info --show-runtime "$app" 2>/dev/null) || continue
+        [[ " ${branches[*]} " == *" ${runtime##*/} "* ]] || branches+=("${runtime##*/}")
+    done
+    [ ${#branches[@]} -gt 0 ] || { status "Hittade varken Steam, Lutris eller Heroic"; return 1; }
+    flathub_user
+    for branch in "${branches[@]}"; do
+        flatpak info "org.freedesktop.Platform.VulkanLayer.$name//$branch" >/dev/null 2>&1 && continue
+        status "Hämtar $name ($branch) från Flathub…"
+        flatpak install --user --noninteractive --assumeyes flathub "org.freedesktop.Platform.VulkanLayer.$name//$branch"
+    done
+}
+
 check() {
     local kind=$1; shift
     case $kind in
@@ -77,6 +95,7 @@ check() {
         webapp) [ -e "$HOME/.local/share/applications/goblincakes-webapp-$1.desktop" ] ;;
         gamescope-flatpak) flatpak list --columns=application | grep -qx org.freedesktop.Platform.VulkanLayer.gamescope ;;
         # Installed with today's container setup (see layout in goblincakes-ianseo)
+        battlenet) compgen -G "$HOME/Games/battlenet*/drive_c" >/dev/null ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;
         *) return 1 ;;
@@ -148,20 +167,22 @@ DESKTOP
         ;;
 
     gamescope-flatpak)
-        # Steam, Lutris and Heroic are Flatpaks: they need gamescope as a Flatpak extension,
-        # on the same runtime branch as Steam (e.g. 24.08)
-        status "Letar efter Steams Flatpak-version…"
-        branch=""
-        for app in com.valvesoftware.Steam net.lutris.Lutris com.heroicgameslauncher.hgl; do
-            runtime=$(flatpak info --show-runtime "$app" 2>/dev/null) || continue
-            branch=${runtime##*/}
-            break
-        done
-        [ -n "$branch" ] || { status "Hittade varken Steam, Lutris eller Heroic"; exit 1; }
-        status "Hämtar Gamescope ($branch) från Flathub…"
-        flathub_user
-        flatpak install --user --noninteractive --assumeyes flathub "org.freedesktop.Platform.VulkanLayer.gamescope//$branch"
+        # Steam, Lutris and Heroic are Flatpaks: they need gamescope as a Flatpak extension
+        vulkan_layer gamescope
         status "Klart – i Steam: Egenskaper → Startalternativ: gamescope -f -- %command%"
+        ;;
+
+    vulkan-layer)
+        # A Vulkan layer for the game launchers' Flatpak runtimes (gamescope, MangoHud)
+        vulkan_layer "$1"
+        ;;
+
+    battlenet)
+        # Lutris' own Battle.net installer (GE-Proton, with everything Battle.net needs
+        # installed inside the Wine prefix). Lutris opens and asks a few questions.
+        status "Öppnar Battle.net-installationen i Lutris…"
+        (setsid flatpak run net.lutris.Lutris lutris:battlenet-standard >/dev/null 2>&1 &)
+        status "Följ Lutris – installera sedan WoW i Battle.net. Mapparna Logs och AddOns dyker upp i ~/Games/WoW"
         ;;
 
     ge-proton)

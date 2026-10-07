@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=TV-läge
+GenericName=Steam Big Picture i helskärm
+Comment=Spela från soffan med handkontroll, som en Steam Deck. Tillbaka: Steams strömmeny → Växla till skrivbordet.
+Exec=goblincakes-tv
+Icon=video-television
+Categories=Game;
+Keywords=steam;big picture;tv;deck;handkontroll;gamescope;

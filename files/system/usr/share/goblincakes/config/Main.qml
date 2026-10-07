@@ -822,9 +822,9 @@ Window {
                 }
             }
 
-            // Secure Boot: Nvidia's drivers need Universal Blue's key, confirmed once
+            // Secure Boot: Nvidia's and the Xbox controllers' drivers need Universal Blue's key, confirmed once
             Rectangle {
-                visible: !!win.gpu.secureBoot && !win.gpu.keyEnrolled && graphicsView.after === "nvidia"
+                visible: !!win.gpu.secureBoot && !win.gpu.keyEnrolled
                 width: gfxCol.width
                 height: sbCol.height + 40
                 color: "#0E1420"
@@ -851,8 +851,8 @@ Window {
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 14
                         text: win.gpu.keyFile
-                            ? "Nvidia-drivrutinerna är signerade med Universal Blues nyckel, som datorn behöver godkänna en gång. Tryck på knappen, välj ett lösenord, och skriv det i den blå skärmen vid nästa start (Enroll MOK → Continue → Yes → lösenordet → Reboot)."
-                            : "Nvidia-drivrutinerna är signerade med Universal Blues nyckel, som datorn behöver godkänna en gång. Öppna Grafik igen efter omstarten, så finns knappen här."
+                            ? "Drivrutinerna för Nvidia och Xbox-handkontroller är signerade med Universal Blues nyckel, som datorn behöver godkänna en gång. Tryck på knappen, välj ett lösenord, och skriv det i den blå skärmen vid nästa start (Enroll MOK → Continue → Yes → lösenordet → Reboot)."
+                            : "Drivrutinerna för Nvidia och Xbox-handkontroller är signerade med Universal Blues nyckel, som datorn behöver godkänna en gång. Öppna Grafik igen efter omstarten, så finns knappen här."
                     }
                     FlatButton {
                         visible: !!win.gpu.keyFile

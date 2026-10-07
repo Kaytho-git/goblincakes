@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# GOBLINCAKES TV mode: the whole screen is gamescope running Steam's Big Picture (gamepad UI),
+# like a Steam Deck. Started by SDDM as the session "goblincakes-tv" (see goblincakes-tv).
+# Steam's own "Switch to Desktop" (power menu) and every other way Steam ends lead back
+# to the Plasma desktop – never a loop back into TV mode.
+set -uo pipefail
+
+back_to_desktop() {
+    pkexec /usr/libexec/goblincakes-session-select desktop || true
+}
+trap back_to_desktop EXIT
+
+# Steam asks the SteamOS tool steamos-session-select for "Switch to Desktop"; ours (in the
+# Flatpak's PATH through the host's /usr) just closes Steam, and the trap does the rest.
+tools=/run/host/usr/share/goblincakes/tv/bin
+gamescope -e -f --xwayland-count 2 -- \
+    flatpak run --filesystem=host-os:ro --env=PATH="$tools:/app/bin:/app/utils/bin:/usr/bin:/bin" \
+        com.valvesoftware.Steam -gamepadui -steamos3

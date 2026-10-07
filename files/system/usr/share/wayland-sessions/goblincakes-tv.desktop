@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES TV
+Comment=Steam Big Picture in full screen, like a Steam Deck (gamescope)
+Exec=/usr/libexec/goblincakes-tv-session
+DesktopNames=gamescope

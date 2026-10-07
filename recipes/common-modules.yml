@@ -34,10 +34,23 @@ modules:
         - libratbag-ratbagd     # backend for Piper (G502 Hero)
         - ddcutil               # monitor brightness over DDC/CI
         - gamemode              # performance mode while gaming
-        - gamescope             # Valve's game compositor (gamescope -- spel)
+        - gamescope             # Valve's game compositor (gamescope -- spel), also the TV mode
+        - mangohud              # FPS meter in games (GOBLINCAKES Config → Optimering)
         - switcheroo-control    # laptops with two graphics cards: "Kör med dedikerat grafikkort"
         - ananicy-cpp           # keeps the desktop responsive under load
         - cachyos-ananicy-rules
+
+  # Xbox controllers: xone (wireless dongle, USB) and xpadneo (Bluetooth: rumble, right buttons),
+  # pre-built by Universal Blue for this kernel and signed with their key (Secure Boot: Grafik tab)
+  - type: akmods
+    install:
+      - xone
+      - xpadneo
+
+  # MangoHud's settings window, if Fedora has it
+  - type: script
+    scripts:
+      - install-goverlay.sh
 
   # AppGrid with square corners, built in the appgrid-square stage above,
   # replaces the COPR package's files (the package still brings the dependencies)
