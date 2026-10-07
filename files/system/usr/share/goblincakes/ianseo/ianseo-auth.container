@@ -1,0 +1,19 @@
+# Ianseo via the internet: password check (Caddy, basic auth) in front of Ianseo.
+# Only the tunnel uses it; Ianseo on this computer (127.0.0.1:8180) has no password.
+# Copied to ~/.config/containers/systemd by `goblincakes-ianseo internet on`.
+[Unit]
+Description=Ianseo password check for the internet
+Requires=ianseo-web.service
+After=ianseo-web.service
+
+[Container]
+ContainerName=ianseo-auth
+Image=docker.io/library/caddy:2
+Pod=ianseo.pod
+Volume=%h/.config/goblincakes/ianseo-Caddyfile:/etc/caddy/Caddyfile:ro,Z
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

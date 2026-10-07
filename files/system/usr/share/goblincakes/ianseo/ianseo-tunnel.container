@@ -1,0 +1,20 @@
+# Ianseo via the internet: a Cloudflare quick tunnel (no account) to the password check.
+# Gives a random https://….trycloudflare.com address, a new one every time it starts.
+# Only outgoing connections: no ports are opened in the router or the firewall.
+# Copied to ~/.config/containers/systemd by `goblincakes-ianseo internet on`.
+[Unit]
+Description=Ianseo internet tunnel (Cloudflare)
+Requires=ianseo-auth.service
+After=ianseo-auth.service
+
+[Container]
+ContainerName=ianseo-tunnel
+Image=docker.io/cloudflare/cloudflared:latest
+Pod=ianseo.pod
+Exec=tunnel --no-autoupdate --url http://127.0.0.1:8181
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

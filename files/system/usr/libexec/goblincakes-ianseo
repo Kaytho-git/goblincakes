@@ -7,6 +7,9 @@
 #   goblincakes-ianseo network on|off|status
 #                                tournament mode: tablets/phones on the same network (Ianseo's
 #                                scoring apps) reach Ianseo too (GOBLINCAKES Config → Optimering)
+#   goblincakes-ianseo internet on|off|status|url
+#                                remote access: a Cloudflare tunnel (https://….trycloudflare.com)
+#                                behind a password (user ianseo), also in Config → Optimering
 #
 # Normally only reachable from this computer: http://127.0.0.1:8180/
 # Lines starting with "@@ " are shown in the setup window.
@@ -22,6 +25,8 @@ home_dir="$HOME/Ianseo"
 backup_dir="$home_dir/Backup"
 www="$HOME/.local/share/goblincakes/ianseo/www"
 env_file="$HOME/.config/goblincakes/ianseo.env"
+internet_env="$HOME/.config/goblincakes/ianseo-internet.env"
+caddyfile="$HOME/.config/goblincakes/ianseo-Caddyfile"
 quadlets="$HOME/.config/containers/systemd"
 
 wait_for_web() {
@@ -34,6 +39,9 @@ wait_for_web() {
 
 start() {
     systemctl --user start ianseo-pod.service ianseo-db.service ianseo-web.service
+    # Internet access on: the password check and the tunnel too
+    [ -e "$quadlets/ianseo-tunnel.container" ] && systemctl --user start ianseo-auth.service ianseo-tunnel.service
+    return 0
 }
 
 release_url=https://ianseo.net/Release
@@ -209,6 +217,73 @@ network() {
     esac
 }
 
+# The tunnel's current address (a new one every time the tunnel starts)
+tunnel_url() {
+    podman logs ianseo-tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -n1 || true
+}
+
+# Remote access: Ianseo through a Cloudflare quick tunnel, behind a password (Caddy).
+# Only outgoing connections, so nothing is opened in the router or the firewall.
+internet() {
+    local addr
+    [ -e "$quadlets/ianseo.pod" ] || { [ "${1:-}" = status ] && echo unavailable; return 0; }
+    case ${1:-status} in
+        status) [ -e "$quadlets/ianseo-tunnel.container" ] && echo on || echo off ;;
+        url) tunnel_url ;;
+        on)
+            # Password: made once and kept, so it stays the same every time
+            if [ ! -e "$internet_env" ]; then
+                umask 077
+                {
+                    echo "IANSEO_USER=ianseo"
+                    echo "IANSEO_PASSWORD=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-HJ-NP-Za-km-z2-9' | head -c 12)"
+                } > "$internet_env"
+                umask 022
+            fi
+            # shellcheck disable=SC1090
+            . "$internet_env"
+            podman pull --quiet docker.io/library/caddy:2 >/dev/null
+            podman pull --quiet docker.io/cloudflare/cloudflared:latest >/dev/null
+            local hash
+            hash=$(podman run --rm docker.io/library/caddy:2 caddy hash-password --plaintext "$IANSEO_PASSWORD")
+            umask 077
+            cat > "$caddyfile" <<EOF
+{
+	admin off
+	auto_https off
+}
+:8181 {
+	basic_auth {
+		$IANSEO_USER $hash
+	}
+	redir / /ianseo/
+	reverse_proxy 127.0.0.1:80
+}
+EOF
+            umask 022
+            chmod 644 "$caddyfile"  # read by Caddy inside its container
+            cp "$share"/ianseo-auth.container "$share"/ianseo-tunnel.container "$quadlets"/
+            systemctl --user daemon-reload
+            start
+            # Wait for the tunnel's address
+            addr=
+            for _ in $(seq 60); do
+                addr=$(tunnel_url)
+                [ -n "$addr" ] && break
+                sleep 1
+            done
+            notify-send -a GOBLINCAKES -i goblincakes-ianseo "Ianseo via internet" \
+                "Adress: ${addr:-(väntar fortfarande på tunneln – se Ianseo-ikonen i systemfältet)}"$'\n'"Användarnamn: $IANSEO_USER"$'\n'"Lösenord: $IANSEO_PASSWORD"$'\n'"Adressen byts när datorn startas om. Stäng av när du inte behöver det." 2>/dev/null || true
+            (setsid /usr/libexec/goblincakes-ianseo-tray >/dev/null 2>&1 &)
+            printf '%s\n' "$addr" ;;
+        off)
+            systemctl --user stop ianseo-tunnel.service ianseo-auth.service 2>/dev/null || true
+            rm -f "$quadlets/ianseo-tunnel.container" "$quadlets/ianseo-auth.container"
+            systemctl --user daemon-reload ;;
+        *) echo "Use: internet on|off|status|url" >&2; return 2 ;;
+    esac
+}
+
 backup() {
     podman container exists ianseo-db 2>/dev/null || exit 0
     [ "$(podman inspect -f '{{.State.Running}}' ianseo-db)" = true ] || exit 0
@@ -233,5 +308,6 @@ case ${1:-} in
     open) open_ianseo ;;
     backup) backup ;;
     network) network "${2:-status}" ;;
-    *) echo "Usage: $0 install|open|backup|network on|off|status" >&2; exit 2 ;;
+    internet) internet "${2:-status}" ;;
+    *) echo "Usage: $0 install|open|backup|network on|off|status|internet on|off|status|url" >&2; exit 2 ;;
 esac

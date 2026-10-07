@@ -178,6 +178,13 @@ case $id in
             set) /usr/libexec/goblincakes-ianseo network "$value" >/dev/null ;;
         esac ;;
 
+    ianseo-internet)
+        # Remote access to Ianseo: Cloudflare tunnel behind a password; only once Ianseo is installed
+        case $cmd in
+            status) /usr/libexec/goblincakes-ianseo internet status ;;
+            set) /usr/libexec/goblincakes-ianseo internet "$value" >/dev/null ;;
+        esac ;;
+
     low-latency-audio)
         # PipeWire with smaller buffers: ~5 ms instead of ~21 ms between game/voice and the speakers
         audio_dir="${XDG_CONFIG_HOME:-$HOME/.config}"

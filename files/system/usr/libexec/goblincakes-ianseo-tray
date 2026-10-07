@@ -1,10 +1,12 @@
 #!/usr/bin/python3
-# GOBLINCAKES: an icon in the system tray while Ianseo can be reached from the network
-# (tournament mode, `goblincakes-ianseo network on`). It goes away when that is switched off.
-# Started by `goblincakes-ianseo network on` and at every login (exits at once if it's off).
-# Menu: the addresses (click = copy), open Ianseo, switch network access off.
+# GOBLINCAKES: an icon in the system tray while Ianseo can be reached from other devices:
+# the local network (`goblincakes-ianseo network on`) and/or the internet through a
+# Cloudflare tunnel with a password (`goblincakes-ianseo internet on`). It goes away when
+# both are switched off. Started by those commands and at every login (exits at once if off).
+# Menu: the addresses (click = copy), the password, open Ianseo, switch access off.
 import fcntl
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +15,10 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-POD = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "containers/systemd/ianseo.pod"
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+POD = CONFIG / "containers/systemd/ianseo.pod"
+TUNNEL = CONFIG / "containers/systemd/ianseo-tunnel.container"
+INTERNET_ENV = CONFIG / "goblincakes/ianseo-internet.env"
 IANSEO = "/usr/libexec/goblincakes-ianseo"
 
 
@@ -23,6 +28,27 @@ def network_on():
     except OSError:
         return False
     return any(l.startswith("PublishPort=") and not l.startswith("PublishPort=127.0.0.1:") for l in lines)
+
+
+def internet_on():
+    return TUNNEL.exists()
+
+
+def password():
+    try:
+        for line in INTERNET_ENV.read_text().splitlines():
+            if line.startswith("IANSEO_PASSWORD="):
+                return line.split("=", 1)[1]
+    except OSError:
+        pass
+    return ""
+
+
+def tunnel_url():
+    # A new address every time the tunnel starts
+    out = subprocess.run(["podman", "logs", "ianseo-tunnel"], capture_output=True, text=True)
+    urls = re.findall(r"https://[a-z0-9-]+\.trycloudflare\.com", out.stdout + out.stderr)
+    return urls[-1] if urls else ""
 
 
 def running():
@@ -40,54 +66,80 @@ try:
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
 except OSError:
     sys.exit(0)
-if not network_on():
+if not (network_on() or internet_on()):
     sys.exit(0)
 
 app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
-app.setApplicationName("Ianseo i nätverket")
+app.setApplicationName("Ianseo")
 tray = QSystemTrayIcon(QIcon.fromTheme("goblincakes-ianseo"))
 menu = QMenu()
-shown = None  # (running, addresses) the menu was last built for
+shown = None  # the state the menu was last built for
 
 
 def open_ianseo():
     subprocess.Popen([IANSEO, "open"], start_new_session=True)
 
 
-def network_off():
-    # Runs on by itself (asks for the password for the firewall); the icon goes now
-    subprocess.Popen([IANSEO, "network", "off"], start_new_session=True,
+def switch_off(what):
+    # Runs on by itself (network: asks for the password for the firewall);
+    # the icon goes on the next update when nothing is left on
+    subprocess.Popen([IANSEO, what, "off"], start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    tray.hide()
-    app.quit()
+
+
+def copy_action(text, value):
+    action = QAction(text, menu)
+    action.triggered.connect(lambda _=False, v=value: app.clipboard().setText(v))
+    menu.addAction(action)
 
 
 def update():
     global shown
-    if not network_on():
+    lan, internet = network_on(), internet_on()
+    if not (lan or internet):
         tray.hide()
         app.quit()
         return
-    state = (running(), tuple(addresses()))
+    state = (running(), lan, internet, tuple(addresses()) if lan else (), tunnel_url() if internet else "")
     if state == shown:
         return
     shown = state
-    is_running, urls = state
+    is_running, lan, internet, urls, web = state
 
-    title = "Ianseo nås från nätverket" if is_running else "Ianseo är avstängt (nätverksläget är på)"
-    tray.setToolTip(title + ("\n" + "\n".join(urls) if urls else "\n(ingen nätverksanslutning)"))
+    if not is_running:
+        title = "Ianseo är avstängt"
+    elif internet:
+        title = "Ianseo nås via internet" + (" och nätverket" if lan else "")
+    else:
+        title = "Ianseo nås från nätverket"
+    tips = [title]
+    if internet:
+        tips.append(web or "(tunneln startar…)")
+    tips += list(urls)
+    if lan and not urls:
+        tips.append("(ingen nätverksanslutning)")
+    tray.setToolTip("\n".join(tips))
 
     menu.clear()
-    header = menu.addAction(title)
-    header.setEnabled(False)
-    for url in urls:
-        action = QAction(f"{url}  (klicka = kopiera)", menu)
-        action.triggered.connect(lambda _=False, u=url: app.clipboard().setText(u))
-        menu.addAction(action)
+    menu.addAction(title).setEnabled(False)
+    if internet:
+        menu.addSection("Internet")
+        if web:
+            copy_action(f"{web}  (klicka = kopiera)", web)
+        else:
+            menu.addAction("Tunneln startar…").setEnabled(False)
+        copy_action("Kopiera lösenordet (användare: ianseo)", password())
+    if lan:
+        menu.addSection("Nätverket")
+        for url in urls:
+            copy_action(f"{url}  (klicka = kopiera)", url)
     menu.addSeparator()
     menu.addAction("Öppna Ianseo", open_ianseo)
-    menu.addAction("Stäng av nätverksåtkomst", network_off)
+    if internet:
+        menu.addAction("Stäng av internetåtkomst", lambda: switch_off("internet"))
+    if lan:
+        menu.addAction("Stäng av nätverksåtkomst", lambda: switch_off("network"))
 
 
 tray.setContextMenu(menu)
