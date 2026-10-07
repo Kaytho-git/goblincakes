@@ -1,0 +1,286 @@
+/* GOBLINCAKES – GTK 3 theme (Quod Libet and other GTK 3 programs).
+ *
+ * Adwaita's dark theme underneath, so everything not mentioned here still works;
+ * on top: the GOBLINCAKES palette, flat, straight corners, IBM Plex Sans.
+ * Palette: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED,
+ * Frost #E6ECF5, muted #8B98AD, frames #1E2A40 / #2A3852, title bar #0B1018.
+ */
+@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");
+
+/* Named colours some programs (and Quod Libet's own widgets) use */
+@define-color theme_bg_color #0E1420;
+@define-color theme_fg_color #E6ECF5;
+@define-color theme_base_color #07090D;
+@define-color theme_text_color #E6ECF5;
+@define-color theme_selected_bg_color #2F6FED;
+@define-color theme_selected_fg_color #E6ECF5;
+@define-color insensitive_bg_color #0E1420;
+@define-color insensitive_fg_color #5C6880;
+@define-color insensitive_base_color #0E1420;
+@define-color theme_unfocused_bg_color #0E1420;
+@define-color theme_unfocused_fg_color #8B98AD;
+@define-color theme_unfocused_base_color #07090D;
+@define-color theme_unfocused_text_color #B8C2D3;
+@define-color theme_unfocused_selected_bg_color #24467F;
+@define-color theme_unfocused_selected_fg_color #E6ECF5;
+@define-color borders #1E2A40;
+@define-color unfocused_borders #1E2A40;
+@define-color warning_color #E07428;
+@define-color error_color #D0343E;
+@define-color success_color #2FA35C;
+@define-color accent_color #2F6FED;
+@define-color accent_bg_color #2F6FED;
+@define-color window_bg_color #0E1420;
+@define-color window_fg_color #E6ECF5;
+@define-color view_bg_color #07090D;
+@define-color view_fg_color #E6ECF5;
+@define-color headerbar_bg_color #0B1018;
+@define-color headerbar_fg_color #E6ECF5;
+@define-color popover_bg_color #0E1420;
+@define-color card_bg_color #0E1420;
+
+/* Flat, straight corners, no shadows or glows – everywhere */
+* {
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
+  -gtk-outline-radius: 0;
+  outline-color: alpha(#2F6FED, 0.6);
+}
+
+/* Programs that draw their own title bar: a thin frame instead of a shadow */
+decoration, window.csd decoration, window.ssd decoration {
+  border-radius: 0;
+  box-shadow: none;
+  border: 1px solid #1E2A40;
+  margin: 0;
+}
+
+window, .background {
+  background-color: #0E1420;
+  color: #E6ECF5;
+  font-family: "IBM Plex Sans", sans-serif;
+}
+
+/* ── Title bars, menus, tool bars ───────────────────────── */
+
+headerbar, .titlebar, headerbar.titlebar {
+  background: #0B1018;
+  border-bottom: 1px solid #1E2A40;
+  color: #E6ECF5;
+  min-height: 44px;
+}
+headerbar .title { font-weight: 600; }
+headerbar .subtitle { color: #8B98AD; }
+
+menubar {
+  background: #0B1018;
+  border-bottom: 1px solid #1E2A40;
+  padding: 0;
+}
+menubar > menuitem { padding: 6px 12px; color: #B8C2D3; }
+menubar > menuitem:hover { background: #1A2438; color: #E6ECF5; box-shadow: none; }
+
+menu, .menu, .context-menu, popover.menu, popover {
+  background: #0E1420;
+  border: 1px solid #1E2A40;
+  padding: 4px 0;
+}
+menu menuitem, .menu menuitem { padding: 6px 14px; color: #E6ECF5; }
+menu menuitem:hover, .menu menuitem:hover { background: #2F6FED; color: #E6ECF5; }
+menu menuitem:disabled { color: #5C6880; }
+menu separator, .menu separator { background: #1E2A40; margin: 4px 0; }
+
+toolbar, .toolbar, .inline-toolbar, .primary-toolbar {
+  background: #0E1420;
+  border-color: #1E2A40;
+  padding: 6px;
+}
+
+statusbar, .statusbar { background: #0B1018; color: #8B98AD; border-top: 1px solid #1E2A40; }
+
+/* ── Buttons ────────────────────────────────────────────── */
+
+button {
+  background: #12203A;
+  background-image: none;
+  border: 1px solid #1E2A40;
+  color: #E6ECF5;
+  padding: 5px 12px;
+}
+button:hover { background: #1A2438; border-color: #2A3852; }
+button:active, button:checked { background: #2F6FED; border-color: #2F6FED; color: #E6ECF5; }
+button:disabled { background: #0E1420; border-color: #1A2438; color: #5C6880; }
+button:focus { border-color: #2F6FED; }
+
+/* Flat buttons (tool bars, title bars, play controls) only show on hover */
+button.flat, toolbar button, headerbar button, .toolbar button,
+button.image-button.flat, .linked.flat button {
+  background: transparent;
+  border-color: transparent;
+}
+button.flat:hover, toolbar button:hover, headerbar button:hover, .toolbar button:hover {
+  background: #1A2438;
+  border-color: #2A3852;
+}
+button.flat:checked, toolbar button:checked, headerbar button:checked {
+  background: #2F6FED;
+  border-color: #2F6FED;
+}
+
+button.suggested-action { background: #2F6FED; border-color: #2F6FED; }
+button.suggested-action:hover { background: #4A82F0; border-color: #4A82F0; }
+button.destructive-action { background: #A4262C; border-color: #A4262C; }
+
+/* Window controls: flat, close goes red on hover */
+headerbar button.titlebutton { background: transparent; border: none; min-width: 32px; min-height: 28px; }
+headerbar button.titlebutton:hover { background: #1A2438; }
+headerbar button.titlebutton.close:hover { background: #A4262C; }
+
+/* ── Text fields ────────────────────────────────────────── */
+
+entry, spinbutton:not(.vertical), .entry {
+  background: #07090D;
+  border: 1px solid #1E2A40;
+  color: #E6ECF5;
+  caret-color: #2F6FED;
+  padding: 5px 10px;
+  min-height: 28px;
+}
+entry:focus, spinbutton:focus { border-color: #2F6FED; }
+entry:disabled { background: #0E1420; color: #5C6880; }
+entry selection, textview text selection, label selection {
+  background: #2F6FED;
+  color: #E6ECF5;
+}
+entry image { color: #8B98AD; }
+
+/* ── Lists and the song list ────────────────────────────── */
+
+treeview.view, .view, iconview, list, textview text {
+  background: #07090D;
+  color: #E6ECF5;
+}
+treeview.view { border-left-color: #1A2438; border-top-color: #1A2438; }
+treeview.view:hover { background: #111A2A; }
+treeview.view:selected, .view:selected, iconview:selected,
+list row:selected, treeview.view:selected:focus {
+  background: #2F6FED;
+  color: #E6ECF5;
+}
+treeview.view:selected:backdrop, list row:selected:backdrop { background: #24467F; }
+treeview.view.separator { color: #1E2A40; }
+
+/* Column headers */
+treeview.view header button, column-header button, .column-header button {
+  background: #0E1420;
+  border: none;
+  border-bottom: 1px solid #1E2A40;
+  border-right: 1px solid #1A2438;
+  color: #8B98AD;
+  font-weight: 600;
+  padding: 4px 10px;
+}
+treeview.view header button:hover { background: #1A2438; color: #E6ECF5; }
+
+list row { padding: 2px 0; }
+list row:hover { background: #111A2A; }
+
+/* Dragging songs: drop line in the accent colour */
+treeview.view.dnd { border: 1px solid #2F6FED; }
+
+/* ── Seek bar, volume, progress ─────────────────────────── */
+
+scale trough, progressbar trough, levelbar trough {
+  background: #12203A;
+  border: none;
+  min-height: 4px;
+}
+scale highlight, progressbar progress, levelbar block.filled {
+  background: #2F6FED;
+  border: none;
+}
+scale slider {
+  background: #E6ECF5;
+  border: 1px solid #E6ECF5;
+  border-radius: 0;
+  min-width: 12px;
+  min-height: 12px;
+  margin: -5px;
+}
+scale slider:hover { background: #FFFFFF; }
+scale:disabled highlight { background: #2A3852; }
+progressbar progress { min-height: 4px; }
+
+/* ── Check boxes, radio buttons, switches ───────────────── */
+
+check, radio {
+  border-radius: 0;
+  background: transparent;
+  background-image: none;
+  border: 1px solid #2A3852;
+  color: transparent;
+  min-width: 16px;
+  min-height: 16px;
+}
+check:checked, radio:checked, check:indeterminate {
+  background: #2F6FED;
+  border-color: #2F6FED;
+  color: #E6ECF5;
+  -gtk-icon-source: -gtk-icontheme("object-select-symbolic");
+}
+radio:checked { -gtk-icon-source: -gtk-icontheme("media-record-symbolic"); }
+check:hover, radio:hover { border-color: #2F6FED; }
+
+switch { background: transparent; border: 1px solid #2A3852; min-width: 44px; min-height: 22px; }
+switch:checked { background: #2F6FED; border-color: #2F6FED; }
+switch slider { border-radius: 0; background: #8B98AD; border: none; min-width: 18px; min-height: 18px; margin: 2px; }
+switch:checked slider { background: #E6ECF5; }
+
+/* ── Tabs, panes, frames, scroll bars ───────────────────── */
+
+notebook { background: #0E1420; }
+notebook > header { background: #0B1018; border-color: #1E2A40; }
+notebook > header tab { padding: 6px 14px; color: #8B98AD; border: none; }
+notebook > header tab:hover { color: #E6ECF5; background: #121B2B; }
+notebook > header tab:checked { color: #E6ECF5; box-shadow: inset 0 -2px #2F6FED; }
+notebook > stack:not(:only-child) { background: #0E1420; }
+
+paned > separator { background: #1E2A40; min-width: 1px; min-height: 1px; }
+frame > border, .frame { border: 1px solid #1E2A40; }
+separator { background: #1E2A40; }
+
+scrollbar { background: transparent; border: none; }
+scrollbar slider {
+  background: #2A3852;
+  border: none;
+  min-width: 6px;
+  min-height: 6px;
+}
+scrollbar slider:hover { background: #3B4C6B; }
+scrollbar slider:active { background: #2F6FED; }
+
+/* ── Combo boxes, tool tips, dialogs ────────────────────── */
+
+combobox button.combo { background: #07090D; }
+combobox window menu, combobox .menu { background: #0E1420; }
+
+tooltip, tooltip.background {
+  background: #0E1420;
+  border: 1px solid #1E2A40;
+  color: #E6ECF5;
+}
+
+dialog .dialog-action-area button, messagedialog .dialog-action-box button { padding: 6px 16px; }
+messagedialog .titlebar { background: #0E1420; border: none; }
+
+infobar { background: #12203A; border: 1px solid #1E2A40; }
+infobar.error { background: #3A1218; border-color: #A4262C; }
+
+/* Links */
+*:link, button:link { color: #6C9BF5; }
+*:visited { color: #9AB5EE; }
+
+/* Selection in labels / text everywhere */
+*:selected { background-color: #2F6FED; color: #E6ECF5; }

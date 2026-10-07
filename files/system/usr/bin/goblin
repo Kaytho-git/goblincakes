@@ -99,6 +99,8 @@ cmd_update() {
     step "Flatpak-program" update_flatpaks
     update_appimages
     step "GE-Proton" update_proton
+    # GTK theme copy for Flatpak programs (Quod Libet): follow the theme in the image
+    [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/themes/GoblinCakes" ] && "$config_install" gtk-theme >/dev/null 2>&1
     step "Firmware" update_firmware
 
     echo

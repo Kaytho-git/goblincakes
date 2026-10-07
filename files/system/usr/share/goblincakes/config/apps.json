@@ -20,7 +20,7 @@
     {"id": "obs", "name": "OBS Studio", "category": "media", "desc": "Spela in och streama.", "steps": [["flatpak", "com.obsproject.Studio"]], "check": ["flatpak", "com.obsproject.Studio"]},
     {"id": "gimp", "name": "GIMP", "category": "media", "desc": "Bildredigering.", "steps": [["flatpak", "org.gimp.GIMP"]], "check": ["flatpak", "org.gimp.GIMP"]},
     {"id": "spotify", "name": "Spotify", "category": "media", "desc": "Musik och poddar.", "steps": [["flatpak", "com.spotify.Client"]], "check": ["flatpak", "com.spotify.Client"]},
-    {"id": "quodlibet", "name": "Quod Libet", "category": "media", "desc": "Musikspelare för din egen musiksamling.", "steps": [["flatpak", "io.github.quodlibet.QuodLibet"]], "check": ["flatpak", "io.github.quodlibet.QuodLibet"]},
+    {"id": "quodlibet", "name": "Quod Libet", "category": "media", "desc": "Musikspelare för din egen musiksamling, i GOBLINCAKES-tema.", "steps": [["flatpak", "io.github.quodlibet.QuodLibet"], ["gtk-theme", "io.github.quodlibet.QuodLibet"]], "check": ["flatpak", "io.github.quodlibet.QuodLibet"]},
     {"id": "libreoffice", "name": "LibreOffice", "category": "office", "desc": "Ordbehandling, kalkyl och presentationer.", "steps": [["flatpak", "org.libreoffice.LibreOffice"]], "check": ["flatpak", "org.libreoffice.LibreOffice"]},
     {"id": "okular", "name": "Okular", "category": "office", "desc": "Läs PDF:er, markera, fyll i formulär och signera.", "steps": [["flatpak", "org.kde.okular"]], "check": ["flatpak", "org.kde.okular"]},
     {"id": "ark", "name": "Ark", "category": "office", "desc": "Packa upp och skapa zip, rar och 7z. Finns i Dolphins högerklicksmeny.", "steps": [["flatpak", "org.kde.ark"]], "check": ["flatpak", "org.kde.ark"]},

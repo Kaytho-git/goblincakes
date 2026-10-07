@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=GoblinCakes
+Comment=GOBLINCAKES: flat, straight corners, the GOBLINCAKES palette (GTK 3)
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=GoblinCakes
+IconTheme=breeze-dark
