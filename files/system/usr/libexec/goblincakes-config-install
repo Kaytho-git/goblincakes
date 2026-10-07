@@ -137,9 +137,12 @@ case $step in
         ;;
 
     webapp)
-        # A streaming service as its own app: Google Chrome's app window (no address bar),
-        # its own icon in AppGrid. Chrome because it has Widevine, the DRM the services need.
-        id=$1 name=$2 url=$3
+        # A website as its own app: the browser's app window (no address bar), its own icon
+        # in AppGrid. Streaming services use Google Chrome (the default) because it has
+        # Widevine, the DRM they need; others can name another Flatpak browser, e.g.
+        # Chromium for Claude (in the image already). Optional 4th argument: menu categories.
+        id=$1 name=$2 url=$3 categories=${4:-AudioVideo;Video;Player;} browser=${5:-com.google.Chrome}
+        browser_name=$([ "$browser" = com.google.Chrome ] && echo "Google Chrome" || echo Chromium)
         apps="$HOME/.local/share/applications"
         icons="$HOME/.local/share/icons/hicolor/256x256/apps"
         mkdir -p "$apps" "$icons"
@@ -156,10 +159,10 @@ case $step in
 [Desktop Entry]
 Type=Application
 Name=$name
-Comment=$name i ett eget fönster (Google Chrome)
-Exec=flatpak run com.google.Chrome --app=$url
+Comment=$name i ett eget fönster ($browser_name)
+Exec=flatpak run $browser --app=$url
 Icon=$icon
-Categories=AudioVideo;Video;Player;
+Categories=$categories
 StartupWMClass=chrome-${host}__-Default
 DESKTOP
         update-desktop-database "$apps" >/dev/null 2>&1 || true
