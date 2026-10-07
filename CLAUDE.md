@@ -25,11 +25,7 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
   - Gamescope (paketet `gamescope`)
   - Heroic Games Launcher (Flatpak `com.heroicgameslauncher.hgl`)
   - Wine, senaste versionen (Fedoras `wine` är ofta efter – kolla t.ex. WineHQ:s repo för staging/devel)
-- [ ] Gaming-optimering av kärna/system (titta på, ej bestämt):
-  - sched-ext-schemaläggare (t.ex. `scx_lavd`) – stäng i så fall av `irqbalance` först (krockar → mikrohack). Obs: vi har redan ananicy-cpp, kolla att de inte krockar.
-  - `vm.max_map_count=2147483642` (behövs av vissa stora/moddade spel) – som fil i `files/system/usr/lib/sysctl.d/` i imagen i stället för `/etc/sysctl.d/90-override.conf`. Kolla först – Fedora har redan höjt standardvärdet.
-  - CPU-energiprofil: amd-pstate-epp / Intel-motsvarighet i aktivt läge med prestanda-EPP
-  - TuneD-profil `latency-performance` i stället för `balanced` (`tuned-adm profile latency-performance`) – kolla hur det samspelar med KDE:s energiprofiler (power-profiles-daemon/tuned-ppd) och gamemode
+- [x] Gaming-optimering – finns som reglage i GOBLINCAKES Config, fliken Optimering (7 okt, ej testat i VM): scx_lavd (stänger av irqbalance; obs: kolla att det inte krockar med ananicy-cpp), vm.max_map_count, split-lock, prestandaläge (powerprofilesctl – används i stället för TuneD-profilen latency-performance, som krockar med KDE:s energiprofiler), shader-cache för Nvidia.
 
 ## Vad som finns
 - `recipes/recipe.yml`: moduler `files`, `dnf` (VS Code, Ghostty, aurorae, kvantum, libratbag-ratbagd, ddcutil, gamemode, ananicy-cpp + cachyos-ananicy-rules från COPR `bieszczaders/kernel-cachyos-addons`), `fonts` (Google Fonts: Chakra Petch, IBM Plex Sans, IBM Plex Mono), `default-flatpaks` (Firefox, Steam, Discord, Lutris, VLC, Piper, Chromium – system scope), `systemd` (ratbagd, ananicy-cpp), `os-release` (NAME/PRETTY_NAME = GOBLINCAKES), `signing`.
