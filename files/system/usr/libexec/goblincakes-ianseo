@@ -4,8 +4,11 @@
 #   goblincakes-ianseo install   set up (from the GOBLINCAKES setup window)
 #   goblincakes-ianseo open      start if needed and open in the browser
 #   goblincakes-ianseo backup    database backup (run every 30 minutes by a timer)
+#   goblincakes-ianseo network on|off|status
+#                                tournament mode: tablets/phones on the same network (Ianseo's
+#                                scoring apps) reach Ianseo too (GOBLINCAKES Config → Optimering)
 #
-# Only reachable from this computer: http://127.0.0.1:8180/
+# Normally only reachable from this computer: http://127.0.0.1:8180/
 # Lines starting with "@@ " are shown in the setup window.
 set -euo pipefail
 
@@ -168,6 +171,42 @@ open_ianseo() {
     xdg-open "$url"
 }
 
+# Tournament mode: the pod's port on every network interface instead of only 127.0.0.1
+network() {
+    local pod="$quadlets/ianseo.pod" addresses ip
+    [ -e "$pod" ] || { [ "${1:-}" = status ] && echo unavailable; return 0; }
+    case ${1:-status} in
+        status) grep -q '^PublishPort=127\.0\.0\.1:' "$pod" && echo off || echo on ;;
+        on|off)
+            if [ "$1" = on ]; then
+                sed -i 's|^PublishPort=.*|PublishPort=8180:80|' "$pod"
+            else
+                sed -i 's|^PublishPort=.*|PublishPort=127.0.0.1:8180:80|' "$pod"
+            fi
+            # The firewall (if it's on) lets the port in, also after a restart; asks for the
+            # password once through polkit. Off: closed again.
+            if command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then
+                local change=--add-port
+                [ "$1" = off ] && change=--remove-port
+                firewall-cmd --quiet --permanent "$change=8180/tcp" 2>/dev/null || true
+                firewall-cmd --quiet "$change=8180/tcp" 2>/dev/null || true
+            fi
+            systemctl --user daemon-reload
+            systemctl --user stop ianseo-web.service ianseo-db.service ianseo-pod.service 2>/dev/null || true
+            start
+            if [ "$1" = on ]; then
+                addresses=""
+                for ip in $(hostname -I 2>/dev/null); do
+                    [[ $ip == *:* ]] || addresses+="http://$ip:8180/ianseo/"$'\n'
+                done
+                notify-send -a GOBLINCAKES -i goblincakes-ianseo "Ianseo i nätverket" \
+                    "Surfplattor och mobiler på samma nätverk når Ianseo på:"$'\n'"${addresses:-(ingen nätverksanslutning)}"$'\n'"Stäng av efter tävlingen." 2>/dev/null || true
+                printf '%s' "$addresses"
+            fi ;;
+        *) echo "Use: network on|off|status" >&2; return 2 ;;
+    esac
+}
+
 backup() {
     podman container exists ianseo-db 2>/dev/null || exit 0
     [ "$(podman inspect -f '{{.State.Running}}' ianseo-db)" = true ] || exit 0
@@ -191,5 +230,6 @@ case ${1:-} in
     install) install ;;
     open) open_ianseo ;;
     backup) backup ;;
-    *) echo "Usage: $0 install|open|backup" >&2; exit 2 ;;
+    network) network "${2:-status}" ;;
+    *) echo "Usage: $0 install|open|backup|network on|off|status" >&2; exit 2 ;;
 esac

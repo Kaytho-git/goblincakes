@@ -163,6 +163,13 @@ case $id in
                 done ;;
         esac ;;
 
+    ianseo-network)
+        # Ianseo's tournament mode (tablets/phones with Ianseo's scoring apps); only once Ianseo is installed
+        case $cmd in
+            status) /usr/libexec/goblincakes-ianseo network status ;;
+            set) /usr/libexec/goblincakes-ianseo network "$value" >/dev/null ;;
+        esac ;;
+
     low-latency-audio)
         # PipeWire with smaller buffers: ~5 ms instead of ~21 ms between game/voice and the speakers
         audio_dir="${XDG_CONFIG_HOME:-$HOME/.config}"

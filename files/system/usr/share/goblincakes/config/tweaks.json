@@ -7,6 +7,7 @@
     {"id": "max-map-count", "root": true, "name": "Fler minnesområden för spel", "desc": "Höjer vm.max_map_count. Vissa stora eller moddade spel (ofta via Proton) kraschar annars."},
     {"id": "split-lock", "root": true, "name": "Ingen split-lock-broms", "desc": "Kärnan saktar annars ner program som använder ”split locks”. Vissa Windows-spel gör det och hackar då."},
     {"id": "scx-lavd", "root": true, "name": "Spelschemaläggare (scx_lavd)", "desc": "CachyOS schemaläggare som prioriterar spel och skrivbordet för jämnare bildfrekvens. Stänger av irqbalance under tiden."},
+    {"id": "ianseo-network", "root": false, "name": "Ianseo i nätverket (tävling)", "desc": "Surfplattor och mobiler på samma nätverk når Ianseo, t.ex. för att föra in poäng vid tavlan med Ianseos appar. Adressen visas i en notis när du slår på. Stäng av efter tävlingen – annars når bara den här datorn Ianseo. Backuperna fortsätter som vanligt."},
     {"id": "shader-cache", "root": false, "name": "Större shader-cache (Nvidia)", "desc": "Sparar upp till 12 GB färdiga shaders i stället för 1 GB, så spel hackar mindre. Gäller från nästa inloggning."}
   ]
 }
