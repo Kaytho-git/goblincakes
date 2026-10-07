@@ -2,6 +2,7 @@
 # goblin – GOBLINCAKES' own commands in the terminal (like Bazzite's ujust).
 #
 #   goblin update      update everything: system, Flatpaks, AppImages, GE-Proton, firmware
+#   goblin ai          ask free AI services for help (goblin ai setup first)
 #   goblin fastfetch   system info with the GOBLINCAKES logo
 #   goblin motd        the command list shown in every new terminal (on/off)
 #   goblin help        list the commands
@@ -123,15 +124,20 @@ cmd_update() {
 # name | description – used by help and by the list in new terminals
 COMMANDS=(
     "update|Uppdatera allt: system, Flatpaks, AppImages, GE-Proton, firmware"
+    "ai [fråga]|Fråga en AI om hjälp – föreslagna kommandon körs bara om du säger ja"
+    "ai setup|Ställ in gratis AI-tjänster (Gemini, Groq, OpenRouter, Mistral)"
     "fastfetch|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
     "help|Visa alla goblin-kommandon"
 )
 
 command_list() {
-    local entry
+    local entry name pad
     for entry in "${COMMANDS[@]}"; do
-        printf '  %sgoblin %-11s%s %s%s%s\n' "$accent" "${entry%%|*}" "$reset" "$muted" "${entry#*|}" "$reset"
+        name=${entry%%|*}
+        # Pad by characters, not bytes (å, ä, ö)
+        printf -v pad '%*s' $((11 - ${#name})) ''
+        printf '  %sgoblin %s%s%s %s%s%s\n' "$accent" "$name" "$pad" "$reset" "$muted" "${entry#*|}" "$reset"
     done
 }
 
@@ -164,6 +170,7 @@ cmd_motd() {
 
 case ${1:-help} in
     update|upgrade) cmd_update ;;
+    ai) shift; exec /usr/libexec/goblincakes-ai "$@" ;;
     fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;
     help|-h|--help) cmd_help ;;
