@@ -33,6 +33,7 @@ modules:
         - kvantum               # engine for the GOBLINCAKES widget theme
         - libratbag-ratbagd     # backend for Piper (G502 Hero)
         - ddcutil               # monitor brightness over DDC/CI
+        - skopeo                # reads the newest GOBLINCAKES image's Fedora version (goblincakes-fedora-check)
         - gamemode              # performance mode while gaming
         - gamescope             # Valve's game compositor (gamescope -- spel), also the TV mode
         - mangohud              # FPS meter in games (GOBLINCAKES Config → Optimering)

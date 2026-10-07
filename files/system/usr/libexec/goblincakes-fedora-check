@@ -1,0 +1,93 @@
+#!/usr/bin/python3
+# GOBLINCAKES: a notice when GOBLINCAKES has moved to a new Fedora version (e.g. 44 → 45),
+# that is when `goblin update` would bring it. Universal Blue switches its "latest" images
+# a few weeks after Fedora's release, and GOBLINCAKES' daily build follows.
+# Started at login; checks then and every 12 hours. One notice per Fedora version
+# (and one more, "restart", once the update is installed but not started yet).
+import json
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+STATE = Path.home() / ".local/state/goblincakes/fedora-notified"
+
+
+def major(version):
+    m = re.match(r"(?:\D*-)?(\d+)\.", version or "")
+    return int(m.group(1)) if m else None
+
+
+def deployments():
+    out = subprocess.run(["rpm-ostree", "status", "--json"], capture_output=True, text=True).stdout
+    return json.loads(out).get("deployments", [])
+
+
+def remote_version(image):
+    """Fedora version of the newest image on the registry, without downloading it."""
+    out = subprocess.run(["skopeo", "inspect", "--no-tags", f"docker://{image}"],
+                         capture_output=True, text=True, timeout=120)
+    if out.returncode != 0:
+        return None
+    labels = json.loads(out.stdout).get("Labels") or {}
+    version = major(labels.get("org.opencontainers.image.version"))
+    if version is None:
+        m = re.search(r"\.fc(\d+)\.", labels.get("ostree.linux", ""))
+        version = int(m.group(1)) if m else None
+    return version
+
+
+def notify(key, title, body, action, label, command):
+    if key in (STATE.read_text().split() if STATE.exists() else []):
+        return
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    with STATE.open("a") as f:
+        f.write(key + "\n")
+    answer = subprocess.run(
+        ["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes", "--wait",
+         f"--action={action}={label}", title, body],
+        capture_output=True, text=True).stdout.strip()
+    if answer == action:
+        subprocess.Popen(command, start_new_session=True)
+
+
+def check():
+    """True when the check could be done (False: try again soon, e.g. no network yet)."""
+    try:
+        deps = deployments()
+    except (OSError, ValueError):
+        return False
+    booted = next((d for d in deps if d.get("booted")), None)
+    if not booted:
+        return True
+    ref = booted.get("container-image-reference", "")
+    if "docker://" not in ref:
+        return True
+    image = ref.split("docker://", 1)[1]
+    running = major(booted.get("version"))
+    try:
+        newest = remote_version(image)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return False
+    if running is None or newest is None:
+        return newest is not None
+    if newest <= running:
+        return True
+
+    staged = next((d for d in deps if d.get("staged")), None)
+    if staged and (major(staged.get("version")) or 0) >= newest:
+        notify(f"restart-{newest}", f"Fedora {newest} är installerat",
+               f"GOBLINCAKES på Fedora {newest} används efter en omstart. "
+               "Går något fel väljer du den förra versionen i startmenyn.",
+               "reboot", "Starta om nu", ["systemctl", "reboot"])
+    else:
+        notify(f"update-{newest}", f"GOBLINCAKES finns nu på Fedora {newest}",
+               f"Du kör Fedora {running}. Uppdatera med goblin update och starta om – "
+               "inget annat behövs. Går något fel väljer du den förra versionen i startmenyn.",
+               "update", "Uppdatera nu", ["ghostty", "-e", "goblin", "update"])
+    return True
+
+
+while True:
+    time.sleep(12 * 3600 if check() else 600)

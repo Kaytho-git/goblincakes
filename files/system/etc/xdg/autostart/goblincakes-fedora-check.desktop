@@ -1,0 +1,9 @@
+[Desktop Entry]
+# A notice when GOBLINCAKES has moved to a new Fedora version (checks at login and every 12 hours)
+Type=Application
+Name=GOBLINCAKES Fedora check
+Exec=/usr/libexec/goblincakes-fedora-check
+NoDisplay=true
+OnlyShowIn=KDE;
+X-KDE-autostart-phase=2
+X-KDE-autostart-after=panel
