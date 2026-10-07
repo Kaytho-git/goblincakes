@@ -194,6 +194,10 @@ DESKTOP
             status "$(echo "$out" | tail -n1)"
             exit 1
         fi
+        # Snap's menu entries live in /var/lib/snapd/desktop (in XDG_DATA_DIRS through
+        # goblincakes-snap.sh). If that folder didn't exist at login, Plasma never noticed
+        # it – rebuild its app list so the program shows up in AppGrid right away.
+        kbuildsycoca6 >/dev/null 2>&1 || true
         ;;
 
     battlenet)
