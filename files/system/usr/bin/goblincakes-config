@@ -94,8 +94,12 @@ class Config(QObject):
 
     @staticmethod
     def _read_version():
-        """E.g. "Fedora 44 · Nvidia · byggd 7 okt 18:22" – the running image, from rpm-ostree."""
-        parts = []
+        """E.g. "GOBLINCAKES 2026.10.07 · Fedora 44 · Nvidia · byggd 7 okt 18:22" – the running image."""
+        parts = ["GOBLINCAKES"]
+        try:
+            parts[0] += " " + Path("/usr/share/goblincakes/version").read_text().strip()
+        except OSError:
+            pass
         booted = {}
         code, out = run("rpm-ostree", ["status", "--json", "--booted"])
         if code == 0:
@@ -118,6 +122,7 @@ class Config(QObject):
         except OSError:
             pass
         if booted.get("timestamp"):
+            # Several builds a day share the version: the time tells them apart
             months = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
             built = datetime.fromtimestamp(booted["timestamp"])
             parts.append(f"byggd {built.day} {months[built.month - 1]} {built:%H:%M}")

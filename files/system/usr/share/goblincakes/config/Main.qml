@@ -233,8 +233,7 @@ Window {
         // Which GOBLINCAKES is running
         Text {
             anchors { right: parent.right; rightMargin: 48; top: parent.top; topMargin: 30 }
-            visible: backend.version !== ""
-            text: "GOBLINCAKES · " + backend.version
+            text: backend.version
             color: "#8B98AD"
             font.family: "IBM Plex Mono"
             font.pixelSize: 13
