@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # goblin – GOBLINCAKES' own commands in the terminal (like Bazzite's ujust).
 #
-#   goblin update   update everything: system, Flatpaks, AppImages, GE-Proton, firmware
-#   goblin help     list the commands
+#   goblin update      update everything: system, Flatpaks, AppImages, GE-Proton, firmware
+#   goblin fastfetch   system info with the GOBLINCAKES logo
+#   goblin motd        the command list shown in every new terminal (on/off)
+#   goblin help        list the commands
+#
+# New commands: add a cmd_<name> function, a line in COMMANDS and the case at the bottom.
 set -uo pipefail
 
 config_install=/usr/libexec/goblincakes-config-install
@@ -116,18 +120,52 @@ cmd_update() {
     [ ${#failed[@]} -eq 0 ]
 }
 
-cmd_help() {
-    cat <<EOF
-${bold}goblin${reset} – GOBLINCAKES kommandon
+# name | description – used by help and by the list in new terminals
+COMMANDS=(
+    "update|Uppdatera allt: system, Flatpaks, AppImages, GE-Proton, firmware"
+    "fastfetch|Systeminfo med GOBLINCAKES-loggan"
+    "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
+    "help|Visa alla goblin-kommandon"
+)
 
-  ${accent}goblin update${reset}   Uppdatera allt: systemet, Flatpak-program, AppImage-program
-                  (WowUp, Raider.IO, Archon), GE-Proton och firmware.
-  ${accent}goblin help${reset}     Visa den här listan.
-EOF
+command_list() {
+    local entry
+    for entry in "${COMMANDS[@]}"; do
+        printf '  %sgoblin %-11s%s %s%s%s\n' "$accent" "${entry%%|*}" "$reset" "$muted" "${entry#*|}" "$reset"
+    done
+}
+
+cmd_help() {
+    printf '%sgoblin%s – GOBLINCAKES kommandon\n\n' "$bold" "$reset"
+    command_list
+}
+
+cmd_fastfetch() {
+    exec fastfetch "$@"
+}
+
+motd_off_file="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/motd-off"
+
+cmd_motd() {
+    case ${1:-show} in
+        off) mkdir -p "$(dirname "$motd_off_file")" && touch "$motd_off_file"
+             info "Listan visas inte längre i nya terminaler. Slå på igen med: goblin motd on" ;;
+        on) rm -f "$motd_off_file"
+            info "Listan visas i nya terminaler igen." ;;
+        show)
+            # Shown by /etc/profile.d/goblincakes-motd.sh in every new terminal
+            [ -e "$motd_off_file" ] && return 0
+            printf '%s▌ GOBLINCAKES%s %s– kommandon i terminalen:%s\n' "$accent" "$reset" "$muted" "$reset"
+            command_list
+            echo ;;
+        *) printf 'Använd: goblin motd on|off\n' >&2; return 2 ;;
+    esac
 }
 
 case ${1:-help} in
     update|upgrade) cmd_update ;;
+    fastfetch|info) shift; cmd_fastfetch "$@" ;;
+    motd) shift; cmd_motd "$@" ;;
     help|-h|--help) cmd_help ;;
     *) printf 'Okänt kommando: %s\n\n' "$1" >&2; cmd_help >&2; exit 2 ;;
 esac
