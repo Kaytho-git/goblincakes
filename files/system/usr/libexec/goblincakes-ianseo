@@ -201,6 +201,8 @@ network() {
                 done
                 notify-send -a GOBLINCAKES -i goblincakes-ianseo "Ianseo i nätverket" \
                     "Surfplattor och mobiler på samma nätverk når Ianseo på:"$'\n'"${addresses:-(ingen nätverksanslutning)}"$'\n'"Stäng av efter tävlingen." 2>/dev/null || true
+                # Icon in the system tray while network access is on (goes away by itself when off)
+                (setsid /usr/libexec/goblincakes-ianseo-tray >/dev/null 2>&1 &)
                 printf '%s' "$addresses"
             fi ;;
         *) echo "Use: network on|off|status" >&2; return 2 ;;

@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Tray icon while Ianseo is reachable from the network (exits at once when it isn't)
+Type=Application
+Name=Ianseo i nätverket
+Exec=/usr/libexec/goblincakes-ianseo-tray
+Icon=goblincakes-ianseo
+NoDisplay=true
+OnlyShowIn=KDE;
+X-KDE-autostart-phase=2
