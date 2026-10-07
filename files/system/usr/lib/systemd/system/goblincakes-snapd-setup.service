@@ -1,5 +1,5 @@
 [Unit]
-Description=GOBLINCAKES: set up snap (home folders, Claude desktop)
+Description=GOBLINCAKES: set up snap (home folders in /var/home)
 Wants=network-online.target snapd.socket
 After=network-online.target snapd.socket snapd.seeded.service
 ConditionPathExists=!/var/lib/goblincakes/snapd-setup-done
@@ -7,7 +7,7 @@ ConditionPathExists=!/var/lib/goblincakes/snapd-setup-done
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/goblincakes-snapd-setup
-# The first snap download can take a while
+# Waits for snapd's first start (seeding)
 TimeoutStartSec=30min
 
 [Install]

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs at boot until it has succeeded once: makes snaps work with Fedora Atomic's
-# home folders (/var/home) and installs the snaps GOBLINCAKES ships with.
+# home folders (/var/home). Snaps themselves (Claude desktop) are picked in GOBLINCAKES Config.
 set -euo pipefail
 
 done_file=/var/lib/goblincakes/snapd-setup-done
@@ -10,11 +10,6 @@ snap wait system seed.loaded
 
 # Home folders live in /var/home on Fedora Atomic; snaps only accept /home otherwise
 snap set system homedirs=/var/home
-
-# Claude desktop (https://snapcraft.io/claudeai-desktop)
-if ! snap list claudeai-desktop >/dev/null 2>&1; then
-    snap install claudeai-desktop || snap install --classic claudeai-desktop
-fi
 
 mkdir -p "$(dirname "$done_file")"
 touch "$done_file"

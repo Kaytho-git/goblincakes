@@ -95,6 +95,7 @@ check() {
         webapp) [ -e "$HOME/.local/share/applications/goblincakes-webapp-$1.desktop" ] ;;
         gamescope-flatpak) flatpak list --columns=application | grep -qx org.freedesktop.Platform.VulkanLayer.gamescope ;;
         # Installed with today's container setup (see layout in goblincakes-ianseo)
+        snap) snap list "$1" >/dev/null 2>&1 ;;
         battlenet) compgen -G "$HOME/Games/battlenet*/drive_c" >/dev/null ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;
@@ -176,6 +177,13 @@ DESKTOP
     vulkan-layer)
         # A Vulkan layer for the game launchers' Flatpak runtimes (gamescope, MangoHud)
         vulkan_layer "$1"
+        ;;
+
+    snap)
+        # A snap from the Snap Store (snapd is in the image); asks for the password itself
+        status "Hämtar $1 från Snap Store…"
+        snap wait system seed.loaded
+        snap install "$1" || snap install --classic "$1"
         ;;
 
     battlenet)
