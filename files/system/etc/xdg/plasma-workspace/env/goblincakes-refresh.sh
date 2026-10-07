@@ -36,4 +36,16 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
-unset _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc
+# Ghostty opens at 125x35 characters: add that to Ghostty configs written by
+# goblincakes-firstlogin before the size was part of it (once; removing it sticks).
+_gc_flag="$_gc_state/ghostty-size-added"
+_gc_ghostty="${XDG_CONFIG_HOME:-$HOME/.config}/ghostty/config.ghostty"
+if [ ! -e "$_gc_flag" ]; then
+    if grep -q '^# GOBLINCAKES defaults' "$_gc_ghostty" 2>/dev/null &&
+       ! grep -q '^window-\(width\|height\)' "$_gc_ghostty"; then
+        printf 'window-width = 125\nwindow-height = 35\n' >> "$_gc_ghostty"
+    fi
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
+unset _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty
