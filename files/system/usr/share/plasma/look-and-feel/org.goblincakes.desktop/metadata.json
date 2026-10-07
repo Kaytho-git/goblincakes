@@ -1,7 +1,7 @@
 {
     "KPackageStructure": "Plasma/LookAndFeel",
     "KPlugin": {
-        "Authors": [{ "Name": "Kaytho" }],
+        "Authors": [{ "Name": "Kaytho och en fin kille" }],
         "Description": "GOBLINCAKES desktop: top bar, auto-hiding dock, black and dark blue",
         "Id": "org.goblincakes.desktop",
         "License": "GPL-2.0-or-later",

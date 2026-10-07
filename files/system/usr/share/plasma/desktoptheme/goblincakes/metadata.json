@@ -1,7 +1,7 @@
 {
     "KPackageStructure": "Plasma/Theme",
     "KPlugin": {
-        "Authors": [{ "Name": "Kaytho" }],
+        "Authors": [{ "Name": "Kaytho och en fin kille" }],
         "Description": "GOBLINCAKES: Breeze with square popups and panels in the GOBLINCAKES palette",
         "Id": "goblincakes",
         "License": "GPL-2.0-or-later",
