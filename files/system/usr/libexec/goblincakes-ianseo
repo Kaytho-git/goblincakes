@@ -12,7 +12,9 @@ set -euo pipefail
 status() { echo "@@ $*"; }
 
 share=/usr/share/goblincakes/ianseo
-url=http://127.0.0.1:8180/
+url=http://127.0.0.1:8180/ianseo/
+layout=2  # bump when the container setup changes in a way an old install can't keep
+layout_file="$HOME/.local/share/goblincakes/ianseo/layout"
 home_dir="$HOME/Ianseo"
 backup_dir="$home_dir/Backup"
 www="$HOME/.local/share/goblincakes/ianseo/www"
@@ -52,18 +54,29 @@ find_zip() {
 install() {
     mkdir -p "$home_dir" "$backup_dir" "$(dirname "$env_file")" "$quadlets" "$www"
 
-    # Database passwords, made once and kept private
+    # An unfinished install from an older GOBLINCAKES: start over
+    if [ -e "$env_file" ] && [ "$(cat "$layout_file" 2>/dev/null)" != "$layout" ]; then
+        status "Tar bort den gamla, ofullständiga Ianseo-installationen…"
+        systemctl --user stop ianseo-web.service ianseo-db.service ianseo-pod.service 2>/dev/null || true
+        podman volume rm -f ianseo-db ianseo-socket >/dev/null 2>&1 || true
+        podman unshare rm -rf "$www"
+        rm -f "$env_file"
+        mkdir -p "$www"
+    fi
+
+    # Database: user, password and database "ianseo", as in Ianseo's install guide.
+    # It is only reachable from inside the Ianseo containers. The root password is random.
     if [ ! -e "$env_file" ]; then
         umask 077
-        pw() { head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20; }
         {
-            echo "MARIADB_ROOT_PASSWORD=$(pw)"
+            echo "MARIADB_ROOT_PASSWORD=$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
             echo "MARIADB_DATABASE=ianseo"
             echo "MARIADB_USER=ianseo"
-            echo "MARIADB_PASSWORD=$(pw)"
+            echo "MARIADB_PASSWORD=ianseo"
         } > "$env_file"
         umask 022
     fi
+    echo "$layout" > "$layout_file"
     # shellcheck disable=SC1090
     . "$env_file"
 
@@ -96,13 +109,19 @@ install() {
         fi
         status "Packar upp $(basename "$zip")…"
         python3 -m zipfile -e "$zip" "$tmp"
-        # Ianseo's own folder = the shallowest one with an index.php
-        index=$(find "$tmp" -maxdepth 3 -name index.php | awk '{ print length, $0 }' | sort -n | head -n1 | cut -d' ' -f2- || true)
-        [ -n "$index" ] || { status "Zip-filen ser inte ut att vara Ianseo"; exit 1; }
-        root=$(dirname "$index")
+        # Ianseo's own folder = the one with Install/apache-ianseo.conf (else the shallowest index.php)
+        conf=$(find "$tmp" -maxdepth 4 -path '*/Install/apache-ianseo.conf' | head -n1 || true)
+        if [ -n "$conf" ]; then
+            root=$(dirname "$(dirname "$conf")")
+        else
+            index=$(find "$tmp" -maxdepth 3 -name index.php | awk '{ print length, $0 }' | sort -n | head -n1 | cut -d' ' -f2- || true)
+            [ -n "$index" ] || { status "Zip-filen ser inte ut att vara Ianseo"; exit 1; }
+            root=$(dirname "$index")
+        fi
         cp -a "$root"/. "$www"/
-        # The web server runs as www-data (33) inside the container
-        podman unshare chown -R 33:33 "$www"
+        # Writable for everyone, as Ianseo's install guide says (the web server
+        # inside the container runs as another user)
+        chmod -R a+rwX "$www"
     fi
 
     status "Bygger Ianseos webbserver (tar några minuter första gången)…"
@@ -114,6 +133,8 @@ install() {
     status "Startar Ianseo…"
     cp "$share"/ianseo.pod "$share"/ianseo-db.container "$share"/ianseo-web.container "$quadlets"/
     systemctl --user daemon-reload
+    # Restart, so a new web server image is used
+    systemctl --user stop ianseo-web.service 2>/dev/null || true
     start
     systemctl --user enable --now goblincakes-ianseo-backup.timer
 
@@ -123,11 +144,11 @@ install() {
     cat > "$home_dir/Databas.txt" <<EOF
 Ianseo körs på $url (bara från den här datorn).
 
-Uppgifter till Ianseos installationssida:
-  Databasserver:  127.0.0.1
+Uppgifter till Ianseos installationssida (samma som Ianseos egen guide):
+  Databasserver:  localhost
   Databas:        ianseo
   Användare:      ianseo
-  Lösenord:       $MARIADB_PASSWORD
+  Lösenord:       ianseo
 
   root-lösenord (om Ianseo frågar efter det): $MARIADB_ROOT_PASSWORD
 

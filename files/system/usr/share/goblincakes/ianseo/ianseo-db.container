@@ -6,6 +6,8 @@ ContainerName=ianseo-db
 Image=docker.io/library/mariadb:11
 Pod=ianseo.pod
 Volume=ianseo-db:/var/lib/mysql
+# Shared with the web server, so Ianseo can connect to "localhost"
+Volume=ianseo-socket:/run/mysqld
 EnvironmentFile=%h/.config/goblincakes/ianseo.env
 # Ianseo is written for MySQL without strict mode
 Exec=--sql-mode=NO_ENGINE_SUBSTITUTION --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci

@@ -7,7 +7,10 @@ After=ianseo-db.service
 ContainerName=ianseo-web
 Image=localhost/goblincakes-ianseo:latest
 Pod=ianseo.pod
-Volume=%h/.local/share/goblincakes/ianseo/www:/var/www/html:Z
+# Ianseo's files, where its install guide puts them
+Volume=%h/.local/share/goblincakes/ianseo/www:/opt/ianseo:Z
+# The database's socket, so Ianseo can use "localhost"
+Volume=ianseo-socket:/run/mysqld
 
 [Service]
 Restart=on-failure

@@ -1,9 +1,20 @@
-# Ianseo web server: PHP + Apache with the extensions Ianseo needs.
+# Ianseo web server: PHP 8 + Apache with what Ianseo's Linux install guide lists
+# (php-mysql, gd, curl, imagick + imagemagick, xml, zip, intl, mbstring).
 # Built on the user's computer by /usr/libexec/goblincakes-ianseo.
-FROM docker.io/library/php:8.2-apache
+FROM docker.io/library/php:8.3-apache
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libcurl4-openssl-dev \
+ && apt-get install -y --no-install-recommends \
+      imagemagick libmagickwand-dev libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libicu-dev \
  && docker-php-ext-configure gd --with-jpeg --with-freetype \
- && docker-php-ext-install mysqli gd zip curl \
- && rm -rf /var/lib/apt/lists/*
+ && docker-php-ext-install -j"$(nproc)" mysqli gd zip intl \
+ && pecl install imagick \
+ && docker-php-ext-enable imagick \
+ && rm -rf /var/lib/apt/lists/* /tmp/pear
+# curl, mbstring and xml are already built into the official PHP image
+RUN php -m | grep -qiE '^curl$' && php -m | grep -qiE '^mbstring$' && php -m | grep -qiE '^xml$' \
+ && php -m | grep -qiE '^imagick$' && php -m | grep -qiE '^intl$'
 COPY ianseo-php.ini /usr/local/etc/php/conf.d/ianseo.ini
+COPY goblincakes-ianseo.conf /etc/apache2/conf-enabled/goblincakes-ianseo.conf
+COPY start.sh /usr/local/bin/goblincakes-ianseo-start
+RUN chmod +x /usr/local/bin/goblincakes-ianseo-start
+CMD ["goblincakes-ianseo-start"]
