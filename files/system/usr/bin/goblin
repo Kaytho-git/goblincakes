@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# goblin – GOBLINCAKES' own commands in the terminal (like Bazzite's ujust).
+#
+#   goblin update   update everything: system, Flatpaks, AppImages, GE-Proton, firmware
+#   goblin help     list the commands
+set -uo pipefail
+
+config_install=/usr/libexec/goblincakes-config-install
+catalog=/usr/share/goblincakes/config/apps.json
+
+# GOBLINCAKES palette: Accent #2F6FED, Frost #E6ECF5, muted #8B98AD, red #A4262C
+if [ -t 1 ]; then
+    accent=$'\e[1;38;2;47;111;237m' frost=$'\e[38;2;230;236;245m' muted=$'\e[38;2;139;152;173m'
+    red=$'\e[1;38;2;220;70;76m' bold=$'\e[1m' reset=$'\e[0m'
+else
+    accent= frost= muted= red= bold= reset=
+fi
+
+heading() { printf '\n%s▌ %s%s\n' "$accent" "$1" "$reset"; }
+info() { printf '%s  %s%s\n' "$muted" "$1" "$reset"; }
+
+failed=()
+step() { # name, command… – runs it, remembers failures, carries on
+    local name=$1; shift
+    if ! "$@"; then
+        failed+=("$name")
+        printf '%s  %s gick inte att uppdatera%s\n' "$red" "$name" "$reset"
+    fi
+}
+
+# The setup helper prints "@@ status" lines for the GOBLINCAKES Config window
+config_step() {
+    "$config_install" "$@" 2>&1 | sed -u -n 's/^@@ /  /p'
+    return "${PIPESTATUS[0]}"
+}
+
+update_system() {
+    heading "System (GOBLINCAKES-imagen)"
+    rpm-ostree upgrade --unchanged-exit-77
+    local code=$?
+    case $code in
+        0) system_updated=1 ;;
+        77) info "Redan senaste versionen" ;;
+        *) return "$code" ;;
+    esac
+}
+
+update_flatpaks() {
+    heading "Flatpak-program"
+    flatpak update --assumeyes --noninteractive && flatpak uninstall --unused --assumeyes --noninteractive >/dev/null
+}
+
+update_appimages() {
+    # WowUp, Raider.IO, Archon – the ones GOBLINCAKES Config installed
+    local any=0 id repo label
+    [ -r "$catalog" ] || return 0
+    while IFS=$'\t' read -r id repo label; do
+        [ -x "$HOME/AppImages/$label.AppImage" ] || continue
+        [ "$any" = 1 ] || heading "AppImage-program"
+        any=1
+        step "$label" config_step appimage-github "$repo" "$label"
+    done < <(python3 -c '
+import json, sys
+for app in json.load(open(sys.argv[1]))["apps"]:
+    for step in app["steps"]:
+        if step[0] == "appimage-github":
+            print(app["id"], step[1], step[2], sep="\t")
+' "$catalog")
+}
+
+update_proton() {
+    # Only for those who use it (ProtonUp-Qt chosen in GOBLINCAKES Config, or GE-Proton already there)
+    if flatpak info net.davidotek.pupgui2 >/dev/null 2>&1 \
+        || ls -d "$HOME"/.var/app/com.valvesoftware.Steam/.local/share/Steam/compatibilitytools.d/GE-Proton* >/dev/null 2>&1; then
+        heading "GE-Proton"
+        config_step ge-proton
+    fi
+}
+
+update_firmware() {
+    command -v fwupdmgr >/dev/null || return 0
+    heading "Firmware"
+    fwupdmgr refresh --force >/dev/null 2>&1 || true
+    fwupdmgr update --assume-yes --no-reboot-check
+    local code=$?
+    # 2 = nothing to update
+    [ "$code" = 0 ] || [ "$code" = 2 ]
+}
+
+cmd_update() {
+    printf '%s%sGOBLINCAKES%s %suppdaterar allt%s\n' "$bold" "$frost" "$reset" "$muted" "$reset"
+    system_updated=0
+    step "Systemet" update_system
+    step "Flatpak-program" update_flatpaks
+    update_appimages
+    step "GE-Proton" update_proton
+    step "Firmware" update_firmware
+
+    echo
+    if [ ${#failed[@]} -eq 0 ]; then
+        printf '%s▌ Klart.%s\n' "$accent" "$reset"
+    else
+        printf '%s▌ Klart, men det här gick inte: %s%s\n' "$red" "${failed[*]}" "$reset"
+        info "Kolla nätverket och kör goblin update igen."
+    fi
+
+    if [ "$system_updated" = 1 ]; then
+        echo
+        printf '%sDen nya GOBLINCAKES-versionen används efter en omstart. Starta om nu? [j/N] %s' "$frost" "$reset"
+        read -r answer
+        case $answer in
+            j|J|ja|Ja|y|Y) systemctl reboot ;;
+            *) info "Den startar nästa gång du startar om datorn." ;;
+        esac
+    fi
+    [ ${#failed[@]} -eq 0 ]
+}
+
+cmd_help() {
+    cat <<EOF
+${bold}goblin${reset} – GOBLINCAKES kommandon
+
+  ${accent}goblin update${reset}   Uppdatera allt: systemet, Flatpak-program, AppImage-program
+                  (WowUp, Raider.IO, Archon), GE-Proton och firmware.
+  ${accent}goblin help${reset}     Visa den här listan.
+EOF
+}
+
+case ${1:-help} in
+    update|upgrade) cmd_update ;;
+    help|-h|--help) cmd_help ;;
+    *) printf 'Okänt kommando: %s\n\n' "$1" >&2; cmd_help >&2; exit 2 ;;
+esac

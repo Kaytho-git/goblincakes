@@ -129,12 +129,19 @@ case $step in
         read -r name url < <(github_latest "$repo" | json_asset '^(?!.*(arm64|aarch64|armv7)).*\.AppImage$')
         mkdir -p "$appimage_dir"
         file="$appimage_dir/$label.AppImage"
+        # The download URL contains the version: same URL as last time = already the newest
+        release_file="$appimage_dir/.$label.release"
+        if [ -x "$file" ] && [ "$(cat "$release_file" 2>/dev/null)" = "$url" ]; then
+            status "$label är redan senaste versionen"
+            exit 0
+        fi
         status "Hämtar $name…"
         curl -fL --progress-bar -o "$file.part" "$url"
         mv "$file.part" "$file"
         chmod +x "$file"
         status "Lägger till $label i AppGrid…"
         integrate_appimage "$file" "$label"
+        echo "$url" > "$release_file"
         status "$label installerad (${name})"
         ;;
 
