@@ -88,17 +88,15 @@ modules:
         - IBM Plex Sans   # interface and body text
         - IBM Plex Mono   # Ghostty terminal
 
-  # Always-installed Flatpaks (validated against Flathub at build time)
+  # Always-installed Flatpaks – kept to a minimum on purpose: everything else
+  # (Steam, Discord, Lutris, VLC …) is picked in GOBLINCAKES Config
+  # (validated against Flathub at build time)
   - type: default-flatpaks
     configurations:
       - scope: system
         notify: true
         install:
           - org.mozilla.firefox
-          - com.valvesoftware.Steam
-          - com.discordapp.Discord
-          - net.lutris.Lutris
-          - org.videolan.VLC
           - org.freedesktop.Piper   # mouse configurator
           - org.chromium.Chromium   # for VIA / Keychron Launcher (WebHID)
 

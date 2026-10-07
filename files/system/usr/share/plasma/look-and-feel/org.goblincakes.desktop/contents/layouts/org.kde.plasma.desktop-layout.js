@@ -58,10 +58,13 @@ try { dock.floating = true; } catch (e) {}
 
 var tasks = dock.addWidget("org.kde.plasma.icontasks");
 tasks.currentConfigGroup = ["General"];
-tasks.writeConfig("launchers", [
-    "applications:org.mozilla.firefox.desktop",
-    "applications:com.valvesoftware.Steam.desktop",
-    "applications:com.discordapp.Discord.desktop",
-    "applications:com.microsoft.VSCode.desktop",
-    "applications:org.videolan.VLC.desktop"
-]);
+// Always installed: Firefox and VS Code. Steam, Discord and VLC are picked in
+// GOBLINCAKES Config (which pins them here when installed) – only pinned now if
+// they are already there, so the dock never shows icons for missing apps.
+var launchers = ["applications:org.mozilla.firefox.desktop"];
+["com.valvesoftware.Steam.desktop", "com.discordapp.Discord.desktop"].forEach(function (app) {
+    if (applicationExists(app)) launchers.push("applications:" + app);
+});
+launchers.push("applications:com.microsoft.VSCode.desktop");
+if (applicationExists("org.videolan.VLC.desktop")) launchers.push("applications:org.videolan.VLC.desktop");
+tasks.writeConfig("launchers", launchers);
