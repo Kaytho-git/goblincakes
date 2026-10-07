@@ -44,8 +44,17 @@ config_step() {
 
 update_system() {
     heading "System (GOBLINCAKES-imagen)"
-    rpm-ostree upgrade --unchanged-exit-77
-    local code=$?
+    # Network hiccups during the big download (e.g. "tls: bad record MAC") are common,
+    # especially in VMs: try again – the layers already fetched are kept
+    local code try
+    for try in 1 2 3; do
+        rpm-ostree upgrade --unchanged-exit-77
+        code=$?
+        case $code in 0|77) break ;; esac
+        [ "$try" = 3 ] && break
+        info "Nedladdningen avbröts – försöker igen ($((try + 1)) av 3)…"
+        sleep 5
+    done
     case $code in
         0) system_updated=1 ;;
         77) info "Redan senaste versionen" ;;
