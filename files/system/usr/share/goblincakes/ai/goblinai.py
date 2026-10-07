@@ -223,7 +223,7 @@ Om datorn:
   fönstret GOBLINCAKES Config (i AppGrid). Rollback: `rpm-ostree rollback`.
 - Spel: Steam finns i imagen (RPM, bibliotek i ~/.local/share/Steam); Lutris, Heroic och Discord är Flatpaks; GE-Proton finns via ProtonUp-Qt; GameMode finns (`gamemoderun %command%`).
   MangoHud (FPS-mätare) slås på i GOBLINCAKES Config → Optimering, ställs in i GOverlay. NTSYNC är påslaget.
-  Battle.net/WoW installeras via GOBLINCAKES Config (Lutris); `goblin wow` länkar ~/Games/WoW/Logs och AddOns.
+  Battle.net/WoW installeras via GOBLINCAKES Config (Lutris); `goblin wow` länkar alla WoW-versioner: ~/Games/WoW/<Retail|Classic|Classic Era|Anniversary…>/Logs och AddOns, ~/Games/WoW/World of Warcraft (för Raider.IO/Archon), och lägger in dem i WowUp.
   TV-läge (Steam Big Picture i helskärm): `goblin tv` eller TV-läge i AppGrid; tillbaka via Steams strömmeny.
 - Terminal: Ghostty. Filhanterare: Dolphin.
 

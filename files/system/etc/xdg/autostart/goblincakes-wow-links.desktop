@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=GOBLINCAKES WoW folders
-Comment=Links ~/Games/WoW/Logs and AddOns into the WoW install (nothing until WoW is installed)
+Comment=Links every WoW version under ~/Games/WoW and keeps WowUp in step (nothing until WoW is installed)
 Exec=/usr/libexec/goblincakes-wow-links
 OnlyShowIn=KDE;
 NoDisplay=true

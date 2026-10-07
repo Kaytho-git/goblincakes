@@ -4,7 +4,7 @@
 #   goblin update      update everything: system, Flatpaks, AppImages, GE-Proton, firmware
 #   goblin ai          the Goblin AI window (Meta+A); with a question: answer in the terminal
 #   goblin tv          TV mode (Steam Big Picture in full screen)
-#   goblin wow         where WoW is, links ~/Games/WoW/Logs and AddOns
+#   goblin wow         links every WoW version under ~/Games/WoW, updates WowUp
 #   goblin fast        system info with the GOBLINCAKES logo
 #   goblin motd        the command list shown in every new terminal (on/off)
 #   goblin help        list the commands
@@ -132,7 +132,7 @@ COMMANDS=(
     "ai [fråga]|Fråga Goblin AI direkt här – föreslagna kommandon körs bara om du säger ja"
     "ai setup|Ställ in gratis AI-tjänster (Gemini, Groq, OpenRouter, Mistral)"
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
-    "wow|Visa var WoW finns och länka ~/Games/WoW/Logs och AddOns"
+    "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "fast|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"

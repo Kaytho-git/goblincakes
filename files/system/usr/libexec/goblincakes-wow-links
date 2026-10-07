@@ -1,57 +1,199 @@
-#!/usr/bin/env bash
-# GOBLINCAKES: ~/Games/WoW/Logs and ~/Games/WoW/AddOns point to wherever WoW (retail)
-# really is, so Archon, WowUp and the file manager find them – inside a Wine prefix
-# (Lutris, ~/.wine, a Steam non-Steam-game prefix) or on another disk that Battle.net
-# installed it to through a Wine drive letter (D:, E: … → /run/media/…).
-# Runs at every login (does nothing until WoW is installed; follows WoW if it moves)
-# and as `goblin wow`.
-set -uo pipefail
-shopt -s nullglob
+#!/usr/bin/python3
+"""GOBLINCAKES: every installed WoW version linked under ~/Games/WoW, where it really is.
 
-verbose=0; [ "${1:-}" = --verbose ] && verbose=1
-links="$HOME/Games/WoW"
+  ~/Games/WoW/World of Warcraft   → the WoW folder itself (Raider.IO, Archon: pick this once)
+  ~/Games/WoW/<Version>/Logs      → that version's Logs (combat logs)
+  ~/Games/WoW/<Version>/AddOns    → that version's Interface/AddOns
+  Versions: Retail, Classic, Classic Era, Anniversary, PTR, XPTR, Beta, Classic PTR …
 
-# Wine prefixes: anything with a drive_c
-prefixes=()
-for p in "$HOME"/Games/*/ "$HOME"/.wine/ "$HOME"/.local/share/wineprefixes/*/ \
-         "$HOME"/.local/share/Steam/steamapps/compatdata/*/pfx/ \
-         "$HOME"/.var/app/net.lutris.Lutris/data/lutris/prefixes/*/; do
-    [ -d "$p/drive_c" ] && prefixes+=("${p%/}")
-done
+WoW is looked for in every Wine prefix (Lutris, ~/.wine, Steam), on the other disks the
+prefixes reach through drive letters (D:, E: …) and on the mounted disks; the links follow
+WoW if it moves. WowUp is told about every version too (its own settings file), so its
+version list stays right. Runs at every login and as `goblin wow` (--verbose).
+"""
+import json
+import os
+import subprocess
+import sys
+import uuid
+from pathlib import Path
 
-# Where to look: each prefix's C:, every other drive letter it has (other disks),
-# and the mounted disks themselves
-roots=()
-for p in "${prefixes[@]}"; do
-    roots+=("$p/drive_c")
-    for d in "$p"/dosdevices/[d-z]:; do
-        target=$(readlink -f "$d") && [ -d "$target" ] && [ "$target" != / ] && roots+=("$target")
-    done
-done
-for m in /run/media/"${USER:-$(id -un)}"/* /var/mnt/* /mnt/*; do [ -d "$m" ] && roots+=("$m"); done
+HOME = Path.home()
+LINKS = HOME / "Games" / "WoW"
+VERBOSE = "--verbose" in sys.argv
 
-# WoW retail = the folder _retail_ with Wow.exe in it; the most recently played one wins
-retail=$(for r in "${roots[@]}"; do
-             find "$r" -maxdepth 5 -ipath '*/_retail_/wow.exe' -printf '%T@ %h\n' 2>/dev/null
-         done | sort -rn | head -n1 | cut -d' ' -f2-)
+# WoW's own folder per version → (name here, WowUp's client type number)
+FLAVORS = {
+    "_retail_": ("Retail", 0),
+    "_classic_": ("Classic", 1),
+    "_ptr_": ("PTR", 2),
+    "_classic_ptr_": ("Classic PTR", 3),
+    "_beta_": ("Beta", 4),
+    "_classic_beta_": ("Classic Beta", 5),
+    "_classic_era_": ("Classic Era", 6),
+    "_classic_era_ptr_": ("Classic Era PTR", 7),
+    "_xptr_": ("XPTR", 8),
+    "_anniversary_": ("Anniversary", 9),
+}
+MAX_DEPTH = 6
 
-if [ -z "$retail" ]; then
-    [ "$verbose" = 1 ] && echo "Hittade inte WoW. Installera Battle.net och WoW i GOBLINCAKES Config (Spel och WoW) först."
-    [ "$verbose" = 1 ] && exit 1
-    exit 0
-fi
 
-mkdir -p "$links" "$retail/Logs" "$retail/Interface/AddOns"
-for pair in "Logs|$retail/Logs" "AddOns|$retail/Interface/AddOns"; do
-    name=${pair%%|*} target=${pair#*|}
-    # Only our own links are replaced, never a real folder
-    if [ -L "$links/$name" ] || [ ! -e "$links/$name" ]; then
-        ln -sfn "$target" "$links/$name"
-    elif [ "$verbose" = 1 ]; then
-        echo "~/Games/WoW/$name är en riktig mapp – lämnar den orörd."
-    fi
-done
-if [ "$verbose" = 1 ]; then
-    printf 'WoW finns i: %s\n  ~/Games/WoW/Logs   → %s/Logs\n  ~/Games/WoW/AddOns → %s/Interface/AddOns\n' "$retail" "$retail" "$retail"
-fi
-exit 0
+def say(*args):
+    if VERBOSE:
+        print(*args)
+
+
+def search_roots():
+    prefixes = []
+    for pattern in ("Games/*", ".wine", ".local/share/wineprefixes/*",
+                    ".local/share/Steam/steamapps/compatdata/*/pfx",
+                    ".var/app/net.lutris.Lutris/data/lutris/prefixes/*"):
+        prefixes += [p for p in HOME.glob(pattern) if (p / "drive_c").is_dir()]
+    roots = []
+    for p in prefixes:
+        roots.append(p / "drive_c")
+        # Other disks that Battle.net reaches through Wine drive letters
+        for d in sorted((p / "dosdevices").glob("[d-z]:")):
+            target = d.resolve()
+            if target.is_dir() and target != Path("/"):
+                roots.append(target)
+    user = os.environ.get("USER") or HOME.name
+    for base in (Path("/run/media") / user, Path("/var/mnt"), Path("/mnt")):
+        if base.is_dir():
+            roots += [m for m in base.iterdir() if m.is_dir()]
+    return roots
+
+
+def find_versions(roots):
+    """{folder name: (folder, exe, mtime)} – the most recently played copy of each version."""
+    found = {}
+    seen = set()
+    for root in roots:
+        base_depth = len(root.parts)
+        for dirpath, dirnames, filenames in os.walk(root, onerror=lambda e: None):
+            here = Path(dirpath)
+            if len(here.parts) - base_depth >= MAX_DEPTH or here.name == "dosdevices":
+                dirnames[:] = []
+            # Wine's own Windows folder is big and never has WoW in it
+            dirnames[:] = [d for d in dirnames if d.lower() not in ("windows", "dosdevices")]
+            real = os.path.realpath(dirpath)
+            if real in seen:
+                dirnames[:] = []
+                continue
+            seen.add(real)
+            flavor = here.name.lower()
+            if flavor not in FLAVORS:
+                continue
+            dirnames[:] = []  # nothing more to find inside a WoW version
+            exes = [f for f in filenames if f.lower().startswith("wow") and f.lower().endswith(".exe")]
+            if not exes:
+                continue
+            exe = here / exes[0]
+            mtime = exe.stat().st_mtime
+            if flavor not in found or mtime > found[flavor][2]:
+                found[flavor] = (here, exe, mtime)
+    return found
+
+
+def link(path: Path, target: Path):
+    """Our symlink only – a real file or folder is never touched."""
+    if path.is_symlink():
+        if os.readlink(path) == str(target):
+            return
+        path.unlink()
+    elif path.exists():
+        say(f"  {path} är en riktig mapp – lämnar den orörd.")
+        return
+    path.symlink_to(target)
+
+
+def update_links(found):
+    LINKS.mkdir(parents=True, exist_ok=True)
+    # From the first version of this script: Logs/AddOns straight under ~/Games/WoW
+    for old in ("Logs", "AddOns"):
+        if (LINKS / old).is_symlink():
+            (LINKS / old).unlink()
+    for flavor, (folder, _exe, _mtime) in found.items():
+        name = FLAVORS[flavor][0]
+        (folder / "Logs").mkdir(exist_ok=True)
+        (folder / "Interface" / "AddOns").mkdir(parents=True, exist_ok=True)
+        (LINKS / name).mkdir(exist_ok=True)
+        link(LINKS / name / "Logs", folder / "Logs")
+        link(LINKS / name / "AddOns", folder / "Interface" / "AddOns")
+    # The WoW folder itself: where Retail is, else the most recently played version
+    main = found.get("_retail_") or max(found.values(), key=lambda v: v[2])
+    link(LINKS / "World of Warcraft", main[0].parent)
+    # Links to versions that are gone (uninstalled) are cleaned up
+    for name in [v[0] for v in FLAVORS.values()]:
+        for sub in ("Logs", "AddOns"):
+            p = LINKS / name / sub
+            if p.is_symlink() and not p.exists():
+                p.unlink()
+        if (LINKS / name).is_dir() and not (LINKS / name).is_symlink() and not any((LINKS / name).iterdir()):
+            (LINKS / name).rmdir()
+    return main[0].parent
+
+
+def update_wowup(found):
+    """WowUp keeps its WoW versions in its settings file; add new ones, follow moved ones."""
+    files = [p for p in (HOME / ".config" / d / "preferences.json"
+                         for d in ("WowUpCf", "WowUp", "wowup-cf", "wowup")) if p.is_file()]
+    if not files:
+        return
+    running = subprocess.run(["pgrep", "-i", "^wowup"], capture_output=True).returncode == 0
+    if running:
+        say("WowUp är igång – stäng den och kör goblin wow igen, så får den alla WoW-versioner.")
+        return
+    for prefs in files:
+        try:
+            data = json.loads(prefs.read_text())
+        except (OSError, ValueError):
+            continue
+        installs = data.get("wow_installations") or []
+        changed = False
+        for flavor, (_folder, exe, _mtime) in found.items():
+            name, client_type = FLAVORS[flavor]
+            same_type = [i for i in installs if i.get("clientType") == client_type]
+            if any(os.path.realpath(i.get("location", "")) == os.path.realpath(exe) for i in same_type):
+                continue
+            moved = [i for i in same_type if not os.path.exists(i.get("location", ""))]
+            if moved:
+                moved[0]["location"] = str(exe)
+            else:
+                installs.append({
+                    "id": str(uuid.uuid4()),
+                    "clientType": client_type,
+                    "defaultAddonChannelType": 0,
+                    "defaultAutoUpdate": False,
+                    "label": "{defaultName}" + (f" {len(same_type) + 1}" if same_type else ""),
+                    "displayName": name,
+                    "location": str(exe),
+                    "selected": False,
+                })
+            changed = True
+        if changed:
+            data["wow_installations"] = installs
+            tmp = prefs.with_suffix(".json.goblincakes")
+            tmp.write_text(json.dumps(data, indent="\t"))
+            tmp.replace(prefs)
+            say("WowUp: WoW-versionerna är uppdaterade.")
+
+
+def main():
+    found = find_versions(search_roots())
+    if not found:
+        say("Hittade inte WoW. Installera Battle.net och WoW i GOBLINCAKES Config (Spel och WoW) först.")
+        return 1 if VERBOSE else 0
+    wow_folder = update_links(found)
+    update_wowup(found)
+    if VERBOSE:
+        print(f"WoW-mappen: {wow_folder}")
+        print(f"  ~/Games/WoW/World of Warcraft  ← välj den här i Raider.IO och Archon (en gång)")
+        for flavor, (folder, _exe, _mtime) in sorted(found.items(), key=lambda kv: FLAVORS[kv[0]][1]):
+            name = FLAVORS[flavor][0]
+            print(f"  ~/Games/WoW/{name}/Logs och AddOns → {folder}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
