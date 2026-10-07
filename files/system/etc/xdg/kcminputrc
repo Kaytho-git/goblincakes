@@ -1,3 +1,8 @@
 [Mouse]
 # Light (white) mouse pointer
 cursorTheme=Breeze_Light
+
+[Keyboard]
+# Num Lock on from the start: when you log in, and on the login screen too
+# (its KWin reads this file). 0 = on, 1 = off, 2 = leave as it is.
+NumLock=0
