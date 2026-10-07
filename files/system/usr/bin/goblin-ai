@@ -1,0 +1,398 @@
+#!/usr/bin/env python3
+"""Goblin AI – the window (Meta+A, AppGrid, or "goblin ai").
+
+Chat with free AI services (see /usr/share/goblincakes/ai/goblinai.py): questions,
+texts, recipes, help with the computer. Attach a text file to have it corrected
+and saved back. Suggested commands are cards with a Run button; their output goes
+back to the AI. Conversations are kept in ~/.local/share/goblincakes/ai/.
+Only one window: starting it again brings the open one to the front.
+"""
+import json
+import os
+import shutil
+import sys
+import threading
+import time
+from pathlib import Path
+
+SHARE = Path(os.environ.get("GOBLIN_AI_SHARE", "/usr/share/goblincakes/ai"))
+sys.path.insert(0, str(SHARE))
+import goblinai  # noqa: E402
+
+from PySide6.QtCore import QObject, QProcess, QUrl, Property, Signal, Slot  # noqa: E402
+from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QIcon  # noqa: E402
+from PySide6.QtNetwork import QLocalServer, QLocalSocket  # noqa: E402
+from PySide6.QtQml import QQmlApplicationEngine  # noqa: E402
+
+DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes" / "ai"
+SOCKET_NAME = f"goblin-ai-{os.getuid()}"
+KEEP_CONVERSATIONS = 50
+
+
+class Backend(QObject):
+    """Talks to Main.qml. Display messages: {role, text, segments, service, file}."""
+
+    conversationChanged = Signal()  # the whole message list changed (new/loaded)
+    messageAdded = Signal(str)  # JSON of one display message
+    messageUpdated = Signal(int, str)  # index, JSON
+    busyChanged = Signal()
+    statusChanged = Signal()
+    notice = Signal(str)
+    conversationsChanged = Signal()
+    keysChanged = Signal()
+    keyTested = Signal(str, bool, str)  # provider id, ok, message
+    raiseWindow = Signal()
+    # From worker threads to the GUI thread
+    _answered = Signal(str, str)  # answer, service
+    _failed = Signal(str)
+    _statusText = Signal(str)
+    _keyResult = Signal(str, str, bool, str)  # provider id, key, ok, message
+
+    def __init__(self):
+        super().__init__()
+        self._keys = goblinai.load_keys()
+        self._busy = False
+        self._status = ""
+        self._new_conversation()
+        self._answered.connect(self._on_answer)
+        self._failed.connect(self._on_failure)
+        self._statusText.connect(lambda text: self._set_busy(True, text))
+        self._keyResult.connect(self._on_key_result)
+        self._procs = {}
+
+    # ── Conversation ──────────────────────────────────────────
+
+    def _new_conversation(self):
+        self._id = time.strftime("%Y%m%d-%H%M%S")
+        self._api = [{"role": "system", "content": goblinai.system_prompt()}]
+        self._display = []
+        self._file = None  # the attached file of this conversation (path)
+
+    @Property(str, notify=conversationChanged)
+    def messages(self):
+        return json.dumps(self._display)
+
+    @Property(bool, notify=busyChanged)
+    def busy(self):
+        return self._busy
+
+    def _set_busy(self, busy, status=""):
+        self._busy, self._status = busy, status
+        self.busyChanged.emit()
+        self.statusChanged.emit()
+
+    @Property(str, notify=statusChanged)
+    def status(self):
+        return self._status
+
+    @Property(str, notify=conversationChanged)
+    def conversationId(self):
+        return self._id
+
+    @Slot()
+    def newConversation(self):
+        if self._busy:
+            return
+        self._new_conversation()
+        self.conversationChanged.emit()
+
+    @Slot(str, str)
+    def send(self, text, attachment):
+        text = text.strip()
+        if self._busy or not (text or attachment):
+            return
+        content = text or "Titta på den här filen."
+        shown = {"role": "user", "text": text, "segments": [], "service": "", "file": ""}
+        if attachment:
+            path = QUrl(attachment).toLocalFile() if attachment.startswith("file:") else attachment
+            try:
+                content = goblinai.file_message(path, content)
+            except (OSError, ValueError) as e:
+                self.notice.emit(str(e))
+                return
+            self._file = path
+            shown["file"] = Path(path).name
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        self._api.append({"role": "user", "content": content})
+        self._ask()
+
+    def _ask(self):
+        self._set_busy(True, "Tänker…")
+        messages = list(self._api)
+
+        def work():
+            try:
+                answer, service = goblinai.ask(
+                    messages, self._keys,
+                    status=self._statusText.emit,
+                    notice=self.notice.emit)
+                self._answered.emit(answer, service)
+            except goblinai.ServiceError as e:
+                self._failed.emit(str(e))
+            except Exception as e:  # never leave the window hanging
+                self._failed.emit(f"Något gick fel: {e}")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_answer(self, answer, service):
+        self._api.append({"role": "assistant", "content": answer})
+        shown = {"role": "assistant", "text": answer, "segments": goblinai.segments(answer),
+                 "service": service, "file": ""}
+        for seg in shown["segments"]:
+            if seg["type"] == "file":
+                seg["canOverwrite"] = bool(self._file) and Path(self._file).name == seg["name"]
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        self._set_busy(False)
+        self._save()
+
+    def _on_failure(self, message):
+        shown = {"role": "error", "text": message, "segments": [], "service": "", "file": ""}
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        # Let the user ask again: drop the unanswered question from what the AI sees
+        if self._api and self._api[-1]["role"] == "user":
+            self._api.pop()
+        self._set_busy(False)
+
+    def _update(self, index):
+        self.messageUpdated.emit(index, json.dumps(self._display[index]))
+
+    # ── Commands ──────────────────────────────────────────────
+
+    @Slot(int, int)
+    def runCommand(self, index, seg):
+        part = self._display[index]["segments"][seg]
+        if part["state"] != "new" or self._busy:
+            return
+        code = part["code"]
+        if "sudo" in code or "read " in code:
+            # Needs a password or answers: run it in a terminal the user can type in
+            terminal = shutil.which("ghostty") or shutil.which("konsole")
+            if not terminal:
+                part.update(state="done", output="Hittade ingen terminal.")
+                self._update(index)
+                return self._command_done(index)
+            script = f"{code}\necho\nread -rp 'Klart – tryck Enter för att stänga… ' _"
+            QProcess.startDetached(terminal, ["-e", "bash", "-c", script])
+            part.update(state="done", output="Körs i ett terminalfönster (behöver ditt lösenord eller svar).")
+            self._update(index)
+            return self._command_done(index, ran_in_terminal=True)
+        part["state"] = "running"
+        self._update(index)
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._procs[(index, seg)] = proc
+
+        def finished(exit_code, _status, index=index, seg=seg):
+            p = self._procs.pop((index, seg))
+            out = bytes(p.readAllStandardOutput()).decode(errors="replace")
+            part = self._display[index]["segments"][seg]
+            part.update(state="done", output=out.strip(), code_result=exit_code)
+            self._update(index)
+            self._command_done(index)
+
+        proc.finished.connect(finished)
+        proc.start("bash", ["-c", code])
+
+    @Slot(int, int)
+    def skipCommand(self, index, seg):
+        part = self._display[index]["segments"][seg]
+        if part["state"] == "new":
+            part["state"] = "skipped"
+            self._update(index)
+            self._command_done(index)
+
+    def _command_done(self, index, ran_in_terminal=False):
+        """When every command card in the answer is run or skipped: tell the AI how it went."""
+        parts = [s for s in self._display[index]["segments"] if s["type"] == "command"]
+        if any(s["state"] in ("new", "running") for s in parts):
+            return
+        if all(s["state"] == "skipped" for s in parts):
+            return
+        report = []
+        for s in parts:
+            if s["state"] == "skipped":
+                report.append(f"$ {s['code']}\n(användaren valde att inte köra det)")
+            else:
+                out = s.get("output", "")
+                if len(out) > 6000:
+                    out = "…(början utelämnad)…\n" + out[-6000:]
+                report.append(f"$ {s['code']}\n{out}\n(avslutskod {s.get('code_result', '?')})")
+        self._api.append({"role": "user", "content": "Så här gick det:\n\n" + "\n\n".join(report)
+                          + "\n\nFortsätt med nästa steg, eller säg kort att det är klart."})
+        self._ask()
+
+    # ── Files and copying ─────────────────────────────────────
+
+    @Slot(int, int)
+    def saveFile(self, index, seg):
+        """Writes the new version over the attached file, keeping the old one as <name>.bak."""
+        part = self._display[index]["segments"][seg]
+        if not self._file:
+            return
+        path = Path(self._file)
+        try:
+            if path.exists():
+                shutil.copy2(path, path.with_name(path.name + ".bak"))
+            path.write_text(part["code"] + "\n")
+            part["state"] = "saved"
+            part["savedTo"] = str(path)
+        except OSError as e:
+            self.notice.emit(f"Kunde inte spara: {e}")
+        self._update(index)
+
+    @Slot(int, int, str)
+    def saveFileAs(self, index, seg, url):
+        part = self._display[index]["segments"][seg]
+        path = Path(QUrl(url).toLocalFile() if url.startswith("file:") else url)
+        try:
+            path.write_text(part["code"] + "\n")
+            part["state"] = "saved"
+            part["savedTo"] = str(path)
+        except OSError as e:
+            self.notice.emit(f"Kunde inte spara: {e}")
+        self._update(index)
+
+    @Slot(str)
+    def copy(self, text):
+        QGuiApplication.clipboard().setText(text)
+        self.notice.emit("Kopierat")
+
+    @Slot(str, result=str)
+    def fileName(self, url):
+        return Path(QUrl(url).toLocalFile() if url.startswith("file:") else url).name
+
+    # ── Saved conversations ───────────────────────────────────
+
+    def _save(self):
+        DATA.mkdir(parents=True, exist_ok=True)
+        first = next((m["text"] for m in self._display if m["role"] == "user" and m["text"]), "")
+        title = (first or next((m["file"] for m in self._display if m["file"]), "Samtal"))[:80]
+        data = {"id": self._id, "title": title, "updated": time.time(), "file": self._file,
+                "api": self._api[1:], "display": self._display}
+        (DATA / f"{self._id}.json").write_text(json.dumps(data, ensure_ascii=False))
+        for old in sorted(DATA.glob("*.json"), reverse=True)[KEEP_CONVERSATIONS:]:
+            old.unlink(missing_ok=True)
+        self.conversationsChanged.emit()
+
+    @Property(str, notify=conversationsChanged)
+    def conversations(self):
+        items = []
+        for f in sorted(DATA.glob("*.json"), reverse=True) if DATA.exists() else []:
+            try:
+                d = json.loads(f.read_text())
+                items.append({"id": d["id"], "title": d["title"]})
+            except (OSError, ValueError, KeyError):
+                continue
+        return json.dumps(items)
+
+    @Slot(str)
+    def openConversation(self, conv_id):
+        if self._busy:
+            return
+        try:
+            d = json.loads((DATA / f"{conv_id}.json").read_text())
+        except (OSError, ValueError):
+            return
+        self._id = d["id"]
+        self._api = [{"role": "system", "content": goblinai.system_prompt()}] + d["api"]
+        self._display = d["display"]
+        self._file = d.get("file")
+        self.conversationChanged.emit()
+
+    @Slot(str)
+    def deleteConversation(self, conv_id):
+        (DATA / f"{conv_id}.json").unlink(missing_ok=True)
+        if conv_id == self._id:
+            self._new_conversation()
+            self.conversationChanged.emit()
+        self.conversationsChanged.emit()
+
+    # ── Services and keys ─────────────────────────────────────
+
+    @Property(str, notify=keysChanged)
+    def providers(self):
+        return json.dumps([{"id": p["id"], "name": p["name"], "how": p["how"], "page": p["keys_page"],
+                            "hasKey": bool(self._keys.get(p["env"]))} for p in goblinai.PROVIDERS])
+
+    @Property(bool, notify=keysChanged)
+    def hasKeys(self):
+        return goblinai.has_keys(self._keys)
+
+    @Slot(str)
+    def openKeyPage(self, provider_id):
+        p = next(p for p in goblinai.PROVIDERS if p["id"] == provider_id)
+        QDesktopServices.openUrl(QUrl(p["keys_page"]))
+
+    @Slot(str, str)
+    def setKey(self, provider_id, key):
+        p = next(p for p in goblinai.PROVIDERS if p["id"] == provider_id)
+        key = key.strip()
+        if not key:
+            return
+
+        def work():
+            try:
+                model = goblinai.pick_model(p, key, refresh=True)
+                self._keyResult.emit(provider_id, key, True, f"Fungerar – använder {model}")
+            except goblinai.ServiceError as e:
+                self._keyResult.emit(provider_id, key, False, f"Fungerade inte: {e}")
+
+        self.keyTested.emit(provider_id, True, "Testar nyckeln…")
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_key_result(self, provider_id, key, ok, message):
+        if ok:
+            p = next(p for p in goblinai.PROVIDERS if p["id"] == provider_id)
+            self._keys[p["env"]] = key
+            goblinai.EXHAUSTED.discard(provider_id)
+            goblinai.save_keys(self._keys)
+            self.keysChanged.emit()
+        self.keyTested.emit(provider_id, ok, message)
+
+    @Slot(str)
+    def removeKey(self, provider_id):
+        p = next(p for p in goblinai.PROVIDERS if p["id"] == provider_id)
+        self._keys.pop(p["env"], None)
+        goblinai.save_keys(self._keys)
+        self.keysChanged.emit()
+
+
+def main():
+    app = QGuiApplication(sys.argv)
+    app.setApplicationName("goblin-ai")
+    app.setApplicationDisplayName("Goblin AI")
+    app.setDesktopFileName("goblin-ai")
+    app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+    for font in os.environ.get("GOBLIN_AI_FONTS", "").split(":"):
+        if font:
+            QFontDatabase.addApplicationFont(font)
+
+    # Already open: bring that window to the front instead
+    probe = QLocalSocket()
+    probe.connectToServer(SOCKET_NAME)
+    if probe.waitForConnected(300):
+        probe.write(b"show")
+        probe.waitForBytesWritten(300)
+        return 0
+    QLocalServer.removeServer(SOCKET_NAME)
+    server = QLocalServer()
+    server.listen(SOCKET_NAME)
+
+    backend = Backend()
+    server.newConnection.connect(lambda: (server.nextPendingConnection(), backend.raiseWindow.emit()))
+
+    engine = QQmlApplicationEngine()
+    engine.rootContext().setContextProperty("backend", backend)
+    engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
+        os.environ.get("GOBLINCAKES_LOGO", "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")))
+    engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
+    if not engine.rootObjects():
+        return 1
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

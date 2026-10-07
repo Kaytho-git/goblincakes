@@ -1,64 +1,24 @@
 #!/usr/bin/env python3
-"""goblin ai – ask free AI services for help in the terminal.
+"""goblin ai in the terminal (the window is /usr/bin/goblin-ai, opened by Meta+A or "goblin ai").
 
     goblin ai <question>   one question (the answer may suggest commands)
-    goblin ai              chat until you write nothing or "hej då"
+    goblin ai --chat       chat in the terminal until you write nothing or "hej då"
     goblin ai setup        pick services and paste their free keys
 
-Uses the free tiers of Gemini, Groq, OpenRouter and Mistral through their
-OpenAI-compatible APIs, in that order; when one is out of quota or fails, the
-next one answers. Keys: ~/.config/goblincakes/ai.env (only readable by you).
 Commands the AI suggests are only run when you answer yes to each one, and
 their output is sent back so the AI can take the next step.
 """
 import getpass
-import json
-import os
 import re
 import subprocess
 import sys
 import threading
-import time
-import urllib.error
-import urllib.request
-from pathlib import Path
 
-CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "goblincakes"
-CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "goblincakes"
-KEYS_FILE = CONFIG / "ai.env"
-MODELS_CACHE = CACHE / "ai-models.json"
+sys.path.insert(0, "/usr/share/goblincakes/ai")
+from goblinai import (PROVIDERS, DANGER, ServiceError, ask as ask_services, code_blocks,  # noqa: E402
+                      has_keys, load_keys, pick_model, save_keys, system_prompt)
+
 MAX_ROUNDS = 8  # command → output → next step, per question
-
-PROVIDERS = [
-    {
-        "id": "gemini", "name": "Google Gemini", "env": "GEMINI_API_KEY",
-        "url": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "keys_page": "https://aistudio.google.com/apikey",
-        "how": "Logga in med ditt Google-konto och tryck på Create API key.",
-        "prefer": [r"^gemini-[\d.]+-flash$", r"^gemini-flash-latest$", r"^gemini-.*flash(?!.*(lite|image|tts|audio|live|thinking))"],
-    },
-    {
-        "id": "groq", "name": "Groq", "env": "GROQ_API_KEY",
-        "url": "https://api.groq.com/openai/v1",
-        "keys_page": "https://console.groq.com/keys",
-        "how": "Skapa ett gratis konto och tryck på Create API Key.",
-        "prefer": [r"llama-3\.3-70b", r"llama.*70b", r"^openai/gpt-oss-120b$", r"llama"],
-    },
-    {
-        "id": "openrouter", "name": "OpenRouter (gratismodeller)", "env": "OPENROUTER_API_KEY",
-        "url": "https://openrouter.ai/api/v1",
-        "keys_page": "https://openrouter.ai/settings/keys",
-        "how": "Skapa ett gratis konto och tryck på Create Key. Bara gratismodeller används.",
-        "prefer": [],  # picked among the free ones, see pick_model
-    },
-    {
-        "id": "mistral", "name": "Mistral", "env": "MISTRAL_API_KEY",
-        "url": "https://api.mistral.ai/v1",
-        "keys_page": "https://console.mistral.ai/api-keys",
-        "how": "Skapa ett konto, välj den gratis planen (Experiment) och skapa en API-nyckel.",
-        "prefer": [r"^mistral-small-latest$", r"^mistral-medium-latest$", r"^mistral-large-latest$"],
-    },
-]
 
 # ── Look ───────────────────────────────────────────────────────────
 
@@ -101,7 +61,7 @@ def render(markdown):
 
 
 class Spinner:
-    """"Tänker…" while waiting for an answer."""
+    """"Frågar …" while waiting for an answer."""
 
     def __init__(self, text):
         self.text, self.stop = text, threading.Event()
@@ -126,186 +86,18 @@ class Spinner:
             print("\r\033[K", end="", flush=True)
 
 
-# ── Keys and services ──────────────────────────────────────────────
-
-def load_keys():
-    keys = {}
-    if KEYS_FILE.exists():
-        for line in KEYS_FILE.read_text().splitlines():
-            if "=" in line and not line.lstrip().startswith("#"):
-                name, value = line.split("=", 1)
-                keys[name.strip()] = value.strip()
-    for p in PROVIDERS:  # environment variables win
-        if os.environ.get(p["env"]):
-            keys[p["env"]] = os.environ[p["env"]]
-    return keys
-
-
-def save_keys(keys):
-    CONFIG.mkdir(parents=True, exist_ok=True)
-    old_umask = os.umask(0o077)
-    try:
-        lines = ["# goblin ai – free API keys (only readable by you). Remove a line to stop using that service."]
-        lines += [f"{p['env']}={keys[p['env']]}" for p in PROVIDERS if keys.get(p["env"])]
-        KEYS_FILE.write_text("\n".join(lines) + "\n")
-    finally:
-        os.umask(old_umask)
-    KEYS_FILE.chmod(0o600)
-
-
-class ServiceError(Exception):
-    pass
-
-
-def request(provider, key, path, body=None, timeout=90):
-    req = urllib.request.Request(
-        provider["url"] + path,
-        data=json.dumps(body).encode() if body is not None else None,
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "User-Agent": "goblincakes-ai",
-            # OpenRouter asks apps to say who they are
-            "HTTP-Referer": "https://github.com/Kaytho-git/goblincakes",
-            "X-Title": "GOBLINCAKES goblin ai",
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors="replace")[:300]
-        reason = {401: "fel nyckel", 403: "nyckeln får inte användas", 429: "slut på gratisfrågor just nu"}.get(e.code, f"fel {e.code}")
-        raise ServiceError(f"{reason} ({detail.strip()})" if e.code not in (401, 429) else reason) from None
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise ServiceError(f"nås inte ({getattr(e, 'reason', e)})") from None
-
-
-def pick_model(provider, key, refresh=False):
-    """The service's best free chat model, from its own model list (cached for a day)."""
-    cache = {}
-    if MODELS_CACHE.exists():
-        try:
-            cache = json.loads(MODELS_CACHE.read_text())
-        except ValueError:
-            cache = {}
-    entry = cache.get(provider["id"])
-    if entry and not refresh and time.time() - entry["time"] < 86400:
-        return entry["model"]
-
-    data = request(provider, key, "/models", timeout=30).get("data", [])
-    ids = [m["id"].removeprefix("models/") for m in data if "id" in m]
-    model = None
-    if provider["id"] == "openrouter":
-        free = [m for m in data
-                if str(m.get("pricing", {}).get("prompt")) in ("0", "0.0")
-                and str(m.get("pricing", {}).get("completion")) in ("0", "0.0")
-                and "text" in str(m.get("architecture", {}).get("output_modalities", ["text"]))]
-        free.sort(key=lambda m: m.get("context_length") or 0, reverse=True)
-        model = free[0]["id"] if free else None
-    else:
-        for pattern in provider["prefer"]:
-            matches = sorted((i for i in ids if re.search(pattern, i)), reverse=True)
-            if matches:
-                model = matches[0]
-                break
-        model = model or (ids[0] if ids else None)
-    if not model:
-        raise ServiceError("hittade ingen modell att använda")
-    cache[provider["id"]] = {"model": model, "time": time.time()}
-    CACHE.mkdir(parents=True, exist_ok=True)
-    MODELS_CACHE.write_text(json.dumps(cache))
-    return model
-
-
-EXHAUSTED = set()  # services out of free questions: not asked again this time
-
-
 def ask(messages, keys):
-    """Asks the services in order; returns (answer, service name)."""
-    errors = []
-    for provider in PROVIDERS:
-        key = keys.get(provider["env"])
-        if not key or provider["id"] in EXHAUSTED:
-            continue
-        try:
-            for attempt in range(2):
-                model = pick_model(provider, key, refresh=attempt > 0)
-                try:
-                    with Spinner(f"Frågar {provider['name']}…"):
-                        reply = request(provider, key, "/chat/completions",
-                                        {"model": model, "messages": messages, "temperature": 0.3})
-                    break
-                except ServiceError as e:
-                    # A model that disappeared: pick again once
-                    if attempt == 0 and re.search(r"fel 40[04]", str(e)):
-                        continue
-                    raise
-            text = reply["choices"][0]["message"].get("content") or ""
-            if not text.strip():
-                raise ServiceError("tomt svar")
-            return text, f"{provider['name']} · {model}"
-        except (ServiceError, KeyError, IndexError) as e:
-            errors.append(f"{provider['name']}: {e}")
-            if "slut på gratisfrågor" in str(e) or "fel nyckel" in str(e):
-                EXHAUSTED.add(provider["id"])
-            muted(f"({provider['name']}: {e} – provar nästa)")
-    raise ServiceError("Ingen AI-tjänst svarade.\n  " + "\n  ".join(errors) if errors else "")
+    with Spinner("Tänker…") as spinner:
+        def status(text):
+            spinner.text = text
 
+        def notice(text):
+            print(f"\r\033[K{MUTED}({text}){RESET}" if TTY else f"({text})")
 
-# ── What the AI knows ──────────────────────────────────────────────
-
-def system_info():
-    info = []
-    try:
-        osr = dict(line.split("=", 1) for line in Path("/etc/os-release").read_text().splitlines() if "=" in line)
-        info.append(f"OS: {osr.get('PRETTY_NAME', '').strip(chr(34))} (bygger på Fedora {osr.get('VERSION_ID', '?').strip(chr(34))})")
-    except OSError:
-        pass
-    info.append(f"Kärna: {os.uname().release}")
-    try:
-        status = json.loads(subprocess.run(["rpm-ostree", "status", "--json", "--booted"],
-                                           capture_output=True, text=True, timeout=10).stdout)
-        image = status["deployments"][0].get("container-image-reference", "")
-        if image:
-            info.append(f"Image: {image}")
-    except Exception:
-        pass
-    info.append(f"Skal: {os.environ.get('SHELL', 'bash')}, användare: {getpass.getuser()}")
-    return "\n".join(info)
-
-
-SYSTEM_PROMPT = """Du är goblin ai, hjälparen i GOBLINCAKES – en personlig Linux-distribution.
-Svara på samma språk som användaren (oftast svenska), kort och tydligt. Användaren är inte expert.
-
-Om datorn:
-{info}
-- GOBLINCAKES är en atomisk, oföränderlig Fedora Kinoite-image (KDE Plasma 6, Wayland, Nvidia-drivrutiner)
-  byggd med BlueBuild. Systemfilerna i /usr är skrivskyddade; /etc och /var går att ändra.
-- Program installeras som Flatpak (Flathub, gärna `flatpak install --user`), som AppImage i ~/AppImages,
-  i en Distrobox-container, eller sist i hand som lager med `rpm-ostree install` (kräver omstart).
-  Föreslå aldrig `dnf install` direkt på systemet – det fungerar inte här.
-- Uppdatera allt: `goblin update`. Systeminfo: `goblin fastfetch`. Installera program och spelinställningar:
-  fönstret GOBLINCAKES Config (i AppGrid). Rollback: `rpm-ostree rollback`.
-- Spel: Steam, Lutris och Discord är Flatpaks; GE-Proton finns via ProtonUp-Qt; GameMode finns (`gamemoderun %command%`).
-- Terminal: Ghostty. Filhanterare: Dolphin.
-
-När användaren vill få något gjort:
-- Ge de kommandon som behövs i kodblock märkta ```bash – ett kommando eller en kort följd per block.
-  Användaren får frågan om varje block innan det körs, och du får se utskriften efteråt.
-- Ta ett steg i taget när du behöver se resultatet först. Skriv inga kodblock när inget ska köras.
-- Använd sudo bara när det verkligen behövs och säg varför. Var extra försiktig med kommandon som tar bort saker.
-- När uppgiften är klar: säg det kort, utan kodblock."""
+        return ask_services(messages, keys, status=status, notice=notice)
 
 
 # ── Commands from the answer ───────────────────────────────────────
-
-DANGER = re.compile(r"\brm\s+-[a-z]*r|\bmkfs|\bdd\s|\bwipefs|>\s*/dev/sd|\bchmod\s+-R\s+777\s+/|\bsudo\b", re.I)
-
-
-def code_blocks(text):
-    return [b.strip() for b in re.findall(r"```(?:bash|sh|shell|console)?\s*\n(.*?)```", text, re.S) if b.strip()]
-
 
 def run_blocks(blocks):
     """Asks for each block, runs the ones the user says yes to; returns what happened."""
@@ -385,7 +177,7 @@ def setup():
             print(f"  {ACCENT}Fungerar{RESET} – använder {model}\n")
         except ServiceError as e:
             print(f"  {RED}Fungerade inte:{RESET} {e}\n")
-    if any(keys.get(p["env"]) for p in PROVIDERS):
+    if has_keys(keys):
         print(f"Klart. Prova: {ACCENT}goblin ai hur mycket diskutrymme har jag kvar?{RESET}")
     else:
         print("Ingen tjänst inställd. Kör goblin ai setup igen när du vill.")
@@ -397,11 +189,13 @@ def main(args):
     if args[:1] == ["setup"]:
         setup()
         return 0
+    if args[:1] == ["--chat"]:
+        args = []
     keys = load_keys()
-    if not any(keys.get(p["env"]) for p in PROVIDERS):
+    if not has_keys(keys):
         print(f"goblin ai behöver minst en gratis AI-tjänst. Kör: {ACCENT}goblin ai setup{RESET}")
         return 1
-    messages = [{"role": "system", "content": SYSTEM_PROMPT.format(info=system_info())}]
+    messages = [{"role": "system", "content": system_prompt()}]
     try:
         if args:
             handle(" ".join(args), messages, keys)

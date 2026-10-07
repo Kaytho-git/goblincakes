@@ -27,4 +27,13 @@ if ! grep -q '^translucencyEnabled=' "$_gc_kwinrc" 2>/dev/null; then
     kwriteconfig6 --file kwinrc --group Effect-translucency --key MoveResize 75
 fi
 
-unset _gc_state _gc_cache _gc_sum _gc_kwinrc
+# Meta+A belongs to Goblin AI: take it away from Plasma's "walk through activities"
+# (once; changing it back in System Settings sticks). Done here, before KWin starts
+# kglobalacceld, so it isn't overwritten.
+_gc_flag="$_gc_state/meta-a-freed"
+if [ ! -e "$_gc_flag" ]; then
+    kwriteconfig6 --file kglobalshortcutsrc --group plasmashell --key "next activity" "none,Meta+A,Walk through activities"
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
+unset _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc

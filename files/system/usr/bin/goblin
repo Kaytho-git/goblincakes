@@ -2,7 +2,7 @@
 # goblin – GOBLINCAKES' own commands in the terminal (like Bazzite's ujust).
 #
 #   goblin update      update everything: system, Flatpaks, AppImages, GE-Proton, firmware
-#   goblin ai          ask free AI services for help (goblin ai setup first)
+#   goblin ai          the Goblin AI window (Meta+A); with a question: answer in the terminal
 #   goblin fastfetch   system info with the GOBLINCAKES logo
 #   goblin motd        the command list shown in every new terminal (on/off)
 #   goblin help        list the commands
@@ -124,7 +124,8 @@ cmd_update() {
 # name | description – used by help and by the list in new terminals
 COMMANDS=(
     "update|Uppdatera allt: system, Flatpaks, AppImages, GE-Proton, firmware"
-    "ai [fråga]|Fråga en AI om hjälp – föreslagna kommandon körs bara om du säger ja"
+    "ai|Öppna Goblin AI-fönstret (eller tryck Meta+A)"
+    "ai [fråga]|Fråga Goblin AI direkt här – föreslagna kommandon körs bara om du säger ja"
     "ai setup|Ställ in gratis AI-tjänster (Gemini, Groq, OpenRouter, Mistral)"
     "fastfetch|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
@@ -170,7 +171,13 @@ cmd_motd() {
 
 case ${1:-help} in
     update|upgrade) cmd_update ;;
-    ai) shift; exec /usr/libexec/goblincakes-ai "$@" ;;
+    ai) shift
+        # Without a question, on the desktop: the Goblin AI window (also Meta+A)
+        if [ $# -eq 0 ] && { [ -n "${WAYLAND_DISPLAY:-}" ] || [ -n "${DISPLAY:-}" ]; }; then
+            (setsid goblin-ai >/dev/null 2>&1 &)
+            exit 0
+        fi
+        exec /usr/libexec/goblincakes-ai "$@" ;;
     fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;
     help|-h|--help) cmd_help ;;

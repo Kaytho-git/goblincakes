@@ -1,0 +1,10 @@
+[Desktop Entry]
+# Meta+A opens Goblin AI. kglobalacceld reads this at session start; it can be
+# changed in System Settings → Shortcuts. (Plasma's own Meta+A, "walk through
+# activities", is freed by /etc/xdg/plasma-workspace/env/goblincakes-refresh.sh.)
+Type=Application
+Name=Goblin AI
+Exec=goblin-ai
+Icon=goblincakes
+OnlyShowIn=KDE;
+X-KDE-Shortcuts=Meta+A

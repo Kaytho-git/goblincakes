@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Goblin AI
+GenericName=AI-hjälp
+Comment=Fråga vad du vill, få hjälp med datorn eller rätta en textfil (gratis AI-tjänster)
+Exec=goblin-ai
+Icon=goblincakes
+Categories=Utility;
+Keywords=ai;chat;fråga;hjälp;gemini;recept;rätta;
+StartupWMClass=goblin-ai
