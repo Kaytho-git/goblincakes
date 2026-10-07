@@ -10,6 +10,7 @@ graphics drivers by /usr/libexec/goblincakes-gpu (switching between the AMD/Inte
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QProcess, QUrl, Property, Signal, Slot
@@ -44,6 +45,7 @@ class Config(QObject):
     gpuChanged = Signal()
     gpuProgress = Signal(str)  # status line while switching
     gpuDone = Signal(bool)  # switch/undo finished, ok
+    catalogChanged = Signal()
 
     def __init__(self):
         super().__init__()
@@ -51,7 +53,9 @@ class Config(QObject):
         self._apps = {a["id"]: a for a in catalog["apps"]}
         for app in catalog["apps"]:
             app["installed"] = run(HELPER, ["check", *app["check"]])[0] == 0
+        self._catalog_data = catalog
         self._catalog = json.dumps(catalog)
+        self._version = self._read_version()
 
         tweaks = json.loads((SHARE / "tweaks.json").read_text())
         self._tweaks = {t["id"]: t for t in tweaks["tweaks"]}
@@ -74,9 +78,50 @@ class Config(QObject):
 
     # ── Apps ──────────────────────────────────────────────────
 
-    @Property(str, constant=True)
+    @Property(str, notify=catalogChanged)
     def catalog(self):
         return self._catalog
+
+    @Slot()
+    def refreshCatalog(self):
+        """Back to choosing apps: what was installed now shows as installed."""
+        self._catalog = json.dumps(self._catalog_data)
+        self.catalogChanged.emit()
+
+    @Property(str, constant=True)
+    def version(self):
+        return self._version
+
+    @staticmethod
+    def _read_version():
+        """E.g. "Fedora 44 · Nvidia · byggd 7 okt 18:22" – the running image, from rpm-ostree."""
+        parts = []
+        booted = {}
+        code, out = run("rpm-ostree", ["status", "--json", "--booted"])
+        if code == 0:
+            try:
+                booted = next((d for d in json.loads(out).get("deployments", []) if d.get("booted")), {})
+            except ValueError:
+                pass
+        fedora = (booted.get("version") or "").split(".")[0]
+        if not fedora.isdigit():
+            try:
+                lines = Path("/etc/os-release").read_text().splitlines()
+            except OSError:
+                lines = []
+            fedora = next((l.split("=", 1)[1].strip('"') for l in lines if l.startswith("VERSION_ID=")), "")
+        if fedora:
+            parts.append(f"Fedora {fedora}")
+        try:
+            if Path("/usr/share/goblincakes/variant").read_text().strip() == "nvidia":
+                parts.append("Nvidia")
+        except OSError:
+            pass
+        if booted.get("timestamp"):
+            months = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
+            built = datetime.fromtimestamp(booted["timestamp"])
+            parts.append(f"byggd {built.day} {months[built.month - 1]} {built:%H:%M}")
+        return " · ".join(parts)
 
     @Slot(str)
     def install(self, ids_json):

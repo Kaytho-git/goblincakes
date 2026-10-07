@@ -50,6 +50,16 @@ Window {
         Qt.quit();
     }
 
+    // After installing: back to choosing apps (failed ones can be picked again)
+    function goBack() {
+        progressModel.clear();
+        chosen = {};
+        chosenCount = 0;
+        failedCount = 0;
+        backend.refreshCatalog();
+        page = "choose";
+    }
+
     ListModel { id: progressModel }
 
     ListModel {
@@ -212,12 +222,22 @@ Window {
                         : win.page === "install"
                         ? "Du kan använda datorn under tiden. Stäng inte fönstret."
                         : win.failedCount === 0 ? "Allt är installerat. Programmen finns i AppGrid."
-                        : win.failedCount + " program gick inte att installera – öppna GOBLINCAKES Config igen för att försöka på nytt."
+                        : win.failedCount + " program gick inte att installera – tryck Tillbaka för att försöka igen."
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 15
                 }
             }
+        }
+
+        // Which GOBLINCAKES is running
+        Text {
+            anchors { right: parent.right; rightMargin: 48; top: parent.top; topMargin: 30 }
+            visible: backend.version !== ""
+            text: "GOBLINCAKES · " + backend.version
+            color: "#8B98AD"
+            font.family: "IBM Plex Mono"
+            font.pixelSize: 13
         }
 
         // Tabs
@@ -904,6 +924,11 @@ Window {
                 enabledState: win.chosenCount > 0
                 text: "Installera"
                 onClicked: win.startInstall()
+            }
+            FlatButton {
+                visible: win.tab === "apps" && win.page === "done"
+                text: "Tillbaka"
+                onClicked: win.goBack()
             }
             FlatButton {
                 visible: win.tab === "apps" && win.page !== "choose"
