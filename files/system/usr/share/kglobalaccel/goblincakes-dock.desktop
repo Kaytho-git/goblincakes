@@ -1,0 +1,11 @@
+[Desktop Entry]
+# The Meta key shows the dock, like the Start menu in Windows (press again to hide it).
+# kglobalacceld reads this at session start; it can be changed in System Settings →
+# Shortcuts. Plasma's own Meta (open the app launcher) is moved to Shift+Meta by
+# /etc/xdg/plasma-workspace/env/goblincakes-refresh.sh.
+Type=Application
+Name=Visa dockan
+Exec=/usr/libexec/goblincakes-dock toggle
+Icon=goblincakes
+OnlyShowIn=KDE;
+X-KDE-Shortcuts=Meta

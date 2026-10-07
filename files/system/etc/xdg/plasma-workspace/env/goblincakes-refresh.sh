@@ -36,6 +36,15 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
+# The Meta key belongs to the dock (/usr/share/kglobalaccel/goblincakes-dock.desktop):
+# the app launcher (AppGrid) gets Shift+Meta (written "Meta+Shift") and Alt+F1. Once, like Meta+A.
+_gc_flag="$_gc_state/meta-freed"
+if [ ! -e "$_gc_flag" ]; then
+    kwriteconfig6 --file kglobalshortcutsrc --group plasmashell --key "activate application launcher" \
+        "Meta+Shift$(printf '\t')Alt+F1,Meta$(printf '\t')Alt+F1,Activate Application Launcher"
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
 # Ghostty opens at 125x35 characters: add that to Ghostty configs written by
 # goblincakes-firstlogin before the size was part of it (once; removing it sticks).
 _gc_flag="$_gc_state/ghostty-size-added"

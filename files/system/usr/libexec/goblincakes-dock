@@ -3,6 +3,7 @@
 #   goblincakes-dock crystal    Crystal Dock: icons grow under the mouse, like on a Mac
 #   goblincakes-dock plasma     Plasma's own dock (the standard)
 #   goblincakes-dock status     prints crystal or plasma
+#   goblincakes-dock toggle     show the dock, or hide it again (the Meta key)
 #   goblincakes-dock pin <id>   pin an app (desktop file name) – used by GOBLINCAKES Config
 #   goblincakes-dock reapply    after the desktop layout was reset (goblincakes-firstlogin)
 # Crystal Dock's settings: ~/.config/crystal-dock/KDE (GOBLINCAKES' own in /etc/xdg/crystal-dock).
@@ -80,8 +81,18 @@ case ${1:-status} in
         else
             plasma_js "$(sed "s|%LAUNCHER%|applications:$id|" /usr/share/goblincakes/dock-add.js)"
         fi ;;
+    toggle)
+        if [ "$(mode)" = crystal ]; then
+            pkill -USR1 -x crystal-dock
+        else
+            # dodgewindows (hides behind windows) <-> windowsgobelow (on top of windows)
+            plasma_js 'panels().forEach(function (p) {
+                if (p.location === "bottom")
+                    p.hiding = p.hiding === "dodgewindows" ? "windowsgobelow" : "dodgewindows";
+            });'
+        fi ;;
     reapply)
         [ "$(mode)" = crystal ] && remove_plasma_dock
         exit 0 ;;
-    *) echo "Använd: goblin dock crystal|plasma" >&2; exit 2 ;;
+    *) echo "Använd: goblin dock crystal|plasma|toggle" >&2; exit 2 ;;
 esac
