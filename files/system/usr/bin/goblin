@@ -127,6 +127,7 @@ COMMANDS=(
     "ai|Öppna Goblin AI-fönstret (eller tryck Meta+A)"
     "ai [fråga]|Fråga Goblin AI direkt här – föreslagna kommandon körs bara om du säger ja"
     "ai setup|Ställ in gratis AI-tjänster (Gemini, Groq, OpenRouter, Mistral)"
+    "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "fastfetch|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
     "help|Visa alla goblin-kommandon"
@@ -145,6 +146,31 @@ command_list() {
 cmd_help() {
     printf '%sgoblin%s – GOBLINCAKES kommandon\n\n' "$bold" "$reset"
     command_list
+}
+
+cmd_gamemode() {
+    heading "GameMode"
+    info "Ger spel mer prestanda medan de körs (CPU, prioritet). Testar att det fungerar…"
+    echo
+    if gamemoded -t; then
+        echo
+        printf '%s▌ GameMode fungerar.%s\n' "$accent" "$reset"
+    else
+        echo
+        printf '%s▌ Något i testet gick inte igenom – se ovan.%s\n' "$red" "$reset"
+    fi
+    cat <<EOF
+
+${bold}Slå på det för ett spel${reset}
+  ${frost}Steam:${reset}   högerklicka på spelet → Egenskaper → Startalternativ:
+           ${accent}gamemoderun %command%${reset}
+           (med Gamescope också: ${accent}gamemoderun gamescope -f -- %command%${reset})
+  ${frost}Lutris:${reset}  Inställningar → Systemalternativ → slå på Feral GameMode
+           (för alla spel), eller per spel under Konfigurera.
+  ${frost}Heroic:${reset}  Spelets inställningar → Använd GameMode.
+
+${muted}Medan ett spel kör: gamemoded -s visar om GameMode är aktivt.${reset}
+EOF
 }
 
 cmd_fastfetch() {
@@ -178,6 +204,7 @@ case ${1:-help} in
             exit 0
         fi
         exec /usr/libexec/goblincakes-ai "$@" ;;
+    gamemode) cmd_gamemode ;;
     fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;
     help|-h|--help) cmd_help ;;

@@ -23,11 +23,11 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
   - **Terminalen** `files/system/usr/libexec/goblincakes-ai`: `goblin ai <fråga>` (kommandon frågar j/N, max 8 steg), `goblin ai --chat`, `goblin ai setup`.
 - [ ] Steg 6: Egen installations-ISO
 - [x] snapd installerat från start (byggt 6 okt, ej testat i VM): `/snap` är en länk till `/var/lib/snapd/snap` som skapas vid bygget (`files/scripts/setup-snapd.sh`, den skrivskyddade roten går att ändra då), och samma skript gör `/usr/lib/tmpfiles.d/goblincakes-snapd.conf` av snapd-paketets mappar i /var (de kopieras annars bara vid nyinstallation). `snapd.socket` påslaget. `goblincakes-snapd-setup.service` (`/usr/libexec/goblincakes-snapd-setup`) körs vid start tills det lyckats en gång (`/var/lib/goblincakes/snapd-setup-done`): `snap set system homedirs=/var/home` (Fedora Atomics hemmappar) + installerar Claude desktop (snap `claudeai-desktop`, provar `--classic` om det krävs).
-- [ ] Spelverktyg:
-  - GameMode – paketet `gamemode` finns redan i receptet; kvar: kolla att det fungerar (t.ex. `gamemoded -t`, Steam-startflagga `gamemoderun %command%`) och ev. `gamemode.ini`
-  - Gamescope (paketet `gamescope`)
-  - Heroic Games Launcher (Flatpak `com.heroicgameslauncher.hgl`)
-  - Wine, senaste versionen (Fedoras `wine` är ofta efter – kolla t.ex. WineHQ:s repo för staging/devel)
+- [x] Spelverktyg (7 okt, ej testat i VM):
+  - GameMode – paketet `gamemode`; `goblin gamemode` kör `gamemoded -t` och visar hur det slås på i Steam (`gamemoderun %command%`), Lutris och Heroic.
+  - Gamescope – paketet `gamescope` i imagen + val i GOBLINCAKES Config ("Gamescope för Steam", steget `gamescope-flatpak`: Flatpak-tillägget `org.freedesktop.Platform.VulkanLayer.gamescope` på samma runtime-gren som Steam/Lutris/Heroic, --user). Startalternativ `gamescope -f -- %command%`.
+  - Heroic Games Launcher – val i GOBLINCAKES Config (Flatpak `com.heroicgameslauncher.hgl`).
+  - Wine – `files/scripts/install-wine.sh`: WineHQ staging om WineHQ har paket för Fedora-versionen, annars Fedoras `wine`; + winetricks. WineHQ-repot tas bort ur den färdiga imagen (uppdateras med imagen).
 - [x] Gaming-optimering – finns som reglage i GOBLINCAKES Config, fliken Optimering (7 okt, ej testat i VM): scx_lavd (stänger av irqbalance; obs: kolla att det inte krockar med ananicy-cpp), vm.max_map_count, split-lock, prestandaläge (powerprofilesctl – används i stället för TuneD-profilen latency-performance, som krockar med KDE:s energiprofiler), shader-cache för Nvidia.
 
 ## Vad som finns

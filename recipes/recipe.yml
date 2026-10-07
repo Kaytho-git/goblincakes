@@ -49,6 +49,7 @@ modules:
         - libratbag-ratbagd     # backend for Piper (G502 Hero)
         - ddcutil               # monitor brightness over DDC/CI
         - gamemode              # performance mode while gaming
+        - gamescope             # Valve's game compositor (gamescope -- spel)
         - ananicy-cpp           # keeps the desktop responsive under load
         - cachyos-ananicy-rules
 
@@ -68,6 +69,11 @@ modules:
   - type: script
     scripts:
       - setup-snapd.sh
+
+  # Wine, newest: WineHQ's staging build when WineHQ has this Fedora version, else Fedora's own
+  - type: script
+    scripts:
+      - install-wine.sh
 
   # scx_lavd game scheduler for the Optimering tab, if it can be found (off until switched on there)
   - type: script

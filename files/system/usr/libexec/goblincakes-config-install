@@ -75,6 +75,7 @@ check() {
         flatpak) flatpak info "$1" >/dev/null 2>&1 ;;
         appimage) [ -x "$appimage_dir/$1.AppImage" ] ;;
         # Installed with today's container setup (see layout in goblincakes-ianseo)
+        gamescope-flatpak) flatpak list --columns=application | grep -qx org.freedesktop.Platform.VulkanLayer.gamescope ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;
         *) return 1 ;;
@@ -91,6 +92,23 @@ case $step in
         status "Hämtar $1 från Flathub…"
         flathub_user
         flatpak install --user --noninteractive --assumeyes flathub "$1"
+        ;;
+
+    gamescope-flatpak)
+        # Steam, Lutris and Heroic are Flatpaks: they need gamescope as a Flatpak extension,
+        # on the same runtime branch as Steam (e.g. 24.08)
+        status "Letar efter Steams Flatpak-version…"
+        branch=""
+        for app in com.valvesoftware.Steam net.lutris.Lutris com.heroicgameslauncher.hgl; do
+            runtime=$(flatpak info --show-runtime "$app" 2>/dev/null) || continue
+            branch=${runtime##*/}
+            break
+        done
+        [ -n "$branch" ] || { status "Hittade varken Steam, Lutris eller Heroic"; exit 1; }
+        status "Hämtar Gamescope ($branch) från Flathub…"
+        flathub_user
+        flatpak install --user --noninteractive --assumeyes flathub "org.freedesktop.Platform.VulkanLayer.gamescope//$branch"
+        status "Klart – i Steam: Egenskaper → Startalternativ: gamescope -f -- %command%"
         ;;
 
     ge-proton)
