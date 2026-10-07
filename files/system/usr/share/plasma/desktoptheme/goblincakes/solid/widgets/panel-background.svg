@@ -10,7 +10,7 @@
   <rect id="bottomleft" x="0" y="99" width="1" height="1" fill="#E6ECF5"/>
   <rect id="bottom" x="1" y="99" width="98" height="1" fill="#E6ECF5"/>
   <rect id="bottomright" x="99" y="99" width="1" height="1" fill="#E6ECF5"/>
-  <rect id="center" x="1" y="1" width="98" height="98" fill="#05070A"/>
+  <rect id="center" x="1" y="1" width="98" height="98" fill="#0B1018"/>
 
   <!-- Inner padding -->
   <rect id="hint-top-margin" x="110" y="0" width="1" height="4" fill="none"/>
