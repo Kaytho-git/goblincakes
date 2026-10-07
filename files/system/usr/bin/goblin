@@ -5,7 +5,7 @@
 #   goblin ai          the Goblin AI window (Meta+A); with a question: answer in the terminal
 #   goblin tv          TV mode (Steam Big Picture in full screen)
 #   goblin wow         where WoW is, links ~/Games/WoW/Logs and AddOns
-#   goblin fastfetch   system info with the GOBLINCAKES logo
+#   goblin fast        system info with the GOBLINCAKES logo
 #   goblin motd        the command list shown in every new terminal (on/off)
 #   goblin help        list the commands
 #
@@ -134,7 +134,7 @@ COMMANDS=(
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
     "wow|Visa var WoW finns och länka ~/Games/WoW/Logs och AddOns"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
-    "fastfetch|Systeminfo med GOBLINCAKES-loggan"
+    "fast|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
     "help|Visa alla goblin-kommandon"
 )
@@ -213,7 +213,7 @@ case ${1:-help} in
     tv) exec goblincakes-tv ;;
     wow) heading "World of Warcraft"; exec /usr/libexec/goblincakes-wow-links --verbose ;;
     gamemode) cmd_gamemode ;;
-    fastfetch|info) shift; cmd_fastfetch "$@" ;;
+    fast|fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;
     help|-h|--help) cmd_help ;;
     *) printf 'Okänt kommando: %s\n\n' "$1" >&2; cmd_help >&2; exit 2 ;;

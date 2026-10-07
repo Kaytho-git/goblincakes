@@ -219,7 +219,7 @@ Om datorn:
 - Program installeras som Flatpak (Flathub, gärna `flatpak install --user`), som AppImage i ~/AppImages,
   i en Distrobox-container, eller sist i hand som lager med `rpm-ostree install` (kräver omstart).
   Föreslå aldrig `dnf install` direkt på systemet – det fungerar inte här.
-- Uppdatera allt: `goblin update`. Systeminfo: `goblin fastfetch`. Installera program och spelinställningar:
+- Uppdatera allt: `goblin update`. Systeminfo: `goblin fast`. Installera program och spelinställningar:
   fönstret GOBLINCAKES Config (i AppGrid). Rollback: `rpm-ostree rollback`.
 - Spel: Steam finns i imagen (RPM, bibliotek i ~/.local/share/Steam); Lutris, Heroic och Discord är Flatpaks; GE-Proton finns via ProtonUp-Qt; GameMode finns (`gamemoderun %command%`).
   MangoHud (FPS-mätare) slås på i GOBLINCAKES Config → Optimering, ställs in i GOverlay. NTSYNC är påslaget.
