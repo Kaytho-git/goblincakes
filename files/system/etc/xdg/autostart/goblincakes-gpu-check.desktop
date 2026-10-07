@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES graphics check
+Comment=Suggests the right graphics drivers (GOBLINCAKES Config → Grafik) when they don't fit the card
+Exec=/usr/libexec/goblincakes-gpu notify
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2
+X-KDE-autostart-after=panel

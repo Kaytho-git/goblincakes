@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
+# GOBLINCAKES with Nvidia drivers. Not on the ISO: GOBLINCAKES Config (Grafik)
+# switches to it on computers with an Nvidia card. Shared content: common-*.yml.
+name: goblincakes-nvidia
+description: GOBLINCAKES - Fedora Kinoite with Nvidia drivers, gaming, WoW and Ianseo tools
+
+base-image: ghcr.io/ublue-os/kinoite-nvidia
+image-version: latest
+
+stages:
+  - from-file: common-stages.yml
+
+modules:
+  - from-file: common-modules.yml

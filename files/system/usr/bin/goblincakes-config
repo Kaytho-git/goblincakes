@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""GOBLINCAKES Config: install apps (Program tab) and gaming optimisations (Optimering tab).
+"""GOBLINCAKES Config: install apps (Program), gaming optimisations (Optimering) and graphics drivers (Grafik).
 
 Shown once at the first login (--first-run) and always available from AppGrid.
 Catalogs: /usr/share/goblincakes/config/apps.json and tweaks.json, the window Main.qml
 next to them. Install steps are run by /usr/libexec/goblincakes-config-install,
-optimisations by /usr/libexec/goblincakes-tweak (through pkexec when they change the system).
+optimisations by /usr/libexec/goblincakes-tweak (through pkexec when they change the system),
+graphics drivers by /usr/libexec/goblincakes-gpu (switching between the AMD/Intel and Nvidia variants).
 """
 import json
 import os
@@ -18,6 +19,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 SHARE = Path(os.environ.get("GOBLINCAKES_CONFIG_SHARE", "/usr/share/goblincakes/config"))
 HELPER = os.environ.get("GOBLINCAKES_CONFIG_HELPER", "/usr/libexec/goblincakes-config-install")
 TWEAK = os.environ.get("GOBLINCAKES_CONFIG_TWEAK", "/usr/libexec/goblincakes-tweak")
+GPU = os.environ.get("GOBLINCAKES_CONFIG_GPU", "/usr/libexec/goblincakes-gpu")
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
 DONE_FILE = STATE / "config-done"
 OLD_DONE_FILE = STATE / "setup-done"  # from when the window was called GOBLINCAKES Setup
@@ -39,6 +41,9 @@ class Config(QObject):
     progress = Signal(str, str, str)  # app id, state (waiting/running/done/failed), message
     allDone = Signal(int)  # number of failed apps
     tweakChanged = Signal(str, str, str)  # tweak id, state (on/off/unavailable/busy), message
+    gpuChanged = Signal()
+    gpuProgress = Signal(str)  # status line while switching
+    gpuDone = Signal(bool)  # switch/undo finished, ok
 
     def __init__(self):
         super().__init__()
@@ -60,6 +65,9 @@ class Config(QObject):
         self._proc = None
         self._last_message = {}  # app id → latest status line
         self._tweak_procs = {}
+        self._gpu = "{}"
+        self._gpu_proc = None
+        self.refreshGpu()
 
     # ── Apps ──────────────────────────────────────────────────
 
@@ -167,6 +175,74 @@ class Config(QObject):
             message = ""
         self.tweakChanged.emit(tweak_id, state, message)
 
+    # ── Graphics drivers ──────────────────────────────────────
+
+    @Property(str, notify=gpuChanged)
+    def gpu(self):
+        return self._gpu
+
+    @Property(bool, notify=gpuChanged)
+    def gpuBusy(self):
+        return self._gpu_proc is not None
+
+    @Slot()
+    def refreshGpu(self):
+        code, out = run(GPU, ["status"], timeout=60000)
+        self._gpu = out if code == 0 and out.startswith("{") else "{}"
+        self.gpuChanged.emit()
+
+    def _gpu_run(self, args):
+        if self._gpu_proc:
+            return
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+
+        def read():
+            for line in bytes(proc.readAllStandardOutput()).decode(errors="replace").splitlines():
+                print(line, flush=True)
+                if line.startswith("@@ "):
+                    self.gpuProgress.emit(line[3:])
+
+        def finished(code, exit_status):
+            self._gpu_proc = None
+            ok = exit_status == QProcess.NormalExit and code == 0
+            if not ok:
+                self.gpuProgress.emit("Det gick inte – kolla nätverket och försök igen")
+            self.refreshGpu()
+            self.gpuDone.emit(ok)
+
+        proc.readyReadStandardOutput.connect(read)
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda e: finished(-1, QProcess.CrashExit) if e == QProcess.FailedToStart else None)
+        self._gpu_proc = proc
+        self.gpuChanged.emit()
+        proc.start(GPU, args)
+
+    @Slot(str)
+    def switchVariant(self, target):
+        """rpm-ostree asks for the password itself (polkit)."""
+        self._gpu_run(["switch", target])
+
+    @Slot()
+    def undoSwitch(self):
+        self._gpu_run(["undo"])
+
+    @Slot()
+    def reboot(self):
+        QProcess.startDetached("systemctl", ["reboot"])
+
+    @Slot()
+    def enrollKey(self):
+        """Secure Boot: Universal Blue's driver key, confirmed once in the blue MOK screen at the next start."""
+        key = json.loads(self._gpu).get("keyFile")
+        if not key:
+            return
+        script = (f"echo 'Secure Boot: godkänner nyckeln för Nvidia-drivrutinerna.'; echo; "
+                  f"echo 'Välj ett lösenord nedan, t.ex. universalblue – du skriver det en gång vid nästa start,'; "
+                  f"echo 'i den blå skärmen: Enroll MOK → Continue → Yes → lösenordet → Reboot.'; echo; "
+                  f"sudo mokutil --import {key}; echo; read -rp 'Klart – tryck Enter för att stänga… ' _")
+        QProcess.startDetached("ghostty", ["-e", "bash", "-c", script])
+
     # ── Window ────────────────────────────────────────────────
 
     @Slot()
@@ -191,6 +267,8 @@ def main():
     backend = Config()
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("backend", backend)
+    start_tab = sys.argv[sys.argv.index("--tab") + 1] if "--tab" in sys.argv[:-1] else "apps"
+    engine.rootContext().setContextProperty("startTab", {"graphics": "graphics", "tweaks": "tweaks"}.get(start_tab, "apps"))
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO", "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")))
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))

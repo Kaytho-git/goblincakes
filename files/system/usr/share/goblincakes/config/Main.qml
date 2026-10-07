@@ -1,4 +1,4 @@
-// GOBLINCAKES Config: install apps (Program tab) and gaming optimisations (Optimering tab).
+// GOBLINCAKES Config: install apps (Program), gaming optimisations (Optimering), graphics drivers (Grafik).
 // Flat, square, in the GOBLINCAKES palette. Backend: /usr/bin/goblincakes-config ("backend").
 import QtQuick
 import QtQuick.Window
@@ -19,7 +19,9 @@ Window {
     property int chosenCount: 0
     property string page: "choose" // choose → install → done
     property int failedCount: 0
-    property string tab: "apps" // apps | tweaks
+    property string tab: startTab // apps | tweaks | graphics
+    readonly property var gpu: JSON.parse(backend.gpu)
+    property string gpuMessage: ""
 
     function toggle(id) {
         const c = Object.assign({}, chosen);
@@ -72,6 +74,13 @@ Window {
         function onAllDone(failed) {
             win.failedCount = failed;
             win.page = "done";
+        }
+        function onGpuProgress(text) {
+            win.gpuMessage = text;
+        }
+        function onGpuDone(ok) {
+            if (ok)
+                win.gpuMessage = "";
         }
         function onTweakChanged(id, state, message) {
             for (let i = 0; i < tweakModel.count; i++)
@@ -183,7 +192,8 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6
                 Text {
-                    text: win.tab === "tweaks" ? "OPTIMERING"
+                    text: win.tab === "graphics" ? "GRAFIK"
+                        : win.tab === "tweaks" ? "OPTIMERING"
                         : win.page === "choose" ? "VÄLJ DINA PROGRAM"
                         : win.page === "install" ? "INSTALLERAR…" : "KLART"
                     color: "#E6ECF5"
@@ -193,7 +203,9 @@ Window {
                     font.letterSpacing: 4
                 }
                 Text {
-                    text: win.tab === "tweaks"
+                    text: win.tab === "graphics"
+                        ? "Drivrutiner för ditt grafikkort. Den gamla varianten finns kvar i startmenyn om något går fel."
+                        : win.tab === "tweaks"
                         ? "Inställningar för spel. Slå på det du vill ha – allt går att slå av igen."
                         : win.page === "choose"
                         ? "Kryssa i det du vill ha. Allt går att lägga till senare – sök på GOBLINCAKES Config i AppGrid."
@@ -214,7 +226,7 @@ Window {
             spacing: 32
 
             Repeater {
-                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "tweaks", "label": "OPTIMERING" }]
+                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "tweaks", "label": "OPTIMERING" }, { "id": "graphics", "label": "GRAFIK" }]
 
                 Item {
                     id: tabItem
@@ -597,6 +609,223 @@ Window {
         }
     }
 
+    // ── Graphics drivers ─────────────────────────────────────
+
+    Flickable {
+        id: graphicsView
+        visible: win.tab === "graphics"
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
+        contentHeight: gfxCol.height + 64
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        readonly property bool switching: backend.gpuBusy
+        readonly property bool pendingChange: !!win.gpu.pending && win.gpu.pending !== win.gpu.variant
+        readonly property string after: win.gpu.pending || win.gpu.variant || "base"
+
+        Column {
+            id: gfxCol
+            x: 48
+            y: 32
+            width: graphicsView.width - 96
+            spacing: 14
+
+            Text {
+                text: "DITT GRAFIKKORT"
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.weight: Font.DemiBold
+                font.pixelSize: 14
+                font.letterSpacing: 2.5
+            }
+
+            Repeater {
+                model: win.gpu.cards || []
+                Rectangle {
+                    required property var modelData
+                    width: gfxCol.width
+                    height: 72
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    Monogram {
+                        id: cardMono
+                        name: modelData.vendor === "nvidia" ? "Nvidia" : modelData.vendor === "amd" ? "AMD" : modelData.vendor === "intel" ? "Intel" : "?"
+                        anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                    }
+                    Text {
+                        anchors { left: cardMono.right; leftMargin: 16; right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                        text: modelData.name
+                        elide: Text.ElideRight
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 16
+                    }
+                }
+            }
+
+            Item { width: 1; height: 10 }
+
+            Text {
+                text: "DRIVRUTINER"
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.weight: Font.DemiBold
+                font.pixelSize: 14
+                font.letterSpacing: 2.5
+            }
+
+            Rectangle {
+                width: gfxCol.width
+                height: driverCol.height + 40
+                color: "#0E1420"
+                border.width: 1
+                border.color: graphicsView.pendingChange || graphicsView.switching ? "#2F6FED" : "#1E2A40"
+
+                Column {
+                    id: driverCol
+                    x: 22
+                    y: 20
+                    width: parent.width - 44
+                    spacing: 14
+
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 16
+                        text: graphicsView.pendingChange
+                            ? (win.gpu.pending === "nvidia" ? "Nvidia-drivrutinerna är nedladdade – starta om för att använda dem."
+                                                            : "Nvidia-drivrutinerna tas bort när du startar om.")
+                            : win.gpu.variant === "nvidia"
+                            ? (win.gpu.hasNvidia ? "Nvidia-drivrutinerna är installerade." : "Nvidia-drivrutinerna är installerade, men datorn har inget Nvidia-kort.")
+                            : (win.gpu.hasNvidia ? "Nvidia-kortet kör med den öppna grunddrivrutinen." : "Du har redan rätt drivrutiner.")
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                        lineHeight: 1.15
+                        text: graphicsView.pendingChange
+                            ? "Vill du inte byta ändå: tryck Ångra. Den nuvarande varianten finns kvar i startmenyn."
+                            : win.gpu.variant === "nvidia"
+                            ? (win.gpu.hasNvidia ? "Allt är klart för spel." : "De tar plats och lägger till Nvidia-inställningar vid start. Ta bort dem för ett renare system (ungefär 1 GB).")
+                            : (win.gpu.hasNvidia ? "Skrivbordet fungerar, men spel går mycket bättre med Nvidias egna drivrutiner. De laddas ner (bara skillnaden, ungefär 1 GB) och används efter en omstart."
+                                                 : "AMD och Intel använder de öppna drivrutinerna (Mesa), som redan finns i GOBLINCAKES. Inget behöver laddas ner.")
+                    }
+
+                    // While switching: status + sliding bar
+                    Column {
+                        visible: graphicsView.switching
+                        spacing: 8
+                        Text {
+                            text: win.gpuMessage || "Startar…"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 14
+                        }
+                        Rectangle {
+                            width: 200
+                            height: 3
+                            color: "#12203A"
+                            clip: true
+                            Rectangle {
+                                width: 48
+                                height: parent.height
+                                color: "#2F6FED"
+                                SequentialAnimation on x {
+                                    running: graphicsView.switching
+                                    loops: Animation.Infinite
+                                    NumberAnimation { from: -48; to: 200; duration: 1100; easing.type: Easing.InOutQuad }
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        visible: !graphicsView.switching && win.gpuMessage !== ""
+                        text: win.gpuMessage
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                    }
+
+                    Row {
+                        visible: !graphicsView.switching
+                        spacing: 12
+                        FlatButton {
+                            visible: !graphicsView.pendingChange && win.gpu.variant === "base" && !!win.gpu.hasNvidia
+                            primary: true
+                            text: "Installera Nvidia-drivrutiner"
+                            onClicked: { win.gpuMessage = ""; backend.switchVariant("nvidia"); }
+                        }
+                        FlatButton {
+                            visible: !graphicsView.pendingChange && win.gpu.variant === "nvidia"
+                            primary: !win.gpu.hasNvidia
+                            text: "Ta bort Nvidia-drivrutinerna"
+                            onClicked: { win.gpuMessage = ""; backend.switchVariant("base"); }
+                        }
+                        FlatButton {
+                            visible: graphicsView.pendingChange
+                            primary: true
+                            text: "Starta om nu"
+                            onClicked: backend.reboot()
+                        }
+                        FlatButton {
+                            visible: graphicsView.pendingChange
+                            text: "Ångra"
+                            onClicked: { win.gpuMessage = ""; backend.undoSwitch(); }
+                        }
+                    }
+                }
+            }
+
+            // Secure Boot: Nvidia's drivers need Universal Blue's key, confirmed once
+            Rectangle {
+                visible: !!win.gpu.secureBoot && !win.gpu.keyEnrolled && graphicsView.after === "nvidia"
+                width: gfxCol.width
+                height: sbCol.height + 40
+                color: "#0E1420"
+                border.width: 1
+                border.color: "#1E2A40"
+                Column {
+                    id: sbCol
+                    x: 22
+                    y: 20
+                    width: parent.width - 44
+                    spacing: 12
+                    Text {
+                        text: "Secure Boot är påslaget"
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 16
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        lineHeight: 1.15
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                        text: win.gpu.keyFile
+                            ? "Nvidia-drivrutinerna är signerade med Universal Blues nyckel, som datorn behöver godkänna en gång. Tryck på knappen, välj ett lösenord, och skriv det i den blå skärmen vid nästa start (Enroll MOK → Continue → Yes → lösenordet → Reboot)."
+                            : "Nvidia-drivrutinerna är signerade med Universal Blues nyckel, som datorn behöver godkänna en gång. Öppna Grafik igen efter omstarten, så finns knappen här."
+                    }
+                    FlatButton {
+                        visible: !!win.gpu.keyFile
+                        text: "Godkänn nyckeln"
+                        onClicked: backend.enrollKey()
+                    }
+                }
+            }
+        }
+    }
+
     // ── Footer ───────────────────────────────────────────────
 
     Rectangle {
@@ -613,8 +842,9 @@ Window {
 
         Text {
             anchors { left: parent.left; leftMargin: 48; verticalCenter: parent.verticalCenter }
-            visible: win.tab === "tweaks" || win.page === "choose"
-            text: win.tab === "tweaks" ? "Ändringar gäller direkt. Systeminställningar frågar efter ditt lösenord."
+            visible: win.tab !== "apps" || win.page === "choose"
+            text: win.tab === "graphics" ? "Bytet frågar efter ditt lösenord."
+                : win.tab === "tweaks" ? "Ändringar gäller direkt. Systeminställningar frågar efter ditt lösenord."
                 : win.chosenCount === 0 ? "Inget valt" : win.chosenCount === 1 ? "1 program valt" : win.chosenCount + " program valda"
             color: "#8B98AD"
             font.family: "IBM Plex Sans"
@@ -645,7 +875,7 @@ Window {
                 onClicked: win.finish()
             }
             FlatButton {
-                visible: win.tab === "tweaks"
+                visible: win.tab !== "apps"
                 primary: true
                 // Not while apps are still installing
                 enabledState: win.page !== "install"

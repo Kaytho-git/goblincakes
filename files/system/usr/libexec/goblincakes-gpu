@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Graphics drivers for GOBLINCAKES (the Grafik tab in GOBLINCAKES Config, and a login notice).
+
+    goblincakes-gpu status          JSON: graphics cards, variant now and after restart, Secure Boot
+    goblincakes-gpu switch nvidia   switch to goblincakes-nvidia (Nvidia drivers) – used after a restart
+    goblincakes-gpu switch base     switch back to goblincakes (AMD/Intel, no Nvidia drivers or settings)
+    goblincakes-gpu undo            drop a switch that hasn't been restarted into yet
+    goblincakes-gpu notify          login notice when the variant doesn't fit the graphics card
+
+The two variants are the same GOBLINCAKES built on different Universal Blue
+images; switching is an rpm-ostree rebase (only the difference is downloaded,
+the old variant stays selectable in the boot menu). Lines starting with "@@ "
+are shown in the window as status.
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+VARIANT_FILE = Path("/usr/share/goblincakes/variant")
+IMAGES = {"base": "goblincakes", "nvidia": "goblincakes-nvidia"}
+VENDORS = {"10de": "nvidia", "1002": "amd", "1022": "amd", "8086": "intel"}
+UBLUE_KEY = Path("/etc/pki/akmods/certs/akmods-ublue.der")
+NOTICE_OFF = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "goblincakes" / "gpu-notice-off"
+
+
+def status_line(text):
+    print(f"@@ {text}", flush=True)
+
+
+def graphics_cards():
+    cards = []
+    for dev in sorted(Path("/sys/bus/pci/devices").glob("*")):
+        try:
+            if not (dev / "class").read_text().startswith("0x03"):  # display controllers
+                continue
+            vendor_id = (dev / "vendor").read_text().strip().removeprefix("0x")
+        except OSError:
+            continue
+        vendor = VENDORS.get(vendor_id, "other")
+        name = {"nvidia": "Nvidia", "amd": "AMD", "intel": "Intel"}.get(vendor, "Okänt grafikkort")
+        try:
+            out = subprocess.run(["lspci", "-mm", "-s", dev.name], capture_output=True, text=True, timeout=5).stdout
+            fields = re.findall(r'"([^"]*)"', out)
+            if len(fields) >= 3:
+                name = f"{fields[1]} {fields[2]}"
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        cards.append({"vendor": vendor, "name": name})
+    return cards
+
+
+def deployments():
+    try:
+        out = subprocess.run(["rpm-ostree", "status", "--json"], capture_output=True, text=True, timeout=30).stdout
+        return json.loads(out).get("deployments", [])
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return []
+
+
+def variant_of(ref):
+    return "nvidia" if re.search(r"/goblincakes-nvidia(:|$)", ref or "") else "base"
+
+
+def secure_boot():
+    try:
+        out = subprocess.run(["mokutil", "--sb-state"], capture_output=True, text=True, timeout=5).stdout
+        return "enabled" in out.lower()
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def key_enrolled():
+    if not UBLUE_KEY.exists():
+        return False
+    try:
+        out = subprocess.run(["mokutil", "--test-key", str(UBLUE_KEY)], capture_output=True, text=True, timeout=5)
+        return "already enrolled" in (out.stdout + out.stderr)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def status():
+    deps = deployments()
+    booted = next((d for d in deps if d.get("booted")), {})
+    staged = next((d for d in deps if d.get("staged") or (not d.get("booted") and deps.index(d) == 0)), None)
+    variant = VARIANT_FILE.read_text().strip() if VARIANT_FILE.exists() else variant_of(booted.get("container-image-reference"))
+    pending = variant_of(staged.get("container-image-reference")) if staged else None
+    cards = graphics_cards()
+    has_nvidia = any(c["vendor"] == "nvidia" for c in cards)
+    return {
+        "cards": cards,
+        "hasNvidia": has_nvidia,
+        "variant": variant,  # what is running now
+        "pending": pending,  # what starts after a restart (None = nothing new)
+        "recommended": "nvidia" if has_nvidia else "base",
+        "secureBoot": secure_boot(),
+        "keyEnrolled": key_enrolled(),
+        "keyFile": str(UBLUE_KEY) if UBLUE_KEY.exists() else "",
+    }
+
+
+def switch(target):
+    deps = deployments()
+    booted = next((d for d in deps if d.get("booted")), {})
+    ref = booted.get("container-image-reference", "")
+    if not ref:
+        print("Hittar inte vilken image datorn kör", file=sys.stderr)
+        return 1
+    # Same registry, tag and signature checking – only the image name changes
+    new_ref = re.sub(r"/goblincakes(-nvidia)?(?=:|$)", "/" + IMAGES[target], ref, count=1)
+    if new_ref == ref and variant_of(ref) == target:
+        status_line("Datorn kör redan den varianten")
+        return 0
+    status_line("Laddar ner " + ("Nvidia-varianten" if target == "nvidia" else "grundvarianten")
+                + " (bara skillnaden, kan ta en stund)…")
+    proc = subprocess.Popen(["rpm-ostree", "rebase", new_ref], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for line in proc.stdout:
+        line = line.rstrip()
+        print(line, flush=True)
+        if line and not line.startswith(" "):
+            status_line(line[:120])
+    code = proc.wait()
+    if code == 0:
+        status_line("Klart – starta om datorn för att använda den")
+    return code
+
+
+def undo():
+    status_line("Ångrar bytet…")
+    return subprocess.run(["rpm-ostree", "cleanup", "--pending"]).returncode
+
+
+def notify():
+    """At login: suggest the Grafik tab when the variant doesn't fit the card (until "don't show again")."""
+    if NOTICE_OFF.exists():
+        return 0
+    s = status()
+    if s["pending"] or s["variant"] == s["recommended"]:
+        return 0
+    if s["recommended"] == "nvidia":
+        title, body = "Nvidia-grafikkort hittat", "Installera Nvidia-drivrutinerna för full prestanda i spel."
+    else:
+        title, body = "Inget Nvidia-kort", "GOBLINCAKES har Nvidia-drivrutiner som inte behövs. De kan tas bort."
+    try:
+        answer = subprocess.run(
+            ["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes", "--wait",
+             "--action=open=Öppna GOBLINCAKES Config", "--action=never=Visa inte igen", title, body],
+            capture_output=True, text=True).stdout.strip()
+    except OSError:
+        return 0
+    if answer == "open":
+        subprocess.Popen(["goblincakes-config", "--tab", "graphics"])
+    elif answer == "never":
+        NOTICE_OFF.parent.mkdir(parents=True, exist_ok=True)
+        NOTICE_OFF.touch()
+    return 0
+
+
+def main(args):
+    cmd = args[0] if args else "status"
+    if cmd == "status":
+        print(json.dumps(status()))
+        return 0
+    if cmd == "switch" and len(args) > 1 and args[1] in IMAGES:
+        return switch(args[1])
+    if cmd == "undo":
+        return undo()
+    if cmd == "notify":
+        return notify()
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

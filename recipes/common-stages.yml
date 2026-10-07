@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://schema.blue-build.org/stage-list-v1.json
+# Build stages shared by both variants: run separately, only their results are copied into the image
+stages:
+  # AppGrid with square corners (files/scripts/build-appgrid.sh). Built on the
+  # AMD/Intel base – KDE and Qt are the same in both variants.
+  - name: appgrid-square
+    from: ghcr.io/ublue-os/kinoite-main:latest
+    modules:
+      - type: script
+        scripts:
+          - build-appgrid.sh

@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=https://schema.blue-build.org/module-list-v1.json
+# Everything both GOBLINCAKES variants have (recipe.yml = AMD/Intel, recipe-nvidia.yml = Nvidia).
+modules:
+  # Copies everything in files/system/ into the image root
+  - type: files
+    files:
+      - source: system
+        destination: /
+
+  # Layered RPM packages
+  - type: dnf
+    repos:
+      cleanup: true
+      files:
+        - vscode.repo                        # files/dnf/vscode.repo
+      copr:
+        - bieszczaders/kernel-cachyos-addons # ananicy-cpp + rules
+        - mineiro/ghostty                    # Ghostty terminal
+        - scujas/plasma-applet-appgrid       # AppGrid app launcher
+    install:
+      packages:
+        - code                  # VS Code
+        - ghostty               # default terminal
+        - fastfetch             # system info with the GOBLINCAKES logo
+        - plymouth-plugin-script # engine for the GOBLINCAKES boot screen
+        - plasma-applet-appgrid # app grid in the middle of the screen
+        - sddm                  # login manager with the GOBLINCAKES theme
+        - sddm-wayland-plasma   # runs the SDDM login screen on Wayland (KWin)
+        - snapd                 # snap packages (Claude desktop)
+        - python3-pyside6       # GOBLINCAKES Config window (Qt for Python)
+        - fuse-libs             # lets AppImages run (WowUp, Raider.IO, Archon)
+        - aurorae               # engine for the GOBLINCAKES window frames
+        - kvantum               # engine for the GOBLINCAKES widget theme
+        - libratbag-ratbagd     # backend for Piper (G502 Hero)
+        - ddcutil               # monitor brightness over DDC/CI
+        - gamemode              # performance mode while gaming
+        - gamescope             # Valve's game compositor (gamescope -- spel)
+        - ananicy-cpp           # keeps the desktop responsive under load
+        - cachyos-ananicy-rules
+
+  # AppGrid with square corners, built in the appgrid-square stage above,
+  # replaces the COPR package's files (the package still brings the dependencies)
+  - type: copy
+    from: appgrid-square
+    src: /out/
+    dest: /
+
+  # Log in through SDDM (GOBLINCAKES theme) instead of Plasma Login Manager
+  - type: script
+    snippets:
+      - "ln -sf /usr/lib/systemd/system/sddm.service /etc/systemd/system/display-manager.service"
+
+  # snapd: the /snap link in the read-only root and its folders in /var
+  - type: script
+    scripts:
+      - setup-snapd.sh
+
+  # Wine, newest: WineHQ's staging build when WineHQ has this Fedora version, else Fedora's own
+  - type: script
+    scripts:
+      - install-wine.sh
+
+  # scx_lavd game scheduler for the Optimering tab, if it can be found (off until switched on there)
+  - type: script
+    scripts:
+      - install-scx.sh
+
+  # GOBLINCAKES typefaces (downloaded from Google Fonts at build time)
+  - type: fonts
+    fonts:
+      google-fonts:
+        - Chakra Petch    # headings, splash, logout
+        - IBM Plex Sans   # interface and body text
+        - IBM Plex Mono   # Ghostty terminal
+
+  # Always-installed Flatpaks – kept to a minimum on purpose: everything else
+  # (Steam, Discord, Lutris, VLC …) is picked in GOBLINCAKES Config
+  # (validated against Flathub at build time)
+  - type: default-flatpaks
+    configurations:
+      - scope: system
+        notify: true
+        install:
+          - org.mozilla.firefox
+          - org.freedesktop.Piper   # mouse configurator
+          - org.chromium.Chromium   # for VIA / Keychron Launcher (WebHID)
+
+  - type: systemd
+    system:
+      enabled:
+        - ratbagd.service
+        - ananicy-cpp.service
+        - snapd.socket                    # snap daemon, started on demand
+        - goblincakes-snapd-setup.service # snap home folders + Claude desktop
+
+  # GOBLINCAKES name in About this System and the boot menu
+  - type: os-release
+    properties:
+      NAME: GOBLINCAKES
+      PRETTY_NAME: GOBLINCAKES
+
+  # Rebuild the initramfs so the GOBLINCAKES boot screen (Plymouth) is used.
+  # Keep this near the end: it picks up everything done before it.
+  - type: initramfs
+
+  - type: signing
+
+  # Trust both GOBLINCAKES variants (goblincakes and goblincakes-nvidia), so the
+  # Grafik tab in GOBLINCAKES Config can switch between them; marks which one this is
+  - type: script
+    scripts:
+      - variants.sh

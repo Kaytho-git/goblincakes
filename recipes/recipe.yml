@@ -1,121 +1,16 @@
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
+# GOBLINCAKES, the variant on the install ISO: starts on every computer.
+# AMD and Intel get their full drivers (Mesa); Nvidia starts with the open driver
+# until "Installera Nvidia-drivrutiner" in GOBLINCAKES Config (Grafik) switches
+# to goblincakes-nvidia (recipe-nvidia.yml). Shared content: common-*.yml.
 name: goblincakes
-description: GOBLINCAKES - Fedora Kinoite with Nvidia, gaming, WoW and Ianseo tools
+description: GOBLINCAKES - Fedora Kinoite for AMD and Intel graphics, gaming, WoW and Ianseo tools
 
-base-image: ghcr.io/ublue-os/kinoite-nvidia
+base-image: ghcr.io/ublue-os/kinoite-main
 image-version: latest
 
-# Build stages: run separately, only their results are copied into the image
 stages:
-  # AppGrid with square corners (files/scripts/build-appgrid.sh)
-  - name: appgrid-square
-    from: ghcr.io/ublue-os/kinoite-nvidia:latest
-    modules:
-      - type: script
-        scripts:
-          - build-appgrid.sh
+  - from-file: common-stages.yml
 
 modules:
-  # Copies everything in files/system/ into the image root
-  - type: files
-    files:
-      - source: system
-        destination: /
-
-  # Layered RPM packages
-  - type: dnf
-    repos:
-      cleanup: true
-      files:
-        - vscode.repo                        # files/dnf/vscode.repo
-      copr:
-        - bieszczaders/kernel-cachyos-addons # ananicy-cpp + rules
-        - mineiro/ghostty                    # Ghostty terminal
-        - scujas/plasma-applet-appgrid       # AppGrid app launcher
-    install:
-      packages:
-        - code                  # VS Code
-        - ghostty               # default terminal
-        - fastfetch             # system info with the GOBLINCAKES logo
-        - plymouth-plugin-script # engine for the GOBLINCAKES boot screen
-        - plasma-applet-appgrid # app grid in the middle of the screen
-        - sddm                  # login manager with the GOBLINCAKES theme
-        - sddm-wayland-plasma   # runs the SDDM login screen on Wayland (KWin)
-        - snapd                 # snap packages (Claude desktop)
-        - python3-pyside6       # GOBLINCAKES Config window (Qt for Python)
-        - fuse-libs             # lets AppImages run (WowUp, Raider.IO, Archon)
-        - aurorae               # engine for the GOBLINCAKES window frames
-        - kvantum               # engine for the GOBLINCAKES widget theme
-        - libratbag-ratbagd     # backend for Piper (G502 Hero)
-        - ddcutil               # monitor brightness over DDC/CI
-        - gamemode              # performance mode while gaming
-        - gamescope             # Valve's game compositor (gamescope -- spel)
-        - ananicy-cpp           # keeps the desktop responsive under load
-        - cachyos-ananicy-rules
-
-  # AppGrid with square corners, built in the appgrid-square stage above,
-  # replaces the COPR package's files (the package still brings the dependencies)
-  - type: copy
-    from: appgrid-square
-    src: /out/
-    dest: /
-
-  # Log in through SDDM (GOBLINCAKES theme) instead of Plasma Login Manager
-  - type: script
-    snippets:
-      - "ln -sf /usr/lib/systemd/system/sddm.service /etc/systemd/system/display-manager.service"
-
-  # snapd: the /snap link in the read-only root and its folders in /var
-  - type: script
-    scripts:
-      - setup-snapd.sh
-
-  # Wine, newest: WineHQ's staging build when WineHQ has this Fedora version, else Fedora's own
-  - type: script
-    scripts:
-      - install-wine.sh
-
-  # scx_lavd game scheduler for the Optimering tab, if it can be found (off until switched on there)
-  - type: script
-    scripts:
-      - install-scx.sh
-
-  # GOBLINCAKES typefaces (downloaded from Google Fonts at build time)
-  - type: fonts
-    fonts:
-      google-fonts:
-        - Chakra Petch    # headings, splash, logout
-        - IBM Plex Sans   # interface and body text
-        - IBM Plex Mono   # Ghostty terminal
-
-  # Always-installed Flatpaks – kept to a minimum on purpose: everything else
-  # (Steam, Discord, Lutris, VLC …) is picked in GOBLINCAKES Config
-  # (validated against Flathub at build time)
-  - type: default-flatpaks
-    configurations:
-      - scope: system
-        notify: true
-        install:
-          - org.mozilla.firefox
-          - org.freedesktop.Piper   # mouse configurator
-          - org.chromium.Chromium   # for VIA / Keychron Launcher (WebHID)
-
-  - type: systemd
-    system:
-      enabled:
-        - ratbagd.service
-        - ananicy-cpp.service
-        - snapd.socket                    # snap daemon, started on demand
-        - goblincakes-snapd-setup.service # snap home folders + Claude desktop
-
-  # GOBLINCAKES name in About this System and the boot menu
-  - type: os-release
-    properties:
-      NAME: GOBLINCAKES
-      PRETTY_NAME: GOBLINCAKES
-
-  # Rebuild the initramfs so the GOBLINCAKES boot screen (Plymouth) is used.
-  # Keep this near the end: it picks up everything done before it.
-  - type: initramfs
-
-  - type: signing
+  - from-file: common-modules.yml
