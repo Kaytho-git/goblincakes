@@ -85,10 +85,21 @@ case ${1:-status} in
             pkill -USR1 -x crystal-dock
         else
             # dodgewindows (hides behind windows) <-> windowsgobelow (on top of windows)
-            plasma_js 'panels().forEach(function (p) {
-                if (p.location === "bottom")
-                    p.hiding = p.hiding === "dodgewindows" ? "windowsgobelow" : "dodgewindows";
-            });'
+            shown=$(busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s \
+                'panels().forEach(function (p) {
+                    if (p.location !== "bottom") return;
+                    var show = p.hiding === "dodgewindows";
+                    p.hiding = show ? "windowsgobelow" : "dodgewindows";
+                    if (show) print("shown");
+                });')
+            # Shown: a KWin script hides it again when something else is clicked
+            kwin=(busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting)
+            "${kwin[@]}" unloadScript s goblincakes-dock-autohide >/dev/null 2>&1
+            if [[ $shown == *shown* ]]; then
+                id=$("${kwin[@]}" loadScript ss /usr/share/goblincakes/dock-autohide.js goblincakes-dock-autohide | awk '{print $2}')
+                [ -n "$id" ] && [ "$id" -ge 0 ] && \
+                    busctl --user call org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script run >/dev/null
+            fi
         fi ;;
     reapply)
         [ "$(mode)" = crystal ] && remove_plasma_dock
