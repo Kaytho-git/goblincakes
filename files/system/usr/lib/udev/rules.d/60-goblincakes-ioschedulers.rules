@@ -1,0 +1,11 @@
+# GOBLINCAKES: the I/O scheduler that suits each kind of disk (like CachyOS).
+# Sorts after systemd's 60-block-scheduler.rules, so this wins.
+
+# NVMe SSDs: no scheduler – the drive's own queues are faster
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
+
+# SATA SSDs and memory cards: mq-deadline – low latency, reads don't wait behind big writes
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]*|mmcblk[0-9]*", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline"
+
+# Spinning hard drives: BFQ – keeps the desktop and games responsive while a big download writes
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]*", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"

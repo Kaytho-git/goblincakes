@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES disks
+Comment=Mounts all disks and partitions at login, so they are always visible
+Exec=/usr/libexec/goblincakes-automount
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=1
