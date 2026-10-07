@@ -179,10 +179,17 @@ DESKTOP
         ;;
 
     snap)
-        # A snap from the Snap Store (snapd is in the image); asks for the password itself
+        # A snap from the Snap Store (snapd is in the image). snap only asks for the
+        # password when run in a terminal, so pkexec shows Plasma's password window instead.
         status "Hämtar $1 från Snap Store…"
         snap wait system seed.loaded
-        snap install "$1" || snap install --classic "$1"
+        classic=
+        snap info --verbose "$1" 2>/dev/null | grep -q '^ *confinement: *classic' && classic=--classic
+        if ! out=$(pkexec snap install $classic "$1" 2>&1); then
+            echo "$out" >&2
+            status "$(echo "$out" | tail -n1)"
+            exit 1
+        fi
         ;;
 
     battlenet)
