@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Graphics drivers for GOBLINCAKES (the Grafik tab in GOBLINCAKES Config, and a login notice).
 
-    goblincakes-gpu status          JSON: graphics cards, variant now and after restart, Secure Boot
+    goblincakes-gpu status          JSON: graphics cards, laptop/hybrid, variant now and after restart, Secure Boot
+    goblincakes-gpu hw              JSON: just the hardware (fast, no rpm-ostree)
     goblincakes-gpu switch nvidia   switch to goblincakes-nvidia (Nvidia drivers) – used after a restart
     goblincakes-gpu switch base     switch back to goblincakes (AMD/Intel, no Nvidia drivers or settings)
     goblincakes-gpu undo            drop a switch that hasn't been restarted into yet
@@ -48,8 +49,40 @@ def graphics_cards():
                 name = f"{fields[1]} {fields[2]}"
         except (OSError, subprocess.TimeoutExpired):
             pass
-        cards.append({"vendor": vendor, "name": name})
+        try:
+            # The card the computer started on = the one driving the screen (the integrated one on laptops)
+            boot = (dev / "boot_vga").read_text().strip() == "1"
+        except OSError:
+            boot = False
+        cards.append({"vendor": vendor, "name": name, "boot": boot})
     return cards
+
+
+LAPTOP_CHASSIS = {"8", "9", "10", "11", "14", "30", "31", "32"}  # portable, laptop, notebook, handheld, sub-notebook, tablet, convertible, detachable
+
+
+def is_laptop():
+    try:
+        if Path("/sys/class/dmi/id/chassis_type").read_text().strip() in LAPTOP_CHASSIS:
+            return True
+    except OSError:
+        pass
+    return any((p / "type").read_text().strip() == "Battery"
+               for p in Path("/sys/class/power_supply").glob("*") if (p / "type").exists())
+
+
+def hardware():
+    """Laptop? Two graphics cards? Which is the powerful one (for games)?"""
+    cards = graphics_cards()
+    hybrid = len(cards) >= 2
+    dgpu = None
+    if hybrid:
+        # The powerful card: the one the screen didn't start on; Nvidia/AMD before Intel
+        others = [c for c in cards if not c["boot"]] or cards[1:]
+        others.sort(key=lambda c: {"nvidia": 0, "amd": 1}.get(c["vendor"], 2))
+        dgpu = others[0]["vendor"]
+    return {"cards": cards, "laptop": is_laptop(), "hybrid": hybrid, "dgpu": dgpu,
+            "hasNvidia": any(c["vendor"] == "nvidia" for c in cards)}
 
 
 def deployments():
@@ -88,11 +121,10 @@ def status():
     staged = next((d for d in deps if d.get("staged") or (not d.get("booted") and deps.index(d) == 0)), None)
     variant = VARIANT_FILE.read_text().strip() if VARIANT_FILE.exists() else variant_of(booted.get("container-image-reference"))
     pending = variant_of(staged.get("container-image-reference")) if staged else None
-    cards = graphics_cards()
-    has_nvidia = any(c["vendor"] == "nvidia" for c in cards)
+    hw = hardware()
+    has_nvidia = hw["hasNvidia"]
     return {
-        "cards": cards,
-        "hasNvidia": has_nvidia,
+        **hw,
         "variant": variant,  # what is running now
         "pending": pending,  # what starts after a restart (None = nothing new)
         "recommended": "nvidia" if has_nvidia else "base",
@@ -163,6 +195,9 @@ def main(args):
     cmd = args[0] if args else "status"
     if cmd == "status":
         print(json.dumps(status()))
+        return 0
+    if cmd == "hw":
+        print(json.dumps(hardware()))
         return 0
     if cmd == "switch" and len(args) > 1 and args[1] in IMAGES:
         return switch(args[1])

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# GOBLINCAKES on laptops – runs at every login (does nothing on desktops):
+#  - two graphics cards: games from Steam/Lutris/Heroic on the powerful card, switched on
+#    once per user (GOBLINCAKES Config → Optimering can switch it off again)
+#  - touchpads: tap to click and natural scrolling, once per touchpad (can be changed
+#    in System Settings → Touchpad afterwards, this won't override it)
+# The power profile stays at Balanced unless the user picks Performance.
+set -uo pipefail
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/goblincakes"
+mkdir -p "$state"
+
+hw=$(/usr/libexec/goblincakes-gpu hw 2>/dev/null) || exit 0
+get() { echo "$hw" | python3 -c 'import json,sys; print(str(json.load(sys.stdin).get(sys.argv[1])).lower())' "$1"; }
+[ "$(get laptop)" = true ] || [ "$(get hybrid)" = true ] || exit 0
+
+variant=$(cat /usr/share/goblincakes/variant 2>/dev/null || echo base)
+if [ "$(get hybrid)" = true ]; then
+    if [ ! -e "$state/dgpu-games-default" ]; then
+        /usr/libexec/goblincakes-tweak set dgpu-games on && echo "$variant" > "$state/dgpu-games-default"
+    elif [ "$(cat "$state/dgpu-games-default")" != "$variant" ]; then
+        # Variant switched (e.g. Nvidia drivers installed): Nvidia offload instead of Mesa's, or back
+        if [ "$(/usr/libexec/goblincakes-tweak status dgpu-games)" = on ]; then
+            /usr/libexec/goblincakes-tweak set dgpu-games on
+        fi
+        echo "$variant" > "$state/dgpu-games-default"
+    fi
+fi
+
+[ "$(get laptop)" = true ] || exit 0
+
+# KWin's input devices over D-Bus; settings set here are saved by KWin like the System Settings page does
+done_list="$state/touchpads-done"
+touch "$done_list"
+for _ in 1 2 3 4 5; do
+    busctl --user status org.kde.KWin >/dev/null 2>&1 && break
+    sleep 2
+done
+busctl --user tree --list org.kde.KWin 2>/dev/null | grep '^/org/kde/KWin/InputDevice/event' | while read -r path; do
+    prop() { busctl --user get-property org.kde.KWin "$path" org.kde.KWin.InputDevice "$1" 2>/dev/null | cut -d' ' -f2-; }
+    [ "$(prop touchpad)" = true ] || continue
+    name=$(prop name)
+    grep -qxF "$name" "$done_list" && continue
+    busctl --user set-property org.kde.KWin "$path" org.kde.KWin.InputDevice tapToClick b true
+    busctl --user set-property org.kde.KWin "$path" org.kde.KWin.InputDevice naturalScroll b true
+    echo "$name" >> "$done_list"
+done
+exit 0

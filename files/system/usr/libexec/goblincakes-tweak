@@ -28,6 +28,14 @@ sysctl_set() { # id key value on|off
 
 shader_env="${XDG_CONFIG_HOME:-$HOME/.config}/environment.d/90-goblincakes-shadercache.conf"
 
+hw() { /usr/libexec/goblincakes-gpu hw 2>/dev/null; }
+json_get() { python3 -c 'import json,sys; v=json.load(sys.stdin).get(sys.argv[1]); print("" if v is None else str(v).lower())' "$1"; }
+
+# Game launchers that should start games on the powerful graphics card (laptops with two cards)
+GAME_APPS=(com.valvesoftware.Steam net.lutris.Lutris com.heroicgameslauncher.hgl)
+NV_PRIME=(__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only)
+MESA_PRIME=(DRI_PRIME=1)
+
 cmd=${1:?command}; id=${2:?id}; value=${3:-}
 
 case $id in
@@ -75,8 +83,42 @@ case $id in
                 fi ;;
         esac ;;
 
+    dgpu-games)
+        # Laptops with two graphics cards: the desktop stays on the frugal built-in card,
+        # games from Steam, Lutris and Heroic start on the powerful one (PRIME render offload).
+        info=$(hw)
+        if [ "$(echo "$info" | json_get hybrid)" != true ]; then
+            [ "$cmd" = status ] && echo unavailable
+            exit 0
+        fi
+        case $cmd in
+            status)
+                flatpak override --user --show com.valvesoftware.Steam 2>/dev/null \
+                    | grep -qE '^(DRI_PRIME|__NV_PRIME_RENDER_OFFLOAD)=' && echo on || echo off ;;
+            set)
+                # Nvidia's own offload needs Nvidia's drivers; otherwise Mesa's DRI_PRIME picks the other card
+                if [ "$(echo "$info" | json_get dgpu)" = nvidia ] && [ "$(cat /usr/share/goblincakes/variant 2>/dev/null)" = nvidia ]; then
+                    env=("${NV_PRIME[@]}")
+                else
+                    env=("${MESA_PRIME[@]}")
+                fi
+                for app in "${GAME_APPS[@]}"; do
+                    # Clear both kinds first, so switching variant later can't leave a mix
+                    for var in "${NV_PRIME[@]}" "${MESA_PRIME[@]}"; do
+                        flatpak override --user --unset-env="${var%%=*}" "$app"
+                    done
+                    if [ "$value" = on ]; then
+                        for var in "${env[@]}"; do flatpak override --user --env="$var" "$app"; done
+                    fi
+                done ;;
+        esac ;;
+
     shader-cache)
         # Nvidia: keep up to 12 GB of compiled shaders instead of 1 GB (less stutter)
+        if [ "$(hw | json_get hasNvidia)" != true ]; then
+            [ "$cmd" = status ] && echo unavailable
+            exit 0
+        fi
         case $cmd in
             status) [ -e "$shader_env" ] && echo on || echo off ;;
             set)

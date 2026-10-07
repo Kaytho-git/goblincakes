@@ -56,7 +56,7 @@ Window {
         id: tweakModel
         Component.onCompleted: {
             for (const t of JSON.parse(backend.tweaks).tweaks)
-                append({ "tweakId": t.id, "name": t.name, "desc": t.desc, "status": t.state, "message": "" });
+                append({ "tweakId": t.id, "name": t.name, "desc": t.desc, "status": t.state, "message": "", "note": t.note || "" });
         }
     }
 
@@ -554,10 +554,13 @@ Window {
                     required property string desc
                     required property string status
                     required property string message
+                    required property string note
                     readonly property bool available: status !== "unavailable"
 
+                    // Settings that don't fit this computer (no Nvidia card, one graphics card…) aren't shown
+                    visible: available
                     width: tweakRows.width
-                    height: Math.max(92, tweakText.height + 36)
+                    height: available ? Math.max(92, tweakText.height + 36) : 0
                     color: "#0E1420"
                     border.width: 1
                     border.color: status === "on" ? "#2F6FED" : "#1E2A40"
@@ -587,6 +590,15 @@ Window {
                             font.pixelSize: 13
                             wrapMode: Text.WordWrap
                             lineHeight: 1.15
+                        }
+                        Text {
+                            visible: tweakRow.note !== ""
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: tweakRow.note
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
                         }
                         Text {
                             visible: tweakRow.message !== ""
@@ -662,6 +674,32 @@ Window {
                         font.weight: Font.DemiBold
                         font.pixelSize: 16
                     }
+                }
+            }
+
+            // Laptop with two cards: which one does what
+            Rectangle {
+                visible: !!win.gpu.hybrid
+                width: gfxCol.width
+                height: hybridText.height + 36
+                color: "#0E1420"
+                border.width: 1
+                border.color: "#1E2A40"
+                Text {
+                    id: hybridText
+                    x: 22
+                    y: 18
+                    width: parent.width - 44
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.15
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 14
+                    textFormat: Text.StyledText
+                    text: "<font color='#E6ECF5'><b>" + (win.gpu.laptop ? "Laptop" : "Dator") + " med två grafikkort.</b></font> "
+                        + "Skrivbordet körs på det inbyggda kortet, som sparar ström. Spel från Steam, Lutris och Heroic startar på det kraftfulla "
+                        + (win.gpu.dgpu === "nvidia" ? "Nvidia-kortet" : win.gpu.dgpu === "amd" ? "AMD-kortet" : "kortet")
+                        + " (Optimering → Spel på det kraftfulla grafikkortet). Andra program: högerklicka → Kör med dedikerat grafikkort."
                 }
             }
 

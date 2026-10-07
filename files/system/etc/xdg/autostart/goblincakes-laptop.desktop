@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES laptop settings
+Comment=Games on the powerful graphics card and touchpad settings on laptops (nothing on desktops)
+Exec=/usr/libexec/goblincakes-laptop
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2

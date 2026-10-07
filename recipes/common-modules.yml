@@ -35,6 +35,7 @@ modules:
         - ddcutil               # monitor brightness over DDC/CI
         - gamemode              # performance mode while gaming
         - gamescope             # Valve's game compositor (gamescope -- spel)
+        - switcheroo-control    # laptops with two graphics cards: "Kör med dedikerat grafikkort"
         - ananicy-cpp           # keeps the desktop responsive under load
         - cachyos-ananicy-rules
 
@@ -90,6 +91,7 @@ modules:
       enabled:
         - ratbagd.service
         - ananicy-cpp.service
+        - switcheroo-control.service      # tells KDE about a second graphics card
         - snapd.socket                    # snap daemon, started on demand
         - goblincakes-snapd-setup.service # snap home folders + Claude desktop
 
