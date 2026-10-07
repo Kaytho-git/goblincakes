@@ -120,7 +120,7 @@ cmd_update() {
         printf '%s▌ Klart.%s\n' "$accent" "$reset"
     else
         printf '%s▌ Klart, men det här gick inte: %s%s\n' "$red" "${failed[*]}" "$reset"
-        info "Kolla nätverket och kör goblin update igen."
+        info "Meddelandena ovanför visar vad som hände. Kör goblin update igen – eller fråga Goblin AI (Meta+A)."
     fi
 
     if [ "$system_updated" = 1 ]; then

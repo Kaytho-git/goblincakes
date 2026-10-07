@@ -208,12 +208,17 @@ DESKTOP
         # Newest GE-Proton straight into Steam (in the image; also a Flatpak Steam if there is one)
         status "Letar efter senaste GE-Proton…"
         release=$(github_latest GloriousEggroll/proton-ge-custom)
-        read -r name url < <(echo "$release" | json_asset '\.tar\.gz$')
-        read -r _ sumurl < <(echo "$release" | json_asset '\.sha512sum$') || true
+        # Not the ARM builds (GE-Proton…-aarch64), they don't run on a normal PC
+        read -r name url < <(echo "$release" | json_asset '^(?!.*(aarch64|arm64)).*\.tar\.gz$')
+        read -r _ sumurl < <(echo "$release" | json_asset '^(?!.*(aarch64|arm64)).*\.sha512sum$') || true
         version=${name%.tar.gz}
         targets=("$HOME/.local/share/Steam/compatibilitytools.d")
         [ -d "$HOME/.var/app/com.valvesoftware.Steam" ] \
             && targets+=("$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/compatibilitytools.d")
+        # ARM builds fetched by mistake before (7 Oct): they don't run here, away with them
+        for t in "${targets[@]}"; do
+            rm -rf "$t"/GE-Proton*-aarch64 "$t"/GE-Proton*-arm64
+        done
         if [ -d "${targets[0]}/$version" ]; then
             status "$version finns redan"
             exit 0
