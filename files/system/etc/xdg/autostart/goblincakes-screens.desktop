@@ -1,0 +1,8 @@
+[Desktop Entry]
+# New screens: highest refresh rate each, the fastest one as main screen (once per combination)
+Type=Application
+Name=GOBLINCAKES screens
+Exec=/usr/libexec/goblincakes-screens
+NoDisplay=true
+OnlyShowIn=KDE;
+X-KDE-autostart-phase=2

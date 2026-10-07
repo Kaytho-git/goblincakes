@@ -1,0 +1,50 @@
+#!/usr/bin/python3
+# GOBLINCAKES: screens with different refresh rates (e.g. 180 Hz + 144 Hz).
+# Runs at every login, but does something only once for each new combination of screens:
+#  - every screen gets its highest refresh rate at its current resolution
+#    (Plasma picks the screen's "preferred" mode, which is sometimes only 60 Hz)
+#  - with several screens, the fastest one becomes priority 1 (main screen: games open there)
+# Changes made afterwards in System Settings → Display are kept.
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+state = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "goblincakes/screens-done"
+
+try:
+    data = json.loads(subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True).stdout)
+    outputs = [o for o in data.get("outputs", []) if o.get("connected") and o.get("enabled")]
+except (OSError, ValueError):
+    sys.exit(0)
+if not outputs:
+    sys.exit(0)
+
+combination = ",".join(sorted(o["name"] for o in outputs))
+done = state.read_text().split() if state.exists() else []
+if combination in done:
+    sys.exit(0)
+
+args = []
+fastest = None  # (name, refresh rate)
+for o in outputs:
+    modes = o.get("modes", [])
+    current = next((m for m in modes if m.get("id") == o.get("currentModeId")), None)
+    if not current:
+        continue
+    same_size = [m for m in modes if m.get("size") == current.get("size")]
+    top = max(same_size, key=lambda m: m.get("refreshRate", 0))
+    if top.get("refreshRate", 0) > current.get("refreshRate", 0) + 0.5:
+        args.append(f"output.{o['name']}.mode.{top['id']}")
+    if fastest is None or top.get("refreshRate", 0) > fastest[1]:
+        fastest = (o["name"], top.get("refreshRate", 0))
+
+if len(outputs) > 1 and fastest:
+    args.append(f"output.{fastest[0]}.priority.1")
+
+if args and subprocess.run(["kscreen-doctor", *args]).returncode != 0:
+    sys.exit(1)  # try again at the next login
+
+state.parent.mkdir(parents=True, exist_ok=True)
+state.write_text("\n".join(done + [combination]) + "\n")
