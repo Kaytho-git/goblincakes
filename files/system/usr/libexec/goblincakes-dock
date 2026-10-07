@@ -31,11 +31,10 @@ desktop_exists() { # desktop file name
     return 1
 }
 
-# Same apps as the Plasma dock: Firefox, Steam, Discord, VS Code, VLC – those that exist
+# Same apps as the Plasma dock, in this order: the terminal (Ghostty), Firefox – those that exist
 default_launchers() {
     local ids=() f
-    for f in org.mozilla.firefox.desktop steam.desktop com.discordapp.Discord.desktop \
-             code.desktop com.microsoft.VSCode.desktop org.videolan.VLC.desktop; do
+    for f in com.mitchellh.ghostty.desktop org.mozilla.firefox.desktop; do
         desktop_exists "$f" && ids+=("$(basename "$f" .desktop | tr '[:upper:]' '[:lower:]')")
     done
     (IFS=';'; echo "${ids[*]}")

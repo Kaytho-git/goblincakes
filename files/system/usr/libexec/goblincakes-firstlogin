@@ -2,7 +2,7 @@
 # Applies the GOBLINCAKES look once per user, and again whenever a new image
 # ships a changed desktop layout (bump LAYOUT_VERSION when the look-and-feel
 # layout, colour scheme or Ghostty defaults change).
-LAYOUT_VERSION=4
+LAYOUT_VERSION=5
 MARK="$HOME/.local/state/goblincakes/firstlogin-done"
 [ "$(cat "$MARK" 2>/dev/null)" = "$LAYOUT_VERSION" ] && exit 0
 
