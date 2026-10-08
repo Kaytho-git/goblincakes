@@ -7,6 +7,7 @@
 #   goblin wow         links every WoW version under ~/Games/WoW, updates WowUp
 #   goblin dock        reset – the desktop layout and dock back to the start (Meta shows the dock)
 #   goblin apps        Fedora programs hidden from AppGrid; show/hide them again
+#   goblin remove      uninstall a Fedora program from the system image (rpm-ostree override)
 #   goblin fast        system info with the GOBLINCAKES logo
 #   goblin motd        the command list shown in every new terminal (on/off)
 #   goblin help        list the commands
@@ -146,6 +147,7 @@ COMMANDS=(
     "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
     "dock reset|Återställ skrivbordet och dockan (Meta visar dockan, Shift+Meta appmenyn)"
     "apps|Dolda Fedora-program (Konsole, Discover …) – visa igen: goblin apps show konsole"
+    "remove|Avinstallera ett Fedora-program helt: goblin remove konsole (ångra: --undo)"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "fast|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
@@ -222,6 +224,7 @@ cmd_apps() {
         list)
             heading "Dolda Fedora-program"
             info "Finns kvar i systemet och fungerar, men syns inte i appmenyn."
+            info "Vill du bli av med ett helt: goblin remove <namn>"
             echo
             while read -r id; do
                 [ -n "$id" ] || continue
@@ -253,6 +256,139 @@ cmd_apps() {
             ;;
         *) printf 'Använd: goblin apps [show|hide <namn>]\n' >&2; return 2 ;;
     esac
+}
+
+# ---- goblin remove: take a program out of the system image (rpm-ostree override remove) ----
+removed_names="${XDG_STATE_HOME:-$HOME/.local/state}/goblincakes/removed-apps"
+# The desktop and GOBLINCAKES itself stand on these – hide them instead (goblin apps)
+protected=" dolphin plasma-systemsettings systemsettings plasma-desktop plasma-workspace kwin
+ kwin-wayland sddm ghostty steam plasma-applet-appgrid kscreen konsole-part plasma-discover-libs
+ rpm-ostree flatpak bash "
+
+# Package of a program by its id (org.kde.konsole), last part (konsole), name (Konsole)
+# or package name. Prints "package<TAB>name".
+find_package() {
+    local want=${1,,} f id name pkg
+    for f in /usr/share/applications/*.desktop; do
+        id=$(basename "$f" .desktop)
+        name=$(grep -m1 '^Name=' "$f" | cut -d= -f2-)
+        pkg=$(rpm -qf --qf '%{NAME}' "$f" 2>/dev/null) || continue
+        if [ "${id,,}" = "$want" ] || [ "$(short_name "$id")" = "$want" ] \
+           || [ "${name,,}" = "$want" ] || [ "$pkg" = "$want" ]; then
+            printf '%s\t%s\n' "$pkg" "$name"
+            return 0
+        fi
+    done
+    # Not a program with a menu entry, but an installed package of that name
+    if rpm -q "$1" >/dev/null 2>&1; then
+        printf '%s\t%s\n' "$1" "$1"
+        return 0
+    fi
+    return 1
+}
+
+# Packages removed from the image in the newest deployment (pending or running)
+removed_packages() {
+    rpm-ostree status --json 2>/dev/null | python3 -c '
+import json, sys
+d = json.load(sys.stdin)["deployments"][0]
+print("\n".join(d.get("requested-base-removals", [])))' 2>/dev/null
+}
+
+ask_reboot() {
+    echo
+    printf '%sÄndringen gäller efter en omstart. Starta om nu? [j/N] %s' "$frost" "$reset"
+    read -r answer
+    case $answer in
+        j|J|ja|Ja|y|Y) systemctl reboot ;;
+        *) info "Det gäller nästa gång du startar om datorn." ;;
+    esac
+}
+
+cmd_remove() {
+    local undo=0 found pkg name answer
+    if [ "${1:-}" = --undo ] || [ "${1:-}" = undo ]; then
+        undo=1
+        shift
+    fi
+
+    if [ -z "${1:-}" ]; then
+        heading "Avinstallerade Fedora-program"
+        local pkgs
+        pkgs=$(removed_packages)
+        if [ -z "$pkgs" ]; then
+            info "Inga – allt från GOBLINCAKES-imagen finns kvar."
+        else
+            while read -r pkg; do
+                name=$(grep -m1 "^$pkg|" "$removed_names" 2>/dev/null | cut -d'|' -f2)
+                printf '  %s✕%s %-28s %sta tillbaka: goblin remove --undo %s%s\n' "$red" "$reset" "${name:-$pkg}" "$muted" "$pkg" "$reset"
+            done <<< "$pkgs"
+        fi
+        echo
+        info "Avinstallera: goblin remove <namn>   (t.ex. konsole, discover, kwrite)"
+        info "Bara dölja i appmenyn: goblin apps"
+        return 0
+    fi
+
+    if [ "$undo" = 1 ]; then
+        # The program may already be gone from the menu: look up its package by the name we saved
+        pkg=$(grep -i -m1 -e "^$1|" -e "|$1\$" "$removed_names" 2>/dev/null | cut -d'|' -f1)
+        if [ -z "$pkg" ] && found=$(find_package "$1"); then
+            pkg=${found%%$'\t'*}
+        fi
+        pkg=${pkg:-$1}
+        if ! removed_packages | grep -qx "$pkg"; then
+            printf '%s▌ %s är inte avinstallerat.%s Se listan med: goblin remove\n' "$red" "$1" "$reset" >&2
+            return 1
+        fi
+        heading "Tar tillbaka $pkg"
+        if rpm-ostree override reset "$pkg"; then
+            sed -i "/^$pkg|/d" "$removed_names" 2>/dev/null
+            ask_reboot
+        else
+            printf '%s▌ Det gick inte – se meddelandet ovanför.%s\n' "$red" "$reset" >&2
+            return 1
+        fi
+        return 0
+    fi
+
+    if ! found=$(find_package "$1"); then
+        printf '%s▌ Hittar inget program som heter %s i systemet.%s\n' "$red" "$1" "$reset" >&2
+        info "Program från Config (Flatpak) tar du bort med: flatpak uninstall <namn>"
+        return 1
+    fi
+    pkg=${found%%$'\t'*}
+    name=${found#*$'\t'}
+    if [[ "$protected" == *" $pkg "* ]] || [[ "$pkg" == goblincakes* ]]; then
+        printf '%s▌ %s behövs av skrivbordet eller GOBLINCAKES och kan inte avinstalleras.%s\n' "$red" "$name" "$reset" >&2
+        info "Dölj det i appmenyn i stället (goblin apps), eller fråga Goblin AI."
+        return 1
+    fi
+    if removed_packages | grep -qx "$pkg"; then
+        info "$name är redan avinstallerat (gäller efter omstart). Ångra: goblin remove --undo $pkg"
+        return 0
+    fi
+
+    heading "Avinstallera $name"
+    info "Paketet $pkg tas bort ur systemet efter nästa omstart."
+    info "Det kommer tillbaka om du ångrar: goblin remove --undo $pkg"
+    printf '%sFortsätt? [j/N] %s' "$frost" "$reset"
+    read -r answer
+    case $answer in
+        j|J|ja|Ja|y|Y) ;;
+        *) info "Inget ändrades."; return 0 ;;
+    esac
+    if rpm-ostree override remove "$pkg"; then
+        mkdir -p "$(dirname "$removed_names")"
+        sed -i "/^$pkg|/d" "$removed_names" 2>/dev/null
+        printf '%s|%s\n' "$pkg" "$name" >> "$removed_names"
+        ask_reboot
+    else
+        echo
+        printf '%s▌ Det gick inte att avinstallera %s.%s\n' "$red" "$name" "$reset" >&2
+        info "Oftast för att andra delar av systemet behöver det. Dölj det i stället: goblin apps"
+        return 1
+    fi
 }
 
 cmd_fastfetch() {
@@ -290,6 +426,7 @@ case ${1:-help} in
     wow) heading "World of Warcraft"; exec /usr/libexec/goblincakes-wow-links --verbose ;;
     dock) shift; exec /usr/libexec/goblincakes-dock "${1:-}" ;;
     apps) shift; cmd_apps "$@" ;;
+    remove|uninstall) shift; cmd_remove "$@" ;;
     gamemode) cmd_gamemode ;;
     fast|fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;
