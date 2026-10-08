@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Uppdatera GOBLINCAKES
+GenericName=Uppdateringar
+Comment=Uppdatera systemet, program, AppImages, GE-Proton och firmware (som goblin update)
+Exec=goblincakes-config --tab update
+Icon=goblincakes
+Categories=System;Settings;
+Keywords=update;uppdatera;upgrade;goblin;system;

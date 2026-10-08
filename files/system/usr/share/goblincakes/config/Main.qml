@@ -19,7 +19,7 @@ Window {
     property int chosenCount: 0
     property string page: "choose" // choose → install → done
     property int failedCount: 0
-    property string tab: startTab // apps | tweaks | graphics
+    property string tab: startTab // apps | tweaks | graphics | update
     readonly property var gpu: JSON.parse(backend.gpu)
     property string gpuMessage: ""
     readonly property string mainBrowser: backend.mainBrowser // app id, "" = Firefox
@@ -27,6 +27,13 @@ Window {
     property string webappStatus: ""
     property bool webappBusy: false
     property var expanded: ({}) // category id → open
+    // Uppdatera tab
+    property string updateState: "idle" // idle → running → done
+    property real updateFrac: 0
+    property string updateTitle: ""
+    property string updateStatus: ""
+    property bool updateOk: true
+    property bool updateReboot: false
 
     function toggleCategory(id) {
         const e = Object.assign({}, expanded);
@@ -89,6 +96,19 @@ Window {
     }
 
     ListModel { id: progressModel }
+    ListModel { id: updateResults }
+    ListModel { id: updateNews }
+
+    function startUpdate() {
+        updateResults.clear();
+        updateNews.clear();
+        updateFrac = 0;
+        updateTitle = "Förbereder…";
+        updateStatus = "";
+        updateReboot = false;
+        updateState = "running";
+        backend.startUpdate();
+    }
 
     ListModel {
         id: tweakModel
@@ -125,6 +145,22 @@ Window {
         }
         function onGpuProgress(text) {
             win.gpuMessage = text;
+        }
+        function onUpdateProgress(frac, title, status) {
+            win.updateFrac = frac;
+            win.updateTitle = title;
+            win.updateStatus = status;
+        }
+        function onUpdateResult(name, ok, summary) {
+            updateResults.append({ "name": name, "ok": ok, "summary": summary });
+        }
+        function onUpdateNews(text) {
+            updateNews.append({ "text": text });
+        }
+        function onUpdateDone(ok, reboot) {
+            win.updateOk = ok;
+            win.updateReboot = reboot;
+            win.updateState = "done";
         }
         function onGpuDone(ok) {
             if (ok)
@@ -326,7 +362,9 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6
                 Text {
-                    text: win.tab === "graphics" ? "GRAFIK"
+                    text: win.tab === "update"
+                          ? (win.updateState === "running" ? "UPPDATERAR…" : win.updateState === "done" ? "UPPDATERAT" : "UPPDATERA")
+                        : win.tab === "graphics" ? "GRAFIK"
                         : win.tab === "tweaks" ? "OPTIMERING"
                         : win.page === "choose" ? "VÄLJ DINA PROGRAM"
                         : win.page === "install" ? "INSTALLERAR…" : "KLART"
@@ -337,7 +375,11 @@ Window {
                     font.letterSpacing: 4
                 }
                 Text {
-                    text: win.tab === "graphics"
+                    text: win.tab === "update"
+                        ? (win.updateState === "running" ? "Du kan använda datorn under tiden. Stäng inte fönstret."
+                           : win.updateState === "done" ? (win.updateOk ? "Allt är uppdaterat." : "Klart, men något gick inte – se listan nedan.")
+                           : "Systemet, program, AppImages, GE-Proton och firmware – samma som goblin update.")
+                        : win.tab === "graphics"
                         ? "Drivrutiner för ditt grafikkort. Den gamla varianten finns kvar i startmenyn om något går fel."
                         : win.tab === "tweaks"
                         ? "Inställningar för spel. Slå på det du vill ha – allt går att slå av igen."
@@ -369,7 +411,7 @@ Window {
             spacing: 32
 
             Repeater {
-                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "tweaks", "label": "OPTIMERING" }, { "id": "graphics", "label": "GRAFIK" }]
+                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "tweaks", "label": "OPTIMERING" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
 
                 Item {
                     id: tabItem
@@ -1218,11 +1260,195 @@ Window {
         }
     }
 
+    // ── Uppdatera: goblin update in a window ─────────────────
+
+    Flickable {
+        id: updateView
+        visible: win.tab === "update"
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
+        contentHeight: updCol.height + 64
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        Column {
+            id: updCol
+            x: 48
+            y: 32
+            width: updateView.width - 96
+            spacing: 14
+
+            // Before the first run: what it does
+            Text {
+                visible: win.updateState === "idle"
+                width: updCol.width
+                wrapMode: Text.WordWrap
+                lineHeight: 1.2
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 15
+                textFormat: Text.StyledText
+                text: "Hämtar den senaste GOBLINCAKES-versionen och uppdaterar dina program (Flatpak), AppImages som WowUp och Raider.IO, "
+                    + "GE-Proton och firmware. Den nya GOBLINCAKES-versionen används efter en omstart – den förra finns kvar i startmenyn.<br><br>"
+                    + "<font color='#E6ECF5'>Tryck Uppdatera allt</font> för att börja. Systemet kan fråga efter ditt lösenord."
+            }
+
+            // Progress
+            Text {
+                visible: win.updateState !== "idle"
+                text: win.updateState === "done" ? "KLART" : win.updateTitle.toUpperCase()
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.weight: Font.DemiBold
+                font.pixelSize: 14
+                font.letterSpacing: 2.5
+            }
+            Rectangle {
+                visible: win.updateState !== "idle"
+                width: updCol.width
+                height: 12
+                color: "#0E1420"
+                border.width: 1
+                border.color: "#1E2A40"
+                Rectangle {
+                    x: 1
+                    y: 1
+                    height: parent.height - 2
+                    width: Math.max(0, (parent.width - 2) * (win.updateState === "done" ? 1 : win.updateFrac))
+                    color: win.updateState === "done" && !win.updateOk ? "#A4262C" : "#2F6FED"
+                    Behavior on width { NumberAnimation { duration: 250 } }
+                }
+            }
+            Text {
+                visible: win.updateState === "running"
+                width: updCol.width
+                elide: Text.ElideRight
+                text: win.updateStatus || "…"
+                color: "#8B98AD"
+                font.family: "IBM Plex Mono"
+                font.pixelSize: 13
+            }
+
+            Item { width: 1; height: 8; visible: updateResults.count > 0 }
+
+            // What was updated
+            Text {
+                visible: updateResults.count > 0
+                text: "UPPDATERAT"
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.weight: Font.DemiBold
+                font.pixelSize: 14
+                font.letterSpacing: 2.5
+            }
+            Repeater {
+                model: updateResults
+                Rectangle {
+                    required property string name
+                    required property bool ok
+                    required property string summary
+                    width: updCol.width
+                    height: Math.max(56, resultText.height + 28)
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: ok ? "#1E2A40" : "#A4262C"
+                    Rectangle {
+                        id: resultMark
+                        anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
+                        width: 24
+                        height: 24
+                        color: ok ? "#12203A" : "#A4262C"
+                        border.width: 1
+                        border.color: ok ? "#2F6FED" : "#A4262C"
+                        Text {
+                            anchors.centerIn: parent
+                            text: ok ? "✓" : "!"
+                            color: ok ? "#2F6FED" : "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.Bold
+                            font.pixelSize: 14
+                        }
+                    }
+                    Text {
+                        id: resultName
+                        anchors { left: resultMark.right; leftMargin: 16; verticalCenter: parent.verticalCenter }
+                        width: 190
+                        elide: Text.ElideRight
+                        text: name
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 15
+                    }
+                    Text {
+                        id: resultText
+                        anchors { left: resultName.right; leftMargin: 12; right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                        wrapMode: Text.WordWrap
+                        text: summary
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                    }
+                }
+            }
+
+            Item { width: 1; height: 8; visible: updateNews.count > 0 }
+
+            // What's new in the downloaded GOBLINCAKES version
+            Text {
+                visible: updateNews.count > 0
+                text: "NYTT I GOBLINCAKES"
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.weight: Font.DemiBold
+                font.pixelSize: 14
+                font.letterSpacing: 2.5
+            }
+            Rectangle {
+                visible: updateNews.count > 0
+                width: updCol.width
+                height: newsCol.height + 32
+                color: "#0E1420"
+                border.width: 1
+                border.color: "#1E2A40"
+                Column {
+                    id: newsCol
+                    x: 20
+                    y: 16
+                    width: parent.width - 40
+                    spacing: 8
+                    Repeater {
+                        model: updateNews
+                        Row {
+                            required property string text
+                            width: newsCol.width
+                            spacing: 10
+                            Text {
+                                text: parent.text.startsWith("Fedora:") ? " " : "•"
+                                color: "#2F6FED"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 14
+                            }
+                            Text {
+                                width: newsCol.width - 20
+                                wrapMode: Text.WordWrap
+                                text: parent.text
+                                color: parent.text.startsWith("Fedora:") ? "#8B98AD" : "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 14
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Scroll bars for the lists above (shown only when a list is longer than the window)
     FlatScrollBar { flick: chooser }
     FlatScrollBar { flick: progressView }
     FlatScrollBar { flick: tweaksView }
     FlatScrollBar { flick: graphicsView }
+    FlatScrollBar { flick: updateView }
 
     // ── Footer ───────────────────────────────────────────────
 
@@ -1241,7 +1467,10 @@ Window {
         Text {
             anchors { left: parent.left; leftMargin: 48; verticalCenter: parent.verticalCenter }
             visible: win.tab !== "apps" || win.page === "choose"
-            text: win.tab === "graphics" ? "Bytet frågar efter ditt lösenord."
+            text: win.tab === "update"
+                    ? (win.updateState === "done" && win.updateReboot ? "Den nya versionen används efter en omstart."
+                       : win.updateState === "running" ? "Uppdaterar…" : "Samma sak som goblin update i terminalen.")
+                : win.tab === "graphics" ? "Bytet frågar efter ditt lösenord."
                 : win.tab === "tweaks" ? "Ändringar gäller direkt. Systeminställningar frågar efter ditt lösenord."
                 : win.chosenCount === 0 ? "Inget valt" : win.chosenCount === 1 ? "1 program valt" : win.chosenCount + " program valda"
             color: "#8B98AD"
@@ -1278,10 +1507,22 @@ Window {
                 onClicked: win.finish()
             }
             FlatButton {
-                visible: win.tab !== "apps"
+                visible: win.tab === "update" && win.updateState !== "running"
+                primary: !(win.updateState === "done" && win.updateReboot)
+                text: win.updateState === "done" ? "Uppdatera igen" : "Uppdatera allt"
+                onClicked: win.startUpdate()
+            }
+            FlatButton {
+                visible: win.tab === "update" && win.updateState === "done" && win.updateReboot
                 primary: true
-                // Not while apps are still installing
-                enabledState: win.page !== "install"
+                text: "Starta om nu"
+                onClicked: backend.reboot()
+            }
+            FlatButton {
+                visible: win.tab !== "apps"
+                primary: win.tab !== "update"
+                // Not while apps are installing or the system is updating
+                enabledState: win.page !== "install" && win.updateState !== "running"
                 text: "Stäng"
                 onClicked: win.finish()
             }

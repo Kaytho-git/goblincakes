@@ -27,21 +27,32 @@ else
     accent= frost= muted= red= bold= reset=
 fi
 
-heading() { printf '\n%s▌ %s%s\n' "$accent" "$1" "$reset"; }
-info() { printf '%s  %s%s\n' "$muted" "$1" "$reset"; }
+# GUI=1: `goblin update --gui` for GOBLINCAKES Config's Uppdatera tab – plain "@@" lines
+# it reads (@@step, @@result, @@reboot, @@news; "@@ text" = status), no questions asked.
+GUI=0
+heading() { if [ "$GUI" = 1 ]; then echo "@@step $1"; else printf '\n%s▌ %s%s\n' "$accent" "$1" "$reset"; fi; }
+info() { if [ "$GUI" = 1 ]; then echo "@@ $1"; else printf '%s  %s%s\n' "$muted" "$1" "$reset"; fi; }
 
 failed=()
 step() { # name, command… – runs it, remembers failures, carries on
     local name=$1; shift
     if ! "$@"; then
         failed+=("$name")
-        printf '%s  %s gick inte att uppdatera%s\n' "$red" "$name" "$reset"
+        if [ "$GUI" = 1 ]; then echo "@@result $name|fail"; else
+            printf '%s  %s gick inte att uppdatera%s\n' "$red" "$name" "$reset"; fi
+    else
+        [ "$GUI" = 1 ] && echo "@@result $name|ok"
     fi
+    return 0
 }
 
 # The setup helper prints "@@ status" lines for the GOBLINCAKES Config window
 config_step() {
-    "$config_install" "$@" 2>&1 | sed -u -n 's/^@@ /  /p'
+    if [ "$GUI" = 1 ]; then
+        "$config_install" "$@" 2>&1 | grep --line-buffered '^@@ '
+    else
+        "$config_install" "$@" 2>&1 | sed -u -n 's/^@@ /  /p'
+    fi
     return "${PIPESTATUS[0]}"
 }
 
@@ -59,7 +70,7 @@ update_system() {
         sleep 5
     done
     case $code in
-        0) system_updated=1 ;;
+        0) system_updated=1; info "Ny GOBLINCAKES-version hämtad – används efter en omstart" ;;
         77)
             # Automatic updates may already have fetched it in the background: then
             # it's waiting for a restart, and "nothing new" would be misleading
@@ -75,9 +86,19 @@ sys.exit(0 if any(d.get("staged") for d in json.load(sys.stdin).get("deployments
     esac
 }
 
+flatpak_apps() { flatpak list --app --columns=application,name,version,active 2>/dev/null | sort; }
+
 update_flatpaks() {
     heading "Flatpak-program"
-    flatpak update --assumeyes --noninteractive && flatpak uninstall --unused --assumeyes --noninteractive >/dev/null
+    local before after changed
+    before=$(flatpak_apps)
+    flatpak update --assumeyes --noninteractive || return 1
+    flatpak uninstall --unused --assumeyes --noninteractive >/dev/null
+    after=$(flatpak_apps)
+    # Programs whose installed commit changed: name and new version
+    changed=$(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after") \
+        | awk -F'\t' 'NF { print $2 ($3 != "" ? " " $3 : "") }' | paste -sd, - | sed 's/,/, /g')
+    if [ -n "$changed" ]; then info "Uppdaterat: $changed"; else info "Inget nytt"; fi
 }
 
 update_appimages() {
@@ -114,11 +135,16 @@ update_firmware() {
     fwupdmgr update --assume-yes --no-reboot-check
     local code=$?
     # 2 = nothing to update
-    [ "$code" = 0 ] || [ "$code" = 2 ]
+    case $code in
+        0) info "Ny firmware installerad" ;;
+        2) info "Ingen ny firmware" ;;
+        *) return 1 ;;
+    esac
 }
 
 cmd_update() {
-    printf '%s%sGOBLINCAKES%s %suppdaterar allt%s\n' "$bold" "$frost" "$reset" "$muted" "$reset"
+    [ "${1:-}" = --gui ] && GUI=1
+    [ "$GUI" = 1 ] || printf '%s%sGOBLINCAKES%s %suppdaterar allt%s\n' "$bold" "$frost" "$reset" "$muted" "$reset"
     system_updated=0
     step "Systemet" update_system
     step "Flatpak-program" update_flatpaks
@@ -128,6 +154,15 @@ cmd_update() {
     [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/themes/GoblinCakes" ] && "$config_install" gtk-theme >/dev/null 2>&1
     step "Firmware" update_firmware
 
+    if [ "$GUI" = 1 ]; then
+        if [ "$system_updated" = 1 ]; then
+            /usr/libexec/goblincakes-news update 2>/dev/null \
+                | sed -n 's/^ *• */@@news /p; s/^ *Fedora: /@@news Fedora: /p'
+            echo "@@reboot"
+        fi
+        [ ${#failed[@]} -eq 0 ]
+        return
+    fi
     echo
     if [ ${#failed[@]} -eq 0 ]; then
         printf '%s▌ Klart.%s\n' "$accent" "$reset"
@@ -406,7 +441,7 @@ cmd_motd() {
 }
 
 case ${1:-help} in
-    update|upgrade) cmd_update ;;
+    update|upgrade) shift; cmd_update "$@" ;;
     ai) shift
         # Without a question, on the desktop: the Goblin AI window (also Meta+A)
         if [ $# -eq 0 ] && { [ -n "${WAYLAND_DISPLAY:-}" ] || [ -n "${DISPLAY:-}" ]; }; then

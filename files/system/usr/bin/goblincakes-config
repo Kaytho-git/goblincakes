@@ -8,6 +8,7 @@ optimisations by /usr/libexec/goblincakes-tweak (through pkexec when they change
 graphics drivers by /usr/libexec/goblincakes-gpu (switching between the AMD/Intel and Nvidia variants).
 """
 import json
+import re
 import os
 import sys
 from datetime import datetime
@@ -51,6 +52,12 @@ class Config(QObject):
     webappsChanged = Signal()
     webappProgress = Signal(str)  # status line while making a web app
     webappDone = Signal(bool)
+    # Uppdatera tab (`goblin update --gui`)
+    updateBusyChanged = Signal()
+    updateProgress = Signal(float, str, str)  # 0–1, step title, latest status line
+    updateResult = Signal(str, bool, str)  # name, ok, summary
+    updateNews = Signal(str)
+    updateDone = Signal(bool, bool)  # all ok, restart needed
 
     def __init__(self):
         super().__init__()
@@ -88,6 +95,7 @@ class Config(QObject):
         self._tweak_procs = {}
         self._gpu = "{}"
         self._gpu_proc = None
+        self._update_proc = None
         self.refreshGpu()
 
     # ── Apps ──────────────────────────────────────────────────
@@ -365,6 +373,86 @@ class Config(QObject):
     def reboot(self):
         QProcess.startDetached("systemctl", ["reboot"])
 
+    # ── Uppdatera: `goblin update --gui` ──────────────────────
+
+    # The steps in goblin update's order (its @@step headings), for the progress bar
+    UPDATE_STEPS = ["System (GOBLINCAKES-imagen)", "Flatpak-program", "AppImage-program", "GE-Proton", "Firmware"]
+
+    @Property(bool, notify=updateBusyChanged)
+    def updateBusy(self):
+        return self._update_proc is not None
+
+    @Slot()
+    def startUpdate(self):
+        if self._update_proc:
+            return
+        state = {"step": 0, "title": "Förbereder…", "frac": 0.0, "status": "", "summary": "", "since_result": False,
+                 "reboot": False, "buf": ""}
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+
+        def emit():
+            total = len(self.UPDATE_STEPS)
+            self.updateProgress.emit(min(1.0, (state["step"] + state["frac"]) / total), state["title"], state["status"])
+
+        def line(text):
+            text = text.strip()
+            if not text:
+                return
+            print(text, flush=True)
+            if text.startswith("@@step "):
+                title = text[7:]
+                if title in self.UPDATE_STEPS:
+                    state["step"] = self.UPDATE_STEPS.index(title)
+                state["title"], state["frac"], state["status"] = title, 0.0, ""
+            elif text.startswith("@@result "):
+                name, _, result = text[9:].partition("|")
+                # Steps with nothing to do (e.g. GE-Proton when it isn't used) said nothing: skip
+                if state["since_result"] or result != "ok":
+                    self.updateResult.emit(name, result == "ok",
+                                           state["summary"] if state["since_result"] else "Gick inte att uppdatera")
+                state["since_result"] = False
+            elif text.startswith("@@news "):
+                self.updateNews.emit(text[7:])
+            elif text == "@@reboot":
+                state["reboot"] = True
+            elif text.startswith("@@ "):
+                state["status"] = state["summary"] = text[3:]
+                state["since_result"] = True
+            else:
+                # rpm-ostree: "[12/23] Fetching layer …" → progress inside the system step
+                m = re.match(r"\[(\d+)/(\d+)\]\s+Fetching", text)
+                if m:
+                    state["frac"] = 0.9 * int(m.group(1)) / max(1, int(m.group(2)))
+                elif text.startswith("Staging deployment"):
+                    state["frac"] = 0.95
+                state["status"] = text if len(text) < 140 else text[:137] + "…"
+            emit()
+
+        def read():
+            # flatpak redraws its progress with \r: treat that as a new line too
+            state["buf"] += bytes(proc.readAllStandardOutput()).decode(errors="replace").replace("\r", "\n")
+            *lines, state["buf"] = state["buf"].split("\n")
+            for text in lines:
+                line(text)
+
+        def finished(code, exit_status):
+            line(state["buf"])
+            self._update_proc = None
+            self.updateBusyChanged.emit()
+            state["step"], state["frac"] = len(self.UPDATE_STEPS), 0.0
+            state["title"], state["status"] = "Klart", ""
+            emit()
+            self.updateDone.emit(exit_status == QProcess.NormalExit and code == 0, state["reboot"])
+
+        proc.readyReadStandardOutput.connect(read)
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda e: finished(-1, QProcess.CrashExit) if e == QProcess.FailedToStart else None)
+        self._update_proc = proc
+        self.updateBusyChanged.emit()
+        emit()
+        proc.start("goblin", ["update", "--gui"])
+
     @Slot()
     def enrollKey(self):
         """Secure Boot: Universal Blue's driver key, confirmed once in the blue MOK screen at the next start."""
@@ -402,7 +490,7 @@ def main():
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("backend", backend)
     start_tab = sys.argv[sys.argv.index("--tab") + 1] if "--tab" in sys.argv[:-1] else "apps"
-    engine.rootContext().setContextProperty("startTab", {"graphics": "graphics", "tweaks": "tweaks"}.get(start_tab, "apps"))
+    engine.rootContext().setContextProperty("startTab", {"graphics": "graphics", "tweaks": "tweaks", "update": "update"}.get(start_tab, "apps"))
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO", "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")))
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
