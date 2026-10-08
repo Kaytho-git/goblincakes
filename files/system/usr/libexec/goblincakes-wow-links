@@ -1,14 +1,16 @@
 #!/usr/bin/python3
 """GOBLINCAKES: every installed WoW version linked under ~/Games/WoW, where it really is.
 
-  ~/Games/WoW/World of Warcraft   → the WoW folder itself (Raider.IO, Archon: pick this once)
+  ~/Games/WoW/World of Warcraft   → the WoW folder itself (Archon: pick this once)
+  ~/Games/World of Warcraft       → the same, where Raider.IO looks by itself on its first start
   ~/Games/WoW/<Version>/Logs      → that version's Logs (combat logs)
   ~/Games/WoW/<Version>/AddOns    → that version's Interface/AddOns
   Versions: Retail, Classic, Classic Era, Anniversary, PTR, XPTR, Beta, Classic PTR …
 
 WoW is looked for in every Wine prefix (Lutris, ~/.wine, Steam), on the other disks the
 prefixes reach through drive letters (D:, E: …) and on the mounted disks; the links follow
-WoW if it moves. WowUp is told about every version too (its own settings file), so its
+WoW if it moves. WowUp and Raider.IO are told about every version too (their own settings
+files – Archon keeps its settings in its browser storage, so it gets the link), so their
 version list stays right. Runs at every login and as `goblin wow` (--verbose).
 """
 import json
@@ -179,6 +181,51 @@ def update_wowup(found):
             say("WowUp: WoW-versionerna är uppdaterade.")
 
 
+# Raider.IO's own name for each WoW version (from its code: folderNames in index.cjs)
+RAIDERIO_GAMES = {"wowretail": "_retail_", "wowclassic": "_classic_",
+                  "wowera": "_classic_era_", "wowforever": "_classic_beta_"}
+
+
+def update_raiderio(found, wow_folder):
+    """Raider.IO (closed source, but its Electron code is readable): settings in
+    ~/.config/RaiderIO/config.json, gameConfigs.<game>.wowFolder = the version folder
+    (_retail_ …), valid only with a WTF folder in it. Filled in when empty or gone –
+    a folder the user picked stays. Before its first start it finds WoW by itself in
+    ~/Games/World of Warcraft (detectWowFolder), so that link is made too."""
+    link(HOME / "Games" / "World of Warcraft", wow_folder)
+    files = [p for p in (HOME / ".config" / d / "config.json" for d in ("RaiderIO", "raiderio-client"))
+             if p.is_file()]
+    if not files:
+        return
+    if subprocess.run(["pgrep", "-if", "raiderio"], capture_output=True).returncode == 0:
+        say("Raider.IO är igång – stäng den och kör goblin wow igen, så hittar den WoW.")
+        return
+    for config in files:
+        try:
+            data = json.loads(config.read_text())
+        except (OSError, ValueError):
+            continue
+        games = data.get("gameConfigs")
+        if not isinstance(games, dict):
+            continue
+        changed = False
+        for game, flavor in RAIDERIO_GAMES.items():
+            if flavor not in found or not isinstance(games.get(game), dict):
+                continue
+            current = games[game].get("wowFolder") or ""
+            if current and (Path(current) / "WTF").is_dir():
+                continue  # already a working WoW folder – the user's choice stays
+            folder = found[flavor][0]
+            (folder / "WTF").mkdir(exist_ok=True)  # Raider.IO only accepts a folder with WTF
+            games[game]["wowFolder"] = str(folder)
+            changed = True
+        if changed:
+            tmp = config.with_suffix(".json.goblincakes")
+            tmp.write_text(json.dumps(data, indent=2))
+            tmp.replace(config)
+            say("Raider.IO: WoW-mappen är inlagd.")
+
+
 def main():
     found = find_versions(search_roots())
     if not found:
@@ -186,9 +233,11 @@ def main():
         return 1 if VERBOSE else 0
     wow_folder = update_links(found)
     update_wowup(found)
+    update_raiderio(found, wow_folder)
     if VERBOSE:
         print(f"WoW-mappen: {wow_folder}")
-        print(f"  ~/Games/WoW/World of Warcraft  ← välj den här i Raider.IO och Archon (en gång)")
+        print(f"  WowUp och Raider.IO får WoW-mappen automatiskt")
+        print(f"  ~/Games/WoW/World of Warcraft  ← välj den här i Archon (en gång)")
         for flavor, (folder, _exe, _mtime) in sorted(found.items(), key=lambda kv: FLAVORS[kv[0]][1]):
             name = FLAVORS[flavor][0]
             print(f"  ~/Games/WoW/{name}/Logs och AddOns → {folder}")
