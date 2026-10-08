@@ -23,10 +23,10 @@ var apps = topBar.addWidget("dev.xarbit.appgrid");
 apps.currentConfigGroup = ["General"];
 apps.writeConfig("icon", "goblincakes");
 
-// Open programs (icon + name), left-aligned after the logo. It fills the free
+// Open programs (icons only), left-aligned after the logo. It fills the free
 // space, so it grows to the right while "now playing" grows to the left.
 // No pinned launchers: pinning is the dock's job.
-var running = topBar.addWidget("org.kde.plasma.taskmanager");
+var running = topBar.addWidget("org.kde.plasma.icontasks");
 running.currentConfigGroup = ["General"];
 running.writeConfig("launchers", []);
 running.writeConfig("fill", true);
