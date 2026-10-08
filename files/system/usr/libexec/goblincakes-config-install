@@ -99,6 +99,7 @@ check() {
         # Installed with today's container setup (see layout in goblincakes-ianseo)
         snap) snap list "$1" >/dev/null 2>&1 ;;
         battlenet) compgen -G "$HOME/Games/battlenet*/drive_c" >/dev/null ;;
+        claude-code) [ -x "$HOME/.local/bin/claude" ] ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;
         *) return 1 ;;
@@ -413,6 +414,20 @@ PY
 
     ianseo)
         exec /usr/libexec/goblincakes-ianseo install
+        ;;
+
+    claude-code)
+        # Claude Code (Anthropic's coding assistant in the terminal and VS Code), with
+        # Anthropic's own installer: everything goes into the home folder (~/.local/bin/claude),
+        # so it works on the read-only system and keeps itself up to date.
+        # git and GitHub CLI (gh) are in the image already.
+        status "Hämtar Claude Code från Anthropic…"
+        if ! out=$(curl -fsSL https://claude.ai/install.sh | bash 2>&1); then
+            echo "$out" >&2
+            status "$(echo "$out" | tail -n1)"
+            exit 1
+        fi
+        status "Klart – öppna en terminal och skriv claude (logga in på GitHub med gh auth login)"
         ;;
 
     *)

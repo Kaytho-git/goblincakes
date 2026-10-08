@@ -44,7 +44,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 
 ### GOBLINCAKES Config
 Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+C** eller från appmenyn:
-- **Program** – välj det du vill ha: Discord, Lutris, Heroic, OBS, Spotify, GIMP, LibreOffice, Claude, streamingtjänster (Netflix, SVT Play m.fl.), emulatorer (RetroDECK, Steam ROM Manager) och mycket mer.
+- **Program** – välj det du vill ha: Discord, Lutris, Heroic, OBS, Spotify, GIMP, LibreOffice, Claude, Claude Code, streamingtjänster (Netflix, SVT Play m.fl.), emulatorer (RetroDECK, Steam ROM Manager) och mycket mer.
 - **Optimering** – spelinställningar som reglage.
 - **Grafik** – byt mellan AMD/Intel- och Nvidia-drivrutiner med en knapp.
 
@@ -64,6 +64,7 @@ Du får också en notis när GOBLINCAKES har gått över till en ny Fedora-versi
 - Piper (för möss som Logitech G502), VIA (tangentbord som Keychron), ddcutil (skärmens ljusstyrka).
 - Alla diskar syns och monteras automatiskt – även för Steam.
 - Snap-stöd utöver Flatpak.
+- **För egna projekt:** git, GitHub CLI (`gh`) och VS Code är med från start; Claude Code installeras med ett klick i Config.
 
 ## Två varianter
 
