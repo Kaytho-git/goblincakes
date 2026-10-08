@@ -187,7 +187,8 @@ m = re.search(r"<title[^>]*>(.*?)</title>", sys.stdin.read(400000), re.S | re.I)
 t = html.unescape(m.group(1)).strip() if m else ""
 # "Inbox – Mail – Site" → the most site-like part: the last one, unless it is long
 parts = [p.strip() for p in re.split(r"\s[|·–—-]\s", t) if p.strip()]
-print((parts[-1] if parts and len(parts[-1]) <= 30 else (parts[0] if parts else ""))[:40])' 2>/dev/null)
+print((parts[-1] if parts and len(parts[-1]) <= 30 else (parts[0] if parts else ""))[:40])' 2>/dev/null) \
+                || name=""  # many sites refuse scripts (403, Cloudflare check): not an error
             [ -n "$name" ] || name=${host#www.}
         fi
         id=custom-$(printf '%s' "${url#*://}" | tr '[:upper:]' '[:lower:]' | sed 's|[^a-z0-9]\+|-|g; s|^-||; s|-$||' | cut -c1-60)
