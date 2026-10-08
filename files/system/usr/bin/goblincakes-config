@@ -14,12 +14,33 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QProcess, QUrl, Property, Signal, Slot
-from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon
+from PySide6.QtCore import QObject, QProcess, QSize, Qt, QUrl, Property, Signal, Slot
+from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuick import QQuickImageProvider
 
 SHARE = Path(os.environ.get("GOBLINCAKES_CONFIG_SHARE", "/usr/share/goblincakes/config"))
 HELPER = os.environ.get("GOBLINCAKES_CONFIG_HELPER", "/usr/libexec/goblincakes-config-install")
+APPS = os.environ.get("GOBLINCAKES_CONFIG_APPS", "/usr/libexec/goblincakes-apps")
+
+
+class IconProvider(QQuickImageProvider):
+    """image://icon/<name or path> – a program's own icon from the icon theme (tab FÖRINSTALLERAT)."""
+
+    def __init__(self):
+        super().__init__(QQuickImageProvider.Pixmap)
+
+    def requestPixmap(self, name, size, requested):
+        icon = QIcon(name) if name.startswith("/") else QIcon.fromTheme(name)
+        side = max(requested.width(), requested.height(), 48)
+        pixmap = icon.pixmap(QSize(side, side)) if not icon.isNull() else QPixmap()
+        if pixmap.isNull():
+            pixmap = QPixmap(1, 1)
+            pixmap.fill(Qt.GlobalColor.transparent)
+        if size is not None:
+            size.setWidth(pixmap.width())
+            size.setHeight(pixmap.height())
+        return pixmap
 TWEAK = os.environ.get("GOBLINCAKES_CONFIG_TWEAK", "/usr/libexec/goblincakes-tweak")
 GPU = os.environ.get("GOBLINCAKES_CONFIG_GPU", "/usr/libexec/goblincakes-gpu")
 BROWSER = os.environ.get("GOBLINCAKES_CONFIG_BROWSER", "/usr/libexec/goblincakes-browser")
@@ -50,6 +71,7 @@ class Config(QObject):
     catalogChanged = Signal()
     mainBrowserChanged = Signal()
     webappsChanged = Signal()
+    systemAppsChanged = Signal()  # tab FÖRINSTALLERAT
     webappProgress = Signal(str)  # status line while making a web app
     webappDone = Signal(bool)
     # Uppdatera tab (`goblin update --gui`)
@@ -96,6 +118,7 @@ class Config(QObject):
         self._gpu = "{}"
         self._gpu_proc = None
         self._update_proc = None
+        self._system_apps = "[]"  # filled when the tab FÖRINSTALLERAT opens
         self.refreshGpu()
 
     # ── Apps ──────────────────────────────────────────────────
@@ -169,6 +192,27 @@ class Config(QObject):
     def removeWebapp(self, app_id):
         run(HELPER, ["webapp-remove", app_id])
         self.refreshWebapps()
+
+    # ── Förinstallerat: show/hide preinstalled programs in AppGrid ──
+
+    @Property(str, notify=systemAppsChanged)
+    def systemApps(self):
+        return self._system_apps
+
+    @Slot()
+    def refreshSystemApps(self):
+        code, out = run(APPS, ["list"], timeout=30000)
+        self._system_apps = out if code == 0 and out.startswith("[") else "[]"
+        self.systemAppsChanged.emit()
+
+    @Slot(str, bool)
+    def setAppVisible(self, app_id, show):
+        run(APPS, ["set", app_id, "show" if show else "hide"])
+
+    @Slot()
+    def openRemover(self):
+        """Uninstalling for real: the separate window (rpm-ostree, after a restart)."""
+        QProcess.startDetached("/usr/libexec/goblincakes-remove-apps", [])
 
     @Property(str, constant=True)
     def version(self):
@@ -488,9 +532,10 @@ def main():
 
     backend = Config()
     engine = QQmlApplicationEngine()
+    engine.addImageProvider("icon", IconProvider())
     engine.rootContext().setContextProperty("backend", backend)
     start_tab = sys.argv[sys.argv.index("--tab") + 1] if "--tab" in sys.argv[:-1] else "apps"
-    engine.rootContext().setContextProperty("startTab", {"graphics": "graphics", "tweaks": "tweaks", "update": "update"}.get(start_tab, "apps"))
+    engine.rootContext().setContextProperty("startTab", {"graphics": "graphics", "tweaks": "tweaks", "update": "update", "system": "system"}.get(start_tab, "apps"))
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO", "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")))
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))

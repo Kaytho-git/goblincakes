@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-08  Ny flik i GOBLINCAKES Config, Förinstallerat: alla program som följer med GOBLINCAKES, med reglage för att visa eller dölja dem i AppGrid
 2026-10-08  GOBLINCAKES Config har en ny flik, Uppdatera: förlopp, vad som uppdaterades, nyheterna och knappen Starta om nu (också "Uppdatera GOBLINCAKES" i AppGrid)
 2026-10-08  goblin update visar exakt vilka Flatpak-program som uppdaterades
 2026-10-08  goblin update visar vad som är nytt när en ny version har hämtats (och goblin nyheter visar det när du vill)

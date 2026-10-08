@@ -1,0 +1,160 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: every preinstalled program (Fedora, Universal Blue, GOBLINCAKES …) and
+whether it shows in AppGrid – for GOBLINCAKES Config's tab FÖRINSTALLERAT.
+
+    goblincakes-apps list              JSON [{id, name, comment, icon, visible, default, source}]
+    goblincakes-apps set <id> show|hide
+
+Showing/hiding is per user and changes nothing in the system: a copy of the program's
+menu entry in ~/.local/share/applications with NoDisplay set wins over the system's
+one (the program stays installed and works – file types, Dolphin's menus, other
+programs). Back to how GOBLINCAKES ships it = the copy is removed. The same copies are
+what `goblin apps show|hide` makes for the Fedora programs GOBLINCAKES hides.
+"""
+import configparser
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+SYSTEM = Path("/usr/share/applications")
+USER = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "applications"
+HIDDEN_LIST = Path("/usr/share/goblincakes/hidden-apps")  # hidden by GOBLINCAKES (hide-apps.sh)
+MARK = "X-GOBLINCAKES-Visibility"  # our copies; a user's own edited copy is changed in place
+
+
+def entry(path):
+    cp = configparser.RawConfigParser(interpolation=None, strict=False)
+    cp.optionxform = str
+    try:
+        cp.read(path, encoding="utf-8")
+        return dict(cp["Desktop Entry"])
+    except (configparser.Error, KeyError, UnicodeDecodeError, OSError):
+        return None
+
+
+def localized(e, key):
+    lang = (os.environ.get("LANG") or "").split(".")[0]
+    for k in (f"{key}[{lang}]", f"{key}[{lang.split('_')[0]}]", key):
+        if e.get(k):
+            return e[k]
+    return ""
+
+
+def hidden_by_goblincakes():
+    try:
+        return {l.strip() for l in HIDDEN_LIST.read_text().splitlines() if l.strip()}
+    except OSError:
+        return set()
+
+
+def sources(paths):
+    """{path: "Fedora" / "Universal Blue" / "RPM Fusion" / "COPR" / "GOBLINCAKES"} from the RPM database."""
+    out = {}
+    if not paths:
+        return out
+    res = subprocess.run(["rpm", "-qf", "--qf", "%{VENDOR}|%{NAME}\n", *map(str, paths)],
+                         capture_output=True, text=True)
+    lines = res.stdout.splitlines()
+    for path, line in zip(paths, lines):
+        vendor = line.split("|")[0] if "|" in line else ""
+        name = line.split("|")[1] if "|" in line else ""
+        v = vendor.lower()
+        if "not owned" in line or not line:
+            src = "GOBLINCAKES"
+        elif "ublue" in v or "universal blue" in v or name.startswith("ublue"):
+            src = "Universal Blue"
+        elif "rpm fusion" in v or "rpmfusion" in v:
+            src = "RPM Fusion"
+        elif "copr" in v:
+            src = "COPR"
+        elif "fedora" in v:
+            src = "Fedora"
+        elif name.startswith("goblincakes"):
+            src = "GOBLINCAKES"
+        else:
+            src = vendor or "Övrigt"
+        out[path] = src
+    return out
+
+
+def list_apps():
+    goblin_hidden = hidden_by_goblincakes()
+    apps, paths = [], []
+    for f in sorted(SYSTEM.glob("*.desktop")):
+        e = entry(f)
+        if not e or e.get("Type", "Application") != "Application" or e.get("Hidden") == "true":
+            continue
+        app_id = f.stem
+        if app_id.startswith("goblincakes-config"):
+            continue  # Config itself always stays
+        only = e.get("OnlyShowIn", "")
+        if only and "KDE" not in only.split(";"):
+            continue
+        if "KDE" in e.get("NotShowIn", "").split(";"):
+            continue
+        default = e.get("NoDisplay") != "true"
+        # Helpers hidden by their own package (not by GOBLINCAKES) aren't programs to show
+        if not default and app_id not in goblin_hidden:
+            continue
+        visible = default
+        user = entry(USER / f.name)
+        if user is not None:
+            visible = user.get("NoDisplay") != "true" and user.get("Hidden") != "true"
+        apps.append({"id": app_id, "name": localized(e, "Name") or app_id,
+                     "comment": localized(e, "Comment") or localized(e, "GenericName"),
+                     "icon": e.get("Icon", ""), "visible": visible, "default": default})
+        paths.append(f)
+    src = sources(paths)
+    for app, path in zip(apps, paths):
+        app["source"] = src.get(path, "")
+    apps.sort(key=lambda a: a["name"].lower())
+    return apps
+
+
+def set_visible(app_id, show):
+    system = SYSTEM / f"{app_id}.desktop"
+    e = entry(system)
+    if e is None:
+        print(f"Hittar inte {app_id}", file=sys.stderr)
+        return 1
+    default = e.get("NoDisplay") != "true"
+    user = USER / system.name
+    ours = user.exists() and MARK in user.read_text(errors="replace")
+    if show == default and (ours or not user.exists()):
+        user.unlink(missing_ok=True)  # back to how GOBLINCAKES ships it
+    else:
+        base = user if (user.exists() and not ours) else system
+        lines = [l for l in base.read_text(errors="replace").splitlines()
+                 if not l.startswith(("NoDisplay=", MARK + "="))]
+        out, done = [], False
+        for l in lines:
+            out.append(l)
+            if l.strip() == "[Desktop Entry]" and not done:
+                out.append(f"NoDisplay={'false' if show else 'true'}")
+                if base == system:
+                    out.append(f"{MARK}={'show' if show else 'hide'}")
+                done = True
+        USER.mkdir(parents=True, exist_ok=True)
+        tmp = user.with_suffix(".desktop.goblincakes")
+        tmp.write_text("\n".join(out) + "\n")
+        tmp.replace(user)
+    # AppGrid and KRunner pick it up when Plasma's app list is rebuilt
+    subprocess.Popen(["kbuildsycoca6"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+    return 0
+
+
+def main(argv):
+    if argv[:1] == ["list"]:
+        print(json.dumps(list_apps(), ensure_ascii=False))
+        return 0
+    if len(argv) == 3 and argv[0] == "set" and argv[2] in ("show", "hide"):
+        return set_visible(argv[1], argv[2] == "show")
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -19,7 +19,7 @@ Window {
     property int chosenCount: 0
     property string page: "choose" // choose → install → done
     property int failedCount: 0
-    property string tab: startTab // apps | tweaks | graphics | update
+    property string tab: startTab // apps | system | tweaks | graphics | update
     readonly property var gpu: JSON.parse(backend.gpu)
     property string gpuMessage: ""
     readonly property string mainBrowser: backend.mainBrowser // app id, "" = Firefox
@@ -34,6 +34,11 @@ Window {
     property string updateStatus: ""
     property bool updateOk: true
     property bool updateReboot: false
+    // Förinstallerat tab
+    readonly property var systemApps: JSON.parse(backend.systemApps)
+    property string appFilter: ""
+    onTabChanged: if (tab === "system") backend.refreshSystemApps()
+    Component.onCompleted: if (tab === "system") backend.refreshSystemApps()
 
     function toggleCategory(id) {
         const e = Object.assign({}, expanded);
@@ -362,7 +367,8 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6
                 Text {
-                    text: win.tab === "update"
+                    text: win.tab === "system" ? "FÖRINSTALLERAT"
+                        : win.tab === "update"
                           ? (win.updateState === "running" ? "UPPDATERAR…" : win.updateState === "done" ? "UPPDATERAT" : "UPPDATERA")
                         : win.tab === "graphics" ? "GRAFIK"
                         : win.tab === "tweaks" ? "OPTIMERING"
@@ -375,7 +381,9 @@ Window {
                     font.letterSpacing: 4
                 }
                 Text {
-                    text: win.tab === "update"
+                    text: win.tab === "system"
+                        ? "Programmen som följer med GOBLINCAKES. Dölj det du inte använder – det finns kvar och fungerar, men syns inte i AppGrid."
+                        : win.tab === "update"
                         ? (win.updateState === "running" ? "Du kan använda datorn under tiden. Stäng inte fönstret."
                            : win.updateState === "done" ? (win.updateOk ? "Allt är uppdaterat." : "Klart, men något gick inte – se listan nedan.")
                            : "Systemet, program, AppImages, GE-Proton och firmware – samma som goblin update.")
@@ -411,7 +419,7 @@ Window {
             spacing: 32
 
             Repeater {
-                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "tweaks", "label": "OPTIMERING" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
+                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "OPTIMERING" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
 
                 Item {
                     id: tabItem
@@ -1260,6 +1268,105 @@ Window {
         }
     }
 
+    // ── Förinstallerat: show/hide the programs that come with GOBLINCAKES ──
+
+    Flickable {
+        id: systemView
+        visible: win.tab === "system"
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
+        contentHeight: sysCol.height + 64
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        Column {
+            id: sysCol
+            x: 48
+            y: 32
+            width: systemView.width - 96
+            spacing: 10
+
+            FlatField {
+                width: sysCol.width
+                hint: "Sök bland programmen"
+                onTextChanged: win.appFilter = text
+            }
+
+            Text {
+                visible: win.systemApps.length === 0
+                text: "Läser in programmen…"
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 15
+            }
+
+            Repeater {
+                model: win.systemApps.filter(a => !win.appFilter
+                    || (a.name + " " + a.comment + " " + a.source).toLowerCase().includes(win.appFilter.toLowerCase()))
+                Rectangle {
+                    id: appRow
+                    required property var modelData
+                    property bool shown: modelData.visible
+                    width: sysCol.width
+                    height: 64
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    opacity: shown ? 1 : 0.6
+
+                    Image {
+                        id: appIcon
+                        anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
+                        width: 32
+                        height: 32
+                        sourceSize.width: 64
+                        sourceSize.height: 64
+                        source: modelData.icon ? "image://icon/" + modelData.icon : ""
+                        asynchronous: true
+                    }
+                    Column {
+                        anchors { left: appIcon.right; leftMargin: 14; right: appSource.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                        spacing: 2
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            text: modelData.name + (modelData.default ? "" : "  · dold från start")
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 15
+                        }
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            visible: text !== ""
+                            text: modelData.comment
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                    }
+                    Text {
+                        id: appSource
+                        anchors { right: appSwitch.left; rightMargin: 18; verticalCenter: parent.verticalCenter }
+                        text: modelData.source
+                        color: "#5C6880"
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 12
+                    }
+                    ToggleSwitch {
+                        id: appSwitch
+                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                        on: appRow.shown
+                        onToggled: {
+                            appRow.shown = !appRow.shown;
+                            backend.setAppVisible(appRow.modelData.id, appRow.shown);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // ── Uppdatera: goblin update in a window ─────────────────
 
     Flickable {
@@ -1449,6 +1556,7 @@ Window {
     FlatScrollBar { flick: tweaksView }
     FlatScrollBar { flick: graphicsView }
     FlatScrollBar { flick: updateView }
+    FlatScrollBar { flick: systemView }
 
     // ── Footer ───────────────────────────────────────────────
 
@@ -1467,7 +1575,8 @@ Window {
         Text {
             anchors { left: parent.left; leftMargin: 48; verticalCenter: parent.verticalCenter }
             visible: win.tab !== "apps" || win.page === "choose"
-            text: win.tab === "update"
+            text: win.tab === "system" ? "Gäller direkt och bara för dig. Avinstallera helt med knappen till höger."
+                : win.tab === "update"
                     ? (win.updateState === "done" && win.updateReboot ? "Den nya versionen används efter en omstart."
                        : win.updateState === "running" ? "Uppdaterar…" : "Samma sak som goblin update i terminalen.")
                 : win.tab === "graphics" ? "Bytet frågar efter ditt lösenord."
@@ -1505,6 +1614,11 @@ Window {
                 enabledState: win.page === "done"
                 text: "Klar"
                 onClicked: win.finish()
+            }
+            FlatButton {
+                visible: win.tab === "system"
+                text: "Avinstallera program…"
+                onClicked: backend.openRemover()
             }
             FlatButton {
                 visible: win.tab === "update" && win.updateState !== "running"
