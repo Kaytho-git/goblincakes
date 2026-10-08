@@ -28,8 +28,7 @@ desktop_for() {
         firefox) find_desktop org.mozilla.firefox.desktop firefox.desktop ;;
         brave) find_desktop com.brave.Browser.desktop brave-browser.desktop ;;
         chrome) find_desktop com.google.Chrome.desktop google-chrome.desktop ;;
-        # Opera GX (snap) if it exists for Linux, else Opera (what Config installs in its place)
-        opera-gx) find_desktop '*opera-gx*.desktop' '*opera_gx*.desktop' com.opera.Opera.desktop opera.desktop ;;
+        opera-gx) find_desktop com.opera.opera-gx.desktop '*opera-gx*.desktop' '*opera_gx*.desktop' ;;
         *) return 1 ;;
     esac
 }

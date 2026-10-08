@@ -11,7 +11,7 @@
   ],
   "apps": [
     {"id": "brave", "name": "Brave", "category": "browsers", "browser": "brave", "desc": "Snabb webbläsare som blockerar annonser och spårning direkt. Bygger på Chromium.", "steps": [["flatpak", "com.brave.Browser"]], "check": ["flatpak", "com.brave.Browser"]},
-    {"id": "operagx", "name": "Opera GX", "category": "browsers", "browser": "opera-gx", "desc": "Opera för spelare: begränsar CPU/RAM, Discord och Twitch i sidopanelen. (Annars vanliga Opera.)", "steps": [["opera-gx"]], "check": ["opera-gx"]},
+    {"id": "operagx", "name": "Opera GX", "category": "browsers", "browser": "opera-gx", "desc": "Opera för spelare: begränsar CPU/RAM medan du spelar, Discord och Twitch i sidopanelen.", "steps": [["flatpak", "com.opera.opera-gx"]], "check": ["flatpak", "com.opera.opera-gx"]},
     {"id": "chrome", "name": "Google Chrome", "category": "browsers", "desc": "Googles webbläsare. Kör också streamingapparna och kommer med automatiskt för dem.", "steps": [["flatpak", "com.google.Chrome"]], "check": ["flatpak", "com.google.Chrome"], "browser": "chrome"},
     {"id": "lutris", "name": "Lutris", "category": "games", "desc": "Spelbibliotek för allt utanför Steam – bland annat WoW via Battle.net.", "steps": [["flatpak", "net.lutris.Lutris"]], "check": ["flatpak", "net.lutris.Lutris"]},
     {"id": "battlenet", "name": "Battle.net och WoW", "category": "games", "desc": "Battle.net i Lutris med GE-Proton, med allt butiken behöver inne i Wine-prefixet. Installera WoW i Battle.net efteråt – mapparna Logs och AddOns hamnar då i ~/Games/WoW.", "requires": ["lutris"], "steps": [["battlenet"]], "check": ["battlenet"]},
