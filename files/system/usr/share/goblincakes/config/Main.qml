@@ -26,6 +26,13 @@ Window {
     readonly property var webapps: JSON.parse(backend.webapps)
     property string webappStatus: ""
     property bool webappBusy: false
+    property var expanded: ({}) // category id → open
+
+    function toggleCategory(id) {
+        const e = Object.assign({}, expanded);
+        e[id] = !e[id];
+        expanded = e;
+    }
 
     function isInstalled(id) {
         for (const a of catalog.apps)
@@ -421,149 +428,13 @@ Window {
             x: 48
             y: 32
             width: chooser.width - 96
-            spacing: 34
-
-            Repeater {
-                model: win.catalog.categories
-
-                Column {
-                    id: section
-                    required property var modelData
-                    readonly property var apps: win.catalog.apps.filter(a => a.category === modelData.id)
-                    readonly property int columns: Math.max(1, Math.floor((sections.width + 16) / 340))
-
-                    width: sections.width
-                    spacing: 14
-
-                    Text {
-                        text: section.modelData.name.toUpperCase()
-                        color: "#8B98AD"
-                        font.family: "Chakra Petch"
-                        font.weight: Font.DemiBold
-                        font.pixelSize: 14
-                        font.letterSpacing: 2.5
-                    }
-                    Text {
-                        visible: !!section.modelData.note
-                        width: section.width
-                        text: section.modelData.note || ""
-                        color: "#8B98AD"
-                        font.family: "IBM Plex Sans"
-                        font.pixelSize: 13
-                        wrapMode: Text.WordWrap
-                        lineHeight: 1.15
-                    }
-
-                    Grid {
-                        columns: section.columns
-                        columnSpacing: 16
-                        rowSpacing: 16
-
-                        Repeater {
-                            model: section.apps
-
-                            Rectangle {
-                                id: card
-                                required property var modelData
-                                readonly property bool installed: modelData.installed
-                                readonly property bool checked: !!win.chosen[modelData.id]
-                                readonly property bool browser: !!modelData.browser
-
-                                width: (sections.width - 16 * (section.columns - 1)) / section.columns
-                                height: browser ? 160 : 112
-                                color: cardArea.containsMouse && !installed ? "#111A2A" : "#0E1420"
-                                border.width: 1
-                                border.color: checked ? "#2F6FED" : cardArea.containsMouse && !installed ? "#2A3852" : "#1E2A40"
-                                // Browsers stay bright when installed: their switch is still in use
-                                opacity: installed && !browser ? 0.55 : 1
-
-                                Monogram {
-                                    id: mono
-                                    name: card.modelData.name
-                                    anchors { left: parent.left; leftMargin: 18; top: parent.top; topMargin: 20 }
-                                }
-
-                                Column {
-                                    anchors {
-                                        left: mono.right; leftMargin: 16
-                                        right: check.left; rightMargin: 14
-                                        top: parent.top; topMargin: 18
-                                    }
-                                    spacing: 5
-
-                                    Text {
-                                        width: parent.width
-                                        text: card.modelData.name
-                                        color: "#E6ECF5"
-                                        font.family: "IBM Plex Sans"
-                                        font.weight: Font.DemiBold
-                                        font.pixelSize: 16
-                                        elide: Text.ElideRight
-                                    }
-                                    Text {
-                                        width: parent.width
-                                        text: card.installed ? "Redan installerad" : card.modelData.desc
-                                        color: "#8B98AD"
-                                        font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
-                                        wrapMode: Text.WordWrap
-                                        maximumLineCount: 3
-                                        elide: Text.ElideRight
-                                        lineHeight: 1.15
-                                    }
-                                }
-
-                                CheckSquare {
-                                    id: check
-                                    anchors { right: parent.right; rightMargin: 18; top: parent.top; topMargin: 20 }
-                                    checked: card.checked || card.installed
-                                }
-
-                                MouseArea {
-                                    id: cardArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: card.installed ? Qt.ArrowCursor : Qt.PointingHandCursor
-                                    onClicked: if (!card.installed) win.toggle(card.modelData.id)
-                                }
-
-                                // Browsers: "Huvudwebbläsare" switch – installs it and makes it the main browser
-                                Rectangle {
-                                    visible: card.browser
-                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                                    anchors { leftMargin: 18; rightMargin: 18; bottomMargin: 14 }
-                                    height: 30
-                                    color: "transparent"
-                                    Rectangle {
-                                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                                        anchors.topMargin: -8
-                                        height: 1
-                                        color: "#1E2A40"
-                                    }
-                                    Text {
-                                        anchors { left: parent.left; verticalCenter: browserSwitch.verticalCenter }
-                                        text: "Huvudwebbläsare"
-                                        color: browserSwitch.on ? "#E6ECF5" : "#8B98AD"
-                                        font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
-                                    }
-                                    ToggleSwitch {
-                                        id: browserSwitch
-                                        anchors { right: parent.right; bottom: parent.bottom }
-                                        on: win.mainBrowser === card.modelData.id
-                                        onToggled: win.setMainBrowser(card.modelData.id, !on)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            spacing: 12
 
             // ── Egen webbapp: any link as its own app ──
             Column {
                 width: sections.width
                 spacing: 14
+                bottomPadding: 22
 
                 function create() {
                     if (win.webappBusy || !webUrl.text.trim())
@@ -669,6 +540,185 @@ Window {
                     }
                 }
             }
+
+            Repeater {
+                model: win.catalog.categories
+
+                Column {
+                    id: section
+                    required property var modelData
+                    readonly property var apps: win.catalog.apps.filter(a => a.category === modelData.id)
+                    readonly property int columns: Math.max(1, Math.floor((sections.width + 16) / 340))
+
+                    readonly property bool open: !!win.expanded[modelData.id]
+                    readonly property int chosenHere: apps.filter(a => !!win.chosen[a.id]).length
+                    readonly property int installedHere: apps.filter(a => a.installed).length
+
+                    width: sections.width
+                    spacing: 14
+
+                    // Category header: click to open/close (closed from the start)
+                    Rectangle {
+                        width: section.width
+                        height: 52
+                        color: headerArea.containsMouse ? "#111A2A" : "#0E1420"
+                        border.width: 1
+                        border.color: section.open ? "#2A3852" : "#1E2A40"
+
+                        Text {
+                            id: arrow
+                            anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+                            text: "\u203A"
+                            rotation: section.open ? 90 : 0
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 22
+                            Behavior on rotation { NumberAnimation { duration: 120 } }
+                        }
+                        Text {
+                            anchors { left: arrow.right; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                            text: section.modelData.name.toUpperCase()
+                            color: "#E6ECF5"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 14
+                            font.letterSpacing: 2.5
+                        }
+                        Text {
+                            anchors { right: parent.right; rightMargin: 18; verticalCenter: parent.verticalCenter }
+                            text: (section.chosenHere ? section.chosenHere + (section.chosenHere === 1 ? " vald · " : " valda · ") : "")
+                                  + (section.installedHere ? section.installedHere + (section.installedHere === 1 ? " installerad · " : " installerade · ") : "")
+                                  + section.apps.length + " program"
+                            color: section.chosenHere ? "#2F6FED" : "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        MouseArea {
+                            id: headerArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: win.toggleCategory(section.modelData.id)
+                        }
+                    }
+                    Text {
+                        visible: section.open && !!section.modelData.note
+                        width: section.width
+                        text: section.modelData.note || ""
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                        wrapMode: Text.WordWrap
+                        lineHeight: 1.15
+                    }
+
+                    Grid {
+                        visible: section.open
+                        columns: section.columns
+                        columnSpacing: 16
+                        rowSpacing: 16
+
+                        Repeater {
+                            model: section.apps
+
+                            Rectangle {
+                                id: card
+                                required property var modelData
+                                readonly property bool installed: modelData.installed
+                                readonly property bool checked: !!win.chosen[modelData.id]
+                                readonly property bool browser: !!modelData.browser
+
+                                width: (sections.width - 16 * (section.columns - 1)) / section.columns
+                                height: browser ? 160 : 112
+                                color: cardArea.containsMouse && !installed ? "#111A2A" : "#0E1420"
+                                border.width: 1
+                                border.color: checked ? "#2F6FED" : cardArea.containsMouse && !installed ? "#2A3852" : "#1E2A40"
+                                // Browsers stay bright when installed: their switch is still in use
+                                opacity: installed && !browser ? 0.55 : 1
+
+                                Monogram {
+                                    id: mono
+                                    name: card.modelData.name
+                                    anchors { left: parent.left; leftMargin: 18; top: parent.top; topMargin: 20 }
+                                }
+
+                                Column {
+                                    anchors {
+                                        left: mono.right; leftMargin: 16
+                                        right: check.left; rightMargin: 14
+                                        top: parent.top; topMargin: 18
+                                    }
+                                    spacing: 5
+
+                                    Text {
+                                        width: parent.width
+                                        text: card.modelData.name
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.weight: Font.DemiBold
+                                        font.pixelSize: 16
+                                        elide: Text.ElideRight
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        text: card.installed ? "Redan installerad" : card.modelData.desc
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                        wrapMode: Text.WordWrap
+                                        maximumLineCount: 3
+                                        elide: Text.ElideRight
+                                        lineHeight: 1.15
+                                    }
+                                }
+
+                                CheckSquare {
+                                    id: check
+                                    anchors { right: parent.right; rightMargin: 18; top: parent.top; topMargin: 20 }
+                                    checked: card.checked || card.installed
+                                }
+
+                                MouseArea {
+                                    id: cardArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: card.installed ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    onClicked: if (!card.installed) win.toggle(card.modelData.id)
+                                }
+
+                                // Browsers: "Huvudwebbläsare" switch – installs it and makes it the main browser
+                                Rectangle {
+                                    visible: card.browser
+                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                                    anchors { leftMargin: 18; rightMargin: 18; bottomMargin: 14 }
+                                    height: 30
+                                    color: "transparent"
+                                    Rectangle {
+                                        anchors { left: parent.left; right: parent.right; top: parent.top }
+                                        anchors.topMargin: -8
+                                        height: 1
+                                        color: "#1E2A40"
+                                    }
+                                    Text {
+                                        anchors { left: parent.left; verticalCenter: browserSwitch.verticalCenter }
+                                        text: "Huvudwebbläsare"
+                                        color: browserSwitch.on ? "#E6ECF5" : "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                    ToggleSwitch {
+                                        id: browserSwitch
+                                        anchors { right: parent.right; bottom: parent.bottom }
+                                        on: win.mainBrowser === card.modelData.id
+                                        onToggled: win.setMainBrowser(card.modelData.id, !on)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
         }
     }
 
