@@ -1,0 +1,179 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: start Steam games from the terminal by name – always through Steam.
+
+    goblincakes-games list          every game with the words that start it
+    goblincakes-games run <word>    start the game (exit 3: no game by that word)
+
+Typing a game's word straight in the terminal (e.g. `wow`, `cs2`, `worldofwarcraft`)
+works through bash's command_not_found_handle (/etc/profile.d/zz-goblincakes-games.sh),
+so new games work right after Steam installs them – nothing is generated.
+
+Games are started with steam://rungameid/…, exactly like pressing Play in Steam, so
+anti-cheat, Proton settings, overlays and play time all work. Both Steam games and
+non-Steam games added to Steam (e.g. World of Warcraft through Battle.net/Lutris) count.
+"""
+import os
+import re
+import struct
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+STEAM_ROOTS = [HOME / ".local/share/Steam", HOME / ".steam/steam",
+               HOME / ".var/app/com.valvesoftware.Steam/.local/share/Steam"]
+# Steam's own tools, not games
+TOOLS = re.compile(r"^(Proton|Steam Linux Runtime|Steamworks Common|SteamVR)", re.I)
+
+
+def steam_roots():
+    seen, roots = set(), []
+    for root in STEAM_ROOTS:
+        try:
+            real = root.resolve()
+        except OSError:
+            continue
+        if real.is_dir() and real not in seen:
+            seen.add(real)
+            roots.append(real)
+    return roots
+
+
+def library_folders(root):
+    """Every Steam library folder, also on other disks (libraryfolders.vdf)."""
+    folders = {root}
+    vdf = root / "steamapps/libraryfolders.vdf"
+    try:
+        for path in re.findall(r'"path"\s+"([^"]+)"', vdf.read_text(errors="replace")):
+            folders.add(Path(path.replace("\\\\", "\\")))
+    except OSError:
+        pass
+    return folders
+
+
+def steam_games(root):
+    for folder in library_folders(root):
+        for acf in (folder / "steamapps").glob("appmanifest_*.acf"):
+            try:
+                text = acf.read_text(errors="replace")
+            except OSError:
+                continue
+            appid = re.search(r'"appid"\s+"(\d+)"', text)
+            name = re.search(r'"name"\s+"([^"]+)"', text)
+            if appid and name and not TOOLS.match(name.group(1)):
+                yield name.group(1), appid.group(1)
+
+
+def read_binary_vdf(data):
+    """Steam's binary VDF (shortcuts.vdf) → nested dicts."""
+    pos = 0
+
+    def cstring():
+        nonlocal pos
+        end = data.index(b"\0", pos)
+        s = data[pos:end].decode("utf-8", "replace")
+        pos = end + 1
+        return s
+
+    def node():
+        nonlocal pos
+        out = {}
+        while pos < len(data):
+            kind = data[pos]
+            pos += 1
+            if kind == 0x08:
+                return out
+            key = cstring()
+            if kind == 0x00:
+                out[key] = node()
+            elif kind == 0x01:
+                out[key] = cstring()
+            elif kind == 0x02:
+                out[key] = struct.unpack_from("<i", data, pos)[0]
+                pos += 4
+            elif kind == 0x07:
+                pos += 8
+            else:
+                return out
+        return out
+
+    return node()
+
+
+def shortcut_games(root):
+    """Non-Steam games added to Steam: their game id is (appid << 32) | 0x02000000."""
+    for vdf in (root / "userdata").glob("*/config/shortcuts.vdf"):
+        try:
+            tree = read_binary_vdf(vdf.read_bytes())
+        except (OSError, ValueError, struct.error):
+            continue
+        for entry in tree.get("shortcuts", {}).values():
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("AppName") or entry.get("appname")
+            appid = entry.get("appid")
+            if name and isinstance(appid, int):
+                yield name, str(((appid & 0xFFFFFFFF) << 32) | 0x02000000)
+
+
+def words(name):
+    """The words that start a game: full name squashed and initials, e.g.
+    "World of Warcraft" → worldofwarcraft, wow; "Counter-Strike 2" → counterstrike2, cs2."""
+    clean = re.sub(r"[™®©]", "", name).lower()
+    full = re.sub(r"[^a-z0-9]", "", clean)
+    parts = [p for p in re.split(r"[^a-z0-9]+", clean) if p]
+    initials = "".join(p if p.isdigit() else p[0] for p in parts)
+    out = {full}
+    if len(parts) > 1 and len(initials) >= 2:
+        out.add(initials)
+    if full.startswith("the") and len(full) > 3:
+        out.add(full[3:])
+    return sorted(w for w in out if len(w) >= 2)
+
+
+def games():
+    found = {}
+    for root in steam_roots():
+        for name, gameid in list(steam_games(root)) + list(shortcut_games(root)):
+            found.setdefault(gameid, name)
+    return sorted(((name, gameid) for gameid, name in found.items()), key=lambda g: g[0].lower())
+
+
+def launch(name, gameid):
+    print(f"Startar {name} via Steam…", flush=True)
+    # Through the steam:// handler: the running Steam takes it, or Steam starts with it
+    # (from GOBLINCAKES' own steam.desktop, so dGPU/MangoHud settings apply too)
+    subprocess.Popen(["xdg-open", f"steam://rungameid/{gameid}"], start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def main(argv):
+    cmd = argv[0] if argv else "list"
+    if cmd == "list":
+        all_games = games()
+        if not all_games:
+            print("Inga spel i Steam ännu.")
+            return 0
+        for name, _ in all_games:
+            print(f"  {', '.join(words(name)):<28} {name}")
+        return 0
+    if cmd == "run" and len(argv) >= 2:
+        query = re.sub(r"[^a-z0-9]", "", argv[1].lower())
+        if len(query) < 2:
+            return 3
+        matches = [(n, g) for n, g in games() if query in words(n)]
+        if len(matches) == 1:
+            launch(*matches[0])
+            return 0
+        if len(matches) > 1:
+            print(f"Flera spel heter {argv[1]} – skriv hela namnet:")
+            for name, _ in matches:
+                print(f"  {words(name)[0]:<28} {name}")
+            return 0
+        return 3
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

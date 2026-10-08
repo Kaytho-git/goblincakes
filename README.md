@@ -53,6 +53,7 @@ Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+
 |---|---|
 | `goblin update` | Uppdaterar allt: systemet, program, WoW-tillägg, GE-Proton och firmware |
 | `goblin ai` | **Goblin AI** – fråga om datorn eller vad som helst (även **Meta+A**) |
+| `goblin play` | Dina spel i Steam – skriv spelets namn eller förkortning direkt i terminalen (t.ex. `wow`, `cs2`) så startas det via Steam |
 | `goblin tv` | Startar TV-läget |
 | `goblin wow` | Länkar alla WoW-versioner och uppdaterar WowUp |
 | `goblin fast` | Systeminformation med GOBLINCAKES-loggan |
