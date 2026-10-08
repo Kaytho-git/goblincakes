@@ -48,6 +48,9 @@ class Config(QObject):
     gpuDone = Signal(bool)  # switch/undo finished, ok
     catalogChanged = Signal()
     mainBrowserChanged = Signal()
+    webappsChanged = Signal()
+    webappProgress = Signal(str)  # status line while making a web app
+    webappDone = Signal(bool)
 
     def __init__(self):
         super().__init__()
@@ -64,6 +67,9 @@ class Config(QObject):
         self._main_browser = next((a["id"] for a in catalog["apps"]
                                    if code == 0 and a.get("browser") == out and a["installed"]), "")
         self._pending_browser = ""  # chosen but not installed yet: set after its installation
+        self._webapps = "[]"
+        self._webapp_proc = None
+        self.refreshWebapps()
 
         tweaks = json.loads((SHARE / "tweaks.json").read_text())
         self._tweaks = {t["id"]: t for t in tweaks["tweaks"]}
@@ -113,6 +119,48 @@ class Config(QObject):
         else:
             self._pending_browser = app_id  # set by the install queue once it's installed
         self.mainBrowserChanged.emit()
+
+    # ── The user's own web apps ("Egen webbapp") ──────────────
+
+    @Property(str, notify=webappsChanged)
+    def webapps(self):
+        return self._webapps
+
+    @Slot()
+    def refreshWebapps(self):
+        code, out = run(HELPER, ["webapp-list"])
+        self._webapps = out if code == 0 and out.startswith("[") else "[]"
+        self.webappsChanged.emit()
+
+    @Slot(str, str)
+    def createWebapp(self, url, name):
+        """A pasted link → its own app with icon in AppGrid (name from the page if empty)."""
+        if self._webapp_proc or not url.strip():
+            return
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+
+        def read():
+            for line in bytes(proc.readAllStandardOutput()).decode(errors="replace").splitlines():
+                print(line, flush=True)
+                if line.startswith("@@ "):
+                    self.webappProgress.emit(line[3:])
+
+        def finished(code, exit_status):
+            self._webapp_proc = None
+            self.refreshWebapps()
+            self.webappDone.emit(exit_status == QProcess.NormalExit and code == 0)
+
+        proc.readyReadStandardOutput.connect(read)
+        proc.finished.connect(finished)
+        self._webapp_proc = proc
+        args = ["webapp-custom", url.strip()] + ([name.strip()] if name.strip() else [])
+        proc.start(HELPER, args)
+
+    @Slot(str)
+    def removeWebapp(self, app_id):
+        run(HELPER, ["webapp-remove", app_id])
+        self.refreshWebapps()
 
     @Property(str, constant=True)
     def version(self):

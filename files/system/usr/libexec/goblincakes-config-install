@@ -169,6 +169,53 @@ DESKTOP
         status "$name finns nu i AppGrid"
         ;;
 
+    webapp-custom)
+        # GOBLINCAKES Config → "Egen webbapp": any website as its own app. url [name]
+        # Name from the page's own title if none is given; icon from the site; opens in
+        # Google Chrome if it's installed, else Chromium (in the image already).
+        url=$1 name=${2:-}
+        case $url in http://*|https://*) ;; *) url="https://$url" ;; esac
+        host=${url#*://}; host=${host%%/*}
+        [ -n "$host" ] || { status "Det där ser inte ut som en webbadress"; exit 1; }
+        if [ -z "$name" ]; then
+            status "Läser sidans namn…"
+            name=$(curl -fsSL --max-time 10 -A "Mozilla/5.0" "$url" 2>/dev/null | python3 -c '
+import html, re, sys
+m = re.search(r"<title[^>]*>(.*?)</title>", sys.stdin.read(400000), re.S | re.I)
+t = html.unescape(m.group(1)).strip() if m else ""
+# "Inbox – Mail – Site" → the most site-like part: the last one, unless it is long
+parts = [p.strip() for p in re.split(r"\s[|·–—-]\s", t) if p.strip()]
+print((parts[-1] if parts and len(parts[-1]) <= 30 else (parts[0] if parts else ""))[:40])' 2>/dev/null)
+            [ -n "$name" ] || name=${host#www.}
+        fi
+        id=custom-$(printf '%s' "${url#*://}" | tr '[:upper:]' '[:lower:]' | sed 's|[^a-z0-9]\+|-|g; s|^-||; s|-$||' | cut -c1-60)
+        browser=org.chromium.Chromium
+        flatpak info com.google.Chrome >/dev/null 2>&1 && browser=com.google.Chrome
+        "$0" webapp "$id" "$name" "$url" "Network;" "$browser" || exit 1
+        # Marked as made by the user, so "Egen webbapp" can list and remove it
+        printf 'X-GOBLINCAKES-CustomWebapp=%s\n' "$url" >> "$HOME/.local/share/applications/goblincakes-webapp-$id.desktop"
+        ;;
+
+    webapp-remove)
+        rm -f "$HOME/.local/share/applications/goblincakes-webapp-$1.desktop" \
+              "$HOME/.local/share/icons/hicolor/256x256/apps/goblincakes-webapp-$1.png"
+        update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
+        ;;
+
+    webapp-list)
+        # The user's own web apps as JSON: [{"id", "name", "url"}]
+        python3 - "$HOME/.local/share/applications" <<'PY'
+import json, pathlib, sys
+apps = []
+for f in sorted(pathlib.Path(sys.argv[1]).glob("goblincakes-webapp-custom-*.desktop")):
+    keys = dict(l.split("=", 1) for l in f.read_text().splitlines() if "=" in l)
+    if "X-GOBLINCAKES-CustomWebapp" in keys:
+        apps.append({"id": f.stem.removeprefix("goblincakes-webapp-"), "name": keys.get("Name", ""),
+                     "url": keys["X-GOBLINCAKES-CustomWebapp"]})
+print(json.dumps(apps))
+PY
+        ;;
+
     gamescope-flatpak)
         # Lutris and Heroic are Flatpaks: they need gamescope as a Flatpak extension
         # (Steam is in the image and uses the image's gamescope)

@@ -23,6 +23,9 @@ Window {
     readonly property var gpu: JSON.parse(backend.gpu)
     property string gpuMessage: ""
     readonly property string mainBrowser: backend.mainBrowser // app id, "" = Firefox
+    readonly property var webapps: JSON.parse(backend.webapps)
+    property string webappStatus: ""
+    property bool webappBusy: false
 
     function isInstalled(id) {
         for (const a of catalog.apps)
@@ -90,6 +93,16 @@ Window {
 
     Connections {
         target: backend
+        function onWebappProgress(text) { win.webappStatus = text; }
+        function onWebappDone(ok) {
+            win.webappBusy = false;
+            if (ok) {
+                win.webappStatus = "Klar – finns nu i AppGrid";
+                webUrl.text = "";
+                webName.text = "";
+            } else if (!win.webappStatus.startsWith("Det där"))
+                win.webappStatus = "Det gick inte – kolla adressen och nätverket";
+        }
         function onProgress(id, state, message) {
             for (let i = 0; i < progressModel.count; i++) {
                 if (progressModel.get(i).appId === id) {
@@ -118,6 +131,38 @@ Window {
     }
 
     // ── Pieces ───────────────────────────────────────────────
+
+    // Flat text field with a grey hint while empty
+    component FlatField: Rectangle {
+        property alias text: input.text
+        property string hint
+        signal accepted()
+        height: 44
+        color: "#07090D"
+        border.width: 1
+        border.color: input.activeFocus ? "#2F6FED" : "#2A3852"
+        TextInput {
+            id: input
+            anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
+            verticalAlignment: TextInput.AlignVCenter
+            color: "#E6ECF5"
+            selectionColor: "#2F6FED"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 15
+            clip: true
+            selectByMouse: true
+            onAccepted: parent.accepted()
+        }
+        Text {
+            anchors { fill: input }
+            verticalAlignment: Text.AlignVCenter
+            visible: !input.text && !input.activeFocus
+            text: parent.hint
+            color: "#5C6880"
+            font: input.font
+            elide: Text.ElideRight
+        }
+    }
 
     component FlatButton: Rectangle {
         id: btn
@@ -510,6 +555,116 @@ Window {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // ── Egen webbapp: any link as its own app ──
+            Column {
+                width: sections.width
+                spacing: 14
+
+                function create() {
+                    if (win.webappBusy || !webUrl.text.trim())
+                        return;
+                    win.webappBusy = true;
+                    win.webappStatus = "Skapar…";
+                    backend.createWebapp(webUrl.text, webName.text);
+                }
+
+                Text {
+                    text: "EGEN WEBBAPP"
+                    color: "#8B98AD"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 14
+                    font.letterSpacing: 2.5
+                }
+                Text {
+                    width: parent.width
+                    text: "Klistra in länken till en webbsida, så blir den en egen app med ikon i AppGrid – i ett eget fönster utan adressfält (Google Chrome om den är installerad, annars Chromium). Namnet tas från sidan om du inte skriver ett eget."
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.15
+                }
+                Row {
+                    id: webRow
+                    spacing: 12
+                    readonly property real buttonWidth: 150
+                    FlatField {
+                        id: webUrl
+                        width: (sections.width - webRow.buttonWidth - 24) * 0.62
+                        hint: "Länk, t.ex. https://mail.proton.me"
+                        onAccepted: parent.parent.create()
+                    }
+                    FlatField {
+                        id: webName
+                        width: (sections.width - webRow.buttonWidth - 24) * 0.38
+                        hint: "Namn (valfritt)"
+                        onAccepted: parent.parent.create()
+                    }
+                    FlatButton {
+                        width: webRow.buttonWidth
+                        text: "Skapa app"
+                        primary: true
+                        enabledState: !win.webappBusy && webUrl.text.trim().length > 0
+                        onClicked: parent.parent.create()
+                    }
+                }
+                Text {
+                    visible: win.webappStatus !== ""
+                    text: win.webappStatus
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                }
+
+                // The ones made so far, with a button to remove each
+                Repeater {
+                    model: win.webapps
+                    Rectangle {
+                        required property var modelData
+                        width: sections.width
+                        height: 52
+                        color: "#0E1420"
+                        border.width: 1
+                        border.color: "#1E2A40"
+                        Monogram {
+                            id: webMono
+                            name: parent.modelData.name
+                            anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                            scale: 0.7
+                        }
+                        Column {
+                            anchors { left: webMono.right; leftMargin: 10; right: removeBtn.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                            Text {
+                                width: parent.width
+                                text: parent.parent.modelData.name
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 14
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                width: parent.width
+                                text: parent.parent.modelData.url
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                elide: Text.ElideMiddle
+                            }
+                        }
+                        FlatButton {
+                            id: removeBtn
+                            anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                            height: 36
+                            width: 110
+                            text: "Ta bort"
+                            onClicked: backend.removeWebapp(parent.modelData.id)
                         }
                     }
                 }
