@@ -73,6 +73,22 @@ case $id in
             set) sysctl_set "$id" vm.max_map_count 2147483642 "$value" ;;
         esac ;;
 
+    no-sleep)
+        # Never sleep or hibernate – Nvidia's drivers sometimes don't wake up again (black
+        # screen). systemd then refuses to suspend, so KDE drops the sleep button and does
+        # nothing on idle or when a laptop lid closes. Off = our file removed, sleep is back.
+        conf=/etc/systemd/sleep.conf.d/90-goblincakes-no-sleep.conf
+        case $cmd in
+            status) [ -e "$conf" ] && echo on || echo off ;;
+            set)
+                if [ "$value" = on ]; then
+                    mkdir -p "$(dirname "$conf")"
+                    printf '# GOBLINCAKES Config → Optimering → Inget viloläge\n[Sleep]\nAllowSuspend=no\nAllowHibernation=no\nAllowHybridSleep=no\nAllowSuspendThenHibernate=no\n' > "$conf"
+                else
+                    rm -f "$conf"
+                fi ;;
+        esac ;;
+
     split-lock)
         # The kernel slows down programs that use "split locks" – some Windows games do
         case $cmd in
