@@ -9,7 +9,7 @@ for (var i = 0; i < allDesktops.length; i++) {
     d.writeConfig("Image", "file:///usr/share/wallpapers/goblincakes/goblincakes.svg");
 }
 
-// ---- Top bar: logo left, now playing in the middle, system icons + clock + power right ----
+// ---- Top bar: logo + open programs left, now playing + system icons + clock + power right ----
 var topBar = new Panel;
 topBar.location = "top";
 topBar.height = Math.round(gridUnit * 2.4);
@@ -23,12 +23,18 @@ var apps = topBar.addWidget("dev.xarbit.appgrid");
 apps.currentConfigGroup = ["General"];
 apps.writeConfig("icon", "goblincakes");
 
-// Middle: what Spotify/the music player is playing and the Discord server/channel
-// (/usr/share/plasma/plasmoids/org.goblincakes.nowplaying). Two flexible spacers
-// keep it centred on the screen.
-topBar.addWidget("org.kde.plasma.panelspacer");
+// Open programs (icon + name), left-aligned after the logo. It fills the free
+// space, so it grows to the right while "now playing" grows to the left.
+// No pinned launchers: pinning is the dock's job.
+var running = topBar.addWidget("org.kde.plasma.taskmanager");
+running.currentConfigGroup = ["General"];
+running.writeConfig("launchers", []);
+running.writeConfig("fill", true);
+running.writeConfig("maxStripes", 1);
+
+// What Spotify/the music player is playing and the Discord server/channel
+// (/usr/share/plasma/plasmoids/org.goblincakes.nowplaying), just left of the tray
 topBar.addWidget("org.goblincakes.nowplaying");
-topBar.addWidget("org.kde.plasma.panelspacer");
 // System tray: trimmed to network, volume and notifications by
 // /usr/share/goblincakes/systray.js, which goblincakes-firstlogin runs once the
 // tray has started (its settings don't exist yet while this layout runs)
