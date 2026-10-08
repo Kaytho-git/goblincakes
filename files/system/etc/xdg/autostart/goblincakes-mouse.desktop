@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES mouse
+Comment=No mouse acceleration on newly plugged-in mice too (when switched on in GOBLINCAKES Config)
+Exec=/usr/libexec/goblincakes-tweak apply mouse-flat
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2

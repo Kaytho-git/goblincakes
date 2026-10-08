@@ -73,6 +73,62 @@ case $id in
             set) sysctl_set "$id" vm.max_map_count 2147483642 "$value" ;;
         esac ;;
 
+    mouse-flat)
+        # No mouse acceleration (libinput's flat profile): the pointer moves exactly as far
+        # as the mouse, whatever the speed – the DPI set in Piper applies as it is. Set on
+        # every mouse through KWin (which saves it per mouse); mice plugged in later get it
+        # at the next login (autostart goblincakes-mouse.desktop → "apply").
+        flag="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/mouse-flat"
+        set_mice() { # true = flat, false = KDE's standard (adaptive)
+            local path prop
+            for _ in $(seq 20); do busctl --user status org.kde.KWin >/dev/null 2>&1 && break; sleep 1; done
+            prop=$([ "$1" = true ] && echo pointerAccelerationProfileFlat || echo pointerAccelerationProfileAdaptive)
+            busctl --user tree --list org.kde.KWin 2>/dev/null | grep '^/org/kde/KWin/InputDevice/event' | while read -r path; do
+                get() { busctl --user get-property org.kde.KWin "$path" org.kde.KWin.InputDevice "$1" 2>/dev/null | cut -d' ' -f2-; }
+                [ "$(get pointer)" = true ] && [ "$(get touchpad)" != true ] || continue
+                busctl --user set-property org.kde.KWin "$path" org.kde.KWin.InputDevice "$prop" b true 2>/dev/null || true
+            done
+        }
+        case $cmd in
+            status) [ -e "$flag" ] && echo on || echo off ;;
+            set)
+                mkdir -p "$(dirname "$flag")"
+                if [ "$value" = on ]; then touch "$flag"; set_mice true; else rm -f "$flag"; set_mice false; fi ;;
+            apply) [ -e "$flag" ] && set_mice true ;;
+        esac
+        exit 0 ;;
+
+    hdr)
+        # HDR on every screen that supports it (also wide colours), through KScreen – the same
+        # as System Settings → Display. Hidden when no screen can do HDR.
+        hdr_screens() { # → "name wcg" per HDR-capable, enabled screen
+            kscreen-doctor -j 2>/dev/null | python3 -c '
+import json, sys
+try:
+    outputs = json.load(sys.stdin).get("outputs", [])
+except ValueError:
+    outputs = []
+for o in outputs:
+    if o.get("enabled") and "hdr" in o:
+        print(o["name"], "wcg" in o, o["hdr"])'
+        }
+        screens=$(hdr_screens)
+        if [ -z "$screens" ]; then
+            [ "$cmd" = status ] && echo unavailable
+            exit 0
+        fi
+        case $cmd in
+            status) echo "$screens" | grep -q ' False$' && echo off || echo on ;;
+            set)
+                action=$([ "$value" = on ] && echo enable || echo disable)
+                args=()
+                while read -r name wcg _; do
+                    args+=("output.$name.hdr.$action")
+                    [ "$wcg" = True ] && args+=("output.$name.wcg.$action")
+                done <<< "$screens"
+                kscreen-doctor "${args[@]}" ;;
+        esac ;;
+
     no-autolock)
         # Don't lock the screen (password again) when the computer has been left alone for a
         # while – KDE's own setting (System Settings → Screen Locking → Lock automatically).
