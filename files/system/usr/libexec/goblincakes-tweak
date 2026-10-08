@@ -160,6 +160,33 @@ for o in outputs:
                 fi ;;
         esac ;;
 
+    auto-updates)
+        # rpm-ostree's automatic updates (from Universal Blue): new GOBLINCAKES versions are
+        # fetched in the background and used after the next restart ("stage"). Off = the
+        # system only updates with `goblin update`. Universal Blue's uupd timer too, if any.
+        conf=/etc/rpm-ostreed.conf
+        case $cmd in
+            status)
+                policy=$(sed -n 's/^[[:space:]]*AutomaticUpdatePolicy[[:space:]]*=[[:space:]]*//p' "$conf" 2>/dev/null | tail -n1)
+                [ "${policy:-none}" = none ] || ! systemctl is-enabled --quiet rpm-ostreed-automatic.timer \
+                    && echo off || echo on ;;
+            set)
+                policy=$([ "$value" = on ] && echo stage || echo none)
+                if grep -q '^[[:space:]]*AutomaticUpdatePolicy' "$conf" 2>/dev/null; then
+                    sed -i "s/^[[:space:]]*AutomaticUpdatePolicy.*/AutomaticUpdatePolicy=$policy/" "$conf"
+                elif grep -q '^\[Daemon\]' "$conf" 2>/dev/null; then
+                    sed -i "/^\[Daemon\]/a AutomaticUpdatePolicy=$policy" "$conf"
+                else
+                    printf '[Daemon]\nAutomaticUpdatePolicy=%s\n' "$policy" >> "$conf"
+                fi
+                rpm-ostree reload >/dev/null 2>&1 || true
+                action=$([ "$value" = on ] && echo enable || echo disable)
+                for timer in rpm-ostreed-automatic.timer uupd.timer; do
+                    systemctl cat "$timer" >/dev/null 2>&1 && systemctl "$action" --now "$timer" >/dev/null 2>&1
+                done
+                true ;;
+        esac ;;
+
     split-lock)
         # The kernel slows down programs that use "split locks" – some Windows games do
         case $cmd in
