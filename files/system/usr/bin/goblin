@@ -60,7 +60,17 @@ update_system() {
     done
     case $code in
         0) system_updated=1 ;;
-        77) info "Redan senaste versionen" ;;
+        77)
+            # Automatic updates may already have fetched it in the background: then
+            # it's waiting for a restart, and "nothing new" would be misleading
+            if rpm-ostree status --json 2>/dev/null | python3 -c '
+import json, sys
+sys.exit(0 if any(d.get("staged") for d in json.load(sys.stdin).get("deployments", [])) else 1)'; then
+                info "Den nya versionen är redan hämtad i bakgrunden – den används efter en omstart"
+                system_updated=1
+            else
+                info "Redan senaste versionen"
+            fi ;;
         *) return "$code" ;;
     esac
 }
