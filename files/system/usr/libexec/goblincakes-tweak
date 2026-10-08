@@ -73,6 +73,21 @@ case $id in
             set) sysctl_set "$id" vm.max_map_count 2147483642 "$value" ;;
         esac ;;
 
+    no-autolock)
+        # Don't lock the screen (password again) when the computer has been left alone for a
+        # while – KDE's own setting (System Settings → Screen Locking → Lock automatically).
+        # After sleep it still locks.
+        case $cmd in
+            status) [ "$(kreadconfig6 --file kscreenlockerrc --group Daemon --key Autolock --default true)" = false ] \
+                        && echo on || echo off ;;
+            set)
+                kwriteconfig6 --file kscreenlockerrc --group Daemon --key Autolock \
+                    "$([ "$value" = on ] && echo false || echo true)"
+                # The screen locker reads its settings again right away
+                dbus-send --session --type=method_call --dest=org.freedesktop.ScreenSaver \
+                    /ScreenSaver org.kde.screensaver.configure >/dev/null 2>&1 || true ;;
+        esac ;;
+
     no-sleep)
         # Never sleep or hibernate – Nvidia's drivers sometimes don't wake up again (black
         # screen). systemd then refuses to suspend, so KDE drops the sleep button and does
