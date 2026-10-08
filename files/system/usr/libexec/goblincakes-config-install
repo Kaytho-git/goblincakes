@@ -96,6 +96,7 @@ check() {
         gamescope-flatpak) flatpak list --columns=application | grep -qx org.freedesktop.Platform.VulkanLayer.gamescope ;;
         # Installed with today's container setup (see layout in goblincakes-ianseo)
         snap) snap list "$1" >/dev/null 2>&1 ;;
+        opera-gx) snap list opera-gx >/dev/null 2>&1 || flatpak info com.opera.Opera >/dev/null 2>&1 ;;
         battlenet) compgen -G "$HOME/Games/battlenet*/drive_c" >/dev/null ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;
@@ -201,6 +202,21 @@ DESKTOP
         # goblincakes-snap.sh). If that folder didn't exist at login, Plasma never noticed
         # it – rebuild its app list so the program shows up in AppGrid right away.
         kbuildsycoca6 >/dev/null 2>&1 || true
+        ;;
+
+    opera-gx)
+        # Opera GX from the Snap Store if Opera publishes it for Linux, else Opera (Flathub)
+        if ! "$0" snap opera-gx; then
+            status "Opera GX fanns inte för Linux – installerar Opera i stället…"
+            "$0" flatpak com.opera.Opera
+        fi
+        ;;
+
+    default-browser)
+        # After installing: make it the main browser (the switch under the browser in Config)
+        status "Sätter som huvudwebbläsare…"
+        /usr/libexec/goblincakes-browser set "$1" >/dev/null
+        status "Huvudwebbläsare"
         ;;
 
     battlenet)

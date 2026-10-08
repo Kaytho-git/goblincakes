@@ -21,6 +21,7 @@ SHARE = Path(os.environ.get("GOBLINCAKES_CONFIG_SHARE", "/usr/share/goblincakes/
 HELPER = os.environ.get("GOBLINCAKES_CONFIG_HELPER", "/usr/libexec/goblincakes-config-install")
 TWEAK = os.environ.get("GOBLINCAKES_CONFIG_TWEAK", "/usr/libexec/goblincakes-tweak")
 GPU = os.environ.get("GOBLINCAKES_CONFIG_GPU", "/usr/libexec/goblincakes-gpu")
+BROWSER = os.environ.get("GOBLINCAKES_CONFIG_BROWSER", "/usr/libexec/goblincakes-browser")
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
 DONE_FILE = STATE / "config-done"
 OLD_DONE_FILE = STATE / "setup-done"  # from when the window was called GOBLINCAKES Setup
@@ -46,6 +47,7 @@ class Config(QObject):
     gpuProgress = Signal(str)  # status line while switching
     gpuDone = Signal(bool)  # switch/undo finished, ok
     catalogChanged = Signal()
+    mainBrowserChanged = Signal()
 
     def __init__(self):
         super().__init__()
@@ -56,6 +58,12 @@ class Config(QObject):
         self._catalog_data = catalog
         self._catalog = json.dumps(catalog)
         self._version = self._read_version()
+
+        # Main browser: the app whose switch is on ("" = Firefox, the standard)
+        code, out = run(BROWSER, ["status"])
+        self._main_browser = next((a["id"] for a in catalog["apps"]
+                                   if code == 0 and a.get("browser") == out and a["installed"]), "")
+        self._pending_browser = ""  # chosen but not installed yet: set after its installation
 
         tweaks = json.loads((SHARE / "tweaks.json").read_text())
         self._tweaks = {t["id"]: t for t in tweaks["tweaks"]}
@@ -87,6 +95,24 @@ class Config(QObject):
         """Back to choosing apps: what was installed now shows as installed."""
         self._catalog = json.dumps(self._catalog_data)
         self.catalogChanged.emit()
+
+    @Property(str, notify=mainBrowserChanged)
+    def mainBrowser(self):
+        return self._main_browser
+
+    @Slot(str)
+    def setMainBrowser(self, app_id):
+        """Switch under a browser: on = install it (if needed) and make it the main browser;
+        off = Firefox is the main browser again."""
+        self._main_browser = app_id
+        self._pending_browser = ""
+        if not app_id:
+            run(BROWSER, ["set", "firefox"])
+        elif self._apps[app_id]["installed"]:
+            run(BROWSER, ["set", self._apps[app_id]["browser"]])
+        else:
+            self._pending_browser = app_id  # set by the install queue once it's installed
+        self.mainBrowserChanged.emit()
 
     @Property(str, constant=True)
     def version(self):
@@ -142,6 +168,8 @@ class Config(QObject):
             self.progress.emit(app_id, "waiting", "Väntar")
             for step in self._apps[app_id]["steps"]:
                 self._queue.append((app_id, step))
+            if app_id == self._pending_browser:
+                self._queue.append((app_id, ["default-browser", self._apps[app_id]["browser"]]))
         self._next()
 
     def _next(self):
@@ -164,6 +192,11 @@ class Config(QObject):
         self._proc.start(HELPER, step)
 
     def _finish_app(self, app_id):
+        if app_id and app_id == self._pending_browser:
+            self._pending_browser = ""
+            if app_id in self._failed:  # not installed, so not the main browser: Firefox stays
+                self._main_browser = ""
+                self.mainBrowserChanged.emit()
         if app_id and app_id not in self._failed:
             self._apps[app_id]["installed"] = True
             self.progress.emit(app_id, "done", self._last_message.get(app_id, "Installerad"))

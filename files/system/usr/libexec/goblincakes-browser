@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# GOBLINCAKES: the main (default) web browser – GOBLINCAKES Config, Program → Webbläsare.
+#   goblincakes-browser status       firefox | brave | chrome | opera-gx | other
+#   goblincakes-browser set <name>   makes it the browser links, "open in browser" etc. use
+# With none chosen, Firefox (always installed) is the main browser.
+set -uo pipefail
+
+apps_dirs=("${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+           "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share/applications"
+           /var/lib/flatpak/exports/share/applications
+           /var/lib/snapd/desktop/applications
+           /usr/share/applications)
+
+find_desktop() { # pattern… → first desktop file name that exists
+    local pattern dir f
+    for pattern in "$@"; do
+        for dir in "${apps_dirs[@]}"; do
+            for f in "$dir"/$pattern; do
+                [ -e "$f" ] && { basename "$f"; return 0; }
+            done
+        done
+    done
+    return 1
+}
+
+desktop_for() {
+    case $1 in
+        firefox) find_desktop org.mozilla.firefox.desktop firefox.desktop ;;
+        brave) find_desktop com.brave.Browser.desktop brave-browser.desktop ;;
+        chrome) find_desktop com.google.Chrome.desktop google-chrome.desktop ;;
+        # Opera GX (snap) if it exists for Linux, else Opera (what Config installs in its place)
+        opera-gx) find_desktop '*opera-gx*.desktop' '*opera_gx*.desktop' com.opera.Opera.desktop opera.desktop ;;
+        *) return 1 ;;
+    esac
+}
+
+case ${1:-status} in
+    status)
+        current=$(xdg-mime query default x-scheme-handler/https 2>/dev/null)
+        for name in firefox brave chrome opera-gx; do
+            d=$(desktop_for "$name") && [ "$d" = "$current" ] && { echo "$name"; exit 0; }
+        done
+        echo other ;;
+    set)
+        desktop=$(desktop_for "${2:?name}") || { echo "Hittar inte $2" >&2; exit 1; }
+        xdg-mime default "$desktop" x-scheme-handler/http x-scheme-handler/https text/html application/xhtml+xml
+        xdg-settings set default-web-browser "$desktop" 2>/dev/null || true
+        # KDE's own setting (System Settings → Default Applications → Web browser)
+        kwriteconfig6 --file kdeglobals --group General --key BrowserApplication "$desktop" 2>/dev/null || true
+        echo "Huvudwebbläsare: $desktop" ;;
+    *) echo "Använd: goblincakes-browser status | set firefox|brave|chrome|opera-gx" >&2; exit 2 ;;
+esac

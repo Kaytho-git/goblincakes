@@ -1,5 +1,6 @@
 {
   "categories": [
+    {"id": "browsers", "name": "Webbläsare", "note": "Väljer du ingen är Firefox huvudwebbläsare – den är redan installerad. Reglaget under en webbläsare installerar den och gör den till huvudwebbläsare. Google Chrome installeras ändå om du väljer streamingapparna (webbapparna)."},
     {"id": "games", "name": "Spel och WoW"},
     {"id": "emulators", "name": "Emulatorer"},
     {"id": "media", "name": "Media och kreativt"},
@@ -9,6 +10,9 @@
     {"id": "system", "name": "System"}
   ],
   "apps": [
+    {"id": "brave", "name": "Brave", "category": "browsers", "browser": "brave", "desc": "Snabb webbläsare som blockerar annonser och spårning direkt. Bygger på Chromium.", "steps": [["flatpak", "com.brave.Browser"]], "check": ["flatpak", "com.brave.Browser"]},
+    {"id": "operagx", "name": "Opera GX", "category": "browsers", "browser": "opera-gx", "desc": "Opera för spelare: begränsar CPU/RAM, Discord och Twitch i sidopanelen. (Annars vanliga Opera.)", "steps": [["opera-gx"]], "check": ["opera-gx"]},
+    {"id": "chrome", "name": "Google Chrome", "category": "browsers", "desc": "Googles webbläsare. Kör också streamingapparna och kommer med automatiskt för dem.", "steps": [["flatpak", "com.google.Chrome"]], "check": ["flatpak", "com.google.Chrome"], "browser": "chrome"},
     {"id": "lutris", "name": "Lutris", "category": "games", "desc": "Spelbibliotek för allt utanför Steam – bland annat WoW via Battle.net.", "steps": [["flatpak", "net.lutris.Lutris"]], "check": ["flatpak", "net.lutris.Lutris"]},
     {"id": "battlenet", "name": "Battle.net och WoW", "category": "games", "desc": "Battle.net i Lutris med GE-Proton, med allt butiken behöver inne i Wine-prefixet. Installera WoW i Battle.net efteråt – mapparna Logs och AddOns hamnar då i ~/Games/WoW.", "requires": ["lutris"], "steps": [["battlenet"]], "check": ["battlenet"]},
     {"id": "discord", "name": "Discord", "category": "games", "desc": "Röst- och textchatt med guilden och vänner.", "steps": [["flatpak", "com.discordapp.Discord"]], "check": ["flatpak", "com.discordapp.Discord"]},
@@ -34,7 +38,6 @@
     {"id": "youtube", "name": "YouTube", "category": "streaming", "desc": "Videor, musik och livesändningar. Öppnas som en egen app.", "requires": ["chrome"], "steps": [["webapp", "youtube", "YouTube", "https://www.youtube.com/"]], "check": ["webapp", "youtube"]},
     {"id": "svtplay", "name": "SVT Play", "category": "streaming", "desc": "SVT:s program, nyheter och sport. Öppnas som en egen app.", "requires": ["chrome"], "steps": [["webapp", "svtplay", "SVT Play", "https://www.svtplay.se/"]], "check": ["webapp", "svtplay"]},
     {"id": "tv4play", "name": "TV4 Play", "category": "streaming", "desc": "TV4:s program, serier och sport. Öppnas som en egen app.", "requires": ["chrome"], "steps": [["webapp", "tv4play", "TV4 Play", "https://www.tv4play.se/"]], "check": ["webapp", "tv4play"]},
-    {"id": "chrome", "name": "Google Chrome", "category": "streaming", "desc": "Kör streamingapparna (har kopieringsskyddet de kräver). Kommer med automatiskt.", "steps": [["flatpak", "com.google.Chrome"]], "check": ["flatpak", "com.google.Chrome"]},
     {"id": "libreoffice", "name": "LibreOffice", "category": "office", "desc": "Ordbehandling, kalkyl och presentationer.", "steps": [["flatpak", "org.libreoffice.LibreOffice"]], "check": ["flatpak", "org.libreoffice.LibreOffice"]},
     {"id": "okular", "name": "Okular", "category": "office", "desc": "Läs PDF:er, markera, fyll i formulär och signera.", "steps": [["flatpak", "org.kde.okular"]], "check": ["flatpak", "org.kde.okular"]},
     {"id": "ark", "name": "Ark", "category": "office", "desc": "Packa upp och skapa zip, rar och 7z. Finns i Dolphins högerklicksmeny.", "steps": [["flatpak", "org.kde.ark"]], "check": ["flatpak", "org.kde.ark"]},

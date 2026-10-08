@@ -22,12 +22,30 @@ Window {
     property string tab: startTab // apps | tweaks | graphics
     readonly property var gpu: JSON.parse(backend.gpu)
     property string gpuMessage: ""
+    readonly property string mainBrowser: backend.mainBrowser // app id, "" = Firefox
+
+    function isInstalled(id) {
+        for (const a of catalog.apps)
+            if (a.id === id)
+                return a.installed;
+        return false;
+    }
+
+    // Switch under a browser: on = install it if needed and make it the main browser
+    function setMainBrowser(id, on) {
+        if (on && !isInstalled(id) && !chosen[id])
+            toggle(id);
+        backend.setMainBrowser(on ? id : "");
+    }
 
     function toggle(id) {
         const c = Object.assign({}, chosen);
-        if (c[id])
+        if (c[id]) {
             delete c[id];
-        else
+            // Not installing it after all: it can't be the main browser either
+            if (id === mainBrowser && !isInstalled(id))
+                backend.setMainBrowser("");
+        } else
             c[id] = true;
         chosen = c;
         chosenCount = Object.keys(c).length;
@@ -380,6 +398,16 @@ Window {
                         font.pixelSize: 14
                         font.letterSpacing: 2.5
                     }
+                    Text {
+                        visible: !!section.modelData.note
+                        width: section.width
+                        text: section.modelData.note || ""
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                        wrapMode: Text.WordWrap
+                        lineHeight: 1.15
+                    }
 
                     Grid {
                         columns: section.columns
@@ -394,13 +422,15 @@ Window {
                                 required property var modelData
                                 readonly property bool installed: modelData.installed
                                 readonly property bool checked: !!win.chosen[modelData.id]
+                                readonly property bool browser: !!modelData.browser
 
                                 width: (sections.width - 16 * (section.columns - 1)) / section.columns
-                                height: 112
+                                height: browser ? 160 : 112
                                 color: cardArea.containsMouse && !installed ? "#111A2A" : "#0E1420"
                                 border.width: 1
                                 border.color: checked ? "#2F6FED" : cardArea.containsMouse && !installed ? "#2A3852" : "#1E2A40"
-                                opacity: installed ? 0.55 : 1
+                                // Browsers stay bright when installed: their switch is still in use
+                                opacity: installed && !browser ? 0.55 : 1
 
                                 Monogram {
                                     id: mono
@@ -450,6 +480,34 @@ Window {
                                     hoverEnabled: true
                                     cursorShape: card.installed ? Qt.ArrowCursor : Qt.PointingHandCursor
                                     onClicked: if (!card.installed) win.toggle(card.modelData.id)
+                                }
+
+                                // Browsers: "Huvudwebbläsare" switch – installs it and makes it the main browser
+                                Rectangle {
+                                    visible: card.browser
+                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                                    anchors { leftMargin: 18; rightMargin: 18; bottomMargin: 14 }
+                                    height: 30
+                                    color: "transparent"
+                                    Rectangle {
+                                        anchors { left: parent.left; right: parent.right; top: parent.top }
+                                        anchors.topMargin: -8
+                                        height: 1
+                                        color: "#1E2A40"
+                                    }
+                                    Text {
+                                        anchors { left: parent.left; verticalCenter: browserSwitch.verticalCenter }
+                                        text: "Huvudwebbläsare"
+                                        color: browserSwitch.on ? "#E6ECF5" : "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                    ToggleSwitch {
+                                        id: browserSwitch
+                                        anchors { right: parent.right; bottom: parent.bottom }
+                                        on: win.mainBrowser === card.modelData.id
+                                        onToggled: win.setMainBrowser(card.modelData.id, !on)
+                                    }
                                 }
                             }
                         }
