@@ -105,6 +105,23 @@ write(
     ],
 )
 
+# Task manager (open programs in the dock and the top bar): square, flat. The active
+# program a darker blue than the accent (the user found Breeze's accent too bright),
+# other running programs a dim tile, minimised ones only a frame.
+TASK_ACTIVE = "#1B3A78"
+TASK_ATTENTION = "#D9822B"
+write(
+    "widgets/tasks.svg",
+    "Square GOBLINCAKES task buttons: active = dark blue, running = dim tile.",
+    [
+        ("normal", SUBTLE, SUBTLE, 1, 2),
+        ("hover", PANEL_BORDER, PANEL_BORDER, 1, 2),
+        ("focus", ACCENT, TASK_ACTIVE, 1, 2),
+        ("minimized", SUBTLE, NONE, 1, 2),
+        ("attention", TASK_ATTENTION, TASK_ATTENTION, 1, 2, 1.0, 0.35),
+    ],
+)
+
 # Tooltips: same as popups, no shadow.
 write(
     "widgets/tooltip.svg",
