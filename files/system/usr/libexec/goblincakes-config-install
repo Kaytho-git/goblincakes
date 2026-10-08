@@ -151,11 +151,90 @@ case $step in
         icon=goblincakes-webapp-$id
         status "Hämtar ikonen för $name…"
         host=${url#*://}; host=${host%%/*}
-        if ! curl -fsSL -o "$icons/$icon.png" "https://www.google.com/s2/favicons?domain=$host&sz=256" \
-            || [ "$(stat -c %s "$icons/$icon.png" 2>/dev/null || echo 0)" -lt 200 ]; then
+        # The site's own icon, biggest first: apple-touch-icon, the web app manifest's
+        # icons, <link rel="icon">, /favicon.ico – then Google's and DuckDuckGo's icon
+        # services as a fallback. Saved as a 256 px PNG (Qt reads ico/webp/svg too).
+        rm -f "$icons/$icon.png"
+        python3 - "$url" "$icons/$icon.png" <<'PY' >/dev/null 2>&1 || true
+import json, re, sys, urllib.parse, urllib.request
+from html.parser import HTMLParser
+
+page, out = sys.argv[1], sys.argv[2]
+UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"}
+
+def get(url, limit=4_000_000):
+    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=10) as r:
+        return r.geturl(), r.headers.get("Content-Type", ""), r.read(limit)
+
+class Links(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.icons, self.manifest = [], None
+    def handle_starttag(self, tag, attrs):
+        a = {k.lower(): (v or "") for k, v in attrs}
+        rel = a.get("rel", "").lower()
+        if tag != "link" or not a.get("href"):
+            return
+        if "manifest" in rel:
+            self.manifest = a["href"]
+        elif "icon" in rel:
+            self.icons.append((a["href"], a.get("sizes", ""), "apple" in rel, a.get("type", "")))
+
+def size(sizes, href, kind=""):
+    if "svg" in kind or href.lower().split("?")[0].endswith(".svg") or sizes == "any":
+        return 1000
+    nums = [int(n) for n in re.findall(r"(\d+)x\d+", sizes)]
+    return max(nums) if nums else 0
+
+candidates = []  # (score, url)
+host = urllib.parse.urlsplit(page if "://" in page else "https://" + page).hostname or ""
+try:
+    base, _, html = get(page, 600_000)
+    p = Links()
+    p.feed(html.decode("utf-8", "replace"))
+    for href, sizes, apple, kind in p.icons:
+        candidates.append((size(sizes, href, kind) or (180 if apple else 32), urllib.parse.urljoin(base, href)))
+    if p.manifest:
+        try:
+            murl = urllib.parse.urljoin(base, p.manifest)
+            for i in json.loads(get(murl, 200_000)[2]).get("icons", []):
+                if i.get("src"):
+                    candidates.append((size(i.get("sizes", ""), i["src"], i.get("type", "")),
+                                       urllib.parse.urljoin(murl, i["src"])))
+        except Exception:
+            pass
+except Exception:
+    pass
+candidates.append((16, f"https://{host}/favicon.ico"))
+candidates.sort(key=lambda c: -c[0])
+candidates += [(0, f"https://www.google.com/s2/favicons?domain={host}&sz=256"),
+               (0, f"https://icons.duckduckgo.com/ip3/{host}.ico")]
+
+import os
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication, QImage
+app = QGuiApplication([])  # loads the image plugins (svg, ico, webp)
+
+for _, url in candidates:
+    try:
+        _, kind, data = get(url)
+    except Exception:
+        continue
+    img = QImage()
+    if not img.loadFromData(data) or img.isNull() or img.width() < 16:
+        continue
+    img = img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    if img.save(out, "PNG"):
+        sys.exit(0)
+sys.exit(1)
+PY
+        if [ "$(stat -c %s "$icons/$icon.png" 2>/dev/null || echo 0)" -lt 200 ]; then
             rm -f "$icons/$icon.png"
             icon=applications-internet
         fi
+        # Plasma caches icons by name: make sure a new one (or a changed one) shows up
+        touch "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
         # Chrome names app windows after the address, so the dock groups them under this icon
         cat > "$apps/goblincakes-webapp-$id.desktop" <<DESKTOP
 [Desktop Entry]
