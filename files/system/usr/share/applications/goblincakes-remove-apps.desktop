@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Avinstallera program
+Comment=Avinstallera Fedora-program ur GOBLINCAKES, eller få tillbaka dem
+Exec=/usr/libexec/goblincakes-remove-apps
+Icon=goblincakes
+Categories=System;
+# Opened with "goblin remove apps"; the entry gives the window its name and icon
+NoDisplay=true

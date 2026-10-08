@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""GOBLINCAKES – uninstall Fedora programs in a window ("goblin remove apps").
+
+Looks like GOBLINCAKES Config: tick the programs to uninstall (tab PROGRAM) or the
+uninstalled ones to bring back (tab AVINSTALLERADE), then Verkställ. The work is done
+by /usr/libexec/goblincakes-remove (rpm-ostree override remove/reset, applies after a
+restart; rpm-ostree asks for the password itself). Window: /usr/share/goblincakes/remove/Main.qml
+"""
+import json
+import os
+import sys
+from pathlib import Path
+
+from PySide6.QtCore import QObject, QProcess, QSize, Qt, QUrl, Property, Signal, Slot
+from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap
+from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuick import QQuickImageProvider
+
+SHARE = Path(os.environ.get("GOBLINCAKES_REMOVE_SHARE", "/usr/share/goblincakes/remove"))
+HELPER = os.environ.get("GOBLINCAKES_REMOVE_HELPER", "/usr/libexec/goblincakes-remove")
+
+
+class IconProvider(QQuickImageProvider):
+    """image://icon/<name or path> – the program's own icon from the icon theme."""
+
+    def __init__(self):
+        super().__init__(QQuickImageProvider.Pixmap)
+
+    def requestPixmap(self, name, size, requested):
+        icon = QIcon(name) if name.startswith("/") else QIcon.fromTheme(name)
+        side = max(requested.width(), requested.height(), 48)
+        pixmap = icon.pixmap(QSize(side, side)) if not icon.isNull() else QPixmap()
+        if pixmap.isNull():
+            pixmap = QPixmap(1, 1)
+            pixmap.fill(Qt.transparent)
+        if size is not None:
+            size.setWidth(pixmap.width())
+            size.setHeight(pixmap.height())
+        return pixmap
+
+
+def has_icon(name):
+    if not name:
+        return False
+    return Path(name).exists() if name.startswith("/") else QIcon.hasThemeIcon(name)
+
+
+class Remover(QObject):
+    listChanged = Signal()
+    progress = Signal(str)  # a line from rpm-ostree
+    done = Signal(bool)  # ok
+
+    def __init__(self):
+        super().__init__()
+        self._list = '{"apps": [], "removed": []}'
+        self._queue = []
+        self._proc = None
+        self._ok = True
+        self.refresh()
+
+    @Property(str, notify=listChanged)
+    def programs(self):
+        return self._list
+
+    @Slot()
+    def refresh(self):
+        proc = QProcess()
+        proc.start(HELPER, ["list"])
+        proc.waitForFinished(60000)
+        try:
+            data = json.loads(bytes(proc.readAllStandardOutput()).decode(errors="replace"))
+        except ValueError:
+            data = {"apps": [], "removed": []}
+        for item in data["apps"] + data["removed"]:
+            item["hasIcon"] = has_icon(item.get("icon", ""))
+        self._list = json.dumps(data)
+        self.listChanged.emit()
+
+    @Slot(str, str)
+    def apply(self, remove_json, restore_json):
+        """Uninstall the ticked programs, then bring back the ticked uninstalled ones."""
+        remove, restore = json.loads(remove_json), json.loads(restore_json)
+        self._queue = ([("remove", remove)] if remove else []) + ([("restore", restore)] if restore else [])
+        self._ok = True
+        self._next()
+
+    def _next(self):
+        if not self._queue:
+            self.refresh()
+            self.done.emit(self._ok)
+            return
+        action, pkgs = self._queue.pop(0)
+        self.progress.emit(("Avinstallerar " if action == "remove" else "Återställer ") + ", ".join(pkgs) + " …")
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+
+        def read():
+            for line in bytes(proc.readAllStandardOutput()).decode(errors="replace").splitlines():
+                print(line, flush=True)
+                if line.strip():
+                    self.progress.emit(line.strip())
+
+        def finished(code, status):
+            read()
+            if status != QProcess.NormalExit or code != 0:
+                self._ok = False
+            self._proc = None
+            self._next()
+
+        proc.readyReadStandardOutput.connect(read)
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda e: finished(-1, QProcess.CrashExit) if e == QProcess.FailedToStart else None)
+        self._proc = proc
+        proc.start(HELPER, [action, *pkgs])
+
+    @Slot()
+    def reboot(self):
+        QProcess.startDetached("systemctl", ["reboot"])
+
+
+def main():
+    app = QGuiApplication(sys.argv)
+    app.setApplicationName("goblincakes-remove-apps")
+    app.setApplicationDisplayName("Avinstallera program")
+    app.setDesktopFileName("goblincakes-remove-apps")
+    app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+    for font in os.environ.get("GOBLINCAKES_CONFIG_FONTS", "").split(":"):
+        if font:
+            QFontDatabase.addApplicationFont(font)
+
+    backend = Remover()
+    engine = QQmlApplicationEngine()
+    engine.addImageProvider("icon", IconProvider())
+    engine.rootContext().setContextProperty("backend", backend)
+    engine.rootContext().setContextProperty("startTab", "removed" if "--old" in sys.argv else "apps")
+    engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
+        os.environ.get("GOBLINCAKES_LOGO", "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")))
+    engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
+    if not engine.rootObjects():
+        return 1
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

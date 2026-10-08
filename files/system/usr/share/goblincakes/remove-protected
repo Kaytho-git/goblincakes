@@ -1,0 +1,39 @@
+# Packages "goblin remove" and the uninstall window never take away: the desktop,
+# GOBLINCAKES itself and what its features stand on. Everything named goblincakes* too.
+# Hide them from AppGrid instead (goblin apps).
+dolphin
+plasma-systemsettings
+systemsettings
+plasma-desktop
+plasma-workspace
+plasma-workspace-wayland
+plasma-nm
+plasma-pa
+bluedevil
+powerdevil
+kwin
+kwin-wayland
+kscreen
+kscreenlocker
+kde-cli-tools
+sddm
+sddm-wayland-plasma
+xdg-desktop-portal-kde
+ghostty
+steam
+plasma-applet-appgrid
+python3-pyside6
+flatpak
+rpm-ostree
+podman
+bash
+glibc
+systemd
+NetworkManager
+pipewire
+wireplumber
+fastfetch
+gamemode
+gamescope
+mangohud
+kde-partitionmanager

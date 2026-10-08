@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""Uninstall Fedora programs from the GOBLINCAKES system image, and bring them back.
+
+Used by "goblin remove", "goblin old" and the window "goblin remove apps".
+
+  goblincakes-remove list              JSON: programs that can be uninstalled + uninstalled ones
+  goblincakes-remove find <name>       package<TAB>name of a program (id, last part of id, name or package)
+  goblincakes-remove removed           package<TAB>name<TAB>state per uninstalled program
+                                       (state: removed / removing = after restart / restoring = back after restart)
+  goblincakes-remove protected <pkg>   exit 0 if the package must stay
+  goblincakes-remove remove <pkg>...   rpm-ostree override remove (applies after a restart)
+  goblincakes-remove restore <pkg>...  rpm-ostree override reset (back after a restart)
+
+Names of uninstalled programs are kept in ~/.local/state/goblincakes/removed-apps
+(package|name|icon), since their menu entries are gone after the restart.
+"""
+import configparser
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+APPS = Path(os.environ.get("GOBLINCAKES_APPS_DIR", "/usr/share/applications"))
+SHARE = Path(os.environ.get("GOBLINCAKES_SHARE", "/usr/share/goblincakes"))
+HIDDEN = SHARE / "hidden-apps"
+PROTECTED = SHARE / "remove-protected"
+STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes" / "removed-apps"
+
+
+def protected_packages():
+    try:
+        lines = PROTECTED.read_text().splitlines()
+    except OSError:
+        lines = []
+    return {l.split("#")[0].strip() for l in lines if l.split("#")[0].strip()}
+
+
+def is_protected(pkg, protected=None):
+    return pkg.startswith("goblincakes") or pkg in (protected if protected is not None else protected_packages())
+
+
+def hidden_ids():
+    try:
+        return {l.strip() for l in HIDDEN.read_text().splitlines() if l.strip()}
+    except OSError:
+        return set()
+
+
+def read_entry(path):
+    cp = configparser.RawConfigParser(interpolation=None, strict=False)
+    cp.optionxform = str
+    try:
+        cp.read(path, encoding="utf-8")
+        return dict(cp["Desktop Entry"])
+    except (configparser.Error, KeyError, UnicodeDecodeError, OSError):
+        return None
+
+
+def localized(entry, key):
+    """Swedish name/description when the program has one."""
+    lang = os.environ.get("LANG", "sv_SE").split(".")[0]
+    for k in (f"{key}[{lang}]", f"{key}[{lang.split('_')[0]}]", key):
+        if entry.get(k):
+            return entry[k]
+    return ""
+
+
+def owners(paths):
+    """Package name per file, None for files no package owns (in one rpm call)."""
+    if not paths:
+        return []
+    out = subprocess.run(["rpm", "-qf", "--qf", "%{NAME}\n", *map(str, paths)],
+                         capture_output=True, text=True).stdout.splitlines()
+    result = [None if line.startswith("file ") or " " in line else line for line in out]
+    return result if len(result) == len(paths) else [None] * len(paths)
+
+
+def deployments():
+    """Package removals in the newest deployment and in the running one."""
+    try:
+        out = subprocess.run(["rpm-ostree", "status", "--json"], capture_output=True, text=True).stdout
+        deps = json.loads(out)["deployments"]
+    except (OSError, ValueError, KeyError):
+        return set(), set()
+    newest = set(deps[0].get("requested-base-removals", [])) if deps else set()
+    booted = next((set(d.get("requested-base-removals", [])) for d in deps if d.get("booted")), newest)
+    return newest, booted
+
+
+def saved_names():
+    names = {}
+    try:
+        for line in STATE.read_text().splitlines():
+            parts = line.split("|")
+            if parts[0]:
+                names[parts[0]] = (parts[1] if len(parts) > 1 else parts[0], parts[2] if len(parts) > 2 else "")
+    except OSError:
+        pass
+    return names
+
+
+def save_names(update=None, drop=()):
+    names = saved_names()
+    for pkg in drop:
+        names.pop(pkg, None)
+    names.update(update or {})
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    STATE.write_text("".join(f"{p}|{n}|{i}\n" for p, (n, i) in sorted(names.items())))
+
+
+def programs(include_protected=False):
+    """One entry per package that has a program in the menu (or one GOBLINCAKES hid)."""
+    hidden = hidden_ids()
+    entries = []
+    for path in sorted(APPS.glob("*.desktop")):
+        entry = read_entry(path)
+        if not entry or entry.get("Type", "Application") != "Application" or entry.get("Hidden") == "true":
+            continue
+        app_id = path.stem
+        if entry.get("NoDisplay") == "true" and app_id not in hidden:
+            continue
+        only = entry.get("OnlyShowIn", "")
+        if only and "KDE" not in only.split(";"):
+            continue
+        if "KDE" in entry.get("NotShowIn", "").split(";"):
+            continue
+        entries.append((path, app_id, entry))
+
+    protected = protected_packages()
+    by_package = {}
+    for (path, app_id, entry), pkg in zip(entries, owners([e[0] for e in entries])):
+        if not pkg or (not include_protected and is_protected(pkg, protected)):
+            continue
+        prog = by_package.setdefault(pkg, {
+            "package": pkg, "id": app_id, "name": localized(entry, "Name") or app_id,
+            "comment": localized(entry, "Comment") or localized(entry, "GenericName"),
+            "icon": entry.get("Icon", ""), "hidden": app_id in hidden, "others": []})
+        if prog["id"] != app_id:
+            prog["others"].append(localized(entry, "Name") or app_id)
+    return by_package
+
+
+def removed_list(progs=None):
+    newest, booted = deployments()
+    names = saved_names()
+    progs = progs if progs is not None else {}
+    result = []
+    for pkg in sorted(newest | booted):
+        state = "removed" if pkg in newest and pkg in booted else "removing" if pkg in newest else "restoring"
+        name, icon = names.get(pkg, (None, ""))
+        if not name and pkg in progs:
+            name, icon = progs[pkg]["name"], progs[pkg]["icon"]
+        result.append({"package": pkg, "name": name or pkg, "icon": icon, "state": state})
+    return result
+
+
+def find(want):
+    want_l = want.lower()
+    progs = programs(include_protected=True)  # so "goblin remove dolphin" can say it must stay
+    for prog in progs.values():
+        if want_l in (prog["package"].lower(), prog["id"].lower(), prog["id"].split(".")[-1].lower(), prog["name"].lower()):
+            return prog["package"], prog["name"]
+    # Uninstalled already (only the saved name is left) or a package without a menu entry
+    for pkg, (name, _icon) in saved_names().items():
+        if want_l in (pkg.lower(), name.lower()):
+            return pkg, name
+    if subprocess.run(["rpm", "-q", want], capture_output=True).returncode == 0:
+        return want, want
+    return None
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else "list"
+    args = argv[2:]
+    if cmd == "list":
+        progs = programs()
+        removed = removed_list(progs)
+        gone = {r["package"] for r in removed if r["state"] != "restoring"}
+        apps = sorted((p for p in progs.values() if p["package"] not in gone), key=lambda p: p["name"].lower())
+        print(json.dumps({"apps": apps, "removed": removed}, ensure_ascii=False))
+    elif cmd == "find":
+        found = find(args[0]) if args else None
+        if not found:
+            return 1
+        print(f"{found[0]}\t{found[1]}")
+    elif cmd == "removed":
+        for r in removed_list(programs()):
+            print(f"{r['package']}\t{r['name']}\t{r['state']}")
+    elif cmd == "protected":
+        return 0 if args and is_protected(args[0]) else 1
+    elif cmd == "remove":
+        pkgs = [p for p in args if not is_protected(p)]
+        if not pkgs:
+            return 2
+        progs = programs()
+        names = {p: (progs[p]["name"], progs[p]["icon"]) if p in progs else (find(p) or (p, p))[1:] + ("",)
+                 for p in pkgs}
+        code = subprocess.run(["rpm-ostree", "override", "remove", *pkgs]).returncode
+        if code == 0:
+            save_names(update=names)
+        return code
+    elif cmd == "restore":
+        if not args:
+            return 2
+        code = subprocess.run(["rpm-ostree", "override", "reset", *args]).returncode
+        if code == 0:
+            # Keep the name until the program really is back (after the restart) – then it's in the menu again
+            newest, _ = deployments()
+            save_names(drop=[p for p in args if p not in newest and p not in deployments()[1]])
+        return code
+    else:
+        print(__doc__, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
