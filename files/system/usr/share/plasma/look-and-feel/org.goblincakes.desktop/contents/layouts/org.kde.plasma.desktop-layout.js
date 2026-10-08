@@ -31,6 +31,9 @@ running.currentConfigGroup = ["General"];
 running.writeConfig("launchers", []);
 running.writeConfig("fill", true);
 running.writeConfig("maxStripes", 1);
+// Hover = live preview of the window(s); hovering a preview highlights that window
+running.writeConfig("showToolTips", true);
+running.writeConfig("highlightWindows", true);
 
 // What Spotify/the music player is playing and the Discord server/channel
 // (/usr/share/plasma/plasmoids/org.goblincakes.nowplaying), just left of the tray
@@ -71,3 +74,5 @@ var tasks = dock.addWidget("org.kde.plasma.icontasks");
 tasks.currentConfigGroup = ["General"];
 // Only these two, in this order: the terminal (Ghostty), Firefox. Users pin the rest themselves.
 tasks.writeConfig("launchers", ["applications:com.mitchellh.ghostty.desktop", "applications:org.mozilla.firefox.desktop"]);
+tasks.writeConfig("showToolTips", true);
+tasks.writeConfig("highlightWindows", true);
