@@ -5,6 +5,7 @@ Repo: `Kaytho-git/goblincakes` (publikt). Images: `ghcr.io/kaytho-git/goblincake
 
 Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite → rebase till GOBLINCAKES). Hen redigerar ibland filer direkt på GitHub – kör alltid `git pull` innan du ändrar något.
 **Jobba direkt i `main`** (användarens beslut 6 okt): committa och pusha till `main`, inga egna grenar eller pull requests – även om sessionen föreslår en annan gren.
+**Nyheter (sedan 8 okt):** varje ändring som användaren märker får en rad på svenska överst i `files/system/usr/share/goblincakes/nyheter.txt` (`ÅÅÅÅ-MM-DD`, två mellanslag, kort text på vanlig svenska – inte teknisk). `goblin update` visar raderna som är nya i den hämtade versionen (`/usr/libexec/goblincakes-news update` läser filen ur den väntande deploymenten + sammanfattar Fedoras paket med `rpm-ostree db diff`); `goblin nyheter` visar de senaste.
 
 ## När användaren hälsar ("hej" o.d.) i en ny session
 Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade steget nedan) och visa hela steglistan med status (klart / pågår / kvar). Kort, på svenska.

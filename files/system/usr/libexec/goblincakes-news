@@ -1,0 +1,124 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: what's new, in Swedish (from /usr/share/goblincakes/nyheter.txt).
+
+    goblincakes-news update     after `goblin update`: the lines that are new in the
+                                downloaded version compared to the running one, plus a
+                                short summary of Fedora's package updates
+    goblincakes-news latest [N] the N newest lines (goblin nyheter)
+
+The new version's file is read straight from its deployment on disk
+(/ostree/deploy/<os>/deploy/<checksum>.<serial>), so nothing has to be downloaded.
+"""
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+NEWS = "usr/share/goblincakes/nyheter.txt"
+ACCENT, MUTED, FROST, BOLD, RESET = "\033[38;2;47;111;237m", "\033[38;2;139;152;173m", \
+    "\033[38;2;230;236;245m", "\033[1m", "\033[0m"
+if not sys.stdout.isatty():
+    ACCENT = MUTED = FROST = BOLD = RESET = ""
+
+
+def entries(path):
+    """[(date, text)] from a nyheter.txt, newest first."""
+    out = []
+    try:
+        for line in Path(path).read_text().splitlines():
+            m = re.match(r"^(\d{4}-\d{2}-\d{2})\s{2,}(.+)$", line.strip())
+            if m:
+                out.append((m.group(1), m.group(2).strip()))
+    except OSError:
+        pass
+    return out
+
+
+def deployments():
+    out = subprocess.run(["rpm-ostree", "status", "--json"], capture_output=True, text=True).stdout
+    return json.loads(out).get("deployments", [])
+
+
+def deploy_root(d):
+    return Path("/ostree/deploy") / d.get("osname", "fedora") / "deploy" / f"{d['checksum']}.{d.get('serial', 0)}"
+
+
+def fedora_summary():
+    """E.g. "34 paket uppdaterade, ny kärna 7.2.8 → 7.2.9" (booted vs the pending version)."""
+    out = subprocess.run(["rpm-ostree", "db", "diff"], capture_output=True, text=True).stdout
+    upgraded = [l for l in out.splitlines() if "->" in l]
+    added = removed = 0
+    section = ""
+    for line in out.splitlines():
+        if not line.startswith(" "):
+            section = line.strip().lower()
+        elif section.startswith("added"):
+            added += 1
+        elif section.startswith("removed"):
+            removed += 1
+    if not (upgraded or added or removed):
+        return ""
+    parts = [f"{len(upgraded)} paket uppdaterade"] if upgraded else []
+    if added:
+        parts.append(f"{added} nya")
+    if removed:
+        parts.append(f"{removed} borttagna")
+    for line in upgraded:
+        m = re.match(r"^\s+kernel\s+(\S+)\s+->\s+(\S+)", line)
+        if m:
+            short = lambda v: v.split("-")[0]
+            parts.append(f"ny kärna {short(m.group(1))} → {short(m.group(2))}")
+            break
+    return ", ".join(parts)
+
+
+def show(items):
+    for date, text in items:
+        print(f"  {ACCENT}•{RESET} {FROST}{text}{RESET} {MUTED}({date}){RESET}")
+
+
+def cmd_update():
+    try:
+        deps = deployments()
+    except (OSError, ValueError):
+        return 0
+    booted = next((d for d in deps if d.get("booted")), None)
+    pending = next((d for d in deps if d.get("staged")), None)  # the downloaded, not yet used version
+    if not booted or not pending:
+        return 0
+    old = set(entries("/" + NEWS))
+    new = [e for e in entries(deploy_root(pending) / NEWS) if e not in old]
+    fedora = fedora_summary()
+    if not new and not fedora:
+        return 0
+    print(f"\n{ACCENT}▌ {BOLD}Nytt i GOBLINCAKES{RESET}")
+    show(new[:25])
+    if len(new) > 25:
+        print(f"  {MUTED}… och {len(new) - 25} till – goblin nyheter visar allt efter omstarten{RESET}")
+    if fedora:
+        print(f"  {MUTED}Fedora: {fedora}{RESET}")
+    return 0
+
+
+def cmd_latest(n):
+    items = entries("/" + NEWS)
+    if not items:
+        print("Inga nyheter hittades.")
+        return 0
+    show(items[:n])
+    return 0
+
+
+def main(argv):
+    if argv[:1] == ["update"]:
+        return cmd_update()
+    if argv[:1] == ["latest"]:
+        n = int(argv[1]) if len(argv) > 1 and argv[1].isdigit() else 15
+        return cmd_latest(n)
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

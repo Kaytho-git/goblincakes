@@ -1,0 +1,33 @@
+# GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
+# goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-08  goblin update visar vad som är nytt när en ny version har hämtats (och goblin nyheter visar det när du vill)
+2026-10-08  Aktiva program i dockan och toppfältet har en mörkare blå bakgrund
+2026-10-08  goblin wow lägger in WoW-mappen i Raider.IO automatiskt
+2026-10-08  Nytt reglage i Optimering: Automatiska systemuppdateringar
+2026-10-08  goblin update säger till när en ny version redan är hämtad och bara väntar på omstart
+2026-10-08  Starta spel från terminalen via Steam: skriv t.ex. wow eller cs2 (goblin play visar dina spel)
+2026-10-08  Claude Code går att installera i Config, och GitHub CLI (gh) finns från start
+2026-10-08  Webbappar får sidans egen ikon, skarp i 256 px
+2026-10-08  Muspekaren förstoras inte längre när du skakar på musen
+2026-10-08  Egen webbapp fungerar även för sidor som inte vill lämna ut sitt namn
+2026-10-08  Avinstallera program: eget fönster i AppGrid och goblin remove (goblin old visar det borttagna)
+2026-10-08  Ersatta Fedora-program döljs i AppGrid (goblin apps visar dem igen)
+2026-10-08  Toppfältet visar öppna program och vad som spelas nu (Spotify, Discord), med förhandsvisning av fönster
+2026-10-08  Nya reglage i Optimering: Inget viloläge, Ingen automatisk skärmlåsning, Ingen musacceleration och HDR
+2026-10-08  Egen webbapp i Config: klistra in en länk, få en egen app med ikon
+2026-10-08  Webbläsare i Config: Brave, Opera GX och Google Chrome, med val av huvudwebbläsare
+2026-10-08  Emulatorer i Config: RetroDECK och Steam ROM Manager
+2026-10-08  Num Lock är på från start
+2026-10-08  Claude i Config är den riktiga claude.ai som egen app
+2026-10-08  Crystal Dock borttagen; Meta+C öppnar GOBLINCAKES Config
+2026-10-08  Config har fått rullningslist och knappen Tillbaka
+2026-10-08  Ghostty fungerar i VirtualBox med 3D påslaget
+2026-10-07  GE-Proton hämtar rätt version (x86_64)
+2026-10-07  Toppfältet och dockan har samma färg som fönstrens namnlist
+2026-10-07  GOBLINCAKES har ett versionsnummer, synligt i Config, startmenyn och goblin fast
+2026-10-07  Meta visar dockan och döljer den igen när du klickar någon annanstans; Shift+Meta öppnar AppGrid
+2026-10-07  goblin update försöker igen om nedladdningen avbryts
+2026-10-07  Notis när GOBLINCAKES har gått över till en ny Fedora-version
+2026-10-07  Flera skärmar: varje skärm får sin högsta frekvens och den snabbaste blir huvudskärm
+2026-10-07  Dockan har bara terminalen och Firefox från start
+2026-10-07  Ianseo via internet bakom lösenord, och en ikon i systemfältet när Ianseo nås utifrån

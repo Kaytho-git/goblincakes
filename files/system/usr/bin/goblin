@@ -137,6 +137,8 @@ cmd_update() {
     fi
 
     if [ "$system_updated" = 1 ]; then
+        # What the new version brings (GOBLINCAKES' own news in Swedish + Fedora's packages)
+        /usr/libexec/goblincakes-news update 2>/dev/null || true
         echo
         printf '%sDen nya GOBLINCAKES-versionen används efter en omstart. Starta om nu? [j/N] %s' "$frost" "$reset"
         read -r answer
@@ -162,6 +164,7 @@ COMMANDS=(
     "old|Visa avinstallerade program och hur du får tillbaka dem"
     "play|Dina Steam-spel och orden som startar dem – skriv t.ex. wow eller cs2 direkt i terminalen"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
+    "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
     "fast|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
     "help|Visa alla goblin-kommandon"
@@ -423,6 +426,7 @@ case ${1:-help} in
         fi
         heading "Spel i Steam – skriv ordet i terminalen för att starta"
         exec /usr/libexec/goblincakes-games list ;;
+    nyheter|news) shift; heading "Nytt i GOBLINCAKES"; exec /usr/libexec/goblincakes-news latest "${1:-15}" ;;
     gamemode) cmd_gamemode ;;
     fast|fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;
