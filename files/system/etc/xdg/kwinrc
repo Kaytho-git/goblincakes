@@ -9,6 +9,9 @@ ButtonsOnRight=IAX
 [Plugins]
 # Windows turn see-through while you drag or resize them
 translucencyEnabled=true
+# No big mouse pointer when the mouse is moved fast back and forth ("shake cursor")
+# – it gets in the way in games. Back on: System Settings → Desktop Effects → Shake Cursor
+shakecursorEnabled=false
 
 [Effect-translucency]
 MoveResize=75
