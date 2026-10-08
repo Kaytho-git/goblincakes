@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "GOBLINCAKES"
+            }
+        ],
+        "Category": "Multimedia",
+        "Description": "Shows what Spotify or the music player is playing and the Discord server/channel you are in",
+        "Description[sv]": "Visar vad Spotify eller musikspelaren spelar och vilken Discord-server/kanal du är i",
+        "Icon": "media-playback-start",
+        "Id": "org.goblincakes.nowplaying",
+        "License": "GPL-3.0-or-later",
+        "Name": "GOBLINCAKES Now Playing",
+        "Name[sv]": "GOBLINCAKES Spelas nu"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

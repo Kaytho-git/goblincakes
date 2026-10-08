@@ -9,7 +9,7 @@ for (var i = 0; i < allDesktops.length; i++) {
     d.writeConfig("Image", "file:///usr/share/wallpapers/goblincakes/goblincakes.svg");
 }
 
-// ---- Top bar: logo left, system icons + clock + power right ----
+// ---- Top bar: logo left, now playing in the middle, system icons + clock + power right ----
 var topBar = new Panel;
 topBar.location = "top";
 topBar.height = Math.round(gridUnit * 2.4);
@@ -23,6 +23,11 @@ var apps = topBar.addWidget("dev.xarbit.appgrid");
 apps.currentConfigGroup = ["General"];
 apps.writeConfig("icon", "goblincakes");
 
+// Middle: what Spotify/the music player is playing and the Discord server/channel
+// (/usr/share/plasma/plasmoids/org.goblincakes.nowplaying). Two flexible spacers
+// keep it centred on the screen.
+topBar.addWidget("org.kde.plasma.panelspacer");
+topBar.addWidget("org.goblincakes.nowplaying");
 topBar.addWidget("org.kde.plasma.panelspacer");
 // System tray: trimmed to network, volume and notifications by
 // /usr/share/goblincakes/systray.js, which goblincakes-firstlogin runs once the
