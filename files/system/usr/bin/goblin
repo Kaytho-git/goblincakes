@@ -6,6 +6,7 @@
 #   goblin tv          TV mode (Steam Big Picture in full screen)
 #   goblin wow         links every WoW version under ~/Games/WoW, updates WowUp
 #   goblin dock        reset – the desktop layout and dock back to the start (Meta shows the dock)
+#   goblin apps        Fedora programs hidden from AppGrid; show/hide them again
 #   goblin fast        system info with the GOBLINCAKES logo
 #   goblin motd        the command list shown in every new terminal (on/off)
 #   goblin help        list the commands
@@ -144,6 +145,7 @@ COMMANDS=(
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
     "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
     "dock reset|Återställ skrivbordet och dockan (Meta visar dockan, Shift+Meta appmenyn)"
+    "apps|Dolda Fedora-program (Konsole, Discover …) – visa igen: goblin apps show konsole"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "fast|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
@@ -190,6 +192,69 @@ ${muted}Medan ett spel kör: gamemoded -s visar om GameMode är aktivt.${reset}
 EOF
 }
 
+hidden_list=/usr/share/goblincakes/hidden-apps
+user_apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+
+short_name() { tr '[:upper:]' '[:lower:]' <<< "${1##*.}"; }
+app_name() { grep -m1 '^Name=' "/usr/share/applications/$1.desktop" 2>/dev/null | cut -d= -f2-; }
+
+# A hidden program by its id (org.kde.konsole), last part (konsole) or name (Konsole)
+find_hidden() {
+    local want=${1,,} id name
+    while read -r id; do
+        [ -n "$id" ] || continue
+        name=$(app_name "$id")
+        if [ "${id,,}" = "$want" ] || [ "$(short_name "$id")" = "$want" ] || [ "${name,,}" = "$want" ]; then
+            printf '%s\n' "$id"
+            return 0
+        fi
+    done < "$hidden_list"
+    return 1
+}
+
+cmd_apps() {
+    local action=${1:-list} id
+    if [ ! -s "$hidden_list" ]; then
+        info "Inga program är dolda i den här versionen."
+        return 0
+    fi
+    case $action in
+        list)
+            heading "Dolda Fedora-program"
+            info "Finns kvar i systemet och fungerar, men syns inte i appmenyn."
+            echo
+            while read -r id; do
+                [ -n "$id" ] || continue
+                if [ -e "$user_apps/$id.desktop" ]; then
+                    printf '  %s●%s %-28s %svisas (goblin apps hide %s)%s\n' "$accent" "$reset" "$(app_name "$id")" "$muted" "$(short_name "$id")" "$reset"
+                else
+                    printf '  %s○%s %-28s %sdold  (goblin apps show %s)%s\n' "$muted" "$reset" "$(app_name "$id")" "$muted" "$(short_name "$id")" "$reset"
+                fi
+            done < "$hidden_list"
+            ;;
+        show|hide)
+            if [ -z "${2:-}" ]; then
+                printf 'Använd: goblin apps %s <namn>   (se namnen med: goblin apps)\n' "$action" >&2
+                return 2
+            fi
+            if ! id=$(find_hidden "$2"); then
+                printf '%s▌ Hittar inget dolt program som heter %s.%s Se listan med: goblin apps\n' "$red" "$2" "$reset" >&2
+                return 1
+            fi
+            if [ "$action" = show ]; then
+                # Your own copy without NoDisplay wins over the system's hidden one
+                mkdir -p "$user_apps"
+                sed '/^NoDisplay=/d' "/usr/share/applications/$id.desktop" > "$user_apps/$id.desktop"
+                info "$(app_name "$id") syns i appmenyn igen. Dölj igen med: goblin apps hide $(short_name "$id")"
+            else
+                rm -f "$user_apps/$id.desktop"
+                info "$(app_name "$id") är dold i appmenyn igen."
+            fi
+            ;;
+        *) printf 'Använd: goblin apps [show|hide <namn>]\n' >&2; return 2 ;;
+    esac
+}
+
 cmd_fastfetch() {
     exec fastfetch "$@"
 }
@@ -224,6 +289,7 @@ case ${1:-help} in
     tv) exec goblincakes-tv ;;
     wow) heading "World of Warcraft"; exec /usr/libexec/goblincakes-wow-links --verbose ;;
     dock) shift; exec /usr/libexec/goblincakes-dock "${1:-}" ;;
+    apps) shift; cmd_apps "$@" ;;
     gamemode) cmd_gamemode ;;
     fast|fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;

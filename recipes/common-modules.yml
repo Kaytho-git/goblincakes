@@ -71,6 +71,12 @@ modules:
     src: /out/
     dest: /
 
+  # Fedora programs GOBLINCAKES replaces (Konsole, Discover, Welcome …) out of AppGrid –
+  # still installed; "goblin apps" lists them and shows one again
+  - type: script
+    scripts:
+      - hide-apps.sh
+
   # Log in through SDDM (GOBLINCAKES theme) instead of Plasma Login Manager
   - type: script
     snippets:
