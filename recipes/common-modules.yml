@@ -53,11 +53,11 @@ modules:
       - install-steam.sh
 
   # Xbox controllers: xone (wireless dongle, USB) and xpadneo (Bluetooth: rumble, right buttons),
-  # pre-built by Universal Blue for this kernel and signed with their key (Secure Boot: Grafik tab)
-  - type: akmods
-    install:
-      - xone
-      - xpadneo
+  # pre-built by Universal Blue for exactly this kernel and signed with their key (Secure Boot:
+  # Grafik tab). Never stops the build if they aren't ready for a new kernel yet.
+  - type: script
+    scripts:
+      - install-xbox-kmods.sh
 
   # MangoHud's settings window, if Fedora has it
   - type: script
