@@ -493,52 +493,6 @@ Window {
                     font.pixelSize: 13
                 }
 
-                // The ones made so far, with a button to remove each
-                Repeater {
-                    model: win.webapps
-                    Rectangle {
-                        required property var modelData
-                        width: sections.width
-                        height: 52
-                        color: "#0E1420"
-                        border.width: 1
-                        border.color: "#1E2A40"
-                        Monogram {
-                            id: webMono
-                            name: parent.modelData.name
-                            anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
-                            scale: 0.7
-                        }
-                        Column {
-                            anchors { left: webMono.right; leftMargin: 10; right: removeBtn.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                            Text {
-                                width: parent.width
-                                text: parent.parent.modelData.name
-                                color: "#E6ECF5"
-                                font.family: "IBM Plex Sans"
-                                font.weight: Font.DemiBold
-                                font.pixelSize: 14
-                                elide: Text.ElideRight
-                            }
-                            Text {
-                                width: parent.width
-                                text: parent.parent.modelData.url
-                                color: "#8B98AD"
-                                font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
-                                elide: Text.ElideMiddle
-                            }
-                        }
-                        FlatButton {
-                            id: removeBtn
-                            anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                            height: 36
-                            width: 110
-                            text: "Ta bort"
-                            onClicked: backend.removeWebapp(parent.modelData.id)
-                        }
-                    }
-                }
             }
 
             Repeater {
@@ -719,6 +673,70 @@ Window {
                 }
             }
 
+
+            // ── The user's own web apps, at the bottom ──
+            Column {
+                visible: win.webapps.length > 0
+                width: sections.width
+                spacing: 14
+                topPadding: 22
+
+                Text {
+                    text: "DINA WEBBAPPAR"
+                    color: "#8B98AD"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 14
+                    font.letterSpacing: 2.5
+                }
+
+                // The ones made so far, with a button to remove each
+                Repeater {
+                    model: win.webapps
+                    Rectangle {
+                        required property var modelData
+                        width: sections.width
+                        height: 52
+                        color: "#0E1420"
+                        border.width: 1
+                        border.color: "#1E2A40"
+                        Monogram {
+                            id: webMono
+                            name: parent.modelData.name
+                            anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                            scale: 0.7
+                        }
+                        Column {
+                            anchors { left: webMono.right; leftMargin: 10; right: removeBtn.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                            Text {
+                                width: parent.width
+                                text: parent.parent.modelData.name
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 14
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                width: parent.width
+                                text: parent.parent.modelData.url
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                elide: Text.ElideMiddle
+                            }
+                        }
+                        FlatButton {
+                            id: removeBtn
+                            anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                            height: 36
+                            width: 110
+                            text: "Ta bort"
+                            onClicked: backend.removeWebapp(parent.modelData.id)
+                        }
+                    }
+                }
+            }
         }
     }
 
