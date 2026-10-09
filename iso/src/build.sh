@@ -20,7 +20,8 @@ secureboot_key=/etc/pki/akmods/certs/akmods-ublue.der
 mkdir -p "$(realpath /root)" /var/lib/rpm-state
 
 # ── The image Anaconda installs: the same GOBLINCAKES, kept compressed (OCI layout) ──
-skopeo copy --retry-times 3 "docker://$payload_image" "oci:$payload_dir:$payload_tag"
+# Signatures can not be kept in an OCI folder; the installed system checks them on every update
+skopeo copy --retry-times 3 --remove-signatures "docker://$payload_image" "oci:$payload_dir:$payload_tag"
 
 # ── Live start: initramfs that boots from the ISO ──
 dnf -y versionlock clear || :
