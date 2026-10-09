@@ -22,9 +22,14 @@ case ${1:-} in
         plasma_js 'panels().forEach(function (p) {
             if (p.location === "bottom" && p.hiding === "none") p.hiding = "dodgewindows";
         });'
-        busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting unloadScript s goblincakes-dock-autohide >/dev/null 2>&1
-        busctl --user call org.kde.kglobalaccel /component/plasmashell org.kde.kglobalaccel.Component \
-            invokeShortcut s cycle-panels >/dev/null ;;
+        # It steps through the panels one at a time, so a KWin script presses it and steps past
+        # the top bar (/usr/share/goblincakes/dock-show.js)
+        kwin=(busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting)
+        "${kwin[@]}" unloadScript s goblincakes-dock-autohide >/dev/null 2>&1
+        "${kwin[@]}" unloadScript s goblincakes-dock-show >/dev/null 2>&1
+        id=$("${kwin[@]}" loadScript ss /usr/share/goblincakes/dock-show.js goblincakes-dock-show | awk '{print $2}')
+        [ -n "$id" ] && [ "$id" -ge 0 ] && \
+            busctl --user call org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script run >/dev/null ;;
     reset)
         rm -f "$HOME/.local/state/goblincakes/firstlogin-done"
         /usr/libexec/goblincakes-firstlogin
