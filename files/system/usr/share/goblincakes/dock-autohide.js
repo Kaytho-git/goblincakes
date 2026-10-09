@@ -10,22 +10,15 @@ function hide() {
 
 // Clicking the window that is already active changes nothing for KWin (no signal), so
 // the dock stayed up when Firefox was active and Firefox was clicked (9 Oct). Like the
-// Start menu, the dock takes the focus while it is shown: the dock itself if KWin lets
-// it, otherwise the desktop – then the next click on any window is an activation.
-var before = workspace.activeWindow;
+// Start menu, the desktop takes the focus while the dock is shown – then the next click
+// on any window is an activation. (Panels can't take the focus: trying stopped the script.)
 var windows = workspace.windowList();
-var screen = before ? before.output : workspace.activeScreen;
-var dock = null;  // the lowest panel on this screen (the top bar is a dock window too)
+var desktop = null;  // the desktop on the active screen, otherwise any
 for (var i = 0; i < windows.length; i++) {
-    var w = windows[i];
-    if (w.dock && w.output === screen && (!dock || w.frameGeometry.y > dock.frameGeometry.y))
-        dock = w;
+    if (windows[i].desktopWindow && (!desktop || windows[i].output === workspace.activeScreen))
+        desktop = windows[i];
 }
-if (dock)
-    workspace.activeWindow = dock;
-for (var j = 0; j < windows.length && workspace.activeWindow === before; j++) {
-    if (windows[j].desktopWindow && windows[j].output === screen)
-        workspace.activeWindow = windows[j];
-}
+if (desktop)
+    workspace.activeWindow = desktop;
 
 workspace.windowActivated.connect(hide);

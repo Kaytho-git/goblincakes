@@ -12,12 +12,13 @@ case ${1:-} in
         id=${2:?desktop file}
         plasma_js "$(sed "s|%LAUNCHER%|applications:$id|" /usr/share/goblincakes/dock-add.js)" ;;
     toggle)
-        # dodgewindows (hides behind windows) <-> windowsgobelow (on top of windows)
+        # dodgewindows (hides behind windows) <-> none (always shown, on top; Plasma 6 has no
+        # "windowsgobelow" any more – it turned into none anyway)
         shown=$(busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s \
             'panels().forEach(function (p) {
                 if (p.location !== "bottom") return;
                 var show = p.hiding === "dodgewindows";
-                p.hiding = show ? "windowsgobelow" : "dodgewindows";
+                p.hiding = show ? "none" : "dodgewindows";
                 if (show) print("shown");
             });')
         # Shown: a KWin script hides it again when something else is clicked
