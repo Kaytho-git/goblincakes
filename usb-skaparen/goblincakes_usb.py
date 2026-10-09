@@ -21,10 +21,12 @@ Built for Windows/Linux as one file by .github/workflows/build-usb-creator.yml.
 import hashlib
 import json
 import os
+import queue
 import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -171,35 +173,46 @@ def finish_device(device):
         run(["blockdev", "--rereadpt", device])
 
 
-def download_part(url, fd, offset, part, report):
-    """One part straight onto the stick at its place; its sha256 is checked."""
-    digest = hashlib.sha256()
-    written = 0
-    pending = b""
-    os.lseek(fd, offset, os.SEEK_SET)
-    request = urllib.request.Request(url, headers={"User-Agent": "GOBLINCAKES-USB"})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        while True:
-            data = response.read(CHUNK)
-            if not data:
-                break
-            digest.update(data)
-            pending += data
-            while len(pending) >= CHUNK:
-                os.write(fd, pending[:CHUNK])
-                pending = pending[CHUNK:]
-                written += CHUNK
-                report(written)
-    if pending:
-        # Raw disks on Windows only take whole sectors: pad the very end with zeros
-        padded = pending + b"\0" * (-len(pending) % 4096) if WINDOWS else pending
-        os.write(fd, padded)
-        written += len(pending)
-        report(written)
-    if written != part["size"]:
-        raise IOError(f"{part['name']}: fick {written} av {part['size']} byte")
-    if digest.hexdigest() != part["sha256"]:
-        raise IOError(f"{part['name']}: kontrollsumman stämmer inte")
+BUFFER_CHUNKS = 64  # 64 × 4 MB = 256 MB between the download and the stick
+
+
+def download_parts(base, parts, out):
+    """Downloader thread: every part in order into the queue `out`, while the main
+    thread writes to the stick – so the network never waits for a slow USB stick.
+    Messages: ("start", index, offset), ("data", bytes), ("retry", text),
+    ("error", text), ("done",). A part that fails or whose sha256 is wrong is
+    downloaded again from its start (the writer goes back to its offset)."""
+    try:
+        offset = 0
+        for index, part in enumerate(parts):
+            for attempt in range(1, 6):
+                try:
+                    out.put(("start", index, offset))
+                    digest, got = hashlib.sha256(), 0
+                    request = urllib.request.Request(f"{base}/{part['name']}", headers={"User-Agent": "GOBLINCAKES-USB"})
+                    with urllib.request.urlopen(request, timeout=60) as response:
+                        while True:
+                            data = response.read(CHUNK)
+                            if not data:
+                                break
+                            digest.update(data)
+                            got += len(data)
+                            out.put(("data", data))
+                    if got != part["size"]:
+                        raise IOError(f"{part['name']}: fick {got} av {part['size']} byte")
+                    if digest.hexdigest() != part["sha256"]:
+                        raise IOError(f"{part['name']}: kontrollsumman stämmer inte")
+                    break
+                except (OSError, IOError) as e:
+                    if attempt == 5:
+                        out.put(("error", f"{e}. Kolla internetanslutningen och försök igen."))
+                        return
+                    out.put(("retry", f"{e} – försöker igen ({attempt + 1}/5)"))
+                    time.sleep(5 * attempt)
+            offset += part["size"]
+        out.put(("done",))
+    except Exception as e:  # noqa: BLE001 – passed on to the window as text
+        out.put(("error", str(e)))
 
 
 def write(device, variant_id, manifest_url=MANIFEST_URL):
@@ -218,21 +231,42 @@ def write(device, variant_id, manifest_url=MANIFEST_URL):
         flags = os.O_RDWR | getattr(os, "O_BINARY", 0)
         fd = os.open(path, flags)
         try:
-            offset = 0
             started = time.monotonic()
-            for part in variant["parts"]:
-                for attempt in range(1, 6):
-                    try:
-                        download_part(f"{base}/{part['name']}", fd, offset, part,
-                                      lambda n, o=offset: emit(stage="download", done=o + n, total=total,
-                                                               seconds=time.monotonic() - started))
-                        break
-                    except (OSError, IOError) as e:
-                        if attempt == 5:
-                            raise IOError(f"{e}. Kolla internetanslutningen och försök igen.") from e
-                        emit(stage="retry", message=f"{e} – försöker igen ({attempt + 1}/5)")
-                        time.sleep(5 * attempt)
-                offset += part["size"]
+            # Download and write at the same time: a thread fetches into a 256 MB buffer
+            # while this one writes to the stick (slow sticks no longer stall the network)
+            chunks = queue.Queue(maxsize=BUFFER_CHUNKS)
+            threading.Thread(target=download_parts, args=(base, variant["parts"], chunks), daemon=True).start()
+            current, part_offset, part_written, pending = None, 0, 0, b""
+            last_report = 0.0
+            while True:
+                message = chunks.get()
+                kind = message[0]
+                if kind == "start":
+                    index, offset = message[1], message[2]
+                    if index != current and pending:
+                        os.write(fd, pending)  # end of the previous part (parts are whole sectors)
+                    current, part_offset, part_written, pending = index, offset, 0, b""
+                    os.lseek(fd, offset, os.SEEK_SET)  # also back to the start on a retry
+                elif kind == "data":
+                    pending += message[1]
+                    while len(pending) >= CHUNK:
+                        os.write(fd, pending[:CHUNK])
+                        pending = pending[CHUNK:]
+                        part_written += CHUNK
+                    now = time.monotonic()
+                    if now - last_report > 0.25:
+                        last_report = now
+                        emit(stage="download", done=part_offset + part_written, total=total, seconds=now - started)
+                elif kind == "retry":
+                    emit(stage="retry", message=message[1])
+                elif kind == "error":
+                    raise IOError(message[1])
+                else:  # done
+                    if pending:
+                        # Raw disks on Windows only take whole sectors: pad the very end with zeros
+                        os.write(fd, pending + b"\0" * (-len(pending) % 4096) if WINDOWS else pending)
+                    emit(stage="download", done=total, total=total, seconds=time.monotonic() - started)
+                    break
             if hasattr(os, "fsync"):
                 try:
                     os.fsync(fd)
