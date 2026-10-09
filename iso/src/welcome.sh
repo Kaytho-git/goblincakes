@@ -34,7 +34,10 @@ elif cards:
     print("Drivrutinerna finns redan med i GOBLINCAKES – inget behöver hämtas.")
 ' 2>/dev/null)
 
-yad --title="GOBLINCAKES" --window-icon=goblincakes --image=goblincakes \
+# GOBLINCAKES' dark GTK theme (yad is GTK 3) and our own window class (icon in the dock)
+export GTK_THEME=GoblinCakes
+yad --title="GOBLINCAKES" --class=goblincakes-live-welcome --name=goblincakes-live-welcome \
+    --window-icon=goblincakes --image=goblincakes \
     --on-top --center --no-escape --width=560 --borders=24 \
     --text-align=left --buttons-layout=end \
     --text="<span size='x-large' weight='bold'>Välkommen till GOBLINCAKES</span>

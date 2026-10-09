@@ -52,6 +52,11 @@ EOF
 dnf install -y --enable-repo=fedora-cisco-openh264 --allowerasing \
     anaconda-live libblockdev-{btrfs,lvm,dm} firefox yad
 dnf install -y kde-partitionmanager || :
+# KDE's own Welcome Center (Fedora's live scripts open it with an install page) – the live
+# system has GOBLINCAKES' own welcome window instead. Only the live system: the installed
+# GOBLINCAKES comes from the separate payload image.
+dnf remove -y --noautoremove plasma-welcome || :
+rm -f /etc/xdg/autostart/org.kde.plasma-welcome.desktop
 
 # Anaconda's settings for GOBLINCAKES (the Kinoite profile already gives Btrfs and Fedora's EFI folder)
 mkdir -p /etc/anaconda/conf.d
@@ -113,7 +118,7 @@ rm -rf /mnt/sysroot/boot/efi/EFI/fedora
 %include /usr/share/anaconda/post-scripts/goblincakes-secureboot.ks
 
 %onerror
-run0 --user=liveuser yad --title="GOBLINCAKES" --timeout=0 --text-info --no-buttons \\
+run0 --user=liveuser --setenv=GTK_THEME=GoblinCakes yad --title="GOBLINCAKES" --timeout=0 --text-info --no-buttons \\
     --width=700 --height=450 \\
     --text="Något gick fel under installationen. Loggen nedan visar vad – ta gärna en bild av den." \\
     < /tmp/anaconda.log
@@ -149,7 +154,7 @@ mokutil --sb-state 2>/dev/null | grep -qi enabled || exit 0
 mokutil --test-key $secureboot_key 2>&1 | grep -qi "already enrolled" && exit 0
 mokutil --timeout -1 || :
 printf 'universalblue\nuniversalblue\n' | mokutil --import $secureboot_key || exit 0
-run0 --user=liveuser yad --title="GOBLINCAKES" --on-top --timeout=0 --button=OK:0 --text="\$(cat <<'MSG'
+run0 --user=liveuser --setenv=GTK_THEME=GoblinCakes yad --title="GOBLINCAKES" --on-top --timeout=0 --button=OK:0 --text="\$(cat <<'MSG'
 <b>Secure Boot är på</b>
 
 När datorn startar om visas en blå skärm (MOK). Gör så här en gång:
@@ -214,6 +219,16 @@ grep -q 'liveinst.desktop' "$layout"
 
 # Welcome window after login: install, partition manager or try first
 install -m 0755 "$SRC/welcome.sh" /usr/libexec/goblincakes-live-welcome
+# Its window class (yad --class) belongs to this entry, so the dock shows the logo, not yad's icon
+cat >/usr/share/applications/goblincakes-live-welcome.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Välkommen till GOBLINCAKES
+Exec=/usr/libexec/goblincakes-live-welcome
+Icon=goblincakes
+NoDisplay=true
+StartupWMClass=goblincakes-live-welcome
+EOF
 cat >/etc/xdg/autostart/goblincakes-live-welcome.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
