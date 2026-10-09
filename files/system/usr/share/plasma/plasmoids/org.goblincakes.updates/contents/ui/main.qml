@@ -72,7 +72,10 @@ PlasmoidItem {
             lines.push(flatpaks.length === 1 ? "Program: " + shown
                        : flatpaks.length + " program: " + shown + (flatpaks.length > 3 ? " …" : ""));
         }
-        if (lines.length > 0)
+        // Already fetched and nothing else: restarting is what's left, not updating
+        if (system === "staged" && flatpaks.length === 0)
+            lines.push("Starta om datorn när du är redo");
+        else if (lines.length > 0)
             lines.push("Klicka för att uppdatera");
         return lines.join("\n");
     }
