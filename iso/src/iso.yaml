@@ -1,0 +1,12 @@
+# Read by Titanoboa: the ISO's name and its boot menu
+label: "GOBLINCAKES"
+grub2:
+  default: 0
+  timeout: 10
+  entries:
+    - name: "Starta GOBLINCAKES"
+      linux: "/images/pxeboot/vmlinuz quiet rhgb root=live:CDLABEL=GOBLINCAKES enforcing=0 rd.live.image"
+      initrd: "/images/pxeboot/initrd.img"
+    - name: "Starta GOBLINCAKES - enkel grafik (om skarmen blir svart)"
+      linux: "/images/pxeboot/vmlinuz quiet rhgb root=live:CDLABEL=GOBLINCAKES enforcing=0 rd.live.image nomodeset"
+      initrd: "/images/pxeboot/initrd.img"

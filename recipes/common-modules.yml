@@ -126,6 +126,7 @@ modules:
         - switcheroo-control.service      # tells KDE about a second graphics card
         - snapd.socket                    # snap daemon, started on demand
         - goblincakes-snapd-setup.service # snap home folders (Claude desktop is picked in Config)
+        - goblincakes-variant-sync.service # after the ISO install: fetch the Nvidia variant if chosen
 
   # GOBLINCAKES name in About this System and the boot menu
   - type: os-release

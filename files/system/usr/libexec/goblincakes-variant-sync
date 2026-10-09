@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# After installing from the GOBLINCAKES ISO: the ISO always installs the base variant
+# (it's on the ISO, so no internet is needed), and the installer points the system at
+# the variant that fits the graphics card (goblincakes-nvidia for RTX 20xx / GTX 16xx
+# and newer). This fetches that variant on the first start(s) with internet; it's used
+# after the next restart (the user gets a notice: goblincakes-gpu notify).
+# Does nothing when the running variant already is the one the system points at.
+set -uo pipefail
+
+done_flag=/var/lib/goblincakes/variant-synced
+running=$(cat /usr/share/goblincakes/variant 2>/dev/null || echo base)
+
+read -r booted_ref staged <<<"$(rpm-ostree status --json | python3 -c '
+import json, sys
+deps = json.load(sys.stdin)["deployments"]
+booted = next((d for d in deps if d.get("booted")), {})
+staged = any(d.get("staged") for d in deps) or (bool(deps) and not deps[0].get("booted"))
+print(booted.get("container-image-reference", "-"), "yes" if staged else "no")')"
+
+case $booted_ref in
+    */goblincakes-nvidia|*/goblincakes-nvidia:*) wanted=nvidia ;;
+    *) wanted=base ;;
+esac
+
+mkdir -p "$(dirname "$done_flag")"
+if [ "$wanted" = "$running" ] || [ "$staged" = yes ]; then
+    touch "$done_flag"
+    exit 0
+fi
+
+echo "Fetching the $wanted variant ($booted_ref) – used after the next restart"
+# Exit code ≠ 0 (no internet yet …): systemd tries again (Restart=on-failure)
+rpm-ostree upgrade && touch "$done_flag"

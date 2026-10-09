@@ -1037,6 +1037,8 @@ Window {
 
         readonly property bool switching: backend.gpuBusy
         readonly property bool pendingChange: !!win.gpu.pending && win.gpu.pending !== win.gpu.variant
+        // Installed from the ISO with the Nvidia variant chosen: fetched after the first start
+        readonly property bool fetching: !!win.gpu.origin && win.gpu.origin !== win.gpu.variant && !win.gpu.pending
         readonly property string after: win.gpu.pending || win.gpu.variant || "base"
 
         Column {
@@ -1139,7 +1141,9 @@ Window {
                         font.family: "IBM Plex Sans"
                         font.weight: Font.DemiBold
                         font.pixelSize: 16
-                        text: graphicsView.pendingChange
+                        text: graphicsView.fetching
+                            ? (win.gpu.origin === "nvidia" ? "Nvidia-drivrutinerna hämtas i bakgrunden." : "Grundvarianten hämtas i bakgrunden.")
+                            : graphicsView.pendingChange
                             ? (win.gpu.pending === "nvidia" ? "Nvidia-drivrutinerna är nedladdade – starta om för att använda dem."
                                                             : "Nvidia-drivrutinerna tas bort när du startar om.")
                             : win.gpu.variant === "nvidia"
@@ -1153,11 +1157,15 @@ Window {
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 14
                         lineHeight: 1.15
-                        text: graphicsView.pendingChange
+                        text: graphicsView.fetching
+                            ? "Installationen valde dem efter ditt grafikkort. Du får en notis när de är klara – sedan räcker en omstart."
+                            : graphicsView.pendingChange
                             ? "Vill du inte byta ändå: tryck Ångra. Den nuvarande varianten finns kvar i startmenyn."
                             : win.gpu.variant === "nvidia"
                             ? (win.gpu.hasNvidia ? "Allt är klart för spel." : "De tar plats och lägger till Nvidia-inställningar vid start. Ta bort dem för ett renare system (ungefär 1 GB).")
-                            : (win.gpu.hasNvidia ? "Skrivbordet fungerar, men spel går mycket bättre med Nvidias egna drivrutiner. De laddas ner (bara skillnaden, ungefär 1 GB) och används efter en omstart."
+                            : (win.gpu.hasNvidia && !win.gpu.nvidiaSupported
+                               ? "Kortet är äldre än GTX 16xx/RTX 20xx, som Nvidias drivrutiner i GOBLINCAKES kräver. Den öppna drivrutinen fungerar för skrivbordet, men ger lägre prestanda i spel."
+                               : win.gpu.hasNvidia ? "Skrivbordet fungerar, men spel går mycket bättre med Nvidias egna drivrutiner. De laddas ner (bara skillnaden, ungefär 1 GB) och används efter en omstart."
                                                  : "AMD och Intel använder de öppna drivrutinerna (Mesa), som redan finns i GOBLINCAKES. Inget behöver laddas ner.")
                     }
 
@@ -1200,13 +1208,13 @@ Window {
                         visible: !graphicsView.switching
                         spacing: 12
                         FlatButton {
-                            visible: !graphicsView.pendingChange && win.gpu.variant === "base" && !!win.gpu.hasNvidia
+                            visible: !graphicsView.pendingChange && !graphicsView.fetching && win.gpu.variant === "base" && !!win.gpu.nvidiaSupported
                             primary: true
                             text: "Installera Nvidia-drivrutiner"
                             onClicked: { win.gpuMessage = ""; backend.switchVariant("nvidia"); }
                         }
                         FlatButton {
-                            visible: !graphicsView.pendingChange && win.gpu.variant === "nvidia"
+                            visible: !graphicsView.pendingChange && !graphicsView.fetching && win.gpu.variant === "nvidia"
                             primary: !win.gpu.hasNvidia
                             text: "Ta bort Nvidia-drivrutinerna"
                             onClicked: { win.gpuMessage = ""; backend.switchVariant("base"); }

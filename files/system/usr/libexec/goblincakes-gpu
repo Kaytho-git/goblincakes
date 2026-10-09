@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 VARIANT_FILE = Path("/usr/share/goblincakes/variant")
@@ -54,7 +55,14 @@ def graphics_cards():
             boot = (dev / "boot_vga").read_text().strip() == "1"
         except OSError:
             boot = False
-        cards.append({"vendor": vendor, "name": name, "boot": boot})
+        try:
+            device_id = int((dev / "device").read_text().strip(), 16)
+        except (OSError, ValueError):
+            device_id = 0
+        # Universal Blue's Nvidia images use Nvidia's open kernel driver: Turing (GTX 16xx,
+        # RTX 20xx) and newer, whose PCI device ids start at 0x1e00
+        supported = vendor != "nvidia" or device_id >= 0x1E00
+        cards.append({"vendor": vendor, "name": name, "boot": boot, "supported": supported})
     return cards
 
 
@@ -82,7 +90,9 @@ def hardware():
         others.sort(key=lambda c: {"nvidia": 0, "amd": 1}.get(c["vendor"], 2))
         dgpu = others[0]["vendor"]
     return {"cards": cards, "laptop": is_laptop(), "hybrid": hybrid, "dgpu": dgpu,
-            "hasNvidia": any(c["vendor"] == "nvidia" for c in cards)}
+            "hasNvidia": any(c["vendor"] == "nvidia" for c in cards),
+            # An Nvidia card the Nvidia variant can drive (RTX 20xx / GTX 16xx or newer)
+            "nvidiaSupported": any(c["vendor"] == "nvidia" and c["supported"] for c in cards)}
 
 
 def deployments():
@@ -127,7 +137,12 @@ def status():
         **hw,
         "variant": variant,  # what is running now
         "pending": pending,  # what starts after a restart (None = nothing new)
-        "recommended": "nvidia" if has_nvidia else "base",
+        # Older Nvidia cards (GTX 10xx and before) aren't supported by the Nvidia variant:
+        # they stay on the base variant with the open driver (nouveau)
+        "recommended": "nvidia" if hw["nvidiaSupported"] else "base",
+        # The installer (ISO) picked the Nvidia variant: it's fetched after the first start
+        # (goblincakes-variant-sync), until then the running variant differs from the origin
+        "origin": variant_of(booted.get("container-image-reference")),
         "secureBoot": secure_boot(),
         "keyEnrolled": key_enrolled(),
         "keyFile": str(UBLUE_KEY) if UBLUE_KEY.exists() else "",
@@ -170,6 +185,8 @@ def notify():
     if NOTICE_OFF.exists():
         return 0
     s = status()
+    if s["origin"] != s["variant"] and not s["pending"]:
+        return notify_fetching(s["origin"])
     if s["pending"] or s["variant"] == s["recommended"]:
         return 0
     if s["recommended"] == "nvidia":
@@ -188,6 +205,36 @@ def notify():
     elif answer == "never":
         NOTICE_OFF.parent.mkdir(parents=True, exist_ok=True)
         NOTICE_OFF.touch()
+    return 0
+
+
+def notify_fetching(target):
+    """Right after installing from the ISO: the right variant is being fetched in the
+    background (goblincakes-variant-sync.service). Say so, then say when it's ready."""
+    what = "Nvidia-drivrutinerna" if target == "nvidia" else "grundvarianten"
+    try:
+        subprocess.run(["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes",
+                        f"Hämtar {what}",
+                        "Det sker i bakgrunden och kan ta en stund. Du får en notis när det är klart."])
+    except OSError:
+        return 0
+    for _ in range(240):  # up to 2 hours
+        time.sleep(30)
+        if status()["pending"] == target:
+            break
+    else:
+        return 0
+    try:
+        answer = subprocess.run(
+            ["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes", "--wait",
+             "--action=reboot=Starta om nu",
+             "Nvidia-drivrutinerna är klara" if target == "nvidia" else "Grundvarianten är klar",
+             "Starta om datorn för att använda dem."],
+            capture_output=True, text=True).stdout.strip()
+    except OSError:
+        return 0
+    if answer == "reboot":
+        subprocess.run(["systemctl", "reboot"])
     return 0
 
 

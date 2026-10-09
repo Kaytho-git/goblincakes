@@ -1,0 +1,17 @@
+[Unit]
+Description=GOBLINCAKES: fetch the graphics variant chosen at installation
+Documentation=file:///usr/libexec/goblincakes-variant-sync
+Wants=network-online.target
+After=network-online.target rpm-ostreed.service
+# Not in the live ISO, and only until it has worked once
+ConditionKernelCommandLine=!rd.live.image
+ConditionPathExists=!/var/lib/goblincakes/variant-synced
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/goblincakes-variant-sync
+Restart=on-failure
+RestartSec=5min
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+# GOBLINCAKES live ISO: the live system (try GOBLINCAKES, partition disks, install).
+# Built by .github/workflows/build-iso.yml, then turned into an ISO by Universal Blue's
+# Titanoboa. Build by hand with:
+#   sudo podman build --cap-add sys_admin --security-opt label=disable --squash -t goblincakes-live iso
+ARG BASE_IMAGE=ghcr.io/kaytho-git/goblincakes:latest
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+COPY ./src /src
+RUN GOBLINCAKES_PAYLOAD_IMAGE=${BASE_IMAGE} /src/build.sh
+RUN rm -rf /src
