@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-09  Dockan som visas med Meta försvinner nu även när du klickar på fönstret som redan var aktivt
 2026-10-09  Allt är lite mindre: 9 punkters text som i Windows, lägre toppfält och namnlist, mindre docka och klocka, tätare GOBLINCAKES-fönster (toppfältet och dockan återställs en gång)
 2026-10-09  KDE:s Welcome Center (grodan) öppnas inte längre av sig själv
 2026-10-09  Första inloggningen visar GOBLINCAKES direkt – inte Fedoras startbild och skrivbord först
