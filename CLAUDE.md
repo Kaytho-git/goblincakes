@@ -11,6 +11,7 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade steget nedan) och visa hela steglistan med status (klart / pågår / kvar). Kort, på svenska.
 
 ## Status
+**Testas på riktig installation (användarens beslut 9 okt), inte i VM:en:** MangoHud, TV-läge, ljudreglaget, GPU Screen Recorder, Pika Backup, spel från terminalen (`goblin play`), Spelas nu (musik + Discord), spel-optimeringarna, laptop/dubbla grafikkort, Nvidia-bytet, skärmar med olika Hz. **Kvar att testa i VM:en:** Goblin AI.
 - [x] Steg 1: Bas-recept – paket, Flatpaks, udev-regler, tjänster (bygger grönt)
 - [x] Ghostty som standardterminal (COPR `mineiro/ghostty`) – bygger grönt. **VM-fix (8 okt):** Ghostty kräver OpenGL 4.3, VirtualBox 3D ger bara 4.1 → `files/scripts/ghostty-wrapper.sh` flyttar `/usr/bin/ghostty` till `/usr/libexec/ghostty-bin` och lägger en wrapper som sätter `LIBGL_ALWAYS_SOFTWARE=1` bara när `systemd-detect-virt --vm` = oracle/vmware (resten av skrivbordet behåller 3D).
 - [x] Steg 3: KDE-utseende + varumärke – klart och testat i VM 6 okt (tema, ramar, paneler, splash, Plymouth, utloggning, inloggningsbakgrund, Ghostty, fastfetch)
