@@ -158,6 +158,10 @@ mkdir -p /tmp/goblincakes-logs
 # GOBLINCAKES from the ISO – no internet needed
 ostreecontainer --url=$payload_dir:$payload_tag --transport=oci --no-signature-verification
 
+# No first-boot setup after the installation: the installer already asked for language,
+# keyboard, time and the account, and GOBLINCAKES Config takes over at the first login
+firstboot --disable
+
 # bootupd writes the EFI files itself (must match efi_dir in the Kinoite profile)
 %pre-install --erroronfail
 rm -rf /mnt/sysroot/boot/efi/EFI/fedora
@@ -165,6 +169,21 @@ rm -rf /mnt/sysroot/boot/efi/EFI/fedora
 
 %include /usr/share/anaconda/post-scripts/goblincakes-variant.ks
 %include /usr/share/anaconda/post-scripts/goblincakes-secureboot.ks
+
+# Fedora's own first-boot programs (KDE's Plasma Setup, Anaconda's Initial Setup) off in the
+# installed system too – masked in the new deployment's /etc
+%post --nochroot --log=/tmp/goblincakes-logs/firstboot.log
+set -x
+for etc in /mnt/sysroot/ostree/deploy/*/deploy/*.0/etc /mnt/sysimage/ostree/deploy/*/deploy/*.0/etc; do
+    [ -d "\$etc" ] || continue
+    mkdir -p "\$etc/systemd/system"
+    for unit in plasma-setup.service plasma-setup-live-system.service initial-setup.service \\
+                initial-setup-graphical.service initial-setup-text.service; do
+        ln -sf /dev/null "\$etc/systemd/system/\$unit"
+    done
+    rm -f "\$etc/xdg/autostart/org.kde.plasma-setup.desktop" 2>/dev/null || :
+done
+%end
 
 %onerror
 run0 --user=liveuser --setenv=GTK_THEME=GoblinCakes yad --title="GOBLINCAKES" --timeout=0 --text-info --no-buttons \\
