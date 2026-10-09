@@ -201,13 +201,30 @@ class Config(QObject):
 
     @Slot()
     def refreshSystemApps(self):
-        code, out = run(APPS, ["list"], timeout=30000)
-        self._system_apps = out if code == 0 and out.startswith("[") else "[]"
-        self.systemAppsChanged.emit()
+        """Reads the list in the background – the window never waits for it (it froze and
+        was killed on 9 Oct when this ran in the window's own thread)."""
+        if getattr(self, "_apps_proc", None):
+            return
+        proc = QProcess(self)
+
+        def finished(code, exit_status):
+            out = bytes(proc.readAllStandardOutput()).decode(errors="replace").strip()
+            ok = exit_status == QProcess.NormalExit and code == 0 and out.startswith("[")
+            if not ok:
+                print(bytes(proc.readAllStandardError()).decode(errors="replace"), file=sys.stderr, flush=True)
+            self._system_apps = out if ok else "[]"
+            self._apps_proc = None
+            self.systemAppsChanged.emit()
+
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda e: finished(-1, QProcess.CrashExit) if e == QProcess.FailedToStart else None)
+        self._apps_proc = proc
+        proc.start(APPS, ["list"])
 
     @Slot(str, bool)
     def setAppVisible(self, app_id, show):
-        run(APPS, ["set", app_id, "show" if show else "hide"])
+        # In the background too: the switch has already moved, the file is written right after
+        QProcess.startDetached(APPS, ["set", app_id, "show" if show else "hide"])
 
     @Slot()
     def openRemover(self):
