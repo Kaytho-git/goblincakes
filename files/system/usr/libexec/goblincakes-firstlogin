@@ -7,7 +7,7 @@
 #                                    theme, colours, fonts, Kvantum, Ghostty, top bar and dock
 # Other themes are allowed: once the user picks another global theme in System Settings,
 # a new LAYOUT_VERSION leaves their look alone (until 9 Oct it put GOBLINCAKES back).
-LAYOUT_VERSION=12
+LAYOUT_VERSION=13
 MARK="$HOME/.local/state/goblincakes/firstlogin-done"
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 RESET=0

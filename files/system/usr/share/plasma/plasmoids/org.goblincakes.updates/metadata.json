@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "GOBLINCAKES"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "A green arrow in the top bar when there are updates; click to update",
+        "Description[sv]": "En grön pil i toppfältet när det finns uppdateringar – klicka för att uppdatera",
+        "Icon": "update-none",
+        "Id": "org.goblincakes.updates",
+        "License": "GPL-3.0-or-later",
+        "Name": "GOBLINCAKES Updates",
+        "Name[sv]": "GOBLINCAKES Uppdateringar"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

@@ -1,0 +1,8 @@
+[Unit]
+Description=GOBLINCAKES: look for updates (the green arrow in the top bar)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/goblincakes-updates check
+Nice=10

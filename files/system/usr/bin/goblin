@@ -153,6 +153,8 @@ cmd_update() {
     # GTK theme copy for Flatpak programs (Quod Libet): follow the theme in the image
     [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/themes/GoblinCakes" ] && "$config_install" gtk-theme >/dev/null 2>&1
     step "Firmware" update_firmware
+    # The green arrow in the top bar follows right away (in the background: skopeo takes a moment)
+    setsid -f /usr/libexec/goblincakes-updates check >/dev/null 2>&1 < /dev/null || true
 
     if [ "$GUI" = 1 ]; then
         if [ "$system_updated" = 1 ]; then

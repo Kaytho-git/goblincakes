@@ -1,0 +1,89 @@
+#!/usr/bin/python3
+# GOBLINCAKES: are there updates? For the green arrow in the top bar (plasmoid
+# org.goblincakes.updates), which reads the result from ~/.cache/goblincakes/updates.json.
+#   goblincakes-updates check   look now (the user timer goblincakes-updates.timer: at login
+#                               and every 4 hours; goblin update runs it when it's done)
+# System: a newer GOBLINCAKES image on the registry than the newest one here ("new"), or a new
+# version already fetched that is used after a restart ("staged"). Compared by the image
+# digest, without downloading anything and without a password (skopeo, rpm-ostree status).
+# Flatpak: programs (not runtimes) with updates, user and system installations.
+# A check that can't be done (no network) keeps the last result.
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+STATE = Path.home() / ".cache/goblincakes/updates.json"
+
+
+def run(args, timeout=120):
+    try:
+        out = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
+def system_state():
+    """'staged', 'new', '' – or None when it couldn't be checked."""
+    out = run(["rpm-ostree", "status", "--json"])
+    if out is None:
+        return None
+    try:
+        deps = json.loads(out).get("deployments", [])
+    except ValueError:
+        return None
+    if not deps:
+        return None
+    newest = deps[0]  # rpm-ostree lists the one used at the next start first
+    if not newest.get("booted"):
+        return "staged"
+    ref = newest.get("container-image-reference", "")
+    digest = newest.get("container-image-reference-digest", "")
+    if "docker://" not in ref or not digest:
+        return ""
+    image = ref.split("docker://", 1)[1]
+    remote = run(["skopeo", "inspect", "--no-tags", "--format", "{{.Digest}}", f"docker://{image}"])
+    if remote is None:
+        return None
+    return "new" if remote.strip() and remote.strip() != digest else ""
+
+
+def flatpak_updates():
+    """Names of programs with updates – or None when it couldn't be checked."""
+    names, ok = set(), False
+    for scope in ("--user", "--system"):
+        out = run(["flatpak", "remote-ls", scope, "--updates", "--app", "--columns=name"])
+        if out is None:
+            continue
+        ok = True
+        names.update(line.strip() for line in out.splitlines() if line.strip())
+    return sorted(names) if ok else None
+
+
+def check():
+    try:
+        old = json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        old = {}
+    system = system_state()
+    flatpaks = flatpak_updates()
+    state = {
+        "system": old.get("system", "") if system is None else system,
+        "flatpaks": old.get("flatpaks", []) if flatpaks is None else flatpaks,
+        "checked": int(time.time()),
+    }
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, ensure_ascii=False))
+    tmp.replace(STATE)
+    print(json.dumps(state, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["check"]:
+        check()
+    else:
+        print("Använd: goblincakes-updates check", file=sys.stderr)
+        sys.exit(2)

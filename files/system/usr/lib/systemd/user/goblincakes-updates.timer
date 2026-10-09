@@ -1,0 +1,10 @@
+[Unit]
+Description=GOBLINCAKES: look for updates at login and every 4 hours
+
+[Timer]
+OnStartupSec=2min
+OnUnitActiveSec=4h
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

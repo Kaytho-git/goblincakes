@@ -268,7 +268,7 @@ for unit in rpm-ostreed-automatic.timer uupd.timer rpm-ostree-countme.service rp
     ublue-system-setup.service tailscaled.service brew-setup.service brew-update.timer brew-upgrade.timer; do
     systemctl disable "$unit" 2>/dev/null || :
 done
-for unit in ublue-user-setup.service ublue-flatpak-manager.service podman-auto-update.timer \
+for unit in ublue-user-setup.service ublue-flatpak-manager.service podman-auto-update.timer goblincakes-updates.timer \
     goblincakes-ianseo-backup.timer; do
     systemctl --global disable "$unit" 2>/dev/null || :
 done

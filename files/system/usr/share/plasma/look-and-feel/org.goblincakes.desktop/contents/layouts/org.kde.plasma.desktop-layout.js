@@ -38,6 +38,8 @@ running.writeConfig("highlightWindows", true);
 // What Spotify/the music player is playing and the Discord server/channel
 // (/usr/share/plasma/plasmoids/org.goblincakes.nowplaying), just left of the tray
 topBar.addWidget("org.goblincakes.nowplaying");
+// A green arrow when there are updates (click = Config → Uppdatera); otherwise takes no space
+topBar.addWidget("org.goblincakes.updates");
 // System tray: trimmed to network, volume and notifications by
 // /usr/share/goblincakes/systray.js, which goblincakes-firstlogin runs once the
 // tray has started (its settings don't exist yet while this layout runs)
