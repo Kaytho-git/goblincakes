@@ -37,10 +37,15 @@ modules:
         - skopeo                # reads the newest GOBLINCAKES image's Fedora version (goblincakes-fedora-check)
         - gamemode              # performance mode while gaming
         - gamescope             # Valve's game compositor (gamescope -- spel), also the TV mode
-        - mangohud              # FPS meter in games (GOBLINCAKES Config → Optimering)
+        - mangohud              # FPS meter in games (GOBLINCAKES Config → Inställningar)
         - switcheroo-control    # laptops with two graphics cards: "Kör med dedikerat grafikkort"
         - ananicy-cpp           # keeps the desktop responsive under load
         - cachyos-ananicy-rules
+        # Calendar accounts in the clock's calendar – off until Config → Inställningar →
+        # Kalender med konton (calendar-off.sh hides what would start Akonadi at login)
+        - kdepim-addons         # "PIM-händelser": accounts' events in the clock's calendar
+        - kdepim-runtime        # Akonadi resources: Google, ICS links, CalDAV
+        - merkuro               # KDE's calendar app: add events and calendar sources
 
   # Ghostty also opens in VirtualBox/VMware with 3D on (software OpenGL there only)
   - type: script
@@ -77,6 +82,7 @@ modules:
   - type: script
     scripts:
       - hide-apps.sh
+      - calendar-off.sh
 
   # Log in through SDDM (GOBLINCAKES theme) instead of Plasma Login Manager
   - type: script

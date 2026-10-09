@@ -144,6 +144,58 @@ for o in outputs:
                     /ScreenSaver org.kde.screensaver.configure >/dev/null 2>&1 || true ;;
         esac ;;
 
+    calendar)
+        # Calendar accounts in the clock's calendar (KDE PIM: Akonadi). The packages are in the
+        # image, but nothing starts Akonadi until this is on (the image hides its autostarts,
+        # listed in /usr/share/goblincakes/calendar-autostart). On: "PIM-händelser" in the
+        # clock's calendar, the autostarts back for this user, Akonadi started and Merkuro opened
+        # to add Google (both ways) or a calendar link (Outlook/Hotmail, read-only).
+        flag="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/calendar"
+        autostart="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+        clock_plugin() { # add|remove: "pimevents" in every clock's calendar plugins
+            busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "
+                panels().forEach(function (p) { p.widgets().forEach(function (w) {
+                    if (w.type !== 'org.kde.plasma.digitalclock') return;
+                    w.currentConfigGroup = ['General'];
+                    var v = w.readConfig('enabledCalendarPlugins');
+                    var list = typeof v === 'string' ? (v ? v.split(',') : []) : Array.prototype.slice.call(v || []);
+                    list = list.filter(function (x) { return x && x !== 'pimevents'; });
+                    if ('$1' === 'add') list.push('pimevents');
+                    w.writeConfig('enabledCalendarPlugins', list);
+                }); });" >/dev/null 2>&1 || true
+        }
+        if ! rpm -q kdepim-addons >/dev/null 2>&1; then
+            [ "$cmd" = status ] && echo unavailable
+            exit 0
+        fi
+        case $cmd in
+            status) [ -e "$flag" ] && echo on || echo off ;;
+            set)
+                mkdir -p "$(dirname "$flag")" "$autostart"
+                if [ "$value" = on ]; then
+                    touch "$flag"
+                    while read -r entry; do
+                        [ -n "$entry" ] && [ -e "/etc/xdg/autostart/$entry" ] || continue
+                        sed -e '/^Hidden=/d' -e 's/^\[Desktop Entry\]$/[Desktop Entry]\nX-GOBLINCAKES-Calendar=true/' \
+                            "/etc/xdg/autostart/$entry" > "$autostart/$entry"
+                        exec_line=$(sed -n 's/^Exec=//p' "$autostart/$entry" | head -1)
+                        [ -n "$exec_line" ] && setsid -f sh -c "$exec_line" >/dev/null 2>&1 < /dev/null || true
+                    done < /usr/share/goblincakes/calendar-autostart
+                    setsid -f akonadictl start >/dev/null 2>&1 < /dev/null || true
+                    clock_plugin add
+                    setsid -f merkuro-calendar >/dev/null 2>&1 < /dev/null || true
+                    notify-send -a "GOBLINCAKES" -i view-calendar "Kalender med konton" \
+                        "Lägg till dina kalendrar i Merkuro (Inställningar → kalenderkällor): Google loggar du in på direkt, Outlook/Hotmail med kalenderns ICS-länk (Outlook → Kalender → Dela → Publicera). Händelserna syns när du klickar på klockan." \
+                        >/dev/null 2>&1 || true
+                else
+                    rm -f "$flag"
+                    { grep -l '^X-GOBLINCAKES-Calendar=true' "$autostart"/*.desktop 2>/dev/null || true; } | xargs -r rm -f
+                    clock_plugin remove
+                    akonadictl stop >/dev/null 2>&1 || true
+                fi ;;
+        esac
+        exit 0 ;;
+
     no-sleep)
         # Never sleep or hibernate – Nvidia's drivers sometimes don't wake up again (black
         # screen). systemd then refuses to suspend, so KDE drops the sleep button and does
