@@ -35,9 +35,10 @@
         // that always shows "100 %" in red (and a mounted ISO/DVD is read-only too).
         // The system disk is "System" (its label is whatever the installer gave it, e.g. "g4");
         // other disks by their label, not the long mount path (/run/media/<user>/<label>),
-        // without a label the mount path. On an atomic system it shows up as /etc and /var.
+        // without a label the mount path. On an atomic system the system disk is mounted at /etc,
+        // /sysroot, /var, /var/home and /sysroot/ostree/deploy/default/var (findmnt, 9 Oct).
         { "type": "disk", "folders": "/etc", "key": "Disk (System)" },
-        { "type": "disk", "showReadOnly": false, "hideFolders": "/:/etc:/var:/sysroot:/usr:/efi:/boot:/boot/efi:/boot/firmware",
+        { "type": "disk", "showReadOnly": false, "hideFolders": "/:/etc:/var:/var/home:/sysroot:/sysroot/ostree/deploy/default/var:/usr:/efi:/boot:/boot/efi:/boot/firmware",
           "key": "Disk ({?name}{name}{?}{/name}{mountpoint}{/})" },
         "break",
         "colors"
