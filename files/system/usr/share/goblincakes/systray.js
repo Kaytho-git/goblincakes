@@ -27,7 +27,8 @@ var known = shown.concat([
     "org.kde.plasma.nightcolorcontrol",
     "org.kde.plasma.nightlight",
     "org.kde.plasma.diskquota",
-    "org.kde.discovernotifier"
+    "org.kde.discovernotifier",
+    "org.kde.merkuro.contact.applet" // Merkuro's contact list (calendar accounts, 9 Oct)
 ]);
 
 var trimmed = 0;

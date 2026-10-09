@@ -10,13 +10,33 @@
 LAYOUT_VERSION=13
 MARK="$HOME/.local/state/goblincakes/firstlogin-done"
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+# Bump SYSTRAY_VERSION when systray.js changes (e.g. a new package brings a tray widget):
+# the tray is trimmed again once, without rebuilding the panels
+SYSTRAY_VERSION=2
+SYSTRAY_MARK="$HOME/.local/state/goblincakes/systray-done"
 RESET=0
 [ "${1:-}" = "--reset" ] && RESET=1
-[ "$RESET" = 0 ] && [ "$(cat "$MARK" 2>/dev/null)" = "$LAYOUT_VERSION" ] && exit 0
 
 plasma_js() {
     busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$1"
 }
+trim_systray() { # waits for the tray to exist, then trims it (systray.js)
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        sleep 2
+        plasma_js "$(cat /usr/share/goblincakes/systray.js)" >/dev/null 2>&1 && break
+    done
+    mkdir -p "$(dirname "$SYSTRAY_MARK")"
+    echo "$SYSTRAY_VERSION" > "$SYSTRAY_MARK"
+}
+
+if [ "$RESET" = 0 ] && [ "$(cat "$MARK" 2>/dev/null)" = "$LAYOUT_VERSION" ]; then
+    # Same layout: only a changed tray list, and only on the GOBLINCAKES look
+    if [ "$(cat "$SYSTRAY_MARK" 2>/dev/null)" != "$SYSTRAY_VERSION" ] &&
+       [ "$(kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage)" = org.goblincakes.desktop ]; then
+        trim_systray
+    fi
+    exit 0
+fi
 
 # What to do: "all" (look + layout), "look" (look, keep the panels), "none" (another theme)
 if [ "$RESET" = 1 ]; then
@@ -75,10 +95,7 @@ esac
 if [ "$mode" != none ]; then
     # System tray: only network, volume and notifications. The tray only gets its
     # own settings once it has started, so wait for it, then trim it.
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
-        sleep 2
-        plasma_js "$(cat /usr/share/goblincakes/systray.js)" >/dev/null 2>&1 && break
-    done
+    trim_systray
 fi
 
 # The pinned apps back in the new dock (once it exists)
