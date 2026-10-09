@@ -215,6 +215,156 @@ def download_parts(base, parts, out):
         out.put(("error", str(e)))
 
 
+PARALLEL = 3   # parts downloaded at the same time (one connection alone is often much slower)
+AHEAD = 4      # at most this many parts on the hard disk at once (~8 GB), each deleted once written
+
+
+def spool_dir(parts):
+    """A temporary folder on the hard disk for the parts, if there is room for AHEAD of
+    them (+1 GB to spare); else None and the parts go straight to the stick."""
+    import tempfile
+    need = sum(sorted((p["size"] for p in parts), reverse=True)[:AHEAD]) + 2**30
+    base = Path(tempfile.gettempdir())
+    try:
+        if shutil.disk_usage(base).free < need:
+            return None
+        return Path(tempfile.mkdtemp(prefix="goblincakes-usb-", dir=base))
+    except OSError:
+        return None
+
+
+def fetch_part(url, part, dest, progress):
+    """One part to a file on the hard disk, checked (size + sha256); 5 tries."""
+    for attempt in range(1, 6):
+        try:
+            digest, got = hashlib.sha256(), 0
+            request = urllib.request.Request(url, headers={"User-Agent": "GOBLINCAKES-USB"})
+            with urllib.request.urlopen(request, timeout=60) as response, open(dest, "wb") as out:
+                while True:
+                    data = response.read(CHUNK)
+                    if not data:
+                        break
+                    digest.update(data)
+                    out.write(data)
+                    got += len(data)
+                    progress(len(data))
+            if got != part["size"]:
+                raise IOError(f"{part['name']}: fick {got} av {part['size']} byte")
+            if digest.hexdigest() != part["sha256"]:
+                raise IOError(f"{part['name']}: kontrollsumman stämmer inte")
+            return dest
+        except (OSError, IOError) as e:
+            progress(-got)
+            if attempt == 5:
+                raise IOError(f"{e}. Kolla internetanslutningen och försök igen.") from e
+            emit(stage="retry", message=f"{e} – försöker igen ({attempt + 1}/5)")
+            time.sleep(5 * attempt)
+
+
+def write_via_disk(fd, base, parts, total, spool):
+    """Download PARALLEL parts at a time to the hard disk while the finished ones are
+    written to the stick in order; each part is deleted as soon as it is on the stick.
+    Takes about as long as the slower of the two – usually the stick."""
+    from concurrent.futures import ThreadPoolExecutor
+    started = time.monotonic()
+    lock = threading.Lock()
+    state = {"downloaded": 0, "written": 0, "last": 0.0}
+    slots = threading.Semaphore(AHEAD)
+
+    def report(force=False):
+        now = time.monotonic()
+        if force or now - state["last"] > 0.25:
+            state["last"] = now
+            # The bar follows the stick (what's written); the downloaded amount is shown too
+            emit(stage="download", done=state["written"], downloaded=state["downloaded"], total=total,
+                 seconds=now - started)
+
+    def downloaded(n):
+        with lock:  # several download threads: one at a time, also for the progress line
+            state["downloaded"] += n
+            report()
+
+    def job(part):
+        slots.acquire()  # released when the part has been written to the stick
+        return fetch_part(f"{base}/{part['name']}", part, spool / part["name"], downloaded)
+
+    try:
+        pool = ThreadPoolExecutor(max_workers=PARALLEL)
+        futures = [pool.submit(job, part) for part in parts]
+        try:
+            offset = 0
+            for part, future in zip(parts, futures):
+                path = future.result()  # waits for this part; raises if it failed
+                os.lseek(fd, offset, os.SEEK_SET)
+                with open(path, "rb") as f:
+                    while True:
+                        data = f.read(CHUNK)
+                        if not data:
+                            break
+                        if len(data) % 4096 and WINDOWS:
+                            # Raw disks on Windows only take whole sectors: pad the very end
+                            data += b"\0" * (-len(data) % 4096)
+                        os.write(fd, data)
+                        with lock:
+                            state["written"] += min(len(data), part["size"])
+                            report()
+                path.unlink(missing_ok=True)
+                slots.release()
+                offset += part["size"]
+        except BaseException:
+            # Stop: drop the parts not started yet and free the threads waiting for a slot
+            for f in futures:
+                f.cancel()
+            for _ in parts:
+                slots.release()
+            raise
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+        state["downloaded"] = state["written"] = total
+        report(force=True)
+    finally:
+        shutil.rmtree(spool, ignore_errors=True)
+
+
+def write_streaming(fd, base, parts, total):
+    """No room on the hard disk: download and write at the same time, straight to the
+    stick – a thread fetches into a 256 MB buffer while this one writes."""
+    started = time.monotonic()
+    chunks = queue.Queue(maxsize=BUFFER_CHUNKS)
+    threading.Thread(target=download_parts, args=(base, parts, chunks), daemon=True).start()
+    current, part_offset, part_written, pending = None, 0, 0, b""
+    last_report = 0.0
+    while True:
+        message = chunks.get()
+        kind = message[0]
+        if kind == "start":
+            index, offset = message[1], message[2]
+            if index != current and pending:
+                os.write(fd, pending)  # end of the previous part (parts are whole sectors)
+            current, part_offset, part_written, pending = index, offset, 0, b""
+            os.lseek(fd, offset, os.SEEK_SET)  # also back to the start on a retry
+        elif kind == "data":
+            pending += message[1]
+            while len(pending) >= CHUNK:
+                os.write(fd, pending[:CHUNK])
+                pending = pending[CHUNK:]
+                part_written += CHUNK
+            now = time.monotonic()
+            if now - last_report > 0.25:
+                last_report = now
+                emit(stage="download", done=part_offset + part_written, total=total, seconds=now - started)
+        elif kind == "retry":
+            emit(stage="retry", message=message[1])
+        elif kind == "error":
+            raise IOError(message[1])
+        else:  # done
+            if pending:
+                # Raw disks on Windows only take whole sectors: pad the very end with zeros
+                os.write(fd, pending + b"\0" * (-len(pending) % 4096) if WINDOWS else pending)
+            emit(stage="download", done=total, total=total, seconds=time.monotonic() - started)
+            break
+
+
 def write(device, variant_id, manifest_url=MANIFEST_URL):
     try:
         with urllib.request.urlopen(urllib.request.Request(manifest_url, headers={"User-Agent": "GOBLINCAKES-USB"}),
@@ -231,42 +381,11 @@ def write(device, variant_id, manifest_url=MANIFEST_URL):
         flags = os.O_RDWR | getattr(os, "O_BINARY", 0)
         fd = os.open(path, flags)
         try:
-            started = time.monotonic()
-            # Download and write at the same time: a thread fetches into a 256 MB buffer
-            # while this one writes to the stick (slow sticks no longer stall the network)
-            chunks = queue.Queue(maxsize=BUFFER_CHUNKS)
-            threading.Thread(target=download_parts, args=(base, variant["parts"], chunks), daemon=True).start()
-            current, part_offset, part_written, pending = None, 0, 0, b""
-            last_report = 0.0
-            while True:
-                message = chunks.get()
-                kind = message[0]
-                if kind == "start":
-                    index, offset = message[1], message[2]
-                    if index != current and pending:
-                        os.write(fd, pending)  # end of the previous part (parts are whole sectors)
-                    current, part_offset, part_written, pending = index, offset, 0, b""
-                    os.lseek(fd, offset, os.SEEK_SET)  # also back to the start on a retry
-                elif kind == "data":
-                    pending += message[1]
-                    while len(pending) >= CHUNK:
-                        os.write(fd, pending[:CHUNK])
-                        pending = pending[CHUNK:]
-                        part_written += CHUNK
-                    now = time.monotonic()
-                    if now - last_report > 0.25:
-                        last_report = now
-                        emit(stage="download", done=part_offset + part_written, total=total, seconds=now - started)
-                elif kind == "retry":
-                    emit(stage="retry", message=message[1])
-                elif kind == "error":
-                    raise IOError(message[1])
-                else:  # done
-                    if pending:
-                        # Raw disks on Windows only take whole sectors: pad the very end with zeros
-                        os.write(fd, pending + b"\0" * (-len(pending) % 4096) if WINDOWS else pending)
-                    emit(stage="download", done=total, total=total, seconds=time.monotonic() - started)
-                    break
+            spool = spool_dir(variant["parts"])
+            if spool:
+                write_via_disk(fd, base, variant["parts"], total, spool)
+            else:
+                write_streaming(fd, base, variant["parts"], total)
             if hasattr(os, "fsync"):
                 try:
                     os.fsync(fd)
@@ -407,9 +526,16 @@ def gui():
                 done, total, secs = ev["done"], ev["total"], max(ev.get("seconds", 0), 0.1)
                 speed = done / secs
                 left = (total - done) / speed if speed > 0 else 0
-                self.progress.emit("download", done / total,
-                                   f"Hämtar och skriver: {human_size(done)} av {human_size(total)}"
-                                   f" · {human_size(speed)}/s · ca {int(left // 60) + 1} min kvar")
+                if "downloaded" in ev:
+                    got = ev["downloaded"]
+                    self.progress.emit("download", done / total,
+                                       f"Hämtat {human_size(got)} ({human_size(got / secs)}/s) · "
+                                       f"skrivit {human_size(done)} av {human_size(total)} ({human_size(speed)}/s)"
+                                       + (f" · ca {int(left // 60) + 1} min kvar" if done else ""))
+                else:
+                    self.progress.emit("download", done / total,
+                                       f"Hämtar och skriver: {human_size(done)} av {human_size(total)}"
+                                       f" · {human_size(speed)}/s · ca {int(left // 60) + 1} min kvar")
             elif stage == "verify":
                 self.progress.emit("verify", ev["done"] / max(ev["total"], 1),
                                    f"Kontrollerar USB-minnet: {human_size(ev['done'])} av {human_size(ev['total'])}")
