@@ -56,12 +56,31 @@ config_step() {
     return "${PIPESTATUS[0]}"
 }
 
+rpm_ostree_busy() { # true while another rpm-ostree job runs (e.g. the automatic update)
+    rpm-ostree status --json 2>/dev/null | python3 -c '
+import json, sys
+sys.exit(0 if json.load(sys.stdin).get("transaction") else 1)' 2>/dev/null
+}
+
+wait_for_rpm_ostree() { # the automatic update fetching in the background: wait (max 30 min)
+    local waited=0
+    rpm_ostree_busy || return 0
+    info "Hämtar redan den nya versionen i bakgrunden – väntar på den…"
+    while rpm_ostree_busy && [ "$waited" -lt 1800 ]; do
+        sleep 10
+        waited=$((waited + 10))
+    done
+}
+
 update_system() {
     heading "System (GOBLINCAKES-imagen)"
     # Network hiccups during the big download (e.g. "tls: bad record MAC") are common,
-    # especially in VMs: try again – the layers already fetched are kept
+    # especially in VMs: try again – the layers already fetched are kept.
+    # The automatic update may be fetching it already ("Transaction in progress", which
+    # looked like a failed download, 10 Oct): wait for it, then ours finds it staged.
     local code try
     for try in 1 2 3; do
+        wait_for_rpm_ostree
         rpm-ostree upgrade --unchanged-exit-77
         code=$?
         case $code in 0|77) break ;; esac
