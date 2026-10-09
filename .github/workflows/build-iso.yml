@@ -61,7 +61,7 @@ jobs:
           sudo mount --bind /mnt/containers /var/lib/containers
           df -h / /mnt
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Bygg live-systemet
         run: |
