@@ -6,7 +6,7 @@ Description=GOBLINCAKES: look for updates right after login and every 4 hours
 # after the restart had already happened (10 Oct)
 OnStartupSec=20s
 OnUnitActiveSec=4h
-RandomizedDelaySec=10min
+# No RandomizedDelaySec: it delayed the check after login by up to 10 minutes too
 
 [Install]
 WantedBy=timers.target
