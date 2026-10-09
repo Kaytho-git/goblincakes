@@ -44,10 +44,24 @@ def system_state():
     if "docker://" not in ref or not digest:
         return ""
     image = ref.split("docker://", 1)[1]
-    remote = run(["skopeo", "inspect", "--no-tags", "--format", "{{.Digest}}", f"docker://{image}"])
-    if remote is None:
+    # The registry's "latest" is an image index (one image per processor type): rpm-ostree has
+    # the digest of the image inside it, skopeo's Digest is the index's – they never matched
+    # (9 Oct). So: the raw manifest, and every digest in it.
+    raw = run(["skopeo", "inspect", "--raw", f"docker://{image}"])
+    if raw is None:
         return None
-    return "new" if remote.strip() and remote.strip() != digest else ""
+    try:
+        manifest = json.loads(raw)
+    except ValueError:
+        return None
+    known = {m.get("digest") for m in manifest.get("manifests", [])}
+    remote = run(["skopeo", "inspect", "--no-tags", "--format", "{{.Digest}}", f"docker://{image}"])
+    if remote:
+        known.add(remote.strip())
+    known.discard(None)
+    if not known:
+        return None
+    return "" if digest in known else "new"
 
 
 def flatpak_updates():
