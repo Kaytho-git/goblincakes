@@ -13,6 +13,9 @@ smallestReadableFont=IBM Plex Sans,8,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
 Theme=breeze-dark
 
 [KDE]
+# GOBLINCAKES look-and-feel by default (Fedora's kde-settings names its own): Plasma builds a
+# new user's first desktop from our layout and shows our splash – no Fedora look in between
+LookAndFeelPackage=org.goblincakes.desktop
 # Flat, square buttons and sliders (Kvantum theme GoblinCakes)
 widgetStyle=kvantum
 # Faster animations (1.0 = default, lower = snappier)

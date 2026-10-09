@@ -7,7 +7,15 @@ MARK="$HOME/.local/state/goblincakes/firstlogin-done"
 [ "$(cat "$MARK" 2>/dev/null)" = "$LAYOUT_VERSION" ] && exit 0
 
 sleep 3
-plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout
+# A brand-new user already got our layout from Plasma itself (LookAndFeelPackage in
+# /etc/xdg/kdeglobals): don't rebuild the panels in front of them. Older homes (no mark,
+# Fedora's layout) and a new LAYOUT_VERSION still get the reset.
+if [ ! -e "$MARK" ] && grep -qs 'plugin=org.goblincakes.nowplaying' \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"; then
+    plasma-apply-lookandfeel --apply org.goblincakes.desktop
+else
+    plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout
+fi
 plasma-apply-colorscheme GoblinCakes
 
 # System tray: only network, volume and notifications. The tray only gets its
