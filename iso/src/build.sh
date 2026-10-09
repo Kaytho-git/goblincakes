@@ -52,6 +52,55 @@ EOF
 dnf install -y --enable-repo=fedora-cisco-openh264 --allowerasing \
     anaconda-live libblockdev-{btrfs,lvm,dm} firefox yad
 dnf install -y kde-partitionmanager || :
+# The installer (Anaconda's web UI, a Cockpit page) in GOBLINCAKES' look instead of Fedora's
+# blue: it loads Cockpit's branding.css for the OS – ours is added after Fedora's, so it wins.
+# Logo, palette, flat with square corners, IBM Plex Sans / Chakra Petch.
+branding_dirs=$(ls -d /usr/share/cockpit/branding/fedora* 2>/dev/null || :)
+[ -n "$branding_dirs" ] || { mkdir -p /usr/share/cockpit/branding/fedora; branding_dirs=/usr/share/cockpit/branding/fedora; }
+for dir in $branding_dirs; do
+    cp /usr/share/icons/hicolor/scalable/apps/goblincakes.svg "$dir/goblincakes.svg"
+    cat >>"$dir/branding.css" <<'EOF'
+
+/* ── GOBLINCAKES (iso/src/build.sh): the installer in GOBLINCAKES' palette ── */
+:root, :root.pf-v6-theme-dark {
+  --brand-default: #2F6FED !important;
+  --brand-default-light: #4F86F0 !important;
+  --pf-t--global--color--brand--default: #2F6FED !important;
+  --pf-t--global--color--brand--hover: #4F86F0 !important;
+  --pf-t--global--color--brand--clicked: #2558C0 !important;
+  --pf-t--global--border--radius--small: 0 !important;
+  --pf-t--global--border--radius--medium: 0 !important;
+  --pf-t--global--border--radius--large: 0 !important;
+  --pf-t--global--border--radius--pill: 0 !important;
+  --pf-t--global--font--family--body: "IBM Plex Sans", sans-serif !important;
+  --pf-t--global--font--family--heading: "Chakra Petch", "IBM Plex Sans", sans-serif !important;
+  --pf-t--global--background--color--primary--default: #0E1420 !important;
+  --pf-t--global--background--color--secondary--default: #07090D !important;
+  --pf-t--global--border--color--default: #1E2A40 !important;
+  --pf-t--global--text--color--regular: #E6ECF5 !important;
+  --pf-t--global--text--color--subtle: #8B98AD !important;
+}
+body, .pf-v6-c-page, .pf-v6-c-page__main { background: #07090D !important; }
+.pf-v6-c-page__main-group > .pf-v6-c-page__main-section:first-child {
+  background: #0B1018 !important;
+  border-bottom: 1px solid #E6ECF5;
+}
+.pf-v6-c-page__main-group > .pf-v6-c-page__main-section:first-child h1 {
+  font-family: "Chakra Petch", "IBM Plex Sans", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.logo {
+  background-image: url("goblincakes.svg") !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+.pf-v6-c-wizard__nav, .pf-v6-c-wizard__footer { background: #0B1018 !important; }
+.pf-v6-c-button, .pf-v6-c-form-control, .pf-v6-c-card, .pf-v6-c-modal-box, .pf-v6-c-menu,
+.pf-v6-c-progress-stepper__step-icon { border-radius: 0 !important; }
+EOF
+done
+
 # KDE's own Welcome Center (Fedora's live scripts open it with an install page) – the live
 # system has GOBLINCAKES' own welcome window instead. Only the live system: the installed
 # GOBLINCAKES comes from the separate payload image.
