@@ -1,0 +1,7 @@
+# KDE's Welcome Center would open by itself at the first login and after Plasma upgrades
+# (started by this kded module, not by an autostart file). GOBLINCAKES Config welcomes instead.
+[Module-plasma_welcome]
+autoload=false
+
+[Module-plasma-welcome]
+autoload=false
