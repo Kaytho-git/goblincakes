@@ -1,9 +1,12 @@
-# GOBLINCAKES installation ISO (live USB), built when you ask for it:
+# GOBLINCAKES installation ISOs (live USB), built when you ask for it:
 # GitHub → Actions → "Bygg installations-ISO" → Run workflow.
-# The ISO is a build file (artifact) on that run's page for one day; each new build
-# first deletes the earlier ISOs, so there is never more than one.
-# It is also published as the release "iso" in parts under 2 GB plus goblincakes-iso.json
-# (public, no login) – that is where the GOBLINCAKES USB creator downloads it from.
+# Two ISOs, built side by side on their own machines:
+#   GOBLINCAKES-<date>.iso         the base variant (AMD, Intel, older Nvidia)
+#   GOBLINCAKES-Nvidia-<date>.iso  goblincakes-nvidia (Nvidia GTX 16xx / RTX 20xx and newer)
+# Each is a build file (artifact) on the run's page for one day (goblincakes-iso and
+# goblincakes-nvidia-iso); each new build first deletes the earlier ones.
+# Both are also published as the release "iso" in parts under 2 GB plus goblincakes-iso.json
+# (public, no login) – that is where the GOBLINCAKES USB creator downloads them from.
 name: Bygg installations-ISO
 on:
   workflow_dispatch:
@@ -19,16 +22,36 @@ permissions:
 
 jobs:
   iso:
-    name: Bygg ISO
+    name: Bygg ISO (${{ matrix.label }})
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: vanlig
+            id: live-base
+            image: ghcr.io/kaytho-git/goblincakes:latest
+            prefix: GOBLINCAKES
+            artifact: goblincakes-iso
+            title: Prova och installera
+            description: "Startar GOBLINCAKES från USB-minnet: prova datorn, rensa diskar och installera. Installerar utan internet. För AMD, Intel och äldre Nvidia-kort (har datorn ett Nvidia GTX 16xx/RTX 20xx eller nyare hämtas Nvidia-drivrutinerna efter första starten)."
+          - label: Nvidia
+            id: live-nvidia
+            image: ghcr.io/kaytho-git/goblincakes-nvidia:latest
+            prefix: GOBLINCAKES-Nvidia
+            artifact: goblincakes-nvidia-iso
+            title: Prova och installera – Nvidia
+            description: "Samma sak med Nvidias drivrutiner från start, för Nvidia GTX 16xx/RTX 20xx eller nyare. Installerar utan internet."
     steps:
       - name: Ta bort tidigare ISO:er
         uses: actions/github-script@v7
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
         with:
           script: |
             const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
-              owner: context.repo.owner, repo: context.repo.repo, name: "goblincakes-iso", per_page: 100,
+              owner: context.repo.owner, repo: context.repo.repo, name: process.env.ARTIFACT, per_page: 100,
             });
             for (const artifact of artifacts) {
               core.info(`Tar bort ${artifact.name} (${artifact.id}) från ${artifact.created_at}`);
@@ -59,7 +82,7 @@ jobs:
       - name: Bygg live-systemet
         run: |
           sudo podman build --pull=always --cap-add sys_admin --security-opt label=disable --squash \
-            --build-arg BASE_IMAGE=ghcr.io/kaytho-git/goblincakes:latest \
+            --build-arg BASE_IMAGE=${{ matrix.image }} \
             -t localhost/goblincakes-live:latest iso
           df -h / /mnt
 
@@ -80,8 +103,8 @@ jobs:
         run: |
           version=$(date -u +%Y.%m.%d)
           cd output
-          mv GOBLINCAKES.iso "GOBLINCAKES-$version.iso"
-          sha256sum "GOBLINCAKES-$version.iso" | tee "GOBLINCAKES-$version.iso.sha256"
+          mv GOBLINCAKES.iso "${{ matrix.prefix }}-$version.iso"
+          sha256sum "${{ matrix.prefix }}-$version.iso" | tee "${{ matrix.prefix }}-$version.iso.sha256"
           ls -lh
           sudo podman rmi -f localhost/goblincakes-live:latest || true
 
@@ -89,27 +112,76 @@ jobs:
       - name: Lägg upp ISO:n (finns i ett dygn)
         uses: actions/upload-artifact@v4
         with:
-          name: goblincakes-iso
+          name: ${{ matrix.artifact }}
           path: output/
           retention-days: 1
           compression-level: 0
           if-no-files-found: error
 
-      # The USB creator downloads from here: the release "iso", replaced by every build
-      - name: Lägg upp ISO:n som release (för USB-skaparen)
+      # The USB creator downloads from here: the release "iso". The parts go up now; the list
+      # of both ISOs (goblincakes-iso.json) is written by the last job, when both are done.
+      # Create the release first, then upload (creating it together with files makes gh
+      # start with a draft release, which GitHub refused with 403 on 9 Oct).
+      - name: Lägg upp delarna i releasen "iso" (för USB-skaparen)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          iso=$(ls output/GOBLINCAKES-*.iso)
-          version=$(basename "$iso" .iso); version=${version#GOBLINCAKES-}
-          sudo mkdir -p /mnt/iso-release && sudo chown "$(id -u):$(id -g)" /mnt/iso-release
-          GOBLINCAKES_VERSION="$version" python3 iso/release.py "$iso" /mnt/iso-release live-base \
-            "Prova och installera" "Startar GOBLINCAKES från USB-minnet: prova datorn, rensa diskar och installera. Installerar utan internet."
-          gh release delete iso --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
-          # Create the release first, then upload the parts (creating it together with files
-          # makes gh start with a draft release, which GitHub refused with 403 on 9 Oct)
-          gh release create iso -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
-            --title "GOBLINCAKES ISO $version" \
-            --notes "Installations-ISO för GOBLINCAKES, i delar under 2 GB. Enklast: använd GOBLINCAKES USB-skaparen – den hämtar, sätter ihop, kontrollerar och skriver till USB-minnet. För hand: ladda ner alla delar, sätt ihop dem i ordning (Linux: cat GOBLINCAKES-*.iso.part* > GOBLINCAKES.iso, Windows: copy /b del00+del01+… GOBLINCAKES.iso) och jämför sha256 med goblincakes-iso.json."
-          gh release upload iso -R "$GITHUB_REPOSITORY" --clobber /mnt/iso-release/*
-          sudo rm -rf /mnt/iso-release
+          iso=$(ls output/${{ matrix.prefix }}-*.iso)
+          version=$(basename "$iso" .iso); version=${version##*-}
+          out=/mnt/iso-release
+          sudo rm -rf "$out" && sudo mkdir -p "$out" && sudo chown "$(id -u):$(id -g)" "$out"
+          GOBLINCAKES_VERSION="$version" python3 iso/release.py "$iso" "$out" \
+            "${{ matrix.id }}" "${{ matrix.title }}" "${{ matrix.description }}"
+          gh release view iso -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create iso -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+              --title "GOBLINCAKES ISO $version" --notes "Byggs …" ||
+            sleep 10
+          gh release upload iso -R "$GITHUB_REPOSITORY" --clobber "$out"/*.part*
+          mkdir -p manifest && mv "$out/goblincakes-iso.json" "manifest/${{ matrix.id }}.json"
+          sudo rm -rf "$out"
+
+      - name: Spara listan för den här ISO:n
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ matrix.id }}
+          path: manifest/
+          retention-days: 1
+
+  release:
+    name: Gör klart releasen "iso"
+    needs: iso
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: manifest-*
+          merge-multiple: true
+          path: manifest
+
+      - name: Listan över ISO:erna, bort med gamla delar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'EOF'
+          import json, pathlib
+          order = ["live-base", "live-nvidia"]
+          parts = [json.loads(p.read_text()) for p in sorted(pathlib.Path("manifest").glob("*.json"))]
+          variants = sorted((v for m in parts for v in m["variants"]),
+                            key=lambda v: order.index(v["id"]) if v["id"] in order else len(order))
+          merged = {"variants": variants, "version": max(m["version"] for m in parts),
+                    "built": max(m["built"] for m in parts)}
+          pathlib.Path("goblincakes-iso.json").write_text(json.dumps(merged, indent=2, ensure_ascii=False))
+          pathlib.Path("keep.txt").write_text("\n".join(p["name"] for v in variants for p in v["parts"]) + "\n")
+          pathlib.Path("version.txt").write_text(merged["version"])
+          for v in variants:
+              print(f'{v["id"]}: {v["file"]}, {v["size"] / 1e9:.1f} GB, {len(v["parts"])} delar')
+          EOF
+          gh release upload iso -R "$GITHUB_REPOSITORY" --clobber goblincakes-iso.json
+          # Parts of earlier ISOs that the new list no longer uses
+          gh release view iso -R "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' |
+            while read -r name; do
+              [ "$name" = goblincakes-iso.json ] && continue
+              grep -qxF "$name" keep.txt || { echo "Tar bort $name"; gh release delete-asset iso "$name" -R "$GITHUB_REPOSITORY" --yes; }
+            done
+          gh release edit iso -R "$GITHUB_REPOSITORY" --prerelease --title "GOBLINCAKES ISO $(cat version.txt)" \
+            --notes "Installations-ISO:er för GOBLINCAKES, i delar under 2 GB: GOBLINCAKES (AMD, Intel och äldre Nvidia-kort) och GOBLINCAKES-Nvidia (Nvidia GTX 16xx/RTX 20xx eller nyare). Enklast: använd GOBLINCAKES USB-skaparen (releasen usb-skaparen) – den känner av grafikkortet, hämtar, kontrollerar och skriver till USB-minnet. För hand: ladda ner alla delar av en ISO, sätt ihop dem i ordning (Linux: cat GOBLINCAKES-<datum>.iso.part* > GOBLINCAKES.iso, Windows: copy /b del00+del01+… GOBLINCAKES.iso) och jämför sha256 med goblincakes-iso.json."

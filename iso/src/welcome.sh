@@ -2,7 +2,7 @@
 # GOBLINCAKES live ISO: the window shown after login – install, partition disks, or try first.
 # Opened again from the dock (Installera GOBLINCAKES / Partitionshanterare) whenever needed.
 # Shows the computer's graphics card and what the installation will do about its drivers
-# (the same check the installer uses: goblincakes-gpu hw).
+# (the same check the installer uses: goblincakes-gpu hw), for the base or the Nvidia ISO.
 sleep 4
 
 graphics=$(/usr/libexec/goblincakes-gpu hw 2>/dev/null | python3 -c '
@@ -11,10 +11,20 @@ try:
     hw = json.load(sys.stdin)
 except ValueError:
     sys.exit()
+try:
+    iso = open("/usr/share/goblincakes/variant").read().strip()  # base / nvidia ISO
+except OSError:
+    iso = "base"
 cards = hw.get("cards", [])
 names = ", ".join(html.escape(c["name"]) for c in cards) or "okänt"
 print(f"<b>Grafikkort:</b> {names}")
-if hw.get("nvidiaSupported"):
+if iso == "nvidia" and hw.get("nvidiaSupported"):
+    print("Nvidia-drivrutinerna finns redan med på USB-minnet – inget behöver hämtas.")
+elif iso == "nvidia":
+    print("Det här USB-minnet är gjort för Nvidia GTX 16xx/RTX 20xx eller nyare. Den här datorn")
+    print("får i stället vanliga GOBLINCAKES – det hämtas automatiskt efter första starten")
+    print("(behöver internet), sedan räcker en omstart.")
+elif hw.get("nvidiaSupported"):
     print("Förslag: <b>Nvidia-drivrutinerna</b> – de hämtas automatiskt efter första starten")
     print("(behöver internet), sedan räcker en omstart.")
 elif hw.get("hasNvidia"):

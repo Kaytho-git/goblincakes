@@ -5,9 +5,9 @@ the parts back together:
 
   iso/release.py <iso> <out-dir> <variant-id> <name> <description>
 
-The manifest lists every variant in the release (more ISO kinds can be added later:
-"Bara installera", Nvidia); this run adds/replaces one variant in an existing
-manifest in <out-dir> if there is one.
+The manifest lists every variant in the release (live-base, live-nvidia); this run
+adds/replaces one variant in an existing manifest in <out-dir> if there is one.
+The ISO workflow builds each variant on its own machine and merges the manifests.
 """
 import hashlib
 import json
@@ -58,7 +58,8 @@ def main(iso, out_dir, variant_id, name, description):
         "file": iso.name,
         "size": iso.stat().st_size,
         "sha256": total.hexdigest(),
-        "minUsb": 16 if iso.stat().st_size > 7.5e9 else 8,  # GB on the stick's label
+        # GB on the stick's label (a "16 GB" stick holds a bit less than 16·10⁹ bytes)
+        "minUsb": next(gb for gb in (8, 16, 32, 64, 128) if iso.stat().st_size < gb * 0.93e9),
         "parts": parts,
     }
     manifest["variants"] = [v for v in manifest["variants"] if v["id"] != variant_id] + [variant]

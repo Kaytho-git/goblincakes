@@ -1,10 +1,11 @@
 #!/usr/bin/bash
 # Turns the GOBLINCAKES image into the live system on the ISO (based on Titanoboa's Bazzite example):
 #   - starts straight into GOBLINCAKES (our look), in Swedish, as "liveuser"
-#   - "Installera GOBLINCAKES" = Fedora's Anaconda; it installs the base variant from the
-#     ISO (no internet needed) and points the system at goblincakes-nvidia when the computer
-#     has an Nvidia RTX 20xx / GTX 16xx or newer – fetched after the first start
-#     (goblincakes-variant-sync.service), used after one more restart
+#   - "Installera GOBLINCAKES" = Fedora's Anaconda; it installs the variant on the ISO (no
+#     internet needed): the base ISO (goblincakes) or the Nvidia ISO (goblincakes-nvidia,
+#     same build with BASE_IMAGE=…goblincakes-nvidia). When it doesn't fit the computer
+#     (Nvidia RTX 20xx / GTX 16xx or newer ↔ everything else), the system is pointed at the
+#     other one – fetched after the first start (goblincakes-variant-sync.service)
 #   - KDE Partitionshanterare to wipe/format disks; nothing on the disks changes until then
 #   - Secure Boot: Universal Blue's key (Nvidia, Xbox drivers) is queued for enrolment –
 #     confirmed once in the blue MOK screen at the first restart, password universalblue
@@ -16,6 +17,7 @@ payload_dir=/var/lib/goblincakes-payload
 payload_repo=${payload_image%:*}
 payload_tag=${payload_image##*:}
 secureboot_key=/etc/pki/akmods/certs/akmods-ublue.der
+iso_variant=$(cat /usr/share/goblincakes/variant 2>/dev/null || echo base)  # base / nvidia
 
 # The image comes with an empty /var (BlueBuild cleans it): folders the tools below expect
 mkdir -p "$(realpath /root)" /var/lib/rpm-state /var/tmp /var/cache /var/log
@@ -122,11 +124,11 @@ EOF
 cat >/usr/share/anaconda/post-scripts/goblincakes-variant.ks <<EOF
 %post --nochroot --erroronfail --log=/tmp/goblincakes-logs/variant.log
 set -x
-image=$payload_repo
+image=${payload_repo%-nvidia}
 if /usr/libexec/goblincakes-gpu hw | python3 -c 'import json, sys; sys.exit(0 if json.load(sys.stdin).get("nvidiaSupported") else 1)'; then
-    image=\${image%-nvidia}-nvidia
-    echo "Nvidia RTX 20xx / GTX 16xx or newer: \$image is fetched after the first start"
+    image=\$image-nvidia
 fi
+[ "\$image" = "$payload_repo" ] || echo "The other variant fits this computer: \$image is fetched after the first start"
 found=0
 for f in /mnt/sysroot/ostree/deploy/*/deploy/*.origin /mnt/sysimage/ostree/deploy/*/deploy/*.origin; do
     [ -f "\$f" ] || continue
@@ -249,5 +251,11 @@ systemctl enable var-tmp.mount
 
 mkdir -p /usr/lib/bootc-image-builder
 cp "$SRC/iso.yaml" /usr/lib/bootc-image-builder/iso.yaml
+# The Nvidia ISO: Nvidia's driver instead of nouveau in the live system (the image's own kargs.d
+# only apply once installed); "enkel grafik" stays without it
+if [ "$iso_variant" = nvidia ]; then
+    sed -i '0,/rd.live.image"/s//rd.live.image rd.driver.blacklist=nouveau modprobe.blacklist=nouveau nvidia-drm.modeset=1"/' \
+        /usr/lib/bootc-image-builder/iso.yaml
+fi
 
 dnf clean all

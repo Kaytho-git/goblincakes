@@ -29,6 +29,13 @@ Window {
     property string errorText: ""
 
     readonly property var variant: variants.find(v => v.id === variantId) || null
+    readonly property bool hasNvidiaIso: variants.some(v => v.id === "live-nvidia")
+    readonly property string suggestedId: suggest(variants)
+    // The graphics card in this computer decides the suggestion (the stick may be for another one)
+    function suggest(list) {
+        if (gpu.nvidiaSupported && list.some(v => v.id === "live-nvidia")) return "live-nvidia";
+        return list.some(v => v.id === "live-base") ? "live-base" : "";
+    }
     readonly property var drive: drives.find(d => d.device === device) || null
 
     function gb(bytes) { return (bytes / 1e9).toFixed(1).replace(".", ",") + " GB"; }
@@ -38,7 +45,7 @@ Window {
         backend.loadManifest();
         backend.refreshDrives();
     }
-    onVariantsChanged: if (!variantId && variants.length) variantId = variants[0].id
+    onVariantsChanged: if (!variantId && variants.length) variantId = suggest(variants) || variants[0].id
 
     Timer { interval: 3000; running: win.page === "choose"; repeat: true; onTriggered: backend.refreshDrives() }
 
@@ -192,23 +199,47 @@ Window {
         property string detail
         property bool selected
         property bool usable: true
+        property bool suggested: false
         signal picked()
-        height: 84
+        height: choiceColumn.height + 30
         color: area.containsMouse && usable ? "#111A2A" : "#0E1420"
         border.width: selected ? 2 : 1
         border.color: selected ? "#2F6FED" : area.containsMouse && usable ? "#2A3852" : "#1E2A40"
         opacity: usable ? 1 : 0.45
         Column {
+            id: choiceColumn
             anchors { left: parent.left; leftMargin: 20; right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
             spacing: 5
-            Text {
+            Row {
                 width: parent.width
-                text: choice.title
-                color: "#E6ECF5"
-                font.family: "IBM Plex Sans"
-                font.weight: Font.DemiBold
-                font.pixelSize: 16
-                elide: Text.ElideRight
+                spacing: 10
+                Text {
+                    width: Math.min(implicitWidth, parent.width - (badge.visible ? badge.width + 10 : 0))
+                    text: choice.title
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 16
+                    elide: Text.ElideRight
+                }
+                Rectangle {
+                    id: badge
+                    visible: choice.suggested
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: badgeText.implicitWidth + 14
+                    height: 20
+                    color: "#1B3A78"
+                    Text {
+                        id: badgeText
+                        anchors.centerIn: parent
+                        text: "FÖRESLÅS FÖR DEN HÄR DATORN"
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 10
+                        font.letterSpacing: 1
+                    }
+                }
             }
             Text {
                 width: parent.width
@@ -217,7 +248,7 @@ Window {
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap
-                maximumLineCount: 2
+                maximumLineCount: 4
                 elide: Text.ElideRight
             }
         }
@@ -315,6 +346,7 @@ Window {
                     title: modelData.name + "  ·  " + win.gb(modelData.size)
                     detail: modelData.description + " Kräver ett USB-minne på minst " + modelData.minUsb + " GB."
                     selected: win.variantId === modelData.id
+                    suggested: modelData.id === win.suggestedId && win.variants.length > 1
                     onPicked: win.variantId = modelData.id
                 }
             }
@@ -343,11 +375,16 @@ Window {
                     Label {
                         width: parent.width
                         font.pixelSize: 13
-                        text: win.gpu.nvidiaSupported
-                            ? "Nvidia RTX 20xx/GTX 16xx eller nyare: Nvidia-drivrutinerna hämtas automatiskt efter första starten (installationen känner av kortet själv)."
+                        text: (win.gpu.nvidiaSupported
+                            ? (win.hasNvidiaIso
+                               ? "Nvidia GTX 16xx/RTX 20xx eller nyare: Nvidia-ISO:n föreslås – drivrutinerna finns med från start."
+                               : "Nvidia GTX 16xx/RTX 20xx eller nyare: Nvidia-drivrutinerna hämtas automatiskt efter första starten.")
                             : win.gpu.hasNvidia
-                            ? "Nvidia-kortet är äldre än GTX 16xx/RTX 20xx – GOBLINCAKES använder den öppna drivrutinen."
-                            : "Drivrutinerna finns redan med i GOBLINCAKES. Ska USB-minnet till en annan dator känner installationen av dess kort själv."
+                            ? "Nvidia-kortet är äldre än GTX 16xx/RTX 20xx, som Nvidias drivrutiner kräver – den vanliga ISO:n föreslås (öppna drivrutinen)."
+                            : "Den vanliga ISO:n föreslås – drivrutinerna för AMD och Intel finns redan med.")
+                            + (win.hasNvidiaIso
+                               ? "\n\nSka USB-minnet till en annan dator? Välj efter den datorns grafikkort. Fel val gör ingen skada: GOBLINCAKES byter själv till rätt version efter första starten (behöver internet)."
+                               : "")
                     }
                 }
             }
