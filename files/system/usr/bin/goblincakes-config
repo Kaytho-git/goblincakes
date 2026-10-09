@@ -16,9 +16,11 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QProcess, QSize, Qt, QUrl, Property, Signal, Slot
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 
+SOCKET_NAME = f"goblincakes-config-{os.getuid()}"
 SHARE = Path(os.environ.get("GOBLINCAKES_CONFIG_SHARE", "/usr/share/goblincakes/config"))
 HELPER = os.environ.get("GOBLINCAKES_CONFIG_HELPER", "/usr/libexec/goblincakes-config-install")
 APPS = os.environ.get("GOBLINCAKES_CONFIG_APPS", "/usr/libexec/goblincakes-apps")
@@ -69,6 +71,7 @@ class Config(QObject):
     gpuProgress = Signal(str)  # status line while switching
     gpuDone = Signal(bool)  # switch/undo finished, ok
     catalogChanged = Signal()
+    showTab = Signal(str)  # another start (e.g. the update arrow): show this window on that tab
     mainBrowserChanged = Signal()
     webappsChanged = Signal()
     systemAppsChanged = Signal()  # tab FÖRINSTALLERAT
@@ -559,12 +562,39 @@ def main():
         if font:
             QFontDatabase.addApplicationFont(font)
 
+    start_tab = sys.argv[sys.argv.index("--tab") + 1] if "--tab" in sys.argv[:-1] else "apps"
+    start_tab = {"graphics": "graphics", "tweaks": "tweaks", "update": "update", "system": "system"}.get(start_tab, "apps")
+
+    # One window at a time: a second start (the update arrow, AppGrid, Meta+C) hands its tab to
+    # the open window instead of opening another one (10 Oct). The first-run start just stops.
+    probe = QLocalSocket()
+    probe.connectToServer(SOCKET_NAME)
+    if probe.waitForConnected(300):
+        if "--first-run" not in sys.argv:
+            probe.write(("" if "--tab" not in sys.argv else start_tab).encode())
+            probe.waitForBytesWritten(1000)
+        probe.disconnectFromServer()
+        return 0
+    QLocalServer.removeServer(SOCKET_NAME)
+    server = QLocalServer()
+    server.listen(SOCKET_NAME)
+
     backend = Config()
+
+    def incoming():
+        sock = server.nextPendingConnection()
+        if sock is None:
+            return
+        def read():
+            backend.showTab.emit(bytes(sock.readAll()).decode(errors="replace").strip())
+        sock.readyRead.connect(read)
+        sock.disconnected.connect(sock.deleteLater)
+    server.newConnection.connect(incoming)
+
     engine = QQmlApplicationEngine()
     engine.addImageProvider("icon", IconProvider())
     engine.rootContext().setContextProperty("backend", backend)
-    start_tab = sys.argv[sys.argv.index("--tab") + 1] if "--tab" in sys.argv[:-1] else "apps"
-    engine.rootContext().setContextProperty("startTab", {"graphics": "graphics", "tweaks": "tweaks", "update": "update", "system": "system"}.get(start_tab, "apps"))
+    engine.rootContext().setContextProperty("startTab", start_tab)
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO", "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")))
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))

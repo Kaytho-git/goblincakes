@@ -143,6 +143,14 @@ Window {
 
     Connections {
         target: backend
+        // Config started again while open (the update arrow, AppGrid, Meta+C): this window, on that tab
+        function onShowTab(tab) {
+            if (tab !== "")
+                win.tab = tab;
+            win.show();
+            win.raise();
+            win.requestActivate();
+        }
         function onWebappProgress(text) { win.webappStatus = text; }
         function onWebappDone(ok) {
             win.webappBusy = false;
