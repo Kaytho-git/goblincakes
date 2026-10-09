@@ -8,6 +8,7 @@
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.plasmoid
+import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 
@@ -56,8 +57,11 @@ PlasmoidItem {
     }
 
     preferredRepresentation: fullRepresentation
-    toolTipMainText: available ? "Uppdateringar finns" : ""
-    toolTipSubText: {
+    // Drawn straight in the bar, so Plasma's own applet tooltip isn't shown: our own ToolTipArea
+    toolTipMainText: ""
+    toolTipSubText: ""
+    readonly property string tipTitle: available ? "Uppdateringar finns" : ""
+    readonly property string tipText: {
         const lines = [];
         if (system === "staged")
             lines.push("En ny GOBLINCAKES-version är hämtad – starta om för att använda den");
@@ -102,6 +106,13 @@ PlasmoidItem {
                 ctx.fillRect(6 * s, 7 * s, 4 * s, 5 * s);    // shaft
                 ctx.fillRect(2 * s, 13.5 * s, 12 * s, 1.5 * s); // bar
             }
+        }
+
+        PlasmaCore.ToolTipArea {
+            anchors.fill: parent
+            mainText: root.tipTitle
+            subText: root.tipText
+            active: root.available
         }
 
         MouseArea {
