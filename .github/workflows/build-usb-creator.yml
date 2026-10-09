@@ -47,6 +47,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Qt needs the system's graphics/X libraries (not on the build machine by default)
+      - name: Systembibliotek (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libegl1 libgl1 libxkbcommon0 libxkbcommon-x11-0 libfontconfig1 libdbus-1-3 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 libxcb-randr0 \
+            libxcb-render-util0 libxcb-image0
+
       - name: Verktyg
         run: python -m pip install --upgrade pyside6-essentials pyinstaller
 
