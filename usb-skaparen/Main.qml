@@ -464,6 +464,11 @@ Window {
                 + "4. Välj \"Starta GOBLINCAKES\" och sedan Installera GOBLINCAKES.\n\n"
                 + "Secure Boot kan vara påslaget. Vid första omstarten efter installationen kan en blå skärm visas: "
                 + "Enroll MOK → Continue → Yes → lösenordet universalblue → Reboot."
+                // The ISO is copied as it is, with several partitions: each gets a drive letter (9 Oct)
+                + (isWindows
+                    ? "\n\nWindows kan visa USB-minnet som flera enheter och fråga om du vill formatera – välj Avbryt. "
+                      + "Det är normalt: installationsmediet har flera delar. De försvinner när du tar ur minnet."
+                    : "\n\nFilhanteraren kan visa USB-minnet som flera enheter – det är normalt, installationsmediet har flera delar.")
         }
 
         // Failed
