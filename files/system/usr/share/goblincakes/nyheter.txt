@@ -1,8 +1,8 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+$line
 2026-10-09  goblin fast visar inte längre den skrivskyddade systemdisken som "100 % full" i rött
 2026-10-09  Terminalen (Ghostty) öppnas mindre: 10 punkters text och ett mindre fönster
-2026-10-10  Uppdatera väntar nu på en automatisk uppdatering som redan hämtar i bakgrunden, i stället för att säga att nedladdningen avbröts
 2026-10-09  Merkuros kontaktlista syns inte längre i systemfältet
 2026-10-09  En grön pil i toppfältet visar när det finns uppdateringar – klicka på den för att uppdatera
 2026-10-09  Kalender med konton (GOBLINCAKES Config → Inställningar → Kalender): Google- och Outlook-kalendrar i klockans kalender, händelser läggs in i Merkuro
