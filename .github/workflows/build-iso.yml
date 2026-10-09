@@ -61,16 +61,18 @@ jobs:
             -t localhost/goblincakes-live:latest iso
           df -h / /mnt
 
-      # Titanoboa needs the folder the ISO goes into to exist already
-      - name: Mapp för ISO:n
-        run: mkdir -p output
-
+      # Universal Blue's Titanoboa makes the ISO. Run its script directly (pinned commit):
+      # the action's own wrapper fails moving the finished ISO to a folder of our choice.
       - name: Gör ISO:n
-        id: iso
-        uses: ublue-os/titanoboa@5c457c3d0518bd17e754be0fd98a60d29d26abb4
-        with:
-          image-ref: localhost/goblincakes-live:latest
-          iso-dest: ${{ github.workspace }}/output/GOBLINCAKES.iso
+        env:
+          TITANOBOA_REF: 5c457c3d0518bd17e754be0fd98a60d29d26abb4
+        run: |
+          git clone --quiet https://github.com/ublue-os/titanoboa /tmp/titanoboa
+          git -C /tmp/titanoboa checkout --quiet "$TITANOBOA_REF"
+          mkdir -p output
+          iso=$(TITANOBOA_OUTPUT_DIR="$GITHUB_WORKSPACE/output" /tmp/titanoboa/main.sh localhost/goblincakes-live:latest)
+          sudo chown "$(id -u):$(id -g)" output/*.iso
+          [ -f "$iso" ] && [ "$(basename "$iso")" = GOBLINCAKES.iso ]
 
       - name: Namn och kontrollsumma
         run: |
