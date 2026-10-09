@@ -3,18 +3,20 @@
 
 # On an atomic system every file in /usr has the same date, so Plasma never
 # notices that our theme changed and keeps showing old cached images
-# (e.g. a top bar and dock without background). When the GOBLINCAKES theme
-# files differ from last login, throw those caches away.
+# (e.g. a top bar and dock without background, an old wallpaper). When the GOBLINCAKES
+# theme or wallpaper files differ from last login, throw those caches away.
 _gc_state="${XDG_STATE_HOME:-$HOME/.local/state}/goblincakes"
 _gc_cache="${XDG_CACHE_HOME:-$HOME/.cache}"
 _gc_sum=$(find /usr/share/plasma/desktoptheme/goblincakes \
                /usr/share/plasma/look-and-feel/org.goblincakes.desktop \
                /usr/share/aurorae/themes/goblincakes \
+               /usr/share/wallpapers/goblincakes \
                -type f -exec cat {} + 2>/dev/null | cksum)
 if [ "$_gc_sum" != "$(cat "$_gc_state/theme-sum" 2>/dev/null)" ]; then
     rm -rf "$_gc_cache"/plasma_theme_* "$_gc_cache"/plasma-svgelements* \
            "$_gc_cache"/ksvg-elements* "$_gc_cache"/icon-cache.kcache \
-           "$_gc_cache"/plasmashell/qmlcache 2>/dev/null
+           "$_gc_cache"/plasmashell/qmlcache "$_gc_cache"/plasma_wallpaper* \
+           "$_gc_cache"/plasma_engine_preview* "$_gc_cache"/thumbnails 2>/dev/null
     mkdir -p "$_gc_state"
     printf '%s\n' "$_gc_sum" > "$_gc_state/theme-sum"
 fi

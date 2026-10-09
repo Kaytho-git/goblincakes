@@ -1,26 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 1920 1080">
-  <!-- GOBLINCAKES desktop: Deep blue, tone-on-tone goblin swinging an axe -->
+  <!-- GOBLINCAKES desktop: Deep blue with the goblin logo tone-on-tone right of centre (as on the
+       login screen), but puzzled: round eyes looking up, one eyebrow raised – "Ojdå! Progress?" -->
   <rect width="1920" height="1080" fill="#12203A"/>
 
   <g transform="translate(1060 280) scale(4)">
-    <!-- Swing lines -->
-    <path d="M134 -14 Q148 2 144 22 M142 -24 Q160 -2 154 26" stroke="#1E3A6B" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-
-    <!-- Axe, held up in the right hand -->
-    <g transform="translate(114 32) rotate(-15)">
-      <rect x="-2" y="-50" width="4" height="66" rx="2" fill="#193461"/>
-      <path d="M2 -48 C14 -56 26 -50 28 -34 C20 -39 12 -37 2 -30 Z" fill="#24467F"/>
-      <path d="M-2 -46 L-10 -41 L-2 -36 Z" fill="#24467F"/>
-    </g>
-
-    <!-- Raised arm and hand -->
-    <path d="M88 66 Q106 58 113 38" stroke="#1E3A6B" stroke-width="7" stroke-linecap="round" fill="none"/>
-    <circle cx="114" cy="32" r="7" fill="#1E3A6B"/>
+    <!-- Speech bubble, flat with straight corners like the rest of GOBLINCAKES -->
+    <path d="M94 -16 H182 V10 H112 L102 22 L104 10 H94 Z" fill="none" stroke="#1E3A6B" stroke-width="1.5" stroke-linejoin="miter"/>
+    <text x="138" y="-0.5" text-anchor="middle" font-family="Chakra Petch" font-weight="700" font-size="9.5" letter-spacing="0.3" fill="#24467F">Ojdå! Progress?</text>
 
     <!-- Head (top of the cupcake) -->
     <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#1E3A6B"/>
-    <path d="M43 45 L55 50 L52 55 Z" fill="#12203A"/>
-    <path d="M77 45 L65 50 L68 55 Z" fill="#12203A"/>
+    <!-- Eyebrows: the left one flat, the right one raised -->
+    <path d="M42 39 L54 40" stroke="#12203A" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+    <path d="M66 36 Q72 31 79 35" stroke="#12203A" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+    <!-- Round eyes, pupils looking up at the question -->
+    <circle cx="49" cy="48" r="5.5" fill="#12203A"/>
+    <circle cx="72" cy="46" r="6.5" fill="#12203A"/>
+    <circle cx="50.5" cy="46.2" r="1.9" fill="#24467F"/>
+    <circle cx="74" cy="43.8" r="2.2" fill="#24467F"/>
+    <!-- A small, unsure mouth -->
+    <path d="M55 58 Q58 56 61 58 Q64 60 67 57.5" stroke="#12203A" stroke-width="2" stroke-linecap="round" fill="none"/>
 
     <!-- Cupcake wrapper -->
     <path d="M30 70 H90 L81 106 H39 Z" fill="#193461"/>
