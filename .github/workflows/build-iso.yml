@@ -61,6 +61,10 @@ jobs:
             -t localhost/goblincakes-live:latest iso
           df -h / /mnt
 
+      # Titanoboa needs the folder the ISO goes into to exist already
+      - name: Mapp för ISO:n
+        run: mkdir -p output
+
       - name: Gör ISO:n
         id: iso
         uses: ublue-os/titanoboa@5c457c3d0518bd17e754be0fd98a60d29d26abb4
