@@ -31,7 +31,9 @@
         "cpu",
         "gpu",
         "memory",
-        "disk",
+        // Without read-only file systems: / on an atomic system is a tiny read-only layer
+        // that always shows "100 %" in red (and a mounted ISO/DVD is read-only too)
+        { "type": "disk", "showReadOnly": false },
         "break",
         "colors"
     ]
