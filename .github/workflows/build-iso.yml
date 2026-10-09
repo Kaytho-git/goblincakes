@@ -112,4 +112,4 @@ jobs:
             --title "GOBLINCAKES ISO $version" \
             --notes "Installations-ISO för GOBLINCAKES, i delar under 2 GB. Enklast: använd GOBLINCAKES USB-skaparen – den hämtar, sätter ihop, kontrollerar och skriver till USB-minnet. För hand: ladda ner alla delar, sätt ihop dem i ordning (Linux: cat GOBLINCAKES-*.iso.part* > GOBLINCAKES.iso, Windows: copy /b del00+del01+… GOBLINCAKES.iso) och jämför sha256 med goblincakes-iso.json."
           gh release upload iso -R "$GITHUB_REPOSITORY" --clobber /mnt/iso-release/*
-          rm -rf /mnt/iso-release
+          sudo rm -rf /mnt/iso-release
