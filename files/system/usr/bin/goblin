@@ -186,6 +186,7 @@ cmd_update() {
 }
 
 # name | description – used by help and by the list in new terminals
+# Descriptions at most 76 characters: the list must fit Ghostty's 100 columns (2 + "goblin " + 11 + 1 = 21)
 COMMANDS=(
     "update|Uppdatera allt: system, Flatpaks, AppImages, GE-Proton, firmware"
     "ai|Öppna Goblin AI-fönstret (eller tryck Meta+A)"
@@ -194,10 +195,10 @@ COMMANDS=(
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
     "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
     "dock reset|Återställ skrivbordet och dockan (Meta visar dockan, Shift+Meta appmenyn)"
-    "apps|Dolda Fedora-program (Konsole, Discover …) – visa igen: goblin apps show konsole"
-    "remove|Avinstallera Fedora-program i ett fönster (eller direkt: goblin remove konsole)"
+    "apps|Dolda Fedora-program – visa igen: goblin apps show konsole"
+    "remove|Avinstallera Fedora-program (fönster, eller: goblin remove konsole)"
     "old|Visa avinstallerade program och hur du får tillbaka dem"
-    "play|Dina Steam-spel och orden som startar dem – skriv t.ex. wow eller cs2 direkt i terminalen"
+    "play|Dina Steam-spel – skriv namnet (t.ex. wow, cs2) direkt i terminalen"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
     "fast|Systeminfo med GOBLINCAKES-loggan"
