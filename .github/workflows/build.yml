@@ -34,6 +34,16 @@ jobs:
           - recipe.yml        # goblincakes (AMD/Intel, on the ISO)
           - recipe-nvidia.yml # goblincakes-nvidia (switched to in GOBLINCAKES Config)
     steps:
+      # BuildKit (the builder the action sets up) comes from Docker Hub, whose login timed out from
+      # GitHub's machines for a whole evening (9 Oct). Fetched first from Google's Docker Hub mirror
+      # under the same name, so Docker doesn't need Docker Hub for it; if the mirror fails too,
+      # the action fetches it from Docker Hub as before.
+      - name: BuildKit from Google's Docker Hub mirror
+        continue-on-error: true
+        run: |
+          docker pull mirror.gcr.io/moby/buildkit:buildx-stable-1 &&
+            docker tag mirror.gcr.io/moby/buildkit:buildx-stable-1 moby/buildkit:buildx-stable-1
+
       # the build is fully handled by the reusable github action
       - name: Build Custom Image
         uses: blue-build/github-action@v1.13
