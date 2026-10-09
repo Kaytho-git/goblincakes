@@ -1,8 +1,10 @@
 [Unit]
-Description=GOBLINCAKES: look for updates at login and every 4 hours
+Description=GOBLINCAKES: look for updates right after login and every 4 hours
 
 [Timer]
-OnStartupSec=2min
+# Soon after login: the arrow otherwise showed the last result (e.g. "restart") for 2 minutes
+# after the restart had already happened (10 Oct)
+OnStartupSec=20s
 OnUnitActiveSec=4h
 RandomizedDelaySec=10min
 
