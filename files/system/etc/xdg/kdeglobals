@@ -3,11 +3,12 @@
 TerminalApplication=ghostty
 TerminalService=com.mitchellh.ghostty.desktop
 
-# IBM Plex Sans for the interface (installed by the fonts module)
-font=IBM Plex Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
-menuFont=IBM Plex Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
-toolBarFont=IBM Plex Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
-smallestReadableFont=IBM Plex Sans,8,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+# IBM Plex Sans for the interface (installed by the fonts module), 9 pt like Windows –
+# KDE's 10 pt felt like 150 % on a 1080p screen (9 Oct)
+font=IBM Plex Sans,9,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+menuFont=IBM Plex Sans,9,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+toolBarFont=IBM Plex Sans,9,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+smallestReadableFont=IBM Plex Sans,7,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
 
 [Icons]
 Theme=breeze-dark
@@ -22,4 +23,4 @@ widgetStyle=kvantum
 AnimationDurationFactor=0.5
 
 [WM]
-activeFont=IBM Plex Sans,10,-1,5,500,0,0,0,0,0,0,0,0,0,0,1
+activeFont=IBM Plex Sans,9,-1,5,500,0,0,0,0,0,0,0,0,0,0,1

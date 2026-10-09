@@ -119,7 +119,14 @@ class Remover(QObject):
 
 
 def main():
+    # The QML uses fixed pixel sizes: drawn at 80 % (still sharp – Qt renders at that size),
+    # matching GOBLINCAKES' 9 pt interface. Not passed on to programs started from here.
+    own_scale = "QT_SCALE_FACTOR" not in os.environ
+    if own_scale:
+        os.environ["QT_SCALE_FACTOR"] = "0.8"
     app = QGuiApplication(sys.argv)
+    if own_scale:
+        del os.environ["QT_SCALE_FACTOR"]
     app.setApplicationName("goblincakes-remove-apps")
     app.setApplicationDisplayName("Avinstallera program")
     app.setDesktopFileName("goblincakes-remove-apps")

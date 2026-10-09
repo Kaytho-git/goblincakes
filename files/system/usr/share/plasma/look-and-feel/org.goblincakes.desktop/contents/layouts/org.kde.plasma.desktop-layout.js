@@ -12,7 +12,7 @@ for (var i = 0; i < allDesktops.length; i++) {
 // ---- Top bar: logo + open programs left, now playing + system icons + clock + power right ----
 var topBar = new Panel;
 topBar.location = "top";
-topBar.height = Math.round(gridUnit * 2.4);
+topBar.height = Math.round(gridUnit * 2);
 try { topBar.floating = false; } catch (e) {}
 // Always opaque: draws solid/widgets/panel-background (with the white bottom line)
 try { topBar.opacity = "opaque"; } catch (e) {}
@@ -52,6 +52,10 @@ clock.writeConfig("dateFormat", "custom");
 // joiner at the end keeps Plasma from trimming the two spaces.
 clock.writeConfig("customDateFormat", "ddd d MMM  \u2060");
 
+// Fixed size: Plasma otherwise makes the clock as tall as the bar allows (looked huge)
+clock.writeConfig("autoFontAndSize", false);
+clock.writeConfig("fontSize", 10);
+
 // Power button: opens the GOBLINCAKES logout screen
 var power = topBar.addWidget("org.kde.plasma.lock_logout");
 power.currentConfigGroup = ["General"];
@@ -61,7 +65,7 @@ power.writeConfig("show_requestLogoutScreen", true);
 // ---- Bottom dock: hides when a window covers it ----
 var dock = new Panel;
 dock.location = "bottom";
-dock.height = Math.round(gridUnit * 4);
+dock.height = Math.round(gridUnit * 3.2);
 dock.alignment = "center";
 dock.hiding = "dodgewindows";
 // Translucent mode = always widgets/panel-background (thin frame all round);

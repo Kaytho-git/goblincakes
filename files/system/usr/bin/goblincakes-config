@@ -538,7 +538,14 @@ class Config(QObject):
 def main():
     if "--first-run" in sys.argv and (DONE_FILE.exists() or OLD_DONE_FILE.exists()):
         return 0
+    # The QML uses fixed pixel sizes: drawn at 80 % (still sharp – Qt renders at that size),
+    # matching GOBLINCAKES' 9 pt interface. Not passed on to programs started from here.
+    own_scale = "QT_SCALE_FACTOR" not in os.environ
+    if own_scale:
+        os.environ["QT_SCALE_FACTOR"] = "0.8"
     app = QGuiApplication(sys.argv)
+    if own_scale:
+        del os.environ["QT_SCALE_FACTOR"]
     app.setApplicationName("goblincakes-config")
     app.setApplicationDisplayName("GOBLINCAKES Config")
     app.setDesktopFileName("goblincakes-config")
