@@ -12,7 +12,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - **Går inte att förstöra.** Systemet är *atomiskt*: varje uppdatering är en hel, testad version. Blir något fel väljer du förra versionen i startmenyn och är tillbaka på en minut.
 - **Ett ställe för allt.** Program, spelinställningar och grafikdrivrutiner väljs i ett eget fönster, *GOBLINCAKES Config* – ingen terminal behövs.
 - **Uppdateras av sig själv.** Ny Fedora-version, nya drivrutiner och säkerhetsfixar kommer automatiskt; ett kommando (`goblin update`) uppdaterar allt annat.
-- **Slutmål:** en egen installations-USB, så att GOBLINCAKES kan installeras direkt på vilken dator som helst – precis som Windows eller SteamOS.
+- **Egen installations-USB:** GOBLINCAKES USB gör ett USB-minne som installerar GOBLINCAKES på vilken dator som helst – precis som Windows eller SteamOS.
 
 ## Vad som finns i
 
@@ -78,7 +78,24 @@ Du behöver inte välja själv: GOBLINCAKES känner av grafikkortet och föresl�
 
 ## Installation
 
-Installations-USB:n är på väg. Tills vidare installerar du **Fedora Kinoite** och byter sedan till GOBLINCAKES:
+### Med GOBLINCAKES USB (enklast)
+
+**GOBLINCAKES USB** är ett litet program för Windows och Linux som gör ett installations-USB-minne åt dig:
+
+1. Ladda ner programmet från releasen [**usb-skaparen**](https://github.com/Kaytho-git/goblincakes/releases/tag/usb-skaparen):
+   - Windows: `GOBLINCAKES-USB-Windows.exe` – ber om administratörsrättigheter. Windows kan varna eftersom programmet inte är signerat än: välj *Mer information → Kör ändå*.
+   - Linux: `GOBLINCAKES-USB-Linux` – gör filen körbar (`chmod +x`) och starta den.
+2. Sätt i ett USB-minne på minst 16 GB, välj det och tryck **Skapa USB-minne**. Allt på USB-minnet raderas.
+3. Programmet hämtar installations-ISO:n från releasen [**iso**](https://github.com/Kaytho-git/goblincakes/releases/tag/iso), kontrollerar varje del, skriver den direkt till USB-minnet och läser sedan tillbaka allt för att se att det stämmer. Inget sparas på datorn.
+4. Starta datorn från USB-minnet (oftast F12, F11, F8 eller Esc vid start, i UEFI-läge). GOBLINCAKES startar direkt från USB-minnet – prova, och tryck sedan **Installera GOBLINCAKES**.
+
+Programmet visar också vilket grafikkort datorn har. Med ett Nvidia-kort (GTX 16xx/RTX 20xx eller nyare) hämtas Nvidias drivrutiner automatiskt efter första starten.
+
+ISO:n går också att ladda ner för hand från releasen **iso** (i delar under 2 GB – se releasetexten) och skriva med t.ex. Rufus eller balenaEtcher.
+
+### Från Fedora Kinoite
+
+Har du redan Fedora Kinoite kan du byta till GOBLINCAKES direkt:
 
 1. Byt till GOBLINCAKES (osignerad första gången, för att få signeringsnycklarna):
    ```bash
@@ -112,6 +129,15 @@ Imagerna är signerade med [Sigstore](https://www.sigstore.dev/)s [cosign](https
 ```bash
 cosign verify --key cosign.pub ghcr.io/kaytho-git/goblincakes
 ```
+
+## Code signing policy
+
+*(GOBLINCAKES USB – the Windows program `GOBLINCAKES-USB-Windows.exe`)*
+
+- **What is signed:** only `GOBLINCAKES-USB-Windows.exe`, built by GitHub Actions ([`build-usb-creator.yml`](.github/workflows/build-usb-creator.yml)) from the source code in [`usb-skaparen/`](usb-skaparen/) of this repository. Nothing built outside that workflow is signed.
+- **Team roles:** committer, reviewer and approver: [Kaytho-git](https://github.com/Kaytho-git). Every signing request is approved by hand. Accounts with write access to this repository use two-factor authentication.
+- **Privacy policy:** GOBLINCAKES USB sends no information about you or your computer anywhere. The only network connections it makes are downloads of the installation ISO and its checksum list from this repository's GitHub Releases (github.com), which you start yourself.
+- **License:** Apache 2.0 ([LICENSE](LICENSE)). Bundled components: Python, Qt/PySide6 (LGPL) and the fonts Chakra Petch, IBM Plex Sans and IBM Plex Mono (SIL Open Font License).
 
 ## Tack till
 
