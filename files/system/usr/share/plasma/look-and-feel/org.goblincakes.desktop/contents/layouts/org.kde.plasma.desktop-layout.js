@@ -58,6 +58,13 @@ clock.writeConfig("autoFontAndSize", false);
 clock.writeConfig("fontFamily", "IBM Plex Sans");
 clock.writeConfig("fontWeight", 600);  // semi-bold (the user's choice, 9 Oct)
 clock.writeConfig("fontSize", 11);
+// The calendar (click the clock): Swedish public holidays (region in
+// /etc/xdg/plasma_calendar_holiday_regions) and week numbers
+clock.currentConfigGroup = ["General"];
+clock.writeConfig("enabledCalendarPlugins", ["holidaysevents"]);
+clock.writeConfig("showWeekNumbers", true);
+clock.currentConfigGroup = ["Appearance"];  // the key has lived in both groups
+clock.writeConfig("showWeekNumbers", true);
 
 // Power button: opens the GOBLINCAKES logout screen
 var power = topBar.addWidget("org.kde.plasma.lock_logout");
