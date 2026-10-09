@@ -434,6 +434,11 @@ class Config(QObject):
     def reboot(self):
         QProcess.startDetached("systemctl", ["reboot"])
 
+    @Slot()
+    def resetLook(self):
+        """The whole GOBLINCAKES look back (Optimering), same as `goblin dock reset`."""
+        QProcess.startDetached("sh", ["/usr/libexec/goblincakes-firstlogin", "--reset"])
+
     # ── Uppdatera: `goblin update --gui` ──────────────────────
 
     # The steps in goblin update's order (its @@step headings), for the progress bar

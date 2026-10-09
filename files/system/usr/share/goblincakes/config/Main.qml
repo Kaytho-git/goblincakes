@@ -1050,6 +1050,71 @@ Window {
                     }
                 }
             }
+
+            // The whole GOBLINCAKES look back (goblincakes-firstlogin --reset = `goblin dock reset`).
+            // Other themes are fine – this is only the way back. Asks once before doing anything.
+            Rectangle {
+                id: lookRow
+                property string state_: "idle"  // idle | confirm | done
+                width: tweakRows.width
+                height: Math.max(92, lookText.height + 36)
+                color: "#0E1420"
+                border.width: 1
+                border.color: state_ === "confirm" ? "#A4262C" : "#1E2A40"
+
+                Column {
+                    id: lookText
+                    anchors {
+                        left: parent.left; leftMargin: 22
+                        right: lookButtons.left; rightMargin: 24
+                        verticalCenter: parent.verticalCenter
+                    }
+                    spacing: 5
+                    Text {
+                        width: parent.width
+                        text: "Återställ GOBLINCAKES-utseendet"
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 16
+                    }
+                    Text {
+                        width: parent.width
+                        text: lookRow.state_ === "confirm"
+                            ? "Tema, färger, typsnitt, terminalen, toppfältet och dockan blir som från början. Egna paneler och fästa program i dockan försvinner. Din terminalinställning sparas som config.ghostty.bak."
+                            : lookRow.state_ === "done"
+                            ? "Klart. Logga ut och in igen så att alla program får det."
+                            : "Har du bytt tema i Systeminställningar och vill tillbaka? Det här ställer tillbaka allt till GOBLINCAKES."
+                        color: lookRow.state_ === "done" ? "#E6ECF5" : "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                        wrapMode: Text.WordWrap
+                        lineHeight: 1.15
+                    }
+                }
+
+                Row {
+                    id: lookButtons
+                    anchors { right: parent.right; rightMargin: 22; verticalCenter: parent.verticalCenter }
+                    spacing: 8
+                    FlatButton {
+                        visible: lookRow.state_ === "idle"
+                        text: "Återställ…"
+                        onClicked: lookRow.state_ = "confirm"
+                    }
+                    FlatButton {
+                        visible: lookRow.state_ === "confirm"
+                        text: "Avbryt"
+                        onClicked: lookRow.state_ = "idle"
+                    }
+                    FlatButton {
+                        visible: lookRow.state_ === "confirm"
+                        primary: true
+                        text: "Återställ"
+                        onClicked: { backend.resetLook(); lookRow.state_ = "done"; }
+                    }
+                }
+            }
         }
     }
 

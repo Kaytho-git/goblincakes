@@ -2,6 +2,7 @@
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
 2026-10-09  goblin fast visar inte längre den skrivskyddade systemdisken som "100 % full" i rött
 2026-10-09  Terminalen (Ghostty) öppnas mindre: 10 punkters text och ett mindre fönster
+2026-10-09  Egna teman får vara kvar: uppdateringar ställer inte längre tillbaka GOBLINCAKES-utseendet, och fästa program i dockan behålls. Vill du tillbaka finns "Återställ GOBLINCAKES-utseendet" i GOBLINCAKES Config → Optimering (eller goblin dock reset)
 2026-10-09  Klockan i toppfältet är lite större, halvfet och vit igen; GOBLINCAKES Config visar gröna bockar när något gick bra och röda kryss när något gick fel
 2026-10-09  Meta-knappen visar dockan med Plasmas egen funktion: den försvinner när du klickar någon annanstans, och maximerade fönster krymper inte längre
 2026-10-09  Allt är lite mindre: 9 punkters text som i Windows, lägre toppfält och namnlist, mindre docka och klocka, tätare GOBLINCAKES-fönster (toppfältet och dockan återställs en gång)

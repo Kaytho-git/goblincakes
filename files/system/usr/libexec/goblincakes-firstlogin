@@ -2,37 +2,109 @@
 # Applies the GOBLINCAKES look once per user, and again whenever a new image
 # ships a changed desktop layout (bump LAYOUT_VERSION when the look-and-feel
 # layout, colour scheme or Ghostty defaults change).
+#   goblincakes-firstlogin           at login (autostart): first time, or a new LAYOUT_VERSION
+#   goblincakes-firstlogin --reset   the whole GOBLINCAKES look back (`goblin dock reset`):
+#                                    theme, colours, fonts, Kvantum, Ghostty, top bar and dock
+# Other themes are allowed: once the user picks another global theme in System Settings,
+# a new LAYOUT_VERSION leaves their look alone (until 9 Oct it put GOBLINCAKES back).
 LAYOUT_VERSION=11
 MARK="$HOME/.local/state/goblincakes/firstlogin-done"
-[ "$(cat "$MARK" 2>/dev/null)" = "$LAYOUT_VERSION" ] && exit 0
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+RESET=0
+[ "${1:-}" = "--reset" ] && RESET=1
+[ "$RESET" = 0 ] && [ "$(cat "$MARK" 2>/dev/null)" = "$LAYOUT_VERSION" ] && exit 0
 
-sleep 3
-# A brand-new user already got our layout from Plasma itself (LookAndFeelPackage in
-# /etc/xdg/kdeglobals): don't rebuild the panels in front of them. Older homes (no mark,
-# Fedora's layout) and a new LAYOUT_VERSION still get the reset.
-if [ ! -e "$MARK" ] && grep -qs 'plugin=org.goblincakes.nowplaying' \
-        "${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"; then
-    plasma-apply-lookandfeel --apply org.goblincakes.desktop
+plasma_js() {
+    busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$1"
+}
+
+# What to do: "all" (look + layout), "look" (look, keep the panels), "none" (another theme)
+if [ "$RESET" = 1 ]; then
+    mode=all
+elif [ ! -e "$MARK" ]; then
+    # A brand-new user already got our layout from Plasma itself (LookAndFeelPackage in
+    # /etc/xdg/kdeglobals): don't rebuild the panels in front of them. Older homes
+    # (Fedora's layout) get the reset.
+    if grep -qs 'plugin=org.goblincakes.nowplaying' "$CONFIG/plasma-org.kde.plasma.desktop-appletsrc"; then
+        mode=look
+    else
+        mode=all
+    fi
+elif [ "$(kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage)" = org.goblincakes.desktop ]; then
+    mode=all   # a new layout version, still the GOBLINCAKES look
 else
-    plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout
+    mode=none  # the user picked another theme: leave it be
 fi
-plasma-apply-colorscheme GoblinCakes
 
-# System tray: only network, volume and notifications. The tray only gets its
-# own settings once it has started, so wait for it, then trim it.
-for _ in 1 2 3 4 5 6 7 8 9 10; do
-    sleep 2
-    busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell \
-        evaluateScript s "$(cat /usr/share/goblincakes/systray.js)" >/dev/null 2>&1 && break
-done
+[ "$RESET" = 0 ] && sleep 3
+
+# A new layout version keeps the apps the user pinned in the dock (a full reset doesn't)
+pinned=""
+if [ "$mode" = all ] && [ "$RESET" = 0 ]; then
+    pinned=$(busctl --user --json=short call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s \
+        'panels().forEach(function (p) { if (p.location !== "bottom") return;
+            p.widgets().forEach(function (w) { if (w.type !== "org.kde.plasma.icontasks") return;
+                w.currentConfigGroup = ["General"]; print(JSON.stringify(w.readConfig("launchers"))); }); });' \
+        2>/dev/null | python3 -c 'import json, sys
+try:
+    launchers = json.loads(json.load(sys.stdin)["data"][0])
+    if isinstance(launchers, str):
+        launchers = [launchers] if launchers else []
+    print(json.dumps(launchers) if launchers else "")
+except Exception:
+    pass' 2>/dev/null)
+fi
+
+if [ "$RESET" = 1 ]; then
+    # Fonts back to GOBLINCAKES' (/etc/xdg/kdeglobals): remove the user's own
+    for key in font menuFont toolBarFont smallestReadableFont fixed; do
+        kwriteconfig6 --file kdeglobals --group General --key "$key" --delete
+    done
+    kwriteconfig6 --file kdeglobals --group WM --key activeFont --delete
+    kwriteconfig6 --file kcmfonts --group General --key forceFontDPI --delete
+    # Kvantum theme GoblinCakes (/etc/xdg/Kvantum); other installed Kvantum themes stay
+    rm -f "$CONFIG/Kvantum/kvantum.kvconfig"
+    # Ghostty: GOBLINCAKES defaults below; the user's own config kept as .bak
+    for f in "$CONFIG/ghostty/config.ghostty" "$CONFIG/ghostty/config"; do
+        [ -e "$f" ] && mv -f "$f" "$f.bak"
+    done
+fi
+
+case $mode in
+    all)  plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout ;;
+    look) plasma-apply-lookandfeel --apply org.goblincakes.desktop ;;
+esac
+[ "$mode" != none ] && plasma-apply-colorscheme GoblinCakes
+
+if [ "$mode" != none ]; then
+    # System tray: only network, volume and notifications. The tray only gets its
+    # own settings once it has started, so wait for it, then trim it.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        sleep 2
+        plasma_js "$(cat /usr/share/goblincakes/systray.js)" >/dev/null 2>&1 && break
+    done
+fi
+
+# The pinned apps back in the new dock (once it exists)
+if [ -n "$pinned" ]; then
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        out=$(plasma_js 'var done = false;
+            panels().forEach(function (p) { if (p.location !== "bottom") return;
+                p.widgets().forEach(function (w) { if (w.type !== "org.kde.plasma.icontasks") return;
+                    w.currentConfigGroup = ["General"]; w.writeConfig("launchers", '"$pinned"'); done = true; }); });
+            if (done) print("done");' 2>/dev/null)
+        case $out in *done*) break ;; esac
+        sleep 2
+    done
+fi
 
 # Leftovers from Crystal Dock (an option until 8 Oct, no longer in GOBLINCAKES)
-rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/crystal-dock.desktop" "${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/dock"
+rm -f "$CONFIG/autostart/crystal-dock.desktop" "$CONFIG/goblincakes/dock"
 
 # Ghostty: GOBLINCAKES colours and font, slightly see-through.
 # Written if the user has no Ghostty config, or only the empty template
 # Ghostty creates itself on first start (nothing but comments).
-GHOSTTY="${XDG_CONFIG_HOME:-$HOME/.config}/ghostty"
+GHOSTTY="$CONFIG/ghostty"
 _gc_has_settings() {
     [ -e "$1" ] && grep -qv '^[[:space:]]*\(#.*\)\{0,1\}$' "$1"
 }
