@@ -2,6 +2,8 @@
 # GitHub → Actions → "Bygg installations-ISO" → Run workflow.
 # The ISO is a build file (artifact) on that run's page for one day; each new build
 # first deletes the earlier ISOs, so there is never more than one.
+# It is also published as the release "iso" in parts under 2 GB plus goblincakes-iso.json
+# (public, no login) – that is where the GOBLINCAKES USB creator downloads it from.
 name: Bygg installations-ISO
 on:
   workflow_dispatch:
@@ -11,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write # the "iso" release for the USB creator
   actions: write # delete earlier ISO build files
   packages: read
 
@@ -82,6 +84,23 @@ jobs:
           sha256sum "GOBLINCAKES-$version.iso" | tee "GOBLINCAKES-$version.iso.sha256"
           ls -lh
           sudo podman rmi -f localhost/goblincakes-live:latest || true
+
+      # The USB creator downloads from here: the release "iso", replaced by every build
+      - name: Lägg upp ISO:n som release (för USB-skaparen)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          iso=$(ls output/GOBLINCAKES-*.iso)
+          version=$(basename "$iso" .iso); version=${version#GOBLINCAKES-}
+          sudo mkdir -p /mnt/iso-release && sudo chown "$(id -u):$(id -g)" /mnt/iso-release
+          GOBLINCAKES_VERSION="$version" python3 iso/release.py "$iso" /mnt/iso-release live-base \
+            "Prova och installera" "Startar GOBLINCAKES från USB-minnet: prova datorn, rensa diskar och installera. Installerar utan internet."
+          gh release delete iso --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create iso -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "GOBLINCAKES ISO $version" \
+            --notes "Installations-ISO för GOBLINCAKES, i delar under 2 GB. Enklast: använd GOBLINCAKES USB-skaparen – den hämtar, sätter ihop, kontrollerar och skriver till USB-minnet. För hand: ladda ner alla delar, sätt ihop dem i ordning (Linux: cat GOBLINCAKES-*.iso.part* > GOBLINCAKES.iso, Windows: copy /b del00+del01+… GOBLINCAKES.iso) och jämför sha256 med goblincakes-iso.json." \
+            /mnt/iso-release/*
+          rm -rf /mnt/iso-release
 
       - name: Lägg upp ISO:n (finns i ett dygn)
         uses: actions/upload-artifact@v4

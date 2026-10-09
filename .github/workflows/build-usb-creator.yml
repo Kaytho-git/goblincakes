@@ -1,0 +1,94 @@
+# GOBLINCAKES USB (the USB creator) as one file for Windows and one for Linux, built from
+# files/system/usr/share/goblincakes/usb/ – the same code GOBLINCAKES itself has as
+# "GOBLINCAKES USB". Published in the release "usb-skaparen" (public, no login needed):
+#   GOBLINCAKES-USB-Windows.exe   asks for administrator rights when it starts (raw disk writing)
+#   GOBLINCAKES-USB-Linux         asks for the password (pkexec) when it starts writing
+# Runs when the program changes on main, or by hand under Actions.
+name: Bygg USB-skaparen
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - files/system/usr/share/goblincakes/usb/**
+      - .github/workflows/build-usb-creator.yml
+
+concurrency:
+  group: build-usb-creator
+  cancel-in-progress: true
+
+permissions:
+  contents: write # the "usb-skaparen" release
+
+jobs:
+  build:
+    name: Bygg (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows
+            file: GOBLINCAKES-USB-Windows.exe
+            extra: --uac-admin --icon build/goblincakes.ico
+          # Ubuntu 22.04: an older glibc, so the program also runs on older Linux systems
+          - os: ubuntu-22.04
+            label: Linux
+            file: GOBLINCAKES-USB-Linux
+            extra: ""
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verktyg
+        run: python -m pip install --upgrade pyside6-essentials pyinstaller
+
+      - name: Typsnitt och ikon
+        run: |
+          mkdir -p build/fonts
+          base=https://github.com/google/fonts/raw/main/ofl
+          curl -fsSL -o build/fonts/ChakraPetch-Bold.ttf "$base/chakrapetch/ChakraPetch-Bold.ttf"
+          curl -fsSL -o build/fonts/ChakraPetch-SemiBold.ttf "$base/chakrapetch/ChakraPetch-SemiBold.ttf"
+          curl -fsSL -o "build/fonts/IBMPlexSans.ttf" "$base/ibmplexsans/IBMPlexSans%5Bwdth,wght%5D.ttf"
+          curl -fsSL -o build/fonts/IBMPlexMono-Regular.ttf "$base/ibmplexmono/IBMPlexMono-Regular.ttf"
+          cp files/system/usr/share/icons/hicolor/scalable/apps/goblincakes.svg build/
+          python - <<'EOF'
+          from PySide6.QtCore import Qt
+          from PySide6.QtGui import QGuiApplication, QImage, QPainter
+          from PySide6.QtSvg import QSvgRenderer
+          app = QGuiApplication(["x", "-platform", "offscreen"])
+          image = QImage(256, 256, QImage.Format_ARGB32)
+          image.fill(Qt.transparent)
+          painter = QPainter(image)
+          QSvgRenderer("build/goblincakes.svg").render(painter)
+          painter.end()
+          image.save("build/goblincakes.png")
+          image.save("build/goblincakes.ico")
+          EOF
+          ls -l build build/fonts
+
+      - name: Bygg programmet
+        run: |
+          src=files/system/usr/share/goblincakes/usb
+          pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file }}" ${{ matrix.extra }} \
+            --add-data "$src/Main.qml:." --add-data "build/goblincakes.svg:." --add-data "build/fonts:fonts" \
+            "$src/goblincakes_usb.py"
+          ls -l dist
+
+      - name: Lägg upp i releasen "usb-skaparen"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view usb-skaparen -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create usb-skaparen -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "GOBLINCAKES USB-skaparen" \
+              --notes "Gör ett USB-minne som installerar GOBLINCAKES. Windows: ladda ner GOBLINCAKES-USB-Windows.exe och starta den (den ber om administratörsrättigheter; Windows kan varna eftersom programmet inte är signerat – välj Mer information → Kör ändå). Linux: ladda ner GOBLINCAKES-USB-Linux, gör den körbar (chmod +x) och starta den. ISO:n hämtas från releasen iso." ||
+            sleep 5
+          gh release upload usb-skaparen "dist/${{ matrix.file }}" --clobber -R "$GITHUB_REPOSITORY"

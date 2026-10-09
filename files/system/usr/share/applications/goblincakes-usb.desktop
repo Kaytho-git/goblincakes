@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES USB
+Comment=Gör ett USB-minne som installerar GOBLINCAKES
+Keywords=usb;iso;installera;installation;live;
+Exec=/usr/bin/goblincakes-usb
+Icon=goblincakes
+Categories=System;Utility;
+StartupWMClass=goblincakes-usb
