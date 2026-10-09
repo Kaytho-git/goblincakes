@@ -24,10 +24,16 @@ case ${1:-} in
         });'
         # It steps through the panels one at a time, so a KWin script presses it and steps past
         # the top bar (/usr/share/goblincakes/dock-show.js)
+        # A new name every time: KWin removes an unloaded script a moment later, and loading one
+        # with the same name before that silently did nothing (9 Oct). The previous one is
+        # removed (it has long finished – it only waits for one focus change).
         kwin=(busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting)
+        state="${XDG_RUNTIME_DIR:-/tmp}/goblincakes-dock-script"
         "${kwin[@]}" unloadScript s goblincakes-dock-autohide >/dev/null 2>&1
-        "${kwin[@]}" unloadScript s goblincakes-dock-show >/dev/null 2>&1
-        id=$("${kwin[@]}" loadScript ss /usr/share/goblincakes/dock-show.js goblincakes-dock-show | awk '{print $2}')
+        [ -s "$state" ] && "${kwin[@]}" unloadScript s "$(cat "$state")" >/dev/null 2>&1
+        name="goblincakes-dock-show-$(date +%s%N)"
+        echo "$name" > "$state"
+        id=$("${kwin[@]}" loadScript ss "${GOBLINCAKES_DOCK_JS:-/usr/share/goblincakes/dock-show.js}" "$name" | awk '{print $2}')
         [ -n "$id" ] && [ "$id" -ge 0 ] && \
             busctl --user call org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script run >/dev/null ;;
     reset)
