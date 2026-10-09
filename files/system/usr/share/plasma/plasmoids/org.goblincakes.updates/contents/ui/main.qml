@@ -20,7 +20,9 @@ PlasmoidItem {
 
     property string system: ""      // "new", "staged" or ""
     property var flatpaks: []
-    readonly property bool available: system !== "" || flatpaks.length > 0
+    // "staged" (fetched, waiting for a restart) shows no arrow: nothing left to update.
+    // goblincakes-updates gives a notice instead when it was fetched in the background.
+    readonly property bool available: system === "new" || flatpaks.length > 0
 
     readonly property string readCommand: "cat \"$HOME/.cache/goblincakes/updates.json\" 2>/dev/null"
 
@@ -63,19 +65,14 @@ PlasmoidItem {
     readonly property string tipTitle: available ? "Uppdateringar finns" : ""
     readonly property string tipText: {
         const lines = [];
-        if (system === "staged")
-            lines.push("En ny GOBLINCAKES-version är hämtad – starta om för att använda den");
-        else if (system === "new")
+        if (system === "new")
             lines.push("Ny GOBLINCAKES-version");
         if (flatpaks.length > 0) {
             const shown = flatpaks.slice(0, 3).join(", ");
             lines.push(flatpaks.length === 1 ? "Program: " + shown
                        : flatpaks.length + " program: " + shown + (flatpaks.length > 3 ? " …" : ""));
         }
-        // Already fetched and nothing else: restarting is what's left, not updating
-        if (system === "staged" && flatpaks.length === 0)
-            lines.push("Starta om datorn när du är redo");
-        else if (lines.length > 0)
+        if (lines.length > 0)
             lines.push("Klicka för att uppdatera");
         return lines.join("\n");
     }

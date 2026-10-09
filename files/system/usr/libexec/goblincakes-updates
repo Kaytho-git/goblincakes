@@ -9,6 +9,7 @@
 # Flatpak: programs (not runtimes) with updates, user and system installations.
 # A check that can't be done (no network) keeps the last result.
 import json
+import os
 import subprocess
 import sys
 import time
@@ -88,6 +89,15 @@ def check():
         "flatpaks": old.get("flatpaks", []) if flatpaks is None else flatpaks,
         "checked": int(time.time()),
     }
+    # Fetched and waiting for a restart: no arrow (there's nothing left to update – the user
+    # asked for it to go away right after updating, 10 Oct). Fetched in the background by the
+    # automatic updates, the user wouldn't know: one notice instead. Not after goblin update /
+    # Config (GOBLINCAKES_UPDATED=1 from goblin) – they say "Starta om nu" themselves.
+    if state["system"] == "staged" and old.get("system") != "staged":
+        if os.environ.get("GOBLINCAKES_UPDATED") != "1":
+            subprocess.run(["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes",
+                            "Ny GOBLINCAKES-version hämtad",
+                            "Den används nästa gång du startar om datorn."], capture_output=True)
     STATE.parent.mkdir(parents=True, exist_ok=True)
     tmp = STATE.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, ensure_ascii=False))
