@@ -435,7 +435,10 @@ def gui():
     logo = resource("goblincakes.svg")
     if not logo.exists():
         logo = Path("/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")
-    app.setWindowIcon(QIcon(str(logo)) if logo.exists() else QIcon.fromTheme("goblincakes"))
+    # Window and taskbar: the logo on its dark blue square (same as the .exe's icon)
+    app_icon = resource("app-icon.png")
+    app.setWindowIcon(QIcon(str(app_icon)) if app_icon.exists()
+                      else QIcon(str(logo)) if logo.exists() else QIcon.fromTheme("goblincakes"))
     fonts = resource("fonts")
     if fonts.is_dir():
         for f in fonts.glob("*.ttf"):

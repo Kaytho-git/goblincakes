@@ -68,18 +68,14 @@ jobs:
           curl -fsSL -o "build/fonts/IBMPlexSans.ttf" "$base/ibmplexsans/IBMPlexSans%5Bwdth,wght%5D.ttf"
           curl -fsSL -o build/fonts/IBMPlexMono-Regular.ttf "$base/ibmplexmono/IBMPlexMono-Regular.ttf"
           cp files/system/usr/share/icons/hicolor/scalable/apps/goblincakes.svg build/
+          # The program's icon (file, taskbar, window): the logo on its dark blue square,
+          # usb-skaparen/app-icon.png (1024 px) – as a Windows .ico with every size it uses
+          cp usb-skaparen/app-icon.png build/app-icon.png
+          python -m pip install --quiet pillow
           python - <<'EOF'
-          from PySide6.QtCore import Qt
-          from PySide6.QtGui import QGuiApplication, QImage, QPainter
-          from PySide6.QtSvg import QSvgRenderer
-          app = QGuiApplication(["x", "-platform", "offscreen"])
-          image = QImage(256, 256, QImage.Format_ARGB32)
-          image.fill(Qt.transparent)
-          painter = QPainter(image)
-          QSvgRenderer("build/goblincakes.svg").render(painter)
-          painter.end()
-          image.save("build/goblincakes.png")
-          image.save("build/goblincakes.ico")
+          from PIL import Image
+          Image.open("build/app-icon.png").convert("RGBA").save(
+              "build/goblincakes.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
           EOF
           ls -l build build/fonts
 
@@ -87,7 +83,8 @@ jobs:
         run: |
           src=usb-skaparen
           pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file }}" ${{ matrix.extra }} \
-            --add-data "$src/Main.qml:." --add-data "build/goblincakes.svg:." --add-data "build/fonts:fonts" \
+            --add-data "$src/Main.qml:." --add-data "build/goblincakes.svg:." --add-data "build/app-icon.png:." \
+            --add-data "build/fonts:fonts" \
             "$src/goblincakes_usb.py"
           ls -l dist
 
