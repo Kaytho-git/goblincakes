@@ -56,7 +56,7 @@ clock.writeConfig("customDateFormat", "ddd d MMM  \u2060");
 // Font and weight too: with a fixed size Plasma drops to a thin default font that looked grey.
 clock.writeConfig("autoFontAndSize", false);
 clock.writeConfig("fontFamily", "IBM Plex Sans");
-clock.writeConfig("fontWeight", 500);
+clock.writeConfig("fontWeight", 600);  // semi-bold (the user's choice, 9 Oct)
 clock.writeConfig("fontSize", 11);
 
 // Power button: opens the GOBLINCAKES logout screen
