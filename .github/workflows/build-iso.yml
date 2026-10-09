@@ -4,7 +4,7 @@
 #   GOBLINCAKES-<date>.iso         the base variant (AMD, Intel, older Nvidia)
 #   GOBLINCAKES-Nvidia-<date>.iso  goblincakes-nvidia (Nvidia GTX 16xx / RTX 20xx and newer)
 # Each is a build file (artifact) on the run's page for one day (goblincakes-iso and
-# goblincakes-nvidia-iso); each new build first deletes the earlier ones.
+# goblincakes-nvidia-iso); each new build deletes the earlier ones once its own ISO is done.
 # Both are also published as the release "iso" in parts under 2 GB plus goblincakes-iso.json
 # (public, no login) – that is where the GOBLINCAKES USB creator downloads them from.
 name: Bygg installations-ISO
@@ -44,22 +44,6 @@ jobs:
             title: Prova och installera – Nvidia
             description: "Samma sak med Nvidias drivrutiner från start, för Nvidia GTX 16xx/RTX 20xx eller nyare. Installerar utan internet."
     steps:
-      - name: Ta bort tidigare ISO:er
-        uses: actions/github-script@v7
-        env:
-          ARTIFACT: ${{ matrix.artifact }}
-        with:
-          script: |
-            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
-              owner: context.repo.owner, repo: context.repo.repo, name: process.env.ARTIFACT, per_page: 100,
-            });
-            for (const artifact of artifacts) {
-              core.info(`Tar bort ${artifact.name} (${artifact.id}) från ${artifact.created_at}`);
-              await github.rest.actions.deleteArtifact({
-                owner: context.repo.owner, repo: context.repo.repo, artifact_id: artifact.id,
-              });
-            }
-
       - name: Gör plats på byggmaskinen
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
@@ -107,6 +91,23 @@ jobs:
           sha256sum "${{ matrix.prefix }}-$version.iso" | tee "${{ matrix.prefix }}-$version.iso.sha256"
           ls -lh
           sudo podman rmi -f localhost/goblincakes-live:latest || true
+
+      # Only now that the new ISO is done: the earlier one stays downloadable until then
+      - name: Ta bort tidigare ISO:er
+        uses: actions/github-script@v7
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
+        with:
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner: context.repo.owner, repo: context.repo.repo, name: process.env.ARTIFACT, per_page: 100,
+            });
+            for (const artifact of artifacts) {
+              core.info(`Tar bort ${artifact.name} (${artifact.id}) från ${artifact.created_at}`);
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner, repo: context.repo.repo, artifact_id: artifact.id,
+              });
+            }
 
       # First the build file, so the ISO is there even if the release step fails
       - name: Lägg upp ISO:n (finns i ett dygn)
