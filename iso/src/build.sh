@@ -17,7 +17,9 @@ payload_repo=${payload_image%:*}
 payload_tag=${payload_image##*:}
 secureboot_key=/etc/pki/akmods/certs/akmods-ublue.der
 
-mkdir -p "$(realpath /root)" /var/lib/rpm-state
+# The image comes with an empty /var (BlueBuild cleans it): folders the tools below expect
+mkdir -p "$(realpath /root)" /var/lib/rpm-state /var/tmp /var/cache /var/log
+chmod 1777 /var/tmp
 
 # ── The image Anaconda installs: the same GOBLINCAKES, kept compressed (OCI layout) ──
 # Signatures can not be kept in an OCI folder; the installed system checks them on every update
