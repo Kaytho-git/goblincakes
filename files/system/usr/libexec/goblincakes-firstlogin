@@ -48,8 +48,11 @@ if [ "$mode" = all ] && [ "$RESET" = 0 ]; then
         2>/dev/null | python3 -c 'import json, sys
 try:
     launchers = json.loads(json.load(sys.stdin)["data"][0])
+    # Plasma hands the list over as one comma-separated string: split it (written back as
+    # one entry it broke the dock, 9 Oct)
     if isinstance(launchers, str):
-        launchers = [launchers] if launchers else []
+        launchers = launchers.split(",")
+    launchers = [p.strip() for item in launchers for p in item.split(",") if p.strip()]
     print(json.dumps(launchers) if launchers else "")
 except Exception:
     pass' 2>/dev/null)

@@ -69,4 +69,14 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
-unset _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty
+# The 9 Oct layout update wrote the dock's pinned apps back as ONE entry
+# ("…ghostty.desktop\,…firefox.desktop": a white icon that gave an error). Split it
+# again, once, before Plasma reads the file.
+_gc_flag="$_gc_state/dock-launchers-fixed"
+_gc_applets="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
+if [ ! -e "$_gc_flag" ]; then
+    [ -f "$_gc_applets" ] && sed -i '/^launchers=/s/\\,/,/g' "$_gc_applets"
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
+unset _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets
