@@ -32,9 +32,11 @@ case ${1:-} in
         [ -s "$state" ] && "${kwin[@]}" unloadScript s "$(cat "$state")" >/dev/null 2>&1
         name="goblincakes-dock-show-$(date +%s%N)"
         echo "$name" > "$state"
-        id=$("${kwin[@]}" loadScript ss "${GOBLINCAKES_DOCK_JS:-/usr/share/goblincakes/dock-show.js}" "$name" | awk '{print $2}')
-        [ -n "$id" ] && [ "$id" -ge 0 ] && \
-            busctl --user call org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script run >/dev/null ;;
+        # Started with Scripting.start (runs every loaded script that hasn't run), not
+        # /Scripting/Script<id>.run: KWin numbers scripts by how many are loaded, so after an
+        # unload the new number can belong to an older script – which was run instead (9 Oct)
+        "${kwin[@]}" loadScript ss "${GOBLINCAKES_DOCK_JS:-/usr/share/goblincakes/dock-show.js}" "$name" >/dev/null && \
+            "${kwin[@]}" start >/dev/null ;;
     reset)
         rm -f "$HOME/.local/state/goblincakes/firstlogin-done"
         /usr/libexec/goblincakes-firstlogin
