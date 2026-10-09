@@ -28,7 +28,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - **Handkontroller:** Xbox via dongel, USB och Bluetooth (xone, xpadneo), plus de vanliga PlayStation- och Switch-reglerna.
 - **TV-läge:** Steam Big Picture i helskärm, som en Steam Deck – starta det från appmenyn.
 - **Emulatorer:** RetroDECK (Super Nintendo, Mega Drive, N64, PlayStation, GameCube, Switch med flera) och Steam ROM Manager, som lägger in spelen i Steam och TV-läget.
-- **Optimeringar** som reglage: spelschemaläggare (scx_lavd), prestandaläge, större shader-cache, ljud med låg fördröjning med mera.
+- **Inställningar** som reglage: spelschemaläggare (scx_lavd), prestandaläge, större shader-cache, ljud med låg fördröjning med mera.
 - **Flera skärmar:** varje skärm körs i sin egen uppdateringsfrekvens (t.ex. 180 Hz + 144 Hz), och den snabbaste blir huvudskärm.
 - **Laptops** med två grafikkort: spel startar på det kraftfulla kortet, skrivbordet på det snåla.
 
@@ -45,7 +45,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 ### GOBLINCAKES Config
 Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+C** eller från appmenyn:
 - **Program** – välj det du vill ha: Discord, Lutris, Heroic, OBS, Spotify, GIMP, LibreOffice, Claude, Claude Code, streamingtjänster (Netflix, SVT Play m.fl.), emulatorer (RetroDECK, Steam ROM Manager) och mycket mer.
-- **Optimering** – spelinställningar som reglage.
+- **Inställningar** – prestanda, spel, ljud, system och utseende som reglage, med rubriker.
 - **Grafik** – byt mellan AMD/Intel- och Nvidia-drivrutiner med en knapp.
 
 ### Kommandon i terminalen

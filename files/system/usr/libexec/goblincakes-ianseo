@@ -6,10 +6,10 @@
 #   goblincakes-ianseo backup    database backup (run every 30 minutes by a timer)
 #   goblincakes-ianseo network on|off|status
 #                                tournament mode: tablets/phones on the same network (Ianseo's
-#                                scoring apps) reach Ianseo too (GOBLINCAKES Config → Optimering)
+#                                scoring apps) reach Ianseo too (GOBLINCAKES Config → Inställningar)
 #   goblincakes-ianseo internet on|off|status|url
 #                                remote access: a Cloudflare tunnel (https://….trycloudflare.com)
-#                                behind a password (user ianseo), also in Config → Optimering
+#                                behind a password (user ianseo), also in Config → Inställningar
 #
 # Normally only reachable from this computer: http://127.0.0.1:8180/
 # Lines starting with "@@ " are shown in the setup window.

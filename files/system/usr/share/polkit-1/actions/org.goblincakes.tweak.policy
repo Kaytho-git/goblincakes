@@ -6,7 +6,7 @@
   <vendor>GOBLINCAKES</vendor>
   <action id="org.goblincakes.tweak">
     <description>Change GOBLINCAKES optimisations</description>
-    <description xml:lang="sv">Ändra GOBLINCAKES-optimeringar</description>
+    <description xml:lang="sv">Ändra GOBLINCAKES-inställningar</description>
     <message>Changing a system setting needs your password</message>
     <message xml:lang="sv">För att ändra en systeminställning behövs ditt lösenord</message>
     <icon_name>goblincakes</icon_name>

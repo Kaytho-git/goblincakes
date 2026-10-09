@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gaming optimisations for the GOBLINCAKES Config window (Optimering tab).
+# Settings for the GOBLINCAKES Config window (Inställningar tab).
 #
 #   goblincakes-tweak status <id>        prints on, off or unavailable
 #   goblincakes-tweak set <id> on|off    changes it (system ones run as root via pkexec)
@@ -154,7 +154,7 @@ for o in outputs:
             set)
                 if [ "$value" = on ]; then
                     mkdir -p "$(dirname "$conf")"
-                    printf '# GOBLINCAKES Config → Optimering → Inget viloläge\n[Sleep]\nAllowSuspend=no\nAllowHibernation=no\nAllowHybridSleep=no\nAllowSuspendThenHibernate=no\n' > "$conf"
+                    printf '# GOBLINCAKES Config → Inställningar → Inget viloläge\n[Sleep]\nAllowSuspend=no\nAllowHibernation=no\nAllowHybridSleep=no\nAllowSuspendThenHibernate=no\n' > "$conf"
                 else
                     rm -f "$conf"
                 fi ;;

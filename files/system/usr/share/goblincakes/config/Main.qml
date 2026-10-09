@@ -1,4 +1,4 @@
-// GOBLINCAKES Config: install apps (Program), gaming optimisations (Optimering), graphics drivers (Grafik).
+// GOBLINCAKES Config: install apps (Program), settings (Inställningar), graphics drivers (Grafik).
 // Flat, square, in the GOBLINCAKES palette. Backend: /usr/bin/goblincakes-config ("backend").
 import QtQuick
 import QtQuick.Window
@@ -119,8 +119,26 @@ Window {
         id: tweakModel
         Component.onCompleted: {
             for (const t of JSON.parse(backend.tweaks).tweaks)
-                append({ "tweakId": t.id, "name": t.name, "desc": t.desc, "status": t.state, "message": "", "note": t.note || "" });
+                append({ "tweakId": t.id, "section": t.section || "", "name": t.name, "desc": t.desc,
+                         "status": t.state, "message": "", "note": t.note || "" });
+            win.tweakRev++;
         }
+    }
+    // INSTÄLLNINGAR: a section heading above the first setting of each section that is shown
+    // (settings that don't fit this computer are hidden, so whole sections can be empty)
+    property int tweakRev: 0
+    function tweakSectionStart(index) {
+        const item = tweakModel.get(index);
+        if (!item || item.status === "unavailable")
+            return false;
+        for (let i = index - 1; i >= 0; i--) {
+            const prev = tweakModel.get(i);
+            if (prev.section !== item.section)
+                break;
+            if (prev.status !== "unavailable")
+                return false;
+        }
+        return true;
     }
 
     Connections {
@@ -175,6 +193,7 @@ Window {
             for (let i = 0; i < tweakModel.count; i++)
                 if (tweakModel.get(i).tweakId === id)
                     tweakModel.set(i, { "status": state, "message": message });
+            win.tweakRev++;
         }
     }
 
@@ -408,7 +427,7 @@ Window {
                         : win.tab === "update"
                           ? (win.updateState === "running" ? "UPPDATERAR…" : win.updateState === "done" ? "UPPDATERAT" : "UPPDATERA")
                         : win.tab === "graphics" ? "GRAFIK"
-                        : win.tab === "tweaks" ? "OPTIMERING"
+                        : win.tab === "tweaks" ? "INSTÄLLNINGAR"
                         : win.page === "choose" ? "VÄLJ DINA PROGRAM"
                         : win.page === "install" ? "INSTALLERAR…" : "KLART"
                     color: "#E6ECF5"
@@ -427,7 +446,7 @@ Window {
                         : win.tab === "graphics"
                         ? "Drivrutiner för ditt grafikkort. Den gamla varianten finns kvar i startmenyn om något går fel."
                         : win.tab === "tweaks"
-                        ? "Inställningar för spel. Slå på det du vill ha – allt går att slå av igen."
+                        ? "Prestanda, spel, ljud, system och utseende. Slå på det du vill ha – allt går att slå av igen."
                         : win.page === "choose"
                         ? "Kryssa i det du vill ha. Allt går att lägga till senare – sök på GOBLINCAKES Config i AppGrid."
                         : win.page === "install"
@@ -456,7 +475,7 @@ Window {
             spacing: 32
 
             Repeater {
-                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "OPTIMERING" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
+                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "INSTÄLLNINGAR" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
 
                 Item {
                     id: tabItem
@@ -979,24 +998,41 @@ Window {
             Repeater {
                 model: tweakModel
 
-                Rectangle {
+                Column {
                     id: tweakRow
+                    required property int index
                     required property string tweakId
+                    required property string section
                     required property string name
                     required property string desc
                     required property string status
                     required property string message
                     required property string note
                     readonly property bool available: status !== "unavailable"
+                    readonly property bool sectionStart: { win.tweakRev; return win.tweakSectionStart(index); }
 
                     // Settings that don't fit this computer (no Nvidia card, one graphics card…) aren't shown
                     visible: available
                     width: tweakRows.width
-                    height: available ? Math.max(92, tweakText.height + 36) : 0
+                    spacing: 12
+
+                    Text {
+                        visible: tweakRow.sectionStart
+                        topPadding: tweakRow.index > 0 ? 20 : 0
+                        text: tweakRow.section.toUpperCase()
+                        color: "#8B98AD"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 14
+                        font.letterSpacing: 2.5
+                    }
+
+                Rectangle {
+                    width: parent.width
+                    height: Math.max(92, tweakText.height + 36)
                     color: "#0E1420"
                     border.width: 1
-                    border.color: status === "on" ? "#2F6FED" : "#1E2A40"
-                    opacity: available ? 1 : 0.55
+                    border.color: tweakRow.status === "on" ? "#2F6FED" : "#1E2A40"
 
                     Column {
                         id: tweakText
@@ -1049,6 +1085,17 @@ Window {
                         onToggled: backend.setTweak(tweakRow.tweakId, !on)
                     }
                 }
+                }
+            }
+
+            Text {
+                topPadding: 20
+                text: "UTSEENDE"
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.weight: Font.DemiBold
+                font.pixelSize: 14
+                font.letterSpacing: 2.5
             }
 
             // The whole GOBLINCAKES look back (goblincakes-firstlogin --reset = `goblin dock reset`).
@@ -1198,7 +1245,7 @@ Window {
                     text: "<font color='#E6ECF5'><b>" + (win.gpu.laptop ? "Laptop" : "Dator") + " med två grafikkort.</b></font> "
                         + "Skrivbordet körs på det inbyggda kortet, som sparar ström. Spel från Steam, Lutris och Heroic startar på det kraftfulla "
                         + (win.gpu.dgpu === "nvidia" ? "Nvidia-kortet" : win.gpu.dgpu === "amd" ? "AMD-kortet" : "kortet")
-                        + " (Optimering → Spel på det kraftfulla grafikkortet). Andra program: högerklicka → Kör med dedikerat grafikkort."
+                        + " (Inställningar → Spel på det kraftfulla grafikkortet). Andra program: högerklicka → Kör med dedikerat grafikkort."
                 }
             }
 

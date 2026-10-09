@@ -14,7 +14,7 @@ trap back_to_desktop EXIT
 # for updates; GOBLINCAKES' own versions come first in PATH (only in this session).
 export PATH="/usr/libexec/goblincakes-tv:$PATH"
 
-# Laptops with two graphics cards: same choice as the Optimering switch
+# Laptops with two graphics cards: same choice as the switch in Config → Inställningar
 flags="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes"
 [ -e "$flags/steam-dgpu" ] && while read -r var; do export "$var"; done < "$flags/steam-dgpu"
 

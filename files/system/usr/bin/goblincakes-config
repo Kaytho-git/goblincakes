@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GOBLINCAKES Config: install apps (Program), gaming optimisations (Optimering) and graphics drivers (Grafik).
+"""GOBLINCAKES Config: install apps (Program), settings (Inställningar) and graphics drivers (Grafik).
 
 Shown once at the first login (--first-run) and always available from AppGrid.
 Catalogs: /usr/share/goblincakes/config/apps.json and tweaks.json, the window Main.qml
@@ -436,7 +436,7 @@ class Config(QObject):
 
     @Slot()
     def resetLook(self):
-        """The whole GOBLINCAKES look back (Optimering), same as `goblin dock reset`."""
+        """The whole GOBLINCAKES look back (Inställningar), same as `goblin dock reset`."""
         QProcess.startDetached("sh", ["/usr/libexec/goblincakes-firstlogin", "--reset"])
 
     # ── Uppdatera: `goblin update --gui` ──────────────────────

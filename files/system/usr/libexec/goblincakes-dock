@@ -38,7 +38,7 @@ case ${1:-} in
         "${kwin[@]}" loadScript ss "${GOBLINCAKES_DOCK_JS:-/usr/share/goblincakes/dock-show.js}" "$name" >/dev/null && \
             "${kwin[@]}" start >/dev/null ;;
     reset)
-        # The whole GOBLINCAKES look (also the button in Config → Optimering)
+        # The whole GOBLINCAKES look (also the button in Config → Inställningar)
         echo "Tema, färger, typsnitt, terminalen, toppfältet och dockan blir som från början."
         echo "Egna paneler och fästa program i dockan försvinner (terminalinställningen sparas som .bak)."
         if [ -t 0 ]; then

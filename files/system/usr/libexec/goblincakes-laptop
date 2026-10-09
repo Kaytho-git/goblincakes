@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # GOBLINCAKES on laptops – runs at every login (does nothing on desktops):
 #  - two graphics cards: games from Steam/Lutris/Heroic on the powerful card, switched on
-#    once per user (GOBLINCAKES Config → Optimering can switch it off again)
+#    once per user (GOBLINCAKES Config → Inställningar can switch it off again)
 #  - touchpads: tap to click and natural scrolling, once per touchpad (can be changed
 #    in System Settings → Touchpad afterwards, this won't override it)
 # The power profile stays at Balanced unless the user picks Performance.
