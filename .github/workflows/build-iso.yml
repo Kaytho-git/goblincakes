@@ -85,6 +85,16 @@ jobs:
           ls -lh
           sudo podman rmi -f localhost/goblincakes-live:latest || true
 
+      # First the build file, so the ISO is there even if the release step fails
+      - name: Lägg upp ISO:n (finns i ett dygn)
+        uses: actions/upload-artifact@v4
+        with:
+          name: goblincakes-iso
+          path: output/
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
+
       # The USB creator downloads from here: the release "iso", replaced by every build
       - name: Lägg upp ISO:n som release (för USB-skaparen)
         env:
@@ -96,17 +106,10 @@ jobs:
           GOBLINCAKES_VERSION="$version" python3 iso/release.py "$iso" /mnt/iso-release live-base \
             "Prova och installera" "Startar GOBLINCAKES från USB-minnet: prova datorn, rensa diskar och installera. Installerar utan internet."
           gh release delete iso --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          # Create the release first, then upload the parts (creating it together with files
+          # makes gh start with a draft release, which GitHub refused with 403 on 9 Oct)
           gh release create iso -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
             --title "GOBLINCAKES ISO $version" \
-            --notes "Installations-ISO för GOBLINCAKES, i delar under 2 GB. Enklast: använd GOBLINCAKES USB-skaparen – den hämtar, sätter ihop, kontrollerar och skriver till USB-minnet. För hand: ladda ner alla delar, sätt ihop dem i ordning (Linux: cat GOBLINCAKES-*.iso.part* > GOBLINCAKES.iso, Windows: copy /b del00+del01+… GOBLINCAKES.iso) och jämför sha256 med goblincakes-iso.json." \
-            /mnt/iso-release/*
+            --notes "Installations-ISO för GOBLINCAKES, i delar under 2 GB. Enklast: använd GOBLINCAKES USB-skaparen – den hämtar, sätter ihop, kontrollerar och skriver till USB-minnet. För hand: ladda ner alla delar, sätt ihop dem i ordning (Linux: cat GOBLINCAKES-*.iso.part* > GOBLINCAKES.iso, Windows: copy /b del00+del01+… GOBLINCAKES.iso) och jämför sha256 med goblincakes-iso.json."
+          gh release upload iso -R "$GITHUB_REPOSITORY" --clobber /mnt/iso-release/*
           rm -rf /mnt/iso-release
-
-      - name: Lägg upp ISO:n (finns i ett dygn)
-        uses: actions/upload-artifact@v4
-        with:
-          name: goblincakes-iso
-          path: output/
-          retention-days: 1
-          compression-level: 0
-          if-no-files-found: error
