@@ -72,6 +72,7 @@ class Config(QObject):
     gpuDone = Signal(bool)  # switch/undo finished, ok
     catalogChanged = Signal()
     showTab = Signal(str)  # another start (e.g. the update arrow): show this window on that tab
+    checkDone = Signal(str)  # "Kolla efter uppdateringar": goblincakes-updates' JSON ("" = failed)
     mainBrowserChanged = Signal()
     webappsChanged = Signal()
     systemAppsChanged = Signal()  # tab FÖRINSTALLERAT
@@ -432,6 +433,23 @@ class Config(QObject):
     @Slot()
     def undoSwitch(self):
         self._gpu_run(["undo"])
+
+    @Slot()
+    def checkUpdates(self):
+        """Uppdatera → "Kolla efter uppdateringar": the quick check the update arrow uses
+        (nothing downloaded), instead of running the whole update."""
+        if getattr(self, "_check_proc", None):
+            return
+        proc = QProcess(self)
+        self._check_proc = proc
+
+        def done(code, status):
+            out = bytes(proc.readAllStandardOutput()).decode(errors="replace").strip().splitlines()
+            self._check_proc = None
+            ok = status == QProcess.NormalExit and code == 0 and out
+            self.checkDone.emit(out[-1] if ok else "")
+        proc.finished.connect(done)
+        proc.start("/usr/libexec/goblincakes-updates", ["check"])
 
     @Slot()
     def reboot(self):

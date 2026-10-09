@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-10  Ny knapp i GOBLINCAKES Config → Uppdatera: Kolla efter uppdateringar – visar vad som finns utan att uppdatera
 2026-10-10  Uppdateringspilen försvinner direkt när den nya versionen är hämtad; hämtas den i bakgrunden får du en notis i stället
 2026-10-10  GOBLINCAKES Config öppnas bara en gång: klickar du på uppdateringspilen när Config redan är öppet byter det till fliken Uppdatera
 2026-10-10  Systemfältet visar bara det viktigaste igen (nätverk, ljud, notiser, batteri) – i Plasma 6.7 hade rensningen slutat fungera

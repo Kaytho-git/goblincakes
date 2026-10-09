@@ -29,6 +29,11 @@ Window {
     property var expanded: ({}) // category id → open
     // Uppdatera tab
     property string updateState: "idle" // idle → running → done
+    // "Kolla efter uppdateringar" (quick check, nothing downloaded): "" → checking → done
+    property string checkState: ""
+    property string checkText: ""
+    property bool checkFound: false
+    property bool checkStaged: false  // already fetched: offer "Starta om nu" right away
     property real updateFrac: 0
     property string updateTitle: ""
     property string updateStatus: ""
@@ -144,6 +149,31 @@ Window {
     Connections {
         target: backend
         // Config started again while open (the update arrow, AppGrid, Meta+C): this window, on that tab
+        function onCheckDone(json) {
+            win.checkState = "done";
+            win.checkFound = false;
+            win.checkStaged = false;
+            let st;
+            try { st = JSON.parse(json); } catch (e) { st = null; }
+            if (!st) {
+                win.checkText = "Det gick inte att kolla just nu – är datorn ansluten till internet?";
+                return;
+            }
+            const lines = [];
+            if (st.system === "new")
+                lines.push("Ny GOBLINCAKES-version finns.");
+            else if (st.system === "staged")
+                lines.push("En ny GOBLINCAKES-version är redan hämtad – den används efter en omstart.");
+            const apps = st.flatpaks || [];
+            if (apps.length > 0)
+                lines.push((apps.length === 1 ? "1 program" : apps.length + " program") + " kan uppdateras: " + apps.join(", ") + ".");
+            win.checkFound = st.system === "new" || apps.length > 0;
+            win.checkStaged = st.system === "staged";
+            win.checkText = lines.length > 0 ? lines.join("
+") + (win.checkFound ? "
+Tryck Uppdatera allt för att uppdatera." : "")
+                                             : "Allt är redan uppdaterat.";
+        }
         function onShowTab(tab) {
             if (tab !== "")
                 win.tab = tab;
@@ -1555,6 +1585,26 @@ Window {
                     + "<font color='#E6ECF5'>Tryck Uppdatera allt</font> för att börja. Systemet kan fråga efter ditt lösenord."
             }
 
+            // Result of "Kolla efter uppdateringar"
+            Rectangle {
+                visible: win.updateState === "idle" && win.checkState !== ""
+                width: updCol.width
+                height: checkLabel.height + 28
+                color: "#0E1420"
+                border.width: 1
+                border.color: win.checkFound ? "#3FB950" : "#1E2A40"
+                Text {
+                    id: checkLabel
+                    anchors { left: parent.left; right: parent.right; margins: 16; verticalCenter: parent.verticalCenter }
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.2
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 15
+                    text: win.checkState === "checking" ? "Kollar efter uppdateringar…" : win.checkText
+                }
+            }
+
             // Progress
             Text {
                 visible: win.updateState !== "idle"
@@ -1766,13 +1816,20 @@ Window {
                 onClicked: backend.openRemover()
             }
             FlatButton {
+                visible: win.tab === "update" && win.updateState === "idle"
+                enabledState: win.checkState !== "checking"
+                text: win.checkState === "checking" ? "Kollar…" : "Kolla efter uppdateringar"
+                onClicked: { win.checkState = "checking"; backend.checkUpdates(); }
+            }
+            FlatButton {
                 visible: win.tab === "update" && win.updateState !== "running"
                 primary: !(win.updateState === "done" && win.updateReboot)
                 text: win.updateState === "done" ? "Uppdatera igen" : "Uppdatera allt"
                 onClicked: win.startUpdate()
             }
             FlatButton {
-                visible: win.tab === "update" && win.updateState === "done" && win.updateReboot
+                visible: win.tab === "update" && ((win.updateState === "done" && win.updateReboot)
+                                                   || (win.updateState === "idle" && win.checkStaged))
                 primary: true
                 text: "Starta om nu"
                 onClicked: backend.reboot()
