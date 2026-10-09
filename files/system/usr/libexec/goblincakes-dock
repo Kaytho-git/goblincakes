@@ -12,23 +12,19 @@ case ${1:-} in
         id=${2:?desktop file}
         plasma_js "$(sed "s|%LAUNCHER%|applications:$id|" /usr/share/goblincakes/dock-add.js)" ;;
     toggle)
-        # dodgewindows (hides behind windows) <-> none (always shown, on top; Plasma 6 has no
-        # "windowsgobelow" any more – it turned into none anyway)
-        shown=$(busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s \
-            'panels().forEach(function (p) {
-                if (p.location !== "bottom") return;
-                var show = p.hiding === "dodgewindows";
-                p.hiding = show ? "none" : "dodgewindows";
-                if (show) print("shown");
-            });')
-        # Shown: a KWin script hides it again when something else is clicked
-        kwin=(busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting)
-        "${kwin[@]}" unloadScript s goblincakes-dock-autohide >/dev/null 2>&1
-        if [[ $shown == *shown* ]]; then
-            id=$("${kwin[@]}" loadScript ss /usr/share/goblincakes/dock-autohide.js goblincakes-dock-autohide | awk '{print $2}')
-            [ -n "$id" ] && [ "$id" -ge 0 ] && \
-                busctl --user call org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script run >/dev/null
-        fi ;;
+        # Plasma's own "move keyboard focus between panels": brings the hidden dock up with the
+        # focus, and Plasma hides it again by itself when anything else is clicked – like the
+        # Start menu. Pressed again, the focus moves on and the dock hides. (Until 9 Oct this
+        # switched the dock's hiding mode and a KWin script switched it back; Plasma 6 has no
+        # "on top without taking space" mode any more, so maximized windows shrank and the
+        # dock stayed up.)
+        # Older versions could leave the dock always shown ("none"): back to hiding first
+        plasma_js 'panels().forEach(function (p) {
+            if (p.location === "bottom" && p.hiding === "none") p.hiding = "dodgewindows";
+        });'
+        busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting unloadScript s goblincakes-dock-autohide >/dev/null 2>&1
+        busctl --user call org.kde.kglobalaccel /component/plasmashell org.kde.kglobalaccel.Component \
+            invokeShortcut s cycle-panels >/dev/null ;;
     reset)
         rm -f "$HOME/.local/state/goblincakes/firstlogin-done"
         /usr/libexec/goblincakes-firstlogin
