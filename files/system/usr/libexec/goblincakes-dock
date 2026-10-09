@@ -12,21 +12,18 @@ case ${1:-} in
         id=${2:?desktop file}
         plasma_js "$(sed "s|%LAUNCHER%|applications:$id|" /usr/share/goblincakes/dock-add.js)" ;;
     toggle)
-        # Plasma's own "move keyboard focus between panels": brings the hidden dock up with the
-        # focus, and Plasma hides it again by itself when anything else is clicked – like the
-        # Start menu. Pressed again, the focus moves on and the dock hides. (Until 9 Oct this
-        # switched the dock's hiding mode and a KWin script switched it back; Plasma 6 has no
-        # "on top without taking space" mode any more, so maximized windows shrank and the
-        # dock stayed up.)
+        # The dock dodges windows, and in Plasma 6 that means only the *active* window: a KWin
+        # script (/usr/share/goblincakes/dock-show.js) makes the desktop active, so the dock
+        # comes up, and clicking a window hides it again – like the Start menu. Pressed again,
+        # the focus goes back to the topmost window. (Until 9 Oct this switched the hiding mode;
+        # Plasma 6 has no "on top without taking space" mode, so maximized windows shrank.)
         # Older versions could leave the dock always shown ("none"): back to hiding first
         plasma_js 'panels().forEach(function (p) {
             if (p.location === "bottom" && p.hiding === "none") p.hiding = "dodgewindows";
         });'
-        # It steps through the panels one at a time, so a KWin script presses it and steps past
-        # the top bar (/usr/share/goblincakes/dock-show.js)
         # A new name every time: KWin removes an unloaded script a moment later, and loading one
         # with the same name before that silently did nothing (9 Oct). The previous one is
-        # removed (it has long finished – it only waits for one focus change).
+        # removed (it finished right away).
         kwin=(busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting)
         state="${XDG_RUNTIME_DIR:-/tmp}/goblincakes-dock-script"
         "${kwin[@]}" unloadScript s goblincakes-dock-autohide >/dev/null 2>&1

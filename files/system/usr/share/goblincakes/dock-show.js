@@ -1,30 +1,25 @@
-// GOBLINCAKES (KWin script, loaded by `goblincakes-dock toggle` = the Meta key): bring up the dock.
-// Uses Plasma's own "move keyboard focus between panels": the hidden dock comes up with the focus
-// and Plasma hides it again by itself when anything else is clicked – like the Start menu.
-// That shortcut steps through the panels one at a time (top bar, dock, back to the window), so
-// when the top bar gets the focus, step once more. Pressed while the dock is up, the focus moves
-// on and the dock hides.
-var steps = 0;
+// GOBLINCAKES (KWin script, loaded by `goblincakes-dock toggle` = the Meta key): show or hide the dock.
+// The dock "dodges windows": in Plasma 6 it hides only behind the *active* window. So the Meta
+// key makes the desktop active – nothing active covers the dock, it comes up – and clicking a
+// window makes that one active and the dock hides again, like the Start menu. Pressed again
+// while the desktop is active, the focus goes back to the topmost window on the screen.
+var screen = workspace.activeScreen;
+var active = workspace.activeWindow;
+var windows = workspace.stackingOrder;  // bottom to top
 
-function step() {
-    callDBus("org.kde.kglobalaccel", "/component/plasmashell", "org.kde.kglobalaccel.Component",
-             "invokeShortcut", "cycle-panels");
-}
-
-function isDock(w) {
-    if (!w || !w.dock)
-        return false;
-    var area = workspace.clientArea(KWin.FullScreenArea, w.output, workspace.currentDesktop);
-    return w.frameGeometry.y + w.frameGeometry.height / 2 > area.y + area.height / 2;
-}
-
-function activated(w) {
-    if (w && w.dock && !isDock(w) && ++steps < 3) {
-        step();  // the top bar: on to the dock
-        return;
+if (active && active.desktopWindow) {
+    for (var i = windows.length - 1; i >= 0; i--) {
+        var w = windows[i];
+        if (w.normalWindow && !w.minimized && !w.skipTaskbar && w.output === screen) {
+            workspace.activeWindow = w;
+            break;
+        }
     }
-    workspace.windowActivated.disconnect(activated);  // the dock, or back to a window
+} else {
+    for (var j = 0; j < windows.length; j++) {
+        if (windows[j].desktopWindow && windows[j].output === screen) {
+            workspace.activeWindow = windows[j];
+            break;
+        }
+    }
 }
-
-workspace.windowActivated.connect(activated);
-step();
