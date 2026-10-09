@@ -43,6 +43,8 @@ topBar.addWidget("org.goblincakes.nowplaying");
 // tray has started (its settings don't exist yet while this layout runs)
 topBar.addWidget("org.kde.plasma.systemtray");
 
+// The week number ("v41") just left of the clock – the clock itself can't show it
+topBar.addWidget("org.goblincakes.week");
 var clock = topBar.addWidget("org.kde.plasma.digitalclock");
 clock.currentConfigGroup = ["Appearance"];
 clock.writeConfig("showDate", true);

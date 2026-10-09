@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "GOBLINCAKES"
+            }
+        ],
+        "Category": "Date and Time",
+        "Description": "The week number (ISO), next to the clock in the top bar",
+        "Description[sv]": "Veckonumret, bredvid klockan i toppfältet",
+        "Icon": "view-calendar-week",
+        "Id": "org.goblincakes.week",
+        "License": "GPL-3.0-or-later",
+        "Name": "GOBLINCAKES Week",
+        "Name[sv]": "GOBLINCAKES Vecka"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
