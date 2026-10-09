@@ -52,9 +52,12 @@ clock.writeConfig("dateFormat", "custom");
 // joiner at the end keeps Plasma from trimming the two spaces.
 clock.writeConfig("customDateFormat", "ddd d MMM  \u2060");
 
-// Fixed size: Plasma otherwise makes the clock as tall as the bar allows (looked huge)
+// Fixed size: Plasma otherwise makes the clock as tall as the bar allows (looked huge).
+// Font and weight too: with a fixed size Plasma drops to a thin default font that looked grey.
 clock.writeConfig("autoFontAndSize", false);
-clock.writeConfig("fontSize", 10);
+clock.writeConfig("fontFamily", "IBM Plex Sans");
+clock.writeConfig("fontWeight", 500);
+clock.writeConfig("fontSize", 11);
 
 // Power button: opens the GOBLINCAKES logout screen
 var power = topBar.addWidget("org.kde.plasma.lock_logout");

@@ -270,6 +270,43 @@ Window {
         }
     }
 
+    // Result of a step: green square with a check (done) or red square with a cross (failed),
+    // drawn like the check box (no font glyphs – "✓" looked like a V)
+    component ResultMark: Rectangle {
+        property bool ok: true
+        property int size: 22
+        width: size
+        height: size
+        color: ok ? "#0F2418" : "#A4262C"
+        border.width: 1
+        border.color: ok ? "#3FB950" : "#A4262C"
+        Canvas {
+            anchors.fill: parent
+            property bool ok: parent.ok
+            onOkChanged: requestPaint()
+            onPaint: {
+                const ctx = getContext("2d");
+                const s = width / 22;
+                ctx.reset();
+                ctx.lineWidth = 2.5 * s;
+                ctx.beginPath();
+                if (ok) {
+                    ctx.strokeStyle = "#3FB950";
+                    ctx.moveTo(5.5 * s, 11.5 * s);
+                    ctx.lineTo(9.5 * s, 15.5 * s);
+                    ctx.lineTo(16.5 * s, 7 * s);
+                } else {
+                    ctx.strokeStyle = "#E6ECF5";
+                    ctx.moveTo(7 * s, 7 * s);
+                    ctx.lineTo(15 * s, 15 * s);
+                    ctx.moveTo(15 * s, 7 * s);
+                    ctx.lineTo(7 * s, 15 * s);
+                }
+                ctx.stroke();
+            }
+        }
+    }
+
     // Initials on a square tile, instead of icons (most apps aren't installed yet)
     component Monogram: Rectangle {
         property string name
@@ -853,7 +890,7 @@ Window {
                         elide: Text.ElideRight
                     }
 
-                    // Waiting: empty square. Running: blue bar sliding. Done: check. Failed: red.
+                    // Waiting: empty square. Running: blue bar sliding. Done: green check. Failed: red cross.
                     Item {
                         id: rowState
                         anchors { right: parent.right; rightMargin: 18; verticalCenter: parent.verticalCenter }
@@ -862,23 +899,14 @@ Window {
 
                         CheckSquare {
                             anchors.right: parent.right
-                            visible: row.status === "waiting" || row.status === "done"
-                            checked: row.status === "done"
+                            visible: row.status === "waiting"
+                            checked: false
                         }
-                        Rectangle {
+                        ResultMark {
                             anchors.right: parent.right
-                            visible: row.status === "failed"
-                            width: 22
-                            height: 22
-                            color: "#A4262C"
-                            Text {
-                                anchors.centerIn: parent
-                                text: "!"
-                                color: "#E6ECF5"
-                                font.family: "Chakra Petch"
-                                font.weight: Font.Bold
-                                font.pixelSize: 15
-                            }
+                            visible: row.status === "done" || row.status === "failed"
+                            ok: row.status === "done"
+                            size: 22
                         }
                         Rectangle {
                             visible: row.status === "running"
@@ -1466,22 +1494,11 @@ Window {
                     color: "#0E1420"
                     border.width: 1
                     border.color: ok ? "#1E2A40" : "#A4262C"
-                    Rectangle {
+                    ResultMark {
                         id: resultMark
                         anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                        width: 24
-                        height: 24
-                        color: ok ? "#12203A" : "#A4262C"
-                        border.width: 1
-                        border.color: ok ? "#2F6FED" : "#A4262C"
-                        Text {
-                            anchors.centerIn: parent
-                            text: ok ? "✓" : "!"
-                            color: ok ? "#2F6FED" : "#E6ECF5"
-                            font.family: "IBM Plex Sans"
-                            font.weight: Font.Bold
-                            font.pixelSize: 14
-                        }
+                        ok: parent.ok
+                        size: 24
                     }
                     Text {
                         id: resultName
