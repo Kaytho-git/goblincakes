@@ -47,14 +47,24 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
-# Ghostty opens at 125x35 characters: add that to Ghostty configs written by
+# Ghostty opens at 100x28 characters: add that to Ghostty configs written by
 # goblincakes-firstlogin before the size was part of it (once; removing it sticks).
 _gc_flag="$_gc_state/ghostty-size-added"
 _gc_ghostty="${XDG_CONFIG_HOME:-$HOME/.config}/ghostty/config.ghostty"
 if [ ! -e "$_gc_flag" ]; then
     if grep -q '^# GOBLINCAKES defaults' "$_gc_ghostty" 2>/dev/null &&
        ! grep -q '^window-\(width\|height\)' "$_gc_ghostty"; then
-        printf 'window-width = 125\nwindow-height = 35\n' >> "$_gc_ghostty"
+        printf 'window-width = 100\nwindow-height = 28\n' >> "$_gc_ghostty"
+    fi
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
+# Smaller since 9 Oct (11 pt / 125x35 felt like 150 %): 10 pt and 100x28 in GOBLINCAKES Ghostty
+# configs – once, and only values that are still the old defaults (changed ones stay).
+_gc_flag="$_gc_state/ghostty-smaller"
+if [ ! -e "$_gc_flag" ]; then
+    if grep -q '^# GOBLINCAKES defaults' "$_gc_ghostty" 2>/dev/null; then
+        sed -i 's/^font-size = 11$/font-size = 10/; s/^window-width = 125$/window-width = 100/; s/^window-height = 35$/window-height = 28/' "$_gc_ghostty"
     fi
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi

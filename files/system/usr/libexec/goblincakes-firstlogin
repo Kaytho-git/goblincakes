@@ -49,8 +49,8 @@ background-blur = true
 window-decoration = server
 window-padding-x = 8
 window-padding-y = 8
-window-width = 125
-window-height = 35
+window-width = 100
+window-height = 28
 EOF
 fi
 
