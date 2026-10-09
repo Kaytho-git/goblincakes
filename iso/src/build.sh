@@ -280,6 +280,18 @@ done
 mkdir -p /etc/skel/.config
 printf '[Wallet]\nEnabled=false\n' >/etc/skel/.config/kwalletrc
 
+# In a virtual machine the live desktop is drawn without 3D: VirtualBox's 3D froze the whole
+# screen (and keyboard) during the installation, twice, while Anaconda finished in the background.
+# KWin composites with QPainter, programs (Firefox = the installer) use software OpenGL.
+# Only the live system – the installed GOBLINCAKES keeps 3D.
+cat >/etc/xdg/plasma-workspace/env/goblincakes-live-vm.sh <<'EOF'
+# GOBLINCAKES live system (iso/src/build.sh): no 3D in virtual machines
+if systemd-detect-virt --vm -q 2>/dev/null; then
+    export KWIN_COMPOSE=Q
+    export LIBGL_ALWAYS_SOFTWARE=1
+fi
+EOF
+
 # The dock in the live system: installer, partition manager, Firefox, files
 layout=/usr/share/plasma/look-and-feel/org.goblincakes.desktop/contents/layouts/org.kde.plasma.desktop-layout.js
 sed -i 's|^tasks.writeConfig("launchers", .*|tasks.writeConfig("launchers", ["applications:liveinst.desktop", "applications:org.kde.partitionmanager.desktop", "preferred://browser", "preferred://filemanager"]);|' "$layout"
