@@ -434,6 +434,15 @@ class Config(QObject):
     def undoSwitch(self):
         self._gpu_run(["undo"])
 
+    @Slot(result=str)
+    def knownUpdates(self):
+        """What the last automatic check (the update arrow's timer) found, as its JSON – so
+        Uppdatera can offer "Uppdatera allt" right away. "" = not checked yet."""
+        try:
+            return (Path.home() / ".cache/goblincakes/updates.json").read_text()
+        except OSError:
+            return ""
+
     @Slot()
     def checkUpdates(self):
         """Uppdatera → "Kolla efter uppdateringar": the quick check the update arrow uses

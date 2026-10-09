@@ -43,7 +43,11 @@ Window {
     readonly property var systemApps: JSON.parse(backend.systemApps)
     property string appFilter: ""
     onTabChanged: if (tab === "system") backend.refreshSystemApps()
-    Component.onCompleted: if (tab === "system") backend.refreshSystemApps()
+    Component.onCompleted: {
+        if (tab === "system")
+            backend.refreshSystemApps();
+        showCheck(backend.knownUpdates(), true);
+    }
 
     function toggleCategory(id) {
         const e = Object.assign({}, expanded);
@@ -146,37 +150,50 @@ Window {
         return true;
     }
 
-    Connections {
-        target: backend
-        // Config started again while open (the update arrow, AppGrid, Meta+C): this window, on that tab
-        function onCheckDone(json) {
+    // Result of a check: the "Kolla efter uppdateringar" button, or (fromCache) what the update
+    // arrow's automatic check found last, read when the window opens. "Uppdatera allt" is only
+    // offered when something was found (the user's choice, 10 Oct).
+    function showCheck(json, fromCache) {
+        let st;
+        try { st = JSON.parse(json); } catch (e) { st = null; }
+        if (!st) {
+            if (fromCache)
+                return;  // never checked: just the button
             win.checkState = "done";
             win.checkFound = false;
             win.checkStaged = false;
-            let st;
-            try { st = JSON.parse(json); } catch (e) { st = null; }
-            if (!st) {
-                win.checkText = "Det gick inte att kolla just nu – är datorn ansluten till internet?";
-                return;
-            }
-            const lines = [];
-            if (st.system === "new")
-                lines.push("Ny GOBLINCAKES-version finns.");
-            else if (st.system === "staged")
-                lines.push("En ny GOBLINCAKES-version är redan hämtad – den används efter en omstart.");
-            const apps = st.flatpaks || [];
-            if (apps.length > 0)
-                lines.push((apps.length === 1 ? "1 program" : apps.length + " program") + " kan uppdateras: " + apps.join(", ") + ".");
-            win.checkFound = st.system === "new" || apps.length > 0;
-            win.checkStaged = st.system === "staged";
-            win.checkText = lines.length > 0 ? lines.join("
-") + (win.checkFound ? "
-Tryck Uppdatera allt för att uppdatera." : "")
-                                             : "Allt är redan uppdaterat.";
+            win.checkText = "Det gick inte att kolla just nu – är datorn ansluten till internet?";
+            return;
         }
+        const apps = st.flatpaks || [];
+        const lines = [];
+        if (st.system === "new")
+            lines.push("Ny GOBLINCAKES-version finns.");
+        else if (st.system === "staged")
+            lines.push("En ny GOBLINCAKES-version är redan hämtad – den används efter en omstart.");
+        if (apps.length > 0)
+            lines.push((apps.length === 1 ? "1 program" : apps.length + " program") + " kan uppdateras: " + apps.join(", ") + ".");
+        const found = st.system === "new" || apps.length > 0;
+        if (fromCache && !found && st.system !== "staged")
+            return;  // nothing known: just the button
+        win.checkFound = found;
+        win.checkStaged = st.system === "staged";
+        win.checkText = lines.length > 0 ? lines.join("
+") + (found ? "
+Tryck Uppdatera allt för att uppdatera." : "")
+                                         : "Allt är redan uppdaterat.";
+        win.checkState = "done";
+    }
+
+    Connections {
+        target: backend
+        // Config started again while open (the update arrow, AppGrid, Meta+C): this window, on that tab
+        function onCheckDone(json) { win.showCheck(json, false); }
         function onShowTab(tab) {
             if (tab !== "")
                 win.tab = tab;
+            if (tab === "update" && win.updateState === "idle")
+                win.showCheck(backend.knownUpdates(), true);  // e.g. the arrow: what it found
             win.show();
             win.raise();
             win.requestActivate();
@@ -1582,7 +1599,7 @@ Tryck Uppdatera allt för att uppdatera." : "")
                 textFormat: Text.StyledText
                 text: "Hämtar den senaste GOBLINCAKES-versionen och uppdaterar dina program (Flatpak), AppImages som WowUp och Raider.IO, "
                     + "GE-Proton och firmware. Den nya GOBLINCAKES-versionen används efter en omstart – den förra finns kvar i startmenyn.<br><br>"
-                    + "<font color='#E6ECF5'>Tryck Uppdatera allt</font> för att börja. Systemet kan fråga efter ditt lösenord."
+                    + "<font color='#E6ECF5'>Tryck Kolla efter uppdateringar</font> för att se om det finns något nytt – inget hämtas förrän du trycker Uppdatera allt. Systemet kan fråga efter ditt lösenord."
             }
 
             // Result of "Kolla efter uppdateringar"
@@ -1817,12 +1834,14 @@ Tryck Uppdatera allt för att uppdatera." : "")
             }
             FlatButton {
                 visible: win.tab === "update" && win.updateState === "idle"
+                primary: !win.checkFound && !win.checkStaged
                 enabledState: win.checkState !== "checking"
                 text: win.checkState === "checking" ? "Kollar…" : "Kolla efter uppdateringar"
                 onClicked: { win.checkState = "checking"; backend.checkUpdates(); }
             }
             FlatButton {
-                visible: win.tab === "update" && win.updateState !== "running"
+                // Only when there is something to update (a check found it), or again after a run
+                visible: win.tab === "update" && (win.updateState === "done" || (win.updateState === "idle" && win.checkFound))
                 primary: !(win.updateState === "done" && win.updateReboot)
                 text: win.updateState === "done" ? "Uppdatera igen" : "Uppdatera allt"
                 onClicked: win.startUpdate()
