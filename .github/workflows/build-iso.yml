@@ -3,10 +3,9 @@
 # Two ISOs, built side by side on their own machines:
 #   GOBLINCAKES-<date>.iso         the base variant (AMD, Intel, older Nvidia)
 #   GOBLINCAKES-Nvidia-<date>.iso  goblincakes-nvidia (Nvidia GTX 16xx / RTX 20xx and newer)
-# Each is a build file (artifact) on the run's page for one day (goblincakes-iso and
-# goblincakes-nvidia-iso); each new build deletes the earlier ones once its own ISO is done.
-# Both are also published as the release "iso" in parts under 2 GB plus goblincakes-iso.json
+# Both are published as the release "iso" in parts under 2 GB plus goblincakes-iso.json
 # (public, no login) – that is where the GOBLINCAKES USB creator downloads them from.
+# (Until 10 Oct each was also a build file on the run's page for one day.)
 name: Bygg installations-ISO
 on:
   workflow_dispatch:
@@ -17,7 +16,6 @@ concurrency:
 
 permissions:
   contents: write # the "iso" release for the USB creator
-  actions: write # delete earlier ISO build files
   packages: read
 
 jobs:
@@ -33,14 +31,12 @@ jobs:
             id: live-base
             image: ghcr.io/kaytho-git/goblincakes:latest
             prefix: GOBLINCAKES
-            artifact: goblincakes-iso
             title: Prova och installera
             description: "Startar GOBLINCAKES från USB-minnet: prova datorn, rensa diskar och installera. Installerar utan internet. För AMD, Intel och äldre Nvidia-kort (har datorn ett Nvidia GTX 16xx/RTX 20xx eller nyare hämtas Nvidia-drivrutinerna efter första starten)."
           - label: Nvidia
             id: live-nvidia
             image: ghcr.io/kaytho-git/goblincakes-nvidia:latest
             prefix: GOBLINCAKES-Nvidia
-            artifact: goblincakes-nvidia-iso
             title: Prova och installera – Nvidia
             description: "Samma sak med Nvidias drivrutiner från start, för Nvidia GTX 16xx/RTX 20xx eller nyare. Installerar utan internet."
     steps:
@@ -92,33 +88,9 @@ jobs:
           ls -lh
           sudo podman rmi -f localhost/goblincakes-live:latest || true
 
-      # Only now that the new ISO is done: the earlier one stays downloadable until then
-      - name: Ta bort tidigare ISO:er
-        uses: actions/github-script@v7
-        env:
-          ARTIFACT: ${{ matrix.artifact }}
-        with:
-          script: |
-            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
-              owner: context.repo.owner, repo: context.repo.repo, name: process.env.ARTIFACT, per_page: 100,
-            });
-            for (const artifact of artifacts) {
-              core.info(`Tar bort ${artifact.name} (${artifact.id}) från ${artifact.created_at}`);
-              await github.rest.actions.deleteArtifact({
-                owner: context.repo.owner, repo: context.repo.repo, artifact_id: artifact.id,
-              });
-            }
-
-      # First the build file, so the ISO is there even if the release step fails
-      - name: Lägg upp ISO:n (finns i ett dygn)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: output/
-          retention-days: 1
-          compression-level: 0
-          if-no-files-found: error
-
+      # Only the release "iso" (GOBLINCAKES USB downloads from there) – since 10 Oct no build
+      # files under Actions any more: the installation from the ISO was confirmed in the VM
+      # (the decision of 9 Oct)
       # The USB creator downloads from here: the release "iso". The parts go up now; the list
       # of both ISOs (goblincakes-iso.json) is written by the last job, when both are done.
       # Create the release first, then upload (creating it together with files makes gh
