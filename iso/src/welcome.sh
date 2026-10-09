@@ -47,7 +47,8 @@ förrän du installerar eller formaterar.
 
 ${graphics:+$graphics
 
-}<b>Installera GOBLINCAKES</b> – installerar på en disk du väljer.
+}<b>Installera GOBLINCAKES</b> – installerar på en disk du väljer. Det tar en stund
+(ofta 10–20 minuter) och skärmen står still länge – det är normalt.
 
 <b>Partitionshanteraren</b> – rensa eller formatera diskar först.
 

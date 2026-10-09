@@ -96,6 +96,14 @@ body, .pf-v6-c-page, .pf-v6-c-page__main { background: #07090D !important; }
   mix-blend-mode: normal !important;
 }
 .pf-v6-c-wizard__nav, .pf-v6-c-wizard__footer { background: #0B1018 !important; }
+/* The installation page (the one with the progress steps): the long step shows no progress */
+.pf-v6-c-empty-state:has(.pf-v6-c-progress-stepper) .pf-v6-c-empty-state__body::after {
+  content: "Det här tar en stund – ofta 10–20 minuter, och skärmen kan stå still länge.\A Ta en kaffe, gå på toa, gör något annat än att glo på skärmen!";
+  white-space: pre-line;
+  display: block;
+  margin-top: 1.5em;
+  color: #8B98AD;
+}
 .pf-v6-c-button, .pf-v6-c-form-control, .pf-v6-c-card, .pf-v6-c-modal-box, .pf-v6-c-menu,
 .pf-v6-c-progress-stepper__step-icon { border-radius: 0 !important; }
 EOF
