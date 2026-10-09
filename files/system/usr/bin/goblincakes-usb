@@ -1,3 +1,0 @@
-#!/bin/sh
-# GOBLINCAKES USB: makes a GOBLINCAKES install USB stick (also built as a Windows/Linux program)
-exec /usr/bin/python3 /usr/share/goblincakes/usb/goblincakes_usb.py "$@"

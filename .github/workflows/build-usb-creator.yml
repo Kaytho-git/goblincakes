@@ -1,6 +1,6 @@
 # GOBLINCAKES USB (the USB creator) as one file for Windows and one for Linux, built from
-# files/system/usr/share/goblincakes/usb/ – the same code GOBLINCAKES itself has as
-# "GOBLINCAKES USB". Published in the release "usb-skaparen" (public, no login needed):
+# usb-skaparen/ (not part of the GOBLINCAKES image – it is only for getting GOBLINCAKES onto
+# a USB stick). Published in the release "usb-skaparen" (public, no login needed):
 #   GOBLINCAKES-USB-Windows.exe   asks for administrator rights when it starts (raw disk writing)
 #   GOBLINCAKES-USB-Linux         asks for the password (pkexec) when it starts writing
 # Runs when the program changes on main, or by hand under Actions.
@@ -10,7 +10,7 @@ on:
   push:
     branches: [main]
     paths:
-      - files/system/usr/share/goblincakes/usb/**
+      - usb-skaparen/**
       - .github/workflows/build-usb-creator.yml
 
 concurrency:
@@ -85,7 +85,7 @@ jobs:
 
       - name: Bygg programmet
         run: |
-          src=files/system/usr/share/goblincakes/usb
+          src=usb-skaparen
           pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file }}" ${{ matrix.extra }} \
             --add-data "$src/Main.qml:." --add-data "build/goblincakes.svg:." --add-data "build/fonts:fonts" \
             "$src/goblincakes_usb.py"

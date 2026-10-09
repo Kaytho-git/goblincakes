@@ -9,6 +9,8 @@ on:
       - "**.md"
       - "iso/**"
       - ".github/workflows/build-iso.yml"
+      - "usb-skaparen/**"
+      - ".github/workflows/build-usb-creator.yml"
 
   pull_request:
   workflow_dispatch: # allow manually triggering builds

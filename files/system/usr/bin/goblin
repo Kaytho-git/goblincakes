@@ -9,7 +9,6 @@
 #   goblin apps        Fedora programs hidden from AppGrid; show/hide them again
 #   goblin remove      window to uninstall Fedora programs (with a name: straight away)
 #   goblin old         uninstalled programs, and how to bring them back
-#   goblin usb         the GOBLINCAKES USB window: an install stick for another computer
 #   goblin fast        system info with the GOBLINCAKES logo
 #   goblin motd        the command list shown in every new terminal (on/off)
 #   goblin help        list the commands
@@ -198,7 +197,6 @@ COMMANDS=(
     "apps|Dolda Fedora-program (Konsole, Discover …) – visa igen: goblin apps show konsole"
     "remove|Avinstallera Fedora-program i ett fönster (eller direkt: goblin remove konsole)"
     "old|Visa avinstallerade program och hur du får tillbaka dem"
-    "usb|Gör ett USB-minne som installerar GOBLINCAKES (till en annan dator)"
     "play|Dina Steam-spel och orden som startar dem – skriv t.ex. wow eller cs2 direkt i terminalen"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
@@ -457,7 +455,6 @@ case ${1:-help} in
     apps) shift; cmd_apps "$@" ;;
     remove|uninstall) shift; cmd_remove "$@" ;;
     old) cmd_old ;;
-    usb) shift; exec goblincakes-usb "$@" ;;
     play|games|spel) shift
         if [ $# -gt 0 ]; then
             /usr/libexec/goblincakes-games run "$1"; [ $? -eq 3 ] && { echo "Hittar inget spel i Steam som heter $1. Se listan: goblin play" >&2; exit 1; }; exit 0
