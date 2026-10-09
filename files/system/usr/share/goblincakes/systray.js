@@ -32,17 +32,21 @@ var known = shown.concat([
 ]);
 
 var trimmed = 0;
+function trim(target) {
+    target.currentConfigGroup = ["General"];
+    target.writeConfig("extraItems", shown);
+    target.writeConfig("knownItems", known);
+    target.reloadConfig();
+    trimmed++;
+}
 panels().forEach(function (panel) {
     panel.widgets("org.kde.plasma.systemtray").forEach(function (tray) {
-        var items = desktopById(tray.readConfig("SystrayContainmentId"));
-        if (!items) {
-            return;
-        }
-        items.currentConfigGroup = ["General"];
-        items.writeConfig("extraItems", shown);
-        items.writeConfig("knownItems", known);
-        items.reloadConfig();
-        trimmed++;
+        // Plasma before 6.7: the items live in a separate inner containment.
+        // Plasma 6.7: on the tray itself ([General] extraItems/knownItems) – the inner id is
+        // empty and nothing was trimmed (10 Oct)
+        var id = tray.readConfig("SystrayContainmentId");
+        var items = id ? desktopById(id) : null;
+        trim(items || tray);
     });
 });
 

@@ -12,7 +12,7 @@ MARK="$HOME/.local/state/goblincakes/firstlogin-done"
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 # Bump SYSTRAY_VERSION when systray.js changes (e.g. a new package brings a tray widget):
 # the tray is trimmed again once, without rebuilding the panels
-SYSTRAY_VERSION=2
+SYSTRAY_VERSION=3
 SYSTRAY_MARK="$HOME/.local/state/goblincakes/systray-done"
 RESET=0
 [ "${1:-}" = "--reset" ] && RESET=1
