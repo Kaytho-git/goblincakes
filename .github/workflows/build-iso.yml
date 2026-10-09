@@ -94,7 +94,7 @@ jobs:
 
       # Only now that the new ISO is done: the earlier one stays downloadable until then
       - name: Ta bort tidigare ISO:er
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           ARTIFACT: ${{ matrix.artifact }}
         with:
