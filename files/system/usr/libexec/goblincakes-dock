@@ -12,11 +12,13 @@ case ${1:-} in
         id=${2:?desktop file}
         plasma_js "$(sed "s|%LAUNCHER%|applications:$id|" /usr/share/goblincakes/dock-add.js)" ;;
     toggle)
-        # The dock dodges windows, and in Plasma 6 that means only the *active* window: a KWin
-        # script (/usr/share/goblincakes/dock-show.js) makes the desktop active, so the dock
-        # comes up, and clicking a window hides it again – like the Start menu. Pressed again,
-        # the focus goes back to the topmost window. (Until 9 Oct this switched the hiding mode;
-        # Plasma 6 has no "on top without taking space" mode, so maximized windows shrank.)
+        # Plasma's own "move keyboard focus between panels" brings the hidden dock up with the
+        # focus, and Plasma hides it again by itself when anything else is clicked – like the
+        # Start menu. It steps through the panels one at a time, so a KWin script presses it and
+        # steps past the top bar (/usr/share/goblincakes/dock-show.js). (Until 9 Oct this
+        # switched the hiding mode; Plasma 6 has no "on top without taking space" mode, so
+        # maximized windows shrank and the dock stayed up. Making the desktop active is not
+        # enough to bring it up.)
         # Older versions could leave the dock always shown ("none"): back to hiding first
         plasma_js 'panels().forEach(function (p) {
             if (p.location === "bottom" && p.hiding === "none") p.hiding = "dodgewindows";
