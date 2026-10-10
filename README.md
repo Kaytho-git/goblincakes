@@ -23,7 +23,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - Ghostty som terminal, med GOBLINCAKES-färger och systeminfo (`goblin fast`).
 
 ### Spel
-- **Steam** förinstallerat, plus Gamescope, GameMode, MangoHud (FPS-mätare) och nyaste Wine.
+- **Steam** förinstallerat, plus Gamescope, GameMode och MangoHud (FPS-mätare). Windows-program utanför spelen: Bottles i GOBLINCAKES Config.
 - **GE-Proton** hämtas och uppdateras automatiskt.
 - **Handkontroller:** Xbox via dongel, USB och Bluetooth (xone, xpadneo), plus de vanliga PlayStation- och Switch-reglerna.
 - **TV-läge:** Steam Big Picture i helskärm, som en Steam Deck – starta det från appmenyn.

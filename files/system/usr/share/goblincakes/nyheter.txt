@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-11  Wine finns inte längre i systemet (spelen har egen Wine via Proton och Lutris) – GOBLINCAKES blir mindre. Andra Windows-program: välj Bottles i GOBLINCAKES Config
 2026-10-10  GOBLINCAKES Config hämtar GE-Proton först när du väljer Battle.net – installationen i Lutris fungerade inte utan den
 2026-10-10  Discord startar (minimerad) när du loggar in – Discords egen inställning för att starta automatiskt fungerade inte. Stängs av i Systeminställningar → Autostart
 2026-10-10  Proton-spel som läser upp text med Windows röster får 10 nya, mänskligare röster (GOBLINCAKES Voice – Male 1–5, Female 1–5) – kräver Steams verktyg Proton Voice Files

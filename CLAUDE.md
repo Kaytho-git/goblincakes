@@ -71,7 +71,7 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
   - GameMode – paketet `gamemode`; `goblin gamemode` kör `gamemoded -t` och visar hur det slås på i Steam (`gamemoderun %command%`), Lutris och Heroic.
   - Gamescope – paketet `gamescope` i imagen + val i GOBLINCAKES Config ("Gamescope för Steam", steget `gamescope-flatpak`: Flatpak-tillägget `org.freedesktop.Platform.VulkanLayer.gamescope` på samma runtime-gren som Steam/Lutris/Heroic, --user). Startalternativ `gamescope -f -- %command%`.
   - Heroic Games Launcher – val i GOBLINCAKES Config (Flatpak `com.heroicgameslauncher.hgl`).
-  - Wine – `files/scripts/install-wine.sh`: WineHQ staging om WineHQ har paket för Fedora-versionen, annars Fedoras `wine`; + winetricks. WineHQ-repot tas bort ur den färdiga imagen (uppdateras med imagen).
+  - ~~Wine i imagen~~ – **borttaget 11 okt (användarens beslut, för en mindre ISO, ~1 GB i imagen):** ingen använde systemets Wine (WoW = Proton, Battle.net = GE-Proton i Lutris, Heroic egen). Windows-program utanför spelen: **Bottles** (`com.usebottles.bottles`, Config → Spel och WoW). `install-wine.sh` borttagen.
 - [x] Gaming-optimering – finns som reglage i GOBLINCAKES Config, fliken Optimering (7 okt; **går inte att testa i VM** – väntar på riktig dator): scx_lavd (stänger av irqbalance; obs: kolla att det inte krockar med ananicy-cpp), vm.max_map_count, split-lock, prestandaläge (powerprofilesctl – används i stället för TuneD-profilen latency-performance, som krockar med KDE:s energiprofiler), shader-cache för Nvidia.
 
 ## Framtida idéer (inget byggs förrän användaren ber om det)

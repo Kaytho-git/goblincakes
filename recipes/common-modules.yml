@@ -102,11 +102,6 @@ modules:
     scripts:
       - setup-snapd.sh
 
-  # Wine, newest: WineHQ's staging build when WineHQ has this Fedora version, else Fedora's own
-  - type: script
-    scripts:
-      - install-wine.sh
-
   # scx_lavd game scheduler for the Optimering tab, if it can be found (off until switched on there)
   - type: script
     scripts:
