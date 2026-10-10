@@ -85,4 +85,14 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
+# Discord installed before 10 Oct: start it at login through GOBLINCAKES' own autostart
+# (Discord's own setting doesn't work in its Flatpak). Once – removing it later sticks.
+_gc_flag="$_gc_state/discord-autostart"
+if [ ! -e "$_gc_flag" ]; then
+    if [ -d "$HOME/.local/share/flatpak/app/com.discordapp.Discord" ] || [ -d /var/lib/flatpak/app/com.discordapp.Discord ]; then
+        /usr/libexec/goblincakes-config-install autostart com.discordapp.Discord --start-minimized >/dev/null 2>&1
+    fi
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
 unset _gc_now _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets

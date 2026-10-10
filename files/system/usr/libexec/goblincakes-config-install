@@ -342,6 +342,27 @@ PY
         status "Huvudwebbläsare"
         ;;
 
+    autostart)
+        # Start a Flatpak app at every login through GOBLINCAKES' own autostart entry
+        # (Discord's own "open at startup" writes a path that only exists inside its
+        # Flatpak, so it never started – 10 Oct). Removable in System Settings → Autostart.
+        app=$1; shift
+        dir="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+        exported=$(for d in "$HOME/.local/share/flatpak" /var/lib/flatpak; do
+            f="$d/exports/share/applications/$app.desktop"; [ -f "$f" ] && { echo "$f"; break; }; done || true)
+        name=$(sed -n 's/^Name=//p' "$exported" 2>/dev/null | head -1 || true)
+        mkdir -p "$dir"
+        cat >"$dir/$app.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=${name:-$app}
+Exec=flatpak run $app${*:+ $*}
+Icon=$app
+X-GOBLINCAKES-Autostart=true
+DESKTOP
+        status "Startar vid inloggning"
+        ;;
+
     battlenet)
         # Lutris' own Battle.net installer (GE-Proton, with everything Battle.net needs
         # installed inside the Wine prefix). Lutris opens and asks a few questions.
