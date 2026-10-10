@@ -5,7 +5,7 @@
 #   goblin ai          the Goblin AI window (Meta+A); with a question: answer in the terminal
 #   goblin tv          TV mode (Steam Big Picture in full screen)
 #   goblin wow         links every WoW version under ~/Games/WoW, updates WowUp
-#   goblin dock        reset – the desktop layout and dock back to the start (Meta shows the dock)
+#   goblin dock        reset – the desktop layout and dock back to the start (Meta opens the app launcher)
 #   goblin apps        Fedora programs hidden from AppGrid; show/hide them again
 #   goblin remove      window to uninstall Fedora programs (with a name: straight away)
 #   goblin old         uninstalled programs, and how to bring them back

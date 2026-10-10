@@ -38,12 +38,18 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
-# The Meta key belongs to the dock (/usr/share/kglobalaccel/goblincakes-dock.desktop):
-# the app launcher (AppGrid) gets Shift+Meta (written "Meta+Shift") and Alt+F1. Once, like Meta+A.
-_gc_flag="$_gc_state/meta-freed"
+# The Meta key opens the app launcher (AppGrid) again, Plasma's own default (10 Oct, the user's
+# choice: on a real computer the dock comes up when the pointer touches the bottom middle, so
+# "Meta shows the dock" (7–10 Oct) wasn't needed). Those versions moved the launcher to
+# Shift+Meta: back to Meta + Alt+F1, once, and only if it's still what we set.
+_gc_flag="$_gc_state/meta-launcher"
 if [ ! -e "$_gc_flag" ]; then
-    kwriteconfig6 --file kglobalshortcutsrc --group plasmashell --key "activate application launcher" \
-        "Meta+Shift$(printf '\t')Alt+F1,Meta$(printf '\t')Alt+F1,Activate Application Launcher"
+    _gc_now=$(kreadconfig6 --file kglobalshortcutsrc --group plasmashell --key "activate application launcher")
+    case $_gc_now in
+        Meta+Shift*|Alt+F1*Meta+Shift*)
+            kwriteconfig6 --file kglobalshortcutsrc --group plasmashell --key "activate application launcher" \
+                "Meta$(printf '\t')Alt+F1,Meta$(printf '\t')Alt+F1,Activate Application Launcher" ;;
+    esac
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
@@ -79,4 +85,4 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
-unset _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets
+unset _gc_now _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets

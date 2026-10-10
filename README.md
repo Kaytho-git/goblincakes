@@ -19,7 +19,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 ### Utseende
 - Eget tema i hela systemet: mörk palett, Chakra Petch och IBM Plex, raka hörn överallt.
 - Egen startskärm, inloggning, låsskärm och utloggning (*"Goodbye! See you next raid!"*).
-- Toppfält med appmeny i mitten av skärmen (AppGrid), och en docka som gömmer sig när ett fönster täcker den. **Meta** visar dockan, **Shift+Meta** öppnar appmenyn.
+- Toppfält med appmeny i mitten av skärmen (AppGrid), och en docka som gömmer sig när ett fönster täcker den. Dockan kommer fram när muspekaren går mot skärmens nederkant, och **Meta** öppnar appmenyn.
 - Ghostty som terminal, med GOBLINCAKES-färger och systeminfo (`goblin fast`).
 
 ### Spel

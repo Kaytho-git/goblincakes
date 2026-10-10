@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # GOBLINCAKES: the dock at the bottom of the screen (`goblin dock`).
-#   goblincakes-dock toggle     show the dock, or hide it again (the Meta key)
 #   goblincakes-dock pin <id>   pin an app (desktop file name)
 #   goblincakes-dock reset      put the GOBLINCAKES desktop layout back (dock included)
 set -uo pipefail
@@ -11,32 +10,6 @@ case ${1:-} in
     pin)
         id=${2:?desktop file}
         plasma_js "$(sed "s|%LAUNCHER%|applications:$id|" /usr/share/goblincakes/dock-add.js)" ;;
-    toggle)
-        # Plasma's own "move keyboard focus between panels" brings the hidden dock up with the
-        # focus, and Plasma hides it again by itself when anything else is clicked – like the
-        # Start menu. It steps through the panels one at a time, so a KWin script presses it and
-        # steps past the top bar (/usr/share/goblincakes/dock-show.js). (Until 9 Oct this
-        # switched the hiding mode; Plasma 6 has no "on top without taking space" mode, so
-        # maximized windows shrank and the dock stayed up. Making the desktop active is not
-        # enough to bring it up.)
-        # Older versions could leave the dock always shown ("none"): back to hiding first
-        plasma_js 'panels().forEach(function (p) {
-            if (p.location === "bottom" && p.hiding === "none") p.hiding = "dodgewindows";
-        });'
-        # A new name every time: KWin removes an unloaded script a moment later, and loading one
-        # with the same name before that silently did nothing (9 Oct). The previous one is
-        # removed (it finished right away).
-        kwin=(busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting)
-        state="${XDG_RUNTIME_DIR:-/tmp}/goblincakes-dock-script"
-        "${kwin[@]}" unloadScript s goblincakes-dock-autohide >/dev/null 2>&1
-        [ -s "$state" ] && "${kwin[@]}" unloadScript s "$(cat "$state")" >/dev/null 2>&1
-        name="goblincakes-dock-show-$(date +%s%N)"
-        echo "$name" > "$state"
-        # Started with Scripting.start (runs every loaded script that hasn't run), not
-        # /Scripting/Script<id>.run: KWin numbers scripts by how many are loaded, so after an
-        # unload the new number can belong to an older script – which was run instead (9 Oct)
-        "${kwin[@]}" loadScript ss "${GOBLINCAKES_DOCK_JS:-/usr/share/goblincakes/dock-show.js}" "$name" >/dev/null && \
-            "${kwin[@]}" start >/dev/null ;;
     reset)
         # The whole GOBLINCAKES look (also the button in Config → Inställningar)
         echo "Tema, färger, typsnitt, terminalen, toppfältet och dockan blir som från början."
@@ -47,5 +20,5 @@ case ${1:-} in
         fi
         sh /usr/libexec/goblincakes-firstlogin --reset
         echo "GOBLINCAKES-utseendet är återställt. Logga ut och in igen så att alla program får det." ;;
-    *) echo "Använd: goblin dock toggle|reset" >&2; exit 2 ;;
+    *) echo "Använd: goblin dock reset" >&2; exit 2 ;;
 esac
