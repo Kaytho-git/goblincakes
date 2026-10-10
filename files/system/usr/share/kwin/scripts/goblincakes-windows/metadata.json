@@ -1,0 +1,11 @@
+{
+    "KPlugin": {
+        "Id": "goblincakes-windows",
+        "Name": "GOBLINCAKES windows",
+        "Description": "Opens GOBLINCAKES Config in the middle of the main screen",
+        "License": "GPL-3.0",
+        "EnabledByDefault": true
+    },
+    "KPackageStructure": "KWin/Script",
+    "X-Plasma-API": "javascript"
+}

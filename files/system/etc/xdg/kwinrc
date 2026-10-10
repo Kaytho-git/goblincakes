@@ -12,6 +12,8 @@ translucencyEnabled=true
 # No big mouse pointer when the mouse is moved fast back and forth ("shake cursor")
 # – it gets in the way in games. Back on: System Settings → Desktop Effects → Shake Cursor
 shakecursorEnabled=false
+# GOBLINCAKES Config opens in the middle of the main screen (/usr/share/kwin/scripts/goblincakes-windows)
+goblincakes-windowsEnabled=true
 
 [Effect-translucency]
 MoveResize=75
