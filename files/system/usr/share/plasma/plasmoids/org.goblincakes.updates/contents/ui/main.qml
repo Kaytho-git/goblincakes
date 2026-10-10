@@ -20,6 +20,7 @@ PlasmoidItem {
 
     property string system: ""      // "new", "staged" or ""
     property var flatpaks: []
+    property var news: []           // what the new version brings (goblincakes-updates)
     // "staged" (fetched, waiting for a restart) shows no arrow: nothing left to update.
     // goblincakes-updates gives a notice instead when it was fetched in the background.
     readonly property bool available: system === "new" || flatpaks.length > 0
@@ -36,9 +37,11 @@ PlasmoidItem {
                     const state = JSON.parse(data["stdout"]);
                     root.system = state.system || "";
                     root.flatpaks = state.flatpaks || [];
+                    root.news = state.news || [];
                 } catch (e) {
                     root.system = "";
                     root.flatpaks = [];
+                    root.news = [];
                 }
             }
             disconnectSource(source);
@@ -65,8 +68,13 @@ PlasmoidItem {
     readonly property string tipTitle: available ? "Uppdateringar finns" : ""
     readonly property string tipText: {
         const lines = [];
-        if (system === "new")
-            lines.push("Ny GOBLINCAKES-version");
+        if (system === "new") {
+            lines.push("Ny GOBLINCAKES-version" + (news.length > 0 ? ":" : ""));
+            for (const line of news.slice(0, 5))
+                lines.push("• " + line);
+            if (news.length > 5)
+                lines.push("• … och " + (news.length - 5) + " till");
+        }
         if (flatpaks.length > 0) {
             const shown = flatpaks.slice(0, 3).join(", ");
             lines.push(flatpaks.length === 1 ? "Program: " + shown

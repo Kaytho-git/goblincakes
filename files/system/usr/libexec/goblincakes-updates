@@ -7,15 +7,24 @@
 # version already fetched that is used after a restart ("staged"). Compared by the image
 # digest, without downloading anything and without a password (skopeo, rpm-ostree status).
 # Flatpak: programs (not runtimes) with updates, user and system installations.
+# What a new version brings (10 Oct, the user's wish – shown by the arrow and in Config): the
+# lines of nyheter.txt that the new image has and this one doesn't, read from GitHub at the
+# newest commit before the image was built (the image has no commit label), plus a new Linux
+# kernel or Fedora version from the image's labels. Fetched once per image ("newsFor").
 # A check that can't be done (no network) keeps the last result.
 import json
 import os
+import re
 import subprocess
+import urllib.parse
+import urllib.request
 import sys
 import time
 from pathlib import Path
 
 STATE = Path.home() / ".cache/goblincakes/updates.json"
+NEWS = "files/system/usr/share/goblincakes/nyheter.txt"
+LOCAL_NEWS = Path("/usr/share/goblincakes/nyheter.txt")
 
 
 def run(args, timeout=120):
@@ -27,42 +36,102 @@ def run(args, timeout=120):
 
 
 def system_state():
-    """'staged', 'new', '' – or None when it couldn't be checked."""
+    """('staged' | 'new' | '' | None when it couldn't be checked, image name, remote digest)"""
     out = run(["rpm-ostree", "status", "--json"])
     if out is None:
-        return None
+        return None, "", ""
     try:
         deps = json.loads(out).get("deployments", [])
     except ValueError:
-        return None
+        return None, "", ""
     if not deps:
-        return None
+        return None, "", ""
     newest = deps[0]  # rpm-ostree lists the one used at the next start first
     if not newest.get("booted"):
-        return "staged"
+        return "staged", "", ""
     ref = newest.get("container-image-reference", "")
     digest = newest.get("container-image-reference-digest", "")
     if "docker://" not in ref or not digest:
-        return ""
+        return "", "", ""
     image = ref.split("docker://", 1)[1]
     # The registry's "latest" is an image index (one image per processor type): rpm-ostree has
     # the digest of the image inside it, skopeo's Digest is the index's – they never matched
     # (9 Oct). So: the raw manifest, and every digest in it.
     raw = run(["skopeo", "inspect", "--raw", f"docker://{image}"])
     if raw is None:
-        return None
+        return None, image, ""
     try:
         manifest = json.loads(raw)
     except ValueError:
-        return None
+        return None, image, ""
     known = {m.get("digest") for m in manifest.get("manifests", [])}
     remote = run(["skopeo", "inspect", "--no-tags", "--format", "{{.Digest}}", f"docker://{image}"])
     if remote:
         known.add(remote.strip())
     known.discard(None)
     if not known:
+        return None, image, ""
+    return ("" if digest in known else "new"), image, (remote or "").strip()
+
+
+def entries(text):
+    """[(date, text)] from a nyheter.txt, newest first."""
+    out = []
+    for line in text.splitlines():
+        m = re.match(r"^(\d{4}-\d{2}-\d{2})\s{2,}(.+)$", line.strip())
+        if m:
+            out.append((m.group(1), m.group(2).strip()))
+    return out
+
+
+def fetch(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "goblincakes-updates"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return r.read().decode("utf-8", "replace")
+
+
+def news_for(image):
+    """What the image on the registry brings that this computer doesn't have: a list of short
+    Swedish lines, newest first – or None when it couldn't be found out."""
+    out = run(["skopeo", "inspect", "--no-tags", f"docker://{image}"])
+    if out is None:
         return None
-    return "" if digest in known else "new"
+    try:
+        labels = json.loads(out).get("Labels") or {}
+    except ValueError:
+        return None
+    lines = []
+    # Fedora and the Linux kernel, straight from the image's labels
+    fedora = str(labels.get("org.opencontainers.image.version", "")).split(".")[0]
+    try:
+        here = next(l.split("=", 1)[1].strip().strip('"') for l in
+                    Path("/usr/lib/os-release").read_text().splitlines() if l.startswith("VERSION_ID="))
+    except (OSError, StopIteration):
+        here = ""
+    if fedora.isdigit() and here.isdigit() and int(fedora) > int(here):
+        lines.append(f"Fedora {fedora}")
+    kernel = str(labels.get("ostree.linux", "")).split("-")[0]
+    if kernel and kernel != os.uname().release.split("-")[0]:
+        lines.append(f"Ny Linux-kärna {kernel}")
+    # nyheter.txt as it was when the image was built
+    source = labels.get("org.opencontainers.image.source", "")
+    created = str(labels.get("org.opencontainers.image.created", ""))[:19]
+    m = re.match(r"https://github\.com/([^/]+/[^/]+?)/?$", source)
+    if not m or not created:
+        return lines or None
+    repo = m.group(1)
+    try:
+        query = urllib.parse.urlencode({"path": NEWS, "until": created + "Z", "per_page": 1})
+        commits = json.loads(fetch(f"https://api.github.com/repos/{repo}/commits?{query}"))
+        sha = commits[0]["sha"]
+        remote = entries(fetch(f"https://raw.githubusercontent.com/{repo}/{sha}/{NEWS}"))
+    except (OSError, ValueError, KeyError, IndexError):
+        return lines or None
+    try:
+        local = {t for _, t in entries(LOCAL_NEWS.read_text())}
+    except OSError:
+        local = set()
+    return [t for _, t in remote if t not in local] + lines
 
 
 def flatpak_updates():
@@ -82,13 +151,24 @@ def check():
         old = json.loads(STATE.read_text())
     except (OSError, ValueError):
         old = {}
-    system = system_state()
+    system, image, remote = system_state()
     flatpaks = flatpak_updates()
     state = {
         "system": old.get("system", "") if system is None else system,
         "flatpaks": old.get("flatpaks", []) if flatpaks is None else flatpaks,
         "checked": int(time.time()),
     }
+    # What the new version brings: once per image; kept while it waits for a restart
+    if state["system"] == "new" and remote and old.get("newsFor") == remote:
+        state["news"], state["newsFor"] = old.get("news", []), remote
+    elif state["system"] == "new" and image:
+        news = news_for(image)
+        if news is not None:
+            state["news"], state["newsFor"] = news, remote
+        elif old.get("system") == "new":
+            state["news"], state["newsFor"] = old.get("news", []), old.get("newsFor", "")
+    elif state["system"] == "staged" and old.get("news"):
+        state["news"], state["newsFor"] = old["news"], old.get("newsFor", "")
     # Fetched and waiting for a restart: no arrow (there's nothing left to update – the user
     # asked for it to go away right after updating, 10 Oct). Fetched in the background by the
     # automatic updates, the user wouldn't know: one notice instead. Not after goblin update /

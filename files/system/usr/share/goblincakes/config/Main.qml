@@ -167,10 +167,12 @@ Window {
         }
         const apps = st.flatpaks || [];
         const lines = [];
+        const news = (st.news || []).map(line => "  • " + line);
         if (st.system === "new")
-            lines.push("Ny GOBLINCAKES-version finns.");
+            lines.push("Ny GOBLINCAKES-version finns" + (news.length > 0 ? ":" : "."), ...news);
         else if (st.system === "staged")
-            lines.push("En ny GOBLINCAKES-version är redan hämtad – den används efter en omstart.");
+            lines.push("En ny GOBLINCAKES-version är redan hämtad – den används efter en omstart"
+                       + (news.length > 0 ? ":" : "."), ...news);
         if (apps.length > 0)
             lines.push((apps.length === 1 ? "1 program" : apps.length + " program") + " kan uppdateras: " + apps.join(", ") + ".");
         const found = st.system === "new" || apps.length > 0;
