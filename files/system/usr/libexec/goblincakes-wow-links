@@ -197,7 +197,7 @@ def update_raiderio(found, wow_folder):
              if p.is_file()]
     if not files:
         return
-    if subprocess.run(["pgrep", "-if", "raiderio"], capture_output=True).returncode == 0:
+    if subprocess.run(["pgrep", "-i", "^raiderio"], capture_output=True).returncode == 0:
         say("Raider.IO är igång – stäng den och kör goblin wow igen, så hittar den WoW.")
         return
     for config in files:
