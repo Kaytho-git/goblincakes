@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-10  Inloggningsskärmen: välj Skrivbord eller TV-läge under lösenordet (Skrivbord är alltid förvalt; pilarna vänster/höger byter)
 2026-10-10  Inloggningen går alltid till skrivbordet – första inloggningen hamnade i TV-läget (Steam Big Picture) utan väg ut
 2026-10-10  GOBLINCAKES Config → Uppdatera börjar med Kolla efter uppdateringar; Uppdatera allt visas när det finns något att uppdatera
 2026-10-10  Uppdateringspilen försvinner direkt när den nya versionen är hämtad; hämtas den i bakgrunden får du en notis i stället
