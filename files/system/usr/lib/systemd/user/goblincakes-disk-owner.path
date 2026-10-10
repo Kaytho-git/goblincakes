@@ -1,0 +1,11 @@
+[Unit]
+Description=GOBLINCAKES: notice when a disk is mounted (Dolphin, plugged in later)
+ConditionKernelCommandLine=!rd.live.image
+
+[Path]
+# A new folder in /run/media/<user> = a disk was mounted
+PathChanged=/run/media/%u
+Unit=goblincakes-disk-owner.service
+
+[Install]
+WantedBy=default.target

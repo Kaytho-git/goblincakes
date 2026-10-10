@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# GOBLINCAKES: makes the person at the computer the owner of their own extra disks.
+# A partition formatted with a Linux file system (ext4, btrfs, xfs, f2fs) in Partition
+# Manager or with mkfs belongs to root, so after mounting (/run/media/<user>/<name>)
+# nothing could be written there without the root password (10 Oct). FAT/NTFS/exFAT
+# have no owners – udisks already mounts them as the user.
+# Runs as root through pkexec (polkit org.goblincakes.disk-owner, wheel without password),
+# started by goblincakes-automount --owner. Only the top folder of the disk changes owner
+# (like chown on a fresh disk); files already on it stay as they are.
+# Refuses anything but a mounted Linux file system in the caller's own /run/media folder
+# whose top folder belongs to root and isn't an installed Linux system.
+set -uo pipefail
+
+grep -qw rd.live.image /proc/cmdline && exit 0   # the live USB never touches disks
+uid=${PKEXEC_UID:-}
+[ -n "$uid" ] && [ "$uid" != 0 ] || { echo "goblincakes-disk-owner: kör via pkexec" >&2; exit 1; }
+user=$(getent passwd "$uid" | cut -d: -f1)
+gid=$(getent passwd "$uid" | cut -d: -f4)
+[ -n "$user" ] && [ -n "$gid" ] || exit 1
+
+status=0
+for dir in "$@"; do
+    real=$(realpath -e -- "$dir" 2>/dev/null) || continue
+    case $real in
+        "/run/media/$user/"*/*|"/run/media/$user/") continue ;;
+        "/run/media/$user/"*) ;;
+        *) echo "Hoppar över $dir: inte en disk i /run/media/$user" >&2; continue ;;
+    esac
+    fstype=$(findmnt -n -o FSTYPE --mountpoint "$real" 2>/dev/null) || continue
+    case $fstype in ext2|ext3|ext4|btrfs|xfs|f2fs) ;; *) continue ;; esac
+    [ "$(stat -c %u -- "$real")" = 0 ] || continue
+    # an old Linux installation (its root file system): leave it to root
+    if [ -d "$real/etc" ] && [ -d "$real/usr" ] || [ -d "$real/ostree" ] || [ -d "$real/root/ostree" ]; then
+        echo "Hoppar över $real: ser ut som ett installerat system" >&2
+        continue
+    fi
+    if chown "$uid:$gid" -- "$real" && chmod u+rwx -- "$real"; then
+        echo "$real tillhör nu $user"
+    else
+        status=1
+    fi
+done
+exit $status

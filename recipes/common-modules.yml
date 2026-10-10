@@ -143,6 +143,7 @@ modules:
     user:
       enabled:
         - goblincakes-updates.timer       # the green update arrow in the top bar
+        - goblincakes-disk-owner.path     # own Linux-formatted disks mounted later (otherwise root's)
 
   # GOBLINCAKES name in About this System and the boot menu
   - type: os-release

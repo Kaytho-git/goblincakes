@@ -1,0 +1,7 @@
+[Unit]
+Description=GOBLINCAKES: make the user the owner of newly mounted Linux-formatted disks
+ConditionKernelCommandLine=!rd.live.image
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/goblincakes-automount --owner

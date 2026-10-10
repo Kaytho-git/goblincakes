@@ -6,8 +6,34 @@
 #    50-goblincakes-mount.rules. Skips EFI/recovery partitions and encrypted disks.
 #  - lets Lutris and Heroic (Flatpaks) reach those disks, for game libraries there
 #    (Steam is in the image and reaches them anyway).
+#  - makes the user the owner of mounted Linux-formatted disks that belong to root
+#    (formatted in Partition Manager / mkfs) – otherwise only root could write there.
+#    `--owner` does only that: started by goblincakes-disk-owner.path when a disk is
+#    mounted later.
 # Disks plugged in later: KDE's own automounter (/etc/xdg/kded_device_automounterrc).
 set -uo pipefail
+
+# Linux file systems in /run/media/<user> whose top folder still belongs to root
+take_ownership() {
+    local dirs=() dir
+    for dir in "/run/media/$USER"/*/; do
+        dir=${dir%/}
+        [ -d "$dir" ] || continue
+        case $(findmnt -n -o FSTYPE --mountpoint "$dir" 2>/dev/null) in
+            ext2|ext3|ext4|btrfs|xfs|f2fs) ;;
+            *) continue ;;
+        esac
+        [ "$(stat -c %u -- "$dir")" = 0 ] && dirs+=("$dir")
+    done
+    [ ${#dirs[@]} -gt 0 ] || return 0
+    pkexec /usr/libexec/goblincakes-disk-owner "${dirs[@]}" || true
+}
+
+if [ "${1:-}" = --owner ]; then
+    sleep 2   # the folder appears just before the disk is mounted on it
+    take_ownership
+    exit 0
+fi
 
 lsblk -J -b -o PATH,TYPE,FSTYPE,PARTTYPE,MOUNTPOINTS,SIZE 2>/dev/null | python3 -c '
 import json, sys
@@ -36,6 +62,7 @@ for d in walk(json.load(sys.stdin)["blockdevices"]):
 ' | while read -r dev; do
     udisksctl mount --no-user-interaction -b "$dev" >/dev/null 2>&1 || true
 done
+take_ownership
 
 # Game launchers from Flathub can't see /run/media unless allowed
 for app in net.lutris.Lutris com.heroicgameslauncher.hgl; do
