@@ -1,7 +1,11 @@
 /*
     GOBLINCAKES Updates – a green arrow in the top bar when there is something new:
-    a newer GOBLINCAKES version, one the automatic updates already fetched (needs a restart), or Flatpak
-    programs. Hover = what; click = GOBLINCAKES Config → Uppdatera. Nothing new = no space taken.
+    a newer GOBLINCAKES version, one being fetched by the automatic updates, one fetched and
+    waiting for a restart (however it was fetched – the arrow stays until the restart, the
+    user's wish 10 Oct), or Flatpak programs. Hover = what; click = GOBLINCAKES Config →
+    Uppdatera. Nothing new = no space taken.
+    Waiting for a restart = /run/ostree/staged-deployment exists (gone after the restart, so a
+    stale "staged" in the file never shows); fetching = rpm-ostreed-automatic/uupd is running.
     /usr/libexec/goblincakes-updates check (timer at login and every 4 hours, and after
     goblin update) writes ~/.cache/goblincakes/updates.json; this only reads it.
 */
@@ -21,12 +25,15 @@ PlasmoidItem {
     property string system: ""      // "new", "staged" or ""
     property var flatpaks: []
     property var news: []           // what the new version brings (goblincakes-updates)
-    // "staged" (fetched, waiting for a restart): arrow only when the automatic updates fetched
-    // it in the background ("restart") – not right after goblin update / Config.
-    property bool restart: false
-    readonly property bool available: system === "new" || restart || flatpaks.length > 0
+    property bool staged: false     // fetched, waiting for a restart
+    property bool fetching: false   // the automatic updates are fetching right now
+    property bool asked: false      // a check already started for a staged version the file lacks
+    readonly property bool available: system === "new" || staged || fetching || flatpaks.length > 0
 
-    readonly property string readCommand: "cat \"$HOME/.cache/goblincakes/updates.json\" 2>/dev/null"
+    // Line 1: the file; line 2: staged (1/0); line 3: automatic update running (1/0)
+    readonly property string readCommand: "printf '%s\\n' \"$(cat \"$HOME/.cache/goblincakes/updates.json\" 2>/dev/null)\"; "
+        + "test -e /run/ostree/staged-deployment && echo 1 || echo 0; "
+        + "systemctl is-active -q rpm-ostreed-automatic.service || systemctl is-active -q uupd.service && echo 1 || echo 0"
 
     P5Support.DataSource {
         id: exec
@@ -34,18 +41,27 @@ PlasmoidItem {
         connectedSources: []
         onNewData: (source, data) => {
             if (source === root.readCommand) {
+                const out = (data["stdout"] || "").split("\n");
+                root.staged = out[1] === "1";
+                root.fetching = out[2] === "1";
                 try {
-                    const state = JSON.parse(data["stdout"]);
-                    root.system = state.system || "";
+                    const state = JSON.parse(out[0]);
+                    // "staged" in the file only counts while it really waits (not after the restart)
+                    root.system = state.system === "staged" && !root.staged ? "" : (state.system || "");
                     root.flatpaks = state.flatpaks || [];
                     root.news = state.news || [];
-                    root.restart = state.system === "staged" && state.restart === true;
                 } catch (e) {
-                    root.restart = false;
                     root.system = "";
                     root.flatpaks = [];
                     root.news = [];
                 }
+                // Fetched in the background since the last check: check now (news + notice)
+                if (root.staged && root.system !== "staged" && !root.asked) {
+                    root.asked = true;
+                    exec.connectSource("setsid -f /usr/libexec/goblincakes-updates check >/dev/null 2>&1 < /dev/null");
+                }
+                if (!root.staged)
+                    root.asked = false;
             }
             disconnectSource(source);
         }
@@ -69,12 +85,16 @@ PlasmoidItem {
     toolTipMainText: ""
     toolTipSubText: ""
     readonly property string tipTitle: !available ? ""
-        : (restart && flatpaks.length === 0) ? "Starta om för att uppdatera" : "Uppdateringar finns"
+        : (staged && flatpaks.length === 0) ? "Starta om för att uppdatera"
+        : (fetching && system !== "new" && flatpaks.length === 0) ? "Uppdatering pågår"
+        : "Uppdateringar finns"
     readonly property string tipText: {
         const lines = [];
-        if (system === "new" || restart) {
-            lines.push((restart ? "Ny GOBLINCAKES-version hämtad – används efter en omstart"
-                                : "Ny GOBLINCAKES-version") + (news.length > 0 ? ":" : ""));
+        if (fetching && !staged)
+            lines.push("Ny GOBLINCAKES-version hämtas i bakgrunden …");
+        if (system === "new" || staged) {
+            lines.push((staged ? "Ny GOBLINCAKES-version hämtad – starta om datorn för att använda den"
+                               : "Ny GOBLINCAKES-version") + (news.length > 0 ? ":" : ""));
             for (const line of news.slice(0, 5))
                 lines.push("• " + line);
             if (news.length > 5)
@@ -86,7 +106,8 @@ PlasmoidItem {
                        : flatpaks.length + " program: " + shown + (flatpaks.length > 3 ? " …" : ""));
         }
         if (lines.length > 0)
-            lines.push("Klicka för att uppdatera");
+            lines.push(staged && system !== "new" && flatpaks.length === 0 ? "Klicka för att starta om"
+                       : "Klicka för att uppdatera");
         return lines.join("\n");
     }
 

@@ -4,8 +4,7 @@
 #   goblincakes-updates check   look now (the user timer goblincakes-updates.timer: at login
 #                               and every 4 hours; goblin update runs it when it's done)
 # System: a newer GOBLINCAKES image on the registry than the newest one here ("new"), or a new
-# version already fetched that is used after a restart ("staged"; arrow only when it was
-# fetched in the background, "restart"). Compared by the image
+# version already fetched that is used after a restart ("staged"). Compared by the image
 # digest, without downloading anything and without a password (skopeo, rpm-ostree status).
 # Flatpak: programs (not runtimes) with updates, user and system installations.
 # What a new version brings (10 Oct, the user's wish – shown by the arrow and in Config): the
@@ -215,18 +214,12 @@ def check():
             state["news"], state["newsFor"] = news, remote
         elif old.get("news"):
             state["news"], state["newsFor"] = old["news"], old.get("newsFor", "")
-    # Fetched and waiting for a restart. After goblin update / Config (GOBLINCAKES_UPDATED=1
-    # from goblin): no arrow – they say "Starta om nu" themselves and the user asked for the
-    # arrow to go away right after updating (10 Oct); that version is remembered ("quiet").
-    # Fetched in the background by the automatic updates: arrow until the restart ("restart",
-    # the user's wish 10 Oct evening) + one notice.
-    if state["system"] == "staged":
-        if os.environ.get("GOBLINCAKES_UPDATED") == "1":
-            state["quiet"] = remote
-        elif old.get("quiet") and old.get("quiet") == remote:
-            state["quiet"] = remote
-        state["restart"] = not state.get("quiet")
-        if old.get("system") != "staged" and os.environ.get("GOBLINCAKES_UPDATED") != "1":
+    # Fetched and waiting for a restart: the arrow stays until the restart however it was fetched
+    # (the widget looks at /run/ostree/staged-deployment itself). Fetched in the background by
+    # the automatic updates, the user wouldn't know: one notice too. Not after goblin update /
+    # Config (GOBLINCAKES_UPDATED=1 from goblin) – they say "Starta om nu" themselves.
+    if state["system"] == "staged" and old.get("system") != "staged":
+        if os.environ.get("GOBLINCAKES_UPDATED") != "1":
             subprocess.run(["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes",
                             "Ny GOBLINCAKES-version hämtad",
                             "Den används nästa gång du startar om datorn."], capture_output=True)
