@@ -98,7 +98,9 @@ check() {
         gamescope-flatpak) flatpak list --columns=application | grep -qx org.freedesktop.Platform.VulkanLayer.gamescope ;;
         # Installed with today's container setup (see layout in goblincakes-ianseo)
         snap) snap list "$1" >/dev/null 2>&1 ;;
-        battlenet) compgen -G "$HOME/Games/battlenet*/drive_c" >/dev/null ;;
+        # Battle.net itself, not just the Wine prefix (10 Oct: the setup didn't finish, the
+        # prefix was there and Lutris said "Battle.net Launcher.exe could not be found")
+        battlenet) compgen -G "$HOME/Games/battlenet*/drive_c/Program Files*/Battle.net/Battle.net*.exe" >/dev/null ;;
         claude-code) [ -x "$HOME/.local/bin/claude" ] ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;

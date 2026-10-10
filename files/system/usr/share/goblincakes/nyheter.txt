@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-10  GOBLINCAKES Config räknar bara Battle.net som installerat när Battle.net verkligen finns, inte bara dess mapp
 2026-10-10  Piper känner igen fler möss, bland annat Logitech G502 X, G502 X Plus och G502 X trådlös via mottagaren
 2026-10-10  Scrollhjulet i GOBLINCAKES Config, Goblin AI och Avinstallera program flyttar listan direkt – det var segt förut
 2026-10-10  Inloggningsskärmen: välj Skrivbord eller TV-läge under lösenordet (Skrivbord är alltid förvalt; pilarna vänster/höger byter)
