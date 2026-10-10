@@ -1,6 +1,6 @@
 /*
     GOBLINCAKES Updates – a green arrow in the top bar when there is something new:
-    a newer GOBLINCAKES version, one already fetched that needs a restart, or Flatpak
+    a newer GOBLINCAKES version, one the automatic updates already fetched (needs a restart), or Flatpak
     programs. Hover = what; click = GOBLINCAKES Config → Uppdatera. Nothing new = no space taken.
     /usr/libexec/goblincakes-updates check (timer at login and every 4 hours, and after
     goblin update) writes ~/.cache/goblincakes/updates.json; this only reads it.
@@ -21,9 +21,10 @@ PlasmoidItem {
     property string system: ""      // "new", "staged" or ""
     property var flatpaks: []
     property var news: []           // what the new version brings (goblincakes-updates)
-    // "staged" (fetched, waiting for a restart) shows no arrow: nothing left to update.
-    // goblincakes-updates gives a notice instead when it was fetched in the background.
-    readonly property bool available: system === "new" || flatpaks.length > 0
+    // "staged" (fetched, waiting for a restart): arrow only when the automatic updates fetched
+    // it in the background ("restart") – not right after goblin update / Config.
+    property bool restart: false
+    readonly property bool available: system === "new" || restart || flatpaks.length > 0
 
     readonly property string readCommand: "cat \"$HOME/.cache/goblincakes/updates.json\" 2>/dev/null"
 
@@ -38,7 +39,9 @@ PlasmoidItem {
                     root.system = state.system || "";
                     root.flatpaks = state.flatpaks || [];
                     root.news = state.news || [];
+                    root.restart = state.system === "staged" && state.restart === true;
                 } catch (e) {
+                    root.restart = false;
                     root.system = "";
                     root.flatpaks = [];
                     root.news = [];
@@ -65,11 +68,13 @@ PlasmoidItem {
     // Drawn straight in the bar, so Plasma's own applet tooltip isn't shown: our own ToolTipArea
     toolTipMainText: ""
     toolTipSubText: ""
-    readonly property string tipTitle: available ? "Uppdateringar finns" : ""
+    readonly property string tipTitle: !available ? ""
+        : (restart && flatpaks.length === 0) ? "Starta om för att uppdatera" : "Uppdateringar finns"
     readonly property string tipText: {
         const lines = [];
-        if (system === "new") {
-            lines.push("Ny GOBLINCAKES-version" + (news.length > 0 ? ":" : ""));
+        if (system === "new" || restart) {
+            lines.push((restart ? "Ny GOBLINCAKES-version hämtad – används efter en omstart"
+                                : "Ny GOBLINCAKES-version") + (news.length > 0 ? ":" : ""));
             for (const line of news.slice(0, 5))
                 lines.push("• " + line);
             if (news.length > 5)
