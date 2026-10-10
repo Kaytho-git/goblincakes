@@ -1,0 +1,87 @@
+#!/usr/bin/python3
+"""Is Discord in a voice channel? Read by the top bar's Spelas nu widget every few seconds.
+
+Discord doesn't put the voice channel in its window title, but its own log says when voice
+connects and disconnects, with the server's id:
+  [RTCConnection(<server id>, default)] Connecting to RTC server …   → in voice
+  [RTCConnection(<server id>, default)] Destroy RTCConnection        → left
+and which server you are looking at:
+  [Routing/Utils] transitionTo - Transitioning to /channels/<server id>/<channel id>
+The widget learns the server names from the window title while you look at a server.
+The channel's name isn't anywhere on the computer (only Discord's RPC with an own app has it).
+
+Prints {"voice": bool, "guild": "<server id or empty>", "viewing": "<server id or empty>"}.
+Only the new part of the log is read each time (offset in ~/.cache/goblincakes/discord-voice.state).
+"""
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+LOGS = [
+    HOME / ".var/app/com.discordapp.Discord/config/discord/logs/renderer_js.log",
+    HOME / ".var/app/com.discordapp.DiscordCanary/config/discordcanary/logs/renderer_js.log",
+    HOME / ".config/discord/logs/renderer_js.log",
+    HOME / ".config/discordptb/logs/renderer_js.log",
+    HOME / ".config/discordcanary/logs/renderer_js.log",
+]
+STATE = HOME / ".cache/goblincakes/discord-voice.state"
+
+# "default" = your own voice connection (Go Live streams have their own contexts)
+RTC = re.compile(r"\[RTCConnection\(([^,()]*), default\)\] (Connecting to RTC server|Destroy RTCConnection)")
+VIEW = re.compile(r"transitionTo - Transitioning to /channels/([^/\s]+)")
+
+
+def newest_log():
+    found = [p for p in LOGS if p.is_file()]
+    return max(found, key=lambda p: p.stat().st_mtime) if found else None
+
+
+def main():
+    empty = {"voice": False, "guild": "", "viewing": ""}
+    log = newest_log()
+    if not log:
+        print(json.dumps(empty))
+        return 0
+    st = log.stat()
+    try:
+        state = json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        state = {}
+    # A new or restarted log (other file, other inode, or shorter) is read from the start
+    if state.get("file") != str(log) or state.get("inode") != st.st_ino or state.get("offset", 0) > st.st_size:
+        state = {"file": str(log), "inode": st.st_ino, "offset": 0, **empty}
+
+    with open(log, "rb") as f:
+        f.seek(state["offset"])
+        data = f.read()
+    # Only whole lines; a half-written last line is read next time
+    end = data.rfind(b"\n") + 1
+    for line in data[:end].decode("utf-8", "replace").splitlines():
+        m = RTC.search(line)
+        if m:
+            connected = m.group(2).startswith("Connecting")
+            state["voice"] = connected
+            guild = m.group(1).strip()
+            state["guild"] = guild if connected and guild.isdigit() else ""
+            continue
+        m = VIEW.search(line)
+        if m:
+            state["viewing"] = m.group(1) if m.group(1).isdigit() else ""
+    state["offset"] += end
+
+    try:
+        STATE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = STATE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(state))
+        os.replace(tmp, STATE)
+    except OSError:
+        pass
+    print(json.dumps({k: state[k] for k in empty}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

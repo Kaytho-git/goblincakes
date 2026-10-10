@@ -4,8 +4,12 @@
     Music: what Spotify or the music player (Quod Libet …) is playing, read over
     MPRIS with the same model as Plasma's media controller. Browsers are left out
     so a YouTube tab doesn't take over the bar.
-    Discord: the server and channel you are in, read from the Discord window's
-    title ("#channel | Server - Discord") through the task manager model.
+    Discord: the server whose voice channel you are in (only while you are in voice –
+    10 Oct, the user's choice). /usr/libexec/goblincakes-discord-voice reads Discord's log
+    (voice connect/disconnect + which server you look at, by id); the server's name is
+    learnt from the Discord window's title ("#channel | Server - Discord") while you look
+    at it and kept in the widget's config. The voice channel's own name isn't on the
+    computer (not in the title or the log).
     Nothing to show = the widget takes no space.
 */
 import QtQuick
@@ -13,6 +17,7 @@ import QtQuick.Layouts
 import QtQml.Models
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
+import org.kde.plasma.plasma5support as P5Support
 import org.kde.plasma.private.mpris as Mpris
 import org.kde.taskmanager as TaskManager
 import org.kde.kirigami as Kirigami
@@ -92,35 +97,93 @@ PlasmoidItem {
 
     // ---- Discord ----
     property int windowRevision: 0
+    property bool inVoice: false
+    property string voiceServer: ""   // server id of the voice channel ("" = DM call)
+    property string viewingServer: "" // server id you are looking at
+    property var serverNames: ({})    // server id → name, saved in the widget's config
+    property string pendingName: ""   // "<id>|<name>" seen once – saved when seen twice in a row
 
-    // "(2) #general | Raid Night - Discord", "Discord | #general | Raid Night" →
-    // "Raid Night  ›  #general". Empty outside a server channel (DMs, friends list).
-    function discordPlace(title) {
+    // "(2) #general | Raid Night - Discord", "Discord | #general | Raid Night" → "Raid Night".
+    // Empty outside a server channel (DMs, friends list).
+    function discordServer(title) {
         let t = title.replace(/^\(\d+\)\s*/, "").replace(/^[•●]\s*/, "");
         t = t.replace(/\s+[-–—]\s+(Discord|Vesktop)$/i, "");
         const parts = t.split(" | ").map(p => p.trim())
             .filter(p => p.length > 0 && !/^(discord|vesktop)$/i.test(p));
         const channel = parts.find(p => p.startsWith("#"));
-        if (!channel) {
-            return "";
-        }
-        const server = parts.filter(p => p !== channel).join(" · ");
-        return server ? server + "  ›  " + channel : channel;
+        return channel ? parts.filter(p => p !== channel).join(" · ") : "";
     }
 
-    readonly property var discord: {
+    readonly property var discordWindow: {
         windowRevision;
         for (let i = 0; i < windows.count; i++) {
             const w = windows.objectAt(i);
-            if (!w || !/discord|vesktop|vencord|webcord|armcord|legcord/i.test(w.appId)) {
-                continue;
-            }
-            const place = discordPlace(w.title);
-            if (place) {
-                return { place: place, row: w.row, icon: w.appId };
+            if (w && /discord|vesktop|vencord|webcord|armcord|legcord/i.test(w.appId)) {
+                return { row: w.row, icon: w.appId, title: w.title };
             }
         }
         return null;
+    }
+
+    readonly property var discord: {
+        if (!inVoice || !discordWindow) {
+            return null;
+        }
+        const server = serverNames[voiceServer] || "";
+        return { place: server ? server + "  ›  🔊 Röstkanal" : "🔊 Röstkanal",
+                 row: discordWindow.row, icon: discordWindow.icon };
+    }
+
+    // The title and the log are read at slightly different moments, so a name is only
+    // saved when the same server id and title name are seen in two reads in a row.
+    function learnServerName() {
+        if (!discordWindow || !viewingServer) {
+            pendingName = "";
+            return;
+        }
+        const name = discordServer(discordWindow.title);
+        const pair = viewingServer + "|" + name;
+        if (!name || pair !== pendingName) {
+            pendingName = name ? pair : "";
+            return;
+        }
+        if (serverNames[viewingServer] !== name) {
+            const names = Object.assign({}, serverNames);
+            names[viewingServer] = name;
+            serverNames = names;
+            Plasmoid.configuration.discordServers = JSON.stringify(names);
+        }
+    }
+
+    readonly property string voiceCommand: "/usr/libexec/goblincakes-discord-voice"
+
+    P5Support.DataSource {
+        id: exec
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            if (source === root.voiceCommand) {
+                try {
+                    const state = JSON.parse(data["stdout"]);
+                    root.inVoice = state.voice === true;
+                    root.voiceServer = state.guild || "";
+                    root.viewingServer = state.viewing || "";
+                } catch (e) {
+                    root.inVoice = false;
+                }
+                root.learnServerName();
+            }
+            disconnectSource(source);
+        }
+    }
+
+    // Only while Discord is open; the helper reads just the new lines of the log
+    Timer {
+        interval: 3000
+        running: root.discordWindow !== null
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: exec.connectSource(root.voiceCommand)
     }
 
     TaskManager.TasksModel {
@@ -289,6 +352,11 @@ PlasmoidItem {
 
     Component.onCompleted: {
         Plasmoid.removeInternalAction("configure");
+        try {
+            serverNames = JSON.parse(Plasmoid.configuration.discordServers || "{}");
+        } catch (e) {
+            serverNames = {};
+        }
     }
 }
 

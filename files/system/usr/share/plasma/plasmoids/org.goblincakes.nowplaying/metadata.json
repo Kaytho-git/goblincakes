@@ -6,8 +6,8 @@
             }
         ],
         "Category": "Multimedia",
-        "Description": "Shows what Spotify or the music player is playing and the Discord server/channel you are in",
-        "Description[sv]": "Visar vad Spotify eller musikspelaren spelar och vilken Discord-server/kanal du är i",
+        "Description": "Shows what Spotify or the music player is playing and the Discord server whose voice channel you are in",
+        "Description[sv]": "Visar vad Spotify eller musikspelaren spelar och vilken Discord-server du är i en röstkanal på",
         "Icon": "media-playback-start",
         "Id": "org.goblincakes.nowplaying",
         "License": "GPL-3.0-or-later",
