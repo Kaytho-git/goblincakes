@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """GOBLINCAKES: every installed WoW version linked under ~/Games/WoW, where it really is.
 
-  ~/Games/WoW/World of Warcraft   → the WoW folder itself
+  ~/Games/WoW/World of Warcraft   → the WoW folder itself (Archon: pick its _retail_ … once)
   ~/Games/World of Warcraft       → the same, where Raider.IO looks by itself on its first start
   ~/Games/WoW/<Version>/Logs      → that version's Logs (combat logs)
   ~/Games/WoW/<Version>/AddOns    → that version's Interface/AddOns
@@ -9,9 +9,10 @@
 
 WoW is looked for in every Wine prefix (Lutris, ~/.wine, Steam), on the other disks the
 prefixes reach through drive letters (D:, E: …) and on the mounted disks; the links follow
-WoW if it moves. WowUp, Raider.IO and Archon are told about every version too (WowUp and
-Raider.IO in their settings files, Archon in its browser storage), so their version list
-stays right. Runs at every login and as `goblin wow` (--verbose).
+WoW if it moves. WowUp and Raider.IO are told about every version too (their own settings
+files – Archon keeps its settings in its browser storage, which is left alone (the user's
+wish, 11 Oct): it gets the link and is told which folders to pick), so their
+version list stays right. Runs at every login and as `goblin wow` (--verbose).
 
 Text to speech (10 Oct, the user's wish – WoW's read-aloud chat): Proton 9+ speaks with Piper
 voices from Steam's tool "Proton Voice Files" (appid 3086180, one English model with 904
@@ -20,10 +21,8 @@ speakers are added as SAPI voices (GOBLINCAKES_TTS_*) in every prefix that has P
 only while nothing runs in that prefix. Picked by measuring all 904: normal speaking pace, the
 same pitch in two sentences, five male (100–140 Hz) and five female (174–231 Hz).
 """
-import fcntl
 import json
 import os
-import struct
 import subprocess
 import sys
 import time
@@ -236,273 +235,6 @@ def update_raiderio(found, wow_folder):
             say("Raider.IO: WoW-mappen är inlagd.")
 
 
-# Archon's own id for each WoW version → its folder (from its code: getGameDirectoryPath in app.js)
-ARCHON_VERSIONS = {"live": "_retail_", "live-ptr": "_ptr_", "live-xptr": "_xptr_",
-                   "live-beta": "_beta_", "classic": "_classic_", "classic-ptr": "_classic_ptr_",
-                   "classic-fresh": "_anniversary_", "classic-sod": "_classic_era_",
-                   "vanilla": "_classic_era_", "classic-sod-ptr": "_classic_era_ptr_",
-                   "vanilla-ptr": "_classic_era_ptr_"}
-ARCHON_DB = Path(os.environ.get("GOBLINCAKES_ARCHON_DB")
-                 or HOME / ".config" / "Archon App" / "Local Storage" / "leveldb")
-ARCHON_KEY = b"_file://\x00\x01"  # Chromium localStorage: origin, then the key in Latin-1
-
-
-def _crc32c(data: bytes):
-    crc = 0xFFFFFFFF
-    for b in data:
-        crc ^= b
-        for _ in range(8):
-            crc = (crc >> 1) ^ (0x82F63B78 if crc & 1 else 0)
-    return crc ^ 0xFFFFFFFF
-
-
-def _varint(buf, pos):
-    shift = result = 0
-    while True:
-        b = buf[pos]
-        pos += 1
-        result |= (b & 0x7F) << shift
-        if b < 0x80:
-            return result, pos
-        shift += 7
-
-
-def _put_varint(n):
-    out = bytearray()
-    while n >= 0x80:
-        out.append(n & 0x7F | 0x80)
-        n >>= 7
-    out.append(n)
-    return bytes(out)
-
-
-def _log_records(data: bytes):
-    """LevelDB's log format: 32 KiB blocks of fragments (crc, length, type FULL/FIRST/MIDDLE/LAST)."""
-    pos, parts = 0, b""
-    while pos + 7 <= len(data):
-        left = 32768 - pos % 32768
-        if left < 7:
-            pos += left
-            continue
-        length, kind = struct.unpack_from("<HB", data, pos + 4)
-        frag = data[pos + 7:pos + 7 + length]
-        pos += 7 + length
-        if kind == 0:  # zeroed tail of a block
-            continue
-        parts = frag if kind in (1, 2) else parts + frag
-        if kind in (1, 4):
-            yield parts
-            parts = b""
-
-
-def _snappy(data: bytes):
-    length, pos = _varint(data, 0)
-    out = bytearray()
-    while pos < len(data):
-        tag = data[pos]
-        pos += 1
-        kind = tag & 3
-        if kind == 0:
-            n = tag >> 2
-            if n >= 60:
-                extra = n - 59
-                n = int.from_bytes(data[pos:pos + extra], "little")
-                pos += extra
-            out += data[pos:pos + n + 1]
-            pos += n + 1
-            continue
-        if kind == 1:
-            n, off = 4 + (tag >> 2 & 7), (tag >> 5) << 8 | data[pos]
-            pos += 1
-        else:
-            size = 2 if kind == 2 else 4
-            n, off = (tag >> 2) + 1, int.from_bytes(data[pos:pos + size], "little")
-            pos += size
-        for _ in range(n):
-            out.append(out[-off])
-    return bytes(out[:length])
-
-
-def _table_entries(data: bytes):
-    """(internal key, value) of every entry in an .ldb/.sst table."""
-    def block(offset, size):
-        raw = data[offset:offset + size]
-        raw = _snappy(raw) if data[offset + size] == 1 else raw
-        restarts = struct.unpack_from("<I", raw, len(raw) - 4)[0]
-        end, pos, key = len(raw) - 4 - 4 * restarts, 0, b""
-        while pos < end:
-            shared, pos = _varint(raw, pos)
-            unshared, pos = _varint(raw, pos)
-            vlen, pos = _varint(raw, pos)
-            key = key[:shared] + raw[pos:pos + unshared]
-            pos += unshared
-            yield key, raw[pos:pos + vlen]
-            pos += vlen
-    footer = data[-48:]
-    _meta_off, p = _varint(footer, 0)
-    _meta_size, p = _varint(footer, p)
-    index_off, p = _varint(footer, p)
-    index_size, p = _varint(footer, p)
-    for _key, handle in block(index_off, index_size):
-        off, p = _varint(handle, 0)
-        size, p = _varint(handle, p)
-        yield from block(off, size)
-
-
-def _manifest_sequence(rec: bytes):
-    """The last sequence number in one VersionEdit of LevelDB's MANIFEST (tag 4), or 0."""
-    pos, top = 0, 0
-    while pos < len(rec):
-        tag, pos = _varint(rec, pos)
-        if tag in (2, 3, 4, 9):  # log number, next file, last sequence, previous log
-            n, pos = _varint(rec, pos)
-            if tag == 4:
-                top = n
-        elif tag == 1:  # comparator name
-            n, pos = _varint(rec, pos)
-            pos += n
-        elif tag == 5:  # compact pointer
-            _, pos = _varint(rec, pos)
-            n, pos = _varint(rec, pos)
-            pos += n
-        elif tag == 6:  # deleted file
-            _, pos = _varint(rec, pos)
-            _, pos = _varint(rec, pos)
-        elif tag == 7:  # new file: level, number, size, smallest, largest
-            for _ in range(3):
-                _, pos = _varint(rec, pos)
-            for _ in range(2):
-                n, pos = _varint(rec, pos)
-                pos += n
-        else:
-            break
-    return top
-
-
-def _archon_values(db: Path):
-    """({localStorage key: (sequence, value or None)} – the newest of each, the highest sequence)."""
-    newest, top = {}, 0
-
-    def seen(key, seq, value):
-        if key.startswith(ARCHON_KEY) and seq >= newest.get(key, (-1,))[0]:
-            newest[key] = (seq, value)
-
-    for table in list(db.glob("*.ldb")) + list(db.glob("*.sst")):
-        for ikey, value in _table_entries(table.read_bytes()):
-            tag = int.from_bytes(ikey[-8:], "little")
-            top = max(top, tag >> 8)
-            seen(ikey[:-8], tag >> 8, value if tag & 0xFF == 1 else None)
-    for manifest in db.glob("MANIFEST-*"):
-        for rec in _log_records(manifest.read_bytes()):
-            top = max(top, _manifest_sequence(rec))
-    for log in db.glob("*.log"):
-        for rec in _log_records(log.read_bytes()):
-            seq, count = struct.unpack_from("<QI", rec)
-            pos = 12
-            for i in range(count):
-                kind = rec[pos]
-                klen, pos = _varint(rec, pos + 1)
-                key = rec[pos:pos + klen]
-                pos += klen
-                value = None
-                if kind == 1:
-                    vlen, pos = _varint(rec, pos)
-                    value = rec[pos:pos + vlen]
-                    pos += vlen
-                seen(key, seq + i, value)
-            top = max(top, seq + count - 1)
-    return newest, top
-
-
-def _archon_text(value):
-    """A localStorage value: 1 + Latin-1 or 0 + UTF-16; Archon's are JSON."""
-    if not value:
-        return None
-    try:
-        return json.loads(value[1:].decode("latin-1" if value[0] == 1 else "utf-16-le"))
-    except ValueError:
-        return None
-
-
-def _archon_encode(obj):
-    text = json.dumps(obj, ensure_ascii=False)
-    try:
-        return b"\x01" + text.encode("latin-1")
-    except UnicodeEncodeError:
-        return b"\x00" + text.encode("utf-16-le")
-
-
-def _log_append(log: Path, batch: bytes):
-    """One write batch as a record at the end of a LevelDB log, split at its 32 KiB blocks."""
-    with open(log, "ab") as f:
-        pos, out, first = f.tell(), b"", True
-        while True:
-            left = 32768 - pos % 32768
-            if left < 7:  # too little room for a header: the block ends in zeros
-                out += b"\0" * left
-                pos += left
-                continue
-            frag, batch = batch[:left - 7], batch[left - 7:]
-            kind = (1 if not batch else 2) if first else (4 if not batch else 3)
-            crc = _crc32c(bytes([kind]) + frag)
-            crc = (((crc >> 15) | (crc << 17)) + 0xA282EAD8) & 0xFFFFFFFF  # LevelDB's masked crc
-            out += struct.pack("<IHB", crc, len(frag), kind) + frag
-            pos += 7 + len(frag)
-            first = False
-            if not batch:
-                break
-        f.write(out)
-
-
-def update_archon(found):
-    """Archon (Warcraft Logs, closed source – its Electron code is readable) keeps its folders in
-    its browser storage (Chromium localStorage = LevelDB in ~/.config/Archon App/Local Storage),
-    not in a file, and finds WoW by itself only on Windows/macOS. Per version:
-    warcraft-<version>-gameDirectoryPath = the version folder (_retail_ …) and
-    warcraft-<version>-liveLogDirectoryPath = its Logs (Archon looks for the log there, not
-    under the game folder), both JSON strings. Filled in when empty or gone – a folder the
-    user picked stays. Written as one LevelDB batch at the end of its log, only while Archon
-    isn't running (LevelDB's LOCK file is free); Archon reads the log back when it starts."""
-    if not (ARCHON_DB / "CURRENT").is_file():
-        return  # Archon has never started
-    logs = sorted(ARCHON_DB.glob("*.log"), key=lambda p: int(p.stem) if p.stem.isdigit() else -1)
-    if not logs:
-        return
-    try:
-        lock = open(ARCHON_DB / "LOCK", "a")
-    except OSError:
-        return
-    with lock:
-        try:
-            fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            say("Archon är igång – stäng den och kör goblin wow igen, så hittar den WoW.")
-            return
-        try:
-            values, seq = _archon_values(ARCHON_DB)
-        except (OSError, IndexError, struct.error) as e:
-            say(f"Archon: kunde inte läsa inställningarna ({e}) – lämnar dem orörda.")
-            return
-        writes = []
-        for version, flavor in ARCHON_VERSIONS.items():
-            if flavor not in found:
-                continue
-            folder = found[flavor][0]
-            for setting, path in (("gameDirectoryPath", folder), ("liveLogDirectoryPath", folder / "Logs")):
-                key = ARCHON_KEY + f"warcraft-{version}-{setting}".encode()
-                current = _archon_text(values.get(key, (0, None))[1])
-                if isinstance(current, str) and current and Path(current).is_dir():
-                    continue  # already a working folder – the user's choice stays
-                writes.append((key, _archon_encode(str(path))))
-        if not writes:
-            return
-        batch = struct.pack("<QI", seq + 1, len(writes))
-        for key, value in writes:
-            batch += b"\x01" + _put_varint(len(key)) + key + _put_varint(len(value)) + value
-        _log_append(logs[-1], batch)
-        say("Archon: WoW-mappen är inlagd.")
-
-
 # (speaker id, gender, name) – speakers of en_US-libritts_r-medium, lowest voice first
 TTS_VOICES = [(841, "Male", "Male 1"), (369, "Male", "Male 2"), (256, "Male", "Male 3"),
               (883, "Male", "Male 4"), (291, "Male", "Male 5"),
@@ -573,10 +305,12 @@ def main():
     wow_folder = update_links(found)
     update_wowup(found)
     update_raiderio(found, wow_folder)
-    update_archon(found)
     if VERBOSE:
         print(f"WoW-mappen: {wow_folder}")
-        print(f"  WowUp, Raider.IO och Archon får WoW-mappen automatiskt")
+        print(f"  WowUp och Raider.IO får WoW-mappen automatiskt")
+        # Archon wants the version folder, not the WoW folder; its log folder is never found on Linux
+        print(f"  Archon (en gång per version): spelmapp ~/Games/WoW/World of Warcraft/<version>,")
+        print(f"    loggmapp ~/Games/WoW/<Version>/Logs, t.ex. …/World of Warcraft/_retail_ och ~/Games/WoW/Retail/Logs")
         for flavor, (folder, _exe, _mtime) in sorted(found.items(), key=lambda kv: FLAVORS[kv[0]][1]):
             name = FLAVORS[flavor][0]
             print(f"  ~/Games/WoW/{name}/Logs och AddOns → {folder}")
