@@ -90,6 +90,7 @@ modules:
     scripts:
       - hide-apps.sh
       - calendar-off.sh
+      - ananicy-tweaks.sh   # Steam's shader processing not starved by ananicy-cpp
 
   # Log in through SDDM (GOBLINCAKES theme) instead of Plasma Login Manager
   - type: script
