@@ -20,7 +20,10 @@ scrypt(id) → 16 bytes to find the line + 32 bytes key, the name is XORed with 
 keystream and has an 8-byte tag. The file shows neither ids nor names – without being in the
 guild (the id only shows up in your own Discord log) there is nothing to unlock, and guessing
 ids (64-bit snowflakes) through a 64 MB scrypt is too slow. Your own names win.
-  goblincakes-discord-voice share   prints your named channels as lines for that file
+  goblincakes-discord-voice share <server id>   prints the named channels of that one server as
+                                                lines for that file (other servers stay local)
+Which server a channel belongs to: ~/.config/goblincakes/discord-channel-servers ("id=server id",
+written when you name it).
 Results are cached in ~/.cache/goblincakes/discord-shared.json (scrypt once per channel).
 
 Without arguments prints {"voice": bool, "guild": "<server id>", "viewing": "<server id>",
@@ -46,6 +49,7 @@ LOGS = [
 ]
 STATE = HOME / ".cache/goblincakes/discord-voice.state"
 NAMES = HOME / ".config/goblincakes/discord-channels"
+SERVERS = HOME / ".config/goblincakes/discord-channel-servers"
 SHARED = Path("/usr/share/goblincakes/discord-channels.enc")
 SHARED_CACHE = HOME / ".cache/goblincakes/discord-shared.json"
 SALT = b"goblincakes-discord-channel-v1"
@@ -61,10 +65,10 @@ def newest_log():
     return max(found, key=lambda p: p.stat().st_mtime) if found else None
 
 
-def read_names():
+def read_names(path=NAMES):
     names = {}
     try:
-        for line in NAMES.read_text().splitlines():
+        for line in path.read_text().splitlines():
             key, sep, name = line.partition("=")
             if sep and key.strip().isdigit() and name.strip():
                 names[key.strip()] = name.strip()
@@ -202,11 +206,21 @@ def main():
             return 0
         names[state["channel"]] = name
         write_names(names)
+        if state["guild"]:
+            servers = read_names(SERVERS)
+            servers[state["channel"]] = state["guild"]
+            SERVERS.write_text("".join(f"{k}={v}\n" for k, v in servers.items()))
         print(f"Röstkanalen {state['channel']} heter nu: {name}")
         return 0
     if args and args[0] == "share":
+        if len(args) < 2 or not args[1].isdigit():
+            print("Ange serverns id: goblincakes-discord-voice share <server id> "
+                  "(bara den serverns kanaler – andra servrar stannar på datorn)", file=sys.stderr)
+            return 1
+        servers = read_names(SERVERS)
         for channel, name in read_names().items():
-            print(encrypt(channel, name))
+            if servers.get(channel) == args[1]:
+                print(encrypt(channel, name))
         return 0
     if args and args[0] == "list":
         state = voice_state()
