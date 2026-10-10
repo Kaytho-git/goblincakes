@@ -14,10 +14,22 @@ it), but its id is in the Connecting line ("channel: <id>(2)") – you give it a
   goblincakes-discord-voice list          the named channels (also: goblin discord)
 Names: ~/.config/goblincakes/discord-channels, one "id=name" per line (editable by hand).
 
+Shared names (10 Oct): /usr/share/goblincakes/discord-channels.enc gives everyone with GOBLINCAKES
+the names, but only for channels they have been in themselves. The channel's id is the key:
+scrypt(id) → 16 bytes to find the line + 32 bytes key, the name is XORed with an HMAC-SHA256
+keystream and has an 8-byte tag. The file shows neither ids nor names – without being in the
+guild (the id only shows up in your own Discord log) there is nothing to unlock, and guessing
+ids (64-bit snowflakes) through a 64 MB scrypt is too slow. Your own names win.
+  goblincakes-discord-voice share   prints your named channels as lines for that file
+Results are cached in ~/.cache/goblincakes/discord-shared.json (scrypt once per channel).
+
 Without arguments prints {"voice": bool, "guild": "<server id>", "viewing": "<server id>",
 "channel": "<voice channel id>", "channelName": "<name or empty>"} for the Spelas nu widget.
 Only the new part of the log is read each time (offset in ~/.cache/goblincakes/discord-voice.state).
 """
+import base64
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -34,6 +46,9 @@ LOGS = [
 ]
 STATE = HOME / ".cache/goblincakes/discord-voice.state"
 NAMES = HOME / ".config/goblincakes/discord-channels"
+SHARED = Path("/usr/share/goblincakes/discord-channels.enc")
+SHARED_CACHE = HOME / ".cache/goblincakes/discord-shared.json"
+SALT = b"goblincakes-discord-channel-v1"
 
 # "default" = your own voice connection (Go Live streams have their own contexts)
 RTC = re.compile(r"\[RTCConnection\(([^,()]*), default\)\] (Connecting to RTC server|Destroy RTCConnection)")
@@ -63,6 +78,66 @@ def write_names(names):
     lines = ["# Discord voice channels: id=name (goblin discord namn <name> while you are in the channel)"]
     lines += [f"{k}={v}" for k, v in names.items()]
     NAMES.write_text("\n".join(lines) + "\n")
+
+
+def derive(channel):
+    out = hashlib.scrypt(channel.encode(), salt=SALT, n=2**16, r=8, p=1, maxmem=128 * 2**20, dklen=48)
+    return out[:16].hex(), out[16:]
+
+
+def keystream(key, length):
+    stream = b""
+    counter = 0
+    while len(stream) < length:
+        stream += hmac.new(key, b"stream" + counter.to_bytes(4, "big"), hashlib.sha256).digest()
+        counter += 1
+    return stream[:length]
+
+
+def encrypt(channel, name):
+    lookup, key = derive(channel)
+    data = name.encode()
+    sealed = bytes(a ^ b for a, b in zip(data, keystream(key, len(data))))
+    tag = hmac.new(key, b"tag" + sealed, hashlib.sha256).digest()[:8]
+    return f"{lookup} {base64.b64encode(sealed + tag).decode()}"
+
+
+def shared_name(channel):
+    """The shared name for a channel you are in, or "" (cached; the cache follows the file)."""
+    try:
+        text = SHARED.read_text()
+    except OSError:
+        return ""
+    version = hashlib.sha256(text.encode()).hexdigest()[:16]
+    try:
+        cache = json.loads(SHARED_CACHE.read_text())
+    except (OSError, ValueError):
+        cache = {}
+    if cache.get("version") != version:
+        cache = {"version": version, "names": {}}
+    if channel in cache["names"]:
+        return cache["names"][channel]
+    lookup, key = derive(channel)
+    name = ""
+    for line in text.splitlines():
+        found, _, blob = line.strip().partition(" ")
+        if found != lookup:
+            continue
+        try:
+            raw = base64.b64decode(blob)
+        except ValueError:
+            break
+        sealed, tag = raw[:-8], raw[-8:]
+        if hmac.compare_digest(tag, hmac.new(key, b"tag" + sealed, hashlib.sha256).digest()[:8]):
+            name = bytes(a ^ b for a, b in zip(sealed, keystream(key, len(sealed)))).decode("utf-8", "replace")
+        break
+    cache["names"][channel] = name
+    try:
+        SHARED_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        SHARED_CACHE.write_text(json.dumps(cache))
+    except OSError:
+        pass
+    return name
 
 
 EMPTY = {"voice": False, "guild": "", "viewing": "", "channel": ""}
@@ -129,11 +204,15 @@ def main():
         write_names(names)
         print(f"Röstkanalen {state['channel']} heter nu: {name}")
         return 0
+    if args and args[0] == "share":
+        for channel, name in read_names().items():
+            print(encrypt(channel, name))
+        return 0
     if args and args[0] == "list":
         state = voice_state()
         names = read_names()
         if state["voice"]:
-            current = names.get(state["channel"], "inget namn än")
+            current = names.get(state["channel"]) or shared_name(state["channel"]) or "inget namn än"
             print(f"Du är i röstkanalen {state['channel']} ({current}).")
         else:
             print("Du är inte i någon röstkanal just nu.")
@@ -143,7 +222,8 @@ def main():
                 print(f"  {v}  ({k})")
         return 0
     state = voice_state()
-    state["channelName"] = read_names().get(state["channel"], "") if state["voice"] else ""
+    channel = state["channel"] if state["voice"] else ""
+    state["channelName"] = (read_names().get(channel) or shared_name(channel)) if channel else ""
     print(json.dumps(state))
     return 0
 
