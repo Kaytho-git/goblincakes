@@ -9,3 +9,12 @@ stages:
       - type: script
         scripts:
           - build-appgrid.sh
+
+  # Newer libratbag for Piper (files/scripts/build-libratbag.sh): Logitech G502 X Plus,
+  # G502 X Wireless through its receiver – not in Fedora's libratbag 0.18
+  - name: libratbag-git
+    from: ghcr.io/ublue-os/kinoite-main:latest
+    modules:
+      - type: script
+        scripts:
+          - build-libratbag.sh

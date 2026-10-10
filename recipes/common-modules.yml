@@ -77,6 +77,13 @@ modules:
     src: /out/
     dest: /
 
+  # Newer ratbagd + mouse list for Piper, built in the libratbag-git stage above,
+  # over Fedora's libratbag-ratbagd package (G502 X Plus / G502 X Wireless)
+  - type: copy
+    from: libratbag-git
+    src: /out/
+    dest: /
+
   # Fedora programs GOBLINCAKES replaces (Konsole, Discover, Welcome …) out of AppGrid –
   # still installed; "goblin apps" lists them and shows one again
   - type: script
