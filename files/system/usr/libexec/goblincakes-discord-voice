@@ -22,6 +22,10 @@ guild (the id only shows up in your own Discord log) there is nothing to unlock,
 ids (64-bit snowflakes) through a 64 MB scrypt is too slow. Your own names win.
   goblincakes-discord-voice share <server id>   prints the named channels of that one server as
                                                 lines for that file (other servers stay local)
+Unknown channel (no own or shared name): a notification with a text field asks for the name
+once per join ("ask", started in the background by the widget's read); the answer is saved
+like "name". "Fråga inte igen" = "id=" (empty name) in the names file. Ignored = asked again
+the next time you join.
 Which server a channel belongs to: ~/.config/goblincakes/discord-channel-servers ("id=server id",
 written when you name it).
 Results are cached in ~/.cache/goblincakes/discord-shared.json (scrypt once per channel).
@@ -36,6 +40,7 @@ import hmac
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -70,11 +75,62 @@ def read_names(path=NAMES):
     try:
         for line in path.read_text().splitlines():
             key, sep, name = line.partition("=")
-            if sep and key.strip().isdigit() and name.strip():
-                names[key.strip()] = name.strip()
+            if sep and key.strip().isdigit():
+                names[key.strip()] = name.strip()  # empty = "Fråga inte igen"
     except OSError:
         pass
     return names
+
+
+def save_name(channel, name, guild):
+    names = read_names()
+    names[channel] = name
+    write_names(names)
+    if guild:
+        servers = read_names(SERVERS)
+        servers[channel] = guild
+        SERVERS.write_text("".join(f"{k}={v}\n" for k, v in servers.items()))
+
+
+def ask(channel, guild):
+    """Notification with a text field (Plasma's inline reply); waits for the answer or a minute."""
+    from gi.repository import Gio, GLib
+
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+    loop = GLib.MainLoop()
+    sent = {}
+
+    def on_signal(_conn, _sender, _path, _iface, signal, params):
+        args = params.unpack()
+        if args[0] != sent.get("id"):
+            return
+        if signal == "NotificationReplied" and args[1].strip():
+            save_name(channel, args[1].strip(), guild)
+            loop.quit()
+        elif signal == "ActionInvoked" and args[1] == "never":
+            save_name(channel, "", guild)
+            loop.quit()
+        elif signal == "NotificationClosed":
+            loop.quit()
+
+    for signal in ("NotificationReplied", "ActionInvoked", "NotificationClosed"):
+        bus.signal_subscribe("org.freedesktop.Notifications", "org.freedesktop.Notifications", signal,
+                             "/org/freedesktop/Notifications", None, Gio.DBusSignalFlags.NONE, on_signal)
+    hints = {
+        "x-kde-reply-placeholder-text": GLib.Variant("s", "Kanalens namn, t.ex. Raid"),
+        "x-kde-reply-submit-button-text": GLib.Variant("s", "Spara"),
+        "desktop-entry": GLib.Variant("s", "com.discordapp.Discord"),
+    }
+    result = bus.call_sync(
+        "org.freedesktop.Notifications", "/org/freedesktop/Notifications", "org.freedesktop.Notifications",
+        "Notify", GLib.Variant("(susssasa{sv}i)", (
+            "GOBLINCAKES", 0, "discord", "Ny röstkanal – vad heter den?",
+            "Namnet visas i toppfältet och sparas bara på din dator.",
+            ["inline-reply", "Namnge", "never", "Fråga inte igen"], hints, 60000)),
+        GLib.VariantType("(u)"), Gio.DBusCallFlags.NONE, -1, None)
+    sent["id"] = result.unpack()[0]
+    GLib.timeout_add_seconds(70, loop.quit)
+    loop.run()
 
 
 def write_names(names):
@@ -174,6 +230,7 @@ def voice_state():
             state["guild"] = guild if connected and guild.isdigit() else ""
             c = CHANNEL.search(line) if connected else None
             state["channel"] = c.group(1) if c else ""
+            state["joined"] = f"{log}:{st.st_ino}:{state['offset']}:{line[:23]}" if connected else ""
             continue
         m = VIEW.search(line)
         if m:
@@ -187,7 +244,19 @@ def voice_state():
         os.replace(tmp, STATE)
     except OSError:
         pass
-    return {k: state.get(k, v) for k, v in EMPTY.items()}
+    out = {k: state.get(k, v) for k, v in EMPTY.items()}
+    out["joined"] = state.get("joined", "")
+    out["asked"] = state.get("asked", "")
+    return out
+
+
+def remember_asked(joined):
+    try:
+        state = json.loads(STATE.read_text())
+        state["asked"] = joined
+        STATE.write_text(json.dumps(state))
+    except (OSError, ValueError):
+        pass
 
 
 def main():
@@ -204,13 +273,11 @@ def main():
             write_names(names)
             print(f"Namnet på röstkanalen {state['channel']} är borttaget.")
             return 0
-        names[state["channel"]] = name
-        write_names(names)
-        if state["guild"]:
-            servers = read_names(SERVERS)
-            servers[state["channel"]] = state["guild"]
-            SERVERS.write_text("".join(f"{k}={v}\n" for k, v in servers.items()))
+        save_name(state["channel"], name, state["guild"])
         print(f"Röstkanalen {state['channel']} heter nu: {name}")
+        return 0
+    if args and args[0] == "ask" and len(args) >= 2:
+        ask(args[1], args[2] if len(args) > 2 else "")
         return 0
     if args and args[0] == "share":
         if len(args) < 2 or not args[1].isdigit():
@@ -219,7 +286,7 @@ def main():
             return 1
         servers = read_names(SERVERS)
         for channel, name in read_names().items():
-            if servers.get(channel) == args[1]:
+            if name and servers.get(channel) == args[1]:
                 print(encrypt(channel, name))
         return 0
     if args and args[0] == "list":
@@ -231,13 +298,21 @@ def main():
         else:
             print("Du är inte i någon röstkanal just nu.")
         if names:
-            print("\nNamngivna röstkanaler:")
+            print("\nRöstkanaler med namn:")
             for k, v in names.items():
-                print(f"  {v}  ({k})")
+                print(f"  {v or '(fråga inte)'}  ({k})")
         return 0
     state = voice_state()
     channel = state["channel"] if state["voice"] else ""
-    state["channelName"] = (read_names().get(channel) or shared_name(channel)) if channel else ""
+    names = read_names()
+    state["channelName"] = (names.get(channel) or shared_name(channel)) if channel else ""
+    # Unknown channel: ask for its name once per join (a new Connecting line = a new join)
+    if channel and channel not in names and not state["channelName"] and state.get("joined") != state.get("asked"):
+        remember_asked(state.get("joined"))
+        subprocess.Popen([sys.argv[0], "ask", channel, state["guild"]], start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    state.pop("joined", None)
+    state.pop("asked", None)
     print(json.dumps(state))
     return 0
 

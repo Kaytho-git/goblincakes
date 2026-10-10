@@ -181,9 +181,10 @@ PlasmoidItem {
         }
     }
 
-    // Only while Discord is open; the helper reads just the new lines of the log
+    // Every second while Discord is open (the helper takes ~0.02 s and reads only the new
+    // lines of the log), so the channel shows up right after you join
     Timer {
-        interval: 3000
+        interval: 1000
         running: root.discordWindow !== null
         repeat: true
         triggeredOnStart: true
