@@ -214,6 +214,7 @@ COMMANDS=(
     "ai [fråga]|Fråga Goblin AI direkt här – föreslagna kommandon körs bara om du säger ja"
     "ai setup|Ställ in gratis AI-tjänster (Gemini, Groq, OpenRouter, Mistral)"
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
+    "discord|Namnge röstkanalen du är i (visas i toppfältet): goblin discord namn Raid"
     "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
     "dock reset|Återställ hela GOBLINCAKES-utseendet (tema, typsnitt, toppfält, docka)"
     "apps|Dolda Fedora-program – visa igen: goblin apps show konsole"
@@ -472,6 +473,11 @@ case ${1:-help} in
         fi
         exec /usr/libexec/goblincakes-ai "$@" ;;
     tv) exec goblincakes-tv ;;
+    discord) shift
+        case ${1:-} in
+            namn|name) shift; exec /usr/libexec/goblincakes-discord-voice name "$@" ;;
+            *) exec /usr/libexec/goblincakes-discord-voice list ;;
+        esac ;;
     wow) heading "World of Warcraft"; exec /usr/libexec/goblincakes-wow-links --verbose ;;
     dock) shift; exec /usr/libexec/goblincakes-dock "${1:-}" ;;
     apps) shift; cmd_apps "$@" ;;

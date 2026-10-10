@@ -9,7 +9,8 @@
     (voice connect/disconnect + which server you look at, by id); the server's name is
     learnt from the Discord window's title ("#channel | Server - Discord") while you look
     at it and kept in the widget's config. The voice channel's own name isn't on the
-    computer (not in the title or the log).
+    computer (not in the title or the log) – you name it once with `goblin discord namn …`
+    while you are in it (~/.config/goblincakes/discord-channels), else "Röstkanal".
     Nothing to show = the widget takes no space.
 */
 import QtQuick
@@ -100,6 +101,7 @@ PlasmoidItem {
     property bool inVoice: false
     property string voiceServer: ""   // server id of the voice channel ("" = DM call)
     property string viewingServer: "" // server id you are looking at
+    property string voiceChannel: ""  // the voice channel's name from goblin discord namn
     property var serverNames: ({})    // server id → name, saved in the widget's config
     property string pendingName: ""   // "<id>|<name>" seen once – saved when seen twice in a row
 
@@ -130,7 +132,8 @@ PlasmoidItem {
             return null;
         }
         const server = serverNames[voiceServer] || "";
-        return { place: server ? server + "  ›  🔊 Röstkanal" : "🔊 Röstkanal",
+        const channel = "🔊 " + (voiceChannel || "Röstkanal");
+        return { place: server ? server + "  ›  " + channel : channel,
                  row: discordWindow.row, icon: discordWindow.icon };
     }
 
@@ -168,6 +171,7 @@ PlasmoidItem {
                     root.inVoice = state.voice === true;
                     root.voiceServer = state.guild || "";
                     root.viewingServer = state.viewing || "";
+                    root.voiceChannel = state.channelName || "";
                 } catch (e) {
                     root.inVoice = false;
                 }

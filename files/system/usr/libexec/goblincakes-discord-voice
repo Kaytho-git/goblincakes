@@ -8,9 +8,14 @@ connects and disconnects, with the server's id:
 and which server you are looking at:
   [Routing/Utils] transitionTo - Transitioning to /channels/<server id>/<channel id>
 The widget learns the server names from the window title while you look at a server.
-The channel's name isn't anywhere on the computer (only Discord's RPC with an own app has it).
+The voice channel's name isn't anywhere on the computer (only Discord's RPC with an own app has
+it), but its id is in the Connecting line ("channel: <id>(2)") – you give it a name once:
+  goblincakes-discord-voice name <name>   names the voice channel you are in now
+  goblincakes-discord-voice list          the named channels (also: goblin discord)
+Names: ~/.config/goblincakes/discord-channels, one "id=name" per line (editable by hand).
 
-Prints {"voice": bool, "guild": "<server id or empty>", "viewing": "<server id or empty>"}.
+Without arguments prints {"voice": bool, "guild": "<server id>", "viewing": "<server id>",
+"channel": "<voice channel id>", "channelName": "<name or empty>"} for the Spelas nu widget.
 Only the new part of the log is read each time (offset in ~/.cache/goblincakes/discord-voice.state).
 """
 import json
@@ -28,9 +33,11 @@ LOGS = [
     HOME / ".config/discordcanary/logs/renderer_js.log",
 ]
 STATE = HOME / ".cache/goblincakes/discord-voice.state"
+NAMES = HOME / ".config/goblincakes/discord-channels"
 
 # "default" = your own voice connection (Go Live streams have their own contexts)
 RTC = re.compile(r"\[RTCConnection\(([^,()]*), default\)\] (Connecting to RTC server|Destroy RTCConnection)")
+CHANNEL = re.compile(r"channel: (\d+)")
 VIEW = re.compile(r"transitionTo - Transitioning to /channels/([^/\s]+)")
 
 
@@ -39,12 +46,32 @@ def newest_log():
     return max(found, key=lambda p: p.stat().st_mtime) if found else None
 
 
-def main():
-    empty = {"voice": False, "guild": "", "viewing": ""}
+def read_names():
+    names = {}
+    try:
+        for line in NAMES.read_text().splitlines():
+            key, sep, name = line.partition("=")
+            if sep and key.strip().isdigit() and name.strip():
+                names[key.strip()] = name.strip()
+    except OSError:
+        pass
+    return names
+
+
+def write_names(names):
+    NAMES.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["# Discord voice channels: id=name (goblin discord namn <name> while you are in the channel)"]
+    lines += [f"{k}={v}" for k, v in names.items()]
+    NAMES.write_text("\n".join(lines) + "\n")
+
+
+EMPTY = {"voice": False, "guild": "", "viewing": "", "channel": ""}
+
+
+def voice_state():
     log = newest_log()
     if not log:
-        print(json.dumps(empty))
-        return 0
+        return dict(EMPTY)
     st = log.stat()
     try:
         state = json.loads(STATE.read_text())
@@ -52,7 +79,7 @@ def main():
         state = {}
     # A new or restarted log (other file, other inode, or shorter) is read from the start
     if state.get("file") != str(log) or state.get("inode") != st.st_ino or state.get("offset", 0) > st.st_size:
-        state = {"file": str(log), "inode": st.st_ino, "offset": 0, **empty}
+        state = {"file": str(log), "inode": st.st_ino, "offset": 0, **EMPTY}
 
     with open(log, "rb") as f:
         f.seek(state["offset"])
@@ -66,6 +93,8 @@ def main():
             state["voice"] = connected
             guild = m.group(1).strip()
             state["guild"] = guild if connected and guild.isdigit() else ""
+            c = CHANNEL.search(line) if connected else None
+            state["channel"] = c.group(1) if c else ""
             continue
         m = VIEW.search(line)
         if m:
@@ -79,7 +108,43 @@ def main():
         os.replace(tmp, STATE)
     except OSError:
         pass
-    print(json.dumps({k: state[k] for k in empty}))
+    return {k: state.get(k, v) for k, v in EMPTY.items()}
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] == "name":
+        name = " ".join(args[1:]).strip()
+        state = voice_state()
+        if not state["voice"] or not state["channel"]:
+            print("Du är inte i någon röstkanal i Discord just nu.", file=sys.stderr)
+            return 1
+        names = read_names()
+        if not name:
+            names.pop(state["channel"], None)
+            write_names(names)
+            print(f"Namnet på röstkanalen {state['channel']} är borttaget.")
+            return 0
+        names[state["channel"]] = name
+        write_names(names)
+        print(f"Röstkanalen {state['channel']} heter nu: {name}")
+        return 0
+    if args and args[0] == "list":
+        state = voice_state()
+        names = read_names()
+        if state["voice"]:
+            current = names.get(state["channel"], "inget namn än")
+            print(f"Du är i röstkanalen {state['channel']} ({current}).")
+        else:
+            print("Du är inte i någon röstkanal just nu.")
+        if names:
+            print("\nNamngivna röstkanaler:")
+            for k, v in names.items():
+                print(f"  {v}  ({k})")
+        return 0
+    state = voice_state()
+    state["channelName"] = read_names().get(state["channel"], "") if state["voice"] else ""
+    print(json.dumps(state))
     return 0
 
 
