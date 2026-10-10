@@ -75,13 +75,29 @@ Item {
     // Error from the last attempt; cleared when typing
     property string notice
 
+    // The session the login screen starts: always the Plasma desktop. TV mode is only ever
+    // reached through goblincakes-tv (SDDM autologin) – a new user has no last session, and
+    // SDDM's first one in the list is GOBLINCAKES TV, so lastIndex put people straight
+    // into Steam Big Picture with no way out (10 Oct).
+    property int desktopSession: sessionModel.lastIndex
+    Repeater {
+        model: sessionModel
+        delegate: Item {
+            Component.onCompleted: {
+                const file = String(model.file || ""), exec = String(model.exec || "");
+                if (/(^|\/)plasma\.desktop$/.test(file) || /startplasma-wayland/.test(exec))
+                    root.desktopSession = index;
+            }
+        }
+    }
+
     function login() {
         if (userField.input.text.length === 0) {
             userField.input.forceActiveFocus();
             return;
         }
         root.notice = "";
-        sddm.login(userField.input.text, passwordField.input.text, sessionModel.lastIndex);
+        sddm.login(userField.input.text, passwordField.input.text, root.desktopSession);
     }
 
     Connections {
