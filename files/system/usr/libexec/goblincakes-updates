@@ -136,6 +136,42 @@ def news_for(image):
     return [t for _, t in remote if t not in local] + lines
 
 
+def staged_news(checksum):
+    """What a version already fetched (waiting for a restart) brings, read straight from its
+    deployment on disk like goblincakes-news does – nothing to download. None = not found."""
+    roots = [r for r in Path("/ostree/deploy").glob(f"*/deploy/{checksum}.*")
+             if checksum and r.is_dir()]
+    if not roots:
+        return None
+    root = roots[0]
+    lines = []
+    try:
+        fedora = next(l.split("=", 1)[1].strip().strip('"') for l in
+                      (root / "usr/lib/os-release").read_text().splitlines() if l.startswith("VERSION_ID="))
+        here = next(l.split("=", 1)[1].strip().strip('"') for l in
+                    Path("/usr/lib/os-release").read_text().splitlines() if l.startswith("VERSION_ID="))
+        if fedora.isdigit() and here.isdigit() and int(fedora) > int(here):
+            lines.append(f"Fedora {fedora}")
+    except (OSError, StopIteration):
+        pass
+    try:
+        kernels = sorted(d.name for d in (root / "usr/lib/modules").iterdir() if d.is_dir())
+        kernel = kernels[-1].split("-")[0] if kernels else ""
+        if kernel and kernel != os.uname().release.split("-")[0]:
+            lines.append(f"Ny Linux-kärna {kernel}")
+    except OSError:
+        pass
+    try:
+        new = entries((root / "usr/share/goblincakes/nyheter.txt").read_text())
+    except OSError:
+        return lines or None
+    try:
+        local = {t for _, t in entries(LOCAL_NEWS.read_text())}
+    except OSError:
+        local = set()
+    return [t for _, t in new if t not in local] + lines
+
+
 def flatpak_updates():
     """Names of programs with updates – or None when it couldn't be checked."""
     names, ok = set(), False
@@ -169,8 +205,16 @@ def check():
             state["news"], state["newsFor"] = news, remote
         elif old.get("system") == "new":
             state["news"], state["newsFor"] = old.get("news", []), old.get("newsFor", "")
-    elif state["system"] == "staged" and old.get("news"):
-        state["news"], state["newsFor"] = old["news"], old.get("newsFor", "")
+    elif state["system"] == "staged" and remote and old.get("newsFor") == remote:
+        state["news"], state["newsFor"] = old.get("news", []), remote
+    elif state["system"] == "staged":
+        # Read from the fetched version itself (also when it was fetched in the background
+        # without the arrow ever having seen it as "new")
+        news = staged_news(remote)
+        if news is not None:
+            state["news"], state["newsFor"] = news, remote
+        elif old.get("news"):
+            state["news"], state["newsFor"] = old["news"], old.get("newsFor", "")
     # Fetched and waiting for a restart. After goblin update / Config (GOBLINCAKES_UPDATED=1
     # from goblin): no arrow – they say "Starta om nu" themselves and the user asked for the
     # arrow to go away right after updating (10 Oct); that version is remembered ("quiet").
