@@ -264,7 +264,7 @@ systemd-firstboot --timezone Europe/Stockholm
 
 # ── Not in the live system: updates, first-run windows, mounting the disks, … ──
 for unit in rpm-ostreed-automatic.timer uupd.timer rpm-ostree-countme.service rpm-ostree-countme.timer \
-    goblincakes-snapd-setup.service goblincakes-variant-sync.service bootloader-update.service \
+    goblincakes-variant-sync.service bootloader-update.service \
     ublue-system-setup.service tailscaled.service brew-setup.service brew-update.timer brew-upgrade.timer; do
     systemctl disable "$unit" 2>/dev/null || :
 done

@@ -64,7 +64,6 @@ Du får också en notis när GOBLINCAKES har gått över till en ny Fedora-versi
 ### Hårdvara
 - Piper (för möss som Logitech G502), VIA (tangentbord som Keychron), ddcutil (skärmens ljusstyrka).
 - Alla diskar syns och monteras automatiskt – även för Steam.
-- Snap-stöd utöver Flatpak.
 - **För egna projekt:** git, GitHub CLI (`gh`) och VS Code är med från start; Claude Code installeras med ett klick i Config.
 
 ## Två varianter

@@ -26,7 +26,6 @@ modules:
         - plasma-applet-appgrid # app grid in the middle of the screen
         - sddm                  # login manager with the GOBLINCAKES theme
         - sddm-wayland-plasma   # runs the SDDM login screen on Wayland (KWin)
-        - snapd                 # snap packages (Claude desktop)
         - python3-pyside6       # GOBLINCAKES Config window (Qt for Python)
         - fuse-libs             # lets AppImages run (WowUp, Raider.IO, Archon)
         - aurorae               # engine for the GOBLINCAKES window frames
@@ -97,11 +96,6 @@ modules:
     snippets:
       - "ln -sf /usr/lib/systemd/system/sddm.service /etc/systemd/system/display-manager.service"
 
-  # snapd: the /snap link in the read-only root and its folders in /var
-  - type: script
-    scripts:
-      - setup-snapd.sh
-
   # scx_lavd game scheduler for the Optimering tab, if it can be found (off until switched on there)
   - type: script
     scripts:
@@ -133,8 +127,6 @@ modules:
         - ratbagd.service
         - ananicy-cpp.service
         - switcheroo-control.service      # tells KDE about a second graphics card
-        - snapd.socket                    # snap daemon, started on demand
-        - goblincakes-snapd-setup.service # snap home folders (Claude desktop is picked in Config)
         - goblincakes-variant-sync.service # after the ISO install: fetch the Nvidia variant if chosen
     user:
       enabled:
