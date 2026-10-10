@@ -1,5 +1,5 @@
-2026-10-10  goblin wow fyller nu i WoW-mappen i Raider.IO även om något annat program nämner Raider.IO.
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
+2026-10-10  goblin wow fyller nu i WoW-mappen i Raider.IO även om något annat program nämner Raider.IO.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
 2026-10-10  Meta-tangenten öppnar appmenyn igen – dockan kommer fram när du för muspekaren mot skärmens nederkant
 2026-10-10  Uppdateringspilen och GOBLINCAKES Config visar vad som är nytt i en ny GOBLINCAKES-version innan du uppdaterar
