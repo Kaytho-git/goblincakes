@@ -12,11 +12,19 @@ prefixes reach through drive letters (D:, E: …) and on the mounted disks; the 
 WoW if it moves. WowUp and Raider.IO are told about every version too (their own settings
 files – Archon keeps its settings in its browser storage, so it gets the link), so their
 version list stays right. Runs at every login and as `goblin wow` (--verbose).
+
+Text to speech (10 Oct, the user's wish – WoW's read-aloud chat): Proton 9+ speaks with Piper
+voices from Steam's tool "Proton Voice Files" (appid 3086180, one English model with 904
+speakers), but only puts two of them in the prefix (ProtonTTS_libritts-r_3 / _14). Ten more
+speakers are added as SAPI voices (GOBLINCAKES_TTS_*) in every prefix that has Proton's voices,
+only while nothing runs in that prefix. Picked by measuring all 904: normal speaking pace, the
+same pitch in two sentences, five male (100–140 Hz) and five female (174–231 Hz).
 """
 import json
 import os
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -226,7 +234,69 @@ def update_raiderio(found, wow_folder):
             say("Raider.IO: WoW-mappen är inlagd.")
 
 
+# (speaker id, gender, name) – speakers of en_US-libritts_r-medium, lowest voice first
+TTS_VOICES = [(841, "Male", "Male 1"), (369, "Male", "Male 2"), (256, "Male", "Male 3"),
+              (883, "Male", "Male 4"), (291, "Male", "Male 5"),
+              (430, "Female", "Female 1"), (366, "Female", "Female 2"), (12, "Female", "Female 3"),
+              (211, "Female", "Female 4"), (513, "Female", "Female 5")]
+
+
+def prefix_in_use(pfx: Path):
+    """True when a Wine program runs in this prefix (its registry is then Wine's to write)."""
+    marks = [f"WINEPREFIX={pfx}".encode(), f"STEAM_COMPAT_DATA_PATH={pfx.parent}".encode()]
+    for env in Path("/proc").glob("[0-9]*/environ"):
+        try:
+            data = env.read_bytes()
+        except OSError:
+            continue
+        if any(m + b"\0" in data or m + b"/\0" in data for m in marks):
+            return True
+    return False
+
+
+def add_tts_voices():
+    """The ten extra Proton voices in every prefix that has Proton's own; returns how many got them."""
+    prefixes = set()
+    for pattern in ("Games/*", ".wine", ".local/share/wineprefixes/*",
+                    ".local/share/Steam/steamapps/compatdata/*/pfx",
+                    ".var/app/net.lutris.Lutris/data/lutris/prefixes/*"):
+        prefixes.update(p.resolve() for p in HOME.glob(pattern) if (p / "system.reg").is_file())
+    added = 0
+    for pfx in sorted(prefixes):
+        reg = pfx / "system.reg"
+        try:
+            text = reg.read_text(encoding="utf-8", errors="surrogateescape")
+        except OSError:
+            continue
+        template = "\n[Software\\\\Microsoft\\\\Speech\\\\Voices\\\\Tokens\\\\ProtonTTS_libritts-r_3]"
+        if template not in text or "GOBLINCAKES_TTS_" in text:
+            continue
+        if prefix_in_use(pfx):
+            say(f"Text till tal: {pfx} används just nu – stäng spelet och kör goblin wow igen.")
+            continue
+        clsid = "{52808AE1-D977-4CD8-92D2-FEACB92FE276}"  # Proton's TTS engine (protontts)
+        now = int(time.time())
+        lines = []
+        for root in ("Speech", "Speech_OneCore"):
+            for sid, gender, name in TTS_VOICES:
+                key = f"Software\\\\Microsoft\\\\{root}\\\\Voices\\\\Tokens\\\\GOBLINCAKES_TTS_{sid}"
+                title = f"GOBLINCAKES Voice - {name}"
+                lines += [f"[{key}] {now}", f'@="{title}"', f'"409"="{title}"', f'"CLSID"="{clsid}"',
+                          '"LengthScale"="1.4"', '"ModelPath"="en_US-libritts_r-medium.onnx"',
+                          f'"SpeakerID"="{sid}"', "",
+                          f"[{key}\\\\Attributes] {now}", '"Age"="Adult"', f'"Gender"="{gender}"',
+                          '"Language"="409"', f'"Name"="{title}"', '"Vendor"="GOBLINCAKES"', ""]
+        tmp = reg.with_name("system.reg.goblincakes-tmp")
+        tmp.write_text(text.rstrip("\n") + "\n\n" + "\n".join(lines), encoding="utf-8",
+                       errors="surrogateescape")
+        tmp.replace(reg)
+        added += 1
+        say(f"Text till tal: 10 nya röster i {pfx}")
+    return added
+
+
 def main():
+    add_tts_voices()
     found = find_versions(search_roots())
     if not found:
         say("Hittade inte WoW. Installera Battle.net och WoW i GOBLINCAKES Config (Spel och WoW) först.")
