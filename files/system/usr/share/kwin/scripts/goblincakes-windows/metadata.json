@@ -2,7 +2,7 @@
     "KPlugin": {
         "Id": "goblincakes-windows",
         "Name": "GOBLINCAKES windows",
-        "Description": "Opens GOBLINCAKES Config in the middle of the main screen",
+        "Description": "Opens GOBLINCAKES Config in the middle of the main screen and games on the main screen",
         "License": "GPL-3.0",
         "EnabledByDefault": true
     },

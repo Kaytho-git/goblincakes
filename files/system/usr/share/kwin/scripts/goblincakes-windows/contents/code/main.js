@@ -3,10 +3,30 @@
 // and screens are still being set up at login (10 Oct).
 const CENTERED = ["goblincakes-config"];
 
+// Games always start on the main screen too (10 Oct): KWin otherwise places new windows on the
+// screen under the mouse, and gamescope's --display-index only works without a desktop.
+// Steam games (Proton/XWayland) are steam_app_<id>, Wine games <name>.exe, gamescope's window
+// is gamescope; native games have their own class – add them to GAMES.
+const GAMES = ["gamescope", "cs2", "dota2"];
+
+function mainScreen(window) {
+    return workspace.screenOrder.length ? workspace.screenOrder[0] : window.output;
+}
+
+function isGame(window) {
+    const cls = String(window.resourceClass || "").toLowerCase();
+    return window.normalWindow && (GAMES.indexOf(cls) >= 0 || cls.indexOf("steam_app_") === 0
+        || /\.exe$/.test(cls));
+}
+
+function toMainScreen(window) {
+    const screen = mainScreen(window);
+    if (window.output !== screen)
+        workspace.sendClientToScreen(window, screen);
+}
+
 function center(window) {
-    if (!window || CENTERED.indexOf(window.resourceClass) < 0)
-        return;
-    const screen = workspace.screenOrder.length ? workspace.screenOrder[0] : window.output;
+    const screen = mainScreen(window);
     const area = workspace.clientArea(KWin.PlacementArea, screen, workspace.currentDesktop);
     const geo = window.frameGeometry;
     window.frameGeometry = {
@@ -17,4 +37,21 @@ function center(window) {
     };
 }
 
-workspace.windowAdded.connect(center);
+function added(window) {
+    if (!window)
+        return;
+    if (CENTERED.indexOf(window.resourceClass) >= 0) {
+        center(window);
+    } else if (isGame(window)) {
+        toMainScreen(window);
+        // Games often switch to fullscreen a moment later, on the screen the window is on –
+        // the first switch during the first half minute is kept on the main screen as well.
+        const start = Date.now();
+        window.fullScreenChanged.connect(function () {
+            if (window.fullScreen && Date.now() - start < 30000)
+                toMainScreen(window);
+        });
+    }
+}
+
+workspace.windowAdded.connect(added);
