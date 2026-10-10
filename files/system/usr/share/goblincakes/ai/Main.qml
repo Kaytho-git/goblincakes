@@ -99,6 +99,21 @@ Window {
 
     // ── Pieces ───────────────────────────────────────────────
 
+    // Mouse wheel: each notch moves the list a fixed step at once (Flickable's own wheel
+    // handling only gives it a small push that slows down – sluggish on a real computer)
+    component FastWheel: WheelHandler {
+        required property Flickable flick
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: event => {
+            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
+            const top = flick.originY, bottom = top + Math.max(0, flick.contentHeight - flick.height);
+            flick.cancelFlick();
+            flick.contentY = Math.max(top, Math.min(bottom, flick.contentY - delta));
+            event.accepted = true;
+        }
+    }
+
     component FlatButton: Rectangle {
         id: btn
         property string text
@@ -225,6 +240,7 @@ Window {
 
         ListView {
             id: convList
+            FastWheel { flick: convList }
             anchors { left: parent.left; right: parent.right; top: recentLabel.bottom; topMargin: 10; bottom: settingsButton.top; bottomMargin: 12 }
             clip: true
             model: JSON.parse(backend.conversations)
@@ -343,6 +359,7 @@ Window {
 
         ListView {
             id: messagesView
+            FastWheel { flick: messagesView }
             anchors { left: parent.left; right: parent.right; top: parent.top; bottom: inputBar.top }
             anchors.leftMargin: 40
             anchors.rightMargin: 40
@@ -706,6 +723,7 @@ Window {
 
     Flickable {
         id: settings
+        FastWheel { flick: settings }
         visible: win.view === "settings"
         anchors { left: sidebar.right; right: parent.right; top: parent.top; bottom: parent.bottom }
         contentHeight: settingsCol.height + 80

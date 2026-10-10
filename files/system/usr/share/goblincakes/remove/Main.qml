@@ -66,6 +66,21 @@ Window {
 
     // ── Pieces (same as GOBLINCAKES Config) ──────────────────
 
+    // Mouse wheel: each notch moves the list a fixed step at once (Flickable's own wheel
+    // handling only gives it a small push that slows down – sluggish on a real computer)
+    component FastWheel: WheelHandler {
+        required property Flickable flick
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: event => {
+            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
+            const top = flick.originY, bottom = top + Math.max(0, flick.contentHeight - flick.height);
+            flick.cancelFlick();
+            flick.contentY = Math.max(top, Math.min(bottom, flick.contentY - delta));
+            event.accepted = true;
+        }
+    }
+
     component FlatButton: Rectangle {
         id: btn
         property string text
@@ -334,6 +349,7 @@ Window {
 
     Flickable {
         id: appsView
+        FastWheel { flick: appsView }
         visible: win.page === "choose" && win.tab === "apps"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
         contentHeight: appsColumn.height + 64
@@ -439,6 +455,7 @@ Window {
 
     Flickable {
         id: removedView
+        FastWheel { flick: removedView }
         visible: win.page === "choose" && win.tab === "removed"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
         contentHeight: removedColumn.height + 64

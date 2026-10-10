@@ -255,6 +255,21 @@ Tryck Uppdatera allt för att uppdatera." : "")
     // ── Pieces ───────────────────────────────────────────────
 
     // Flat text field with a grey hint while empty
+    // Mouse wheel: each notch moves the list a fixed step at once (Flickable's own wheel
+    // handling only gives it a small push that slows down – sluggish on a real computer)
+    component FastWheel: WheelHandler {
+        required property Flickable flick
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: event => {
+            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
+            const top = flick.originY, bottom = top + Math.max(0, flick.contentHeight - flick.height);
+            flick.cancelFlick();
+            flick.contentY = Math.max(top, Math.min(bottom, flick.contentY - delta));
+            event.accepted = true;
+        }
+    }
+
     component FlatField: Rectangle {
         property alias text: input.text
         property string hint
@@ -578,6 +593,7 @@ Tryck Uppdatera allt för att uppdatera." : "")
 
     Flickable {
         id: chooser
+        FastWheel { flick: chooser }
         visible: win.tab === "apps" && win.page === "choose"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
         contentHeight: sections.height + 64
@@ -905,6 +921,7 @@ Tryck Uppdatera allt för att uppdatera." : "")
 
     Flickable {
         id: progressView
+        FastWheel { flick: progressView }
         visible: win.tab === "apps" && win.page !== "choose"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
         contentHeight: rows.height + 64
@@ -1037,6 +1054,7 @@ Tryck Uppdatera allt för att uppdatera." : "")
 
     Flickable {
         id: tweaksView
+        FastWheel { flick: tweaksView }
         visible: win.tab === "tweaks"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
         contentHeight: tweakRows.height + 64
@@ -1224,6 +1242,7 @@ Tryck Uppdatera allt för att uppdatera." : "")
 
     Flickable {
         id: graphicsView
+        FastWheel { flick: graphicsView }
         visible: win.tab === "graphics"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
         contentHeight: gfxCol.height + 64
@@ -1475,6 +1494,7 @@ Tryck Uppdatera allt för att uppdatera." : "")
 
     Flickable {
         id: systemView
+        FastWheel { flick: systemView }
         visible: win.tab === "system"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
         contentHeight: sysCol.height + 64
@@ -1574,6 +1594,7 @@ Tryck Uppdatera allt för att uppdatera." : "")
 
     Flickable {
         id: updateView
+        FastWheel { flick: updateView }
         visible: win.tab === "update"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
         contentHeight: updCol.height + 64
