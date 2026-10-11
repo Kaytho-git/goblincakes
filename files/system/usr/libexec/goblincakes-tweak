@@ -343,6 +343,8 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
                 # GOBLINCAKES colours, unless the user already has their own settings
                 [ "$value" = on ] && { [ -e "$conf" ] || install -Dm644 /usr/share/goblincakes/mangohud/MangoHud.conf "$conf"; }
                 steam_set_flag mangohud "$value" MANGOHUD=1
+                # Spelmätning uses the overlay's settings while it's on (visible + measuring)
+                steam_flag frames && /usr/libexec/goblincakes-frames config
                 # Flatpak launchers need MangoHud as a Flatpak extension too
                 [ "$value" = on ] && [ ${#apps[@]} -gt 0 ] && /usr/libexec/goblincakes-config-install vulkan-layer MangoHud >/dev/null
                 for app in "${apps[@]}"; do
@@ -353,6 +355,18 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
                         flatpak override --user --unset-env=MANGOHUD --unset-env=MANGOHUD_CONFIGFILE "$app"
                     fi
                 done ;;
+        esac ;;
+
+    frame-log)
+        # Spelmätning (goblin frames): MangoHud invisible in Steam's games, writing every frame
+        # to ~/.local/state/goblincakes/frames for the terminal (11 Oct, the user doesn't want
+        # an overlay). With the overlay switch on as well, its settings are used (visible + log).
+        frames_conf="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/mangohud-frames.conf"
+        case $cmd in
+            status) steam_flag frames && echo on || echo off ;;
+            set)
+                [ "$value" = on ] && /usr/libexec/goblincakes-frames config
+                steam_set_flag frames "$value" MANGOHUD=1 "MANGOHUD_CONFIGFILE=$frames_conf" ;;
         esac ;;
 
     ianseo-network)

@@ -248,6 +248,7 @@ COMMANDS=(
     "apps|Dolda Fedora-program – visa igen: goblin apps show konsole"
     "remove|Avinstallera Fedora-program (fönster, eller: goblin remove konsole)"
     "old|Visa avinstallerade program och hur du får tillbaka dem"
+    "frames|Hur jämnt spelet flyter – fps, 1 % low och ryck i terminalen (goblin frames on slår på)"
     "screen|Vilken skärm ett program öppnas på – t.ex. goblin screen add discord screen 2"
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
@@ -512,6 +513,17 @@ case ${1:-help} in
     apps) shift; cmd_apps "$@" ;;
     remove|uninstall) shift; cmd_remove "$@" ;;
     old) cmd_old ;;
+    frames|frame|fps) shift
+        case ${1:-} in
+            on|off)
+                /usr/libexec/goblincakes-tweak set frame-log "$1" || exit 1
+                if [ "$1" = on ]; then
+                    info "Spelmätningen är på – syns inte i spelet. Starta om Steam, spela, och kör goblin frames."
+                else
+                    info "Spelmätningen är av (gäller från nästa start av Steam)."
+                fi ;;
+            *) exec /usr/libexec/goblincakes-frames "${@:-live}" ;;
+        esac ;;
     screen|screens|skarm|skärm) shift
         [ $# -eq 0 ] && heading "Skärmar och program"
         exec /usr/libexec/goblincakes-screen "$@" ;;

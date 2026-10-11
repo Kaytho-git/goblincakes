@@ -1,0 +1,426 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: how smoothly a game runs – in the terminal, nothing on top of the game
+(the user's wish, 11 Oct: more than fps, but no overlay).
+
+    goblincakes-frames               live while a game runs, else the last session
+    goblincakes-frames last [N]      summary of the newest (or the N:th newest) session
+    goblincakes-frames list          the saved sessions
+    goblincakes-frames config        (re)writes the MangoHud settings used for measuring
+
+MangoHud runs invisibly in Steam's games (switch "Spelmätning" in GOBLINCAKES Config →
+Inställningar, or goblin frames on) and writes every frame to a CSV file in
+~/.local/state/goblincakes/frames/ while the game runs: frame time, CPU/GPU load,
+temperatures, VRAM, RAM, swap. This reads those files.
+"""
+import os
+import re
+import shutil
+import statistics
+import subprocess
+import sys
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+
+HOME = Path.home()
+STATE = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / "goblincakes"
+LOGS = STATE / "frames"
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config")
+FRAMES_CONF = CONFIG_HOME / "goblincakes/mangohud-frames.conf"
+OVERLAY_CONF = CONFIG_HOME / "MangoHud/MangoHud.conf"
+OVERLAY_FLAG = CONFIG_HOME / "goblincakes/steam-mangohud"
+KEEP = 30  # sessions kept
+
+ACCENT, MUTED, FROST, RED, ORANGE, GREEN, BOLD, RESET = (
+    "\033[38;2;47;111;237m", "\033[38;2;139;152;173m", "\033[38;2;230;236;245m",
+    "\033[38;2;229;72;77m", "\033[38;2;240;136;62m", "\033[38;2;63;185;80m", "\033[1m", "\033[0m")
+if not sys.stdout.isatty():
+    ACCENT = MUTED = FROST = RED = ORANGE = GREEN = BOLD = RESET = ""
+
+# A frame is a stutter when it takes more than twice the recent normal (median of the last
+# 120 frames) and at least 8 ms more; a freeze is a frame over 100 ms.
+STUTTER_FACTOR, STUTTER_EXTRA, FREEZE_MS = 2.0, 8.0, 100.0
+# Over 2 s the game wasn't drawing at all (minimized, another window in front, a loading
+# screen that stops presenting) – counted as a pause, not as part of the numbers.
+PAUSE_MS = 2000.0
+
+
+# ── Settings for MangoHud ──────────────────────────────────────
+
+LOGGING = """
+# ── GOBLINCAKES spelmätning (goblin frames) – written by goblincakes-frames ──
+output_folder={folder}
+autostart_log=1
+log_duration=0
+log_interval=0
+"""
+INVISIBLE = """### GOBLINCAKES: MangoHud only measures here – nothing is shown in the game.
+### (no_display would stop the logging too, so the HUD is fully transparent instead)
+legacy_layout=false
+alpha=0
+background_alpha=0
+font_size=1
+"""
+
+
+def write_config():
+    """The measuring settings: the overlay's own settings when that is on (then it shows as
+    before and measures too), otherwise an invisible HUD."""
+    base = INVISIBLE
+    if OVERLAY_FLAG.exists() and OVERLAY_CONF.exists():
+        base = OVERLAY_CONF.read_text(errors="replace")
+        base = "\n".join(l for l in base.splitlines()
+                         if not re.match(r"\s*(output_folder|autostart_log|log_duration|log_interval)\s*=", l))
+    LOGS.mkdir(parents=True, exist_ok=True)
+    FRAMES_CONF.parent.mkdir(parents=True, exist_ok=True)
+    FRAMES_CONF.write_text(base.rstrip() + "\n" + LOGGING.format(folder=LOGS))
+
+
+# ── Reading a session ──────────────────────────────────────────
+
+class Session:
+    def __init__(self, path):
+        self.path = path
+        m = re.match(r"(.+)_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})\.csv$", path.name)
+        self.game = m.group(1) if m else path.stem
+        try:
+            self.start = datetime.strptime(f"{m.group(2)} {m.group(3)}", "%Y-%m-%d %H-%M-%S")
+        except (AttributeError, ValueError):
+            self.start = datetime.fromtimestamp(path.stat().st_mtime)
+        self.columns = None
+        self.offset = 0
+        self.ft = []       # frame times, ms
+        self.t = []        # seconds since the start
+        self.cpu = []
+        self.gpu = []
+        self.cpu_temp = []
+        self.gpu_temp = []
+        self.vram = []
+        self.ram = []
+        self.swap = []
+        self.events = []   # (seconds, ms, cpu load, gpu load) of stutters
+        self.pauses = 0
+        self._recent = []
+        self.read()
+
+    def read(self):
+        try:
+            with open(self.path, "rb") as f:
+                f.seek(self.offset)
+                data = f.read()
+        except OSError:
+            return
+        end = data.rfind(b"\n")
+        if end < 0:
+            return
+        self.offset += end + 1
+        for raw in data[:end].decode(errors="replace").splitlines():
+            parts = raw.split(",")
+            if self.columns is None:
+                if parts and parts[0] == "fps" and "frametime" in parts:
+                    self.columns = {name: i for i, name in enumerate(parts)}
+                continue
+            try:
+                self._add(parts)
+            except (ValueError, IndexError):
+                continue
+
+    def _get(self, parts, name):
+        i = self.columns.get(name)
+        return float(parts[i]) if i is not None and parts[i] != "" else 0.0
+
+    def _add(self, parts):
+        ft = self._get(parts, "frametime")
+        if ft <= 0:
+            return
+        if ft >= PAUSE_MS:
+            self.pauses += 1
+            return
+        t = self._get(parts, "elapsed") / 1e9
+        cpu, gpu = self._get(parts, "cpu_load"), self._get(parts, "gpu_load")
+        self.ft.append(ft)
+        self.t.append(t)
+        self.cpu.append(cpu)
+        self.gpu.append(gpu)
+        self.cpu_temp.append(self._get(parts, "cpu_temp"))
+        self.gpu_temp.append(self._get(parts, "gpu_temp"))
+        self.vram.append(self._get(parts, "gpu_vram_used"))
+        self.ram.append(self._get(parts, "ram_used"))
+        self.swap.append(self._get(parts, "swap_used"))
+        recent = self._recent
+        if len(recent) >= 30:
+            normal = statistics.median(recent)
+            if ft > STUTTER_FACTOR * normal and ft > normal + STUTTER_EXTRA:
+                self.events.append((t, ft, cpu, gpu))
+        recent.append(ft)
+        if len(recent) > 120:
+            del recent[0]
+
+    # numbers
+    def duration(self):
+        return (self.t[-1] - self.t[0]) if len(self.t) > 1 else 0.0
+
+    def avg_fps(self, ft=None):
+        ft = self.ft if ft is None else ft
+        return 1000.0 * len(ft) / sum(ft) if ft else 0.0
+
+    def low(self, share, ft=None):
+        """"1 % low": fps of the frame time that the slowest 1 % of frames reach."""
+        ft = sorted(self.ft if ft is None else ft)
+        if not ft:
+            return 0.0
+        return 1000.0 / ft[min(len(ft) - 1, int(len(ft) * (1 - share)))]
+
+    def clock(self, seconds):
+        return (self.start + timedelta(seconds=seconds)).strftime("%H:%M:%S")
+
+
+def sessions():
+    if not LOGS.is_dir():
+        return []
+    files = [p for p in LOGS.glob("*.csv") if not p.name.endswith("_summary.csv")]
+    return sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def cleanup():
+    """The newest sessions are kept; finished ones under ~10 s (launchers, helper programs that
+    also draw with Vulkan) go at once."""
+    files = sessions()
+    for i, old in enumerate(files):
+        tiny = time.time() - old.stat().st_mtime > 10 and old.stat().st_size < 64 * 1024
+        if i >= KEEP or tiny:
+            old.unlink(missing_ok=True)
+            old.with_name(old.stem + "_summary.csv").unlink(missing_ok=True)
+
+
+# ── Showing it ─────────────────────────────────────────────────
+
+BARS = "▁▂▃▄▅▆▇█"
+
+
+def graph(s, seconds=60, width=60):
+    """The worst frame time of each of the last seconds as bars (red with a stutter)."""
+    if not s.t:
+        return ""
+    end = s.t[-1]
+    buckets = [[] for _ in range(seconds)]
+    i = len(s.t) - 1
+    while i >= 0 and s.t[i] > end - seconds:
+        b = int(end - s.t[i])
+        if b < seconds:
+            buckets[seconds - 1 - b].append(s.ft[i])
+        i -= 1
+    stutter_seconds = {int(end - t) for t, *_ in s.events if t > end - seconds}
+    out = []
+    for n, b in enumerate(buckets[-width:]):
+        if not b:
+            out.append(" ")
+            continue
+        worst = max(b)
+        level = min(len(BARS) - 1, int(worst / 50.0 * (len(BARS) - 1)))
+        sec_back = seconds - 1 - n
+        color = RED if sec_back in stutter_seconds else (ORANGE if worst > 25 else ACCENT)
+        out.append(f"{color}{BARS[level]}{RESET}")
+    return "".join(out)
+
+
+def fps_color(value, avg):
+    if not avg:
+        return FROST
+    return GREEN if value >= 0.75 * avg else ORANGE if value >= 0.5 * avg else RED
+
+
+def advice(s):
+    """What the numbers say, in plain Swedish – only the things that stand out."""
+    tips = []
+    if not s.ft:
+        return tips
+    avg = s.avg_fps()
+    low1 = s.low(0.01)
+    if s.events:
+        loads = [(c, g) for _, _, c, g in s.events]
+        gpu_bound = sum(1 for _, g in loads if g >= 95) / len(loads)
+        cpu_bound = sum(1 for c, _ in loads if c >= 80) / len(loads)
+        early = sum(1 for t, *_ in s.events if t - s.t[0] < 120) / len(s.events)
+        if gpu_bound > 0.5:
+            tips.append("Grafikkortet gick på max vid de flesta rycken – sänk grafikinställningarna "
+                        "eller sätt ett fps-tak i spelet.")
+        elif cpu_bound > 0.5:
+            tips.append("Processorn gick nästan på max vid rycken – stäng program i bakgrunden, eller sänk "
+                        "inställningar som belastar CPU:n (siktavstånd, antal spelare/partiklar).")
+        elif early > 0.5:
+            tips.append("Rycken kom mest i början – troligen shader-kompilering (blir bättre ju mer du "
+                        "spelar, eller låt \"Bearbetar Vulkan-shaders\" i Steam bli klar först).")
+        else:
+            tips.append("Varken grafikkortet eller processorn som helhet var fullt belastade vid rycken. "
+                        "Vanliga orsaker: laddning (nya områden, många spelare), shaders, en långsam disk – "
+                        "eller spelets huvudtråd, som inte syns i den totala CPU-siffran.")
+    if low1 and avg and low1 < 0.5 * avg:
+        tips.append(f"1 % low ({low1:.0f}) är mindre än hälften av snittet ({avg:.0f}) – ojämnt. "
+                    "Ett fps-tak strax under snittet ger ofta jämnare spel.")
+    if max(s.gpu_temp or [0]) >= 85:
+        tips.append(f"Grafikkortet blev varmt ({max(s.gpu_temp):.0f} °C) – kolla fläktar och damm.")
+    if max(s.cpu_temp or [0]) >= 90:
+        tips.append(f"Processorn blev varm ({max(s.cpu_temp):.0f} °C) – kolla kylningen.")
+    if max(s.swap or [0]) > 0.5:
+        tips.append(f"Datorn fick använda swap ({max(s.swap):.1f} GB) – arbetsminnet räckte inte. "
+                    "Stäng program i bakgrunden.")
+    if not tips:
+        tips.append("Inget att anmärka – spelet flöt jämnt.")
+    return tips
+
+
+def report(s, live=False):
+    lines = []
+    dur = s.duration()
+    mins, secs = divmod(int(dur), 60)
+    head = f"{BOLD}{FROST}{s.game}{RESET}  {MUTED}{s.start:%Y-%m-%d %H:%M} · {mins} min {secs} s"
+    lines.append(head + (f" · mäter just nu{RESET}" if live else RESET))
+    lines.append("")
+    if not s.ft:
+        lines.append(f"{MUTED}Väntar på de första bildrutorna …{RESET}")
+        return lines
+    avg = s.avg_fps()
+    if live:
+        last = [f for f, t in zip(s.ft, s.t) if t > s.t[-1] - 1]
+        now = s.avg_fps(last)
+        lines.append(f"  {MUTED}Nu{RESET}          {fps_color(now, avg)}{now:6.0f} fps{RESET}  "
+                     f"{MUTED}frametime {statistics.mean(last):.1f} ms, längsta {max(last):.1f} ms{RESET}")
+    lines.append(f"  {MUTED}Snitt{RESET}       {FROST}{avg:6.0f} fps{RESET}")
+    for label, share in (("1 % low", 0.01), ("0,1 % low", 0.001)):
+        v = s.low(share)
+        lines.append(f"  {MUTED}{label:<11}{RESET} {fps_color(v, avg)}{v:6.0f} fps{RESET}")
+    freezes = [e for e in s.events if e[1] >= FREEZE_MS]
+    per_min = len(s.events) / (dur / 60) if dur > 0 else 0
+    color = GREEN if per_min < 1 else ORANGE if per_min < 5 else RED
+    lines.append(f"  {MUTED}Ryck{RESET}        {color}{len(s.events):6d}{RESET}  {MUTED}({per_min:.1f}/min"
+                 f"{f', varav {len(freezes)} frysningar över 100 ms' if freezes else ''}"
+                 f"{f' · {s.pauses} pauser över 2 s räknas inte' if s.pauses else ''}){RESET}")
+    lines.append(f"  {MUTED}CPU / GPU{RESET}   {FROST}{statistics.mean(s.cpu):5.0f} % / {statistics.mean(s.gpu):.0f} %"
+                 f"{RESET} {MUTED}i snitt · {max(s.cpu_temp):.0f} / {max(s.gpu_temp):.0f} °C som mest · "
+                 f"VRAM {max(s.vram):.1f} GB · RAM {max(s.ram):.1f} GB{RESET}")
+    lines.append("")
+    lines.append(f"  {MUTED}Längsta bildrutan varje sekund, senaste minuten (topp = 50 ms):{RESET}")
+    lines.append("  " + graph(s))
+    if s.events:
+        lines.append("")
+        lines.append(f"  {MUTED}Senaste rycken:{RESET}")
+        for t, ft, cpu, gpu in s.events[-5:][::-1]:
+            lines.append(f"    {FROST}{s.clock(t)}{RESET}  {ORANGE if ft < FREEZE_MS else RED}{ft:6.1f} ms{RESET}"
+                         f"  {MUTED}CPU {cpu:.0f} %  GPU {gpu:.0f} %{RESET}")
+    if not live or dur > 30:
+        lines.append("")
+        for tip in advice(s):
+            lines.append(f"  {ACCENT}›{RESET} {tip}")
+    return lines
+
+
+def live(path):
+    s = Session(path)
+    out = sys.stdout
+    out.write("\033[?25l")  # no cursor while it redraws
+    try:
+        while True:
+            s.read()
+            active = time.time() - path.stat().st_mtime < 3
+            cols = shutil.get_terminal_size((100, 30)).columns
+            text = "\n".join(l for l in report(s, live=active))
+            out.write("\033[H\033[2J" + text + "\n\n" + (
+                f"{MUTED}Ctrl+C avslutar visningen (mätningen fortsätter).{RESET}" if active else
+                f"{MUTED}Spelet har stängts – sammanfattningen ovan. goblin frames list visar tidigare pass.{RESET}") + "\n")
+            out.flush()
+            if not active:
+                return 0
+            time.sleep(1)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        out.write("\033[?25h")
+        out.flush()
+
+
+# ── Commands ───────────────────────────────────────────────────
+
+def tweak_on():
+    return subprocess.run(["/usr/libexec/goblincakes-tweak", "status", "frame-log"],
+                          capture_output=True, text=True).stdout.strip() == "on"
+
+
+def cmd_live():
+    cleanup()
+    files = sessions()
+    running = [p for p in files if time.time() - p.stat().st_mtime < 3]
+    if running:
+        return live(running[0])
+    if not tweak_on():
+        print(f"{MUTED}Spelmätningen är av. Slå på den med {FROST}goblin frames on{MUTED} (eller i GOBLINCAKES "
+              f"Config → Inställningar → Spelmätning) och starta om Steam.{RESET}")
+        if not files:
+            return 0
+        print()
+    elif not files:
+        print(f"{MUTED}Inget spel mätt än. Starta ett spel från Steam och kör goblin frames igen.{RESET}")
+        return 0
+    else:
+        print(f"{MUTED}Inget spel körs just nu – senaste passet:{RESET}\n")
+    return cmd_last(1)
+
+
+def cmd_last(n):
+    files = sessions()
+    if not 1 <= n <= len(files):
+        print("Det finns inget sådant pass. Se: goblin frames list", file=sys.stderr)
+        return 1
+    print("\n".join(report(Session(files[n - 1]))))
+    return 0
+
+
+def quick(path):
+    """Game, start, minutes, average fps, 1 % low – from MangoHud's own summary file when the
+    session is over (reading the whole log takes seconds for an hour of play)."""
+    m = re.match(r"(.+)_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})\.csv$", path.name)
+    game = m.group(1) if m else path.stem
+    try:
+        start = datetime.strptime(f"{m.group(2)} {m.group(3)}", "%Y-%m-%d %H-%M-%S")
+    except (AttributeError, ValueError):
+        start = datetime.fromtimestamp(path.stat().st_mtime)
+    minutes = max(0, int((path.stat().st_mtime - start.timestamp()) // 60))
+    try:
+        rows = path.with_name(path.stem + "_summary.csv").read_text().splitlines()
+        values = dict(zip(rows[0].split(","), rows[1].split(",")))
+        return game, start, minutes, float(values["Average FPS"]), float(values["1% Min FPS"])
+    except (OSError, IndexError, KeyError, ValueError):
+        s = Session(path)
+        return game, start, int(s.duration() // 60), s.avg_fps(), s.low(0.01)
+
+
+def cmd_list():
+    files = sessions()
+    if not files:
+        print("Inga sparade pass än.")
+        return 0
+    for i, p in enumerate(files, 1):
+        game, start, mins, avg, low = quick(p)
+        print(f"  {FROST}{i:>2}{RESET}  {start:%Y-%m-%d %H:%M}  {game:<24} {MUTED}{mins:>3} min  "
+              f"snitt {avg:.0f} fps · 1 % low {low:.0f}{RESET}")
+    print(f"\n{MUTED}Visa ett pass: goblin frames last <nummer>{RESET}")
+    return 0
+
+
+def main(argv):
+    cmd = argv[0] if argv else "live"
+    if cmd == "live":
+        return cmd_live()
+    if cmd == "last":
+        return cmd_last(int(argv[1]) if len(argv) > 1 and argv[1].isdigit() else 1)
+    if cmd == "list":
+        return cmd_list()
+    if cmd == "config":
+        write_config()
+        return 0
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
