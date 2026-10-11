@@ -101,6 +101,7 @@ check() {
         # prefix was there and Lutris said "Battle.net Launcher.exe could not be found")
         battlenet) compgen -G "$HOME/Games/battlenet*/drive_c/Program Files*/Battle.net/Battle.net*.exe" >/dev/null ;;
         claude-code) [ -x "$HOME/.local/bin/claude" ] ;;
+        vscode) [ -x "$HOME/.local/share/vscode/code" ] ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;
         *) return 1 ;;
@@ -414,6 +415,85 @@ DESKTOP
 
     ianseo)
         exec /usr/libexec/goblincakes-ianseo install
+        ;;
+
+    vscode)
+        # Microsoft's own VS Code (their .tar.gz) in the home folder – not in the image since
+        # 11 Oct (a smaller ISO), not the Flatpak (sandboxed: the terminal and Claude in VS Code
+        # couldn't reach the system). Same program as the old RPM: settings and extensions stay
+        # in ~/.vscode and ~/.config/Code. Same name (code.desktop), so a pinned dock icon and
+        # file associations keep working. goblin update runs this step again for new versions.
+        dir="$HOME/.local/share/vscode"
+        apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+        status "Letar efter senaste VS Code…"
+        read -r version url sum < <(curl -fsSL https://update.code.visualstudio.com/api/update/linux-x64/stable/latest \
+            | python3 -c 'import json, sys
+d = json.load(sys.stdin)
+print(d.get("productVersion") or d["name"], d["url"], d.get("sha256hash") or "-")' 2>/dev/null) || true
+        [ -n "${url:-}" ] || { status "Kunde inte nå Microsoft"; exit 1; }
+        if [ -x "$dir/code" ] && [ "$(cat "$dir/.goblincakes-version" 2>/dev/null)" = "$version" ]; then
+            status "VS Code $version finns redan"
+        else
+            tmp=$(mktemp -d)
+            trap 'rm -rf "$tmp"' EXIT
+            status "Hämtar VS Code $version…"
+            curl -fL --progress-bar -o "$tmp/code.tar.gz" "$url"
+            if [ "$sum" != - ]; then
+                status "Kontrollerar VS Code $version…"
+                echo "$sum  $tmp/code.tar.gz" | sha256sum -c - >/dev/null
+            fi
+            status "Packar upp VS Code $version…"
+            mkdir -p "$tmp/new"
+            tar -xzf "$tmp/code.tar.gz" -C "$tmp/new" --strip-components=1
+            [ -x "$tmp/new/code" ]
+            echo "$version" >"$tmp/new/.goblincakes-version"
+            # A running VS Code keeps its open files; the new one is used at its next start
+            mkdir -p "$(dirname "$dir")"
+            [ -e "$dir" ] && mv "$dir" "$tmp/old"
+            mv "$tmp/new" "$dir"
+        fi
+        icon="$dir/resources/app/resources/linux/code.png"
+        mkdir -p "$apps" "$HOME/.local/bin"
+        cat >"$apps/code.desktop" <<DESKTOP
+[Desktop Entry]
+Name=Visual Studio Code
+Comment=Code Editing. Redefined.
+GenericName=Text Editor
+Exec=$dir/code %F
+Icon=$icon
+Type=Application
+StartupNotify=false
+StartupWMClass=Code
+Categories=TextEditor;Development;IDE;
+MimeType=application/x-code-workspace;
+Actions=new-empty-window;
+Keywords=vscode;
+X-GOBLINCAKES-VSCode=true
+
+[Desktop Action new-empty-window]
+Name=New Empty Window
+Exec=$dir/code --new-window %F
+Icon=$icon
+DESKTOP
+        # vscode:// links: signing in to GitHub (and other extensions) from the browser
+        cat >"$apps/code-url-handler.desktop" <<DESKTOP
+[Desktop Entry]
+Name=Visual Studio Code - URL Handler
+Exec=$dir/code --open-url %U
+Icon=$icon
+Type=Application
+NoDisplay=true
+StartupNotify=true
+Categories=Utility;TextEditor;Development;IDE;
+MimeType=x-scheme-handler/vscode;
+Keywords=vscode;
+X-GOBLINCAKES-VSCode=true
+DESKTOP
+        ln -sfn "$dir/bin/code" "$HOME/.local/bin/code"
+        update-desktop-database "$apps" >/dev/null 2>&1 || true
+        xdg-mime default code-url-handler.desktop x-scheme-handler/vscode >/dev/null 2>&1 || true
+        kbuildsycoca6 >/dev/null 2>&1 || true
+        status "VS Code $version klar"
         ;;
 
     claude-code)

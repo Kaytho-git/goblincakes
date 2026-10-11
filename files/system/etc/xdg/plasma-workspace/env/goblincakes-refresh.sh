@@ -95,4 +95,25 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
+# VS Code left the image on 11 Oct (now Microsoft's own build in the home folder, from
+# Config). Those who used the old one get the new one once, in the background (the
+# download mustn't hold up the login); tried again at the next login if there's no network.
+_gc_flag="$_gc_state/vscode-home"
+if [ ! -e "$_gc_flag" ]; then
+    if [ -x "$HOME/.local/share/vscode/code" ] || { [ ! -d "$HOME/.vscode" ] && [ ! -d "${XDG_CONFIG_HOME:-$HOME/.config}/Code" ]; }; then
+        mkdir -p "$_gc_state" && touch "$_gc_flag"
+    else
+        setsid sh -c '
+            for try in 1 2 3 4 5 6 7 8 9 10; do
+                if /usr/libexec/goblincakes-config-install vscode; then
+                    mkdir -p "$(dirname "$1")" && touch "$1"
+                    notify-send --app-name=GOBLINCAKES --icon=goblincakes "VS Code är på plats" \
+                        "VS Code hämtas nu från Microsoft till din hemmapp och uppdateras av goblin update. Dina inställningar och tillägg finns kvar."
+                    exit 0
+                fi
+                sleep 30
+            done' sh "$_gc_flag" >/dev/null 2>&1 </dev/null &
+    fi
+fi
+
 unset _gc_now _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets

@@ -11,15 +11,12 @@ modules:
   - type: dnf
     repos:
       cleanup: true
-      files:
-        - vscode.repo                        # files/dnf/vscode.repo
       copr:
         - bieszczaders/kernel-cachyos-addons # ananicy-cpp + rules
         - mineiro/ghostty                    # Ghostty terminal
         - scujas/plasma-applet-appgrid       # AppGrid app launcher
     install:
       packages:
-        - code                  # VS Code
         - ghostty               # default terminal
         - fastfetch             # system info with the GOBLINCAKES logo
         - plymouth-plugin-script # engine for the GOBLINCAKES boot screen

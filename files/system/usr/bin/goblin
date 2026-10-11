@@ -138,6 +138,13 @@ for app in json.load(open(sys.argv[1]))["apps"]:
 ' "$catalog")
 }
 
+update_vscode() {
+    # Microsoft's VS Code in the home folder (GOBLINCAKES Config → System)
+    [ -x "$HOME/.local/share/vscode/code" ] || return 0
+    heading "VS Code"
+    config_step vscode
+}
+
 update_proton() {
     # Only for those who use it (ProtonUp-Qt chosen in GOBLINCAKES Config, or GE-Proton already there)
     if flatpak info net.davidotek.pupgui2 >/dev/null 2>&1 \
@@ -168,6 +175,7 @@ cmd_update() {
     step "Systemet" update_system
     step "Flatpak-program" update_flatpaks
     update_appimages
+    step "VS Code" update_vscode
     step "GE-Proton" update_proton
     # GTK theme copy for Flatpak programs (Quod Libet): follow the theme in the image
     [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/themes/GoblinCakes" ] && "$config_install" gtk-theme >/dev/null 2>&1
