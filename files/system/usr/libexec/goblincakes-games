@@ -3,6 +3,7 @@
 
     goblincakes-games list               every game with the words that start it
     goblincakes-games run <word>         start the game (exit 3: no game by that word)
+    goblincakes-games steam              every installed game with what to give `add`
     goblincakes-games add <game> <word>  own short word for a game (name, word or .exe)
     goblincakes-games remove <word>      removes an own word
 
@@ -207,6 +208,21 @@ def main(argv):
             own.setdefault(gameid, []).append(word)
         for name, gameid in all_games:
             print(f"  {', '.join(sorted(own.get(gameid, [])) + words(name)):<28} {name}")
+        return 0
+    if cmd == "steam":
+        all_games = games()
+        if not all_games:
+            print("Inga spel i Steam ännu.")
+            return 0
+        width = max(len(n) for n, _ in all_games) + 2
+        for name, gameid in all_games:
+            # What `add` takes for exactly this game: the .exe of a non-Steam shortcut, else
+            # the full squashed name (always unique unless two games share a name)
+            key = EXES.get(gameid) or words(name)[0]
+            if len(find(key, all_games)) != 1:
+                key = squash(name)
+            kind = "egen genväg" if gameid in EXES else "Steam"
+            print(f"  {name:<{width}} {kind:<12} goblin play add {key} <ord>")
         return 0
     if cmd == "add" and len(argv) == 3:
         word = squash(argv[2])

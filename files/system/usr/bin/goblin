@@ -514,6 +514,8 @@ case ${1:-help} in
     play|games|spel) shift
         case ${1:-} in
             add|remove) exec /usr/libexec/goblincakes-games "$@" ;;
+            steam) heading "Installerade spel i Steam – och vad du skriver i goblin play add"
+                exec /usr/libexec/goblincakes-games steam ;;
         esac
         if [ $# -gt 0 ]; then
             /usr/libexec/goblincakes-games run "$1"; [ $? -eq 3 ] && { echo "Hittar inget spel i Steam som heter $1. Se listan: goblin play" >&2; exit 1; }; exit 0
@@ -522,7 +524,8 @@ case ${1:-help} in
         /usr/libexec/goblincakes-games list
         echo
         info "Eget ord: goblin play add <spel> <ord>  (t.ex. goblin play add wow.exe wow)"
-        info "Ta bort:  goblin play remove <ord>" ;;
+        info "Ta bort:  goblin play remove <ord>"
+        info "Alla spel med vad du skriver i add: goblin play steam" ;;
     nyheter|news) shift; heading "Nytt i GOBLINCAKES"; exec /usr/libexec/goblincakes-news latest "${1:-15}" ;;
     gamemode) cmd_gamemode ;;
     fast|fastfetch|info) shift; cmd_fastfetch "$@" ;;
