@@ -61,6 +61,103 @@ def run(program, args, timeout=15000):
     return (proc.exitCode() if ok else -1), out
 
 
+# "Starta vid inloggning" on an installed app's card: an entry in ~/.config/autostart made
+# from the app's own menu entry. Entries the app wrote itself (Raider.IO, Discord's "Open
+# Discord") count too, so the switch shows what really starts – and off removes those as well.
+AUTOSTART = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "autostart"
+LOCAL_APPS = Path.home() / ".local/share/applications"
+FLATPAK_APPS = [Path.home() / ".local/share/flatpak/exports/share/applications",
+                Path("/var/lib/flatpak/exports/share/applications")]
+AUTOSTART_ARGS = {"discord": "--start-minimized"}  # as when Discord is installed
+
+
+def app_launcher(app):
+    """(menu entry, [what its autostart entries' Exec contains], [Flatpak id]) for an app in
+    the catalog, or None when it has nothing to start (Battle.net, Gamescope, Claude Code …)."""
+    kind, *args = app["check"]
+    flatpak = []
+    if kind in ("flatpak", "flatpak-or-rpm"):
+        files = [d / f"{args[0]}.desktop" for d in FLATPAK_APPS]
+        if kind == "flatpak-or-rpm":
+            files.append(Path("/usr/share/applications") / f"{args[0]}.desktop")
+        match, flatpak = [], [args[0]]
+    elif kind == "appimage":
+        files = [LOCAL_APPS / f"appimage-{args[0].lower().replace(' ', '-')}.desktop"]
+        match = [f"/AppImages/{args[0]}.AppImage"]
+    elif kind == "webapp":
+        files, match = [LOCAL_APPS / f"goblincakes-webapp-{args[0]}.desktop"], []
+    elif kind == "discord":
+        files, match = [LOCAL_APPS / "discord.desktop"], ["/discord-app/Discord"]
+    elif kind == "vscode":
+        files, match = [LOCAL_APPS / "code.desktop"], ["/.local/share/vscode/"]
+    else:
+        return None
+    found = next((f for f in files if f.is_file()), None)
+    return (found, match, flatpak) if found else None
+
+
+def desktop_entry(path):
+    """The keys of a .desktop file's [Desktop Entry] group (not its actions)."""
+    keys, group = {}, None
+    try:
+        lines = path.read_text(errors="replace").splitlines()
+    except OSError:
+        return keys
+    for line in lines:
+        if line.startswith("["):
+            group = line.strip()
+        elif group == "[Desktop Entry]" and "=" in line and not line.startswith("#"):
+            key, value = line.split("=", 1)
+            keys.setdefault(key.strip(), value.strip())
+    return keys
+
+
+def autostart_entries(launcher):
+    """The autostart entries that start this app: [(file, enabled)]."""
+    path, match, flatpak = launcher
+    found = []
+    for entry in sorted(AUTOSTART.glob("*.desktop")):
+        keys = desktop_entry(entry)
+        exec_line = keys.get("Exec", "")
+        if (entry.name == path.name or any(m in exec_line for m in match)
+                or any(f in exec_line.split() or keys.get("X-Flatpak") == f for f in flatpak)):
+            enabled = (keys.get("Hidden", "").lower() != "true"
+                       and keys.get("X-GNOME-Autostart-enabled", "").lower() != "false")
+            found.append((entry, enabled))
+    return found
+
+
+def set_app_autostart(app, on):
+    launcher = app_launcher(app)
+    if not launcher:
+        return
+    for entry, _ in autostart_entries(launcher):
+        entry.unlink(missing_ok=True)
+    if not on:
+        return
+    # A copy of the menu entry: only its main group, without the arguments a menu passes
+    # (%U, Flatpak's @@u … @@) – plus the app's own "start quietly" flag
+    out, group = [], None
+    for line in launcher[0].read_text(errors="replace").splitlines():
+        if line.startswith("["):
+            group = line.strip()
+            if group != "[Desktop Entry]":
+                continue
+        if group != "[Desktop Entry]":
+            continue
+        key = line.split("=", 1)[0].strip()
+        if key in ("Hidden", "X-GNOME-Autostart-enabled", "DBusActivatable", "Actions", "TryExec", "MimeType"):
+            continue
+        if key == "Exec":
+            command = re.sub(r"\s+", " ", re.sub(r"@@u?|%[a-zA-Z]", "", line.split("=", 1)[1])).strip()
+            extra = AUTOSTART_ARGS.get(app["id"])
+            line = f"Exec={command}{' ' + extra if extra else ''}"
+        out.append(line)
+    out.append("X-GOBLINCAKES-Autostart=true")
+    AUTOSTART.mkdir(parents=True, exist_ok=True)
+    (AUTOSTART / launcher[0].name).write_text("\n".join(out) + "\n")
+
+
 class Config(QObject):
     """Talks to Main.qml: catalogs in, progress out."""
 
@@ -74,6 +171,7 @@ class Config(QObject):
     showTab = Signal(str)  # another start (e.g. the update arrow): show this window on that tab
     checkDone = Signal(str)  # "Kolla efter uppdateringar": goblincakes-updates' JSON ("" = failed)
     mainBrowserChanged = Signal()
+    autostartChanged = Signal()
     webappsChanged = Signal()
     systemAppsChanged = Signal()  # tab FÖRINSTALLERAT
     webappProgress = Signal(str)  # status line while making a web app
@@ -123,6 +221,8 @@ class Config(QObject):
         self._gpu_proc = None
         self._update_proc = None
         self._system_apps = "[]"  # filled when the tab FÖRINSTALLERAT opens
+        self._autostart = "{}"
+        self.refreshAutostart()
         self.refreshGpu()
 
     # ── Apps ──────────────────────────────────────────────────
@@ -136,6 +236,30 @@ class Config(QObject):
         """Back to choosing apps: what was installed now shows as installed."""
         self._catalog = json.dumps(self._catalog_data)
         self.catalogChanged.emit()
+        self.refreshAutostart()
+
+    @Property(str, notify=autostartChanged)
+    def autostart(self):
+        """{app id: starts at login} for installed apps that have something to start."""
+        return self._autostart
+
+    @Slot()
+    def refreshAutostart(self):
+        states = {}
+        for app_id, app in self._apps.items():
+            launcher = app.get("installed") and app_launcher(app)
+            if launcher:
+                states[app_id] = any(enabled for _, enabled in autostart_entries(launcher))
+        self._autostart = json.dumps(states)
+        self.autostartChanged.emit()
+
+    @Slot(str, bool)
+    def setAutostart(self, app_id, on):
+        try:
+            set_app_autostart(self._apps[app_id], on)
+        except OSError as error:
+            print(f"autostart {app_id}: {error}", file=sys.stderr, flush=True)
+        self.refreshAutostart()
 
     @Property(str, notify=mainBrowserChanged)
     def mainBrowser(self):

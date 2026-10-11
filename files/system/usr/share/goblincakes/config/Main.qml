@@ -23,6 +23,7 @@ Window {
     readonly property var gpu: JSON.parse(backend.gpu)
     property string gpuMessage: ""
     readonly property string mainBrowser: backend.mainBrowser // app id, "" = Firefox
+    readonly property var autostart: JSON.parse(backend.autostart) // installed app id → starts at login
     readonly property var webapps: JSON.parse(backend.webapps)
     property string webappStatus: ""
     property bool webappBusy: false
@@ -800,14 +801,16 @@ Window {
                                 readonly property bool installed: modelData.installed
                                 readonly property bool checked: !!win.chosen[modelData.id]
                                 readonly property bool browser: !!modelData.browser
+                                // Installed and has something to start: "Starta vid inloggning"
+                                readonly property bool canAutostart: installed && win.autostart[modelData.id] !== undefined
 
                                 width: (sections.width - 16 * (section.columns - 1)) / section.columns
-                                height: browser ? 160 : 112
+                                height: 112 + 48 * ((browser ? 1 : 0) + (canAutostart ? 1 : 0))
                                 color: cardArea.containsMouse && !installed ? "#111A2A" : "#0E1420"
                                 border.width: 1
                                 border.color: checked ? "#2F6FED" : cardArea.containsMouse && !installed ? "#2A3852" : "#1E2A40"
-                                // Browsers stay bright when installed: their switch is still in use
-                                opacity: installed && !browser ? 0.55 : 1
+                                // Stays bright when installed if a switch is still in use
+                                opacity: installed && !browser && !canAutostart ? 0.55 : 1
 
                                 Monogram {
                                     id: mono
@@ -859,31 +862,25 @@ Window {
                                     onClicked: if (!card.installed) win.toggle(card.modelData.id)
                                 }
 
-                                // Browsers: "Huvudwebbläsare" switch – installs it and makes it the main browser
-                                Rectangle {
-                                    visible: card.browser
+                                // Switches at the bottom of the card, each on its own row
+                                Column {
                                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                                     anchors { leftMargin: 18; rightMargin: 18; bottomMargin: 14 }
-                                    height: 30
-                                    color: "transparent"
-                                    Rectangle {
-                                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                                        anchors.topMargin: -8
-                                        height: 1
-                                        color: "#1E2A40"
-                                    }
-                                    Text {
-                                        anchors { left: parent.left; verticalCenter: browserSwitch.verticalCenter }
+                                    spacing: 18
+
+                                    // Browsers: installs it and makes it the main browser
+                                    CardSwitch {
+                                        visible: card.browser
                                         text: "Huvudwebbläsare"
-                                        color: browserSwitch.on ? "#E6ECF5" : "#8B98AD"
-                                        font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
-                                    }
-                                    ToggleSwitch {
-                                        id: browserSwitch
-                                        anchors { right: parent.right; bottom: parent.bottom }
                                         on: win.mainBrowser === card.modelData.id
                                         onToggled: win.setMainBrowser(card.modelData.id, !on)
+                                    }
+                                    // Installed apps: start it at every login (~/.config/autostart)
+                                    CardSwitch {
+                                        visible: card.canAutostart
+                                        text: "Starta vid inloggning"
+                                        on: !!win.autostart[card.modelData.id]
+                                        onToggled: backend.setAutostart(card.modelData.id, !on)
                                     }
                                 }
                             }
@@ -1068,6 +1065,35 @@ Window {
     // ── Optimisations ────────────────────────────────────────
 
     // Square on/off switch: blue with the knob to the right when on
+    // A row at the bottom of an app card: line above, label left, switch right
+    component CardSwitch: Item {
+        id: row
+        property string text
+        property bool on
+        signal toggled()
+        width: parent ? parent.width : 0
+        height: 30
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; top: parent.top }
+            anchors.topMargin: -8
+            height: 1
+            color: "#1E2A40"
+        }
+        Text {
+            anchors { left: parent.left; verticalCenter: rowSwitch.verticalCenter }
+            text: row.text
+            color: row.on ? "#E6ECF5" : "#8B98AD"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 13
+        }
+        ToggleSwitch {
+            id: rowSwitch
+            anchors { right: parent.right; bottom: parent.bottom }
+            on: row.on
+            onToggled: row.toggled()
+        }
+    }
+
     component ToggleSwitch: Rectangle {
         id: sw
         property bool on
