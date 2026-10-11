@@ -1,0 +1,89 @@
+# GOBLINCAKES' Firefox theme (firefox-tema/): signed by Mozilla as an unlisted add-on (only for
+# GOBLINCAKES – not on addons.mozilla.org's search) and published in the release
+# "firefox-tema". Firefox installs it through the policy in the image
+# (files/system/usr/share/goblincakes/firefox/policies/policies.json) and updates it itself
+# through firefox-tema/updates.json, which this flow writes.
+# New version of the theme: change it and raise "version" in manifest.json – Mozilla never
+# signs the same version twice. Needs the secrets AMO_JWT_ISSUER and AMO_JWT_SECRET
+# (API keys from addons.mozilla.org → Developer Hub → Manage API Keys).
+name: Signera Firefox-temat
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firefox-tema/**"
+      - "!firefox-tema/updates.json"
+      - ".github/workflows/build-firefox-theme.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write # the release "firefox-tema" and updates.json
+
+concurrency:
+  group: firefox-theme
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          version=$(jq -r .version firefox-tema/manifest.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view firefox-tema -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' 2>/dev/null \
+              | grep -qx "goblincakes-theme-$version.xpi"; then
+            echo "Version $version är redan signerad – höj version i manifest.json för en ny."
+            echo "done=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/setup-node@v4
+        if: steps.v.outputs.done != 'true'
+        with:
+          node-version: 22
+
+      - name: Signera hos Mozilla (olistat)
+        if: steps.v.outputs.done != 'true'
+        run: |
+          npx --yes web-ext@8 sign --channel=unlisted --source-dir firefox-tema \
+            --ignore-files updates.json --artifacts-dir out \
+            --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"
+          ls -la out
+          f=$(ls out/*.xpi | head -1)
+          cp "$f" "out/goblincakes-theme-${{ steps.v.outputs.version }}.xpi"
+          cp "$f" out/goblincakes-theme.xpi
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+
+      - name: Lägg upp i releasen "firefox-tema"
+        if: steps.v.outputs.done != 'true'
+        run: |
+          gh release view firefox-tema -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create firefox-tema -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "GOBLINCAKES Firefox-tema" \
+              --notes "GOBLINCAKES tema för Firefox, signerat av Mozilla. Installeras av sig självt i GOBLINCAKES."
+          gh release upload firefox-tema out/goblincakes-theme.xpi "out/goblincakes-theme-${{ steps.v.outputs.version }}.xpi" \
+            --clobber -R "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Skriv updates.json (Firefox hämtar nya versioner härifrån)
+        if: steps.v.outputs.done != 'true'
+        run: |
+          v=${{ steps.v.outputs.version }}
+          jq -n --arg v "$v" \
+            --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/firefox-tema/goblincakes-theme-$v.xpi" \
+            '{addons: {"theme@goblincakes": {updates: [{version: $v, update_link: $url}]}}}' > firefox-tema/updates.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firefox-tema/updates.json
+          git commit -m "Firefox theme $v signed – updates.json" || exit 0
+          git pull --rebase
+          git push

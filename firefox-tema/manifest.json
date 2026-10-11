@@ -1,0 +1,65 @@
+{
+  "manifest_version": 2,
+  "name": "GOBLINCAKES",
+  "version": "1.0",
+  "description": "GOBLINCAKES OS – mörka färger, blå accent och goblinen i fliklisten.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "theme@goblincakes",
+      "strict_min_version": "115.0",
+      "update_url": "https://raw.githubusercontent.com/Kaytho-git/goblincakes/main/firefox-tema/updates.json"
+    }
+  },
+  "theme": {
+    "images": {
+      "theme_frame": "goblin.svg"
+    },
+    "colors": {
+      "frame": "#05070A",
+      "frame_inactive": "#0B1018",
+      "tab_background_text": "#8B98AD",
+      "tab_text": "#E6ECF5",
+      "tab_selected": "#12203A",
+      "tab_line": "#2F6FED",
+      "tab_loading": "#2F6FED",
+      "tab_background_separator": "#1E2A40",
+      "toolbar": "#0E1420",
+      "toolbar_text": "#E6ECF5",
+      "icons": "#E6ECF5",
+      "icons_attention": "#2F6FED",
+      "button_background_hover": "#1A2438",
+      "button_background_active": "#12203A",
+      "toolbar_top_separator": "#1E2A40",
+      "toolbar_bottom_separator": "#1E2A40",
+      "toolbar_vertical_separator": "#1E2A40",
+      "toolbar_field": "#07090D",
+      "toolbar_field_text": "#E6ECF5",
+      "toolbar_field_border": "#1E2A40",
+      "toolbar_field_focus": "#07090D",
+      "toolbar_field_text_focus": "#E6ECF5",
+      "toolbar_field_border_focus": "#2F6FED",
+      "toolbar_field_highlight": "#2F6FED",
+      "toolbar_field_highlight_text": "#E6ECF5",
+      "popup": "#0E1420",
+      "popup_text": "#E6ECF5",
+      "popup_border": "#1E2A40",
+      "popup_highlight": "#2F6FED",
+      "popup_highlight_text": "#E6ECF5",
+      "sidebar": "#0E1420",
+      "sidebar_text": "#E6ECF5",
+      "sidebar_border": "#1E2A40",
+      "sidebar_highlight": "#2F6FED",
+      "sidebar_highlight_text": "#E6ECF5",
+      "ntp_background": "#12203A",
+      "ntp_text": "#E6ECF5",
+      "ntp_card_background": "#0E1420"
+    },
+    "properties": {
+      "additional_backgrounds_alignment": [
+        "right top"
+      ],
+      "color_scheme": "dark",
+      "content_color_scheme": "auto"
+    }
+  }
+}

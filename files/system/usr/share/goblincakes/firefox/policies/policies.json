@@ -1,7 +1,16 @@
 {
   "policies": {
     "Preferences": {
-      "general.autoScroll": { "Value": true, "Status": "default" }
+      "general.autoScroll": {
+        "Value": true,
+        "Status": "default"
+      }
+    },
+    "ExtensionSettings": {
+      "theme@goblincakes": {
+        "installation_mode": "normal_installed",
+        "install_url": "https://github.com/Kaytho-git/goblincakes/releases/download/firefox-tema/goblincakes-theme.xpi"
+      }
     }
   }
 }
