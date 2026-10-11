@@ -169,6 +169,15 @@ for o in outputs:
                 }); });" >/dev/null 2>&1 || true
         }
         installed() { rpm -q kdepim-addons >/dev/null 2>&1; }
+        wait_rpm_ostree() { # an update running (Config, goblin update, the automatic one): rpm-ostree
+            # refuses a second job ("Transaction in progress") – wait for it, max 30 min
+            for _ in $(seq 180); do
+                rpm-ostree status --json 2>/dev/null | python3 -c '
+import json, sys
+sys.exit(0 if json.load(sys.stdin).get("transaction") else 1)' || return 0
+                sleep 10
+            done
+        }
         finish_on() { # the packages are there: start it all, once
             setsid -f akonadictl start >/dev/null 2>&1 < /dev/null || true
             clock_plugin add
@@ -199,6 +208,7 @@ for o in outputs:
                         touch "$flag"
                         finish_on
                     else
+                        wait_rpm_ostree
                         rpm-ostree install --idempotent --allow-inactive "${packages[@]}" || exit 1
                         touch "$flag"
                         notify-send -a "GOBLINCAKES" -i view-calendar "Kalender med konton" \
@@ -216,6 +226,7 @@ for o in outputs:
 import json, sys
 wanted = set(sys.argv[1:])
 sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.load(sys.stdin).get("deployments", [])[:2]) else 1)' "${packages[@]}"; then
+                        wait_rpm_ostree
                         rpm-ostree uninstall "${packages[@]}" >/dev/null 2>&1 || true
                     fi
                 fi ;;
