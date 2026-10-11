@@ -176,18 +176,30 @@ update_firmware() {
 }
 
 cmd_update() {
-    [ "${1:-}" = --gui ] && GUI=1
-    [ "$GUI" = 1 ] || printf '%s%sGOBLINCAKES%s %suppdaterar allt%s\n' "$bold" "$frost" "$reset" "$muted" "$reset"
+    # --gui: lines for GOBLINCAKES Config. --only system,flatpak,appimages,vscode,discord,proton,firmware:
+    # just those parts (Config → Uppdatera updates each part on its own, 11 Oct)
+    local only=""
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --gui) GUI=1 ;;
+            --only) shift; only=",${1:-},"; [ "$only" = ",," ] && { echo "goblin update --only: vilka delar?" >&2; return 2; } ;;
+            --only=*) only=",${1#--only=}," ;;
+        esac
+        shift
+    done
+    part() { [ -z "$only" ] || [[ $only == *",$1,"* ]]; }
+    [ "$GUI" = 1 ] || printf '%s%sGOBLINCAKES%s %suppdaterar %s%s\n' "$bold" "$frost" "$reset" "$muted" \
+        "$([ -z "$only" ] && echo allt || echo "${only//,/ }" | xargs)" "$reset"
     system_updated=0
-    step "Systemet" update_system
-    step "Flatpak-program" update_flatpaks
-    update_appimages
-    step "VS Code" update_vscode
-    step "Discord" update_discord
-    step "GE-Proton" update_proton
+    part system && step "Systemet" update_system
+    part flatpak && step "Flatpak-program" update_flatpaks
+    part appimages && update_appimages
+    part vscode && step "VS Code" update_vscode
+    part discord && step "Discord" update_discord
+    part proton && step "GE-Proton" update_proton
     # GTK theme copy for Flatpak programs (Quod Libet): follow the theme in the image
     [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/themes/GoblinCakes" ] && "$config_install" gtk-theme >/dev/null 2>&1
-    step "Firmware" update_firmware
+    part firmware && step "Firmware" update_firmware
     # The green arrow in the top bar follows right away (in the background: skopeo takes a moment)
     GOBLINCAKES_UPDATED=1 setsid -f /usr/libexec/goblincakes-updates check >/dev/null 2>&1 < /dev/null || true
 
@@ -225,7 +237,7 @@ cmd_update() {
 # name | description – used by help and by the list in new terminals
 # Descriptions at most 76 characters: the list must fit Ghostty's 100 columns (2 + "goblin " + 11 + 1 = 21)
 COMMANDS=(
-    "update|Uppdatera allt: system, Flatpaks, AppImages, GE-Proton, firmware"
+    "update|Uppdatera allt – eller en del: goblin update --only flatpak (system, flatpak, appimages, vscode, discord, proton, firmware)"
     "ai|Öppna Goblin AI-fönstret (eller tryck Meta+A)"
     "ai [fråga]|Fråga Goblin AI direkt här – föreslagna kommandon körs bara om du säger ja"
     "ai setup|Ställ in gratis AI-tjänster (Gemini, Groq, OpenRouter, Mistral)"

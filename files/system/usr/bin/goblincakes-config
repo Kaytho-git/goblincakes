@@ -481,22 +481,27 @@ class Config(QObject):
 
     # The steps in goblin update's order (its @@step headings), for the progress bar
     UPDATE_STEPS = ["System (GOBLINCAKES-imagen)", "Flatpak-program", "AppImage-program", "VS Code", "Discord", "GE-Proton", "Firmware"]
+    # goblin update --only names, in the same order
+    UPDATE_PARTS = ["system", "flatpak", "appimages", "vscode", "discord", "proton", "firmware"]
 
     @Property(bool, notify=updateBusyChanged)
     def updateBusy(self):
         return self._update_proc is not None
 
-    @Slot()
-    def startUpdate(self):
+    @Slot(str)
+    def startUpdate(self, parts=""):
+        """parts: "" = everything, else goblin update --only (e.g. "discord" from one row in Uppdatera)."""
         if self._update_proc:
             return
+        wanted = [p for p in parts.split(",") if p in self.UPDATE_PARTS]
+        steps = [s for s, p in zip(self.UPDATE_STEPS, self.UPDATE_PARTS) if not wanted or p in wanted]
         state = {"step": 0, "title": "Förbereder…", "frac": 0.0, "status": "", "summary": "", "since_result": False,
                  "reboot": False, "buf": ""}
         proc = QProcess(self)
         proc.setProcessChannelMode(QProcess.MergedChannels)
 
         def emit():
-            total = len(self.UPDATE_STEPS)
+            total = len(steps)
             self.updateProgress.emit(min(1.0, (state["step"] + state["frac"]) / total), state["title"], state["status"])
 
         def line(text):
@@ -506,8 +511,8 @@ class Config(QObject):
             print(text, flush=True)
             if text.startswith("@@step "):
                 title = text[7:]
-                if title in self.UPDATE_STEPS:
-                    state["step"] = self.UPDATE_STEPS.index(title)
+                if title in steps:
+                    state["step"] = steps.index(title)
                 state["title"], state["frac"], state["status"] = title, 0.0, ""
             elif text.startswith("@@result "):
                 name, _, result = text[9:].partition("|")
@@ -544,7 +549,7 @@ class Config(QObject):
             line(state["buf"])
             self._update_proc = None
             self.updateBusyChanged.emit()
-            state["step"], state["frac"] = len(self.UPDATE_STEPS), 0.0
+            state["step"], state["frac"] = len(steps), 0.0
             state["title"], state["status"] = "Klart", ""
             emit()
             self.updateDone.emit(exit_status == QProcess.NormalExit and code == 0, state["reboot"])
@@ -555,7 +560,7 @@ class Config(QObject):
         self._update_proc = proc
         self.updateBusyChanged.emit()
         emit()
-        proc.start("goblin", ["update", "--gui"])
+        proc.start("goblin", ["update", "--gui"] + (["--only", ",".join(wanted)] if wanted else []))
 
     @Slot()
     def enrollKey(self):

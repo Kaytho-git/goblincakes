@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-11  Uppdateringskollen vid inloggning ser nu även VS Code, Discord, AppImages, GE-Proton och firmware. I GOBLINCAKES Config → Uppdatera kan varje del uppdateras för sig
 2026-10-11  Kalender med konton hämtas nu när du slår på den i GOBLINCAKES Config (gäller efter en omstart), och inmatning för kinesiska, japanska, koreanska m.fl. är borttagen – GOBLINCAKES blir ungefär en halv GB mindre
 2026-10-11  Discord är nu Discords egen version i stället för Flatpak – vännerna ser vilket spel du spelar. Har du Discord flyttas inloggningen och inställningarna över av sig själv. goblin update håller den uppdaterad
 2026-10-11  VS Code är nu Microsofts egen version i din hemmapp – välj den i GOBLINCAKES Config → System. Använde du VS Code förut hämtas den automatiskt, med dina inställningar och tillägg kvar. goblin update håller den uppdaterad

@@ -6,7 +6,11 @@
 # System: a newer GOBLINCAKES image on the registry than the newest one here ("new"), or a new
 # version already fetched that is used after a restart ("staged"). Compared by the image
 # digest, without downloading anything and without a password (skopeo, rpm-ostree status).
-# Flatpak: programs (not runtimes) with updates, user and system installations.
+# Flatpak: programs with updates, user and system installations, plus how many runtimes and
+# extensions (e.g. Nvidia's driver part for Flatpak games, which must follow the system's driver).
+# The rest (11 Oct, the user's wish – each can be updated on its own in Config → Uppdatera):
+# VS Code and Discord in the home folder, AppImages from Config (WowUp, Raider.IO, Archon),
+# GE-Proton when it's used, and firmware (fwupd) – "other": [{part, name}].
 # What a new version brings (10 Oct, the user's wish – shown by the arrow and in Config): the
 # lines of nyheter.txt that the new image has and this one doesn't, read from GitHub at the
 # newest commit before the image was built (the image has no commit label), plus a new Linux
@@ -183,6 +187,108 @@ def flatpak_updates():
     return sorted(names) if ok else None
 
 
+def latest_json(url, headers=None):
+    req = urllib.request.Request(url, headers={"User-Agent": "goblincakes-updates", **(headers or {})})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read().decode("utf-8", "replace")), r.geturl()
+
+
+def read(path):
+    try:
+        return Path(path).read_text().strip()
+    except OSError:
+        return ""
+
+
+CATALOG = Path("/usr/share/goblincakes/config/apps.json")
+
+
+def other_updates(old):
+    """Everything outside the system image and Flatpak that has a newer version: a list of
+    {"part": goblin update --only name, "name": shown text}. Parts that can't be checked now
+    (no network) keep what the last check found."""
+    found = []
+    keep = lambda part: found.extend(o for o in old.get("other", []) if o["part"] == part)
+    home = Path.home()
+
+    # VS Code (Microsoft's own build in the home folder)
+    if (home / ".local/share/vscode/code").exists():
+        try:
+            data, _ = latest_json("https://update.code.visualstudio.com/api/update/linux-x64/stable/latest")
+            new = data.get("productVersion") or data.get("name") or ""
+            if new and new != read(home / ".local/share/vscode/.goblincakes-version"):
+                found.append({"part": "vscode", "name": f"VS Code {new}"})
+        except (OSError, ValueError):
+            keep("vscode")
+
+    # Discord (its own Linux build in the home folder): the download link names the version
+    if (home / ".local/share/discord-app/Discord").exists():
+        try:
+            req = urllib.request.Request("https://discord.com/api/download?platform=linux&format=tar.gz",
+                                         method="HEAD", headers={"User-Agent": "goblincakes-updates"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                m = re.search(r"/discord-([0-9.]+)\.tar\.gz", r.geturl())
+            if m and m.group(1) != read(home / ".local/share/discord-app/.goblincakes-version"):
+                found.append({"part": "discord", "name": f"Discord {m.group(1)}"})
+        except OSError:
+            keep("discord")
+
+    gh = {"Accept": "application/vnd.github+json"}
+    # AppImages from Config: the download link of the newest release vs the one installed
+    try:
+        steps = [s for app in json.loads(CATALOG.read_text())["apps"] for s in app["steps"]
+                 if s[0] == "appimage-github"]
+    except (OSError, ValueError, KeyError):
+        steps = []
+    for _, repo, label in steps:
+        if not (home / "AppImages" / f"{label}.AppImage").exists():
+            continue
+        try:
+            data, _ = latest_json(f"https://api.github.com/repos/{repo}/releases/latest", gh)
+            urls = [a["browser_download_url"] for a in data.get("assets", [])
+                    if a["name"].endswith(".AppImage") and not re.search(r"arm64|aarch64|armv7", a["name"])]
+            if urls and urls[0] != read(home / "AppImages" / f".{label}.release"):
+                found.append({"part": "appimages", "name": f"{label} {data.get('tag_name', '').lstrip('v')}".strip()})
+        except (OSError, ValueError, KeyError):
+            found.extend(o for o in old.get("other", []) if o["part"] == "appimages" and o["name"].startswith(label))
+
+    # GE-Proton, for those who use it (same rule as goblin update)
+    compat = home / ".local/share/Steam/compatibilitytools.d"
+    if list(compat.glob("GE-Proton*")) or run(["flatpak", "info", "net.davidotek.pupgui2"]) is not None:
+        try:
+            data, _ = latest_json("https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest", gh)
+            tag = data.get("tag_name", "")
+            if tag and not (compat / tag).exists():
+                found.append({"part": "proton", "name": tag})
+        except (OSError, ValueError):
+            keep("proton")
+
+    # Firmware (fwupd's own list, refreshed by the system's fwupd-refresh timer); 2 = nothing
+    try:
+        out = subprocess.run(["fwupdmgr", "get-updates", "--json"], capture_output=True, text=True, timeout=60)
+        if out.returncode == 0:
+            for dev in json.loads(out.stdout).get("Devices", []):
+                rel = (dev.get("Releases") or [{}])[0]
+                found.append({"part": "firmware", "name": f"{dev.get('Name', 'Firmware')} {rel.get('Version', '')}".strip()})
+        elif out.returncode != 2:
+            keep("firmware")
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        keep("firmware")
+    return found
+
+
+def flatpak_runtimes():
+    """How many runtimes/extensions have updates (not shown by name) – None when unknown."""
+    count, ok = 0, False
+    for scope in ("--user", "--system"):
+        out = run(["flatpak", "remote-ls", scope, "--updates", "--runtime", "--columns=application"])
+        if out is None:
+            continue
+        ok = True
+        count += sum(1 for line in out.splitlines() if line.strip())
+    return count if ok else None
+
+
 def check():
     try:
         old = json.loads(STATE.read_text())
@@ -190,9 +296,12 @@ def check():
         old = {}
     system, image, remote = system_state()
     flatpaks = flatpak_updates()
+    runtimes = flatpak_runtimes()
     state = {
         "system": old.get("system", "") if system is None else system,
         "flatpaks": old.get("flatpaks", []) if flatpaks is None else flatpaks,
+        "flatpakRuntimes": old.get("flatpakRuntimes", 0) if runtimes is None else runtimes,
+        "other": other_updates(old),
         "checked": int(time.time()),
     }
     # What the new version brings: once per image; kept while it waits for a restart

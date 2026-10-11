@@ -25,10 +25,13 @@ PlasmoidItem {
     property string system: ""      // "new", "staged" or ""
     property var flatpaks: []
     property var news: []           // what the new version brings (goblincakes-updates)
+    property int runtimes: 0        // Flatpak runtimes/extensions with updates (not named)
+    property var other: []          // VS Code, Discord, AppImages, GE-Proton, firmware: [{part, name}]
+    readonly property bool more: flatpaks.length > 0 || runtimes > 0 || other.length > 0
     property bool staged: false     // fetched, waiting for a restart
     property bool fetching: false   // the automatic updates are fetching right now
     property bool asked: false      // a check already started for a staged version the file lacks
-    readonly property bool available: system === "new" || staged || fetching || flatpaks.length > 0
+    readonly property bool available: system === "new" || staged || fetching || more
 
     // Line 1: the file; line 2: staged (1/0); line 3: automatic update running (1/0)
     readonly property string readCommand: "printf '%s\\n' \"$(cat \"$HOME/.cache/goblincakes/updates.json\" 2>/dev/null)\"; "
@@ -50,7 +53,11 @@ PlasmoidItem {
                     root.system = state.system === "staged" && !root.staged ? "" : (state.system || "");
                     root.flatpaks = state.flatpaks || [];
                     root.news = state.news || [];
+                    root.runtimes = state.flatpakRuntimes || 0;
+                    root.other = state.other || [];
                 } catch (e) {
+                    root.runtimes = 0;
+                    root.other = [];
                     root.system = "";
                     root.flatpaks = [];
                     root.news = [];
@@ -85,8 +92,8 @@ PlasmoidItem {
     toolTipMainText: ""
     toolTipSubText: ""
     readonly property string tipTitle: !available ? ""
-        : (staged && flatpaks.length === 0) ? "Starta om för att uppdatera"
-        : (fetching && system !== "new" && flatpaks.length === 0) ? "Uppdatering pågår"
+        : (staged && !more) ? "Starta om för att uppdatera"
+        : (fetching && system !== "new" && !more) ? "Uppdatering pågår"
         : "Uppdateringar finns"
     readonly property string tipText: {
         const lines = [];
@@ -105,8 +112,14 @@ PlasmoidItem {
             lines.push(flatpaks.length === 1 ? "Program: " + shown
                        : flatpaks.length + " program: " + shown + (flatpaks.length > 3 ? " …" : ""));
         }
+        if (flatpaks.length === 0 && runtimes > 0)
+            lines.push("Flatpak: " + runtimes + (runtimes === 1 ? " systemdel" : " systemdelar"));
+        if (other.length > 0) {
+            const shown = other.slice(0, 4).map(o => o.name).join(", ");
+            lines.push(shown + (other.length > 4 ? " …" : ""));
+        }
         if (lines.length > 0)
-            lines.push(staged && system !== "new" && flatpaks.length === 0 ? "Klicka för att starta om"
+            lines.push(staged && system !== "new" && !more ? "Klicka för att starta om"
                        : "Klicka för att uppdatera");
         return lines.join("\n");
     }

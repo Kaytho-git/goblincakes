@@ -113,7 +113,8 @@ Window {
     ListModel { id: updateResults }
     ListModel { id: updateNews }
 
-    function startUpdate() {
+    // parts: "" = everything (Uppdatera allt), else goblin update --only (one row's Uppdatera)
+    function startUpdate(parts) {
         updateResults.clear();
         updateNews.clear();
         updateFrac = 0;
@@ -121,7 +122,7 @@ Window {
         updateStatus = "";
         updateReboot = false;
         updateState = "running";
-        backend.startUpdate();
+        backend.startUpdate(parts || "");
     }
 
     ListModel {
@@ -153,6 +154,8 @@ Window {
     // Result of a check: the "Kolla efter uppdateringar" button, or (fromCache) what the update
     // arrow's automatic check found last, read when the window opens. "Uppdatera allt" is only
     // offered when something was found (the user's choice, 10 Oct).
+    // What a check found, one row per part with its own Uppdatera (11 Oct, the user's wish)
+    ListModel { id: checkParts }
     function showCheck(json, fromCache) {
         let st;
         try { st = JSON.parse(json); } catch (e) { st = null; }
@@ -166,6 +169,8 @@ Window {
             return;
         }
         const apps = st.flatpaks || [];
+        const runtimes = st.flatpakRuntimes || 0;
+        const other = st.other || [];
         const lines = [];
         const news = (st.news || []).map(line => "  • " + line);
         if (st.system === "new")
@@ -173,17 +178,31 @@ Window {
         else if (st.system === "staged")
             lines.push("En ny GOBLINCAKES-version är redan hämtad – den används efter en omstart"
                        + (news.length > 0 ? ":" : "."), ...news);
-        if (apps.length > 0)
-            lines.push((apps.length === 1 ? "1 program" : apps.length + " program") + " kan uppdateras: " + apps.join(", ") + ".");
-        const found = st.system === "new" || apps.length > 0;
+        const parts = [];
+        if (st.system === "new")
+            parts.push({ "part": "system", "title": "GOBLINCAKES", "detail": "Ny version – används efter en omstart" });
+        if (apps.length > 0 || runtimes > 0)
+            parts.push({ "part": "flatpak", "title": "Flatpak-program",
+                         "detail": apps.length > 0 ? apps.join(", ") + (runtimes > 0 ? " + " + runtimes + " systemdelar" : "")
+                                                   : runtimes + (runtimes === 1 ? " systemdel" : " systemdelar") + " för programmen" });
+        const groups = [["appimages", "AppImage-program"], ["vscode", "VS Code"], ["discord", "Discord"],
+                        ["proton", "GE-Proton"], ["firmware", "Firmware"]];
+        for (const [id, title] of groups) {
+            const names = other.filter(o => o.part === id).map(o => o.name);
+            if (names.length > 0)
+                parts.push({ "part": id, "title": title, "detail": names.join(", ") });
+        }
+        checkParts.clear();
+        for (const p of parts)
+            checkParts.append(p);
+        const found = parts.length > 0;
         if (fromCache && !found && st.system !== "staged")
             return;  // nothing known: just the button
         win.checkFound = found;
         win.checkStaged = st.system === "staged";
-        win.checkText = lines.length > 0 ? lines.join("
-") + (found ? "
-Tryck Uppdatera allt för att uppdatera." : "")
-                                         : "Allt är redan uppdaterat.";
+        win.checkText = lines.length > 0 ? lines.join("\n")
+                      : found ? "Det här kan uppdateras – en del i taget eller allt på en gång:"
+                      : "Allt är redan uppdaterat.";
         win.checkState = "done";
     }
 
@@ -535,7 +554,7 @@ Tryck Uppdatera allt för att uppdatera." : "")
                         : win.tab === "update"
                         ? (win.updateState === "running" ? "Du kan använda datorn under tiden. Stäng inte fönstret."
                            : win.updateState === "done" ? (win.updateOk ? "Allt är uppdaterat." : "Klart, men något gick inte – se listan nedan.")
-                           : "Systemet, program, AppImages, GE-Proton och firmware – samma som goblin update.")
+                           : "Systemet, program, VS Code, Discord, AppImages, GE-Proton och firmware – samma som goblin update.")
                         : win.tab === "graphics"
                         ? "Drivrutiner för ditt grafikkort. Den gamla varianten finns kvar i startmenyn om något går fel."
                         : win.tab === "tweaks"
@@ -1641,9 +1660,9 @@ Tryck Uppdatera allt för att uppdatera." : "")
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 15
                 textFormat: Text.StyledText
-                text: "Hämtar den senaste GOBLINCAKES-versionen och uppdaterar dina program (Flatpak), AppImages som WowUp och Raider.IO, "
+                text: "Hämtar den senaste GOBLINCAKES-versionen och uppdaterar dina program (Flatpak), VS Code, Discord, AppImages som WowUp och Raider.IO, "
                     + "GE-Proton och firmware. Den nya GOBLINCAKES-versionen används efter en omstart – den förra finns kvar i startmenyn.<br><br>"
-                    + "<font color='#E6ECF5'>Tryck Kolla efter uppdateringar</font> för att se om det finns något nytt – inget hämtas förrän du trycker Uppdatera allt. Systemet kan fråga efter ditt lösenord."
+                    + "<font color='#E6ECF5'>Tryck Kolla efter uppdateringar</font> för att se vad som är nytt – det kollas också av sig själv när du loggar in. Inget hämtas förrän du trycker Uppdatera på en del eller Uppdatera allt. Systemet kan fråga efter ditt lösenord."
             }
 
             // Result of "Kolla efter uppdateringar"
@@ -1663,6 +1682,48 @@ Tryck Uppdatera allt för att uppdatera." : "")
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 15
                     text: win.checkState === "checking" ? "Kollar efter uppdateringar…" : win.checkText
+                }
+            }
+
+            // One row per part with something new, each updated on its own
+            Repeater {
+                model: win.updateState === "idle" && win.checkState === "done" ? checkParts : null
+                Rectangle {
+                    required property string part
+                    required property string title
+                    required property string detail
+                    width: updCol.width
+                    height: Math.max(64, partText.height + 24)
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    Column {
+                        id: partText
+                        anchors { left: parent.left; leftMargin: 16; right: partButton.left; rightMargin: 16
+                                  verticalCenter: parent.verticalCenter }
+                        spacing: 2
+                        Text {
+                            text: title
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 15
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: detail
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                    }
+                    FlatButton {
+                        id: partButton
+                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                        text: "Uppdatera"
+                        onClicked: win.startUpdate(part)
+                    }
                 }
             }
 
@@ -1888,7 +1949,7 @@ Tryck Uppdatera allt för att uppdatera." : "")
                 visible: win.tab === "update" && (win.updateState === "done" || (win.updateState === "idle" && win.checkFound))
                 primary: !(win.updateState === "done" && win.updateReboot)
                 text: win.updateState === "done" ? "Uppdatera igen" : "Uppdatera allt"
-                onClicked: win.startUpdate()
+                onClicked: win.startUpdate("")
             }
             FlatButton {
                 visible: win.tab === "update" && ((win.updateState === "done" && win.updateReboot)
