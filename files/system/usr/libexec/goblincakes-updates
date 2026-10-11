@@ -222,7 +222,7 @@ def other_updates(old):
             keep("vscode")
 
     # Discord (its own Linux build in the home folder): the download link names the version
-    if (home / ".local/share/discord-app/Discord").exists():
+    if (home / ".local/share/discord-app/discord").exists():
         try:
             req = urllib.request.Request("https://discord.com/api/download?platform=linux&format=tar.gz",
                                          method="HEAD", headers={"User-Agent": "goblincakes-updates"})

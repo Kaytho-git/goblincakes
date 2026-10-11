@@ -88,7 +88,7 @@ def app_launcher(app):
     elif kind == "webapp":
         files, match = [LOCAL_APPS / f"goblincakes-webapp-{args[0]}.desktop"], []
     elif kind == "discord":
-        files, match = [LOCAL_APPS / "discord.desktop"], ["/discord-app/Discord"]
+        files, match = [LOCAL_APPS / "discord.desktop"], ["/discord-app/discord"]
     elif kind == "vscode":
         files, match = [LOCAL_APPS / "code.desktop"], ["/.local/share/vscode/"]
     else:
@@ -151,6 +151,8 @@ def set_app_autostart(app, on):
             continue
         if key == "Exec":
             command = re.sub(r"\s+", " ", re.sub(r"@@u?|%[a-zA-Z]", "", line.split("=", 1)[1])).strip()
+            # Discord's "--url -- %u": without the link, "--" would make the flag below a link
+            command = re.sub(r"\s--url\s--$", "", command)
             extra = AUTOSTART_ARGS.get(app["id"])
             line = f"Exec={command}{' ' + extra if extra else ''}"
         out.append(line)

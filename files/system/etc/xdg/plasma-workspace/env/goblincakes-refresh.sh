@@ -131,7 +131,7 @@ done
 # while it moves; if the move fails it gets its autostart back and it's tried again next time.
 _gc_flag="$_gc_state/discord-native"
 if [ ! -e "$_gc_flag" ]; then
-    if [ -d "$HOME/.local/share/flatpak/app/com.discordapp.Discord" ] && [ ! -x "$HOME/.local/share/discord-app/Discord" ]; then
+    if [ -d "$HOME/.local/share/flatpak/app/com.discordapp.Discord" ] && [ ! -x "$HOME/.local/share/discord-app/discord" ]; then
         _gc_auto="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/com.discordapp.Discord.desktop"
         _gc_was=0
         [ -e "$_gc_auto" ] && _gc_was=1 && rm -f "$_gc_auto"
@@ -142,7 +142,7 @@ if [ ! -e "$_gc_flag" ]; then
 fi
 # A dock icon pinned for the Flatpak points at Discord's own build once that's there
 _gc_applets="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
-if [ -x "$HOME/.local/share/discord-app/Discord" ] && [ -f "$_gc_applets" ] \
+if [ -x "$HOME/.local/share/discord-app/discord" ] && [ -f "$_gc_applets" ] \
     && grep -q 'com\.discordapp\.Discord\.desktop' "$_gc_applets"; then
     sed -i '/^launchers=/s/com\.discordapp\.Discord\.desktop/discord.desktop/g' "$_gc_applets"
 fi

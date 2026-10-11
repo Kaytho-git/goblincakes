@@ -43,6 +43,6 @@ done
 flatpak uninstall --user --noninteractive "$app" >/dev/null 2>&1 || true
 rm -f "$autostart/$app.desktop"
 mkdir -p "$(dirname "$flag")" && touch "$flag"
-[ "$autostarted" = 1 ] && setsid -f "$HOME/.local/share/discord-app/Discord" --start-minimized >/dev/null 2>&1 </dev/null
+[ "$autostarted" = 1 ] && setsid -f "$HOME/.local/share/discord-app/discord" --start-minimized >/dev/null 2>&1 </dev/null
 notify-send --app-name=GOBLINCAKES --icon="$HOME/.local/share/discord-app/discord.png" "Discord är uppdaterat" \
     "Discord är nu Discords egen version – vännerna ser vilket spel du spelar. Du är fortfarande inloggad." || true

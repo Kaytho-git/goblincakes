@@ -147,7 +147,7 @@ update_vscode() {
 
 update_discord() {
     # Discord's own Linux build in the home folder (GOBLINCAKES Config → Spel och WoW)
-    [ -x "$HOME/.local/share/discord-app/Discord" ] || return 0
+    [ -x "$HOME/.local/share/discord-app/discord" ] || return 0
     heading "Discord"
     config_step discord
 }

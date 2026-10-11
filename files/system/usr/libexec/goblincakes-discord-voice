@@ -246,7 +246,7 @@ def show_discord():
                     return 0
         except (OSError, subprocess.SubprocessError):
             pass
-    native = HOME / ".local/share/discord-app/Discord"
+    native = HOME / ".local/share/discord-app/discord"
     command = [str(native)] if native.exists() else ["flatpak", "run", "com.discordapp.Discord"]
     subprocess.Popen(command, start_new_session=True, stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
