@@ -151,10 +151,32 @@ def update_wowup(found):
                          for d in ("WowUpCf", "WowUp", "wowup-cf", "wowup")) if p.is_file()]
     if not files:
         return
-    running = subprocess.run(["pgrep", "-i", "^wowup"], capture_output=True).returncode == 0
-    if running:
-        say("WowUp är igång – stäng den och kör goblin wow igen, så får den alla WoW-versioner.")
-        return
+    pids = subprocess.run(["pgrep", "-i", "^wowup"], capture_output=True, text=True).stdout.split()
+    restart = None
+    if pids:
+        if not VERBOSE:
+            return  # at login: WowUp already started – goblin wow does it
+        if not needs_wowup(files, found):
+            return
+        # WowUp only reads its settings at start and writes its own copy back, so it is
+        # closed for a moment and started again (11 Oct: it was always running → never filled in)
+        restart = wowup_command(pids)
+        say("WowUp stängs en kort stund för att få WoW-versionerna …")
+        # WowUp ignores SIGTERM (it collapses to the tray) – then SIGKILL after 5 s; its
+        # settings are already on disk (electron-store writes at every change)
+        for sig, tries in (("-TERM", 25), ("-KILL", 25)):
+            subprocess.run(["pkill", sig, "-i", "^wowup"])
+            for _ in range(tries):
+                if subprocess.run(["pgrep", "-r", "RSDT", "-i", "^wowup"],
+                                  capture_output=True).returncode != 0:
+                    break
+                time.sleep(0.2)
+            else:
+                continue
+            break
+        else:
+            say("WowUp gick inte att stänga – stäng den själv och kör goblin wow igen.")
+            return
     for prefs in files:
         try:
             data = json.loads(prefs.read_text())
@@ -188,6 +210,44 @@ def update_wowup(found):
             tmp.write_text(json.dumps(data, indent="\t"))
             tmp.replace(prefs)
             say("WowUp: WoW-versionerna är uppdaterade.")
+    if restart:
+        # Not as Node: a terminal in VS Code has ELECTRON_RUN_AS_NODE=1 (WowUp then quits at once)
+        env = {k: v for k, v in os.environ.items() if k != "ELECTRON_RUN_AS_NODE"}
+        subprocess.Popen(restart, env=env, start_new_session=True, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        say("WowUp startas igen.")
+
+
+def needs_wowup(files, found):
+    """Is any WoW version missing (or moved) in WowUp's settings?"""
+    for prefs in files:
+        try:
+            installs = json.loads(prefs.read_text()).get("wow_installations") or []
+        except (OSError, ValueError):
+            continue
+        have = {os.path.realpath(i.get("location", "")) for i in installs}
+        if any(os.path.realpath(exe) not in have for _f, exe, _m in found.values()):
+            return True
+    return False
+
+
+def wowup_command(pids):
+    """How to start WowUp again: the AppImage it runs from, else its own program."""
+    for pid in pids:
+        try:
+            env = Path(f"/proc/{pid}/environ").read_bytes().split(b"\0")
+        except OSError:
+            continue
+        for item in env:
+            if item.startswith(b"APPIMAGE="):
+                return [item[9:].decode()]
+    for name in ("WowUp", "WowUp-CF"):
+        if (HOME / "AppImages" / f"{name}.AppImage").exists():
+            return [str(HOME / "AppImages" / f"{name}.AppImage")]
+    try:
+        return [os.readlink(f"/proc/{pids[0]}/exe")]
+    except OSError:
+        return None
 
 
 # Raider.IO's own name for each WoW version (from its code: folderNames in index.cjs)
