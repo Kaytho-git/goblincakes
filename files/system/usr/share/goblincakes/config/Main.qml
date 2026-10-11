@@ -14,6 +14,16 @@ Window {
     title: "GOBLINCAKES Config"
     color: "#07090D"
 
+    // Closed while installing or updating: hide and carry on, notify when finished, then quit
+    onClosing: close => {
+        if (page === "install" || updateState === "running") {
+            close.accepted = false;
+            hide();
+        } else {
+            Qt.quit();
+        }
+    }
+
     readonly property var catalog: JSON.parse(backend.catalog)
     property var chosen: ({})
     property int chosenCount: 0
@@ -250,6 +260,12 @@ Window {
         function onAllDone(failed) {
             win.failedCount = failed;
             win.page = "done";
+            if (!win.visible) {
+                backend.notifyHidden("Programmen är installerade",
+                                     failed ? failed + " gick inte att installera – öppna GOBLINCAKES Config igen" : "", false);
+                if (win.updateState !== "running")
+                    Qt.quit();
+            }
         }
         function onGpuProgress(text) {
             win.gpuMessage = text;
@@ -269,6 +285,12 @@ Window {
             win.updateOk = ok;
             win.updateReboot = reboot;
             win.updateState = "done";
+            if (!win.visible) {
+                backend.notifyHidden(ok ? "GOBLINCAKES är uppdaterat" : "Uppdateringen är klar – något gick inte",
+                                     reboot ? "Den nya versionen används efter en omstart" : "", reboot);
+                if (win.page !== "install")
+                    Qt.quit();
+            }
         }
         function onGpuDone(ok) {
             if (ok)

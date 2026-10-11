@@ -781,6 +781,18 @@ class Config(QObject):
         STATE.mkdir(parents=True, exist_ok=True)
         DONE_FILE.touch()
 
+    @Slot(str, str, bool)
+    def notifyHidden(self, title, body, reboot):
+        """The window was closed while installing/updating (it only hid, so the work went on):
+        say it's finished – with Starta om nu when the update needs a restart."""
+        cmd = ["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes", title, body]
+        if reboot:
+            cmd[1:1] = ["--wait", "--action=reboot=Starta om nu"]
+            script = '[ "$("$@")" = reboot ] && systemctl reboot'
+            QProcess.startDetached("sh", ["-c", script, "sh"] + cmd)
+        else:
+            QProcess.startDetached(cmd[0], cmd[1:])
+
 
 def main():
     if "--first-run" in sys.argv and (DONE_FILE.exists() or OLD_DONE_FILE.exists()):
@@ -797,6 +809,9 @@ def main():
     app.setApplicationDisplayName("GOBLINCAKES Config")
     app.setDesktopFileName("goblincakes-config")
     app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+    # Closing the window while installing/updating only hides it (Main.qml): quitting would
+    # kill goblin update – rpm-ostree then lost its output and crashed (11 Oct)
+    app.setQuitOnLastWindowClosed(False)
     for font in os.environ.get("GOBLINCAKES_CONFIG_FONTS", "").split(":"):
         if font:
             QFontDatabase.addApplicationFont(font)
