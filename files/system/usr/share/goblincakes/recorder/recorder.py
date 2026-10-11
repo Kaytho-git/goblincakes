@@ -622,8 +622,8 @@ def wcl_reports(player, start_ms, end_ms):
     for g in char.get("guilds") or []:
         reports += wcl_query(
             "query($g:Int,$from:Float,$to:Float){ reportData { reports(guildID:$g, startTime:$from,"
-            " endTime:$to) { data { " + REPORT_FIELDS + " } } } }",
-            {"g": g["id"], "from": start_ms - 12 * 3600 * 1000, "to": end_ms + 12 * 3600 * 1000}
+            " endTime:$to, limit: 10) { data { " + REPORT_FIELDS + " } } } }",  # more is too costly for the API
+            {"g": g["id"], "from": start_ms - 8 * 3600 * 1000, "to": end_ms + 8 * 3600 * 1000}
         )["reportData"]["reports"]["data"]
     return reports
 
