@@ -20,14 +20,14 @@ PlasmoidItem {
     id: root
 
     // The mark's colour says what is waiting (11 Oct, the user's wish): blue = a new GOBLINCAKES
-    // version (or one being fetched), orange = fetched, restart to use it, green = programs
+    // version (or one being fetched), green = fetched, restart to use it, orange = programs
     // (Flatpak, VS Code, Discord, AppImages, GE-Proton), yellow = only firmware
     readonly property bool onlyFirmware: flatpaks.length === 0 && runtimes === 0
         && other.length > 0 && other.every(o => o.part === "firmware")
     readonly property color markColor: system === "new" || (fetching && !staged) ? "#2F6FED"
-        : staged ? "#F0883E"
+        : staged ? "#3FB950"
         : onlyFirmware ? "#D29922"
-        : "#3FB950"
+        : "#F0883E"
     readonly property bool editMode: Plasmoid.containment.corona?.editMode ?? false
 
     property string system: ""      // "new", "staged" or ""
