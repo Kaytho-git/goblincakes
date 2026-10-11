@@ -10,32 +10,41 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 
 - **Allt klart från start.** Rätt drivrutiner, rätt inställningar för spel och ett genomarbetat utseende redan vid första inloggningen.
 - **Går inte att förstöra.** Systemet är *atomiskt*: varje uppdatering är en hel, testad version. Blir något fel väljer du förra versionen i startmenyn och är tillbaka på en minut.
-- **Ett ställe för allt.** Program, spelinställningar och grafikdrivrutiner väljs i ett eget fönster, *GOBLINCAKES Config* – ingen terminal behövs.
-- **Uppdateras av sig själv.** Ny Fedora-version, nya drivrutiner och säkerhetsfixar kommer automatiskt; ett kommando (`goblin update`) uppdaterar allt annat.
+- **Ett ställe för allt.** Program, inställningar, uppdateringar och grafikdrivrutiner sköts i ett eget fönster, *GOBLINCAKES Config* – ingen terminal behövs.
+- **Håller sig uppdaterat.** En liten ruta i toppfältet visar när något nytt finns och vad det är; en knapp (eller `goblin update`) uppdaterar allt.
 - **Egen installations-USB:** GOBLINCAKES USB gör ett USB-minne som installerar GOBLINCAKES på vilken dator som helst – precis som Windows eller SteamOS.
 
 ## Vad som finns i
 
-### Utseende
+### Utseende och skrivbord
 - Eget tema i hela systemet: mörk palett, Chakra Petch och IBM Plex, raka hörn överallt.
-- Egen startskärm, inloggning, låsskärm och utloggning (*"Goodbye! See you next raid!"*).
-- Toppfält med appmeny i mitten av skärmen (AppGrid), och en docka som gömmer sig när ett fönster täcker den. Dockan kommer fram när muspekaren går mot skärmens nederkant, och **Meta** öppnar appmenyn.
-- Ghostty som terminal, med GOBLINCAKES-färger och systeminfo (`goblin fast`).
+- Egen startskärm, inloggning, låsskärm och utloggning (*"Goodbye! See you next raid!"*). Vid inloggningen väljer du **Skrivbord** eller **TV-läge**.
+- **Toppfältet:** appmenyn (AppGrid) mitt på skärmen, öppna program, *Spelas nu*, veckonummer, klocka med svenska helgdagar i kalendern, och en ruta som visar när det finns uppdateringar.
+- **Spelas nu** i toppfältet: vad Spotify eller musikspelaren spelar (klicka = pausa, scrolla = byt låt), och vilken Discord-röstkanal du är i.
+- **Dockan** gömmer sig när ett fönster täcker den och kommer fram när muspekaren går mot skärmens nederkant. **Meta** öppnar appmenyn.
+- Ghostty som terminal, med GOBLINCAKES-färger och en lista över `goblin`-kommandona i varje nytt fönster.
+- Fedora-program som sällan behövs är dolda i appmenyn men finns kvar – och kan visas igen eller avinstalleras på riktigt (**Avinstallera program** i appmenyn).
 
 ### Spel
 - **Steam** förinstallerat, plus Gamescope, GameMode och MangoHud (FPS-mätare). Windows-program utanför spelen: Bottles i GOBLINCAKES Config.
 - **GE-Proton** hämtas och uppdateras automatiskt.
+- **Starta spel från terminalen:** skriv spelets namn eller förkortning (t.ex. `wow`, `cs2`) så startas det via Steam.
+- **Spel öppnas på huvudskärmen**, även om muspekaren står på en annan skärm.
 - **Handkontroller:** Xbox via dongel, USB och Bluetooth (xone, xpadneo), plus de vanliga PlayStation- och Switch-reglerna.
-- **TV-läge:** Steam Big Picture i helskärm, som en Steam Deck – starta det från appmenyn.
+- **TV-läge:** Steam Big Picture i helskärm, som en Steam Deck – välj det vid inloggningen eller starta det från appmenyn.
 - **Emulatorer:** RetroDECK (Super Nintendo, Mega Drive, N64, PlayStation, GameCube, Switch med flera) och Steam ROM Manager, som lägger in spelen i Steam och TV-läget.
-- **Inställningar** som reglage: spelschemaläggare (scx_lavd), prestandaläge, större shader-cache, ljud med låg fördröjning med mera.
+- **Snabbare:** NTSYNC för Windows-spel, och Steams förberedelse av shaders ("Bearbetar Vulkan-shaders") får mer kraft.
 - **Flera skärmar:** varje skärm körs i sin egen uppdateringsfrekvens (t.ex. 180 Hz + 144 Hz), och den snabbaste blir huvudskärm.
 - **Laptops** med två grafikkort: spel startar på det kraftfulla kortet, skrivbordet på det snåla.
 
 ### World of Warcraft
 - Battle.net via Lutris med GE-Proton, installerat så att butiken fungerar.
 - **WowUp, Raider.IO och Archon** installeras och uppdateras automatiskt.
-- Mapparna för `Logs` och `AddOns` – för alla WoW-versioner – länkas till `~/Games/WoW`, och WowUp hittar dem själv.
+- Mapparna för `Logs` och `AddOns` – för alla WoW-versioner, var de än ligger – länkas till `~/Games/WoW`. WowUp och Raider.IO hittar WoW själva; `goblin wow` talar om vad du väljer i Archon.
+
+### Discord
+- Discords egen Linux-version (inte Flatpak), så att Discord ser vilket spel du spelar.
+- Röstkanalen du är i syns i toppfältet. Okända kanaler: en notis frågar vad kanalen heter (eller `goblin discord namn Raid`).
 
 ### Bågskytte
 - **[Ianseo](https://www.ianseo.net/)** (resultatprogrammet för bågskyttetävlingar) med ett klick: körs i en egen container, med automatisk backup var 30:e minut.
@@ -44,26 +53,39 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 
 ### GOBLINCAKES Config
 Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+C** eller från appmenyn:
-- **Program** – välj det du vill ha: Discord, Lutris, Heroic, OBS, Spotify, GIMP, LibreOffice, Claude, Claude Code, streamingtjänster (Netflix, SVT Play m.fl.), emulatorer (RetroDECK, Steam ROM Manager) och mycket mer.
-- **Inställningar** – prestanda, spel, ljud, system och utseende som reglage, med rubriker.
-- **Grafik** – byt mellan AMD/Intel- och Nvidia-drivrutiner med en knapp.
+- **Program** – kryssa i det du vill ha, i hopfällbara kategorier: webbläsare (Brave, Opera GX, Google Chrome – med reglaget *Huvudwebbläsare*), spel och WoW (Lutris, Battle.net, Discord, Heroic, ProtonUp-Qt, GPU Screen Recorder, WowUp, Raider.IO, Archon m.fl.), emulatorer, media (Spotify, OBS, GIMP, VLC, EasyEffects, Quod Libet), streaming (Netflix, Disney+, HBO Max, Prime Video, YouTube, SVT Play, TV4 Play), kontor (LibreOffice, Okular, Ark, FileZilla), Ianseo och system (Claude, VS Code, Claude Code, Pika Backup m.fl.).
+  - **Egen webbapp:** klistra in en länk så blir sidan ett eget program med ikon.
+  - **Starta vid inloggning:** reglage på installerade program.
+- **Förinstallerat** – visa eller dölj systemets program i appmenyn.
+- **Inställningar** – reglage med rubriker: prestandaläge, spelschemaläggare, MangoHud, spel på det kraftfulla grafikkortet, shader-cache, ljud med låg fördröjning, HDR, ingen musacceleration, automatiska uppdateringar, skärmlåsning, viloläge, kalender med konton (Google, Outlook), Ianseo – och en knapp som återställer GOBLINCAKES-utseendet.
+- **Grafik** – byt mellan AMD/Intel- och Nvidia-drivrutiner med en knapp; hjälp med Secure Boot.
+- **Uppdatera** – se vad som är nytt och uppdatera allt eller en del i taget (systemet, Flatpak-program, VS Code, Discord, WoW-tillägg, GE-Proton, firmware).
+
+### Goblin AI
+Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**) eller i terminalen (`goblin ai`). Använder gratisnivåerna hos Gemini, Groq, OpenRouter och Mistral (egen nyckel, hämtas med en knapp). Föreslagna kommandon körs bara när du säger ja, och AI:n kan ändra filer du bifogar.
 
 ### Kommandon i terminalen
 | Kommando | Gör |
 |---|---|
-| `goblin update` | Uppdaterar allt: systemet, program, WoW-tillägg, GE-Proton och firmware |
+| `goblin update` | Uppdaterar allt: systemet, program, WoW-tillägg, GE-Proton och firmware – och visar vad som är nytt |
 | `goblin ai` | **Goblin AI** – fråga om datorn eller vad som helst (även **Meta+A**) |
-| `goblin play` | Dina spel i Steam – skriv spelets namn eller förkortning direkt i terminalen (t.ex. `wow`, `cs2`) så startas det via Steam |
+| `goblin play` | Dina spel – skriv spelets namn eller förkortning direkt i terminalen (t.ex. `wow`, `cs2`) så startas det via Steam |
 | `goblin tv` | Startar TV-läget |
 | `goblin wow` | Länkar alla WoW-versioner och uppdaterar WowUp |
+| `goblin discord` | Namnger Discord-röstkanalen du är i (`goblin discord namn Raid`) |
+| `goblin remove` | Avinstallerar Fedora-program (`goblin old` visar dem och hur du får tillbaka dem) |
+| `goblin apps` | Visar dolda program igen |
+| `goblin dock reset` | Återställer hela GOBLINCAKES-utseendet |
+| `goblin nyheter` | Vad som är nytt i GOBLINCAKES |
 | `goblin fast` | Systeminformation med GOBLINCAKES-loggan |
 | `goblin help` | Visar alla kommandon |
 
 Du får också en notis när GOBLINCAKES har gått över till en ny Fedora-version.
 
-### Hårdvara
-- Piper (för möss som Logitech G502), VIA (tangentbord som Keychron), ddcutil (skärmens ljusstyrka).
-- Alla diskar syns och monteras automatiskt – även för Steam.
+### Hårdvara och vardag
+- Piper (för möss som Logitech G502, även G502 X), VIA (tangentbord som Keychron), ddcutil (skärmens ljusstyrka).
+- **Mittenknappen** scrollar som i Windows i webbläsarna: klicka och för musen uppåt eller nedåt.
+- Alla diskar syns och monteras automatiskt – även för Steam – och du kan skriva på dina egna Linux-diskar utan lösenord.
 - **För egna projekt:** git och GitHub CLI (`gh`) är med från start; VS Code (Microsofts egen) och Claude Code installeras med ett klick i Config.
 
 ## Två varianter
@@ -71,9 +93,9 @@ Du får också en notis när GOBLINCAKES har gått över till en ny Fedora-versi
 | Image | För |
 |---|---|
 | `ghcr.io/kaytho-git/goblincakes` | AMD- och Intel-grafik (och Nvidia med den öppna drivrutinen) |
-| `ghcr.io/kaytho-git/goblincakes-nvidia` | Nvidia RTX 20-serien och nyare, med Nvidias egna drivrutiner |
+| `ghcr.io/kaytho-git/goblincakes-nvidia` | Nvidia GTX 16-serien, RTX 20-serien och nyare, med Nvidias egna drivrutiner |
 
-Du behöver inte välja själv: GOBLINCAKES känner av grafikkortet och föreslår rätt variant under **Config → Grafik**.
+Du behöver inte välja själv: GOBLINCAKES känner av grafikkortet och byter till rätt variant efter första starten, och **Config → Grafik** visar vilken du har.
 
 ## Installation
 
@@ -84,11 +106,10 @@ Du behöver inte välja själv: GOBLINCAKES känner av grafikkortet och föresl�
 1. Ladda ner programmet från releasen [**usb-skaparen**](https://github.com/Kaytho-git/goblincakes/releases/tag/usb-skaparen):
    - Windows: `GOBLINCAKES-USB-Windows.exe` – ber om administratörsrättigheter. Windows kan varna eftersom programmet inte är signerat än: välj *Mer information → Kör ändå*.
    - Linux: `GOBLINCAKES-USB-Linux` – gör filen körbar (`chmod +x`) och starta den.
-2. Sätt i ett USB-minne på minst 16 GB, välj det och tryck **Skapa USB-minne**. Allt på USB-minnet raderas.
-3. Programmet hämtar installations-ISO:n från releasen [**iso**](https://github.com/Kaytho-git/goblincakes/releases/tag/iso), kontrollerar varje del, skriver den direkt till USB-minnet och läser sedan tillbaka allt för att se att det stämmer. Inget sparas på datorn.
-4. Starta datorn från USB-minnet (oftast F12, F11, F8 eller Esc vid start, i UEFI-läge). GOBLINCAKES startar direkt från USB-minnet – prova, och tryck sedan **Installera GOBLINCAKES**.
-
-Programmet visar också vilket grafikkort datorn har. Med ett Nvidia-kort (GTX 16xx/RTX 20xx eller nyare) hämtas Nvidias drivrutiner automatiskt efter första starten.
+2. Välj ISO: **vanlig** (AMD/Intel) eller **Nvidia** (GTX 16xx/RTX 20xx eller nyare). Programmet ser vilket grafikkort datorn har och föreslår rätt – ska USB-minnet till en annan dator, välj efter den datorns kort. Fel val gör ingen skada: GOBLINCAKES rättar det efter första starten.
+3. Sätt i ett USB-minne på minst 16 GB, välj det och tryck **Skapa USB-minne**. Allt på USB-minnet raderas.
+4. Programmet hämtar ISO:n (ca 9,5 GB, Nvidia ca 11 GB) från releasen [**iso**](https://github.com/Kaytho-git/goblincakes/releases/tag/iso), kontrollerar varje del, skriver den till USB-minnet och läser sedan tillbaka allt för att se att det stämmer.
+5. Starta datorn från USB-minnet (oftast F12, F11, F8 eller Esc vid start, i UEFI-läge). GOBLINCAKES startar direkt från USB-minnet – prova, och tryck sedan **Installera GOBLINCAKES**. Steam och TV-läget finns inte på USB-minnet men kommer med i installationen.
 
 ISO:n går också att ladda ner för hand från releasen **iso** (i delar under 2 GB – se releasetexten) och skriva med t.ex. Rufus eller balenaEtcher.
 
@@ -113,13 +134,14 @@ Har du redan Fedora Kinoite kan du byta till GOBLINCAKES direkt:
 3. Logga in – GOBLINCAKES Config öppnas och hjälper dig med resten.
 
 > [!NOTE]
-> GOBLINCAKES är ett personligt projekt och utvecklas fortfarande. Det fungerar bra i en virtuell maskin (VirtualBox: slå på 3D-acceleration).
+> GOBLINCAKES är ett personligt projekt och utvecklas fortfarande. Det används på en riktig speldator och fungerar även i en virtuell maskin (VirtualBox: slå på 3D-acceleration och EFI).
 
 ## Uppdateringar och versioner
 
-- GOBLINCAKES byggs **varje dag** och versionen är byggdatumet, t.ex. `GOBLINCAKES 2026.10.07`.
+- GOBLINCAKES byggs **varje dag** och versionen är byggdatumet, t.ex. `GOBLINCAKES 2026.10.11`.
+- Nya versioner hämtas automatiskt i bakgrunden och används vid nästa omstart (går att stänga av under **Config → Inställningar**). Rutan i toppfältet visar vad som väntar.
 - Nya Fedora-versioner kommer automatiskt några veckor efter Fedoras släpp, när Universal Blue har gått över till dem.
-- Uppdatera med `goblin update` och starta om. Den förra versionen finns alltid kvar i startmenyn.
+- Den förra versionen finns alltid kvar i startmenyn.
 
 ## Verifiering
 
