@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""GoblinRecorder – automatic WoW recordings (the window).
+
+Shows what the service sees (WoW, combat log, OBS), starts OBS, lets you pick the folder,
+fps and codec, and plays the saved videos with the deaths as marks on the timeline and
+a choice of audio track (everything / the game / Discord). The recording itself is done
+by the user service /usr/libexec/goblincakes-recorder. Window: /usr/share/goblincakes/recorder/Main.qml
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+from PySide6.QtCore import QObject, QProcess, QTimer, QUrl, Property, Signal, Slot
+from PySide6.QtGui import QDesktopServices, QFontDatabase, QIcon
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtWidgets import QApplication, QFileDialog
+
+SHARE = Path(os.environ.get("GOBLINCAKES_RECORDER_SHARE", "/usr/share/goblincakes/recorder"))
+SERVICE = os.environ.get("GOBLINCAKES_RECORDER_SERVICE", "/usr/libexec/goblincakes-recorder")
+sys.path.insert(0, str(SHARE))
+import recorder as R  # noqa: E402
+
+
+class Backend(QObject):
+    statusChanged = Signal()
+    configChanged = Signal()
+    videosChanged = Signal()
+    message = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        self._status = "{}"
+        self._config = json.dumps(R.load_config())
+        self._videos = "[]"
+        self._encoders = json.dumps(R.obs_encoders())
+        self._last_video = None
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.poll)
+        self.timer.start(1000)
+        self.poll()
+        self.refreshVideos()
+
+    # ---------------------------------------------------------- status
+    @Property(str, notify=statusChanged)
+    def status(self):
+        return self._status
+
+    def poll(self):
+        st = R.read_status()
+        alive = bool(st) and time.time() - st.get("time", 0) < 10
+        st["service"] = alive
+        if not alive:  # the window's own look at OBS when the service is not running
+            st["obs"] = ("missing" if not R.obs_installed() else
+                         "stopped" if not R.obs_running() else
+                         "connected" if R.ws_settings().get("server_enabled") else "no-ws")
+        st["audioPlugin"] = R.audio_plugin_installed()
+        text = json.dumps(st, ensure_ascii=False)
+        if text != self._status:
+            self._status = text
+            self.statusChanged.emit()
+        if st.get("lastVideo") and st["lastVideo"] != self._last_video:
+            if self._last_video is not None:
+                self.refreshVideos()
+            self._last_video = st["lastVideo"]
+
+    @Slot()
+    def startObs(self):
+        err = R.start_obs()
+        self.message.emit(err or "OBS startas – det lägger sig i systemfältet.")
+        self._encoders = json.dumps(R.obs_encoders())
+        self.configChanged.emit()
+
+    @Slot()
+    def restartObs(self):
+        """OBS is running without its remote control: close it, turn it on, start again."""
+        R.stop_obs()
+        def again(tries=[0]):
+            if R.obs_running() and tries[0] < 40:
+                tries[0] += 1
+                QTimer.singleShot(250, again)
+                return
+            self.startObs()
+        QTimer.singleShot(500, again)
+
+    @Slot()
+    def startService(self):
+        if subprocess.run(["systemctl", "--user", "start", "goblincakes-recorder.service"],
+                          capture_output=True).returncode != 0:
+            QProcess.startDetached(SERVICE, ["run"])
+
+    @Slot()
+    def installAudioPlugin(self):
+        self.message.emit("Hämtar ljudtillägget till OBS …")
+        proc = QProcess(self)
+        proc.finished.connect(lambda code, _s: self.message.emit(
+            "Ljudtillägget är installerat – starta om OBS." if code == 0 else "Kunde inte hämta ljudtillägget."))
+        proc.start("flatpak", ["install", "--user", "-y", "--noninteractive", "flathub", R.OBS_AUDIO_PLUGIN])
+
+    # ---------------------------------------------------------- settings
+    @Property(str, notify=configChanged)
+    def config(self):
+        return self._config
+
+    @Property(str, notify=configChanged)
+    def encoders(self):
+        return self._encoders
+
+    @Slot(str, str)
+    def setConfig(self, key, value_json):
+        cfg = R.load_config()
+        cfg[key] = json.loads(value_json)
+        R.save_config(cfg)
+        self._config = json.dumps(cfg)
+        self.configChanged.emit()
+        if key == "folder":
+            self.refreshVideos()
+
+    @Slot()
+    def chooseFolder(self):
+        cfg = R.load_config()
+        folder = QFileDialog.getExistingDirectory(None, "Var ska filmerna sparas?", cfg["folder"])
+        if folder:
+            self.setConfig("folder", json.dumps(folder))
+
+    # ---------------------------------------------------------- videos
+    @Property(str, notify=videosChanged)
+    def videos(self):
+        return self._videos
+
+    @Slot()
+    def refreshVideos(self):
+        cfg = R.load_config()
+        self._videos = json.dumps(R.video_files(cfg["folder"]), ensure_ascii=False)
+        self.videosChanged.emit()
+
+    @Slot(str)
+    def removeVideo(self, path):
+        R.remove_video(path)
+        self.refreshVideos()
+
+    @Slot(str, bool)
+    def setKeep(self, path, keep):
+        meta = Path(path).with_suffix(".json")
+        try:
+            data = json.loads(meta.read_text())
+            data["keep"] = keep
+            meta.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+        except (OSError, ValueError):
+            pass
+        self.refreshVideos()
+
+    @Slot()
+    def openFolder(self):
+        folder = Path(R.load_config()["folder"])
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    @Slot(str)
+    def openExternal(self, path):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+
+    @Slot(str, result=str)
+    def fileUrl(self, path):
+        return QUrl.fromLocalFile(path).toString() if path else ""
+
+
+def main():
+    own_scale = "QT_SCALE_FACTOR" not in os.environ
+    if own_scale:
+        os.environ["QT_SCALE_FACTOR"] = "0.8"
+    app = QApplication(sys.argv)
+    if own_scale:
+        del os.environ["QT_SCALE_FACTOR"]
+    app.setApplicationName("goblin-recorder")
+    app.setApplicationDisplayName("GoblinRecorder")
+    app.setDesktopFileName("goblin-recorder")
+    app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+    for font in os.environ.get("GOBLINCAKES_CONFIG_FONTS", "").split(":"):
+        if font:
+            QFontDatabase.addApplicationFont(font)
+
+    # One window at a time: a second start brings the first one forward
+    name = f"goblin-recorder-{os.getuid()}"
+    sock = QLocalSocket()
+    sock.connectToServer(name)
+    if sock.waitForConnected(300):
+        sock.write(b"show\n")
+        sock.waitForBytesWritten(300)
+        return 0
+    QLocalServer.removeServer(name)
+    server = QLocalServer()
+    server.listen(name)
+
+    backend = Backend()
+    engine = QQmlApplicationEngine()
+    engine.rootContext().setContextProperty("backend", backend)
+    engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
+        os.environ.get("GOBLINCAKES_LOGO", "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")))
+    engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
+    if not engine.rootObjects():
+        return 1
+    win = engine.rootObjects()[0]
+
+    def raise_window():
+        conn = server.nextPendingConnection()
+        if conn:
+            conn.close()
+        win.show()
+        win.raise_()
+        win.requestActivate()
+    server.newConnection.connect(raise_window)
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

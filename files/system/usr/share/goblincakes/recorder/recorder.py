@@ -1,0 +1,505 @@
+"""recorder – shared core of GoblinRecorder (the window /usr/bin/goblin-recorder and the
+user service /usr/libexec/goblincakes-recorder).
+
+Automatic WoW recordings on Linux: the service follows WoW's combat log and steers OBS
+(Flatpak com.obsproject.Studio) through its built-in obs-websocket 5 – recording starts
+when a Mythic+ key starts or a raid boss is pulled, and stops just after the end.
+
+Settings: ~/.config/goblincakes/recorder.json. Status for the window:
+~/.cache/goblincakes/recorder-status.json. Each video gets a .json beside it with what it
+shows (boss, difficulty, kill/wipe, deaths as marks) and a .jpg thumbnail.
+"""
+import base64
+import glob
+import hashlib
+import json
+import os
+import re
+import secrets
+import shutil
+import socket
+import struct
+import subprocess
+import time
+from datetime import datetime
+from pathlib import Path
+
+HOME = Path.home()
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "goblincakes"
+CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", HOME / ".cache")) / "goblincakes"
+CONFIG_FILE = CONFIG_DIR / "recorder.json"
+STATUS_FILE = CACHE_DIR / "recorder-status.json"
+
+OBS_APP = "com.obsproject.Studio"
+OBS_AUDIO_PLUGIN = "com.obsproject.Studio.Plugin.PipeWireAudioCapture"
+OBS_CONFIG = HOME / ".var/app" / OBS_APP / "config/obs-studio"
+WS_CONFIG = OBS_CONFIG / "plugin_config/obs-websocket/config.json"
+OBS_NAME = "GOBLINCAKES"  # profile, scene collection and scene
+WOW_LOGS = Path(os.environ.get("GOBLINCAKES_RECORDER_LOGS", HOME / "Games/WoW"))  # <Version>/Logs (goblincakes-wow-links)
+
+DEFAULTS = {
+    "folder": str(HOME / "Videos/WoW"),
+    "fps": 60,
+    "codec": "h264",  # h264 | hevc | av1
+    "raid": True,
+    "mplus": True,
+    "autoStartObs": True,
+    "postRoll": 5,  # seconds after the end
+    "maxGB": 100,  # oldest videos are removed above this
+}
+
+CODECS = {"h264": "H.264", "hevc": "HEVC (H.265)", "av1": "AV1"}
+RAID_DIFFICULTIES = {14: "Normal", 15: "Heroic", 16: "Mythic", 17: "LFR"}
+if os.environ.get("GOBLINCAKES_RECORDER_DUNGEON_BOSSES"):  # tests: dungeon bosses count as raid bosses
+    RAID_DIFFICULTIES.update({1: "Normal", 2: "Heroic", 23: "Mythic"})
+DUNGEON_DIFFICULTIES = {1: "Normal", 2: "Heroic", 8: "Mythic+", 23: "Mythic"}
+
+# Tracks in the video: 1 = everything, 2 = the game, 3 = Discord
+TRACK_NAMES = ["Allt", "WoW", "Discord"]
+AUDIO_INPUTS = [
+    {"name": "WoW-ljud", "target": "World of Warcraft", "tracks": [1, 2]},
+    {"name": "Discord-ljud", "target": "Discord", "tracks": [1, 3]},
+]
+
+
+# ---------------------------------------------------------------- settings
+
+def load_config():
+    cfg = dict(DEFAULTS)
+    try:
+        cfg.update(json.loads(CONFIG_FILE.read_text()))
+    except (OSError, ValueError):
+        pass
+    return cfg
+
+
+def save_config(cfg):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = CONFIG_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
+    tmp.replace(CONFIG_FILE)
+
+
+def write_status(status):
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = STATUS_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(status, ensure_ascii=False))
+    tmp.replace(STATUS_FILE)
+
+
+def read_status():
+    try:
+        return json.loads(STATUS_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+# ---------------------------------------------------------------- OBS
+
+def obs_installed():
+    return subprocess.run(["flatpak", "info", OBS_APP], capture_output=True).returncode == 0
+
+
+def audio_plugin_installed():
+    return subprocess.run(["flatpak", "info", OBS_AUDIO_PLUGIN], capture_output=True).returncode == 0
+
+
+def obs_running():
+    return subprocess.run(["pgrep", "-x", "obs"], capture_output=True).returncode == 0
+
+
+def ws_settings():
+    try:
+        return json.loads(WS_CONFIG.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def enable_websocket():
+    """Turn on OBS's websocket server (with a password). Only while OBS is closed –
+    OBS writes its own settings back when it quits."""
+    if obs_running():
+        return False
+    data = ws_settings()
+    data.setdefault("alerts_enabled", False)
+    data.setdefault("first_load", False)
+    data.setdefault("server_port", 4455)
+    data["server_enabled"] = True
+    data["auth_required"] = True
+    if not data.get("server_password"):
+        data["server_password"] = secrets.token_urlsafe(12)
+    WS_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    WS_CONFIG.write_text(json.dumps(data, indent=2) + "\n")
+    return True
+
+
+def start_obs():
+    """Start OBS hidden in the system tray, with our profile and scenes. Returns an
+    error text, or "" when it was started (or already running)."""
+    if not obs_installed():
+        return "OBS är inte installerat. Installera det i GOBLINCAKES Config → Program."
+    if obs_running():
+        return ""
+    enable_websocket()
+    args = ["flatpak", "run", OBS_APP, "--minimize-to-tray", "--disable-shutdown-check"]
+    names = obs_names()
+    if OBS_NAME in names["profiles"]:
+        args += ["--profile", OBS_NAME]
+    if OBS_NAME in names["collections"]:
+        args += ["--collection", OBS_NAME]
+    subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+    return ""
+
+
+def stop_obs():
+    subprocess.run(["pkill", "-TERM", "-x", "obs"], capture_output=True)
+
+
+def obs_names():
+    """Profiles and scene collections that exist on disk."""
+    profiles = [p.name for p in (OBS_CONFIG / "basic/profiles").glob("*") if p.is_dir()]
+    collections = [p.stem for p in (OBS_CONFIG / "basic/scenes").glob("*.json")]
+    return {"profiles": profiles, "collections": collections}
+
+
+def obs_encoders():
+    """Codecs OBS can record with on this computer, from OBS's latest log."""
+    logs = sorted((OBS_CONFIG / "logs").glob("*.txt"), key=lambda p: p.stat().st_mtime)
+    text = logs[-1].read_text(errors="replace") if logs else ""
+    nvenc = "obs_nvenc_h264_tex" in text or "jim_nvenc" in text
+    found = {"h264": True}
+    if nvenc:
+        found["hevc"] = "obs_nvenc_hevc_tex" in text
+        found["av1"] = "AV1 supported: true" in text
+    else:
+        found["hevc"] = False
+        found["av1"] = False
+    return {"hardware": nvenc, "codecs": found, "known": bool(text)}
+
+
+def simple_encoder(codec, hardware):
+    if not hardware:
+        return "x264"
+    return {"h264": "nvenc", "hevc": "nvenc_hevc", "av1": "nvenc_av1"}[codec]
+
+
+class OBSError(Exception):
+    pass
+
+
+class OBS:
+    """A small obs-websocket 5 client using only the standard library."""
+
+    def __init__(self, host="127.0.0.1", port=None, password=None, timeout=5):
+        ws = ws_settings()
+        self.host = host
+        self.port = port or ws.get("server_port", 4455)
+        self.password = password if password is not None else ws.get("server_password", "")
+        self.timeout = timeout
+        self.sock = None
+        self.buf = b""
+        self.next_id = 0
+
+    # --- websocket framing
+    def _recv_exact(self, n):
+        while len(self.buf) < n:
+            chunk = self.sock.recv(65536)
+            if not chunk:
+                raise OBSError("OBS stängde anslutningen")
+            self.buf += chunk
+        data, self.buf = self.buf[:n], self.buf[n:]
+        return data
+
+    def _send_frame(self, opcode, payload):
+        head = bytes([0x80 | opcode])
+        n = len(payload)
+        if n < 126:
+            head += bytes([0x80 | n])
+        elif n < 65536:
+            head += bytes([0x80 | 126]) + struct.pack("!H", n)
+        else:
+            head += bytes([0x80 | 127]) + struct.pack("!Q", n)
+        mask = os.urandom(4)
+        body = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+        self.sock.sendall(head + mask + body)
+
+    def _recv_message(self):
+        parts = []
+        while True:
+            b1, b2 = self._recv_exact(2)
+            fin, opcode = b1 & 0x80, b1 & 0x0F
+            n = b2 & 0x7F
+            if n == 126:
+                n = struct.unpack("!H", self._recv_exact(2))[0]
+            elif n == 127:
+                n = struct.unpack("!Q", self._recv_exact(8))[0]
+            mask = self._recv_exact(4) if b2 & 0x80 else None
+            payload = self._recv_exact(n)
+            if mask:
+                payload = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+            if opcode == 0x8:
+                raise OBSError("OBS stängde anslutningen")
+            if opcode == 0x9:
+                self._send_frame(0xA, payload)
+                continue
+            if opcode == 0xA:
+                continue
+            parts.append(payload)
+            if fin:
+                return json.loads(b"".join(parts).decode())
+
+    def _send(self, op, d):
+        self._send_frame(0x1, json.dumps({"op": op, "d": d}).encode())
+
+    # --- obs-websocket protocol
+    def connect(self):
+        try:
+            self.sock = socket.create_connection((self.host, self.port), self.timeout)
+        except OSError as e:
+            raise OBSError("OBS fjärrstyrning svarar inte") from e
+        self.sock.settimeout(self.timeout)
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.sock.sendall((
+            f"GET / HTTP/1.1\r\nHost: {self.host}:{self.port}\r\nUpgrade: websocket\r\n"
+            f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
+            "Sec-WebSocket-Protocol: obswebsocket.json\r\n\r\n").encode())
+        while b"\r\n\r\n" not in self.buf:
+            chunk = self.sock.recv(4096)
+            if not chunk:
+                raise OBSError("OBS svarade inte")
+            self.buf += chunk
+        head, self.buf = self.buf.split(b"\r\n\r\n", 1)
+        if b" 101 " not in head.split(b"\r\n")[0]:
+            raise OBSError("OBS fjärrstyrning svarade fel")
+        hello = self._recv_message()["d"]
+        ident = {"rpcVersion": 1, "eventSubscriptions": 0}
+        auth = hello.get("authentication")
+        if auth:
+            secret = base64.b64encode(hashlib.sha256((self.password + auth["salt"]).encode()).digest())
+            ident["authentication"] = base64.b64encode(
+                hashlib.sha256(secret + auth["challenge"].encode()).digest()).decode()
+        self._send(1, ident)
+        try:
+            msg = self._recv_message()
+        except OBSError as e:
+            raise OBSError("Fel lösenord till OBS fjärrstyrning") from e
+        if msg.get("op") != 2:
+            raise OBSError("OBS godkände inte anslutningen")
+        return self
+
+    def close(self):
+        if self.sock:
+            try:
+                self._send_frame(0x8, b"")
+                self.sock.close()
+            except OSError:
+                pass
+            self.sock = None
+
+    def call(self, request, data=None, check=True):
+        self.next_id += 1
+        rid = str(self.next_id)
+        d = {"requestType": request, "requestId": rid}
+        if data is not None:
+            d["requestData"] = data
+        self._send(6, d)
+        while True:
+            msg = self._recv_message()
+            if msg.get("op") == 7 and msg["d"].get("requestId") == rid:
+                st = msg["d"]["requestStatus"]
+                if check and not st.get("result"):
+                    raise OBSError(f"{request}: {st.get('comment') or st.get('code')}")
+                return msg["d"].get("responseData") or {}
+
+    def __enter__(self):
+        return self.connect()
+
+    def __exit__(self, *exc):
+        self.close()
+
+
+def setup_obs(obs, cfg):
+    """Make OBS ready: our profile and scene collection (made once, the user's own are
+    left alone), screen capture, the game and Discord on their own audio tracks, and
+    the settings from GoblinRecorder. Returns a list of what was done."""
+    done = []
+    if obs.call("GetRecordStatus").get("outputActive"):
+        return done  # never touch OBS while it records
+    profiles = obs.call("GetProfileList")
+    if OBS_NAME not in profiles["profiles"]:
+        obs.call("CreateProfile", {"profileName": OBS_NAME})
+        done.append("profil")
+    elif profiles["currentProfileName"] != OBS_NAME:
+        obs.call("SetCurrentProfile", {"profileName": OBS_NAME})
+    collections = obs.call("GetSceneCollectionList")
+    if OBS_NAME not in collections["sceneCollections"]:
+        obs.call("CreateSceneCollection", {"sceneCollectionName": OBS_NAME})
+        done.append("scener")
+    elif collections["currentSceneCollectionName"] != OBS_NAME:
+        obs.call("SetCurrentSceneCollection", {"sceneCollectionName": OBS_NAME})
+        time.sleep(1)
+
+    scenes = [s["sceneName"] for s in obs.call("GetSceneList")["scenes"]]
+    if OBS_NAME not in scenes:
+        obs.call("CreateScene", {"sceneName": OBS_NAME})
+    obs.call("SetCurrentProgramScene", {"sceneName": OBS_NAME})
+    for old in scenes:
+        if old != OBS_NAME and not obs.call("GetSceneItemList", {"sceneName": old})["sceneItems"]:
+            obs.call("RemoveScene", {"sceneName": old}, check=False)  # OBS's empty "Scen"
+
+    inputs = {i["inputName"]: i["inputKind"] for i in obs.call("GetInputList")["inputs"]}
+    if "Skärm" not in inputs:
+        # KDE asks once which screen OBS may record; OBS remembers the answer
+        obs.call("CreateInput", {"sceneName": OBS_NAME, "inputName": "Skärm",
+                                 "inputKind": "pipewire-screen-capture-source",
+                                 "inputSettings": {"ShowCursor": True}})
+        done.append("skärmfångst")
+    if audio_plugin_installed():
+        for a in AUDIO_INPUTS:
+            if a["name"] not in inputs:
+                obs.call("CreateInput", {"sceneName": OBS_NAME, "inputName": a["name"],
+                                         "inputKind": "pipewire_audio_application_capture",
+                                         "inputSettings": {"TargetName": a["target"]}})
+                done.append(a["name"])
+            obs.call("SetInputAudioTracks", {"inputName": a["name"], "inputAudioTracks":
+                     {str(t): t in a["tracks"] for t in range(1, 7)}}, check=False)
+    # The desktop/mic sources OBS makes by itself would mix everything into the video
+    special = obs.call("GetSpecialInputs")
+    for key, name in special.items():
+        if name:
+            obs.call("SetInputAudioTracks", {"inputName": name, "inputAudioTracks":
+                     {str(t): False for t in range(1, 7)}}, check=False)
+    apply_settings(obs, cfg)
+    return done
+
+
+def apply_settings(obs, cfg):
+    """Folder, fps and codec from GoblinRecorder into OBS (not while recording)."""
+    if obs.call("GetRecordStatus").get("outputActive"):
+        return False
+    folder = Path(cfg["folder"])
+    folder.mkdir(parents=True, exist_ok=True)
+    enc = obs_encoders()
+    codec = cfg["codec"] if enc["codecs"].get(cfg["codec"]) else "h264"
+    params = [
+        ("Output", "Mode", "Simple"),
+        ("Output", "FilenameFormatting", "%CCYY-%MM-%DD %hh-%mm-%ss"),
+        ("SimpleOutput", "FilePath", str(folder)),
+        ("SimpleOutput", "RecFormat2", "hybrid_mp4"),  # MP4 that survives a crash
+        ("SimpleOutput", "RecQuality", "Small"),
+        ("SimpleOutput", "RecEncoder", simple_encoder(codec, enc["hardware"])),
+        ("SimpleOutput", "RecTracks", "7"),  # tracks 1–3
+        ("SimpleOutput", "RecRB", "false"),
+    ]
+    for cat, name, value in params:
+        obs.call("SetProfileParameter", {"parameterCategory": cat, "parameterName": name,
+                                         "parameterValue": value})
+    video = obs.call("GetVideoSettings")
+    fps = int(cfg["fps"])
+    if video.get("fpsNumerator") != fps or video.get("fpsDenominator") != 1:
+        obs.call("SetVideoSettings", {"fpsNumerator": fps, "fpsDenominator": 1}, check=False)
+    return True
+
+
+# ---------------------------------------------------------------- the combat log
+
+LINE = re.compile(r"^(\d+)/(\d+)/(\d{4}) (\d+):(\d+):(\d+)\.(\d+)  ([A-Z_]+),(.*)$")
+
+
+def split_args(rest):
+    """WoW's comma separated values; quoted strings may contain commas."""
+    out, cur, quoted = [], [], False
+    for ch in rest:
+        if ch == '"':
+            quoted = not quoted
+        elif ch == "," and not quoted:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    out.append("".join(cur))
+    return out
+
+
+def parse_line(line):
+    m = LINE.match(line)
+    if not m:
+        return None
+    mo, d, y, h, mi, s, frac, event, rest = m.groups()
+    t = datetime(int(y), int(mo), int(d), int(h), int(mi), int(s)).timestamp()
+    t += int(frac) / 10 ** len(frac)
+    return t, event, rest
+
+
+def log_dirs():
+    return [Path(p) for p in glob.glob(str(WOW_LOGS / "*/Logs"))]
+
+
+def newest_log():
+    files = []
+    for d in log_dirs():
+        files += d.glob("WoWCombatLog*.txt")
+    return max(files, key=lambda p: p.stat().st_mtime) if files else None
+
+
+def wow_running():
+    if os.environ.get("GOBLINCAKES_RECORDER_WOW"):  # tests: pretend WoW runs
+        return True
+    return subprocess.run(["pgrep", "-f", r"/_[a-z_]+_/Wow[A-Za-z]*\.exe"],
+                          capture_output=True).returncode == 0
+
+
+# ---------------------------------------------------------------- videos
+
+def safe_name(text):
+    return re.sub(r'[/\\:*?"<>|]', "", text).strip() or "WoW"
+
+
+def video_files(folder):
+    folder = Path(folder)
+    out = []
+    for meta in sorted(folder.glob("*.json"), reverse=True):
+        try:
+            data = json.loads(meta.read_text())
+        except (OSError, ValueError):
+            continue
+        video = folder / data.get("file", "")
+        if not video.is_file():
+            continue
+        data["path"] = str(video)
+        data["size"] = video.stat().st_size
+        thumb = meta.with_suffix(".jpg")
+        data["thumb"] = str(thumb) if thumb.exists() else ""
+        out.append(data)
+    out.sort(key=lambda v: v.get("started", 0), reverse=True)
+    return out
+
+
+def make_thumb(video, at, dest):
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", str(at),
+                    "-i", str(video), "-frames:v", "1", "-vf", "scale=480:-2", str(dest)],
+                   capture_output=True)
+
+
+def remove_video(path):
+    p = Path(path)
+    for f in (p, p.with_suffix(".json"), p.with_suffix(".jpg")):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+
+
+def prune(folder, max_gb):
+    """Oldest videos go when the folder is over max_gb (not the ones marked keep)."""
+    vids = video_files(folder)
+    total = sum(v["size"] for v in vids)
+    limit = max_gb * 1024 ** 3
+    for v in reversed(vids):
+        if total <= limit:
+            break
+        if v.get("keep"):
+            continue
+        remove_video(v["path"])
+        total -= v["size"]

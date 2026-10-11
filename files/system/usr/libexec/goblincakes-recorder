@@ -1,0 +1,385 @@
+#!/usr/bin/env python3
+"""GoblinRecorder – the service that records WoW automatically (user unit
+goblincakes-recorder.service). The window is /usr/bin/goblin-recorder.
+
+  goblincakes-recorder run        follow the combat log and steer OBS (the service)
+  goblincakes-recorder start-obs  start OBS hidden, ready for GoblinRecorder
+  goblincakes-recorder setup      make OBS's profile/scenes/audio tracks (OBS must run)
+  goblincakes-recorder status     what the service sees right now (JSON)
+
+Raid: every boss pull becomes its own video. Mythic+: the whole key. OBS starts recording
+on ENCOUNTER_START / CHALLENGE_MODE_START and stops a few seconds after the end. WoW
+writes the combat log in chunks 10–60 s late, but flushes it at once on a boss pull/end
+(measured 11 Oct: 0.00 s) – so the start is on time. Deaths come later and are added
+as marks to the video's .json afterwards.
+"""
+import json
+import os
+import statistics
+import sys
+import time
+import traceback
+from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, os.environ.get("GOBLINCAKES_RECORDER_SHARE", "/usr/share/goblincakes/recorder"))
+import recorder as R  # noqa: E402
+
+LIVE_LIMIT = 30  # a start line older than this (seconds) is not recorded
+LATE_MARKS = 120  # seconds after a video ends that late log lines may still add marks
+MAX_LENGTH = {"raid": 45 * 60, "mplus": 3 * 3600}
+
+
+def log(*a):
+    print(datetime.now().strftime("%H:%M:%S"), *a, flush=True)
+
+
+class Service:
+    def __init__(self):
+        self.cfg = R.load_config()
+        self.cfg_mtime = self.mtime(R.CONFIG_FILE)
+        self.obs = None
+        self.obs_state = "stopped"
+        self.obs_error = ""
+        self.obs_ready = False
+        self.last_try = 0
+        self.wow = False
+        self.wow_seen = 0
+        # log following
+        self.path = None
+        self.fh = None
+        self.buf = ""
+        self.delays = []
+        # what is going on in the game
+        self.zone = None  # {"name", "difficulty", "kind"}
+        self.current = None  # the pull / key being recorded
+        self.stop_at = 0  # wall time to stop OBS (after the end + postRoll)
+        self.closing = []  # saved videos that late log lines may still add deaths to
+        self.last_video = ""
+        self.error = ""
+        self.last_status = 0
+
+    @staticmethod
+    def mtime(p):
+        try:
+            return p.stat().st_mtime
+        except OSError:
+            return 0
+
+    # ------------------------------------------------------------ OBS connection
+    def connect(self):
+        if self.obs:
+            return True
+        now = time.time()
+        if now - self.last_try < 5:
+            return False
+        self.last_try = now
+        if not R.obs_installed():
+            self.obs_state = "missing"
+            return False
+        if not R.obs_running():
+            self.obs_state = "stopped"
+            self.obs_ready = False
+            return False
+        if not R.ws_settings().get("server_enabled"):
+            self.obs_state = "no-ws"
+            return False
+        try:
+            self.obs = R.OBS().connect()
+            self.obs_state = "connected"
+            self.obs_error = ""
+            log("connected to OBS")
+        except (R.OBSError, OSError) as e:
+            self.obs = None
+            self.obs_state = "error"
+            self.obs_error = str(e)
+            return False
+        if not self.obs_ready:
+            try:
+                done = R.setup_obs(self.obs, self.cfg)
+                if done:
+                    log("OBS set up:", ", ".join(done))
+                self.obs_ready = True
+            except (R.OBSError, OSError) as e:
+                self.obs_error = f"Kunde inte ställa in OBS: {e}"
+                log(self.obs_error)
+        return True
+
+    def call(self, *a, **kw):
+        if not self.connect():
+            raise R.OBSError("OBS är inte igång")
+        try:
+            return self.obs.call(*a, **kw)
+        except (OSError, R.OBSError) as e:
+            if isinstance(e, R.OBSError) and "stängde" not in str(e):
+                raise
+            self.obs.close()
+            self.obs = None
+            self.obs_ready = False
+            raise R.OBSError("Tappade kontakten med OBS") from e
+
+    # ------------------------------------------------------------ combat log
+    def follow(self):
+        newest = R.newest_log()
+        if newest and newest != self.path:
+            self.path = newest
+            self.fh = open(newest, "r", errors="replace")
+            if newest.stat().st_ctime < time.time() - 60:
+                self.fh.seek(0, 2)  # an older file: only what comes from now on
+            self.buf = ""
+            log("following", newest.name)
+        if not self.fh:
+            return
+        data = self.fh.read()
+        if not data:
+            return
+        now = time.time()
+        self.buf += data
+        *lines, self.buf = self.buf.split("\n")
+        for line in lines:
+            p = R.parse_line(line)
+            if p:
+                self.delays = (self.delays + [now - p[0]])[-2000:]
+                self.event(*p, now)
+
+    def event(self, t, ev, rest, now):
+        live = now - t < LIVE_LIMIT
+        if ev == "ZONE_CHANGE":
+            a = R.split_args(rest)
+            try:
+                diff = int(a[2])
+            except (IndexError, ValueError):
+                diff = 0
+            kind = "raid" if diff in R.RAID_DIFFICULTIES else "dungeon" if diff in R.DUNGEON_DIFFICULTIES else None
+            if self.current and not self.stop_at and (kind is None or a[1] != (self.zone or {}).get("name")):
+                self.finish(t, "abandoned")  # left the dungeon/raid mid key or pull
+            self.zone = {"name": a[1], "difficulty": diff, "kind": kind} if kind else None
+        elif ev == "ENCOUNTER_START":
+            a = R.split_args(rest)
+            diff = int(a[2]) if a[2].isdigit() else 0
+            if self.current and self.current["kind"] == "mplus":
+                self.marker(t, "boss", a[1])
+            elif diff in R.RAID_DIFFICULTIES and self.cfg["raid"] and live and not self.current:
+                self.begin(t, now, {"kind": "raid", "name": a[1], "encounter": a[0],
+                                    "difficulty": R.RAID_DIFFICULTIES[diff]})
+        elif ev == "ENCOUNTER_END":
+            a = R.split_args(rest)
+            if self.current and self.current["kind"] == "raid" and a[0] == self.current["encounter"]:
+                self.finish(t, "kill" if a[4] == "1" else "wipe")
+            elif self.current and self.current["kind"] == "mplus":
+                self.marker(t, "boss-end", a[1] + (" ✓" if a[4] == "1" else " ✗"))
+        elif ev == "CHALLENGE_MODE_START":
+            a = R.split_args(rest)
+            if self.cfg["mplus"] and live:
+                if self.current:
+                    self.stop_now()
+                self.begin(t, now, {"kind": "mplus", "name": a[0], "difficulty": "Mythic+",
+                                    "level": int(a[3]) if a[3].isdigit() else 0})
+        elif ev == "CHALLENGE_MODE_END":
+            a = R.split_args(rest)
+            if self.current and self.current["kind"] == "mplus":
+                self.finish(t, "timed" if len(a) > 1 and a[1] == "1" else "depleted")
+        elif ev == "UNIT_DIED":
+            a = R.split_args(rest)
+            if len(a) > 5 and a[4].startswith("Player-"):
+                self.marker(t, "death", a[5].split("-")[0])
+
+    def marker(self, t, kind, text):
+        m = {"t": t, "kind": kind, "text": text}
+        if self.current and t >= self.current["wall"] - 5:
+            self.current["markers"].append(m)
+            return
+        for meta in self.closing:  # a death that reached the log after the video was saved
+            if meta["_wall"] - 5 <= t <= meta["_wall"] + meta["duration"]:
+                meta["markers"].append({"t": round(max(t - meta["_wall"], 0), 2), "kind": kind, "text": text})
+                self.write_meta(meta)
+
+    # ------------------------------------------------------------ recording
+    def begin(self, t, now, info):
+        try:
+            if self.call("GetRecordStatus").get("outputActive"):
+                self.error = "OBS spelar redan in (startat för hand) – GoblinRecorder hoppar över den här."
+                return
+            self.call("StartRecord")
+        except R.OBSError as e:
+            self.error = f"Kunde inte starta inspelningen: {e}"
+            log(self.error)
+            return
+        info.update({"start": t, "wall": time.time(), "markers": []})
+        self.current = info
+        self.stop_at = 0
+        self.error = ""
+        log("recording", info["kind"], info["name"], f"(log {now - t:.2f} s late)")
+
+    def finish(self, t, result):
+        if not self.current or self.stop_at:
+            return
+        self.current.update({"end": t, "result": result})
+        # The end line comes at once for bosses/keys; for "abandoned" it may be late
+        self.stop_at = max(time.time(), t) + (self.cfg["postRoll"] if result != "abandoned" else 0)
+        log("end", self.current["name"], result)
+
+    def stop_now(self):
+        cur, self.current, self.stop_at = self.current, None, 0
+        if not cur:
+            return
+        cur.setdefault("end", time.time())
+        cur.setdefault("result", "abandoned")
+        try:
+            out = self.call("StopRecord").get("outputPath")
+        except R.OBSError as e:
+            self.error = f"Kunde inte stoppa inspelningen: {e}"
+            log(self.error)
+            return
+        if not out:
+            self.error = "OBS sa inte var filmen hamnade."
+            return
+        try:
+            self.save(cur, Path(out), time.time())
+        except OSError as e:
+            self.error = f"Kunde inte spara {cur['name']}: {e}"
+            log(self.error)
+
+    def save(self, cur, video, stopped):
+        when = datetime.fromtimestamp(cur["start"])
+        if cur["kind"] == "raid":
+            title = f"{cur['name']} {cur['difficulty']}"
+            result = {"kill": "KILL", "wipe": "WIPE"}.get(cur["result"], "AVBRUTEN")
+        else:
+            title = f"+{cur['level']} {cur['name']}"
+            result = {"timed": "I TID", "depleted": "FÖR SENT"}.get(cur["result"], "AVBRUTEN")
+        dest = video.with_name(R.safe_name(f"{when:%Y-%m-%d %H.%M.%S} {title} {result}") + video.suffix)
+        for _ in range(40):  # OBS finishes the file just after answering
+            try:
+                video.rename(dest)
+                break
+            except FileNotFoundError:
+                time.sleep(0.25)
+        wall = cur["wall"]
+        meta = {
+            "file": dest.name, "kind": cur["kind"], "name": cur["name"],
+            "difficulty": cur["difficulty"], "level": cur.get("level"), "result": cur["result"],
+            "started": cur["start"], "fight": cur["end"] - cur["start"], "duration": stopped - wall,
+            "fightStart": round(max(cur["start"] - wall, 0), 2),
+            "markers": [{"t": round(max(m["t"] - wall, 0), 2), "kind": m["kind"], "text": m["text"]}
+                        for m in cur["markers"]],
+            "codec": self.cfg["codec"], "fps": self.cfg["fps"], "tracks": R.TRACK_NAMES,
+            "_wall": wall, "_until": time.time() + LATE_MARKS,
+        }
+        self.write_meta(meta, dest)
+        R.make_thumb(dest, min(max(meta["fightStart"] + 20, 0), max(meta["duration"] - 2, 0)),
+                     dest.with_suffix(".jpg"))
+        self.closing.append(meta)
+        self.last_video = dest.name
+        log("saved", dest.name)
+        R.prune(dest.parent, self.cfg["maxGB"])
+
+    def write_meta(self, meta, dest=None):
+        dest = dest or Path(self.cfg["folder"]) / meta["file"]
+        meta["_path"] = str(dest.with_suffix(".json"))
+        data = {k: v for k, v in meta.items() if not k.startswith("_")}
+        data["markers"] = sorted(data["markers"], key=lambda m: m["t"])
+        Path(meta["_path"]).write_text(json.dumps(data, ensure_ascii=False, indent=1))
+
+    def check_recording(self):
+        if not self.current:
+            return
+        if self.stop_at and time.time() >= self.stop_at:
+            self.stop_now()
+            return
+        if time.time() - self.current["wall"] > MAX_LENGTH[self.current["kind"]]:
+            self.finish(time.time(), "abandoned")
+            return
+        try:
+            if not self.call("GetRecordStatus").get("outputActive"):
+                log("OBS stopped recording by itself")
+                self.current = None
+                self.stop_at = 0
+                self.error = "OBS slutade spela in (stängt?) – filmen kan vara ofullständig."
+        except R.OBSError:
+            self.current = None
+            self.stop_at = 0
+            self.error = "OBS stängdes under inspelningen."
+
+    # ------------------------------------------------------------ main loop
+    def tick(self):
+        now = time.time()
+        if self.mtime(R.CONFIG_FILE) != self.cfg_mtime:
+            self.cfg_mtime = self.mtime(R.CONFIG_FILE)
+            self.cfg = R.load_config()
+            if self.obs and not self.current:
+                try:
+                    R.apply_settings(self.obs, self.cfg)
+                    log("settings applied")
+                except R.OBSError as e:
+                    self.obs_error = str(e)
+        if now - self.wow_seen > 5:
+            self.wow_seen = now
+            running = R.wow_running()
+            if running and not self.wow:
+                log("WoW started")
+                if self.cfg["autoStartObs"] and not R.obs_running():
+                    R.start_obs()
+            if not running and self.wow:
+                log("WoW stopped")
+                self.finish(now, "abandoned")
+                self.zone = None
+            self.wow = running
+        self.follow()
+        self.check_recording()
+        self.closing = [m for m in self.closing if m["_until"] > now]
+        if self.wow or self.current:
+            self.connect()
+        elif self.obs:
+            self.obs.close()
+            self.obs = None
+        if now - self.last_status >= 1:
+            self.last_status = now
+            self.status()
+
+    def status(self):
+        delays = self.delays[-500:]
+        log_fresh = self.path is not None and time.time() - self.mtime(self.path) < 300
+        R.write_status({
+            "time": time.time(), "pid": os.getpid(), "wow": self.wow, "logging": log_fresh,
+            "logFile": self.path.name if self.path else "",
+            "logDelay": round(statistics.median(delays), 1) if delays else None,
+            "obs": self.obs_state if self.obs or self.obs_state != "connected" else "stopped",
+            "obsError": self.obs_error,
+            "zone": self.zone["name"] if self.zone else "",
+            "recording": bool(self.current),
+            "current": {k: self.current[k] for k in ("kind", "name", "difficulty", "start")
+                        } if self.current else None,
+            "lastVideo": self.last_video, "error": self.error,
+        })
+
+    def run(self):
+        log("GoblinRecorder service started")
+        while True:
+            try:
+                self.tick()
+            except Exception:  # noqa: BLE001 – the service must keep going
+                log(traceback.format_exc())
+            time.sleep(0.25 if (self.wow or self.current) else 2)
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if cmd == "run":
+        Service().run()
+    elif cmd == "start-obs":
+        err = R.start_obs()
+        print(err or "OBS startat")
+        sys.exit(1 if err else 0)
+    elif cmd == "setup":
+        with R.OBS() as obs:
+            print(", ".join(R.setup_obs(obs, R.load_config())) or "redan klart")
+    elif cmd == "status":
+        print(json.dumps(R.read_status(), ensure_ascii=False, indent=1))
+    else:
+        print(__doc__)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()
