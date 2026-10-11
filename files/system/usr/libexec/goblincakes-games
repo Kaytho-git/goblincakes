@@ -1,8 +1,10 @@
 #!/usr/bin/python3
 """GOBLINCAKES: start Steam games from the terminal by name – always through Steam.
 
-    goblincakes-games list          every game with the words that start it
-    goblincakes-games run <word>    start the game (exit 3: no game by that word)
+    goblincakes-games list               every game with the words that start it
+    goblincakes-games run <word>         start the game (exit 3: no game by that word)
+    goblincakes-games add <game> <word>  own short word for a game (name, word or .exe)
+    goblincakes-games remove <word>      removes an own word
 
 Typing a game's word straight in the terminal (e.g. `wow`, `cs2`, `worldofwarcraft`)
 works through bash's command_not_found_handle (/etc/profile.d/zz-goblincakes-games.sh),
@@ -14,12 +16,15 @@ non-Steam games added to Steam (e.g. World of Warcraft through Battle.net/Lutris
 """
 import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
 from pathlib import Path
 
 HOME = Path.home()
+# The user's own words (goblin play add): "word=game id" per line
+ALIASES = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes/game-aliases"
 STEAM_ROOTS = [HOME / ".local/share/Steam", HOME / ".steam/steam",
                HOME / ".var/app/com.valvesoftware.Steam/.local/share/Steam"]
 # Steam's own tools, not games
@@ -113,7 +118,14 @@ def shortcut_games(root):
             name = entry.get("AppName") or entry.get("appname")
             appid = entry.get("appid")
             if name and isinstance(appid, int):
-                yield name, str(((appid & 0xFFFFFFFF) << 32) | 0x02000000)
+                gameid = str(((appid & 0xFFFFFFFF) << 32) | 0x02000000)
+                exe = (entry.get("Exe") or entry.get("exe") or "").strip().strip('"')
+                if exe:
+                    EXES[gameid] = Path(exe.replace("\\", "/")).name.lower()
+                yield name, gameid
+
+
+EXES = {}  # non-Steam game id → its .exe's file name (filled by shortcut_games)
 
 
 def words(name):
@@ -139,6 +151,42 @@ def games():
     return sorted(((name, gameid) for gameid, name in found.items()), key=lambda g: g[0].lower())
 
 
+def squash(text):
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def read_aliases():
+    out = {}
+    try:
+        for line in ALIASES.read_text().splitlines():
+            word, _, gameid = line.partition("=")
+            if word.strip() and gameid.strip():
+                out[word.strip()] = gameid.strip()
+    except OSError:
+        pass
+    return out
+
+
+def write_aliases(aliases):
+    ALIASES.parent.mkdir(parents=True, exist_ok=True)
+    ALIASES.write_text("".join(f"{w}={g}\n" for w, g in sorted(aliases.items())))
+
+
+def find(text, all_games):
+    """Games a text means: an own word, a game's word, its name, or its .exe (Wow.exe)."""
+    query = squash(text)
+    if len(query) < 2:
+        return []
+    own = read_aliases().get(query)
+    if own:
+        hit = [(n, g) for n, g in all_games if g == own]
+        if hit:
+            return hit
+    exe = text.lower()
+    return [(n, g) for n, g in all_games
+            if query in words(n) or query == squash(n) or EXES.get(g) in (exe, exe + ".exe")]
+
+
 def launch(name, gameid):
     print(f"Startar {name} via Steam…", flush=True)
     # Through the steam:// handler: the running Steam takes it, or Steam starts with it
@@ -154,14 +202,52 @@ def main(argv):
         if not all_games:
             print("Inga spel i Steam ännu.")
             return 0
-        for name, _ in all_games:
-            print(f"  {', '.join(words(name)):<28} {name}")
+        own = {}
+        for word, gameid in read_aliases().items():
+            own.setdefault(gameid, []).append(word)
+        for name, gameid in all_games:
+            print(f"  {', '.join(sorted(own.get(gameid, [])) + words(name)):<28} {name}")
+        return 0
+    if cmd == "add" and len(argv) == 3:
+        word = squash(argv[2])
+        if len(word) < 2:
+            print("Ordet behöver minst två bokstäver eller siffror (a–z, 0–9).", file=sys.stderr)
+            return 1
+        all_games = games()
+        # Also the start of a name: counter-strike → Counter-Strike 2
+        matches = find(argv[1], all_games) or [(n, g) for n, g in all_games
+                                               if len(squash(argv[1])) >= 3 and squash(n).startswith(squash(argv[1]))]
+        if not matches:
+            print(f"Hittar inget spel i Steam som heter {argv[1]}. Se listan: goblin play", file=sys.stderr)
+            return 1
+        if len(matches) > 1:
+            print(f"Flera spel passar {argv[1]} – skriv hela namnet:", file=sys.stderr)
+            for name, _ in matches:
+                print(f"  {words(name)[0]:<28} {name}", file=sys.stderr)
+            return 1
+        name, gameid = matches[0]
+        aliases = read_aliases()
+        aliases[word] = gameid
+        write_aliases(aliases)
+        print(f"Klart: skriv {word} i terminalen för att starta {name}.")
+        if shutil.which(word):
+            print(f"Obs: {word} är redan ett kommando ({shutil.which(word)}) – det går före. "
+                  f"Använd goblin play {word}, eller välj ett annat ord.")
+        return 0
+    if cmd == "remove" and len(argv) == 2:
+        word = squash(argv[1])
+        aliases = read_aliases()
+        if word not in aliases:
+            print(f"{argv[1]} är inget eget ord. Dina ord står först i listan: goblin play", file=sys.stderr)
+            return 1
+        del aliases[word]
+        write_aliases(aliases)
+        print(f"Borttaget: {word}")
         return 0
     if cmd == "run" and len(argv) >= 2:
-        query = re.sub(r"[^a-z0-9]", "", argv[1].lower())
-        if len(query) < 2:
+        matches = find(argv[1], games())
+        if not matches:
             return 3
-        matches = [(n, g) for n, g in games() if query in words(n)]
         if len(matches) == 1:
             launch(*matches[0])
             return 0

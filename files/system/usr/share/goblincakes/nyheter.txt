@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-11  Egna ord för spel: goblin play add wow.exe wow – sedan startar du spelet genom att skriva wow i terminalen (goblin play remove wow tar bort ordet)
 2026-10-11  Klockan i toppfältet är lika stor som veckonumret igen – den blev mindre på skärmar med låg upplösning per tum
 2026-10-11  Vid första starten väljer du terminal i GOBLINCAKES Config: Ghostty eller Konsole (går att byta under Program när du vill)
 2026-10-11  Konsole har nu GOBLINCAKES färger och typsnitt, för dig som hellre använder den än Ghostty (visa den med goblin apps show konsole)

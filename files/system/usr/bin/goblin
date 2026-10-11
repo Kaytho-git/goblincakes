@@ -248,7 +248,7 @@ COMMANDS=(
     "apps|Dolda Fedora-program – visa igen: goblin apps show konsole"
     "remove|Avinstallera Fedora-program (fönster, eller: goblin remove konsole)"
     "old|Visa avinstallerade program och hur du får tillbaka dem"
-    "play|Dina Steam-spel – skriv namnet (t.ex. wow, cs2) direkt i terminalen"
+    "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
     "fast|Systeminfo med GOBLINCAKES-loggan"
@@ -512,11 +512,17 @@ case ${1:-help} in
     remove|uninstall) shift; cmd_remove "$@" ;;
     old) cmd_old ;;
     play|games|spel) shift
+        case ${1:-} in
+            add|remove) exec /usr/libexec/goblincakes-games "$@" ;;
+        esac
         if [ $# -gt 0 ]; then
             /usr/libexec/goblincakes-games run "$1"; [ $? -eq 3 ] && { echo "Hittar inget spel i Steam som heter $1. Se listan: goblin play" >&2; exit 1; }; exit 0
         fi
         heading "Spel i Steam – skriv ordet i terminalen för att starta"
-        exec /usr/libexec/goblincakes-games list ;;
+        /usr/libexec/goblincakes-games list
+        echo
+        info "Eget ord: goblin play add <spel> <ord>  (t.ex. goblin play add wow.exe wow)"
+        info "Ta bort:  goblin play remove <ord>" ;;
     nyheter|news) shift; heading "Nytt i GOBLINCAKES"; exec /usr/libexec/goblincakes-news latest "${1:-15}" ;;
     gamemode) cmd_gamemode ;;
     fast|fastfetch|info) shift; cmd_fastfetch "$@" ;;
