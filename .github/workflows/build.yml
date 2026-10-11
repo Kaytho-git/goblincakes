@@ -7,6 +7,7 @@ on:
   push:
     paths-ignore: # don't rebuild if only documentation or the ISO build has changed
       - "**.md"
+      - "docs/**"
       - "iso/**"
       - ".github/workflows/build-iso.yml"
       - "usb-skaparen/**"
