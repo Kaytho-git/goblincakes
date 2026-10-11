@@ -23,6 +23,7 @@ Window {
     property string tab: "videos" // videos | settings
     property var selected: null
     property string note: ""
+    property bool wclBusy: false
 
     function set(key, value) { backend.setConfig(key, JSON.stringify(value)); }
 
@@ -78,9 +79,12 @@ Window {
             win.note = text;
             noteTimer.restart();
         }
+        function onWclBusy(busy) { win.wclBusy = busy; }
         function onVideosChanged() {
             if (win.selected && !win.videos.some(v => v.path === win.selected.path))
                 win.selected = null;
+            if (win.selected)
+                win.selected = win.videos.find(v => v.path === win.selected.path) || null;
             if (!win.selected && win.videos.length)
                 win.selected = win.videos[0];
         }
@@ -100,6 +104,37 @@ Window {
             flick.cancelFlick();
             flick.contentY = Math.max(top, Math.min(bottom, flick.contentY - delta));
             event.accepted = true;
+        }
+    }
+
+    component FlatField: Rectangle {
+        property alias text: input.text
+        property alias echoMode: input.echoMode
+        property string hint
+        height: 40
+        color: "#07090D"
+        border.width: 1
+        border.color: input.activeFocus ? "#2F6FED" : "#2A3852"
+        TextInput {
+            id: input
+            anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
+            verticalAlignment: TextInput.AlignVCenter
+            color: "#E6ECF5"
+            selectionColor: "#2F6FED"
+            font.family: "IBM Plex Mono"
+            font.pixelSize: 13
+            clip: true
+            selectByMouse: true
+        }
+        Text {
+            anchors { fill: input }
+            verticalAlignment: Text.AlignVCenter
+            visible: !input.text && !input.activeFocus
+            text: parent.hint
+            color: "#5C6880"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 13
+            elide: Text.ElideRight
         }
     }
 
@@ -562,7 +597,7 @@ Window {
                     }
                     Text {
                         text: win.clock(card.modelData.fight) + " strid · " + win.size(card.modelData.size)
-                              + (card.modelData.keep ? " · sparad" : "")
+                              + (card.modelData.keep ? " · sparad" : "") + (card.modelData.wcl ? " · WCL" : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 12
@@ -791,7 +826,9 @@ Window {
                             if (!v)
                                 return "";
                             const deaths = v.markers.filter(m => m.kind === "death");
-                            return win.when(v.started) + " · " + win.resultText(v).toLowerCase() + " efter " + win.clock(v.fight)
+                            const pct = v.wcl && v.result === "wipe" && v.wcl.bossPercentage !== null && v.wcl.bossPercentage !== undefined
+                                ? " på " + Math.round(v.wcl.bossPercentage) + " %" : "";
+                            return win.when(v.started) + " · " + win.resultText(v).toLowerCase() + pct + " efter " + win.clock(v.fight)
                                 + " · " + (deaths.length ? deaths.length + " dödsfall (röda streck – klicka för att hoppa dit)" : "inga dödsfall")
                                 + "";
                         }
@@ -801,6 +838,13 @@ Window {
                     id: actions
                     anchors.right: parent.right
                     spacing: 10
+                    FlatButton {
+                        visible: !!(playerPane.v && (playerPane.v.wcl || backend.wclConfigured))
+                        primary: !!(playerPane.v && playerPane.v.wcl)
+                        enabledState: !win.wclBusy
+                        text: playerPane.v && playerPane.v.wcl ? "Öppna i Warcraft Logs" : win.wclBusy ? "Söker …" : "Sök i Warcraft Logs"
+                        onClicked: playerPane.v.wcl ? backend.openUrl(playerPane.v.wcl.url) : backend.wclFind(playerPane.v.path)
+                    }
                     FlatButton {
                         text: playerPane.v && playerPane.v.keep ? "Sparas för alltid ✓" : "Spara för alltid"
                         onClicked: {
@@ -958,6 +1002,36 @@ Window {
             Note {
                 width: Math.min(820, parent.width)
                 text: "När gränsen nås tas de äldsta filmerna bort – inte de du sparat för alltid."
+            }
+
+            Item { width: 1; height: 14 }
+            SectionTitle { text: "WARCRAFT LOGS" }
+            Note {
+                width: Math.min(820, parent.width)
+                text: backend.wclConfigured
+                    ? "Kopplat. När en strid laddats upp till Warcraft Logs (med Archon) får filmen en knapp till rätt försök – "
+                      + "GoblinRecorder letar var 5:e minut under ett dygn. Bara publika loggar hittas."
+                    : "Koppla filmerna till dina loggar på Warcraft Logs. Skapa en gratis API-klient en gång: "
+                      + "tryck på knappen, logga in, Create Client, skriv ett namn (t.ex. GoblinRecorder) och en "
+                      + "Redirect URL (t.ex. http://localhost) och lämna Public Client av. Klistra sedan in Client ID och Client Secret här."
+            }
+            Row {
+                visible: !backend.wclConfigured
+                spacing: 12
+                FlatButton { text: "Skapa API-klient …"; onClicked: backend.openWclClients() }
+                FlatField { id: wclId; width: 260; hint: "Client ID" }
+                FlatField { id: wclSecret; width: 260; hint: "Client Secret"; echoMode: TextInput.Password }
+                FlatButton {
+                    primary: true
+                    enabledState: wclId.text.length > 10 && wclSecret.text.length > 10 && !win.wclBusy
+                    text: win.wclBusy ? "Provar …" : "Spara"
+                    onClicked: backend.setWcl(wclId.text, wclSecret.text)
+                }
+            }
+            FlatButton {
+                visible: backend.wclConfigured
+                text: "Koppla bort Warcraft Logs"
+                onClicked: backend.forgetWcl()
             }
 
             Item { width: 1; height: 14 }

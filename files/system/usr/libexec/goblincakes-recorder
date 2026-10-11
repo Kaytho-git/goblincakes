@@ -15,6 +15,8 @@ as marks to the video's .json afterwards.
 """
 import json
 import os
+import re
+import threading
 import statistics
 import sys
 import time
@@ -28,6 +30,9 @@ import recorder as R  # noqa: E402
 LIVE_LIMIT = 30  # a start line older than this (seconds) is not recorded
 LATE_MARKS = 120  # seconds after a video ends that late log lines may still add marks
 MAX_LENGTH = {"raid": 45 * 60, "mplus": 3 * 3600}
+WCL_EVERY = 5 * 60  # look for Warcraft Logs fights this often …
+WCL_FOR = 24 * 3600  # … for videos this young
+ME = re.compile(r'^(Player-[^,]+),"([^"]+)",0x511,')  # a line by your own character
 
 
 def log(*a):
@@ -58,6 +63,9 @@ class Service:
         self.last_video = ""
         self.error = ""
         self.last_status = 0
+        self.me = ""  # Name-Realm-Region of the character playing (for Warcraft Logs)
+        self.wcl_next = time.time() + 60
+        self.wcl_busy = False
 
     @staticmethod
     def mtime(p):
@@ -144,6 +152,10 @@ class Service:
 
     def event(self, t, ev, rest, now):
         live = now - t < LIVE_LIMIT
+        if rest.startswith("Player-") and ",0x511," in rest[:160]:
+            m = ME.match(rest)
+            if m and m.group(2) != self.me:
+                self.me = m.group(2)
         if ev == "ZONE_CHANGE":
             a = R.split_args(rest)
             try:
@@ -205,7 +217,7 @@ class Service:
             self.error = f"Kunde inte starta inspelningen: {e}"
             log(self.error)
             return
-        info.update({"start": t, "wall": time.time(), "markers": []})
+        info.update({"start": t, "wall": time.time(), "markers": [], "player": self.me})
         self.current = info
         self.stop_at = 0
         self.error = ""
@@ -264,6 +276,7 @@ class Service:
             "markers": [{"t": round(max(m["t"] - wall, 0), 2), "kind": m["kind"], "text": m["text"]}
                         for m in cur["markers"]],
             "codec": self.cfg["codec"], "fps": self.cfg["fps"], "tracks": R.TRACK_NAMES,
+            "player": cur.get("player", ""), "encounterId": cur.get("encounter"),
             "_wall": wall, "_until": time.time() + LATE_MARKS,
         }
         self.write_meta(meta, dest)
@@ -278,6 +291,11 @@ class Service:
         dest = dest or Path(self.cfg["folder"]) / meta["file"]
         meta["_path"] = str(dest.with_suffix(".json"))
         data = {k: v for k, v in meta.items() if not k.startswith("_")}
+        try:  # keep what was added to the file since (Warcraft Logs link, kept)
+            old = json.loads(Path(meta["_path"]).read_text())
+            data.update({k: old[k] for k in ("wcl", "keep") if k in old})
+        except (OSError, ValueError):
+            pass
         data["markers"] = sorted(data["markers"], key=lambda m: m["t"])
         Path(meta["_path"]).write_text(json.dumps(data, ensure_ascii=False, indent=1))
 
@@ -300,6 +318,33 @@ class Service:
             self.current = None
             self.stop_at = 0
             self.error = "OBS stängdes under inspelningen."
+
+    # ------------------------------------------------------------ Warcraft Logs
+    def wcl_check(self):
+        """Videos from the last day without a Warcraft Logs link: ask again (the upload
+        comes some minutes after the fight). Runs beside the main loop."""
+        if self.wcl_busy or time.time() < self.wcl_next or not R.wcl_configured():
+            return
+        self.wcl_next = time.time() + WCL_EVERY
+        todo = [v for v in R.video_files(self.cfg["folder"])
+                if not v.get("wcl") and v.get("player") and time.time() - v["started"] < WCL_FOR]
+        if not todo:
+            return
+        self.wcl_busy = True
+        threading.Thread(target=self.wcl_run, args=(todo,), daemon=True).start()
+
+    def wcl_run(self, todo):
+        try:
+            for v in todo:
+                found = R.wcl_find(v)
+                if found:
+                    R.set_meta(v["path"], wcl=found)
+                    self.last_video = Path(v["path"]).name + "#wcl"
+                    log("Warcraft Logs:", v["file"], found["url"])
+        except Exception as e:  # noqa: BLE001 – no network etc.: try again later
+            log("Warcraft Logs:", e)
+        finally:
+            self.wcl_busy = False
 
     # ------------------------------------------------------------ main loop
     def tick(self):
@@ -328,6 +373,7 @@ class Service:
         self.follow()
         self.check_recording()
         self.closing = [m for m in self.closing if m["_until"] > now]
+        self.wcl_check()
         if self.wow or self.current:
             self.connect()
         elif self.obs:
@@ -350,7 +396,7 @@ class Service:
             "recording": bool(self.current),
             "current": {k: self.current[k] for k in ("kind", "name", "difficulty", "start")
                         } if self.current else None,
-            "lastVideo": self.last_video, "error": self.error,
+            "lastVideo": self.last_video, "error": self.error, "player": self.me,
         })
 
     def run(self):

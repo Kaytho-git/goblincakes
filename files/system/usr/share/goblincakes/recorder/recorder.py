@@ -21,6 +21,7 @@ import socket
 import struct
 import subprocess
 import time
+import urllib.error
 from datetime import datetime
 from pathlib import Path
 
@@ -476,6 +477,16 @@ def video_files(folder):
     return out
 
 
+def set_meta(video_path, **fields):
+    """Change fields in a video's .json."""
+    meta = Path(video_path).with_suffix(".json")
+    data = json.loads(meta.read_text())
+    data.update(fields)
+    tmp = meta.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    tmp.replace(meta)
+
+
 def make_thumb(video, at, dest):
     subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", str(at),
                     "-i", str(video), "-frames:v", "1", "-vf", "scale=480:-2", str(dest)],
@@ -503,3 +514,140 @@ def prune(folder, max_gb):
             continue
         remove_video(v["path"])
         total -= v["size"]
+
+
+# ---------------------------------------------------------------- Warcraft Logs
+
+# Which Warcraft Logs fight a video shows. Nothing is uploaded from here – Warcraft Logs'
+# own uploader (Archon) does that; we only look the fight up with the public API. Needs an
+# API client (id + secret) you make once on warcraftlogs.com; reports must be public.
+WCL = "https://www.warcraftlogs.com"
+WCL_FILE = CONFIG_DIR / "wcl.json"  # client id/secret + token, only readable by you
+WCL_CLIENTS_PAGE = f"{WCL}/api/clients/"
+
+
+def wcl_load():
+    try:
+        return json.loads(WCL_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def wcl_save(data):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = WCL_FILE.with_suffix(".tmp")
+    tmp.touch(mode=0o600)
+    os.chmod(tmp, 0o600)
+    tmp.write_text(json.dumps(data, indent=1))
+    tmp.replace(WCL_FILE)
+
+
+def wcl_configured():
+    d = wcl_load()
+    return bool(d.get("clientId") and d.get("clientSecret"))
+
+
+def _wcl_token(data=None, force=False):
+    import urllib.parse
+    import urllib.request
+    data = data or wcl_load()
+    if not data.get("clientId") or not data.get("clientSecret"):
+        raise RuntimeError("Ingen Warcraft Logs-klient inlagd")
+    if not force and data.get("accessToken") and time.time() < data.get("expires", 0):
+        return data["accessToken"]
+    auth = base64.b64encode(f"{data['clientId']}:{data['clientSecret']}".encode()).decode()
+    req = urllib.request.Request(f"{WCL}/oauth/token", data=urllib.parse.urlencode(
+        {"grant_type": "client_credentials"}).encode(), headers={
+        "Authorization": "Basic " + auth, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            tok = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError("Fel id eller hemlighet" if e.code in (400, 401) else f"Warcraft Logs svarade {e.code}") from e
+    data.update({"accessToken": tok["access_token"], "expires": time.time() + tok.get("expires_in", 3600) - 60})
+    wcl_save(data)
+    return data["accessToken"]
+
+
+def wcl_set_client(client_id, secret):
+    """Save and test the API client. Raises with a readable text when it does not work."""
+    data = {"clientId": client_id.strip(), "clientSecret": secret.strip()}
+    _wcl_token(data, force=True)
+
+
+def wcl_forget():
+    try:
+        WCL_FILE.unlink()
+    except OSError:
+        pass
+
+
+def wcl_query(query, variables=None):
+    import urllib.request
+    req = urllib.request.Request(f"{WCL}/api/v2/client", data=json.dumps(
+        {"query": query, "variables": variables or {}}).encode(), headers={
+        "Authorization": "Bearer " + _wcl_token(), "Content-Type": "application/json",
+        "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        out = json.loads(r.read())
+    if out.get("errors") and not out.get("data"):
+        raise RuntimeError(out["errors"][0].get("message", "fel från Warcraft Logs"))
+    return out["data"]
+
+
+def server_slug(realm):
+    """Realm in the combat log ("TwistingNether", "Al'Akir") → Warcraft Logs' slug."""
+    realm = re.sub(r"(?<=[a-z])(?=[A-Z])", "-", realm).replace("'", "")
+    return re.sub(r"[^a-z0-9-]", "", realm.lower().replace(" ", "-"))
+
+
+REPORT_FIELDS = ("code startTime endTime fights { id encounterID name kill startTime endTime "
+                 "bossPercentage fightPercentage keystoneLevel difficulty }")
+
+
+def wcl_reports(player, start_ms, end_ms):
+    """Public reports around a time that the recording character is in: its recent
+    reports and its guild's (Name-Realm-Region from the combat log)."""
+    parts = player.split("-")
+    if len(parts) < 3:
+        return []
+    name, region, realm = parts[0], parts[-1], "-".join(parts[1:-1])
+    data = wcl_query(
+        "query($n:String,$s:String,$r:String){ characterData { character(name:$n, serverSlug:$s,"
+        " serverRegion:$r) { guilds { id } recentReports(limit: 10) { data { " + REPORT_FIELDS + " } } } } }",
+        {"n": name, "s": server_slug(realm), "r": region.lower()})
+    char = data["characterData"]["character"] or {}
+    reports = [r for r in ((char.get("recentReports") or {}).get("data") or [])
+               if r["startTime"] <= end_ms and r["endTime"] >= start_ms]
+    for g in char.get("guilds") or []:
+        reports += wcl_query(
+            "query($g:Int,$from:Float,$to:Float){ reportData { reports(guildID:$g, startTime:$from,"
+            " endTime:$to) { data { " + REPORT_FIELDS + " } } } }",
+            {"g": g["id"], "from": start_ms - 12 * 3600 * 1000, "to": end_ms + 12 * 3600 * 1000}
+        )["reportData"]["reports"]["data"]
+    return reports
+
+
+def wcl_find(meta):
+    """The Warcraft Logs fight a video shows, or None (not uploaded yet / not public)."""
+    start_ms = meta["started"] * 1000
+    end_ms = start_ms + max(meta.get("fight", 0), 1) * 1000
+    best, best_score = None, None
+    for rep in wcl_reports(meta.get("player", ""), start_ms, end_ms):
+        for f in rep.get("fights") or []:
+            fs, fe = rep["startTime"] + f["startTime"], rep["startTime"] + f["endTime"]
+            if meta["kind"] == "raid":
+                if str(f["encounterID"]) != str(meta.get("encounterId")) or abs(fs - start_ms) > 20000:
+                    continue
+                score = abs(fs - start_ms)
+            else:
+                overlap = min(fe, end_ms) - max(fs, start_ms)
+                if not f.get("keystoneLevel") or overlap <= 0:
+                    continue
+                score = -overlap
+            if best_score is None or score < best_score:
+                best_score = score
+                best = {"code": rep["code"], "fight": f["id"], "kill": f.get("kill"),
+                        "bossPercentage": f.get("bossPercentage"),
+                        "url": f"{WCL}/reports/{rep['code']}#fight={f['id']}"}
+    return best

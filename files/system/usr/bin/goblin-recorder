@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -30,6 +31,8 @@ class Backend(QObject):
     configChanged = Signal()
     videosChanged = Signal()
     message = Signal(str)
+    wclChanged = Signal()
+    wclBusy = Signal(bool)
 
     def __init__(self):
         super().__init__()
@@ -38,6 +41,7 @@ class Backend(QObject):
         self._videos = "[]"
         self._encoders = json.dumps(R.obs_encoders())
         self._last_video = None
+        self.refreshLater.connect(self.refreshVideos)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll)
         self.timer.start(1000)
@@ -158,6 +162,62 @@ class Backend(QObject):
         folder = Path(R.load_config()["folder"])
         folder.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    # ---------------------------------------------------------- Warcraft Logs
+    @Property(bool, notify=wclChanged)
+    def wclConfigured(self):
+        return R.wcl_configured()
+
+    @Slot()
+    def openWclClients(self):
+        QDesktopServices.openUrl(QUrl(R.WCL_CLIENTS_PAGE))
+
+    @Slot(str)
+    def openUrl(self, url):
+        QDesktopServices.openUrl(QUrl(url))
+
+    @Slot(str, str)
+    def setWcl(self, client_id, secret):
+        def work():
+            try:
+                R.wcl_set_client(client_id, secret)
+                self.message.emit("Warcraft Logs är kopplat – filmerna får länkar när loggen laddats upp.")
+            except Exception as e:  # noqa: BLE001
+                self.message.emit(f"Warcraft Logs: {e}")
+            self.wclChanged.emit()
+            self.wclBusy.emit(False)
+        self.wclBusy.emit(True)
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot()
+    def forgetWcl(self):
+        R.wcl_forget()
+        self.wclChanged.emit()
+
+    @Slot(str)
+    def wclFind(self, path):
+        """Look up the video's fight now (the service also does it every 5 minutes)."""
+        def work():
+            try:
+                meta = json.loads(Path(path).with_suffix(".json").read_text())
+                if not meta.get("player"):
+                    self.message.emit("Filmen vet inte vilken karaktär som spelade – går inte att söka.")
+                    return
+                found = R.wcl_find(meta)
+                if found:
+                    R.set_meta(path, wcl=found)
+                    self.message.emit("Hittad i Warcraft Logs.")
+                else:
+                    self.message.emit("Inte i Warcraft Logs än – har loggen laddats upp (Archon)?")
+            except Exception as e:  # noqa: BLE001
+                self.message.emit(f"Warcraft Logs: {e}")
+            finally:
+                self.refreshLater.emit()
+                self.wclBusy.emit(False)
+        self.wclBusy.emit(True)
+        threading.Thread(target=work, daemon=True).start()
+
+    refreshLater = Signal()
 
     @Slot(str)
     def openExternal(self, path):
