@@ -82,6 +82,7 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
 ## Att göra (användarens beslut 12 okt: "imorgon")
 - [ ] **GoblinRecorder – klipp till Discord:** markera början/slut på en film i spelaren → "Dela" kortar och krymper filmen under Discords gräns (10 MB) och ger en fil att dra in i chatten.
 - [ ] **GoblinRecorder – Warcraft Logs i spelaren:** bossens faser och dödsfall från loggen som markeringar på tidslinjen, och jämföra två försök sida vid sida.
+- [ ] **Chrome- och Brave-tema** (även Chromium och webbapparna, som körs i Chrome): samma palett och goblinen i fliklisten som Firefox-temat (`firefox-tema/`). Chromium-teman är ett eget format (manifest `theme` med `images`/`colors`/`tints`, packas som .crx), installeras via policy (`ExtensionInstallForcelist`/`ExtensionSettings`) – kolla hur det fungerar med Flatpak-versionerna och om Chrome Web Store krävs.
 - [ ] **GOBLINCAKES-ljud:** egna korta ljud för inloggning, notiser och utloggning (t.ex. ett litet goblinfniss vid "See you next raid!").
 
 ## Framtida idéer (inget byggs förrän användaren ber om det)
