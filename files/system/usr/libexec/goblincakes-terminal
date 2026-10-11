@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# GOBLINCAKES: which terminal the user wants – Ghostty (standard) or Konsole.
+# Chosen in GOBLINCAKES Config (Program, at the first start); per user.
+#   goblincakes-terminal status              ghostty | konsole
+#   goblincakes-terminal set ghostty|konsole KDE's terminal, AppGrid, the dock
+#   goblincakes-terminal apply               the dock again after a layout reset (goblincakes-firstlogin)
+#   goblincakes-terminal run <command…>      runs a command in the chosen terminal
+# Konsole gets the GOBLINCAKES look from /usr/share/konsole (GoblinCakes.profile).
+set -uo pipefail
+
+CHOICE="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/terminal"
+GHOSTTY=com.mitchellh.ghostty.desktop
+KONSOLE=org.kde.konsole.desktop
+
+current() {
+    if [ "$(cat "$CHOICE" 2>/dev/null)" = konsole ] && command -v konsole >/dev/null; then
+        echo konsole
+    else
+        echo ghostty
+    fi
+}
+
+# The dock's terminal: swap the other one's pin for this one (other pins untouched)
+dock() { # from to
+    busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s '
+        panels().forEach(function (p) { if (p.location !== "bottom") return;
+            p.widgets().forEach(function (w) { if (w.type !== "org.kde.plasma.icontasks") return;
+                w.currentConfigGroup = ["General"];
+                var l = w.readConfig("launchers");
+                if (typeof l === "string") l = l ? l.split(",") : [];
+                var to = "applications:'"$2"'", out = [], changed = false;
+                l.forEach(function (x) {
+                    if (x === "applications:'"$1"'") { x = to; changed = true; }
+                    if (out.indexOf(x) < 0) out.push(x);
+                });
+                if (changed) w.writeConfig("launchers", out); }); });' >/dev/null 2>&1 || true
+}
+
+set_terminal() {
+    case $1 in
+        konsole)
+            command -v konsole >/dev/null || { echo "Konsole är inte installerat" >&2; exit 1; }
+            mkdir -p "$(dirname "$CHOICE")"
+            echo konsole > "$CHOICE"
+            kwriteconfig6 --file kdeglobals --group General --key TerminalApplication konsole
+            kwriteconfig6 --file kdeglobals --group General --key TerminalService "$KONSOLE"
+            /usr/libexec/goblincakes-apps set org.kde.konsole show >/dev/null 2>&1 || true
+            dock "$GHOSTTY" "$KONSOLE" ;;
+        ghostty)
+            rm -f "$CHOICE"
+            # Back to the system's value (/etc/xdg/kdeglobals = Ghostty)
+            kwriteconfig6 --file kdeglobals --group General --key TerminalApplication --delete
+            kwriteconfig6 --file kdeglobals --group General --key TerminalService --delete
+            /usr/libexec/goblincakes-apps set org.kde.konsole hide >/dev/null 2>&1 || true
+            dock "$KONSOLE" "$GHOSTTY" ;;
+        *) echo "Använd: goblincakes-terminal set ghostty|konsole" >&2; exit 2 ;;
+    esac
+    echo "Terminal: $1"
+}
+
+case ${1:-status} in
+    status) current ;;
+    set) set_terminal "${2:-}" ;;
+    apply) [ "$(current)" = konsole ] && dock "$GHOSTTY" "$KONSOLE"; exit 0 ;;
+    run)
+        shift
+        exec "$(current)" -e "$@" ;;
+    *) echo "Använd: goblincakes-terminal status | set ghostty|konsole | apply | run <kommando…>" >&2; exit 2 ;;
+esac

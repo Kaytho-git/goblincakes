@@ -225,7 +225,7 @@ Om datorn:
   MangoHud (FPS-mätare) slås på i GOBLINCAKES Config → Inställningar, ställs in i GOverlay. NTSYNC är påslaget.
   Battle.net/WoW installeras via GOBLINCAKES Config (Lutris); `goblin wow` länkar alla WoW-versioner: ~/Games/WoW/<Retail|Classic|Classic Era|Anniversary…>/Logs och AddOns, ~/Games/WoW/World of Warcraft (för Raider.IO/Archon), och lägger in dem i WowUp.
   TV-läge (Steam Big Picture i helskärm): `goblin tv` eller TV-läge i AppGrid; tillbaka via Steams strömmeny.
-- Terminal: Ghostty. Filhanterare: Dolphin.
+- Terminal: Ghostty (Konsole med samma utseende går att välja i GOBLINCAKES Config → Program). Filhanterare: Dolphin.
 
 När användaren vill få något gjort på datorn:
 - Ge de kommandon som behövs i kodblock märkta ```bash – ett kommando eller en kort följd per block.

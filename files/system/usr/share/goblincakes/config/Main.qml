@@ -650,6 +650,93 @@ Window {
             width: chooser.width - 96
             spacing: 12
 
+            // ── Terminal: Ghostty (standard) or Konsole, same GOBLINCAKES look ──
+            Column {
+                width: sections.width
+                spacing: 14
+                bottomPadding: 22
+
+                Text {
+                    text: "TERMINAL"
+                    color: "#8B98AD"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 14
+                    font.letterSpacing: 2.5
+                }
+                Text {
+                    width: parent.width
+                    text: "Vilken terminal vill du använda? Båda har GOBLINCAKES färger och typsnitt. Den du väljer ligger i dockan och öppnas när GOBLINCAKES behöver en terminal. Du kan byta här när du vill."
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.15
+                }
+                Row {
+                    spacing: 16
+                    Repeater {
+                        model: [
+                            {id: "ghostty", name: "Ghostty", desc: "Snabb och enkel. GOBLINCAKES standard."},
+                            {id: "konsole", name: "Konsole", desc: "KDE:s egen terminal, med flikar, delad vy och inställningar i menyerna."}
+                        ]
+                        Rectangle {
+                            id: termCard
+                            required property var modelData
+                            readonly property bool chosen: backend.terminal === modelData.id
+                            width: Math.min(420, (sections.width - 16) / 2)
+                            height: 92
+                            color: termArea.containsMouse && !chosen ? "#111A2A" : "#0E1420"
+                            border.width: 1
+                            border.color: chosen ? "#2F6FED" : termArea.containsMouse ? "#2A3852" : "#1E2A40"
+
+                            Monogram {
+                                id: termMono
+                                name: termCard.modelData.name
+                                anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+                            }
+                            Column {
+                                anchors {
+                                    left: termMono.right; leftMargin: 16
+                                    right: termCheck.left; rightMargin: 14
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                spacing: 5
+                                Text {
+                                    text: termCard.modelData.name
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.weight: Font.DemiBold
+                                    font.pixelSize: 16
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: termCard.modelData.desc
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                    wrapMode: Text.WordWrap
+                                    maximumLineCount: 2
+                                    elide: Text.ElideRight
+                                }
+                            }
+                            CheckSquare {
+                                id: termCheck
+                                anchors { right: parent.right; rightMargin: 18; verticalCenter: parent.verticalCenter }
+                                checked: termCard.chosen
+                            }
+                            MouseArea {
+                                id: termArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: termCard.chosen ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                onClicked: backend.setTerminal(termCard.modelData.id)
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── Egen webbapp: any link as its own app ──
             Column {
                 width: sections.width

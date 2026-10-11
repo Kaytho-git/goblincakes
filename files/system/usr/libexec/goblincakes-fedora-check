@@ -85,7 +85,7 @@ def check():
         notify(f"update-{newest}", f"GOBLINCAKES finns nu på Fedora {newest}",
                f"Du kör Fedora {running}. Uppdatera med goblin update och starta om – "
                "inget annat behövs. Går något fel väljer du den förra versionen i startmenyn.",
-               "update", "Uppdatera nu", ["ghostty", "-e", "goblin", "update"])
+               "update", "Uppdatera nu", ["/usr/libexec/goblincakes-terminal", "run", "goblin", "update"])
     return True
 
 

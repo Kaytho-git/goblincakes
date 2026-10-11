@@ -139,5 +139,8 @@ window-height = 28
 EOF
 fi
 
+# Konsole chosen as the terminal (Config): the new dock gets it instead of Ghostty
+( sleep 10; /usr/libexec/goblincakes-terminal apply ) >/dev/null 2>&1 &
+
 mkdir -p "$(dirname "$MARK")"
 echo "$LAYOUT_VERSION" > "$MARK"

@@ -46,6 +46,7 @@ class IconProvider(QQuickImageProvider):
 TWEAK = os.environ.get("GOBLINCAKES_CONFIG_TWEAK", "/usr/libexec/goblincakes-tweak")
 GPU = os.environ.get("GOBLINCAKES_CONFIG_GPU", "/usr/libexec/goblincakes-gpu")
 BROWSER = os.environ.get("GOBLINCAKES_CONFIG_BROWSER", "/usr/libexec/goblincakes-browser")
+TERMINAL = os.environ.get("GOBLINCAKES_CONFIG_TERMINAL", "/usr/libexec/goblincakes-terminal")
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
 DONE_FILE = STATE / "config-done"
 OLD_DONE_FILE = STATE / "setup-done"  # from when the window was called GOBLINCAKES Setup
@@ -171,6 +172,7 @@ class Config(QObject):
     showTab = Signal(str)  # another start (e.g. the update arrow): show this window on that tab
     checkDone = Signal(str)  # "Kolla efter uppdateringar": goblincakes-updates' JSON ("" = failed)
     mainBrowserChanged = Signal()
+    terminalChanged = Signal()
     autostartChanged = Signal()
     webappsChanged = Signal()
     systemAppsChanged = Signal()  # tab FÖRINSTALLERAT
@@ -198,6 +200,8 @@ class Config(QObject):
         self._main_browser = next((a["id"] for a in catalog["apps"]
                                    if code == 0 and a.get("browser") == out and a["installed"]), "")
         self._pending_browser = ""  # chosen but not installed yet: set after its installation
+        code, out = run(TERMINAL, ["status"])
+        self._terminal = out if code == 0 and out in ("ghostty", "konsole") else "ghostty"
         self._webapps = "[]"
         self._webapp_proc = None
         self.refreshWebapps()
@@ -278,6 +282,21 @@ class Config(QObject):
         else:
             self._pending_browser = app_id  # set by the install queue once it's installed
         self.mainBrowserChanged.emit()
+
+    # ── Terminal: Ghostty (standard) or Konsole, chosen at the first start ──
+
+    @Property(str, notify=terminalChanged)
+    def terminal(self):
+        return self._terminal
+
+    @Slot(str)
+    def setTerminal(self, name):
+        if name == self._terminal or name not in ("ghostty", "konsole"):
+            return
+        self._terminal = name
+        self.terminalChanged.emit()
+        # In the background: changes the dock through plasmashell
+        QProcess.startDetached(TERMINAL, ["set", name])
 
     # ── The user's own web apps ("Egen webbapp") ──────────────
 
@@ -696,7 +715,7 @@ class Config(QObject):
                   f"echo 'Välj ett lösenord nedan, t.ex. universalblue – du skriver det en gång vid nästa start,'; "
                   f"echo 'i den blå skärmen: Enroll MOK → Continue → Yes → lösenordet → Reboot.'; echo; "
                   f"sudo mokutil --import {key}; echo; read -rp 'Klart – tryck Enter för att stänga… ' _")
-        QProcess.startDetached("ghostty", ["-e", "bash", "-c", script])
+        QProcess.startDetached(TERMINAL, ["run", "bash", "-c", script])
 
     # ── Window ────────────────────────────────────────────────
 

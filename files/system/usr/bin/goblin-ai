@@ -169,13 +169,8 @@ class Backend(QObject):
         code = part["code"]
         if "sudo" in code or "read " in code:
             # Needs a password or answers: run it in a terminal the user can type in
-            terminal = shutil.which("ghostty") or shutil.which("konsole")
-            if not terminal:
-                part.update(state="done", output="Hittade ingen terminal.")
-                self._update(index)
-                return self._command_done(index)
             script = f"{code}\necho\nread -rp 'Klart – tryck Enter för att stänga… ' _"
-            QProcess.startDetached(terminal, ["-e", "bash", "-c", script])
+            QProcess.startDetached("/usr/libexec/goblincakes-terminal", ["run", "bash", "-c", script])
             part.update(state="done", output="Körs i ett terminalfönster (behöver ditt lösenord eller svar).")
             self._update(index)
             return self._command_done(index, ran_in_terminal=True)
