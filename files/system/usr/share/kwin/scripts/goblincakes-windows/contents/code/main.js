@@ -55,6 +55,27 @@ function center(window) {
     };
 }
 
+// Web apps (Config's streaming services and own web apps, 11 Oct): Chromium's app windows
+// open taller than the screen (the user's 1080p screen). They are kept within the screen's
+// free area (without the panels): when they open, and while Chromium restores its saved size
+// during the first seconds. chrome-<address>__-Default, also Chromium's and Brave's.
+function isWebapp(window) {
+    return window.normalWindow && /^(chrome|chromium|brave)-.+__/i.test(String(window.resourceClass || ""));
+}
+
+function fit(window) {
+    if (window.fullScreen || window.maximizeMode)
+        return;
+    const area = workspace.clientArea(KWin.PlacementArea, window.output, workspace.currentDesktop);
+    const geo = window.frameGeometry;
+    const width = Math.min(geo.width, area.width);
+    const height = Math.min(geo.height, area.height);
+    const x = Math.max(area.x, Math.min(geo.x, area.x + area.width - width));
+    const y = Math.max(area.y, Math.min(geo.y, area.y + area.height - height));
+    if (x !== geo.x || y !== geo.y || width !== geo.width || height !== geo.height)
+        window.frameGeometry = { x: x, y: y, width: width, height: height };
+}
+
 function added(window) {
     if (!window)
         return;
@@ -64,6 +85,15 @@ function added(window) {
     } else if (ruled) {
         if (window.output !== ruled)
             workspace.sendClientToScreen(window, ruled);
+        if (isWebapp(window))
+            fit(window);
+    } else if (isWebapp(window)) {
+        fit(window);
+        const start = Date.now();
+        window.frameGeometryChanged.connect(function () {
+            if (Date.now() - start < 5000)
+                fit(window);
+        });
     } else if (isGame(window)) {
         toMainScreen(window);
         // Games often switch to fullscreen a moment later, on the screen the window is on –
