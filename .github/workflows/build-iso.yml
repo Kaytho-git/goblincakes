@@ -1,5 +1,5 @@
-# GOBLINCAKES installation ISOs (live USB), built when you ask for it:
-# GitHub → Actions → "Bygg installations-ISO" → Run workflow.
+# GOBLINCAKES installation ISOs (live USB), built every Sunday at 07:00 UTC (after the daily
+# image build at 06:00) and whenever you ask: GitHub → Actions → "Bygg installations-ISO" → Run workflow.
 # Two ISOs, built side by side on their own machines:
 #   GOBLINCAKES-<date>.iso         the base variant (AMD, Intel, older Nvidia)
 #   GOBLINCAKES-Nvidia-<date>.iso  goblincakes-nvidia (Nvidia GTX 16xx / RTX 20xx and newer)
@@ -9,6 +9,8 @@
 name: Bygg installations-ISO
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 0" # Sundays 07:00 UTC = 09:00 Swedish summer time, 08:00 in winter
 
 concurrency:
   group: build-iso
