@@ -4,6 +4,12 @@
 
 GOBLINCAKES bygger på [Fedora Kinoite](https://fedoraproject.org/atomic-desktops/kinoite/) (KDE Plasma 6) via [Universal Blue](https://universal-blue.org/) och byggs automatiskt varje dag med [BlueBuild](https://blue-build.org/). Allt är platt, mörkt och fyrkantigt, med en goblin som maskot.
 
+### ⬇ Ladda ner GOBLINCAKES USB
+
+Programmet som gör ett installations-USB-minne åt dig (se [Installation](#med-goblincakes-usb-enklast)):
+
+**[Windows](https://github.com/Kaytho-git/goblincakes/releases/download/usb-skaparen/GOBLINCAKES-USB-Windows.exe)** &nbsp;·&nbsp; **[Linux](https://github.com/Kaytho-git/goblincakes/releases/download/usb-skaparen/GOBLINCAKES-USB-Linux)** &nbsp;·&nbsp; [Alla filer](https://github.com/Kaytho-git/goblincakes/releases/tag/usb-skaparen)
+
 ## Målet
 
 En dator som bara fungerar – för den som vill spela, raida och sköta bågskyttetävlingar utan att pilla med Linux:
