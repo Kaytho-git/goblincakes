@@ -63,6 +63,14 @@ function isWebapp(window) {
     return window.normalWindow && /^(chrome|chromium|brave)-.+__/i.test(String(window.resourceClass || ""));
 }
 
+// "Helskärm" on a web app in GOBLINCAKES Config (11 Oct): kwinrc [Script-goblincakes-windows]
+// fullscreenApps = "chrome-claude.ai__-default;…" (window classes, lower case), read at every
+// new window. Chromium's own --start-fullscreen counts for the whole browser, not one web app.
+function wantsFullscreen(window) {
+    const cls = String(window.resourceClass || "").toLowerCase();
+    return String(readConfig("fullscreenApps", "")).split(";").indexOf(cls) >= 0;
+}
+
 function fit(window) {
     if (window.fullScreen || window.maximizeMode)
         return;
@@ -85,8 +93,12 @@ function added(window) {
     } else if (ruled) {
         if (window.output !== ruled)
             workspace.sendClientToScreen(window, ruled);
-        if (isWebapp(window))
+        if (isWebapp(window) && wantsFullscreen(window))
+            window.fullScreen = true;
+        else if (isWebapp(window))
             fit(window);
+    } else if (isWebapp(window) && wantsFullscreen(window)) {
+        window.fullScreen = true;
     } else if (isWebapp(window)) {
         fit(window);
         const start = Date.now();

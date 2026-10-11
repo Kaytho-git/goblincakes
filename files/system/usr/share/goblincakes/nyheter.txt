@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-11  Helskärm för webbappar fungerar nu även när en annan webbapp redan är öppen (och gör inte längre de andra till helskärm)
 2026-10-11  Stänger du GOBLINCAKES Config mitt i en uppdatering eller installation fortsätter den i bakgrunden, och du får en notis när den är klar
 2026-10-11  Den gröna uppdateringsmarkeringen försvinner nu efter omstarten i stället för att ligga kvar fast inget väntar
 2026-10-11  Webbappar kan öppnas i helskärm: reglaget Helskärm på webbappens kort i GOBLINCAKES Config (F11 tar dig ur)

@@ -240,19 +240,20 @@ PY
         # Plasma caches icons by name: make sure a new one (or a changed one) shows up
         touch "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
         # Made again (e.g. a new icon): keeps "Helskärm" from GOBLINCAKES Config
+        # (X-GOBLINCAKES-Fullscreen; the first version's --start-fullscreen counts as well)
         fullscreen=
-        grep -q -- '--start-fullscreen' "$apps/goblincakes-webapp-$id.desktop" 2>/dev/null \
-            && fullscreen=" --start-fullscreen"
+        grep -qE -- '^X-GOBLINCAKES-Fullscreen=true|--start-fullscreen' "$apps/goblincakes-webapp-$id.desktop" 2>/dev/null \
+            && fullscreen=$'\nX-GOBLINCAKES-Fullscreen=true'
         # Chrome names app windows after the address, so the dock groups them under this icon
         cat > "$apps/goblincakes-webapp-$id.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=$name
 Comment=$name i ett eget fönster ($browser_name)
-Exec=flatpak run $browser$fullscreen --app=$url
+Exec=flatpak run $browser --app=$url
 Icon=$icon
 Categories=$categories
-StartupWMClass=chrome-${host}__-Default
+StartupWMClass=chrome-${host}__-Default$fullscreen
 DESKTOP
         update-desktop-database "$apps" >/dev/null 2>&1 || true
         status "$name finns nu i AppGrid"

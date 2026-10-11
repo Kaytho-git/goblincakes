@@ -10,6 +10,7 @@ graphics drivers by /usr/libexec/goblincakes-gpu (switching between the AMD/Inte
 import json
 import re
 import os
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -161,19 +162,40 @@ def set_app_autostart(app, on):
     (AUTOSTART / launcher[0].name).write_text("\n".join(out) + "\n")
 
 
-# "Helskärm" on a web app (11 Oct): Chromium's --start-fullscreen in its menu entry and in its
-# "Starta vid inloggning" copy. F11 leaves fullscreen, as in the browser.
+# "Helskärm" on a web app (11 Oct): X-GOBLINCAKES-Fullscreen in its menu entry, and its window
+# class in kwinrc [Script-goblincakes-windows] fullscreenApps – the KWin script goblincakes-windows
+# makes those windows fullscreen when they open. Not Chromium's --start-fullscreen (the first
+# version): that counts for the whole browser process – ignored when Chromium already ran for
+# another web app, and every later web app opened fullscreen when it was the first. F11 leaves.
 FULLSCREEN_FLAG = "--start-fullscreen"
+FULLSCREEN_KEY = "X-GOBLINCAKES-Fullscreen"
 
 
 def webapp_fullscreen_states():
-    """{web app id: opens in fullscreen} for every web app (streaming services and own ones)."""
+    """{web app id: opens in fullscreen} for every web app (streaming services and own ones).
+    Entries with the first version's --start-fullscreen are moved over to the KWin list."""
     states = {}
     for path in sorted(LOCAL_APPS.glob("goblincakes-webapp-*.desktop")):
-        exec_line = desktop_entry(path).get("Exec", "")
-        if "--app=" in exec_line:
-            states[path.stem.removeprefix("goblincakes-webapp-")] = FULLSCREEN_FLAG in exec_line.split()
+        entry = desktop_entry(path)
+        exec_line = entry.get("Exec", "")
+        if "--app=" not in exec_line:
+            continue
+        webapp_id = path.stem.removeprefix("goblincakes-webapp-")
+        states[webapp_id] = entry.get(FULLSCREEN_KEY) == "true" or FULLSCREEN_FLAG in exec_line.split()
+        if FULLSCREEN_FLAG in exec_line.split():
+            set_webapp_fullscreen(webapp_id, True)
     return states
+
+
+def write_fullscreen_classes():
+    classes = sorted({desktop_entry(p).get("StartupWMClass", "").lower()
+                      for p in LOCAL_APPS.glob("goblincakes-webapp-*.desktop")
+                      if desktop_entry(p).get(FULLSCREEN_KEY) == "true"} - {""})
+    args = ["kwriteconfig6", "--file", "kwinrc", "--group", "Script-goblincakes-windows", "--key", "fullscreenApps"]
+    subprocess.run(args + ([";".join(classes)] if classes else ["--delete"]), check=False)
+    # KWin rereads kwinrc; the script reads the list each time a window opens
+    subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure"],
+                   capture_output=True)
 
 
 def set_webapp_fullscreen(webapp_id, on):
@@ -181,14 +203,14 @@ def set_webapp_fullscreen(webapp_id, on):
     for path in (LOCAL_APPS / name, AUTOSTART / name):
         if not path.is_file():
             continue
-        lines = path.read_text(errors="replace").splitlines()
-        for i, line in enumerate(lines):
-            if line.startswith("Exec=") and " --app=" in line:
-                line = line.replace(f" {FULLSCREEN_FLAG}", "")
-                if on:
-                    line = line.replace(" --app=", f" {FULLSCREEN_FLAG} --app=", 1)
-                lines[i] = line
+        lines = [line.replace(f" {FULLSCREEN_FLAG}", "") if line.startswith("Exec=") else line
+                 for line in path.read_text(errors="replace").splitlines()
+                 if not line.startswith(f"{FULLSCREEN_KEY}=")]
+        if on:
+            section = lines.index("[Desktop Entry]") if "[Desktop Entry]" in lines else -1
+            lines.insert(section + 1, f"{FULLSCREEN_KEY}=true")
         path.write_text("\n".join(lines) + "\n")
+    write_fullscreen_classes()
 
 
 class Config(QObject):
