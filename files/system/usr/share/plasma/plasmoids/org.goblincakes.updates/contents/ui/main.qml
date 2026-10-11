@@ -47,10 +47,11 @@ PlasmoidItem {
     readonly property bool available: system === "new" || staged || fetching || more
 
     // Line 1: the file; line 2: the staged deployment's checksum (empty = none); line 3:
-    // automatic update running (1/0)
+    // automatic update running (1/0). Every line is always printed – without a staged deployment
+    // line 2 was missing, so line 3's "0" was read as a checksum: green mark after every restart
     readonly property string readCommand: "printf '%s\\n' \"$(cat \"$HOME/.cache/goblincakes/updates.json\" 2>/dev/null)\"; "
-        + "grep -aoE '[0-9a-f]{64}\\.[0-9]+' /run/ostree/staged-deployment 2>/dev/null | head -n1 | cut -d. -f1; "
-        + "systemctl is-active -q rpm-ostreed-automatic.service || systemctl is-active -q uupd.service && echo 1 || echo 0"
+        + "printf '%s\\n' \"$(grep -aoE '[0-9a-f]{64}\\.[0-9]+' /run/ostree/staged-deployment 2>/dev/null | head -n1 | cut -d. -f1)\"; "
+        + "if systemctl is-active -q rpm-ostreed-automatic.service || systemctl is-active -q uupd.service; then echo 1; else echo 0; fi"
 
     P5Support.DataSource {
         id: exec
