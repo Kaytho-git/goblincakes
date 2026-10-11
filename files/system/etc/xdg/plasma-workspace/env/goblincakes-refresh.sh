@@ -11,6 +11,7 @@ _gc_sum=$(find /usr/share/plasma/desktoptheme/goblincakes \
                /usr/share/plasma/look-and-feel/org.goblincakes.desktop \
                /usr/share/aurorae/themes/goblincakes \
                /usr/share/wallpapers/goblincakes \
+               /usr/share/plasma/plasmoids/org.goblincakes.* \
                -type f -exec cat {} + 2>/dev/null | cksum)
 if [ "$_gc_sum" != "$(cat "$_gc_state/theme-sum" 2>/dev/null)" ]; then
     rm -rf "$_gc_cache"/plasma_theme_* "$_gc_cache"/plasma-svgelements* \

@@ -19,7 +19,15 @@ import org.kde.kirigami as Kirigami
 PlasmoidItem {
     id: root
 
-    readonly property color green: "#3FB950"
+    // The mark's colour says what is waiting (11 Oct, the user's wish): blue = a new GOBLINCAKES
+    // version (or one being fetched), orange = fetched, restart to use it, green = programs
+    // (Flatpak, VS Code, Discord, AppImages, GE-Proton), yellow = only firmware
+    readonly property bool onlyFirmware: flatpaks.length === 0 && runtimes === 0
+        && other.length > 0 && other.every(o => o.part === "firmware")
+    readonly property color markColor: system === "new" || (fetching && !staged) ? "#2F6FED"
+        : staged ? "#F0883E"
+        : onlyFirmware ? "#D29922"
+        : "#3FB950"
     readonly property bool editMode: Plasmoid.containment.corona?.editMode ?? false
 
     property string system: ""      // "new", "staged" or ""
@@ -132,26 +140,31 @@ PlasmoidItem {
         Layout.fillHeight: true
         visible: shown
 
-        // Green arrow up on a short bar ("update"), drawn – no icon theme needed
+        // A square frame with a check in it, in the colour of what is waiting – drawn, flat and
+        // square like the rest of GOBLINCAKES (no icon theme needed)
         Canvas {
             id: arrow
             anchors.centerIn: parent
             width: Kirigami.Units.iconSizes.small
             height: width
             opacity: root.available ? 1 : 0.4  // edit mode without updates: dimmed placeholder
+            readonly property color colour: root.markColor
+            onColourChanged: requestPaint()
             onPaint: {
                 const ctx = getContext("2d");
                 const s = width / 16;
                 ctx.reset();
-                ctx.fillStyle = root.green;
-                ctx.beginPath();          // head
-                ctx.moveTo(8 * s, 1 * s);
-                ctx.lineTo(14 * s, 7.5 * s);
-                ctx.lineTo(2 * s, 7.5 * s);
-                ctx.closePath();
-                ctx.fill();
-                ctx.fillRect(6 * s, 7 * s, 4 * s, 5 * s);    // shaft
-                ctx.fillRect(2 * s, 13.5 * s, 12 * s, 1.5 * s); // bar
+                ctx.strokeStyle = colour;
+                ctx.lineWidth = 1.5 * s;
+                ctx.lineCap = "square";
+                ctx.lineJoin = "miter";
+                ctx.strokeRect(1.25 * s, 1.25 * s, 13.5 * s, 13.5 * s);  // frame
+                ctx.lineWidth = 2 * s;
+                ctx.beginPath();                                           // check
+                ctx.moveTo(4.2 * s, 8.3 * s);
+                ctx.lineTo(6.9 * s, 11 * s);
+                ctx.lineTo(11.8 * s, 5.2 * s);
+                ctx.stroke();
             }
         }
 
