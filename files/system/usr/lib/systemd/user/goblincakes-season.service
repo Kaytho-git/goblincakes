@@ -1,0 +1,7 @@
+[Unit]
+Description=GOBLINCAKES: the desktop's look for the time of year
+After=plasma-workspace.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/goblincakes-season apply

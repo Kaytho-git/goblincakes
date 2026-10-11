@@ -129,6 +129,14 @@ for o in outputs:
                 kscreen-doctor "${args[@]}" ;;
         esac ;;
 
+    season)
+        # The desktop's look for the time of year – shown in Config only while it is that time
+        # (it comes as a surprise); here the user can switch it off and on again
+        case $cmd in
+            status) /usr/libexec/goblincakes-season status ;;
+            set) /usr/libexec/goblincakes-season set "$value" ;;
+        esac ;;
+
     no-autolock)
         # Don't lock the screen (password again) when the computer has been left alone for a
         # while – KDE's own setting (System Settings → Screen Locking → Lock automatically).

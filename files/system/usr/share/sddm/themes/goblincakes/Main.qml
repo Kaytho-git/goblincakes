@@ -9,9 +9,25 @@ Item {
     // Sizes from a 1920×1080 screen, scaled to the real one
     readonly property real s: height / 1080
 
+    // The look for the time of year (same periods as /usr/share/goblincakes/seasons/seasons.json;
+    // a season only when its picture exists) – on purpose not mentioned to users
+    function seasonPicture(fallback) {
+        const d = new Date(), md = (d.getMonth() + 1) * 100 + d.getDate();
+        const seasons = [["halloween", 1015, 1101], ["jul", 1201, 106]];
+        for (const [id, from, to] of seasons) {
+            const inside = from <= to ? (md >= from && md <= to) : (md >= from || md <= to);
+            if (inside)
+                return "/usr/share/goblincakes/seasons/" + id + "/" + fallback.season;
+        }
+        return fallback.ordinary;
+    }
+
     Image {
+        id: background
         anchors.fill: parent
-        source: (typeof config !== "undefined" && config && config.background) || "/usr/share/wallpapers/goblincakes/goblincakes-login.svg"
+        readonly property string ordinary: (typeof config !== "undefined" && config && config.background) || "/usr/share/wallpapers/goblincakes/goblincakes-login.svg"
+        source: root.seasonPicture({ season: "wallpaper.svg", ordinary: ordinary })
+        onStatusChanged: if (status === Image.Error && source != ordinary) source = ordinary // no picture for that season
         sourceSize.width: root.width
         sourceSize.height: root.height
         fillMode: Image.PreserveAspectCrop

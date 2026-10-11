@@ -149,6 +149,14 @@ Window {
     // INSTÄLLNINGAR: a section heading above the first setting of each section that is shown
     // (settings that don't fit this computer are hidden, so whole sections can be empty)
     property int tweakRev: 0
+    function sectionShown(name) {
+        for (let i = 0; i < tweakModel.count; i++) {
+            const item = tweakModel.get(i);
+            if (item.section === name && item.status !== "unavailable")
+                return true;
+        }
+        return false;
+    }
     function tweakSectionStart(index) {
         const item = tweakModel.get(index);
         if (!item || item.status === "unavailable")
@@ -1373,6 +1381,7 @@ Window {
 
             Text {
                 topPadding: 20
+                visible: { win.tweakRev; return !win.sectionShown("Utseende"); } // else drawn above the season switch
                 text: "UTSEENDE"
                 color: "#8B98AD"
                 font.family: "Chakra Petch"

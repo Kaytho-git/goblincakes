@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES utseende
+Exec=/usr/libexec/goblincakes-season apply
+NoDisplay=true
+X-KDE-autostart-phase=2
+OnlyShowIn=KDE;

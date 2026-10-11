@@ -1,0 +1,9 @@
+[Unit]
+Description=GOBLINCAKES: check the desktop's look just after midnight (login: autostart)
+
+[Timer]
+OnCalendar=*-*-* 00:00:30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

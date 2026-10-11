@@ -20,6 +20,17 @@ SHARE = Path(os.environ.get("GOBLINCAKES_REMOVE_SHARE", "/usr/share/goblincakes/
 HELPER = os.environ.get("GOBLINCAKES_REMOVE_HELPER", "/usr/libexec/goblincakes-remove")
 
 
+def season_logo():
+    """The logo – in its look for the time of year when there is one."""
+    default = "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg"
+    try:
+        sys.path.insert(0, "/usr/share/goblincakes/seasons")
+        import season
+        return season.asset("logo.svg", default)
+    except Exception:  # noqa: BLE001
+        return default
+
+
 class IconProvider(QQuickImageProvider):
     """image://icon/<name or path> – the program's own icon from the icon theme."""
 
@@ -141,7 +152,7 @@ def main():
     engine.rootContext().setContextProperty("backend", backend)
     engine.rootContext().setContextProperty("startTab", "removed" if "--old" in sys.argv else "apps")
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
-        os.environ.get("GOBLINCAKES_LOGO", "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")))
+        os.environ.get("GOBLINCAKES_LOGO") or season_logo()))
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1

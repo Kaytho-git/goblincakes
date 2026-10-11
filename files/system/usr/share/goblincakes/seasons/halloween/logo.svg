@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- The goblin logo as a ghost: same head and ears, a sheet fading downwards -->
+  <defs>
+    <linearGradient id="sheet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.45" stop-color="#E6ECF5"/>
+      <stop offset="1" stop-color="#E6ECF5" stop-opacity="0.15"/>
+    </linearGradient>
+  </defs>
+  <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66
+           C94 80 95 94 94 110 Q88 104 82 111 Q76 118 70 110 Q64 102 58 110 Q52 118 46 110 Q40 102 34 110 Q28 116 26 108
+           C25 94 26 80 28 66 Z" fill="url(#sheet)"/>
+  <ellipse cx="48" cy="48" rx="5.5" ry="7.5" fill="#07090D"/>
+  <ellipse cx="72" cy="48" rx="5.5" ry="7.5" fill="#07090D"/>
+  <ellipse cx="60" cy="63" rx="3.6" ry="4.8" fill="#07090D"/>
+</svg>

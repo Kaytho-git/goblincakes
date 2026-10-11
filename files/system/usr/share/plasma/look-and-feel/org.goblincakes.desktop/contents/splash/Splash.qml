@@ -11,6 +11,19 @@ Rectangle {
     // Sizes from the 1920×1080 design, scaled to the screen
     readonly property real s: height / 1080
 
+    // The look for the time of year (same periods as /usr/share/goblincakes/seasons/seasons.json;
+    // a season only when its picture exists) – on purpose not mentioned to users
+    function seasonPicture(fallback) {
+        const d = new Date(), md = (d.getMonth() + 1) * 100 + d.getDate();
+        const seasons = [["halloween", 1015, 1101], ["jul", 1201, 106]];
+        for (const [id, from, to] of seasons) {
+            const inside = from <= to ? (md >= from && md <= to) : (md >= from || md <= to);
+            if (inside)
+                return "/usr/share/goblincakes/seasons/" + id + "/" + fallback.season;
+        }
+        return fallback.ordinary;
+    }
+
     Column {
         id: content
         anchors.centerIn: parent
@@ -19,7 +32,8 @@ Rectangle {
 
         Image {
             anchors.horizontalCenter: parent.horizontalCenter
-            source: "images/logo.svg"
+            source: root.seasonPicture({ season: "logo.svg", ordinary: "images/logo.svg" })
+            onStatusChanged: if (status === Image.Error) source = "images/logo.svg"
             sourceSize.width: Math.round(180 * root.s)
             sourceSize.height: Math.round(180 * root.s)
         }

@@ -106,6 +106,15 @@ def main():
             fit()
         except (OSError, subprocess.SubprocessError, ValueError):
             pass
+    if not args and CONFIG.exists() and not any(own_config.glob("config.json*")):
+        try:  # the logo's look for the time of year
+            sys.path.insert(0, "/usr/share/goblincakes/seasons")
+            import season
+            logo = season.asset("fastfetch-logo.png", "")
+            if logo:
+                args = ["--logo", logo, "--logo-type", "kitty"]
+        except Exception:  # noqa: BLE001
+            pass
     os.execvp("fastfetch", ["fastfetch", *args])
 
 

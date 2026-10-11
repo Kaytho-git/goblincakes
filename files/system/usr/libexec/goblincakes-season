@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""GOBLINCAKES: the desktop's look for the time of year (wallpaper and lock screen).
+
+  goblincakes-season apply        set today's wallpaper/lock screen (login + every midnight)
+  goblincakes-season current      today's season id for this user (empty = ordinary)
+  goblincakes-season status       on / off (switched off by the user) / unavailable (no season now)
+  goblincakes-season set on|off   the user's choice for the season now (Config → Utseende)
+
+Only when the user still has GOBLINCAKES' own picture – an own wallpaper is never touched.
+The login screen and the splash read the date themselves (QML). Not mentioned anywhere
+users read: it is meant to be a surprise.
+"""
+import configparser
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.environ.get("GOBLINCAKES_SEASONS", "/usr/share/goblincakes/seasons"))
+import season  # noqa: E402
+
+ORDINARY = "/usr/share/wallpapers/goblincakes/goblincakes.svg"
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+APPLETS = CONFIG / "plasma-org.kde.plasma.desktop-appletsrc"
+LOCKER = CONFIG / "kscreenlockerrc"
+
+
+def ours(path):
+    """GOBLINCAKES' ordinary picture or one of the seasons' (file:// or plain path)."""
+    path = (path or "").removeprefix("file://")
+    return path == ORDINARY or path.startswith(str(season.DIR) + "/")
+
+
+def want():
+    sid = season.current()
+    return str(season.DIR / sid / "wallpaper.svg") if sid else ORDINARY
+
+
+def desktop_images():
+    """The wallpaper of every desktop (screen) in Plasma's own file."""
+    try:
+        text = APPLETS.read_text()
+    except OSError:
+        return []
+    return re.findall(r"^\[Containments\]\[\d+\]\[Wallpaper\]\[org\.kde\.image\]\[General\]\n(?:[^\[\n].*\n)*?Image=(.*)$",
+                      text, re.M)
+
+
+def apply():
+    target = want()
+    images = desktop_images()
+    if images and all(ours(i) for i in images) and any(i.removeprefix("file://") != target for i in images):
+        subprocess.run(["plasma-apply-wallpaperimage", target], capture_output=True)
+    # The lock screen: the user's own setting if there is one, else /etc/xdg (= ordinary)
+    lock = configparser.ConfigParser(strict=False, interpolation=None)
+    lock.optionxform = str
+    try:
+        lock.read(LOCKER)
+        current = lock.get("Greeter][Wallpaper][org.kde.image][General", "Image", fallback="")
+    except configparser.Error:
+        current = "?"
+    if current == "" or ours(current):
+        keys = ["--file", "kscreenlockerrc", "--group", "Greeter", "--group", "Wallpaper",
+                "--group", "org.kde.image", "--group", "General"]
+        if target == ORDINARY:
+            for key in ("Image", "PreviewImage"):
+                subprocess.run(["kwriteconfig6", *keys, "--key", key, "--delete"], capture_output=True)
+        else:
+            for key in ("Image", "PreviewImage"):
+                subprocess.run(["kwriteconfig6", *keys, "--key", key, "file://" + target], capture_output=True)
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "current"
+    if cmd == "apply":
+        apply()
+    elif cmd == "current":
+        print(season.current())
+    elif cmd == "status":
+        sid = season.season_by_date()
+        print("unavailable" if not sid else "off" if season.chosen_off(sid) else "on")
+    elif cmd == "set" and len(sys.argv) > 2 and sys.argv[2] in ("on", "off"):
+        sid = season.season_by_date()
+        if sid:
+            season.set_off(sid, sys.argv[2] == "off")
+            apply()
+    else:
+        print(__doc__)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()

@@ -26,6 +26,17 @@ sys.path.insert(0, str(SHARE))
 import recorder as R  # noqa: E402
 
 
+def season_logo():
+    """The logo – in its look for the time of year when there is one."""
+    default = "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg"
+    try:
+        sys.path.insert(0, "/usr/share/goblincakes/seasons")
+        import season
+        return season.asset("logo.svg", default)
+    except Exception:  # noqa: BLE001
+        return default
+
+
 class Backend(QObject):
     statusChanged = Signal()
     configChanged = Signal()
@@ -352,7 +363,7 @@ def main():
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("backend", backend)
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
-        os.environ.get("GOBLINCAKES_LOGO", "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg")))
+        os.environ.get("GOBLINCAKES_LOGO") or season_logo()))
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1

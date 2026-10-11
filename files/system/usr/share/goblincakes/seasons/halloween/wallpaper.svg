@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 1920 1080">
+  <!-- GOBLINCAKES desktop at Halloween (15 Oct – 1 Nov): a night sky with a pale moon and mist,
+       the goblin as a see-through ghost – same head and ears, a fading sheet instead of the cupcake -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#070C17"/>
+      <stop offset="1" stop-color="#12203A"/>
+    </linearGradient>
+    <radialGradient id="moonglow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#E6ECF5" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#E6ECF5" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ghostglow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#9FB8E8" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#9FB8E8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sheet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E6ECF5" stop-opacity="0.82"/>
+      <stop offset="0.55" stop-color="#E6ECF5" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#E6ECF5" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+
+  <!-- Stars -->
+  <g fill="#E6ECF5">
+    <circle cx="610" cy="120" r="1.6" opacity="0.5"/>
+    <circle cx="880" cy="70" r="1.2" opacity="0.4"/>
+    <circle cx="1240" cy="150" r="1.4" opacity="0.45"/>
+    <circle cx="1560" cy="90" r="1.8" opacity="0.5"/>
+    <circle cx="1780" cy="230" r="1.2" opacity="0.35"/>
+    <circle cx="420" cy="300" r="1.2" opacity="0.35"/>
+    <circle cx="1010" cy="260" r="1.0" opacity="0.3"/>
+    <circle cx="1690" cy="420" r="1.3" opacity="0.3"/>
+  </g>
+
+  <!-- Moon with a soft glow -->
+  <circle cx="330" cy="210" r="210" fill="url(#moonglow)"/>
+  <circle cx="330" cy="210" r="74" fill="#DCE3EE"/>
+  <circle cx="303" cy="190" r="12" fill="#C5CEDC"/>
+  <circle cx="356" cy="236" r="16" fill="#C5CEDC"/>
+  <circle cx="352" cy="176" r="7" fill="#C5CEDC"/>
+
+  <!-- The ghost goblin, where the goblin stands on the ordinary desktop -->
+  <circle cx="1300" cy="540" r="330" fill="url(#ghostglow)"/>
+  <g transform="translate(1060 280) scale(4)">
+    <!-- Head with the ears, flowing into a wavy sheet -->
+    <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66
+             C94 82 95 98 94 118 Q88 112 82 119 Q76 126 70 118 Q64 110 58 118 Q52 126 46 118 Q40 110 34 118 Q28 124 26 116
+             C25 98 26 82 28 66 Z" fill="url(#sheet)"/>
+    <!-- Hollow eyes and an "oooh" -->
+    <ellipse cx="48" cy="48" rx="5.5" ry="7.5" fill="#07090D" opacity="0.85"/>
+    <ellipse cx="72" cy="48" rx="5.5" ry="7.5" fill="#07090D" opacity="0.85"/>
+    <ellipse cx="60" cy="63" rx="3.6" ry="4.8" fill="#07090D" opacity="0.75"/>
+  </g>
+
+  <!-- Mist along the bottom -->
+  <g fill="#E6ECF5">
+    <ellipse cx="300" cy="1040" rx="520" ry="70" opacity="0.05"/>
+    <ellipse cx="1000" cy="1060" rx="640" ry="80" opacity="0.06"/>
+    <ellipse cx="1650" cy="1030" rx="480" ry="66" opacity="0.05"/>
+    <ellipse cx="1300" cy="990" rx="380" ry="40" opacity="0.04"/>
+    <ellipse cx="600" cy="985" rx="300" ry="34" opacity="0.035"/>
+  </g>
+</svg>
