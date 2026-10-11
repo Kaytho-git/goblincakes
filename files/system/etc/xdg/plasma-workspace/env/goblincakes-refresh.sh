@@ -86,6 +86,46 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
+# The clock had dropped back to normal weight (400) on the real install (11 Oct) – it looked
+# thin and small. Back to semi-bold, once, only where the clock still has our font.
+_gc_flag="$_gc_state/clock-weight"
+if [ ! -e "$_gc_flag" ]; then
+    [ -f "$_gc_applets" ] && python3 - "$_gc_applets" <<'EOF' >/dev/null 2>&1
+import re, sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+def fix(m):
+    body = m.group(2)
+    if "fontFamily=IBM Plex Sans\n" in body and "fontWeight=400\n" in body:
+        body = body.replace("fontWeight=400\n", "fontWeight=600\n")
+    return m.group(1) + body
+new = re.sub(r"(^\[[^\n]*\[Configuration\]\[Appearance\]\n)((?:[^\[\n][^\n]*\n|\n)*)", fix, text, flags=re.M)
+if new != text:
+    open(path, "w", encoding="utf-8").write(new)
+EOF
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
+# Middle-click autoscroll as on Windows (11 Oct, the user's choice) in the Chromium-based
+# Flatpaks – Chromium has it switched off on Linux. Firefox gets it from
+# /usr/share/goblincakes/firefox. Once per browser, when it is installed; a browser
+# installed later gets it at the next login. Not when the flags file already enables
+# other Blink features (a second --enable-blink-features would replace them).
+for _gc_was in org.chromium.Chromium:chromium com.google.Chrome:chrome com.brave.Browser:brave; do
+    _gc_now="${_gc_was#*:}-flags.conf"
+    _gc_was="${_gc_was%%:*}"
+    _gc_flag="$_gc_state/autoscroll-$_gc_was"
+    [ -e "$_gc_flag" ] && continue
+    [ -d "/var/lib/flatpak/app/$_gc_was" ] || [ -d "$HOME/.local/share/flatpak/app/$_gc_was" ] || continue
+    _gc_now="$HOME/.var/app/$_gc_was/config/$_gc_now"
+    if ! grep -q 'enable-blink-features' "$_gc_now" 2>/dev/null; then
+        mkdir -p "$(dirname "$_gc_now")"
+        [ -s "$_gc_now" ] && [ -n "$(tail -c1 "$_gc_now")" ] && echo >> "$_gc_now"
+        echo '--enable-blink-features=MiddleClickAutoscroll' >> "$_gc_now"
+    fi
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+done
+
 # Discord from Flathub → Discord's own build (11 Oct), once, in the background: login and
 # settings come along (goblincakes-discord-move). The Flatpak mustn't start at this login
 # while it moves; if the move fails it gets its autostart back and it's tried again next time.
