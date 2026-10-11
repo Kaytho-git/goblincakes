@@ -228,6 +228,13 @@ class Backend(QObject):
             overlays.pop(index)
             self._save_overlays(overlays)
 
+    @Slot(int, str)
+    def setOverlayText(self, index, text):
+        overlays = R.load_config().get("overlays") or []
+        if 0 <= index < len(overlays) and overlays[index].get("text", "") != text:
+            overlays[index]["text"] = text
+            self._save_overlays(overlays)
+
     @Slot(int, float, float, float, float)
     def moveOverlay(self, index, x, y, w, h):
         overlays = R.load_config().get("overlays") or []

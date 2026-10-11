@@ -1122,6 +1122,20 @@ Window {
                             source: box.modelData.file ? backend.fileUrl(box.modelData.file) : ""
                             fillMode: Image.Stretch
                         }
+                        Text { // as in the video: centred, as large as fits
+                            anchors.fill: parent
+                            anchors.margins: Math.min(parent.width, parent.height) * 0.12
+                            visible: !!box.modelData.text
+                            text: box.modelData.text || ""
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 200
+                            minimumPixelSize: 6
+                            fontSizeMode: Text.Fit
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.SizeAllCursor
@@ -1160,6 +1174,29 @@ Window {
                             }
                         }
                     }
+                }
+            }
+            Row {
+                visible: win.overlayPick >= 0 && win.overlayPick < (win.cfg.overlays || []).length
+                spacing: 12
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Text i rutan"
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 15
+                }
+                FlatField {
+                    id: overlayText
+                    width: Math.min(560, settingsCol.width - 140)
+                    hint: "t.ex. GOBLINCAKES eller Chatten är dold"
+                    text: parent.visible ? ((win.cfg.overlays[win.overlayPick] || {}).text || "") : ""
+                    onEdited: textSave.restart()
+                }
+                Timer { // save when you stop typing for a moment
+                    id: textSave
+                    interval: 600
+                    onTriggered: backend.setOverlayText(win.overlayPick, overlayText.text)
                 }
             }
             Flow {

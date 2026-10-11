@@ -51,7 +51,7 @@ DEFAULTS = {
     "mic": True,  # your microphone on tracks 1 and 3 (with noise suppression)
     "gameBoost": 12,
     "quality": "normal",  # high | normal | small – the bitrate, see QUALITY_MBIT  # dB louder game sound – WoW plays quietly next to Discord
-    "overlays": [],  # boxes over the video: {"file": image or "" = black, "x", "y", "w", "h" as 0–1 of the picture}
+    "overlays": [],  # boxes over the video: {"file": image or "" = black, "text", "x", "y", "w", "h" as 0–1 of the picture}
     "postRoll": 5,  # seconds after the end
     "maxGB": 100,  # oldest videos are removed above this
 }
@@ -485,33 +485,45 @@ OVERLAY_PREFIX = "Dölj "
 
 
 def set_overlays(obs, cfg, w, h):
-    """Images (or black boxes) on top of the screen in OBS's scene – they hide parts of the
-    picture in the video only, never on your screen. Names "Dölj 1", "Dölj 2" …"""
-    wanted = cfg.get("overlays") or []
-    inputs = {i["inputName"]: i["inputKind"] for i in obs.call("GetInputList")["inputs"]}
-    for name in [n for n in inputs if n.startswith(OVERLAY_PREFIX)]:
-        try:
-            idx = int(name[len(OVERLAY_PREFIX):]) - 1
-        except ValueError:
-            idx = -1
-        if not 0 <= idx < len(wanted) or inputs[name] != overlay_kind(wanted[idx]):
-            obs.call("RemoveInput", {"inputName": name}, check=False)
-            inputs.pop(name)
-    for i, ov in enumerate(wanted, 1):
-        name = f"{OVERLAY_PREFIX}{i}"
+    """Images or black boxes on top of the screen in OBS's scene, with an optional text –
+    they hide parts of the picture in the video only, never on your screen. Names
+    "Dölj 1", "Dölj 1 text", "Dölj 2" …"""
+    wanted = {}  # name → (kind, settings, rect as pixels, fit)
+    for i, ov in enumerate(cfg.get("overlays") or [], 1):
+        rect = (round(ov["x"] * w), round(ov["y"] * h), max(round(ov["w"] * w), 2), max(round(ov["h"] * h), 2))
         kind = overlay_kind(ov)
-        settings = ({"file": ov["file"], "unload": False} if kind == "image_source"
-                    else {"color": 0xFF000000, "width": 16, "height": 16})
-        if name not in inputs:
+        wanted[f"{OVERLAY_PREFIX}{i}"] = (kind, {"file": ov["file"], "unload": False} if kind == "image_source"
+                                          else {"color": 0xFF000000, "width": 16, "height": 16}, rect, False)
+        if (ov.get("text") or "").strip():
+            wanted[f"{OVERLAY_PREFIX}{i} text"] = ("text_ft2_source_v2", {
+                "text": ov["text"].strip(), "font": {"face": "IBM Plex Sans", "style": "SemiBold", "size": 96, "flags": 1},
+                "color1": 0xFFF5ECE6, "color2": 0xFFF5ECE6, "outline": False, "drop_shadow": False}, rect, True)
+    inputs = {i["inputName"]: i["inputKind"] for i in obs.call("GetInputList")["inputs"]}
+    for name, kind in inputs.items():
+        if name.startswith(OVERLAY_PREFIX) and (name not in wanted or wanted[name][0] != kind):
+            obs.call("RemoveInput", {"inputName": name}, check=False)
+    gone = [n for n in inputs if n.startswith(OVERLAY_PREFIX) and (n not in wanted or wanted[n][0] != inputs[n])]
+    for _ in range(20):  # OBS removes them a moment after answering
+        left = {i["inputName"] for i in obs.call("GetInputList")["inputs"]}
+        if not left.intersection(gone):
+            break
+        time.sleep(0.1)
+    for name, (kind, settings, (x, y, bw, bh), fit) in wanted.items():
+        if name in inputs and inputs[name] == kind:
+            obs.call("SetInputSettings", {"inputName": name, "inputSettings": settings})
+        else:
             obs.call("CreateInput", {"sceneName": OBS_NAME, "inputName": name, "inputKind": kind,
                                      "inputSettings": settings})
-        else:
-            obs.call("SetInputSettings", {"inputName": name, "inputSettings": settings})
         item = obs.call("GetSceneItemId", {"sceneName": OBS_NAME, "sourceName": name})["sceneItemId"]
-        obs.call("SetSceneItemTransform", {"sceneName": OBS_NAME, "sceneItemId": item, "sceneItemTransform": {
-            "positionX": round(ov["x"] * w), "positionY": round(ov["y"] * h), "alignment": 5,
-            "boundsType": "OBS_BOUNDS_STRETCH", "boundsAlignment": 0,
-            "boundsWidth": max(round(ov["w"] * w), 2), "boundsHeight": max(round(ov["h"] * h), 2)}})
+        if fit:  # text: as large as fits, centred, with some air around it
+            pad = min(bw, bh) * 0.12
+            tr = {"positionX": x + bw / 2, "positionY": y + bh / 2, "alignment": 0,
+                  "boundsType": "OBS_BOUNDS_SCALE_INNER", "boundsAlignment": 0,
+                  "boundsWidth": max(bw - 2 * pad, 2), "boundsHeight": max(bh - 2 * pad, 2)}
+        else:
+            tr = {"positionX": x, "positionY": y, "alignment": 5, "boundsType": "OBS_BOUNDS_STRETCH",
+                  "boundsAlignment": 0, "boundsWidth": bw, "boundsHeight": bh}
+        obs.call("SetSceneItemTransform", {"sceneName": OBS_NAME, "sceneItemId": item, "sceneItemTransform": tr})
         top = len(obs.call("GetSceneItemList", {"sceneName": OBS_NAME})["sceneItems"]) - 1
         obs.call("SetSceneItemIndex", {"sceneName": OBS_NAME, "sceneItemId": item, "sceneItemIndex": top})
 
