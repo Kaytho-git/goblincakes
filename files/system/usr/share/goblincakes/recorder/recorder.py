@@ -45,6 +45,9 @@ DEFAULTS = {
     "raid": True,
     "mplus": True,
     "autoStartObs": True,
+    "mic": True,  # your microphone on tracks 1 and 3 (with noise suppression)
+    "gameBoost": 12,
+    "quality": "normal",  # high | normal | small – the bitrate, see QUALITY_MBIT  # dB louder game sound – WoW plays quietly next to Discord
     "postRoll": 5,  # seconds after the end
     "maxGB": 100,  # oldest videos are removed above this
 }
@@ -55,7 +58,7 @@ if os.environ.get("GOBLINCAKES_RECORDER_DUNGEON_BOSSES"):  # tests: dungeon boss
     RAID_DIFFICULTIES.update({1: "Normal", 2: "Heroic", 23: "Mythic"})
 DUNGEON_DIFFICULTIES = {1: "Normal", 2: "Heroic", 8: "Mythic+", 23: "Mythic"}
 
-# Tracks in the video: 1 = everything, 2 = the game, 3 = Discord
+# Tracks in the video: 1 = everything, 2 = the game, 3 = Discord + your microphone
 TRACK_NAMES = ["Allt", "WoW", "Discord"]
 AUDIO_INPUTS = [
     {"name": "WoW-ljud", "target": "World of Warcraft", "tracks": [1, 2]},
@@ -142,6 +145,7 @@ def start_obs():
     if obs_running():
         return ""
     enable_websocket()
+    write_encoder_file(load_config())
     args = ["flatpak", "run", OBS_APP, "--minimize-to-tray", "--disable-shutdown-check"]
     names = obs_names()
     if OBS_NAME in names["profiles"]:
@@ -163,8 +167,10 @@ def stop_obs(wait=30):
 
 
 def restart_obs():
-    """OBS again, hidden – e.g. for a new codec. The screen choice is remembered."""
+    """OBS again, hidden – for a new encoder/quality, written while it is closed. The
+    screen choice is remembered."""
     stop_obs()
+    write_encoder_file(load_config())
     return start_obs()
 
 
@@ -183,12 +189,6 @@ def obs_encoders():
     found = {"h264": nvenc, "hevc": nvenc and "obs_nvenc_hevc_tex" in text,
              "av1": nvenc and "AV1 supported: true" in text, "x264": True}
     return {"hardware": nvenc, "codecs": found, "known": bool(text)}
-
-
-def simple_encoder(codec):
-    """GoblinRecorder's choice → OBS's simple-mode encoder: NVENC on the graphics card, or
-    x264 on the processor."""
-    return {"h264": "nvenc", "hevc": "nvenc_hevc", "av1": "nvenc_av1"}.get(codec, "x264")
 
 
 class OBSError(Exception):
@@ -382,25 +382,67 @@ def setup_obs(obs, cfg):
     return done
 
 
+QUALITY_MBIT = {"high": 25, "normal": 10, "small": 5}  # HEVC/AV1 at 60 fps
+
+
+def encoder_settings(cfg, codec):
+    """OBS's recording encoder (advanced output mode): which encoder, and its settings –
+    a bitrate from the quality choice. H.264 needs more than HEVC for the same picture,
+    30 fps less than 60."""
+    mbit = QUALITY_MBIT.get(cfg.get("quality"), 10)
+    if codec in ("h264", "x264"):
+        mbit *= 1.5
+    if int(cfg["fps"]) <= 30:
+        mbit *= 0.7
+    kbit = int(mbit * 1000)
+    if codec == "x264":
+        return "obs_x264", {"rate_control": "VBR", "bitrate": kbit, "preset": "veryfast", "keyint_sec": 2}
+    name = {"h264": "obs_nvenc_h264_tex", "hevc": "obs_nvenc_hevc_tex", "av1": "obs_nvenc_av1_tex"}[codec]
+    return name, {"rate_control": "VBR", "bitrate": kbit, "max_bitrate": int(kbit * 1.5),
+                  "preset2": "p5", "tune": "hq", "multipass": "qres", "keyint_sec": 2, "bf": 2}
+
+
+def profile_dir():
+    return OBS_CONFIG / "basic/profiles" / OBS_NAME
+
+
+def write_encoder_file(cfg):
+    """recordEncoder.json in our OBS profile – only while OBS is closed (OBS reads it at
+    start and writes its own copy when it quits)."""
+    enc = obs_encoders()
+    codec = pick_codec(cfg, enc)
+    _, settings = encoder_settings(cfg, codec)
+    d = profile_dir()
+    if d.is_dir():
+        (d / "recordEncoder.json").write_text(json.dumps(settings))
+
+
+def pick_codec(cfg, enc):
+    return cfg["codec"] if enc["codecs"].get(cfg["codec"]) or not enc["known"] else (
+        "h264" if enc["hardware"] else "x264")
+
+
 def apply_settings(obs, cfg):
-    """Folder, fps and codec from GoblinRecorder into OBS (not while recording). Returns
-    "restart" when OBS must be restarted for them to work, False while recording."""
+    """Folder, fps, encoder and quality from GoblinRecorder into OBS (not while recording).
+    Returns "restart" when OBS must be restarted for them to work (OBS builds the
+    recording encoder when it starts – a change while it runs makes the next recording
+    fail with "NVENC … update your drivers"), False while recording."""
     if obs.call("GetRecordStatus").get("outputActive"):
         return False
     folder = Path(cfg["folder"])
     folder.mkdir(parents=True, exist_ok=True)
-    enc = obs_encoders()
-    codec = cfg["codec"] if enc["codecs"].get(cfg["codec"]) or not enc["known"] else (
-        "h264" if enc["hardware"] else "x264")
+    codec = pick_codec(cfg, obs_encoders())
+    encoder, settings = encoder_settings(cfg, codec)
     params = [
-        ("Output", "Mode", "Simple"),
+        ("Output", "Mode", "Advanced"),
         ("Output", "FilenameFormatting", "%CCYY-%MM-%DD %hh-%mm-%ss"),
-        ("SimpleOutput", "FilePath", str(folder)),
-        ("SimpleOutput", "RecFormat2", "hybrid_mp4"),  # MP4 that survives a crash
-        ("SimpleOutput", "RecQuality", "Small"),
-        ("SimpleOutput", "RecEncoder", simple_encoder(codec)),
-        ("SimpleOutput", "RecTracks", "7"),  # tracks 1–3
-        ("SimpleOutput", "RecRB", "false"),
+        ("AdvOut", "RecType", "Standard"),
+        ("AdvOut", "RecFilePath", str(folder)),
+        ("AdvOut", "RecFormat2", "hybrid_mp4"),  # MP4 that survives a crash
+        ("AdvOut", "RecEncoder", encoder),
+        ("AdvOut", "RecTracks", "7"),  # tracks 1–3
+        ("AdvOut", "RecUseRescale", "false"),
+        ("AdvOut", "RecRB", "false"),
     ]
     restart = False
     for cat, name, value in params:
@@ -409,9 +451,13 @@ def apply_settings(obs, cfg):
             continue
         obs.call("SetProfileParameter", {"parameterCategory": cat, "parameterName": name,
                                          "parameterValue": value})
-        # OBS builds the recording encoder when the profile loads – changing it while OBS
-        # runs makes the next recording fail ("NVENC … update your drivers"), so restart
-        restart = restart or name in ("Mode", "RecEncoder", "RecFormat2", "RecQuality", "RecTracks")
+        restart = restart or name in ("Mode", "RecEncoder", "RecFormat2", "RecTracks", "RecType")
+    try:
+        current = json.loads((profile_dir() / "recordEncoder.json").read_text())
+    except (OSError, ValueError):
+        current = {}
+    if any(current.get(k) != v for k, v in settings.items()):
+        restart = True  # the file is written while OBS is closed, see restart_obs
     video = obs.call("GetVideoSettings")
     fps = int(cfg["fps"])
     w, h = main_screen_size() or (video["baseWidth"], video["baseHeight"])
@@ -420,7 +466,37 @@ def apply_settings(obs, cfg):
     if any(video.get(k) != v for k, v in want.items()):
         obs.call("SetVideoSettings", want, check=False)
     fit_screen(obs, w, h)
+    set_audio(obs, cfg)
     return "restart" if restart else True
+
+
+MIC = "Mikrofon"
+
+
+def set_audio(obs, cfg):
+    """Your microphone (the system's default one, with RNNoise noise suppression) on tracks
+    1 and 3, and the game sound boosted – a limiter keeps it from clipping. Works while
+    OBS runs."""
+    inputs = {i["inputName"] for i in obs.call("GetInputList")["inputs"]}
+    if MIC not in inputs:
+        obs.call("CreateInput", {"sceneName": OBS_NAME, "inputName": MIC, "inputKind": "pulse_input_capture",
+                                 "inputSettings": {"device_id": "default"}})
+    filters = {f["filterName"] for f in obs.call("GetSourceFilterList", {"sourceName": MIC})["filters"]}
+    if "Brusreducering" not in filters:
+        obs.call("CreateSourceFilter", {"sourceName": MIC, "filterName": "Brusreducering",
+                                        "filterKind": "noise_suppress_filter_v2",
+                                        "filterSettings": {"method": "rnnoise"}}, check=False)
+    on = bool(cfg.get("mic", True))
+    obs.call("SetInputAudioTracks", {"inputName": MIC, "inputAudioTracks":
+             {str(t): on and t in (1, 3) for t in range(1, 7)}})
+    if "WoW-ljud" in inputs:
+        boost = float(cfg.get("gameBoost", 12))
+        obs.call("SetInputVolume", {"inputName": "WoW-ljud", "inputVolumeDb": boost})
+        filters = {f["filterName"] for f in obs.call("GetSourceFilterList", {"sourceName": "WoW-ljud"})["filters"]}
+        if "Spärr" not in filters:
+            obs.call("CreateSourceFilter", {"sourceName": "WoW-ljud", "filterName": "Spärr",
+                                            "filterKind": "limiter_filter",
+                                            "filterSettings": {"threshold": -3.0, "release_time": 60}}, check=False)
 
 
 def main_screen_size():

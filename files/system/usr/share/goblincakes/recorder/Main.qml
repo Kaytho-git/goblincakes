@@ -13,7 +13,7 @@ Window {
     minimumWidth: 980
     minimumHeight: 640
     visible: true
-    title: "GoblinRecorder – GOBLINCAKES"
+    title: "GoblinRecorder" // the desktop adds nothing when the title is the program name
     color: "#07090D"
 
     readonly property var st: JSON.parse(backend.status)
@@ -957,6 +957,80 @@ Window {
             }
 
             Item { width: 1; height: 14 }
+            SectionTitle { text: "KVALITET" }
+            Row {
+                spacing: 12
+                Repeater {
+                    model: [{ "id": "high", "name": "Hög" }, { "id": "normal", "name": "Normal" }, { "id": "small", "name": "Liten" }]
+                    Choice {
+                        required property var modelData
+                        // MB per minute, as recorder.encoder_settings counts it (video + 3 audio tracks)
+                        readonly property real mb: ({ high: 25, normal: 10, small: 5 })[modelData.id]
+                            * (win.cfg.codec === "h264" || win.cfg.codec === "x264" ? 1.5 : 1)
+                            * (win.cfg.fps <= 30 ? 0.7 : 1) * 7.5 + 3.6
+                        text: modelData.name
+                        sub: "≈ " + Math.round(mb / 5) * 5 + " MB per minut"
+                        chosen: (win.cfg.quality || "normal") === modelData.id
+                        onPicked: win.set("quality", modelData.id)
+                    }
+                }
+            }
+            Note {
+                width: Math.min(820, parent.width)
+                text: "Normal räcker gott för WoW. Hög om du vill klippa ihop filmer i efterhand, Liten om disken är liten. "
+                      + "Storleken är det mesta – en lugn stund blir mindre."
+            }
+
+            Item { width: 1; height: 14 }
+            SectionTitle { text: "LJUD" }
+            Item {
+                width: Math.min(820, settingsCol.width)
+                height: 54
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 3
+                    Text {
+                        text: "Min mikrofon"
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.Medium
+                        font.pixelSize: 15
+                    }
+                    Note { text: "Din röst på spåren Allt och Discord – med brusreducering, så att tangentbordet hörs mindre." }
+                }
+                ToggleSwitch {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    on: win.cfg.mic !== false
+                    onToggled: win.set("mic", win.cfg.mic === false)
+                }
+            }
+            Text {
+                topPadding: 8
+                text: "WoW-ljudet i filmen"
+                color: "#E6ECF5"
+                font.family: "IBM Plex Sans"
+                font.weight: Font.Medium
+                font.pixelSize: 15
+            }
+            Row {
+                spacing: 12
+                Repeater {
+                    model: [{ "db": 0, "name": "Som i spelet" }, { "db": 6, "name": "+6 dB" }, { "db": 12, "name": "+12 dB" }, { "db": 18, "name": "+18 dB" }]
+                    Choice {
+                        required property var modelData
+                        width: 150
+                        text: modelData.name
+                        chosen: (win.cfg.gameBoost === undefined ? 12 : win.cfg.gameBoost) === modelData.db
+                        onPicked: win.set("gameBoost", modelData.db)
+                    }
+                }
+            }
+            Note {
+                width: Math.min(820, parent.width)
+                text: "WoW spelar ofta svagt bredvid Discord. Förstärkningen gäller bara filmen – en spärr ser till att det aldrig skär sig."
+            }
+
+            Item { width: 1; height: 14 }
             SectionTitle { text: "VAD SOM SPELAS IN" }
             Repeater {
                 model: [{ "key": "raid", "name": "Raidbossar", "sub": "Varje försök blir en egen film – kill eller wipe." },
@@ -1040,8 +1114,7 @@ Window {
             SectionTitle { text: "LJUDSPÅR" }
             Note {
                 width: Math.min(820, parent.width)
-                text: "Filmerna har tre ljudspår: Allt, bara WoW och bara Discord – välj under filmen. "
-                      + "Din egen mikrofon spelas inte in."
+                text: "Filmerna har tre ljudspår: Allt, bara WoW och Discord (med din röst) – välj under filmen."
             }
         }
     }
