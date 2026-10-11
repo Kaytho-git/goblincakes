@@ -1,0 +1,12 @@
+{
+  "addons": {
+    "theme@goblincakes": {
+      "updates": [
+        {
+          "version": "1.0",
+          "update_link": "https://github.com/Kaytho-git/goblincakes/releases/download/firefox-tema/goblincakes-theme-1.0.xpi"
+        }
+      ]
+    }
+  }
+}
