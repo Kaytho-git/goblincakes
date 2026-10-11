@@ -1,0 +1,12 @@
+[Unit]
+Description=GOBLINCAKES: notice when a measured game is closed (goblin frames)
+ConditionKernelCommandLine=!rd.live.image
+
+[Path]
+# MangoHud writes <game>_<time>_summary.csv when the game closes
+PathChanged=%h/.local/state/goblincakes/frames
+MakeDirectory=yes
+Unit=goblincakes-frames.service
+
+[Install]
+WantedBy=default.target

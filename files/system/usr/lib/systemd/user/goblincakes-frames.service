@@ -1,0 +1,8 @@
+[Unit]
+Description=GOBLINCAKES: how smoothly the game just closed ran – as a notification
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/goblincakes-frames notify
+# Each notification waits in its own process for a click – they must outlive this run
+KillMode=process

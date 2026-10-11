@@ -248,7 +248,7 @@ COMMANDS=(
     "apps|Dolda Fedora-program – visa igen: goblin apps show konsole"
     "remove|Avinstallera Fedora-program (fönster, eller: goblin remove konsole)"
     "old|Visa avinstallerade program och hur du får tillbaka dem"
-    "frames|Hur jämnt spelet flyter – fps, 1 % low och ryck i terminalen (goblin frames on slår på)"
+    "frames|Hur jämnt spelet flyter – fps, 1 % low och ryck (goblin frames off stänger av mätningen)"
     "screen|Vilken skärm ett program öppnas på – t.ex. goblin screen add discord screen 2"
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
