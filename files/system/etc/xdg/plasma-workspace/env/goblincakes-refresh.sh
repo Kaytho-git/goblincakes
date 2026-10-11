@@ -109,19 +109,23 @@ fi
 # Middle-click autoscroll as on Windows (11 Oct, the user's choice) in the Chromium-based
 # Flatpaks – Chromium has it switched off on Linux. Firefox gets it from
 # /usr/share/goblincakes/firefox. Once per browser, when it is installed; a browser
-# installed later gets it at the next login. Not when the flags file already enables
-# other Blink features (a second --enable-blink-features would replace them).
+# installed later gets it at the next login. As a feature (--enable-features): the first
+# version used --enable-blink-features, which Chromium shows a warning bar about in every
+# window ("unsupported command line flag") – that line is swapped once (autoscroll2-).
+# Not when the flags file already enables other features (a second --enable-features
+# would replace them).
 for _gc_was in org.chromium.Chromium:chromium com.google.Chrome:chrome com.brave.Browser:brave; do
     _gc_now="${_gc_was#*:}-flags.conf"
     _gc_was="${_gc_was%%:*}"
-    _gc_flag="$_gc_state/autoscroll-$_gc_was"
+    _gc_flag="$_gc_state/autoscroll2-$_gc_was"
     [ -e "$_gc_flag" ] && continue
     [ -d "/var/lib/flatpak/app/$_gc_was" ] || [ -d "$HOME/.local/share/flatpak/app/$_gc_was" ] || continue
     _gc_now="$HOME/.var/app/$_gc_was/config/$_gc_now"
-    if ! grep -q 'enable-blink-features' "$_gc_now" 2>/dev/null; then
+    [ -f "$_gc_now" ] && sed -i '/^--enable-blink-features=MiddleClickAutoscroll$/d' "$_gc_now"
+    if ! grep -q 'enable-features' "$_gc_now" 2>/dev/null; then
         mkdir -p "$(dirname "$_gc_now")"
         [ -s "$_gc_now" ] && [ -n "$(tail -c1 "$_gc_now")" ] && echo >> "$_gc_now"
-        echo '--enable-blink-features=MiddleClickAutoscroll' >> "$_gc_now"
+        echo '--enable-features=MiddleClickAutoscroll' >> "$_gc_now"
     fi
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 done
