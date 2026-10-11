@@ -25,9 +25,9 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 ### Utseende och skrivbord
 - Eget tema i hela systemet: mörk palett, Chakra Petch och IBM Plex, raka hörn överallt.
 - Egen startskärm, inloggning, låsskärm och utloggning (*"Goodbye! See you next raid!"*). Vid inloggningen väljer du **Skrivbord** eller **TV-läge**.
-- **Toppfältet:** appmenyn (AppGrid) mitt på skärmen, öppna program, *Spelas nu*, veckonummer, klocka med svenska helgdagar i kalendern, och en ruta som visar när det finns uppdateringar.
+- **Toppfältet:** appmenyn (AppGrid) mitt på skärmen, öppna program, *Spelas nu* och en ruta som visar när det finns uppdateringar.
 - **Spelas nu** i toppfältet: vad Spotify eller musikspelaren spelar (klicka = pausa, scrolla = byt låt), och vilken Discord-röstkanal du är i.
-- **Dockan** gömmer sig när ett fönster täcker den och kommer fram när muspekaren går mot skärmens nederkant. **Meta** öppnar appmenyn.
+- **Dockan** gömmer sig när ett fönster täcker den.
 - Ghostty som terminal, med GOBLINCAKES-färger och en lista över `goblin`-kommandona i varje nytt fönster.
 - Fedora-program som sällan behövs är dolda i appmenyn men finns kvar – och kan visas igen eller avinstalleras på riktigt (**Avinstallera program** i appmenyn).
 
@@ -35,12 +35,11 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - **Steam** förinstallerat, plus Gamescope, GameMode och MangoHud (FPS-mätare). Windows-program utanför spelen: Bottles i GOBLINCAKES Config.
 - **GE-Proton** hämtas och uppdateras automatiskt.
 - **Starta spel från terminalen:** skriv spelets namn eller förkortning (t.ex. `wow`, `cs2`) så startas det via Steam.
-- **Spel öppnas på huvudskärmen**, även om muspekaren står på en annan skärm.
 - **Handkontroller:** Xbox via dongel, USB och Bluetooth (xone, xpadneo), plus de vanliga PlayStation- och Switch-reglerna.
 - **TV-läge:** Steam Big Picture i helskärm, som en Steam Deck – välj det vid inloggningen eller starta det från appmenyn.
 - **Emulatorer:** RetroDECK (Super Nintendo, Mega Drive, N64, PlayStation, GameCube, Switch med flera) och Steam ROM Manager, som lägger in spelen i Steam och TV-läget.
-- **Snabbare:** NTSYNC för Windows-spel, och Steams förberedelse av shaders ("Bearbetar Vulkan-shaders") får mer kraft.
-- **Flera skärmar:** varje skärm körs i sin egen uppdateringsfrekvens (t.ex. 180 Hz + 144 Hz), och den snabbaste blir huvudskärm.
+- **Snabbare:** NTSYNC för Windows-spel och snabbare förberedelse av shaders i Steam.
+- **Flera skärmar:** den snabbaste skärmen blir huvudskärm, och spelen öppnas där.
 - **Laptops** med två grafikkort: spel startar på det kraftfulla kortet, skrivbordet på det snåla.
 
 ### World of Warcraft
@@ -63,7 +62,7 @@ Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+
   - **Egen webbapp:** klistra in en länk så blir sidan ett eget program med ikon.
   - **Starta vid inloggning:** reglage på installerade program.
 - **Förinstallerat** – visa eller dölj systemets program i appmenyn.
-- **Inställningar** – reglage med rubriker: prestandaläge, spelschemaläggare, MangoHud, spel på det kraftfulla grafikkortet, shader-cache, ljud med låg fördröjning, HDR, ingen musacceleration, automatiska uppdateringar, skärmlåsning, viloläge, kalender med konton (Google, Outlook), Ianseo – och en knapp som återställer GOBLINCAKES-utseendet.
+- **Inställningar** – reglage med rubriker: prestandaläge, spelschemaläggare, MangoHud, spel på det kraftfulla grafikkortet, shader-cache, ljud med låg fördröjning, HDR, ingen musacceleration, automatiska uppdateringar, kalender med konton (Google, Outlook), Ianseo – och en knapp som återställer GOBLINCAKES-utseendet.
 - **Grafik** – byt mellan AMD/Intel- och Nvidia-drivrutiner med en knapp; hjälp med Secure Boot.
 - **Uppdatera** – se vad som är nytt och uppdatera allt eller en del i taget (systemet, Flatpak-program, VS Code, Discord, WoW-tillägg, GE-Proton, firmware).
 
@@ -88,10 +87,9 @@ Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**) eller 
 
 Du får också en notis när GOBLINCAKES har gått över till en ny Fedora-version.
 
-### Hårdvara och vardag
-- Piper (för möss som Logitech G502, även G502 X), VIA (tangentbord som Keychron), ddcutil (skärmens ljusstyrka).
-- **Mittenknappen** scrollar som i Windows i webbläsarna: klicka och för musen uppåt eller nedåt.
-- Alla diskar syns och monteras automatiskt – även för Steam – och du kan skriva på dina egna Linux-diskar utan lösenord.
+### Hårdvara
+- Piper (gamingmöss), VIA (tangentbord) och ddcutil (skärmens ljusstyrka).
+- Alla diskar syns och monteras automatiskt – även för Steam.
 - **För egna projekt:** git och GitHub CLI (`gh`) är med från start; VS Code (Microsofts egen) och Claude Code installeras med ett klick i Config.
 
 ## Två varianter
@@ -140,7 +138,7 @@ Har du redan Fedora Kinoite kan du byta till GOBLINCAKES direkt:
 3. Logga in – GOBLINCAKES Config öppnas och hjälper dig med resten.
 
 > [!NOTE]
-> GOBLINCAKES är ett personligt projekt och utvecklas fortfarande. Det används på en riktig speldator och fungerar även i en virtuell maskin (VirtualBox: slå på 3D-acceleration och EFI).
+> GOBLINCAKES är ett personligt projekt och utvecklas fortfarande. Det fungerar även i en virtuell maskin (VirtualBox: slå på 3D-acceleration och EFI).
 
 ## Uppdateringar och versioner
 
