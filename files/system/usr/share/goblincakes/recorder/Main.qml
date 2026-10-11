@@ -1226,16 +1226,16 @@ Window {
                     width: 80
                     enabled: !!win.cfg.mplus
                     text: String(win.cfg.mplusMin || 2)
-                    validator: IntValidator { bottom: 1; top: 99 }
+                    validator: IntValidator { bottom: 2; top: 99 } // +2 is the lowest key
                     onEdited: {
                         const n = parseInt(text);
-                        if (n >= 1 && n !== win.cfg.mplusMin)
+                        if (n >= 2 && n !== win.cfg.mplusMin)
                             win.set("mplusMin", n);
                     }
                 }
                 Note {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Lägre nycklar spelas inte in. +2 = alla."
+                    text: "Skriver du +10 spelas bara +10 och högre in. +2 = alla nycklar."
                 }
             }
             Item { width: 1; height: 6 }

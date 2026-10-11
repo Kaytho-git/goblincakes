@@ -192,7 +192,7 @@ class Service:
         elif ev == "CHALLENGE_MODE_START":
             a = R.split_args(rest)
             level = int(a[3]) if len(a) > 3 and a[3].isdigit() else 0
-            if self.cfg["mplus"] and live and level >= int(self.cfg.get("mplusMin") or 1):
+            if self.cfg["mplus"] and live and level >= max(int(self.cfg.get("mplusMin") or 2), 2):
                 if self.current:
                     self.stop_now()
                 self.begin(t, now, {"kind": "mplus", "name": a[0], "difficulty": "Mythic+", "level": level})
