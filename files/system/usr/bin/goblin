@@ -366,6 +366,35 @@ cmd_apps() {
 # The work is done by /usr/libexec/goblincakes-remove (also used by the window, goblin remove apps)
 remove_helper=/usr/libexec/goblincakes-remove
 
+# goblin frames on|off: the switch, then Steam restarted (it hands its settings to the games
+# only when it starts) – asked, and only while no game runs (a game runs under Steam's reaper)
+cmd_frames_switch() {
+    /usr/libexec/goblincakes-tweak set frame-log "$1" || exit 1
+    if [ "$1" = on ]; then
+        info "Spelmätningen är på – inget syns i spelet. goblin frames visar den."
+    else
+        info "Spelmätningen är av."
+    fi
+    pgrep -x steam >/dev/null || return 0
+    if pgrep -x reaper >/dev/null; then
+        info "Ett spel är igång – starta om Steam när du slutat spela, så gäller det."
+        return 0
+    fi
+    printf '%sSteam behöver startas om för att det ska gälla. Starta om Steam nu? [J/n] %s' "$frost" "$reset"
+    read -r answer
+    case $answer in n|N|nej|Nej) info "Det gäller nästa gång Steam startar."; return 0 ;; esac
+    info "Stänger Steam …"
+    steam -shutdown >/dev/null 2>&1 &
+    for _ in $(seq 60); do pgrep -x steam >/dev/null || break; sleep 1; done
+    if pgrep -x steam >/dev/null; then
+        info "Steam stängdes inte – starta om det själv."
+        return 0
+    fi
+    # From the menu entry: GOBLINCAKES' user copy of it carries the settings
+    setsid gtk-launch steam >/dev/null 2>&1 </dev/null &
+    info "Steam startas igen."
+}
+
 ask_reboot() {
     echo
     printf '%sÄndringen gäller efter en omstart. Starta om nu? [j/N] %s' "$frost" "$reset"
@@ -515,14 +544,16 @@ case ${1:-help} in
     old) cmd_old ;;
     frames|frame|fps) shift
         case ${1:-} in
-            on|off)
-                /usr/libexec/goblincakes-tweak set frame-log "$1" || exit 1
-                if [ "$1" = on ]; then
-                    info "Spelmätningen är på – syns inte i spelet. Starta om Steam, spela, och kör goblin frames."
-                else
-                    info "Spelmätningen är av (gäller från nästa start av Steam)."
-                fi ;;
-            *) exec /usr/libexec/goblincakes-frames "${@:-live}" ;;
+            on|off) cmd_frames_switch "$1" ;;
+            "")
+                # Off: ask once and switch it on (with Steam restarted), then show as usual
+                if [ -t 0 ] && [ "$(/usr/libexec/goblincakes-tweak status frame-log 2>/dev/null)" != on ]; then
+                    printf '%sSpelmätningen är av. Slå på den? [j/N] %s' "$frost" "$reset"
+                    read -r answer
+                    case $answer in j|J|ja|Ja|y|Y) cmd_frames_switch on; echo ;; esac
+                fi
+                exec /usr/libexec/goblincakes-frames live ;;
+            *) exec /usr/libexec/goblincakes-frames "$@" ;;
         esac ;;
     screen|screens|skarm|skärm) shift
         [ $# -eq 0 ] && heading "Skärmar och program"

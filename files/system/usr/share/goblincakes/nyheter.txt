@@ -1,6 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
-2026-10-11  Nytt: spelmätning i terminalen – goblin frames on, starta om Steam, och goblin frames visar fps, 1 % low, ryck och vad som orsakade dem, utan något som syns i spelet
+2026-10-11  Nytt: spelmätning i terminalen – goblin frames (frågar första gången om den ska slås på och startar om Steam åt dig) visar fps, 1 % low, ryck och vad som orsakade dem, utan något som syns i spelet
 2026-10-11  Nytt kommando: goblin screen visar dina skärmar och program, och goblin screen add discord screen 2 gör att Discord alltid öppnas på skärm 2 (skärm 1 = huvudskärmen)
 2026-10-11  Discord installeras och startar vid inloggning igen – Discord hade ändrat sin Linux-nedladdning, så installationen misslyckades
 2026-10-11  När du uppdaterar visas nu alla nyheter sedan du uppdaterade senast, inte bara de 25 senaste
