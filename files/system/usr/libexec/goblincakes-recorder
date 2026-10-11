@@ -425,9 +425,9 @@ class Service:
         self.wcl_check()
         if self.wow or self.current or R.obs_running():
             self.connect()
-        if self.obs and not self.screen_ok and now - self.screen_check > 5:
-            self.screen_check = now
-            self.screen_ok = R.screen_chosen_live(self.obs)
+            if self.obs and not self.screen_ok and now - self.screen_check > 5:
+                self.screen_check = now
+                self.screen_ok = R.screen_chosen_live(self.obs)
         elif self.obs:
             self.obs.close()
             self.obs = None
