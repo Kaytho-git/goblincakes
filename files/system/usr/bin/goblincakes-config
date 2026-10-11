@@ -161,6 +161,36 @@ def set_app_autostart(app, on):
     (AUTOSTART / launcher[0].name).write_text("\n".join(out) + "\n")
 
 
+# "Helskärm" on a web app (11 Oct): Chromium's --start-fullscreen in its menu entry and in its
+# "Starta vid inloggning" copy. F11 leaves fullscreen, as in the browser.
+FULLSCREEN_FLAG = "--start-fullscreen"
+
+
+def webapp_fullscreen_states():
+    """{web app id: opens in fullscreen} for every web app (streaming services and own ones)."""
+    states = {}
+    for path in sorted(LOCAL_APPS.glob("goblincakes-webapp-*.desktop")):
+        exec_line = desktop_entry(path).get("Exec", "")
+        if "--app=" in exec_line:
+            states[path.stem.removeprefix("goblincakes-webapp-")] = FULLSCREEN_FLAG in exec_line.split()
+    return states
+
+
+def set_webapp_fullscreen(webapp_id, on):
+    name = f"goblincakes-webapp-{webapp_id}.desktop"
+    for path in (LOCAL_APPS / name, AUTOSTART / name):
+        if not path.is_file():
+            continue
+        lines = path.read_text(errors="replace").splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith("Exec=") and " --app=" in line:
+                line = line.replace(f" {FULLSCREEN_FLAG}", "")
+                if on:
+                    line = line.replace(" --app=", f" {FULLSCREEN_FLAG} --app=", 1)
+                lines[i] = line
+        path.write_text("\n".join(lines) + "\n")
+
+
 class Config(QObject):
     """Talks to Main.qml: catalogs in, progress out."""
 
@@ -177,6 +207,7 @@ class Config(QObject):
     terminalChanged = Signal()
     autostartChanged = Signal()
     webappsChanged = Signal()
+    fullscreenChanged = Signal()
     systemAppsChanged = Signal()  # tab FÖRINSTALLERAT
     webappProgress = Signal(str)  # status line while making a web app
     webappDone = Signal(bool)
@@ -229,6 +260,8 @@ class Config(QObject):
         self._system_apps = "[]"  # filled when the tab FÖRINSTALLERAT opens
         self._autostart = "{}"
         self.refreshAutostart()
+        self._fullscreen = "{}"
+        self.refreshFullscreen()
         self.refreshGpu()
 
     # ── Apps ──────────────────────────────────────────────────
@@ -243,6 +276,7 @@ class Config(QObject):
         self._catalog = json.dumps(self._catalog_data)
         self.catalogChanged.emit()
         self.refreshAutostart()
+        self.refreshFullscreen()
 
     @Property(str, notify=autostartChanged)
     def autostart(self):
@@ -311,6 +345,26 @@ class Config(QObject):
         code, out = run(HELPER, ["webapp-list"])
         self._webapps = out if code == 0 and out.startswith("[") else "[]"
         self.webappsChanged.emit()
+        if hasattr(self, "_fullscreen"):
+            self.refreshFullscreen()
+
+    @Property(str, notify=fullscreenChanged)
+    def fullscreen(self):
+        """{web app id: opens in fullscreen}: the switch "Helskärm" on web apps."""
+        return self._fullscreen
+
+    @Slot()
+    def refreshFullscreen(self):
+        self._fullscreen = json.dumps(webapp_fullscreen_states())
+        self.fullscreenChanged.emit()
+
+    @Slot(str, bool)
+    def setFullscreen(self, webapp_id, on):
+        try:
+            set_webapp_fullscreen(webapp_id, on)
+        except OSError as error:
+            print(f"fullscreen {webapp_id}: {error}", file=sys.stderr, flush=True)
+        self.refreshFullscreen()
 
     @Slot(str, str)
     def createWebapp(self, url, name):

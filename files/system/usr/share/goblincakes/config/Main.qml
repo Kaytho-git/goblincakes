@@ -24,6 +24,7 @@ Window {
     property string gpuMessage: ""
     readonly property string mainBrowser: backend.mainBrowser // app id, "" = Firefox
     readonly property var autostart: JSON.parse(backend.autostart) // installed app id → starts at login
+    readonly property var fullscreen: JSON.parse(backend.fullscreen) // web app id → opens in fullscreen
     readonly property var webapps: JSON.parse(backend.webapps)
     property string webappStatus: ""
     property bool webappBusy: false
@@ -897,14 +898,17 @@ Window {
                                 readonly property bool browser: !!modelData.browser
                                 // Installed and has something to start: "Starta vid inloggning"
                                 readonly property bool canAutostart: installed && win.autostart[modelData.id] !== undefined
+                                // Installed web apps (streaming services, Claude): "Helskärm"
+                                readonly property string webapp: modelData.check[0] === "webapp" ? modelData.check[1] : ""
+                                readonly property bool canFullscreen: installed && webapp !== "" && win.fullscreen[webapp] !== undefined
 
                                 width: (sections.width - 16 * (section.columns - 1)) / section.columns
-                                height: 112 + 48 * ((browser ? 1 : 0) + (canAutostart ? 1 : 0))
+                                height: 112 + 48 * ((browser ? 1 : 0) + (canAutostart ? 1 : 0) + (canFullscreen ? 1 : 0))
                                 color: cardArea.containsMouse && !installed ? "#111A2A" : "#0E1420"
                                 border.width: 1
                                 border.color: checked ? "#2F6FED" : cardArea.containsMouse && !installed ? "#2A3852" : "#1E2A40"
                                 // Stays bright when installed if a switch is still in use
-                                opacity: installed && !browser && !canAutostart ? 0.55 : 1
+                                opacity: installed && !browser && !canAutostart && !canFullscreen ? 0.55 : 1
 
                                 Monogram {
                                     id: mono
@@ -976,6 +980,13 @@ Window {
                                         on: !!win.autostart[card.modelData.id]
                                         onToggled: backend.setAutostart(card.modelData.id, !on)
                                     }
+                                    // Web apps: open in fullscreen (F11 leaves it)
+                                    CardSwitch {
+                                        visible: card.canFullscreen
+                                        text: "Helskärm"
+                                        on: !!win.fullscreen[card.webapp]
+                                        onToggled: backend.setFullscreen(card.webapp, !on)
+                                    }
                                 }
                             }
                         }
@@ -1017,7 +1028,7 @@ Window {
                             scale: 0.7
                         }
                         Column {
-                            anchors { left: webMono.right; leftMargin: 10; right: removeBtn.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                            anchors { left: webMono.right; leftMargin: 10; right: fullLabel.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
                             Text {
                                 width: parent.width
                                 text: parent.parent.modelData.name
@@ -1035,6 +1046,21 @@ Window {
                                 font.pixelSize: 12
                                 elide: Text.ElideMiddle
                             }
+                        }
+                        // Open in fullscreen (F11 leaves it)
+                        Text {
+                            id: fullLabel
+                            anchors { right: fullSwitch.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                            text: "Helskärm"
+                            color: fullSwitch.on ? "#E6ECF5" : "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        ToggleSwitch {
+                            id: fullSwitch
+                            anchors { right: removeBtn.left; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                            on: !!win.fullscreen[parent.modelData.id]
+                            onToggled: backend.setFullscreen(parent.modelData.id, !on)
                         }
                         FlatButton {
                             id: removeBtn
