@@ -145,14 +145,18 @@ for o in outputs:
         esac ;;
 
     calendar)
-        # Calendar accounts in the clock's calendar (KDE PIM: Akonadi). The packages are in the
-        # image, but nothing starts Akonadi until this is on (the image hides its autostarts,
-        # listed in /usr/share/goblincakes/calendar-autostart). On: "PIM-händelser" in the
-        # clock's calendar, the autostarts back for this user, Akonadi started and Merkuro opened
-        # to add Google (both ways) or a calendar link (Outlook/Hotmail, read-only).
+        # Calendar accounts in the clock's calendar (KDE PIM: Akonadi with its database, Merkuro).
+        # Not in the image since 11 Oct (a smaller ISO, ~0.5 GB): switching on adds the packages
+        # to the system with rpm-ostree (asks for the password, used after a restart); the first
+        # login after that finishes ("apply", autostart goblincakes-calendar.desktop):
+        # "PIM-händelser" in the clock's calendar, Akonadi started and Merkuro opened to add
+        # Google (both ways) or a calendar link (Outlook/Hotmail, read-only).
+        # Off: Akonadi stopped and the packages taken out again (gone after a restart).
         flag="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/calendar"
-        autostart="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+        ready="${XDG_STATE_HOME:-$HOME/.local/state}/goblincakes/calendar-ready"
+        packages=(kdepim-addons kdepim-runtime merkuro)
         clock_plugin() { # add|remove: "pimevents" in every clock's calendar plugins
+            for _ in $(seq 30); do busctl --user status org.kde.plasmashell >/dev/null 2>&1 && break; sleep 1; done
             busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "
                 panels().forEach(function (p) { p.widgets().forEach(function (w) {
                     if (w.type !== 'org.kde.plasma.digitalclock') return;
@@ -164,34 +168,56 @@ for o in outputs:
                     w.writeConfig('enabledCalendarPlugins', list);
                 }); });" >/dev/null 2>&1 || true
         }
-        if ! rpm -q kdepim-addons >/dev/null 2>&1; then
-            [ "$cmd" = status ] && echo unavailable
-            exit 0
-        fi
+        installed() { rpm -q kdepim-addons >/dev/null 2>&1; }
+        finish_on() { # the packages are there: start it all, once
+            setsid -f akonadictl start >/dev/null 2>&1 < /dev/null || true
+            clock_plugin add
+            setsid -f merkuro-calendar >/dev/null 2>&1 < /dev/null || true
+            mkdir -p "$(dirname "$ready")" && touch "$ready"
+            notify-send -a "GOBLINCAKES" -i view-calendar "Kalender med konton" \
+                "Lägg till dina kalendrar i Merkuro (Inställningar → kalenderkällor): Google loggar du in på direkt, Outlook/Hotmail med kalenderns ICS-länk (Outlook → Kalender → Dela → Publicera). Händelserna syns när du klickar på klockan." \
+                >/dev/null 2>&1 || true
+        }
         case $cmd in
             status) [ -e "$flag" ] && echo on || echo off ;;
-            set)
-                mkdir -p "$(dirname "$flag")" "$autostart"
-                if [ "$value" = on ]; then
-                    touch "$flag"
-                    while read -r entry; do
-                        [ -n "$entry" ] && [ -e "/etc/xdg/autostart/$entry" ] || continue
-                        sed -e '/^Hidden=/d' -e 's/^\[Desktop Entry\]$/[Desktop Entry]\nX-GOBLINCAKES-Calendar=true/' \
-                            "/etc/xdg/autostart/$entry" > "$autostart/$entry"
-                        exec_line=$(sed -n 's/^Exec=//p' "$autostart/$entry" | head -1)
-                        [ -n "$exec_line" ] && setsid -f sh -c "$exec_line" >/dev/null 2>&1 < /dev/null || true
-                    done < /usr/share/goblincakes/calendar-autostart
-                    setsid -f akonadictl start >/dev/null 2>&1 < /dev/null || true
-                    clock_plugin add
-                    setsid -f merkuro-calendar >/dev/null 2>&1 < /dev/null || true
+            apply)
+                [ -e "$flag" ] || exit 0
+                if installed; then
+                    [ -e "$ready" ] || finish_on
+                elif ! rpm-ostree status --json 2>/dev/null | grep -q '"kdepim-addons"'; then
+                    # Switched on before 11 Oct, when the packages were in the image: off again,
+                    # with a word on how to get it back (it takes a download and a restart now)
+                    rm -f "$flag" "$ready"
                     notify-send -a "GOBLINCAKES" -i view-calendar "Kalender med konton" \
-                        "Lägg till dina kalendrar i Merkuro (Inställningar → kalenderkällor): Google loggar du in på direkt, Outlook/Hotmail med kalenderns ICS-länk (Outlook → Kalender → Dela → Publicera). Händelserna syns när du klickar på klockan." \
+                        "Kalendern ingår inte längre från början i GOBLINCAKES. Vill du ha den: GOBLINCAKES Config → Inställningar → Kalender med konton – den hämtas och är på efter en omstart." \
                         >/dev/null 2>&1 || true
+                fi ;;
+            set)
+                mkdir -p "$(dirname "$flag")"
+                if [ "$value" = on ]; then
+                    if installed; then
+                        touch "$flag"
+                        finish_on
+                    else
+                        rpm-ostree install --idempotent --allow-inactive "${packages[@]}" || exit 1
+                        touch "$flag"
+                        notify-send -a "GOBLINCAKES" -i view-calendar "Kalender med konton" \
+                            "Kalendern är hämtad. Starta om datorn – sedan öppnas Merkuro, där du lägger till dina kalendrar." \
+                            >/dev/null 2>&1 || true
+                    fi
                 else
-                    rm -f "$flag"
-                    { grep -l '^X-GOBLINCAKES-Calendar=true' "$autostart"/*.desktop 2>/dev/null || true; } | xargs -r rm -f
+                    rm -f "$flag" "$ready"
                     clock_plugin remove
                     akonadictl stop >/dev/null 2>&1 || true
+                    # Calendar accounts switched on before 11 Oct (the packages were in the image then)
+                    { grep -l '^X-GOBLINCAKES-Calendar=true' "${XDG_CONFIG_HOME:-$HOME/.config}"/autostart/*.desktop 2>/dev/null || true; } | xargs -r rm -f
+                    # Out of the system again – only what this switch added
+                    if rpm-ostree status --json 2>/dev/null | python3 -c '
+import json, sys
+wanted = set(sys.argv[1:])
+sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.load(sys.stdin).get("deployments", [])[:2]) else 1)' "${packages[@]}"; then
+                        rpm-ostree uninstall "${packages[@]}" >/dev/null 2>&1 || true
+                    fi
                 fi ;;
         esac
         exit 0 ;;

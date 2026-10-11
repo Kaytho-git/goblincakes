@@ -117,9 +117,9 @@ rm -f /etc/xdg/autostart/org.kde.plasma-welcome.desktop
 
 # A smaller ISO (11 Oct): what nobody needs while trying GOBLINCAKES or installing it, out
 # of the live system only – the installed GOBLINCAKES (the payload image) keeps all of it.
-# Steam with its 32-bit libraries (and with it TV mode), and the calendar accounts (Akonadi).
+# Steam with its 32-bit libraries (and with it TV mode).
 before=$(du -sxm /usr | cut -f1)
-dnf remove -y steam '*.i686' kdepim-addons kdepim-runtime merkuro || :
+dnf remove -y steam '*.i686' || :
 rm -f /usr/share/wayland-sessions/goblincakes-tv.desktop /usr/share/applications/goblincakes-tv.desktop
 echo "Live system slimmed: $((before - $(du -sxm /usr | cut -f1))) MB less in /usr"
 

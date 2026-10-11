@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES calendar
+Comment=Finishes Calendar accounts after the restart that added them (when switched on in GOBLINCAKES Config)
+Exec=/usr/libexec/goblincakes-tweak apply calendar
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2
