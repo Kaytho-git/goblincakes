@@ -11,6 +11,8 @@
     at it and kept in the widget's config. The voice channel's own name isn't on the
     computer (not in the title or the log) – you name it once with `goblin discord namn …`
     while you are in it (~/.config/goblincakes/discord-channels), else "Röstkanal".
+    Also with Discord's window closed to the system tray (11 Oct): the helper says whether
+    Discord runs, and a click brings the window back like its tray icon does.
     Nothing to show = the widget takes no space.
 */
 import QtQuick
@@ -103,6 +105,8 @@ PlasmoidItem {
     property string viewingServer: "" // server id you are looking at
     property string voiceChannel: ""  // the voice channel's name from goblin discord namn
     property var serverNames: ({})    // server id → name, saved in the widget's config
+    property bool discordRunning: false // also with the window closed to the system tray
+    property string discordIcon: "discord" // the window's icon, kept for when it is hidden
     property string pendingName: ""   // "<id>|<name>" seen once – saved when seen twice in a row
 
     // "(2) #general | Raid Night - Discord", "Discord | #general | Raid Night" → "Raid Night".
@@ -127,14 +131,17 @@ PlasmoidItem {
         return null;
     }
 
+    onDiscordWindowChanged: if (discordWindow) discordIcon = discordWindow.icon
+
     readonly property var discord: {
-        if (!inVoice || !discordWindow) {
+        if (!inVoice || (!discordWindow && !discordRunning)) {
             return null;
         }
         const server = serverNames[voiceServer] || "";
         const channel = "🔊 " + (voiceChannel || "Röstkanal");
         return { place: server ? server + "  ›  " + channel : channel,
-                 row: discordWindow.row, icon: discordWindow.icon };
+                 row: discordWindow ? discordWindow.row : -1,
+                 icon: discordWindow ? discordWindow.icon : discordIcon };
     }
 
     // The title and the log are read at slightly different moments, so a name is only
@@ -172,8 +179,10 @@ PlasmoidItem {
                     root.voiceServer = state.guild || "";
                     root.viewingServer = state.viewing || "";
                     root.voiceChannel = state.channelName || "";
+                    root.discordRunning = state.running === true;
                 } catch (e) {
                     root.inVoice = false;
+                    root.discordRunning = false;
                 }
                 root.learnServerName();
             }
@@ -181,11 +190,12 @@ PlasmoidItem {
         }
     }
 
-    // Every second while Discord is open (the helper takes ~0.02 s and reads only the new
-    // lines of the log), so the channel shows up right after you join
+    // Every second while Discord's window is open (the helper takes ~0.02 s and reads only
+    // the new lines of the log), so the channel shows up right after you join; every third
+    // second otherwise – Discord may be running in the system tray without a window
     Timer {
-        interval: 1000
-        running: root.discordWindow !== null
+        interval: root.discordWindow !== null ? 1000 : 3000
+        running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: exec.connectSource(root.voiceCommand)
@@ -311,7 +321,7 @@ PlasmoidItem {
                 Layout.alignment: Qt.AlignVCenter
             }
 
-            // Discord: click = show the Discord window
+            // Discord: click = show the Discord window (also when it is closed to the tray)
             Item {
                 id: chat
                 visible: root.discord !== null
@@ -346,8 +356,10 @@ PlasmoidItem {
                     anchors.margins: -Kirigami.Units.smallSpacing
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if (root.discord) {
+                        if (root.discord && root.discord.row >= 0) {
                             tasksModel.requestActivate(tasksModel.index(root.discord.row, 0));
+                        } else if (root.discord) {
+                            exec.connectSource(root.voiceCommand + " show");
                         }
                     }
                 }
