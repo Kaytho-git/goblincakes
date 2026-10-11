@@ -1,0 +1,227 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: which screen a program opens on (the user's wish, 11 Oct).
+
+    goblincakes-screen                         installed programs, the screens and the rules
+    goblincakes-screen add <program> [screen] <N>   e.g. add discord screen 2
+    goblincakes-screen remove <program>
+
+Screen 1 is the main screen, the rest follow the order in System Settings → Display (the
+same order KWin calls screenOrder). The rules are kept in kwinrc [Script-goblincakes-windows]
+screenRules ("discord=2;org.mozilla.firefox|firefox=1" – a program's window
+names joined by |: its desktop id and StartupWMClass, Wayland and XWayland differ) and applied by the KWin script
+goblincakes-windows when a window of the program opens – it can be moved afterwards.
+KDE's own window rules number screens in another order, hence our own.
+"""
+import configparser
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+DATA_HOME = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share")
+APP_DIRS = [DATA_HOME / "applications", DATA_HOME / "flatpak/exports/share/applications",
+            Path("/var/lib/flatpak/exports/share/applications"), Path("/usr/share/applications")]
+GROUP, KEY = "Script-goblincakes-windows", "screenRules"
+ACCENT, MUTED, FROST, RESET = "\033[38;2;47;111;237m", "\033[38;2;139;152;173m", \
+    "\033[38;2;230;236;245m", "\033[0m"
+if not sys.stdout.isatty():
+    ACCENT = MUTED = FROST = RESET = ""
+
+
+def squash(text):
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def programs():
+    """{desktop id: (name, [window classes])} for the programs that show in AppGrid."""
+    out = {}
+    for d in APP_DIRS:
+        for f in sorted(d.glob("*.desktop")):
+            app_id = f.name[:-8]
+            if app_id in out:
+                continue
+            cp = configparser.RawConfigParser(interpolation=None, strict=False)
+            cp.optionxform = str
+            try:
+                cp.read(f, encoding="utf-8")
+                e = cp["Desktop Entry"]
+            except (configparser.Error, KeyError, UnicodeDecodeError):
+                continue
+            out[app_id] = None  # seen (a hidden user copy also hides the system one)
+            if e.get("NoDisplay") == "true" or e.get("Hidden") == "true" or e.get("Type") != "Application":
+                continue
+            lang = os.environ.get("LANG", "")[:2]
+            name = e.get(f"Name[{lang}]") or e.get("Name") or app_id
+            classes = {app_id.lower()}
+            if e.get("StartupWMClass"):
+                classes.add(e["StartupWMClass"].lower())
+            out[app_id] = (name, sorted(classes))
+    return {k: v for k, v in out.items() if v}
+
+
+def word(app_id, name):
+    """The short word for a program: its name squashed (Discord → discord)."""
+    return squash(name) or squash(app_id.rsplit(".", 1)[-1])
+
+
+def screens():
+    """Enabled screens in priority order: [(number, name, description)]."""
+    try:
+        data = json.loads(subprocess.run(["kscreen-doctor", "-j"], capture_output=True,
+                                         text=True, timeout=5).stdout)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+    outs = [o for o in data.get("outputs", []) if o.get("enabled") and o.get("connected", True)]
+    outs.sort(key=lambda o: o.get("priority") or 99)
+    result = []
+    for i, o in enumerate(outs, 1):
+        mode = next((m for m in o.get("modes", []) if m.get("id") == o.get("currentModeId")), {})
+        size = mode.get("size") or o.get("size") or {}
+        hz = round(mode.get("refreshRate", 0))
+        mm = (o.get("sizeMM") or {})
+        inch = (f'{round(((mm.get("width", 0) ** 2 + mm.get("height", 0) ** 2) ** 0.5) / 25.4)}" '
+                if mm.get("width") else "")
+        desc = f'{inch}{size.get("width", "?")}×{size.get("height", "?")}' + (f" {hz} Hz" if hz else "")
+        result.append((i, o.get("name", "?"), desc))
+    return result
+
+
+def read_rules():
+    out = subprocess.run(["kreadconfig6", "--file", "kwinrc", "--group", GROUP, "--key", KEY],
+                         capture_output=True, text=True).stdout.strip()
+    rules = {}
+    for part in out.split(";"):
+        key, _, n = part.partition("=")
+        if key.strip() and n.strip().isdigit():
+            rules[key.strip()] = int(n)
+    return rules
+
+
+def write_rules(rules):
+    value = ";".join(f"{k}={v}" for k, v in sorted(rules.items()))
+    args = ["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", KEY]
+    subprocess.run(args + (["--delete"] if not value else [value]), check=False)
+    # KWin rereads kwinrc; the script reads the rules each time a window opens
+    subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin",
+                    "reconfigure"], capture_output=True)
+
+
+def find(text, progs):
+    q = squash(text)
+    exact = [(i, v) for i, v in progs.items()
+             if q and q in (word(i, v[0]), squash(i), squash(i.rsplit(".", 1)[-1]))
+             or text.lower() in v[1]]
+    if exact:
+        return exact
+    return [(i, v) for i, v in progs.items() if len(q) >= 3 and word(i, v[0]).startswith(q)]
+
+
+def rule_key(app_id, classes):
+    """All the window names of a program, its desktop id first."""
+    return "|".join([app_id.lower()] + [c for c in classes if c != app_id.lower()])
+
+
+def cmd_list():
+    progs = programs()
+    rules = read_rules()
+    scr = screens()
+    print(f"{ACCENT}Skärmar{RESET} {MUTED}(1 = huvudskärmen, sedan ordningen i Systeminställningar → Bildskärm){RESET}")
+    for n, name, desc in scr:
+        print(f"  {FROST}{n}{RESET}  {name:<10} {MUTED}{desc}{' · huvudskärm' if n == 1 else ''}{RESET}")
+    if not scr:
+        print(f"  {MUTED}(hittade inga skärmar){RESET}")
+    if rules:
+        print(f"\n{ACCENT}Dina regler{RESET}")
+        names = {rule_key(i, v[1]): v[0] for i, v in progs.items()}
+        for key, n in sorted(rules.items()):
+            print(f"  {FROST}{names.get(key, key)}{RESET} {MUTED}öppnas på skärm {n}"
+                  f"{'' if n <= len(scr) else ' (finns inte nu – öppnas där den hamnar)'}{RESET}")
+    print(f"\n{ACCENT}Program{RESET} {MUTED}(ordet att skriva i goblin screen add){RESET}")
+    items = sorted(((word(i, v[0]), v[0]) for i, v in progs.items()), key=lambda x: x[1].lower())
+    width = max((len(w) for w, _ in items), default=10) + 2
+    for w, name in items:
+        print(f"  {FROST}{w:<{width}}{RESET}{MUTED}{name}{RESET}")
+    print(f"\n{MUTED}Lägg till: goblin screen add discord screen 2   Ta bort: goblin screen remove discord{RESET}")
+    return 0
+
+
+def resolve(text):
+    progs = programs()
+    hits = find(text, progs)
+    if len(hits) == 1:
+        return hits[0]
+    if not hits:
+        print(f"Hittar inget program som heter {text}. Se listan: goblin screen", file=sys.stderr)
+    else:
+        print(f"Flera program passar {text} – skriv ordet för ett av dem:", file=sys.stderr)
+        for i, v in hits:
+            print(f"  {word(i, v[0]):<24} {v[0]}", file=sys.stderr)
+    return None
+
+
+def cmd_add(args):
+    if args and args[-1].isdigit():
+        n, rest = int(args[-1]), args[:-1]
+    else:
+        n, rest = None, args
+    if rest and rest[-1].lower() in ("screen", "skärm", "skarm"):
+        rest = rest[:-1]
+    if not rest or n is None or n < 1:
+        print("Använd: goblin screen add <program> screen <nummer>   (t.ex. goblin screen add discord screen 2)",
+              file=sys.stderr)
+        return 2
+    hit = resolve(" ".join(rest))
+    if not hit:
+        return 1
+    app_id, (name, classes) = hit
+    rules = read_rules()
+    for k in [k for k in rules if set(k.split("|")) & set(classes)]:  # one rule per program
+        del rules[k]
+    rules[rule_key(app_id, classes)] = n
+    write_rules(rules)
+    count = len(screens())
+    print(f"Klart: {name} öppnas på skärm {n}{' (huvudskärmen)' if n == 1 else ''}.")
+    if count and n > count:
+        print(f"Obs: just nu finns {count} skärm{'ar' if count > 1 else ''} – tills skärm {n} är ansluten "
+              "öppnas programmet där det hamnar.")
+    print("Gäller nästa gång programmet öppnar ett fönster.")
+    return 0
+
+
+def cmd_remove(args):
+    if not args:
+        print("Använd: goblin screen remove <program>", file=sys.stderr)
+        return 2
+    rules = read_rules()
+    text = " ".join(args)
+    hit = find(text, programs())
+    keys = set(hit[0][1][1]) if len(hit) == 1 else set()
+    keys.add(text.lower())
+    gone = [k for k in rules if set(k.split("|")) & keys]
+    if not gone:
+        print(f"{text} har ingen regel. Dina regler står i: goblin screen", file=sys.stderr)
+        return 1
+    for k in gone:
+        del rules[k]
+    write_rules(rules)
+    print(f"Borttaget: {hit[0][1][0] if len(hit) == 1 else text} öppnas där den hamnar igen.")
+    return 0
+
+
+def main(argv):
+    cmd = argv[0] if argv else "list"
+    if cmd in ("list", "ls"):
+        return cmd_list()
+    if cmd in ("add", "set"):
+        return cmd_add(argv[1:])
+    if cmd in ("remove", "rm", "del"):
+        return cmd_remove(argv[1:])
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

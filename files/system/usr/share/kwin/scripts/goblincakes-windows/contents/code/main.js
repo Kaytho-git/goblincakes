@@ -9,6 +9,24 @@ const CENTERED = ["goblincakes-config"];
 // is gamescope; native games have their own class – add them to GAMES.
 const GAMES = ["gamescope", "cs2", "dota2"];
 
+// The user's own rules (goblin screen add discord screen 2, 11 Oct): kwinrc
+// [Script-goblincakes-windows] screenRules = "discord=2;org.mozilla.firefox|firefox=1".
+// Screen 1 = the main screen, then the order in Display settings (screenOrder). Read at every
+// new window, so a new rule works at once (goblin screen asks KWin to reread kwinrc).
+function ruleScreen(window) {
+    const names = [window.desktopFileName, window.resourceClass, window.resourceName]
+        .map(function (n) { return String(n || "").toLowerCase(); });
+    const rules = String(readConfig("screenRules", "")).split(";");
+    for (let i = 0; i < rules.length; i++) {
+        const parts = rules[i].split("=");
+        const number = parseInt(parts[1], 10);
+        const matches = parts[0].split("|").some(function (n) { return n && names.indexOf(n) >= 0; });
+        if (matches && number >= 1 && number <= workspace.screenOrder.length)
+            return workspace.screenOrder[number - 1];
+    }
+    return null;
+}
+
 function mainScreen(window) {
     return workspace.screenOrder.length ? workspace.screenOrder[0] : window.output;
 }
@@ -40,8 +58,12 @@ function center(window) {
 function added(window) {
     if (!window)
         return;
+    const ruled = window.normalWindow ? ruleScreen(window) : null;
     if (CENTERED.indexOf(window.resourceClass) >= 0) {
         center(window);
+    } else if (ruled) {
+        if (window.output !== ruled)
+            workspace.sendClientToScreen(window, ruled);
     } else if (isGame(window)) {
         toMainScreen(window);
         // Games often switch to fullscreen a moment later, on the screen the window is on –
