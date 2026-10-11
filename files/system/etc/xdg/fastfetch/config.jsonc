@@ -1,46 +1,66 @@
 // GOBLINCAKES default for fastfetch. Your own ~/.config/fastfetch/config.jsonc wins.
+// The logo as a picture (Ghostty and Konsole show images); grouped in boxes with
+// ▾ headings and ▸ rows (the user's example, 11 Oct).
 {
     "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
     "logo": {
-        "type": "file",
-        "source": "/usr/share/goblincakes/fastfetch-logo.txt",
-        "color": {
-            "1": "38;2;230;236;245",   // Frost: goblin head
-            "2": "38;2;47;111;237"     // Accent: cupcake
-        },
-        "padding": { "top": 1, "right": 3 }
+        // kitty's picture protocol: works in Ghostty and Konsole (11 Oct: "auto" printed "PNG"
+        // as text in Ghostty, "kitty-direct" showed nothing in Konsole)
+        "type": "kitty",
+        "source": "/usr/share/goblincakes/fastfetch-logo.png",
+        "width": 30,
+        "height": 12,
+        "padding": { "top": 4, "left": 2, "right": 4 }
     },
     "display": {
-        "separator": "  ",
+        "separator": " ",
         "color": {
-            "keys": "38;2;47;111;237",
-            "title": "38;2;230;236;245"
-        }
+            "keys": "38;2;47;111;237",      // Accent
+            "output": "38;2;230;236;245"    // Frost
+        },
+        "key": { "width": 0 }
     },
     "modules": [
-        "title",
-        "separator",
-        "os",
-        "host",
-        "kernel",
-        "uptime",
-        "packages",
-        "de",
-        "wm",
-        "terminal",
-        "cpu",
-        "gpu",
-        "memory",
+        { "type": "custom", "format": "┌─────────────────── Software ───────────────────┐", "outputColor": "38;2;139;152;173" },
+        { "type": "os", "key": "▾ OS", "format": "{pretty-name}" },
+        { "type": "custom", "format": "  ▾ Kernel & Packages", "outputColor": "1;38;2;47;111;237" },
+        { "type": "kernel", "key": "    ▸" },
+        { "type": "packages", "key": "    ▸", "format": "{rpm} (rpm), {flatpak-all} (flatpak)" },
+        { "type": "custom", "format": "  ▾ DE & WM", "outputColor": "1;38;2;47;111;237" },
+        { "type": "de", "key": "    ▸" },
+        { "type": "wm", "key": "    ▸" },
+        { "type": "custom", "format": "  ▾ Shell & Terminal", "outputColor": "1;38;2;47;111;237" },
+        { "type": "shell", "key": "    ▸" },
+        { "type": "terminal", "key": "    ▸" },
+        { "type": "custom", "format": "└────────────────────────────────────────────────┘", "outputColor": "38;2;139;152;173" },
+        "break",
+        { "type": "custom", "format": "┌──────────────── Personalization ───────────────┐", "outputColor": "38;2;139;152;173" },
+        { "type": "theme", "key": "▾ App Style" },
+        { "type": "custom", "format": "  ▾ WM Theme & Others", "outputColor": "1;38;2;47;111;237" },
+        { "type": "wmtheme", "key": "    ▸" },
+        { "type": "icons", "key": "    ▸" },
+        { "type": "font", "key": "    ▸" },
+        { "type": "cursor", "key": "    ▸" },
+        { "type": "custom", "format": "└────────────────────────────────────────────────┘", "outputColor": "38;2;139;152;173" },
+        "break",
+        { "type": "custom", "format": "┌─────────────────── Hardware ───────────────────┐", "outputColor": "38;2;139;152;173" },
+        { "type": "host", "key": "▾ Host" },
+        { "type": "custom", "format": "  ▾ CPU & GPU", "outputColor": "1;38;2;47;111;237" },
+        { "type": "cpu", "key": "    ▸" },
+        { "type": "gpu", "key": "    ▸" },
+        { "type": "custom", "format": "  ▾ Displays", "outputColor": "1;38;2;47;111;237" },
+        { "type": "display", "key": "    ▸" },
+        { "type": "custom", "format": "  ▾ Drives & Memory", "outputColor": "1;38;2;47;111;237" },
         // Without read-only file systems: / on an atomic system is a tiny read-only layer
         // that always shows "100 %" in red (and a mounted ISO/DVD is read-only too).
         // The system disk is "System" (its label is whatever the installer gave it, e.g. "g4");
         // other disks by their label, not the long mount path (/run/media/<user>/<label>),
         // without a label the mount path. On an atomic system the system disk is mounted at /etc,
         // /sysroot, /var, /var/home and /sysroot/ostree/deploy/default/var (findmnt, 9 Oct).
-        { "type": "disk", "folders": "/etc", "key": "Disk (System)" },
+        { "type": "disk", "folders": "/etc", "key": "    ▸ System" },
         { "type": "disk", "showReadOnly": false, "hideFolders": "/:/etc:/var:/var/home:/sysroot:/sysroot/ostree/deploy/default/var:/usr:/efi:/boot:/boot/efi:/boot/firmware",
-          "key": "Disk ({?name}{name}{?}{/name}{mountpoint}{/})" },
-        "break",
-        "colors"
+          "key": "    ▸ {?name}{name}{?}{/name}{mountpoint}{/}" },
+        { "type": "memory", "key": "    ▸ RAM" },
+        { "type": "custom", "format": "└────────────────────────────────────────────────┘", "outputColor": "38;2;139;152;173" }
     ]
 }

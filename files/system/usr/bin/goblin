@@ -470,7 +470,7 @@ cmd_remove() {
 }
 
 cmd_fastfetch() {
-    exec fastfetch "$@"
+    exec /usr/libexec/goblincakes-fastfetch "$@"
 }
 
 motd_off_file="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/motd-off"

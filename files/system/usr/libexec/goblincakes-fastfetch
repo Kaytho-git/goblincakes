@@ -1,0 +1,113 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: fastfetch in a terminal window that fits it (the user's wish, 11 Oct).
+
+    goblincakes-fastfetch [fastfetch options]
+
+Without options and with GOBLINCAKES' fastfetch look (no ~/.config/fastfetch/config.jsonc),
+the output is measured first (fastfetch --pipe, no picture), and if the window is too small
+KWin makes the terminal window bigger – only bigger, never past the screen – before
+fastfetch runs for real. `fastfetch` typed in bash and `goblin fast` both come here
+(/etc/profile.d/goblincakes-fastfetch.sh).
+"""
+import fcntl
+import os
+import struct
+import subprocess
+import sys
+import tempfile
+import termios
+import time
+from pathlib import Path
+
+CONFIG = Path("/etc/xdg/fastfetch/config.jsonc")
+LOGO_COLS = 2 + 30 + 4  # padding left + logo width + padding right (config.jsonc)
+LOGO_ROWS = 4 + 12      # padding top + logo height
+EXTRA_ROWS = 2          # the prompt after it
+
+
+def winsize():
+    rows, cols, xpix, ypix = struct.unpack(
+        "HHHH", fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, b"\0" * 8))
+    return rows, cols, xpix, ypix
+
+
+def ancestors():
+    """This process and its parents – the terminal window belongs to one of them."""
+    pids, pid = [], os.getpid()
+    while pid > 1:
+        pids.append(pid)
+        try:
+            stat = Path(f"/proc/{pid}/stat").read_text()
+            pid = int(stat.rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return pids
+
+
+def kwin(*args):
+    return subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/Scripting",
+                           "org.kde.kwin.Scripting", *args],
+                          capture_output=True, text=True, timeout=3)
+
+
+def grow(dw, dh):
+    """KWin script: the active window, if it is this terminal, grows by dw×dh pixels."""
+    script = """
+var pids = %s;
+var w = workspace.activeWindow;
+if (w && pids.indexOf(w.pid) >= 0 && w.resizeable && !w.fullScreen) {
+    var g = w.frameGeometry;
+    var a = workspace.clientArea(KWin.MaximizeArea, w);
+    var nw = Math.min(g.width + %d, a.width), nh = Math.min(g.height + %d, a.height);
+    var x = Math.max(a.x, Math.min(g.x, a.x + a.width - nw));
+    var y = Math.max(a.y, Math.min(g.y, a.y + a.height - nh));
+    w.frameGeometry = {x: x, y: y, width: Math.max(g.width, nw), height: Math.max(g.height, nh)};
+}
+""" % (ancestors(), dw, dh)
+    name = f"goblincakes-fit-{os.getpid()}"
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+        f.write(script)
+    try:
+        if kwin("loadScript", "ss", f.name, name).returncode == 0:
+            kwin("start")
+            time.sleep(0.05)
+            kwin("unloadScript", "s", name)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    finally:
+        os.unlink(f.name)
+
+
+def fit():
+    out = subprocess.run(["fastfetch", "--pipe", "true", "--logo", "none"],
+                         capture_output=True, text=True, timeout=10).stdout.splitlines()
+    need_cols = LOGO_COLS + max((len(line) for line in out), default=0) + 1
+    need_rows = max(len(out), LOGO_ROWS) + EXTRA_ROWS
+    rows, cols, xpix, ypix = winsize()
+    if rows >= need_rows and cols >= need_cols:
+        return
+    # Cell size from the terminal's own pixel size (Ghostty and Konsole report it)
+    cw = xpix / cols if xpix and cols else 9
+    ch = ypix / rows if ypix and rows else 18
+    grow(round(max(0, need_cols - cols) * cw), round(max(0, need_rows - rows) * ch))
+    for _ in range(20):  # wait for the terminal to get its new size, so fastfetch lays out in it
+        if winsize()[:2] != (rows, cols):
+            time.sleep(0.05)
+            break
+        time.sleep(0.025)
+
+
+def main():
+    args = sys.argv[1:]
+    own_config = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "fastfetch"
+    if (not args and sys.stdout.isatty() and os.environ.get("WAYLAND_DISPLAY")
+            and CONFIG.exists() and not any(own_config.glob("config.json*"))):
+        try:
+            fit()
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
+    os.execvp("fastfetch", ["fastfetch", *args])
+
+
+if __name__ == "__main__":
+    main()
