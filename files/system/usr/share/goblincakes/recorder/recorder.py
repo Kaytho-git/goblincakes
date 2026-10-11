@@ -156,7 +156,10 @@ def start_obs():
         return ""
     enable_websocket()
     write_encoder_file(load_config())
-    args = ["flatpak", "run", OBS_APP, "--minimize-to-tray", "--disable-shutdown-check"]
+    args = ["flatpak", "run", OBS_APP, "--disable-shutdown-check"]
+    if screen_chosen():
+        args.append("--minimize-to-tray")  # until then visible: KDE only asks which screen
+                                           # to record when OBS's window is shown
     names = obs_names()
     if OBS_NAME in names["profiles"]:
         args += ["--profile", OBS_NAME]
@@ -165,6 +168,28 @@ def start_obs():
     subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
     return ""
+
+
+def screen_chosen():
+    """Has KDE been told which screen OBS may record (a restore token in our scenes)?"""
+    try:
+        scenes = json.loads((OBS_CONFIG / "basic/scenes" / f"{OBS_NAME}.json").read_text())
+    except (OSError, ValueError):
+        return False
+    return any(src.get("name") == "Skärm" and src.get("settings", {}).get("RestoreToken")
+               for src in scenes.get("sources", []))
+
+
+def screen_chosen_live(obs):
+    try:
+        return bool(obs.call("GetInputSettings", {"inputName": "Skärm"})["inputSettings"].get("RestoreToken"))
+    except OBSError:
+        return False
+
+
+def pick_screen(obs):
+    """Open KDE's screen choice for OBS (the source's Select button)."""
+    obs.call("PressInputPropertiesButton", {"inputName": "Skärm", "propertyName": "Reload"}, check=False)
 
 
 def stop_obs(wait=30):
@@ -372,6 +397,7 @@ def setup_obs(obs, cfg):
                                  "inputKind": "pipewire-screen-capture-source",
                                  "inputSettings": {"ShowCursor": True}})
         done.append("skärmfångst")
+        pick_screen(obs)
     if audio_plugin_installed():
         for a in AUDIO_INPUTS:
             if a["name"] not in inputs:

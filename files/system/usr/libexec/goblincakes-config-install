@@ -103,6 +103,7 @@ check() {
         claude-code) [ -x "$HOME/.local/bin/claude" ] ;;
         vscode) [ -x "$HOME/.local/share/vscode/code" ] ;;
         discord) [ -x "$HOME/.local/share/discord-app/discord" ] ;;
+        recorder) [ -e "$HOME/.config/goblincakes/recorder-on" ] && flatpak info com.obsproject.Studio >/dev/null 2>&1 ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;
         *) return 1 ;;
@@ -411,6 +412,15 @@ DESKTOP
         integrate_appimage "$file" "$label"
         echo "$url" > "$release_file"
         status "$label installerad (${name})"
+        ;;
+
+    recorder-on)
+        # GoblinRecorder: its user service runs only with this flag (no load for others)
+        status "Slår på GoblinRecorder…"
+        mkdir -p "$HOME/.config/goblincakes"
+        touch "$HOME/.config/goblincakes/recorder-on"
+        systemctl --user daemon-reload 2>/dev/null || :
+        systemctl --user start goblincakes-recorder.service
         ;;
 
     open-url)

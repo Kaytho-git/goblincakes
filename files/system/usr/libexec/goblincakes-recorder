@@ -66,6 +66,8 @@ class Service:
         self.me = ""  # Name-Realm-Region of the character playing (for Warcraft Logs)
         self.wcl_next = time.time() + 60
         self.wcl_busy = False
+        self.screen_ok = None  # KDE told OBS which screen to record?
+        self.screen_check = 0
 
     @staticmethod
     def mtime(p):
@@ -133,6 +135,7 @@ class Service:
             self.obs.close()
             self.obs = None
             self.obs_ready = False
+            self.screen_ok = None
             raise R.OBSError("Tappade kontakten med OBS") from e
 
     # ------------------------------------------------------------ combat log
@@ -393,8 +396,11 @@ class Service:
         self.check_recording()
         self.closing = [m for m in self.closing if m["_until"] > now]
         self.wcl_check()
-        if self.wow or self.current:
+        if self.wow or self.current or R.obs_running():
             self.connect()
+        if self.obs and not self.screen_ok and now - self.screen_check > 5:
+            self.screen_check = now
+            self.screen_ok = R.screen_chosen_live(self.obs)
         elif self.obs:
             self.obs.close()
             self.obs = None
@@ -416,6 +422,7 @@ class Service:
             "current": {k: self.current[k] for k in ("kind", "name", "difficulty", "start")
                         } if self.current else None,
             "lastVideo": self.last_video, "error": self.error, "player": self.me,
+            "screen": self.screen_ok,
         })
 
     def run(self):

@@ -61,7 +61,9 @@ Window {
         if (!st.service)
             return "Inspelningstjänsten kör inte.";
         if (st.obs === "missing")
-            return "OBS behövs – installera det i GOBLINCAKES Config → Program.";
+            return "OBS behövs – välj GoblinRecorder i GOBLINCAKES Config → Program → Spel.";
+        if (st.obs === "connected" && st.screen === false)
+            return "Välj vilken skärm OBS ska spela in – tryck Välj skärm och välj skärmen där WoW är.";
         if (st.current)
             return "Spelar in " + (st.current.kind === "mplus" ? "nyckeln" : st.current.name + " (" + st.current.difficulty + ")") + " …";
         if (st.waiting)
@@ -458,6 +460,12 @@ Window {
                     visible: !win.st.service
                     text: "Starta inspelningstjänsten"
                     onClicked: backend.startService()
+                }
+                FlatButton {
+                    visible: win.st.obs === "connected" && win.st.screen === false
+                    primary: true
+                    text: "Välj skärm"
+                    onClicked: backend.pickScreen()
                 }
                 FlatButton {
                     visible: win.st.audioPlugin === false && win.st.obs !== "missing"

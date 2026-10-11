@@ -125,6 +125,7 @@ modules:
         - goblincakes-updates.timer       # the green update arrow in the top bar
         - goblincakes-disk-owner.path     # own Linux-formatted disks mounted later (otherwise root's)
         - goblincakes-frames.path         # goblin frames: a notification when a measured game closes
+        - goblincakes-recorder.service    # GoblinRecorder – only runs for those who chose it in Config
 
   # GOBLINCAKES name in About this System and the boot menu
   - type: os-release

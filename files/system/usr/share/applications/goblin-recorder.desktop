@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=GoblinRecorder
+GenericName=WoW-inspelning
+Comment=Spelar in raidbossar och Mythic+-nycklar av sig själv med OBS – titta på filmerna med dödsfallen markerade
+Exec=goblin-recorder
+Icon=goblincakes
+Categories=Game;
+Keywords=wow;inspelning;spela in;video;obs;raid;mythic;warcraft logs;film;
+StartupWMClass=goblin-recorder

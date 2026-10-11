@@ -86,7 +86,21 @@ class Backend(QObject):
         threading.Thread(target=lambda: (R.stop_obs(), self.startObs()), daemon=True).start()
 
     @Slot()
+    def pickScreen(self):
+        def work():
+            try:
+                with R.OBS(timeout=3) as obs:
+                    R.pick_screen(obs)
+                self.message.emit("Välj skärmen där WoW är i rutan från KDE.")
+            except Exception:  # noqa: BLE001
+                self.message.emit("OBS svarar inte – tryck Starta OBS först.")
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot()
     def startService(self):
+        flag = R.CONFIG_DIR / "recorder-on"  # the user unit only runs with it
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.touch()
         if subprocess.run(["systemctl", "--user", "start", "goblincakes-recorder.service"],
                           capture_output=True).returncode != 0:
             QProcess.startDetached(SERVICE, ["run"])
