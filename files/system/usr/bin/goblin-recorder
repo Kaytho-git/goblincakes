@@ -237,7 +237,7 @@ def main():
             QFontDatabase.addApplicationFont(font)
 
     # One window at a time: a second start brings the first one forward
-    name = f"goblin-recorder-{os.getuid()}"
+    name = os.environ.get("GOBLINCAKES_RECORDER_INSTANCE", f"goblin-recorder-{os.getuid()}")  # tests: own name
     sock = QLocalSocket()
     sock.connectToServer(name)
     if sock.waitForConnected(300):

@@ -41,7 +41,7 @@ WOW_LOGS = Path(os.environ.get("GOBLINCAKES_RECORDER_LOGS", HOME / "Games/WoW"))
 DEFAULTS = {
     "folder": str(HOME / "Videos/WoW"),
     "fps": 60,
-    "codec": "h264",  # h264 | hevc | av1
+    "codec": "h264",  # h264 | hevc | av1 (NVENC on the graphics card) | x264 (processor)
     "raid": True,
     "mplus": True,
     "autoStartObs": True,
@@ -49,7 +49,7 @@ DEFAULTS = {
     "maxGB": 100,  # oldest videos are removed above this
 }
 
-CODECS = {"h264": "H.264", "hevc": "HEVC (H.265)", "av1": "AV1"}
+CODECS = {"h264": "NVENC H.264", "hevc": "NVENC HEVC", "av1": "NVENC AV1", "x264": "x264"}
 RAID_DIFFICULTIES = {14: "Normal", 15: "Heroic", 16: "Mythic", 17: "LFR"}
 if os.environ.get("GOBLINCAKES_RECORDER_DUNGEON_BOSSES"):  # tests: dungeon bosses count as raid bosses
     RAID_DIFFICULTIES.update({1: "Normal", 2: "Heroic", 23: "Mythic"})
@@ -180,20 +180,15 @@ def obs_encoders():
     logs = sorted((OBS_CONFIG / "logs").glob("*.txt"), key=lambda p: p.stat().st_mtime)
     text = logs[-1].read_text(errors="replace") if logs else ""
     nvenc = "obs_nvenc_h264_tex" in text or "jim_nvenc" in text
-    found = {"h264": True}
-    if nvenc:
-        found["hevc"] = "obs_nvenc_hevc_tex" in text
-        found["av1"] = "AV1 supported: true" in text
-    else:
-        found["hevc"] = False
-        found["av1"] = False
+    found = {"h264": nvenc, "hevc": nvenc and "obs_nvenc_hevc_tex" in text,
+             "av1": nvenc and "AV1 supported: true" in text, "x264": True}
     return {"hardware": nvenc, "codecs": found, "known": bool(text)}
 
 
-def simple_encoder(codec, hardware):
-    if not hardware:
-        return "x264"
-    return {"h264": "nvenc", "hevc": "nvenc_hevc", "av1": "nvenc_av1"}[codec]
+def simple_encoder(codec):
+    """GoblinRecorder's choice → OBS's simple-mode encoder: NVENC on the graphics card, or
+    x264 on the processor."""
+    return {"h264": "nvenc", "hevc": "nvenc_hevc", "av1": "nvenc_av1"}.get(codec, "x264")
 
 
 class OBSError(Exception):
@@ -395,14 +390,15 @@ def apply_settings(obs, cfg):
     folder = Path(cfg["folder"])
     folder.mkdir(parents=True, exist_ok=True)
     enc = obs_encoders()
-    codec = cfg["codec"] if enc["codecs"].get(cfg["codec"]) else "h264"
+    codec = cfg["codec"] if enc["codecs"].get(cfg["codec"]) or not enc["known"] else (
+        "h264" if enc["hardware"] else "x264")
     params = [
         ("Output", "Mode", "Simple"),
         ("Output", "FilenameFormatting", "%CCYY-%MM-%DD %hh-%mm-%ss"),
         ("SimpleOutput", "FilePath", str(folder)),
         ("SimpleOutput", "RecFormat2", "hybrid_mp4"),  # MP4 that survives a crash
         ("SimpleOutput", "RecQuality", "Small"),
-        ("SimpleOutput", "RecEncoder", simple_encoder(codec, enc["hardware"])),
+        ("SimpleOutput", "RecEncoder", simple_encoder(codec)),
         ("SimpleOutput", "RecTracks", "7"),  # tracks 1–3
         ("SimpleOutput", "RecRB", "false"),
     ]

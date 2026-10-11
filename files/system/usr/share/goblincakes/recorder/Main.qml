@@ -928,19 +928,21 @@ Window {
             }
 
             Item { width: 1; height: 14 }
-            SectionTitle { text: "CODEC" }
-            Row {
+            SectionTitle { text: "KODARE" }
+            Flow {
+                width: settingsCol.width
                 spacing: 12
                 Repeater {
-                    model: [{ "id": "h264", "name": "H.264", "sub": "Spelas upp överallt" },
-                            { "id": "hevc", "name": "HEVC (H.265)", "sub": "Mindre filer, samma kvalitet" },
-                            { "id": "av1", "name": "AV1", "sub": "Minst filer – RTX 40xx eller nyare" }]
+                    model: [{ "id": "h264", "name": "NVENC H.264", "sub": "Grafikkortet · spelas upp överallt" },
+                            { "id": "hevc", "name": "NVENC HEVC", "sub": "Grafikkortet · mindre filer" },
+                            { "id": "av1", "name": "NVENC AV1", "sub": "Grafikkortet · minst filer, RTX 40xx+" },
+                            { "id": "x264", "name": "x264", "sub": "Processorn · tar kraft från spelet" }]
                     Choice {
                         required property var modelData
                         readonly property bool works: !win.enc.known || !!win.enc.codecs[modelData.id]
                         width: 240
                         text: modelData.name
-                        sub: works ? modelData.sub : "Grafikkortet klarar inte " + modelData.name
+                        sub: works ? modelData.sub : (win.enc.hardware ? "Grafikkortet klarar inte AV1" : "Kräver ett Nvidia-kort")
                         enabledState: works
                         chosen: win.cfg.codec === modelData.id
                         onPicked: win.set("codec", modelData.id)
@@ -949,9 +951,9 @@ Window {
             }
             Note {
                 width: Math.min(820, parent.width)
-                text: (win.enc.hardware ? "Grafikkortet gör jobbet (NVENC) – spelet märker knappt något. "
-                                        : "Inget Nvidia-kort hittat – OBS spelar in med processorn (x264), bara H.264. ")
-                      + "Ändringar gäller från nästa inspelning."
+                text: (win.enc.hardware ? "NVENC = grafikkortets egen videokrets – spelet märker knappt något. "
+                                        : "Inget Nvidia-kort hittat – OBS spelar in med processorn (x264). ")
+                      + "Byter du kodare startas OBS om (dolt) före nästa inspelning."
             }
 
             Item { width: 1; height: 14 }
