@@ -258,7 +258,10 @@ def other_updates(old):
         try:
             data, _ = latest_json("https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest", gh)
             tag = data.get("tag_name", "")
-            if tag and not (compat / tag).exists():
+            # Unpacked as the archive's name: "GE-Proton11-7-x86_64" for the tag "GE-Proton11-7"
+            # (11 Oct: only the tag was looked for, so it always looked new)
+            have = (compat / tag).exists() or (compat / f"{tag}-x86_64").exists()
+            if tag and not have:
                 found.append({"part": "proton", "name": tag})
         except (OSError, ValueError):
             keep("proton")
