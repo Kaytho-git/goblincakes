@@ -180,7 +180,7 @@ class Service:
             diff = int(a[2]) if a[2].isdigit() else 0
             if self.current and self.current["kind"] == "mplus":
                 self.marker(t, "boss", a[1])
-            elif diff in R.RAID_DIFFICULTIES and self.cfg["raid"] and live and not self.current:
+            elif R.raid_level_wanted(self.cfg, diff) and live and not self.current:
                 self.begin(t, now, {"kind": "raid", "name": a[1], "encounter": a[0],
                                     "difficulty": R.RAID_DIFFICULTIES[diff]})
         elif ev == "ENCOUNTER_END":
@@ -191,11 +191,11 @@ class Service:
                 self.marker(t, "boss-end", a[1] + (" ✓" if a[4] == "1" else " ✗"))
         elif ev == "CHALLENGE_MODE_START":
             a = R.split_args(rest)
-            if self.cfg["mplus"] and live:
+            level = int(a[3]) if len(a) > 3 and a[3].isdigit() else 0
+            if self.cfg["mplus"] and live and level >= int(self.cfg.get("mplusMin") or 1):
                 if self.current:
                     self.stop_now()
-                self.begin(t, now, {"kind": "mplus", "name": a[0], "difficulty": "Mythic+",
-                                    "level": int(a[3]) if a[3].isdigit() else 0})
+                self.begin(t, now, {"kind": "mplus", "name": a[0], "difficulty": "Mythic+", "level": level})
         elif ev == "CHALLENGE_MODE_END":
             a = R.split_args(rest)
             if self.current and self.current["kind"] == "mplus":

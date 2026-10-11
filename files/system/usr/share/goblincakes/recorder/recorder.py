@@ -30,6 +30,7 @@ CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "goblin
 CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", HOME / ".cache")) / "goblincakes"
 CONFIG_FILE = CONFIG_DIR / "recorder.json"
 STATUS_FILE = CACHE_DIR / "recorder-status.json"
+OVERLAY_DIR = CONFIG_DIR / "recorder-overlays"  # copies of the images you cover parts of the video with
 
 OBS_APP = "com.obsproject.Studio"
 OBS_AUDIO_PLUGIN = "com.obsproject.Studio.Plugin.PipeWireAudioCapture"
@@ -44,18 +45,27 @@ DEFAULTS = {
     "codec": "h264",  # h264 | hevc | av1 (NVENC on the graphics card) | x264 (processor)
     "raid": True,
     "mplus": True,
+    "raidLevels": ["lfr", "normal", "heroic", "mythic"],  # which raid difficulties to record
+    "mplusMin": 2,  # keys from this level up
     "autoStartObs": True,
     "mic": True,  # your microphone on tracks 1 and 3 (with noise suppression)
     "gameBoost": 12,
     "quality": "normal",  # high | normal | small – the bitrate, see QUALITY_MBIT  # dB louder game sound – WoW plays quietly next to Discord
+    "overlays": [],  # boxes over the video: {"file": image or "" = black, "x", "y", "w", "h" as 0–1 of the picture}
     "postRoll": 5,  # seconds after the end
     "maxGB": 100,  # oldest videos are removed above this
 }
 
 CODECS = {"h264": "NVENC H.264", "hevc": "NVENC HEVC", "av1": "NVENC AV1", "x264": "x264"}
-RAID_DIFFICULTIES = {14: "Normal", 15: "Heroic", 16: "Mythic", 17: "LFR"}
+RAID_DIFFICULTIES = {14: "Normal", 15: "Heroic", 16: "Mythic", 17: "LFR"}  # WoW's difficultyID → name
 if os.environ.get("GOBLINCAKES_RECORDER_DUNGEON_BOSSES"):  # tests: dungeon bosses count as raid bosses
     RAID_DIFFICULTIES.update({1: "Normal", 2: "Heroic", 23: "Mythic"})
+
+
+def raid_level_wanted(cfg, difficulty_id):
+    """Is this raid difficulty ticked in GoblinRecorder (LFR/Normal/Heroic/Mythic)?"""
+    name = RAID_DIFFICULTIES.get(difficulty_id, "").lower()
+    return bool(cfg.get("raid")) and name in (cfg.get("raidLevels") or [])
 DUNGEON_DIFFICULTIES = {1: "Normal", 2: "Heroic", 8: "Mythic+", 23: "Mythic"}
 
 # Tracks in the video: 1 = everything, 2 = the game, 3 = Discord + your microphone
@@ -467,7 +477,73 @@ def apply_settings(obs, cfg):
         obs.call("SetVideoSettings", want, check=False)
     fit_screen(obs, w, h)
     set_audio(obs, cfg)
+    set_overlays(obs, cfg, w, h)
     return "restart" if restart else True
+
+
+OVERLAY_PREFIX = "Dölj "
+
+
+def set_overlays(obs, cfg, w, h):
+    """Images (or black boxes) on top of the screen in OBS's scene – they hide parts of the
+    picture in the video only, never on your screen. Names "Dölj 1", "Dölj 2" …"""
+    wanted = cfg.get("overlays") or []
+    inputs = {i["inputName"]: i["inputKind"] for i in obs.call("GetInputList")["inputs"]}
+    for name in [n for n in inputs if n.startswith(OVERLAY_PREFIX)]:
+        try:
+            idx = int(name[len(OVERLAY_PREFIX):]) - 1
+        except ValueError:
+            idx = -1
+        if not 0 <= idx < len(wanted) or inputs[name] != overlay_kind(wanted[idx]):
+            obs.call("RemoveInput", {"inputName": name}, check=False)
+            inputs.pop(name)
+    for i, ov in enumerate(wanted, 1):
+        name = f"{OVERLAY_PREFIX}{i}"
+        kind = overlay_kind(ov)
+        settings = ({"file": ov["file"], "unload": False} if kind == "image_source"
+                    else {"color": 0xFF000000, "width": 16, "height": 16})
+        if name not in inputs:
+            obs.call("CreateInput", {"sceneName": OBS_NAME, "inputName": name, "inputKind": kind,
+                                     "inputSettings": settings})
+        else:
+            obs.call("SetInputSettings", {"inputName": name, "inputSettings": settings})
+        item = obs.call("GetSceneItemId", {"sceneName": OBS_NAME, "sourceName": name})["sceneItemId"]
+        obs.call("SetSceneItemTransform", {"sceneName": OBS_NAME, "sceneItemId": item, "sceneItemTransform": {
+            "positionX": round(ov["x"] * w), "positionY": round(ov["y"] * h), "alignment": 5,
+            "boundsType": "OBS_BOUNDS_STRETCH", "boundsAlignment": 0,
+            "boundsWidth": max(round(ov["w"] * w), 2), "boundsHeight": max(round(ov["h"] * h), 2)}})
+        top = len(obs.call("GetSceneItemList", {"sceneName": OBS_NAME})["sceneItems"]) - 1
+        obs.call("SetSceneItemIndex", {"sceneName": OBS_NAME, "sceneItemId": item, "sceneItemIndex": top})
+
+
+def overlay_kind(ov):
+    return "image_source" if ov.get("file") else "color_source_v3"
+
+
+def add_overlay_image(src):
+    """Copy an image into GoblinRecorder's own folder (stays when the original moves)."""
+    OVERLAY_DIR.mkdir(parents=True, exist_ok=True)
+    src = Path(src)
+    dest = OVERLAY_DIR / f"{secrets.token_hex(4)}{src.suffix.lower()}"
+    shutil.copyfile(src, dest)
+    return str(dest)
+
+
+def remove_unused_overlay_images(cfg):
+    used = {ov.get("file") for ov in cfg.get("overlays") or []}
+    for f in OVERLAY_DIR.glob("*"):
+        if str(f) not in used:
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
+
+def preview_image(obs, width=960):
+    """The screen OBS records right now, without our boxes, as a data: URL (for the
+    window's overlay editor)."""
+    return obs.call("GetSourceScreenshot", {"sourceName": "Skärm", "imageFormat": "jpg",
+                                            "imageWidth": width, "imageCompressionQuality": 80})["imageData"]
 
 
 MIC = "Mikrofon"

@@ -32,6 +32,7 @@ class Backend(QObject):
     videosChanged = Signal()
     message = Signal(str)
     wclChanged = Signal()
+    previewChanged = Signal()
     wclBusy = Signal(bool)
 
     def __init__(self):
@@ -41,6 +42,7 @@ class Backend(QObject):
         self._videos = "[]"
         self._encoders = json.dumps(R.obs_encoders())
         self._last_video = None
+        self._preview = ""
         self.refreshLater.connect(self.refreshVideos)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll)
@@ -155,6 +157,83 @@ class Backend(QObject):
         folder = Path(R.load_config()["folder"])
         folder.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    # ---------------------------------------------------------- boxes over the video
+    @Property(str, notify=previewChanged)
+    def preview(self):
+        return self._preview
+
+    @Slot()
+    def refreshPreview(self):
+        """The screen as OBS sees it; without OBS the newest video's thumbnail."""
+        def work():
+            img = ""
+            try:
+                with R.OBS(timeout=3) as obs:
+                    img = R.preview_image(obs)
+            except Exception:  # noqa: BLE001 – OBS not running
+                vids = [v for v in R.video_files(R.load_config()["folder"]) if v.get("thumb")]
+                img = QUrl.fromLocalFile(vids[0]["thumb"]).toString() if vids else ""
+            self._preview = img
+            self.previewChanged.emit()
+        threading.Thread(target=work, daemon=True).start()
+
+    def _save_overlays(self, overlays):
+        cfg = R.load_config()
+        cfg["overlays"] = overlays
+        R.save_config(cfg)
+        R.remove_unused_overlay_images(cfg)
+        self._config = json.dumps(cfg)
+        self.configChanged.emit()
+
+        def apply():  # at once in OBS (the service does it too, but not while recording)
+            try:
+                with R.OBS(timeout=3) as obs:
+                    if not obs.call("GetRecordStatus").get("outputActive"):
+                        video = obs.call("GetVideoSettings")
+                        R.set_overlays(obs, cfg, video["baseWidth"], video["baseHeight"])
+            except Exception:  # noqa: BLE001 – OBS not running: applied when it starts
+                pass
+        threading.Thread(target=apply, daemon=True).start()
+
+    def _pick_image(self):
+        path, _ = QFileDialog.getOpenFileName(None, "Välj en bild", str(Path.home()),
+                                              "Bilder (*.png *.jpg *.jpeg *.webp *.bmp *.gif)")
+        return R.add_overlay_image(path) if path else None
+
+    @Slot(bool)
+    def addOverlay(self, with_image):
+        file = ""
+        if with_image:
+            file = self._pick_image()
+            if not file:
+                return
+        overlays = R.load_config().get("overlays") or []
+        n = len(overlays)
+        overlays.append({"file": file, "x": 0.05 + 0.03 * (n % 5), "y": 0.05 + 0.03 * (n % 5), "w": 0.25, "h": 0.2})
+        self._save_overlays(overlays)
+
+    @Slot(int)
+    def changeOverlayImage(self, index):
+        file = self._pick_image()
+        overlays = R.load_config().get("overlays") or []
+        if file and 0 <= index < len(overlays):
+            overlays[index]["file"] = file
+            self._save_overlays(overlays)
+
+    @Slot(int)
+    def removeOverlay(self, index):
+        overlays = R.load_config().get("overlays") or []
+        if 0 <= index < len(overlays):
+            overlays.pop(index)
+            self._save_overlays(overlays)
+
+    @Slot(int, float, float, float, float)
+    def moveOverlay(self, index, x, y, w, h):
+        overlays = R.load_config().get("overlays") or []
+        if 0 <= index < len(overlays):
+            overlays[index].update({"x": x, "y": y, "w": w, "h": h})
+            self._save_overlays(overlays)
 
     # ---------------------------------------------------------- Warcraft Logs
     @Property(bool, notify=wclChanged)

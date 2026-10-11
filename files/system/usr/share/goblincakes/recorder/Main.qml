@@ -24,6 +24,8 @@ Window {
     property var selected: null
     property string note: ""
     property bool wclBusy: false
+    property int overlayPick: -1 // the chosen box in "Dölj delar av bilden"
+    onTabChanged: if (tab === "settings") backend.refreshPreview()
 
     function set(key, value) { backend.setConfig(key, JSON.stringify(value)); }
 
@@ -110,6 +112,8 @@ Window {
     component FlatField: Rectangle {
         property alias text: input.text
         property alias echoMode: input.echoMode
+        property alias validator: input.validator
+        signal edited()
         property string hint
         height: 40
         color: "#07090D"
@@ -125,6 +129,7 @@ Window {
             font.pixelSize: 13
             clip: true
             selectByMouse: true
+            onTextEdited: parent.edited()
         }
         Text {
             anchors { fill: input }
@@ -135,6 +140,33 @@ Window {
             font.family: "IBM Plex Sans"
             font.pixelSize: 13
             elide: Text.ElideRight
+        }
+    }
+
+    // A setting with a switch on the right (name, explanation, key in recorder.json)
+    component SettingRow: Item {
+        id: row
+        property string name
+        property string sub
+        property string key
+        width: Math.min(820, settingsCol.width)
+        height: 54
+        Column {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 3
+            Text {
+                text: row.name
+                color: "#E6ECF5"
+                font.family: "IBM Plex Sans"
+                font.weight: Font.Medium
+                font.pixelSize: 15
+            }
+            Note { text: row.sub }
+        }
+        ToggleSwitch {
+            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+            on: !!win.cfg[row.key]
+            onToggled: win.set(row.key, !win.cfg[row.key])
         }
     }
 
@@ -1031,33 +1063,186 @@ Window {
             }
 
             Item { width: 1; height: 14 }
-            SectionTitle { text: "VAD SOM SPELAS IN" }
-            Repeater {
-                model: [{ "key": "raid", "name": "Raidbossar", "sub": "Varje försök blir en egen film – kill eller wipe." },
-                        { "key": "mplus", "name": "Mythic+", "sub": "Hela nyckeln, från start till slut." },
-                        { "key": "autoStartObs", "name": "Starta OBS när WoW startar", "sub": "OBS lägger sig dolt i systemfältet." }]
-                Item {
-                    required property var modelData
-                    width: Math.min(820, settingsCol.width)
-                    height: 54
-                    Column {
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 3
-                        Text {
-                            text: modelData.name
-                            color: "#E6ECF5"
-                            font.family: "IBM Plex Sans"
-                            font.weight: Font.Medium
-                            font.pixelSize: 15
+            SectionTitle { text: "DÖLJ DELAR AV BILDEN" }
+            Note {
+                width: Math.min(820, parent.width)
+                text: "Lägg en bild eller en svart ruta över det som inte ska synas i filmerna – chatten, namn, Discord. "
+                      + "Dra rutan dit du vill och ändra storleken i hörnet. Den syns bara i filmerna, aldrig på din skärm."
+            }
+            Item {
+                id: editor
+                width: Math.min(820, settingsCol.width)
+                height: width * 9 / 16
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                }
+                Image {
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    source: backend.preview
+                    fillMode: Image.Stretch
+                    asynchronous: true
+                }
+                Note {
+                    anchors.centerIn: parent
+                    visible: !backend.preview
+                    text: "Starta OBS för att se skärmen här"
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: win.overlayPick = -1
+                }
+
+                Repeater {
+                    model: win.cfg.overlays || []
+                    Rectangle {
+                        id: box
+                        required property var modelData
+                        required property int index
+                        readonly property bool picked: win.overlayPick === index
+                        x: modelData.x * editor.width
+                        y: modelData.y * editor.height
+                        width: modelData.w * editor.width
+                        height: modelData.h * editor.height
+                        color: modelData.file ? "transparent" : "#000000"
+                        border.width: 2
+                        border.color: picked ? "#2F6FED" : "#8B98AD"
+
+                        function save() {
+                            backend.moveOverlay(index, x / editor.width, y / editor.height, width / editor.width, height / editor.height);
                         }
-                        Note { text: modelData.sub }
-                    }
-                    ToggleSwitch {
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        on: !!win.cfg[modelData.key]
-                        onToggled: win.set(modelData.key, !win.cfg[modelData.key])
+
+                        Image {
+                            anchors.fill: parent
+                            visible: !!box.modelData.file
+                            source: box.modelData.file ? backend.fileUrl(box.modelData.file) : ""
+                            fillMode: Image.Stretch
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.SizeAllCursor
+                            drag.target: box
+                            drag.minimumX: 0
+                            drag.minimumY: 0
+                            drag.maximumX: editor.width - box.width
+                            drag.maximumY: editor.height - box.height
+                            onPressed: win.overlayPick = box.index
+                            onReleased: box.save()
+                        }
+                        Rectangle { // resize handle
+                            anchors { right: parent.right; bottom: parent.bottom }
+                            width: 14
+                            height: 14
+                            color: box.picked ? "#2F6FED" : "#8B98AD"
+                            MouseArea {
+                                anchors.fill: parent
+                                anchors.margins: -4
+                                cursorShape: Qt.SizeFDiagCursor
+                                property real sx
+                                property real sy
+                                property real sw
+                                property real sh
+                                onPressed: mouse => {
+                                    win.overlayPick = box.index;
+                                    const p = mapToItem(editor, mouse.x, mouse.y);
+                                    sx = p.x; sy = p.y; sw = box.width; sh = box.height;
+                                }
+                                onPositionChanged: mouse => {
+                                    const p = mapToItem(editor, mouse.x, mouse.y);
+                                    box.width = Math.max(16, Math.min(editor.width - box.x, sw + p.x - sx));
+                                    box.height = Math.max(16, Math.min(editor.height - box.y, sh + p.y - sy));
+                                }
+                                onReleased: box.save()
+                            }
+                        }
                     }
                 }
+            }
+            Flow {
+                width: Math.min(820, settingsCol.width)
+                spacing: 10
+                FlatButton { text: "Lägg till bild …"; onClicked: backend.addOverlay(true) }
+                FlatButton { text: "Lägg till svart ruta"; onClicked: backend.addOverlay(false) }
+                FlatButton {
+                    visible: win.overlayPick >= 0
+                    text: "Byt bild …"
+                    onClicked: backend.changeOverlayImage(win.overlayPick)
+                }
+                FlatButton {
+                    visible: win.overlayPick >= 0
+                    danger: true
+                    text: "Ta bort rutan"
+                    onClicked: { backend.removeOverlay(win.overlayPick); win.overlayPick = -1; }
+                }
+                FlatButton { text: "Uppdatera skärmbilden"; onClicked: backend.refreshPreview() }
+            }
+
+            Item { width: 1; height: 14 }
+            SectionTitle { text: "VAD SOM SPELAS IN" }
+            SettingRow {
+                name: "Raidbossar"
+                sub: "Varje försök blir en egen film – kill eller wipe. Välj vilka svårighetsgrader."
+                key: "raid"
+            }
+            Row {
+                spacing: 10
+                opacity: win.cfg.raid ? 1 : 0.35
+                Repeater {
+                    model: [{ "id": "lfr", "name": "LFR" }, { "id": "normal", "name": "Normal" },
+                            { "id": "heroic", "name": "Heroic" }, { "id": "mythic", "name": "Mythic" }]
+                    Choice {
+                        required property var modelData
+                        readonly property var levels: win.cfg.raidLevels || ["lfr", "normal", "heroic", "mythic"]
+                        width: 120
+                        enabledState: !!win.cfg.raid
+                        text: (chosen ? "✓  " : "") + modelData.name
+                        chosen: levels.indexOf(modelData.id) >= 0
+                        onPicked: win.set("raidLevels", chosen ? levels.filter(l => l !== modelData.id) : levels.concat([modelData.id]))
+                    }
+                }
+            }
+            Item { width: 1; height: 6 }
+            SettingRow {
+                name: "Mythic+"
+                sub: "Hela nyckeln, från start till slut – från den nivå du skriver här."
+                key: "mplus"
+            }
+            Row {
+                spacing: 12
+                opacity: win.cfg.mplus ? 1 : 0.35
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Från nivå  +"
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 15
+                }
+                FlatField {
+                    id: mplusMin
+                    width: 80
+                    enabled: !!win.cfg.mplus
+                    text: String(win.cfg.mplusMin || 2)
+                    validator: IntValidator { bottom: 1; top: 99 }
+                    onEdited: {
+                        const n = parseInt(text);
+                        if (n >= 1 && n !== win.cfg.mplusMin)
+                            win.set("mplusMin", n);
+                    }
+                }
+                Note {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Lägre nycklar spelas inte in. +2 = alla."
+                }
+            }
+            Item { width: 1; height: 6 }
+            SettingRow {
+                name: "Starta OBS när WoW startar"
+                sub: "OBS lägger sig dolt i systemfältet."
+                key: "autoStartObs"
             }
 
             Item { width: 1; height: 14 }
