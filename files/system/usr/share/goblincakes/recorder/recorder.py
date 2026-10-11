@@ -54,6 +54,7 @@ DEFAULTS = {
     "overlays": [],  # boxes over the video: {"file": image or "" = black, "text", "x", "y", "w", "h" as 0–1 of the picture}
     "postRoll": 5,  # seconds after the end
     "maxGB": 100,  # oldest videos are removed above this
+    "keepWipes": False,  # False: only kills stay when WoW closes (and 2 wipes per raid boss meanwhile)
 }
 
 CODECS = {"h264": "NVENC H.264", "hevc": "NVENC HEVC", "av1": "NVENC AV1", "x264": "x264"}
@@ -735,6 +736,31 @@ def remove_video(path):
             f.unlink()
         except OSError:
             pass
+
+
+KEPT_RESULTS = ("kill", "timed")  # a raid kill, a Mythic+ key in time
+RAID_WIPES_KEPT = 2  # per boss and difficulty while you raid – the newest ones
+
+
+def drop_old_wipes(folder, video):
+    """After a raid wipe is saved: keep only the newest wipes of that boss and difficulty."""
+    if video.get("kind") != "raid" or video.get("result") == "kill":
+        return []
+    same = [v for v in video_files(folder) if v.get("kind") == "raid" and v.get("result") != "kill"
+            and v.get("name") == video.get("name") and v.get("difficulty") == video.get("difficulty")
+            and not v.get("keep")]
+    gone = sorted(same, key=lambda v: v.get("started", 0), reverse=True)[RAID_WIPES_KEPT:]
+    for v in gone:
+        remove_video(v["path"])
+    return [v["file"] for v in gone]
+
+
+def drop_non_kills(folder):
+    """When WoW closes: everything that is not a kill (or a key in time) goes, unless kept."""
+    gone = [v for v in video_files(folder) if v.get("result") not in KEPT_RESULTS and not v.get("keep")]
+    for v in gone:
+        remove_video(v["path"])
+    return [v["file"] for v in gone]
 
 
 def prune(folder, max_gb):

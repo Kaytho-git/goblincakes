@@ -152,9 +152,11 @@ Window {
         property string sub
         property string key
         width: Math.min(820, settingsCol.width)
-        height: 54
+        height: Math.max(54, rowText.implicitHeight + 12)
         Column {
+            id: rowText
             anchors.verticalCenter: parent.verticalCenter
+            width: row.width - 80
             spacing: 3
             Text {
                 text: row.name
@@ -163,7 +165,7 @@ Window {
                 font.weight: Font.Medium
                 font.pixelSize: 15
             }
-            Note { text: row.sub }
+            Note { width: parent.width; text: row.sub }
         }
         ToggleSwitch {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -1282,6 +1284,13 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Skriver du +10 spelas bara +10 och högre in. +2 = alla nycklar."
                 }
+            }
+            Item { width: 1; height: 6 }
+            SettingRow {
+                name: "Behåll wipes när WoW stängs"
+                sub: "Av: bara kills (och nycklar i tid) blir kvar när du stänger WoW, och under raiden sparas bara de två senaste wipes per boss. "
+                     + "Spara för alltid skyddar en film."
+                key: "keepWipes"
             }
             Item { width: 1; height: 6 }
             SettingRow {

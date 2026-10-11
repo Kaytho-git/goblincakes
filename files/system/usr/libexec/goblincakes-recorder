@@ -16,6 +16,7 @@ as marks to the video's .json afterwards.
 import json
 import os
 import re
+import signal
 import threading
 import statistics
 import sys
@@ -66,6 +67,7 @@ class Service:
         self.me = ""  # Name-Realm-Region of the character playing (for Warcraft Logs)
         self.wcl_next = time.time() + 60
         self.wcl_busy = False
+        self.tidy = False  # WoW closed: remove non-kills once the last video is saved
         self.screen_ok = None  # KDE told OBS which screen to record?
         self.screen_check = 0
 
@@ -306,6 +308,9 @@ class Service:
         self.closing.append(meta)
         self.last_video = dest.name
         log("saved", dest.name)
+        if not self.cfg.get("keepWipes"):
+            for name in R.drop_old_wipes(dest.parent, dict(meta, path=str(dest))):
+                log("older wipe removed:", name)
         R.prune(dest.parent, self.cfg["maxGB"])
 
     def write_meta(self, meta, dest=None):
@@ -339,6 +344,24 @@ class Service:
             self.current = None
             self.stop_at = 0
             self.error = "OBS stängdes under inspelningen."
+
+    def tidy_up(self):
+        """WoW closed (or the computer shuts down): only kills stay – no heaps of wipes."""
+        if self.cfg.get("keepWipes"):
+            return
+        for name in R.drop_non_kills(self.cfg["folder"]):
+            log("removed (not a kill):", name)
+        self.last_video = f"tidy {time.time()}"  # the window reloads its list
+
+    def shutdown(self, *_):
+        """Logout/shutdown: save what is being recorded, tidy up, quit."""
+        log("stopping")
+        if self.current:
+            self.finish(time.time(), "abandoned")
+            self.stop_now()
+        self.tidy_up()
+        self.status()
+        sys.exit(0)
 
     # ------------------------------------------------------------ Warcraft Logs
     def wcl_check(self):
@@ -391,9 +414,13 @@ class Service:
                 log("WoW stopped")
                 self.finish(now, "abandoned")
                 self.zone = None
+                self.tidy = True
             self.wow = running
         self.follow()
         self.check_recording()
+        if self.tidy and not self.current:
+            self.tidy = False
+            self.tidy_up()
         self.closing = [m for m in self.closing if m["_until"] > now]
         self.wcl_check()
         if self.wow or self.current or R.obs_running():
@@ -427,6 +454,7 @@ class Service:
 
     def run(self):
         log("GoblinRecorder service started")
+        signal.signal(signal.SIGTERM, self.shutdown)
         while True:
             try:
                 self.tick()
