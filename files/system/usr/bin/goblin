@@ -235,7 +235,8 @@ cmd_update() {
 }
 
 # name | description – used by help and by the list in new terminals
-# Descriptions at most 76 characters: the list must fit Ghostty's 100 columns (2 + "goblin " + 11 + 1 = 21)
+# Descriptions: best at most 79 characters (Ghostty's 100 columns minus 21: 2 + "goblin " + 11 + 1);
+# longer ones wrap at whole words under the description column
 COMMANDS=(
     "update|Uppdatera allt – eller en del: goblin update --only flatpak (system, flatpak, appimages, vscode, discord, proton, firmware)"
     "ai|Öppna Goblin AI-fönstret (eller tryck Meta+A)"
@@ -259,12 +260,34 @@ COMMANDS=(
 )
 
 command_list() {
-    local entry name pad
+    local entry name pad desc word line cols width indent
+    # Long descriptions wrap at whole words to the terminal's width, continuing under the
+    # description column (the terminal cut them mid-word at the left edge, 11 Oct)
+    cols=0
+    [ -t 1 ] && { read -r _ cols < <(stty size 2>/dev/null </dev/tty) || cols=0; }
+    [[ $cols =~ ^[0-9]+$ ]] || cols=0
+    width=$((cols - 21))
+    [ "$width" -ge 20 ] || width=0
+    printf -v indent '%21s' ''
     for entry in "${COMMANDS[@]}"; do
-        name=${entry%%|*}
+        name=${entry%%|*} desc=${entry#*|}
         # Pad by characters, not bytes (å, ä, ö)
         printf -v pad '%*s' $((11 - ${#name})) ''
-        printf '  %sgoblin %s%s%s %s%s%s\n' "$accent" "$name" "$pad" "$reset" "$muted" "${entry#*|}" "$reset"
+        printf '  %sgoblin %s%s%s %s' "$accent" "$name" "$pad" "$reset" "$muted"
+        if [ "$width" = 0 ]; then
+            printf '%s%s\n' "$desc" "$reset"
+            continue
+        fi
+        line=
+        for word in $desc; do
+            if [ -n "$line" ] && [ $((${#line} + 1 + ${#word})) -gt "$width" ]; then
+                printf '%s\n%s' "$line" "$indent"
+                line=$word
+            else
+                line=${line:+$line }$word
+            fi
+        done
+        printf '%s%s\n' "$line" "$reset"
     done
 }
 
