@@ -153,8 +153,19 @@ def start_obs():
     return ""
 
 
-def stop_obs():
+def stop_obs(wait=30):
+    """Close OBS (it saves its settings) and wait until it is gone."""
     subprocess.run(["pkill", "-TERM", "-x", "obs"], capture_output=True)
+    end = time.time() + wait
+    while obs_running() and time.time() < end:
+        time.sleep(0.25)
+    return not obs_running()
+
+
+def restart_obs():
+    """OBS again, hidden – e.g. for a new codec. The screen choice is remembered."""
+    stop_obs()
+    return start_obs()
 
 
 def obs_names():
@@ -371,12 +382,14 @@ def setup_obs(obs, cfg):
         if name:
             obs.call("SetInputAudioTracks", {"inputName": name, "inputAudioTracks":
                      {str(t): False for t in range(1, 7)}}, check=False)
-    apply_settings(obs, cfg)
+    if apply_settings(obs, cfg) == "restart":
+        done.append("restart")
     return done
 
 
 def apply_settings(obs, cfg):
-    """Folder, fps and codec from GoblinRecorder into OBS (not while recording)."""
+    """Folder, fps and codec from GoblinRecorder into OBS (not while recording). Returns
+    "restart" when OBS must be restarted for them to work, False while recording."""
     if obs.call("GetRecordStatus").get("outputActive"):
         return False
     folder = Path(cfg["folder"])
@@ -393,14 +406,50 @@ def apply_settings(obs, cfg):
         ("SimpleOutput", "RecTracks", "7"),  # tracks 1–3
         ("SimpleOutput", "RecRB", "false"),
     ]
+    restart = False
     for cat, name, value in params:
+        now = obs.call("GetProfileParameter", {"parameterCategory": cat, "parameterName": name}).get("parameterValue")
+        if now == value:
+            continue
         obs.call("SetProfileParameter", {"parameterCategory": cat, "parameterName": name,
                                          "parameterValue": value})
+        # OBS builds the recording encoder when the profile loads – changing it while OBS
+        # runs makes the next recording fail ("NVENC … update your drivers"), so restart
+        restart = restart or name in ("Mode", "RecEncoder", "RecFormat2", "RecQuality", "RecTracks")
     video = obs.call("GetVideoSettings")
     fps = int(cfg["fps"])
-    if video.get("fpsNumerator") != fps or video.get("fpsDenominator") != 1:
-        obs.call("SetVideoSettings", {"fpsNumerator": fps, "fpsDenominator": 1}, check=False)
-    return True
+    w, h = main_screen_size() or (video["baseWidth"], video["baseHeight"])
+    want = {"fpsNumerator": fps, "fpsDenominator": 1, "baseWidth": w, "baseHeight": h,
+            "outputWidth": w, "outputHeight": h}  # the screen's own size – a new profile says 720p
+    if any(video.get(k) != v for k, v in want.items()):
+        obs.call("SetVideoSettings", want, check=False)
+    fit_screen(obs, w, h)
+    return "restart" if restart else True
+
+
+def main_screen_size():
+    """Width and height of the main screen (priority 1 in the display settings)."""
+    try:
+        out = subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True, timeout=10).stdout
+        screens = [o for o in json.loads(out)["outputs"] if o.get("enabled")]
+    except (OSError, ValueError, KeyError, subprocess.TimeoutExpired):
+        return None
+    if not screens:
+        return None
+    main = min(screens, key=lambda o: o.get("priority") or 99)
+    mode = next((m for m in main["modes"] if m["id"] == main["currentModeId"]), None)
+    size = (mode or {}).get("size") or main.get("size")
+    return (size["width"], size["height"]) if size else None
+
+
+def fit_screen(obs, w, h):
+    """The screen capture fills the whole video, whatever screen is picked."""
+    for item in obs.call("GetSceneItemList", {"sceneName": OBS_NAME})["sceneItems"]:
+        if item["sourceName"] == "Skärm":
+            obs.call("SetSceneItemTransform", {"sceneName": OBS_NAME, "sceneItemId": item["sceneItemId"],
+                     "sceneItemTransform": {"positionX": 0, "positionY": 0, "boundsType": "OBS_BOUNDS_SCALE_INNER",
+                                            "boundsWidth": w, "boundsHeight": h, "boundsAlignment": 0}},
+                     check=False)
 
 
 # ---------------------------------------------------------------- the combat log

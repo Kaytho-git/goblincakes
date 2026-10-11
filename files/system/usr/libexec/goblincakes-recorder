@@ -108,10 +108,19 @@ class Service:
                 if done:
                     log("OBS set up:", ", ".join(done))
                 self.obs_ready = True
+                if "restart" in done:
+                    self.restart_obs()
             except (R.OBSError, OSError) as e:
                 self.obs_error = f"Kunde inte ställa in OBS: {e}"
                 log(self.obs_error)
         return True
+
+    def restart_obs(self):
+        log("restarting OBS for the new settings")
+        self.obs.close()
+        self.obs = None
+        self.last_try = 0
+        R.restart_obs()
 
     def call(self, *a, **kw):
         if not self.connect():
@@ -213,11 +222,20 @@ class Service:
                 self.error = "OBS spelar redan in (startat för hand) – GoblinRecorder hoppar över den här."
                 return
             self.call("StartRecord")
+            for _ in range(20):  # OBS answers at once and starts the output a moment later
+                if self.call("GetRecordStatus").get("outputActive"):
+                    wall = time.time()  # the video's first frame
+                    break
+                time.sleep(0.25)
+            else:
+                self.error = "OBS startade inte inspelningen – titta i OBS-fönstret om en ruta väntar på svar."
+                log(self.error)
+                return
         except R.OBSError as e:
             self.error = f"Kunde inte starta inspelningen: {e}"
             log(self.error)
             return
-        info.update({"start": t, "wall": time.time(), "markers": [], "player": self.me})
+        info.update({"start": t, "wall": wall, "markers": [], "player": self.me})
         self.current = info
         self.stop_at = 0
         self.error = ""
@@ -354,7 +372,8 @@ class Service:
             self.cfg = R.load_config()
             if self.obs and not self.current:
                 try:
-                    R.apply_settings(self.obs, self.cfg)
+                    if R.apply_settings(self.obs, self.cfg) == "restart":
+                        self.restart_obs()
                     log("settings applied")
                 except R.OBSError as e:
                     self.obs_error = str(e)

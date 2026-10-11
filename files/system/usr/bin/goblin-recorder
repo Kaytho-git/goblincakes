@@ -81,14 +81,7 @@ class Backend(QObject):
     @Slot()
     def restartObs(self):
         """OBS is running without its remote control: close it, turn it on, start again."""
-        R.stop_obs()
-        def again(tries=[0]):
-            if R.obs_running() and tries[0] < 40:
-                tries[0] += 1
-                QTimer.singleShot(250, again)
-                return
-            self.startObs()
-        QTimer.singleShot(500, again)
+        threading.Thread(target=lambda: (R.stop_obs(), self.startObs()), daemon=True).start()
 
     @Slot()
     def startService(self):
