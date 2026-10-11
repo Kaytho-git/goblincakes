@@ -5,13 +5,62 @@
 #    (Plasma picks the screen's "preferred" mode, which is sometimes only 60 Hz)
 #  - with several screens, the fastest one becomes priority 1 (main screen: games open there)
 # Changes made afterwards in System Settings → Display are kept.
+# And at every login: the top bar's clock the same size as the rest (see clock_size).
 import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
-state = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "goblincakes/screens-done"
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "goblincakes"
+state = STATE_DIR / "screens-done"
+CLOCK_STATE = STATE_DIR / "clock-size"  # the clock size this script set last
+CLOCK_PT = 11  # GOBLINCAKES' clock: 11 pt like the week number beside it (layout.js)
+
+
+def plasma_js(script):
+    return subprocess.run(["busctl", "--user", "call", "org.kde.plasmashell", "/PlasmaShell",
+                           "org.kde.PlasmaShell", "evaluateScript", "s", script],
+                          capture_output=True, text=True)
+
+
+def clock_size(outputs):
+    """Plasma's clock turns its point size into pixels with the screen's *physical* DPI
+    (Screen.pixelDensity), everything else with 96 DPI – on a 24" 1080p screen (82 DPI)
+    11 pt became 12.5 px instead of 14.7, smaller than "v41" beside it (11 Oct). So the
+    clock gets the point size that gives 11 pt at 96 DPI on the top bar's screen. Only
+    while it has our font and our size (11 or what this script set) – the user's own is kept."""
+    out = None
+    for _ in range(15):  # plasmashell may still be starting
+        r = plasma_js("""panels().forEach(function (p) { if (p.location !== "top") return;
+            p.widgets().forEach(function (w) { if (w.type !== "org.kde.plasma.digitalclock") return;
+                w.currentConfigGroup = ["Appearance"];
+                print(p.screen + "|" + w.readConfig("fontFamily") + "|" + w.readConfig("fontSize") + ";"); }); });""")
+        if r.returncode == 0 and "|" in r.stdout:
+            out = r.stdout
+            break
+        time.sleep(2)
+    if not out:
+        return
+    screen, family, size = out.split('"')[1].split(";")[0].split("|")
+    # Plasma's screen 0 = the main screen (priority 1), and so on
+    o = next((o for o in outputs if o.get("priority") == int(screen) + 1), outputs[0])
+    width_mm = (o.get("sizeMM") or {}).get("width", 0)
+    width_px = o["size"]["width"] / (o.get("scale") or 1)
+    if width_mm < 100:
+        return  # unknown physical size (VM, projector): Qt guesses, leave it
+    dpi = width_px / (width_mm / 25.4)
+    target = max(6, min(30, round(CLOCK_PT * 96 / dpi)))
+    ours = {str(CLOCK_PT), CLOCK_STATE.read_text().strip() if CLOCK_STATE.exists() else ""}
+    if family != "IBM Plex Sans" or size not in ours or size == str(target):
+        return
+    plasma_js("""panels().forEach(function (p) { if (p.location !== "top") return;
+        p.widgets().forEach(function (w) { if (w.type !== "org.kde.plasma.digitalclock") return;
+            w.currentConfigGroup = ["Appearance"]; w.writeConfig("fontSize", %d); }); });""" % target)
+    CLOCK_STATE.parent.mkdir(parents=True, exist_ok=True)
+    CLOCK_STATE.write_text(f"{target}\n")
+
 
 try:
     data = json.loads(subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True).stdout)
@@ -20,6 +69,7 @@ except (OSError, ValueError):
     sys.exit(0)
 if not outputs:
     sys.exit(0)
+clock_size(outputs)
 
 combination = ",".join(sorted(o["name"] for o in outputs))
 done = state.read_text().split() if state.exists() else []
