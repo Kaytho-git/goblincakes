@@ -478,7 +478,28 @@ Tryck Uppdatera allt för att uppdatera." : "")
     Item {
         id: header
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        height: 176
+        height: 176 + (backend.live ? 52 : 0)
+
+        // From the USB stick (live): what differs from the installed GOBLINCAKES
+        Rectangle {
+            visible: backend.live
+            anchors { left: parent.left; right: parent.right; leftMargin: 48; rightMargin: 48
+                      bottom: parent.bottom; bottomMargin: 56 }
+            height: liveNote.implicitHeight + 20
+            color: "#0E1420"
+            border.color: "#2F6FED"
+            border.width: 1
+            Text {
+                id: liveNote
+                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
+                          leftMargin: 14; rightMargin: 14 }
+                text: "Du provar GOBLINCAKES från USB-minnet. Steam och TV-läget finns inte här, men installeras direkt i systemet när du installerar GOBLINCAKES. Det du väljer här försvinner när datorn startas om."
+                color: "#E6ECF5"
+                wrapMode: Text.WordWrap
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 13
+            }
+        }
 
         Row {
             anchors { left: parent.left; leftMargin: 48; top: parent.top; topMargin: 30 }

@@ -235,6 +235,14 @@ class Config(QObject):
         """Uninstalling for real: the separate window (rpm-ostree, after a restart)."""
         QProcess.startDetached("/usr/libexec/goblincakes-remove-apps", [])
 
+    @Property(bool, constant=True)
+    def live(self):
+        """Running from the GOBLINCAKES USB stick (the live system), not an installed computer."""
+        try:
+            return "rd.live.image" in Path("/proc/cmdline").read_text().split()
+        except OSError:
+            return False
+
     @Property(str, constant=True)
     def version(self):
         return self._version

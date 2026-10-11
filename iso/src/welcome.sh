@@ -54,7 +54,8 @@ ${graphics:+$graphics
 
 <b>Prova först</b> – titta runt. Båda finns i dockan längst ner.
 
-<small>Spel och prestanda är inte som på en installerad dator.</small>" \
+<small>Spel och prestanda är inte som på en installerad dator. Steam och TV-läget finns
+inte på USB-minnet – de installeras direkt i systemet när du installerar.</small>" \
     --button="Prova först:0" --button="Partitionshanteraren:20" --button="Installera GOBLINCAKES:10"
 case $? in
     10) setsid liveinst >/dev/null 2>&1 & ;;
