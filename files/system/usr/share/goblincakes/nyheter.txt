@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-11  När du uppdaterar visas nu alla nyheter sedan du uppdaterade senast, inte bara de 25 senaste
 2026-10-11  fastfetch har fått nytt utseende med GOBLINCAKES-loggan som bild och uppgifterna i grupper, och terminalfönstret växer så att allt syns
 2026-10-11  goblin wow lägger nu in WoW i WowUp även när WowUp är igång – WowUp stängs några sekunder och startar igen
 2026-10-11  goblin play steam visar alla installerade spel i Steam och exakt vad du skriver i goblin play add för varje spel

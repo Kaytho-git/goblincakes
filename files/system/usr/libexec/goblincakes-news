@@ -93,9 +93,9 @@ def cmd_update():
     if not new and not fedora:
         return 0
     print(f"\n{ACCENT}▌ {BOLD}Nytt i GOBLINCAKES{RESET}")
-    show(new[:25])
-    if len(new) > 25:
-        print(f"  {MUTED}… och {len(new) - 25} till – goblin nyheter visar allt efter omstarten{RESET}")
+    # All of it: everything since the version the user runs, however long ago that was
+    # (the user's wish, 11 Oct – a cap of 25 also hid the rest silently in Config)
+    show(new)
     if fedora:
         print(f"  {MUTED}Fedora: {fedora}{RESET}")
     return 0
