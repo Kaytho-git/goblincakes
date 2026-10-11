@@ -472,7 +472,7 @@ class Config(QObject):
     # ── Uppdatera: `goblin update --gui` ──────────────────────
 
     # The steps in goblin update's order (its @@step headings), for the progress bar
-    UPDATE_STEPS = ["System (GOBLINCAKES-imagen)", "Flatpak-program", "AppImage-program", "VS Code", "GE-Proton", "Firmware"]
+    UPDATE_STEPS = ["System (GOBLINCAKES-imagen)", "Flatpak-program", "AppImage-program", "VS Code", "Discord", "GE-Proton", "Firmware"]
 
     @Property(bool, notify=updateBusyChanged)
     def updateBusy(self):

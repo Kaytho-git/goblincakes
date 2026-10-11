@@ -145,6 +145,13 @@ update_vscode() {
     config_step vscode
 }
 
+update_discord() {
+    # Discord's own Linux build in the home folder (GOBLINCAKES Config → Spel och WoW)
+    [ -x "$HOME/.local/share/discord-app/Discord" ] || return 0
+    heading "Discord"
+    config_step discord
+}
+
 update_proton() {
     # Only for those who use it (ProtonUp-Qt chosen in GOBLINCAKES Config, or GE-Proton already there)
     if flatpak info net.davidotek.pupgui2 >/dev/null 2>&1 \
@@ -176,6 +183,7 @@ cmd_update() {
     step "Flatpak-program" update_flatpaks
     update_appimages
     step "VS Code" update_vscode
+    step "Discord" update_discord
     step "GE-Proton" update_proton
     # GTK theme copy for Flatpak programs (Quod Libet): follow the theme in the image
     [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/themes/GoblinCakes" ] && "$config_install" gtk-theme >/dev/null 2>&1

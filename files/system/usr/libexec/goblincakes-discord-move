@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# GOBLINCAKES: Discord from Flathub gives way to Discord's own Linux build (11 Oct) – once,
+# in the background, started by goblincakes-refresh.sh at login:
+#   1. waits until the Flatpak Discord isn't running (its login is in files that are in use)
+#   2. copies its login and settings (~/.var/app/com.discordapp.Discord/config/discord) to
+#      ~/.config/discord, where Discord's own build keeps them – no new login
+#   3. installs Discord's own build (goblincakes-config-install discord)
+#   4. removes the Flatpak (its data in ~/.var/app stays) and starts Discord if it used to
+#      start at login
+# Arguments: the flag file to create when done, 1/0 = the Flatpak started at login.
+set -uo pipefail
+flag=$1 autostarted=${2:-0}
+app=com.discordapp.Discord
+old="$HOME/.var/app/$app/config/discord"
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/discord"
+autostart="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+
+give_up() { # the Flatpak keeps working as before; tried again at the next login
+    [ "$autostarted" = 1 ] && /usr/libexec/goblincakes-config-install autostart "$app" --start-minimized >/dev/null 2>&1
+    exit 1
+}
+
+flatpak_running() { flatpak ps --columns=application 2>/dev/null | grep -qx "$app"; }
+for _ in $(seq 120); do flatpak_running || break; sleep 30; done
+flatpak_running && give_up
+
+if [ -d "$old" ] && [ ! -e "$conf/Local Storage" ]; then
+    mkdir -p "$conf"
+    cp -a "$old/." "$conf/" || give_up
+fi
+
+ok=0
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if GOBLINCAKES_NO_AUTOSTART=$([ "$autostarted" = 1 ] && echo 0 || echo 1) \
+        /usr/libexec/goblincakes-config-install discord >/dev/null 2>&1; then
+        ok=1
+        break
+    fi
+    sleep 30
+done
+[ "$ok" = 1 ] || give_up
+
+flatpak uninstall --user --noninteractive "$app" >/dev/null 2>&1 || true
+rm -f "$autostart/$app.desktop"
+mkdir -p "$(dirname "$flag")" && touch "$flag"
+[ "$autostarted" = 1 ] && setsid -f "$HOME/.local/share/discord-app/Discord" --start-minimized >/dev/null 2>&1 </dev/null
+notify-send --app-name=GOBLINCAKES --icon="$HOME/.local/share/discord-app/discord.png" "Discord är uppdaterat" \
+    "Discord är nu Discords egen version – vännerna ser vilket spel du spelar. Du är fortfarande inloggad." || true

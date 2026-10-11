@@ -102,6 +102,7 @@ check() {
         battlenet) compgen -G "$HOME/Games/battlenet*/drive_c/Program Files*/Battle.net/Battle.net*.exe" >/dev/null ;;
         claude-code) [ -x "$HOME/.local/bin/claude" ] ;;
         vscode) [ -x "$HOME/.local/share/vscode/code" ] ;;
+        discord) [ -x "$HOME/.local/share/discord-app/Discord" ] ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;
         *) return 1 ;;
@@ -494,6 +495,89 @@ DESKTOP
         xdg-mime default code-url-handler.desktop x-scheme-handler/vscode >/dev/null 2>&1 || true
         kbuildsycoca6 >/dev/null 2>&1 || true
         status "VS Code $version klar"
+        ;;
+
+    discord)
+        # Discord's own Linux build (their .tar.gz) in the home folder, not the Flatpak (11 Oct,
+        # the user's choice): outside a sandbox Discord sees the games that run ("Playing …")
+        # and games' Rich Presence reaches it. Discord updates its content itself; the program
+        # around it can't on Linux, so goblin update runs this step again, and SKIP_HOST_UPDATE
+        # lets Discord start with the older one meanwhile instead of stopping. The Flatpak's
+        # login and settings are moved over once (goblincakes-refresh.sh, flag discord-native).
+        dir="$HOME/.local/share/discord-app"
+        apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+        conf="${XDG_CONFIG_HOME:-$HOME/.config}/discord"
+        fresh=0; [ -x "$dir/Discord" ] || fresh=1
+        status "Letar efter senaste Discord…"
+        # discord.com sends the newest file on (…/apps/linux/0.0.NN/discord-0.0.NN.tar.gz)
+        url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
+            'https://discord.com/api/download?platform=linux&format=tar.gz' 2>/dev/null) || true
+        version=$(echo "${url:-}" | sed -n 's|.*/discord-\([0-9.]*\)\.tar\.gz.*|\1|p')
+        [ -n "$version" ] || { status "Kunde inte nå Discord"; exit 1; }
+        if [ -x "$dir/Discord" ] && [ "$(cat "$dir/.goblincakes-version" 2>/dev/null)" = "$version" ]; then
+            status "Discord $version finns redan"
+        else
+            tmp=$(mktemp -d)
+            trap 'rm -rf "$tmp"' EXIT
+            status "Hämtar Discord $version…"
+            curl -fL --progress-bar -o "$tmp/discord.tar.gz" "$url"
+            status "Packar upp Discord $version…"
+            mkdir -p "$tmp/new"
+            tar -xzf "$tmp/discord.tar.gz" -C "$tmp/new" --strip-components=1
+            [ -x "$tmp/new/Discord" ]
+            echo "$version" >"$tmp/new/.goblincakes-version"
+            # A running Discord keeps its open files; the new one is used at its next start
+            mkdir -p "$(dirname "$dir")"
+            [ -e "$dir" ] && mv "$dir" "$tmp/old"
+            mv "$tmp/new" "$dir"
+        fi
+        # Start even when the program around Discord is older than Discord wants (until the
+        # next goblin update) instead of the "update required – download" window
+        mkdir -p "$conf"
+        python3 - "$conf/settings.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+try:
+    data = json.load(open(path))
+except (OSError, ValueError):
+    data = {}
+if data.get("SKIP_HOST_UPDATE") is not True:
+    data["SKIP_HOST_UPDATE"] = True
+    json.dump(data, open(path, "w"), indent=2)
+PY
+        mkdir -p "$apps" "$HOME/.local/bin"
+        cat >"$apps/discord.desktop" <<DESKTOP
+[Desktop Entry]
+Name=Discord
+GenericName=Internet Messenger
+Comment=All-in-one voice and text chat for gamers
+Exec=$dir/Discord
+Icon=$dir/discord.png
+Type=Application
+Categories=Network;InstantMessaging;
+StartupWMClass=discord
+Keywords=discord;chat;voice;
+X-GOBLINCAKES-Discord=true
+DESKTOP
+        ln -sfn "$dir/Discord" "$HOME/.local/bin/discord"
+        # Start at login, minimized. Discord's own "Open Discord" setting uses this same file
+        # (it works outside the Flatpak), so switching it off there removes it.
+        autostart="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+        mkdir -p "$autostart"
+        rm -f "$autostart/com.discordapp.Discord.desktop"   # the Flatpak's, from before
+        # Only when it's installed (not at every goblin update – a removed entry stays removed)
+        if [ "$fresh" = 1 ] && [ "${GOBLINCAKES_NO_AUTOSTART:-}" != 1 ] && [ ! -e "$autostart/discord.desktop" ]; then
+            cat >"$autostart/discord.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Discord
+Exec=$dir/Discord --start-minimized
+Icon=$dir/discord.png
+X-GOBLINCAKES-Autostart=true
+DESKTOP
+        fi
+        kbuildsycoca6 >/dev/null 2>&1 || true
+        status "Discord $version klar"
         ;;
 
     claude-code)

@@ -85,14 +85,25 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
-# Discord installed before 10 Oct: start it at login through GOBLINCAKES' own autostart
-# (Discord's own setting doesn't work in its Flatpak). Once – removing it later sticks.
-_gc_flag="$_gc_state/discord-autostart"
+# Discord from Flathub → Discord's own build (11 Oct), once, in the background: login and
+# settings come along (goblincakes-discord-move). The Flatpak mustn't start at this login
+# while it moves; if the move fails it gets its autostart back and it's tried again next time.
+_gc_flag="$_gc_state/discord-native"
 if [ ! -e "$_gc_flag" ]; then
-    if [ -d "$HOME/.local/share/flatpak/app/com.discordapp.Discord" ] || [ -d /var/lib/flatpak/app/com.discordapp.Discord ]; then
-        /usr/libexec/goblincakes-config-install autostart com.discordapp.Discord --start-minimized >/dev/null 2>&1
+    if [ -d "$HOME/.local/share/flatpak/app/com.discordapp.Discord" ] && [ ! -x "$HOME/.local/share/discord-app/Discord" ]; then
+        _gc_auto="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/com.discordapp.Discord.desktop"
+        _gc_was=0
+        [ -e "$_gc_auto" ] && _gc_was=1 && rm -f "$_gc_auto"
+        setsid /usr/libexec/goblincakes-discord-move "$_gc_flag" "$_gc_was" >/dev/null 2>&1 </dev/null &
+    else
+        mkdir -p "$_gc_state" && touch "$_gc_flag"
     fi
-    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+# A dock icon pinned for the Flatpak points at Discord's own build once that's there
+_gc_applets="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
+if [ -x "$HOME/.local/share/discord-app/Discord" ] && [ -f "$_gc_applets" ] \
+    && grep -q 'com\.discordapp\.Discord\.desktop' "$_gc_applets"; then
+    sed -i '/^launchers=/s/com\.discordapp\.Discord\.desktop/discord.desktop/g' "$_gc_applets"
 fi
 
 # VS Code left the image on 11 Oct (now Microsoft's own build in the home folder, from
@@ -116,4 +127,4 @@ if [ ! -e "$_gc_flag" ]; then
     fi
 fi
 
-unset _gc_now _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets
+unset _gc_auto _gc_was _gc_now _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets
