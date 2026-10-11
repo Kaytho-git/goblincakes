@@ -4,6 +4,8 @@
 
 GOBLINCAKES bygger på [Fedora Kinoite](https://fedoraproject.org/atomic-desktops/kinoite/) (KDE Plasma 6) via [Universal Blue](https://universal-blue.org/) och byggs automatiskt varje dag med [BlueBuild](https://blue-build.org/). Allt är platt, mörkt och fyrkantigt, med en goblin som maskot.
 
+![GOBLINCAKES-skrivbordet med toppfältet, dockan och GOBLINCAKES Config](docs/skrivbord.png)
+
 ### ⬇ Ladda ner GOBLINCAKES USB
 
 Programmet som gör ett installations-USB-minne åt dig (se [Installation](#med-goblincakes-usb-enklast)):
