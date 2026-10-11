@@ -15,6 +15,10 @@
 # lines of nyheter.txt that the new image has and this one doesn't, read from GitHub at the
 # newest commit before the image was built (the image has no commit label), plus a new Linux
 # kernel or Fedora version from the image's labels. Fetched once per image ("newsFor").
+# Waiting for a restart (11 Oct): "stagedImage" = a new image in it, "stagedChanges" = programs
+# added to or removed from the system (Config's calendar, goblin remove) by name, "stagedFor" =
+# that deployment's checksum (the widget checks again when /run/ostree/staged-deployment names
+# another one).
 # A check that can't be done (no network) keeps the last result.
 import json
 import os
@@ -137,6 +141,73 @@ def news_for(image):
     except OSError:
         local = set()
     return [t for _, t in remote if t not in local] + lines
+
+
+# Packages Config adds to the system with rpm-ostree, by name (goblincakes-tweak's switches)
+PACKAGE_GROUPS = [
+    ({"kdepim-addons", "kdepim-runtime", "merkuro"}, "Kalender med konton"),
+]
+
+
+def removed_names():
+    """package → name for programs removed with goblin remove (saved by goblincakes-remove)"""
+    names = {}
+    path = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes/removed-apps"
+    try:
+        for line in path.read_text().splitlines():
+            parts = line.split("|")
+            if len(parts) >= 2 and parts[0]:
+                names[parts[0]] = parts[1] or parts[0]
+    except OSError:
+        pass
+    return names
+
+
+def package_names(packages):
+    """Readable names for a set of packages: known groups by their switch's name, the rest as is"""
+    packages, out = set(packages), []
+    for group, name in PACKAGE_GROUPS:
+        if group & packages:
+            out.append(name)
+            packages -= group
+    return out + sorted(packages)
+
+
+def staged_changes():
+    """(new image?, [what changes]) for the deployment waiting for a restart, against the one
+    running: a new GOBLINCAKES image and/or programs added to or removed from the system
+    (11 Oct, the user's wish – the arrow said "new version" when only the calendar was added).
+    None when nothing waits or it can't be read."""
+    out = run(["rpm-ostree", "status", "--json"])
+    try:
+        deps = json.loads(out).get("deployments", []) if out else []
+    except ValueError:
+        return None
+    staged = next((d for d in deps if d.get("staged")), None) or (deps[0] if deps and not deps[0].get("booted") else None)
+    booted = next((d for d in deps if d.get("booted")), None)
+    if not staged or not booted:
+        return None
+    image = (staged.get("container-image-reference-digest") != booted.get("container-image-reference-digest")
+             or staged.get("container-image-reference") != booted.get("container-image-reference"))
+    lines = []
+
+    def pkgs(d, *keys):
+        return {p for k in keys for p in (d.get(k) or [])}
+    keys = ("requested-packages", "requested-local-packages")
+    added = pkgs(staged, *keys) - pkgs(booted, *keys)
+    dropped = pkgs(booted, *keys) - pkgs(staged, *keys)
+    removed = pkgs(staged, "requested-base-removals") - pkgs(booted, "requested-base-removals")
+    restored = pkgs(booted, "requested-base-removals") - pkgs(staged, "requested-base-removals")
+    names = removed_names()
+    for name in package_names(added):
+        lines.append(f"{name} läggs till")
+    for name in package_names(dropped):
+        lines.append(f"{name} tas bort")
+    for name in sorted(names.get(p, p) for p in removed):
+        lines.append(f"{name} avinstalleras")
+    for name in sorted(names.get(p, p) for p in restored):
+        lines.append(f"{name} kommer tillbaka")
+    return image, lines
 
 
 def staged_news(checksum):
@@ -326,11 +397,25 @@ def check():
             state["news"], state["newsFor"] = news, remote
         elif old.get("news"):
             state["news"], state["newsFor"] = old["news"], old.get("newsFor", "")
+    # What waits for the restart besides a new image: programs added/removed in the system
+    if state["system"] == "staged":
+        changes = staged_changes()
+        if changes is not None:
+            state["stagedImage"], state["stagedChanges"] = changes
+            state["stagedFor"] = remote
+            if not changes[0]:  # same image: no GOBLINCAKES news belong to it
+                state["news"], state["newsFor"] = [], remote
+        else:
+            state["stagedImage"] = old.get("stagedImage", True)
+            state["stagedChanges"] = old.get("stagedChanges", [])
+            state["stagedFor"] = old.get("stagedFor", "")
     # Fetched and waiting for a restart: the arrow stays until the restart however it was fetched
     # (the widget looks at /run/ostree/staged-deployment itself). Fetched in the background by
     # the automatic updates, the user wouldn't know: one notice too. Not after goblin update /
     # Config (GOBLINCAKES_UPDATED=1 from goblin) – they say "Starta om nu" themselves.
-    if state["system"] == "staged" and old.get("system") != "staged":
+    # Only programs changed (Config's switches say "restart" themselves): no notice.
+    if (state["system"] == "staged" and state.get("stagedImage", True)
+            and (old.get("system") != "staged" or not old.get("stagedImage", True))):
         if os.environ.get("GOBLINCAKES_UPDATED") != "1":
             subprocess.run(["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes",
                             "Ny GOBLINCAKES-version hämtad",

@@ -176,9 +176,16 @@ Window {
         const news = (st.news || []).map(line => "  • " + line);
         if (st.system === "new")
             lines.push("Ny GOBLINCAKES-version finns" + (news.length > 0 ? ":" : "."), ...news);
-        else if (st.system === "staged")
+        else if (st.system === "staged" && st.stagedImage !== false)
             lines.push("En ny GOBLINCAKES-version är redan hämtad – den används efter en omstart"
                        + (news.length > 0 ? ":" : "."), ...news);
+        // Programs added to or removed from the system (the calendar, goblin remove), 11 Oct
+        const changes = st.system === "staged" ? (st.stagedChanges || []) : [];
+        if (changes.length > 0)
+            lines.push((st.stagedImage === false ? "Väntar på en omstart:" : "Efter omstarten också:"),
+                       ...changes.map(line => "  • " + line));
+        else if (st.system === "staged" && st.stagedImage === false)
+            lines.push("Ändringar i systemet väntar på en omstart.");
         const parts = [];
         if (st.system === "new")
             parts.push({ "part": "system", "title": "GOBLINCAKES", "detail": "Ny version – används efter en omstart" });

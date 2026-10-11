@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-11  Uppdateringsmarkeringen och Config visar vad som väntar på en omstart, t.ex. "Kalender med konton läggs till" – orange när det bara är program, inte en ny GOBLINCAKES-version
 2026-10-11  Webbappar (t.ex. de du skapar i Config) öppnas aldrig större än skärmen
 2026-10-11  Chromium och webbapparna visar inte längre varningsraden om en kommandoradsflagga som inte stöds
 2026-10-11  Kalender med konton går att slå på även medan en uppdatering pågår – reglaget väntar tills uppdateringen är klar i stället för att säga "Gick inte att ändra"

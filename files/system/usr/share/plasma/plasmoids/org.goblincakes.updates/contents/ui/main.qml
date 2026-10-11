@@ -21,11 +21,12 @@ PlasmoidItem {
 
     // The mark's colour says what is waiting (11 Oct, the user's wish): blue = a new GOBLINCAKES
     // version (or one being fetched), green = fetched, restart to use it, orange = programs
-    // (Flatpak, VS Code, Discord, AppImages, GE-Proton), yellow = only firmware
+    // (Flatpak, VS Code, Discord, AppImages, GE-Proton, and programs added to or removed from
+    // the system waiting for a restart – e.g. the calendar, 11 Oct), yellow = only firmware
     readonly property bool onlyFirmware: flatpaks.length === 0 && runtimes === 0
         && other.length > 0 && other.every(o => o.part === "firmware")
     readonly property color markColor: system === "new" || (fetching && !staged) ? "#2F6FED"
-        : staged ? "#3FB950"
+        : staged && stagedImage ? "#3FB950"
         : onlyFirmware ? "#D29922"
         : "#F0883E"
     readonly property bool editMode: Plasmoid.containment.corona?.editMode ?? false
@@ -37,13 +38,18 @@ PlasmoidItem {
     property var other: []          // VS Code, Discord, AppImages, GE-Proton, firmware: [{part, name}]
     readonly property bool more: flatpaks.length > 0 || runtimes > 0 || other.length > 0
     property bool staged: false     // fetched, waiting for a restart
+    property string stagedId: ""    // that deployment's checksum (/run/ostree/staged-deployment)
+    property bool stagedImage: true // a new GOBLINCAKES image in it (not only programs)
+    property var stagedChanges: []  // programs added/removed in it, by name
+    property string stagedFor: ""   // the deployment the file describes
     property bool fetching: false   // the automatic updates are fetching right now
-    property bool asked: false      // a check already started for a staged version the file lacks
+    property string asked: ""       // a check already started for this staged deployment
     readonly property bool available: system === "new" || staged || fetching || more
 
-    // Line 1: the file; line 2: staged (1/0); line 3: automatic update running (1/0)
+    // Line 1: the file; line 2: the staged deployment's checksum (empty = none); line 3:
+    // automatic update running (1/0)
     readonly property string readCommand: "printf '%s\\n' \"$(cat \"$HOME/.cache/goblincakes/updates.json\" 2>/dev/null)\"; "
-        + "test -e /run/ostree/staged-deployment && echo 1 || echo 0; "
+        + "grep -aoE '[0-9a-f]{64}\\.[0-9]+' /run/ostree/staged-deployment 2>/dev/null | head -n1 | cut -d. -f1; "
         + "systemctl is-active -q rpm-ostreed-automatic.service || systemctl is-active -q uupd.service && echo 1 || echo 0"
 
     P5Support.DataSource {
@@ -53,7 +59,8 @@ PlasmoidItem {
         onNewData: (source, data) => {
             if (source === root.readCommand) {
                 const out = (data["stdout"] || "").split("\n");
-                root.staged = out[1] === "1";
+                root.stagedId = out[1] || "";
+                root.staged = root.stagedId !== "";
                 root.fetching = out[2] === "1";
                 try {
                     const state = JSON.parse(out[0]);
@@ -63,20 +70,28 @@ PlasmoidItem {
                     root.news = state.news || [];
                     root.runtimes = state.flatpakRuntimes || 0;
                     root.other = state.other || [];
+                    root.stagedImage = state.stagedImage !== false;
+                    root.stagedChanges = state.stagedChanges || [];
+                    root.stagedFor = state.stagedFor || "";
                 } catch (e) {
+                    root.stagedImage = true;
+                    root.stagedChanges = [];
+                    root.stagedFor = "";
                     root.runtimes = 0;
                     root.other = [];
                     root.system = "";
                     root.flatpaks = [];
                     root.news = [];
                 }
-                // Fetched in the background since the last check: check now (news + notice)
-                if (root.staged && root.system !== "staged" && !root.asked) {
-                    root.asked = true;
+                // Fetched in the background since the last check, or another deployment than the
+                // file describes (e.g. the calendar first, a new version later): check now, once
+                if (root.staged && (root.system !== "staged" || (root.stagedFor && root.stagedFor !== root.stagedId))
+                        && root.asked !== root.stagedId) {
+                    root.asked = root.stagedId;
                     exec.connectSource("setsid -f /usr/libexec/goblincakes-updates check >/dev/null 2>&1 < /dev/null");
                 }
                 if (!root.staged)
-                    root.asked = false;
+                    root.asked = "";
             }
             disconnectSource(source);
         }
@@ -107,13 +122,18 @@ PlasmoidItem {
         const lines = [];
         if (fetching && !staged)
             lines.push("Ny GOBLINCAKES-version hämtas i bakgrunden …");
-        if (system === "new" || staged) {
-            lines.push((staged ? "Ny GOBLINCAKES-version hämtad – starta om datorn för att använda den"
+        if (system === "new" || (staged && stagedImage)) {
+            lines.push((staged && stagedImage ? "Ny GOBLINCAKES-version hämtad – starta om datorn för att använda den"
                                : "Ny GOBLINCAKES-version") + (news.length > 0 ? ":" : ""));
             for (const line of news.slice(0, 5))
                 lines.push("• " + line);
             if (news.length > 5)
                 lines.push("• … och " + (news.length - 5) + " till");
+        }
+        if (staged && stagedChanges.length > 0) {
+            lines.push("Efter omstart:");
+            for (const line of stagedChanges)
+                lines.push("• " + line);
         }
         if (flatpaks.length > 0) {
             const shown = flatpaks.slice(0, 3).join(", ");
