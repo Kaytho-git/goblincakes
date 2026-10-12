@@ -896,12 +896,21 @@ Window {
                                     Item {
                                         id: prow
                                         required property var modelData
+                                        required property int index
                                         readonly property bool me: !!card.modelData.player
                                             && card.modelData.player.split("-")[0] === modelData.name
+                                        readonly property int pad: index > 0 ? 7 : 0
                                         width: groupCol.width
-                                        height: who.height
+                                        height: who.height + pad
+                                        Rectangle { // a line between the players of a role
+                                            visible: prow.index > 0
+                                            width: parent.width
+                                            height: 1
+                                            color: "#1E2A40"
+                                        }
                                         Column { // the name, the spec under it
                                             id: who
+                                            y: prow.pad
                                             width: statsCol.cols[0] - 8
                                             Text {
                                                 width: parent.width
@@ -913,6 +922,7 @@ Window {
                                                 elide: Text.ElideRight
                                             }
                                             Text {
+                                                id: specLine
                                                 width: parent.width
                                                 text: prow.modelData.spec
                                                 color: "#8B98AD"
@@ -921,9 +931,9 @@ Window {
                                                 elide: Text.ElideRight
                                             }
                                         }
-                                        Row { // the numbers in their columns, in the middle of the two lines
+                                        Row { // the numbers in their columns, on the line of the spec
                                             anchors.right: parent.right
-                                            anchors.verticalCenter: parent.verticalCenter
+                                            y: who.y + specLine.y + specLine.baselineOffset - dpsText.baselineOffset
                                             Repeater { // the parse and the item level parse
                                                 model: [prow.modelData.parse, prow.modelData.ilvlParse]
                                                 Text {
@@ -940,6 +950,7 @@ Window {
                                                 }
                                             }
                                             Text {
+                                                id: dpsText
                                                 width: statsCol.cols[3]
                                                 horizontalAlignment: Text.AlignRight
                                                 text: win.amount(prow.modelData.dps)
