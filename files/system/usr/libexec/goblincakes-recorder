@@ -7,11 +7,8 @@ goblincakes-recorder.service). The window is /usr/bin/goblin-recorder.
   goblincakes-recorder setup      make OBS's profile/scenes/audio tracks (OBS must run)
   goblincakes-recorder status     what the service sees right now (JSON)
 
-Raid: every boss pull becomes its own video, from the pull until the boss dies (or the
-wipe) and a few seconds more. Mythic+: the whole key, from the moment it is put in (the
-countdown) until the chest is looted – the chest is opened in the log by your own
-"Opening" cast; else when you leave the dungeon, at the latest mplusPostRoll (90 s) after
-the end. OBS starts recording on ENCOUNTER_START / CHALLENGE_MODE_START. WoW
+Raid: every boss pull becomes its own video. Mythic+: the whole key. OBS starts recording
+on ENCOUNTER_START / CHALLENGE_MODE_START and stops a few seconds after the end. WoW
 writes the combat log in chunks 10–60 s late, but flushes it at once on a boss pull/end
 (measured 11 Oct: 0.00 s) – so the start is on time. Deaths come later and are added
 as marks to the video's .json afterwards.
@@ -180,11 +177,8 @@ class Service:
             except (IndexError, ValueError):
                 diff = 0
             kind = "raid" if diff in R.RAID_DIFFICULTIES else "dungeon" if diff in R.DUNGEON_DIFFICULTIES else None
-            left = kind is None or a[1] != (self.zone or {}).get("name")
-            if self.current and not self.stop_at and left:
+            if self.current and not self.stop_at and (kind is None or a[1] != (self.zone or {}).get("name")):
                 self.finish(t, "abandoned")  # left the dungeon/raid mid key or pull
-            elif self.current and self.stop_at and left and self.current["kind"] == "mplus":
-                self.stop_soon(t, 0)  # left the dungeon after the key: the chest was skipped
             self.zone = {"name": a[1], "difficulty": diff, "kind": kind} if kind else None
         elif ev == "ENCOUNTER_START":
             a = R.split_args(rest)
@@ -211,12 +205,6 @@ class Service:
             a = R.split_args(rest)
             if self.current and self.current["kind"] == "mplus":
                 self.finish(t, "timed" if len(a) > 1 and a[1] == "1" else "depleted")
-        elif ev == "SPELL_CAST_SUCCESS" and self.current and self.stop_at and self.current["kind"] == "mplus":
-            # After the key: your own "Opening" = the chest (the loot window follows)
-            a = R.split_args(rest)
-            if len(a) > 9 and a[2] == "0x511" and a[0].startswith("Player-") and "open" in a[9].lower():
-                self.marker(t, "chest", "Kistan")
-                self.stop_soon(t, 6)
         elif ev == "UNIT_DIED":
             a = R.split_args(rest)
             if len(a) > 5 and a[4].startswith("Player-"):
@@ -263,19 +251,8 @@ class Service:
             return
         self.current.update({"end": t, "result": result})
         # The end line comes at once for bosses/keys; for "abandoned" it may be late
-        if result == "abandoned":
-            after = 0
-        elif self.current["kind"] == "mplus":
-            after = self.cfg.get("mplusPostRoll", 90)  # until the chest – shortened by stop_soon
-        else:
-            after = self.cfg["postRoll"]
-        self.stop_at = max(time.time(), t) + after
+        self.stop_at = max(time.time(), t) + (self.cfg["postRoll"] if result != "abandoned" else 0)
         log("end", self.current["name"], result)
-
-    def stop_soon(self, t, after):
-        """Stop earlier than planned: `after` seconds after the log line (the log may be late)."""
-        if self.stop_at:
-            self.stop_at = min(self.stop_at, max(time.time(), t + after))
 
     def stop_now(self):
         cur, self.current, self.stop_at = self.current, None, 0
