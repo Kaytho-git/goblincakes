@@ -1187,6 +1187,31 @@ Window {
                 }
             }
 
+            Text {
+                topPadding: 8
+                text: "Andning och småljud i mikrofonen"
+                color: "#E6ECF5"
+                font.family: "IBM Plex Sans"
+                font.weight: Font.Medium
+                font.pixelSize: 15
+            }
+            Row {
+                spacing: 12
+                opacity: win.cfg.mic !== false ? 1 : 0.35
+                Repeater {
+                    model: [{ "id": "off", "name": "Släpp igenom", "sub": "Allt som mikrofonen hör kommer med (brusreduceringen tar fortfarande bort fläktar och tangentbord)." },
+                            { "id": "normal", "name": "Stäng mellan orden", "sub": "Mikrofonen stängs när du inte pratar – andning och små ljud kommer inte med." },
+                            { "id": "strong", "name": "Stäng mer", "sub": "För en känslig mikrofon: stängs även vid starkare andning. Hörs början av ord försvinna – välj Stäng mellan orden." }]
+                    Choice {
+                        required property var modelData
+                        enabledState: win.cfg.mic !== false
+                        text: modelData.name
+                        sub: modelData.sub
+                        chosen: (win.cfg.micGate || "normal") === modelData.id
+                        onPicked: win.set("micGate", modelData.id)
+                    }
+                }
+            }
             Text { // under the game sound (12 Oct, the user's wish)
                 topPadding: 8
                 text: "Ljudspår"

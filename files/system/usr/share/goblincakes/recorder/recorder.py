@@ -51,6 +51,7 @@ DEFAULTS = {
     "autoStartObs": True,
     "mic": True,  # your microphone on tracks 1 and 3 (with noise suppression)
     "gameBoost": 12,
+    "micGate": "normal",  # off | normal | strong – the gate after the noise suppression, see MIC_GATES
     "quality": "normal",  # high | normal | small – the bitrate, see QUALITY_MBIT  # dB louder game sound – WoW plays quietly next to Discord
     "overlays": [],  # boxes over the video: {"file": image or "" = black, "text", "x", "y", "w", "h" as 0–1 of the picture}
     "postRoll": 5,  # seconds after the end
@@ -605,10 +606,16 @@ def preview_image(obs, width=960):
 
 
 MIC = "Mikrofon"
+# A noise gate after RNNoise (12 Oct, the user's breathing was heard a lot): the microphone
+# closes below speech. Normal = OBS's own defaults; strong for a sensitive microphone.
+MIC_GATES = {"normal": {"open_threshold": -26.0, "close_threshold": -32.0},
+             "strong": {"open_threshold": -20.0, "close_threshold": -26.0}}
+MIC_GATE = "Brusspärr"
 
 
 def set_audio(obs, cfg):
-    """Your microphone (the system's default one, with RNNoise noise suppression) on tracks
+    """Your microphone (the system's default one, with RNNoise noise suppression and a noise
+    gate against breathing) on tracks
     1 and 3, and the game sound boosted – a limiter keeps it from clipping. Works while
     OBS runs."""
     inputs = {i["inputName"] for i in obs.call("GetInputList")["inputs"]}
@@ -620,6 +627,16 @@ def set_audio(obs, cfg):
         obs.call("CreateSourceFilter", {"sourceName": MIC, "filterName": "Brusreducering",
                                         "filterKind": "noise_suppress_filter_v2",
                                         "filterSettings": {"method": "rnnoise"}}, check=False)
+    gate = MIC_GATES.get(cfg.get("micGate", "normal"))
+    settings = dict(gate or MIC_GATES["normal"], attack_time=25, hold_time=200, release_time=150)
+    if MIC_GATE not in filters:
+        obs.call("CreateSourceFilter", {"sourceName": MIC, "filterName": MIC_GATE, "filterKind": "noise_gate_filter",
+                                        "filterSettings": settings}, check=False)
+    else:
+        obs.call("SetSourceFilterSettings", {"sourceName": MIC, "filterName": MIC_GATE,
+                                             "filterSettings": settings}, check=False)
+    obs.call("SetSourceFilterEnabled", {"sourceName": MIC, "filterName": MIC_GATE,
+                                        "filterEnabled": gate is not None}, check=False)
     on = bool(cfg.get("mic", True))
     obs.call("SetInputAudioTracks", {"inputName": MIC, "inputAudioTracks":
              {str(t): on and t in (1, 3) for t in range(1, 7)}})
@@ -895,25 +912,54 @@ REPORT_FIELDS = ("code startTime endTime fights { id encounterID name kill start
 
 def wcl_reports(player, start_ms, end_ms):
     """Public reports around a time that the recording character is in: its recent
-    reports and its guild's (Name-Realm-Region from the combat log)."""
+    reports, your own uploads and its guild's (Name-Realm-Region from the combat log).
+    12 Oct: the character's list only gets a report a while after the upload (tonight's key
+    was missing an hour later), your account's list has it at once."""
     parts = player.split("-")
     if len(parts) < 3:
         return []
     name, region, realm = parts[0], parts[-1], "-".join(parts[1:-1])
+    window = {"from": start_ms - 8 * 3600 * 1000, "to": end_ms + 8 * 3600 * 1000}
     data = wcl_query(
         "query($n:String,$s:String,$r:String){ characterData { character(name:$n, serverSlug:$s,"
-        " serverRegion:$r) { guilds { id } recentReports(limit: 10) { data { " + REPORT_FIELDS + " } } } } }",
+        " serverRegion:$r) { guilds { id } recentReports(limit: 10) { data { owner { id name } "
+        + REPORT_FIELDS + " } } } } }",
         {"n": name, "s": server_slug(realm), "r": region.lower()})
     char = data["characterData"]["character"] or {}
-    reports = [r for r in ((char.get("recentReports") or {}).get("data") or [])
-               if r["startTime"] <= end_ms and r["endTime"] >= start_ms]
+    recent = (char.get("recentReports") or {}).get("data") or []
+    reports = [r for r in recent if r["startTime"] <= end_ms and r["endTime"] >= start_ms]
+    user = wcl_user(player, recent)
+    if user:
+        reports += wcl_query(
+            "query($u:Int,$from:Float,$to:Float){ reportData { reports(userID:$u, startTime:$from,"
+            " endTime:$to, limit: 10) { data { " + REPORT_FIELDS + " } } } }",
+            dict(window, u=user))["reportData"]["reports"]["data"]
     for g in char.get("guilds") or []:
         reports += wcl_query(
             "query($g:Int,$from:Float,$to:Float){ reportData { reports(guildID:$g, startTime:$from,"
             " endTime:$to, limit: 10) { data { " + REPORT_FIELDS + " } } } }",  # more is too costly for the API
-            {"g": g["id"], "from": start_ms - 8 * 3600 * 1000, "to": end_ms + 8 * 3600 * 1000}
+            dict(window, g=g["id"])
         )["reportData"]["reports"]["data"]
     return reports
+
+
+def wcl_user(player, recent):
+    """Your Warcraft Logs account (its id): the uploader of the character's earlier reports
+    whose name is the character's name – Archon uploads under your account. Kept in wcl.json
+    once found."""
+    data = wcl_load()
+    users = data.get("users") or {}
+    if users.get(player):
+        return users[player]
+    name = player.split("-")[0].lower()
+    for r in recent:
+        owner = r.get("owner") or {}
+        if owner.get("id") and str(owner.get("name", "")).lower() == name:
+            users[player] = owner["id"]
+            data["users"] = users
+            wcl_save(data)
+            return owner["id"]
+    return None
 
 
 def wcl_find(meta):
