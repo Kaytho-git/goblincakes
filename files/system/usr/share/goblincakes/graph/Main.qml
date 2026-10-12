@@ -69,6 +69,7 @@ Window {
     Row {
         id: row
         visible: graph.view === "bars"
+        opacity: 0.3   // see-through bars (the user's wish): the desktop shows through
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 6 }
         height: parent.height - 12
         spacing: win.gap
