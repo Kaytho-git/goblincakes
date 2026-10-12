@@ -578,16 +578,84 @@ Window {
     }
 
     // ── Recordings ───────────────────────────────────────────
+    // What gets recorded – right side on both tabs (12 Oct, the user's wish)
+    Rectangle {
+        id: recordPanel
+        anchors { right: parent.right; top: header.bottom; bottom: parent.bottom }
+        width: 268
+        color: "#0B1018"
+        Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom } width: 1; color: "#1E2A40" }
+
+        Column {
+            x: 24
+            y: 24
+            width: parent.width - 48
+            spacing: 12
+
+            SectionTitle { text: "SPELAS IN" }
+
+            PanelSwitch { name: "Raid"; key: "raid"; tip: "Varje bossförsök blir en egen film – kill eller wipe – för de svårighetsgrader du väljer." }
+            Flow {
+                width: parent.width
+                spacing: 6
+                opacity: win.cfg.raid ? 1 : 0.35
+                Repeater {
+                    model: [{ "id": "lfr", "name": "LFR" }, { "id": "normal", "name": "Normal" },
+                            { "id": "heroic", "name": "Heroic" }, { "id": "mythic", "name": "Mythic" }]
+                    Choice {
+                        required property var modelData
+                        readonly property var levels: win.cfg.raidLevels || ["lfr", "normal", "heroic", "mythic"]
+                        width: (recordPanel.width - 48 - 6) / 2
+                        enabledState: !!win.cfg.raid
+                        text: (chosen ? "✓  " : "") + modelData.name
+                        chosen: levels.indexOf(modelData.id) >= 0
+                        onPicked: win.set("raidLevels", chosen ? levels.filter(l => l !== modelData.id) : levels.concat([modelData.id]))
+                    }
+                }
+            }
+
+            Item { width: 1; height: 6 }
+            PanelSwitch { name: "Mythic+"; key: "mplus"; tip: "Hela nyckeln, från att den sätts i tills den är klar." }
+            Row {
+                spacing: 10
+                opacity: win.cfg.mplus ? 1 : 0.35
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Från nivå  +"
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 14
+                }
+                FlatField {
+                    id: mplusMin
+                    width: 64
+                    height: 32
+                    enabled: !!win.cfg.mplus
+                    text: String(win.cfg.mplusMin || 2)
+                    validator: IntValidator { bottom: 2; top: 99 } // +2 is the lowest key
+                    onEdited: {
+                        const n = parseInt(text);
+                        if (n >= 2 && n !== win.cfg.mplusMin)
+                            win.set("mplusMin", n);
+                    }
+                    HoverTip { tip: "Skriver du 10 spelas bara +10 och högre in. 2 = alla nycklar." }
+                }
+            }
+
+            Item { width: 1; height: 6 }
+            PanelSwitch { name: "Arena"; key: "arena"; tip: "Hela matchen – 2v2, 3v3, Solo Shuffle och Skirmish. Vinst eller förlust står på filmen." }
+        }
+    }
+
 
     Item {
         id: videosPage
         visible: win.tab === "videos"
-        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
+        anchors { left: parent.left; right: recordPanel.left; top: header.bottom; bottom: parent.bottom }
 
         Column {
             visible: win.videos.length === 0
             anchors.centerIn: parent
-            anchors.horizontalCenterOffset: -recordPanel.width / 2
             width: Math.min(560, parent.width - 80)
             spacing: 12
             Text {
@@ -604,75 +672,6 @@ Window {
                 horizontalAlignment: Text.AlignHCenter
                 text: "Ha OBS igång och stridsloggen på (/combatlog i WoW). Varje raidboss blir en egen film, "
                       + "en Mythic+-nyckel och en arenamatch en film från start till slut. De hamnar här."
-            }
-        }
-
-        // What gets recorded – on the first page, right side (12 Oct, the user's wish)
-        Rectangle {
-            id: recordPanel
-            anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
-            width: 268
-            color: "#0B1018"
-            Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom } width: 1; color: "#1E2A40" }
-
-            Column {
-                x: 24
-                y: 24
-                width: parent.width - 48
-                spacing: 12
-
-                SectionTitle { text: "SPELAS IN" }
-
-                PanelSwitch { name: "Raid"; key: "raid"; tip: "Varje bossförsök blir en egen film – kill eller wipe – för de svårighetsgrader du väljer." }
-                Flow {
-                    width: parent.width
-                    spacing: 6
-                    opacity: win.cfg.raid ? 1 : 0.35
-                    Repeater {
-                        model: [{ "id": "lfr", "name": "LFR" }, { "id": "normal", "name": "Normal" },
-                                { "id": "heroic", "name": "Heroic" }, { "id": "mythic", "name": "Mythic" }]
-                        Choice {
-                            required property var modelData
-                            readonly property var levels: win.cfg.raidLevels || ["lfr", "normal", "heroic", "mythic"]
-                            width: (recordPanel.width - 48 - 6) / 2
-                            enabledState: !!win.cfg.raid
-                            text: (chosen ? "✓  " : "") + modelData.name
-                            chosen: levels.indexOf(modelData.id) >= 0
-                            onPicked: win.set("raidLevels", chosen ? levels.filter(l => l !== modelData.id) : levels.concat([modelData.id]))
-                        }
-                    }
-                }
-
-                Item { width: 1; height: 6 }
-                PanelSwitch { name: "Mythic+"; key: "mplus"; tip: "Hela nyckeln, från att den sätts i tills den är klar." }
-                Row {
-                    spacing: 10
-                    opacity: win.cfg.mplus ? 1 : 0.35
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "Från nivå  +"
-                        color: "#E6ECF5"
-                        font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
-                    }
-                    FlatField {
-                        id: mplusMin
-                        width: 64
-                        height: 32
-                        enabled: !!win.cfg.mplus
-                        text: String(win.cfg.mplusMin || 2)
-                        validator: IntValidator { bottom: 2; top: 99 } // +2 is the lowest key
-                        onEdited: {
-                            const n = parseInt(text);
-                            if (n >= 2 && n !== win.cfg.mplusMin)
-                                win.set("mplusMin", n);
-                        }
-                        HoverTip { tip: "Skriver du 10 spelas bara +10 och högre in. 2 = alla nycklar." }
-                    }
-                }
-
-                Item { width: 1; height: 6 }
-                PanelSwitch { name: "Arena"; key: "arena"; tip: "Hela matchen – 2v2, 3v3, Solo Shuffle och Skirmish. Vinst eller förlust står på filmen." }
             }
         }
 
@@ -776,7 +775,7 @@ Window {
         Item {
             id: playerPane
             visible: win.videos.length > 0 && !!win.selected
-            anchors { left: list.right; leftMargin: 20; right: recordPanel.left; rightMargin: 24; top: parent.top; topMargin: 20; bottom: parent.bottom; bottomMargin: 20 }
+            anchors { left: list.right; leftMargin: 20; right: parent.right; rightMargin: 24; top: parent.top; topMargin: 20; bottom: parent.bottom; bottomMargin: 20 }
 
             readonly property var v: win.selected
             readonly property real dur: player.duration > 0 ? player.duration / 1000 : (v ? v.duration : 0)
@@ -1031,7 +1030,7 @@ Window {
         id: settingsView
         FastWheel { flick: settingsView }
         visible: win.tab === "settings"
-        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
+        anchors { left: parent.left; right: recordPanel.left; top: header.bottom; bottom: parent.bottom }
         contentHeight: settingsCol.height + 64
         clip: true
         boundsBehavior: Flickable.StopAtBounds
