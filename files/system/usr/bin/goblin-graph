@@ -1,0 +1,356 @@
+#!/usr/bin/python3
+"""goblin graph – bars that move with the sound the computer plays, in World of Warcraft's
+class colours (12 Oct, the user's wish). A window without a frame or background, among the
+other windows: only the bars show on the desktop.
+
+  goblin graph            start (or bring the open one forward)
+  goblin graph alla       every bar in a class colour, Death Knight → Warrior
+  goblin graph klass      your character's class (read from WoW's combat log)
+  goblin graph mage …     a class of your choice (also: death-knight, demon-hunter, …)
+
+In the window: drag to move, the bottom-right corner to resize, right-click switches
+between all classes and one class, the scroll wheel picks another class, Esc closes.
+Position, size and choice are kept in ~/.config/goblincakes/graph.json.
+
+Sound: the default output's monitor through pw-record (follows a switch of headset or
+speakers), else Qt's monitor input. Nothing but the standard library and PySide6.
+"""
+import array
+import cmath
+import json
+import math
+import os
+import re
+import subprocess
+import sys
+import threading
+from pathlib import Path
+
+from PySide6.QtCore import (Property, QObject, QTimer, QUrl, Signal, Slot)
+from PySide6.QtGui import QGuiApplication, QIcon, QSurfaceFormat
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtQml import QQmlApplicationEngine
+
+SHARE = Path(os.environ.get("GOBLINCAKES_GRAPH_SHARE", "/usr/share/goblincakes/graph"))
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes/graph.json"
+CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "goblincakes/graph-class"
+WOW_LOGS = Path.home() / "Games/WoW"  # <Version>/Logs (goblincakes-wow-links)
+SOCKET = f"goblin-graph-{os.getuid()}"
+
+# World of Warcraft Retail's class colours, in the game's own (alphabetical) order
+CLASSES = [
+    ("deathknight", "Death Knight", "#C41E3A"), ("demonhunter", "Demon Hunter", "#A330C9"),
+    ("druid", "Druid", "#FF7C0A"), ("evoker", "Evoker", "#33937F"), ("hunter", "Hunter", "#AAD372"),
+    ("mage", "Mage", "#3FC7EB"), ("monk", "Monk", "#00FF98"), ("paladin", "Paladin", "#F48CBA"),
+    ("priest", "Priest", "#FFFFFF"), ("rogue", "Rogue", "#FFF468"), ("shaman", "Shaman", "#0070DD"),
+    ("warlock", "Warlock", "#8788EE"), ("warrior", "Warrior", "#C69B6D"),
+]
+KEYS = [c[0] for c in CLASSES]
+# Specialisation id (COMBATANT_INFO in the combat log) → class
+SPECS = {
+    **dict.fromkeys((250, 251, 252), "deathknight"), **dict.fromkeys((577, 581, 1480), "demonhunter"),
+    **dict.fromkeys((102, 103, 104, 105), "druid"), **dict.fromkeys((1467, 1468, 1473), "evoker"),
+    **dict.fromkeys((253, 254, 255), "hunter"), **dict.fromkeys((62, 63, 64), "mage"),
+    **dict.fromkeys((268, 269, 270), "monk"), **dict.fromkeys((65, 66, 70), "paladin"),
+    **dict.fromkeys((256, 257, 258), "priest"), **dict.fromkeys((259, 260, 261), "rogue"),
+    **dict.fromkeys((262, 263, 264), "shaman"), **dict.fromkeys((265, 266, 267), "warlock"),
+    **dict.fromkeys((71, 72, 73), "warrior"),
+}
+
+RATE = 48000
+SIZE = 1024          # samples per spectrum (21 ms) – 2 ms per transform in plain Python
+LOW, HIGH = 40, 16000
+
+
+def class_key(word):
+    """'mage', 'Death Knight', 'dk', 'dh' … → the class key, or None."""
+    w = re.sub(r"[^a-z]", "", word.lower())
+    return {"dk": "deathknight", "dh": "demonhunter", "lock": "warlock", "pala": "paladin"}.get(w) or (
+        w if w in KEYS else next((k for k in KEYS if k.startswith(w) and len(w) >= 3), None))
+
+
+def detect_class():
+    """The class of the character that played last: their own GUID (source flags 0x511) and
+    their COMBATANT_INFO line (written at a boss pull / key start) in the newest combat log."""
+    logs = sorted(WOW_LOGS.glob("*/Logs/WoWCombatLog*.txt"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for log in logs[:3]:
+        try:
+            with open(log, "rb") as fh:
+                fh.seek(max(0, fh.seek(0, 2) - 32 * 1024 * 1024))
+                text = fh.read().decode("utf-8", "replace")
+        except OSError:
+            continue
+        me = re.findall(r",(Player-[0-9A-F-]+),\"[^\"]*\",0x511,", text)
+        if not me:
+            continue
+        guid = me[-1]
+        for line in reversed(text.splitlines()):
+            i = line.find("COMBATANT_INFO," + guid + ",")
+            if i < 0:
+                continue
+            args = line[i:].split(",", 30)[1:]
+            for cand in [args[23] if len(args) > 23 else ""] + args[20:28]:
+                if cand.isdigit() and int(cand) in SPECS:
+                    return SPECS[int(cand)]
+    return None
+
+
+class Spectrum:
+    """Plain-Python FFT (radix 2) with a Hann window, levels per bar on a log frequency scale."""
+
+    def __init__(self):
+        bits = SIZE.bit_length() - 1
+        self.rev = [int(format(i, f"0{bits}b")[::-1], 2) for i in range(SIZE)]
+        self.win = [0.5 - 0.5 * math.cos(2 * math.pi * i / (SIZE - 1)) for i in range(SIZE)]
+        self.tw = {}
+        size = 2
+        while size <= SIZE:
+            self.tw[size] = [cmath.exp(-2j * math.pi * k / size) for k in range(size // 2)]
+            size *= 2
+        self.bars = 0
+        self.edges = []
+
+    def layout(self, bars):
+        if bars == self.bars:
+            return
+        self.bars = bars
+        hz = SIZE / RATE
+        edges = [max(1, int(LOW * (HIGH / LOW) ** (i / bars) * hz)) for i in range(bars + 1)]
+        # Every bar its own frequencies: at the low end several bars would share one bin
+        for i in range(1, len(edges)):
+            edges[i] = max(edges[i], edges[i - 1] + 1)
+        self.edges = [min(e, SIZE // 2 - 1) for e in edges]
+
+    def levels(self, samples, bars):
+        self.layout(bars)
+        rev, win = self.rev, self.win
+        a = [samples[rev[i]] * win[rev[i]] for i in range(SIZE)]
+        size = 2
+        while size <= SIZE:
+            h, t = size // 2, self.tw[size]
+            for s in range(0, SIZE, size):
+                for k in range(h):
+                    u, v = a[s + k], a[s + k + h] * t[k]
+                    a[s + k], a[s + k + h] = u + v, u - v
+            size *= 2
+        out = []
+        for i in range(bars):
+            lo, hi = self.edges[i], max(self.edges[i] + 1, self.edges[i + 1])
+            peak = max(abs(a[k]) for k in range(lo, min(hi, SIZE // 2)))
+            out.append(peak / (SIZE / 4))
+        return out
+
+
+class Listener(threading.Thread):
+    """Reads what the speakers/headset play into a ring buffer (mono floats)."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.lock = threading.Lock()
+        self.ring = [0.0] * SIZE
+        self.proc = None
+        self.alive = True
+
+    def run(self):
+        cmd = ["pw-record", "-P", "{ stream.capture.sink = true node.name = goblin-graph "
+               "media.name = \"goblin graph\" }", "--rate", str(RATE), "--channels", "1",
+               "--format", "s16", "-"]
+        try:
+            self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        except OSError:
+            return
+        out = self.proc.stdout
+        head = out.read(4)
+        if head == b"RIFF":          # a WAV header first: skip it
+            out.read(40)
+            head = b""
+        pending = head
+        while self.alive:
+            chunk = out.read(1024)
+            if not chunk:
+                break
+            data = pending + chunk
+            n = len(data) // 2 * 2
+            pending = data[n:]
+            vals = array.array("h", data[:n])
+            with self.lock:
+                self.ring = (self.ring + [v / 32768 for v in vals])[-SIZE:]
+
+    def samples(self):
+        with self.lock:
+            return list(self.ring)
+
+    def stop(self):
+        self.alive = False
+        if self.proc:
+            self.proc.terminate()
+
+
+class Graph(QObject):
+    levelsChanged = Signal()
+    styleChanged = Signal()
+    raiseWindow = Signal()
+
+    def __init__(self, settings):
+        super().__init__()
+        self.cfg = settings
+        self._levels = []
+        self._bars = 48
+        self.spec = Spectrum()
+        self.gain = 1e-3
+        self.listener = Listener()
+        self.listener.start()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.tick)
+        self.timer.start(33)
+
+    # ---- what the window shows
+    @Property(list, notify=levelsChanged)
+    def levels(self):
+        return self._levels
+
+    @Property(str, notify=styleChanged)
+    def mode(self):
+        return self.cfg.get("mode", "all")
+
+    @Property(str, notify=styleChanged)
+    def className(self):
+        key = self.cfg.get("class") or "mage"
+        return next(c[1] for c in CLASSES if c[0] == key)
+
+    @Property(str, notify=styleChanged)
+    def classColor(self):
+        key = self.cfg.get("class") or "mage"
+        return next(c[2] for c in CLASSES if c[0] == key)
+
+    @Property(list, constant=True)
+    def classColors(self):
+        return [c[2] for c in CLASSES]
+
+    @Slot(int)
+    def setBars(self, n):
+        self._bars = max(12, min(160, n))
+
+    @Slot()
+    def toggleMode(self):
+        self.cfg["mode"] = "class" if self.mode == "all" else "all"
+        self.save()
+        self.styleChanged.emit()
+
+    @Slot(int)
+    def stepClass(self, step):
+        i = KEYS.index(self.cfg.get("class") or "mage")
+        self.cfg["class"] = KEYS[(i + step) % len(KEYS)]
+        self.cfg["mode"] = "class"
+        self.cfg["chosen"] = True
+        self.save()
+        self.styleChanged.emit()
+
+    @Slot(int, int, int, int)
+    def saveGeometry(self, x, y, w, h):
+        self.cfg.update({"x": x, "y": y, "w": w, "h": h})
+        self.save()
+
+    def save(self):
+        CONFIG.parent.mkdir(parents=True, exist_ok=True)
+        CONFIG.write_text(json.dumps(self.cfg))
+
+    def apply_args(self, args):
+        """goblin graph alla / klass / <class> – also sent to an open window."""
+        for a in args:
+            if a in ("alla", "all"):
+                self.cfg["mode"] = "all"
+            elif a in ("klass", "class", "min", "mine"):
+                self.cfg["mode"] = "class"
+                self.cfg.pop("chosen", None)
+                self.cfg["class"] = detect_class() or self.cfg.get("class") or "mage"
+            elif class_key(a):
+                self.cfg.update(mode="class", **{"class": class_key(a)}, chosen=True)
+        self.save()
+        self.styleChanged.emit()
+
+    # ---- sound → bars
+    def tick(self):
+        raw = self.spec.levels(self.listener.samples(), self._bars)
+        top = max(raw) if raw else 0
+        # automatic gain: follows loud sound at once, quiet sound slowly
+        self.gain = max(top, self.gain * 0.995, 1e-3)
+        new = []
+        for i, v in enumerate(raw):
+            db = 20 * math.log10(max(v / self.gain, 1e-6))
+            level = max(0.0, min(1.0, 1 + db / 50))   # the top 50 dB fill the window
+            old = self._levels[i] if i < len(self._levels) else 0.0
+            new.append(level if level > old else old * 0.82 + level * 0.18)
+        self._levels = new
+        self.levelsChanged.emit()
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] in ("-h", "--help", "help"):
+        print(__doc__)
+        return 0
+    QSurfaceFormat.setDefaultFormat(_alpha_format())
+    app = QGuiApplication(sys.argv[:1])
+    app.setApplicationName("goblin-graph")
+    app.setApplicationDisplayName("goblin graph")
+    app.setDesktopFileName("goblin-graph")
+    app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+
+    # One window: a second start hands its words to the open one and brings it forward
+    probe = QLocalSocket()
+    probe.connectToServer(SOCKET)
+    if probe.waitForConnected(300):
+        probe.write(json.dumps(args).encode())
+        probe.waitForBytesWritten(1000)
+        probe.disconnectFromServer()
+        return 0
+    QLocalServer.removeServer(SOCKET)
+    server = QLocalServer()
+    server.listen(SOCKET)
+
+    try:
+        settings = json.loads(CONFIG.read_text())
+    except (OSError, ValueError):
+        settings = {}
+    graph = Graph(settings)
+    if not settings.get("chosen"):
+        found = detect_class()
+        if found:
+            settings["class"] = found
+    graph.apply_args(args)
+
+    def incoming():
+        sock = server.nextPendingConnection()
+        if sock is None:
+            return
+
+        def read():
+            try:
+                graph.apply_args(json.loads(bytes(sock.readAll()).decode()))
+            except ValueError:
+                pass
+            graph.raiseWindow.emit()
+        sock.readyRead.connect(read)
+        sock.disconnected.connect(sock.deleteLater)
+    server.newConnection.connect(incoming)
+
+    engine = QQmlApplicationEngine()
+    engine.rootContext().setContextProperty("graph", graph)
+    engine.rootContext().setContextProperty("saved", settings)
+    engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
+    if not engine.rootObjects():
+        return 1
+    code = app.exec()
+    graph.listener.stop()
+    return code
+
+
+def _alpha_format():
+    fmt = QSurfaceFormat.defaultFormat()
+    fmt.setAlphaBufferSize(8)
+    return fmt
+
+
+if __name__ == "__main__":
+    sys.exit(main())

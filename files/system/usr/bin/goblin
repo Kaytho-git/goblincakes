@@ -252,6 +252,7 @@ COMMANDS=(
     "frames|Hur jämnt spelet flyter – fps, 1 % low och ryck (goblin frames off stänger av mätningen)"
     "screen|Vilken skärm ett program öppnas på – t.ex. goblin screen add discord screen 2"
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
+    "graph|Ljudstaplar i WoW:s klassfärger – goblin graph alla, goblin graph klass eller goblin graph mage"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
     "fast|Systeminfo med GOBLINCAKES-loggan"
@@ -547,6 +548,11 @@ cmd_motd() {
 
 case ${1:-help} in
     update|upgrade) shift; cmd_update "$@" ;;
+    graph) shift
+        # Bars that move with the sound, in WoW's class colours (a window without frame or
+        # background); a second start passes its words to the open window
+        (setsid goblin-graph "$@" >/dev/null 2>&1 &)
+        ;;
     ai) shift
         # Without a question, on the desktop: the Goblin AI window (also Meta+A)
         if [ $# -eq 0 ] && { [ -n "${WAYLAND_DISPLAY:-}" ] || [ -n "${DISPLAY:-}" ]; }; then

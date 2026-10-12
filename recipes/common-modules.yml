@@ -29,6 +29,7 @@ modules:
         - kvantum               # engine for the GOBLINCAKES widget theme
         - libratbag-ratbagd     # backend for Piper (G502 Hero)
         - ddcutil               # monitor brightness over DDC/CI
+        - pipewire-utils        # pw-record: goblin graph listens to what the speakers play
         - gh                    # GitHub CLI: log in and push to GitHub (Claude Code, own projects)
         - skopeo                # reads the newest GOBLINCAKES image's Fedora version (goblincakes-fedora-check)
         - gamemode              # performance mode while gaming
