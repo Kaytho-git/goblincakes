@@ -10,7 +10,7 @@ Window {
 
     width: 1320
     height: 860
-    minimumWidth: 1120 // list + player + the "Spelas in" panel
+    minimumWidth: 980
     minimumHeight: 640
     visible: true
     title: "GoblinRecorder" // the desktop adds nothing when the title is the program name
@@ -578,9 +578,10 @@ Window {
     }
 
     // ── Recordings ───────────────────────────────────────────
-    // What gets recorded – right side on both tabs (12 Oct, the user's wish)
+    // What gets recorded – right side of the settings tab (12 Oct, the user's wish)
     Rectangle {
         id: recordPanel
+        visible: win.tab === "settings"
         anchors { right: parent.right; top: header.bottom; bottom: parent.bottom }
         width: 268
         color: "#0B1018"
@@ -651,7 +652,7 @@ Window {
     Item {
         id: videosPage
         visible: win.tab === "videos"
-        anchors { left: parent.left; right: recordPanel.left; top: header.bottom; bottom: parent.bottom }
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
 
         Column {
             visible: win.videos.length === 0
@@ -775,7 +776,7 @@ Window {
         Item {
             id: playerPane
             visible: win.videos.length > 0 && !!win.selected
-            anchors { left: list.right; leftMargin: 20; right: parent.right; rightMargin: 24; top: parent.top; topMargin: 20; bottom: parent.bottom; bottomMargin: 20 }
+            anchors { left: list.right; leftMargin: 20; right: parent.right; rightMargin: 32; top: parent.top; topMargin: 20; bottom: parent.bottom; bottomMargin: 20 }
 
             readonly property var v: win.selected
             readonly property real dur: player.duration > 0 ? player.duration / 1000 : (v ? v.duration : 0)
