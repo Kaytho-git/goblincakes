@@ -72,6 +72,25 @@ def music_playing():
     return False
 
 
+SESSION_VARS = ("WAYLAND_DISPLAY", "DISPLAY", "XAUTHORITY", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP",
+                "XDG_SESSION_DESKTOP", "QT_QPA_PLATFORMTHEME", "QT_WAYLAND_RECONNECT")
+def session_env():
+    """The desktop session's environment now (12 Oct: the watcher started before Plasma had told
+    systemd about the screen, so the window it opened found no display and Qt aborted).
+    None = no screen yet."""
+    env = dict(os.environ)
+    try:
+        out = subprocess.run(["systemctl", "--user", "show-environment"], capture_output=True,
+                             text=True, timeout=5).stdout
+        for line in out.splitlines():
+            key, _, value = line.partition("=")
+            if key in SESSION_VARS:
+                env[key] = value
+    except Exception:
+        pass
+    return env if env.get("WAYLAND_DISPLAY") or env.get("DISPLAY") else None
+
+
 def watch():
     """Every 2 s: music playing and no window of ours → start one; music gone 15 s → close the
     one we started. Closed by hand while the music plays = stays closed until the music stops
@@ -88,8 +107,9 @@ def watch():
             dismissed = playing          # closed while the music played
         if playing:
             quiet = 0.0
-            if child is None and not dismissed:
-                child = subprocess.Popen([sys.executable, os.path.abspath(__file__)],
+            env = session_env() if child is None and not dismissed else None
+            if env:
+                child = subprocess.Popen([sys.executable, os.path.abspath(__file__)], env=env,
                                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                          stderr=subprocess.DEVNULL, start_new_session=True)
         else:

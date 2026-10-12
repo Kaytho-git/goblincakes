@@ -3,6 +3,8 @@ Description=goblin graph: opens when a music player plays, closes when the music
 # Only for those who turned it on (goblin graph auto on)
 ConditionPathExists=%h/.config/goblincakes/graph-auto
 After=graphical-session.target
+# Started with the desktop, not at login: before Plasma the session has no screen yet
+PartOf=graphical-session.target
 
 [Service]
 ExecStart=/usr/bin/goblin-graph --watch
@@ -10,4 +12,4 @@ Restart=on-failure
 RestartSec=10
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target

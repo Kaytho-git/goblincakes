@@ -148,6 +148,24 @@ def enable_websocket():
     return True
 
 
+SESSION_VARS = ("WAYLAND_DISPLAY", "DISPLAY", "XAUTHORITY", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP",
+                "XDG_SESSION_DESKTOP", "QT_QPA_PLATFORMTHEME", "QT_WAYLAND_RECONNECT")
+def session_env():
+    """The desktop session's environment now – the service may have started before Plasma told
+    systemd about the screen (12 Oct, the same thing crashed goblin graph's window)."""
+    env = dict(os.environ)
+    try:
+        out = subprocess.run(["systemctl", "--user", "show-environment"], capture_output=True,
+                             text=True, timeout=5).stdout
+        for line in out.splitlines():
+            key, _, value = line.partition("=")
+            if key in SESSION_VARS:
+                env[key] = value
+    except Exception:
+        pass
+    return env
+
+
 def start_obs():
     """Start OBS hidden in the system tray, with our profile and scenes. Returns an
     error text, or "" when it was started (or already running)."""
@@ -166,7 +184,7 @@ def start_obs():
         args += ["--profile", OBS_NAME]
     if OBS_NAME in names["collections"]:
         args += ["--collection", OBS_NAME]
-    subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+    subprocess.Popen(args, env=session_env(), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
     return ""
 

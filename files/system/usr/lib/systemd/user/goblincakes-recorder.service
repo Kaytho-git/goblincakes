@@ -3,6 +3,8 @@ Description=GoblinRecorder: records raid bosses and Mythic+ keys in WoW with OBS
 # Only for those who chose GoblinRecorder in GOBLINCAKES Config (or started it in its window)
 ConditionPathExists=%h/.config/goblincakes/recorder-on
 After=graphical-session.target
+# Started with the desktop, not at login: before Plasma the session has no screen yet
+PartOf=graphical-session.target
 
 [Service]
 ExecStart=/usr/libexec/goblincakes-recorder run
@@ -10,4 +12,4 @@ Restart=on-failure
 RestartSec=10
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target
