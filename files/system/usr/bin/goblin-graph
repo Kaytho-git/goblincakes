@@ -72,6 +72,39 @@ def music_playing():
     return False
 
 
+def now_playing():
+    """"Artist – Title" from the music players' MPRIS (12 Oct, the user's wish: the hover shows
+    what is playing) – a playing player before a paused one, "" when nothing plays. busctl's
+    JSON, so it runs in the watcher's thread and never in the window's."""
+    def busctl(*args):
+        out = subprocess.run(["busctl", "--user", "--json=short", *args], capture_output=True,
+                             text=True, timeout=3).stdout
+        return json.loads(out) if out.strip() else None
+    try:
+        names = [n["name"] for n in busctl("list") or [] if n.get("name", "").startswith("org.mpris.MediaPlayer2.")]
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return ""
+    best = ("", 0)
+    for name in names:
+        if not any(app.replace(" ", "") in name.lower() for app in MUSIC_APPS):
+            continue  # not a music player (a browser, a video player)
+        try:
+            status = busctl("get-property", name, "/org/mpris/MediaPlayer2",
+                            "org.mpris.MediaPlayer2.Player", "PlaybackStatus")["data"]
+            meta = busctl("get-property", name, "/org/mpris/MediaPlayer2",
+                          "org.mpris.MediaPlayer2.Player", "Metadata")["data"]
+        except (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError):
+            continue
+        rank = {"Playing": 2, "Paused": 1}.get(status, 0)
+        title = (meta.get("xesam:title") or {}).get("data") or ""
+        artists = (meta.get("xesam:artist") or {}).get("data") or []
+        artist = ", ".join(artists) if isinstance(artists, list) else str(artists)
+        text = " – ".join(t for t in (artist, title) if t)
+        if text and rank > best[1]:
+            best = (text + (" (pausad)" if rank == 1 else ""), rank)
+    return best[0]
+
+
 SESSION_VARS = ("WAYLAND_DISPLAY", "DISPLAY", "XAUTHORITY", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP",
                 "XDG_SESSION_DESKTOP", "QT_QPA_PLATFORMTHEME", "QT_WAYLAND_RECONNECT")
 def session_env():
@@ -399,6 +432,7 @@ class PlaceBus(QObject):
 class Graph(QObject):
     levelsChanged = Signal()
     styleChanged = Signal()
+    nowPlayingChanged = Signal()
     raiseWindow = Signal()
 
     def __init__(self, settings):
@@ -424,6 +458,23 @@ class Graph(QObject):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.tick)
         self.timer.start(33)
+        # What is playing, for the hover and the tray icon: asked every 3 s in a thread
+        self._now = ""
+        self._now_new = None
+        self.now_timer = QTimer(self)
+        self.now_timer.timeout.connect(self.ask_now_playing)
+        self.now_timer.start(3000)
+        self.ask_now_playing()
+
+    def ask_now_playing(self):
+        if self._now_new is not None and self._now_new != self._now:  # the thread's last answer
+            self._now = self._now_new
+            self.nowPlayingChanged.emit()
+        threading.Thread(target=lambda: setattr(self, "_now_new", now_playing()), daemon=True).start()
+
+    @Property(str, notify=nowPlayingChanged)
+    def nowPlaying(self):
+        return self._now
 
     # ---- what the window shows
     @Property(list, notify=levelsChanged)
@@ -784,8 +835,10 @@ def make_tray(app, graph):
         colours.setChecked(graph.mode == "all")
         lock.setChecked(graph.locked)
         tray.setToolTip(f"goblin graph – {VIEW_NAMES.get(graph.view, graph.view)}, "
-                        + ("alla klassfärger" if graph.mode == "all" else graph.className))
+                        + ("alla klassfärger" if graph.mode == "all" else graph.className)
+                        + (f"\n♪ {graph.nowPlaying}" if graph.nowPlaying else ""))
     graph.styleChanged.connect(sync)
+    graph.nowPlayingChanged.connect(sync)
     sync()
     tray.setContextMenu(menu)
     tray.activated.connect(lambda reason: graph.raiseWindow.emit()

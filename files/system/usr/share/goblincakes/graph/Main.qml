@@ -271,6 +271,22 @@ Window {
         font.pixelSize: 14
         font.letterSpacing: 1.5
     }
+    // What is playing, in the middle (12 Oct, the user's wish) – also when locked, then it is
+    // the only thing that shows. A dark outline keeps it readable over the bars.
+    Text {
+        anchors.centerIn: parent
+        width: Math.min(implicitWidth, parent.width - 40)
+        visible: hover.hovered && graph.nowPlaying !== ""
+        text: "♪  " + graph.nowPlaying
+        color: "#E6ECF5"
+        style: Text.Outline
+        styleColor: "#07090D"
+        horizontalAlignment: Text.AlignHCenter
+        elide: Text.ElideRight
+        font.family: "IBM Plex Sans"
+        font.weight: Font.Medium
+        font.pixelSize: 15
+    }
 
     // Close, top right (hover only; locked = can't be closed by accident)
     Rectangle {
