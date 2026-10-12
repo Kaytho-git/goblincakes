@@ -78,6 +78,16 @@ Window {
              : n >= 1000 ? (n / 1000).toFixed(1).replace(".", ",") + "k" : String(n);
     }
 
+    function roleGroups(players) {
+        const out = [];
+        for (const p of players) {
+            if (!out.length || out[out.length - 1].role !== p.role)
+                out.push({ role: p.role, players: [] });
+            out[out.length - 1].players.push(p);
+        }
+        return out;
+    }
+
     function toggleStats(v) {
         if (expanded === v.path) {
             expanded = "";
@@ -855,77 +865,107 @@ Window {
                             }
                         }
                     }
+                    // One box per role (tanks, healers, dps) with a heading that says what the parse compares
                     Repeater {
-                        model: card.stats && card.stats.players ? card.stats.players : []
-                        Column {
-                            id: prow
+                        model: card.stats && card.stats.players ? win.roleGroups(card.stats.players) : []
+                        Rectangle {
+                            id: group
                             required property var modelData
-                            required property int index
-                            readonly property bool me: !!card.modelData.player
-                                && card.modelData.player.split("-")[0] === modelData.name
-                            // A heading over each role that says what the parse compares
-                            Text {
-                                visible: prow.index === 0 || card.stats.players[prow.index - 1].role !== prow.modelData.role
-                                topPadding: prow.index === 0 ? 2 : 6
-                                bottomPadding: 2
-                                text: ({ tanks: "TANKS · parse på DPS", healers: "HEALERS · parse på HPS (healing)",
-                                         dps: "DPS · parse på DPS" })[prow.modelData.role] || ""
-                                color: "#8B98AD"
-                                font.family: "Chakra Petch"
-                                font.weight: Font.DemiBold
-                                font.pixelSize: 11
-                                font.letterSpacing: 1
-                            }
-                            Row {
-                            Text {
-                                width: statsCol.cols[0]
-                                text: prow.modelData.name + "  <font color=\"#8B98AD\">" + prow.modelData.spec + "</font>"
-                                textFormat: Text.StyledText
-                                color: win.classColors[prow.modelData["class"]] || "#E6ECF5"
-                                font.family: "IBM Plex Sans"
-                                font.weight: prow.me ? Font.Bold : Font.Medium
-                                font.pixelSize: 13
-                                elide: Text.ElideRight
-                            }
-                            Repeater { // the parse and the item level parse (against the same item level)
-                                model: [prow.modelData.parse, prow.modelData.ilvlParse]
+                            width: statsCol.width
+                            height: groupCol.height + 12
+                            color: "#0B1018"
+                            border.width: 1
+                            border.color: "#1E2A40"
+                            Column {
+                                id: groupCol
+                                x: 8
+                                y: 6
+                                width: parent.width - 16
+                                spacing: 6
                                 Text {
-                                    required property var modelData
-                                    required property int index
-                                    readonly property bool none: modelData === null || modelData === undefined
-                                    width: statsCol.cols[1 + index]
-                                    horizontalAlignment: Text.AlignRight
-                                    text: none ? "–" : modelData
-                                    color: none ? "#8B98AD" : win.parseColor(modelData)
-                                    font.family: "IBM Plex Mono"
+                                    text: ({ tanks: "TANKS · parse på DPS", healers: "HEALERS · parse på HPS (healing)",
+                                             dps: "DPS · parse på DPS" })[group.modelData.role] || ""
+                                    color: "#8B98AD"
+                                    font.family: "Chakra Petch"
                                     font.weight: Font.DemiBold
-                                    font.pixelSize: 13
+                                    font.pixelSize: 11
+                                    font.letterSpacing: 1
                                 }
-                            }
-                            Text {
-                                width: statsCol.cols[3]
-                                horizontalAlignment: Text.AlignRight
-                                text: win.amount(prow.modelData.dps)
-                                color: prow.modelData.role === "healers" ? "#8B98AD" : "#E6ECF5"
-                                font.family: "IBM Plex Mono"
-                                font.pixelSize: 13
-                            }
-                            Text {
-                                width: statsCol.cols[4]
-                                horizontalAlignment: Text.AlignRight
-                                text: win.amount(prow.modelData.hps)
-                                color: prow.modelData.role === "healers" ? "#E6ECF5" : "#8B98AD"
-                                font.family: "IBM Plex Mono"
-                                font.pixelSize: 13
-                            }
-                            Text {
-                                width: statsCol.cols[5]
-                                horizontalAlignment: Text.AlignRight
-                                text: prow.modelData.deaths || ""
-                                color: "#E5534B"
-                                font.family: "IBM Plex Mono"
-                                font.pixelSize: 13
-                            }
+                                Repeater {
+                                    model: group.modelData.players
+                                    Item {
+                                        id: prow
+                                        required property var modelData
+                                        readonly property bool me: !!card.modelData.player
+                                            && card.modelData.player.split("-")[0] === modelData.name
+                                        width: groupCol.width
+                                        height: who.height
+                                        Column { // the name, the spec under it
+                                            id: who
+                                            width: statsCol.cols[0] - 8
+                                            Text {
+                                                width: parent.width
+                                                text: prow.modelData.name
+                                                color: win.classColors[prow.modelData["class"]] || "#E6ECF5"
+                                                font.family: "IBM Plex Sans"
+                                                font.weight: prow.me ? Font.Bold : Font.DemiBold
+                                                font.pixelSize: 13
+                                                elide: Text.ElideRight
+                                            }
+                                            Text {
+                                                width: parent.width
+                                                text: prow.modelData.spec
+                                                color: "#8B98AD"
+                                                font.family: "IBM Plex Sans"
+                                                font.pixelSize: 11
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+                                        Row { // the numbers in their columns, in the middle of the two lines
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            Repeater { // the parse and the item level parse
+                                                model: [prow.modelData.parse, prow.modelData.ilvlParse]
+                                                Text {
+                                                    required property var modelData
+                                                    required property int index
+                                                    readonly property bool none: modelData === null || modelData === undefined
+                                                    width: statsCol.cols[1 + index]
+                                                    horizontalAlignment: Text.AlignRight
+                                                    text: none ? "–" : modelData
+                                                    color: none ? "#8B98AD" : win.parseColor(modelData)
+                                                    font.family: "IBM Plex Mono"
+                                                    font.weight: Font.DemiBold
+                                                    font.pixelSize: 13
+                                                }
+                                            }
+                                            Text {
+                                                width: statsCol.cols[3]
+                                                horizontalAlignment: Text.AlignRight
+                                                text: win.amount(prow.modelData.dps)
+                                                color: prow.modelData.role === "healers" ? "#8B98AD" : "#E6ECF5"
+                                                font.family: "IBM Plex Mono"
+                                                font.pixelSize: 13
+                                            }
+                                            Text {
+                                                width: statsCol.cols[4]
+                                                horizontalAlignment: Text.AlignRight
+                                                text: win.amount(prow.modelData.hps)
+                                                color: prow.modelData.role === "healers" ? "#E6ECF5" : "#8B98AD"
+                                                font.family: "IBM Plex Mono"
+                                                font.pixelSize: 13
+                                            }
+                                            Text {
+                                                width: statsCol.cols[5] - 8
+                                                horizontalAlignment: Text.AlignRight
+                                                text: prow.modelData.deaths || ""
+                                                color: "#E5534B"
+                                                font.family: "IBM Plex Mono"
+                                                font.pixelSize: 13
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
