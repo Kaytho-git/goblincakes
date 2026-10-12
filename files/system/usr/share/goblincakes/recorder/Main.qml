@@ -857,11 +857,26 @@ Window {
                     }
                     Repeater {
                         model: card.stats && card.stats.players ? card.stats.players : []
-                        Row {
+                        Column {
                             id: prow
                             required property var modelData
+                            required property int index
                             readonly property bool me: !!card.modelData.player
                                 && card.modelData.player.split("-")[0] === modelData.name
+                            // A heading over each role that says what the parse compares
+                            Text {
+                                visible: prow.index === 0 || card.stats.players[prow.index - 1].role !== prow.modelData.role
+                                topPadding: prow.index === 0 ? 2 : 6
+                                bottomPadding: 2
+                                text: ({ tanks: "TANKS · parse på DPS", healers: "HEALERS · parse på HPS (healing)",
+                                         dps: "DPS · parse på DPS" })[prow.modelData.role] || ""
+                                color: "#8B98AD"
+                                font.family: "Chakra Petch"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 11
+                                font.letterSpacing: 1
+                            }
+                            Row {
                             Text {
                                 width: statsCol.cols[0]
                                 text: prow.modelData.name + "  <font color=\"#8B98AD\">" + prow.modelData.spec + "</font>"
@@ -910,6 +925,7 @@ Window {
                                 color: "#E5534B"
                                 font.family: "IBM Plex Mono"
                                 font.pixelSize: 13
+                            }
                             }
                         }
                     }
