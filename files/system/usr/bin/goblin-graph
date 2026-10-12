@@ -72,6 +72,8 @@ ROUND = ("circle", "burst")   # views with a square window (own size/position in
 CIRCLE_BARS = 24     # a quarter of the circle: bass at the top and bottom, treble at the sides
 RING_LIFE = 36       # ticks (1.2 s) a ring of the explosion lives
 SPARK_LIFE = 27      # ticks (0.9 s) a spark lives
+ONSET_BANDS = 32     # bands the explosion watches for new notes and hits
+ONSET_GAP = 4        # ticks at least between two explosions (at most 7.5 a second)
 LOW, HIGH = 40, 16000
 TILT, TILT_FROM = 3.5, 150   # dB per octave lift for the treble, from this frequency up
 
@@ -219,7 +221,9 @@ class Graph(QObject):
         self._rings = []     # [age, strength, colour index]
         self._sparks = []    # [age, angle, speed, colour index]
         self._glow = 0.0
-        self.energy = []     # loudness of the last second, for the beats
+        self.onset_gain = 1e-3   # the explosion's note/hit detection (onset())
+        self.onset_prev = []
+        self.flux_hist = []
         self.since_beat = 99
         self.ring_colour = 0
         self._bars = 48
@@ -386,27 +390,43 @@ class Graph(QObject):
         step = span / 240
         self._wave = [max(-1.0, min(1.0, part[int(k * step)] / self.wave_gain)) for k in range(240)]
 
+    def onset(self, s):
+        """A new note or hit: how much the bands of the spectrum rose since the last tick
+        (spectral flux), compared with the last second – so it keeps going in dense, loud music
+        too, and a high note counts as much as a drum (the treble is lifted, see TILT).
+        Returns the strength 0.35..1, or 0."""
+        raw = self.spec.levels(s[-SIZE:], ONSET_BANDS)
+        self.onset_gain = max(max(raw, default=0), self.onset_gain * 0.995, 1e-3)
+        lv = [max(0.0, 1 + 20 * math.log10(max(v / self.onset_gain, 1e-6)) / 40) for v in raw]
+        prev = self.onset_prev or lv
+        flux = sum(max(0.0, a - b) for a, b in zip(lv, prev)) / ONSET_BANDS
+        self.onset_prev = lv
+        hist = self.flux_hist
+        mean = sum(hist) / len(hist) if hist else flux
+        std = math.sqrt(sum((f - mean) ** 2 for f in hist) / len(hist)) if hist else 0
+        self.flux_hist = (hist + [flux])[-30:]
+        self.since_beat += 1
+        if flux > mean + std and flux > 0.006 and self.since_beat >= ONSET_GAP:
+            self.since_beat = 0
+            return max(0.35, min(1.0, flux / (mean + 2.5 * std + 1e-6)))
+        return 0.0
+
     def burst(self, s):
-        """A beat = the last 1/30 s clearly louder than the last second on average: a new ring
-        from the middle and sparks in every direction. The glow in the middle follows the
-        loudness."""
+        """Every new note or hit (onset()): a new ring from the middle and sparks in every
+        direction. The glow in the middle follows the loudness."""
         part = s[-RATE // 30:]
         rms = math.sqrt(sum(v * v for v in part) / len(part)) if part else 0
         self.loud_gain = max(rms, self.loud_gain * 0.997, 1e-3)
         level = max(0.0, min(1.0, 1 + 20 * math.log10(max(rms / self.loud_gain, 1e-6)) / 40))
         self._glow = level if level > self._glow else self._glow * 0.85 + level * 0.15
-        avg = sum(self.energy) / len(self.energy) if self.energy else 0
-        self.energy = (self.energy + [rms])[-30:]
-        self.since_beat += 1
         for r in self._rings:
             r[0] += 1
         for sp in self._sparks:
             sp[0] += 1
         self._rings = [r for r in self._rings if r[0] < RING_LIFE]
         self._sparks = [sp for sp in self._sparks if sp[0] < SPARK_LIFE]
-        if rms > 1.45 * avg and rms > 0.25 * self.loud_gain and self.since_beat >= 5:
-            self.since_beat = 0
-            strength = max(0.35, min(1.0, rms / self.loud_gain))
+        strength = self.onset(s)
+        if strength:
             self.ring_colour = (self.ring_colour + 1) % len(CLASSES)
             self._rings.append([0, strength, self.ring_colour])
             for _ in range(int(10 + 22 * strength)):
