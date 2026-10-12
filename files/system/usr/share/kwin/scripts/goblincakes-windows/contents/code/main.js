@@ -84,9 +84,62 @@ function fit(window) {
         window.frameGeometry = { x: x, y: y, width: width, height: height };
 }
 
+// goblin graph (12 Oct): on Wayland a window can't know or choose where it is, so KWin keeps
+// its place. After a move the script tells goblin-graph (D-Bus org.goblincakes.graph), which
+// stores it in kwinrc [Script-goblincakes-windows] graphPlace = "wide=x,y;round=x,y" (bars
+// and oscilloscope / circle and explosion, the window's two shapes) and asks KWin to reread.
+const GRAPH = "goblin-graph";
+
+function graphShape(window) {
+    const geo = window.frameGeometry;
+    return Math.abs(geo.width - geo.height) <= 2 ? "round" : "wide";
+}
+
+function graphPlace(window) {
+    const shape = graphShape(window);
+    const places = String(readConfig("graphPlace", "")).split(";");
+    for (let i = 0; i < places.length; i++) {
+        const parts = places[i].split("=");
+        if (parts[0] !== shape || !parts[1])
+            continue;
+        const xy = parts[1].split(",").map(Number);
+        const geo = window.frameGeometry;
+        // only on a screen that is still there
+        const onScreen = workspace.screens.some(function (s) {
+            const g = s.geometry;
+            return xy[0] + geo.width / 2 >= g.x && xy[0] + geo.width / 2 < g.x + g.width
+                && xy[1] + geo.height / 2 >= g.y && xy[1] + geo.height / 2 < g.y + g.height;
+        });
+        if (onScreen && (xy[0] !== geo.x || xy[1] !== geo.y))
+            window.frameGeometry = { x: xy[0], y: xy[1], width: geo.width, height: geo.height };
+        return;
+    }
+}
+
+function graphAdded(window) {
+    graphPlace(window);
+    let shape = graphShape(window);
+    window.interactiveMoveResizeFinished.connect(function () {
+        const geo = window.frameGeometry;
+        callDBus("org.goblincakes.graph", "/graph", "org.goblincakes.graph", "placed",
+                 graphShape(window) + "=" + Math.round(geo.x) + "," + Math.round(geo.y));
+    });
+    // A new view with the other shape (double-click): to that shape's place
+    window.frameGeometryChanged.connect(function () {
+        if (window.move || window.resize || graphShape(window) === shape)
+            return;
+        shape = graphShape(window);
+        graphPlace(window);
+    });
+}
+
 function added(window) {
     if (!window)
         return;
+    if (window.resourceClass === GRAPH) {
+        graphAdded(window);
+        return;
+    }
     const ruled = window.normalWindow ? ruleScreen(window) : null;
     if (CENTERED.indexOf(window.resourceClass) >= 0) {
         center(window);

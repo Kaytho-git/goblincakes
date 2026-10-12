@@ -7,6 +7,7 @@ other windows: only the bars show on the desktop.
   goblin graph alla       every bar in a class colour, Death Knight → Warrior
   goblin graph klass      your character's class (read from WoW's combat log)
   goblin graph mage …     a class of your choice (also: death-knight, demon-hunter, …)
+  goblin graph lås | lås upp  can't be moved or resized by accident (also the padlock)
   goblin graph auto on|off opens by itself when a music player plays, closes when it stops
   goblin graph staplar | våg | cirkel | explosion
                           bars (bass left, treble right, moving up), an oscilloscope (the
@@ -108,7 +109,8 @@ def watch():
 if __name__ == "__main__" and sys.argv[1:2] == ["--watch"]:
     sys.exit(watch())
 
-from PySide6.QtCore import (Property, QObject, QTimer, QUrl, Signal, Slot)
+from PySide6.QtCore import (ClassInfo, Property, QObject, QTimer, QUrl, Signal, Slot)
+from PySide6.QtDBus import QDBusConnection, QDBusInterface
 from PySide6.QtGui import QGuiApplication, QIcon, QSurfaceFormat
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
@@ -344,6 +346,35 @@ class Listener(threading.Thread):
             self.proc.terminate()
 
 
+@ClassInfo({"D-Bus Interface": "org.goblincakes.graph"})
+class PlaceBus(QObject):
+    """KWin's goblincakes-windows script calls placed("wide=x,y") after the window was moved:
+    Wayland doesn't tell a window where it is. Kept in graph.json and in kwinrc graphPlace,
+    where the script reads it when the window opens."""
+
+    def __init__(self, graph):
+        super().__init__()
+        self.graph = graph
+
+    @Slot(str)
+    def placed(self, place):
+        shape, _, xy = place.partition("=")
+        try:
+            x, y = (int(v) for v in xy.split(","))
+        except ValueError:
+            return
+        if shape not in ("wide", "round"):
+            return
+        # only places KWin reported (x/y in graph.json from before were Qt's guesses)
+        places = self.graph.cfg.setdefault("place", {})
+        places[shape] = f"{x},{y}"
+        self.graph.save()
+        places = [f"{name}={xy}" for name, xy in places.items()]
+        subprocess.run(["kwriteconfig6", "--file", "kwinrc", "--group", "Script-goblincakes-windows",
+                        "--key", "graphPlace", ";".join(places)], capture_output=True)
+        QDBusInterface("org.kde.KWin", "/KWin", "org.kde.KWin").call("reconfigure")
+
+
 class Graph(QObject):
     levelsChanged = Signal()
     styleChanged = Signal()
@@ -437,6 +468,17 @@ class Graph(QObject):
     def setBars(self, n):
         self._bars = max(12, min(160, n))
 
+    @Property(bool, notify=styleChanged)
+    def locked(self):
+        """Locked = can't be moved or resized by accident (the padlock, goblin graph lås)."""
+        return bool(self.cfg.get("locked"))
+
+    @Slot()
+    def toggleLock(self):
+        self.cfg["locked"] = not self.locked
+        self.save()
+        self.styleChanged.emit()
+
     @Slot()
     def toggleMode(self):
         self.cfg["mode"] = "class" if self.mode == "all" else "all"
@@ -476,7 +518,14 @@ class Graph(QObject):
         CONFIG.write_text(json.dumps(self.cfg))
 
     def apply_args(self, args):
-        """goblin graph alla / klass / <class> – also sent to an open window."""
+        """goblin graph alla / klass / <class> / lås / lås upp – also sent to an open window."""
+        words = [a.lower() for a in args]
+        if words[:2] in (["lås", "upp"], ["las", "upp"]) or words[:1] in (["låsupp"], ["unlock"]):
+            self.cfg["locked"] = False
+            args = args[2 if len(words) > 1 and words[1] == "upp" else 1:]
+        elif words[:1] in (["lås"], ["las"], ["lock"]):
+            self.cfg["locked"] = True
+            args = args[1:]
         for a in args:
             if a in ("alla", "all"):
                 self.cfg["mode"] = "all"
@@ -609,6 +658,16 @@ def main():
         probe.waitForBytesWritten(1000)
         probe.disconnectFromServer()
         return 0
+    # goblin graph lås / lås upp without an open window: only remember it, open nothing
+    if args and all(a.lower() in ("lås", "las", "lock", "upp", "låsupp", "unlock") for a in args):
+        try:
+            settings = json.loads(CONFIG.read_text())
+        except (OSError, ValueError):
+            settings = {}
+        settings["locked"] = args[0].lower() in ("lås", "las", "lock") and "upp" not in args[1:2]
+        CONFIG.parent.mkdir(parents=True, exist_ok=True)
+        CONFIG.write_text(json.dumps(settings))
+        return 0
     QLocalServer.removeServer(SOCKET)
     server = QLocalServer()
     server.listen(SOCKET)
@@ -638,6 +697,12 @@ def main():
         sock.readyRead.connect(read)
         sock.disconnected.connect(sock.deleteLater)
     server.newConnection.connect(incoming)
+
+    # KWin's goblincakes-windows script reports where the window was moved to (PlaceBus)
+    bus = QDBusConnection.sessionBus()
+    place = PlaceBus(graph)
+    if bus.registerService("org.goblincakes.graph"):
+        bus.registerObject("/graph", place, QDBusConnection.ExportAllSlots)
 
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("graph", graph)

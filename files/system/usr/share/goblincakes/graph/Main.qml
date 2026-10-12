@@ -60,7 +60,7 @@ Window {
     Rectangle {
         anchors.fill: parent
         color: "#0B1018"
-        opacity: hover.hovered ? 0.55 : 0
+        opacity: hover.hovered && !graph.locked ? 0.55 : 0   // locked: no box round it
         border.color: "#1E2A40"
         border.width: 1
         Behavior on opacity { NumberAnimation { duration: 150 } }
@@ -242,9 +242,10 @@ Window {
 
     MouseArea {
         anchors.fill: parent
+        enabled: !graph.locked
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         onPressed: mouse => {
-            if (mouse.button === Qt.LeftButton)
+            if (mouse.button === Qt.LeftButton && !graph.locked)
                 win.startSystemMove();
         }
         onClicked: mouse => {
@@ -261,7 +262,7 @@ Window {
     // What is shown, top left (hover only)
     Text {
         anchors { left: parent.left; top: parent.top; margins: 10 }
-        visible: hover.hovered
+        visible: hover.hovered && !graph.locked
         text: ({ bars: "Staplar", scope: "Oscilloskop", circle: "Cirkel", burst: "Explosion" })[graph.view] + "  ·  "
               + (graph.mode === "all" ? "Alla klasser" : graph.className)
         color: graph.mode === "all" ? "#E6ECF5" : graph.classColor
@@ -271,12 +272,12 @@ Window {
         font.letterSpacing: 1.5
     }
 
-    // Close, top right (hover only)
+    // Close, top right (hover only; locked = can't be closed by accident)
     Rectangle {
         anchors { right: parent.right; top: parent.top; margins: 6 }
         width: 26
         height: 22
-        visible: hover.hovered
+        visible: hover.hovered && !graph.locked
         color: closeArea.containsMouse ? "#A4262C" : "transparent"
         Text {
             anchors.centerIn: parent
@@ -293,12 +294,53 @@ Window {
         }
     }
 
-    // Resize, bottom right (hover only)
+    // Lock, left of the close button (hover only). Locked (the user's wish) = nothing to see or
+    // click in the window – no box, buttons, moving, resizing, closing or switching; only
+    // goblin graph lås upp in the terminal unlocks
+    Rectangle {
+        anchors { right: parent.right; top: parent.top; topMargin: 6; rightMargin: 36 }
+        width: 26
+        height: 22
+        visible: hover.hovered && !graph.locked
+        color: lockArea.containsMouse ? "#1A2438" : "transparent"
+        Canvas {
+            id: padlock
+            anchors.centerIn: parent
+            width: 14
+            height: 16
+            property bool locked: graph.locked
+            onLockedChanged: requestPaint()
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+                const c = locked ? "#2F6FED" : "#8B98AD";
+                ctx.fillStyle = c;
+                ctx.fillRect(1, 7, 12, 9);                    // body
+                ctx.strokeStyle = c;
+                ctx.lineWidth = 2;
+                ctx.beginPath();                             // shackle, open to the right when unlocked
+                ctx.moveTo(3.5, 7);
+                ctx.lineTo(3.5, 4);
+                ctx.arc(7, 4, 3.5, Math.PI, 0, false);
+                ctx.lineTo(10.5, locked ? 7 : 5);
+                ctx.stroke();
+            }
+        }
+        MouseArea {
+            id: lockArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: graph.toggleLock()
+        }
+    }
+
+    // Resize, bottom right (hover only, not when locked)
     Item {
         anchors { right: parent.right; bottom: parent.bottom }
         width: 18
         height: 18
-        visible: hover.hovered
+        visible: hover.hovered && !graph.locked
         Canvas {
             anchors.fill: parent
             onPaint: {
@@ -320,5 +362,5 @@ Window {
         }
     }
 
-    Shortcut { sequence: "Esc"; onActivated: Qt.quit() }
+    Shortcut { sequence: "Esc"; enabled: !graph.locked; onActivated: Qt.quit() }
 }

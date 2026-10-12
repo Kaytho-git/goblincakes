@@ -252,7 +252,7 @@ COMMANDS=(
     "frames|Hur jämnt spelet flyter – fps, 1 % low och ryck (goblin frames off stänger av mätningen)"
     "screen|Vilken skärm ett program öppnas på – t.ex. goblin screen add discord screen 2"
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
-    "graph|Ljudgraf i WoW:s klassfärger till musiken – goblin graph [staplar|våg|cirkel|explosion] [alla|klass|mage …]; goblin graph auto on = öppnas när musik spelar"
+    "graph|Ljudgraf i WoW:s klassfärger till musiken – goblin graph [staplar|våg|cirkel|explosion] [alla|klass|mage …] [lås|lås upp]; goblin graph auto on = öppnas när musik spelar"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
     "fast|Systeminfo med GOBLINCAKES-loggan"
