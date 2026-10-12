@@ -1,0 +1,277 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: which tile a program opens in (the user's wish, 12 Oct – tiling with own rules).
+
+    goblincakes-tile                                 screens with their tiles, your rules, programs
+    goblincakes-tile add <program> <screen> <tile>   e.g. add discord 2 1 (screen 2, tile 1)
+    goblincakes-tile remove <program>
+
+The tiles are KDE's own (Meta+T draws them per screen, Shift+drag drops a window in one);
+GOBLINCAKES only adds rules program → tile. Tiles are numbered in the order KDE keeps them:
+left to right, a split tile's parts top to bottom. Screens are given as in goblin screen
+(1 = the main screen, then the order in System Settings → Display) or by connector (DP-1),
+and the rule keeps the connector, so it doesn't move when the main screen changes.
+
+The rules are kept in kwinrc [Script-goblincakes-windows] tileRules
+("discord=DP-1:1;org.mozilla.firefox|firefox=HDMI-A-1:2" – a program's window names joined
+by |, as in screenRules) and applied by the KWin script goblincakes-windows when a window of
+the program opens. A tile rule goes before a screen rule (goblin screen); games ignore both.
+"""
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+
+
+def _load_screen():
+    """goblincakes-screen has the programs, their words, the screens and the rule keys – the
+    same ones here (a file without .py, so loaded by hand)."""
+    path = os.environ.get("GOBLINCAKES_SCREEN", str(Path(__file__).with_name("goblincakes-screen")))
+    loader = SourceFileLoader("goblincakes_screen", path)
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(module)
+    return module
+
+
+SCREEN = _load_screen()
+ACCENT, MUTED, FROST, RESET = SCREEN.ACCENT, SCREEN.MUTED, SCREEN.FROST, SCREEN.RESET
+GROUP, KEY = "Script-goblincakes-windows", "tileRules"
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+
+
+def read_config(key, group=GROUP):
+    return subprocess.run(["kreadconfig6", "--file", "kwinrc", "--group", group, "--key", key],
+                          capture_output=True, text=True).stdout.strip()
+
+
+def read_rules():
+    rules = {}
+    for part in read_config(KEY).split(";"):
+        key, _, place = part.partition("=")
+        screen, _, tile = place.partition(":")
+        if key.strip() and screen.strip() and tile.strip().isdigit():
+            rules[key.strip()] = (screen.strip(), int(tile))
+    return rules
+
+
+def write_rules(rules):
+    value = ";".join(f"{k}={s}:{t}" for k, (s, t) in sorted(rules.items()))
+    args = ["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", KEY]
+    subprocess.run(args + (["--delete"] if not value else [value]), check=False)
+    subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin",
+                    "reconfigure"], capture_output=True)
+
+
+# ---- KDE's tiles, as kept in kwinrc [Tiling][<desktop uuid>][<screen uuid>] tiles=<json>
+
+def screen_uuids():
+    """Connector → KWin's uuid for the screen (kwinoutputconfig.json)."""
+    try:
+        data = json.loads((CONFIG / "kwinoutputconfig.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for section in data if isinstance(data, list) else []:
+        if section.get("name") == "outputs":
+            for o in section.get("data", []):
+                if o.get("connectorName") and o.get("uuid"):
+                    out[o["connectorName"]] = o["uuid"]
+    return out
+
+
+def leaves(node, x=0.0, y=0.0, w=1.0, h=1.0):
+    """The tiles you can drop a window in, in KDE's order: [(x, y, w, h)] as parts of the screen."""
+    children = node.get("tiles") or []
+    if not children:
+        return [(x, y, w, h)]
+    horizontal = node.get("layoutDirection", "horizontal") == "horizontal"
+    size_key = "width" if horizontal else "height"
+    given = sum(c.get(size_key, 0) for c in children)
+    free = [c for c in children if not c.get(size_key)]
+    rest = max(0.0, 1.0 - given) / len(free) if free else 0.0
+    out, pos = [], 0.0
+    for c in children:
+        part = c.get(size_key) or rest
+        if horizontal:
+            out += leaves(c, x + pos * w, y, part * w, h)
+        else:
+            out += leaves(c, x, y + pos * h, w, part * h)
+        pos += part
+    return out
+
+
+def tiles_for(connector):
+    """The tiles of a screen on the first virtual desktop, or [] when none are drawn yet."""
+    uuid = screen_uuids().get(connector)
+    desktop = read_config("Id_1", "Desktops")
+    if not uuid or not desktop:
+        return []
+    raw = subprocess.run(["kreadconfig6", "--file", "kwinrc", "--group", "Tiling", "--group", desktop,
+                          "--group", uuid, "--key", "tiles"], capture_output=True, text=True).stdout.strip()
+    try:
+        return leaves(json.loads(raw)) if raw else []
+    except (ValueError, AttributeError):
+        return []
+
+
+def describe(t):
+    x, y, w, h = t
+    cx, cy = x + w / 2, y + h / 2
+    where = "vänster" if cx < 0.4 else "höger" if cx > 0.6 else "mitten"
+    if h < 0.99:
+        where = ("uppe " if cy < 0.4 else "nere " if cy > 0.6 else "") + where
+    size = f"{round(w * 100)} % bred" + (f", {round(h * 100)} % hög" if h < 0.99 else "")
+    return where, size
+
+
+def sketch(tiles, width=48, height=6):
+    """A small drawing of the screen with the tile numbers."""
+    hor = [[False] * width for _ in range(height)]
+    ver = [[False] * width for _ in range(height)]
+    labels = {}
+    for n, (x, y, w, h) in enumerate(tiles, 1):
+        x0, x1 = round(x * (width - 1)), round((x + w) * (width - 1))
+        y0, y1 = round(y * (height - 1)), round((y + h) * (height - 1))
+        for i in range(x0, x1 + 1):
+            hor[y0][i] = hor[y1][i] = True
+        for j in range(y0, y1 + 1):
+            ver[j][x0] = ver[j][x1] = True
+        labels[((y0 + y1) // 2, (x0 + x1) // 2)] = str(n)
+    corner = {(0, 1, 0, 1): "┌", (0, 1, 1, 0): "┐", (1, 0, 0, 1): "└", (1, 0, 1, 0): "┘",
+              (1, 1, 0, 1): "├", (1, 1, 1, 0): "┤", (0, 1, 1, 1): "┬", (1, 0, 1, 1): "┴", (1, 1, 1, 1): "┼"}
+    rows = []
+    for j in range(height):
+        row = ""
+        for i in range(width):
+            if hor[j][i] and ver[j][i]:
+                up = j > 0 and ver[j - 1][i]
+                down = j < height - 1 and ver[j + 1][i]
+                left = i > 0 and hor[j][i - 1]
+                right = i < width - 1 and hor[j][i + 1]
+                row += corner.get((int(up), int(down), int(left), int(right)), "┼")
+            elif hor[j][i]:
+                row += "─"
+            elif ver[j][i]:
+                row += "│"
+            else:
+                row += " "
+        rows.append(list(row))
+    for (j, i), label in labels.items():
+        for k, ch in enumerate(label):
+            rows[j][i + k] = ch
+    return ["".join(r) for r in rows]
+
+
+def screen_list():
+    """[(number, connector, description)] – as goblin screen numbers them."""
+    return SCREEN.screens()
+
+
+def to_connector(text):
+    scr = screen_list()
+    if text.isdigit():
+        n = int(text)
+        return next((c for i, c, _ in scr if i == n), None)
+    return next((c for _, c, _ in scr if c.lower() == text.lower()), None)
+
+
+def cmd_list():
+    progs = SCREEN.programs()
+    rules = read_rules()
+    scr = screen_list()
+    print(f"{ACCENT}Skärmar och rutor{RESET} {MUTED}(rita rutorna med Meta+T på skärmen – dra en kant, högerklicka för att dela){RESET}")
+    for n, conn, desc in scr:
+        tiles = tiles_for(conn)
+        print(f"\n  {FROST}Skärm {n}{RESET}  {conn}  {MUTED}{desc}{' · huvudskärm' if n == 1 else ''}{RESET}")
+        if not tiles:
+            print(f"    {MUTED}inga rutor ritade än – tryck Meta+T på skärmen{RESET}")
+            continue
+        for line in sketch(tiles):
+            print(f"    {MUTED}{line}{RESET}")
+        for i, t in enumerate(tiles, 1):
+            where, size = describe(t)
+            print(f"    {FROST}{i}{RESET}  {where:<14}{MUTED}{size}{RESET}")
+    if not scr:
+        print(f"  {MUTED}(hittade inga skärmar){RESET}")
+    if rules:
+        print(f"\n{ACCENT}Dina regler{RESET}")
+        names = {SCREEN.rule_key(i, v[1]): v[0] for i, v in progs.items()}
+        numbers = {c: i for i, c, _ in scr}
+        for key, (conn, tile) in sorted(rules.items()):
+            n = numbers.get(conn)
+            where = f"skärm {n} ({conn}), ruta {tile}" if n else f"{conn}, ruta {tile} – skärmen är inte ansluten nu"
+            if n and tile > len(tiles_for(conn)):
+                where += " – rutan finns inte nu"
+            print(f"  {FROST}{names.get(key, key)}{RESET} {MUTED}öppnas i {where}{RESET}")
+    print(f"\n{MUTED}Programmens ord står i goblin screen. "
+          f"Lägg till: goblin tile add discord 2 1 (skärm 2, ruta 1)   Ta bort: goblin tile remove discord{RESET}")
+    return 0
+
+
+def cmd_add(args):
+    words = [a for a in args if a.lower() not in ("screen", "skärm", "skarm", "tile", "ruta")]
+    if len(words) < 3 or not words[-1].isdigit():
+        print("Använd: goblin tile add <program> <skärm> <ruta>   (t.ex. goblin tile add discord 2 1)",
+              file=sys.stderr)
+        return 2
+    tile, screen, prog = int(words[-1]), words[-2], " ".join(words[:-2])
+    conn = to_connector(screen)
+    if not conn:
+        print(f"Hittar ingen skärm {screen}. Skärmarna står i: goblin tile", file=sys.stderr)
+        return 1
+    count = len(tiles_for(conn))
+    if tile < 1 or (count and tile > count):
+        print(f"Skärm {screen} har {count} rutor – välj 1–{count}. Se: goblin tile", file=sys.stderr)
+        return 1
+    hit = SCREEN.resolve(prog)
+    if not hit:
+        return 1
+    app_id, (name, classes) = hit
+    rules = read_rules()
+    for k in [k for k in rules if set(k.split("|")) & set(classes)]:  # one rule per program
+        del rules[k]
+    rules[SCREEN.rule_key(app_id, classes)] = (conn, tile)
+    write_rules(rules)
+    print(f"Klart: {name} öppnas i ruta {tile} på skärm {screen} ({conn}).")
+    if not count:
+        print("Obs: skärmen har inga rutor än – rita dem med Meta+T, annars öppnas programmet där det hamnar.")
+    print("Gäller nästa gång programmet öppnar ett fönster.")
+    return 0
+
+
+def cmd_remove(args):
+    if not args:
+        print("Använd: goblin tile remove <program>", file=sys.stderr)
+        return 2
+    rules = read_rules()
+    text = " ".join(args)
+    hit = SCREEN.find(text, SCREEN.programs())
+    keys = set(hit[0][1][1]) if len(hit) == 1 else set()
+    keys.add(text.lower())
+    gone = [k for k in rules if set(k.split("|")) & keys]
+    if not gone:
+        print(f"{text} har ingen ruta. Dina regler står i: goblin tile", file=sys.stderr)
+        return 1
+    for k in gone:
+        del rules[k]
+    write_rules(rules)
+    print(f"Borttaget: {hit[0][1][0] if len(hit) == 1 else text} öppnas där den hamnar igen.")
+    return 0
+
+
+def main(argv):
+    cmd = argv[0] if argv else "list"
+    if cmd in ("list", "ls"):
+        return cmd_list()
+    if cmd in ("add", "set"):
+        return cmd_add(argv[1:])
+    if cmd in ("remove", "rm", "del"):
+        return cmd_remove(argv[1:])
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -27,6 +27,63 @@ function ruleScreen(window) {
     return null;
 }
 
+// Tiles (goblin tile add discord 2 1, 12 Oct): kwinrc [Script-goblincakes-windows] tileRules =
+// "discord=DP-1:1;org.mozilla.firefox|firefox=HDMI-A-1:2" – the screen by connector (so a
+// new main screen doesn't move the layout) and the tile's number among KDE's own tiles
+// (Meta+T), in KDE's order: left to right, a split tile's parts top to bottom. Goes before a
+// screen rule; games, dialogs and windows without a rule are left alone.
+function leafTiles(tile) {
+    const children = tile.tiles || [];
+    if (!children.length)
+        return [tile];
+    let out = [];
+    for (let i = 0; i < children.length; i++)
+        out = out.concat(leafTiles(children[i]));
+    return out;
+}
+
+function ruleTile(window) {
+    const names = [window.desktopFileName, window.resourceClass, window.resourceName]
+        .map(function (n) { return String(n || "").toLowerCase(); });
+    const rules = String(readConfig("tileRules", "")).split(";");
+    for (let i = 0; i < rules.length; i++) {
+        const parts = rules[i].split("=");
+        const matches = parts[0].split("|").some(function (n) { return n && names.indexOf(n) >= 0; });
+        if (!matches || !parts[1])
+            continue;
+        const place = parts[1].split(":");
+        const screen = workspace.screens.find(function (s) { return s.name === place[0]; });
+        const number = parseInt(place[1], 10);
+        if (!screen || !(number >= 1))
+            return null;
+        const manager = workspace.tilingForScreen(screen);
+        const tiles = manager && manager.rootTile ? leafTiles(manager.rootTile) : [];
+        return number <= tiles.length ? tiles[number - 1] : null;
+    }
+    return null;
+}
+
+// Into the tile – and back again during the first seconds, while programs like Chromium,
+// Discord and Steam restore the size they had last time (not while you drag it yourself).
+// KWin keeps such a window marked as tiled, so the size is compared with the tile's.
+function toTile(window, tile) {
+    window.tile = tile;
+    const start = Date.now();
+    window.frameGeometryChanged.connect(function () {
+        if (Date.now() - start > 8000 || window.move || window.resize || window.fullScreen)
+            return;
+        // the tile's own size; the window sits inside it by the padding (half at inner edges)
+        const want = tile.absoluteGeometry;
+        const geo = window.frameGeometry;
+        const slack = 2 * (tile.padding || 0) + 2;
+        if (Math.abs(geo.x - want.x) > slack || Math.abs(geo.y - want.y) > slack
+                || Math.abs(geo.width - want.width) > slack || Math.abs(geo.height - want.height) > slack) {
+            window.tile = null;
+            window.tile = tile;
+        }
+    });
+}
+
 function mainScreen(window) {
     return workspace.screenOrder.length ? workspace.screenOrder[0] : window.output;
 }
@@ -144,9 +201,12 @@ function added(window) {
         graphAdded(window);
         return;
     }
+    const tiled = window.normalWindow && !window.transient && !isGame(window) ? ruleTile(window) : null;
     const ruled = window.normalWindow ? ruleScreen(window) : null;
     if (CENTERED.indexOf(window.resourceClass) >= 0) {
         center(window);
+    } else if (tiled) {
+        toTile(window, tiled);
     } else if (ruled) {
         if (window.output !== ruled)
             workspace.sendClientToScreen(window, ruled);
@@ -174,5 +234,19 @@ function added(window) {
         });
     }
 }
+
+// 2 px between tiled windows (12 Oct, the user's wish): KDE's tiles have 4 px padding by default
+// (between two windows = the padding, half from each). Set on every screen whose tiles still
+// have KDE's 4 – another value chosen in the tile editor (Meta+T) is kept. KWin saves it.
+const TILE_PADDING = 2;
+function tilePadding() {
+    for (let i = 0; i < workspace.screens.length; i++) {
+        const manager = workspace.tilingForScreen(workspace.screens[i]);
+        if (manager && manager.rootTile && manager.rootTile.padding === 4)
+            manager.rootTile.padding = TILE_PADDING;
+    }
+}
+tilePadding();
+workspace.screensChanged.connect(tilePadding);
 
 workspace.windowAdded.connect(added);
