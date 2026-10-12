@@ -151,6 +151,21 @@ if [ -x "$HOME/.local/share/discord-app/discord" ] && [ -f "$_gc_applets" ] \
     sed -i '/^launchers=/s/com\.discordapp\.Discord\.desktop/discord.desktop/g' "$_gc_applets"
 fi
 
+# Discord through XWayland on Nvidia (12 Oct, the user: other people's streams stuttered – as
+# if frames were skipped; at once smooth with --ozone-platform=x11). Electron picks Wayland by
+# itself, and Discord's own chromiumSwitches setting only lets a few switches through, so the
+# flag goes where Discord starts: its launcher (every start through the menu, ~/.local/bin and
+# our autostart; checked at each login, Config writes a new launcher at updates) and Discord's
+# own autostart file, which points straight at app-<version>/Discord and is rewritten by Discord.
+_gc_launcher="$HOME/.local/share/discord-app/discord"
+if [ -e /proc/driver/nvidia/version ] && [ -f "$_gc_launcher" ] && ! grep -q 'GOBLINCAKES' "$_gc_launcher"; then
+    /usr/libexec/goblincakes-config-install discord-launcher >/dev/null 2>&1 || :
+fi
+_gc_auto="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/discord.desktop"
+if [ -e /proc/driver/nvidia/version ] && [ -f "$_gc_auto" ] && ! grep -q 'ozone-platform' "$_gc_auto"; then
+    sed -i '/^Exec=.*\/app-[0-9.]*\/Discord/s/$/ --ozone-platform=x11/' "$_gc_auto"
+fi
+
 # VS Code left the image on 11 Oct (now Microsoft's own build in the home folder, from
 # Config). Those who used the old one get the new one once, in the background (the
 # download mustn't hold up the login); tried again at the next login if there's no network.

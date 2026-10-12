@@ -87,6 +87,15 @@ vulkan_layer() { # name
     done
 }
 
+discord_launcher() { # Discord's launcher script → with Nvidia, Discord through XWayland
+    # (12 Oct: other people's streams stuttered on Wayland + Nvidia, smooth with XWayland).
+    # Every start through the script (menu, ~/.local/bin/discord, our autostart) gets the flag.
+    [ -f "$1" ] && ! grep -q 'GOBLINCAKES' "$1" || return 0
+    sed -i '1a\
+# GOBLINCAKES: Discord through XWayland with Nvidia – on Wayland streams skip frames\
+[ -e /proc/driver/nvidia/version ] \&\& set -- --ozone-platform=x11 "$@"' "$1"
+}
+
 check() {
     local kind=$1; shift
     case $kind in
@@ -553,6 +562,7 @@ DESKTOP
         mkdir -p "$conf"
         "$dir/updater_bootstrap" --no-zenity "$conf" stable https://updates.discord.com/ >/dev/null 2>&1 \
             || { status "Discord kunde inte installeras"; exit 1; }
+        discord_launcher "$dir/discord"
         mkdir -p "$apps" "$HOME/.local/bin"
         cat >"$apps/discord.desktop" <<DESKTOP
 [Desktop Entry]
@@ -588,6 +598,11 @@ DESKTOP
         update-desktop-database -q "$apps" >/dev/null 2>&1 || true
         kbuildsycoca6 >/dev/null 2>&1 || true
         status "Discord $version klar"
+        ;;
+
+    discord-launcher)
+        # goblincakes-refresh.sh at login: a launcher from before 12 Oct gets the line too
+        discord_launcher "$HOME/.local/share/discord-app/discord"
         ;;
 
     claude-code)
