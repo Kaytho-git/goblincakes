@@ -265,7 +265,8 @@ class Service:
             self.error = f"Kunde inte starta inspelningen: {e}"
             log(self.error)
             return
-        info.update({"start": t, "wall": wall, "markers": [], "player": self.me})
+        info.update({"start": t, "wall": wall, "markers": [], "player": self.me,
+                     "tracks": R.track_names(self.cfg)})
         self.current = info
         self.stop_at = 0
         self.error = ""
@@ -326,7 +327,7 @@ class Service:
             "fightStart": round(max(cur["start"] - wall, 0), 2),
             "markers": [{"t": round(max(m["t"] - wall, 0), 2), "kind": m["kind"], "text": m["text"]}
                         for m in cur["markers"]],
-            "codec": self.cfg["codec"], "fps": self.cfg["fps"], "tracks": R.TRACK_NAMES,
+            "codec": self.cfg["codec"], "fps": self.cfg["fps"], "tracks": cur.get("tracks", R.TRACK_NAMES),
             "player": cur.get("player", ""), "encounterId": cur.get("encounter"),
             "_wall": wall, "_until": time.time() + LATE_MARKS,
         }
@@ -421,10 +422,11 @@ class Service:
     # ------------------------------------------------------------ main loop
     def tick(self):
         now = time.time()
-        if self.mtime(R.CONFIG_FILE) != self.cfg_mtime:
+        # A change during a recording waits until it is done (OBS is not touched while recording)
+        if self.mtime(R.CONFIG_FILE) != self.cfg_mtime and not self.current:
             self.cfg_mtime = self.mtime(R.CONFIG_FILE)
             self.cfg = R.load_config()
-            if self.obs and not self.current:
+            if self.obs:
                 try:
                     if R.apply_settings(self.obs, self.cfg) == "restart":
                         self.restart_obs()

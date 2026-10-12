@@ -1134,10 +1134,10 @@ Window {
                     model: [{ "id": "high", "name": "Hög" }, { "id": "normal", "name": "Normal" }, { "id": "small", "name": "Liten" }]
                     Choice {
                         required property var modelData
-                        // MB per minute, as recorder.encoder_settings counts it (video + 3 audio tracks)
+                        // MB per minute, as recorder.encoder_settings counts it (video + 1 or 3 audio tracks)
                         readonly property real mb: ({ high: 25, normal: 10, small: 5 })[modelData.id]
                             * (win.cfg.codec === "h264" || win.cfg.codec === "x264" ? 1.5 : 1)
-                            * (win.cfg.fps <= 30 ? 0.7 : 1) * 7.5 + 3.6
+                            * (win.cfg.fps <= 30 ? 0.7 : 1) * 7.5 + (win.cfg.capture === "wow" ? 1.2 : 3.6)
                         text: modelData.name
                         sub: "≈ " + Math.round(mb / 5) * 5 + " MB per minut. "
                              + ({ high: "Om du vill klippa ihop filmer i efterhand.", normal: "Räcker gott för WoW.",
@@ -1150,10 +1150,33 @@ Window {
 
             Item { width: 1; height: 14 }
             SectionTitle { text: "LJUD" }
+            Text {
+                text: "Filmen fångar"
+                color: "#E6ECF5"
+                font.family: "IBM Plex Sans"
+                font.weight: Font.Medium
+                font.pixelSize: 15
+            }
+            Row {
+                spacing: 12
+                Repeater {
+                    model: [{ "id": "all", "name": "Allt", "sub": "WoW, Discord och din röst – på tre ljudspår (Allt, WoW, Discord) som du väljer mellan under filmen." },
+                            { "id": "wow", "name": "Bara WoW", "sub": "Bara spelets ljud – Discord och din mikrofon spelas inte in. Gäller filmer som spelas in efter bytet." }]
+                    Choice {
+                        required property var modelData
+                        text: modelData.name
+                        sub: modelData.sub
+                        chosen: (win.cfg.capture || "all") === modelData.id
+                        onPicked: win.set("capture", modelData.id)
+                    }
+                }
+            }
             Column { // the switch under the text (12 Oct, the user's wish)
+                topPadding: 8
                 spacing: 8
                 Text {
                     text: "Min mikrofon"
+                    opacity: win.cfg.capture === "wow" ? 0.35 : 1
                     color: "#E6ECF5"
                     font.family: "IBM Plex Sans"
                     font.weight: Font.Medium
@@ -1161,6 +1184,7 @@ Window {
                 }
                 ToggleSwitch {
                     on: win.cfg.mic !== false
+                    enabledState: win.cfg.capture !== "wow"
                     onToggled: win.set("mic", win.cfg.mic === false)
                 }
                 HoverTip { tip: "Din röst på spåren Allt och Discord – med brusreducering, så att tangentbordet hörs mindre." }
@@ -1190,6 +1214,7 @@ Window {
             Text {
                 topPadding: 8
                 text: "Andning och småljud i mikrofonen"
+                opacity: win.cfg.capture === "wow" ? 0.35 : 1
                 color: "#E6ECF5"
                 font.family: "IBM Plex Sans"
                 font.weight: Font.Medium
@@ -1197,32 +1222,20 @@ Window {
             }
             Row {
                 spacing: 12
-                opacity: win.cfg.mic !== false ? 1 : 0.35
+                opacity: win.cfg.mic !== false && win.cfg.capture !== "wow" ? 1 : 0.35
                 Repeater {
                     model: [{ "id": "off", "name": "Släpp igenom", "sub": "Allt som mikrofonen hör kommer med (brusreduceringen tar fortfarande bort fläktar och tangentbord)." },
                             { "id": "normal", "name": "Stäng mellan orden", "sub": "Mikrofonen stängs när du inte pratar – andning och små ljud kommer inte med." },
                             { "id": "strong", "name": "Stäng mer", "sub": "För en känslig mikrofon: stängs även vid starkare andning. Hörs början av ord försvinna – välj Stäng mellan orden." }]
                     Choice {
                         required property var modelData
-                        enabledState: win.cfg.mic !== false
+                        enabledState: win.cfg.mic !== false && win.cfg.capture !== "wow"
                         text: modelData.name
                         sub: modelData.sub
                         chosen: (win.cfg.micGate || "normal") === modelData.id
                         onPicked: win.set("micGate", modelData.id)
                     }
                 }
-            }
-            Text { // under the game sound (12 Oct, the user's wish)
-                topPadding: 8
-                text: "Ljudspår"
-                color: "#E6ECF5"
-                font.family: "IBM Plex Sans"
-                font.weight: Font.Medium
-                font.pixelSize: 15
-            }
-            Note {
-                width: Math.min(820, parent.width)
-                text: "Filmerna har tre ljudspår: Allt, bara WoW och Discord (med din röst) – välj under filmen."
             }
             Item { width: 1; height: 14 }
             SectionTitle { text: "VAR FILMERNA SPARAS" }

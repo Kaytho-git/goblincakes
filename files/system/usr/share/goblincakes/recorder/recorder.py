@@ -50,6 +50,7 @@ DEFAULTS = {
     "mplusMin": 2,  # keys from this level up
     "autoStartObs": True,
     "mic": True,  # your microphone on tracks 1 and 3 (with noise suppression)
+    "capture": "all",  # all = WoW, Discord and your microphone on three tracks | wow = only the game, one track
     "gameBoost": 12,
     "micGate": "normal",  # off | normal | strong – the gate after the noise suppression, see MIC_GATES
     "quality": "normal",  # high | normal | small – the bitrate, see QUALITY_MBIT  # dB louder game sound – WoW plays quietly next to Discord
@@ -73,6 +74,15 @@ DUNGEON_DIFFICULTIES = {1: "Normal", 2: "Heroic", 8: "Mythic+", 23: "Mythic"}
 
 # Tracks in the video: 1 = everything, 2 = the game, 3 = Discord + your microphone
 TRACK_NAMES = ["Allt", "WoW", "Discord"]
+
+
+def only_wow(cfg):
+    """Only the game's sound in the videos (Inställningar → Ljud → Filmen fångar)."""
+    return cfg.get("capture") == "wow"
+
+
+def track_names(cfg):
+    return ["WoW"] if only_wow(cfg) else TRACK_NAMES
 AUDIO_INPUTS = [
     {"name": "WoW-ljud", "target": "World of Warcraft", "tracks": [1, 2]},
     {"name": "Discord-ljud", "target": "Discord", "tracks": [1, 3]},
@@ -497,7 +507,7 @@ def apply_settings(obs, cfg):
         ("AdvOut", "RecFilePath", str(folder)),
         ("AdvOut", "RecFormat2", "hybrid_mp4"),  # MP4 that survives a crash
         ("AdvOut", "RecEncoder", encoder),
-        ("AdvOut", "RecTracks", "7"),  # tracks 1–3
+        ("AdvOut", "RecTracks", "1" if only_wow(cfg) else "7"),  # track 1, or tracks 1–3
         ("AdvOut", "RecUseRescale", "false"),
         ("AdvOut", "RecRB", "false"),
     ]
@@ -637,9 +647,12 @@ def set_audio(obs, cfg):
                                              "filterSettings": settings}, check=False)
     obs.call("SetSourceFilterEnabled", {"sourceName": MIC, "filterName": MIC_GATE,
                                         "filterEnabled": gate is not None}, check=False)
-    on = bool(cfg.get("mic", True))
+    on = bool(cfg.get("mic", True)) and not only_wow(cfg)
     obs.call("SetInputAudioTracks", {"inputName": MIC, "inputAudioTracks":
              {str(t): on and t in (1, 3) for t in range(1, 7)}})
+    if "Discord-ljud" in inputs:
+        obs.call("SetInputAudioTracks", {"inputName": "Discord-ljud", "inputAudioTracks":
+                 {str(t): not only_wow(cfg) and t in (1, 3) for t in range(1, 7)}}, check=False)
     if "WoW-ljud" in inputs:
         boost = float(cfg.get("gameBoost", 12))
         obs.call("SetInputVolume", {"inputName": "WoW-ljud", "inputVolumeDb": boost})
