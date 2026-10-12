@@ -825,7 +825,7 @@ Window {
                     visible: card.open
                     anchors { left: parent.left; right: parent.right; top: head.bottom; leftMargin: 12; rightMargin: 12 }
                     spacing: 4
-                    readonly property var cols: [width - 4 * 52 - 24, 52, 64, 64, 28]
+                    readonly property var cols: [width - 44 - 44 - 58 - 58 - 38, 44, 44, 58, 58, 38]
                     Rectangle { width: parent.width; height: 1; color: "#1E2A40" }
                     Text {
                         visible: !card.stats || !card.stats.players
@@ -840,7 +840,7 @@ Window {
                         visible: !!(card.stats && card.stats.players)
                         topPadding: 4
                         Repeater {
-                            model: ["SPELARE", "PARSE", "DPS", "HPS", "DÖD"]
+                            model: ["SPELARE", "PARSE", "ILVL", "DPS", "HPS", "DÖD"]
                             Text {
                                 required property string modelData
                                 required property int index
@@ -872,17 +872,23 @@ Window {
                                 font.pixelSize: 13
                                 elide: Text.ElideRight
                             }
-                            Text {
-                                width: statsCol.cols[1]
-                                horizontalAlignment: Text.AlignRight
-                                text: prow.modelData.parse === null || prow.modelData.parse === undefined ? "–" : prow.modelData.parse
-                                color: prow.modelData.parse === null || prow.modelData.parse === undefined ? "#8B98AD" : win.parseColor(prow.modelData.parse)
-                                font.family: "IBM Plex Mono"
-                                font.weight: Font.DemiBold
-                                font.pixelSize: 13
+                            Repeater { // the parse and the item level parse (against the same item level)
+                                model: [prow.modelData.parse, prow.modelData.ilvlParse]
+                                Text {
+                                    required property var modelData
+                                    required property int index
+                                    readonly property bool none: modelData === null || modelData === undefined
+                                    width: statsCol.cols[1 + index]
+                                    horizontalAlignment: Text.AlignRight
+                                    text: none ? "–" : modelData
+                                    color: none ? "#8B98AD" : win.parseColor(modelData)
+                                    font.family: "IBM Plex Mono"
+                                    font.weight: Font.DemiBold
+                                    font.pixelSize: 13
+                                }
                             }
                             Text {
-                                width: statsCol.cols[2]
+                                width: statsCol.cols[3]
                                 horizontalAlignment: Text.AlignRight
                                 text: win.amount(prow.modelData.dps)
                                 color: prow.modelData.role === "healers" ? "#8B98AD" : "#E6ECF5"
@@ -890,7 +896,7 @@ Window {
                                 font.pixelSize: 13
                             }
                             Text {
-                                width: statsCol.cols[3]
+                                width: statsCol.cols[4]
                                 horizontalAlignment: Text.AlignRight
                                 text: win.amount(prow.modelData.hps)
                                 color: prow.modelData.role === "healers" ? "#E6ECF5" : "#8B98AD"
@@ -898,7 +904,7 @@ Window {
                                 font.pixelSize: 13
                             }
                             Text {
-                                width: statsCol.cols[4]
+                                width: statsCol.cols[5]
                                 horizontalAlignment: Text.AlignRight
                                 text: prow.modelData.deaths || ""
                                 color: "#E5534B"
@@ -913,7 +919,7 @@ Window {
                         topPadding: 4
                         wrapMode: Text.WordWrap
                         text: card.stats ? (card.stats.deaths ? card.stats.deaths + " dödsfall" : "Inga dödsfall")
-                              + (card.stats.ranked ? "" : " · parses bara för kills och nycklar i tid (kan dröja en stund efter uppladdningen)")
+                              + (card.stats.ranked ? " · ILVL = parse mot samma item level" : " · parses bara för kills och nycklar i tid (kan dröja en stund efter uppladdningen)")
                               + (win.statsBusy === card.modelData.path ? " · uppdaterar …" : "") : ""
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"

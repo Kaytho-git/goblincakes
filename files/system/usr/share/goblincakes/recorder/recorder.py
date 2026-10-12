@@ -992,8 +992,9 @@ ROLE_ORDER = {"tanks": 0, "healers": 1, "dps": 2}
 
 
 def wcl_stats(wcl):
-    """Everyone in the fight: class, spec, role, DPS, HPS, parse (healers by HPS, the others
-    by DPS; only kills and timed keys have parses) and deaths – the same numbers as the
+    """Everyone in the fight: class, spec, role, DPS, HPS, parse and item level parse (against
+    the same item level; healers by HPS, the others by DPS; only kills and timed keys have
+    parses) and deaths – the same numbers as the
     report page (total / the fight's time)."""
     rep = wcl_query(
         "query($c:String,$f:[Int]){ reportData { report(code:$c) {"
@@ -1017,7 +1018,7 @@ def wcl_stats(wcl):
             for role in (fight.get("roles") or {}).values():
                 for c in role.get("characters") or []:
                     if c.get("rankPercent") is not None:
-                        out[c["name"]] = c["rankPercent"]
+                        out[c["name"]] = (c["rankPercent"], c.get("bracketPercent"))
         return out
 
     dps, hps = per_second("dmg"), per_second("heal")
@@ -1029,11 +1030,12 @@ def wcl_stats(wcl):
     for role, people in ((data("details") or {}).get("playerDetails") or {}).items():
         for p in people:
             name = p["name"]
+            parse, ilvl_parse = (phps if role == "healers" else pdps).get(name, (None, None))
             players.append({
                 "name": name, "class": p.get("type", ""), "role": role,
                 "spec": (p.get("specs") or [{}])[0].get("spec", ""),
                 "dps": round(dps.get(name, 0)), "hps": round(hps.get(name, 0)),
-                "parse": (phps if role == "healers" else pdps).get(name),
+                "parse": parse, "ilvlParse": ilvl_parse,
                 "deaths": deaths.get(name, 0)})
     players.sort(key=lambda p: (ROLE_ORDER.get(p["role"], 3), -p["dps"]))
     return {"players": players, "deaths": sum(deaths.values()), "fetched": time.time(),
