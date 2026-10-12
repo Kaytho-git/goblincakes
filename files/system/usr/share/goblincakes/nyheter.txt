@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-12  goblin graph: vyn Rullande är borttagen – dubbelklick växlar nu mellan Staplar, Ljudvåg, Cirkel och Explosion
 2026-10-12  goblin graph: de höga tonerna (staplarna längst till höger) syns nu lika bra som basen, och staplarna rör sig mer
 2026-10-12  goblin graph har fått två runda vyer: Cirkel (staplar runt en ring som växer utåt) och Explosion (varje smäll i ljudet skickar ut en ring och gnistor från mitten). Fönstret blir fyrkantigt för dem och kommer ihåg sin egen storlek
 2026-10-12  goblin graph har två vyer till: en ljudvåg (oscilloskop) och en våg som rullar åt sidan. Dubbelklicka i fönstret för att byta, eller skriv goblin graph våg / goblin graph rullande

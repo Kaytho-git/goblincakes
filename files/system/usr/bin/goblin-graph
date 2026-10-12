@@ -7,10 +7,9 @@ other windows: only the bars show on the desktop.
   goblin graph alla       every bar in a class colour, Death Knight → Warrior
   goblin graph klass      your character's class (read from WoW's combat log)
   goblin graph mage …     a class of your choice (also: death-knight, demon-hunter, …)
-  goblin graph staplar | våg | rullande | cirkel | explosion
+  goblin graph staplar | våg | cirkel | explosion
                           bars (bass left, treble right, moving up), an oscilloscope (the
-                          sound wave itself, live), a rolling wave (loudness scrolling from
-                          right to left), bars in a circle growing outwards from the middle,
+                          sound wave itself, live), bars in a circle growing outwards from the middle,
                           or an explosion (every beat sends a ring and sparks outwards)
 
 In the window: drag to move, the bottom-right corner to resize, double-click switches the
@@ -68,7 +67,7 @@ SPECS = {
 RATE = 48000
 SIZE = 1024          # samples per spectrum (21 ms) – 2 ms per transform in plain Python
 RING = 2048          # kept samples: the oscilloscope looks for a rising zero crossing first
-VIEWS = ["bars", "scope", "scroll", "circle", "burst"]
+VIEWS = ["bars", "scope", "circle", "burst"]
 ROUND = ("circle", "burst")   # views with a square window (own size/position in graph.json)
 CIRCLE_BARS = 24     # a quarter of the circle: bass at the top and bottom, treble at the sides
 RING_LIFE = 36       # ticks (1.2 s) a ring of the explosion lives
@@ -217,7 +216,6 @@ class Graph(QObject):
         self.cfg = settings
         self._levels = []
         self._wave = []
-        self._history = []
         self._rings = []     # [age, strength, colour index]
         self._sparks = []    # [age, angle, speed, colour index]
         self._glow = 0.0
@@ -243,10 +241,6 @@ class Graph(QObject):
     @Property(list, notify=levelsChanged)
     def wave(self):
         return self._wave
-
-    @Property(list, notify=levelsChanged)
-    def history(self):
-        return self._history
 
     @Property(list, notify=levelsChanged)
     def rings(self):
@@ -354,8 +348,6 @@ class Graph(QObject):
                 self.cfg["view"] = "bars"
             elif a in ("våg", "vag", "oscilloskop", "scope", "wave"):
                 self.cfg["view"] = "scope"
-            elif a in ("rullande", "rulla", "scroll", "rolling"):
-                self.cfg["view"] = "scroll"
             elif a in ("cirkel", "ring", "circle", "rund"):
                 self.cfg["view"] = "circle"
             elif a in ("explosion", "explodera", "burst", "boom", "smäll"):
@@ -371,8 +363,6 @@ class Graph(QObject):
         view = self.view
         if view == "scope":
             self.scope(samples)
-        elif view == "scroll":
-            self.roll(samples)
         elif view == "burst":
             self.burst(samples)
         elif view == "circle":
@@ -395,14 +385,6 @@ class Graph(QObject):
         self.wave_gain = max(peak, self.wave_gain * 0.99, 0.02)
         step = span / 240
         self._wave = [max(-1.0, min(1.0, part[int(k * step)] / self.wave_gain)) for k in range(240)]
-
-    def roll(self, s):
-        """How loud it is right now (the last 1/30 s), added on the right; older values move left."""
-        part = s[-RATE // 30:]
-        rms = math.sqrt(sum(v * v for v in part) / len(part)) if part else 0
-        self.loud_gain = max(rms, self.loud_gain * 0.997, 1e-3)
-        db = 20 * math.log10(max(rms / self.loud_gain, 1e-6))
-        self._history = (self._history + [max(0.0, min(1.0, 1 + db / 40))])[-600:]
 
     def burst(self, s):
         """A beat = the last 1/30 s clearly louder than the last second on average: a new ring

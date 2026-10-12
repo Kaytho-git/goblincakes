@@ -1,4 +1,4 @@
-// goblin graph – bars, oscilloscope, rolling wave, circle or explosion. A window without frame or background
+// goblin graph – bars, oscilloscope, circle or explosion. A window without frame or background
 // (flags + transparent colour), among the other windows. Drag = move, bottom-right corner =
 // resize, double-click = next view, right-click = all classes ↔ one class, wheel = another
 // class, Esc = close. Hovering shows a faint backdrop,
@@ -147,33 +147,6 @@ Window {
         }
     }
 
-    // Rolling wave: how loud it is, scrolling from right (now) to left, mirrored round the middle
-    Canvas {
-        id: roll
-        anchors { fill: parent; margins: 6 }
-        visible: graph.view === "scroll"
-        onPaint: {
-            const ctx = getContext("2d");
-            ctx.reset();
-            const col = 4, count = Math.floor(width / col);
-            const h = graph.history, start = Math.max(0, h.length - count);
-            const mid = height / 2, amp = height / 2 - 4;
-            let grad = null;
-            if (graph.mode !== "all") {
-                grad = ctx.createLinearGradient(0, mid - amp, 0, mid + amp);
-                grad.addColorStop(0, graph.classColor);
-                grad.addColorStop(0.5, win.rgba(graph.classColor, 0.15));
-                grad.addColorStop(1, graph.classColor);
-            }
-            for (let i = start; i < h.length; i++) {
-                const x = width - (h.length - i) * col;
-                const v = Math.max(1.5, h[i] * amp);
-                ctx.fillStyle = grad ? grad : win.classAt(x, width);
-                ctx.fillRect(x, mid - v, col - 1, v * 2);
-            }
-        }
-    }
-
     // Circle: bars around a ring, growing outwards – bass at the top and bottom, treble at the sides
     Canvas {
         id: circle
@@ -256,11 +229,11 @@ Window {
     Connections {
         target: graph
         function onLevelsChanged() {
-            const c = ({ scope: scope, scroll: roll, circle: circle, burst: burst })[graph.view];
+            const c = ({ scope: scope, circle: circle, burst: burst })[graph.view];
             if (c) c.requestPaint();
         }
         function onStyleChanged() {
-            for (const c of [scope, roll, circle, burst]) c.requestPaint();
+            for (const c of [scope, circle, burst]) c.requestPaint();
         }
     }
 
@@ -288,7 +261,7 @@ Window {
     Text {
         anchors { left: parent.left; top: parent.top; margins: 10 }
         visible: hover.hovered
-        text: ({ bars: "Staplar", scope: "Oscilloskop", scroll: "Rullande", circle: "Cirkel", burst: "Explosion" })[graph.view] + "  ·  "
+        text: ({ bars: "Staplar", scope: "Oscilloskop", circle: "Cirkel", burst: "Explosion" })[graph.view] + "  ·  "
               + (graph.mode === "all" ? "Alla klasser" : graph.className)
         color: graph.mode === "all" ? "#E6ECF5" : graph.classColor
         font.family: "Chakra Petch"
