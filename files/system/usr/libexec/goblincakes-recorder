@@ -7,8 +7,9 @@ goblincakes-recorder.service). The window is /usr/bin/goblin-recorder.
   goblincakes-recorder setup      make OBS's profile/scenes/audio tracks (OBS must run)
   goblincakes-recorder status     what the service sees right now (JSON)
 
-Raid: every boss pull becomes its own video. Mythic+: the whole key. OBS starts recording
-on ENCOUNTER_START / CHALLENGE_MODE_START and stops a few seconds after the end. WoW
+Raid: every boss pull becomes its own video. Mythic+: the whole key. Arena (also Solo
+Shuffle): the whole match. OBS starts recording on ENCOUNTER_START / CHALLENGE_MODE_START /
+ARENA_MATCH_START and stops a few seconds after the end. WoW
 writes the combat log in chunks 10–60 s late, but flushes it at once on a boss pull/end
 (measured 11 Oct: 0.00 s) – so the start is on time. Deaths come later and are added
 as marks to the video's .json afterwards.
@@ -30,7 +31,7 @@ import recorder as R  # noqa: E402
 
 LIVE_LIMIT = 30  # a start line older than this (seconds) is not recorded
 LATE_MARKS = 120  # seconds after a video ends that late log lines may still add marks
-MAX_LENGTH = {"raid": 45 * 60, "mplus": 3 * 3600}
+MAX_LENGTH = {"raid": 45 * 60, "mplus": 3 * 3600, "arena": 45 * 60}
 WCL_EVERY = 5 * 60  # look for Warcraft Logs fights this often …
 WCL_FOR = 24 * 3600  # … for videos this young
 ME = re.compile(r'^(Player-[^,]+),"([^"]+)",0x511,')  # a line by your own character
@@ -58,6 +59,7 @@ class Service:
         self.delays = []
         # what is going on in the game
         self.zone = None  # {"name", "difficulty", "kind"}
+        self.zone_name = ""  # the last ZONE_CHANGE, also outside raids/dungeons (the arena's name)
         self.current = None  # the pull / key being recorded
         self.stop_at = 0  # wall time to stop OBS (after the end + postRoll)
         self.closing = []  # saved videos that late log lines may still add deaths to
@@ -177,8 +179,13 @@ class Service:
             except (IndexError, ValueError):
                 diff = 0
             kind = "raid" if diff in R.RAID_DIFFICULTIES else "dungeon" if diff in R.DUNGEON_DIFFICULTIES else None
-            if self.current and not self.stop_at and (kind is None or a[1] != (self.zone or {}).get("name")):
-                self.finish(t, "abandoned")  # left the dungeon/raid mid key or pull
+            self.zone_name = a[1] if len(a) > 1 else ""
+            if self.current and not self.stop_at:
+                if self.current["kind"] == "arena":
+                    if self.current["zone"] and self.zone_name != self.current["zone"]:
+                        self.finish(t, "abandoned")  # left the arena before the end
+                elif kind is None or a[1] != (self.zone or {}).get("name"):
+                    self.finish(t, "abandoned")  # left the dungeon/raid mid key or pull
             self.zone = {"name": a[1], "difficulty": diff, "kind": kind} if kind else None
         elif ev == "ENCOUNTER_START":
             a = R.split_args(rest)
@@ -205,6 +212,24 @@ class Service:
             a = R.split_args(rest)
             if self.current and self.current["kind"] == "mplus":
                 self.finish(t, "timed" if len(a) > 1 and a[1] == "1" else "depleted")
+        elif ev == "ARENA_MATCH_START":
+            # instance id, (unused), bracket ("2v2", "3v3", "Rated Solo Shuffle", "Skirmish" …), your team
+            a = R.split_args(rest)
+            if self.cfg.get("arena") and live:
+                if self.current:
+                    self.stop_now()
+                self.begin(t, now, {"kind": "arena", "name": self.zone_name or "Arena",
+                                    "difficulty": a[2] if len(a) > 2 else "Arena",
+                                    "team": a[3] if len(a) > 3 else "", "zone": self.zone_name})
+        elif ev == "ARENA_MATCH_END":
+            # winning team, duration, new ratings – Solo Shuffle is won or lost per round, so
+            # the whole match only gets "done"
+            a = R.split_args(rest)
+            if self.current and self.current["kind"] == "arena":
+                if "shuffle" in self.current["difficulty"].lower() or not self.current["team"]:
+                    self.finish(t, "done")
+                else:
+                    self.finish(t, "win" if a[0] == self.current["team"] else "loss")
         elif ev == "UNIT_DIED":
             a = R.split_args(rest)
             if len(a) > 5 and a[4].startswith("Player-"):
@@ -280,6 +305,9 @@ class Service:
         if cur["kind"] == "raid":
             title = f"{cur['name']} {cur['difficulty']}"
             result = {"kill": "KILL", "wipe": "WIPE"}.get(cur["result"], "AVBRUTEN")
+        elif cur["kind"] == "arena":
+            title = f"{cur['difficulty']} {cur['name']}"
+            result = {"win": "VINST", "loss": "FÖRLUST", "done": "KLAR"}.get(cur["result"], "AVBRUTEN")
         else:
             title = f"+{cur['level']} {cur['name']}"
             result = {"timed": "I TID", "depleted": "FÖR SENT"}.get(cur["result"], "AVBRUTEN")
@@ -371,7 +399,7 @@ class Service:
             return
         self.wcl_next = time.time() + WCL_EVERY
         todo = [v for v in R.video_files(self.cfg["folder"])
-                if not v.get("wcl") and v.get("player") and time.time() - v["started"] < WCL_FOR]
+                if v.get("kind") in ("raid", "mplus") and not v.get("wcl") and v.get("player") and time.time() - v["started"] < WCL_FOR]
         if not todo:
             return
         self.wcl_busy = True

@@ -45,6 +45,7 @@ DEFAULTS = {
     "codec": "h264",  # h264 | hevc | av1 (NVENC on the graphics card) | x264 (processor)
     "raid": True,
     "mplus": True,
+    "arena": True,  # 2v2, 3v3, Solo Shuffle, Skirmish – the whole match
     "raidLevels": ["lfr", "normal", "heroic", "mythic"],  # which raid difficulties to record
     "mplusMin": 2,  # keys from this level up
     "autoStartObs": True,
@@ -756,7 +757,7 @@ def remove_video(path):
             pass
 
 
-KEPT_RESULTS = ("kill", "timed")  # a raid kill, a Mythic+ key in time
+KEPT_RESULTS = ("kill", "timed", "win", "done")  # a raid kill, a key in time, an arena won / a Solo Shuffle
 RAID_WIPES_KEPT = 2  # per boss and difficulty while you raid – the newest ones
 
 

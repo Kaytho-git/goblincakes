@@ -10,7 +10,7 @@ Window {
 
     width: 1320
     height: 860
-    minimumWidth: 980
+    minimumWidth: 1120 // list + player + the "Spelas in" panel
     minimumHeight: 640
     visible: true
     title: "GoblinRecorder" // the desktop adds nothing when the title is the program name
@@ -25,6 +25,12 @@ Window {
     property string note: ""
     property bool wclBusy: false
     property int overlayPick: -1 // the chosen box in "Dölj delar av bilden"
+    // The explanation shown while the mouse rests on a choice (12 Oct: smaller buttons, the
+    // explanations as hover instead of text under them)
+    property string tipText: ""
+    property Item tipItem: null
+    function showTip(item, text) { tipItem = item; tipText = text || ""; }
+    function hideTip(item) { if (tipItem === item) tipText = ""; }
     onTabChanged: if (tab === "settings") backend.refreshPreview()
 
     function set(key, value) { backend.setConfig(key, JSON.stringify(value)); }
@@ -45,11 +51,12 @@ Window {
     }
 
     function resultText(v) {
-        return ({ kill: "KILL", wipe: "WIPE", timed: "I TID", depleted: "FÖR SENT" })[v.result] || "AVBRUTEN";
+        return ({ kill: "KILL", wipe: "WIPE", timed: "I TID", depleted: "FÖR SENT", win: "VINST", loss: "FÖRLUST", done: "KLAR" })[v.result] || "AVBRUTEN";
     }
 
     function resultColor(v) {
-        return v.result === "kill" || v.result === "timed" ? "#3FB950" : v.result === "wipe" || v.result === "depleted" ? "#E5534B" : "#8B98AD";
+        return v.result === "kill" || v.result === "timed" || v.result === "win" ? "#3FB950"
+             : v.result === "wipe" || v.result === "depleted" || v.result === "loss" ? "#E5534B" : "#8B98AD";
     }
 
     function title(v) {
@@ -65,7 +72,9 @@ Window {
         if (st.obs === "connected" && st.screen === false)
             return "Välj vilken skärm OBS ska spela in – tryck Välj skärm och välj skärmen där WoW är.";
         if (st.current)
-            return "Spelar in " + (st.current.kind === "mplus" ? "nyckeln" : st.current.name + " (" + st.current.difficulty + ")") + " …";
+            return "Spelar in " + (st.current.kind === "mplus" ? "nyckeln"
+                : st.current.kind === "arena" ? st.current.difficulty + " i " + st.current.name
+                : st.current.name + " (" + st.current.difficulty + ")") + " …";
         if (st.waiting)
             return "Sparar filmen …";
         if (st.wow && !st.logging)
@@ -73,8 +82,8 @@ Window {
         if (st.wow && st.zone)
             return "I " + st.zone + " – väntar på nästa boss.";
         if (st.wow)
-            return "WoW kör – inspelningen startar i raid och Mythic+.";
-        return "Väntar på WoW. Raidbossar och Mythic+-nycklar spelas in av sig själva.";
+            return "WoW kör – inspelningen startar i raid, Mythic+ och arena.";
+        return "Väntar på WoW. Raidbossar, Mythic+-nycklar och arenamatcher spelas in av sig själva.";
     }
 
     Connections {
@@ -182,8 +191,8 @@ Window {
         property bool enabledState: true
         signal clicked()
 
-        width: Math.max(120, label.implicitWidth + 40)
-        height: 40
+        width: Math.max(96, label.implicitWidth + 32)
+        height: 34
         opacity: enabledState ? 1 : 0.4
         color: primary ? (area.containsMouse && enabledState ? "#4A82F0" : "#2F6FED")
                        : (area.containsMouse && enabledState ? (danger ? "#3A1418" : "#1A2438") : "transparent")
@@ -197,7 +206,7 @@ Window {
             color: "#E6ECF5"
             font.family: "IBM Plex Sans"
             font.weight: Font.Medium
-            font.pixelSize: 14
+            font.pixelSize: 13
         }
         MouseArea {
             id: area
@@ -292,6 +301,36 @@ Window {
         lineHeight: 1.15
     }
 
+    // Hover explanation for any item: HoverTip { tip: "…" } inside it
+    component HoverTip: HoverHandler {
+        property string tip
+        onHoveredChanged: hovered && tip ? win.showTip(parent, tip) : win.hideTip(parent)
+    }
+
+    // A name with a switch on the right, explanation on hover (the "Spelas in" panel)
+    component PanelSwitch: Item {
+        id: ps
+        property string name
+        property string key
+        property string tip
+        width: parent.width
+        height: 30
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: ps.name
+            color: "#E6ECF5"
+            font.family: "IBM Plex Sans"
+            font.weight: Font.Medium
+            font.pixelSize: 15
+        }
+        ToggleSwitch {
+            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+            on: !!win.cfg[ps.key]
+            onToggled: win.set(ps.key, !win.cfg[ps.key])
+        }
+        HoverTip { tip: ps.tip }
+    }
+
     // A small status square + word in the header
     component StatusChip: Row {
         id: chip
@@ -322,7 +361,8 @@ Window {
         }
     }
 
-    // A choice among a few (fps, codec, space): square card with a blue edge when chosen
+    // A choice among a few (fps, codec, space): small square with a blue edge when chosen;
+    // "sub" is the explanation, shown on hover
     component Choice: Rectangle {
         id: ch
         property string text
@@ -330,31 +370,20 @@ Window {
         property bool chosen
         property bool enabledState: true
         signal picked()
-        width: 210
-        height: sub ? 72 : 48
+        width: Math.max(88, chText.implicitWidth + 32)
+        height: 34
         color: chosen ? "#12203A" : (chArea.containsMouse && enabledState ? "#0E1420" : "transparent")
         border.width: chosen ? 2 : 1
         border.color: chosen ? "#2F6FED" : "#2A3852"
         opacity: enabledState ? 1 : 0.35
-        Column {
-            anchors { left: parent.left; leftMargin: 16; right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-            spacing: 4
-            Text {
-                text: ch.text
-                color: "#E6ECF5"
-                font.family: "IBM Plex Sans"
-                font.weight: Font.Medium
-                font.pixelSize: 15
-            }
-            Text {
-                visible: ch.sub !== ""
-                width: parent.width
-                text: ch.sub
-                color: "#8B98AD"
-                font.family: "IBM Plex Sans"
-                font.pixelSize: 12
-                elide: Text.ElideRight
-            }
+        Text {
+            id: chText
+            anchors.centerIn: parent
+            text: ch.text
+            color: "#E6ECF5"
+            font.family: "IBM Plex Sans"
+            font.weight: Font.Medium
+            font.pixelSize: 14
         }
         MouseArea {
             id: chArea
@@ -362,6 +391,7 @@ Window {
             hoverEnabled: true
             cursorShape: ch.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: if (ch.enabledState) ch.picked()
+            onContainsMouseChanged: containsMouse && ch.sub ? win.showTip(ch, ch.sub) : win.hideTip(ch)
         }
     }
 
@@ -482,6 +512,22 @@ Window {
                     onClicked: win.st.obs === "no-ws" || win.st.obs === "error" ? backend.restartObs() : backend.startObs()
                 }
             }
+            Row { // was a setting under "Vad som spelas in"; now beside the OBS button (12 Oct)
+                anchors.right: parent.right
+                spacing: 10
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Starta OBS när WoW startar"
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                }
+                ToggleSwitch {
+                    on: !!win.cfg.autoStartObs
+                    onToggled: win.set("autoStartObs", !win.cfg.autoStartObs)
+                }
+                HoverTip { tip: "OBS startas dolt i systemfältet så fort WoW startar – redo till första pullen." }
+            }
         }
 
         Row {
@@ -541,6 +587,7 @@ Window {
         Column {
             visible: win.videos.length === 0
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: -recordPanel.width / 2
             width: Math.min(560, parent.width - 80)
             spacing: 12
             Text {
@@ -556,7 +603,76 @@ Window {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 text: "Ha OBS igång och stridsloggen på (/combatlog i WoW). Varje raidboss blir en egen film, "
-                      + "och en Mythic+-nyckel blir en film från start till slut. De hamnar här."
+                      + "en Mythic+-nyckel och en arenamatch en film från start till slut. De hamnar här."
+            }
+        }
+
+        // What gets recorded – on the first page, right side (12 Oct, the user's wish)
+        Rectangle {
+            id: recordPanel
+            anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+            width: 268
+            color: "#0B1018"
+            Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom } width: 1; color: "#1E2A40" }
+
+            Column {
+                x: 24
+                y: 24
+                width: parent.width - 48
+                spacing: 12
+
+                SectionTitle { text: "SPELAS IN" }
+
+                PanelSwitch { name: "Raid"; key: "raid"; tip: "Varje bossförsök blir en egen film – kill eller wipe – för de svårighetsgrader du väljer." }
+                Flow {
+                    width: parent.width
+                    spacing: 6
+                    opacity: win.cfg.raid ? 1 : 0.35
+                    Repeater {
+                        model: [{ "id": "lfr", "name": "LFR" }, { "id": "normal", "name": "Normal" },
+                                { "id": "heroic", "name": "Heroic" }, { "id": "mythic", "name": "Mythic" }]
+                        Choice {
+                            required property var modelData
+                            readonly property var levels: win.cfg.raidLevels || ["lfr", "normal", "heroic", "mythic"]
+                            width: (recordPanel.width - 48 - 6) / 2
+                            enabledState: !!win.cfg.raid
+                            text: (chosen ? "✓  " : "") + modelData.name
+                            chosen: levels.indexOf(modelData.id) >= 0
+                            onPicked: win.set("raidLevels", chosen ? levels.filter(l => l !== modelData.id) : levels.concat([modelData.id]))
+                        }
+                    }
+                }
+
+                Item { width: 1; height: 6 }
+                PanelSwitch { name: "Mythic+"; key: "mplus"; tip: "Hela nyckeln, från att den sätts i tills den är klar." }
+                Row {
+                    spacing: 10
+                    opacity: win.cfg.mplus ? 1 : 0.35
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Från nivå  +"
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                    }
+                    FlatField {
+                        id: mplusMin
+                        width: 64
+                        height: 32
+                        enabled: !!win.cfg.mplus
+                        text: String(win.cfg.mplusMin || 2)
+                        validator: IntValidator { bottom: 2; top: 99 } // +2 is the lowest key
+                        onEdited: {
+                            const n = parseInt(text);
+                            if (n >= 2 && n !== win.cfg.mplusMin)
+                                win.set("mplusMin", n);
+                        }
+                        HoverTip { tip: "Skriver du 10 spelas bara +10 och högre in. 2 = alla nycklar." }
+                    }
+                }
+
+                Item { width: 1; height: 6 }
+                PanelSwitch { name: "Arena"; key: "arena"; tip: "Hela matchen – 2v2, 3v3, Solo Shuffle och Skirmish. Vinst eller förlust står på filmen." }
             }
         }
 
@@ -660,7 +776,7 @@ Window {
         Item {
             id: playerPane
             visible: win.videos.length > 0 && !!win.selected
-            anchors { left: list.right; leftMargin: 20; right: parent.right; rightMargin: 32; top: parent.top; topMargin: 20; bottom: parent.bottom; bottomMargin: 20 }
+            anchors { left: list.right; leftMargin: 20; right: recordPanel.left; rightMargin: 24; top: parent.top; topMargin: 20; bottom: parent.bottom; bottomMargin: 20 }
 
             readonly property var v: win.selected
             readonly property real dur: player.duration > 0 ? player.duration / 1000 : (v ? v.duration : 0)
@@ -927,6 +1043,117 @@ Window {
             width: settingsView.width - 80
             spacing: 14
 
+            SectionTitle { text: "KODARE" }
+            Flow {
+                width: settingsCol.width
+                spacing: 12
+                Repeater {
+                    model: [{ "id": "h264", "name": "NVENC H.264", "sub": "Grafikkortet · spelas upp överallt" },
+                            { "id": "hevc", "name": "NVENC HEVC", "sub": "Grafikkortet · mindre filer" },
+                            { "id": "av1", "name": "NVENC AV1", "sub": "Grafikkortet · minst filer, RTX 40xx+" },
+                            { "id": "x264", "name": "x264", "sub": "Processorn · tar kraft från spelet" }]
+                    Choice {
+                        required property var modelData
+                        readonly property bool works: !win.enc.known || !!win.enc.codecs[modelData.id]
+                        text: modelData.name
+                        sub: (works ? modelData.sub : (win.enc.hardware ? "Grafikkortet klarar inte AV1" : "Kräver ett Nvidia-kort"))
+                             + ". Byter du kodare startas OBS om (dolt) före nästa inspelning."
+                        enabledState: works
+                        chosen: win.cfg.codec === modelData.id
+                        onPicked: win.set("codec", modelData.id)
+                    }
+                }
+            }
+            Note {
+                visible: !win.enc.hardware
+                width: Math.min(820, parent.width)
+                text: "Inget Nvidia-kort hittat – OBS spelar in med processorn (x264)."
+            }
+
+            Item { width: 1; height: 14 }
+            SectionTitle { text: "BILDER PER SEKUND" }
+            Row {
+                spacing: 12
+                Repeater {
+                    model: [{ "fps": 60, "sub": "Mjukast – som du ser spelet" }, { "fps": 30, "sub": "Hälften så stora filer" }]
+                    Choice {
+                        required property var modelData
+                        text: modelData.fps + " fps"
+                        sub: modelData.sub
+                        chosen: win.cfg.fps === modelData.fps
+                        onPicked: win.set("fps", modelData.fps)
+                    }
+                }
+            }
+
+            Item { width: 1; height: 14 }
+            SectionTitle { text: "KVALITET" }
+            Row {
+                spacing: 12
+                Repeater {
+                    model: [{ "id": "high", "name": "Hög" }, { "id": "normal", "name": "Normal" }, { "id": "small", "name": "Liten" }]
+                    Choice {
+                        required property var modelData
+                        // MB per minute, as recorder.encoder_settings counts it (video + 3 audio tracks)
+                        readonly property real mb: ({ high: 25, normal: 10, small: 5 })[modelData.id]
+                            * (win.cfg.codec === "h264" || win.cfg.codec === "x264" ? 1.5 : 1)
+                            * (win.cfg.fps <= 30 ? 0.7 : 1) * 7.5 + 3.6
+                        text: modelData.name
+                        sub: "≈ " + Math.round(mb / 5) * 5 + " MB per minut. "
+                             + ({ high: "Om du vill klippa ihop filmer i efterhand.", normal: "Räcker gott för WoW.",
+                                  small: "När disken är liten." })[modelData.id] + " En lugn stund blir mindre."
+                        chosen: (win.cfg.quality || "normal") === modelData.id
+                        onPicked: win.set("quality", modelData.id)
+                    }
+                }
+            }
+
+            Item { width: 1; height: 14 }
+            SectionTitle { text: "LJUD" }
+            Item {
+                width: Math.min(820, settingsCol.width)
+                height: 34
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 3
+                    Text {
+                        text: "Min mikrofon"
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.Medium
+                        font.pixelSize: 15
+                    }
+                }
+                HoverTip { tip: "Din röst på spåren Allt och Discord – med brusreducering, så att tangentbordet hörs mindre." }
+                ToggleSwitch {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    on: win.cfg.mic !== false
+                    onToggled: win.set("mic", win.cfg.mic === false)
+                }
+            }
+            Text {
+                topPadding: 8
+                text: "WoW-ljudet i filmen"
+                color: "#E6ECF5"
+                font.family: "IBM Plex Sans"
+                font.weight: Font.Medium
+                font.pixelSize: 15
+            }
+            Row {
+                spacing: 12
+                Repeater {
+                    model: [{ "db": 0, "name": "Som i spelet" }, { "db": 6, "name": "+6 dB" }, { "db": 12, "name": "+12 dB" }, { "db": 18, "name": "+18 dB" }]
+                    Choice {
+                        required property var modelData
+                        text: modelData.name
+                        sub: "WoW spelar ofta svagt bredvid Discord. Förstärkningen gäller bara filmen – en spärr ser till att det aldrig skär sig."
+                        chosen: (win.cfg.gameBoost === undefined ? 12 : win.cfg.gameBoost) === modelData.db
+                        onPicked: win.set("gameBoost", modelData.db)
+                    }
+                }
+            }
+
+            Item { width: 1; height: 14 }
             SectionTitle { text: "VAR FILMERNA SPARAS" }
             Row {
                 spacing: 12
@@ -951,125 +1178,6 @@ Window {
             Note {
                 width: Math.min(820, parent.width)
                 text: "En raidboss blir 30–100 MB per minut beroende på bilder per sekund och codec. Välj en disk med gott om plats."
-            }
-
-            Item { width: 1; height: 14 }
-            SectionTitle { text: "BILDER PER SEKUND" }
-            Row {
-                spacing: 12
-                Repeater {
-                    model: [{ "fps": 60, "sub": "Mjukast – som du ser spelet" }, { "fps": 30, "sub": "Hälften så stora filer" }]
-                    Choice {
-                        required property var modelData
-                        text: modelData.fps + " fps"
-                        sub: modelData.sub
-                        chosen: win.cfg.fps === modelData.fps
-                        onPicked: win.set("fps", modelData.fps)
-                    }
-                }
-            }
-
-            Item { width: 1; height: 14 }
-            SectionTitle { text: "KODARE" }
-            Flow {
-                width: settingsCol.width
-                spacing: 12
-                Repeater {
-                    model: [{ "id": "h264", "name": "NVENC H.264", "sub": "Grafikkortet · spelas upp överallt" },
-                            { "id": "hevc", "name": "NVENC HEVC", "sub": "Grafikkortet · mindre filer" },
-                            { "id": "av1", "name": "NVENC AV1", "sub": "Grafikkortet · minst filer, RTX 40xx+" },
-                            { "id": "x264", "name": "x264", "sub": "Processorn · tar kraft från spelet" }]
-                    Choice {
-                        required property var modelData
-                        readonly property bool works: !win.enc.known || !!win.enc.codecs[modelData.id]
-                        width: 240
-                        text: modelData.name
-                        sub: works ? modelData.sub : (win.enc.hardware ? "Grafikkortet klarar inte AV1" : "Kräver ett Nvidia-kort")
-                        enabledState: works
-                        chosen: win.cfg.codec === modelData.id
-                        onPicked: win.set("codec", modelData.id)
-                    }
-                }
-            }
-            Note {
-                width: Math.min(820, parent.width)
-                text: (win.enc.hardware ? "NVENC = grafikkortets egen videokrets – spelet märker knappt något. "
-                                        : "Inget Nvidia-kort hittat – OBS spelar in med processorn (x264). ")
-                      + "Byter du kodare startas OBS om (dolt) före nästa inspelning."
-            }
-
-            Item { width: 1; height: 14 }
-            SectionTitle { text: "KVALITET" }
-            Row {
-                spacing: 12
-                Repeater {
-                    model: [{ "id": "high", "name": "Hög" }, { "id": "normal", "name": "Normal" }, { "id": "small", "name": "Liten" }]
-                    Choice {
-                        required property var modelData
-                        // MB per minute, as recorder.encoder_settings counts it (video + 3 audio tracks)
-                        readonly property real mb: ({ high: 25, normal: 10, small: 5 })[modelData.id]
-                            * (win.cfg.codec === "h264" || win.cfg.codec === "x264" ? 1.5 : 1)
-                            * (win.cfg.fps <= 30 ? 0.7 : 1) * 7.5 + 3.6
-                        text: modelData.name
-                        sub: "≈ " + Math.round(mb / 5) * 5 + " MB per minut"
-                        chosen: (win.cfg.quality || "normal") === modelData.id
-                        onPicked: win.set("quality", modelData.id)
-                    }
-                }
-            }
-            Note {
-                width: Math.min(820, parent.width)
-                text: "Normal räcker gott för WoW. Hög om du vill klippa ihop filmer i efterhand, Liten om disken är liten. "
-                      + "Storleken är det mesta – en lugn stund blir mindre."
-            }
-
-            Item { width: 1; height: 14 }
-            SectionTitle { text: "LJUD" }
-            Item {
-                width: Math.min(820, settingsCol.width)
-                height: 54
-                Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 3
-                    Text {
-                        text: "Min mikrofon"
-                        color: "#E6ECF5"
-                        font.family: "IBM Plex Sans"
-                        font.weight: Font.Medium
-                        font.pixelSize: 15
-                    }
-                    Note { text: "Din röst på spåren Allt och Discord – med brusreducering, så att tangentbordet hörs mindre." }
-                }
-                ToggleSwitch {
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    on: win.cfg.mic !== false
-                    onToggled: win.set("mic", win.cfg.mic === false)
-                }
-            }
-            Text {
-                topPadding: 8
-                text: "WoW-ljudet i filmen"
-                color: "#E6ECF5"
-                font.family: "IBM Plex Sans"
-                font.weight: Font.Medium
-                font.pixelSize: 15
-            }
-            Row {
-                spacing: 12
-                Repeater {
-                    model: [{ "db": 0, "name": "Som i spelet" }, { "db": 6, "name": "+6 dB" }, { "db": 12, "name": "+12 dB" }, { "db": 18, "name": "+18 dB" }]
-                    Choice {
-                        required property var modelData
-                        width: 150
-                        text: modelData.name
-                        chosen: (win.cfg.gameBoost === undefined ? 12 : win.cfg.gameBoost) === modelData.db
-                        onPicked: win.set("gameBoost", modelData.db)
-                    }
-                }
-            }
-            Note {
-                width: Math.min(820, parent.width)
-                text: "WoW spelar ofta svagt bredvid Discord. Förstärkningen gäller bara filmen – en spärr ser till att det aldrig skär sig."
             }
 
             Item { width: 1; height: 14 }
@@ -1229,77 +1337,6 @@ Window {
             }
 
             Item { width: 1; height: 14 }
-            SectionTitle { text: "VAD SOM SPELAS IN" }
-            SettingRow {
-                name: "Raidbossar"
-                sub: "Varje försök blir en egen film – kill eller wipe. Välj vilka svårighetsgrader."
-                key: "raid"
-            }
-            Row {
-                spacing: 10
-                opacity: win.cfg.raid ? 1 : 0.35
-                Repeater {
-                    model: [{ "id": "lfr", "name": "LFR" }, { "id": "normal", "name": "Normal" },
-                            { "id": "heroic", "name": "Heroic" }, { "id": "mythic", "name": "Mythic" }]
-                    Choice {
-                        required property var modelData
-                        readonly property var levels: win.cfg.raidLevels || ["lfr", "normal", "heroic", "mythic"]
-                        width: 120
-                        enabledState: !!win.cfg.raid
-                        text: (chosen ? "✓  " : "") + modelData.name
-                        chosen: levels.indexOf(modelData.id) >= 0
-                        onPicked: win.set("raidLevels", chosen ? levels.filter(l => l !== modelData.id) : levels.concat([modelData.id]))
-                    }
-                }
-            }
-            Item { width: 1; height: 6 }
-            SettingRow {
-                name: "Mythic+"
-                sub: "Hela nyckeln, från start till slut – från den nivå du skriver här."
-                key: "mplus"
-            }
-            Row {
-                spacing: 12
-                opacity: win.cfg.mplus ? 1 : 0.35
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Från nivå  +"
-                    color: "#E6ECF5"
-                    font.family: "IBM Plex Sans"
-                    font.pixelSize: 15
-                }
-                FlatField {
-                    id: mplusMin
-                    width: 80
-                    enabled: !!win.cfg.mplus
-                    text: String(win.cfg.mplusMin || 2)
-                    validator: IntValidator { bottom: 2; top: 99 } // +2 is the lowest key
-                    onEdited: {
-                        const n = parseInt(text);
-                        if (n >= 2 && n !== win.cfg.mplusMin)
-                            win.set("mplusMin", n);
-                    }
-                }
-                Note {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Skriver du +10 spelas bara +10 och högre in. +2 = alla nycklar."
-                }
-            }
-            Item { width: 1; height: 6 }
-            SettingRow {
-                name: "Behåll wipes när WoW stängs"
-                sub: "Av: bara kills (och nycklar i tid) blir kvar när du stänger WoW, och under raiden sparas bara de två senaste wipes per boss. "
-                     + "Spara för alltid skyddar en film."
-                key: "keepWipes"
-            }
-            Item { width: 1; height: 6 }
-            SettingRow {
-                name: "Starta OBS när WoW startar"
-                sub: "OBS lägger sig dolt i systemfältet."
-                key: "autoStartObs"
-            }
-
-            Item { width: 1; height: 14 }
             SectionTitle { text: "HUR MYCKET PLATS FILMERNA FÅR TA" }
             Row {
                 spacing: 12
@@ -1307,18 +1344,20 @@ Window {
                     model: [50, 100, 200, 500]
                     Choice {
                         required property var modelData
-                        width: 120
                         text: modelData + " GB"
+                        sub: "När gränsen nås tas de äldsta filmerna bort – inte de du sparat för alltid."
                         chosen: win.cfg.maxGB === modelData
                         onPicked: win.set("maxGB", modelData)
                     }
                 }
             }
-            Note {
-                width: Math.min(820, parent.width)
-                text: "När gränsen nås tas de äldsta filmerna bort – inte de du sparat för alltid."
-            }
 
+            SettingRow {
+                name: "Behåll wipes när WoW stängs"
+                sub: "Av: bara kills (och nycklar i tid) blir kvar när du stänger WoW, och under raiden sparas bara de två senaste wipes per boss. "
+                     + "Spara för alltid skyddar en film."
+                key: "keepWipes"
+            }
             Item { width: 1; height: 14 }
             SectionTitle { text: "WARCRAFT LOGS" }
             Note {
@@ -1358,6 +1397,34 @@ Window {
         }
     }
     FlatScrollBar { flick: settingsView }
+
+    // The hover explanation (win.showTip), below the item – above it near the bottom edge
+    Rectangle {
+        id: tipBox
+        visible: win.tipText !== "" && !!win.tipItem && win.tipItem.visible
+        readonly property point at: win.tipItem ? win.tipItem.mapToItem(win.contentItem, 0, 0) : Qt.point(0, 0)
+        width: Math.min(360, tipLabel.implicitWidth + 24)
+        height: tipLabel.implicitHeight + 16
+        x: Math.max(8, Math.min(win.width - width - 8, at.x))
+        y: win.tipItem && at.y + win.tipItem.height + 6 + height > win.height - 8
+           ? at.y - height - 6 : at.y + (win.tipItem ? win.tipItem.height : 0) + 6
+        z: 100
+        color: "#0E1420"
+        border.width: 1
+        border.color: "#2F6FED"
+        Text {
+            id: tipLabel
+            x: 12
+            y: 8
+            width: Math.min(336, implicitWidth)
+            text: win.tipText
+            color: "#E6ECF5"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 13
+            wrapMode: Text.WordWrap
+            lineHeight: 1.15
+        }
+    }
 
     // Short messages at the bottom
     Rectangle {

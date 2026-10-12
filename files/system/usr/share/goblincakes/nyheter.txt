@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-12  GoblinRecorder spelar nu också in arenamatcher (2v2, 3v3, Solo Shuffle). Vad som spelas in – Raid, Mythic+ och Arena – väljs direkt till höger när programmet öppnas, och inställningarna är mindre och tydligare: håll musen över ett val för att se vad det gör
 2026-10-12  Goblin AI, Avinstallera program och Uppdatera GOBLINCAKES har fått egna ikoner: goblinen ovanför en pratbubbla, en programruta som tas bort och en pil uppåt
 2026-10-12  GoblinRecorder har fått en egen ikon: goblinen ovanför en inspelningsskärm med röd REC-lampa
 2026-10-12  goblin graph har fått en egen ikon: goblinen ovanför staplar i klassfärger
