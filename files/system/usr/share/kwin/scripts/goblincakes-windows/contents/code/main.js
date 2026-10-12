@@ -194,9 +194,53 @@ function graphAdded(window) {
     });
 }
 
+// AppGrid (12 Oct, the user: with AppGrid open, the system tray and the dock couldn't be
+// clicked – the click went back to the game): AppGrid opens a see-through window over the
+// whole screen with the grid in the middle, above the panels, and a click on it closes
+// AppGrid. Its window is made to end below the top bar and above the dock instead, so the
+// panels stay clickable while it is open. (plasmashell, no title, a whole screen.)
+function isAppGrid(window) {
+    if (window.resourceClass !== "plasmashell" || !window.normalWindow || window.caption)
+        return false;
+    const g = window.frameGeometry, s = window.output.geometry;
+    return g.x === s.x && g.y === s.y && g.width === s.width && g.height === s.height;
+}
+
+function besidePanels(window) {
+    const s = window.output.geometry;
+    let top = s.y, bottom = s.y + s.height;
+    const list = workspace.windowList();
+    for (let i = 0; i < list.length; i++) {
+        const p = list[i];
+        if (!p.dock || p.output !== window.output)
+            continue;
+        const g = p.frameGeometry;
+        if (g.y <= s.y + 2)
+            top = Math.max(top, g.y + g.height); // the top bar
+        else if (g.y + g.height >= s.y + s.height - 2)
+            bottom = Math.min(bottom, g.y);      // the dock (also while it is hidden)
+    }
+    return { x: s.x, y: top, width: s.width, height: bottom - top };
+}
+
+function appGridAdded(window) {
+    const fit = function () {
+        const want = besidePanels(window);
+        const geo = window.frameGeometry;
+        if (geo.y !== want.y || geo.height !== want.height || geo.x !== want.x || geo.width !== want.width)
+            window.frameGeometry = want;
+    };
+    fit();
+    window.frameGeometryChanged.connect(fit);
+}
+
 function added(window) {
     if (!window)
         return;
+    if (isAppGrid(window)) {
+        appGridAdded(window);
+        return;
+    }
     if (window.resourceClass === GRAPH) {
         graphAdded(window);
         return;
