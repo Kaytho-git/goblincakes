@@ -117,6 +117,10 @@ function graphPlace(window) {
 }
 
 function graphAdded(window) {
+    // In the system tray, not among the programs (12 Oct, the user's wish)
+    window.skipTaskbar = true;
+    window.skipSwitcher = true;
+    window.skipPager = true;
     graphPlace(window);
     let shape = graphShape(window);
     window.interactiveMoveResizeFinished.connect(function () {

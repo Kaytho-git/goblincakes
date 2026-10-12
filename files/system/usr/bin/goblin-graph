@@ -131,9 +131,10 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--watch"]:
 
 from PySide6.QtCore import (ClassInfo, Property, QObject, QTimer, QUrl, Signal, Slot)
 from PySide6.QtDBus import QDBusConnection, QDBusInterface
-from PySide6.QtGui import QGuiApplication, QIcon, QSurfaceFormat
+from PySide6.QtGui import QAction, QIcon, QSurfaceFormat
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 SHARE = Path(os.environ.get("GOBLINCAKES_GRAPH_SHARE", "/usr/share/goblincakes/graph"))
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes/graph.json"
@@ -664,7 +665,8 @@ def main():
         print(__doc__)
         return 0
     QSurfaceFormat.setDefaultFormat(_alpha_format())
-    app = QGuiApplication(sys.argv[:1])
+    app = QApplication(sys.argv[:1])  # widgets for the system tray icon and its menu
+    app.setQuitOnLastWindowClosed(True)
     app.setApplicationName("goblin-graph")
     app.setApplicationDisplayName("goblin graph")
     app.setDesktopFileName("goblin-graph")
@@ -733,11 +735,57 @@ def main():
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1
+    tray = make_tray(app, graph)  # kept alive until exit
     # goblin-graph --watch closes the window with SIGTERM (Python sees it at the next tick)
     signal.signal(signal.SIGTERM, lambda *_: app.quit())
     code = app.exec()
     graph.listener.stop()
     return code
+
+
+VIEW_NAMES = {"bars": "Staplar", "scope": "Våg", "circle": "Cirkel", "burst": "Explosion"}
+def make_tray(app, graph):
+    """In the system tray instead of among the programs (12 Oct, the user's wish – KWin's
+    goblincakes-windows script keeps the window out of the task bar, dock and Alt+Tab).
+    Left click = bring the window forward; the menu = what the window's mouse does, and also
+    works while it is locked."""
+    tray = QSystemTrayIcon(QIcon.fromTheme("goblincakes"), app)
+    tray.setToolTip("goblin graph")
+    menu = QMenu()
+    show = menu.addAction("Visa goblin graph")
+    show.triggered.connect(graph.raiseWindow.emit)
+    menu.addSeparator()
+    views = {}
+    for key, name in VIEW_NAMES.items():
+        act = QAction(name, menu, checkable=True)
+        act.triggered.connect(lambda _=False, k=key: graph.apply_args([k]))
+        menu.addAction(act)
+        views[key] = act
+    menu.addSeparator()
+    colours = QAction("Alla klassfärger", menu, checkable=True)
+    colours.triggered.connect(graph.toggleMode)
+    menu.addAction(colours)
+    lock = QAction("Låst", menu, checkable=True)
+    lock.triggered.connect(graph.toggleLock)
+    menu.addAction(lock)
+    menu.addSeparator()
+    menu.addAction("Stäng").triggered.connect(app.quit)
+
+    def sync():
+        for key, act in views.items():
+            act.setChecked(graph.view == key)
+        colours.setChecked(graph.mode == "all")
+        lock.setChecked(graph.locked)
+        tray.setToolTip(f"goblin graph – {VIEW_NAMES.get(graph.view, graph.view)}, "
+                        + ("alla klassfärger" if graph.mode == "all" else graph.className))
+    graph.styleChanged.connect(sync)
+    sync()
+    tray.setContextMenu(menu)
+    tray.activated.connect(lambda reason: graph.raiseWindow.emit()
+                           if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
+    tray.show()
+    tray.menu = menu  # the menu has no parent: keep it alive with the icon
+    return tray
 
 
 def _alpha_format():
