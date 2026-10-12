@@ -49,6 +49,19 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - **WowUp, Raider.IO och Archon** installeras och uppdateras automatiskt.
 - Mapparna för `Logs` och `AddOns` – för alla WoW-versioner, var de än ligger – länkas till `~/Games/WoW`. WowUp och Raider.IO hittar WoW själva; `goblin wow` talar om vad du väljer i Archon.
 
+### GoblinRecorder
+Spelar in WoW av sig själv med OBS – du behöver inte trycka på något:
+- **Raid:** varje bossförsök blir en egen film, kill eller wipe, för de svårighetsgrader du väljer.
+- **Mythic+:** hela nyckeln från start till slut, från den nivå du väljer.
+- **Arena:** hela matchen (2v2, 3v3, Solo Shuffle, Skirmish) med vinst eller förlust.
+- Bossar och dödsfall blir markeringar på tidslinjen – klicka för att hoppa dit – och filmen får en knapp till rätt försök på **Warcraft Logs**.
+- Tre ljudspår (allt, bara WoW, Discord med din röst), brusreducering och en spärr mot andning i mikrofonen, och rutor som döljer chatten eller annat i filmerna.
+- Inspelningen görs av grafikkortets egen videokrets (NVENC) – spelet märker inget.
+
+![GoblinRecorder med inspelade raidbossar, en Mythic+-nyckel och en arenamatch](docs/goblinrecorder.png)
+
+![GoblinRecorders inställningar: Warcraft Logs, kodare, bilder per sekund och vad som spelas in](docs/goblinrecorder-installningar.png)
+
 ### Discord
 - Discords egen Linux-version (inte Flatpak), så att Discord ser vilket spel du spelar.
 - Röstkanalen du är i syns i toppfältet. Okända kanaler: en notis frågar vad kanalen heter (eller `goblin discord namn Raid`).
@@ -57,6 +70,11 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - **[Ianseo](https://www.ianseo.net/)** (resultatprogrammet för bågskyttetävlingar) med ett klick: körs i en egen container, med automatisk backup var 30:e minut.
 - **Tävlingsläge:** surfplattor och mobiler på samma nätverk når Ianseo.
 - **Fjärråtkomst:** nå Ianseo via internet bakom ett lösenord (Cloudflare-tunnel, inga ändringar i routern). En ikon i systemfältet visar när Ianseo är nåbart utifrån.
+
+### goblin graph
+Ljudstaplar till musiken i WoW:s klassfärger – ett fönster utan ram som ligger bland de andra fönstren, med bara staplarna synliga. Varje stapel i en klassfärg, eller allt i din klass färg (läses ur stridsloggen). Fyra vyer: staplar, våg, cirkel och explosion som smäller i takt. Lyssnar bara på musikprogram (Spotify, Quod Libet m.fl.), inte på spel eller film, och kan öppnas av sig själv när musiken börjar (`goblin graph auto on`). Ikonen i systemfältet byter vy och låser fönstret.
+
+![goblin graph – staplar i WoW:s klassfärger på skrivbordet](docs/goblin-graph.png)
 
 ### GOBLINCAKES Config
 Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+C** eller från appmenyn:
@@ -77,6 +95,10 @@ Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**) eller 
 | `goblin update` | Uppdaterar allt: systemet, program, WoW-tillägg, GE-Proton och firmware – och visar vad som är nytt |
 | `goblin ai` | **Goblin AI** – fråga om datorn eller vad som helst (även **Meta+A**) |
 | `goblin play` | Dina spel – skriv spelets namn eller förkortning direkt i terminalen (t.ex. `wow`, `cs2`) så startas det via Steam |
+| `goblin graph` | Ljudstaplar i WoW:s klassfärger till musiken (`goblin graph mage`, `goblin graph cirkel`) |
+| `goblin screen` | Vilken skärm ett program öppnas på (`goblin screen add discord screen 2`) |
+| `goblin tile` | Vilken ruta (KDE:s rutor, Meta+T) ett program öppnas i (`goblin tile add discord 2 1`) |
+| `goblin frames` | Hur jämnt spelet flöt – snitt-fps, 1 % low och ryck, med råd |
 | `goblin tv` | Startar TV-läget |
 | `goblin wow` | Länkar alla WoW-versioner och uppdaterar WowUp |
 | `goblin discord` | Namnger Discord-röstkanalen du är i (`goblin discord namn Raid`) |
