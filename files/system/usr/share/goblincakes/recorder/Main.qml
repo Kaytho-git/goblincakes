@@ -883,7 +883,7 @@ Window {
                                 width: parent.width - 16
                                 spacing: 6
                                 Text {
-                                    text: ({ tanks: "TANKS · parse på DPS", healers: "HEALERS · parse på HPS (healing)",
+                                    text: ({ tanks: "TANKS · parse på DPS", healers: "HEALERS · parse på HPS",
                                              dps: "DPS · parse på DPS" })[group.modelData.role] || ""
                                     color: "#8B98AD"
                                     font.family: "Chakra Petch"
