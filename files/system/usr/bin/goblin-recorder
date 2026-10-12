@@ -342,7 +342,10 @@ def main():
     app.setApplicationName("goblin-recorder")
     app.setApplicationDisplayName("GoblinRecorder")
     app.setDesktopFileName("goblin-recorder")
-    app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+    # The goblin above a recording screen (REC light, timeline); the file next to /usr/bin when
+    # the icon theme doesn't know it yet (started from the repo)
+    icon = Path(__file__).resolve().parents[1] / "share/icons/hicolor/scalable/apps/goblincakes-recorder.svg"
+    app.setWindowIcon(QIcon.fromTheme("goblincakes-recorder", QIcon(str(icon))))
     for font in os.environ.get("GOBLINCAKES_CONFIG_FONTS", "").split(":"):
         if font:
             QFontDatabase.addApplicationFont(font)
