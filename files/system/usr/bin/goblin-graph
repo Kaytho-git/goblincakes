@@ -7,9 +7,13 @@ other windows: only the bars show on the desktop.
   goblin graph alla       every bar in a class colour, Death Knight → Warrior
   goblin graph klass      your character's class (read from WoW's combat log)
   goblin graph mage …     a class of your choice (also: death-knight, demon-hunter, …)
+  goblin graph staplar | våg | rullande   bars (bass left, treble right, moving up),
+                          an oscilloscope (the sound wave itself, live), or a rolling
+                          wave (loudness scrolling from right to left)
 
-In the window: drag to move, the bottom-right corner to resize, right-click switches
-between all classes and one class, the scroll wheel picks another class, Esc closes.
+In the window: drag to move, the bottom-right corner to resize, double-click switches the
+view, right-click switches between all classes and one class, the scroll wheel picks
+another class, Esc closes.
 Position, size and choice are kept in ~/.config/goblincakes/graph.json.
 
 Sound: the default output's monitor through pw-record (follows a switch of headset or
@@ -59,6 +63,8 @@ SPECS = {
 
 RATE = 48000
 SIZE = 1024          # samples per spectrum (21 ms) – 2 ms per transform in plain Python
+RING = 2048          # kept samples: the oscilloscope looks for a rising zero crossing first
+VIEWS = ["bars", "scope", "scroll"]
 LOW, HIGH = 40, 16000
 
 
@@ -147,7 +153,7 @@ class Listener(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True)
         self.lock = threading.Lock()
-        self.ring = [0.0] * SIZE
+        self.ring = [0.0] * RING
         self.proc = None
         self.alive = True
 
@@ -174,7 +180,7 @@ class Listener(threading.Thread):
             pending = data[n:]
             vals = array.array("h", data[:n])
             with self.lock:
-                self.ring = (self.ring + [v / 32768 for v in vals])[-SIZE:]
+                self.ring = (self.ring + [v / 32768 for v in vals])[-RING:]
 
     def samples(self):
         with self.lock:
@@ -195,7 +201,11 @@ class Graph(QObject):
         super().__init__()
         self.cfg = settings
         self._levels = []
+        self._wave = []
+        self._history = []
         self._bars = 48
+        self.wave_gain = 0.02
+        self.loud_gain = 1e-3
         self.spec = Spectrum()
         self.gain = 1e-3
         self.listener = Listener()
@@ -208,6 +218,25 @@ class Graph(QObject):
     @Property(list, notify=levelsChanged)
     def levels(self):
         return self._levels
+
+    @Property(list, notify=levelsChanged)
+    def wave(self):
+        return self._wave
+
+    @Property(list, notify=levelsChanged)
+    def history(self):
+        return self._history
+
+    @Property(str, notify=styleChanged)
+    def view(self):
+        v = self.cfg.get("view", "bars")
+        return v if v in VIEWS else "bars"
+
+    @Slot()
+    def cycleView(self):
+        self.cfg["view"] = VIEWS[(VIEWS.index(self.view) + 1) % len(VIEWS)]
+        self.save()
+        self.styleChanged.emit()
 
     @Property(str, notify=styleChanged)
     def mode(self):
@@ -264,6 +293,12 @@ class Graph(QObject):
                 self.cfg["mode"] = "class"
                 self.cfg.pop("chosen", None)
                 self.cfg["class"] = detect_class() or self.cfg.get("class") or "mage"
+            elif a in ("staplar", "bars", "stapel"):
+                self.cfg["view"] = "bars"
+            elif a in ("våg", "vag", "oscilloskop", "scope", "wave"):
+                self.cfg["view"] = "scope"
+            elif a in ("rullande", "rulla", "scroll", "rolling"):
+                self.cfg["view"] = "scroll"
             elif class_key(a):
                 self.cfg.update(mode="class", **{"class": class_key(a)}, chosen=True)
         self.save()
@@ -271,7 +306,41 @@ class Graph(QObject):
 
     # ---- sound → bars
     def tick(self):
-        raw = self.spec.levels(self.listener.samples(), self._bars)
+        samples = self.listener.samples()
+        view = self.view
+        if view == "scope":
+            self.scope(samples)
+        elif view == "scroll":
+            self.roll(samples)
+        else:
+            self.spectrum(samples[-SIZE:])
+        self.levelsChanged.emit()
+
+    def scope(self, s):
+        """The sound wave itself, still: starts at a rising zero crossing (like an oscilloscope's
+        trigger), 240 points, scaled to the loudest recent peak."""
+        span = SIZE
+        start = len(s) - span
+        for i in range(len(s) - span - 1, 0, -1):
+            if s[i - 1] <= 0 < s[i]:
+                start = i
+                break
+        part = s[start:start + span]
+        peak = max((abs(v) for v in part), default=0)
+        self.wave_gain = max(peak, self.wave_gain * 0.99, 0.02)
+        step = span / 240
+        self._wave = [max(-1.0, min(1.0, part[int(k * step)] / self.wave_gain)) for k in range(240)]
+
+    def roll(self, s):
+        """How loud it is right now (the last 1/30 s), added on the right; older values move left."""
+        part = s[-RATE // 30:]
+        rms = math.sqrt(sum(v * v for v in part) / len(part)) if part else 0
+        self.loud_gain = max(rms, self.loud_gain * 0.997, 1e-3)
+        db = 20 * math.log10(max(rms / self.loud_gain, 1e-6))
+        self._history = (self._history + [max(0.0, min(1.0, 1 + db / 40))])[-600:]
+
+    def spectrum(self, samples):
+        raw = self.spec.levels(samples, self._bars)
         top = max(raw) if raw else 0
         # automatic gain: follows loud sound at once, quiet sound slowly
         self.gain = max(top, self.gain * 0.995, 1e-3)
@@ -282,7 +351,6 @@ class Graph(QObject):
             old = self._levels[i] if i < len(self._levels) else 0.0
             new.append(level if level > old else old * 0.82 + level * 0.18)
         self._levels = new
-        self.levelsChanged.emit()
 
 
 def main():

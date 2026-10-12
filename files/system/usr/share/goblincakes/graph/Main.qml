@@ -1,6 +1,7 @@
-// goblin graph – the bars. A window without frame or background (flags + transparent colour),
-// among the other windows. Drag = move, bottom-right corner = resize, right-click = all
-// classes ↔ one class, wheel = another class, Esc = close. Hovering shows a faint backdrop,
+// goblin graph – bars, oscilloscope or rolling wave. A window without frame or background
+// (flags + transparent colour), among the other windows. Drag = move, bottom-right corner =
+// resize, double-click = next view, right-click = all classes ↔ one class, wheel = another
+// class, Esc = close. Hovering shows a faint backdrop,
 // the class name and a close button, so the window can be found while it is quiet.
 import QtQuick
 
@@ -46,6 +47,7 @@ Window {
 
     Row {
         id: row
+        visible: graph.view === "bars"
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 6 }
         height: parent.height - 12
         spacing: win.gap
@@ -82,6 +84,84 @@ Window {
         }
     }
 
+    function rgba(c, a) { const q = Qt.color(c); return Qt.rgba(q.r, q.g, q.b, a); }
+    function classAt(x, w) { return graph.classColors[Math.min(12, Math.floor(x * 13 / Math.max(1, w)))]; }
+
+    // Oscilloscope: the sound wave itself, held still by triggering on a rising zero crossing
+    Canvas {
+        id: scope
+        anchors { fill: parent; margins: 6 }
+        visible: graph.view === "scope"
+        onPaint: {
+            const ctx = getContext("2d");
+            ctx.reset();
+            const w = graph.wave, n = w.length;
+            if (n < 2) return;
+            const mid = height / 2, amp = height / 2 - 4, step = width / (n - 1);
+            const y = i => mid - w[i] * amp;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            if (graph.mode === "all") {
+                // Segment by segment, coloured by where on the width it is (13 classes side by side)
+                for (const pass of [[7, 0.22], [2.2, 1]]) {
+                    ctx.lineWidth = pass[0];
+                    for (let i = 1; i < n; i++) {
+                        ctx.strokeStyle = win.rgba(win.classAt((i - 0.5) * step, width), pass[1]);
+                        ctx.beginPath();
+                        ctx.moveTo((i - 1) * step, y(i - 1));
+                        ctx.lineTo(i * step, y(i));
+                        ctx.stroke();
+                    }
+                }
+            } else {
+                for (const pass of [[8, 0.25], [2.2, 1]]) {
+                    ctx.lineWidth = pass[0];
+                    ctx.strokeStyle = win.rgba(graph.classColor, pass[1]);
+                    ctx.beginPath();
+                    ctx.moveTo(0, y(0));
+                    for (let i = 1; i < n; i++) ctx.lineTo(i * step, y(i));
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+
+    // Rolling wave: how loud it is, scrolling from right (now) to left, mirrored round the middle
+    Canvas {
+        id: roll
+        anchors { fill: parent; margins: 6 }
+        visible: graph.view === "scroll"
+        onPaint: {
+            const ctx = getContext("2d");
+            ctx.reset();
+            const col = 4, count = Math.floor(width / col);
+            const h = graph.history, start = Math.max(0, h.length - count);
+            const mid = height / 2, amp = height / 2 - 4;
+            let grad = null;
+            if (graph.mode !== "all") {
+                grad = ctx.createLinearGradient(0, mid - amp, 0, mid + amp);
+                grad.addColorStop(0, graph.classColor);
+                grad.addColorStop(0.5, win.rgba(graph.classColor, 0.15));
+                grad.addColorStop(1, graph.classColor);
+            }
+            for (let i = start; i < h.length; i++) {
+                const x = width - (h.length - i) * col;
+                const v = Math.max(1.5, h[i] * amp);
+                ctx.fillStyle = grad ? grad : win.classAt(x, width);
+                ctx.fillRect(x, mid - v, col - 1, v * 2);
+            }
+        }
+    }
+
+    Connections {
+        target: graph
+        function onLevelsChanged() {
+            if (graph.view === "scope") scope.requestPaint();
+            else if (graph.view === "scroll") roll.requestPaint();
+        }
+        function onStyleChanged() { scope.requestPaint(); roll.requestPaint(); }
+    }
+
     HoverHandler { id: hover }
 
     MouseArea {
@@ -95,6 +175,10 @@ Window {
             if (mouse.button === Qt.RightButton)
                 graph.toggleMode();
         }
+        onDoubleClicked: mouse => {
+            if (mouse.button === Qt.LeftButton)
+                graph.cycleView();
+        }
         onWheel: wheel => graph.stepClass(wheel.angleDelta.y > 0 ? -1 : 1)
     }
 
@@ -102,7 +186,8 @@ Window {
     Text {
         anchors { left: parent.left; top: parent.top; margins: 10 }
         visible: hover.hovered
-        text: graph.mode === "all" ? "Alla klasser" : graph.className
+        text: ({ bars: "Staplar", scope: "Oscilloskop", scroll: "Rullande" })[graph.view] + "  ·  "
+              + (graph.mode === "all" ? "Alla klasser" : graph.className)
         color: graph.mode === "all" ? "#E6ECF5" : graph.classColor
         font.family: "Chakra Petch"
         font.weight: Font.DemiBold
