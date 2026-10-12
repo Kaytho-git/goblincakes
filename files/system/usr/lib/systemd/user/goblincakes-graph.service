@@ -1,0 +1,13 @@
+[Unit]
+Description=goblin graph: opens when a music player plays, closes when the music stops
+# Only for those who turned it on (goblin graph auto on)
+ConditionPathExists=%h/.config/goblincakes/graph-auto
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/goblin-graph --watch
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

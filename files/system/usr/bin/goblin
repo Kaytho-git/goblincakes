@@ -252,7 +252,7 @@ COMMANDS=(
     "frames|Hur jämnt spelet flyter – fps, 1 % low och ryck (goblin frames off stänger av mätningen)"
     "screen|Vilken skärm ett program öppnas på – t.ex. goblin screen add discord screen 2"
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
-    "graph|Ljudgraf i WoW:s klassfärger – goblin graph [staplar|våg|cirkel|explosion] [alla|klass|mage …]"
+    "graph|Ljudgraf i WoW:s klassfärger till musiken – goblin graph [staplar|våg|cirkel|explosion] [alla|klass|mage …]; goblin graph auto on = öppnas när musik spelar"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
     "fast|Systeminfo med GOBLINCAKES-loggan"
@@ -551,7 +551,23 @@ case ${1:-help} in
     graph) shift
         # Bars that move with the sound, in WoW's class colours (a window without frame or
         # background); a second start passes its words to the open window
-        (setsid goblin-graph "$@" >/dev/null 2>&1 &)
+        if [ "${1:-}" = auto ]; then
+            # goblin graph auto on|off: opens by itself when a music player plays
+            # (goblincakes-graph.service, runs only with the flag file)
+            flag="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/graph-auto"
+            case "${2:-}" in
+                on)  mkdir -p "${flag%/*}" && touch "$flag"
+                     systemctl --user start goblincakes-graph.service
+                     echo "goblin graph öppnas nu av sig själv när ett musikprogram spelar." ;;
+                off) rm -f "$flag"
+                     systemctl --user stop goblincakes-graph.service
+                     echo "goblin graph öppnas inte längre av sig själv." ;;
+                *)   if [ -e "$flag" ]; then echo "På – öppnas när ett musikprogram spelar (goblin graph auto off stänger av)."
+                     else echo "Av (goblin graph auto on slår på)."; fi ;;
+            esac
+        else
+            (setsid goblin-graph "$@" >/dev/null 2>&1 &)
+        fi
         ;;
     ai) shift
         # Without a question, on the desktop: the Goblin AI window (also Meta+A)
