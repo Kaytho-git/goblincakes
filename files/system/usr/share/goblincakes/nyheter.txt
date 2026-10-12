@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-12  goblin graph har fått en egen ikon: goblinen ovanför staplar i klassfärger
 2026-10-12  goblin graph ligger nu i systemfältet i stället för bland de öppna programmen – klicka på ikonen för att visa den, högerklicka för vy, färger, lås och stäng
 2026-10-12  Ljudgrafen kraschade ibland när musik började spela direkt efter inloggningen – rättat. Samma fel kunde hindra GoblinRecorder från att starta OBS.
 2026-10-12  goblin graph minns var du lägger den, och goblin graph lås låser den (ingen ruta, inga knappar, går inte att flytta eller stänga av misstag) – goblin graph lås upp låser upp

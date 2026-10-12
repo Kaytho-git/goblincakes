@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- goblin graph: the GOBLINCAKES goblin above sound bars in WoW class colours (the cupcake made into the graph; DK, Druid, Mage, Monk, Warlock) -->
+  <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+  <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
+  <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
+  <rect x="30.0" y="88" width="10" height="18" fill="#C41E3A"/>
+  <rect x="42.5" y="74" width="10" height="32" fill="#FF7C0A"/>
+  <rect x="55.0" y="80" width="10" height="26" fill="#3FC7EB"/>
+  <rect x="67.5" y="70" width="10" height="36" fill="#00FF98"/>
+  <rect x="80.0" y="84" width="10" height="22" fill="#8788EE"/>
+</svg>

@@ -670,7 +670,7 @@ def main():
     app.setApplicationName("goblin-graph")
     app.setApplicationDisplayName("goblin graph")
     app.setDesktopFileName("goblin-graph")
-    app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+    app.setWindowIcon(graph_icon())
 
     # One window: a second start hands its words to the open one and brings it forward
     probe = QLocalSocket()
@@ -743,13 +743,20 @@ def main():
     return code
 
 
+def graph_icon():
+    """The goblin above class-coloured bars. Read from the file next to /usr/bin (also works from
+    the repo): on ostree every file has the same date, so a stale icon cache could hide a new icon."""
+    path = Path(__file__).resolve().parents[1] / "share/icons/hicolor/scalable/apps/goblincakes-graph.svg"
+    return QIcon(str(path)) if path.exists() else QIcon.fromTheme("goblincakes")
+
+
 VIEW_NAMES = {"bars": "Staplar", "scope": "Våg", "circle": "Cirkel", "burst": "Explosion"}
 def make_tray(app, graph):
     """In the system tray instead of among the programs (12 Oct, the user's wish – KWin's
     goblincakes-windows script keeps the window out of the task bar, dock and Alt+Tab).
     Left click = bring the window forward; the menu = what the window's mouse does, and also
     works while it is locked."""
-    tray = QSystemTrayIcon(QIcon.fromTheme("goblincakes"), app)
+    tray = QSystemTrayIcon(graph_icon(), app)
     tray.setToolTip("goblin graph")
     menu = QMenu()
     show = menu.addAction("Visa goblin graph")
