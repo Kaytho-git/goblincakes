@@ -53,6 +53,7 @@ class Backend(QObject):
         self._videos = "[]"
         self._encoders = json.dumps(R.obs_encoders())
         self._last_video = None
+        self._folder_time = None
         self._preview = ""
         self.refreshLater.connect(self.refreshVideos)
         self.timer = QTimer(self)
@@ -79,10 +80,21 @@ class Backend(QObject):
         if text != self._status:
             self._status = text
             self.statusChanged.emit()
-        if st.get("lastVideo") and st["lastVideo"] != self._last_video:
-            if self._last_video is not None:
+        # A new video from the service. 12 Oct: the first poll may see no lastVideo at all ("" –
+        # nothing saved since the service started), and the first video after that was taken
+        # for the starting point, so it never showed until the window was reopened.
+        last = st.get("lastVideo") or ""
+        if self._last_video is None:
+            self._last_video = last
+        elif last != self._last_video:
+            self._last_video = last
+            self.refreshVideos()
+        # … and anything else that changes the folder (a video removed by hand, another folder)
+        folder_time = R.folder_mtime(json.loads(self._config).get("folder", ""))
+        if folder_time != self._folder_time:
+            if self._folder_time is not None:
                 self.refreshVideos()
-            self._last_video = st["lastVideo"]
+            self._folder_time = folder_time
 
     @Slot()
     def startObs(self):

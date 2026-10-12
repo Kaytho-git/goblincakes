@@ -732,6 +732,14 @@ def video_files(folder):
     return out
 
 
+def folder_mtime(folder):
+    """When a file was last added to or removed from the videos folder (0 = no folder)."""
+    try:
+        return Path(folder).stat().st_mtime
+    except OSError:
+        return 0
+
+
 def set_meta(video_path, **fields):
     """Change fields in a video's .json."""
     meta = Path(video_path).with_suffix(".json")
