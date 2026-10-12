@@ -53,6 +53,7 @@ DEFAULTS = {
     "quality": "normal",  # high | normal | small – the bitrate, see QUALITY_MBIT  # dB louder game sound – WoW plays quietly next to Discord
     "overlays": [],  # boxes over the video: {"file": image or "" = black, "text", "x", "y", "w", "h" as 0–1 of the picture}
     "postRoll": 5,  # seconds after the end
+    "mplusPostRoll": 90,  # Mythic+: at most this long after the key ends (until the chest is looted)
     "maxGB": 100,  # oldest videos are removed above this
     "keepWipes": False,  # False: only kills stay when WoW closes (and 2 wipes per raid boss meanwhile)
 }
