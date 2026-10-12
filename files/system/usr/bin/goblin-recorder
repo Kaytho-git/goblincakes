@@ -334,6 +334,27 @@ class Backend(QObject):
         threading.Thread(target=work, daemon=True).start()
 
     refreshLater = Signal()
+    statsBusy = Signal(str)  # the video whose players are being fetched, "" = done
+
+    @Slot(str)
+    def wclStats(self, path):
+        """The players of the video's fight from Warcraft Logs, kept in the video's .json.
+        Fetched again until an hour after the fight – parses come a while after the upload,
+        and a live-logged report is still growing."""
+        def work():
+            try:
+                meta = json.loads(Path(path).with_suffix(".json").read_text())
+                old = meta.get("wclStats") or {}
+                if old.get("fetched", 0) > meta.get("started", 0) + meta.get("fight", 0) + 3600:
+                    return
+                R.set_meta(path, wclStats=R.wcl_stats(meta["wcl"]))
+            except Exception as e:  # noqa: BLE001
+                self.message.emit(f"Warcraft Logs: {e}")
+            finally:
+                self.statsBusy.emit("")
+                self.refreshLater.emit()
+        self.statsBusy.emit(path)
+        threading.Thread(target=work, daemon=True).start()
 
     @Slot(str)
     def openExternal(self, path):

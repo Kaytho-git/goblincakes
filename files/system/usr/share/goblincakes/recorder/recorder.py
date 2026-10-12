@@ -923,6 +923,18 @@ REPORT_FIELDS = ("code startTime endTime fights { id encounterID name kill start
                  "bossPercentage fightPercentage keystoneLevel difficulty }")
 
 
+WCL_LIVE_AGE = 10 * 60  # a report that grew this recently is being live logged
+wcl_live_seen = 0  # when a live-logged report was last seen (time.time())
+
+
+def wcl_note_live(reports):
+    """Remember when one of the reports is live logged (Archon/the uploader's Live Log: the
+    report grows during the evening), so the service looks for new fights often."""
+    global wcl_live_seen
+    if any(r.get("endTime", 0) / 1000 > time.time() - WCL_LIVE_AGE for r in reports):
+        wcl_live_seen = time.time()
+
+
 def wcl_reports(player, start_ms, end_ms):
     """Public reports around a time that the recording character is in: its recent
     reports, your own uploads and its guild's (Name-Realm-Region from the combat log).
@@ -953,6 +965,7 @@ def wcl_reports(player, start_ms, end_ms):
             " endTime:$to, limit: 10) { data { " + REPORT_FIELDS + " } } } }",  # more is too costly for the API
             dict(window, g=g["id"])
         )["reportData"]["reports"]["data"]
+    wcl_note_live(reports)
     return reports
 
 
@@ -973,6 +986,58 @@ def wcl_user(player, recent):
             wcl_save(data)
             return owner["id"]
     return None
+
+
+ROLE_ORDER = {"tanks": 0, "healers": 1, "dps": 2}
+
+
+def wcl_stats(wcl):
+    """Everyone in the fight: class, spec, role, DPS, HPS, parse (healers by HPS, the others
+    by DPS; only kills and timed keys have parses) and deaths – the same numbers as the
+    report page (total / the fight's time)."""
+    rep = wcl_query(
+        "query($c:String,$f:[Int]){ reportData { report(code:$c) {"
+        " details: playerDetails(fightIDs:$f) dmg: table(dataType: DamageDone, fightIDs:$f)"
+        " heal: table(dataType: Healing, fightIDs:$f) deaths: table(dataType: Deaths, fightIDs:$f)"
+        " rdps: rankings(fightIDs:$f, playerMetric: dps) rhps: rankings(fightIDs:$f, playerMetric: hps) } } }",
+        {"c": wcl["code"], "f": [int(wcl["fight"])]})["reportData"]["report"]
+
+    def data(key):
+        v = rep.get(key) or {}
+        return v.get("data") if isinstance(v, dict) else None
+
+    def per_second(table):
+        t = data(table) or {}
+        secs = max((t.get("totalTime") or 0) / 1000, 1)
+        return {e["name"]: e.get("total", 0) / secs for e in t.get("entries") or []}
+
+    def parses(table):
+        out = {}
+        for fight in data(table) or []:
+            for role in (fight.get("roles") or {}).values():
+                for c in role.get("characters") or []:
+                    if c.get("rankPercent") is not None:
+                        out[c["name"]] = c["rankPercent"]
+        return out
+
+    dps, hps = per_second("dmg"), per_second("heal")
+    pdps, phps = parses("rdps"), parses("rhps")
+    deaths = {}
+    for e in (data("deaths") or {}).get("entries") or []:
+        deaths[e["name"]] = deaths.get(e["name"], 0) + 1
+    players = []
+    for role, people in ((data("details") or {}).get("playerDetails") or {}).items():
+        for p in people:
+            name = p["name"]
+            players.append({
+                "name": name, "class": p.get("type", ""), "role": role,
+                "spec": (p.get("specs") or [{}])[0].get("spec", ""),
+                "dps": round(dps.get(name, 0)), "hps": round(hps.get(name, 0)),
+                "parse": (phps if role == "healers" else pdps).get(name),
+                "deaths": deaths.get(name, 0)})
+    players.sort(key=lambda p: (ROLE_ORDER.get(p["role"], 3), -p["dps"]))
+    return {"players": players, "deaths": sum(deaths.values()), "fetched": time.time(),
+            "ranked": bool(pdps or phps)}
 
 
 def wcl_find(meta):

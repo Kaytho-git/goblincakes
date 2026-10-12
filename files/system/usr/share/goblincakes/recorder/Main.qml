@@ -24,6 +24,8 @@ Window {
     property var selected: null
     property string note: ""
     property bool wclBusy: false
+    property string expanded: "" // the video card that shows its players from Warcraft Logs
+    property string statsBusy: ""
     property int overlayPick: -1 // the chosen box in "Dölj delar av bilden"
     // The explanation shown while the mouse rests on a choice (12 Oct: smaller buttons, the
     // explanations as hover instead of text under them)
@@ -57,6 +59,32 @@ Window {
     function resultColor(v) {
         return v.result === "kill" || v.result === "timed" || v.result === "win" ? "#3FB950"
              : v.result === "wipe" || v.result === "depleted" || v.result === "loss" ? "#E5534B" : "#8B98AD";
+    }
+
+    // WoW's class colours (as in goblin graph) by Warcraft Logs' class name
+    readonly property var classColors: ({
+        DeathKnight: "#C41E3A", DemonHunter: "#A330C9", Druid: "#FF7C0A", Evoker: "#33937F",
+        Hunter: "#AAD372", Mage: "#3FC7EB", Monk: "#00FF98", Paladin: "#F48CBA", Priest: "#FFFFFF",
+        Rogue: "#FFF468", Shaman: "#0070DD", Warlock: "#8788EE", Warrior: "#C69B6D" })
+
+    // Warcraft Logs' parse colours
+    function parseColor(p) {
+        return p >= 100 ? "#E5CC80" : p >= 99 ? "#E268A8" : p >= 95 ? "#FF8000" : p >= 75 ? "#A335EE"
+             : p >= 50 ? "#0070FF" : p >= 25 ? "#1EFF00" : "#8B98AD";
+    }
+
+    function amount(n) {
+        return n >= 1e6 ? (n / 1e6).toFixed(2).replace(".", ",") + "M"
+             : n >= 1000 ? (n / 1000).toFixed(1).replace(".", ",") + "k" : String(n);
+    }
+
+    function toggleStats(v) {
+        if (expanded === v.path) {
+            expanded = "";
+            return;
+        }
+        expanded = v.path;
+        backend.wclStats(v.path);
     }
 
     function title(v) {
@@ -93,6 +121,7 @@ Window {
             noteTimer.restart();
         }
         function onWclBusy(busy) { win.wclBusy = busy; }
+        function onStatsBusy(path) { win.statsBusy = path; }
         function onVideosChanged() {
             if (win.selected && !win.videos.some(v => v.path === win.selected.path))
                 win.selected = null;
@@ -702,12 +731,18 @@ Window {
                 id: card
                 required property var modelData
                 readonly property bool active: win.selected && win.selected.path === modelData.path
+                readonly property bool open: win.expanded === modelData.path && !!modelData.wcl
+                readonly property var stats: modelData.wclStats || null
                 width: list.width - 16
-                height: 84
+                height: 84 + (open ? statsCol.height + 12 : 0)
                 color: active ? "#12203A" : cardArea.containsMouse ? "#0E1420" : "transparent"
                 border.width: active ? 2 : 1
                 border.color: active ? "#2F6FED" : "#1E2A40"
 
+                Item {
+                    id: head
+                    width: parent.width
+                    height: 84
                 Rectangle {
                     id: thumbBox
                     x: 8
@@ -765,18 +800,125 @@ Window {
                     }
                     Text {
                         text: win.clock(card.modelData.fight) + " strid · " + win.size(card.modelData.size)
-                              + (card.modelData.keep ? " · sparad" : "") + (card.modelData.wcl ? " · WCL" : "")
+                              + (card.modelData.keep ? " · sparad" : "") + (card.modelData.wcl ? (card.open ? " · WCL ▴" : " · WCL ▾") : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 12
                     }
+                }
                 }
                 MouseArea {
                     id: cardArea
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: win.selected = card.modelData
+                    onClicked: {
+                        win.selected = card.modelData;
+                        if (card.modelData.wcl)
+                            win.toggleStats(card.modelData); // the players from Warcraft Logs
+                    }
+                }
+
+                // The players: parse, DPS, HPS and deaths from Warcraft Logs
+                Column {
+                    id: statsCol
+                    visible: card.open
+                    anchors { left: parent.left; right: parent.right; top: head.bottom; leftMargin: 12; rightMargin: 12 }
+                    spacing: 4
+                    readonly property var cols: [width - 4 * 52 - 24, 52, 64, 64, 28]
+                    Rectangle { width: parent.width; height: 1; color: "#1E2A40" }
+                    Text {
+                        visible: !card.stats || !card.stats.players
+                        text: win.statsBusy === card.modelData.path ? "Hämtar från Warcraft Logs …" : "Inga siffror från Warcraft Logs."
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                        topPadding: 4
+                        bottomPadding: 4
+                    }
+                    Row { // headings
+                        visible: !!(card.stats && card.stats.players)
+                        topPadding: 4
+                        Repeater {
+                            model: ["SPELARE", "PARSE", "DPS", "HPS", "DÖD"]
+                            Text {
+                                required property string modelData
+                                required property int index
+                                width: statsCol.cols[index]
+                                horizontalAlignment: index ? Text.AlignRight : Text.AlignLeft
+                                text: modelData
+                                color: "#8B98AD"
+                                font.family: "Chakra Petch"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 11
+                                font.letterSpacing: 1
+                            }
+                        }
+                    }
+                    Repeater {
+                        model: card.stats && card.stats.players ? card.stats.players : []
+                        Row {
+                            id: prow
+                            required property var modelData
+                            readonly property bool me: !!card.modelData.player
+                                && card.modelData.player.split("-")[0] === modelData.name
+                            Text {
+                                width: statsCol.cols[0]
+                                text: prow.modelData.name + "  <font color=\"#8B98AD\">" + prow.modelData.spec + "</font>"
+                                textFormat: Text.StyledText
+                                color: win.classColors[prow.modelData["class"]] || "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.weight: prow.me ? Font.Bold : Font.Medium
+                                font.pixelSize: 13
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                width: statsCol.cols[1]
+                                horizontalAlignment: Text.AlignRight
+                                text: prow.modelData.parse === null || prow.modelData.parse === undefined ? "–" : prow.modelData.parse
+                                color: prow.modelData.parse === null || prow.modelData.parse === undefined ? "#8B98AD" : win.parseColor(prow.modelData.parse)
+                                font.family: "IBM Plex Mono"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 13
+                            }
+                            Text {
+                                width: statsCol.cols[2]
+                                horizontalAlignment: Text.AlignRight
+                                text: win.amount(prow.modelData.dps)
+                                color: prow.modelData.role === "healers" ? "#8B98AD" : "#E6ECF5"
+                                font.family: "IBM Plex Mono"
+                                font.pixelSize: 13
+                            }
+                            Text {
+                                width: statsCol.cols[3]
+                                horizontalAlignment: Text.AlignRight
+                                text: win.amount(prow.modelData.hps)
+                                color: prow.modelData.role === "healers" ? "#E6ECF5" : "#8B98AD"
+                                font.family: "IBM Plex Mono"
+                                font.pixelSize: 13
+                            }
+                            Text {
+                                width: statsCol.cols[4]
+                                horizontalAlignment: Text.AlignRight
+                                text: prow.modelData.deaths || ""
+                                color: "#E5534B"
+                                font.family: "IBM Plex Mono"
+                                font.pixelSize: 13
+                            }
+                        }
+                    }
+                    Text {
+                        visible: !!(card.stats && card.stats.players)
+                        width: parent.width
+                        topPadding: 4
+                        wrapMode: Text.WordWrap
+                        text: card.stats ? (card.stats.deaths ? card.stats.deaths + " dödsfall" : "Inga dödsfall")
+                              + (card.stats.ranked ? "" : " · parses bara för kills och nycklar i tid (kan dröja en stund efter uppladdningen)")
+                              + (win.statsBusy === card.modelData.path ? " · uppdaterar …" : "") : ""
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
                 }
             }
         }

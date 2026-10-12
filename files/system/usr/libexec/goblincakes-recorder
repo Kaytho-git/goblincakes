@@ -33,6 +33,8 @@ LIVE_LIMIT = 30  # a start line older than this (seconds) is not recorded
 LATE_MARKS = 120  # seconds after a video ends that late log lines may still add marks
 MAX_LENGTH = {"raid": 45 * 60, "mplus": 3 * 3600, "arena": 45 * 60}
 WCL_EVERY = 5 * 60  # look for Warcraft Logs fights this often …
+WCL_LIVE_EVERY = 30  # … and this often while a report is live logged (or just after a recording)
+WCL_LIVE_FOR = 20 * 60  # live = a live-logged report seen this recently
 WCL_FOR = 24 * 3600  # … for videos this young
 ME = re.compile(r'^(Player-[^,]+),"([^"]+)",0x511,')  # a line by your own character
 
@@ -332,6 +334,8 @@ class Service:
             "_wall": wall, "_until": time.time() + LATE_MARKS,
         }
         self.write_meta(meta, dest)
+        # A live-logged fight is on Warcraft Logs within a minute – look soon, not in 5 minutes
+        self.wcl_next = min(self.wcl_next, time.time() + WCL_LIVE_EVERY)
         R.make_thumb(dest, min(max(meta["fightStart"] + 20, 0), max(meta["duration"] - 2, 0)),
                      dest.with_suffix(".jpg"))
         self.closing.append(meta)
@@ -346,9 +350,9 @@ class Service:
         dest = dest or Path(self.cfg["folder"]) / meta["file"]
         meta["_path"] = str(dest.with_suffix(".json"))
         data = {k: v for k, v in meta.items() if not k.startswith("_")}
-        try:  # keep what was added to the file since (Warcraft Logs link, kept)
+        try:  # keep what was added to the file since (Warcraft Logs link and numbers, kept)
             old = json.loads(Path(meta["_path"]).read_text())
-            data.update({k: old[k] for k in ("wcl", "keep") if k in old})
+            data.update({k: old[k] for k in ("wcl", "wclStats", "keep") if k in old})
         except (OSError, ValueError):
             pass
         data["markers"] = sorted(data["markers"], key=lambda m: m["t"])
@@ -398,7 +402,8 @@ class Service:
         comes some minutes after the fight). Runs beside the main loop."""
         if self.wcl_busy or time.time() < self.wcl_next or not R.wcl_configured():
             return
-        self.wcl_next = time.time() + WCL_EVERY
+        live = time.time() - R.wcl_live_seen < WCL_LIVE_FOR
+        self.wcl_next = time.time() + (WCL_LIVE_EVERY if live else WCL_EVERY)
         todo = [v for v in R.video_files(self.cfg["folder"])
                 if v.get("kind") in ("raid", "mplus") and not v.get("wcl") and v.get("player") and time.time() - v["started"] < WCL_FOR]
         if not todo:
