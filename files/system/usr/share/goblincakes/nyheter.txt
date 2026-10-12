@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-12  goblin graph har fått två runda vyer: Cirkel (staplar runt en ring som växer utåt) och Explosion (varje smäll i ljudet skickar ut en ring och gnistor från mitten). Fönstret blir fyrkantigt för dem och kommer ihåg sin egen storlek
 2026-10-12  goblin graph har två vyer till: en ljudvåg (oscilloskop) och en våg som rullar åt sidan. Dubbelklicka i fönstret för att byta, eller skriv goblin graph våg / goblin graph rullande
 2026-10-12  goblin graph: staplar som rör sig till ljudet i WoW:s klassfärger, i ett fönster utan ram och bakgrund. Högerklick byter mellan alla klasser och din klass, scrollhjulet byter klass
 2026-10-11  Firefox får GOBLINCAKES eget tema – mörka färger, blå accent och goblinen i fliklisten (går att byta i Firefox som vanligt)
