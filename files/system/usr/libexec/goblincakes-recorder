@@ -36,6 +36,8 @@ WCL_EVERY = 5 * 60  # look for Warcraft Logs fights this often …
 WCL_LIVE_EVERY = 30  # … and this often while a report is live logged (or just after a recording)
 WCL_LIVE_FOR = 20 * 60  # live = a live-logged report seen this recently
 WCL_FOR = 24 * 3600  # … for videos this young
+WCL_FRESH = 15 * 60  # a video this young without a link is looked for …
+WCL_FRESH_EVERY = 15  # … this often (only the fresh ones: Live Log has the fight within seconds)
 ME = re.compile(r'^(Player-[^,]+),"([^"]+)",0x511,')  # a line by your own character
 
 
@@ -334,8 +336,8 @@ class Service:
             "_wall": wall, "_until": time.time() + LATE_MARKS,
         }
         self.write_meta(meta, dest)
-        # A live-logged fight is on Warcraft Logs within a minute – look soon, not in 5 minutes
-        self.wcl_next = min(self.wcl_next, time.time() + WCL_LIVE_EVERY)
+        # A live-logged fight is on Warcraft Logs within seconds – look at once, not in 5 minutes
+        self.wcl_next = min(self.wcl_next, time.time() + 3)
         R.make_thumb(dest, min(max(meta["fightStart"] + 20, 0), max(meta["duration"] - 2, 0)),
                      dest.with_suffix(".jpg"))
         self.closing.append(meta)
@@ -406,6 +408,11 @@ class Service:
         self.wcl_next = time.time() + (WCL_LIVE_EVERY if live else WCL_EVERY)
         todo = [v for v in R.video_files(self.cfg["folder"])
                 if v.get("kind") in ("raid", "mplus") and not v.get("wcl") and v.get("player") and time.time() - v["started"] < WCL_FOR]
+        # Just recorded (from the pull: the start + the fight + a few minutes): only those, often
+        fresh = [v for v in todo if time.time() - v["started"] - (v.get("fight") or 0) < WCL_FRESH]
+        if fresh:
+            todo = fresh
+            self.wcl_next = time.time() + WCL_FRESH_EVERY
         if not todo:
             return
         self.wcl_busy = True
