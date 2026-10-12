@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-12  Inloggningen: markören står i lösenordsfältet direkt när ditt konto är känt (även första gången, om det bara finns ett konto), och rutan syns på den skärm som har tangentbordet
 2026-10-12  GoblinRecorder letar efter bossen eller nyckeln på Warcraft Logs direkt när filmen är sparad, och sedan var 15:e sekund tills den hittas – med Live Log kommer länken nästan direkt
 2026-10-12  GoblinRecorder: klicka på en film med Warcraft Logs-länk för att se alla spelare med parse, DPS, HPS och dödsfall – och med live-loggning hittas försöket inom en minut
 2026-10-12  GoblinRecorder: välj i Inställningar → Ljud om filmen ska fånga allt ljud eller bara WoW

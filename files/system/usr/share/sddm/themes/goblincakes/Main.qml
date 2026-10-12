@@ -164,10 +164,14 @@ Item {
         }
     }
 
-    // Login block, left of the goblin in the background. Only on the main screen.
+    // Login block, left of the goblin in the background. On the main screen – and on another
+    // screen while its window has the keyboard (SDDM makes one window per screen and the
+    // keyboard may land on the other one: hidden fields there took no typing, so the password
+    // had to be clicked first, 12 Oct).
+    readonly property bool mainScreen: typeof primaryScreen === "undefined" || primaryScreen
     Column {
         id: block
-        visible: typeof primaryScreen === "undefined" || primaryScreen
+        visible: root.mainScreen || root.Window.active
         x: Math.round(root.width * 0.3 - width / 2)
         anchors.verticalCenter: parent.verticalCenter
         spacing: Math.round(12 * root.s)
@@ -248,10 +252,45 @@ Item {
         NumberAnimation { target: shakeOffset; property: "x"; to: 0; duration: 50 }
     }
 
-    Component.onCompleted: {
+    // Straight to the password when the user is known: at start, whenever this screen's
+    // window gets the keyboard, and a few times during the first seconds (the window is
+    // shown and activated a moment after the theme has loaded)
+    function focusStart() {
+        if (userField.input.text.length === 0 && root.onlyUser)
+            userField.input.text = root.onlyUser;
         if (userField.input.text.length > 0)
             passwordField.input.forceActiveFocus();
         else
             userField.input.forceActiveFocus();
+    }
+    Component.onCompleted: focusStart()
+    Connections {
+        target: root.Window.window
+        function onActiveChanged() {
+            if (root.Window.active && !passwordField.input.activeFocus && !userField.input.activeFocus)
+                root.focusStart();
+        }
+    }
+    Timer {
+        property int left: 10
+        interval: 300
+        repeat: true
+        running: true
+        onTriggered: {
+            if (!passwordField.input.activeFocus && !userField.input.activeFocus)
+                root.focusStart();
+            if (--left <= 0)
+                stop();
+        }
+    }
+
+    // No remembered user (first login after the installation) and only one account: that one
+    property string onlyUser: ""
+    Repeater {
+        id: users
+        model: userModel
+        delegate: Item {
+            Component.onCompleted: root.onlyUser = users.count === 1 ? String(model.name || "") : ""
+        }
     }
 }
