@@ -504,6 +504,24 @@ Window {
                     text: "Hämta ljudtillägget"
                     onClicked: backend.installAudioPlugin()
                 }
+                Row { // left of the OBS button (12 Oct, the user's wish)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 10
+                    rightPadding: 6
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Starta OBS när WoW startar"
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                    ToggleSwitch {
+                        anchors.verticalCenter: parent.verticalCenter
+                        on: !!win.cfg.autoStartObs
+                        onToggled: win.set("autoStartObs", !win.cfg.autoStartObs)
+                    }
+                    HoverTip { tip: "OBS startas dolt i systemfältet så fort WoW startar – redo till första pullen." }
+                }
                 FlatButton {
                     primary: win.st.obs !== "connected"
                     enabledState: win.st.obs !== "missing" && win.st.obs !== "connected" && !win.st.recording
@@ -511,22 +529,6 @@ Window {
                         : win.st.obs === "connected" ? "OBS är igång" : "Starta OBS"
                     onClicked: win.st.obs === "no-ws" || win.st.obs === "error" ? backend.restartObs() : backend.startObs()
                 }
-            }
-            Row { // was a setting under "Vad som spelas in"; now beside the OBS button (12 Oct)
-                anchors.right: parent.right
-                spacing: 10
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Starta OBS när WoW startar"
-                    color: "#8B98AD"
-                    font.family: "IBM Plex Sans"
-                    font.pixelSize: 13
-                }
-                ToggleSwitch {
-                    on: !!win.cfg.autoStartObs
-                    onToggled: win.set("autoStartObs", !win.cfg.autoStartObs)
-                }
-                HoverTip { tip: "OBS startas dolt i systemfältet så fort WoW startar – redo till första pullen." }
             }
         }
 
@@ -645,6 +647,14 @@ Window {
 
             Item { width: 1; height: 6 }
             PanelSwitch { name: "Arena"; key: "arena"; tip: "Hela matchen – 2v2, 3v3, Solo Shuffle och Skirmish. Vinst eller förlust står på filmen." }
+
+            Item { width: 1; height: 6 }
+            PanelSwitch {
+                name: "Behåll wipes"
+                key: "keepWipes"
+                tip: "Av: bara kills, nycklar i tid och vunna arenor blir kvar när du stänger WoW, och under raiden sparas bara "
+                     + "de två senaste wipes per boss. Spara för alltid skyddar en film."
+            }
         }
     }
 
@@ -1043,6 +1053,36 @@ Window {
             width: settingsView.width - 80
             spacing: 14
 
+            SectionTitle { text: "WARCRAFT LOGS" }
+            Note {
+                width: Math.min(820, parent.width)
+                text: backend.wclConfigured
+                    ? "Kopplat. När en strid laddats upp till Warcraft Logs (med Archon) får filmen en knapp till rätt försök – "
+                      + "GoblinRecorder letar var 5:e minut under ett dygn. Bara publika loggar hittas."
+                    : "Koppla filmerna till dina loggar på Warcraft Logs. Skapa en gratis API-klient en gång: "
+                      + "tryck på knappen, logga in, Create Client, skriv ett namn (t.ex. GoblinRecorder) och en "
+                      + "Redirect URL (t.ex. http://localhost) och lämna Public Client av. Klistra sedan in Client ID och Client Secret här."
+            }
+            Row {
+                visible: !backend.wclConfigured
+                spacing: 12
+                FlatButton { text: "Skapa API-klient …"; onClicked: backend.openWclClients() }
+                FlatField { id: wclId; width: 260; hint: "Client ID" }
+                FlatField { id: wclSecret; width: 260; hint: "Client Secret"; echoMode: TextInput.Password }
+                FlatButton {
+                    primary: true
+                    enabledState: wclId.text.length > 10 && wclSecret.text.length > 10 && !win.wclBusy
+                    text: win.wclBusy ? "Provar …" : "Spara"
+                    onClicked: backend.setWcl(wclId.text, wclSecret.text)
+                }
+            }
+            FlatButton {
+                visible: backend.wclConfigured
+                text: "Koppla bort Warcraft Logs"
+                onClicked: backend.forgetWcl()
+            }
+
+            Item { width: 1; height: 14 }
             SectionTitle { text: "KODARE" }
             Flow {
                 width: settingsCol.width
@@ -1110,26 +1150,20 @@ Window {
 
             Item { width: 1; height: 14 }
             SectionTitle { text: "LJUD" }
-            Item {
-                width: Math.min(820, settingsCol.width)
-                height: 34
-                Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 3
-                    Text {
-                        text: "Min mikrofon"
-                        color: "#E6ECF5"
-                        font.family: "IBM Plex Sans"
-                        font.weight: Font.Medium
-                        font.pixelSize: 15
-                    }
+            Column { // the switch under the text (12 Oct, the user's wish)
+                spacing: 8
+                Text {
+                    text: "Min mikrofon"
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.weight: Font.Medium
+                    font.pixelSize: 15
                 }
-                HoverTip { tip: "Din röst på spåren Allt och Discord – med brusreducering, så att tangentbordet hörs mindre." }
                 ToggleSwitch {
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                     on: win.cfg.mic !== false
                     onToggled: win.set("mic", win.cfg.mic === false)
                 }
+                HoverTip { tip: "Din röst på spåren Allt och Discord – med brusreducering, så att tangentbordet hörs mindre." }
             }
             Text {
                 topPadding: 8
@@ -1153,6 +1187,18 @@ Window {
                 }
             }
 
+            Text { // under the game sound (12 Oct, the user's wish)
+                topPadding: 8
+                text: "Ljudspår"
+                color: "#E6ECF5"
+                font.family: "IBM Plex Sans"
+                font.weight: Font.Medium
+                font.pixelSize: 15
+            }
+            Note {
+                width: Math.min(820, parent.width)
+                text: "Filmerna har tre ljudspår: Allt, bara WoW och Discord (med din röst) – välj under filmen."
+            }
             Item { width: 1; height: 14 }
             SectionTitle { text: "VAR FILMERNA SPARAS" }
             Row {
@@ -1178,6 +1224,22 @@ Window {
             Note {
                 width: Math.min(820, parent.width)
                 text: "En raidboss blir 30–100 MB per minut beroende på bilder per sekund och codec. Välj en disk med gott om plats."
+            }
+
+            Item { width: 1; height: 14 }
+            SectionTitle { text: "HUR MYCKET PLATS FILMERNA FÅR TA" }
+            Row {
+                spacing: 12
+                Repeater {
+                    model: [50, 100, 200, 500]
+                    Choice {
+                        required property var modelData
+                        text: modelData + " GB"
+                        sub: "När gränsen nås tas de äldsta filmerna bort – inte de du sparat för alltid."
+                        chosen: win.cfg.maxGB === modelData
+                        onPicked: win.set("maxGB", modelData)
+                    }
+                }
             }
 
             Item { width: 1; height: 14 }
@@ -1336,64 +1398,6 @@ Window {
                 FlatButton { text: "Uppdatera skärmbilden"; onClicked: backend.refreshPreview() }
             }
 
-            Item { width: 1; height: 14 }
-            SectionTitle { text: "HUR MYCKET PLATS FILMERNA FÅR TA" }
-            Row {
-                spacing: 12
-                Repeater {
-                    model: [50, 100, 200, 500]
-                    Choice {
-                        required property var modelData
-                        text: modelData + " GB"
-                        sub: "När gränsen nås tas de äldsta filmerna bort – inte de du sparat för alltid."
-                        chosen: win.cfg.maxGB === modelData
-                        onPicked: win.set("maxGB", modelData)
-                    }
-                }
-            }
-
-            SettingRow {
-                name: "Behåll wipes när WoW stängs"
-                sub: "Av: bara kills (och nycklar i tid) blir kvar när du stänger WoW, och under raiden sparas bara de två senaste wipes per boss. "
-                     + "Spara för alltid skyddar en film."
-                key: "keepWipes"
-            }
-            Item { width: 1; height: 14 }
-            SectionTitle { text: "WARCRAFT LOGS" }
-            Note {
-                width: Math.min(820, parent.width)
-                text: backend.wclConfigured
-                    ? "Kopplat. När en strid laddats upp till Warcraft Logs (med Archon) får filmen en knapp till rätt försök – "
-                      + "GoblinRecorder letar var 5:e minut under ett dygn. Bara publika loggar hittas."
-                    : "Koppla filmerna till dina loggar på Warcraft Logs. Skapa en gratis API-klient en gång: "
-                      + "tryck på knappen, logga in, Create Client, skriv ett namn (t.ex. GoblinRecorder) och en "
-                      + "Redirect URL (t.ex. http://localhost) och lämna Public Client av. Klistra sedan in Client ID och Client Secret här."
-            }
-            Row {
-                visible: !backend.wclConfigured
-                spacing: 12
-                FlatButton { text: "Skapa API-klient …"; onClicked: backend.openWclClients() }
-                FlatField { id: wclId; width: 260; hint: "Client ID" }
-                FlatField { id: wclSecret; width: 260; hint: "Client Secret"; echoMode: TextInput.Password }
-                FlatButton {
-                    primary: true
-                    enabledState: wclId.text.length > 10 && wclSecret.text.length > 10 && !win.wclBusy
-                    text: win.wclBusy ? "Provar …" : "Spara"
-                    onClicked: backend.setWcl(wclId.text, wclSecret.text)
-                }
-            }
-            FlatButton {
-                visible: backend.wclConfigured
-                text: "Koppla bort Warcraft Logs"
-                onClicked: backend.forgetWcl()
-            }
-
-            Item { width: 1; height: 14 }
-            SectionTitle { text: "LJUDSPÅR" }
-            Note {
-                width: Math.min(820, parent.width)
-                text: "Filmerna har tre ljudspår: Allt, bara WoW och Discord (med din röst) – välj under filmen."
-            }
         }
     }
     FlatScrollBar { flick: settingsView }
