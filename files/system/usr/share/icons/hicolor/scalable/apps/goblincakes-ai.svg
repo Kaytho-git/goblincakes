@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Goblin AI: the GOBLINCAKES goblin above a chat bubble (the cupcake made into what it does) -->
+  <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+  <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
+  <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
+  <path d="M30 70 H90 V100 H50 L38 108 V100 H30 Z" fill="#2F6FED"/>
+  <circle cx="48" cy="85" r="4" fill="#E6ECF5"/><circle cx="60" cy="85" r="4" fill="#E6ECF5"/><circle cx="72" cy="85" r="4" fill="#E6ECF5"/>
+</svg>

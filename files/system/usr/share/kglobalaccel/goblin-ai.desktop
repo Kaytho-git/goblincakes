@@ -5,6 +5,6 @@
 Type=Application
 Name=Goblin AI
 Exec=goblin-ai
-Icon=goblincakes
+Icon=goblincakes-ai
 OnlyShowIn=KDE;
 X-KDE-Shortcuts=Meta+A

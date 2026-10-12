@@ -141,7 +141,10 @@ def main():
     app.setApplicationName("goblincakes-remove-apps")
     app.setApplicationDisplayName("Avinstallera program")
     app.setDesktopFileName("goblincakes-remove-apps")
-    app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+    # Its own icon (the goblin above what the program does); the file next to /usr when the icon
+    # theme doesn't know it yet (started from the repo)
+    icon = Path(__file__).resolve().parents[1] / "share/icons/hicolor/scalable/apps/goblincakes-remove.svg"
+    app.setWindowIcon(QIcon.fromTheme("goblincakes-remove", QIcon(str(icon))))
     for font in os.environ.get("GOBLINCAKES_CONFIG_FONTS", "").split(":"):
         if font:
             QFontDatabase.addApplicationFont(font)

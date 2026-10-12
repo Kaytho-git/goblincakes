@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-12  Goblin AI, Avinstallera program och Uppdatera GOBLINCAKES har fått egna ikoner: goblinen ovanför en pratbubbla, en programruta som tas bort och två pilar runt
 2026-10-12  GoblinRecorder har fått en egen ikon: goblinen ovanför en inspelningsskärm med röd REC-lampa
 2026-10-12  goblin graph har fått en egen ikon: goblinen ovanför staplar i klassfärger
 2026-10-12  goblin graph ligger nu i systemfältet i stället för bland de öppna programmen – klicka på ikonen för att visa den, högerklicka för vy, färger, lås och stäng

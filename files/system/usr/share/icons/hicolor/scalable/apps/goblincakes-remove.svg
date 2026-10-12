@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Avinstallera program: the GOBLINCAKES goblin above app tiles, one removed (the cupcake made into what it does) -->
+  <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+  <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
+  <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
+  <path d="M28 70 H58 V86 H28 Z M62 70 H92 V86 H62 Z M28 90 H58 V106 H28 Z" fill="#2F6FED"/>
+  <path d="M62 90 H92 V106 H62 Z" fill="#E5484D"/>
+  <path d="M71 92.5 L83 103.5 M83 92.5 L71 103.5" stroke="#E6ECF5" stroke-width="3.5"/>
+</svg>

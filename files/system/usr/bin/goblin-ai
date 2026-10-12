@@ -378,7 +378,10 @@ def main():
     app.setApplicationName("goblin-ai")
     app.setApplicationDisplayName("Goblin AI")
     app.setDesktopFileName("goblin-ai")
-    app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+    # Its own icon (the goblin above what the program does); the file next to /usr when the icon
+    # theme doesn't know it yet (started from the repo)
+    icon = Path(__file__).resolve().parents[1] / "share/icons/hicolor/scalable/apps/goblincakes-ai.svg"
+    app.setWindowIcon(QIcon.fromTheme("goblincakes-ai", QIcon(str(icon))))
     for font in os.environ.get("GOBLIN_AI_FONTS", "").split(":"):
         if font:
             QFontDatabase.addApplicationFont(font)
