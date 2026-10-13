@@ -152,7 +152,7 @@ def setup():
     keys = load_keys()
     print(f"{ACCENT}▌ goblin ai – AI-tjänster{RESET}\n")
     print("Gemini och OpenRouter är gratis – en nyckel räcker, men fler gör att goblin ai kan byta")
-    print("när en tjänst har slut på gratisfrågor. Claude och OpenAI är betalda (per fråga) och används")
+    print("när en tjänst har slut på gratisfrågor. De märkta betald kostar per fråga och används")
     print("bara med en egen nyckel, då före gratistjänsterna. De används i den här ordningen.")
     muted("Obs: på gratisnivåerna får tjänsterna oftast använda frågorna för att förbättra sina AI:er –")
     muted("skriv inga lösenord eller annat hemligt i frågorna.\n")

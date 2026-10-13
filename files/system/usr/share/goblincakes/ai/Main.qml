@@ -748,7 +748,7 @@ Window {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "Goblin AI använder gratisnivåerna hos Gemini och OpenRouter – en gratis nyckel räcker, men fler gör att Goblin AI kan byta när en tjänst har slut på gratisfrågor. Claude och OpenAI är betalda (du betalar per fråga) och används bara om du lägger in en nyckel – då före gratistjänsterna. Tjänsterna används i den här ordningen."
+                text: "Goblin AI använder gratisnivåerna hos Gemini och OpenRouter – en gratis nyckel räcker, men fler gör att Goblin AI kan byta när en tjänst har slut på gratisfrågor. Tjänsterna märkta betald (Claude, OpenAI, DeepSeek, Grok, Perplexity, Mistral) kostar per fråga och används bara om du lägger in en nyckel – då före gratistjänsterna. Tjänsterna används i den här ordningen."
                 color: "#8B98AD"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 14

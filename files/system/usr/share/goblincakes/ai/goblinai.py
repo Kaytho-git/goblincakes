@@ -1,6 +1,7 @@
 """goblinai – shared core of Goblin AI (the window /usr/bin/goblin-ai and "goblin ai" in the terminal).
 
-Uses Claude and OpenAI when you have a paid key for them, then the free tiers
+Uses the paid services (Claude, OpenAI, DeepSeek, Grok, Perplexity, Mistral)
+when you have a key for them, then the free tiers
 of Gemini and OpenRouter (OpenAI-compatible APIs; Claude through its own
 Messages API), in that order; when one is out of quota or fails, the next one
 answers. With a Tavily key the AI can search the web (Tavily's free
@@ -41,6 +42,37 @@ PROVIDERS = [
                "under Billing och tryck på Create new secret key. Används före gratistjänsterna.",
         "prefer": [r"^gpt-5(\.\d+)?$", r"^gpt-5(\.\d+)?-mini$", r"^gpt-4\.1$", r"^gpt-4o$"],
         "temperature": None,  # the gpt-5 models only take their default
+    },
+    {
+        "id": "deepseek", "name": "DeepSeek (betald)", "env": "DEEPSEEK_API_KEY", "paid": True,
+        "url": "https://api.deepseek.com/v1",
+        "keys_page": "https://platform.deepseek.com/api_keys",
+        "how": "Betald men mycket billig – bra på kod. Logga in, fyll på under Top up och tryck på Create new API key. "
+               "Obs: frågorna hanteras i Kina.",
+        "prefer": [r"^deepseek-chat$", r"^deepseek-reasoner$"],
+    },
+    {
+        "id": "xai", "name": "Grok från xAI (betald)", "env": "XAI_API_KEY", "paid": True,
+        "url": "https://api.x.ai/v1",
+        "keys_page": "https://console.x.ai",
+        "how": "Betald – du betalar per fråga. Logga in, lägg in krediter under Billing och skapa en nyckel under API Keys.",
+        "prefer": [r"^grok-\d+(\.\d+)?(-\d{4})?$", r"^grok-\d+(\.\d+)?-fast", r"^grok-\d+(\.\d+)?-mini"],
+    },
+    {
+        "id": "perplexity", "name": "Perplexity (betald)", "env": "PERPLEXITY_API_KEY", "paid": True,
+        "url": "https://api.perplexity.ai",
+        "keys_page": "https://www.perplexity.ai/account/api/keys",
+        "how": "Betald – söker själv på nätet och visar källorna (ingen Tavily-nyckel behövs). "
+               "Logga in, lägg in krediter under API Billing och tryck på Create Key.",
+        "models": ["sonar-pro", "sonar"],
+        "no_model_list": True,  # no /models endpoint: the key is tried with a short question
+    },
+    {
+        "id": "mistral", "name": "Mistral (betald)", "env": "MISTRAL_API_KEY", "paid": True,
+        "url": "https://api.mistral.ai/v1",
+        "keys_page": "https://console.mistral.ai/api-keys",
+        "how": "Betald – europeisk, frågorna stannar i EU. Logga in, välj betalplanen under Billing och tryck på Create new key.",
+        "prefer": [r"^mistral-large-latest$", r"^mistral-medium-latest$", r"^mistral-small-latest$"],
     },
     {
         "id": "gemini", "name": "Google Gemini", "env": "GEMINI_API_KEY",
@@ -160,7 +192,10 @@ def test_key(service, key):
     if service["id"] == SEARCH["id"]:
         web_search("GOBLINCAKES Linux", key)
         return "kan söka på nätet"
-    return f"använder {pick_model(service, key, refresh=True)}"
+    model = pick_model(service, key, refresh=True)
+    if service.get("no_model_list"):
+        chat(service, key, model, [{"role": "user", "content": "Svara bara: ok"}])
+    return f"använder {model}"
 
 
 def pick_model(provider, key, refresh=False):
@@ -177,6 +212,8 @@ def pick_models(provider, key, refresh=False):
         except ValueError:
             cache = {}
     entry = cache.get(provider["id"])
+    if provider.get("no_model_list"):
+        return provider["models"]
     if entry and entry.get("models") and not refresh and time.time() - entry["time"] < 86400:
         return entry["models"]
 
@@ -336,7 +373,14 @@ def chat(provider, key, model, messages):
         temperature = provider.get("temperature", 0.4)
         if temperature is not None:
             body["temperature"] = temperature
-        return request(provider, key, "/chat/completions", body)["choices"][0]["message"].get("content") or ""
+        reply = request(provider, key, "/chat/completions", body)
+        text = reply["choices"][0]["message"].get("content") or ""
+        # Perplexity searches by itself: its sources go under the answer like ours
+        links = [r.get("url") for r in reply.get("search_results") or [] if r.get("url")] or reply.get("citations") or []
+        if links and text.strip():
+            text = text.rstrip() + "\n\n**Källor:** " + " · ".join(
+                f"[{i}]({u})" for i, u in enumerate(links[:8], 1))
+        return text
     # Claude's Messages API: the system prompt goes beside the messages, not among them
     system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
     turns = [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] in ("user", "assistant")]
