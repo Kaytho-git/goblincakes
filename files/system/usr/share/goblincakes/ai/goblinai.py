@@ -26,6 +26,8 @@ PROVIDERS = [
         "keys_page": "https://aistudio.google.com/apikey",
         "how": "Logga in med ditt Google-konto och tryck på Create API key.",
         "prefer": [r"^gemini-[\d.]+-flash$", r"^gemini-flash-latest$", r"^gemini-.*flash(?!.*(lite|image|tts|audio|live|thinking))"],
+        # last resort when the big models are overloaded
+        "fallback": [r"^gemini-[\d.]+-flash-lite$", r"^gemini-flash-lite-latest$"],
     },
     {
         "id": "groq", "name": "Groq", "env": "GROQ_API_KEY",
@@ -98,6 +100,8 @@ def request(provider, key, path, body=None, timeout=90):
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
         detail = e.read().decode(errors="replace")[:300]
+        if e.code >= 500:
+            raise ServiceError(f"överbelastad just nu (fel {e.code})") from None
         reason = {401: "fel nyckel", 403: "nyckeln får inte användas", 429: "slut på gratisfrågor just nu"}.get(e.code, f"fel {e.code}")
         raise ServiceError(f"{reason} ({detail.strip()})" if e.code not in (401, 429) else reason) from None
     except (urllib.error.URLError, TimeoutError, OSError) as e:
@@ -106,6 +110,11 @@ def request(provider, key, path, body=None, timeout=90):
 
 def pick_model(provider, key, refresh=False):
     """The service's best free chat model, from its own model list (cached for a day)."""
+    return pick_models(provider, key, refresh)[0]
+
+
+def pick_models(provider, key, refresh=False):
+    """The service's best free chat models, best first (the next is tried when one is overloaded)."""
     cache = {}
     if MODELS_CACHE.exists():
         try:
@@ -113,32 +122,34 @@ def pick_model(provider, key, refresh=False):
         except ValueError:
             cache = {}
     entry = cache.get(provider["id"])
-    if entry and not refresh and time.time() - entry["time"] < 86400:
-        return entry["model"]
+    if entry and entry.get("models") and not refresh and time.time() - entry["time"] < 86400:
+        return entry["models"]
 
     data = request(provider, key, "/models", timeout=30).get("data", [])
     ids = [m["id"].removeprefix("models/") for m in data if "id" in m]
-    model = None
+    models = []
     if provider["id"] == "openrouter":
         free = [m for m in data
                 if str(m.get("pricing", {}).get("prompt")) in ("0", "0.0")
                 and str(m.get("pricing", {}).get("completion")) in ("0", "0.0")
                 and "text" in str(m.get("architecture", {}).get("output_modalities", ["text"]))]
         free.sort(key=lambda m: m.get("context_length") or 0, reverse=True)
-        model = free[0]["id"] if free else None
+        models = [m["id"] for m in free]
     else:
         for pattern in provider["prefer"]:
-            matches = sorted((i for i in ids if re.search(pattern, i)), reverse=True)
-            if matches:
-                model = matches[0]
+            models += [i for i in sorted(ids, reverse=True) if re.search(pattern, i) and i not in models]
+        models = models[:5] or ids[:1]
+        for pattern in provider.get("fallback", []):
+            lite = [i for i in sorted(ids, reverse=True) if re.search(pattern, i)]
+            if lite:
+                models.append(lite[0])
                 break
-        model = model or (ids[0] if ids else None)
-    if not model:
+    if not models:
         raise ServiceError("hittade ingen modell att använda")
-    cache[provider["id"]] = {"model": model, "time": time.time()}
+    cache[provider["id"]] = {"model": models[0], "models": models, "time": time.time()}
     CACHE.mkdir(parents=True, exist_ok=True)
     MODELS_CACHE.write_text(json.dumps(cache))
-    return model
+    return models
 
 
 EXHAUSTED = set()  # services out of free questions: not asked again while the program runs
@@ -155,13 +166,24 @@ def ask(messages, keys, status=None, notice=None):
         if not key or provider["id"] in EXHAUSTED:
             continue
         try:
+            reply = None
             for attempt in range(2):
-                model = pick_model(provider, key, refresh=attempt > 0)
+                models = pick_models(provider, key, refresh=attempt > 0)
                 if status:
                     status(f"Frågar {provider['name']}…")
                 try:
-                    reply = request(provider, key, "/chat/completions",
-                                    {"model": model, "messages": messages, "temperature": 0.4})
+                    for i, model in enumerate(models):
+                        try:
+                            reply = request(provider, key, "/chat/completions",
+                                            {"model": model, "messages": messages, "temperature": 0.4})
+                            break
+                        except ServiceError as e:
+                                # Overloaded, or listed but closed to new users: the next model
+                            if re.search(r"överbelastad|fel 404", str(e)) and i + 1 < len(models):
+                                if status:
+                                    status(f"{model} svarar inte – provar {models[i + 1]}…")
+                                continue
+                            raise
                     break
                 except ServiceError as e:
                     # A model that disappeared: pick again once
