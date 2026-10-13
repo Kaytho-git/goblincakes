@@ -1,6 +1,6 @@
 """goblinai – shared core of Goblin AI (the window /usr/bin/goblin-ai and "goblin ai" in the terminal).
 
-Uses the free tiers of Gemini, Groq, OpenRouter and Mistral through their
+Uses the free tiers of Gemini and OpenRouter through their
 OpenAI-compatible APIs, in that order; when one is out of quota or fails, the
 next one answers. With a Tavily key the AI can search the web (Tavily's free
 tier; Gemini's own Google search needs a paid plan). Keys:
@@ -33,25 +33,11 @@ PROVIDERS = [
         "fallback": [r"^gemini-[\d.]+-flash-lite$", r"^gemini-flash-lite-latest$"],
     },
     {
-        "id": "groq", "name": "Groq", "env": "GROQ_API_KEY",
-        "url": "https://api.groq.com/openai/v1",
-        "keys_page": "https://console.groq.com/keys",
-        "how": "Skapa ett gratis konto och tryck på Create API Key.",
-        "prefer": [r"llama-3\.3-70b", r"llama.*70b", r"^openai/gpt-oss-120b$", r"llama"],
-    },
-    {
         "id": "openrouter", "name": "OpenRouter (gratismodeller)", "env": "OPENROUTER_API_KEY",
         "url": "https://openrouter.ai/api/v1",
         "keys_page": "https://openrouter.ai/settings/keys",
         "how": "Skapa ett gratis konto och tryck på Create Key. Bara gratismodeller används.",
         "prefer": [],  # picked among the free ones, see pick_model
-    },
-    {
-        "id": "mistral", "name": "Mistral", "env": "MISTRAL_API_KEY",
-        "url": "https://api.mistral.ai/v1",
-        "keys_page": "https://console.mistral.ai/api-keys",
-        "how": "Skapa ett konto, välj den gratis planen (Experiment) och skapa en API-nyckel.",
-        "prefer": [r"^mistral-small-latest$", r"^mistral-medium-latest$", r"^mistral-large-latest$"],
     },
 ]
 
@@ -195,6 +181,7 @@ def pick_models(provider, key, refresh=False):
 
 
 EXHAUSTED = set()  # services out of free questions: not asked again while the program runs
+BUSY = {}  # model -> when it was overloaded: tried last for 10 minutes
 
 
 SEARCH_PROMPT = """
@@ -276,6 +263,7 @@ def ask_once(messages, keys, status=None, notice=None):
             reply = None
             for attempt in range(2):
                 models = pick_models(provider, key, refresh=attempt > 0)
+                models = sorted(models, key=lambda m: time.time() - BUSY.get(m, 0) < 600)
                 if status:
                     status(f"Frågar {provider['name']}…")
                 try:
@@ -287,6 +275,7 @@ def ask_once(messages, keys, status=None, notice=None):
                         except ServiceError as e:
                                 # Overloaded, or listed but closed to new users: the next model
                             if re.search(r"överbelastad|fel 404", str(e)) and i + 1 < len(models):
+                                BUSY[model] = time.time()
                                 if status:
                                     status(f"{model} svarar inte – provar {models[i + 1]}…")
                                 continue

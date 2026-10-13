@@ -87,7 +87,7 @@ Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+
 - **Uppdatera** – se vad som är nytt och uppdatera allt eller en del i taget (systemet, Flatpak-program, VS Code, Discord, WoW-tillägg, GE-Proton, firmware).
 
 ### Goblin AI
-Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**) eller i terminalen (`goblin ai`). Använder gratisnivåerna hos Gemini, Groq, OpenRouter och Mistral (egen nyckel, hämtas med en knapp). Föreslagna kommandon körs bara när du säger ja, och AI:n kan ändra filer du bifogar.
+Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**) eller i terminalen (`goblin ai`). Använder gratisnivåerna hos Gemini och OpenRouter (egen nyckel, hämtas med en knapp) och kan söka på nätet med en gratis Tavily-nyckel. Föreslagna kommandon körs bara när du säger ja, och AI:n kan ändra filer du bifogar.
 
 ### Kommandon i terminalen
 | Kommando | Gör |

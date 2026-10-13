@@ -241,7 +241,7 @@ COMMANDS=(
     "update|Uppdatera allt – eller en del: goblin update --only flatpak (system, flatpak, appimages, vscode, discord, proton, firmware)"
     "ai|Öppna Goblin AI-fönstret (eller tryck Meta+A)"
     "ai [fråga]|Fråga Goblin AI direkt här – föreslagna kommandon körs bara om du säger ja"
-    "ai setup|Ställ in gratis AI-tjänster (Gemini, Groq, OpenRouter, Mistral)"
+    "ai setup|Ställ in gratis AI-tjänster (Gemini, OpenRouter, Tavily-sökning)"
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
     "discord|Namnge röstkanalen du är i (visas i toppfältet): goblin discord namn Raid"
     "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
