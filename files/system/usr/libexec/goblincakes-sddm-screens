@@ -1,0 +1,52 @@
+#!/usr/bin/python3 -I
+# GOBLINCAKES: the login screen uses the same screen setup as the desktop (13 Oct: the login
+# box was on the left screen – SDDM's own KWin has no settings, so it took the first connector
+# as the main screen, not the one chosen in System Settings → Display).
+# KDE's own "Apply Plasma settings" (sddm-kcm) isn't installed, so this does the same for the
+# screens: KWin's kwinoutputconfig.json for the sddm user.
+# Runs as root through pkexec (polkit action org.goblincakes.sddm-screens, no password for the
+# person at the computer). The configuration comes on stdin from the user's own session
+# (goblincakes-screens) – root reads nothing in the user's home – and must look like KWin's
+# file; it is written out again from the parsed data.
+import json
+import os
+import pwd
+import sys
+
+TARGET_DIR = "/var/lib/sddm/.config"
+TARGET = TARGET_DIR + "/kwinoutputconfig.json"
+
+if "PKEXEC_UID" not in os.environ:
+    sys.exit("run through pkexec")
+raw = sys.stdin.buffer.read(1024 * 1024 + 1)
+if len(raw) > 1024 * 1024:
+    sys.exit("too big")
+try:
+    data = json.loads(raw)
+except ValueError:
+    sys.exit("not JSON")
+# KWin's format: [{"name": "outputs", "data": [...]}, {"name": "setups", "data": [...]}]
+if (not isinstance(data, list) or not data
+        or not all(isinstance(d, dict) and d.get("name") in ("outputs", "setups")
+                   and isinstance(d.get("data"), list) for d in data)):
+    sys.exit("not KWin's screen configuration")
+
+try:
+    sddm = pwd.getpwnam("sddm")
+except KeyError:
+    sys.exit(0)  # no SDDM: nothing to do
+if os.path.islink(TARGET_DIR):
+    sys.exit("odd " + TARGET_DIR)
+os.makedirs(TARGET_DIR, mode=0o755, exist_ok=True)
+os.chown(TARGET_DIR, sddm.pw_uid, sddm.pw_gid)
+tmp = TARGET + ".goblincakes-new"
+try:
+    os.unlink(tmp)
+except FileNotFoundError:
+    pass
+fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+with os.fdopen(fd, "w") as f:
+    json.dump(data, f, indent=4)
+    f.write("\n")
+os.chown(tmp, sddm.pw_uid, sddm.pw_gid)
+os.replace(tmp, TARGET)

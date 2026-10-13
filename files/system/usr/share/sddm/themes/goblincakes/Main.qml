@@ -256,6 +256,10 @@ Item {
     // window gets the keyboard, and a few times during the first seconds (the window is
     // shown and activated a moment after the theme has loaded)
     function focusStart() {
+        // The keyboard to the main screen's window (13 Oct: it landed on the second screen, and
+        // the login box followed it there)
+        if (root.mainScreen && root.Window.window && !root.Window.active)
+            root.Window.window.requestActivate();
         if (userField.input.text.length === 0 && root.onlyUser)
             userField.input.text = root.onlyUser;
         if (userField.input.text.length > 0)

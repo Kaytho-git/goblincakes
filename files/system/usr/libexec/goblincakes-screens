@@ -5,7 +5,9 @@
 #    (Plasma picks the screen's "preferred" mode, which is sometimes only 60 Hz)
 #  - with several screens, the fastest one becomes priority 1 (main screen: games open there)
 # Changes made afterwards in System Settings → Display are kept.
-# And at every login: the top bar's clock the same size as the rest (see clock_size).
+# And at every login: the top bar's clock the same size as the rest (see clock_size), and the
+# login screen gets the same screen setup (see sync_sddm).
+import hashlib
 import json
 import os
 import subprocess
@@ -16,6 +18,7 @@ from pathlib import Path
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "goblincakes"
 state = STATE_DIR / "screens-done"
 CLOCK_STATE = STATE_DIR / "clock-size"  # the clock size this script set last
+SDDM_STATE = STATE_DIR / "sddm-screens"  # the screen setup the login screen got last
 CLOCK_PT = 11  # GOBLINCAKES' clock: 11 pt like the week number beside it (layout.js)
 
 
@@ -62,6 +65,28 @@ def clock_size(outputs):
     CLOCK_STATE.write_text(f"{target}\n")
 
 
+def sync_sddm():
+    """The login screen's KWin has no settings of its own and took the first connector as the
+    main screen – the login box ended up on the wrong screen (13 Oct). It gets a copy of the
+    desktop's screen setup (as KDE's "Apply Plasma settings" does), whenever it has changed."""
+    conf = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "kwinoutputconfig.json"
+    try:
+        raw = conf.read_bytes()
+    except OSError:
+        return
+    digest = hashlib.sha256(raw).hexdigest()
+    if SDDM_STATE.exists() and SDDM_STATE.read_text().strip() == digest:
+        return
+    try:
+        r = subprocess.run(["pkexec", "/usr/libexec/goblincakes-sddm-screens"], input=raw,
+                           capture_output=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    if r.returncode == 0:
+        SDDM_STATE.parent.mkdir(parents=True, exist_ok=True)
+        SDDM_STATE.write_text(digest + "\n")
+
+
 try:
     data = json.loads(subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True).stdout)
     outputs = [o for o in data.get("outputs", []) if o.get("connected") and o.get("enabled")]
@@ -74,6 +99,7 @@ clock_size(outputs)
 combination = ",".join(sorted(o["name"] for o in outputs))
 done = state.read_text().split() if state.exists() else []
 if combination in done:
+    sync_sddm()
     sys.exit(0)
 
 args = []
@@ -98,3 +124,6 @@ if args and subprocess.run(["kscreen-doctor", *args]).returncode != 0:
 
 state.parent.mkdir(parents=True, exist_ok=True)
 state.write_text("\n".join(done + [combination]) + "\n")
+if args:
+    time.sleep(2)  # KWin writes its file a moment after the change
+sync_sddm()
