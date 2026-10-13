@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-13  Goblin AI kan nu också använda Claude och OpenAI (ChatGPT) om du har en betald nyckel – lägg in den under AI-tjänster
 2026-10-13  Goblin AI: Groq och Mistral är borttagna ur AI-tjänster – det gick inte längre att få gratisnycklar där. Gemini och OpenRouter finns kvar
 2026-10-13  Goblin AI kan söka på nätet när frågan gäller något färskt, som nyheter och patchar, och visar källorna. Kräver en gratis Tavily-nyckel under AI-tjänster
 2026-10-13  Goblin AI provar en annan Gemini-modell när den första är överbelastad, i stället för att visa ett felmeddelande

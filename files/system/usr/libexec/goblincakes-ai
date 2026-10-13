@@ -3,7 +3,7 @@
 
     goblin ai <question>   one question (the answer may suggest commands)
     goblin ai --chat       chat in the terminal until you write nothing or "hej då"
-    goblin ai setup        pick services and paste their free keys
+    goblin ai setup        pick services and paste their keys (free or paid)
 
 Commands the AI suggests are only run when you answer yes to each one, and
 their output is sent back so the AI can take the next step.
@@ -150,9 +150,10 @@ def handle(question, messages, keys):
 
 def setup():
     keys = load_keys()
-    print(f"{ACCENT}▌ goblin ai – gratis AI-tjänster{RESET}\n")
-    print("Varje tjänst behöver en gratis nyckel. Du behöver bara en, men fler gör att goblin ai")
-    print("kan byta när en tjänst har slut på gratisfrågor. De används i den här ordningen.")
+    print(f"{ACCENT}▌ goblin ai – AI-tjänster{RESET}\n")
+    print("Gemini och OpenRouter är gratis – en nyckel räcker, men fler gör att goblin ai kan byta")
+    print("när en tjänst har slut på gratisfrågor. Claude och OpenAI är betalda (per fråga) och används")
+    print("bara med en egen nyckel, då före gratistjänsterna. De används i den här ordningen.")
     muted("Obs: på gratisnivåerna får tjänsterna oftast använda frågorna för att förbättra sina AI:er –")
     muted("skriv inga lösenord eller annat hemligt i frågorna.\n")
     for p in SERVICES:
@@ -193,7 +194,7 @@ def main(args):
         args = []
     keys = load_keys()
     if not has_keys(keys):
-        print(f"goblin ai behöver minst en gratis AI-tjänst. Kör: {ACCENT}goblin ai setup{RESET}")
+        print(f"goblin ai behöver minst en AI-tjänst. Kör: {ACCENT}goblin ai setup{RESET}")
         return 1
     messages = [{"role": "system", "content": system_prompt()}]
     try:

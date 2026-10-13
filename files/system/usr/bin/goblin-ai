@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Goblin AI – the window (Meta+A, AppGrid, or "goblin ai").
 
-Chat with free AI services (see /usr/share/goblincakes/ai/goblinai.py): questions,
+Chat with free (and optionally paid) AI services (see /usr/share/goblincakes/ai/goblinai.py): questions,
 texts, recipes, help with the computer. Attach a text file to have it corrected
 and saved back. Suggested commands are cards with a Run button; their output goes
 back to the AI. Conversations are kept in ~/.local/share/goblincakes/ai/.

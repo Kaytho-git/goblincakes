@@ -1,8 +1,9 @@
 """goblinai – shared core of Goblin AI (the window /usr/bin/goblin-ai and "goblin ai" in the terminal).
 
-Uses the free tiers of Gemini and OpenRouter through their
-OpenAI-compatible APIs, in that order; when one is out of quota or fails, the
-next one answers. With a Tavily key the AI can search the web (Tavily's free
+Uses Claude and OpenAI when you have a paid key for them, then the free tiers
+of Gemini and OpenRouter (OpenAI-compatible APIs; Claude through its own
+Messages API), in that order; when one is out of quota or fails, the next one
+answers. With a Tavily key the AI can search the web (Tavily's free
 tier; Gemini's own Google search needs a paid plan). Keys:
 ~/.config/goblincakes/ai.env (only readable by you).
 """
@@ -23,6 +24,24 @@ KEYS_FILE = CONFIG / "ai.env"
 MODELS_CACHE = CACHE / "ai-models.json"
 
 PROVIDERS = [
+    # Paid: only used when you have put in a key (you pay per question)
+    {
+        "id": "anthropic", "name": "Claude (betald)", "env": "ANTHROPIC_API_KEY", "paid": True,
+        "url": "https://api.anthropic.com/v1",
+        "keys_page": "https://platform.claude.com/settings/keys",
+        "how": "Betald – du betalar per fråga (förbetalda krediter). Logga in, lägg in krediter under Billing "
+               "och tryck på Create Key. Används före gratistjänsterna.",
+        "models": ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+    },
+    {
+        "id": "openai", "name": "OpenAI / ChatGPT (betald)", "env": "OPENAI_API_KEY", "paid": True,
+        "url": "https://api.openai.com/v1",
+        "keys_page": "https://platform.openai.com/api-keys",
+        "how": "Betald – du betalar per fråga (API:et ingår inte i ChatGPT Plus). Logga in, lägg in krediter "
+               "under Billing och tryck på Create new secret key. Används före gratistjänsterna.",
+        "prefer": [r"^gpt-5(\.\d+)?$", r"^gpt-5(\.\d+)?-mini$", r"^gpt-4\.1$", r"^gpt-4o$"],
+        "temperature": None,  # the gpt-5 models only take their default
+    },
     {
         "id": "gemini", "name": "Google Gemini", "env": "GEMINI_API_KEY",
         "url": "https://generativelanguage.googleapis.com/v1beta/openai",
@@ -69,7 +88,7 @@ def save_keys(keys):
     CONFIG.mkdir(parents=True, exist_ok=True)
     old_umask = os.umask(0o077)
     try:
-        lines = ["# goblin ai – free API keys (only readable by you). Remove a line to stop using that service."]
+        lines = ["# goblin ai – API keys (only readable by you). Remove a line to stop using that service."]
         lines += [f"{p['env']}={keys[p['env']]}" for p in SERVICES if keys.get(p["env"])]
         KEYS_FILE.write_text("\n".join(lines) + "\n")
     finally:
@@ -82,17 +101,23 @@ class ServiceError(Exception):
 
 
 def request(provider, key, path, body=None, timeout=90):
-    req = urllib.request.Request(
-        provider["url"] + path,
-        data=json.dumps(body).encode() if body is not None else None,
-        headers={
+    headers = {"Content-Type": "application/json", "User-Agent": "goblincakes-ai"}
+    if provider["id"] == "anthropic":
+        headers |= {"x-api-key": key, "anthropic-version": "2023-06-01"}
+        if body is not None:
+            # A declined question is answered by another Claude model instead of stopping
+            headers["anthropic-beta"] = "server-side-fallback-2026-07-01"
+    else:
+        headers |= {
             "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "User-Agent": "goblincakes-ai",
             # OpenRouter asks apps to say who they are
             "HTTP-Referer": "https://github.com/Kaytho-git/goblincakes",
             "X-Title": "GOBLINCAKES goblin ai",
-        },
+        }
+    req = urllib.request.Request(
+        provider["url"] + path,
+        data=json.dumps(body).encode() if body is not None else None,
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -101,6 +126,8 @@ def request(provider, key, path, body=None, timeout=90):
         detail = e.read().decode(errors="replace")[:300]
         if e.code >= 500:
             raise ServiceError(f"överbelastad just nu (fel {e.code})") from None
+        if provider.get("paid") and (e.code in (402, 429) or re.search(r"credit balance|insufficient_quota|billing", detail)):
+            raise ServiceError("slut på krediter eller för många frågor just nu") from None
         reason = {401: "fel nyckel", 403: "nyckeln får inte användas", 429: "slut på gratisfrågor just nu"}.get(e.code, f"fel {e.code}")
         raise ServiceError(f"{reason} ({detail.strip()})" if e.code not in (401, 429) else reason) from None
     except (urllib.error.URLError, TimeoutError, OSError) as e:
@@ -156,7 +183,9 @@ def pick_models(provider, key, refresh=False):
     data = request(provider, key, "/models", timeout=30).get("data", [])
     ids = [m["id"].removeprefix("models/") for m in data if "id" in m]
     models = []
-    if provider["id"] == "openrouter":
+    if provider.get("models"):
+        models = [m for m in provider["models"] if m in ids] or provider["models"][:1]
+    elif provider["id"] == "openrouter":
         free = [m for m in data
                 if str(m.get("pricing", {}).get("prompt")) in ("0", "0.0")
                 and str(m.get("pricing", {}).get("completion")) in ("0", "0.0")
@@ -269,8 +298,7 @@ def ask_once(messages, keys, status=None, notice=None):
                 try:
                     for i, model in enumerate(models):
                         try:
-                            reply = request(provider, key, "/chat/completions",
-                                            {"model": model, "messages": messages, "temperature": 0.4})
+                            reply = chat(provider, key, model, messages)
                             break
                         except ServiceError as e:
                                 # Overloaded, or listed but closed to new users: the next model
@@ -286,19 +314,39 @@ def ask_once(messages, keys, status=None, notice=None):
                     if attempt == 0 and re.search(r"fel 40[04]", str(e)):
                         continue
                     raise
-            text = reply["choices"][0]["message"].get("content") or ""
+            text = reply
             if not text.strip():
                 raise ServiceError("tomt svar")
             return text, f"{provider['name']} · {model}"
         except (ServiceError, KeyError, IndexError) as e:
             errors.append(f"{provider['name']}: {e}")
-            if "slut på gratisfrågor" in str(e) or "fel nyckel" in str(e):
+            if re.search(r"slut på (gratisfrågor|krediter)|fel nyckel", str(e)):
                 EXHAUSTED.add(provider["id"])
             if notice:
                 notice(f"{provider['name']}: {e} – provar nästa")
     if not errors:
         raise ServiceError("Ingen AI-tjänst är inställd.")
     raise ServiceError("Ingen AI-tjänst svarade.\n" + "\n".join(errors))
+
+
+def chat(provider, key, model, messages):
+    """One question to one model; returns the answer's text."""
+    if provider["id"] != "anthropic":
+        body = {"model": model, "messages": messages}
+        temperature = provider.get("temperature", 0.4)
+        if temperature is not None:
+            body["temperature"] = temperature
+        return request(provider, key, "/chat/completions", body)["choices"][0]["message"].get("content") or ""
+    # Claude's Messages API: the system prompt goes beside the messages, not among them
+    system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
+    turns = [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] in ("user", "assistant")]
+    reply = request(provider, key, "/messages", {
+        "model": model, "max_tokens": 16000, "system": system, "messages": turns,
+        "fallbacks": "default",
+    }, timeout=300)
+    if reply.get("stop_reason") == "refusal":
+        raise ServiceError("ville inte svara på frågan")
+    return "".join(b.get("text", "") for b in reply.get("content", []) if b.get("type") == "text")
 
 
 def has_keys(keys):
