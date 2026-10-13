@@ -780,6 +780,86 @@ def set_meta(video_path, **fields):
     tmp.replace(meta)
 
 
+# ---------------------------------------------------------------- YouTube
+# The video is cut and made ready here; the upload itself is done in YouTube Studio in the
+# browser (13 Oct, the user's choice – the API's uploads stay private until Google has
+# reviewed the app). Title and description are ready to paste.
+
+YT_RESULT = {"kill": "Kill", "wipe": "Wipe", "timed": "i tid", "depleted": "för sent",
+             "win": "vinst", "loss": "förlust", "done": "klar"}
+SV_MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
+
+
+def yt_clock(sec):
+    sec = max(0, int(sec))
+    h, m, s = sec // 3600, sec // 60 % 60, sec % 60
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def youtube_text(meta, start=0.0, end=None):
+    """Title and description for YouTube. Mythic+: the bosses as chapters (YouTube makes
+    chapters of the time stamps: the first at 0:00, at least three, 10 s apart)."""
+    end = meta.get("duration", 0) if end is None else end
+    result = YT_RESULT.get(meta.get("result"), "avbruten")
+    wcl = meta.get("wcl") or {}
+    if meta.get("result") == "wipe" and wcl.get("bossPercentage") is not None:
+        result += f" på {round(wcl['bossPercentage'])} %"
+    if meta.get("kind") == "mplus":
+        title = f"+{meta.get('level')} {meta.get('name', '')} – {result}"
+    else:
+        title = f"{meta.get('name', '')} {meta.get('difficulty', '')}".strip() + f" – {result}"
+    title = re.sub(r"[<>]", "", title)[:100]
+
+    when = datetime.fromtimestamp(meta.get("started", time.time()))
+    line = [f"{when.day} {SV_MONTHS[when.month - 1]} {when.year}"]
+    parts = (meta.get("player") or "").split("-")
+    if len(parts) >= 3:
+        line.append(f"{parts[0]} ({'-'.join(parts[1:-1])})")
+    if meta.get("fight"):
+        line.append(yt_clock(meta["fight"]))
+    desc = [title, " · ".join(line), ""]
+    if wcl.get("url"):
+        desc += [f"Warcraft Logs: {wcl['url']}", ""]
+
+    if meta.get("kind") == "mplus":
+        chapters, last = [(0, "Start")], 0
+        key = meta.get("fightStart", 0) - start
+        if key >= 10:
+            chapters.append((key, "Nyckeln startar"))
+        for m in sorted(meta.get("markers", []), key=lambda m: m["t"]):
+            t = m["t"] - start
+            if m.get("kind") == "boss" and 0 <= t <= end - start:
+                chapters.append((t, m["text"]))
+        kept = []
+        for t, text in chapters:  # 10 s apart, else YouTube makes no chapters at all
+            if not kept or t - kept[-1][0] >= 10:
+                kept.append((t, text))
+        if len(kept) >= 2:
+            desc += [f"{yt_clock(t)} {text}" for t, text in kept] + [""]
+    deaths = [m for m in meta.get("markers", []) if m.get("kind") == "death" and start <= m["t"] <= end]
+    if deaths:
+        desc += [f"Dödsfall: {len(deaths)}", ""]
+    desc.append("Inspelad med GoblinRecorder på GOBLINCAKES")
+    return {"title": title, "description": "\n".join(desc)}
+
+
+def youtube_clip(video, start, end, dest):
+    """Cut without re-encoding (fast, same quality); only the first audio track (everything)
+    – YouTube plays just one. Returns an error text or ""."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+    if start > 0:
+        cmd += ["-ss", f"{start:.3f}"]
+    cmd += ["-i", str(video)]
+    if end:
+        cmd += ["-t", f"{max(end - start, 1):.3f}"]
+    cmd += ["-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-movflags", "+faststart", str(dest)]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0 or not dest.is_file():
+        return (r.stderr or "ffmpeg misslyckades").strip().splitlines()[-1]
+    return ""
+
+
 def make_thumb(video, at, dest):
     subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", str(at),
                     "-i", str(video), "-frames:v", "1", "-vf", "scale=480:-2", str(dest)],

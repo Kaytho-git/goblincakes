@@ -22,6 +22,31 @@ Window {
     readonly property var videos: JSON.parse(backend.videos)
     property string tab: "videos" // videos | settings
     property var selected: null
+
+    // To YouTube: cut, ready-made title and description, then YouTube Studio in the browser
+    property bool ytOpen: false
+    property real ytStart: 0
+    property real ytEnd: 0          // 0 = the end of the video
+    property string ytTitle: ""
+    property string ytDesc: ""
+    property bool ytBusy: false
+    property string ytFile: ""
+    property string ytError: ""
+    function ytRefresh() {
+        if (!selected)
+            return;
+        const t = JSON.parse(backend.youtubeText(selected.path, ytStart, ytEnd > 0 ? ytEnd : selected.duration));
+        ytTitle = t.title;
+        ytDesc = t.description;
+        ytFile = "";
+        ytError = "";
+    }
+    function ytShow() {
+        ytStart = 0;
+        ytEnd = 0;
+        ytOpen = true;
+        ytRefresh();
+    }
     property string note: ""
     property bool wclBusy: false
     property string expanded: "" // the video card that shows its players from Warcraft Logs
@@ -132,6 +157,17 @@ Window {
         }
         function onWclBusy(busy) { win.wclBusy = busy; }
         function onStatsBusy(path) { win.statsBusy = path; }
+        function onYoutubeDone(json) {
+            const r = JSON.parse(json);
+            win.ytBusy = false;
+            win.ytFile = r.file || "";
+            win.ytError = r.error || "";
+            if (r.file) {
+                backend.copyText(win.ytTitle);
+                backend.showFile(r.file);
+                backend.openYoutube();
+            }
+        }
         function onVideosChanged() {
             if (win.selected && !win.videos.some(v => v.path === win.selected.path))
                 win.selected = null;
@@ -1006,7 +1042,13 @@ Window {
             readonly property var v: win.selected
             readonly property real dur: player.duration > 0 ? player.duration / 1000 : (v ? v.duration : 0)
 
+            property string shownPath: ""
             onVChanged: {
+                // The list is read again now and then (new object, same video): keep playing
+                if (v && v.path === shownPath)
+                    return;
+                shownPath = v ? v.path : "";
+                win.ytOpen = false;
                 player.stop();
                 player.source = v ? backend.fileUrl(v.path) : "";
                 player.activeAudioTrack = 0;
@@ -1084,6 +1126,16 @@ Window {
                         height: parent.height
                         color: "#2F6FED"
                     }
+                }
+                Rectangle { // the part that goes to YouTube
+                    visible: win.ytOpen && playerPane.dur > 0
+                    x: playerPane.dur > 0 ? timeline.width * win.ytStart / playerPane.dur : 0
+                    width: playerPane.dur > 0 ? timeline.width * ((win.ytEnd > 0 ? win.ytEnd : playerPane.dur) - win.ytStart) / playerPane.dur : 0
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: 18
+                    color: "transparent"
+                    border.width: 2
+                    border.color: "#E5484D"
                 }
                 Repeater {
                     model: playerPane.v ? playerPane.v.markers : []
@@ -1188,9 +1240,10 @@ Window {
             Item {
                 id: info
                 anchors { left: parent.left; right: parent.right; top: controls.bottom; topMargin: 18 }
-                height: 120
+                height: win.ytOpen ? 300 : 120
 
                 Column {
+                    visible: !win.ytOpen
                     anchors { left: parent.left; right: actions.left; rightMargin: 20 }
                     spacing: 6
                     Text {
@@ -1219,8 +1272,13 @@ Window {
                 }
                 Row {
                     id: actions
+                    visible: !win.ytOpen
                     anchors.right: parent.right
                     spacing: 10
+                    FlatButton {
+                        text: "Till YouTube …"
+                        onClicked: { player.pause(); win.ytShow(); }
+                    }
                     FlatButton {
                         visible: !!(playerPane.v && (playerPane.v.wcl || backend.wclConfigured))
                         primary: !!(playerPane.v && playerPane.v.wcl)
@@ -1244,6 +1302,116 @@ Window {
                         danger: true
                         text: "Ta bort"
                         onClicked: { player.stop(); player.source = ""; backend.removeVideo(playerPane.v.path); }
+                    }
+                }
+
+                // To YouTube: which part, title and description – then the file and YouTube Studio
+                Column {
+                    id: ytPane
+                    visible: win.ytOpen
+                    anchors.fill: parent
+                    spacing: 10
+                    Row {
+                        spacing: 10
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "TILL YOUTUBE"
+                            color: "#E6ECF5"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.Bold
+                            font.pixelSize: 15
+                            font.letterSpacing: 2
+                        }
+                        Note {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Från " + win.clock(win.ytStart) + " till " + win.clock(win.ytEnd > 0 ? win.ytEnd : playerPane.dur)
+                                  + " (" + win.clock((win.ytEnd > 0 ? win.ytEnd : playerPane.dur) - win.ytStart) + ")"
+                        }
+                        FlatButton {
+                            text: "Början här"
+                            onClicked: { win.ytStart = Math.min(player.position / 1000, (win.ytEnd > 0 ? win.ytEnd : playerPane.dur) - 1); win.ytRefresh(); }
+                        }
+                        FlatButton {
+                            text: "Slutet här"
+                            onClicked: { win.ytEnd = Math.max(player.position / 1000, win.ytStart + 1); win.ytRefresh(); }
+                        }
+                        FlatButton {
+                            text: "Hela filmen"
+                            onClicked: { win.ytStart = 0; win.ytEnd = 0; win.ytRefresh(); }
+                        }
+                    }
+                    FlatField {
+                        width: parent.width
+                        text: win.ytTitle
+                        hint: "Titel"
+                        onEdited: win.ytTitle = text
+                    }
+                    Rectangle {
+                        width: parent.width
+                        height: 110
+                        color: "#07090D"
+                        border.width: 1
+                        border.color: descEdit.activeFocus ? "#2F6FED" : "#2A3852"
+                        Flickable {
+                            id: descFlick
+                            anchors { fill: parent; margins: 10 }
+                            contentHeight: descEdit.contentHeight
+                            clip: true
+                            FastWheel { flick: descFlick }
+                            TextEdit {
+                                id: descEdit
+                                width: descFlick.width
+                                text: win.ytDesc
+                                onTextChanged: if (activeFocus) win.ytDesc = text
+                                wrapMode: TextEdit.Wrap
+                                selectByMouse: true
+                                color: "#E6ECF5"
+                                selectionColor: "#2F6FED"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                        }
+                    }
+                    Row {
+                        spacing: 10
+                        FlatButton {
+                            primary: true
+                            enabledState: !win.ytBusy && win.ytTitle.length > 0
+                            text: win.ytBusy ? "Gör filmen …" : "Gör filmen och öppna YouTube"
+                            onClicked: {
+                                win.ytBusy = true;
+                                win.ytFile = "";
+                                win.ytError = "";
+                                backend.youtubeMake(playerPane.v.path, win.ytStart, win.ytEnd, win.ytTitle);
+                            }
+                        }
+                        FlatButton {
+                            visible: win.ytFile !== ""
+                            text: "Kopiera titeln"
+                            onClicked: backend.copyText(win.ytTitle)
+                        }
+                        FlatButton {
+                            visible: win.ytFile !== ""
+                            text: "Kopiera beskrivningen"
+                            onClicked: backend.copyText(win.ytDesc)
+                        }
+                        FlatButton {
+                            visible: win.ytFile !== ""
+                            text: "Visa filen"
+                            onClicked: backend.showFile(win.ytFile)
+                        }
+                        FlatButton {
+                            text: "Stäng"
+                            onClicked: win.ytOpen = false
+                        }
+                    }
+                    Note {
+                        width: parent.width
+                        text: win.ytError ? "Det gick inte att göra filmen: " + win.ytError
+                            : win.ytFile ? "Klar. Dra in filen i YouTube Studio (den är markerad i filhanteraren). Titeln är kopierad – klistra in den, "
+                                           + "sedan Kopiera beskrivningen och klistra in den. Bossarnas tider blir kapitel i YouTube."
+                            : "Bara filmens första ljudspår (allt) kommer med. Klipps utan omkodning – går fort, samma kvalitet."
+                        color: win.ytError ? "#E5534B" : "#8B98AD"
                     }
                 }
             }

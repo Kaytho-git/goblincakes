@@ -356,6 +356,40 @@ class Backend(QObject):
         self.statsBusy.emit(path)
         threading.Thread(target=work, daemon=True).start()
 
+    # ---------------------------------------------------------- YouTube
+    youtubeDone = Signal(str)  # JSON: {"file": …} or {"error": …}
+
+    @Slot(str, float, float, result=str)
+    def youtubeText(self, path, start, end):
+        try:
+            meta = json.loads(Path(path).with_suffix(".json").read_text())
+        except (OSError, ValueError):
+            return json.dumps({"title": "", "description": ""})
+        return json.dumps(R.youtube_text(meta, start, end), ensure_ascii=False)
+
+    @Slot(str, float, float, str)
+    def youtubeMake(self, path, start, end, title):
+        dest = Path(R.load_config()["folder"]) / "YouTube" / (R.safe_name(title) + ".mp4")
+
+        def work():
+            err = R.youtube_clip(path, start, end, dest)
+            self.youtubeDone.emit(json.dumps({"error": err} if err else {"file": str(dest)}, ensure_ascii=False))
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(str)
+    def copyText(self, text):
+        QApplication.clipboard().setText(text)
+
+    @Slot()
+    def openYoutube(self):
+        QDesktopServices.openUrl(QUrl("https://www.youtube.com/upload"))
+
+    @Slot(str)
+    def showFile(self, path):
+        """The file manager with the file selected (to drag into YouTube Studio)."""
+        if not QProcess.startDetached("dolphin", ["--select", path]):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
+
     @Slot(str)
     def openExternal(self, path):
         QDesktopServices.openUrl(QUrl.fromLocalFile(path))
