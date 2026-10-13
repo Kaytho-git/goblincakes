@@ -116,7 +116,7 @@ jobs:
           sudo rm -rf "$out"
 
       - name: Spara listan för den här ISO:n
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: manifest-${{ matrix.id }}
           path: manifest/
