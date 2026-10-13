@@ -1,6 +1,6 @@
-2026-10-13  Webbappar får skarpare ikoner i appmenyn – den största bilden sidan har används, och suddiga ikoner byts ut av sig själva när sidan öppnats en gång.
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-13  Webbappar får skarpare ikoner i appmenyn – den största bilden sidan har används, och suddiga ikoner byts ut av sig själva när sidan öppnats en gång.
 2026-10-13  Goblin AI har fått fler betalda AI-tjänster: DeepSeek (billig, bra på kod), Grok, Perplexity (söker själv på nätet och visar källor) och Mistral (frågorna stannar i EU)
 2026-10-13  Goblin AI kan nu också använda Claude och OpenAI (ChatGPT) om du har en betald nyckel – lägg in den under AI-tjänster
 2026-10-13  Goblin AI: Groq och Mistral är borttagna ur AI-tjänster – det gick inte längre att få gratisnycklar där. Gemini och OpenRouter finns kvar
