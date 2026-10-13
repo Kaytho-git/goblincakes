@@ -1,0 +1,243 @@
+#!/usr/bin/python3 -I
+"""A web app's icon for AppGrid, as sharp as the site has it.
+
+  goblincakes-webapp-icon <url> <out.png> [--cache-only] [--min N]
+      Saves the site's biggest icon as a 256 px PNG and prints its size (an SVG = 1000).
+      Exit 1 = nothing bigger than N found (the file is left alone).
+  goblincakes-webapp-icon --upgrade
+      For every web app whose icon came from a small picture (X-GOBLINCAKES-IconSize
+      below 128 in the menu entry): looks in the browsers' caches only (no network) –
+      run at every login.
+
+Sources, best first: the browsers' own HTTP caches (Chromium, Chrome, Brave – they have
+the icons of sites the user has opened, also sites that turn scripts away with a bot
+check), the page's apple-touch-icon/manifest/<link rel="icon">, /apple-touch-icon.png,
+/favicon.ico, then Google's and DuckDuckGo's icon services. Every picture is measured and
+the biggest wins – a 32 px favicon blown up to 256 px is a blur.
+"""
+import glob, json, os, re, struct, sys, urllib.parse, urllib.request, zlib
+from html.parser import HTMLParser
+from pathlib import Path
+
+UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"}
+GOOD = 192          # big enough: stop looking
+SVG = 1000          # an SVG draws sharp at any size
+SMALL = 128         # below this, --upgrade looks again
+ICONISH = re.compile(r"(favicon|apple-touch|icon)[^/]*\.(png|svg|ico|webp|jpe?g)$", re.I)
+HOME = Path.home()
+
+
+def get(url, limit=4_000_000):
+    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=10) as r:
+        return r.geturl(), r.read(limit)
+
+
+# ---- the browsers' HTTP caches (Chromium's "simple cache": one file per address) ----
+
+EOF_MAGIC = struct.pack("<Q", 0xF4FA6F45970D41D8)
+
+
+def cache_dirs():
+    for root in [*glob.glob(str(HOME / ".var/app/*/cache")), str(HOME / ".cache")]:
+        for depth in ("*", "*/*"):
+            for profile in ("Default", "Profile *"):
+                yield from glob.glob(f"{root}/{depth}/{profile}/Cache/Cache_Data")
+
+
+def cached_icons(host):
+    """(url, data) for icon-looking images from host (or its parent site) in the caches."""
+    site = host.removeprefix("www.")
+    for d in cache_dirs():
+        for f in Path(d).glob("*_0"):
+            try:
+                with open(f, "rb") as fh:
+                    head = fh.read(4096)
+                    if len(head) < 24:
+                        continue
+                    klen = struct.unpack_from("<I", head, 12)[0]
+                    if klen > 4000:
+                        continue
+                    url = head[24:24 + klen].decode("latin1").split(" ")[-1]
+                    u = urllib.parse.urlsplit(url)
+                    if (u.hostname or "").removeprefix("www.") != site or not ICONISH.search(u.path):
+                        continue
+                    data = head + fh.read()
+            except (OSError, struct.error):
+                continue
+            start = 24 + klen
+            end = data.find(EOF_MAGIC, start)
+            if end < 0:
+                continue
+            # (an error page simply won't load as a picture)
+            body, headers = data[start:end], data[end + 24:].lower()
+            if b"content-encoding:gzip" in headers or b"content-encoding:deflate" in headers:
+                try:
+                    body = zlib.decompress(body, 47)
+                except zlib.error:
+                    continue
+            elif b"content-encoding:" in headers and b"content-encoding:identity" not in headers:
+                continue  # brotli etc.: no decoder in the standard library
+            yield url, body
+
+
+# ---- the website itself ----
+
+class Links(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.icons, self.manifest = [], None
+
+    def handle_starttag(self, tag, attrs):
+        a = {k.lower(): (v or "") for k, v in attrs}
+        rel = a.get("rel", "").lower()
+        if tag != "link" or not a.get("href"):
+            return
+        if "manifest" in rel:
+            self.manifest = a["href"]
+        elif "icon" in rel:
+            self.icons.append((a["href"], a.get("sizes", ""), "apple" in rel, a.get("type", "")))
+
+
+def declared(sizes, href, kind=""):
+    if "svg" in kind or href.lower().split("?")[0].endswith(".svg") or sizes == "any":
+        return SVG
+    nums = [int(n) for n in re.findall(r"(\d+)x\d+", sizes)]
+    return max(nums) if nums else 0
+
+
+def web_candidates(page, host):
+    candidates = []  # (declared size, url)
+    try:
+        base, html = get(page, 600_000)
+        p = Links()
+        p.feed(html.decode("utf-8", "replace"))
+        for href, sizes, apple, kind in p.icons:
+            candidates.append((declared(sizes, href, kind) or (180 if apple else 32), urllib.parse.urljoin(base, href)))
+        if p.manifest:
+            try:
+                murl = urllib.parse.urljoin(base, p.manifest)
+                for i in json.loads(get(murl, 200_000)[1]).get("icons", []):
+                    if i.get("src"):
+                        candidates.append((declared(i.get("sizes", ""), i["src"], i.get("type", "")),
+                                           urllib.parse.urljoin(murl, i["src"])))
+            except Exception:
+                pass
+    except Exception:
+        pass  # many sites turn scripts away (403, bot checks): the guesses below may still work
+    candidates += [(180, f"https://{host}/apple-touch-icon.png"), (16, f"https://{host}/favicon.ico")]
+    candidates.sort(key=lambda c: -c[0])
+    seen = set()
+    for _, url in candidates:
+        if url not in seen:
+            seen.add(url)
+            yield url
+    yield f"https://www.google.com/s2/favicons?domain={host}&sz=256"
+    yield f"https://icons.duckduckgo.com/ip3/{host}.ico"
+
+
+# ---- pictures ----
+
+def qt():
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtGui import QGuiApplication
+    return QGuiApplication.instance() or QGuiApplication([])  # loads the image plugins (svg, ico, webp)
+
+
+def picture(data):
+    """(size, QImage) – the biggest picture in the data (an .ico holds several)."""
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QSize, Qt
+    from PySide6.QtGui import QImageReader
+    buf = QBuffer()
+    buf.setData(QByteArray(data))
+    buf.open(QIODevice.OpenModeFlag.ReadOnly)
+    reader = QImageReader(buf)
+    if bytes(reader.format().data()) == b"svg":
+        s = reader.size()
+        if s.isValid() and not s.isEmpty():
+            reader.setScaledSize(s.scaled(QSize(256, 256), Qt.AspectRatioMode.KeepAspectRatio))
+        img = reader.read()
+        return (SVG, img) if not img.isNull() else (0, None)
+    best = (0, None)
+    while True:
+        img = reader.read()
+        if not img.isNull() and min(img.width(), img.height()) > best[0]:
+            best = (min(img.width(), img.height()), img)
+        if not reader.jumpToNextImage():
+            break
+    return best
+
+
+def fetch(page, out, cache_only=False, minimum=0):
+    page = page if "://" in page else "https://" + page
+    host = urllib.parse.urlsplit(page).hostname or ""
+    if not host:
+        return None
+    qt()
+    best = (minimum, None)
+
+    def consider(data):
+        nonlocal best
+        size, img = picture(data)
+        if img is not None and size >= 16 and size > best[0]:
+            best = (size, img)
+        return best[0] >= GOOD
+
+    done = any(consider(data) for _, data in cached_icons(host))
+    if not done and not cache_only:
+        for url in web_candidates(page, host):
+            try:
+                if consider(get(url)[1]):
+                    break
+            except Exception:
+                continue
+    size, img = best
+    if img is None:
+        return None
+    from PySide6.QtCore import Qt
+    if img.width() != 256 and img.height() != 256:
+        img = img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    return size if img.save(str(out), "PNG") else None
+
+
+def upgrade():
+    apps = HOME / ".local/share/applications"
+    icons = HOME / ".local/share/icons/hicolor/256x256/apps"
+    changed = False
+    for f in sorted(apps.glob("goblincakes-webapp-*.desktop")):
+        text = f.read_text()
+        url = re.search(r"--app=(\S+)", text)
+        size = re.search(r"^X-GOBLINCAKES-IconSize=(\d+)", text, re.M)
+        size = int(size.group(1)) if size else 0
+        if not url or size >= SMALL:
+            continue
+        new = fetch(url.group(1), icons / f"{f.stem}.png", cache_only=True, minimum=size)
+        if not new:
+            continue
+        text = re.sub(r"^X-GOBLINCAKES-IconSize=.*\n?", "", text, flags=re.M)
+        text = re.sub(r"^Icon=.*$", f"Icon={f.stem}", text, count=1, flags=re.M)
+        f.write_text(text.rstrip("\n") + f"\nX-GOBLINCAKES-IconSize={new}\n")
+        changed = True
+    if changed:  # Plasma caches icons by name: make the new ones show up
+        os.utime(HOME / ".local/share/icons/hicolor", None)
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    if args == ["--upgrade"]:
+        upgrade()
+        sys.exit(0)
+    cache_only = "--cache-only" in args
+    minimum = 0
+    if "--min" in args:
+        i = args.index("--min")
+        minimum = int(args[i + 1])
+        del args[i:i + 2]
+    args = [a for a in args if a != "--cache-only"]
+    if len(args) != 2:
+        print(__doc__.strip(), file=sys.stderr)
+        sys.exit(2)
+    size = fetch(args[0], args[1], cache_only, minimum)
+    if not size:
+        sys.exit(1)
+    print(size)

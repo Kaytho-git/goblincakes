@@ -187,4 +187,10 @@ if [ ! -e "$_gc_flag" ]; then
     fi
 fi
 
+# Web apps whose icon came from a small picture (blurry in AppGrid): a sharper one may
+# be in the browser's cache by now, once the site has been opened (no network used)
+if ls "$HOME"/.local/share/applications/goblincakes-webapp-*.desktop >/dev/null 2>&1; then
+    setsid /usr/libexec/goblincakes-webapp-icon --upgrade >/dev/null 2>&1 </dev/null &
+fi
+
 unset _gc_auto _gc_was _gc_now _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets
