@@ -247,14 +247,38 @@ def obs_names():
     return {"profiles": profiles, "collections": collections}
 
 
+def vaapi_device():
+    """The render node of an AMD or Intel graphics card (VAAPI), "" when there is none –
+    on a laptop with two cards the AMD one first."""
+    found = []
+    for node in sorted(Path("/sys/class/drm").glob("renderD*")):
+        try:
+            driver = (node / "device/driver").resolve().name
+        except OSError:
+            continue
+        if driver in ("amdgpu", "radeon", "i915", "xe"):
+            found.append((0 if driver in ("amdgpu", "radeon") else 1, f"/dev/dri/{node.name}"))
+    return min(found)[1] if found else ""
+
+
 def obs_encoders():
-    """Codecs OBS can record with on this computer, from OBS's latest log."""
+    """Codecs OBS can record with on this computer, from OBS's latest log: Nvidia's NVENC,
+    else VAAPI (AMD and Intel – OBS logs "FFmpeg VAAPI H264 encoding supported" at start),
+    else only x264 on the processor."""
     logs = sorted((OBS_CONFIG / "logs").glob("*.txt"), key=lambda p: p.stat().st_mtime)
     text = logs[-1].read_text(errors="replace") if logs else ""
     nvenc = "obs_nvenc_h264_tex" in text or "jim_nvenc" in text
-    found = {"h264": nvenc, "hevc": nvenc and "obs_nvenc_hevc_tex" in text,
-             "av1": nvenc and "AV1 supported: true" in text, "x264": True}
-    return {"hardware": nvenc, "codecs": found, "known": bool(text)}
+    if nvenc:
+        family = "nvenc"
+        found = {"h264": True, "hevc": "obs_nvenc_hevc_tex" in text, "av1": "AV1 supported: true" in text}
+    else:
+        family = "vaapi"
+        found = {c: bool(re.search(rf"VAAPI {name} encoding supported", text))
+                 for c, name in (("h264", "H264"), ("hevc", "HEVC"), ("av1", "AV1"))}
+        if not any(found.values()) or not vaapi_device():
+            family, found = "", {"h264": False, "hevc": False, "av1": False}
+    found["x264"] = True
+    return {"hardware": bool(family), "family": family, "codecs": found, "known": bool(text)}
 
 
 class OBSError(Exception):
@@ -452,7 +476,7 @@ def setup_obs(obs, cfg):
 QUALITY_MBIT = {"high": 25, "normal": 10, "small": 5}  # HEVC/AV1 at 60 fps
 
 
-def encoder_settings(cfg, codec):
+def encoder_settings(cfg, codec, family="nvenc"):
     """OBS's recording encoder (advanced output mode): which encoder, and its settings –
     a bitrate from the quality choice. H.264 needs more than HEVC for the same picture,
     30 fps less than 60."""
@@ -464,6 +488,10 @@ def encoder_settings(cfg, codec):
     kbit = int(mbit * 1000)
     if codec == "x264":
         return "obs_x264", {"rate_control": "VBR", "bitrate": kbit, "preset": "veryfast", "keyint_sec": 2}
+    if family == "vaapi":  # AMD and Intel
+        name = {"h264": "ffmpeg_vaapi", "hevc": "hevc_ffmpeg_vaapi", "av1": "av1_ffmpeg_vaapi"}[codec]
+        return name, {"vaapi_device": vaapi_device(), "rate_control": "VBR", "bitrate": kbit,
+                      "maxrate": int(kbit * 1.5), "keyint_sec": 2, "bf": 0}
     name = {"h264": "obs_nvenc_h264_tex", "hevc": "obs_nvenc_hevc_tex", "av1": "obs_nvenc_av1_tex"}[codec]
     return name, {"rate_control": "VBR", "bitrate": kbit, "max_bitrate": int(kbit * 1.5),
                   "preset2": "p5", "tune": "hq", "multipass": "qres", "keyint_sec": 2, "bf": 2}
@@ -478,7 +506,7 @@ def write_encoder_file(cfg):
     start and writes its own copy when it quits)."""
     enc = obs_encoders()
     codec = pick_codec(cfg, enc)
-    _, settings = encoder_settings(cfg, codec)
+    _, settings = encoder_settings(cfg, codec, enc.get("family") or "nvenc")
     d = profile_dir()
     if d.is_dir():
         (d / "recordEncoder.json").write_text(json.dumps(settings))
@@ -498,8 +526,9 @@ def apply_settings(obs, cfg):
         return False
     folder = Path(cfg["folder"])
     folder.mkdir(parents=True, exist_ok=True)
-    codec = pick_codec(cfg, obs_encoders())
-    encoder, settings = encoder_settings(cfg, codec)
+    enc = obs_encoders()
+    codec = pick_codec(cfg, enc)
+    encoder, settings = encoder_settings(cfg, codec, enc.get("family") or "nvenc")
     params = [
         ("Output", "Mode", "Advanced"),
         ("Output", "FilenameFormatting", "%CCYY-%MM-%DD %hh-%mm-%ss"),

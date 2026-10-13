@@ -1471,15 +1471,17 @@ Window {
                 width: settingsCol.width
                 spacing: 12
                 Repeater {
-                    model: [{ "id": "h264", "name": "NVENC H.264", "sub": "Grafikkortet · spelas upp överallt" },
-                            { "id": "hevc", "name": "NVENC HEVC", "sub": "Grafikkortet · mindre filer" },
-                            { "id": "av1", "name": "NVENC AV1", "sub": "Grafikkortet · minst filer, RTX 40xx+" },
+                    // Nvidia = NVENC, AMD/Intel = VAAPI (the same choices, the right encoder behind them)
+                    readonly property string hw: win.enc.family === "vaapi" ? "VAAPI " : "NVENC "
+                    model: [{ "id": "h264", "name": hw + "H.264", "sub": "Grafikkortet · spelas upp överallt" },
+                            { "id": "hevc", "name": hw + "HEVC", "sub": "Grafikkortet · mindre filer" },
+                            { "id": "av1", "name": hw + "AV1", "sub": "Grafikkortet · minst filer, Nvidia RTX 40xx, AMD RX 7000 eller Intel Arc" },
                             { "id": "x264", "name": "x264", "sub": "Processorn · tar kraft från spelet" }]
                     Choice {
                         required property var modelData
                         readonly property bool works: !win.enc.known || !!win.enc.codecs[modelData.id]
                         text: modelData.name
-                        sub: (works ? modelData.sub : (win.enc.hardware ? "Grafikkortet klarar inte AV1" : "Kräver ett Nvidia-kort"))
+                        sub: (works ? modelData.sub : (win.enc.hardware ? "Grafikkortet klarar inte " + modelData.name.split(" ")[1] : "OBS hittade ingen kodare på grafikkortet (NVENC för Nvidia, VAAPI för AMD och Intel)"))
                              + ". Byter du kodare startas OBS om (dolt) före nästa inspelning."
                         enabledState: works
                         chosen: win.cfg.codec === modelData.id
@@ -1490,7 +1492,8 @@ Window {
             Note {
                 visible: !win.enc.hardware
                 width: Math.min(820, parent.width)
-                text: "Inget Nvidia-kort hittat – OBS spelar in med processorn (x264)."
+                text: "OBS hittade ingen kodare på grafikkortet (NVENC för Nvidia, VAAPI för AMD och Intel) – OBS spelar in med processorn (x264). "
+                      + "Har du startat OBS en gång? GoblinRecorder läser vad som finns ur OBS logg."
             }
 
             Item { width: 1; height: 14 }
