@@ -1032,12 +1032,19 @@ Window {
             }
         }
         FlatScrollBar { flick: list }
+        FlatScrollBar { flick: playerPane; anchors.rightMargin: -20 } // in the margin to the right
 
-        // The player
-        Item {
+        // The player – scrolls when everything doesn't fit even with a small video (small window)
+        Flickable {
             id: playerPane
             visible: win.videos.length > 0 && !!win.selected
             anchors { left: list.right; leftMargin: 20; right: parent.right; rightMargin: 32; top: parent.top; topMargin: 20; bottom: parent.bottom; bottomMargin: 20 }
+            contentWidth: width
+            contentHeight: info.y + info.height
+            clip: true
+            interactive: false // the timeline is dragged; the wheel and the scroll bar scroll
+            boundsBehavior: Flickable.StopAtBounds
+            FastWheel { flick: playerPane }
 
             readonly property var v: win.selected
             readonly property real dur: player.duration > 0 ? player.duration / 1000 : (v ? v.duration : 0)
@@ -1063,7 +1070,10 @@ Window {
             Rectangle {
                 id: screen
                 anchors { left: parent.left; right: parent.right; top: parent.top }
-                height: Math.min(width * 9 / 16, parent.height - controls.height - info.height - 24)
+                // Everything below the video must fit: it shrinks instead (13 Oct, the text at the
+                // bottom was cut off – the timeline and the gaps were not counted)
+                height: Math.max(200, Math.min(width * 9 / 16, playerPane.height - 14 - timeline.height - 10
+                                                - controls.height - 18 - info.height))
                 color: "#000000"
                 border.width: 1
                 border.color: "#1E2A40"
@@ -1194,11 +1204,10 @@ Window {
                 }
             }
 
-            Row {
+            Flow {
                 id: controls
                 anchors { left: parent.left; right: parent.right; top: timeline.bottom; topMargin: 10 }
                 spacing: 10
-                height: 40
 
                 FlatButton {
                     width: 110
@@ -1207,7 +1216,8 @@ Window {
                     onClicked: player.playbackState === MediaPlayer.PlayingState ? player.pause() : player.play()
                 }
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: 40
+                    verticalAlignment: Text.AlignVCenter
                     width: 120
                     text: win.clock(player.position / 1000) + " / " + win.clock(playerPane.dur)
                     color: "#E6ECF5"
@@ -1215,7 +1225,8 @@ Window {
                     font.pixelSize: 13
                 }
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: 40
+                    verticalAlignment: Text.AlignVCenter
                     visible: player.audioTracks.length > 1
                     text: "LJUD"
                     color: "#8B98AD"
@@ -1240,11 +1251,13 @@ Window {
             Item {
                 id: info
                 anchors { left: parent.left; right: parent.right; top: controls.bottom; topMargin: 18 }
-                height: win.ytOpen ? 300 : 120
+                height: win.ytOpen ? ytPane.implicitHeight : infoCol.implicitHeight
 
+                // The title and the line under it get the whole width, the buttons a row of their own
                 Column {
+                    id: infoCol
                     visible: !win.ytOpen
-                    anchors { left: parent.left; right: actions.left; rightMargin: 20 }
+                    width: parent.width
                     spacing: 6
                     Text {
                         width: parent.width
@@ -1269,39 +1282,39 @@ Window {
                                 + "";
                         }
                     }
-                }
-                Row {
-                    id: actions
-                    visible: !win.ytOpen
-                    anchors.right: parent.right
-                    spacing: 10
-                    FlatButton {
-                        text: "Till YouTube …"
-                        onClicked: { player.pause(); win.ytShow(); }
-                    }
-                    FlatButton {
-                        visible: !!(playerPane.v && (playerPane.v.wcl || backend.wclConfigured))
-                        primary: !!(playerPane.v && playerPane.v.wcl)
-                        enabledState: !win.wclBusy
-                        text: playerPane.v && playerPane.v.wcl ? "Öppna i Warcraft Logs" : win.wclBusy ? "Söker …" : "Sök i Warcraft Logs"
-                        onClicked: playerPane.v.wcl ? backend.openUrl(playerPane.v.wcl.url) : backend.wclFind(playerPane.v.path)
-                    }
-                    FlatButton {
-                        text: playerPane.v && playerPane.v.keep ? "Sparas för alltid ✓" : "Spara för alltid"
-                        onClicked: {
-                            const p = playerPane.v.path, k = !playerPane.v.keep;
-                            backend.setKeep(p, k);
-                            win.selected = win.videos.find(v => v.path === p) || null;
+                    Item { width: 1; height: 6 }
+                    Flow {
+                        id: actions
+                        width: parent.width
+                        spacing: 10
+                        FlatButton {
+                            text: "Till YouTube …"
+                            onClicked: { player.pause(); win.ytShow(); }
                         }
-                    }
-                    FlatButton {
-                        text: "Öppna i annat program"
-                        onClicked: { player.pause(); backend.openExternal(playerPane.v.path); }
-                    }
-                    FlatButton {
-                        danger: true
-                        text: "Ta bort"
-                        onClicked: { player.stop(); player.source = ""; backend.removeVideo(playerPane.v.path); }
+                        FlatButton {
+                            visible: !!(playerPane.v && (playerPane.v.wcl || backend.wclConfigured))
+                            primary: !!(playerPane.v && playerPane.v.wcl)
+                            enabledState: !win.wclBusy
+                            text: playerPane.v && playerPane.v.wcl ? "Öppna i Warcraft Logs" : win.wclBusy ? "Söker …" : "Sök i Warcraft Logs"
+                            onClicked: playerPane.v.wcl ? backend.openUrl(playerPane.v.wcl.url) : backend.wclFind(playerPane.v.path)
+                        }
+                        FlatButton {
+                            text: playerPane.v && playerPane.v.keep ? "Sparas för alltid ✓" : "Spara för alltid"
+                            onClicked: {
+                                const p = playerPane.v.path, k = !playerPane.v.keep;
+                                backend.setKeep(p, k);
+                                win.selected = win.videos.find(v => v.path === p) || null;
+                            }
+                        }
+                        FlatButton {
+                            text: "Öppna i annat program"
+                            onClicked: { player.pause(); backend.openExternal(playerPane.v.path); }
+                        }
+                        FlatButton {
+                            danger: true
+                            text: "Ta bort"
+                            onClicked: { player.stop(); player.source = ""; backend.removeVideo(playerPane.v.path); }
+                        }
                     }
                 }
 
@@ -1309,12 +1322,14 @@ Window {
                 Column {
                     id: ytPane
                     visible: win.ytOpen
-                    anchors.fill: parent
+                    width: parent.width
                     spacing: 10
-                    Row {
+                    Flow {
+                        width: parent.width
                         spacing: 10
                         Text {
-                            anchors.verticalCenter: parent.verticalCenter
+                            height: 40
+                            verticalAlignment: Text.AlignVCenter
                             text: "TILL YOUTUBE"
                             color: "#E6ECF5"
                             font.family: "Chakra Petch"
@@ -1323,7 +1338,8 @@ Window {
                             font.letterSpacing: 2
                         }
                         Note {
-                            anchors.verticalCenter: parent.verticalCenter
+                            height: 40
+                            verticalAlignment: Text.AlignVCenter
                             text: "Från " + win.clock(win.ytStart) + " till " + win.clock(win.ytEnd > 0 ? win.ytEnd : playerPane.dur)
                                   + " (" + win.clock((win.ytEnd > 0 ? win.ytEnd : playerPane.dur) - win.ytStart) + ")"
                         }
@@ -1372,7 +1388,8 @@ Window {
                             }
                         }
                     }
-                    Row {
+                    Flow {
+                        width: parent.width
                         spacing: 10
                         FlatButton {
                             primary: true
