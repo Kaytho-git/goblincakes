@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-13  Goblin AI kan söka på nätet när frågan gäller något färskt, som nyheter och patchar, och visar källorna. Kräver en gratis Tavily-nyckel under AI-tjänster
 2026-10-13  Goblin AI provar en annan Gemini-modell när den första är överbelastad, i stället för att visa ett felmeddelande
 2026-10-13  Inloggningen visas på din huvudskärm (den du valt i Bildskärm-inställningarna) i stället för den första skärmen – gäller från andra starten efter uppdateringen
 2026-10-13  GoblinRecorder: texten och knapparna längst ner i spelaren och i Till YouTube-rutan klipps inte längre av – videon krymper så att allt får plats, och i ett litet fönster går det att rulla

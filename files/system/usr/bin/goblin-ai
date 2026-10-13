@@ -321,7 +321,7 @@ class Backend(QObject):
     @Property(str, notify=keysChanged)
     def providers(self):
         return json.dumps([{"id": p["id"], "name": p["name"], "how": p["how"], "page": p["keys_page"],
-                            "hasKey": bool(self._keys.get(p["env"]))} for p in goblinai.PROVIDERS])
+                            "hasKey": bool(self._keys.get(p["env"]))} for p in goblinai.SERVICES])
 
     @Property(bool, notify=keysChanged)
     def hasKeys(self):
@@ -329,20 +329,19 @@ class Backend(QObject):
 
     @Slot(str)
     def openKeyPage(self, provider_id):
-        p = next(p for p in goblinai.PROVIDERS if p["id"] == provider_id)
+        p = next(p for p in goblinai.SERVICES if p["id"] == provider_id)
         QDesktopServices.openUrl(QUrl(p["keys_page"]))
 
     @Slot(str, str)
     def setKey(self, provider_id, key):
-        p = next(p for p in goblinai.PROVIDERS if p["id"] == provider_id)
+        p = next(p for p in goblinai.SERVICES if p["id"] == provider_id)
         key = key.strip()
         if not key:
             return
 
         def work():
             try:
-                model = goblinai.pick_model(p, key, refresh=True)
-                self._keyResult.emit(provider_id, key, True, f"Fungerar – använder {model}")
+                self._keyResult.emit(provider_id, key, True, f"Fungerar – {goblinai.test_key(p, key)}")
             except goblinai.ServiceError as e:
                 self._keyResult.emit(provider_id, key, False, f"Fungerade inte: {e}")
 
@@ -351,7 +350,7 @@ class Backend(QObject):
 
     def _on_key_result(self, provider_id, key, ok, message):
         if ok:
-            p = next(p for p in goblinai.PROVIDERS if p["id"] == provider_id)
+            p = next(p for p in goblinai.SERVICES if p["id"] == provider_id)
             self._keys[p["env"]] = key
             goblinai.EXHAUSTED.discard(provider_id)
             goblinai.save_keys(self._keys)
@@ -360,7 +359,7 @@ class Backend(QObject):
 
     @Slot(str)
     def removeKey(self, provider_id):
-        p = next(p for p in goblinai.PROVIDERS if p["id"] == provider_id)
+        p = next(p for p in goblinai.SERVICES if p["id"] == provider_id)
         self._keys.pop(p["env"], None)
         goblinai.save_keys(self._keys)
         self.keysChanged.emit()

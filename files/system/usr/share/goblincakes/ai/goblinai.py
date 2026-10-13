@@ -2,7 +2,9 @@
 
 Uses the free tiers of Gemini, Groq, OpenRouter and Mistral through their
 OpenAI-compatible APIs, in that order; when one is out of quota or fails, the
-next one answers. Keys: ~/.config/goblincakes/ai.env (only readable by you).
+next one answers. With a Tavily key the AI can search the web (Tavily's free
+tier; Gemini's own Google search needs a paid plan). Keys:
+~/.config/goblincakes/ai.env (only readable by you).
 """
 import getpass
 import json
@@ -10,6 +12,7 @@ import os
 import re
 import subprocess
 import time
+from datetime import date
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -52,6 +55,16 @@ PROVIDERS = [
     },
 ]
 
+# Web search for every service: the AI asks for a search with a ```sök block, we search and answer it
+SEARCH = {
+    "id": "tavily", "name": "Tavily – sök på nätet", "env": "TAVILY_API_KEY",
+    "url": "https://api.tavily.com",
+    "keys_page": "https://app.tavily.com/home",
+    "how": "Gör att Goblin AI kan söka på nätet när frågan gäller något färskt (nyheter, patchar, priser). "
+           "Logga in med ditt Google-konto – nyckeln (tvly-…) står direkt på sidan. Gratis 1 000 sökningar i månaden.",
+}
+SERVICES = PROVIDERS + [SEARCH]
+
 
 def load_keys():
     keys = {}
@@ -60,7 +73,7 @@ def load_keys():
             if "=" in line and not line.lstrip().startswith("#"):
                 name, value = line.split("=", 1)
                 keys[name.strip()] = value.strip()
-    for p in PROVIDERS:  # environment variables win
+    for p in SERVICES:  # environment variables win
         if os.environ.get(p["env"]):
             keys[p["env"]] = os.environ[p["env"]]
     return keys
@@ -71,7 +84,7 @@ def save_keys(keys):
     old_umask = os.umask(0o077)
     try:
         lines = ["# goblin ai – free API keys (only readable by you). Remove a line to stop using that service."]
-        lines += [f"{p['env']}={keys[p['env']]}" for p in PROVIDERS if keys.get(p["env"])]
+        lines += [f"{p['env']}={keys[p['env']]}" for p in SERVICES if keys.get(p["env"])]
         KEYS_FILE.write_text("\n".join(lines) + "\n")
     finally:
         os.umask(old_umask)
@@ -106,6 +119,35 @@ def request(provider, key, path, body=None, timeout=90):
         raise ServiceError(f"{reason} ({detail.strip()})" if e.code not in (401, 429) else reason) from None
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise ServiceError(f"nås inte ({getattr(e, 'reason', e)})") from None
+
+
+def web_search(query, key):
+    """Tavily search: [{title, url, content}]."""
+    req = urllib.request.Request(
+        SEARCH["url"] + "/search",
+        data=json.dumps({"query": query, "max_results": 5, "search_depth": "basic"}).encode(),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                 "User-Agent": "goblincakes-ai"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=40) as resp:
+            data = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        reason = {401: "fel nyckel", 429: "för många sökningar just nu",
+                  432: "månadens gratissökningar är slut", 433: "månadens gratissökningar är slut"}.get(e.code, f"fel {e.code}")
+        raise ServiceError(reason) from None
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise ServiceError(f"nås inte ({getattr(e, 'reason', e)})") from None
+    return [{"title": r.get("title") or r.get("url", ""), "url": r.get("url", ""), "content": (r.get("content") or "")[:1200]}
+            for r in data.get("results", []) if r.get("url")]
+
+
+def test_key(service, key):
+    """Tries a key; returns what to show ("använder <modell>") or raises ServiceError."""
+    if service["id"] == SEARCH["id"]:
+        web_search("GOBLINCAKES Linux", key)
+        return "kan söka på nätet"
+    return f"använder {pick_model(service, key, refresh=True)}"
 
 
 def pick_model(provider, key, refresh=False):
@@ -155,7 +197,72 @@ def pick_models(provider, key, refresh=False):
 EXHAUSTED = set()  # services out of free questions: not asked again while the program runs
 
 
+SEARCH_PROMPT = """
+
+Sökning på nätet: du kan söka när frågan gäller något som kan ha ändrats efter det du lärt dig
+(nyheter, nya versioner, patchar, priser, öppettider, resultat, väder) eller när du är osäker på ett faktum.
+Svara då med BARA ett kodblock märkt ```sök med en kort sökfråga (gärna på engelska om ämnet är internationellt), t.ex.
+```sök
+World of Warcraft latest patch notes
+```
+Du får sedan sökresultaten och svarar användaren utifrån dem. Sök inte för sådant du redan vet säkert
+(allmän kunskap, recept, texter, Linux-kommandon). Högst {limit} sökningar per fråga."""
+
+SEARCH_LIMIT = 3
+
+
+def search_request(text):
+    """The search query when the answer is a ```sök block, else None."""
+    m = re.search(r"```(?:sök|sok|search)\s*\n(.*?)```", text, re.S | re.I)
+    return " ".join(m.group(1).split()) if m and m.group(1).strip() else None
+
+
 def ask(messages, keys, status=None, notice=None):
+    """Asks the services, searching the web in between when the AI wants to (and a Tavily key is set).
+
+    Returns (answer, "service · model"); the sources are listed at the end of the answer.
+    """
+    key = keys.get(SEARCH["env"])
+    if not key:
+        return ask_once(messages, keys, status, notice)
+    messages = [dict(m) for m in messages]
+    if messages and messages[0]["role"] == "system":
+        messages[0]["content"] += SEARCH_PROMPT.format(limit=SEARCH_LIMIT)
+    sources, searches = [], 0
+    while True:
+        answer, service = ask_once(messages, keys, status, notice)
+        query = search_request(answer)
+        if not query:
+            break
+        messages.append({"role": "assistant", "content": answer})
+        if searches >= SEARCH_LIMIT:
+            messages.append({"role": "user", "content": "Inga fler sökningar – svara nu med det du har."})
+            continue
+        searches += 1
+        if status:
+            status(f"Söker på nätet: {query}…")
+        try:
+            results = web_search(query, key)
+        except ServiceError as e:
+            if notice:
+                notice(f"Sökningen fungerade inte: {e}")
+            messages.append({"role": "user", "content": f"Sökningen fungerade inte ({e}). Svara utan att söka, och säg att svaret kan vara gammalt."})
+            continue
+        for r in results:
+            if r["url"] not in (s["url"] for s in sources):
+                sources.append(r)
+        found = "\n\n".join(f"[{i}] {r['title']} – {r['url']}\n{r['content']}" for i, r in enumerate(results, 1))
+        messages.append({"role": "user", "content":
+                         f"Sökresultat för \"{query}\" (det här skrev inte användaren):\n\n{found or 'Inga träffar.'}\n\n"
+                         "Svara nu på användarens fråga utifrån resultaten (eller sök igen med en bättre fråga)."})
+    if sources:
+        answer = answer.rstrip() + "\n\n**Källor:** " + " · ".join(
+            f"[{s['title'][:60].replace('[', '(').replace(']', ')')}]({s['url']})" for s in sources[:5])
+        service += " · sökte på nätet"
+    return answer, service
+
+
+def ask_once(messages, keys, status=None, notice=None):
     """Asks the services in order; returns (answer, "service · model").
 
     status(text): "asking X…"; notice(text): a service failed and the next is tried.
@@ -217,6 +324,7 @@ def system_info():
     except OSError:
         pass
     info.append(f"Kärna: {os.uname().release}")
+    info.append(f"Dagens datum: {date.today().isoformat()}")
     try:
         status = json.loads(subprocess.run(["rpm-ostree", "status", "--json", "--booted"],
                                            capture_output=True, text=True, timeout=10).stdout)
