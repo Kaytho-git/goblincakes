@@ -696,7 +696,7 @@ def main_screen_size():
     """Width and height of the main screen (priority 1 in the display settings)."""
     try:
         out = subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True, timeout=10).stdout
-        screens = [o for o in json.loads(out)["outputs"] if o.get("enabled")]
+        screens = [o for o in json.loads(out)["outputs"] if o.get("enabled", True) and o.get("connected", True)]
     except (OSError, ValueError, KeyError, subprocess.TimeoutExpired):
         return None
     if not screens:

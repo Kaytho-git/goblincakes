@@ -74,7 +74,7 @@ def screens():
                                          text=True, timeout=5).stdout)
     except (OSError, ValueError, subprocess.SubprocessError):
         return []
-    outs = [o for o in data.get("outputs", []) if o.get("enabled") and o.get("connected", True)]
+    outs = [o for o in data.get("outputs", []) if o.get("enabled", True) and o.get("connected", True)]
     outs.sort(key=lambda o: o.get("priority") or 99)
     result = []
     for i, o in enumerate(outs, 1):

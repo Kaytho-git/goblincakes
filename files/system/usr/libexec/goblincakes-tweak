@@ -109,7 +109,7 @@ try:
 except ValueError:
     outputs = []
 for o in outputs:
-    if o.get("enabled") and "hdr" in o:
+    if o.get("enabled", True) and o.get("connected", True) and "hdr" in o:
         print(o["name"], "wcg" in o, o["hdr"])'
         }
         screens=$(hdr_screens)

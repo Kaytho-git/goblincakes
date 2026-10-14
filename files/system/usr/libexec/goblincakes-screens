@@ -89,7 +89,7 @@ def sync_sddm():
 
 try:
     data = json.loads(subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True).stdout)
-    outputs = [o for o in data.get("outputs", []) if o.get("connected") and o.get("enabled")]
+    outputs = [o for o in data.get("outputs", []) if o.get("connected") and o.get("enabled", True)]
 except (OSError, ValueError):
     sys.exit(0)
 if not outputs:
