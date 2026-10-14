@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-14  GoblinRecorder missar inte längre en boss när OBS har startats om – den kopplar upp sig igen och börjar spela in direkt.
 2026-10-14  GoblinRecorder: om skärmarna går i vila eller stängs av en stund fastnade filmerna på en stillbild av skrivbordet. Nu startas OBS om av sig självt mellan striderna, så att WoW spelas in igen.
 2026-10-14  Toppfältet visar bara fönstren på huvudskärmen – fönster på andra skärmar syns i dockan. Meta+1–9 öppnar dockans program (Meta+1 terminalen, Meta+2 Firefox).
 2026-10-14  GOBLINCAKES är förberett för KDE Plasma 6.8, och låsskärmen tappar inte längre ett lösenord som skrivs in väldigt snabbt.

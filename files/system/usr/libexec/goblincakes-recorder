@@ -252,23 +252,21 @@ class Service:
 
     # ------------------------------------------------------------ recording
     def begin(self, t, now, info):
-        try:
-            if self.call("GetRecordStatus").get("outputActive"):
-                self.error = "OBS spelar redan in (startat för hand) – GoblinRecorder hoppar över den här."
-                return
-            self.call("StartRecord")
-            for _ in range(20):  # OBS answers at once and starts the output a moment later
-                if self.call("GetRecordStatus").get("outputActive"):
-                    wall = time.time()  # the video's first frame
-                    break
-                time.sleep(0.25)
-            else:
-                self.error = "OBS startade inte inspelningen – titta i OBS-fönstret om en ruta väntar på svar."
+        for attempt in (1, 2):
+            try:
+                wall = self.start_record()
+                break
+            except R.OBSError as e:
+                # OBS was restarted since the last call: the old connection is only found dead
+                # now – connect again at once and retry instead of losing the boss
+                if attempt == 1 and "Tappade kontakten" in str(e):
+                    log("OBS connection was stale, reconnecting")
+                    self.last_try = 0
+                    continue
+                self.error = f"Kunde inte starta inspelningen: {e}"
                 log(self.error)
                 return
-        except R.OBSError as e:
-            self.error = f"Kunde inte starta inspelningen: {e}"
-            log(self.error)
+        if not wall:
             return
         info.update({"start": t, "wall": wall, "markers": [], "player": self.me,
                      "tracks": R.track_names(self.cfg)})
@@ -276,6 +274,20 @@ class Service:
         self.stop_at = 0
         self.error = ""
         log("recording", info["kind"], info["name"], f"(log {now - t:.2f} s late)")
+
+    def start_record(self):
+        """Starts OBS's recording; the time of the first frame, or None (error set)."""
+        if self.call("GetRecordStatus").get("outputActive"):
+            self.error = "OBS spelar redan in (startat för hand) – GoblinRecorder hoppar över den här."
+            return None
+        self.call("StartRecord")
+        for _ in range(20):  # OBS answers at once and starts the output a moment later
+            if self.call("GetRecordStatus").get("outputActive"):
+                return time.time()  # the video's first frame
+            time.sleep(0.25)
+        self.error = "OBS startade inte inspelningen – titta i OBS-fönstret om en ruta väntar på svar."
+        log(self.error)
+        return None
 
     def finish(self, t, result):
         if not self.current or self.stop_at:
