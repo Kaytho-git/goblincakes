@@ -11,6 +11,7 @@ var shown = [
 // Everything listed here but not above stays switched off
 var known = shown.concat([
     "org.kde.plasma.brightness",
+    "org.kde.plasma.dwellclicker",
     "org.kde.kscreen",
     "org.kde.plasma.devicenotifier",
     "org.kde.plasma.clipboard",

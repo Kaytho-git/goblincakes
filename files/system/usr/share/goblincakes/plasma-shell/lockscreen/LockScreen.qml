@@ -23,6 +23,9 @@ Item {
     // Set when PAM let us in without asking for a password; Enter then unlocks
     property bool unlockReady: false
 
+    // Typed before PAM asked for it (Plasma 6.8 drops an answer without a pending question)
+    property string pendingPassword: ""
+
     function unlock() {
         if (root.unlockReady) {
             Qt.quit();
@@ -30,10 +33,18 @@ Item {
         }
         if (password.text.length === 0)
             return;
-        authenticator.respond(password.text);
+        if (authenticator.promptForSecret) {
+            authenticator.respond(password.text);
+        } else {
+            root.pendingPassword = password.text;
+            authenticator.startAuthenticating();
+        }
     }
 
-    onClearPassword: password.text = ""
+    onClearPassword: {
+        password.text = "";
+        root.pendingPassword = "";
+    }
 
     Connections {
         target: authenticator
@@ -42,11 +53,14 @@ Item {
             if (kind !== undefined && kind != 0)
                 return;
             password.text = "";
+            root.pendingPassword = "";
             root.notification = "Fel lösenord";
             authenticator.startAuthenticating();
             shake.restart();
         }
         function onSucceeded() {
+            root.pendingPassword = "";
+            authenticator.stopAuthenticating();
             if (authenticator.hadPrompt)
                 Qt.quit();
             else
@@ -58,6 +72,11 @@ Item {
         }
         function onPromptForSecretChanged() {
             password.forceActiveFocus();
+            if (authenticator.promptForSecret && root.pendingPassword.length > 0) {
+                const secret = root.pendingPassword;
+                root.pendingPassword = "";
+                authenticator.respond(secret);
+            }
         }
     }
 
@@ -65,7 +84,7 @@ Item {
     Timer {
         interval: 1000
         repeat: true
-        running: true
+        running: !authenticator.unlocked
         triggeredOnStart: true
         onTriggered: authenticator.startAuthenticating()
     }

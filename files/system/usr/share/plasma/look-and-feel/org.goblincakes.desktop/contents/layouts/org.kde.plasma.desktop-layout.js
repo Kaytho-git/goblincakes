@@ -67,7 +67,8 @@ clock.writeConfig("fontSize", 11);
 clock.currentConfigGroup = ["General"];
 clock.writeConfig("enabledCalendarPlugins", ["holidaysevents"]);
 clock.writeConfig("showWeekNumbers", true);
-clock.currentConfigGroup = ["Appearance"];  // the key has lived in both groups
+clock.currentConfigGroup = ["Appearance"];  // the clock reads both keys from here (main.xml)
+clock.writeConfig("enabledCalendarPlugins", ["holidaysevents"]);
 clock.writeConfig("showWeekNumbers", true);
 
 // Power button: opens the GOBLINCAKES logout screen

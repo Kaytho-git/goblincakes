@@ -168,12 +168,20 @@ for o in outputs:
             busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "
                 panels().forEach(function (p) { p.widgets().forEach(function (w) {
                     if (w.type !== 'org.kde.plasma.digitalclock') return;
-                    w.currentConfigGroup = ['General'];
-                    var v = w.readConfig('enabledCalendarPlugins');
-                    var list = typeof v === 'string' ? (v ? v.split(',') : []) : Array.prototype.slice.call(v || []);
+                    // The clock reads [Appearance]; older GOBLINCAKES wrote [General] – keep both alike
+                    function read(g) {
+                        w.currentConfigGroup = [g];
+                        var v = w.readConfig('enabledCalendarPlugins');
+                        return typeof v === 'string' ? (v ? v.split(',') : []) : Array.prototype.slice.call(v || []);
+                    }
+                    var list = read('Appearance');
+                    if (!list.length) list = read('General');
                     list = list.filter(function (x) { return x && x !== 'pimevents'; });
                     if ('$1' === 'add') list.push('pimevents');
-                    w.writeConfig('enabledCalendarPlugins', list);
+                    ['Appearance', 'General'].forEach(function (g) {
+                        w.currentConfigGroup = [g];
+                        w.writeConfig('enabledCalendarPlugins', list);
+                    });
                 }); });" >/dev/null 2>&1 || true
         }
         installed() { rpm -q kdepim-addons >/dev/null 2>&1; }

@@ -122,7 +122,7 @@ Window {
         backend.wclStats(v.path);
     }
 
-    function title(v) {
+    function videoTitle(v) {
         return v.kind === "mplus" ? "+" + v.level + " " + v.name : v.name;
     }
 
@@ -811,7 +811,7 @@ Window {
                         width: parent.width
                         Text {
                             width: Math.min(implicitWidth, parent.width - tag.width - 8)
-                            text: win.title(card.modelData)
+                            text: win.videoTitle(card.modelData)
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
@@ -1261,7 +1261,7 @@ Window {
                     spacing: 6
                     Text {
                         width: parent.width
-                        text: playerPane.v ? win.title(playerPane.v) + " – " + playerPane.v.difficulty : ""
+                        text: playerPane.v ? win.videoTitle(playerPane.v) + " – " + playerPane.v.difficulty : ""
                         color: "#E6ECF5"
                         font.family: "Chakra Petch"
                         font.weight: Font.Bold

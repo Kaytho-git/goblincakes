@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-14  GOBLINCAKES är förberett för KDE Plasma 6.8, och låsskärmen tappar inte längre ett lösenord som skrivs in väldigt snabbt.
 2026-10-13  Webbappar får skarpare ikoner i appmenyn – den största bilden sidan har används, och suddiga ikoner byts ut av sig själva när sidan öppnats en gång.
 2026-10-13  Goblin AI har fått fler betalda AI-tjänster: DeepSeek (billig, bra på kod), Grok, Perplexity (söker själv på nätet och visar källor) och Mistral (frågorna stannar i EU)
 2026-10-13  Goblin AI kan nu också använda Claude och OpenAI (ChatGPT) om du har en betald nyckel – lägg in den under AI-tjänster

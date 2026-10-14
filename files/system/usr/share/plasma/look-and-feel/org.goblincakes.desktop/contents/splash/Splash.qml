@@ -8,6 +8,12 @@ Rectangle {
     // Set by KSplash: 1 → 6 as Plasma starts up
     property int stage
 
+    // The first stage seen (1 up to Plasma 6.7, 3 from 6.8) – the bar starts near empty either way
+    property int firstStage: 0
+    onStageChanged: if (firstStage === 0 && stage > 0) firstStage = stage
+    readonly property real progress: firstStage === 0 ? 0
+        : (Math.min(stage, 6) - firstStage + 1) / (6 - firstStage + 1)
+
     // Sizes from the 1920×1080 design, scaled to the screen
     readonly property real s: height / 1080
 
@@ -62,7 +68,7 @@ Rectangle {
             Rectangle {
                 height: parent.height
                 color: "#2F6FED"
-                width: parent.width * Math.min(root.stage, 6) / 6
+                width: parent.width * root.progress
                 Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
             }
         }
