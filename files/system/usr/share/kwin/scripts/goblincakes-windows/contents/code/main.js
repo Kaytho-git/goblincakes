@@ -66,8 +66,16 @@ function ruleTile(window) {
 // Into the tile – and back again during the first seconds, while programs like Chromium,
 // Discord and Steam restore the size they had last time (not while you drag it yourself).
 // KWin keeps such a window marked as tiled, so the size is compared with the tile's.
+// tile.manage() since KWin 6.7 (writing window.tile is deprecated); the old way as a fallback
+function putInTile(window, tile) {
+    if (typeof tile.manage === "function")
+        tile.manage(window);
+    else
+        window.tile = tile;
+}
+
 function toTile(window, tile) {
-    window.tile = tile;
+    putInTile(window, tile);
     const start = Date.now();
     window.frameGeometryChanged.connect(function () {
         if (Date.now() - start > 8000 || window.move || window.resize || window.fullScreen)
@@ -78,8 +86,11 @@ function toTile(window, tile) {
         const slack = 2 * (tile.padding || 0) + 2;
         if (Math.abs(geo.x - want.x) > slack || Math.abs(geo.y - want.y) > slack
                 || Math.abs(geo.width - want.width) > slack || Math.abs(geo.height - want.height) > slack) {
-            window.tile = null;
-            window.tile = tile;
+            if (typeof tile.unmanage === "function")
+                tile.unmanage(window);
+            else
+                window.tile = null;
+            putInTile(window, tile);
         }
     });
 }

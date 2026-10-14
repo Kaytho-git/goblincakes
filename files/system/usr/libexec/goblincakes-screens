@@ -65,11 +65,43 @@ def clock_size(outputs):
     CLOCK_STATE.write_text(f"{target}\n")
 
 
+def legacy_modes(conf):
+    """Plasma 6.8's KWin saves a screen's mode as {"basic": {width, height, refreshRate}};
+    up to 6.7 it read width/height/refreshRate directly in "mode". Both are kept, so going back
+    to an older GOBLINCAKES (rollback) keeps the resolution and Hz. 6.8 reads "basic" first."""
+    try:
+        data = json.loads(conf.read_text())
+    except (OSError, ValueError):
+        return
+    changed = False
+    for part in data if isinstance(data, list) else []:
+        if not isinstance(part, dict) or part.get("name") != "outputs":
+            continue
+        for o in part.get("data") or []:
+            mode = o.get("mode") if isinstance(o, dict) else None
+            basic = mode.get("basic") if isinstance(mode, dict) else None
+            if not isinstance(basic, dict):
+                continue
+            for key in ("width", "height", "refreshRate"):
+                if isinstance(basic.get(key), int) and mode.get(key) != basic[key]:
+                    mode[key] = basic[key]
+                    changed = True
+    if not changed:
+        return
+    tmp = conf.with_name(conf.name + ".goblincakes-new")
+    try:
+        tmp.write_text(json.dumps(data, indent=4) + "\n")
+        os.replace(tmp, conf)
+    except OSError:
+        pass
+
+
 def sync_sddm():
     """The login screen's KWin has no settings of its own and took the first connector as the
     main screen – the login box ended up on the wrong screen (13 Oct). It gets a copy of the
     desktop's screen setup (as KDE's "Apply Plasma settings" does), whenever it has changed."""
     conf = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "kwinoutputconfig.json"
+    legacy_modes(conf)
     try:
         raw = conf.read_bytes()
     except OSError:

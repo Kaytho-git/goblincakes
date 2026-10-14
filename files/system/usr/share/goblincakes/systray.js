@@ -51,6 +51,19 @@ panels().forEach(function (panel) {
     });
 });
 
+// The top bar's open programs: only windows on its own screen (14 Oct, the user's choice).
+// From Plasma 6.8 Meta+1–9 goes to the first task manager showing all screens – so the dock
+// (Meta+1 = the terminal, Meta+2 = Firefox), not the top bar. Here too for existing panels.
+panels().forEach(function (panel) {
+    if (panel.location !== "top")
+        return;
+    panel.widgets("org.kde.plasma.icontasks").forEach(function (tasks) {
+        tasks.currentConfigGroup = ["General"];
+        tasks.writeConfig("showOnlyCurrentScreen", true);
+        tasks.reloadConfig();
+    });
+});
+
 // Not ready yet: fail, so goblincakes-firstlogin tries again in a moment
 if (trimmed === 0) {
     throw new Error("system tray not ready");

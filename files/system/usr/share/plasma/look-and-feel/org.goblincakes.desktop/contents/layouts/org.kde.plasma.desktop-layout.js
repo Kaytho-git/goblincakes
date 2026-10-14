@@ -31,6 +31,8 @@ running.currentConfigGroup = ["General"];
 running.writeConfig("launchers", []);
 running.writeConfig("fill", true);
 running.writeConfig("maxStripes", 1);
+// Only windows on this screen: Meta+1–9 then goes to the dock in Plasma 6.8+ (systray.js too)
+running.writeConfig("showOnlyCurrentScreen", true);
 // Hover = live preview of the window(s); hovering a preview highlights that window
 running.writeConfig("showToolTips", true);
 running.writeConfig("highlightWindows", true);
