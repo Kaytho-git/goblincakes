@@ -218,6 +218,33 @@ def screen_chosen_live(obs):
         return False
 
 
+SCREEN_STATE = re.compile(r'^(\d\d):(\d\d):(\d\d)\.\d+: \[pipewire\] Stream \S+ state: "(\w+)"')
+
+
+def screen_stalled():
+    """Has OBS's screen capture stopped getting pictures? When the screens go away for a
+    moment (sleep, switched off) KWin pauses the stream and it never comes back – the
+    video stays on the last picture of the desktop. Seen in OBS's newest log: the last
+    state of the screen stream is "paused" (and has been for 10 s)."""
+    logs = sorted((OBS_CONFIG / "logs").glob("*.txt"), key=lambda p: p.stat().st_mtime)
+    if not logs:
+        return False
+    try:
+        lines = logs[-1].read_text(errors="replace").splitlines()
+    except OSError:
+        return False
+    for line in reversed(lines):
+        m = SCREEN_STATE.match(line)
+        if m:
+            if m[4] != "paused":
+                return False
+            t = time.localtime()
+            age = (t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec
+                   - (int(m[1]) * 3600 + int(m[2]) * 60 + int(m[3]))) % 86400
+            return age > 10
+    return False
+
+
 def pick_screen(obs):
     """Open KDE's screen choice for OBS (the source's Select button)."""
     obs.call("PressInputPropertiesButton", {"inputName": "Skärm", "propertyName": "Reload"}, check=False)

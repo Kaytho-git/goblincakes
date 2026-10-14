@@ -76,6 +76,7 @@ class Service:
         self.tidy = False  # WoW closed: remove non-kills once the last video is saved
         self.screen_ok = None  # KDE told OBS which screen to record?
         self.screen_check = 0
+        self.stall_check = 0  # last look for a frozen screen capture / OBS restart for it
 
     @staticmethod
     def mtime(p):
@@ -126,7 +127,7 @@ class Service:
         return True
 
     def restart_obs(self):
-        log("restarting OBS for the new settings")
+        log("restarting OBS")
         self.obs.close()
         self.obs = None
         self.last_try = 0
@@ -470,6 +471,14 @@ class Service:
             if self.obs and not self.screen_ok and now - self.screen_check > 5:
                 self.screen_check = now
                 self.screen_ok = R.screen_chosen_live(self.obs)
+            # Screens away for a moment = the capture freezes on the desktop; OBS picks
+            # the same screen again by itself when it starts (between fights only)
+            if self.obs and self.screen_ok and not self.current and now - self.stall_check > 5:
+                self.stall_check = now
+                if R.screen_stalled():
+                    self.stall_check = now + 55  # OBS needs a moment to start again
+                    log("screen capture frozen (screens were away) – restarting OBS")
+                    self.restart_obs()
         elif self.obs:
             self.obs.close()
             self.obs = None
