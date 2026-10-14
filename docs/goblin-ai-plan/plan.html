@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="sv"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=block" rel="stylesheet">
+<style>
+:root{--void:#07090D;--night:#0E1420;--deep:#12203A;--acc:#2F6FED;--frost:#E6ECF5;--mute:#8B98AD;--line:#1E2A40;--bar:#0B1018;--green:#3FB950;--orange:#F0883E;--red:#E5484D}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--void);color:var(--frost);font:15px/1.5 "IBM Plex Sans",sans-serif;width:1400px;padding:40px}
+h1{font:700 40px "Chakra Petch";letter-spacing:1px}
+h1 span{color:var(--acc)}
+.sub{color:var(--mute);margin:4px 0 26px;font-size:16px}
+.tag{display:inline-block;border:1px solid var(--acc);color:var(--acc);font:600 12px "Chakra Petch";letter-spacing:1.5px;padding:3px 10px;margin-left:12px;vertical-align:middle}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.card{background:var(--night);border:1px solid var(--line);padding:20px 22px}
+.card.wide{grid-column:span 2}
+h2{font:700 19px "Chakra Petch";letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+h2 b{background:var(--acc);color:var(--frost);font:700 14px "Chakra Petch";width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center}
+ul{list-style:none}
+li{padding:3px 0 3px 16px;position:relative}
+li:before{content:"";position:absolute;left:0;top:11px;width:6px;height:6px;background:var(--acc)}
+code{font:500 13px "IBM Plex Mono";background:var(--bar);border:1px solid var(--line);padding:0 5px;color:#BFD3FF}
+.m{color:var(--mute)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font:600 12px "Chakra Petch";letter-spacing:1px;color:var(--mute);border-bottom:1px solid var(--line);padding:6px 8px}
+td{border-bottom:1px solid var(--line);padding:7px 8px;vertical-align:top}
+tr.me td{background:var(--deep)}
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:4px}
+.opt{background:var(--bar);border:1px solid var(--line);padding:12px 14px}
+.opt h3{font:700 15px "Chakra Petch";margin-bottom:4px}
+.flow{display:flex;align-items:center;gap:10px;margin:8px 0 4px;flex-wrap:wrap}
+.step{background:var(--bar);border:1px solid var(--line);padding:6px 12px;font-weight:500}
+.step.a{border-color:var(--acc)}
+.arrow{color:var(--acc);font-weight:700}
+.ok{color:var(--green)} .no{color:var(--red)}
+.foot{margin-top:22px;color:var(--mute);font-size:13px;border-top:1px solid var(--line);padding-top:12px}
+</style></head><body>
+<h1>GOBLIN <span>AI</span> – LOKAL AI OCH PROJEKT <span class="tag">FRAMTIDA PROJEKT · INGET BYGGT ÄN</span></h1>
+<div class="sub">Planen som den står i CLAUDE.md (14 okt) – vad som är tänkt, hur det funkar och vad man kan göra</div>
+
+<div class="grid">
+
+<div class="card wide">
+<h2><b>1</b>Användaren väljer själv</h2>
+<div class="three">
+<div class="opt"><h3>Molnet</h3>Som i dag: Gemini, OpenRouter gratis, Claude/OpenAI m.fl. med egen nyckel. Starkast, men frågorna skickas iväg.</div>
+<div class="opt"><h3>Lokalt (Ollama)</h3>Modellerna körs på din egen dator. Gratis, fungerar utan internet, <b>inget lämnar datorn</b>.</div>
+<div class="opt"><h3>Båda</h3>Lokalt först med molnet som reserv – eller lokalt bara för privata saker (PDF:er, bilder) och molnet för resten.</div>
+</div>
+</div>
+
+<div class="card">
+<h2><b>2</b>Installation</h2>
+<ul>
+<li>Kortet <b>Lokal AI</b> i GOBLINCAKES Config – imagen växer inte</li>
+<li><b>Du väljer var allt hamnar:</b> hemmappen eller en annan disk, med ledigt utrymme och vad som krävs</li>
+<li>Knappen <b>Flytta</b> byter plats senare (kopiera, kontrollera, ta bort gamla)</li>
+<li>Guiden frågar <b>"Vad vill du använda den till?"</b> – vardag, kod, bilder/PDF, skapa bilder</li>
+<li>Föreslår modeller efter <b>datorns grafikkort</b> – med storlek och Hämta</li>
+<li>Nvidia direkt · AMD via ROCm · Intel/äldre AMD via Vulkan (försök)</li>
+</ul>
+</div>
+
+<div class="card">
+<h2><b>3</b>Bra att veta</h2>
+<ul>
+<li>Grafikminnet används <b>bara när den svarar</b> – släpps efter 5 min, och direkt när WoW startar</li>
+<li><b>Ingen risk för kortet</b> – som ett spel några sekunder: värme och fläkt</li>
+<li>Modellerna <b>lär sig inte</b> av att användas – minnet och instruktionerna skickas med varje gång</li>
+<li>Nätsökning (Tavily) ger <b>kunskap, inte förmåga</b> – kan modellen inte se bilder säger Goblin AI till och erbjuder rätt modell</li>
+<li>Söker alltid vid "senaste", "patch", "nyheter", årtal + knappen <b>Sök på nätet</b></li>
+</ul>
+</div>
+
+<div class="card wide">
+<h2><b>4</b>Modeller efter grafikminne <span class="m" style="font:400 13px 'IBM Plex Sans'">– förslag, taggar kollas vid bygget</span></h2>
+<table>
+<tr><th>GRAFIKMINNE</th><th>VARDAG / SVENSKA</th><th>KOD</th><th>BILDER &amp; PDF (LÄSA)</th><th>SKAPA BILDER</th></tr>
+<tr><td>Under 8 GB</td><td><code>gemma4:e2b-it-qat</code></td><td>samma</td><td>samma (enkel)</td><td>Cloudflare (nätet)</td></tr>
+<tr><td>8 GB</td><td><code>gemma4:e4b</code></td><td><code>qwen2.5-coder:7b</code></td><td><code>qwen3-vl:8b</code></td><td>Z-Image-Turbo (komprimerad)</td></tr>
+<tr class="me"><td><b>12 GB – ditt RTX 3060</b></td><td><code>gemma4:e4b</code></td><td><code>qwen2.5-coder:14b</code><br><span class="m">prova även</span> <code>qwen3-coder:30b</code></td><td><code>gemma4:e4b</code> / <code>qwen3-vl:8b</code></td><td><b>Z-Image-Turbo</b>, reserv FLUX.2 klein 4B</td></tr>
+<tr><td>16 GB</td><td><code>gemma4:26b-a4b-it-qat</code> / <code>gpt-oss:20b</code></td><td><code>devstral</code> / <code>qwen3-coder:30b</code></td><td><code>gemma4:26b-a4b-it-qat</code></td><td>Z-Image-Turbo / FLUX.1 Schnell</td></tr>
+<tr><td>24 GB</td><td><code>gemma4:31b-it-qat</code></td><td><code>qwen3.6:27b</code></td><td><code>gemma4:31b-it-qat</code></td><td>FLUX.2 klein m.fl.</td></tr>
+<tr><td>32 GB+</td><td colspan="3"><code>qwen3.6:35b-a3b</code> – bäst allround</td><td>alla ovan</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h2><b>5</b>Skapa bilder</h2>
+<div class="flow"><span class="step a">Lokalt</span><span class="arrow">→</span><span class="step">Cloudflare (gratis)</span><span class="arrow">→</span><span class="step">Betalt, egen nyckel</span></div>
+<ul>
+<li>Lokalt helt gratis: <b>Z-Image-Turbo</b>, FLUX.2 klein 4B, FLUX.1 Schnell (fri licens)</li>
+<li>Eget bildprogram bredvid Ollama (Ollama skapar inte bilder på Linux)</li>
+<li>Cloudflare: gratiskonto, ca 60–230 bilder/dag</li>
+<li class="m">Gemini gratis och Pollinations: inte att lita på</li>
+</ul>
+</div>
+
+<div class="card">
+<h2><b>6</b>Projekt i Goblin AI-fönstret</h2>
+<ul>
+<li>Projektlista i sidopanelen – <b>WoW-tillägg, Ianseo, Mina sidor, Vardag …</b></li>
+<li><b>Modell per uppgift:</b> text, kod, bilder/PDF, skapa bild – lokal, tjänst eller automatiskt</li>
+<li><b>Var det får köras:</b> bara lokalt / lokalt först / molnet först</li>
+<li>Egna instruktioner, fasta filer, nätsökning av/på, egen mapp, egen chatthistorik</li>
+<li>Mallar: <b>Kod, Vardag, Bilder, Privat</b> – fyller i efter grafikkortet</li>
+</ul>
+</div>
+
+<div class="card wide">
+<h2><b>7</b>Ditt exempel – RTX 3060 <span class="m" style="font:400 13px 'IBM Plex Sans'">(bara ett testfall, inget låses till ditt kort)</span></h2>
+<table>
+<tr><th>PROJEKT</th><th>MODELL</th><th>FUNKAR LOKALT?</th><th>TIPS</th></tr>
+<tr><td><b>Mina sidor</b> (HTML/CSS/JS/PHP)</td><td><code>qwen2.5-coder:14b</code></td><td class="ok">Ja, bra</td><td>Vanlig kod som modellerna kan väl</td></tr>
+<tr><td><b>Ianseo-moduler</b> (PHP/MySQL)</td><td><code>qwen2.5-coder:14b</code></td><td class="ok">Ja, små ändringar</td><td>Bifoga filerna som berörs – hela Ianseo ryms inte</td></tr>
+<tr><td><b>WoW-tillägg</b> (Lua)</td><td><code>qwen2.5-coder:14b</code> + nätsökning</td><td style="color:var(--orange)">Delvis</td><td>API:t ändras varje patch – warcraft.wiki.gg, BugSack-fel efter <code>/reload</code>, Claude som reserv</td></tr>
+<tr><td><b>Vardag</b> (texter, mejl, PDF, svenska)</td><td><code>gemma4:e4b</code></td><td class="ok">Ja</td><td>Svenskan provas först</td></tr>
+<tr><td><b>Bilder</b></td><td>Z-Image-Turbo</td><td class="ok">Ja</td><td>Cloudflare som reserv</td></tr>
+</table>
+<div class="m" style="margin-top:10px">En modell i taget ryms (byte = några sekunder) · ca 20 GB på disken för text + kod · Continue i VS Code kan använda samma modeller · <b>Claude fortsätter för GOBLINCAKES och tunga saker</b></div>
+</div>
+
+</div>
+<div class="foot">Uppgifterna om modeller och gratisgränser kommer från genomgångar aug–okt 2026 (ollama.com gick inte att nå) – kollas mot tillverkarnas sidor när det byggs. Inget av detta är byggt; det byggs när du ber om det.</div>
+</body></html>
