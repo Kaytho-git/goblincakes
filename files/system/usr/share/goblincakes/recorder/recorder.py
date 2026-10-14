@@ -875,7 +875,8 @@ def youtube_text(meta, start=0.0, end=None):
         line.append(yt_clock(meta["fight"]))
     desc = [title, " · ".join(line), ""]
     if wcl.get("url"):
-        desc += [f"Warcraft Logs: {wcl['url']}", ""]
+        # YouTube makes "#fight" a hashtag and cuts the link there – Warcraft Logs takes ?fight= too
+        desc += [f"Warcraft Logs: {wcl['url'].replace('#', '?', 1)}", ""]
 
     if meta.get("kind") == "mplus":
         chapters, last = [(0, "Start")], 0
