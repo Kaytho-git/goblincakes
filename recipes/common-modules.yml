@@ -14,13 +14,11 @@ modules:
       copr:
         - bieszczaders/kernel-cachyos-addons # ananicy-cpp + rules
         - mineiro/ghostty                    # Ghostty terminal
-        - scujas/plasma-applet-appgrid       # AppGrid app launcher
     install:
       packages:
         - ghostty               # default terminal
         - fastfetch             # system info with the GOBLINCAKES logo
         - plymouth-plugin-script # engine for the GOBLINCAKES boot screen
-        - plasma-applet-appgrid # app grid in the middle of the screen
         - sddm                  # login manager with the GOBLINCAKES theme
         - sddm-wayland-plasma   # runs the SDDM login screen on Wayland (KWin)
         - python3-pyside6       # GOBLINCAKES Config window (Qt for Python)
@@ -62,12 +60,24 @@ modules:
     scripts:
       - install-goverlay.sh
 
+  # AppGrid (app grid in the middle of the screen) from its COPR package – brings the
+  # dependencies, and is the fallback if our own build below failed. Doesn't stop the
+  # build by itself (a new Plasma the COPR hasn't been rebuilt for yet)
+  - type: script
+    scripts:
+      - install-appgrid.sh
+
   # AppGrid with square corners, built in the appgrid-square stage above,
-  # replaces the COPR package's files (the package still brings the dependencies)
+  # replaces the COPR package's files (only a marker if that build failed)
   - type: copy
     from: appgrid-square
     src: /out/
     dest: /
+
+  # Stops the build if the image ended up without an AppGrid that loads
+  - type: script
+    scripts:
+      - check-appgrid.sh
 
   # Newer ratbagd + mouse list for Piper, built in the libratbag-git stage above,
   # over Fedora's libratbag-ratbagd package (G502 X Plus / G502 X Wireless)
@@ -93,6 +103,18 @@ modules:
   - type: script
     scripts:
       - install-scx.sh
+
+  # GOBLINCAKES lock screen + logout screen over Plasma's shell package – after every
+  # module that installs RPMs, so a Plasma update during the build can't overwrite them
+  - type: script
+    scripts:
+      - plasma-shell-overrides.sh
+
+  # Qt for Python must load (Fedora rebuilds it for every new Qt) – otherwise GOBLINCAKES
+  # Config, Goblin AI, GoblinRecorder and goblin graph wouldn't start; stop the build instead
+  - type: script
+    snippets:
+      - "python3 -c 'from PySide6 import QtCore, QtGui, QtWidgets, QtQml, QtQuick, QtDBus, QtNetwork; print(\"PySide6\", QtCore.qVersion())'"
 
   # GOBLINCAKES typefaces (downloaded from Google Fonts at build time)
   - type: fonts

@@ -2,8 +2,22 @@
 # Builds AppGrid with square corners, in its own build stage (see "stages" in recipe.yml).
 # AppGrid's QML is compiled into the program, so the rounded corners (Kirigami's
 # cornerRadius) can't be changed from outside. The result lands in /out and is copied
-# over the COPR package's files in the image (which still brings in AppGrid's dependencies).
+# over the COPR package's files in the image (install-appgrid.sh; check-appgrid.sh verifies).
 set -oue pipefail
+
+# Never stops the image build on its own: if this build fails (for example a new Plasma
+# that AppGrid hasn't caught up with), /out only gets a marker, the image keeps the COPR
+# package (rounded corners) and check-appgrid.sh decides whether the image still has AppGrid.
+if [[ -z "${GOBLINCAKES_APPGRID_INNER:-}" && -f "${BASH_SOURCE[0]}" ]]; then
+    if GOBLINCAKES_APPGRID_INNER=1 bash "${BASH_SOURCE[0]}"; then
+        exit 0
+    fi
+    echo "WARNING: AppGrid with square corners could not be built – the image gets the COPR package instead" >&2
+    rm -rf /out
+    mkdir -p /out/usr/share/goblincakes
+    echo failed > /out/usr/share/goblincakes/appgrid-build
+    exit 0
+fi
 
 dnf5 -y install dnf5-plugins git cmake extra-cmake-modules gcc-c++ gettext qt6-qtbase-private-devel
 
@@ -55,12 +69,64 @@ if grep -rq 'Kirigami\.Units\.cornerRadius' "$src/package"; then
     exit 1
 fi
 
+# Plasma 6.8 removed Applet::globalConfig() (libplasma). Older AppGrid releases still call it:
+# swap in the same config group (corona config, [AppletGlobals][<plugin id>]) through public API.
+# Only when the installed libplasma no longer has it, so a Plasma 6.7 build is unchanged.
+applet_h=$(find /usr/include -path '*lasma*' -name applet.h | head -n1)
+if [[ -n "$applet_h" ]] && ! grep -q 'globalConfig()' "$applet_h" && grep -rq 'globalConfig()' "$src/src"; then
+    echo "libplasma without Applet::globalConfig() – patching AppGrid"
+    python3 - "$src/src" <<'PY'
+import pathlib, sys
+helper = """
+#include <KSharedConfig>
+#include <Plasma/Containment>
+#include <Plasma/Corona>
+
+// GOBLINCAKES: Applet::globalConfig was removed in Plasma 6.8 – same group, public API
+static KConfigGroup goblincakesGlobalConfig(const Plasma::Applet *applet)
+{
+    KConfigGroup globals;
+    const Plasma::Containment *cont = applet->containment();
+    if (cont && cont->corona()) {
+        globals = KConfigGroup(cont->corona()->config(), QStringLiteral("AppletGlobals"));
+    } else {
+        globals = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("AppletGlobals"));
+    }
+    return KConfigGroup(&globals, applet->pluginMetaData().pluginId());
+}
+"""
+for f in pathlib.Path(sys.argv[1]).rglob("*.cpp"):
+    text = f.read_text()
+    if "globalConfig()" not in text:
+        continue
+    lines = text.split("\n")
+    # after the includes at the top (not the .moc include at the end)
+    first_code = next(i for i, l in enumerate(lines) if l[:1].isalpha())
+    last_include = max(i for i, l in enumerate(lines[:first_code]) if l.startswith("#include"))
+    lines.insert(last_include + 1, helper)
+    text = "\n".join(lines).replace("globalConfig()", "goblincakesGlobalConfig(this)")
+    f.write_text(text)
+    print("patched", f)
+PY
+fi
+
+# Plasma 6.8 is Wayland-only – AppGrid's own switch for that
+x11=ON
+plasma_version=$(rpm -q --qf '%{VERSION}' libplasma 2>/dev/null || true)
+if [[ -n "$plasma_version" ]] && [[ "$(printf '%s\n6.8\n' "$plasma_version" | sort -V | head -n1)" == "6.8" ]]; then
+    x11=OFF
+fi
+echo "Plasma ${plasma_version:-unknown}, ENABLE_X11=$x11"
+
 cmake -S "$src" -B "$src/build" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DKDE_INSTALL_USE_QT_SYS_PATHS=ON \
     -DBUILD_TESTING=OFF \
+    -DENABLE_X11="$x11" \
     -DAPPGRID_VERSION_OVERRIDE="$version"
 cmake --build "$src/build" -j"$(nproc)"
 DESTDIR=/out cmake --install "$src/build"
+mkdir -p /out/usr/share/goblincakes
+echo "square $version" > /out/usr/share/goblincakes/appgrid-build
 find /out -type f | sort
