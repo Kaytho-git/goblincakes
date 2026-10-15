@@ -1,0 +1,481 @@
+{
+ "modules": [
+  {
+   "id": "godot-forsta",
+   "title": "Första skriptet i Godot",
+   "requires": [],
+   "summary": "Skript sitter på noder: `extends Node`, `func _ready():` körs när noden kommer in i spelet; `print()`; `var hp := 100` (typen gissas) eller `var hp: int = 100`; `const`; text med `\"%s har %d HP\" % [namn, hp]`; indrag med Tab.",
+   "tasks": [
+    {
+     "id": "godot-forsta-1",
+     "level": 1,
+     "title": "Hej Azeroth",
+     "prompt": "Skriv ut texten Hej från Godot! när noden startar.",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "Hej från Godot!"
+     },
+     "hints": [
+      "Byt pass mot en print-rad.",
+      "print(\"Hej från Godot!\") – med Tab före."
+     ],
+     "solution": "extends Node\n\nfunc _ready():\n\tprint(\"Hej från Godot!\")\n"
+    },
+    {
+     "id": "godot-forsta-2",
+     "level": 1,
+     "title": "Skada",
+     "prompt": "Skapa variablerna namn = \"Kaytho\", hp = 100 och skada = 35. Räkna ut hur mycket HP som är kvar och skriv: Kaytho har 65 HP kvar",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "Kaytho har 65 HP kvar"
+     },
+     "hints": [
+      "hp -= skada drar av skadan.",
+      "print(\"%s har %d HP kvar\" % [namn, hp])"
+     ],
+     "solution": "extends Node\n\nfunc _ready():\n\tvar namn := \"Kaytho\"\n\tvar hp := 100\n\tvar skada := 35\n\thp -= skada\n\tprint(\"%s har %d HP kvar\" % [namn, hp])\n"
+    },
+    {
+     "id": "godot-forsta-3",
+     "level": 2,
+     "title": "Fart i decimaler",
+     "prompt": "Spelaren går 2.5 meter per steg och tar 7 steg. Skriv ut: Sträcka: 17.5 m – räkna med variabler, inte för hand.",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "Sträcka: 17.5 m"
+     },
+     "hints": [
+      "Decimaltal × heltal blir ett decimaltal (float).",
+      "%.1f skriver en decimal: print(\"Sträcka: %.1f m\" % stracka)"
+     ],
+     "solution": "extends Node\n\nconst STEG_LANGD := 2.5\n\nfunc _ready():\n\tvar steg := 7\n\tvar stracka := STEG_LANGD * steg\n\tprint(\"Sträcka: %.1f m\" % stracka)\n"
+    }
+   ],
+   "lesson": "godot-forsta.md"
+  },
+  {
+   "id": "godot-villkor",
+   "title": "Villkor och loopar",
+   "requires": [
+    "godot-forsta"
+   ],
+   "summary": "`if … :`, `elif`, `else`; `and`/`or`/`not`; `for i in range(1, 4):`, `for sak in lista:`, `while`; `match värde:` med `_:` som \"allt annat\".",
+   "tasks": [
+    {
+     "id": "godot-villkor-1",
+     "level": 1,
+     "title": "Hälsomätare",
+     "prompt": "Sätt hp = 25. Skriv Död om hp är 0 eller mindre, Låg hälsa! om hp är under 30, annars Mår bra.",
+     "starter": "extends Node\n\nfunc _ready():\n\tvar hp := 25\n",
+     "check": {
+      "expect": "Låg hälsa!"
+     },
+     "hints": [
+      "if, elif och else – i den ordningen.",
+      "Glöm inte kolon efter villkoren och ett extra indrag under dem."
+     ],
+     "solution": "extends Node\n\nfunc _ready():\n\tvar hp := 25\n\tif hp <= 0:\n\t\tprint(\"Död\")\n\telif hp < 30:\n\t\tprint(\"Låg hälsa!\")\n\telse:\n\t\tprint(\"Mår bra\")\n"
+    },
+    {
+     "id": "godot-villkor-2",
+     "level": 1,
+     "title": "Vågor",
+     "prompt": "Skriv ut Våg 1, Våg 2 och Våg 3 på var sin rad med en for-loop.",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "Våg 1\nVåg 2\nVåg 3"
+     },
+     "hints": [
+      "range(1, 4) ger 1, 2, 3.",
+      "print(\"Våg \", i)"
+     ],
+     "solution": "extends Node\n\nfunc _ready():\n\tfor i in range(1, 4):\n\t\tprint(\"Våg \", i)\n"
+    },
+    {
+     "id": "godot-villkor-3",
+     "level": 2,
+     "title": "Klassens förmåga",
+     "prompt": "Sätt klass = \"mage\". Använd match: mage → Frostbolt, warrior → Charge, allt annat → Attack. Prova sedan att byta klass.",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "Frostbolt"
+     },
+     "hints": [
+      "match klass: och sedan ett fall per rad med kolon.",
+      "_: fångar allt annat."
+     ],
+     "solution": "extends Node\n\nfunc _ready():\n\tvar klass := \"mage\"\n\tmatch klass:\n\t\t\"mage\":\n\t\t\tprint(\"Frostbolt\")\n\t\t\"warrior\":\n\t\t\tprint(\"Charge\")\n\t\t_:\n\t\t\tprint(\"Attack\")\n"
+    },
+    {
+     "id": "godot-villkor-4",
+     "level": 3,
+     "title": "Nedräkning",
+     "prompt": "Räkna ned med en while-loop från 3 till 1 (en rad var) och skriv sedan Pull!",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "3\n2\n1\nPull!"
+     },
+     "hints": [
+      "while n > 0: och dra av 1 varje varv.",
+      "print(\"Pull!\") ska stå efter loopen – utan extra indrag."
+     ],
+     "solution": "extends Node\n\nfunc _ready():\n\tvar n := 3\n\twhile n > 0:\n\t\tprint(n)\n\t\tn -= 1\n\tprint(\"Pull!\")\n"
+    }
+   ],
+   "lesson": "godot-villkor.md"
+  },
+  {
+   "id": "godot-funktioner",
+   "title": "Funktioner, arrayer och ordböcker",
+   "requires": [
+    "godot-villkor"
+   ],
+   "summary": "`func skada(bas: int, krit: bool) -> int:` + `return`; `Array` (`append`, `size()`, `[i]`, `has`, `sort()`), `Dictionary` (`{\"Bo\": 10}`, `d[\"Bo\"]`, `keys()`, `has()`).",
+   "tasks": [
+    {
+     "id": "godot-funktioner-1",
+     "level": 1,
+     "title": "Dubbel skada",
+     "prompt": "Skriv funktionen dubbel(x: int) -> int som ger tillbaka x gånger två, och skriv ut dubbel(21).",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "42"
+     },
+     "hints": [
+      "func dubbel(x: int) -> int: och sedan return x * 2.",
+      "Funktionen ska stå utanför _ready, på samma nivå."
+     ],
+     "solution": "extends Node\n\nfunc dubbel(x: int) -> int:\n\treturn x * 2\n\nfunc _ready():\n\tprint(dubbel(21))\n"
+    },
+    {
+     "id": "godot-funktioner-2",
+     "level": 2,
+     "title": "Lootlistan",
+     "prompt": "Skapa listan loot = [\"Svärd\", \"Sköld\", \"Dryck\"], lägg till \"Guld\", skriv ut hur många saker det är och sedan varje sak på en egen rad.",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "4\nSvärd\nSköld\nDryck\nGuld"
+     },
+     "hints": [
+      "loot.append(\"Guld\")",
+      "print(loot.size()) och sedan for sak in loot:"
+     ],
+     "solution": "extends Node\n\nfunc _ready():\n\tvar loot := [\"Svärd\", \"Sköld\", \"Dryck\"]\n\tloot.append(\"Guld\")\n\tprint(loot.size())\n\tfor sak in loot:\n\t\tprint(sak)\n"
+    },
+    {
+     "id": "godot-funktioner-3",
+     "level": 3,
+     "title": "Vem vann?",
+     "prompt": "Poängen är {\"Kaytho\": 10, \"Bo\": 25, \"Ann\": 18}. Hitta den med flest poäng med en loop och skriv: Bo vann med 25",
+     "starter": "extends Node\n\nfunc _ready():\n\tvar poang := {\"Kaytho\": 10, \"Bo\": 25, \"Ann\": 18}\n",
+     "check": {
+      "expect": "Bo vann med 25"
+     },
+     "hints": [
+      "Spara bästa namnet och poängen i två variabler och jämför i loopen.",
+      "for namn in poang: ger nycklarna; poang[namn] ger poängen."
+     ],
+     "solution": "extends Node\n\nfunc _ready():\n\tvar poang := {\"Kaytho\": 10, \"Bo\": 25, \"Ann\": 18}\n\tvar bast := \"\"\n\tvar mest := -1\n\tfor namn in poang:\n\t\tif poang[namn] > mest:\n\t\t\tmest = poang[namn]\n\t\t\tbast = namn\n\tprint(\"%s vann med %d\" % [bast, mest])\n"
+    }
+   ],
+   "lesson": "godot-funktioner.md"
+  },
+  {
+   "id": "godot-noder",
+   "title": "Noder och scenträdet",
+   "requires": [
+    "godot-funktioner"
+   ],
+   "summary": "`Node2D.new()`, `.name`, `.position = Vector2(x, y)`, `add_child(nod)`; `get_node(\"Namn\")` eller `$Namn`; `get_children()`, `get_child_count()`; `remove_child` + `queue_free()` tar bort.",
+   "tasks": [
+    {
+     "id": "godot-noder-1",
+     "level": 1,
+     "title": "Spelaren på plats",
+     "prompt": "Skapa en Node2D som heter Spelare, sätt den på position (100, 50), lägg till den som barn och skriv ut $Spelare.position.",
+     "starter": "extends Node2D\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "(100.0, 50.0)"
+     },
+     "hints": [
+      "Node2D.new() skapar noden; add_child(spelare) lägger in den i trädet.",
+      "print($Spelare.position) – $Spelare fungerar först efter add_child."
+     ],
+     "solution": "extends Node2D\n\nfunc _ready():\n\tvar spelare := Node2D.new()\n\tspelare.name = \"Spelare\"\n\tspelare.position = Vector2(100, 50)\n\tadd_child(spelare)\n\tprint($Spelare.position)\n"
+    },
+    {
+     "id": "godot-noder-2",
+     "level": 2,
+     "title": "Tre fiender",
+     "prompt": "Skapa tre Node2D i en loop: Fiende1, Fiende2, Fiende3 med x = 64, 128, 192 (y = 0). Skriv sedan antalet barn och varje barns namn och x på var sin rad, t.ex. Fiende1 64",
+     "starter": "extends Node2D\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "3\nFiende1 64\nFiende2 128\nFiende3 192"
+     },
+     "hints": [
+      "\"Fiende%d\" % i ger namnet; Vector2(64 * i, 0) platsen.",
+      "int(barn.position.x) skriver 64 i stället för 64.0."
+     ],
+     "solution": "extends Node2D\n\nfunc _ready():\n\tfor i in range(1, 4):\n\t\tvar f := Node2D.new()\n\t\tf.name = \"Fiende%d\" % i\n\t\tf.position = Vector2(64 * i, 0)\n\t\tadd_child(f)\n\tprint(get_child_count())\n\tfor barn in get_children():\n\t\tprint(barn.name, \" \", int(barn.position.x))\n"
+    },
+    {
+     "id": "godot-noder-3",
+     "level": 3,
+     "title": "Fiende besegrad",
+     "prompt": "Skapa Fiende1–3 som förra uppgiften (namnen räcker), ta sedan bort Fiende2 (remove_child + queue_free) och skriv antalet barn och de namn som är kvar.",
+     "starter": "extends Node2D\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "2\nFiende1\nFiende3"
+     },
+     "hints": [
+      "Hämta noden med $Fiende2 innan du tar bort den.",
+      "remove_child(dod) tar ut den ur listan direkt; dod.queue_free() raderar den sedan."
+     ],
+     "solution": "extends Node2D\n\nfunc _ready():\n\tfor i in range(1, 4):\n\t\tvar f := Node2D.new()\n\t\tf.name = \"Fiende%d\" % i\n\t\tadd_child(f)\n\tvar dod := $Fiende2\n\tremove_child(dod)\n\tdod.queue_free()\n\tprint(get_child_count())\n\tfor barn in get_children():\n\t\tprint(barn.name)\n"
+    }
+   ],
+   "lesson": "godot-noder.md"
+  },
+  {
+   "id": "godot-process",
+   "title": "_process och rörelse",
+   "requires": [
+    "godot-noder"
+   ],
+   "summary": "`func _process(delta):` körs varje bildruta; `delta` = sekunder sedan förra (1/60); `position.x += fart * delta` = pixlar per sekund oavsett bildfrekvens; `Vector2(1, 1).normalized()` för jämn fart snett.",
+   "tasks": [
+    {
+     "id": "godot-process-1",
+     "level": 1,
+     "title": "En sekund åt höger",
+     "prompt": "Flytta noden 120 pixlar per sekund åt höger. Efter 60 bildrutor (en sekund): skriv x = och x-läget avrundat till heltal. Övningen kör 60 bildrutor.",
+     "starter": "extends Node2D\n\nvar fart := 120.0\n\nfunc _process(delta):\n\tpass\n",
+     "check": {
+      "expect": "x = 120"
+     },
+     "hints": [
+      "position.x += fart * delta flyttar lite varje bildruta.",
+      "Räkna bildrutor i en variabel och skriv när den är 60: int(round(position.x))."
+     ],
+     "solution": "extends Node2D\n\nvar fart := 120.0\nvar bilder := 0\n\nfunc _process(delta):\n\tposition.x += fart * delta\n\tbilder += 1\n\tif bilder == 60:\n\t\tprint(\"x = \", int(round(position.x)))\n",
+     "files": {
+      "frames.txt": "60\n"
+     }
+    },
+    {
+     "id": "godot-process-2",
+     "level": 2,
+     "title": "Snett nedåt",
+     "prompt": "Rör noden snett åt höger och nedåt (riktning (1, 1)) med farten 100 pixlar per sekund i en halv sekund (30 bildrutor). Skriv sedan position.round(). Övningen kör 30 bildrutor.",
+     "starter": "extends Node2D\n\nvar fart := 100.0\n\nfunc _process(delta):\n\tpass\n",
+     "check": {
+      "expect": "(35.0, 35.0)"
+     },
+     "hints": [
+      "Vector2(1, 1).normalized() ger riktningen med längden 1.",
+      "position += riktning * fart * delta; skriv position.round() vid bildruta 30."
+     ],
+     "solution": "extends Node2D\n\nvar fart := 100.0\nvar riktning := Vector2(1, 1).normalized()\nvar bilder := 0\n\nfunc _process(delta):\n\tposition += riktning * fart * delta\n\tbilder += 1\n\tif bilder == 30:\n\t\tprint(position.round())\n",
+     "files": {
+      "frames.txt": "30\n"
+     }
+    },
+    {
+     "id": "godot-process-3",
+     "level": 3,
+     "title": "Studsa",
+     "prompt": "Noden börjar på x = 0 och rör sig 300 pixlar per sekund. När x blir större än 200 ska den vända (fart = -fart), och när x blir mindre än 0 vända igen. Skriv x avrundat efter 60 bildrutor.",
+     "starter": "extends Node2D\n\nvar fart := 300.0\n\nfunc _process(delta):\n\tpass\n",
+     "check": {
+      "expect": "110"
+     },
+     "hints": [
+      "Byt tecken på farten när noden passerar en kant: fart = -fart.",
+      "Två villkor med or: position.x > 200 or position.x < 0."
+     ],
+     "solution": "extends Node2D\n\nvar fart := 300.0\nvar bilder := 0\n\nfunc _process(delta):\n\tposition.x += fart * delta\n\tif position.x > 200 or position.x < 0:\n\t\tfart = -fart\n\tbilder += 1\n\tif bilder == 60:\n\t\tprint(int(round(position.x)))\n",
+     "files": {
+      "frames.txt": "60\n"
+     }
+    }
+   ],
+   "lesson": "godot-process.md"
+  },
+  {
+   "id": "godot-input",
+   "title": "Tangenter och styrning",
+   "requires": [
+    "godot-process"
+   ],
+   "summary": "Handlingar (actions) i Project → Project Settings → Input Map; `Input.is_action_pressed(\"ui_right\")`, `is_action_just_pressed` (bara första bildrutan), `Input.get_axis(\"ui_left\", \"ui_right\")` (−1…1), `Input.get_vector(…)` för fyra riktningar.",
+   "tasks": [
+    {
+     "id": "godot-input-1",
+     "level": 1,
+     "title": "Hoppa",
+     "prompt": "Skriv Hopp! varje gång ui_accept trycks ned (en gång per tryck, inte varje bildruta den hålls). Låtsasspelaren trycker vid bildruta 10 och 40 och håller några bildrutor varje gång.",
+     "starter": "extends Node2D\n\nfunc _process(delta):\n\tpass\n",
+     "check": {
+      "expect": "Hopp!\nHopp!"
+     },
+     "hints": [
+      "is_action_pressed är sant så länge den hålls – du vill ha is_action_just_pressed.",
+      "if Input.is_action_just_pressed(\"ui_accept\"): print(\"Hopp!\")"
+     ],
+     "solution": "extends Node2D\n\nfunc _process(delta):\n\tif Input.is_action_just_pressed(\"ui_accept\"):\n\t\tprint(\"Hopp!\")\n",
+     "files": {
+      "frames.txt": "60\n",
+      "inputs.txt": "10 press ui_accept\n14 release ui_accept\n40 press ui_accept\n45 release ui_accept\n"
+     }
+    },
+    {
+     "id": "godot-input-2",
+     "level": 2,
+     "title": "Gå med pilarna",
+     "prompt": "Låt noden gå 200 pixlar per sekund åt det håll Input.get_axis(\"ui_left\", \"ui_right\") säger. Låtsasspelaren håller höger i en halv sekund. Skriv x avrundat vid bildruta 60.",
+     "starter": "extends Node2D\n\nvar fart := 200.0\nvar bilder := 0\n\nfunc _process(delta):\n\tpass\n",
+     "check": {
+      "expect": "100"
+     },
+     "hints": [
+      "get_axis ger 1 när höger hålls, annars 0.",
+      "position.x += Input.get_axis(\"ui_left\", \"ui_right\") * fart * delta"
+     ],
+     "solution": "extends Node2D\n\nvar fart := 200.0\nvar bilder := 0\n\nfunc _process(delta):\n\tposition.x += Input.get_axis(\"ui_left\", \"ui_right\") * fart * delta\n\tbilder += 1\n\tif bilder == 60:\n\t\tprint(int(round(position.x)))\n",
+     "files": {
+      "frames.txt": "60\n",
+      "inputs.txt": "1 press ui_right\n31 release ui_right\n"
+     }
+    },
+    {
+     "id": "godot-input-3",
+     "level": 3,
+     "title": "Fyra riktningar",
+     "prompt": "Styr noden i alla fyra riktningar med Input.get_vector och farten 150. Låtsasspelaren håller höger och ned samtidigt i 40 bildrutor. Skriv position.round() vid bildruta 60.",
+     "starter": "extends Node2D\n\nvar fart := 150.0\nvar bilder := 0\n\nfunc _process(delta):\n\tpass\n",
+     "check": {
+      "expect": "(71.0, 71.0)"
+     },
+     "hints": [
+      "Input.get_vector(\"ui_left\", \"ui_right\", \"ui_up\", \"ui_down\") – i den ordningen.",
+      "get_vector är redan normaliserad: snett går lika fort som rakt."
+     ],
+     "solution": "extends Node2D\n\nvar fart := 150.0\nvar bilder := 0\n\nfunc _process(delta):\n\tvar riktning := Input.get_vector(\"ui_left\", \"ui_right\", \"ui_up\", \"ui_down\")\n\tposition += riktning * fart * delta\n\tbilder += 1\n\tif bilder == 60:\n\t\tprint(position.round())\n",
+     "files": {
+      "frames.txt": "60\n",
+      "inputs.txt": "1 press ui_right\n1 press ui_down\n41 release ui_right\n41 release ui_down\n"
+     }
+    }
+   ],
+   "lesson": "godot-input.md"
+  },
+  {
+   "id": "godot-signaler",
+   "title": "Signaler och Timer",
+   "requires": [
+    "godot-input"
+   ],
+   "summary": "`signal traffad(skada: int)`, `traffad.connect(_on_traffad)`, `traffad.emit(12)`; inbyggda signaler som `Timer.timeout` och `Button.pressed`; en nod säger till, andra lyssnar – utan att känna varandra.",
+   "tasks": [
+    {
+     "id": "godot-signaler-1",
+     "level": 1,
+     "title": "Träffad!",
+     "prompt": "Gör en signal traffad(skada: int), koppla den till en funktion som skriver Aj! -<skada>, och skicka den med 12.",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "Aj! -12"
+     },
+     "hints": [
+      "signal traffad(skada: int) står högst upp, under extends.",
+      "connect först, sedan emit(12)."
+     ],
+     "solution": "extends Node\n\nsignal traffad(skada: int)\n\nfunc _ready():\n\ttraffad.connect(_on_traffad)\n\ttraffad.emit(12)\n\nfunc _on_traffad(skada: int):\n\tprint(\"Aj! -\", skada)\n"
+    },
+    {
+     "id": "godot-signaler-2",
+     "level": 2,
+     "title": "Pling efter en halv sekund",
+     "prompt": "Skapa en Timer som efter 0.5 sekunder (en gång) skriver Pling! Övningen kör 60 bildrutor.",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "Pling!"
+     },
+     "hints": [
+      "Timer.new(), wait_time = 0.5, one_shot = true.",
+      "Koppla t.timeout till en egen funktion, add_child(t) och t.start()."
+     ],
+     "solution": "extends Node\n\nfunc _ready():\n\tvar t := Timer.new()\n\tt.wait_time = 0.5\n\tt.one_shot = true\n\tt.timeout.connect(_on_pling)\n\tadd_child(t)\n\tt.start()\n\nfunc _on_pling():\n\tprint(\"Pling!\")\n",
+     "files": {
+      "frames.txt": "60\n"
+     }
+    },
+    {
+     "id": "godot-signaler-3",
+     "level": 3,
+     "title": "Game over",
+     "prompt": "Gör signalen dog. Skriv funktionen ta_skada(n) som drar n från hp (start 100), skriver HP <värde> och skickar dog när hp blir 0 eller mindre. Koppla dog till en funktion som skriver Game over. Anropa ta_skada(40) tre gånger.",
+     "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
+     "check": {
+      "expect": "HP 60\nHP 20\nHP 0\nGame over"
+     },
+     "hints": [
+      "max(hp - n, 0) gör att HP inte blir negativt.",
+      "Kolla hp <= 0 efter att du skrivit ut HP, och skicka då dog.emit()."
+     ],
+     "solution": "extends Node\n\nsignal dog\n\nvar hp := 100\n\nfunc _ready():\n\tdog.connect(_on_dog)\n\tfor i in range(3):\n\t\tta_skada(40)\n\nfunc ta_skada(n: int):\n\thp = max(hp - n, 0)\n\tprint(\"HP \", hp)\n\tif hp <= 0:\n\t\tdog.emit()\n\nfunc _on_dog():\n\tprint(\"Game over\")\n"
+    }
+   ],
+   "lesson": "godot-signaler.md"
+  },
+  {
+   "id": "godot-spel",
+   "title": "Ett litet spel: samla mynt",
+   "requires": [
+    "godot-signaler"
+   ],
+   "summary": "Spelregler i `_process`: avstånd med `position.distance_to(mynt) < 16`, ta bort ur listan medan man går baklänges (`for i in range(lista.size() - 1, -1, -1)`), poäng, signal när allt är klart.",
+   "tasks": [
+    {
+     "id": "godot-spel-1",
+     "level": 2,
+     "title": "Poäng och vinst",
+     "prompt": "Spelaren går åt höger med get_axis (fart 120). Mynten ligger på x = 50, 100 och 150 (y = 0). Plocka ett mynt när avståndet är under 16 och skriv Mynt! Poäng: <poäng>. När alla är tagna: skicka signalen vann och skriv Du vann! (bara en gång). Låtsasspelaren håller höger i 2 sekunder.",
+     "starter": "extends Node2D\n\nsignal vann\n\nvar mynt := [Vector2(50, 0), Vector2(100, 0), Vector2(150, 0)]\nvar poang := 0\n\nfunc _process(delta):\n\tpass\n",
+     "check": {
+      "expect": "Mynt! Poäng: 1\nMynt! Poäng: 2\nMynt! Poäng: 3\nDu vann!"
+     },
+     "hints": [
+      "Gå igenom mynten baklänges och använd position.distance_to(mynt[i]) < 16.",
+      "En variabel klar ser till att vann bara skickas en gång."
+     ],
+     "solution": "extends Node2D\n\nsignal vann\n\nvar mynt := [Vector2(50, 0), Vector2(100, 0), Vector2(150, 0)]\nvar poang := 0\nvar klar := false\n\nfunc _ready():\n\tvann.connect(_on_vann)\n\nfunc _process(delta):\n\tposition.x += Input.get_axis(\"ui_left\", \"ui_right\") * 120 * delta\n\tfor i in range(mynt.size() - 1, -1, -1):\n\t\tif position.distance_to(mynt[i]) < 16:\n\t\t\tmynt.remove_at(i)\n\t\t\tpoang += 1\n\t\t\tprint(\"Mynt! Poäng: \", poang)\n\tif mynt.is_empty() and not klar:\n\t\tklar = true\n\t\tvann.emit()\n\nfunc _on_vann():\n\tprint(\"Du vann!\")\n",
+     "files": {
+      "frames.txt": "150\n",
+      "inputs.txt": "1 press ui_right\n121 release ui_right\n"
+     }
+    },
+    {
+     "id": "godot-spel-2",
+     "level": 3,
+     "title": "Fienden jagar",
+     "prompt": "En fiende (en Node2D som barn, start (200, 0)) går mot spelaren med 60 pixlar per sekund (move_toward). Spelaren står still på (0, 0). När fienden är närmare än 10 pixlar: skriv Fångad! och sekunderna det tog med en decimal (t.ex. Fångad! 3.2 s) – bara en gång.",
+     "starter": "extends Node2D\n\nfunc _process(delta):\n\tpass\n",
+     "check": {
+      "expect": "Fångad! 3.2 s"
+     },
+     "hints": [
+      "move_toward(mål, steg) flyttar högst steg pixlar mot målet.",
+      "Räkna tiden med tid += delta och skriv med \"%.1f\" % tid."
+     ],
+     "solution": "extends Node2D\n\nvar fiende := Node2D.new()\nvar tid := 0.0\nvar fangad := false\n\nfunc _ready():\n\tfiende.position = Vector2(200, 0)\n\tadd_child(fiende)\n\nfunc _process(delta):\n\tif fangad:\n\t\treturn\n\ttid += delta\n\tfiende.position = fiende.position.move_toward(Vector2.ZERO, 60 * delta)\n\tif fiende.position.distance_to(Vector2.ZERO) < 10:\n\t\tfangad = true\n\t\tprint(\"Fångad! %.1f s\" % tid)\n",
+     "files": {
+      "frames.txt": "240\n"
+     }
+    }
+   ],
+   "lesson": "godot-spel.md"
+  }
+ ]
+}

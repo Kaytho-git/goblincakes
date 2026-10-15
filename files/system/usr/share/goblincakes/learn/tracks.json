@@ -69,13 +69,13 @@
   {
    "id": "godot",
    "name": "Godot (GDScript)",
-   "run": "python",
+   "run": "godot",
    "desc": "Göra egna spel med Godot."
   },
   {
    "id": "containrar",
    "name": "Containrar (Podman)",
-   "run": "bash",
+   "run": "podman",
    "desc": "Köra tjänster isolerat – samma teknik som Ianseo i GOBLINCAKES."
   }
  ],

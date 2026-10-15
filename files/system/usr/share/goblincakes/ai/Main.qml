@@ -1440,7 +1440,7 @@ Window {
                                             font.pixelSize: 13
                                             tabStopDistance: 4 * fontMetrics.averageCharacterWidth
                                             FontMetrics { id: fontMetrics; font.family: "IBM Plex Mono"; font.pixelSize: 13 }
-                                            Keys.onTabPressed: event => { insert(cursorPosition, "  "); event.accepted = true; }
+                                            Keys.onTabPressed: event => { insert(cursorPosition, taskCard.modelData.file.endsWith(".gd") ? "\t" : "  "); event.accepted = true; }
                                             onActiveFocusChanged: if (!activeFocus) backend.learnDraft(taskCard.modelData.id, text)
                                         }
                                     }

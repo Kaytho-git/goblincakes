@@ -1,9 +1,18 @@
 # GOBLINCAKES lärläge: the practice computer the user's code runs in (no network, built once
 # on the user's computer by Goblin AI – learn.py build_sandbox). Python, PHP, Node.js, Lua 5.1
-# (the version WoW uses), Bash, Git, SQLite (through Python).
+# (the version WoW uses), Bash, Git, SQLite (through Python), and Godot 4.5.1 without a window
+# (godotrun.py). Practice podman for the container lessons: podrun.py/fakepodman.py.
 FROM registry.fedoraproject.org/fedora-minimal:44
 RUN microdnf install -y --setopt=install_weak_deps=0 python3 php-cli php-pdo php-mbstring nodejs compat-lua bash coreutils git-core findutils grep sed gawk \
     && microdnf clean all \
     && ln -sf "$(command -v lua-5.1 || command -v lua5.1)" /usr/local/bin/lua5.1
+# Godot's official Linux build (one file, needs no libraries in --headless mode), checked against its sha256
+ARG GODOT=4.5.1-stable
+ARG GODOT_SHA256=02ec53d1cc7dbb9cc6355393c61b9ab43d1244751a124f10248a4802830788cd
+RUN python3 -c "import hashlib, io, sys, urllib.request, zipfile; \
+data = urllib.request.urlopen('https://github.com/godotengine/godot/releases/download/${GODOT}/Godot_v${GODOT}_linux.x86_64.zip').read(); \
+sys.exit('Godot: fel kontrollsumma') if hashlib.sha256(data).hexdigest() != '${GODOT_SHA256}' else None; \
+zipfile.ZipFile(io.BytesIO(data)).extract('Godot_v${GODOT}_linux.x86_64', '/opt/godot')" \
+    && mv /opt/godot/Godot_v${GODOT}_linux.x86_64 /opt/godot/godot && chmod 755 /opt/godot/godot
 # Root in a rootless container = the user's own account outside it, with no network
 WORKDIR /work

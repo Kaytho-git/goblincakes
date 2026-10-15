@@ -25,7 +25,7 @@ from pathlib import Path
 BASE = Path(os.environ.get("GOBLINCAKES_LEARN_BASE", "/usr/share/goblincakes/learn"))
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes/learn"
 PROGRESS = DATA / "progress.json"
-IMAGE = "localhost/goblincakes-learn:1"
+IMAGE = "localhost/goblincakes-learn:2"
 LEVELS = ("nybörjare", "lite", "van")
 REVIEW_AFTER = 2 * 86400  # a task that was hard comes back after two days
 
@@ -38,6 +38,8 @@ RUNNERS = {
     "js": ("main.js", ["node", "main.js"]),
     "bash": ("main.sh", ["bash", "/code/main.sh"]),  # beside the work folder: not in ls/git status
     "sql": ("main.sql", ["python3", "/course/sandbox/sqlrun.py", "main.sql"]),
+    "godot": ("main.gd", ["python3", "/course/sandbox/godotrun.py", "main.gd"]),  # Godot without a window
+    "podman": ("main.sh", ["python3", "/course/sandbox/podrun.py", "/code/main.sh"]),  # practice podman
     "html": ("index.html", None),  # checked by rules, shown in the browser
     "check": ("check.py", ["python3", "check.py"]),  # a task's checker script (the user's file beside it)
 }
