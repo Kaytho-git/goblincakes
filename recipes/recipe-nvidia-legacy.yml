@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
+# GOBLINCAKES with Nvidia's legacy driver (580 series) for GTX 900 and GTX 10 cards
+# (Maxwell, Pascal, Volta – e.g. GTX 1050 Ti): Nvidia's current drivers (590+) and the open
+# kernel module of goblincakes-nvidia don't support them. Not on the ISO: GOBLINCAKES Config
+# (Grafik) switches to it on computers with such a card. Driver: Universal Blue's
+# akmods-nvidia-lts (files/scripts/install-nvidia-legacy.sh). Shared content: common-*.yml.
+name: goblincakes-nvidia-legacy
+description: GOBLINCAKES - Fedora Kinoite with Nvidia's legacy driver (GTX 900/10), gaming, WoW and Ianseo tools
+
+base-image: ghcr.io/ublue-os/kinoite-main
+image-version: latest
+
+stages:
+  - from-file: common-stages.yml
+
+modules:
+  # Before everything else: the initramfs module at the end of common-modules.yml then takes
+  # the Nvidia driver in
+  - type: script
+    scripts:
+      - install-nvidia-legacy.sh
+  - from-file: common-modules.yml

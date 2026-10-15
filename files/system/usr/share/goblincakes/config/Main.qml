@@ -2337,6 +2337,54 @@ Window {
         // Installed from the ISO with the Nvidia variant chosen: fetched after the first start
         readonly property bool fetching: !!win.gpu.origin && win.gpu.origin !== win.gpu.variant && !win.gpu.pending
         readonly property string after: win.gpu.pending || win.gpu.variant || "base"
+        // The Nvidia variants: nvidia (current driver, RTX 20/GTX 16 and newer) and
+        // nvidia-legacy (Nvidia's 580 driver for GTX 750/900/10, which 590+ dropped)
+        readonly property bool onNvidia: win.gpu.variant === "nvidia" || win.gpu.variant === "nvidia-legacy"
+        readonly property string legacyCard: ((win.gpu.cards || []).find(c => c.legacy) || {}).name || "Nvidia-kortet"
+        function driverName(v) {
+            return v === "nvidia-legacy" ? "Nvidias legacy-drivrutin" : v === "nvidia" ? "Nvidia-drivrutinerna" : "Grundvarianten";
+        }
+        function headline() {
+            const g = win.gpu;
+            if (fetching)
+                return driverName(g.origin) + (g.origin === "nvidia" ? " hämtas" : " hämtas") + " i bakgrunden.";
+            if (pendingChange)
+                return g.pending === "base" ? "Nvidia-drivrutinerna tas bort när du startar om."
+                    : driverName(g.pending) + (g.pending === "nvidia" ? " är nedladdade" : " är nedladdad") + " – starta om för att använda " + (g.pending === "nvidia" ? "dem." : "den.");
+            if (g.variant === "nvidia-legacy")
+                return g.nvidiaLegacy ? "Nvidias legacy-drivrutin (580) är installerad." : "Nvidias legacy-drivrutin är installerad, men den passar inte det här grafikkortet.";
+            if (g.variant === "nvidia")
+                return g.nvidiaSupported ? "Nvidia-drivrutinerna är installerade."
+                    : g.nvidiaLegacy ? "Nvidia-drivrutinerna är installerade, men " + legacyCard + " behöver legacy-drivrutinen."
+                    : g.hasNvidia ? "Nvidia-drivrutinerna är installerade, men de stöder inte det här kortet."
+                    : "Nvidia-drivrutinerna är installerade, men datorn har inget Nvidia-kort.";
+            if (g.nvidiaLegacy && !g.nvidiaSupported)
+                return legacyCard + " behöver Nvidias legacy-drivrutin.";
+            return g.hasNvidia ? "Nvidia-kortet kör med den öppna grunddrivrutinen." : "Du har redan rätt drivrutiner.";
+        }
+        function detail() {
+            const g = win.gpu;
+            if (fetching)
+                return "Installationen valde dem efter ditt grafikkort. Du får en notis när de är klara – sedan räcker en omstart.";
+            if (pendingChange)
+                return "Vill du inte byta ändå: tryck Ångra. Den nuvarande varianten finns kvar i startmenyn.";
+            if (g.variant === "nvidia-legacy")
+                return g.nvidiaLegacy
+                    ? "Allt är klart för spel. Drivrutinen uppdateras med goblin update. Nvidia ger 580-serien bara säkerhetsuppdateringar (till oktober 2028), inga förbättringar för nya spel."
+                    : g.nvidiaSupported ? "Kortet klarar Nvidias nya drivrutin – byt till den för bäst stöd."
+                    : "Ta bort den för ett renare system.";
+            if (g.variant === "nvidia")
+                return g.nvidiaSupported ? "Allt är klart för spel."
+                    : g.nvidiaLegacy ? "Nvidias nya drivrutin stöder inte GTX 750/900/10 – byt till legacy-drivrutinen (580)."
+                    : "De tar plats och lägger till Nvidia-inställningar vid start. Ta bort dem för ett renare system (ungefär 1 GB).";
+            if (g.nvidiaLegacy && !g.nvidiaSupported)
+                return "GTX 750/900/10-kort fungerar bara med Nvidias äldre 580-drivrutin – Nvidias nya stöder dem inte längre. Utan den kör kortet med den öppna drivrutinen: skrivbordet fungerar, men spel går mycket långsamt. Den laddas ner (bara skillnaden, ungefär 1 GB), används efter en omstart och uppdateras sedan med goblin update.";
+            if (g.hasNvidia && !g.nvidiaSupported)
+                return "Kortet är för gammalt för Nvidias drivrutiner för dagens Linux. Den öppna drivrutinen fungerar för skrivbordet, men ger lägre prestanda i spel.";
+            if (g.hasNvidia)
+                return "Skrivbordet fungerar, men spel går mycket bättre med Nvidias egna drivrutiner. De laddas ner (bara skillnaden, ungefär 1 GB) och används efter en omstart.";
+            return "AMD och Intel använder de öppna drivrutinerna (Mesa), som redan finns i GOBLINCAKES. Inget behöver laddas ner.";
+        }
 
         Column {
             id: gfxCol
@@ -2438,14 +2486,7 @@ Window {
                         font.family: "IBM Plex Sans"
                         font.weight: Font.DemiBold
                         font.pixelSize: 16
-                        text: graphicsView.fetching
-                            ? (win.gpu.origin === "nvidia" ? "Nvidia-drivrutinerna hämtas i bakgrunden." : "Grundvarianten hämtas i bakgrunden.")
-                            : graphicsView.pendingChange
-                            ? (win.gpu.pending === "nvidia" ? "Nvidia-drivrutinerna är nedladdade – starta om för att använda dem."
-                                                            : "Nvidia-drivrutinerna tas bort när du startar om.")
-                            : win.gpu.variant === "nvidia"
-                            ? (win.gpu.hasNvidia ? "Nvidia-drivrutinerna är installerade." : "Nvidia-drivrutinerna är installerade, men datorn har inget Nvidia-kort.")
-                            : (win.gpu.hasNvidia ? "Nvidia-kortet kör med den öppna grunddrivrutinen." : "Du har redan rätt drivrutiner.")
+                        text: graphicsView.headline()
                     }
                     Text {
                         width: parent.width
@@ -2454,16 +2495,7 @@ Window {
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 14
                         lineHeight: 1.15
-                        text: graphicsView.fetching
-                            ? "Installationen valde dem efter ditt grafikkort. Du får en notis när de är klara – sedan räcker en omstart."
-                            : graphicsView.pendingChange
-                            ? "Vill du inte byta ändå: tryck Ångra. Den nuvarande varianten finns kvar i startmenyn."
-                            : win.gpu.variant === "nvidia"
-                            ? (win.gpu.hasNvidia ? "Allt är klart för spel." : "De tar plats och lägger till Nvidia-inställningar vid start. Ta bort dem för ett renare system (ungefär 1 GB).")
-                            : (win.gpu.hasNvidia && !win.gpu.nvidiaSupported
-                               ? "Kortet är äldre än GTX 16xx/RTX 20xx, som Nvidias drivrutiner i GOBLINCAKES kräver. Den öppna drivrutinen fungerar för skrivbordet, men ger lägre prestanda i spel."
-                               : win.gpu.hasNvidia ? "Skrivbordet fungerar, men spel går mycket bättre med Nvidias egna drivrutiner. De laddas ner (bara skillnaden, ungefär 1 GB) och används efter en omstart."
-                                                 : "AMD och Intel använder de öppna drivrutinerna (Mesa), som redan finns i GOBLINCAKES. Inget behöver laddas ner.")
+                        text: graphicsView.detail()
                     }
 
                     // While switching: status + sliding bar
@@ -2511,7 +2543,21 @@ Window {
                             onClicked: { win.gpuMessage = ""; backend.switchVariant("nvidia"); }
                         }
                         FlatButton {
-                            visible: !graphicsView.pendingChange && !graphicsView.fetching && win.gpu.variant === "nvidia"
+                            // GTX 750/900/10: Nvidia's 580 driver (goblincakes-nvidia-legacy)
+                            visible: !graphicsView.pendingChange && !graphicsView.fetching && win.gpu.variant !== "nvidia-legacy"
+                                     && !!win.gpu.nvidiaLegacy && !win.gpu.nvidiaSupported
+                            primary: true
+                            text: win.gpu.variant === "nvidia" ? "Byt till legacy-drivrutinen" : "Installera Nvidias legacy-drivrutin"
+                            onClicked: { win.gpuMessage = ""; backend.switchVariant("nvidia-legacy"); }
+                        }
+                        FlatButton {
+                            visible: !graphicsView.pendingChange && !graphicsView.fetching && win.gpu.variant === "nvidia-legacy" && !!win.gpu.nvidiaSupported
+                            primary: true
+                            text: "Byt till Nvidias nya drivrutin"
+                            onClicked: { win.gpuMessage = ""; backend.switchVariant("nvidia"); }
+                        }
+                        FlatButton {
+                            visible: !graphicsView.pendingChange && !graphicsView.fetching && graphicsView.onNvidia
                             primary: !win.gpu.hasNvidia
                             text: "Ta bort Nvidia-drivrutinerna"
                             onClicked: { win.gpuMessage = ""; backend.switchVariant("base"); }

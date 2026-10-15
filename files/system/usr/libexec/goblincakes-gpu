@@ -4,12 +4,14 @@
     goblincakes-gpu status          JSON: graphics cards, laptop/hybrid, variant now and after restart, Secure Boot
     goblincakes-gpu hw              JSON: just the hardware (fast, no rpm-ostree)
     goblincakes-gpu switch nvidia   switch to goblincakes-nvidia (Nvidia drivers) – used after a restart
+    goblincakes-gpu switch nvidia-legacy   switch to goblincakes-nvidia-legacy (Nvidia's 580 driver, GTX 900/10)
     goblincakes-gpu switch base     switch back to goblincakes (AMD/Intel, no Nvidia drivers or settings)
     goblincakes-gpu undo            drop a switch that hasn't been restarted into yet
     goblincakes-gpu notify          login notice when the variant doesn't fit the graphics card
 
-The two variants are the same GOBLINCAKES built on different Universal Blue
-images; switching is an rpm-ostree rebase (only the difference is downloaded,
+The variants are the same GOBLINCAKES built on different Universal Blue images (base,
+nvidia = Nvidia's current driver with the open kernel module for RTX 20/GTX 16 and newer,
+nvidia-legacy = Nvidia's 580 driver for GTX 900/10 cards, which 590+ dropped); switching is an rpm-ostree rebase (only the difference is downloaded,
 the old variant stays selectable in the boot menu). Lines starting with "@@ "
 are shown in the window as status.
 """
@@ -22,7 +24,9 @@ import time
 from pathlib import Path
 
 VARIANT_FILE = Path("/usr/share/goblincakes/variant")
-IMAGES = {"base": "goblincakes", "nvidia": "goblincakes-nvidia"}
+IMAGES = {"base": "goblincakes", "nvidia": "goblincakes-nvidia", "nvidia-legacy": "goblincakes-nvidia-legacy"}
+NAMES = {"base": "grundvarianten", "nvidia": "Nvidia-varianten", "nvidia-legacy": "Nvidia legacy-varianten"}
+DRIVERS = {"nvidia": "Nvidia-drivrutinerna", "nvidia-legacy": "Nvidias legacy-drivrutin", "base": "grundvarianten"}
 VENDORS = {"10de": "nvidia", "1002": "amd", "1022": "amd", "8086": "intel"}
 UBLUE_KEY = Path("/etc/pki/akmods/certs/akmods-ublue.der")
 NOTICE_OFF = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "goblincakes" / "gpu-notice-off"
@@ -60,9 +64,13 @@ def graphics_cards():
         except (OSError, ValueError):
             device_id = 0
         # Universal Blue's Nvidia images use Nvidia's open kernel driver: Turing (GTX 16xx,
-        # RTX 20xx) and newer, whose PCI device ids start at 0x1e00
+        # RTX 20xx) and newer, whose PCI device ids start at 0x1e00. Maxwell, Pascal and Volta
+        # (GTX 750/900/10, 0x1340–0x1dff) only have Nvidia's 580 "legacy" driver
+        # (goblincakes-nvidia-legacy, 15 Oct); Kepler and older have no Nvidia driver for
+        # today's Linux at all – they stay on the open driver (nouveau).
         supported = vendor != "nvidia" or device_id >= 0x1E00
-        cards.append({"vendor": vendor, "name": name, "boot": boot, "supported": supported})
+        legacy = vendor == "nvidia" and 0x1340 <= device_id < 0x1E00
+        cards.append({"vendor": vendor, "name": name, "boot": boot, "supported": supported, "legacy": legacy})
     return cards
 
 
@@ -92,7 +100,9 @@ def hardware():
     return {"cards": cards, "laptop": is_laptop(), "hybrid": hybrid, "dgpu": dgpu,
             "hasNvidia": any(c["vendor"] == "nvidia" for c in cards),
             # An Nvidia card the Nvidia variant can drive (RTX 20xx / GTX 16xx or newer)
-            "nvidiaSupported": any(c["vendor"] == "nvidia" and c["supported"] for c in cards)}
+            "nvidiaSupported": any(c["vendor"] == "nvidia" and c["supported"] for c in cards),
+            # An Nvidia card that needs the legacy variant (GTX 750/900/10, Titan V)
+            "nvidiaLegacy": any(c.get("legacy") for c in cards)}
 
 
 def deployments():
@@ -104,6 +114,8 @@ def deployments():
 
 
 def variant_of(ref):
+    if re.search(r"/goblincakes-nvidia-legacy(:|$)", ref or ""):
+        return "nvidia-legacy"
     return "nvidia" if re.search(r"/goblincakes-nvidia(:|$)", ref or "") else "base"
 
 
@@ -137,9 +149,9 @@ def status():
         **hw,
         "variant": variant,  # what is running now
         "pending": pending,  # what starts after a restart (None = nothing new)
-        # Older Nvidia cards (GTX 10xx and before) aren't supported by the Nvidia variant:
-        # they stay on the base variant with the open driver (nouveau)
-        "recommended": "nvidia" if hw["nvidiaSupported"] else "base",
+        # GTX 900/10 cards: the legacy variant (Nvidia's 580 driver). Even older ones (Kepler …)
+        # stay on the base variant with the open driver (nouveau)
+        "recommended": "nvidia" if hw["nvidiaSupported"] else "nvidia-legacy" if hw["nvidiaLegacy"] else "base",
         # The installer (ISO) picked the Nvidia variant: it's fetched after the first start
         # (goblincakes-variant-sync), until then the running variant differs from the origin
         "origin": variant_of(booted.get("container-image-reference")),
@@ -157,12 +169,11 @@ def switch(target):
         print("Hittar inte vilken image datorn kör", file=sys.stderr)
         return 1
     # Same registry, tag and signature checking – only the image name changes
-    new_ref = re.sub(r"/goblincakes(-nvidia)?(?=:|$)", "/" + IMAGES[target], ref, count=1)
+    new_ref = re.sub(r"/goblincakes(-nvidia(-legacy)?)?(?=:|$)", "/" + IMAGES[target], ref, count=1)
     if new_ref == ref and variant_of(ref) == target:
         status_line("Datorn kör redan den varianten")
         return 0
-    status_line("Laddar ner " + ("Nvidia-varianten" if target == "nvidia" else "grundvarianten")
-                + " (bara skillnaden, kan ta en stund)…")
+    status_line("Laddar ner " + NAMES[target] + " (bara skillnaden, kan ta en stund)…")
     proc = subprocess.Popen(["rpm-ostree", "rebase", new_ref], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for line in proc.stdout:
         line = line.rstrip()
@@ -191,6 +202,11 @@ def notify():
         return 0
     if s["recommended"] == "nvidia":
         title, body = "Nvidia-grafikkort hittat", "Installera Nvidia-drivrutinerna för full prestanda i spel."
+    elif s["recommended"] == "nvidia-legacy":
+        card = next((c["name"] for c in s["cards"] if c.get("legacy")), "Ditt Nvidia-kort")
+        title = "Ditt Nvidia-kort behöver legacy-drivrutinen"
+        body = (f"{card} behöver Nvidias legacy-drivrutin (580) för att spel ska fungera som de ska. "
+                "Installera den i GOBLINCAKES Config → Grafik – den uppdateras sedan med goblin update.")
     else:
         title, body = "Inget Nvidia-kort", "GOBLINCAKES har Nvidia-drivrutiner som inte behövs. De kan tas bort."
     try:
@@ -211,7 +227,7 @@ def notify():
 def notify_fetching(target):
     """Right after installing from the ISO: the right variant is being fetched in the
     background (goblincakes-variant-sync.service). Say so, then say when it's ready."""
-    what = "Nvidia-drivrutinerna" if target == "nvidia" else "grundvarianten"
+    what = DRIVERS.get(target, "grundvarianten")
     try:
         subprocess.run(["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes",
                         f"Hämtar {what}",
@@ -228,7 +244,8 @@ def notify_fetching(target):
         answer = subprocess.run(
             ["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes", "--wait",
              "--action=reboot=Starta om nu",
-             "Nvidia-drivrutinerna är klara" if target == "nvidia" else "Grundvarianten är klar",
+             f"{DRIVERS.get(target, 'grundvarianten')[0].upper()}{DRIVERS.get(target, 'grundvarianten')[1:]} är klar"
+             + ("a" if target == "nvidia" else ""),
              "Starta om datorn för att använda dem."],
             capture_output=True, text=True).stdout.strip()
     except OSError:

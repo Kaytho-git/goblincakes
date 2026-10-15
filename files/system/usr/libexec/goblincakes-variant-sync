@@ -18,6 +18,7 @@ staged = any(d.get("staged") for d in deps) or (bool(deps) and not deps[0].get("
 print(booted.get("container-image-reference", "-"), "yes" if staged else "no")')"
 
 case $booted_ref in
+    */goblincakes-nvidia-legacy|*/goblincakes-nvidia-legacy:*) wanted=nvidia-legacy ;;
     */goblincakes-nvidia|*/goblincakes-nvidia:*) wanted=nvidia ;;
     *) wanted=base ;;
 esac

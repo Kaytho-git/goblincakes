@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-15  GTX 900- och GTX 10-kort (t.ex. GTX 1050 Ti) kan nu få Nvidias legacy-drivrutin: GOBLINCAKES föreslår den i Config → Grafik och i en notis, och sedan uppdateras den med goblin update som allt annat.
 2026-10-15  Fönsterlayouter: rita själv hur fönstren ska ligga på dina skärmar och vilket program som öppnas var, spara flera (Raid, Jobb …) och byt med Meta+Ctrl+1–9. Finns i GOBLINCAKES Config → Fönster.
 2026-10-15  Välj färg på GOBLINCAKES: GOBLINCAKES blå eller en WoW-klassfärg – knappar, ramar, reglage, markeringar och rullningslister byter färg i hela systemet. Finns i GOBLINCAKES Config → Inställningar → Utseende, eller skriv goblin färg i terminalen.
 2026-10-14  GoblinRecorder: Warcraft Logs-länken i YouTube-beskrivningen blir inte längre avklippt.

@@ -585,8 +585,9 @@ class Config(QObject):
         if fedora:
             parts.append(f"Fedora {fedora}")
         try:
-            if Path("/usr/share/goblincakes/variant").read_text().strip() == "nvidia":
-                parts.append("Nvidia")
+            variant = Path("/usr/share/goblincakes/variant").read_text().strip()
+            if variant in ("nvidia", "nvidia-legacy"):
+                parts.append({"nvidia": "Nvidia", "nvidia-legacy": "Nvidia legacy"}[variant])
         except OSError:
             pass
         if booted.get("timestamp"):

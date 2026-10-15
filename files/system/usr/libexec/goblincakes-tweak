@@ -340,7 +340,7 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
             status) steam_flag dgpu && echo on || echo off ;;
             set)
                 # Nvidia's own offload needs Nvidia's drivers; otherwise Mesa's DRI_PRIME picks the other card
-                if [ "$(echo "$info" | json_get dgpu)" = nvidia ] && [ "$(cat /usr/share/goblincakes/variant 2>/dev/null)" = nvidia ]; then
+                if [ "$(echo "$info" | json_get dgpu)" = nvidia ] && case "$(cat /usr/share/goblincakes/variant 2>/dev/null)" in nvidia|nvidia-legacy) true ;; *) false ;; esac; then
                     env=("${NV_PRIME[@]}")
                 else
                     env=("${MESA_PRIME[@]}")

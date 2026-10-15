@@ -36,6 +36,7 @@ jobs:
           # !! Add your recipes here
           - recipe.yml        # goblincakes (AMD/Intel, on the ISO)
           - recipe-nvidia.yml # goblincakes-nvidia (switched to in GOBLINCAKES Config)
+          - recipe-nvidia-legacy.yml # goblincakes-nvidia-legacy (GTX 900/10, Nvidia's 580 driver; switched to in Config)
     steps:
       # BuildKit (the builder the action sets up) comes from Docker Hub, whose login timed out from
       # GitHub's machines for a whole evening (9 Oct). Fetched first from Google's Docker Hub mirror
