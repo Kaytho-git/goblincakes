@@ -3,9 +3,8 @@
   {
    "id": "html-forsta",
    "title": "Din första sida",
-   "summary": "`<h1>` rubrik, `<p>` stycke, `<a href>` länk; allt inuti `<body>`.",
    "requires": [],
-   "lesson": "html-forsta.md",
+   "summary": "`<h1>`–`<h6>` rubriker, `<p>` stycke, `<strong>`/`<em>`; det synliga i `<body>`, info i `<head>`; `<meta charset=\"utf-8\">`.",
    "tasks": [
     {
      "id": "html-forsta-1",
@@ -26,8 +25,221 @@
       "Lägg <h1>…</h1> och <p>…</p> mellan <body> och </body>."
      ],
      "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n  <h1>Kaytho</h1>\n  <p>Jag gillar bågskytte och WoW.</p>\n</body>\n</html>\n"
+    },
+    {
+     "id": "html-forsta-2",
+     "level": 2,
+     "title": "Rubriknivåer",
+     "prompt": "Gör en sida med en h1 (Raidguide), två h2 (Bossar och Tips) och ett stycke under varje h2 där ett ord är fetstilt med strong.",
+     "starter": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n\n</body>\n</html>\n",
+     "check": {
+      "regex": [
+       "<h1[^>]*>\\s*Raidguide",
+       "<h2[^>]*>\\s*Bossar",
+       "<h2[^>]*>\\s*Tips",
+       "<strong>"
+      ]
+     },
+     "hints": [
+      "h2 är en underrubrik.",
+      "<strong>ord</strong> gör ordet fetstilt."
+     ],
+     "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n  <h1>Raidguide</h1>\n  <h2>Bossar</h2>\n  <p>Den första är <strong>svår</strong>.</p>\n  <h2>Tips</h2>\n  <p>Stå inte i elden.</p>\n</body>\n</html>\n"
     }
-   ]
+   ],
+   "lesson": "html-forsta.md"
+  },
+  {
+   "id": "html-lankar",
+   "title": "Länkar och bilder",
+   "requires": [
+    "html-forsta"
+   ],
+   "summary": "`<a href=\"url\">text</a>` (`target=\"_blank\"` = ny flik), `<img src=\"bild.png\" alt=\"beskrivning\">` – alt är obligatoriskt.",
+   "tasks": [
+    {
+     "id": "html-lankar-1",
+     "level": 1,
+     "title": "Länk och bild",
+     "prompt": "Lägg till en länk till https://worldofwarcraft.blizzard.com med texten WoW, och en bild med src=goblin.png och en alt-text.",
+     "starter": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n\n</body>\n</html>\n",
+     "check": {
+      "regex": [
+       "<a[^>]+href=\"https://worldofwarcraft\\.blizzard\\.com\"",
+       "<img[^>]+src=\"goblin\\.png\"",
+       "<img[^>]+alt=\"[^\"]+\""
+      ]
+     },
+     "hints": [
+      "<a href=\"adress\">text</a>",
+      "<img src=\"goblin.png\" alt=\"beskrivning\">"
+     ],
+     "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n  <a href=\"https://worldofwarcraft.blizzard.com\">WoW</a>\n  <img src=\"goblin.png\" alt=\"En goblin\">\n</body>\n</html>\n"
+    }
+   ],
+   "lesson": "html-lankar.md"
+  },
+  {
+   "id": "html-listor",
+   "title": "Listor och tabeller",
+   "requires": [
+    "html-lankar"
+   ],
+   "summary": "`<ul>`/`<ol>` med `<li>`; tabell: `<table>`, `<tr>` rad, `<th>` rubrikcell, `<td>` cell, gärna `<thead>`/`<tbody>`.",
+   "tasks": [
+    {
+     "id": "html-listor-1",
+     "level": 2,
+     "title": "Resultatlista",
+     "prompt": "Gör en tabell med rubrikerna Namn och Poäng (th) och två rader: Bo 655 och Anna 612.",
+     "starter": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n\n</body>\n</html>\n",
+     "check": {
+      "regex": [
+       "<table",
+       "<th[^>]*>\\s*Namn",
+       "<th[^>]*>\\s*Poäng",
+       "<td[^>]*>\\s*Bo\\s*</td>\\s*<td[^>]*>\\s*655",
+       "<td[^>]*>\\s*Anna\\s*</td>\\s*<td[^>]*>\\s*612"
+      ]
+     },
+     "hints": [
+      "<tr> är en rad, <th> en rubrikcell, <td> en vanlig cell.",
+      "En rad: <tr><td>Bo</td><td>655</td></tr>"
+     ],
+     "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n  <table>\n    <thead><tr><th>Namn</th><th>Poäng</th></tr></thead>\n    <tbody>\n      <tr><td>Bo</td><td>655</td></tr>\n      <tr><td>Anna</td><td>612</td></tr>\n    </tbody>\n  </table>\n</body>\n</html>\n"
+    }
+   ],
+   "lesson": "html-listor.md"
+  },
+  {
+   "id": "html-formular",
+   "title": "Formulär",
+   "requires": [
+    "html-listor"
+   ],
+   "summary": "`<form action method=\"post\">`, `<label for>` + `<input id name type required>`, `type=\"email\"`/`password`/`number`, `<select>`, `<button>`.",
+   "tasks": [
+    {
+     "id": "html-formular-1",
+     "level": 2,
+     "title": "Raidanmälan",
+     "prompt": "Gör ett formulär (method post, action anmal.php) med ett obligatoriskt textfält name=namn med label, en select name=roll med Tank, Healer och DPS, och en skicka-knapp.",
+     "starter": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n\n</body>\n</html>\n",
+     "check": {
+      "regex": [
+       "<form[^>]+method=\"post\"",
+       "<form[^>]+action=\"anmal\\.php\"",
+       "<label[^>]+for=\"namn\"",
+       "<input[^>]+name=\"namn\"[^>]*required|<input[^>]+required[^>]*name=\"namn\"",
+       "<select[^>]+name=\"roll\"",
+       "<option[^>]*>\\s*Tank",
+       "<option[^>]*>\\s*Healer",
+       "<option[^>]*>\\s*DPS",
+       "<button[^>]*type=\"submit\"|<input[^>]+type=\"submit\""
+      ]
+     },
+     "hints": [
+      "<input id=\"namn\" name=\"namn\" type=\"text\" required>",
+      "<select name=\"roll\"> med tre <option>."
+     ],
+     "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n  <form action=\"anmal.php\" method=\"post\">\n    <label for=\"namn\">Namn</label>\n    <input id=\"namn\" name=\"namn\" type=\"text\" required>\n    <label for=\"roll\">Roll</label>\n    <select id=\"roll\" name=\"roll\">\n      <option>Tank</option>\n      <option>Healer</option>\n      <option>DPS</option>\n    </select>\n    <button type=\"submit\">Anmäl</button>\n  </form>\n</body>\n</html>\n"
+    }
+   ],
+   "lesson": "html-formular.md"
+  },
+  {
+   "id": "css-grunder",
+   "title": "CSS: färger och text",
+   "requires": [
+    "html-forsta"
+   ],
+   "summary": "`<style>` eller `style.css` med `<link rel=\"stylesheet\">`; väljare `h1`, `.klass`, `#id`; `color`, `background`, `font-family`, `font-size`, `margin`, `padding`, `border`.",
+   "tasks": [
+    {
+     "id": "css-grunder-1",
+     "level": 2,
+     "title": "GOBLINCAKES-färger",
+     "prompt": "Ge sidan mörk bakgrund #0E1420 och ljus text #E6ECF5 (på body), gör h1 blå #2F6FED, och ge ett stycke klassen viktig som blir fetstilt.",
+     "starter": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n\n</body>\n</html>\n",
+     "check": {
+      "regex": [
+       "body\\s*\\{[^}]*background(-color)?\\s*:\\s*#0e1420",
+       "body\\s*\\{[^}]*color\\s*:\\s*#e6ecf5",
+       "h1\\s*\\{[^}]*color\\s*:\\s*#2f6fed",
+       "\\.viktig\\s*\\{[^}]*font-weight\\s*:\\s*(bold|[6-9]00)",
+       "class=\"viktig\""
+      ]
+     },
+     "hints": [
+      "Skriv CSS i <style> i <head>.",
+      ".viktig { font-weight: bold; } och class=\"viktig\" på stycket."
+     ],
+     "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n  <style>\n    body { background: #0E1420; color: #E6ECF5; }\n    h1 { color: #2F6FED; }\n    .viktig { font-weight: bold; }\n  </style>\n</head>\n<body>\n  <h1>GOBLINCAKES</h1>\n  <p class=\"viktig\">Raid i kväll!</p>\n</body>\n</html>\n"
+    }
+   ],
+   "lesson": "css-grunder.md"
+  },
+  {
+   "id": "css-layout",
+   "title": "CSS: layout med flexbox och grid",
+   "requires": [
+    "css-grunder"
+   ],
+   "summary": "`display: flex` (+ `gap`, `justify-content`, `align-items`, `flex-wrap`); `display: grid; grid-template-columns: repeat(3, 1fr)`.",
+   "tasks": [
+    {
+     "id": "css-layout-1",
+     "level": 2,
+     "title": "Meny och kort",
+     "prompt": "Gör en nav med klassen meny som har display flex och gap, och en div med klassen kort som är ett grid med tre lika breda kolumner.",
+     "starter": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n\n</body>\n</html>\n",
+     "check": {
+      "regex": [
+       "\\.meny\\s*\\{[^}]*display\\s*:\\s*flex",
+       "\\.meny\\s*\\{[^}]*gap\\s*:",
+       "\\.kort\\s*\\{[^}]*display\\s*:\\s*grid",
+       "\\.kort\\s*\\{[^}]*grid-template-columns\\s*:\\s*(repeat\\(\\s*3\\s*,\\s*1fr\\s*\\)|1fr\\s+1fr\\s+1fr)",
+       "class=\"meny\"",
+       "class=\"kort\""
+      ]
+     },
+     "hints": [
+      "display: flex; gap: 1rem;",
+      "grid-template-columns: repeat(3, 1fr);"
+     ],
+     "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n  <style>\n    .meny { display: flex; gap: 1rem; }\n    .kort { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }\n  </style>\n</head>\n<body>\n  <nav class=\"meny\"><a href=\"#\">Hem</a><a href=\"#\">Raid</a></nav>\n  <div class=\"kort\"><div>1</div><div>2</div><div>3</div></div>\n</body>\n</html>\n"
+    }
+   ],
+   "lesson": "css-layout.md"
+  },
+  {
+   "id": "css-mobil",
+   "title": "CSS: sidor som fungerar i mobilen",
+   "requires": [
+    "css-layout"
+   ],
+   "summary": "`<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">`; `@media (max-width: 600px) { … }`; `max-width` + `margin: 0 auto`.",
+   "tasks": [
+    {
+     "id": "css-mobil-1",
+     "level": 3,
+     "title": "En kolumn i mobilen",
+     "prompt": "Lägg till viewport-taggen och en media query som gör .kort till en kolumn när skärmen är högst 600px bred.",
+     "starter": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n  <style>\n    .kort { display: grid; grid-template-columns: repeat(3, 1fr); }\n  </style>\n</head>\n<body>\n  <div class=\"kort\"><div>1</div><div>2</div><div>3</div></div>\n</body>\n</html>\n",
+     "check": {
+      "regex": [
+       "<meta[^>]+name=\"viewport\"[^>]+width=device-width",
+       "@media\\s*\\(\\s*max-width\\s*:\\s*600px\\s*\\)\\s*\\{[^@]*\\.kort\\s*\\{[^}]*grid-template-columns\\s*:\\s*1fr\\s*;?\\s*\\}"
+      ]
+     },
+     "hints": [
+      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
+      "@media (max-width: 600px) { .kort { grid-template-columns: 1fr; } }"
+     ],
+     "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <style>\n    .kort { display: grid; grid-template-columns: repeat(3, 1fr); }\n    @media (max-width: 600px) {\n      .kort { grid-template-columns: 1fr; }\n    }\n  </style>\n</head>\n<body>\n  <div class=\"kort\"><div>1</div><div>2</div><div>3</div></div>\n</body>\n</html>\n"
+    }
+   ],
+   "lesson": "css-mobil.md"
   }
  ]
 }

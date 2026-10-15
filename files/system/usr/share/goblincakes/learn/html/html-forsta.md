@@ -1,14 +1,14 @@
 # Din första sida
 
-En hemsida är en textfil med **taggar** som talar om vad varje del är:
+En hemsida är en textfil med **taggar** som säger vad varje del är:
 
 ```html
 <h1>Rubrik</h1>
-<p>Ett stycke text.</p>
-<a href="https://ianseo.net">En länk</a>
+<p>Ett stycke text med <strong>fet</strong> och <em>kursiv</em> text.</p>
 ```
 
-Det som syns på sidan står mellan `<body>` och `</body>`. Allt i `<head>` är information
-om sidan (titel, teckenkodning).
+De flesta taggar har en start `<p>` och ett slut `</p>`. Det som syns står mellan `<body>` och
+`</body>`; `<head>` innehåller information om sidan, som titeln i fliken och teckenkodningen
+(`utf-8`, så att å, ä och ö blir rätt).
 
 Tryck **Förhandsvisa** för att se sidan i webbläsaren.

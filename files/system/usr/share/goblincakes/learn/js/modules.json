@@ -1,0 +1,225 @@
+{
+ "modules": [
+  {
+   "id": "js-grunder",
+   "title": "JavaScript: grunder",
+   "requires": [],
+   "summary": "`console.log()`; `const` (ändras inte) / `let`; template literals `` `Hej ${namn}` ``; `===` jämför; `//` kommentar.",
+   "tasks": [
+    {
+     "id": "js-grunder-1",
+     "level": 1,
+     "title": "Hej",
+     "prompt": "Skapa const namn = \"Kaytho\" och skriv ut: Hej Kaytho!",
+     "starter": "const namn = \"Kaytho\";\n",
+     "check": {
+      "expect": "Hej Kaytho!"
+     },
+     "hints": [
+      "console.log skriver ut.",
+      "console.log(`Hej ${namn}!`);"
+     ],
+     "solution": "const namn = \"Kaytho\";\nconsole.log(`Hej ${namn}!`);"
+    },
+    {
+     "id": "js-grunder-2",
+     "level": 2,
+     "title": "Räkna",
+     "prompt": "Med let poang = 600, lägg till 55 och skriv ut: Poäng: 655",
+     "starter": "",
+     "check": {
+      "expect": "Poäng: 655"
+     },
+     "hints": [
+      "poang += 55",
+      "console.log(`Poäng: ${poang}`);"
+     ],
+     "solution": "let poang = 600;\npoang += 55;\nconsole.log(`Poäng: ${poang}`);"
+    }
+   ],
+   "lesson": "js-grunder.md"
+  },
+  {
+   "id": "js-villkor",
+   "title": "JavaScript: villkor och loopar",
+   "requires": [
+    "js-grunder"
+   ],
+   "summary": "`if (x) { } else if { } else { }`; `&&`, `||`, `!`; `for (let i = 0; i < 5; i++)`; `for (const x of lista)`; `while`.",
+   "tasks": [
+    {
+     "id": "js-villkor-1",
+     "level": 1,
+     "title": "Vågor",
+     "prompt": "Skriv ut Våg 1 till Våg 3 med en for-loop.",
+     "starter": "",
+     "check": {
+      "expect": "Våg 1\nVåg 2\nVåg 3"
+     },
+     "hints": [
+      "for (let i = 1; i <= 3; i++) { … }",
+      "console.log(`Våg ${i}`);"
+     ],
+     "solution": "for (let i = 1; i <= 3; i++) {\n  console.log(`Våg ${i}`);\n}"
+    },
+    {
+     "id": "js-villkor-2",
+     "level": 2,
+     "title": "Jämna tal",
+     "prompt": "Skriv ut de jämna talen från 1 till 10 (ett per rad).",
+     "starter": "",
+     "check": {
+      "expect": "2\n4\n6\n8\n10"
+     },
+     "hints": [
+      "% ger resten vid division.",
+      "i % 2 === 0 betyder jämnt."
+     ],
+     "solution": "for (let i = 1; i <= 10; i++) {\n  if (i % 2 === 0) console.log(i);\n}"
+    }
+   ],
+   "lesson": "js-villkor.md"
+  },
+  {
+   "id": "js-funktioner",
+   "title": "JavaScript: funktioner",
+   "requires": [
+    "js-villkor"
+   ],
+   "summary": "`function namn(a) { return … }` eller pilfunktion `const namn = (a) => …`; standardvärden `(a = 1)`.",
+   "tasks": [
+    {
+     "id": "js-funktioner-1",
+     "level": 1,
+     "title": "Dubbla",
+     "prompt": "Skriv funktionen dubbla(x) som returnerar x * 2 och skriv ut dubbla(21).",
+     "starter": "",
+     "check": {
+      "expect": "42"
+     },
+     "hints": [
+      "function dubbla(x) { return x * 2; }",
+      "console.log(dubbla(21));"
+     ],
+     "solution": "function dubbla(x) {\n  return x * 2;\n}\nconsole.log(dubbla(21));"
+    },
+    {
+     "id": "js-funktioner-2",
+     "level": 2,
+     "title": "Pilfunktion",
+     "prompt": "Skriv en pilfunktion snitt som tar en lista och returnerar medelvärdet. Skriv ut snitt([8, 9, 10, 9]).",
+     "starter": "",
+     "check": {
+      "expect": "9"
+     },
+     "hints": [
+      "lista.reduce((a, b) => a + b, 0) ger summan.",
+      "Dela med lista.length."
+     ],
+     "solution": "const snitt = (lista) => lista.reduce((a, b) => a + b, 0) / lista.length;\nconsole.log(snitt([8, 9, 10, 9]));"
+    }
+   ],
+   "lesson": "js-funktioner.md"
+  },
+  {
+   "id": "js-arrayer",
+   "title": "JavaScript: listor och objekt",
+   "requires": [
+    "js-funktioner"
+   ],
+   "summary": "`[]` med `push`, `length`, `map`, `filter`, `find`, `sort((a, b) => b - a)`; objekt `{ namn: \"Bo\" }`, `obj.namn`; `JSON.stringify`/`JSON.parse`.",
+   "tasks": [
+    {
+     "id": "js-arrayer-1",
+     "level": 2,
+     "title": "Vinnaren",
+     "prompt": "const skyttar = [{namn:\"Anna\",poang:612},{namn:\"Bo\",poang:655},{namn:\"Cia\",poang:590}]. Skriv ut namnet på den med högst poäng.",
+     "starter": "const skyttar = [{namn:\"Anna\",poang:612},{namn:\"Bo\",poang:655},{namn:\"Cia\",poang:590}];\n",
+     "check": {
+      "expect": "Bo"
+     },
+     "hints": [
+      "Sortera med (a, b) => b.poang - a.poang.",
+      "Den första efter sorteringen är vinnaren: [0].namn"
+     ],
+     "solution": "const skyttar = [{namn:\"Anna\",poang:612},{namn:\"Bo\",poang:655},{namn:\"Cia\",poang:590}];\nconst vinnare = [...skyttar].sort((a, b) => b.poang - a.poang)[0];\nconsole.log(vinnare.namn);"
+    },
+    {
+     "id": "js-arrayer-2",
+     "level": 3,
+     "title": "Över 600",
+     "prompt": "Med samma lista: skriv ut JSON med namnen på dem som har över 600 poäng: [\"Anna\",\"Bo\"]",
+     "starter": "const skyttar = [{namn:\"Anna\",poang:612},{namn:\"Bo\",poang:655},{namn:\"Cia\",poang:590}];\n",
+     "check": {
+      "expect": "[\"Anna\",\"Bo\"]"
+     },
+     "hints": [
+      "filter först, sedan map.",
+      "JSON.stringify(…) gör texten."
+     ],
+     "solution": "const skyttar = [{namn:\"Anna\",poang:612},{namn:\"Bo\",poang:655},{namn:\"Cia\",poang:590}];\nconsole.log(JSON.stringify(skyttar.filter(s => s.poang > 600).map(s => s.namn)));"
+    }
+   ],
+   "lesson": "js-arrayer.md"
+  },
+  {
+   "id": "js-async",
+   "title": "JavaScript: vänta på saker (async)",
+   "requires": [
+    "js-arrayer"
+   ],
+   "summary": "Promise = ett svar som kommer senare; `async function` + `await`; `try/catch` runt `await`; `fetch(url)` → `await svar.json()`.",
+   "tasks": [
+    {
+     "id": "js-async-1",
+     "level": 3,
+     "title": "Vänta på svaret",
+     "prompt": "Skriv en async function hamta() som awaitar Promise.resolve({ namn: \"Bo\", poang: 655 }) och skriver ut: Bo: 655. Anropa hamta().",
+     "starter": "",
+     "check": {
+      "expect": "Bo: 655"
+     },
+     "hints": [
+      "const data = await Promise.resolve({ … });",
+      "Anropa hamta() sist."
+     ],
+     "solution": "async function hamta() {\n  const data = await Promise.resolve({ namn: \"Bo\", poang: 655 });\n  console.log(`${data.namn}: ${data.poang}`);\n}\nhamta();"
+    }
+   ],
+   "lesson": "js-async.md"
+  },
+  {
+   "id": "js-dom",
+   "title": "JavaScript på hemsidan (DOM)",
+   "requires": [
+    "js-async",
+    "html-forsta"
+   ],
+   "run": "html",
+   "summary": "`document.querySelector(\"#id\")`, `.textContent`, `.addEventListener(\"click\", () => …)`, `classList.toggle`; `<script>` sist i body eller `defer`.",
+   "tasks": [
+    {
+     "id": "js-dom-1",
+     "level": 2,
+     "title": "Klickräknare",
+     "prompt": "Gör en sida med en knapp (id knapp) och ett stycke (id antal) som visar hur många gånger knappen klickats, med addEventListener och textContent.",
+     "starter": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n\n</body>\n</html>\n",
+     "check": {
+      "regex": [
+       "id=\"knapp\"",
+       "id=\"antal\"",
+       "addEventListener\\(\\s*[\\\"']click",
+       "textContent\\s*="
+      ]
+     },
+     "hints": [
+      "document.querySelector(\"#knapp\")",
+      "knapp.addEventListener(\"click\", () => { … text.textContent = … })"
+     ],
+     "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n  <p id=\"antal\">0 klick</p>\n  <button id=\"knapp\">Klicka</button>\n  <script>\n    const knapp = document.querySelector(\"#knapp\");\n    const text = document.querySelector(\"#antal\");\n    let n = 0;\n    knapp.addEventListener(\"click\", () => {\n      n++;\n      text.textContent = `${n} klick`;\n    });\n  </script>\n</body>\n</html>\n"
+    }
+   ],
+   "lesson": "js-dom.md"
+  }
+ ]
+}
