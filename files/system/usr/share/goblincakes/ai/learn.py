@@ -36,7 +36,7 @@ RUNNERS = {
     "wowlua": ("main.lua", ["lua5.1", "/course/sandbox/wowrun.lua", "main.lua"]),
     "php": ("main.php", ["php", "main.php"]),
     "js": ("main.js", ["node", "main.js"]),
-    "bash": ("main.sh", ["bash", "main.sh"]),
+    "bash": ("main.sh", ["bash", "/code/main.sh"]),  # beside the work folder: not in ls/git status
     "sql": ("main.sql", ["python3", "/course/sandbox/sqlrun.py", "main.sql"]),
     "html": ("index.html", None),  # checked by rules, shown in the browser
     "check": ("check.py", ["python3", "check.py"]),  # a task's checker script (the user's file beside it)
@@ -235,12 +235,15 @@ def run_code(run, code, files=None, timeout=10):
     """Runs the user's code; returns (exit code, output). No network, little memory, 10 seconds."""
     filename, cmd = RUNNERS[run]
     work = Path(tempfile.mkdtemp(prefix="goblincakes-learn-"))
+    codedir = Path(tempfile.mkdtemp(prefix="goblincakes-learn-code-"))
     try:
-        (work / filename).write_text(code)
+        apart = any(c.startswith("/code/") for c in cmd)  # the user's file outside the work folder
+        ((codedir if apart else work) / filename).write_text(code)
         for name, text in (files or {}).items():
             (work / name).write_text(text)
         if sandbox_mode() == "host":
-            host_cmd = [str(BASE / c[len("/course/"):]) if c.startswith("/course/") else c for c in cmd]
+            host_cmd = [str(BASE / c[len("/course/"):]) if c.startswith("/course/")
+                        else str(codedir / c[len("/code/"):]) if c.startswith("/code/") else c for c in cmd]
             try:
                 r = subprocess.run(host_cmd, cwd=work, capture_output=True, text=True, timeout=timeout)
                 return r.returncode, (r.stdout + r.stderr)[-8000:]
@@ -248,6 +251,7 @@ def run_code(run, code, files=None, timeout=10):
                 return 124, "Tog för lång tid (över 10 sekunder) – en loop som aldrig slutar?"
         full = ["podman", "run", "--rm", "--network=none", "--memory=256m", "--pids-limit=64",
                 "--security-opt", "label=disable", "-v", f"{work}:/work", "-v", f"{BASE}:/course:ro",
+                "-v", f"{codedir}:/code:ro",
                 "-w", "/work", IMAGE, "timeout", str(timeout), *cmd]
         try:
             r = subprocess.run(full, capture_output=True, text=True, timeout=timeout + 30)
@@ -259,6 +263,7 @@ def run_code(run, code, files=None, timeout=10):
         return r.returncode, out
     finally:
         shutil.rmtree(work, ignore_errors=True)
+        shutil.rmtree(codedir, ignore_errors=True)
 
 
 def norm(text):

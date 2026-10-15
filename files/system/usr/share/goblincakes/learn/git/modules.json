@@ -1,0 +1,134 @@
+{
+ "modules": [
+  {
+   "id": "git-forsta",
+   "title": "Git: spara versioner",
+   "requires": [
+    "bash-kommandon"
+   ],
+   "summary": "`git init`, `git add fil`/`git add -A`, `git commit -m \"text\"`, `git log --oneline`; namn och e-post med `git config`.",
+   "tasks": [
+    {
+     "id": "git-forsta-1",
+     "level": 1,
+     "title": "Två versioner",
+     "prompt": "Skapa ett förråd (git init -q), sätt namn och e-post, gör två commits (skapa fil.txt, commit; ändra den, commit) och skriv sedan ut antalet commits med git log --oneline | wc -l.",
+     "starter": "",
+     "check": {
+      "expect": "2"
+     },
+     "hints": [
+      "Glöm inte git config user.name och user.email.",
+      "add + commit två gånger, sedan git log --oneline | wc -l"
+     ],
+     "solution": "git init -q\ngit config user.name \"Kaytho\"\ngit config user.email \"kaytho@example.com\"\necho \"v1\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Första versionen\"\necho \"v2\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Andra versionen\"\ngit log --oneline | wc -l"
+    }
+   ],
+   "lesson": "git-forsta.md"
+  },
+  {
+   "id": "git-status",
+   "title": "Git: vad har ändrats?",
+   "requires": [
+    "git-forsta"
+   ],
+   "summary": "`git status` (`--short`: `M` ändrad, `??` ny), `git diff` visar raderna, `.gitignore` för filer som inte ska med.",
+   "tasks": [
+    {
+     "id": "git-status-1",
+     "level": 2,
+     "title": "Ignorera hemligheter",
+     "prompt": "I ett nytt förråd: skapa main.lua och hemligt.txt, lägg hemligt.txt i .gitignore och skriv ut git status --short (main.lua och .gitignore ska synas som nya, inte hemligt.txt).",
+     "starter": "",
+     "check": {
+      "expect": "?? .gitignore\n?? main.lua"
+     },
+     "hints": [
+      "echo \"hemligt.txt\" > .gitignore",
+      "git status --short visar ?? för nya filer."
+     ],
+     "solution": "git init -q\necho \"print(1)\" > main.lua\necho \"lösen\" > hemligt.txt\necho \"hemligt.txt\" > .gitignore\ngit status --short"
+    }
+   ],
+   "lesson": "git-status.md"
+  },
+  {
+   "id": "git-grenar",
+   "title": "Git: grenar",
+   "requires": [
+    "git-status"
+   ],
+   "summary": "`git switch -c ny-gren`, `git switch main`, `git merge gren`, `git branch` – prova saker utan att röra det som fungerar.",
+   "tasks": [
+    {
+     "id": "git-grenar-1",
+     "level": 2,
+     "title": "Prova i en gren",
+     "prompt": "I ett förråd (git init -q -b main, med namn/e-post och en första commit av fil.txt med texten bas): skapa grenen test, ändra fil.txt till nytt och gör commit, gå tillbaka till main och skriv ut fil.txt (bas), slå sedan ihop test och skriv ut fil.txt igen (nytt).",
+     "starter": "",
+     "check": {
+      "expect": "bas\nnytt"
+     },
+     "hints": [
+      "git switch -c test skapar grenen.",
+      "git commit -am sparar ändrade filer direkt; -q gör utskriften tyst."
+     ],
+     "solution": "git init -q -b main\ngit config user.name \"Kaytho\"\ngit config user.email \"k@example.com\"\necho \"bas\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Bas\"\ngit switch -q -c test\necho \"nytt\" > fil.txt\ngit commit -q -am \"Nytt\"\ngit switch -q main\ncat fil.txt\ngit merge -q test\ncat fil.txt"
+    }
+   ],
+   "lesson": "git-grenar.md"
+  },
+  {
+   "id": "git-angra",
+   "title": "Git: ångra",
+   "requires": [
+    "git-grenar"
+   ],
+   "summary": "`git restore fil` (släng ändringar), `git restore --staged fil` (ta ur add), `git revert <commit>` (ny commit som tar bort en gammal), `git log` för att hitta den.",
+   "tasks": [
+    {
+     "id": "git-angra-1",
+     "level": 2,
+     "title": "Släng en ändring",
+     "prompt": "I ett förråd med fil.txt = bra (commitad): skriv dåligt till fil.txt, ångra med git restore och skriv ut filen.",
+     "starter": "",
+     "check": {
+      "expect": "bra"
+     },
+     "hints": [
+      "git restore fil.txt tar tillbaka senaste commit.",
+      "Gör först en commit med texten bra."
+     ],
+     "solution": "git init -q\ngit config user.name \"Kaytho\"\ngit config user.email \"k@example.com\"\necho \"bra\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Bra\"\necho \"dåligt\" > fil.txt\ngit restore fil.txt\ncat fil.txt"
+    }
+   ],
+   "lesson": "git-angra.md"
+  },
+  {
+   "id": "git-github",
+   "title": "Git: GitHub",
+   "requires": [
+    "git-angra"
+   ],
+   "summary": "`git remote add origin <url>`, `git push -u origin main`, `git pull`, `git clone <url>`; logga in med `gh auth login`.",
+   "tasks": [
+    {
+     "id": "git-github-1",
+     "level": 1,
+     "title": "Koppla till GitHub",
+     "prompt": "I ett nytt förråd: lägg till fjärrförrådet origin med adressen https://github.com/kaytho/mitt-tillagg.git och skriv ut git remote.",
+     "starter": "",
+     "check": {
+      "expect": "origin"
+     },
+     "hints": [
+      "git remote add origin <adress>",
+      "git remote visar namnen."
+     ],
+     "solution": "git init -q\ngit remote add origin https://github.com/kaytho/mitt-tillagg.git\ngit remote"
+    }
+   ],
+   "lesson": "git-github.md"
+  }
+ ]
+}

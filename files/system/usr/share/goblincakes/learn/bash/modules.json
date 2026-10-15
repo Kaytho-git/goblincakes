@@ -1,0 +1,313 @@
+{
+ "modules": [
+  {
+   "id": "bash-kommandon",
+   "title": "Terminalen: filer och mappar",
+   "requires": [],
+   "summary": "`ls`, `cd`, `pwd`, `mkdir -p`, `touch`, `cat`, `cp`, `mv`, `rm` (`-r` för mappar); `echo text > fil` skriver, `>>` lägger till; `~` = hemmappen.",
+   "tasks": [
+    {
+     "id": "bash-kommandon-1",
+     "level": 1,
+     "title": "Raidlista",
+     "prompt": "Skapa mappen raid, skriv raden Kaytho till filen raid/lista.txt, lägg till raden Bo, och visa filen med cat.",
+     "starter": "",
+     "check": {
+      "expect": "Kaytho\nBo"
+     },
+     "hints": [
+      "> skriver, >> lägger till.",
+      "cat raid/lista.txt visar filen."
+     ],
+     "solution": "mkdir -p raid\necho \"Kaytho\" > raid/lista.txt\necho \"Bo\" >> raid/lista.txt\ncat raid/lista.txt"
+    },
+    {
+     "id": "bash-kommandon-2",
+     "level": 2,
+     "title": "Byt namn",
+     "prompt": "Skapa filen gammal.txt med texten hej, byt namn på den till ny.txt och visa sedan alla .txt-filer med ls.",
+     "starter": "",
+     "check": {
+      "expect": "ny.txt"
+     },
+     "hints": [
+      "mv byter namn.",
+      "ls *.txt visar bara .txt-filer."
+     ],
+     "solution": "echo \"hej\" > gammal.txt\nmv gammal.txt ny.txt\nls *.txt"
+    }
+   ],
+   "lesson": "bash-kommandon.md"
+  },
+  {
+   "id": "bash-variabler",
+   "title": "Variabler och kommandon i kommandon",
+   "requires": [
+    "bash-kommandon"
+   ],
+   "summary": "`namn=värde` (inga mellanslag runt =), `\"$namn\"` (citattecken!), `$(kommando)`, räkna med `$(( a * b ))`.",
+   "tasks": [
+    {
+     "id": "bash-variabler-1",
+     "level": 1,
+     "title": "Hej med variabel",
+     "prompt": "Sätt namn=\"Kaytho\" och skriv ut: Hej Kaytho!",
+     "starter": "",
+     "check": {
+      "expect": "Hej Kaytho!"
+     },
+     "hints": [
+      "echo \"Hej $namn!\"",
+      "Inga mellanslag runt =."
+     ],
+     "solution": "namn=\"Kaytho\"\necho \"Hej $namn!\""
+    },
+    {
+     "id": "bash-variabler-2",
+     "level": 2,
+     "title": "Räkna pilar",
+     "prompt": "Sätt pilar=6 och serier=12 och skriv ut: Totalt 72 pilar",
+     "starter": "",
+     "check": {
+      "expect": "Totalt 72 pilar"
+     },
+     "hints": [
+      "$(( … )) räknar.",
+      "echo \"Totalt $(( pilar * serier )) pilar\""
+     ],
+     "solution": "pilar=6\nserier=12\necho \"Totalt $(( pilar * serier )) pilar\""
+    }
+   ],
+   "lesson": "bash-variabler.md"
+  },
+  {
+   "id": "bash-pipes",
+   "title": "Pipor: grep, sort, wc",
+   "requires": [
+    "bash-variabler"
+   ],
+   "summary": "`|` skickar utskrift vidare; `grep ord` (`-i`, `-v`, `-c`), `sort` (`-n`, `-r`), `uniq -c`, `wc -l`, `head`/`tail -n`, `cut -d' ' -f1`.",
+   "tasks": [
+    {
+     "id": "bash-pipes-1",
+     "level": 1,
+     "title": "Räkna fel",
+     "prompt": "Filen logg.txt finns. Skriv ut hur många rader som innehåller ERROR.",
+     "starter": "",
+     "check": {
+      "expect": "3"
+     },
+     "hints": [
+      "grep ERROR logg.txt ger raderna.",
+      "| wc -l räknar dem."
+     ],
+     "solution": "grep \"ERROR\" logg.txt | wc -l",
+     "files": {
+      "logg.txt": "INFO start\nERROR disk\nINFO ok\nERROR nät\nERROR disk\n"
+     }
+    },
+    {
+     "id": "bash-pipes-2",
+     "level": 2,
+     "title": "Vanligaste felet",
+     "prompt": "Ur logg.txt: räkna hur många gånger varje ERROR-rad förekommer och skriv ut den vanligaste raden med antal, t.ex. 2 ERROR disk",
+     "starter": "",
+     "check": {
+      "expect": "2 ERROR disk"
+     },
+     "hints": [
+      "sort | uniq -c räknar, sort -rn sorterar störst först.",
+      "head -n 1 tar den översta; sed 's/^ *//' tar bort mellanslagen först."
+     ],
+     "solution": "grep ERROR logg.txt | sort | uniq -c | sort -rn | head -n 1 | sed 's/^ *//'",
+     "files": {
+      "logg.txt": "INFO start\nERROR disk\nINFO ok\nERROR nät\nERROR disk\n"
+     }
+    }
+   ],
+   "lesson": "bash-pipes.md"
+  },
+  {
+   "id": "bash-villkor",
+   "title": "Villkor och felkoder",
+   "requires": [
+    "bash-pipes"
+   ],
+   "summary": "`if [ -f fil ]; then … elif … else … fi`; `-f`/`-d`/`-z`, tal `-eq -lt -gt`, text `=`/`!=`; `$?`, `&&`, `||`.",
+   "tasks": [
+    {
+     "id": "bash-villkor-1",
+     "level": 1,
+     "title": "Finns filen?",
+     "prompt": "Skriv ut Finns om filen config.txt finns, annars Saknas.",
+     "starter": "",
+     "check": {
+      "expect": "Saknas"
+     },
+     "hints": [
+      "[ -f config.txt ] testar om filen finns.",
+      "if …; then … else … fi"
+     ],
+     "solution": "if [ -f config.txt ]; then\n  echo \"Finns\"\nelse\n  echo \"Saknas\"\nfi"
+    },
+    {
+     "id": "bash-villkor-2",
+     "level": 2,
+     "title": "Diskvarning",
+     "prompt": "Variabeln anvand=91 (procent av disken). Skriv ut Varning om den är över 90, annars OK.",
+     "starter": "anvand=91\n",
+     "check": {
+      "expect": "Varning"
+     },
+     "hints": [
+      "-gt betyder större än för tal.",
+      "if [ \"$anvand\" -gt 90 ]; then"
+     ],
+     "solution": "anvand=91\nif [ \"$anvand\" -gt 90 ]; then\n  echo \"Varning\"\nelse\n  echo \"OK\"\nfi"
+    }
+   ],
+   "lesson": "bash-villkor.md"
+  },
+  {
+   "id": "bash-loopar",
+   "title": "Loopar",
+   "requires": [
+    "bash-villkor"
+   ],
+   "summary": "`for x in a b c; do … done`, `for f in *.txt`, `for i in {1..5}`; `while read -r rad; do … done < fil`.",
+   "tasks": [
+    {
+     "id": "bash-loopar-1",
+     "level": 1,
+     "title": "Hälsa på alla",
+     "prompt": "Skriv ut Hej Kaytho, Hej Bo och Hej Cia på var sin rad med en for-loop.",
+     "starter": "",
+     "check": {
+      "expect": "Hej Kaytho\nHej Bo\nHej Cia"
+     },
+     "hints": [
+      "for namn in Kaytho Bo Cia; do … done",
+      "echo \"Hej $namn\""
+     ],
+     "solution": "for namn in Kaytho Bo Cia; do\n  echo \"Hej $namn\"\ndone"
+    },
+    {
+     "id": "bash-loopar-2",
+     "level": 2,
+     "title": "Byt ändelse",
+     "prompt": "Mappen har a.log och b.log. Byt namn på alla .log-filer till .txt och visa sedan filerna med ls.",
+     "starter": "",
+     "check": {
+      "expect": "a.txt\nb.txt"
+     },
+     "hints": [
+      "\"${f%.log}\" tar bort .log från slutet av namnet.",
+      "mv \"$f\" \"${f%.log}.txt\""
+     ],
+     "solution": "for f in *.log; do\n  mv \"$f\" \"${f%.log}.txt\"\ndone\nls",
+     "files": {
+      "a.log": "a\n",
+      "b.log": "b\n"
+     }
+    }
+   ],
+   "lesson": "bash-loopar.md"
+  },
+  {
+   "id": "bash-funktioner",
+   "title": "Skript och funktioner",
+   "requires": [
+    "bash-loopar"
+   ],
+   "summary": "`#!/bin/bash` + `chmod +x`; argument `$1 $2 \"$@\" $#`; `namn() { … }`; `local`; `set -euo pipefail`.",
+   "tasks": [
+    {
+     "id": "bash-funktioner-1",
+     "level": 2,
+     "title": "En funktion med argument",
+     "prompt": "Skriv funktionen summa som skriver ut summan av sina två argument, och anropa summa 40 2 (ska skriva 42).",
+     "starter": "",
+     "check": {
+      "expect": "42"
+     },
+     "hints": [
+      "$1 och $2 är argumenten.",
+      "echo $(( $1 + $2 ))"
+     ],
+     "solution": "summa() {\n  echo $(( $1 + $2 ))\n}\nsumma 40 2"
+    },
+    {
+     "id": "bash-funktioner-2",
+     "level": 3,
+     "title": "Säkerhetskopia",
+     "prompt": "Skriv funktionen backup som kopierar filen i $1 till samma namn + .bak och skriver \"Sparade <fil>.bak\". Anropa backup anteckning.txt och visa sedan .bak-filens innehåll.",
+     "starter": "",
+     "check": {
+      "expect": "Sparade anteckning.txt.bak\nviktigt"
+     },
+     "hints": [
+      "cp \"$1\" \"$1.bak\"",
+      "Glöm inte citattecknen runt $1."
+     ],
+     "solution": "backup() {\n  cp \"$1\" \"$1.bak\"\n  echo \"Sparade $1.bak\"\n}\nbackup anteckning.txt\ncat anteckning.txt.bak",
+     "files": {
+      "anteckning.txt": "viktigt\n"
+     }
+    }
+   ],
+   "lesson": "bash-funktioner.md"
+  },
+  {
+   "id": "bash-rattigheter",
+   "title": "Rättigheter",
+   "requires": [
+    "bash-funktioner"
+   ],
+   "summary": "`ls -l`: rwx för ägare/grupp/andra; `chmod +x`, `chmod 644`/`755`/`600`; `sudo` = som administratör.",
+   "tasks": [
+    {
+     "id": "bash-rattigheter-1",
+     "level": 2,
+     "title": "En hemlig fil",
+     "prompt": "Skapa filen nyckel.txt, ge den rättigheterna så att bara du kan läsa och skriva, och skriv ut rättigheterna med stat -c %a.",
+     "starter": "",
+     "check": {
+      "expect": "600"
+     },
+     "hints": [
+      "Läsa + skriva = 4 + 2 = 6, för andra 0.",
+      "chmod 600 nyckel.txt"
+     ],
+     "solution": "touch nyckel.txt\nchmod 600 nyckel.txt\nstat -c %a nyckel.txt"
+    }
+   ],
+   "lesson": "bash-rattigheter.md"
+  },
+  {
+   "id": "linux-goblincakes",
+   "title": "Linux i GOBLINCAKES",
+   "requires": [
+    "bash-rattigheter"
+   ],
+   "summary": "Atomiskt: `/usr` går inte att ändra, `rpm-ostree` byter hela systemet (rollback vid start); program = Flatpak; egna saker i hemmappen; `systemctl --user`, `journalctl --user`; `goblin`-kommandona.",
+   "tasks": [
+    {
+     "id": "linux-goblincakes-1",
+     "level": 1,
+     "title": "Rätt kommando",
+     "prompt": "Skriv ett skript med en funktion per fråga som skriver ut rätt kommando:\nuppdatera → goblin update\nloggar → journalctl --user -b\nAnropa uppdatera och sedan loggar.",
+     "starter": "uppdatera() { echo \"\"; }\nloggar() { echo \"\"; }\nuppdatera\nloggar\n",
+     "check": {
+      "expect": "goblin update\njournalctl --user -b"
+     },
+     "hints": [
+      "Tabellen i lektionen har svaren.",
+      "uppdatera() { echo \"goblin update\"; }"
+     ],
+     "solution": "uppdatera() { echo \"goblin update\"; }\nloggar() { echo \"journalctl --user -b\"; }\nuppdatera\nloggar"
+    }
+   ],
+   "lesson": "linux-goblincakes.md"
+  }
+ ]
+}
