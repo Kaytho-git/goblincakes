@@ -1598,7 +1598,9 @@ Window {
         visible: win.tab === "windows"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
 
-        property var info: ({ "screens": [], "layouts": [], "apps": [], "current": {}, "active": "" })
+        property var info: ({ "screens": [], "layouts": [], "apps": [], "current": {}, "active": "",
+                              "suggest": { "main": [], "others": [], "from": "open", "second": true } })
+        property bool suggesting: false
         property bool loaded: false
         property int sel: 0                 // the layout being edited
         property string selScreen: ""
@@ -1634,6 +1636,32 @@ Window {
                 windowsView.edit(d => { Object.assign(d.layouts[windowsView.sel].screens, got); });
                 windowsView.status = "Sparat som det ser ut nu.";
             }
+            function onTilesSuggested(json) {
+                windowsView.suggesting = false;
+                const got = json ? JSON.parse(json) : null;
+                if (!got || !Object.keys(got.screens || {}).length) {
+                    windowsView.status = "Inget förslag – välj huvudfönster (★) eller program att ha med.";
+                    return;
+                }
+                let at = windowsView.info.layouts.findIndex(l => l.name === got.name);
+                if (at < 0 && windowsView.info.layouts.length >= 9) {
+                    windowsView.status = "Du har redan 9 layouter – ta bort en först.";
+                    return;
+                }
+                windowsView.edit(d => {
+                    const screens = {};
+                    for (const s of d.screens)  // screens the suggestion leaves out keep KDE's tiles as they are
+                        screens[s.name] = JSON.parse(JSON.stringify(d.current[s.name] || {}));
+                    Object.assign(screens, got.screens);
+                    if (at < 0)
+                        d.layouts.push({ "name": got.name, "screens": screens });
+                    else
+                        d.layouts[at].screens = screens;
+                });
+                windowsView.sel = at < 0 ? windowsView.info.layouts.length - 1 : at;
+                windowsView.selPath = null;
+                windowsView.status = "Förslaget är klart. Dra i kanterna eller flytta program om du vill – tryck sedan Använd.";
+            }
             function onTileDone(message) {
                 windowsView.status = message || "Klart.";
                 windowsView.info = Object.assign({}, windowsView.info, { "active": windowsView.layout ? windowsView.layout.name : "" });
@@ -1643,7 +1671,8 @@ Window {
         Timer {
             id: saveTimer
             interval: 500
-            onTriggered: backend.saveLayouts(JSON.stringify({ "active": windowsView.info.active, "layouts": windowsView.info.layouts }))
+            onTriggered: backend.saveLayouts(JSON.stringify({ "active": windowsView.info.active, "layouts": windowsView.info.layouts,
+                                                              "suggest": windowsView.info.suggest }))
         }
 
         // ── Changing the layouts (a copy, then saved half a second later) ──
@@ -1697,6 +1726,28 @@ Window {
         }
         function samePath(a, b) {
             return !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
+        }
+        function toggleMain(app) {
+            edit(d => {
+                const m = d.suggest.main, i = m.indexOf(app);
+                if (i >= 0) m.splice(i, 1); else m.push(app);
+                d.suggest.others = d.suggest.others.filter(a => a !== app);
+            });
+        }
+        function toggleOther(app) {
+            edit(d => {
+                const o = d.suggest.others, i = o.indexOf(app);
+                if (i >= 0) o.splice(i, 1); else o.push(app);
+                d.suggest.main = d.suggest.main.filter(a => a !== app);
+            });
+        }
+        function setSuggest(key, value) {
+            edit(d => { d.suggest[key] = value; });
+        }
+        function suggestNow() {
+            suggesting = true;
+            status = info.suggest.from === "open" ? "Tittar vilka program som är öppna…" : "Gör ett förslag…";
+            backend.suggestTiles(JSON.stringify(info.suggest));
         }
         function newLayout() {
             const names = info.layouts.map(l => l.name);
@@ -1917,6 +1968,114 @@ Window {
                         visible: windowsView.info.layouts.length < 9
                         text: "+ Ny layout"
                         onClicked: windowsView.newLayout()
+                    }
+                }
+
+                // Main windows → a suggested layout (15 Oct, the user's idea)
+                Rectangle {
+                    visible: windowsView.loaded
+                    width: parent.width
+                    height: suggestCol.implicitHeight + 28
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    Column {
+                        id: suggestCol
+                        x: 16
+                        y: 14
+                        width: parent.width - 32
+                        spacing: 10
+                        Flow {
+                            width: parent.width
+                            spacing: 8
+                            Text {
+                                height: 30
+                                verticalAlignment: Text.AlignVCenter
+                                text: "HUVUDFÖNSTER"
+                                color: "#8B98AD"
+                                font.family: "Chakra Petch"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 13
+                                font.letterSpacing: 2
+                            }
+                            Repeater {
+                                model: windowsView.info.suggest.main
+                                SmallButton {
+                                    required property string modelData
+                                    on: true
+                                    text: "★ " + (windowsView.appsById[modelData] || { "name": modelData }).name + "  ✕"
+                                    onClicked: windowsView.toggleMain(modelData)
+                                }
+                            }
+                            Text {
+                                visible: !windowsView.info.suggest.main.length
+                                height: 30
+                                verticalAlignment: Text.AlignVCenter
+                                text: "Markera dina viktigaste program med ★ i listan till höger."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                        }
+                        Flow {
+                            width: parent.width
+                            spacing: 8
+                            Text {
+                                height: 30
+                                verticalAlignment: Text.AlignVCenter
+                                text: "De andra:"
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            SmallButton {
+                                text: "Programmen som är öppna nu"
+                                on: windowsView.info.suggest.from === "open"
+                                onClicked: windowsView.setSuggest("from", "open")
+                            }
+                            SmallButton {
+                                text: "Valda i listan (✓)" + (windowsView.info.suggest.others.length ? " · " + windowsView.info.suggest.others.length : "")
+                                on: windowsView.info.suggest.from === "chosen"
+                                onClicked: windowsView.setSuggest("from", "chosen")
+                            }
+                            Item { width: 8; height: 1 }
+                            SmallButton {
+                                visible: windowsView.info.screens.length > 1
+                                text: "På skärm 2"
+                                on: windowsView.info.suggest.second
+                                onClicked: windowsView.setSuggest("second", true)
+                            }
+                            SmallButton {
+                                visible: windowsView.info.screens.length > 1
+                                text: "Allt på huvudskärmen"
+                                on: !windowsView.info.suggest.second
+                                onClicked: windowsView.setSuggest("second", false)
+                            }
+                        }
+                        Row {
+                            spacing: 12
+                            FlatButton {
+                                primary: true
+                                enabledState: !windowsView.suggesting && (windowsView.info.suggest.main.length > 0
+                                              || (windowsView.info.suggest.from === "chosen" && windowsView.info.suggest.others.length > 0)
+                                              || windowsView.info.suggest.from === "open")
+                                text: windowsView.suggesting ? "Gör förslag…" : "Föreslå layout"
+                                onClicked: windowsView.suggestNow()
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: suggestCol.width - 200
+                                text: windowsView.info.suggest.main.length === 1
+                                    ? "Huvudfönstret i mitten, de andra på sidorna."
+                                    : windowsView.info.suggest.main.length > 1
+                                    ? "Huvudfönstren stora bredvid varandra (⅔ av höjden), de andra i en rad under."
+                                    : "Utan huvudfönster delas skärmen lika."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                            }
+                        }
                     }
                 }
 
@@ -2209,7 +2368,7 @@ Window {
         // ── Right: the programs to drag into the tiles ──
         Rectangle {
             id: appPane
-            visible: !!windowsView.layout
+            visible: windowsView.loaded
             anchors { right: parent.right; rightMargin: 48; top: parent.top; topMargin: 28; bottom: parent.bottom; bottomMargin: 20 }
             width: 270
             color: "#0E1420"
@@ -2227,7 +2386,8 @@ Window {
                 id: appHint
                 anchors { left: parent.left; right: parent.right; top: appSearch.bottom; margins: 10; topMargin: 8 }
                 text: windowsView.pendingApp ? "Klicka på rutan där " + (windowsView.appsById[windowsView.pendingApp] || {}).name + " ska öppnas."
-                                             : "Dra till en ruta – eller klicka här och sedan på rutan."
+                                             : "Dra till en ruta – eller klicka här och sedan på rutan. ★ = huvudfönster"
+                                               + (windowsView.info.suggest.from === "chosen" ? ", ✓ = med i förslaget." : ".")
                 color: windowsView.pendingApp ? accent.text : "#8B98AD"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 12
@@ -2256,13 +2416,54 @@ Window {
                         sourceSize.height: 40
                         source: appRow.modelData.icon ? "image://icon/" + appRow.modelData.icon : ""
                     }
+                    readonly property bool isMain: windowsView.info.suggest.main.indexOf(modelData.id) >= 0
+                    readonly property bool isOther: windowsView.info.suggest.others.indexOf(modelData.id) >= 0
                     Text {
-                        anchors { left: rowIcon.right; leftMargin: 10; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                        anchors { left: rowIcon.right; leftMargin: 10; right: rowMarks.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
                         text: appRow.modelData.name
                         color: "#E6ECF5"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 14
                         elide: Text.ElideRight
+                    }
+                    Row { // ★ = main window, ✓ = one of the others (when "Valda i listan")
+                        id: rowMarks
+                        z: 2
+                        anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                        spacing: 2
+                        Text {
+                            visible: windowsView.info.suggest.from === "chosen" && !appRow.isMain
+                            width: 24
+                            height: 26
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            text: "✓"
+                            color: appRow.isOther ? accent.text : (checkArea.containsMouse ? "#8B98AD" : "#2A3852")
+                            font.pixelSize: 15
+                            MouseArea {
+                                id: checkArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: windowsView.toggleOther(appRow.modelData.id)
+                            }
+                        }
+                        Text {
+                            width: 24
+                            height: 26
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            text: appRow.isMain ? "★" : "☆"
+                            color: appRow.isMain ? accent.text : (starArea.containsMouse ? "#8B98AD" : "#2A3852")
+                            font.pixelSize: 16
+                            MouseArea {
+                                id: starArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: windowsView.toggleMain(appRow.modelData.id)
+                            }
+                        }
                     }
                     MouseArea {
                         id: rowArea

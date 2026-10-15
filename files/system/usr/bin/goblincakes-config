@@ -244,6 +244,7 @@ class Config(QObject):
     tilesLoaded = Signal(str)   # Fönster: goblincakes-tile json ("" = failed)
     tilesCaptured = Signal(str)  # Fönster: KDE's tiles now, {"screens": {connector: tree}}
     tileDone = Signal(str)      # Fönster: a layout was used – the message
+    tilesSuggested = Signal(str)  # Fönster: the suggested layout from the main windows ("" = failed)
     autostartChanged = Signal()
     webappsChanged = Signal()
     fullscreenChanged = Signal()
@@ -441,6 +442,10 @@ class Config(QObject):
     @Slot()
     def captureTiles(self):
         self._tile_proc(["capture"], lambda out, err: self.tilesCaptured.emit(out.strip()))
+
+    @Slot(str)
+    def suggestTiles(self, options):
+        self._tile_proc(["suggest"], lambda out, err: self.tilesSuggested.emit(out.strip()), stdin=options)
 
     @Slot(str, bool)
     def useLayout(self, name, start_apps):

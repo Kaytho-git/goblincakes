@@ -7,7 +7,9 @@
     goblincakes-tile layouts                         your saved layouts (GOBLINCAKES Config → Fönster)
     goblincakes-tile layout <name|number>            use a layout: KDE's tiles, the rules, open windows in place
     goblincakes-tile open <name|number>              the same + start the layout's programs that aren't running
-    goblincakes-tile json | save | capture           for GOBLINCAKES Config (JSON out, JSON on stdin, KDE's tiles now)
+    goblincakes-tile huvud [program …]               main windows for the suggestion (none = show them, "av" = none)
+    goblincakes-tile förslag                         a suggested layout from the main windows → the layout "Förslag"
+    goblincakes-tile json | save | capture | suggest for GOBLINCAKES Config (JSON out, JSON on stdin, KDE's tiles now)
 
 The tiles are KDE's own (Meta+T draws them per screen, Shift+drag drops a window in one);
 GOBLINCAKES only adds rules program → tile. Tiles are numbered in the order KDE keeps them:
@@ -28,6 +30,14 @@ of the parent. Using a layout writes its programs as the tileRules above and loa
 script /usr/share/goblincakes/tile/apply.js for a moment: it rebuilds KDE's tiles on every
 screen of the layout (split/resizeByPixels – KWin can't reload its tiles from kwinrc) and puts
 the open windows in their tiles; it reports back over D-Bus (org.goblincakes.tile.p<pid>).
+
+Suggestion (15 Oct, the user's idea – "main windows"): "suggest" in the same file = {"main":
+[desktop ids], "others": [desktop ids], "from": "open"|"chosen", "second": bool}. The main
+windows get the big tiles: one alone in the middle (the others in columns on both sides), two
+or more side by side in a row taking ⅔ of the height with the others in a row below. With two
+or more screens and "second", the others go to screen 2 instead (as a grid). The others are the
+programs open now (from the KWin script) or the ones chosen. The result is an ordinary layout
+("Förslag") that Config shows for adjusting before it is used.
 """
 import importlib.util
 import json
@@ -342,7 +352,17 @@ def load_layouts():
             layouts.append({"name": name, "screens": {str(k): clean_tree(v) for k, v in screens.items()}})
     layouts = layouts[:MAX_LAYOUTS]
     active = data.get("active") if data.get("active") in [x["name"] for x in layouts] else ""
-    return {"active": active, "layouts": layouts}
+    return {"active": active, "layouts": layouts, "suggest": clean_suggest(data.get("suggest"))}
+
+
+def clean_suggest(raw):
+    raw = raw if isinstance(raw, dict) else {}
+
+    def ids(key):
+        return [a for a in dict.fromkeys(raw.get(key) or []) if isinstance(a, str) and a][:12]
+    return {"main": ids("main"), "others": ids("others"),
+            "from": raw.get("from") if raw.get("from") in ("open", "chosen") else "open",
+            "second": raw.get("second") is not False}
 
 
 def save_layouts(data):
@@ -441,7 +461,7 @@ def cmd_json():
                    for i, v in progs.items()), key=lambda a: a["name"].lower())
     data = load_layouts()
     print(json.dumps({"screens": screen_geometry(), "layouts": data["layouts"], "active": data["active"],
-                      "apps": apps, "current": current_trees()}, ensure_ascii=False))
+                      "apps": apps, "current": current_trees(), "suggest": data["suggest"]}, ensure_ascii=False))
     return 0
 
 
@@ -451,6 +471,8 @@ def cmd_save():
     except ValueError:
         print("Ogiltig JSON", file=sys.stderr)
         return 2
+    if isinstance(incoming, dict) and "suggest" not in incoming:  # Config's layouts only: keep the main windows
+        incoming["suggest"] = load_layouts()["suggest"]
     LAYOUTS.parent.mkdir(parents=True, exist_ok=True)
     tmp = LAYOUTS.with_name(LAYOUTS.name + ".in")
     tmp.write_text(json.dumps(incoming))
@@ -607,6 +629,162 @@ def cmd_capture():
     return 0
 
 
+# ── Suggestion from main windows ────────────────────────────────
+
+SUGGEST_NAME = "Förslag"
+MAIN_SHARE = 2 / 3     # the main windows' row of the height (the user's choice, 15 Oct)
+CENTER_SHARE = 0.5     # one main window alone in the middle: its part of the width
+ROW_MAX = 4            # other programs per row before they share tiles
+
+
+def row(apps, direction="h"):
+    """Tiles side by side (h) or on top of each other (v), one program each; more than ROW_MAX
+    share tiles in turn."""
+    count = min(len(apps), ROW_MAX)
+    if count == 0:
+        return {}
+    if count == 1:
+        return {"apps": list(apps)}
+    tiles = [[] for _ in range(count)]
+    for i, app in enumerate(apps):
+        tiles[i % count].append(app)
+    return {"dir": direction, "children": [{"apps": t, "size": 1 / count} for t in tiles]}
+
+
+def grid(apps, portrait=False):
+    """The others alone on a screen: 1 = whole, 2–3 = side by side, 4 = 2 × 2, more = two rows."""
+    across, down = ("v", "h") if portrait else ("h", "v")
+    if len(apps) <= 3:
+        return row(apps, across)
+    half = (len(apps) + 1) // 2
+    return {"dir": down, "children": [dict(row(apps[:half], across), size=0.5),
+                                      dict(row(apps[half:], across), size=0.5)]}
+
+
+def suggest_tree(mains, others, portrait=False):
+    """The main windows big, the others around them (see the top of this file)."""
+    across, down = ("v", "h") if portrait else ("h", "v")
+    if not mains:
+        return grid(others, portrait)
+    if not others:
+        return row(mains, across) if len(mains) <= ROW_MAX else grid(mains, portrait)
+    if len(mains) == 1:
+        if len(others) == 1:  # one on each side would leave a thin strip: main ⅔, the other ⅓
+            return {"dir": across, "children": [{"apps": mains, "size": MAIN_SHARE},
+                                                 {"apps": others, "size": 1 - MAIN_SHARE}]}
+        side = (1 - CENTER_SHARE) / 2
+        left, right = others[: (len(others) + 1) // 2], others[(len(others) + 1) // 2:]
+        return {"dir": across, "children": [dict(row(left, down), size=side),
+                                             {"apps": mains, "size": CENTER_SHARE},
+                                             dict(row(right, down), size=side)]}
+    return {"dir": down, "children": [dict(row(mains, across), size=MAIN_SHARE),
+                                       dict(row(others, across), size=1 - MAIN_SHARE)]}
+
+
+def running_apps(progs):
+    """The programs with a window open now (from the KWin script), in the order KWin has them."""
+    report = kwin_script({"mode": "capture", "games": GAMES}, wait=True) or {}
+    by_name = {}
+    for app, (_, classes) in progs.items():
+        for n in [app.lower()] + classes:
+            by_name.setdefault(n, app)
+    out = []
+    for names in report.get("running") or []:
+        app = next((by_name[n] for n in names if n in by_name), None)
+        if app and app not in out:
+            out.append(app)
+    return out
+
+
+def build_suggestion(opts, progs=None, screens=None, running=None):
+    """opts as "suggest" in the layouts file → {"name", "screens": {connector: tree}}."""
+    progs = progs if progs is not None else SCREEN.programs()
+    screens = screens if screens is not None else screen_geometry()
+    mains = [a for a in opts["main"] if a in progs]
+    if opts["from"] == "chosen":
+        pool = opts["others"]
+    else:
+        pool = running if running is not None else running_apps(progs)
+    others = [a for a in pool if a in progs and a not in mains]
+    if not screens:
+        screens = [{"name": "?", "w": 1920, "h": 1080}]
+    first = screens[0]
+    out = {}
+    if opts["second"] and len(screens) > 1 and others:
+        out[first["name"]] = clean_tree(suggest_tree(mains, [], first["h"] > first["w"]))
+        second = screens[1]
+        out[second["name"]] = clean_tree(grid(others, second["h"] > second["w"]))
+    else:
+        out[first["name"]] = clean_tree(suggest_tree(mains, others, first["h"] > first["w"]))
+    return {"name": SUGGEST_NAME, "screens": {k: v for k, v in out.items() if v}}
+
+
+def cmd_suggest():
+    """For Config: the options on stdin (saved too), the suggested layout out as JSON."""
+    try:
+        incoming = json.loads(sys.stdin.read() or "{}")
+    except ValueError:
+        incoming = {}
+    data = load_layouts()
+    if incoming:
+        data["suggest"] = clean_suggest(incoming)
+        save_layouts(data)
+    print(json.dumps(build_suggestion(data["suggest"]), ensure_ascii=False))
+    return 0
+
+
+def cmd_main(args):
+    data = load_layouts()
+    progs = SCREEN.programs()
+    if args and args[0].lower() in ("av", "off", "none", "inga"):
+        data["suggest"]["main"] = []
+        save_layouts(data)
+        print("Inga huvudfönster.")
+        return 0
+    if args:
+        chosen = []
+        for word in args:
+            hit = SCREEN.resolve(word)
+            if not hit:
+                return 1
+            if hit[0] not in chosen:
+                chosen.append(hit[0])
+        data["suggest"]["main"] = chosen
+        save_layouts(data)
+    mains = [progs[a][0] for a in data["suggest"]["main"] if a in progs]
+    print(f"{ACCENT}Huvudfönster{RESET} " + (", ".join(mains) if mains else f"{MUTED}inga än{RESET}"))
+    print(f"{MUTED}Ändra: goblin tile huvud firefox discord   Förslag: goblin tile förslag{RESET}")
+    return 0
+
+
+def cmd_suggest_cli():
+    data = load_layouts()
+    if not data["suggest"]["main"]:
+        print("Välj huvudfönster först: goblin tile huvud firefox discord", file=sys.stderr)
+        return 1
+    layout = build_suggestion(data["suggest"])
+    progs = SCREEN.programs()
+    keep = [x for x in data["layouts"] if x["name"] != SUGGEST_NAME]
+    if len(keep) >= MAX_LAYOUTS:
+        print(f"Du har redan {MAX_LAYOUTS} layouter – ta bort en i Config → Fönster först.", file=sys.stderr)
+        return 1
+    old = next((i for i, x in enumerate(data["layouts"]) if x["name"] == SUGGEST_NAME), None)
+    if old is None:
+        data["layouts"].append(layout)
+    else:
+        data["layouts"][old] = layout
+    save_layouts(data)
+    number = next(i for i, x in enumerate(data["layouts"], 1) if x["name"] == SUGGEST_NAME)
+    names = {c: n for n, c, _ in screen_list()}
+    print(f"{ACCENT}Förslag{RESET} {MUTED}(sparat som layout {number}, Meta+Ctrl+{number}){RESET}")
+    for conn, tree in layout["screens"].items():
+        print(f"  {FROST}Skärm {names.get(conn, '?')}{RESET} {MUTED}{conn}{RESET}")
+        for n, leaf in enumerate(tree_leaves(tree), 1):
+            print(f"    {FROST}{n}{RESET}  " + ", ".join(progs[a][0] for a in leaf.get("apps") or [] if a in progs))
+    print(f"\n{MUTED}Justera i GOBLINCAKES Config → Fönster. Använd: goblin tile layout {number}{RESET}")
+    return 0
+
+
 def main(argv):
     cmd = argv[0] if argv else "list"
     if cmd == "json":
@@ -615,6 +793,12 @@ def main(argv):
         return cmd_save()
     if cmd == "capture":
         return cmd_capture()
+    if cmd == "suggest":
+        return cmd_suggest()
+    if cmd in ("huvud", "main", "huvudfönster"):
+        return cmd_main(argv[1:])
+    if cmd in ("förslag", "forslag", "suggestion"):
+        return cmd_suggest_cli()
     if cmd in ("layouts", "layoutlist"):
         return cmd_layouts()
     if cmd in ("layout", "use", "använd"):
