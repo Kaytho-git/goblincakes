@@ -1,0 +1,248 @@
+{
+ "modules": [
+  {
+   "id": "lua-grunder",
+   "title": "Lua: utskrift och variabler",
+   "requires": [],
+   "summary": "`print(...)`; `local x = 5`; strängar sätts ihop med `..`; `--` kommentar; `nil` = inget värde.",
+   "tasks": [
+    {
+     "id": "lua-grunder-1",
+     "level": 1,
+     "title": "Hälsa",
+     "prompt": "Skapa local namn = \"Kaytho\" och skriv ut: Hej Kaytho!",
+     "starter": "local namn = \"Kaytho\"\n",
+     "check": {
+      "expect": "Hej Kaytho!"
+     },
+     "hints": [
+      "Sätt ihop strängar med ..",
+      "print(\"Hej \" .. namn .. \"!\")"
+     ],
+     "solution": "local namn = \"Kaytho\"\nprint(\"Hej \" .. namn .. \"!\")"
+    },
+    {
+     "id": "lua-grunder-2",
+     "level": 2,
+     "title": "Räkna mana",
+     "prompt": "Du har 5000 mana och en besvärjelse kostar 350. Räkna hur många hela gånger du kan kasta den och skriv ut: 14 gånger",
+     "starter": "",
+     "check": {
+      "expect": "14 gånger"
+     },
+     "hints": [
+      "/ ger decimaltal i Lua.",
+      "math.floor() rundar nedåt."
+     ],
+     "solution": "local mana = 5000\nlocal kostnad = 350\nlocal ganger = math.floor(mana / kostnad)\nprint(ganger .. \" gånger\")"
+    }
+   ],
+   "lesson": "lua-grunder.md"
+  },
+  {
+   "id": "lua-villkor",
+   "title": "Lua: villkor",
+   "requires": [
+    "lua-grunder"
+   ],
+   "summary": "`if x then … elseif … else … end`; inte-lika är `~=`; `and`/`or`/`not`; bara `nil` och `false` är falska.",
+   "tasks": [
+    {
+     "id": "lua-villkor-1",
+     "level": 1,
+     "title": "Läk?",
+     "prompt": "local liv = 15. Skriv ut Läk mig! om liv är under 20, annars Allt lugnt.",
+     "starter": "local liv = 15\n",
+     "check": {
+      "expect": "Läk mig!"
+     },
+     "hints": [
+      "if liv < 20 then … else … end",
+      "Glöm inte end."
+     ],
+     "solution": "local liv = 15\nif liv < 20 then\n  print(\"Läk mig!\")\nelse\n  print(\"Allt lugnt\")\nend"
+    },
+    {
+     "id": "lua-villkor-2",
+     "level": 2,
+     "title": "Standardvärde",
+     "prompt": "local vald = nil. Skriv ut värdet av vald, eller Ingen vald om den är nil – med ett or-knep på en rad.",
+     "starter": "local vald = nil\n",
+     "check": {
+      "expect": "Ingen vald"
+     },
+     "hints": [
+      "x or y ger y när x är nil.",
+      "print(vald or \"Ingen vald\")"
+     ],
+     "solution": "local vald = nil\nprint(vald or \"Ingen vald\")"
+    }
+   ],
+   "lesson": "lua-villkor.md"
+  },
+  {
+   "id": "lua-loopar",
+   "title": "Lua: loopar",
+   "requires": [
+    "lua-villkor"
+   ],
+   "summary": "`for i = 1, 5 do … end` (steg: `for i = 10, 1, -1`); `while x do … end`; `break`.",
+   "tasks": [
+    {
+     "id": "lua-loopar-1",
+     "level": 1,
+     "title": "Vågor",
+     "prompt": "Skriv ut Våg 1, Våg 2 och Våg 3 på var sin rad med en for-loop.",
+     "starter": "",
+     "check": {
+      "expect": "Våg 1\nVåg 2\nVåg 3"
+     },
+     "hints": [
+      "for i = 1, 3 do … end",
+      "print(\"Våg \" .. i)"
+     ],
+     "solution": "for i = 1, 3 do\n  print(\"Våg \" .. i)\nend"
+    },
+    {
+     "id": "lua-loopar-2",
+     "level": 2,
+     "title": "Summa",
+     "prompt": "Räkna ihop talen 1 till 100 med en loop och skriv ut: 5050",
+     "starter": "",
+     "check": {
+      "expect": "5050"
+     },
+     "hints": [
+      "Börja med local summa = 0.",
+      "summa = summa + i i loopen."
+     ],
+     "solution": "local summa = 0\nfor i = 1, 100 do\n  summa = summa + i\nend\nprint(summa)"
+    }
+   ],
+   "lesson": "lua-loopar.md"
+  },
+  {
+   "id": "lua-tabeller",
+   "title": "Lua: tabeller som listor",
+   "requires": [
+    "lua-loopar"
+   ],
+   "summary": "`{\"a\", \"b\"}`, index från **1**, `#t` = längd, `table.insert`, `ipairs`, `table.sort`, `table.concat`.",
+   "tasks": [
+    {
+     "id": "lua-tabeller-1",
+     "level": 1,
+     "title": "Första och antal",
+     "prompt": "local raid = {\"Kaytho\", \"Bo\", \"Cia\"}. Skriv ut första namnet och sedan antalet: Kaytho och 3 på var sin rad.",
+     "starter": "local raid = {\"Kaytho\", \"Bo\", \"Cia\"}\n",
+     "check": {
+      "expect": "Kaytho\n3"
+     },
+     "hints": [
+      "Index börjar på 1.",
+      "#raid ger antalet."
+     ],
+     "solution": "local raid = {\"Kaytho\", \"Bo\", \"Cia\"}\nprint(raid[1])\nprint(#raid)"
+    },
+    {
+     "id": "lua-tabeller-2",
+     "level": 2,
+     "title": "Sorterat",
+     "prompt": "local skada = {120, 300, 95}. Sortera störst först och skriv ut: 300, 120, 95",
+     "starter": "local skada = {120, 300, 95}\n",
+     "check": {
+      "expect": "300, 120, 95"
+     },
+     "hints": [
+      "table.sort med en jämförelsefunktion.",
+      "table.concat(skada, \", \")"
+     ],
+     "solution": "local skada = {120, 300, 95}\ntable.sort(skada, function(a, b) return a > b end)\nprint(table.concat(skada, \", \"))"
+    }
+   ],
+   "lesson": "lua-tabeller.md"
+  },
+  {
+   "id": "lua-ordbocker",
+   "title": "Lua: tabeller med nycklar",
+   "requires": [
+    "lua-tabeller"
+   ],
+   "summary": "`{namn = \"Kaytho\", nivå = 80}`, `t.namn` / `t[\"namn\"]`, `pairs` (ingen ordning), nästlade tabeller.",
+   "tasks": [
+    {
+     "id": "lua-ordbocker-1",
+     "level": 1,
+     "title": "Karaktärsblad",
+     "prompt": "Skapa local k = {namn = \"Kaytho\", klass = \"Präst\"} och skriv ut: Kaytho (Präst)",
+     "starter": "",
+     "check": {
+      "expect": "Kaytho (Präst)"
+     },
+     "hints": [
+      "k.namn och k.klass",
+      "print(k.namn .. \" (\" .. k.klass .. \")\")"
+     ],
+     "solution": "local k = {namn = \"Kaytho\", klass = \"Präst\"}\nprint(k.namn .. \" (\" .. k.klass .. \")\")"
+    },
+    {
+     "id": "lua-ordbocker-2",
+     "level": 2,
+     "title": "Räkna klasser",
+     "prompt": "local raid = {\"Präst\", \"Krigare\", \"Präst\"}. Räkna hur många av varje i en tabell och skriv ut Krigare 1 och Präst 2 (i bokstavsordning).",
+     "starter": "local raid = {\"Präst\", \"Krigare\", \"Präst\"}\n",
+     "check": {
+      "expect": "Krigare 1\nPräst 2"
+     },
+     "hints": [
+      "(antal[k] or 0) + 1 räknar upp.",
+      "Lägg nycklarna i en lista och sortera den innan du skriver ut."
+     ],
+     "solution": "local raid = {\"Präst\", \"Krigare\", \"Präst\"}\nlocal antal = {}\nfor _, k in ipairs(raid) do\n  antal[k] = (antal[k] or 0) + 1\nend\nlocal namn = {}\nfor k in pairs(antal) do table.insert(namn, k) end\ntable.sort(namn)\nfor _, k in ipairs(namn) do print(k .. \" \" .. antal[k]) end"
+    }
+   ],
+   "lesson": "lua-ordbocker.md"
+  },
+  {
+   "id": "lua-funktioner",
+   "title": "Lua: funktioner",
+   "requires": [
+    "lua-ordbocker"
+   ],
+   "summary": "`local function namn(a, b) return … end`; flera returvärden; funktioner är värden (callbacks); `...`.",
+   "tasks": [
+    {
+     "id": "lua-funktioner-1",
+     "level": 1,
+     "title": "DPS",
+     "prompt": "Skriv local function dps(skada, sekunder) som returnerar skadan per sekund, och skriv ut dps(9000, 30): 300",
+     "starter": "",
+     "check": {
+      "expect": "300"
+     },
+     "hints": [
+      "return skada / sekunder",
+      "print(dps(9000, 30))"
+     ],
+     "solution": "local function dps(skada, sekunder)\n  return skada / sekunder\nend\nprint(dps(9000, 30))"
+    },
+    {
+     "id": "lua-funktioner-2",
+     "level": 2,
+     "title": "Min och max",
+     "prompt": "Skriv local function minmax(t) som returnerar både minsta och största talet. Skriv ut minmax({4, 9, 1}) som: 1 9",
+     "starter": "",
+     "check": {
+      "expect": "1 9"
+     },
+     "hints": [
+      "Börja med första värdet som både min och max.",
+      "return lo, hi – och ta emot med local a, b = minmax(…)"
+     ],
+     "solution": "local function minmax(t)\n  local lo, hi = t[1], t[1]\n  for _, v in ipairs(t) do\n    if v < lo then lo = v end\n    if v > hi then hi = v end\n  end\n  return lo, hi\nend\nlocal a, b = minmax({4, 9, 1})\nprint(a .. \" \" .. b)"
+    }
+   ],
+   "lesson": "lua-funktioner.md"
+  }
+ ]
+}

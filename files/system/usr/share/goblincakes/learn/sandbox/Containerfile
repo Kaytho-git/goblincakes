@@ -2,7 +2,7 @@
 # on the user's computer by Goblin AI – learn.py build_sandbox). Python, PHP, Node.js, Lua 5.1
 # (the version WoW uses), Bash, Git, SQLite (through Python).
 FROM registry.fedoraproject.org/fedora-minimal:44
-RUN microdnf install -y --setopt=install_weak_deps=0 python3 php-cli nodejs compat-lua bash coreutils git-core findutils grep sed gawk \
+RUN microdnf install -y --setopt=install_weak_deps=0 python3 php-cli php-pdo php-mbstring nodejs compat-lua bash coreutils git-core findutils grep sed gawk \
     && microdnf clean all \
     && ln -sf "$(command -v lua-5.1 || command -v lua5.1)" /usr/local/bin/lua5.1
 # Root in a rootless container = the user's own account outside it, with no network

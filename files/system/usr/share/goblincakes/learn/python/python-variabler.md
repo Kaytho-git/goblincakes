@@ -9,11 +9,13 @@ print(namn)
 print(nivå + 1)
 ```
 
-`=` betyder "lägg värdet i lådan", inte "är lika med". Siffror utan citattecken är **tal**
-som man kan räkna med; med citattecken är de text.
+`=` betyder "lägg värdet i lådan", inte "är lika med". Värdet kan bytas senare: `nivå = nivå + 1`.
 
-Text och variabler kan sättas ihop med en **f-sträng** – ett `f` före citattecknet och
-variabeln inom `{ }`:
+**Typer:** tal utan citattecken (`80`, `3.5`) kan man räkna med: `+ - * /`, heltalsdivision `//`
+och rest `%`. Text inom citattecken är en sträng – `"80" + 1` blir ett fel. Byt typ med
+`int("80")` och `str(80)`.
+
+Text och variabler sätts ihop med en **f-sträng** – ett `f` före citattecknet och variabeln inom `{ }`:
 
 ```python
 print(f"Hej {namn}, du är nivå {nivå}")

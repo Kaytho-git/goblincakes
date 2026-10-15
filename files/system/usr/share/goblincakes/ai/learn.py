@@ -39,6 +39,7 @@ RUNNERS = {
     "bash": ("main.sh", ["bash", "main.sh"]),
     "sql": ("main.sql", ["python3", "/course/sandbox/sqlrun.py", "main.sql"]),
     "html": ("index.html", None),  # checked by rules, shown in the browser
+    "check": ("check.py", ["python3", "check.py"]),  # a task's checker script (the user's file beside it)
 }
 
 
@@ -301,7 +302,9 @@ def check_task(task_id, code):
         code_, out = run_code(run, code, files)
         output = out
         if check.get("type") == "script":
-            c2, msg_out = run_code("python", files["check.py"], {RUNNERS[run][0]: code, "output.txt": out})
+            extra = dict(files, **{RUNNERS[run][0]: code, "output.txt": out})
+            extra.pop("check.py")
+            c2, msg_out = run_code("check", files["check.py"], extra)
             ok, msg = c2 == 0, msg_out.strip() or ("Rätt!" if c2 == 0 else "Inte riktigt än.")
         elif code_ != 0:
             ok, msg = False, "Programmet stannade med ett fel – läs felmeddelandet nedan."

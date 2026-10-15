@@ -3,9 +3,8 @@
   {
    "id": "python-hej",
    "title": "Ditt första program",
-   "summary": "`print(\"text\")` skriver ut; strängar inom citattecken; raderna körs uppifrån och ner.",
    "requires": [],
-   "lesson": "python-hej.md",
+   "summary": "`print(\"text\")` skriver ut en rad; text (strängar) står inom citattecken; raderna körs uppifrån och ner. `#` = kommentar.",
    "tasks": [
     {
      "id": "python-hej-1",
@@ -37,16 +36,16 @@
      ],
      "solution": "print(\"Raid i kväll\")\nprint(\"Kl. 20:00\")\nprint(\"Ta med flaskor!\")"
     }
-   ]
+   ],
+   "lesson": "python-hej.md"
   },
   {
    "id": "python-variabler",
    "title": "Variabler",
-   "summary": "`namn = värde`; tal räknar man med, text står inom citattecken; f-strängar: `f\"Hej {namn}\"`.",
    "requires": [
     "python-hej"
    ],
-   "lesson": "python-variabler.md",
+   "summary": "`namn = värde`; tal (`int`, `float`) räknar man med (`+ - * / // %`), text står inom citattecken; f-strängar: `f\"Hej {namn}\"`; `int(\"5\")`/`str(5)` byter typ.",
    "tasks": [
     {
      "id": "python-variabler-1",
@@ -77,8 +76,315 @@
       "pilar = 6, serier = 12, totalt = pilar * serier"
      ],
      "solution": "pilar = 6\nserier = 12\ntotalt = pilar * serier\nprint(f\"Totalt {totalt} pilar\")"
+    },
+    {
+     "id": "python-variabler-3",
+     "level": 3,
+     "title": "Snittpoäng",
+     "prompt": "En skytt fick 612 poäng på 72 pilar. Räkna ut snittet per pil med två decimaler och skriv ut: Snitt 8.50 per pil",
+     "starter": "",
+     "check": {
+      "expect": "Snitt 8.50 per pil"
+     },
+     "hints": [
+      "/ ger ett decimaltal.",
+      "I en f-sträng ger {tal:.2f} två decimaler."
+     ],
+     "solution": "poang = 612\npilar = 72\nsnitt = poang / pilar\nprint(f\"Snitt {snitt:.2f} per pil\")"
     }
-   ]
+   ],
+   "lesson": "python-variabler.md"
+  },
+  {
+   "id": "python-villkor",
+   "title": "Villkor – if, elif, else",
+   "requires": [
+    "python-variabler"
+   ],
+   "summary": "`if villkor:` + indrag; `elif`, `else`; jämförelser `== != < > <= >=`; `and`, `or`, `not`.",
+   "tasks": [
+    {
+     "id": "python-villkor-1",
+     "level": 1,
+     "title": "Godkänd?",
+     "prompt": "Variabeln poang = 540. Skriv ut Godkänd om poang är minst 500, annars Underkänd.",
+     "starter": "poang = 540\n",
+     "check": {
+      "expect": "Godkänd"
+     },
+     "hints": [
+      "if poang >= 500: … else: …",
+      "Glöm inte kolon och indrag."
+     ],
+     "solution": "poang = 540\nif poang >= 500:\n    print(\"Godkänd\")\nelse:\n    print(\"Underkänd\")"
+    },
+    {
+     "id": "python-villkor-2",
+     "level": 2,
+     "title": "Medalj",
+     "prompt": "Variabeln placering = 2. Skriv ut Guld för 1, Silver för 2, Brons för 3 och annars Ingen medalj.",
+     "starter": "placering = 2\n",
+     "check": {
+      "type": "script",
+      "script": "check_medalj.py"
+     },
+     "hints": [
+      "Jämför med == (två likhetstecken).",
+      "if … elif … elif … else"
+     ],
+     "solution": "placering = 2\nif placering == 1:\n    print(\"Guld\")\nelif placering == 2:\n    print(\"Silver\")\nelif placering == 3:\n    print(\"Brons\")\nelse:\n    print(\"Ingen medalj\")"
+    }
+   ],
+   "lesson": "python-villkor.md"
+  },
+  {
+   "id": "python-loopar",
+   "title": "Loopar – for och while",
+   "requires": [
+    "python-villkor"
+   ],
+   "summary": "`for i in range(1, 6):` upprepar; `while villkor:` så länge det stämmer; `break` avbryter.",
+   "tasks": [
+    {
+     "id": "python-loopar-1",
+     "level": 1,
+     "title": "Räkna till fem",
+     "prompt": "Skriv ut talen 1 till 5, ett per rad, med en for-loop.",
+     "starter": "",
+     "check": {
+      "expect": "1\n2\n3\n4\n5"
+     },
+     "hints": [
+      "range(1, 6) ger 1–5.",
+      "for i in range(1, 6):\n    print(i)"
+     ],
+     "solution": "for i in range(1, 6):\n    print(i)"
+    },
+    {
+     "id": "python-loopar-2",
+     "level": 2,
+     "title": "Summera serier",
+     "prompt": "Serierna gav 54, 52, 57 och 55 poäng. Lägg ihop dem med en loop och skriv ut: Summa 218",
+     "starter": "",
+     "check": {
+      "expect": "Summa 218"
+     },
+     "hints": [
+      "Börja med summa = 0 och lägg till varje poäng.",
+      "for p in [54, 52, 57, 55]: summa += p"
+     ],
+     "solution": "summa = 0\nfor p in [54, 52, 57, 55]:\n    summa += p\nprint(f\"Summa {summa}\")"
+    },
+    {
+     "id": "python-loopar-3",
+     "level": 3,
+     "title": "Nedräkning",
+     "prompt": "Räkna ner från 3 med en while-loop och skriv sedan Pull! – alltså 3, 2, 1 och Pull! på var sin rad.",
+     "starter": "",
+     "check": {
+      "expect": "3\n2\n1\nPull!"
+     },
+     "hints": [
+      "while n > 0: … och minska n varje varv.",
+      "print(\"Pull!\") efter loopen (utan indrag)."
+     ],
+     "solution": "n = 3\nwhile n > 0:\n    print(n)\n    n -= 1\nprint(\"Pull!\")"
+    }
+   ],
+   "lesson": "python-loopar.md"
+  },
+  {
+   "id": "python-listor",
+   "title": "Listor",
+   "requires": [
+    "python-loopar"
+   ],
+   "summary": "`[a, b, c]`, index från 0, `append`, `len`, `sorted`, `sum`, `max`, slicing `lista[1:3]`.",
+   "tasks": [
+    {
+     "id": "python-listor-1",
+     "level": 1,
+     "title": "Högsta serien",
+     "prompt": "poang = [54, 52, 57, 55]. Skriv ut den högsta serien: 57",
+     "starter": "poang = [54, 52, 57, 55]\n",
+     "check": {
+      "expect": "57"
+     },
+     "hints": [
+      "max() ger det största värdet.",
+      "print(max(poang))"
+     ],
+     "solution": "poang = [54, 52, 57, 55]\nprint(max(poang))"
+    },
+    {
+     "id": "python-listor-2",
+     "level": 2,
+     "title": "Topp tre",
+     "prompt": "poang = [54, 52, 57, 55, 49]. Skriv ut de tre högsta, högst först, på var sin rad.",
+     "starter": "poang = [54, 52, 57, 55, 49]\n",
+     "check": {
+      "expect": "57\n55\n54"
+     },
+     "hints": [
+      "sorted(poang, reverse=True) sorterar störst först.",
+      "[:3] tar de tre första."
+     ],
+     "solution": "poang = [54, 52, 57, 55, 49]\nfor p in sorted(poang, reverse=True)[:3]:\n    print(p)"
+    }
+   ],
+   "lesson": "python-listor.md"
+  },
+  {
+   "id": "python-funktioner",
+   "title": "Funktioner",
+   "requires": [
+    "python-listor"
+   ],
+   "summary": "`def namn(parametrar):` + `return`; anropa `namn(värden)`; standardvärden `def f(x=1)`.",
+   "tasks": [
+    {
+     "id": "python-funktioner-1",
+     "level": 1,
+     "title": "Dubbla",
+     "prompt": "Skriv funktionen dubbla(x) som returnerar x gånger 2. Skriv sedan ut dubbla(21).",
+     "starter": "def dubbla(x):\n    pass  # byt mot din kod\n\nprint(dubbla(21))\n",
+     "check": {
+      "expect": "42"
+     },
+     "hints": [
+      "def dubbla(x):\n    return …",
+      "print(dubbla(21))"
+     ],
+     "solution": "def dubbla(x):\n    return x * 2\n\nprint(dubbla(21))"
+    },
+    {
+     "id": "python-funktioner-2",
+     "level": 2,
+     "title": "Snitt",
+     "prompt": "Skriv funktionen snitt(lista) som returnerar medelvärdet. Skriv ut snitt([8, 9, 10, 9]) – det ska bli 9.0",
+     "starter": "",
+     "check": {
+      "expect": "9.0"
+     },
+     "hints": [
+      "Medelvärde = summan delat med antalet.",
+      "sum(lista) / len(lista)"
+     ],
+     "solution": "def snitt(lista):\n    return sum(lista) / len(lista)\n\nprint(snitt([8, 9, 10, 9]))"
+    }
+   ],
+   "lesson": "python-funktioner.md"
+  },
+  {
+   "id": "python-ordbocker",
+   "title": "Ordböcker (dict)",
+   "requires": [
+    "python-funktioner"
+   ],
+   "summary": "`{\"nyckel\": värde}`, `d[\"nyckel\"]`, `d.get(n, standard)`, `for k, v in d.items():`, `in`.",
+   "tasks": [
+    {
+     "id": "python-ordbocker-1",
+     "level": 1,
+     "title": "Slå upp",
+     "prompt": "roller = {\"Kaytho\": \"Healer\", \"Bo\": \"Tank\"}. Skriv ut Bos roll: Tank",
+     "starter": "roller = {\"Kaytho\": \"Healer\", \"Bo\": \"Tank\"}\n",
+     "check": {
+      "expect": "Tank"
+     },
+     "hints": [
+      "roller[\"Bo\"]",
+      "print(roller[\"Bo\"])"
+     ],
+     "solution": "roller = {\"Kaytho\": \"Healer\", \"Bo\": \"Tank\"}\nprint(roller[\"Bo\"])"
+    },
+    {
+     "id": "python-ordbocker-2",
+     "level": 2,
+     "title": "Räkna roller",
+     "prompt": "Lista: [\"Healer\", \"Tank\", \"DPS\", \"DPS\", \"DPS\"]. Räkna hur många av varje med en ordbok och skriv ut: DPS 3, Healer 1, Tank 1 (en rad per roll, i bokstavsordning, som \"DPS 3\").",
+     "starter": "roller = [\"Healer\", \"Tank\", \"DPS\", \"DPS\", \"DPS\"]\n",
+     "check": {
+      "expect": "DPS 3\nHealer 1\nTank 1"
+     },
+     "hints": [
+      "antal.get(r, 0) + 1 räknar upp.",
+      "for r in sorted(antal): print(f\"{r} {antal[r]}\")"
+     ],
+     "solution": "roller = [\"Healer\", \"Tank\", \"DPS\", \"DPS\", \"DPS\"]\nantal = {}\nfor r in roller:\n    antal[r] = antal.get(r, 0) + 1\nfor r in sorted(antal):\n    print(f\"{r} {antal[r]}\")"
+    }
+   ],
+   "lesson": "python-ordbocker.md"
+  },
+  {
+   "id": "python-filer",
+   "title": "Filer",
+   "requires": [
+    "python-ordbocker"
+   ],
+   "summary": "`with open(\"fil\", \"w\") as f: f.write(...)`; läs med `\"r\"`; `encoding=\"utf-8\"`; rad för rad med `for rad in f:`.",
+   "tasks": [
+    {
+     "id": "python-filer-1",
+     "level": 2,
+     "title": "Spara och läs",
+     "prompt": "Skriv raderna \"Bo 655\" och \"Anna 612\" till filen resultat.txt, läs sedan filen och skriv ut raderna.",
+     "starter": "",
+     "check": {
+      "expect": "Bo 655\nAnna 612"
+     },
+     "hints": [
+      "Glöm inte \\n i slutet av varje rad du skriver.",
+      "Läs med for rad in f: print(rad.strip())"
+     ],
+     "solution": "with open(\"resultat.txt\", \"w\", encoding=\"utf-8\") as f:\n    f.write(\"Bo 655\\n\")\n    f.write(\"Anna 612\\n\")\nwith open(\"resultat.txt\", encoding=\"utf-8\") as f:\n    for rad in f:\n        print(rad.strip())"
+    },
+    {
+     "id": "python-filer-2",
+     "level": 3,
+     "title": "Summa ur fil",
+     "prompt": "Filen poang.txt har ett tal per rad. Läs den och skriv ut summan: Summa 1267",
+     "starter": "",
+     "check": {
+      "expect": "Summa 1267"
+     },
+     "hints": [
+      "Varje rad är text – gör om med int(rad).",
+      "summa += int(rad)"
+     ],
+     "solution": "summa = 0\nwith open(\"poang.txt\", encoding=\"utf-8\") as f:\n    for rad in f:\n        summa += int(rad)\nprint(f\"Summa {summa}\")",
+     "files": {
+      "poang.txt": "655\n612\n"
+     }
+    }
+   ],
+   "lesson": "python-filer.md"
+  },
+  {
+   "id": "python-fel",
+   "title": "Fel och felhantering",
+   "requires": [
+    "python-filer"
+   ],
+   "summary": "Läs felmeddelandet nerifrån (typ + rad); `try:` / `except ValueError:`; `raise` för egna fel.",
+   "tasks": [
+    {
+     "id": "python-fel-1",
+     "level": 2,
+     "title": "Tåliga tal",
+     "prompt": "Gå igenom listan [\"10\", \"x\", \"7\"] och skriv ut talet gånger 2, eller \"x är inget tal\" när det inte går.",
+     "starter": "for text in [\"10\", \"x\", \"7\"]:\n    print(int(text) * 2)\n",
+     "check": {
+      "expect": "20\nx är inget tal\n14"
+     },
+     "hints": [
+      "int(\"x\") ger ValueError.",
+      "try: … except ValueError: …"
+     ],
+     "solution": "for text in [\"10\", \"x\", \"7\"]:\n    try:\n        print(int(text) * 2)\n    except ValueError:\n        print(f\"{text} är inget tal\")"
+    }
+   ],
+   "lesson": "python-fel.md"
   }
  ]
 }

@@ -3,34 +3,43 @@
   {
    "id": "wow-hej",
    "title": "Ett tillägg som hälsar",
-   "summary": "Ett tillägg = en mapp med en .toc-fil och Lua-filer; en frame lyssnar på events med RegisterEvent + SetScript(\"OnEvent\").",
-   "requires": [],
-   "lesson": "wow-hej.md",
+   "requires": [
+    "lua-funktioner"
+   ],
+   "summary": "Ett tillägg = en mapp i Interface/AddOns med en .toc och Lua-filer; en frame lyssnar på events: `RegisterEvent` + `SetScript(\"OnEvent\", …)`.",
    "tasks": [
     {
      "id": "wow-hej-1",
      "level": 1,
      "title": "Hälsa när du loggar in",
-     "prompt": "Gör så att tillägget skriver ut \"Välkommen, Kaytho!\" när eventet PLAYER_LOGIN kommer. Använd UnitName(\"player\") för namnet.",
+     "prompt": "Gör så att tillägget skriver ut \"Välkommen, Kaytho!\" när PLAYER_LOGIN kommer. Använd UnitName(\"player\") för namnet.",
      "starter": "local f = CreateFrame(\"Frame\")\nf:RegisterEvent(\"PLAYER_LOGIN\")\nf:SetScript(\"OnEvent\", function(self, event)\n  -- skriv här\nend)\n",
      "check": {
       "expect": "Välkommen, Kaytho!"
      },
      "hints": [
-      "UnitName(\"player\") ger ditt namn. Strängar sätts ihop med .. i Lua.",
+      "UnitName(\"player\") ger ditt namn.",
       "print(\"Välkommen, \" .. UnitName(\"player\") .. \"!\")"
      ],
      "solution": "local f = CreateFrame(\"Frame\")\nf:RegisterEvent(\"PLAYER_LOGIN\")\nf:SetScript(\"OnEvent\", function(self, event)\n  print(\"Välkommen, \" .. UnitName(\"player\") .. \"!\")\nend)\n"
-    },
+    }
+   ],
+   "lesson": "wow-hej.md"
+  },
+  {
+   "id": "wow-slash",
+   "title": "Egna slash-kommandon",
+   "requires": [
+    "wow-hej"
+   ],
+   "summary": "`SLASH_NAMN1 = \"/kort\"` + `SlashCmdList[\"NAMN\"] = function(text) … end`; texten efter kommandot kommer in som sträng – dela med `strsplit` eller `text:match`.",
+   "tasks": [
     {
-     "id": "wow-hej-2",
-     "level": 2,
-     "title": "Ett eget slash-kommando",
-     "prompt": "Lägg till kommandot /hej som skriver ut \"Hej <text>!\" – t.ex. /hej Raid ger: Hej Raid!",
+     "id": "wow-slash-1",
+     "level": 1,
+     "title": "/hej",
+     "prompt": "Lägg till kommandot /hej som skriver ut \"Hej <text>!\" – /hej Raid ger: Hej Raid!",
      "starter": "SLASH_HEJ1 = \"/hej\"\nSlashCmdList[\"HEJ\"] = function(text)\n  -- skriv här\nend\n",
-     "files": {
-      "slash.txt": "/hej Raid\n"
-     },
      "check": {
       "expect": "Hej Raid!"
      },
@@ -38,9 +47,124 @@
       "Det man skriver efter kommandot kommer in som text.",
       "print(\"Hej \" .. text .. \"!\")"
      ],
-     "solution": "SLASH_HEJ1 = \"/hej\"\nSlashCmdList[\"HEJ\"] = function(text)\n  print(\"Hej \" .. text .. \"!\")\nend\n"
+     "solution": "SLASH_HEJ1 = \"/hej\"\nSlashCmdList[\"HEJ\"] = function(text)\n  print(\"Hej \" .. text .. \"!\")\nend\n",
+     "files": {
+      "slash.txt": "/hej Raid\n"
+     }
+    },
+    {
+     "id": "wow-slash-2",
+     "level": 2,
+     "title": "Underkommandon",
+     "prompt": "Gör /gc med två underkommandon: \"/gc pull 10\" skriver Pull om 10 s och \"/gc ready\" skriver Ready check! – allt annat skriver Okänt.",
+     "starter": "SLASH_GC1 = \"/gc\"\nSlashCmdList[\"GC\"] = function(text)\nend\n",
+     "check": {
+      "expect": "Pull om 10 s\nReady check!\nOkänt"
+     },
+     "hints": [
+      "text:match(\"^(%S+)%s*(.*)$\") ger första ordet och resten.",
+      "if cmd == \"pull\" then … elseif cmd == \"ready\" then … else … end"
+     ],
+     "solution": "SLASH_GC1 = \"/gc\"\nSlashCmdList[\"GC\"] = function(text)\n  local cmd, rest = text:match(\"^(%S+)%s*(.*)$\")\n  if cmd == \"pull\" then\n    print(\"Pull om \" .. rest .. \" s\")\n  elseif cmd == \"ready\" then\n    print(\"Ready check!\")\n  else\n    print(\"Okänt\")\n  end\nend\n",
+     "files": {
+      "slash.txt": "/gc pull 10\n/gc ready\n/gc dans\n"
+     }
     }
-   ]
+   ],
+   "lesson": "wow-slash.md"
+  },
+  {
+   "id": "wow-events",
+   "title": "Events med argument",
+   "requires": [
+    "wow-slash"
+   ],
+   "summary": "OnEvent får `(self, event, ...)`; `ADDON_LOADED` har tilläggets namn – kolla att det är ditt; en tabell med en funktion per event håller koden snygg.",
+   "tasks": [
+    {
+     "id": "wow-events-1",
+     "level": 2,
+     "title": "Bara mitt tillägg",
+     "prompt": "Lyssna på ADDON_LOADED och skriv ut \"MittTillagg laddat\" när det är ditt eget tillägg som laddats. Ta tilläggets namn från ... (första raden).",
+     "starter": "",
+     "check": {
+      "expect": "MittTillagg laddat"
+     },
+     "hints": [
+      "local ADDON = ... ger tilläggets namn.",
+      "OnEvent får (self, event, name) – jämför name med ADDON."
+     ],
+     "solution": "local ADDON = ...\nlocal f = CreateFrame(\"Frame\")\nf:RegisterEvent(\"ADDON_LOADED\")\nf:SetScript(\"OnEvent\", function(self, event, name)\n  if name == ADDON then\n    print(ADDON .. \" laddat\")\n  end\nend)\n"
+    },
+    {
+     "id": "wow-events-2",
+     "level": 3,
+     "title": "En tabell med events",
+     "prompt": "Skriv tillägget med en tabell events: events.ADDON_LOADED(name) skriver \"Laddat: <name>\" och events.PLAYER_LOGIN() skriver \"Inloggad\". Registrera alla events i tabellen med en loop.",
+     "starter": "",
+     "check": {
+      "expect": "Laddat: Blizzard_Kalender\nLaddat: MittTillagg\nInloggad"
+     },
+     "hints": [
+      "function events.PLAYER_LOGIN() … end",
+      "for event in pairs(events) do f:RegisterEvent(event) end"
+     ],
+     "solution": "local f = CreateFrame(\"Frame\")\nlocal events = {}\nfunction events.ADDON_LOADED(name) print(\"Laddat: \" .. name) end\nfunction events.PLAYER_LOGIN() print(\"Inloggad\") end\nf:SetScript(\"OnEvent\", function(self, event, ...) events[event](...) end)\nfor event in pairs(events) do f:RegisterEvent(event) end\n"
+    }
+   ],
+   "lesson": "wow-events.md"
+  },
+  {
+   "id": "wow-saved",
+   "title": "Spara inställningar (SavedVariables)",
+   "requires": [
+    "wow-events"
+   ],
+   "summary": "`## SavedVariables: MittDB` i .toc; tabellen finns först vid ADDON_LOADED; `MittDB = MittDB or {}` + standardvärden; sparas vid utloggning/`/reload`.",
+   "tasks": [
+    {
+     "id": "wow-saved-1",
+     "level": 2,
+     "title": "Räkna inloggningar",
+     "prompt": "Använd den sparade tabellen MittTillaggDB: vid ADDON_LOADED för \"MittTillagg\", skapa den om den saknas, öka MittTillaggDB.antal med 1 (standard 0) och skriv ut \"Inloggning nummer 1\".",
+     "starter": "",
+     "check": {
+      "expect": "Inloggning nummer 1"
+     },
+     "hints": [
+      "MittTillaggDB = MittTillaggDB or {}",
+      "MittTillaggDB.antal = (MittTillaggDB.antal or 0) + 1"
+     ],
+     "solution": "local f = CreateFrame(\"Frame\")\nf:RegisterEvent(\"ADDON_LOADED\")\nf:SetScript(\"OnEvent\", function(self, event, name)\n  if name ~= \"MittTillagg\" then return end\n  MittTillaggDB = MittTillaggDB or {}\n  MittTillaggDB.antal = (MittTillaggDB.antal or 0) + 1\n  print(\"Inloggning nummer \" .. MittTillaggDB.antal)\nend)\n"
+    }
+   ],
+   "lesson": "wow-saved.md"
+  },
+  {
+   "id": "wow-frames",
+   "title": "Något som syns: frames och text",
+   "requires": [
+    "wow-saved"
+   ],
+   "summary": "`CreateFrame(\"Frame\", \"Namn\", UIParent, \"BackdropTemplate\")`, `SetSize`, `SetPoint`, `CreateFontString(nil, \"OVERLAY\", \"GameFontNormal\")`, `SetText`; flytta: `SetMovable`/`RegisterForDrag`.",
+   "tasks": [
+    {
+     "id": "wow-frames-1",
+     "level": 2,
+     "title": "En ruta med text",
+     "prompt": "Skapa en frame som heter GoblinRuta (namn som andra argument) med storleken 200 × 60, och en fontstring med texten \"Pull om 10\". Skriv till sist ut rutans storlek och text: 200 60 Pull om 10",
+     "starter": "",
+     "check": {
+      "expect": "200 60 Pull om 10"
+     },
+     "hints": [
+      "CreateFrame(\"Frame\", \"GoblinRuta\", UIParent)",
+      "ruta:GetSize() ger bredd och höjd; text:GetText() ger texten."
+     ],
+     "solution": "local ruta = CreateFrame(\"Frame\", \"GoblinRuta\", UIParent)\nruta:SetSize(200, 60)\nlocal text = ruta:CreateFontString(nil, \"OVERLAY\", \"GameFontNormal\")\ntext:SetPoint(\"CENTER\")\ntext:SetText(\"Pull om 10\")\nlocal w, h = GoblinRuta:GetSize()\nprint(w .. \" \" .. h .. \" \" .. text:GetText())\n"
+    }
+   ],
+   "lesson": "wow-frames.md"
   }
  ]
 }
