@@ -53,7 +53,7 @@ DEFAULTS = {
     "capture": "all",  # all = WoW, Discord and your microphone on three tracks | wow = only the game, one track
     "gameBoost": 12,
     "micGate": "normal",  # off | normal | strong – the gate after the noise suppression, see MIC_GATES
-    "quality": "normal",  # high | normal | small – the bitrate, see QUALITY_MBIT  # dB louder game sound – WoW plays quietly next to Discord
+    "quality": "normal",  # best | high | normal | small – see QUALITY_MBIT/encoder_settings  # dB louder game sound – WoW plays quietly next to Discord
     "overlays": [],  # boxes over the video: {"file": image or "" = black, "text", "x", "y", "w", "h" as 0–1 of the picture}
     "postRoll": 5,  # seconds after the end
     "maxGB": 100,  # oldest videos are removed above this
@@ -501,12 +501,18 @@ def setup_obs(obs, cfg):
 
 
 QUALITY_MBIT = {"high": 25, "normal": 10, "small": 5}  # HEVC/AV1 at 60 fps
+# "best" (15 Oct, the user: Hög looked a bit rough): constant quality instead of a bitrate – as
+# many bits as each picture needs (raid effects take a lot), near what the eye can tell apart.
+# The level per encoder family; lower = finer. The size follows what happens on screen.
+BEST_QP = {"nvenc": 18, "vaapi": 20, "x264": 18}
 
 
 def encoder_settings(cfg, codec, family="nvenc"):
     """OBS's recording encoder (advanced output mode): which encoder, and its settings –
     a bitrate from the quality choice. H.264 needs more than HEVC for the same picture,
     30 fps less than 60."""
+    if cfg.get("quality") == "best":
+        return best_encoder_settings(cfg, codec, family)
     mbit = QUALITY_MBIT.get(cfg.get("quality"), 10)
     if codec in ("h264", "x264"):
         mbit *= 1.5
@@ -522,6 +528,18 @@ def encoder_settings(cfg, codec, family="nvenc"):
     name = {"h264": "obs_nvenc_h264_tex", "hevc": "obs_nvenc_hevc_tex", "av1": "obs_nvenc_av1_tex"}[codec]
     return name, {"rate_control": "VBR", "bitrate": kbit, "max_bitrate": int(kbit * 1.5),
                   "preset2": "p5", "tune": "hq", "multipass": "qres", "keyint_sec": 2, "bf": 2}
+
+
+def best_encoder_settings(cfg, codec, family):
+    if codec == "x264":
+        return "obs_x264", {"rate_control": "CRF", "crf": BEST_QP["x264"], "preset": "veryfast", "keyint_sec": 2}
+    if family == "vaapi":
+        name = {"h264": "ffmpeg_vaapi", "hevc": "hevc_ffmpeg_vaapi", "av1": "av1_ffmpeg_vaapi"}[codec]
+        return name, {"vaapi_device": vaapi_device(), "rate_control": "CQP", "qp": BEST_QP["vaapi"],
+                      "keyint_sec": 2, "bf": 0}
+    name = {"h264": "obs_nvenc_h264_tex", "hevc": "obs_nvenc_hevc_tex", "av1": "obs_nvenc_av1_tex"}[codec]
+    return name, {"rate_control": "CQP", "cqp": BEST_QP["nvenc"], "preset2": "p5", "tune": "hq",
+                  "multipass": "qres", "keyint_sec": 2, "bf": 2}
 
 
 def profile_dir():

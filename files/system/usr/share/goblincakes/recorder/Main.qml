@@ -1688,15 +1688,20 @@ Window {
             Row {
                 spacing: 12
                 Repeater {
-                    model: [{ "id": "high", "name": "Hög" }, { "id": "normal", "name": "Normal" }, { "id": "small", "name": "Liten" }]
+                    model: [{ "id": "best", "name": "Bäst" }, { "id": "high", "name": "Hög" },
+                            { "id": "normal", "name": "Normal" }, { "id": "small", "name": "Liten" }]
                     Choice {
                         required property var modelData
-                        // MB per minute, as recorder.encoder_settings counts it (video + 1 or 3 audio tracks)
-                        readonly property real mb: ({ high: 25, normal: 10, small: 5 })[modelData.id]
+                        // MB per minute, as recorder.encoder_settings counts it (video + 1 or 3 audio tracks);
+                        // Bäst has no bitrate (measured 15 Oct: a raid minute at CQP 18 = 326 MB, Hög 199)
+                        readonly property real mb: ({ best: 0, high: 25, normal: 10, small: 5 })[modelData.id]
                             * (win.cfg.codec === "h264" || win.cfg.codec === "x264" ? 1.5 : 1)
                             * (win.cfg.fps <= 30 ? 0.7 : 1) * 7.5 + (win.cfg.capture === "wow" ? 1.2 : 3.6)
                         text: modelData.name
-                        sub: "≈ " + Math.round(mb / 5) * 5 + " MB per minut. "
+                        sub: modelData.id === "best"
+                             ? "Riktigt fin bild – grafikkortet ger varje bild så mycket som behövs, så storleken följer vad som händer: "
+                               + "ungefär 300–500 MB per minut, mest i stora raidstrider. Håll koll på platsgränsen."
+                             : "≈ " + Math.round(mb / 5) * 5 + " MB per minut. "
                              + ({ high: "Om du vill klippa ihop filmer i efterhand.", normal: "Räcker gott för WoW.",
                                   small: "När disken är liten." })[modelData.id] + " En lugn stund blir mindre."
                         chosen: (win.cfg.quality || "normal") === modelData.id
