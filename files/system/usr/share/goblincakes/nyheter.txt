@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-15  Lärläget: rätt svar räknas nu som rätt (övningsdatorn startade inte koden)
 2026-10-15  Lär dig koda har fått kurser i Godot (gör egna spel – koden körs i riktiga Godot) och containrar (Podman, quadlets och hur Ianseo är byggt). Övningsdatorn görs om en gång första gången du kör en uppgift.
 2026-10-15  Lär dig koda har nu riktiga kurser: Python, Lua, WoW-tillägg, Bash och Linux, Git, HTML och CSS, JavaScript, PHP, SQL, säkerhet och Ianseo – 97 uppgifter som kontrolleras direkt.
 2026-10-15  Lär dig koda i Goblin AI: välj ett mål (hemsida, WoW-tillägg, Ianseo-modul …) eller spår (Python, PHP, Lua …), skriv koden själv på en avskild övningsdator och få den kontrollerad direkt. Läraren ger ledtrådar och förklarar fel – bara lokalt om du vill. Fler lektioner kommer.

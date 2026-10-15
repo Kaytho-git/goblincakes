@@ -251,7 +251,8 @@ def run_code(run, code, files=None, timeout=10):
                 return r.returncode, (r.stdout + r.stderr)[-8000:]
             except subprocess.TimeoutExpired:
                 return 124, "Tog för lång tid (över 10 sekunder) – en loop som aldrig slutar?"
-        full = ["podman", "run", "--rm", "--network=none", "--memory=256m", "--pids-limit=64",
+        # --init: GNU timeout as PID 1 exits with 125 without running anything
+        full = ["podman", "run", "--rm", "--init", "--network=none", "--memory=256m", "--pids-limit=64",
                 "--security-opt", "label=disable", "-v", f"{work}:/work", "-v", f"{BASE}:/course:ro",
                 "-v", f"{codedir}:/code:ro",
                 "-w", "/work", IMAGE, "timeout", str(timeout), *cmd]
@@ -262,6 +263,8 @@ def run_code(run, code, files=None, timeout=10):
         out = (r.stdout + r.stderr)[-8000:]
         if r.returncode == 124:
             out += "\nTog för lång tid (över 10 sekunder) – en loop som aldrig slutar?"
+        elif r.returncode == 125 and not out.strip():
+            out = "Övningsdatorn kunde inte starta koden (podman svarade 125) – inte ditt fel."
         return r.returncode, out
     finally:
         shutil.rmtree(work, ignore_errors=True)
