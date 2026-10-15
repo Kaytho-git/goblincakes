@@ -1741,6 +1741,16 @@ Window {
                 d.suggest.main = d.suggest.main.filter(a => a !== app);
             });
         }
+        function setAuto(on) {
+            info = Object.assign({}, info, { "auto": on });
+            backend.tileAuto(on);
+        }
+        function setOwnDesktop(on) {
+            const i = sel;
+            edit(d => { d.layouts[i].desktop = on ? i + 1 : 0; });
+            status = on ? "Layouten får skrivbord " + (i + 1) + " – Använd eller Meta+Ctrl+" + (i + 1) + " byter dit."
+                        : "Layouten använder skrivbordet som visas.";
+        }
         function setSuggest(key, value) {
             edit(d => { d.suggest[key] = value; });
         }
@@ -1971,6 +1981,29 @@ Window {
                     }
                 }
 
+                // Automatic tiles (15 Oct): new windows fill free tiles, drag = swap
+                Row {
+                    visible: windowsView.loaded
+                    width: parent.width
+                    spacing: 12
+                    SmallButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        on: !!windowsView.info.auto
+                        text: windowsView.info.auto ? "Automatiska rutor: på" : "Automatiska rutor: av"
+                        onClicked: windowsView.setAuto(!windowsView.info.auto)
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - 220
+                        text: "Nya fönster läggs i nästa lediga ruta, och drar du ett fönster till en annan ruta byter de två plats. "
+                              + "Meta+Shift+T tar ut ett fönster ur rutorna (eller tillbaka)."
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
                 // Main windows → a suggested layout (15 Oct, the user's idea)
                 Rectangle {
                     visible: windowsView.loaded
@@ -2114,6 +2147,13 @@ Window {
                         height: 36
                         text: "Spara som det ser ut nu"
                         onClicked: { windowsView.status = "Läser KDE:s rutor…"; backend.captureTiles(); }
+                    }
+                    SmallButton {
+                        height: 36
+                        on: !!(windowsView.layout && windowsView.layout.desktop)
+                        text: windowsView.layout && windowsView.layout.desktop
+                              ? "Eget skrivbord (" + windowsView.layout.desktop + ")" : "Eget skrivbord"
+                        onClicked: windowsView.setOwnDesktop(!(windowsView.layout && windowsView.layout.desktop))
                     }
                     SmallButton {
                         height: 36

@@ -7,6 +7,7 @@
     goblincakes-tile layouts                         your saved layouts (GOBLINCAKES Config → Fönster)
     goblincakes-tile layout <name|number>            use a layout: KDE's tiles, the rules, open windows in place
     goblincakes-tile open <name|number>              the same + start the layout's programs that aren't running
+    goblincakes-tile auto [på|av]                    automatic tiles: new windows fill free tiles, drag = swap
     goblincakes-tile huvud [program …]               main windows for the suggestion (none = show them, "av" = none)
     goblincakes-tile förslag                         a suggested layout from the main windows → the layout "Förslag"
     goblincakes-tile json | save | capture | suggest for GOBLINCAKES Config (JSON out, JSON on stdin, KDE's tiles now)
@@ -73,14 +74,16 @@ def read_rules():
     rules = {}
     for part in read_config(KEY).split(";"):
         key, _, place = part.partition("=")
-        screen, _, tile = place.partition(":")
+        screen, _, rest = place.partition(":")
+        tile, _, desk = rest.partition(":")  # desk: the layout's own virtual desktop (number), 0 = any
         if key.strip() and screen.strip() and tile.strip().isdigit():
-            rules[key.strip()] = (screen.strip(), int(tile))
+            rules[key.strip()] = (screen.strip(), int(tile), int(desk) if desk.strip().isdigit() else 0)
     return rules
 
 
 def write_rules(rules):
-    value = ";".join(f"{k}={s}:{t}" for k, (s, t) in sorted(rules.items()))
+    value = ";".join(f"{k}={r[0]}:{r[1]}" + (f":{r[2]}" if len(r) > 2 and r[2] else "")
+                     for k, r in sorted(rules.items()))
     args = ["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", KEY]
     subprocess.run(args + (["--delete"] if not value else [value]), check=False)
     subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin",
@@ -222,7 +225,7 @@ def cmd_list():
         print(f"\n{ACCENT}Dina regler{RESET}")
         names = {SCREEN.rule_key(i, v[1]): v[0] for i, v in progs.items()}
         numbers = {c: i for i, c, _ in scr}
-        for key, (conn, tile) in sorted(rules.items()):
+        for key, (conn, tile, _desk) in sorted(rules.items()):
             n = numbers.get(conn)
             where = f"skärm {n} ({conn}), ruta {tile}" if n else f"{conn}, ruta {tile} – skärmen är inte ansluten nu"
             if n and tile > len(tiles_for(conn)):
@@ -255,7 +258,7 @@ def cmd_add(args):
     rules = read_rules()
     for k in [k for k in rules if set(k.split("|")) & set(classes)]:  # one rule per program
         del rules[k]
-    rules[SCREEN.rule_key(app_id, classes)] = (conn, tile)
+    rules[SCREEN.rule_key(app_id, classes)] = (conn, tile, 0)
     write_rules(rules)
     print(f"Klart: {name} öppnas i ruta {tile} på skärm {screen} ({conn}).")
     if not count:
@@ -349,7 +352,9 @@ def load_layouts():
         name = str(lay.get("name") or "").strip()[:40]
         screens = lay.get("screens") if isinstance(lay.get("screens"), dict) else {}
         if name and name not in [x["name"] for x in layouts]:
-            layouts.append({"name": name, "screens": {str(k): clean_tree(v) for k, v in screens.items()}})
+            desk = lay.get("desktop")
+            layouts.append({"name": name, "screens": {str(k): clean_tree(v) for k, v in screens.items()},
+                            "desktop": desk if isinstance(desk, int) and 0 < desk <= 20 else 0})
     layouts = layouts[:MAX_LAYOUTS]
     active = data.get("active") if data.get("active") in [x["name"] for x in layouts] else ""
     return {"active": active, "layouts": layouts, "suggest": clean_suggest(data.get("suggest"))}
@@ -461,7 +466,8 @@ def cmd_json():
                    for i, v in progs.items()), key=lambda a: a["name"].lower())
     data = load_layouts()
     print(json.dumps({"screens": screen_geometry(), "layouts": data["layouts"], "active": data["active"],
-                      "apps": apps, "current": current_trees(), "suggest": data["suggest"]}, ensure_ascii=False))
+                      "apps": apps, "current": current_trees(), "suggest": data["suggest"],
+                      "auto": read_config("autoTile") == "true"}, ensure_ascii=False))
     return 0
 
 
@@ -535,6 +541,52 @@ def kwin_script(payload, wait=True, timeout=5000):
         bus.unregisterService(service)
 
 
+def kwin_desktops():
+    """[(uuid, name)] of KWin's virtual desktops, in order."""
+    r = subprocess.run(["busctl", "--user", "--json=short", "get-property", "org.kde.KWin", "/VirtualDesktopManager",
+                        "org.kde.KWin.VirtualDesktopManager", "desktops"], capture_output=True, text=True)
+    try:
+        return [(d[1], d[2]) for d in json.loads(r.stdout)["data"]]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return []
+
+
+def ensure_desktop(number, name):
+    """A layout with its own desktop: make desktops up to its number, and give it the layout's
+    name (only a desktop still called Desktop N / Skrivbord N – your own names are kept)."""
+    def vdm(*args):
+        subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/VirtualDesktopManager",
+                        "org.kde.KWin.VirtualDesktopManager", *args], capture_output=True)
+    desks = kwin_desktops()
+    if not desks:
+        return
+    for pos in range(len(desks), number):
+        vdm("createDesktop", "us", str(pos), name if pos == number - 1 else f"Skrivbord {pos + 1}")
+    desks = kwin_desktops()
+    if len(desks) >= number:
+        uuid, old = desks[number - 1]
+        if old != name and (not old or old.split()[0] in ("Desktop", "Skrivbord") and old.split()[-1].isdigit()):
+            vdm("setDesktopName", "ss", uuid, name)
+
+
+def cmd_auto(args):
+    """Automatic tiles: new windows into the next free tile, drag a window onto another to swap."""
+    if args and args[0].lower() in ("on", "på", "pa", "off", "av"):
+        on = args[0].lower() in ("on", "på", "pa")
+        subprocess.run(["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", "autoTile",
+                        "--type", "bool", "true" if on else "false"], check=False)
+        subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure"],
+                       capture_output=True)
+    on = read_config("autoTile") == "true"
+    if args and args[0] == "status":
+        print("on" if on else "off")
+        return 0
+    print(f"Automatiska rutor: {'på' if on else 'av'}. "
+          + ("Nya fönster läggs i nästa lediga ruta, och drar du ett fönster till en annan ruta byter de plats. "
+             "Meta+Shift+T tar ut fönstret ur rutorna (eller tillbaka)." if on else "Slå på: goblin tile auto på"))
+    return 0
+
+
 def layout_rules(layout, progs):
     """The layout's programs → tileRules {key: (connector, tile)} and the script's rules."""
     rules, script = {}, []
@@ -544,7 +596,7 @@ def layout_rules(layout, progs):
                 if app not in progs:
                     continue
                 classes = progs[app][1]
-                rules[SCREEN.rule_key(app, classes)] = (conn, n)
+                rules[SCREEN.rule_key(app, classes)] = (conn, n, layout.get("desktop") or 0)
                 script.append({"names": sorted(set([app.lower()] + classes)), "screen": conn, "tile": n})
     return rules, script
 
@@ -560,8 +612,11 @@ def cmd_layout(args, start_apps=False):
     progs = SCREEN.programs()
     rules, script_rules = layout_rules(layout, progs)
     write_rules(rules)
-    report = kwin_script({"mode": "apply", "screens": layout["screens"], "rules": script_rules, "games": GAMES},
-                         wait=True)
+    desk = layout.get("desktop") or 0
+    if desk:
+        ensure_desktop(desk, layout["name"])
+    report = kwin_script({"mode": "apply", "screens": layout["screens"], "rules": script_rules, "games": GAMES,
+                          "desktop": desk}, wait=True)
     data["active"] = layout["name"]
     save_layouts(data)
     started = []
@@ -597,6 +652,7 @@ def cmd_layouts():
                 for a in leaf.get("apps") or [] if a in progs]
         mark = f" {ACCENT}← används{RESET}" if lay["name"] == data["active"] else ""
         print(f"  {FROST}{i}{RESET}  {lay['name']}{mark}  {MUTED}Meta+Ctrl+{i} · {tiles} rutor"
+              + (f" · skrivbord {lay['desktop']}" if lay.get("desktop") else "")
               + (f" · {', '.join(apps)}" if apps else "") + RESET)
     print(f"\n{MUTED}Använd: goblin tile layout 1   Öppna allt: goblin tile open 1{RESET}")
     return 0
@@ -795,6 +851,8 @@ def main(argv):
         return cmd_capture()
     if cmd == "suggest":
         return cmd_suggest()
+    if cmd in ("auto", "automatisk", "fyll"):
+        return cmd_auto(argv[1:])
     if cmd in ("huvud", "main", "huvudfönster"):
         return cmd_main(argv[1:])
     if cmd in ("förslag", "forslag", "suggestion"):

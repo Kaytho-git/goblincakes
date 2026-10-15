@@ -443,6 +443,10 @@ class Config(QObject):
     def captureTiles(self):
         self._tile_proc(["capture"], lambda out, err: self.tilesCaptured.emit(out.strip()))
 
+    @Slot(bool)
+    def tileAuto(self, on):
+        self._tile_proc(["auto", "på" if on else "av"], lambda out, err: None)
+
     @Slot(str)
     def suggestTiles(self, options):
         self._tile_proc(["suggest"], lambda out, err: self.tilesSuggested.emit(out.strip()), stdin=options)

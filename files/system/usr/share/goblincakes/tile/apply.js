@@ -1,6 +1,7 @@
 // GOBLINCAKES fönsterlayouter: loaded for a moment by /usr/libexec/goblincakes-tile (Config →
 // Fönster, Meta+Ctrl+1–9, goblin tile layout). __DATA__ is replaced with:
-//   {"mode": "apply", "screens": {connector: tree}, "rules": [{names, screen, tile}], "games", "service"}
+//   {"mode": "apply", "screens": {connector: tree}, "rules": [{names, screen, tile}], "games", "service",
+//    "desktop": the layout's own virtual desktop (number, 0 = the one shown now)}
 //   {"mode": "capture", "games", "service"}
 // A tree is {"dir": "h"|"v", "children": [{size, …}]} (h = side by side, size = part of the
 // parent) or a tile {}. KWin can't reload its tiles from kwinrc, so they are rebuilt here with
@@ -85,6 +86,9 @@ function build(tile, node) {
 }
 
 function putInTile(window, tile) {
+    const old = window.tile;
+    if (old && old !== tile && typeof old.unmanage === "function")
+        old.unmanage(window);
     if (typeof tile.manage === "function")
         tile.manage(window);
     else
@@ -92,6 +96,11 @@ function putInTile(window, tile) {
 }
 
 function apply() {
+    // A layout with its own desktop: go there first – KWin keeps tiles per desktop, and a
+    // script builds them on the desktop shown (goblincakes-tile has made the desktop)
+    const desk = DATA.desktop > 0 ? workspace.desktops[DATA.desktop - 1] : null;
+    if (desk && workspace.currentDesktop !== desk)
+        workspace.currentDesktop = desk;
     const screens = DATA.screens || {};
     for (const name in screens) {
         const root = rootOf(screenNamed(name));
@@ -113,8 +122,11 @@ function apply() {
                 continue;
             const root = rootOf(screenNamed(rules[r].screen));
             const tiles = root ? leafTiles(root) : [];
-            if (rules[r].tile >= 1 && rules[r].tile <= tiles.length)
+            if (rules[r].tile >= 1 && rules[r].tile <= tiles.length) {
+                if (desk && !w.onAllDesktops)
+                    w.desktops = [desk];
                 putInTile(w, tiles[rules[r].tile - 1]);
+            }
             break;
         }
     }

@@ -252,7 +252,7 @@ COMMANDS=(
     "old|Visa avinstallerade program och hur du får tillbaka dem"
     "frames|Hur jämnt spelet flyter – fps, 1 % low och ryck (goblin frames off stänger av mätningen)"
     "screen|Vilken skärm ett program öppnas på – t.ex. goblin screen add discord screen 2"
-    "tile|Fönsterlayouter (Config → Fönster, Meta+Ctrl+1–9): goblin tile layouts, goblin tile open raid; förslag: goblin tile huvud firefox discord + goblin tile förslag; en ruta: goblin tile add discord 2 1"
+    "tile|Fönsterlayouter (Config → Fönster, Meta+Ctrl+1–9): goblin tile layouts, goblin tile open raid; förslag: goblin tile huvud firefox discord + goblin tile förslag; automatiska rutor: goblin tile auto på; en ruta: goblin tile add discord 2 1"
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
     "graph|Ljudgraf i WoW:s klassfärger till musiken – goblin graph [staplar|våg|cirkel|explosion] [alla|klass|mage …] [lås|lås upp]; goblin graph auto on = öppnas när musik spelar"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"

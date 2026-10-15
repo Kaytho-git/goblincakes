@@ -42,6 +42,8 @@ function leafTiles(tile) {
     return out;
 }
 
+// A third part "…:3:2" = the layout's own virtual desktop (15 Oct, Config → Fönster → Eget
+// skrivbord): the window goes to that desktop and its tile there.
 function ruleTile(window) {
     const names = [window.desktopFileName, window.resourceClass, window.resourceName]
         .map(function (n) { return String(n || "").toLowerCase(); });
@@ -54,20 +56,53 @@ function ruleTile(window) {
         const place = parts[1].split(":");
         const screen = workspace.screens.find(function (s) { return s.name === place[0]; });
         const number = parseInt(place[1], 10);
+        const desk = parseInt(place[2], 10);
         if (!screen || !(number >= 1))
             return null;
-        const manager = workspace.tilingForScreen(screen);
-        const tiles = manager && manager.rootTile ? leafTiles(manager.rootTile) : [];
-        return number <= tiles.length ? tiles[number - 1] : null;
+        return { screen: screen, number: number,
+                 desktop: desk >= 1 && desk <= workspace.desktops.length ? workspace.desktops[desk - 1] : null };
     }
     return null;
 }
+
+// The root tile of a screen on a desktop: KWin 6.8 has workspace.rootTile(screen, desktop);
+// 6.7 only the desktop shown (another desktop = null, the window waits until it is shown)
+function rootOf(screen, desktop) {
+    if (!screen)
+        return null;
+    if (desktop && desktop !== workspace.currentDesktop)
+        return typeof workspace.rootTile === "function" ? workspace.rootTile(screen, desktop) : null;
+    const manager = workspace.tilingForScreen(screen);
+    return manager ? manager.rootTile : null;
+}
+
+function tileFor(rule) {
+    const root = rootOf(rule.screen, rule.desktop);
+    const tiles = root ? leafTiles(root) : [];
+    return rule.number <= tiles.length ? tiles[rule.number - 1] : null;
+}
+
+const waiting = [];  // [{window, rule}] – to be tiled when their desktop is shown (KWin 6.7)
+workspace.currentDesktopChanged.connect(function () {
+    for (let i = waiting.length - 1; i >= 0; i--) {
+        const w = waiting[i];
+        if (w.rule.desktop !== workspace.currentDesktop)
+            continue;
+        waiting.splice(i, 1);
+        const tile = tileFor(w.rule);
+        if (tile && w.window.desktops && w.window.desktops.indexOf(w.rule.desktop) >= 0)
+            toTile(w.window, tile);
+    }
+});
 
 // Into the tile – and back again during the first seconds, while programs like Chromium,
 // Discord and Steam restore the size they had last time (not while you drag it yourself).
 // KWin keeps such a window marked as tiled, so the size is compared with the tile's.
 // tile.manage() since KWin 6.7 (writing window.tile is deprecated); the old way as a fallback
 function putInTile(window, tile) {
+    const old = window.tile;
+    if (old && old !== tile && typeof old.unmanage === "function")
+        old.unmanage(window);
     if (typeof tile.manage === "function")
         tile.manage(window);
     else
@@ -80,6 +115,8 @@ function toTile(window, tile) {
     window.frameGeometryChanged.connect(function () {
         if (Date.now() - start > 8000 || window.move || window.resize || window.fullScreen)
             return;
+        if ((window.tile && window.tile !== tile) || floating[idOf(window)])
+            return;  // moved to another tile (dragged, swapped) or taken out – leave it
         // the tile's own size; the window sits inside it by the padding (half at inner edges)
         const want = tile.absoluteGeometry;
         const geo = window.frameGeometry;
@@ -248,6 +285,8 @@ function appGridAdded(window) {
 function added(window) {
     if (!window)
         return;
+    if (ordinaryWindow(window))
+        watchDrag(window);
     if (isAppGrid(window)) {
         appGridAdded(window);
         return;
@@ -261,16 +300,26 @@ function added(window) {
     if (CENTERED.indexOf(window.resourceClass) >= 0) {
         center(window);
     } else if (tiled) {
-        toTile(window, tiled);
+        if (tiled.desktop && !window.onAllDesktops)
+            window.desktops = [tiled.desktop];
+        const tile = tileFor(tiled);
+        if (tile)
+            toTile(window, tile);
+        else if (tiled.desktop)
+            waiting.push({ window: window, rule: tiled });
     } else if (ruled) {
         if (window.output !== ruled)
             workspace.sendClientToScreen(window, ruled);
         if (isWebapp(window) && wantsFullscreen(window))
             window.fullScreen = true;
+        else if (autoFillable(window) && autoFill(window))
+            ;
         else if (isWebapp(window))
             fit(window);
     } else if (isWebapp(window) && wantsFullscreen(window)) {
         window.fullScreen = true;
+    } else if (autoFillable(window) && autoFill(window)) {
+        // in the next free tile (automatic tiles)
     } else if (isWebapp(window)) {
         fit(window);
         const start = Date.now();
@@ -289,6 +338,128 @@ function added(window) {
         });
     }
 }
+
+// ── Automatic tiles (15 Oct, the user's wish: goblin tile auto på / Config → Fönster) ──
+// When a screen has tiles: a new window without a rule goes into the first free tile, and a
+// tiled window dragged onto another tile swaps places with the window there (dropped on a
+// free tile = just moves). Meta+Shift+T takes the active window out of the tiles (it then
+// floats and is left alone) or back in. Games, dialogs, fixed-size and special windows are
+// left alone. kwinrc [Script-goblincakes-windows] autoTile=true.
+function autoOn() {
+    return String(readConfig("autoTile", "false")) === "true";
+}
+
+function ordinaryWindow(window) {
+    return !!window && window.normalWindow && !window.transient && !isGame(window)
+        && window.resizeable !== false && !window.skipTaskbar && !isAppGrid(window)
+        && CENTERED.indexOf(window.resourceClass) < 0 && window.resourceClass !== GRAPH;
+}
+
+const floating = {};  // windows taken out with Meta+Shift+T (by internalId)
+function idOf(window) {
+    return String(window.internalId);
+}
+
+function autoFillable(window) {
+    return autoOn() && ordinaryWindow(window) && !window.fullScreen && !floating[idOf(window)];
+}
+
+function freeTile(root, except) {
+    const tiles = root ? leafTiles(root) : [];
+    if (tiles.length < 2)
+        return null;  // no tiles on this screen: nothing to fill
+    for (let i = 0; i < tiles.length; i++) {
+        const taken = (tiles[i].windows || []).some(function (w) {
+            return w !== except && ordinaryWindow(w) && !w.minimized;
+        });
+        if (!taken)
+            return tiles[i];
+    }
+    return null;
+}
+
+function autoFill(window) {
+    const tile = freeTile(rootOf(window.output, null), window);
+    if (!tile)
+        return false;  // all tiles taken: the window opens as usual
+    toTile(window, tile);
+    return true;
+}
+
+const watched = {};
+function watchDrag(window) {
+    const id = idOf(window);
+    if (watched[id])
+        return;
+    watched[id] = true;
+    let from = null, moving = false;
+    window.interactiveMoveResizeStarted.connect(function () {
+        moving = window.move;
+        from = window.tile;
+    });
+    window.interactiveMoveResizeFinished.connect(function () {
+        if (!moving || !autoOn() || floating[id] || window.fullScreen || !ordinaryWindow(window))
+            return;
+        const area = workspace.clientArea(KWin.MaximizeArea, window.output, workspace.currentDesktop);
+        const geo = window.frameGeometry;
+        if (geo.width >= area.width - 2 && geo.height >= area.height - 2)
+            return;  // dragged to the top edge: maximized, as KDE does
+        let target = window.tile;
+        if (!target || target === from) {
+            const pos = workspace.cursorPos;
+            const screen = workspace.screenAt(pos);
+            const manager = screen ? workspace.tilingForScreen(screen) : null;
+            if (!manager || !manager.rootTile || leafTiles(manager.rootTile).length < 2)
+                return;  // dropped where there are no tiles: it floats
+            target = manager.bestTileForPosition(pos.x, pos.y);
+        }
+        if (!target)
+            return;
+        const others = (target.windows || []).filter(function (w) {
+            return w !== window && ordinaryWindow(w) && !w.minimized;
+        });
+        putInTile(window, target);
+        if (target === from)
+            return;
+        for (let i = 0; i < others.length; i++) {
+            const place = from || freeTile(rootOf(others[i].output, null), others[i]);
+            if (place && place !== target)
+                putInTile(others[i], place);  // the two swap places
+        }
+    });
+    window.closed.connect(function () {
+        delete watched[id];
+        delete floating[id];
+    });
+}
+
+registerShortcut("GOBLINCAKES Tile Float", "GOBLINCAKES: fönstret ut ur rutorna / tillbaka in", "Meta+Shift+T",
+    function () {
+        const window = workspace.activeWindow;
+        if (!ordinaryWindow(window))
+            return;
+        const id = idOf(window);
+        if (window.tile) {
+            floating[id] = true;
+            if (typeof window.tile.unmanage === "function")
+                window.tile.unmanage(window);
+            else
+                window.tile = null;
+        } else {
+            delete floating[id];
+            const geo = window.frameGeometry;
+            const manager = workspace.tilingForScreen(window.output);
+            const tile = manager && manager.rootTile && leafTiles(manager.rootTile).length > 1
+                ? manager.bestTileForPosition(geo.x + geo.width / 2, geo.y + geo.height / 2) : null;
+            if (tile)
+                putInTile(window, tile);
+        }
+    });
+
+const existing = workspace.windowList();
+for (let i = 0; i < existing.length; i++)
+    if (ordinaryWindow(existing[i]))
+        watchDrag(existing[i]);
 
 // 2 px between tiled windows (12 Oct, the user's wish): KDE's tiles have 4 px padding by default
 // (between two windows = the padding, half from each). Set on every screen whose tiles still
