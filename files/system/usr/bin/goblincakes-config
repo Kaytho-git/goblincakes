@@ -447,6 +447,11 @@ class Config(QObject):
     def tileAuto(self, on):
         self._tile_proc(["auto", "på" if on else "av"], lambda out, err: None)
 
+    @Slot(bool)
+    def tilesEnabled(self, on):
+        """Config → Fönster → Rutor: på/av (goblin tile på|av); the view is read again after."""
+        self._tile_proc(["på" if on else "av"], lambda out, err: self.loadTiles())
+
     @Slot(str)
     def suggestTiles(self, options):
         self._tile_proc(["suggest"], lambda out, err: self.tilesSuggested.emit(out.strip()), stdin=options)

@@ -45,6 +45,8 @@ function leafTiles(tile) {
 // A third part "…:3:2" = the layout's own virtual desktop (15 Oct, Config → Fönster → Eget
 // skrivbord): the window goes to that desktop and its tile there.
 function ruleTile(window) {
+    if (!tilesOn())
+        return null;
     const names = [window.desktopFileName, window.resourceClass, window.resourceName]
         .map(function (n) { return String(n || "").toLowerCase(); });
     const rules = String(readConfig("tileRules", "")).split(";");
@@ -391,8 +393,13 @@ function added(window) {
 // free tile = just moves). Meta+Shift+T takes the active window out of the tiles (it then
 // floats and is left alone) or back in. Games, dialogs, fixed-size and special windows are
 // left alone. kwinrc [Script-goblincakes-windows] autoTile=true.
+// goblin tile av / Config → Fönster → Rutor: av (15 Oct): no rules, no automatic tiles
+function tilesOn() {
+    return String(readConfig("tilesOff", "false")) !== "true";
+}
+
 function autoOn() {
-    return String(readConfig("autoTile", "false")) === "true";
+    return tilesOn() && String(readConfig("autoTile", "false")) === "true";
 }
 
 function ordinaryWindow(window) {

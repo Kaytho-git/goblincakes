@@ -8,6 +8,7 @@
     goblincakes-tile layout <name|number>            use a layout: KDE's tiles, the rules, open windows in place
     goblincakes-tile open <name|number>              the same + start the layout's programs that aren't running
     goblincakes-tile auto [på|av]                    automatic tiles: new windows fill free tiles, drag = swap
+    goblincakes-tile av | på                         all tiles off (rules and layouts are kept) / on again
     goblincakes-tile huvud [program …]               main windows for the suggestion (none = show them, "av" = none)
     goblincakes-tile förslag                         a suggested layout from the main windows → the layout "Förslag"
     goblincakes-tile json | save | capture | suggest for GOBLINCAKES Config (JSON out, JSON on stdin, KDE's tiles now)
@@ -467,7 +468,8 @@ def cmd_json():
     data = load_layouts()
     print(json.dumps({"screens": screen_geometry(), "layouts": data["layouts"], "active": data["active"],
                       "apps": apps, "current": current_trees(), "suggest": data["suggest"],
-                      "auto": read_config("autoTile") == "true"}, ensure_ascii=False))
+                      "auto": read_config("autoTile") == "true", "enabled": not tiles_off()},
+                     ensure_ascii=False))
     return 0
 
 
@@ -587,6 +589,35 @@ def cmd_auto(args):
     return 0
 
 
+def tiles_off():
+    return read_config("tilesOff") == "true"
+
+
+def set_tiles_off(off):
+    subprocess.run(["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", "tilesOff",
+                    "--type", "bool", "true" if off else "false"], check=False)
+    subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure"],
+                   capture_output=True)
+
+
+def cmd_onoff(on):
+    """All tiles off (15 Oct, the user's wish – no layout in use, but programs still went into
+    tiles: the rules and automatic tiles): the KWin script leaves every window alone, the windows
+    in tiles now are let go and KDE's tiles are taken away. Rules and layouts are kept for "på";
+    using a layout turns the tiles on again."""
+    set_tiles_off(not on)
+    if on:
+        print("Rutorna är på igen. Välj en layout (goblin tile layout 1, Meta+Ctrl+1) eller dela skärmen med Meta+T.")
+        return 0
+    kwin_script({"mode": "release"}, wait=True)
+    data = load_layouts()
+    data["active"] = ""
+    save_layouts(data)
+    print("Rutorna är av: inga program läggs i rutor, och KDE:s rutor är borttagna. "
+          "Dina layouter finns kvar – välj en så slås rutorna på igen (eller goblin tile på).")
+    return 0
+
+
 def layout_rules(layout, progs):
     """The layout's programs → tileRules {key: (connector, tile)} and the script's rules."""
     rules, script = {}, []
@@ -612,6 +643,8 @@ def cmd_layout(args, start_apps=False):
     progs = SCREEN.programs()
     rules, script_rules = layout_rules(layout, progs)
     write_rules(rules)
+    if tiles_off():
+        set_tiles_off(False)  # choosing a layout = you want tiles again
     desk = layout.get("desktop") or 0
     if desk:
         ensure_desktop(desk, layout["name"])
@@ -851,6 +884,10 @@ def main(argv):
         return cmd_capture()
     if cmd == "suggest":
         return cmd_suggest()
+    if cmd in ("av", "off"):
+        return cmd_onoff(False)
+    if cmd in ("på", "pa", "on"):
+        return cmd_onoff(True)
     if cmd in ("auto", "automatisk", "fyll"):
         return cmd_auto(argv[1:])
     if cmd in ("huvud", "main", "huvudfönster"):

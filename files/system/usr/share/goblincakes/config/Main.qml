@@ -1676,7 +1676,8 @@ Window {
             }
             function onTileDone(message) {
                 windowsView.status = message || "Klart.";
-                windowsView.info = Object.assign({}, windowsView.info, { "active": windowsView.layout ? windowsView.layout.name : "" });
+                windowsView.info = Object.assign({}, windowsView.info, { "active": windowsView.layout ? windowsView.layout.name : "",
+                                                                         "enabled": true });  // a layout turns the tiles on
             }
         }
 
@@ -1752,6 +1753,12 @@ Window {
                 if (i >= 0) o.splice(i, 1); else o.push(app);
                 d.suggest.main = d.suggest.main.filter(a => a !== app);
             });
+        }
+        function setEnabled(on) {
+            info = Object.assign({}, info, { "enabled": on, "active": on ? info.active : "" });
+            status = on ? "Rutorna är på – välj en layout och tryck Använd, eller dela skärmen med Meta+T."
+                        : "Rutorna är av – fönstren släpps där de står.";
+            backend.tilesEnabled(on);
         }
         function setAuto(on) {
             info = Object.assign({}, info, { "auto": on });
@@ -1993,9 +2000,33 @@ Window {
                     }
                 }
 
-                // Automatic tiles (15 Oct): new windows fill free tiles, drag = swap
+                // All tiles on/off (15 Oct, the user's wish)
                 Row {
                     visible: windowsView.loaded
+                    width: parent.width
+                    spacing: 12
+                    SmallButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        on: windowsView.info.enabled !== false
+                        text: windowsView.info.enabled !== false ? "Rutor: på" : "Rutor: av"
+                        onClicked: windowsView.setEnabled(windowsView.info.enabled === false)
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - 220
+                        text: windowsView.info.enabled !== false
+                              ? "Av = inga program läggs i rutor, fönstren som ligger i rutor släpps och KDE:s rutor tas bort. Layouterna sparas."
+                              : "Inga program läggs i rutor. Använd en layout (eller Meta+Ctrl+1–9) så slås rutorna på igen."
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                // Automatic tiles (15 Oct): new windows fill free tiles, drag = swap
+                Row {
+                    visible: windowsView.loaded && windowsView.info.enabled !== false
                     width: parent.width
                     spacing: 12
                     SmallButton {

@@ -3,6 +3,7 @@
 //   {"mode": "apply", "screens": {connector: tree}, "rules": [{names, screen, tile}], "games", "service",
 //    "desktop": the layout's own virtual desktop (number, 0 = the one shown now)}
 //   {"mode": "capture", "games", "service"}
+//   {"mode": "release", "service"} – tiles off: every window out of its tile, KDE's tiles away (all desktops)
 // A tree is {"dir": "h"|"v", "children": [{size, …}]} (h = side by side, size = part of the
 // parent) or a tile {}. KWin can't reload its tiles from kwinrc, so they are rebuilt here with
 // KDE's own tile API (split, resizeByPixels – the same as the tile editor, Meta+T); KWin saves them.
@@ -212,10 +213,34 @@ function running() {
     return out;
 }
 
+function release() {
+    const desks = typeof workspace.rootTile === "function" ? workspace.desktops : [null];
+    for (let i = 0; i < workspace.screens.length; i++) {
+        for (let d = 0; d < desks.length; d++) {
+            const root = desks[d] ? workspace.rootTile(workspace.screens[i], desks[d]) : rootOf(workspace.screens[i]);
+            if (!root)
+                continue;
+            const tiles = leafTiles(root);
+            for (let t = 0; t < tiles.length; t++) {
+                const windows = (tiles[t].windows || []).slice();
+                for (let w = 0; w < windows.length; w++) {
+                    if (typeof tiles[t].unmanage === "function")
+                        tiles[t].unmanage(windows[w]);
+                    else
+                        windows[w].tile = null;
+                }
+            }
+            clear(root);
+        }
+    }
+}
+
 let report = { running: [] };
 try {
     if (DATA.mode === "apply")
         apply();
+    if (DATA.mode === "release")
+        release();
     if (DATA.mode === "capture") {
         report.screens = {};
         for (let i = 0; i < workspace.screens.length; i++) {
