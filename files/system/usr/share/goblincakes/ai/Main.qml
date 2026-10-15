@@ -193,10 +193,22 @@ Window {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         onWheel: event => {
             const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
-            const top = flick.originY, bottom = top + Math.max(0, flick.contentHeight - flick.height);
-            flick.cancelFlick();
-            flick.contentY = Math.max(top, Math.min(bottom, flick.contentY - delta));
             event.accepted = true;
+            // At its end (or with nothing to scroll) the list around it scrolls instead –
+            // otherwise a code box or editor under the pointer stops the whole page
+            for (let f = flick; f; ) {
+                const top = f.originY, bottom = top + Math.max(0, f.contentHeight - f.height);
+                const y = Math.max(top, Math.min(bottom, f.contentY - delta));
+                if (y !== f.contentY) {
+                    f.cancelFlick();
+                    f.contentY = y;
+                    return;
+                }
+                let p = f.parent;
+                while (p && (p.cancelFlick === undefined || p.contentY === undefined))
+                    p = p.parent;
+                f = p;
+            }
         }
     }
 
@@ -254,6 +266,8 @@ Window {
         border.color: "#1A2438"
         clip: true
         Flickable {
+            id: codeFlick
+            FastWheel { flick: codeFlick }
             anchors.fill: parent
             anchors.margins: 12
             contentHeight: codeText.implicitHeight
@@ -364,6 +378,7 @@ Window {
         }
         ListView {
             id: projectList
+            FastWheel { flick: projectList }
             anchors { left: parent.left; right: parent.right; top: templateRow.bottom; topMargin: 6 }
             height: Math.min(count, 6) * 34
             clip: true
@@ -908,6 +923,8 @@ Window {
                 }
 
                 Flickable {
+                    id: inputFlick
+                    FastWheel { flick: inputFlick }
                     width: parent.width
                     height: Math.min(Math.max(input.implicitHeight, 24), 160)
                     contentHeight: input.implicitHeight
