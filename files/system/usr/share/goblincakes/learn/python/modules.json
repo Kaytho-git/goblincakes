@@ -1,0 +1,84 @@
+{
+ "modules": [
+  {
+   "id": "python-hej",
+   "title": "Ditt första program",
+   "summary": "`print(\"text\")` skriver ut; strängar inom citattecken; raderna körs uppifrån och ner.",
+   "requires": [],
+   "lesson": "python-hej.md",
+   "tasks": [
+    {
+     "id": "python-hej-1",
+     "level": 1,
+     "title": "Säg hej",
+     "prompt": "Skriv ett program som skriver ut exakt: Hej GOBLINCAKES!",
+     "starter": "# Skriv din kod här\n",
+     "check": {
+      "expect": "Hej GOBLINCAKES!"
+     },
+     "hints": [
+      "Använd print och sätt texten inom citattecken.",
+      "print(\"…\") – byt … mot texten, med utropstecknet."
+     ],
+     "solution": "print(\"Hej GOBLINCAKES!\")"
+    },
+    {
+     "id": "python-hej-2",
+     "level": 2,
+     "title": "Tre rader",
+     "prompt": "Skriv ut de här tre raderna, i den här ordningen:\nRaid i kväll\nKl. 20:00\nTa med flaskor!",
+     "starter": "",
+     "check": {
+      "expect": "Raid i kväll\nKl. 20:00\nTa med flaskor!"
+     },
+     "hints": [
+      "En print per rad.",
+      "Raderna körs uppifrån och ner – samma ordning som i uppgiften."
+     ],
+     "solution": "print(\"Raid i kväll\")\nprint(\"Kl. 20:00\")\nprint(\"Ta med flaskor!\")"
+    }
+   ]
+  },
+  {
+   "id": "python-variabler",
+   "title": "Variabler",
+   "summary": "`namn = värde`; tal räknar man med, text står inom citattecken; f-strängar: `f\"Hej {namn}\"`.",
+   "requires": [
+    "python-hej"
+   ],
+   "lesson": "python-variabler.md",
+   "tasks": [
+    {
+     "id": "python-variabler-1",
+     "level": 1,
+     "title": "Din karaktär",
+     "prompt": "Skapa variablerna namn = \"Kaytho\" och nivå = 80, och skriv ut: Kaytho är nivå 80",
+     "starter": "namn = \"Kaytho\"\nnivå = 80\n",
+     "check": {
+      "expect": "Kaytho är nivå 80"
+     },
+     "hints": [
+      "En f-sträng sätter in variabler: f\"… {namn} …\"",
+      "print(f\"{namn} är nivå {nivå}\")"
+     ],
+     "solution": "namn = \"Kaytho\"\nnivå = 80\nprint(f\"{namn} är nivå {nivå}\")"
+    },
+    {
+     "id": "python-variabler-2",
+     "level": 2,
+     "title": "Räkna pilar",
+     "prompt": "En bågskytt skjuter 6 pilar per serie och 12 serier. Spara talen i variabler, räkna ut totalen och skriv ut: Totalt 72 pilar",
+     "starter": "",
+     "check": {
+      "expect": "Totalt 72 pilar"
+     },
+     "hints": [
+      "Gånger skrivs * i Python.",
+      "pilar = 6, serier = 12, totalt = pilar * serier"
+     ],
+     "solution": "pilar = 6\nserier = 12\ntotalt = pilar * serier\nprint(f\"Totalt {totalt} pilar\")"
+    }
+   ]
+  }
+ ]
+}

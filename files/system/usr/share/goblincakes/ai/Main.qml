@@ -93,6 +93,43 @@ Window {
     property bool localRemoving: false
     function gb(n) { return (Math.round(n * 10) / 10).toString().replace(".", ",") + " GB"; }
 
+    // Learning mode (view "learn"): the course, the open module and the last run per task
+    readonly property var learnState: JSON.parse(backend.learnState)
+    readonly property var course: learnState.course
+    property bool learnSetup: false        // choosing goal/tracks (also "Ändra mål")
+    property var learnModule: null
+    property string learnModuleId: ""
+    property var learnRuns: ({})           // task id -> {ok, output, message}
+    property string learnBusyText: ""
+    property string testTask: ""           // "Jag kan redan det här": the task that is the test
+    property string pickGoal: ""
+    property var pickTracks: []
+    property string pickLevel: "nybörjare"
+    property string pickOrder: "local-only"
+    function openModule(id) {
+        learnModuleId = id;
+        learnModule = id ? JSON.parse(backend.learnModule(id)) : null;
+    }
+    function reloadModule() { if (learnModuleId) openModule(learnModuleId); }
+    Connections {
+        target: backend
+        function onLearnResult(taskId, json) {
+            const r = Object.assign({}, win.learnRuns);
+            r[taskId] = JSON.parse(json);
+            win.learnRuns = r;
+            if (r[taskId].ok && win.testTask === taskId)
+                win.testTask = "";
+            win.reloadModule();
+        }
+        function onLearnBusy(text) { win.learnBusyText = text; }
+        function onLearnChanged() {
+            if (win.course && !win.learnModuleId)
+                win.openModule(win.course.current);
+            else
+                win.reloadModule();
+        }
+    }
+
     // Projects: the sidebar list, the chosen one and the one being edited (view "project")
     readonly property var projects: JSON.parse(backend.projects)
     readonly property var project: projects.find(p => p.id === backend.currentProject) || null
@@ -410,7 +447,7 @@ Window {
         ListView {
             id: convList
             FastWheel { flick: convList }
-            anchors { left: parent.left; right: parent.right; top: recentLabel.bottom; topMargin: 10; bottom: settingsButton.top; bottomMargin: 12 }
+            anchors { left: parent.left; right: parent.right; top: recentLabel.bottom; topMargin: 10; bottom: learnButton.top; bottomMargin: 12 }
             clip: true
             model: JSON.parse(backend.conversations)
             boundsBehavior: Flickable.StopAtBounds
@@ -464,6 +501,20 @@ Window {
         }
 
         FlatButton {
+            id: learnButton
+            anchors { left: parent.left; right: parent.right; margins: 18; bottom: settingsButton.top; bottomMargin: 10 }
+            width: parent.width - 36
+            primary: win.view === "learn"
+            text: "Lär dig koda"
+            onClicked: {
+                win.view = "learn";
+                win.learnSetup = !win.course;
+                if (win.course && !win.learnModuleId)
+                    win.openModule(win.course.current);
+            }
+        }
+
+        FlatButton {
             id: settingsButton
             anchors { left: parent.left; right: parent.right; margins: 18; bottom: parent.bottom; bottomMargin: 20 }
             width: parent.width - 36
@@ -478,6 +529,16 @@ Window {
         id: chatArea
         visible: win.view === "chat"
         anchors { left: sidebar.right; right: parent.right; top: parent.top; bottom: parent.bottom }
+
+        // The teacher's chats (project "Lärläge"): back to the lesson
+        FlatButton {
+            z: 5
+            visible: backend.currentProject === "learn"
+            anchors { right: parent.right; rightMargin: 24; top: parent.top; topMargin: 16 }
+            small: true
+            text: "← Tillbaka till lektionen"
+            onClicked: { win.view = "learn"; win.learnSetup = false; win.reloadModule(); }
+        }
 
         // Empty: welcome + examples
         Column {
@@ -895,6 +956,595 @@ Window {
                     text: "Skicka"
                     enabledState: !backend.busy && (input.text.trim() !== "" || win.attachment !== "")
                     onClicked: win.send()
+                }
+            }
+        }
+    }
+
+    // ── Learning mode: "Lär dig koda" (view "learn") ────────
+
+    component Pick: Rectangle {
+        id: pick
+        property string title
+        property string sub
+        property string badge
+        property bool chosen: false
+        signal picked()
+        width: 290
+        height: pickCol.implicitHeight + 22
+        color: chosen ? "#12203A" : pickArea.containsMouse ? "#111A2A" : "#0E1420"
+        border.width: chosen ? 2 : 1
+        border.color: chosen ? accent.color : "#1E2A40"
+        Column {
+            id: pickCol
+            x: 12
+            y: 11
+            width: parent.width - 24
+            spacing: 4
+            Row {
+                spacing: 8
+                Text {
+                    width: Math.min(implicitWidth, pickCol.width - (pick.badge !== "" ? 60 : 0))
+                    elide: Text.ElideRight
+                    text: pick.title
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 14
+                }
+                Text {
+                    visible: pick.badge !== ""
+                    text: pick.badge
+                    color: "#D29922"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 11
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: pick.sub
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 12
+            }
+        }
+        MouseArea {
+            id: pickArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: pick.picked()
+        }
+    }
+
+    Item {
+        id: learnView
+        visible: win.view === "learn"
+        anchors { left: sidebar.right; right: parent.right; top: parent.top; bottom: parent.bottom }
+
+        // ── Choosing: goal, tracks, own goal, level, the teacher ──
+        Flickable {
+            id: setupFlick
+            FastWheel { flick: setupFlick }
+            visible: win.learnSetup || !win.course
+            anchors.fill: parent
+            contentHeight: setupCol.height + 80
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            Column {
+                id: setupCol
+                x: 48
+                y: 40
+                width: Math.min(900, setupFlick.width - 96)
+                spacing: 14
+                Text {
+                    text: "LÄR DIG KODA"
+                    color: "#E6ECF5"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.Bold
+                    font.pixelSize: 28
+                    font.letterSpacing: 4
+                }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: "Välj vad du vill kunna – ett färdigt mål, några spår eller ditt eget mål med egna ord. Du skriver koden själv; den körs på en avskild övningsdator och kontrolleras automatiskt. Läraren (Goblin AI) förklarar, ger ledtrådar och granskar – men gör inte jobbet åt dig."
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 14
+                }
+                Label { text: "VAD VILL DU KUNNA?" }
+                Flow {
+                    width: parent.width
+                    spacing: 10
+                    Repeater {
+                        model: win.learnState.goals
+                        Pick {
+                            required property var modelData
+                            title: modelData.name
+                            sub: modelData.desc
+                            chosen: win.pickGoal === modelData.id
+                            onPicked: win.pickGoal = chosen ? "" : modelData.id
+                        }
+                    }
+                }
+                Label { text: "ELLER VÄLJ SPÅR (FLERA GÅR BRA)" }
+                Flow {
+                    width: parent.width
+                    spacing: 10
+                    Repeater {
+                        model: win.learnState.tracks
+                        Pick {
+                            required property var modelData
+                            title: modelData.name
+                            sub: modelData.desc
+                            badge: modelData.status === "ai" ? "AI-läge" : ""
+                            chosen: win.pickTracks.indexOf(modelData.id) >= 0
+                            onPicked: win.pickTracks = chosen ? win.pickTracks.filter(t => t !== modelData.id)
+                                                              : win.pickTracks.concat([modelData.id])
+                        }
+                    }
+                }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: "AI-läge = lektionerna är inte skrivna än: läraren lär ut fritt, utan färdiga uppgifter och kontroller."
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 12
+                }
+                Label { text: "ELLER BESKRIV DITT MÅL" }
+                Rectangle {
+                    width: parent.width
+                    height: 38
+                    color: "#07090D"
+                    border.width: 1
+                    border.color: ownGoal.activeFocus ? accent.color : "#1E2A40"
+                    TextInput {
+                        id: ownGoal
+                        anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+                        verticalAlignment: TextInput.AlignVCenter
+                        clip: true
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                        Text {
+                            visible: ownGoal.text === ""
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "T.ex. \"en hemsida där guilden kan anmäla sig till raider\""
+                            color: "#5C6880"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 14
+                        }
+                    }
+                }
+                Label { text: "HUR MYCKET KAN DU REDAN?" }
+                Row {
+                    spacing: 8
+                    Repeater {
+                        model: [{ "id": "nybörjare", "name": "Nybörjare" }, { "id": "lite", "name": "Kan lite" }, { "id": "van", "name": "Van" }]
+                        FlatButton {
+                            required property var modelData
+                            small: true
+                            primary: win.pickLevel === modelData.id
+                            text: modelData.name
+                            onClicked: win.pickLevel = modelData.id
+                        }
+                    }
+                }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: "Van = korta sammanfattningar och de svårare uppgifterna. I varje moment kan du också testa dig direkt (\"Jag kan redan det här\") och hoppa över det du kan."
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 12
+                }
+                Label { text: "LÄRAREN" }
+                Row {
+                    spacing: 8
+                    Repeater {
+                        model: [{ "id": "local-only", "name": "Bara lokalt" }, { "id": "local-first", "name": "Lokalt först" },
+                                { "id": "cloud-first", "name": "Molnet först" }]
+                        FlatButton {
+                            required property var modelData
+                            small: true
+                            primary: win.pickOrder === modelData.id
+                            text: modelData.name
+                            onClicked: win.pickOrder = modelData.id
+                        }
+                    }
+                }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: win.pickOrder === "local-only"
+                          ? "Bara lokalt: frågor och kod lämnar aldrig datorn" + (win.localStatus.installed ? "." : " – kräver lokal AI (AI-tjänster → Lokal AI).")
+                          : "Svårare frågor kan gå till molntjänsterna (Claude m.fl.) – din kod skickas då dit."
+                    color: !win.localStatus.installed && win.pickOrder === "local-only" ? accent.errorBright : "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 12
+                }
+                Row {
+                    spacing: 10
+                    FlatButton {
+                        primary: true
+                        enabledState: win.learnBusyText === "" && (win.pickGoal !== "" || win.pickTracks.length > 0 || ownGoal.text.trim() !== "")
+                        text: win.learnBusyText || "Skapa läroplan"
+                        onClicked: {
+                            win.learnModuleId = "";
+                            backend.startCourse(win.pickGoal, JSON.stringify(win.pickTracks), win.pickLevel, ownGoal.text, win.pickOrder);
+                            win.learnSetup = false;
+                        }
+                    }
+                    FlatButton {
+                        visible: !!win.course
+                        text: "Avbryt"
+                        onClicked: win.learnSetup = false
+                    }
+                }
+            }
+        }
+
+        // ── The course: the plan on the left, the lesson and tasks on the right ──
+        Item {
+            visible: !win.learnSetup && !!win.course
+            anchors.fill: parent
+
+            Rectangle {
+                id: planPane
+                anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                width: 290
+                color: "#0B1018"
+                Rectangle { anchors { right: parent.right; top: parent.top; bottom: parent.bottom } width: 1; color: "#1E2A40" }
+
+                Column {
+                    id: planHead
+                    x: 20
+                    y: 24
+                    width: parent.width - 40
+                    spacing: 8
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: win.course ? win.course.goal : ""
+                        color: "#E6ECF5"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.Bold
+                        font.pixelSize: 17
+                    }
+                    Text {
+                        text: win.course ? win.course.done + " av " + win.course.plan.length + " moment klara · " + win.course.level : ""
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
+                    Rectangle {
+                        width: parent.width
+                        height: 4
+                        color: "#1A2438"
+                        Rectangle {
+                            width: win.course && win.course.plan.length ? parent.width * win.course.done / win.course.plan.length : 0
+                            height: parent.height
+                            color: accent.color
+                        }
+                    }
+                    FlatButton {
+                        small: true
+                        text: "Ändra mål"
+                        onClicked: {
+                            win.pickTracks = win.course ? win.course.tracks : [];
+                            win.pickLevel = win.course ? win.course.level : "nybörjare";
+                            win.pickOrder = win.course ? win.course.order : "local-only";
+                            win.learnSetup = true;
+                        }
+                    }
+                }
+                ListView {
+                    id: planList
+                    FastWheel { flick: planList }
+                    anchors { left: parent.left; right: parent.right; top: planHead.bottom; topMargin: 14; bottom: parent.bottom; bottomMargin: 12 }
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: win.course ? win.course.review.map(r => Object.assign({ "review": true }, r))
+                                        .concat(win.course.plan) : []
+                    delegate: Rectangle {
+                        id: planItem
+                        required property var modelData
+                        required property int index
+                        readonly property var prev: index > 0 ? planList.model[index - 1] : null
+                        readonly property bool newTrack: !modelData.review && (!prev || prev.review || prev.track !== modelData.track)
+                        readonly property bool active: !modelData.review && modelData.id === win.learnModuleId
+                        width: planList.width
+                        height: 34 + (newTrack ? 26 : 0)
+                        color: "transparent"
+                        Text {
+                            visible: planItem.newTrack
+                            x: 20
+                            y: 8
+                            text: ((win.learnState.tracks.find(t => t.id === planItem.modelData.track) || {}).name || "").toUpperCase()
+                            color: "#5C6880"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 11
+                            font.letterSpacing: 2
+                        }
+                        Rectangle {
+                            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                            height: 34
+                            color: planArea.containsMouse || planItem.active ? "#121B2B" : "transparent"
+                            Rectangle { visible: planItem.active; width: 2; height: parent.height; color: accent.color }
+                            Text {
+                                anchors { left: parent.left; leftMargin: 20; right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                                elide: Text.ElideRight
+                                text: planItem.modelData.review ? "↻  Repetera: " + planItem.modelData.title
+                                    : (planItem.modelData.done ? "✓  " : planItem.modelData.id === win.course.current ? "●  " : "○  ")
+                                      + planItem.modelData.title + (planItem.modelData.locked ? "  🔒" : "")
+                                color: planItem.modelData.done ? "#8B98AD" : "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            MouseArea {
+                                id: planArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: win.openModule(planItem.modelData.review ? planItem.modelData.module : planItem.modelData.id)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Flickable {
+                id: lessonFlick
+                FastWheel { flick: lessonFlick }
+                anchors { left: planPane.right; right: parent.right; top: parent.top; bottom: parent.bottom }
+                contentHeight: lessonCol.height + 80
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                Column {
+                    id: lessonCol
+                    x: 40
+                    y: 32
+                    width: Math.min(860, lessonFlick.width - 80)
+                    spacing: 14
+
+                    Text {
+                        visible: !!win.course && win.course.aiTracks.length > 0
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: "AI-läge för " + (win.course ? win.course.aiTracks.map(id => (win.learnState.tracks.find(t => t.id === id) || {}).name).join(", ") : "")
+                              + ": lektionerna är inte skrivna än – fråga läraren, så lär den ut fritt."
+                        color: "#D29922"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                    Text {
+                        visible: !win.learnModule || !win.learnModule.id
+                        text: win.course && win.course.plan.length ? "Välj ett moment till vänster." : "Det här målet har inga färdiga lektioner än – fråga läraren."
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                    }
+                    Row {
+                        visible: !!(win.learnModule && win.learnModule.id)
+                        spacing: 12
+                        Text {
+                            text: win.learnModule ? win.learnModule.title : ""
+                            color: "#E6ECF5"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.Bold
+                            font.pixelSize: 24
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !!(win.learnModule && win.learnModule.done)
+                            text: "Klar ✓"
+                            color: "#3FB950"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !!(win.learnModule && win.learnModule.locked)
+                            text: "Säkerhetsmoment – kan inte hoppas över"
+                            color: "#D29922"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
+                        }
+                    }
+                    Text {
+                        visible: !!(win.learnModule && win.learnModule.id)
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        textFormat: Text.MarkdownText
+                        text: win.learnModule ? win.learnModule.lesson : ""
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                        lineHeight: 1.2
+                        onLinkActivated: link => Qt.openUrlExternally(link)
+                    }
+                    FlatButton {
+                        visible: !!(win.learnModule && win.learnModule.id && !win.learnModule.done && !win.learnModule.locked) && win.testTask === ""
+                        small: true
+                        text: "Jag kan redan det här – testa mig"
+                        onClicked: win.testTask = backend.learnTestTask(win.learnModule.id)
+                    }
+
+                    Repeater {
+                        model: win.learnModule && win.learnModule.tasks
+                               ? (win.testTask ? win.learnModule.tasks.filter(t => t.id === win.testTask) : win.learnModule.tasks) : []
+                        Rectangle {
+                            id: taskCard
+                            required property var modelData
+                            readonly property var run: win.learnRuns[modelData.id] || null
+                            width: lessonCol.width
+                            height: taskCol.height + 32
+                            color: "#0E1420"
+                            border.width: 1
+                            border.color: modelData.done ? "#3FB950" : win.testTask === modelData.id ? "#D29922" : "#1E2A40"
+                            Column {
+                                id: taskCol
+                                x: 18
+                                y: 16
+                                width: parent.width - 36
+                                spacing: 10
+                                Text {
+                                    text: (win.testTask === taskCard.modelData.id ? "PROV · " : "") + taskCard.modelData.title
+                                          + (taskCard.modelData.done ? "  ✓" : "")
+                                    color: taskCard.modelData.done ? "#3FB950" : "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.weight: Font.DemiBold
+                                    font.pixelSize: 15
+                                }
+                                Text {
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    text: taskCard.modelData.prompt
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 14
+                                }
+                                Rectangle {
+                                    width: parent.width
+                                    height: Math.max(140, Math.min(360, editor.contentHeight + 24))
+                                    color: "#07090D"
+                                    border.width: 1
+                                    border.color: editor.activeFocus ? accent.color : "#1E2A40"
+                                    Text {
+                                        anchors { right: parent.right; top: parent.top; margins: 6 }
+                                        text: taskCard.modelData.file
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 11
+                                    }
+                                    Flickable {
+                                        id: editFlick
+                                        anchors { fill: parent; margins: 12 }
+                                        contentHeight: editor.contentHeight
+                                        clip: true
+                                        FastWheel { flick: editFlick }
+                                        TextEdit {
+                                            id: editor
+                                            width: editFlick.width
+                                            text: taskCard.modelData.code
+                                            wrapMode: TextEdit.NoWrap
+                                            selectByMouse: true
+                                            color: "#E6ECF5"
+                                            selectionColor: accent.color
+                                            font.family: "IBM Plex Mono"
+                                            font.pixelSize: 13
+                                            tabStopDistance: 4 * fontMetrics.averageCharacterWidth
+                                            FontMetrics { id: fontMetrics; font.family: "IBM Plex Mono"; font.pixelSize: 13 }
+                                            Keys.onTabPressed: event => { insert(cursorPosition, "  "); event.accepted = true; }
+                                            onActiveFocusChanged: if (!activeFocus) backend.learnDraft(taskCard.modelData.id, text)
+                                        }
+                                    }
+                                }
+                                Flow {
+                                    width: parent.width
+                                    spacing: 8
+                                    FlatButton {
+                                        small: true
+                                        primary: true
+                                        enabledState: win.learnBusyText === ""
+                                        text: win.learnBusyText !== "" ? "Kör…" : "Kör och kontrollera"
+                                        onClicked: backend.runTask(taskCard.modelData.id, editor.text, win.testTask === taskCard.modelData.id)
+                                    }
+                                    FlatButton {
+                                        visible: taskCard.modelData.html
+                                        small: true
+                                        text: "Förhandsvisa"
+                                        onClicked: backend.previewHtml(editor.text)
+                                    }
+                                    FlatButton {
+                                        visible: win.testTask !== taskCard.modelData.id && taskCard.modelData.hintsShown < taskCard.modelData.hintCount
+                                        small: true
+                                        text: "Ledtråd (" + (taskCard.modelData.hintCount - taskCard.modelData.hintsShown) + " kvar)"
+                                        onClicked: { backend.learnDraft(taskCard.modelData.id, editor.text); backend.learnHint(taskCard.modelData.id); }
+                                    }
+                                    FlatButton {
+                                        visible: win.testTask !== taskCard.modelData.id && taskCard.modelData.solution === ""
+                                        small: true
+                                        text: "Visa lösningen"
+                                        onClicked: { backend.learnDraft(taskCard.modelData.id, editor.text); backend.learnSolution(taskCard.modelData.id); }
+                                    }
+                                    FlatButton {
+                                        visible: !!taskCard.run && !taskCard.run.ok
+                                        small: true
+                                        text: "Förklara felet"
+                                        onClicked: { backend.askTutor(taskCard.modelData.id, editor.text, taskCard.run.output + "\n" + taskCard.run.message, ""); win.view = "chat"; }
+                                    }
+                                    FlatButton {
+                                        small: true
+                                        text: "Fråga läraren"
+                                        onClicked: { backend.askTutor(taskCard.modelData.id, editor.text, taskCard.run ? taskCard.run.output : "", ""); win.view = "chat"; }
+                                    }
+                                    FlatButton {
+                                        visible: win.testTask === taskCard.modelData.id
+                                        small: true
+                                        text: "Avbryt provet"
+                                        onClicked: win.testTask = ""
+                                    }
+                                }
+                                Text {
+                                    visible: win.learnBusyText !== "" && win.learnBusyText !== "Kör…"
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    text: win.learnBusyText
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                }
+                                Text {
+                                    visible: !!taskCard.run
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    text: taskCard.run ? (taskCard.run.ok ? "✓ " : "✗ ") + taskCard.run.message : ""
+                                    color: taskCard.run && taskCard.run.ok ? "#3FB950" : accent.errorBright
+                                    font.family: "IBM Plex Sans"
+                                    font.weight: Font.Medium
+                                    font.pixelSize: 14
+                                }
+                                CodeBox {
+                                    visible: !!taskCard.run && (taskCard.run.output || "") !== ""
+                                    code: taskCard.run ? taskCard.run.output : ""
+                                    maxHeight: 200
+                                }
+                                Repeater {
+                                    model: taskCard.modelData.hints
+                                    Text {
+                                        required property string modelData
+                                        required property int index
+                                        width: taskCol.width
+                                        wrapMode: Text.WordWrap
+                                        text: "Ledtråd " + (index + 1) + ": " + modelData
+                                        color: "#D29922"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                                Text {
+                                    visible: taskCard.modelData.solution !== ""
+                                    text: "LÖSNINGEN (prova att skriva den själv efteråt – den här uppgiften kommer tillbaka som repetition)"
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                }
+                                CodeBox {
+                                    visible: taskCard.modelData.solution !== ""
+                                    code: taskCard.modelData.solution
+                                    maxHeight: 260
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

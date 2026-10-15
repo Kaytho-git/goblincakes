@@ -1,0 +1,46 @@
+{
+ "modules": [
+  {
+   "id": "wow-hej",
+   "title": "Ett tillägg som hälsar",
+   "summary": "Ett tillägg = en mapp med en .toc-fil och Lua-filer; en frame lyssnar på events med RegisterEvent + SetScript(\"OnEvent\").",
+   "requires": [],
+   "lesson": "wow-hej.md",
+   "tasks": [
+    {
+     "id": "wow-hej-1",
+     "level": 1,
+     "title": "Hälsa när du loggar in",
+     "prompt": "Gör så att tillägget skriver ut \"Välkommen, Kaytho!\" när eventet PLAYER_LOGIN kommer. Använd UnitName(\"player\") för namnet.",
+     "starter": "local f = CreateFrame(\"Frame\")\nf:RegisterEvent(\"PLAYER_LOGIN\")\nf:SetScript(\"OnEvent\", function(self, event)\n  -- skriv här\nend)\n",
+     "check": {
+      "expect": "Välkommen, Kaytho!"
+     },
+     "hints": [
+      "UnitName(\"player\") ger ditt namn. Strängar sätts ihop med .. i Lua.",
+      "print(\"Välkommen, \" .. UnitName(\"player\") .. \"!\")"
+     ],
+     "solution": "local f = CreateFrame(\"Frame\")\nf:RegisterEvent(\"PLAYER_LOGIN\")\nf:SetScript(\"OnEvent\", function(self, event)\n  print(\"Välkommen, \" .. UnitName(\"player\") .. \"!\")\nend)\n"
+    },
+    {
+     "id": "wow-hej-2",
+     "level": 2,
+     "title": "Ett eget slash-kommando",
+     "prompt": "Lägg till kommandot /hej som skriver ut \"Hej <text>!\" – t.ex. /hej Raid ger: Hej Raid!",
+     "starter": "SLASH_HEJ1 = \"/hej\"\nSlashCmdList[\"HEJ\"] = function(text)\n  -- skriv här\nend\n",
+     "files": {
+      "slash.txt": "/hej Raid\n"
+     },
+     "check": {
+      "expect": "Hej Raid!"
+     },
+     "hints": [
+      "Det man skriver efter kommandot kommer in som text.",
+      "print(\"Hej \" .. text .. \"!\")"
+     ],
+     "solution": "SLASH_HEJ1 = \"/hej\"\nSlashCmdList[\"HEJ\"] = function(text)\n  print(\"Hej \" .. text .. \"!\")\nend\n"
+    }
+   ]
+  }
+ ]
+}

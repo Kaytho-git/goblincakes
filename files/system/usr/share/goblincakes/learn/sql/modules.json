@@ -1,0 +1,31 @@
+{
+ "modules": [
+  {
+   "id": "sql-select",
+   "title": "Hämta data med SELECT",
+   "summary": "`SELECT kolumner FROM tabell WHERE villkor ORDER BY kolumn;`",
+   "requires": [],
+   "lesson": "sql-select.md",
+   "tasks": [
+    {
+     "id": "sql-select-1",
+     "level": 1,
+     "title": "Alla bågskyttar",
+     "prompt": "Tabellen skyttar har kolumnerna namn och poang. Hämta namn och poang för alla, med högst poäng först.",
+     "files": {
+      "setup.sql": "CREATE TABLE skyttar (namn TEXT, poang INTEGER);\nINSERT INTO skyttar VALUES ('Anna', 612), ('Bo', 655), ('Cia', 590);\n"
+     },
+     "starter": "SELECT ",
+     "check": {
+      "expect": "namn | poang\nBo | 655\nAnna | 612\nCia | 590"
+     },
+     "hints": [
+      "SELECT namn, poang FROM skyttar …",
+      "ORDER BY poang DESC sorterar högst först."
+     ],
+     "solution": "SELECT namn, poang FROM skyttar ORDER BY poang DESC;"
+    }
+   ]
+  }
+ ]
+}

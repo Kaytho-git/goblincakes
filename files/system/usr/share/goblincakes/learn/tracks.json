@@ -1,0 +1,151 @@
+{
+ "tracks": [
+  {
+   "id": "python",
+   "name": "Python",
+   "run": "python",
+   "desc": "Första språket för många: skript, automatisering, verktyg, Discord-bottar."
+  },
+  {
+   "id": "bash",
+   "name": "Bash och Linux",
+   "run": "bash",
+   "desc": "Terminalen, filer, rättigheter, skript och systemet – används i allt annat."
+  },
+  {
+   "id": "git",
+   "name": "Git och GitHub",
+   "run": "bash",
+   "desc": "Spara versioner, ångra misstag och samarbeta."
+  },
+  {
+   "id": "html",
+   "name": "HTML och CSS",
+   "run": "html",
+   "desc": "Hur hemsidor är uppbyggda och hur de ser ut."
+  },
+  {
+   "id": "js",
+   "name": "JavaScript",
+   "run": "js",
+   "desc": "Hemsidor som gör saker: knappar, formulär, spel i webbläsaren."
+  },
+  {
+   "id": "php",
+   "name": "PHP",
+   "run": "php",
+   "desc": "Hemsidor med server: formulär, inloggning, Ianseo, WordPress."
+  },
+  {
+   "id": "sql",
+   "name": "SQL och databaser",
+   "run": "sql",
+   "desc": "Spara och söka data (SQLite här, samma språk som MariaDB/MySQL)."
+  },
+  {
+   "id": "sakerhet",
+   "name": "Säkerhet på webben",
+   "run": "php",
+   "desc": "Lösenord, inloggning, sessioner och vanliga attacker – låsta moment."
+  },
+  {
+   "id": "lua",
+   "name": "Lua",
+   "run": "lua",
+   "desc": "Ett litet, lättläst språk – grunden för WoW-tillägg och spelmoddar."
+  },
+  {
+   "id": "wow",
+   "name": "WoW-tillägg",
+   "run": "wowlua",
+   "desc": "Egna tillägg i World of Warcraft: .toc, frames, events, slash-kommandon."
+  },
+  {
+   "id": "ianseo",
+   "name": "Ianseo-moduler",
+   "run": "php",
+   "desc": "Egna moduler till Ianseo – övas mot en kopia av din lokala Ianseo."
+  },
+  {
+   "id": "godot",
+   "name": "Godot (GDScript)",
+   "run": "python",
+   "desc": "Göra egna spel med Godot."
+  },
+  {
+   "id": "containrar",
+   "name": "Containrar (Podman)",
+   "run": "bash",
+   "desc": "Köra tjänster isolerat – samma teknik som Ianseo i GOBLINCAKES."
+  }
+ ],
+ "goals": [
+  {
+   "id": "hemsida",
+   "name": "Hemsida med inloggning och databas",
+   "desc": "En egen sida där man kan logga in, med en databas bakom.",
+   "tracks": [
+    "html",
+    "js",
+    "php",
+    "sql",
+    "sakerhet"
+   ]
+  },
+  {
+   "id": "wow-tillagg",
+   "name": "WoW-tillägg",
+   "desc": "Ett eget tillägg som syns och fungerar i spelet.",
+   "tracks": [
+    "lua",
+    "wow"
+   ]
+  },
+  {
+   "id": "ianseo-modul",
+   "name": "Ianseo-modul",
+   "desc": "En egen modul till Ianseo, t.ex. en resultatlista eller export.",
+   "tracks": [
+    "html",
+    "php",
+    "sql",
+    "ianseo"
+   ]
+  },
+  {
+   "id": "python-verktyg",
+   "name": "Eget verktyg i Python",
+   "desc": "Ett program som gör något användbart på datorn.",
+   "tracks": [
+    "python",
+    "bash"
+   ]
+  },
+  {
+   "id": "automatisera",
+   "name": "Automatisera datorn med Bash",
+   "desc": "Skript som gör tråkiga saker åt dig, och Linux på djupet.",
+   "tracks": [
+    "bash",
+    "git",
+    "containrar"
+   ]
+  },
+  {
+   "id": "spel",
+   "name": "Ett eget spel i Godot",
+   "desc": "Ett litet spel från idé till spelbart.",
+   "tracks": [
+    "godot"
+   ]
+  },
+  {
+   "id": "discord-bot",
+   "name": "Discord-bot",
+   "desc": "En bot som svarar i din Discord-server.",
+   "tracks": [
+    "python"
+   ]
+  }
+ ]
+}

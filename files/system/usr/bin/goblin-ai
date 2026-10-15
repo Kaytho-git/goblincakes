@@ -8,6 +8,7 @@ back to the AI. Conversations are kept in ~/.local/share/goblincakes/ai/.
 Only one window: starting it again brings the open one to the front.
 """
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -19,6 +20,7 @@ from pathlib import Path
 SHARE = Path(os.environ.get("GOBLIN_AI_SHARE", "/usr/share/goblincakes/ai"))
 sys.path.insert(0, str(SHARE))
 import goblinai  # noqa: E402
+import learn  # noqa: E402
 
 from PySide6.QtCore import QObject, QProcess, QUrl, Property, Signal, Slot  # noqa: E402
 from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QIcon  # noqa: E402
@@ -77,6 +79,7 @@ class Backend(QObject):
         self._local_proc = None
         self._localInfo.connect(self._on_local_info)
         self.refreshLocal()
+        self._learnDone.connect(self._on_learn_done)
 
     # ── Conversation ──────────────────────────────────────────
 
@@ -483,6 +486,149 @@ class Backend(QObject):
         except OSError as e:
             self.notice.emit(f"Kunde inte spara: {e}")
         self._update(index)
+
+    # ── Learning mode ("Lär dig koda", learn.py) ──────────────────
+
+    learnChanged = Signal()
+    learnResult = Signal(str, str)  # task id, JSON {ok, output, message}
+    learnBusy = Signal(str)  # status text while running/building, "" = done
+    _learnDone = Signal(str, str)
+    LEARN_PROJECT = "learn"
+
+    @Property(str, notify=learnChanged)
+    def learnState(self):
+        return json.dumps(learn.state(), ensure_ascii=False)
+
+    @Slot(str, result=str)
+    def learnModule(self, module_id):
+        learn.set_current(module_id)
+        return json.dumps(learn.module_view(module_id) or {}, ensure_ascii=False)
+
+    @Slot(str, str, str, str, str)
+    def startCourse(self, goal, tracks, level, own_goal, order):
+        tracks = [t for t in json.loads(tracks or "[]") if isinstance(t, str)]
+        if goal or tracks or not own_goal.strip():
+            learn.start_course(goal, tracks, level, own_goal, order)
+            self._learn_project(order)
+            self.learnChanged.emit()
+            return
+
+        def work():
+            # Only the user's own words: the AI picks tracks from the course base (never invents any)
+            base = learn.load_base()
+            listing = "\n".join(f"{t['id']}: {t['name']} – {t['desc']}" for t in base["tracks"])
+            question = [{"role": "system", "content": "Du väljer spår ur en kurslista. Svara BARA med en JSON-lista med spårens id, i den ordning de ska läras, t.ex. [\"html\", \"php\"]."},
+                        {"role": "user", "content": f"Spåren:\n{listing}\n\nAnvändarens mål: {own_goal}"}]
+            try:
+                answer, _ = goblinai.ask_once(question, self._keys, project={"order": order, "prefer": "vardag", "models": {}})
+                picked = [t for t in json.loads(re.search(r"\[.*?\]", answer, re.S).group(0))
+                          if any(x["id"] == t for x in base["tracks"])]
+            except Exception:  # noqa: BLE001 – no AI or no answer: the user picks the tracks
+                picked = []
+            if picked:
+                learn.start_course("", picked, level, own_goal, order)
+                self._learn_project(order)
+                self._learnDone.emit("", "")
+            else:
+                self._learnDone.emit("", "Kunde inte koppla målet till spår – välj spåren själv nedan.")
+        self.learnBusy.emit("Gör en läroplan…")
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_learn_done(self, task_id, payload):
+        self.learnBusy.emit("")
+        if task_id:
+            self.learnResult.emit(task_id, payload)
+        elif payload:
+            self.notice.emit(payload)
+        self.learnChanged.emit()
+
+    @Slot(str, str, bool)
+    def runTask(self, task_id, code, is_test):
+        def work():
+            if not learn.sandbox_ready():
+                self.learnBusy.emit("Gör i ordning övningsdatorn (en gång, behöver internet, några minuter)…")
+                ok, last = learn.build_sandbox(lambda line: self.learnBusy.emit("Övningsdatorn: " + line))
+                if not ok:
+                    self._learnDone.emit(task_id, json.dumps({"ok": False, "output": last,
+                                                               "message": "Övningsdatorn gick inte att göra i ordning (nätverket?)."}))
+                    return
+            self.learnBusy.emit("Kör…")
+            result = learn.check_task(task_id, code)
+            if result["ok"] and is_test:
+                module, _ = learn.find_task(learn.load_base(), task_id)
+                learn.passed_test(module["id"])
+                result["message"] = "Provet klarat – momentet är avbockat."
+            self._learnDone.emit(task_id, json.dumps(result, ensure_ascii=False))
+        self.learnBusy.emit("Kör…")
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(str)
+    def learnHint(self, task_id):
+        learn.next_hint(task_id)
+        self.learnChanged.emit()
+
+    @Slot(str)
+    def learnSolution(self, task_id):
+        learn.show_solution(task_id)
+        self.learnChanged.emit()
+
+    @Slot(str, str)
+    def learnDraft(self, task_id, code):
+        learn.save_draft(task_id, code)
+
+    @Slot(str, result=str)
+    def learnTestTask(self, module_id):
+        return learn.test_out(module_id)
+
+    @Slot()
+    def learnReset(self):
+        learn.reset_course()
+        self.learnChanged.emit()
+
+    @Slot(str)
+    def previewHtml(self, code):
+        """The page in the browser (a file in the user's own cache folder)."""
+        folder = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "goblincakes/learn-preview"
+        folder.mkdir(parents=True, exist_ok=True)
+        page = folder / "index.html"
+        page.write_text(code)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(page)))
+
+    def _learn_project(self, order):
+        """Goblin AI's project "Lärläge": the teacher's rules; only local AI unless the user chose otherwise."""
+        project = {"id": self.LEARN_PROJECT, "name": "Lärläge", "instructions": learn.TUTOR_PROMPT,
+                   "order": order or "local-only", "prefer": "kod", "search": False}
+        old = self._project_of(self.LEARN_PROJECT)
+        if old:
+            project = dict(old, instructions=learn.TUTOR_PROMPT, order=order or old["order"])
+        self._projects = [p for p in self._projects if p["id"] != self.LEARN_PROJECT] + [goblinai.clean_project(project)]
+        goblinai.save_projects(self._projects)
+        self.projectsChanged.emit()
+
+    @Slot(str, str, str, str)
+    def askTutor(self, task_id, code, output, question):
+        """The teacher, in the project "Lärläge": one chat per task, with the lesson and the code."""
+        if self._busy:
+            return
+        state = learn.state().get("course") or {}
+        if not self._project_of(self.LEARN_PROJECT):
+            self._learn_project(state.get("order", "local-only"))
+        p = learn.load_progress()
+        conv = p.get("tutor", {}).get(task_id)
+        if conv and (DATA / f"{conv}.json").exists():
+            self.openConversation(conv)
+        else:
+            self.selectProject(self.LEARN_PROJECT)
+            p = learn.load_progress()
+            p.setdefault("tutor", {})[task_id] = self._id
+            learn.save_progress(p)
+        context = learn.tutor_context(task_id, code, output)
+        text = question.strip() or ("Förklara felet." if output else "Jag behöver hjälp med uppgiften.")
+        self._display.append({"role": "user", "text": text, "segments": [], "service": "", "file": ""})
+        self.messageAdded.emit(json.dumps(self._display[-1]))
+        self._api.append({"role": "user", "content": f"{text}\n\n(Underlag från lärläget – det här skrev inte användaren:)\n{context}"})
+        self.conversationChanged.emit()
+        self._ask()
 
     # ── Local AI (Ollama, /usr/libexec/goblincakes-ollama) ──────
 
