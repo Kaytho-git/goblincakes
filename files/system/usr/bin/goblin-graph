@@ -710,6 +710,22 @@ class Graph(QObject):
         self._levels = new
 
 
+def use_accent(engine):
+    """GOBLINCAKES' accent colour (Config → Utseende) as the QML property "accent", followed
+    live: /usr/share/goblincakes/accent.py. Without it: the standard blue."""
+    for d in (SHARE.parent, Path(__file__).resolve().parents[1] / "share/goblincakes", Path("/usr/share/goblincakes")):
+        if (d / "accent.py").exists():
+            sys.path.insert(0, str(d))
+            break
+    try:
+        import accent
+        accent.install(engine)
+    except Exception:  # noqa: BLE001 – an old or broken file must not stop the window
+        engine.rootContext().setContextProperty("accent", {
+            "color": "#2F6FED", "hover": "#4A82F0", "on": "#E6ECF5", "text": "#2F6FED",
+            "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] in ("-h", "--help", "help"):
@@ -783,6 +799,7 @@ def main():
     saved = dict(zip(("x", "y", "w", "h"), saved)) if saved else (
         {"w": 320, "h": 320} if graph.shape == "round" else {})
     engine.rootContext().setContextProperty("saved", saved)
+    use_accent(engine)
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1

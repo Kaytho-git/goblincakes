@@ -1,0 +1,371 @@
+#!/usr/bin/python3
+"""GOBLINCAKES' accent colour (Config → Inställningar → Utseende, goblin färg).
+
+    goblincakes-accent list            JSON: the colours, which one is chosen
+    goblincakes-accent status          the chosen id
+    goblincakes-accent palette [id]    JSON: the worked-out colours (accent.py)
+    goblincakes-accent set <colour>    choose and apply everywhere (id, name or word: dk, mage …)
+    goblincakes-accent apply           apply the chosen colour again (after a new layout)
+    goblincakes-accent refresh         at login: remake the theme copies when GOBLINCAKES changed
+    goblincakes-accent gtk             remake the GTK theme copy (after Config/goblin update copied it)
+
+Where it goes (all in the home folder, the standard blue = the copies are removed):
+  - Plasma and KDE programs: kdeglobals [General] AccentColor + plasma-apply-colorscheme
+    --accent-color (Plasma's own accent: selections, focus, links; the Plasma theme's
+    buttons and highlights follow through ColorScheme-ButtonFocus)
+  - Qt/KDE program widgets (Kvantum): ~/.config/Kvantum/GoblinCakes-Accent – read when a program starts
+  - GTK programs (Quod Libet …): the copy in ~/.local/share/themes/GoblinCakes, if there is one
+  - window frames: Death Knight only – the red close button turns orange (~/.local/share/aurorae)
+  - Firefox: a marked block in userChrome.css of every profile (the signed theme stays)
+  - the login screen: /var/lib/goblincakes/sddm-theme.conf through pkexec (no password)
+  - GOBLINCAKES' own windows: ~/.config/goblincakes/accent.json, followed live
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(os.environ.get("GOBLINCAKES_SHARE") or
+                            Path(__file__).resolve().parents[1] / "share/goblincakes")))
+import accent as A  # noqa: E402
+
+HOME = Path.home()
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config")
+DATA_HOME = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share")
+STATE = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / "goblincakes"
+ROOT = Path(os.environ.get("GOBLINCAKES_ROOT", "/"))  # the system files (tests: the repo)
+
+KVANTUM_DIR = CONFIG_HOME / "Kvantum"
+KVANTUM_NAME = "GoblinCakes-Accent"
+GTK_COPY = DATA_HOME / "themes/GoblinCakes"
+AURORAE_COPY = DATA_HOME / "aurorae/themes/goblincakes"
+MARK = ".goblincakes-accent"
+FIREFOX_ROOTS = [HOME / ".var/app/org.mozilla.firefox/.mozilla/firefox",
+                 HOME / ".var/app/org.mozilla.firefox/config/mozilla/firefox",
+                 HOME / ".mozilla/firefox", CONFIG_HOME / "mozilla/firefox"]
+FIREFOX_START = "/* GOBLINCAKES accent – written by goblincakes-accent, start */"
+FIREFOX_END = "/* GOBLINCAKES accent – end */"
+STAMP = STATE / "accent-files"   # what the copies were made from
+SDDM_STAMP = STATE / "sddm-accent"
+
+
+def sys_path(p):
+    return ROOT / str(p).lstrip("/")
+
+
+def run(cmd, **kw):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=kw.pop("timeout", 60), **kw)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def write_if_changed(path, text):
+    try:
+        if path.read_text() == text:
+            return False
+    except OSError:
+        pass
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".goblincakes-new")
+    tmp.write_text(text)
+    os.replace(tmp, path)
+    return True
+
+
+# ── Plasma ────────────────────────────────────────────────────────
+
+def apply_plasma(pal):
+    """kdeglobals is what Plasma reads at every login (startplasma re-applies the scheme with
+    it); plasma-apply-colorscheme writes the colour groups now and tells running programs."""
+    if pal["id"] == "standard":
+        run(["kwriteconfig6", "--file", "kdeglobals", "--group", "General", "--key", "AccentColor", "--delete"])
+        # "transparent" = no accent: the scheme's own colours, exactly as before
+        run(["plasma-apply-colorscheme", "--accent-color", "transparent"])
+    else:
+        r, g, b = A.rgb(pal["color"])
+        run(["kwriteconfig6", "--file", "kdeglobals", "--group", "General", "--key", "AccentColor", f"{r},{g},{b}"])
+        run(["plasma-apply-colorscheme", "--accent-color", pal["color"]])
+
+
+# ── Kvantum ───────────────────────────────────────────────────────
+
+def kvantum_theme():
+    for f in (KVANTUM_DIR / "kvantum.kvconfig", sys_path("/etc/xdg/Kvantum/kvantum.kvconfig")):
+        try:
+            m = re.search(r"^theme=(.*)$", f.read_text(), re.M)
+        except OSError:
+            continue
+        if m:
+            return m.group(1).strip()
+    return ""
+
+
+def set_kvantum_theme(name):
+    f = KVANTUM_DIR / "kvantum.kvconfig"
+    try:
+        text = f.read_text()
+    except OSError:
+        text = ""
+    if re.search(r"^theme=", text, re.M):
+        text = re.sub(r"^theme=.*$", f"theme={name}", text, flags=re.M)
+    elif "[General]" in text:
+        text = text.replace("[General]", f"[General]\ntheme={name}", 1)
+    else:
+        text = f"[General]\ntheme={name}\n" + text
+    write_if_changed(f, text)
+
+
+def set_in_section(conf, section, key, value):
+    """key=value inside [section] of an INI text (only an existing key is changed)."""
+    out, current = [], ""
+    for line in conf.splitlines(keepends=True):
+        m = re.match(r"\[(.+)\]\s*$", line)
+        if m:
+            current = m.group(1)
+        elif current == section and line.split("=", 1)[0].strip() == key:
+            line = f"{key}={value}\n"
+        out.append(line)
+    return "".join(out)
+
+
+def apply_kvantum(pal):
+    """Only while GOBLINCAKES' Kvantum theme is in use (someone else's choice is left alone)."""
+    if kvantum_theme() not in ("GoblinCakes", KVANTUM_NAME):
+        return
+    target = KVANTUM_DIR / KVANTUM_NAME
+    if pal["id"] == "standard":
+        shutil.rmtree(target, ignore_errors=True)
+        if kvantum_theme() == KVANTUM_NAME:
+            set_kvantum_theme("GoblinCakes")
+        return
+    src = sys_path("/usr/share/Kvantum/GoblinCakes")
+    try:
+        svg = (src / "GoblinCakes.svg").read_text()
+        conf = (src / "GoblinCakes.kvconfig").read_text()
+    except OSError:
+        return
+    conf = A.recolor(conf, pal["color"])
+    if pal["on"] != A.FROST:  # light colours: dark text on filled accent (selections, pressed buttons)
+        conf = set_in_section(conf, "GeneralColors", "highlight.text.color", pal["on"])
+        conf = set_in_section(conf, "PanelButtonCommand", "text.press.color", pal["on"])
+        conf = set_in_section(conf, "PanelButtonCommand", "text.toggle.color", pal["on"])
+    write_if_changed(target / f"{KVANTUM_NAME}.svg", A.recolor(svg, pal["color"]))
+    write_if_changed(target / f"{KVANTUM_NAME}.kvconfig", conf)
+    set_kvantum_theme(KVANTUM_NAME)
+
+
+# ── GTK ───────────────────────────────────────────────────────────
+
+def apply_gtk(pal):
+    """Only the copy Config made for Flatpak programs (Quod Libet): the system theme can't change."""
+    if not GTK_COPY.is_dir():
+        return
+    src = sys_path("/usr/share/themes/GoblinCakes")
+    for f in src.rglob("*"):
+        if f.is_file():
+            out = GTK_COPY / f.relative_to(src)
+            data = f.read_text() if f.suffix in (".css", ".theme") else None
+            if data is None:
+                out.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, out)
+                continue
+            if f.suffix == ".css":
+                data = A.recolor(data, pal["color"])
+                if pal["on"] != A.FROST:  # light colours: dark text and knobs on filled accent
+                    lines = []
+                    for line in data.splitlines(keepends=True):
+                        if pal["color"] in line.upper():
+                            line = re.sub(r"(?<![-\w])color: #E6ECF5", f"color: {pal['on']}", line)
+                        lines.append(line)
+                    data = "".join(lines)
+                    data = data.replace("@define-color theme_selected_fg_color #E6ECF5",
+                                        f"@define-color theme_selected_fg_color {pal['on']}")
+                    data = data.replace("switch:checked slider { background: #E6ECF5; }",
+                                        f"switch:checked slider {{ background: {pal['on']}; }}")
+            write_if_changed(out, data)
+
+
+# ── Window frames (Death Knight: the close button) ────────────────
+
+def apply_aurorae(pal):
+    """True when KWin must reload its window frames."""
+    wanted = pal["error"] != A.DEFAULT["error"]
+    mine = (AURORAE_COPY / MARK).exists()
+    if not wanted:
+        if mine:
+            shutil.rmtree(AURORAE_COPY, ignore_errors=True)
+            return True
+        return False
+    if AURORAE_COPY.exists() and not mine:
+        return False  # the user's own copy: leave it
+    src = sys_path("/usr/share/aurorae/themes/goblincakes")
+    changed = False
+    for f in src.iterdir():
+        if f.is_file():
+            data = f.read_text()
+            data = data.replace(A.DEFAULT["error"], pal["error"]).replace(A.DEFAULT["errorBright"], pal["errorBright"])
+            changed |= write_if_changed(AURORAE_COPY / f.name, data)
+    (AURORAE_COPY / MARK).write_text(pal["id"] + "\n")
+    return changed
+
+
+def reload_kwin():
+    run(["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure"], timeout=10)
+
+
+# ── Firefox ───────────────────────────────────────────────────────
+
+def firefox_profiles():
+    for root in FIREFOX_ROOTS:
+        if not root.is_dir():
+            continue
+        for d in root.iterdir():
+            if d.is_dir() and (d / "prefs.js").exists():
+                yield d
+
+
+def firefox_css(pal):
+    c, on = pal["color"], pal["on"]
+    return "\n".join([
+        FIREFOX_START,
+        f"/* {pal['name']}: GOBLINCAKES Config → Inställningar → Utseende. Firefox reads it at start. */",
+        ":root {",
+        f"  --lwt-tab-line-color: {c} !important;",
+        f"  --tab-icon-fill-loading: {c} !important;",
+        f"  --toolbarbutton-icon-fill-attention: {c} !important;",
+        f"  --toolbar-field-border-color-focus: {c} !important;",
+        f"  --lwt-toolbar-field-highlight: {c} !important;",
+        f"  --lwt-toolbar-field-highlight-text: {on} !important;",
+        f"  --urlbarview-background-color-selected: {c} !important;",
+        f"  --urlbarview-text-color-selected: {on} !important;",
+        f"  --focus-outline-color: {c} !important;",
+        f"  accent-color: {c} !important;",
+        "}",
+        FIREFOX_END,
+    ])
+
+
+def apply_firefox(pal):
+    block = re.compile(re.escape(FIREFOX_START) + r".*?" + re.escape(FIREFOX_END) + r"\n?", re.S)
+    for profile in firefox_profiles():
+        f = profile / "chrome/userChrome.css"
+        try:
+            text = f.read_text()
+        except OSError:
+            text = ""
+        rest = block.sub("", text)
+        if pal["id"] == "standard":
+            if text != rest:
+                if rest.strip():
+                    write_if_changed(f, rest)
+                else:
+                    f.unlink(missing_ok=True)
+                    try:
+                        f.parent.rmdir()
+                    except OSError:
+                        pass
+            continue
+        write_if_changed(f, firefox_css(pal) + "\n" + rest)
+
+
+# ── The login screen ──────────────────────────────────────────────
+
+def apply_sddm(pal):
+    """Root's file for the login screen, only when it changed (pkexec, no password)."""
+    want = "standard" if pal["id"] == "standard" else f"{pal['color']} {pal['dim']} {pal['on']}"
+    try:
+        if SDDM_STAMP.read_text().strip() == want:
+            return
+    except OSError:
+        pass
+    args = ["standard"] if pal["id"] == "standard" else [pal["color"], pal["dim"], pal["on"]]
+    r = run(["pkexec", "/usr/libexec/goblincakes-sddm-accent", *args], timeout=60)
+    if r and r.returncode == 0:
+        SDDM_STAMP.parent.mkdir(parents=True, exist_ok=True)
+        SDDM_STAMP.write_text(want + "\n")
+
+
+# ── Choosing ──────────────────────────────────────────────────────
+
+def save_choice(pal):
+    if pal["id"] == "standard":
+        A.CHOICE.unlink(missing_ok=True)
+        A.PALETTE.unlink(missing_ok=True)
+    else:
+        write_if_changed(A.CHOICE, pal["id"] + "\n")
+        write_if_changed(A.PALETTE, json.dumps(pal, indent=2) + "\n")
+
+
+def files_stamp(pal):
+    try:
+        version = sys_path("/usr/share/goblincakes/version").read_text().strip()
+    except OSError:
+        version = ""
+    return f"{pal['id']} {version}"
+
+
+def apply_files(pal):
+    apply_kvantum(pal)
+    apply_gtk(pal)
+    frames = apply_aurorae(pal)
+    apply_firefox(pal)
+    STAMP.parent.mkdir(parents=True, exist_ok=True)
+    STAMP.write_text(files_stamp(pal) + "\n")
+    return frames
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if cmd == "list":
+        chosen = A.chosen_id()
+        out = []
+        for a in A.accents():
+            p = A.palette(a["id"])
+            out.append({"id": a["id"], "name": a["name"], "color": a["color"], "on": p["on"],
+                        "chosen": a["id"] == chosen})
+        print(json.dumps(out))
+    elif cmd == "status":
+        print(A.chosen_id())
+    elif cmd == "palette":
+        print(json.dumps(A.palette(sys.argv[2] if len(sys.argv) > 2 else None)))
+    elif cmd == "set":
+        a = A.find(" ".join(sys.argv[2:])) if len(sys.argv) > 2 else None
+        if not a:
+            print("Okänd färg. Välj bland: " + ", ".join(x["name"] for x in A.accents()), file=sys.stderr)
+            return 2
+        pal = A.palette(a["id"])
+        save_choice(pal)
+        apply_plasma(pal)
+        if apply_files(pal):
+            reload_kwin()
+        apply_sddm(pal)
+        print(pal["name"])
+    elif cmd == "apply":
+        pal = A.palette()
+        apply_plasma(pal)
+        if apply_files(pal):
+            reload_kwin()
+        apply_sddm(pal)
+    elif cmd == "refresh":
+        # At login (before Plasma): remake the copies when GOBLINCAKES' themes changed
+        pal = A.palette()
+        try:
+            same = STAMP.read_text().strip() == files_stamp(pal)
+        except OSError:
+            same = False
+        if not same:
+            apply_files(pal)
+    elif cmd == "gtk":
+        apply_gtk(A.palette())
+    else:
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

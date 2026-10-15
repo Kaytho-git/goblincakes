@@ -294,7 +294,7 @@ Window {
         width: 26
         height: 22
         visible: hover.hovered && !graph.locked
-        color: closeArea.containsMouse ? "#A4262C" : "transparent"
+        color: closeArea.containsMouse ? accent.error : "transparent"
         Text {
             anchors.centerIn: parent
             text: "✕"
@@ -329,7 +329,7 @@ Window {
             onPaint: {
                 const ctx = getContext("2d");
                 ctx.reset();
-                const c = locked ? "#2F6FED" : "#8B98AD";
+                const c = locked ? accent.color : "#8B98AD";
                 ctx.fillStyle = c;
                 ctx.fillRect(1, 7, 12, 9);                    // body
                 ctx.strokeStyle = c;

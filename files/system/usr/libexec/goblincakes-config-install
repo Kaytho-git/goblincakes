@@ -139,6 +139,7 @@ case $step in
         mkdir -p "$themes"
         rm -rf "$themes/GoblinCakes"
         cp -r /usr/share/themes/GoblinCakes "$themes/GoblinCakes"
+        /usr/libexec/goblincakes-accent gtk >/dev/null 2>&1 || true  # the chosen colour (Utseende)
         if [ -n "${1:-}" ]; then
             status "Ger programmet GOBLINCAKES-temat…"
             flatpak override --user --filesystem=xdg-data/themes:ro --env=GTK_THEME=GoblinCakes "$1"

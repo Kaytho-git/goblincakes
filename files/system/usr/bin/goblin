@@ -245,6 +245,7 @@ COMMANDS=(
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
     "discord|Namnge röstkanalen du är i (visas i toppfältet): goblin discord namn Raid"
     "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
+    "färg|GOBLINCAKES färg – blått eller en WoW-klassfärg: goblin färg dk (också i Config → Inställningar)"
     "dock reset|Återställ hela GOBLINCAKES-utseendet (tema, typsnitt, toppfält, docka)"
     "apps|Dolda Fedora-program – visa igen: goblin apps show konsole"
     "remove|Avinstallera Fedora-program (fönster, eller: goblin remove konsole)"
@@ -296,6 +297,29 @@ command_list() {
 cmd_help() {
     printf '%sgoblin%s – GOBLINCAKES kommandon\n\n' "$bold" "$reset"
     command_list
+}
+
+# GOBLINCAKES' accent colour (/usr/libexec/goblincakes-accent): the list, or choose one
+cmd_farg() {
+    if [ $# -gt 0 ]; then
+        local name
+        if name=$(/usr/libexec/goblincakes-accent set "$*"); then
+            printf 'Färgen är nu %s. KDE-program och Firefox får den när de startas om.\n' "$name"
+        else
+            return 2
+        fi
+        return 0
+    fi
+    heading "Färg"
+    /usr/libexec/goblincakes-accent list | python3 -c '
+import json, sys
+for a in json.load(sys.stdin):
+    r, g, b = (int(a["color"][i:i + 2], 16) for i in (1, 3, 5))
+    name = a["name"] + ("  ← vald" if a["chosen"] else "")
+    print(f"  \033[48;2;{r};{g};{b}m    \033[0m  {name}")
+'
+    echo
+    info "Byt: goblin färg dk, goblin färg mage … (eller i Config → Inställningar → Utseende)"
 }
 
 cmd_gamemode() {
@@ -623,6 +647,7 @@ case ${1:-help} in
         info "Ta bort:  goblin play remove <ord>"
         info "Alla spel med vad du skriver i add: goblin play steam" ;;
     nyheter|news) shift; heading "Nytt i GOBLINCAKES"; exec /usr/libexec/goblincakes-news latest "${1:-15}" ;;
+    färg|farg|color|colour) shift; cmd_farg "$@" ;;
     gamemode) cmd_gamemode ;;
     fast|fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;

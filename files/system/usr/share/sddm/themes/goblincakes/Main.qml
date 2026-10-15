@@ -9,6 +9,12 @@ Item {
     // Sizes from a 1920×1080 screen, scaled to the real one
     readonly property real s: height / 1080
 
+    // The accent colour chosen on the desktop (Config → Inställningar → Utseende):
+    // theme.conf.user → /var/lib/goblincakes/sddm-theme.conf, written by goblincakes-sddm-accent
+    readonly property color accent: config.accent || "#2F6FED"
+    readonly property color accentDim: config.accentDim || "#1B3A78"
+    readonly property color accentOn: config.accentOn || "#E6ECF5"
+
     // The look for the time of year (same periods as /usr/share/goblincakes/seasons/seasons.json;
     // a season only when its picture exists) – on purpose not mentioned to users
     function seasonPicture(fallback) {
@@ -55,7 +61,7 @@ Item {
         height: Math.round(44 * root.s)
         color: "#0E1420"
         border.width: 1
-        border.color: input.activeFocus ? "#2F6FED" : "#1E2A40"
+        border.color: input.activeFocus ? root.accent : "#1E2A40"
 
         TextInput {
             id: input
@@ -65,8 +71,8 @@ Item {
             verticalAlignment: TextInput.AlignVCenter
             clip: true
             color: "#E6ECF5"
-            selectionColor: "#2F6FED"
-            selectedTextColor: "#E6ECF5"
+            selectionColor: root.accent
+            selectedTextColor: root.accentOn
             font.family: "IBM Plex Sans"
             font.pixelSize: Math.round(17 * root.s)
             passwordCharacter: "•"
@@ -121,9 +127,9 @@ Item {
         signal picked()
         width: Math.round(180 * root.s)
         height: Math.round(36 * root.s)
-        color: chosen ? "#1B3A78" : area.containsMouse ? "#111A2A" : "#0E1420"
+        color: chosen ? root.accentDim : area.containsMouse ? "#111A2A" : "#0E1420"
         border.width: 1
-        border.color: chosen ? "#2F6FED" : "#1E2A40"
+        border.color: chosen ? root.accent : "#1E2A40"
         Text {
             anchors.centerIn: parent
             text: choice.text

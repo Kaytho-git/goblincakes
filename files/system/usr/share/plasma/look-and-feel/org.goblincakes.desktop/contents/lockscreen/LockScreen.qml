@@ -2,10 +2,24 @@
 // No dimming, no blur, no extra buttons. The wallpaper itself is drawn by kscreenlocker
 // behind this item (from kscreenlockerrc).
 import QtQuick
+import org.kde.kirigami as Kirigami
 import org.kde.plasma.private.keyboardindicator as KeyboardIndicator
 
 Item {
     id: root
+
+    // The accent colour chosen in GOBLINCAKES Config → Utseende (Plasma's accent, kdeglobals)
+    readonly property color accent: Kirigami.Theme.focusColor
+    readonly property bool accentLight: {
+        if (Qt.colorEqual(accent, "#2F6FED"))
+            return false; // the standard blue: white text, as always
+        const lin = v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        const l = 0.2126 * lin(accent.r) + 0.7152 * lin(accent.g) + 0.0722 * lin(accent.b);
+        return (0.83 + 0.05) / (l + 0.05) < (l + 0.05) / 0.053; // dark text reads better (WCAG)
+    }
+    readonly property color accentOn: accentLight ? "#07090D" : "#E6ECF5"
+    readonly property color accentHover: Qt.colorEqual(accent, "#2F6FED") ? "#4A82F0"
+        : Qt.tint(accent, accentLight ? Qt.rgba(0.03, 0.04, 0.05, 0.15) : Qt.rgba(1, 1, 1, 0.15))
 
     // Magic properties and signals kscreenlocker looks for
     property bool debug: false
@@ -160,13 +174,13 @@ Item {
             }
         }
 
-        // Password: border turns blue when active
+        // Password: border in the accent colour when active
         Rectangle {
             width: Math.round(360 * root.s)
             height: Math.round(44 * root.s)
             color: "#0E1420"
             border.width: 1
-            border.color: password.activeFocus ? "#2F6FED" : "#1E2A40"
+            border.color: password.activeFocus ? root.accent : "#1E2A40"
 
             TextInput {
                 id: password
@@ -179,8 +193,8 @@ Item {
                 echoMode: TextInput.Password
                 passwordCharacter: "•"
                 color: "#E6ECF5"
-                selectionColor: "#2F6FED"
-                selectedTextColor: "#E6ECF5"
+                selectionColor: root.accent
+                selectedTextColor: root.accentOn
                 font.family: "IBM Plex Sans"
                 font.pixelSize: Math.round(17 * root.s)
                 onTextChanged: if (text.length > 0) root.notification = ""

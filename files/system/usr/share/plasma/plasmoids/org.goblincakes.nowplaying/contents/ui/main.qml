@@ -31,7 +31,7 @@ PlasmoidItem {
     // Palette (same as the rest of GOBLINCAKES)
     readonly property color frost: "#E6ECF5"
     readonly property color muted: "#8B98AD"
-    readonly property color accent: "#2F6FED"
+    readonly property color accent: Kirigami.Theme.focusColor // the accent chosen in Config → Utseende
     readonly property color line: "#2A3852"
 
     readonly property bool editMode: Plasmoid.containment.corona?.editMode ?? false

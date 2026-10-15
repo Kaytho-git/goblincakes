@@ -4,6 +4,10 @@
       "general.autoScroll": {
         "Value": true,
         "Status": "default"
+      },
+      "toolkit.legacyUserProfileCustomizations.stylesheets": {
+        "Value": true,
+        "Status": "default"
       }
     },
     "ExtensionSettings": {

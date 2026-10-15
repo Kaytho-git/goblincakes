@@ -59,6 +59,7 @@ TWEAK = os.environ.get("GOBLINCAKES_CONFIG_TWEAK", "/usr/libexec/goblincakes-twe
 GPU = os.environ.get("GOBLINCAKES_CONFIG_GPU", "/usr/libexec/goblincakes-gpu")
 BROWSER = os.environ.get("GOBLINCAKES_CONFIG_BROWSER", "/usr/libexec/goblincakes-browser")
 TERMINAL = os.environ.get("GOBLINCAKES_CONFIG_TERMINAL", "/usr/libexec/goblincakes-terminal")
+ACCENT = os.environ.get("GOBLINCAKES_CONFIG_ACCENT", "/usr/libexec/goblincakes-accent")
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
 DONE_FILE = STATE / "config-done"
 OLD_DONE_FILE = STATE / "setup-done"  # from when the window was called GOBLINCAKES Setup
@@ -238,6 +239,7 @@ class Config(QObject):
     checkDone = Signal(str)  # "Kolla efter uppdateringar": goblincakes-updates' JSON ("" = failed)
     mainBrowserChanged = Signal()
     terminalChanged = Signal()
+    accentsChanged = Signal()  # Utseende: the colours, which one is chosen, busy
     autostartChanged = Signal()
     webappsChanged = Signal()
     fullscreenChanged = Signal()
@@ -366,6 +368,44 @@ class Config(QObject):
         self.terminalChanged.emit()
         # In the background: changes the dock through plasmashell
         QProcess.startDetached(TERMINAL, ["set", name])
+
+    # ── Utseende: the accent colour (goblincakes-accent) ──────
+
+    def _read_accents(self):
+        code, out = run(ACCENT, ["list"])
+        try:
+            self._accents = json.dumps(json.loads(out)) if code == 0 else "[]"
+        except ValueError:
+            self._accents = "[]"
+
+    @Property(str, notify=accentsChanged)
+    def accents(self):
+        if not hasattr(self, "_accents"):
+            self._read_accents()
+        return self._accents
+
+    @Property(str, notify=accentsChanged)
+    def accentBusy(self):
+        """The colour being applied ("" = none): Plasma, Kvantum, Firefox … take a second."""
+        return getattr(self, "_accent_busy", "")
+
+    @Slot(str)
+    def setAccent(self, accent_id):
+        if getattr(self, "_accent_busy", ""):
+            return
+        self._accent_busy = accent_id
+        self.accentsChanged.emit()
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+
+        def done(*_):
+            self._accent_busy = ""
+            self._read_accents()
+            self.accentsChanged.emit()
+            proc.deleteLater()
+        proc.finished.connect(done)
+        proc.errorOccurred.connect(lambda error: done() if error == QProcess.FailedToStart else None)
+        proc.start(ACCENT, ["set", accent_id])
 
     # ── The user's own web apps ("Egen webbapp") ──────────────
 
@@ -827,6 +867,22 @@ class Config(QObject):
             QProcess.startDetached(cmd[0], cmd[1:])
 
 
+def use_accent(engine):
+    """GOBLINCAKES' accent colour (Config → Utseende) as the QML property "accent", followed
+    live: /usr/share/goblincakes/accent.py. Without it: the standard blue."""
+    for d in (SHARE.parent, Path(__file__).resolve().parents[1] / "share/goblincakes", Path("/usr/share/goblincakes")):
+        if (d / "accent.py").exists():
+            sys.path.insert(0, str(d))
+            break
+    try:
+        import accent
+        accent.install(engine)
+    except Exception:  # noqa: BLE001 – an old or broken file must not stop the window
+        engine.rootContext().setContextProperty("accent", {
+            "color": "#2F6FED", "hover": "#4A82F0", "on": "#E6ECF5", "text": "#2F6FED",
+            "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
+
+
 def main():
     if "--first-run" in sys.argv and (DONE_FILE.exists() or OLD_DONE_FILE.exists()):
         return 0
@@ -884,6 +940,7 @@ def main():
     engine.rootContext().setContextProperty("startTab", start_tab)
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO") or season_logo()))
+    use_accent(engine)
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1

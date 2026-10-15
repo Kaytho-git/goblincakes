@@ -91,7 +91,7 @@ Window {
         width: Math.max(150, label.implicitWidth + 48)
         height: 44
         opacity: enabledState ? 1 : 0.4
-        color: primary ? (area.containsMouse && enabledState ? "#4A82F0" : "#2F6FED")
+        color: primary ? (area.containsMouse && enabledState ? accent.hover : accent.color)
                        : (area.containsMouse && enabledState ? "#1A2438" : "transparent")
         border.width: primary ? 0 : 1
         border.color: "#2A3852"
@@ -100,7 +100,7 @@ Window {
             id: label
             anchors.centerIn: parent
             text: btn.text
-            color: "#E6ECF5"
+            color: btn.primary ? accent.on : "#E6ECF5"
             font.family: "IBM Plex Sans"
             font.weight: Font.Medium
             font.pixelSize: 15
@@ -119,16 +119,19 @@ Window {
         property bool checked
         width: 22
         height: 22
-        color: checked ? "#2F6FED" : "transparent"
+        color: checked ? accent.color : "transparent"
         border.width: checked ? 0 : 1
         border.color: "#2A3852"
+        property color mark: accent.on // the tick: dark on light accent colours
         Canvas {
             anchors.fill: parent
             visible: parent.checked
+            property color mark: parent.mark
+            onMarkChanged: requestPaint()
             onPaint: {
                 const ctx = getContext("2d");
                 ctx.reset();
-                ctx.strokeStyle = "#E6ECF5";
+                ctx.strokeStyle = mark;
                 ctx.lineWidth = 2.5;
                 ctx.beginPath();
                 ctx.moveTo(5.5, 11.5);
@@ -188,7 +191,7 @@ Window {
             height: Math.max(32, bar.flick.visibleArea.heightRatio * bar.height)
             y: bar.flick.visibleArea.yPosition / Math.max(0.0001, 1 - bar.flick.visibleArea.heightRatio)
                * (bar.height - height)
-            color: handleArea.pressed ? "#2F6FED" : handleArea.containsMouse ? "#8B98AD" : "#2A3852"
+            color: handleArea.pressed ? accent.color : handleArea.containsMouse ? "#8B98AD" : "#2A3852"
 
             MouseArea {
                 id: handleArea
@@ -323,7 +326,7 @@ Window {
                     Rectangle {
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                         height: 2
-                        color: "#2F6FED"
+                        color: accent.color
                         visible: tabItem.active
                     }
                     MouseArea {
@@ -387,7 +390,7 @@ Window {
                         height: 112
                         color: cardArea.containsMouse ? "#111A2A" : "#0E1420"
                         border.width: 1
-                        border.color: checked ? "#A4262C" : cardArea.containsMouse ? "#2A3852" : "#1E2A40"
+                        border.color: checked ? accent.error : cardArea.containsMouse ? "#2A3852" : "#1E2A40"
 
                         AppIcon {
                             id: icon
@@ -434,7 +437,8 @@ Window {
                             id: check
                             anchors { right: parent.right; rightMargin: 18; top: parent.top; topMargin: 20 }
                             checked: card.checked
-                            color: checked ? "#A4262C" : "transparent"
+                            color: checked ? accent.error : "transparent"
+                            mark: "#E6ECF5"
                         }
 
                         MouseArea {
@@ -488,7 +492,7 @@ Window {
                     height: 76
                     color: rowArea.containsMouse && !restoring ? "#111A2A" : "#0E1420"
                     border.width: 1
-                    border.color: checked ? "#2F6FED" : rowArea.containsMouse && !restoring ? "#2A3852" : "#1E2A40"
+                    border.color: checked ? accent.color : rowArea.containsMouse && !restoring ? "#2A3852" : "#1E2A40"
                     opacity: restoring ? 0.6 : 1
 
                     AppIcon {
@@ -584,7 +588,7 @@ Window {
                 id: runner
                 width: parent.width / 4
                 height: parent.height
-                color: "#2F6FED"
+                color: accent.color
                 SequentialAnimation on x {
                     running: win.page === "working"
                     loops: Animation.Infinite

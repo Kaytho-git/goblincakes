@@ -1,0 +1,19 @@
+{
+  "comment": "GOBLINCAKES' accent colours (Config → Inställningar → Utseende, goblin färg). The first one is the standard. Words = what goblin färg accepts besides the id.",
+  "accents": [
+    {"id": "standard", "name": "GOBLINCAKES blå", "color": "#2F6FED", "words": ["blå", "bla", "blue", "standard"]},
+    {"id": "deathknight", "name": "Death Knight", "color": "#C41E3A", "words": ["dk", "deathknight"]},
+    {"id": "demonhunter", "name": "Demon Hunter", "color": "#A330C9", "words": ["dh", "demonhunter"]},
+    {"id": "druid", "name": "Druid", "color": "#FF7C0A", "words": ["druid"]},
+    {"id": "evoker", "name": "Evoker", "color": "#33937F", "words": ["evoker", "evo"]},
+    {"id": "hunter", "name": "Hunter", "color": "#AAD372", "words": ["hunter", "hunt"]},
+    {"id": "mage", "name": "Mage", "color": "#3FC7EB", "words": ["mage"]},
+    {"id": "monk", "name": "Monk", "color": "#00FF98", "words": ["monk"]},
+    {"id": "paladin", "name": "Paladin", "color": "#F48CBA", "words": ["paladin", "pala", "pally"]},
+    {"id": "priest", "name": "Priest", "color": "#FFFFFF", "words": ["priest", "präst"]},
+    {"id": "rogue", "name": "Rogue", "color": "#FFF468", "words": ["rogue"]},
+    {"id": "shaman", "name": "Shaman", "color": "#0070DD", "words": ["shaman", "sham", "shammy"]},
+    {"id": "warlock", "name": "Warlock", "color": "#8788EE", "words": ["warlock", "lock"]},
+    {"id": "warrior", "name": "Warrior", "color": "#C69B6D", "words": ["warrior", "warr", "war"]}
+  ]
+}

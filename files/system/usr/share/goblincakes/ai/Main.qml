@@ -125,7 +125,7 @@ Window {
         width: Math.max(small ? 70 : 120, label.implicitWidth + (small ? 24 : 40))
         height: small ? 30 : 40
         opacity: enabledState ? 1 : 0.4
-        color: primary ? (area.containsMouse && enabledState ? "#4A82F0" : "#2F6FED")
+        color: primary ? (area.containsMouse && enabledState ? accent.hover : accent.color)
                        : (area.containsMouse && enabledState ? "#1A2438" : "transparent")
         border.width: primary ? 0 : 1
         border.color: "#2A3852"
@@ -134,7 +134,7 @@ Window {
             id: label
             anchors.centerIn: parent
             text: btn.text
-            color: "#E6ECF5"
+            color: btn.primary ? accent.on : "#E6ECF5"
             font.family: "IBM Plex Sans"
             font.weight: Font.Medium
             font.pixelSize: btn.small ? 13 : 14
@@ -180,7 +180,7 @@ Window {
                 selectByMouse: true
                 wrapMode: TextEdit.WrapAnywhere
                 color: "#E6ECF5"
-                selectionColor: "#2F6FED"
+                selectionColor: accent.color
                 font.family: "IBM Plex Mono"
                 font.pixelSize: 13
             }
@@ -258,7 +258,7 @@ Window {
                     visible: convItem.active
                     width: 2
                     height: parent.height
-                    color: "#2F6FED"
+                    color: accent.color
                 }
                 Text {
                     anchors { left: parent.left; leftMargin: 22; right: del.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
@@ -392,7 +392,7 @@ Window {
                         Rectangle {
                             width: 48
                             height: parent.height
-                            color: "#2F6FED"
+                            color: accent.color
                             SequentialAnimation on x {
                                 running: backend.busy
                                 loops: Animation.Infinite
@@ -437,7 +437,7 @@ Window {
                             selectByMouse: true
                             wrapMode: TextEdit.Wrap
                             color: "#E6ECF5"
-                            selectionColor: "#2F6FED"
+                            selectionColor: accent.color
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 15
                         }
@@ -490,7 +490,7 @@ Window {
                                 selectByMouse: true
                                 wrapMode: TextEdit.Wrap
                                 color: "#E6ECF5"
-                                selectionColor: "#2F6FED"
+                                selectionColor: accent.color
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 15
                                 onLinkActivated: link => Qt.openUrlExternally(link)
@@ -503,8 +503,8 @@ Window {
                                 height: segItem.s.type === "text" ? 0 : cardCol.height + 32
                                 color: "#0E1420"
                                 border.width: 1
-                                border.color: segItem.s.type === "command" && segItem.s.danger ? "#A4262C"
-                                    : segItem.s.state === "running" ? "#2F6FED" : "#1E2A40"
+                                border.color: segItem.s.type === "command" && segItem.s.danger ? accent.error
+                                    : segItem.s.state === "running" ? accent.color : "#1E2A40"
 
                                 Column {
                                     id: cardCol
@@ -636,7 +636,7 @@ Window {
             height: inputCol.height + 24
             color: "#0E1420"
             border.width: 1
-            border.color: input.activeFocus ? "#2F6FED" : "#1E2A40"
+            border.color: input.activeFocus ? accent.color : "#1E2A40"
 
             Column {
                 id: inputCol
@@ -678,7 +678,7 @@ Window {
                         focus: true
                         wrapMode: TextEdit.Wrap
                         color: "#E6ECF5"
-                        selectionColor: "#2F6FED"
+                        selectionColor: accent.color
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 15
                         Keys.onReturnPressed: event => {
@@ -772,7 +772,7 @@ Window {
                     height: provCol.height + 36
                     color: "#0E1420"
                     border.width: 1
-                    border.color: modelData.hasKey ? "#2F6FED" : "#1E2A40"
+                    border.color: modelData.hasKey ? accent.color : "#1E2A40"
 
                     Column {
                         id: provCol
@@ -792,7 +792,7 @@ Window {
                             }
                             Text {
                                 text: prov.modelData.hasKey ? "Inställd" : "Inte inställd"
-                                color: prov.modelData.hasKey ? "#2F6FED" : "#8B98AD"
+                                color: prov.modelData.hasKey ? accent.text : "#8B98AD"
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 13
                             }
@@ -817,7 +817,7 @@ Window {
                                 height: 30
                                 color: "#07090D"
                                 border.width: 1
-                                border.color: keyInput.activeFocus ? "#2F6FED" : "#1E2A40"
+                                border.color: keyInput.activeFocus ? accent.color : "#1E2A40"
                                 TextInput {
                                     id: keyInput
                                     anchors { fill: parent; leftMargin: 10; rightMargin: 10 }

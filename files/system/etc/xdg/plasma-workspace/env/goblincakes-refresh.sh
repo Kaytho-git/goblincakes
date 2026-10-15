@@ -193,4 +193,11 @@ if ls "$HOME"/.local/share/applications/goblincakes-webapp-*.desktop >/dev/null 
     setsid /usr/libexec/goblincakes-webapp-icon --upgrade >/dev/null 2>&1 </dev/null &
 fi
 
+# The accent colour (Config → Utseende): its copies of the Kvantum, GTK and window frame
+# themes are made again when GOBLINCAKES' own themes changed (a new version) – before Plasma
+# and the programs start
+if [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/accent" ]; then
+    /usr/libexec/goblincakes-accent refresh >/dev/null 2>&1
+fi
+
 unset _gc_auto _gc_was _gc_now _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets

@@ -1,8 +1,22 @@
 // GOBLINCAKES logout screen: waving goblin, goodbye bubble, log out / restart / shut down
 import QtQuick
+import org.kde.kirigami as Kirigami
 
 Item {
     id: root
+
+    // The accent colour chosen in GOBLINCAKES Config → Utseende (Plasma's accent, kdeglobals)
+    readonly property color accent: Kirigami.Theme.focusColor
+    readonly property bool accentLight: {
+        if (Qt.colorEqual(accent, "#2F6FED"))
+            return false; // the standard blue: white text, as always
+        const lin = v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        const l = 0.2126 * lin(accent.r) + 0.7152 * lin(accent.g) + 0.0722 * lin(accent.b);
+        return (0.83 + 0.05) / (l + 0.05) < (l + 0.05) / 0.053; // dark text reads better (WCAG)
+    }
+    readonly property color accentOn: accentLight ? "#07090D" : "#E6ECF5"
+    readonly property color accentHover: Qt.colorEqual(accent, "#2F6FED") ? "#4A82F0"
+        : Qt.tint(accent, accentLight ? Qt.rgba(0.03, 0.04, 0.05, 0.15) : Qt.rgba(1, 1, 1, 0.15))
 
     // The logout greeter connects to these signals by name
     signal logoutRequested()
@@ -124,7 +138,7 @@ Item {
 
         width: labelText.implicitWidth + Math.round(44 * root.s)
         height: Math.max(40, Math.round(44 * root.s))
-        color: primary ? (area.containsMouse ? "#4A82F0" : "#2F6FED")
+        color: primary ? (area.containsMouse ? root.accentHover : root.accent)
                        : (area.containsMouse ? "#12203A" : "transparent")
         border.color: primary ? "transparent" : "#2A3852"
         border.width: 1
@@ -133,7 +147,7 @@ Item {
             id: labelText
             anchors.centerIn: parent
             text: parent.label
-            color: primary ? "#FFFFFF" : "#E6ECF5"
+            color: primary ? (root.accentLight ? root.accentOn : "#FFFFFF") : "#E6ECF5"
             font.family: "IBM Plex Sans"
             font.weight: primary ? Font.Medium : Font.Normal
             font.pixelSize: Math.max(14, Math.round(17 * root.s))

@@ -204,13 +204,13 @@ Window {
         height: 40
         color: "#07090D"
         border.width: 1
-        border.color: input.activeFocus ? "#2F6FED" : "#2A3852"
+        border.color: input.activeFocus ? accent.color : "#2A3852"
         TextInput {
             id: input
             anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
             verticalAlignment: TextInput.AlignVCenter
             color: "#E6ECF5"
-            selectionColor: "#2F6FED"
+            selectionColor: accent.color
             font.family: "IBM Plex Mono"
             font.pixelSize: 13
             clip: true
@@ -269,16 +269,16 @@ Window {
         width: Math.max(96, label.implicitWidth + 32)
         height: 34
         opacity: enabledState ? 1 : 0.4
-        color: primary ? (area.containsMouse && enabledState ? "#4A82F0" : "#2F6FED")
+        color: primary ? (area.containsMouse && enabledState ? accent.hover : accent.color)
                        : (area.containsMouse && enabledState ? (danger ? "#3A1418" : "#1A2438") : "transparent")
         border.width: primary ? 0 : 1
-        border.color: danger && area.containsMouse ? "#A4262C" : "#2A3852"
+        border.color: danger && area.containsMouse ? accent.error : "#2A3852"
 
         Text {
             id: label
             anchors.centerIn: parent
             text: btn.text
-            color: "#E6ECF5"
+            color: btn.primary ? accent.on : "#E6ECF5"
             font.family: "IBM Plex Sans"
             font.weight: Font.Medium
             font.pixelSize: 13
@@ -299,7 +299,7 @@ Window {
         signal toggled()
         width: 48
         height: 26
-        color: on ? "#2F6FED" : "transparent"
+        color: on ? accent.color : "transparent"
         border.width: on ? 0 : 1
         border.color: "#2A3852"
         opacity: enabledState ? 1 : 0.35
@@ -308,7 +308,7 @@ Window {
             height: 18
             anchors.verticalCenter: parent.verticalCenter
             x: sw.on ? parent.width - width - 4 : 4
-            color: sw.on ? "#E6ECF5" : "#8B98AD"
+            color: sw.on ? accent.on : "#8B98AD"
             Behavior on x { NumberAnimation { duration: 120 } }
         }
         MouseArea {
@@ -337,7 +337,7 @@ Window {
             height: Math.max(32, bar.flick.visibleArea.heightRatio * bar.height)
             y: bar.flick.visibleArea.yPosition / Math.max(0.0001, 1 - bar.flick.visibleArea.heightRatio)
                * (bar.height - height)
-            color: handleArea.pressed ? "#2F6FED" : handleArea.containsMouse ? "#8B98AD" : "#2A3852"
+            color: handleArea.pressed ? accent.color : handleArea.containsMouse ? "#8B98AD" : "#2A3852"
 
             MouseArea {
                 id: handleArea
@@ -449,7 +449,7 @@ Window {
         height: 34
         color: chosen ? "#12203A" : (chArea.containsMouse && enabledState ? "#0E1420" : "transparent")
         border.width: chosen ? 2 : 1
-        border.color: chosen ? "#2F6FED" : "#2A3852"
+        border.color: chosen ? accent.color : "#2A3852"
         opacity: enabledState ? 1 : 0.35
         Text {
             id: chText
@@ -632,7 +632,7 @@ Window {
                     Rectangle {
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                         height: 2
-                        color: "#2F6FED"
+                        color: accent.color
                         visible: tabItem.active
                     }
                     MouseArea {
@@ -783,7 +783,7 @@ Window {
                 height: 84 + (open ? statsCol.height + 12 : 0)
                 color: active ? "#12203A" : cardArea.containsMouse ? "#0E1420" : "transparent"
                 border.width: active ? 2 : 1
-                border.color: active ? "#2F6FED" : "#1E2A40"
+                border.color: active ? accent.color : "#1E2A40"
 
                 Item {
                     id: head
@@ -1134,7 +1134,7 @@ Window {
                     Rectangle {
                         width: playerPane.dur > 0 ? parent.width * Math.min(1, player.position / 1000 / playerPane.dur) : 0
                         height: parent.height
-                        color: "#2F6FED"
+                        color: accent.color
                     }
                 }
                 Rectangle { // the part that goes to YouTube
@@ -1145,7 +1145,7 @@ Window {
                     height: 18
                     color: "transparent"
                     border.width: 2
-                    border.color: "#E5484D"
+                    border.color: accent.errorBright
                 }
                 Repeater {
                     model: playerPane.v ? playerPane.v.markers : []
@@ -1367,7 +1367,7 @@ Window {
                         height: 110
                         color: "#07090D"
                         border.width: 1
-                        border.color: descEdit.activeFocus ? "#2F6FED" : "#2A3852"
+                        border.color: descEdit.activeFocus ? accent.color : "#2A3852"
                         Flickable {
                             id: descFlick
                             anchors { fill: parent; margins: 10 }
@@ -1382,7 +1382,7 @@ Window {
                                 wrapMode: TextEdit.Wrap
                                 selectByMouse: true
                                 color: "#E6ECF5"
-                                selectionColor: "#2F6FED"
+                                selectionColor: accent.color
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 13
                             }
@@ -1731,7 +1731,7 @@ Window {
                         height: modelData.h * editor.height
                         color: modelData.file ? "transparent" : "#000000"
                         border.width: 2
-                        border.color: picked ? "#2F6FED" : "#8B98AD"
+                        border.color: picked ? accent.color : "#8B98AD"
 
                         function save() {
                             backend.moveOverlay(index, x / editor.width, y / editor.height, width / editor.width, height / editor.height);
@@ -1772,7 +1772,7 @@ Window {
                             anchors { right: parent.right; bottom: parent.bottom }
                             width: 14
                             height: 14
-                            color: box.picked ? "#2F6FED" : "#8B98AD"
+                            color: box.picked ? accent.color : "#8B98AD"
                             MouseArea {
                                 anchors.fill: parent
                                 anchors.margins: -4
@@ -1856,7 +1856,7 @@ Window {
         z: 100
         color: "#0E1420"
         border.width: 1
-        border.color: "#2F6FED"
+        border.color: accent.color
         Text {
             id: tipLabel
             x: 12
@@ -1879,7 +1879,7 @@ Window {
         height: 42
         color: "#12203A"
         border.width: 1
-        border.color: "#2F6FED"
+        border.color: accent.color
         z: 10
         Text {
             id: noteText

@@ -337,13 +337,13 @@ Window {
         height: 44
         color: "#07090D"
         border.width: 1
-        border.color: input.activeFocus ? "#2F6FED" : "#2A3852"
+        border.color: input.activeFocus ? accent.color : "#2A3852"
         TextInput {
             id: input
             anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
             verticalAlignment: TextInput.AlignVCenter
             color: "#E6ECF5"
-            selectionColor: "#2F6FED"
+            selectionColor: accent.color
             font.family: "IBM Plex Sans"
             font.pixelSize: 15
             clip: true
@@ -371,7 +371,7 @@ Window {
         width: Math.max(150, label.implicitWidth + 48)
         height: 44
         opacity: enabledState ? 1 : 0.4
-        color: primary ? (area.containsMouse && enabledState ? "#4A82F0" : "#2F6FED")
+        color: primary ? (area.containsMouse && enabledState ? accent.hover : accent.color)
                        : (area.containsMouse && enabledState ? "#1A2438" : "transparent")
         border.width: primary ? 0 : 1
         border.color: "#2A3852"
@@ -380,7 +380,7 @@ Window {
             id: label
             anchors.centerIn: parent
             text: btn.text
-            color: "#E6ECF5"
+            color: btn.primary ? accent.on : "#E6ECF5"
             font.family: "IBM Plex Sans"
             font.weight: Font.Medium
             font.pixelSize: 15
@@ -399,16 +399,19 @@ Window {
         property bool checked
         width: 22
         height: 22
-        color: checked ? "#2F6FED" : "transparent"
+        color: checked ? accent.color : "transparent"
         border.width: checked ? 0 : 1
         border.color: "#2A3852"
+        property color mark: accent.on // the tick: dark on light accent colours
         Canvas {
             anchors.fill: parent
             visible: parent.checked
+            property color mark: parent.mark
+            onMarkChanged: requestPaint()
             onPaint: {
                 const ctx = getContext("2d");
                 ctx.reset();
-                ctx.strokeStyle = "#E6ECF5";
+                ctx.strokeStyle = mark;
                 ctx.lineWidth = 2.5;
                 ctx.beginPath();
                 ctx.moveTo(5.5, 11.5);
@@ -426,9 +429,9 @@ Window {
         property int size: 22
         width: size
         height: size
-        color: ok ? "#0F2418" : "#A4262C"
+        color: ok ? "#0F2418" : accent.error
         border.width: 1
-        border.color: ok ? "#3FB950" : "#A4262C"
+        border.color: ok ? "#3FB950" : accent.error
         Canvas {
             anchors.fill: parent
             property bool ok: parent.ok
@@ -507,7 +510,7 @@ Window {
             height: Math.max(32, bar.flick.visibleArea.heightRatio * bar.height)
             y: bar.flick.visibleArea.yPosition / Math.max(0.0001, 1 - bar.flick.visibleArea.heightRatio)
                * (bar.height - height)
-            color: handleArea.pressed ? "#2F6FED" : handleArea.containsMouse ? "#8B98AD" : "#2A3852"
+            color: handleArea.pressed ? accent.color : handleArea.containsMouse ? "#8B98AD" : "#2A3852"
 
             MouseArea {
                 id: handleArea
@@ -545,7 +548,7 @@ Window {
                       bottom: parent.bottom; bottomMargin: 56 }
             height: liveNote.implicitHeight + 20
             color: "#0E1420"
-            border.color: "#2F6FED"
+            border.color: accent.color
             border.width: 1
             Text {
                 id: liveNote
@@ -648,7 +651,7 @@ Window {
                     Rectangle {
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                         height: 2
-                        color: "#2F6FED"
+                        color: accent.color
                         visible: tabItem.active
                     }
                     MouseArea {
@@ -726,7 +729,7 @@ Window {
                             height: 92
                             color: termArea.containsMouse && !chosen ? "#111A2A" : "#0E1420"
                             border.width: 1
-                            border.color: chosen ? "#2F6FED" : termArea.containsMouse ? "#2A3852" : "#1E2A40"
+                            border.color: chosen ? accent.color : termArea.containsMouse ? "#2A3852" : "#1E2A40"
 
                             Monogram {
                                 id: termMono
@@ -888,7 +891,7 @@ Window {
                             text: (section.chosenHere ? section.chosenHere + (section.chosenHere === 1 ? " vald · " : " valda · ") : "")
                                   + (section.installedHere ? section.installedHere + (section.installedHere === 1 ? " installerad · " : " installerade · ") : "")
                                   + section.apps.length + " program"
-                            color: section.chosenHere ? "#2F6FED" : "#8B98AD"
+                            color: section.chosenHere ? accent.text : "#8B98AD"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 13
                         }
@@ -936,7 +939,7 @@ Window {
                                 height: 112 + 48 * ((browser ? 1 : 0) + (canAutostart ? 1 : 0) + (canFullscreen ? 1 : 0))
                                 color: cardArea.containsMouse && !installed ? "#111A2A" : "#0E1420"
                                 border.width: 1
-                                border.color: checked ? "#2F6FED" : cardArea.containsMouse && !installed ? "#2A3852" : "#1E2A40"
+                                border.color: checked ? accent.color : cardArea.containsMouse && !installed ? "#2A3852" : "#1E2A40"
                                 // Stays bright when installed if a switch is still in use
                                 opacity: installed && !browser && !canAutostart && !canFullscreen ? 0.55 : 1
 
@@ -1137,7 +1140,7 @@ Window {
                     height: 64
                     color: "#0E1420"
                     border.width: 1
-                    border.color: status === "running" ? "#2F6FED" : status === "failed" ? "#A4262C" : "#1E2A40"
+                    border.color: status === "running" ? accent.color : status === "failed" ? accent.error : "#1E2A40"
 
                     Monogram {
                         id: rowMono
@@ -1198,7 +1201,7 @@ Window {
                             Rectangle {
                                 width: 40
                                 height: parent.height
-                                color: "#2F6FED"
+                                color: accent.color
                                 SequentialAnimation on x {
                                     running: row.status === "running"
                                     loops: Animation.Infinite
@@ -1251,7 +1254,7 @@ Window {
         signal toggled()
         width: 48
         height: 26
-        color: on ? "#2F6FED" : "transparent"
+        color: on ? accent.color : "transparent"
         border.width: on ? 0 : 1
         border.color: "#2A3852"
         opacity: enabledState ? 1 : 0.35
@@ -1260,7 +1263,7 @@ Window {
             height: 18
             anchors.verticalCenter: parent.verticalCenter
             x: sw.on ? parent.width - width - 4 : 4
-            color: sw.on ? "#E6ECF5" : "#8B98AD"
+            color: sw.on ? accent.on : "#8B98AD"
             Behavior on x { NumberAnimation { duration: 120 } }
         }
         MouseArea {
@@ -1323,7 +1326,7 @@ Window {
                     height: Math.max(92, tweakText.height + 36)
                     color: "#0E1420"
                     border.width: 1
-                    border.color: tweakRow.status === "on" ? "#2F6FED" : "#1E2A40"
+                    border.color: tweakRow.status === "on" ? accent.color : "#1E2A40"
 
                     Column {
                         id: tweakText
@@ -1390,6 +1393,101 @@ Window {
                 font.letterSpacing: 2.5
             }
 
+            // The accent colour: buttons, frames, switches, ticks, scroll bars and highlights in
+            // Plasma, KDE programs, these windows, Firefox and the login screen (goblincakes-accent).
+            Rectangle {
+                id: colourRow
+                readonly property var list: JSON.parse(backend.accents)
+                readonly property var chosen: list.find(a => a.chosen) || ({ "name": "GOBLINCAKES blå" })
+                property string hovered: ""
+                width: tweakRows.width
+                height: colourCol.height + 40
+                color: "#0E1420"
+                border.width: 1
+                border.color: "#1E2A40"
+
+                Column {
+                    id: colourCol
+                    anchors { left: parent.left; leftMargin: 22; right: parent.right; rightMargin: 22; top: parent.top; topMargin: 20 }
+                    spacing: 14
+                    Column {
+                        width: parent.width
+                        spacing: 5
+                        Text {
+                            text: "Färg"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            width: parent.width
+                            text: "Knappar, ramar, reglage, kryssrutor, rullningslister och markeringar – i Plasma, KDE-program, GOBLINCAKES-fönstren, Firefox och inloggningen. Ändras direkt; vissa program och Firefox får färgen när de startas om."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                            wrapMode: Text.WordWrap
+                            lineHeight: 1.15
+                        }
+                    }
+                    Flow {
+                        width: parent.width
+                        spacing: 10
+                        Repeater {
+                            model: colourRow.list
+                            Rectangle {
+                                id: swatch
+                                required property var modelData
+                                readonly property bool busy: backend.accentBusy === modelData.id
+                                width: 40
+                                height: 40
+                                color: "transparent"
+                                border.width: modelData.chosen ? 2 : (swatchArea.containsMouse ? 1 : 0)
+                                border.color: modelData.chosen ? "#E6ECF5" : "#8B98AD"
+                                Rectangle {
+                                    anchors { fill: parent; margins: 4 }
+                                    color: swatch.modelData.color
+                                    opacity: swatch.busy ? 0.5 : 1
+                                    Canvas {
+                                        anchors.fill: parent
+                                        visible: swatch.modelData.chosen
+                                        property color mark: swatch.modelData.on
+                                        onMarkChanged: requestPaint()
+                                        onPaint: {
+                                            const ctx = getContext("2d");
+                                            ctx.reset();
+                                            ctx.strokeStyle = mark;
+                                            ctx.lineWidth = 2.5;
+                                            ctx.beginPath();
+                                            ctx.moveTo(width / 2 - 7, height / 2);
+                                            ctx.lineTo(width / 2 - 2.5, height / 2 + 4.5);
+                                            ctx.lineTo(width / 2 + 6.5, height / 2 - 5);
+                                            ctx.stroke();
+                                        }
+                                    }
+                                }
+                                MouseArea {
+                                    id: swatchArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onContainsMouseChanged: colourRow.hovered = containsMouse ? swatch.modelData.name : ""
+                                    onClicked: if (!swatch.modelData.chosen) backend.setAccent(swatch.modelData.id)
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        text: backend.accentBusy ? "Byter färg…"
+                            : colourRow.hovered ? colourRow.hovered
+                            : "Vald: " + colourRow.chosen.name
+                        color: colourRow.hovered || backend.accentBusy ? "#E6ECF5" : "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                }
+            }
+
             // The whole GOBLINCAKES look back (goblincakes-firstlogin --reset = `goblin dock reset`).
             // Other themes are fine – this is only the way back. Asks once before doing anything.
             Rectangle {
@@ -1399,7 +1497,7 @@ Window {
                 height: Math.max(92, lookText.height + 36)
                 color: "#0E1420"
                 border.width: 1
-                border.color: state_ === "confirm" ? "#A4262C" : "#1E2A40"
+                border.color: state_ === "confirm" ? accent.error : "#1E2A40"
 
                 Column {
                     id: lookText
@@ -1558,7 +1656,7 @@ Window {
                 height: driverCol.height + 40
                 color: "#0E1420"
                 border.width: 1
-                border.color: graphicsView.pendingChange || graphicsView.switching ? "#2F6FED" : "#1E2A40"
+                border.color: graphicsView.pendingChange || graphicsView.switching ? accent.color : "#1E2A40"
 
                 Column {
                     id: driverCol
@@ -1620,7 +1718,7 @@ Window {
                             Rectangle {
                                 width: 48
                                 height: parent.height
-                                color: "#2F6FED"
+                                color: accent.color
                                 SequentialAnimation on x {
                                     running: graphicsView.switching
                                     loops: Animation.Infinite
@@ -1926,7 +2024,7 @@ Window {
                     y: 1
                     height: parent.height - 2
                     width: Math.max(0, (parent.width - 2) * (win.updateState === "done" ? 1 : win.updateFrac))
-                    color: win.updateState === "done" && !win.updateOk ? "#A4262C" : "#2F6FED"
+                    color: win.updateState === "done" && !win.updateOk ? accent.error : accent.color
                     Behavior on width { NumberAnimation { duration: 250 } }
                 }
             }
@@ -1962,7 +2060,7 @@ Window {
                     height: Math.max(56, resultText.height + 28)
                     color: "#0E1420"
                     border.width: 1
-                    border.color: ok ? "#1E2A40" : "#A4262C"
+                    border.color: ok ? "#1E2A40" : accent.error
                     ResultMark {
                         id: resultMark
                         anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
@@ -2025,7 +2123,7 @@ Window {
                             spacing: 10
                             Text {
                                 text: parent.text.startsWith("Fedora:") ? " " : "•"
-                                color: "#2F6FED"
+                                color: accent.text
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 14
                             }

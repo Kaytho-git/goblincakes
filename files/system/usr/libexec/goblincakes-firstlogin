@@ -91,6 +91,13 @@ case $mode in
     look) plasma-apply-lookandfeel --apply org.goblincakes.desktop ;;
 esac
 [ "$mode" != none ] && plasma-apply-colorscheme GoblinCakes
+# The accent colour (Config → Inställningar → Utseende): blue again with --reset, otherwise
+# applied again on top of the colour scheme
+if [ "$RESET" = 1 ]; then
+    [ -e "$CONFIG/goblincakes/accent" ] && /usr/libexec/goblincakes-accent set standard >/dev/null 2>&1
+elif [ "$mode" != none ] && [ -e "$CONFIG/goblincakes/accent" ]; then
+    /usr/libexec/goblincakes-accent apply >/dev/null 2>&1
+fi
 
 if [ "$mode" != none ]; then
     # System tray: only network, volume and notifications. The tray only gets its
