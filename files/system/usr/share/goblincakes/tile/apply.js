@@ -85,7 +85,53 @@ function build(tile, node) {
         build(tile.tiles[i], kids[i]);
 }
 
+// Programs have a smallest size (Spotify 800×600, Discord 800×500). In a smaller tile KWin can't
+// shrink the window, so it spilled over the next tile – or onto the next screen at a screen's
+// edge (15 Oct, the user's bug). The tile grows toward its neighbour instead, never past the
+// screen's edge (KWin keeps every tile ≥ 15 % of its layout, so a far too big window can still
+// stick out). Same code in goblincakes-windows/main.js – change both.
+const EDGE = { top: 1, left: 2, right: 4, bottom: 8 };  // Qt::Edge
+function growTile(tile, horizontal, need) {
+    // the nearest tile (itself or a parent) that sits in a row (horizontal) or column (vertical)
+    for (let node = tile; node && node.parent; node = node.parent) {
+        const parent = node.parent;
+        const kids = parent.tiles || [];
+        if (parent.layoutDirection !== (horizontal ? 1 : 2) || kids.length < 2)
+            continue;
+        let i = 0;
+        while (i < kids.length && kids[i] !== node)
+            i++;
+        if (i >= kids.length)
+            return;
+        const size = function (t) { return horizontal ? t.absoluteGeometry.width : t.absoluteGeometry.height; };
+        // into the neighbour: the only one at the screen's edge, otherwise the bigger one
+        const towardStart = i === kids.length - 1 || (i > 0 && size(kids[i - 1]) > size(kids[i + 1]));
+        if (towardStart)
+            node.resizeByPixels(-need, horizontal ? EDGE.left : EDGE.top);
+        else
+            node.resizeByPixels(need, horizontal ? EDGE.right : EDGE.bottom);
+        return;
+    }
+}
+
+function fitTileToWindow(window, tile) {
+    const min = window.minSize;
+    if (!min || typeof tile.resizeByPixels !== "function")
+        return;
+    // the smallest size is the program's own area; the title bar and border come on top (8×42 px)
+    const frame = window.frameGeometry, client = window.clientGeometry || frame;
+    const pad = tile.padding || 0;
+    const geo = tile.absoluteGeometry;
+    const needWidth = Math.ceil(min.width + frame.width - client.width + 2 * pad - geo.width);
+    const needHeight = Math.ceil(min.height + frame.height - client.height + 2 * pad - geo.height);
+    if (needWidth > 0)
+        growTile(tile, true, needWidth);
+    if (needHeight > 0)
+        growTile(tile, false, needHeight);
+}
+
 function putInTile(window, tile) {
+    fitTileToWindow(window, tile);
     const old = window.tile;
     if (old && old !== tile && typeof old.unmanage === "function")
         old.unmanage(window);
