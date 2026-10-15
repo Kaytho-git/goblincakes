@@ -12,7 +12,9 @@ import getpass
 import json
 import os
 import re
+import shlex
 import subprocess
+import tempfile
 import time
 from datetime import date
 import urllib.error
@@ -519,6 +521,11 @@ Om datorn:
 När användaren vill få något gjort på datorn:
 - Ge de kommandon som behövs i kodblock märkta ```bash – ett kommando eller en kort följd per block.
   Användaren får frågan om varje block innan det körs, och du får se utskriften efteråt.
+- Blocken körs efter varandra i samma mapp, som i en terminal: `cd` i ett block gäller även i nästa.
+  Sökvägar med mellanslag skrivs inom citattecken: `cd "/run/media/$USER/Min disk/Mapp"`.
+- Du kan inte själv se användarens filer eller datorn. Behöver du veta något, be om att få köra ett
+  kommando (t.ex. `ls`, `cat fil.py`, `python3 -c "import tkinter"`) – gissa inte. Användaren kan också
+  bifoga en fil.
 - Ta ett steg i taget när du behöver se resultatet först. Skriv inga ```bash-block när inget ska köras.
 - Använd sudo bara när det verkligen behövs och säg varför. Var extra försiktig med kommandon som tar bort saker.
 - När uppgiften är klar: säg det kort, utan kodblock.
@@ -533,6 +540,38 @@ def system_prompt():
 
 
 DANGER = re.compile(r"\brm\s+-[a-z]*r|\bmkfs|\bdd\s|\bwipefs|>\s*/dev/sd|\bchmod\s+-R\s+777\s+/|\bsudo\b", re.I)
+
+
+def run_in_folder(code, cwd, **kwargs):
+    """Runs a command block in bash from cwd; returns (completed process, folder it ended in).
+
+    Every block is its own bash, so without this a `cd` in one block was forgotten by the next –
+    the folder is carried over like in a terminal (the end folder is written by an EXIT trap,
+    so it also works when the block ends with `exit`)."""
+    fd, cwd_file = tempfile.mkstemp(prefix="goblin-ai-cwd-")
+    os.close(fd)
+    try:
+        proc = subprocess.run(["bash", "-c", command_script(code, cwd)],
+                              env={**os.environ, "GOBLIN_CWD_FILE": cwd_file}, **kwargs)
+        return proc, read_cwd(cwd_file, cwd)
+    finally:
+        os.unlink(cwd_file)
+
+
+def command_script(code, cwd):
+    """The bash script for a command block: start in cwd, write the end folder to $GOBLIN_CWD_FILE."""
+    # On the same line as the code's first line, so bash's "rad N" in errors matches the block
+    return (f"{{ cd -- {shlex.quote(cwd)} || cd; }} 2>/dev/null; "
+            "[ -n \"$GOBLIN_CWD_FILE\" ] && trap 'pwd > \"$GOBLIN_CWD_FILE\"' EXIT; "
+            f"{code}")
+
+
+def read_cwd(cwd_file, fallback):
+    try:
+        folder = Path(cwd_file).read_text().strip()
+    except OSError:
+        return fallback
+    return folder if folder and Path(folder).is_dir() else fallback
 
 
 def code_blocks(text):

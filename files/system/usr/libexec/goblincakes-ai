@@ -9,6 +9,7 @@ Commands the AI suggests are only run when you answer yes to each one, and
 their output is sent back so the AI can take the next step.
 """
 import getpass
+import os
 import re
 import subprocess
 import sys
@@ -16,9 +17,10 @@ import threading
 
 sys.path.insert(0, "/usr/share/goblincakes/ai")
 from goblinai import (SERVICES, DANGER, ServiceError, ask as ask_services, code_blocks,  # noqa: E402
-                      has_keys, load_keys, save_keys, system_prompt, test_key)
+                      has_keys, load_keys, run_in_folder, save_keys, system_prompt, test_key)
 
 MAX_ROUNDS = 8  # command → output → next step, per question
+cwd = os.getcwd()  # where the next block runs: starts where goblin ai was started, follows `cd`
 
 # ── Look ───────────────────────────────────────────────────────────
 
@@ -101,6 +103,7 @@ def ask(messages, keys):
 
 def run_blocks(blocks):
     """Asks for each block, runs the ones the user says yes to; returns what happened."""
+    global cwd
     results = []
     for block in blocks:
         print()
@@ -115,8 +118,8 @@ def run_blocks(blocks):
         if answer not in ("j", "ja", "y", "yes"):
             results.append(f"$ {block}\n(användaren valde att inte köra det)")
             continue
-        proc = subprocess.run(["bash", "-c", block], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              stdin=sys.stdin, text=True)
+        proc, cwd = run_in_folder(block, cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                  stdin=sys.stdin, text=True)
         output = proc.stdout or ""
         print(output, end="" if output.endswith("\n") or not output else "\n")
         muted(f"(klart, kod {proc.returncode})")
@@ -142,6 +145,7 @@ def handle(question, messages, keys):
         if all("(användaren valde att inte köra det)" in r for r in results):
             return
         messages.append({"role": "user", "content": "Så här gick det:\n\n" + "\n\n".join(results)
+                         + f"\n\n(Mappen nu: {cwd})"
                          + "\n\nFortsätt med nästa steg, eller säg kort att det är klart."})
     muted("(Slutar här efter många steg – fråga igen om du vill fortsätta.)")
 

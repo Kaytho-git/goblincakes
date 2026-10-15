@@ -12,6 +12,7 @@ import re
 import os
 import shutil
 import subprocess
+import tempfile
 import sys
 import threading
 import time
@@ -22,7 +23,7 @@ sys.path.insert(0, str(SHARE))
 import goblinai  # noqa: E402
 import learn  # noqa: E402
 
-from PySide6.QtCore import QObject, QProcess, QUrl, Property, Signal, Slot  # noqa: E402
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QUrl, Property, Signal, Slot  # noqa: E402
 from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QIcon  # noqa: E402
 from PySide6.QtNetwork import QLocalServer, QLocalSocket  # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine  # noqa: E402
@@ -88,6 +89,7 @@ class Backend(QObject):
         self._api = [{"role": "system", "content": goblinai.system_prompt()}]
         self._display = []
         self._file = None  # the attached file of this conversation (path)
+        self._cwd = str(Path.home())  # where the next command card runs (follows `cd`, like a terminal)
 
     @Property(str, notify=conversationChanged)
     def messages(self):
@@ -197,7 +199,8 @@ class Backend(QObject):
         code = part["code"]
         if "sudo" in code or "read " in code:
             # Needs a password or answers: run it in a terminal the user can type in
-            script = f"{code}\necho\nread -rp 'Klart – tryck Enter för att stänga… ' _"
+            script = (goblinai.command_script(code, self._cwd)
+                      + "\necho\nread -rp 'Klart – tryck Enter för att stänga… ' _")
             QProcess.startDetached("/usr/libexec/goblincakes-terminal", ["run", "bash", "-c", script])
             part.update(state="done", output="Körs i ett terminalfönster (behöver ditt lösenord eller svar).")
             self._update(index)
@@ -206,10 +209,17 @@ class Backend(QObject):
         self._update(index)
         proc = QProcess(self)
         proc.setProcessChannelMode(QProcess.MergedChannels)
+        fd, cwd_file = tempfile.mkstemp(prefix="goblin-ai-cwd-")
+        os.close(fd)
+        env = QProcessEnvironment.systemEnvironment()
+        env.insert("GOBLIN_CWD_FILE", cwd_file)
+        proc.setProcessEnvironment(env)
         self._procs[(index, seg)] = proc
 
         def finished(exit_code, _status, index=index, seg=seg):
             p = self._procs.pop((index, seg))
+            self._cwd = goblinai.read_cwd(cwd_file, self._cwd)
+            Path(cwd_file).unlink(missing_ok=True)
             out = bytes(p.readAllStandardOutput()).decode(errors="replace")
             part = self._display[index]["segments"][seg]
             part.update(state="done", output=out.strip(), code_result=exit_code)
@@ -217,7 +227,7 @@ class Backend(QObject):
             self._command_done(index)
 
         proc.finished.connect(finished)
-        proc.start("bash", ["-c", code])
+        proc.start("bash", ["-c", goblinai.command_script(code, self._cwd)])
 
     @Slot(int, int)
     def skipCommand(self, index, seg):
@@ -244,6 +254,7 @@ class Backend(QObject):
                     out = "…(början utelämnad)…\n" + out[-6000:]
                 report.append(f"$ {s['code']}\n{out}\n(avslutskod {s.get('code_result', '?')})")
         self._api.append({"role": "user", "content": "Så här gick det:\n\n" + "\n\n".join(report)
+                          + f"\n\n(Mappen nu: {self._cwd})"
                           + "\n\nFortsätt med nästa steg, eller säg kort att det är klart."})
         self._ask()
 
@@ -294,7 +305,7 @@ class Backend(QObject):
         first = next((m["text"] for m in self._display if m["role"] == "user" and m["text"]), "")
         title = (first or next((m["file"] for m in self._display if m["file"]), "Samtal"))[:80]
         data = {"id": self._id, "title": title, "updated": time.time(), "file": self._file,
-                "project": self._project, "api": self._api[1:], "display": self._display}
+                "cwd": self._cwd, "project": self._project, "api": self._api[1:], "display": self._display}
         (DATA / f"{self._id}.json").write_text(json.dumps(data, ensure_ascii=False))
         # The latest 50 outside projects are kept; a project's chats stay until removed
         loose = [f for f in sorted(DATA.glob("2*.json"), reverse=True) if not self._chat_project(f)]
@@ -337,6 +348,7 @@ class Backend(QObject):
         self._api = [{"role": "system", "content": goblinai.system_prompt()}] + d["api"]
         self._display = d["display"]
         self._file = d.get("file")
+        self._cwd = d.get("cwd") or str(Path.home())
         self.conversationChanged.emit()
 
     @Slot(str)
