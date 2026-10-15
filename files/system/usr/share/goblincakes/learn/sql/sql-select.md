@@ -4,13 +4,11 @@ En databas har **tabeller** med rader och kolumner – som ett kalkylark.
 
 ```sql
 SELECT namn, poang FROM skyttar;
+SELECT * FROM skyttar ORDER BY poang DESC LIMIT 3;
 ```
 
-hämtar två kolumner från tabellen `skyttar`. Sortera med `ORDER BY` (`DESC` = störst först),
-välj ut rader med `WHERE`:
+- `*` = alla kolumner (bra när man tittar, men skriv ut kolumnerna i riktig kod).
+- `ORDER BY poang DESC` = högst först (`ASC` = lägst först).
+- `LIMIT 3` = bara tre rader. Avsluta med `;`.
 
-```sql
-SELECT namn FROM skyttar WHERE poang > 600 ORDER BY poang DESC;
-```
-
-Avsluta med `;`.
+Här i lärläget används SQLite – samma SQL som MariaDB/MySQL (Ianseo) för allt det här.

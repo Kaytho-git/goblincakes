@@ -1,0 +1,196 @@
+{
+ "modules": [
+  {
+   "id": "php-grunder",
+   "title": "PHP: grunder",
+   "requires": [
+    "html-forsta"
+   ],
+   "summary": "`<?php … ?>`; `echo`; `$variabler`; `.` sätter ihop strängar; `\"Hej $namn\"` (dubbla citattecken); `;` efter varje rad.",
+   "tasks": [
+    {
+     "id": "php-grunder-1",
+     "level": 1,
+     "title": "Hej",
+     "prompt": "Sätt $namn = \"Kaytho\" och skriv ut: Hej Kaytho!",
+     "starter": "<?php\n$namn = \"Kaytho\";\n",
+     "check": {
+      "expect": "Hej Kaytho!"
+     },
+     "hints": [
+      "echo \"Hej $namn!\";",
+      "Glöm inte $ och ;"
+     ],
+     "solution": "<?php\n$namn = \"Kaytho\";\necho \"Hej $namn!\\n\";"
+    },
+    {
+     "id": "php-grunder-2",
+     "level": 2,
+     "title": "Pilar",
+     "prompt": "Med $pilar = 6 och $serier = 12: skriv ut Totalt 72 pilar",
+     "starter": "",
+     "check": {
+      "expect": "Totalt 72 pilar"
+     },
+     "hints": [
+      "Räkna inom parentes och sätt ihop med .",
+      "echo \"Totalt \" . ($pilar * $serier) . \" pilar\";"
+     ],
+     "solution": "<?php\n$pilar = 6;\n$serier = 12;\necho \"Totalt \" . ($pilar * $serier) . \" pilar\\n\";"
+    }
+   ],
+   "lesson": "php-grunder.md"
+  },
+  {
+   "id": "php-villkor",
+   "title": "PHP: villkor och loopar",
+   "requires": [
+    "php-grunder"
+   ],
+   "summary": "`if () {} elseif () {} else {}`; `===`; `for ($i = 1; $i <= 3; $i++)`; `foreach ($lista as $x)`; `while`.",
+   "tasks": [
+    {
+     "id": "php-villkor-1",
+     "level": 1,
+     "title": "Serier",
+     "prompt": "Skriv ut Serie 1 till Serie 3 med en for-loop.",
+     "starter": "",
+     "check": {
+      "expect": "Serie 1\nSerie 2\nSerie 3"
+     },
+     "hints": [
+      "for ($i = 1; $i <= 3; $i++) { … }",
+      "echo \"Serie $i\\n\";"
+     ],
+     "solution": "<?php\nfor ($i = 1; $i <= 3; $i++) {\n    echo \"Serie $i\\n\";\n}"
+    },
+    {
+     "id": "php-villkor-2",
+     "level": 2,
+     "title": "Godkänd",
+     "prompt": "Med $poang = 480: skriv ut Godkänd om minst 500, annars Underkänd.",
+     "starter": "<?php\n$poang = 480;\n",
+     "check": {
+      "expect": "Underkänd"
+     },
+     "hints": [
+      "if ($poang >= 500) { … } else { … }",
+      "Glöm inte $ framför variabeln."
+     ],
+     "solution": "<?php\n$poang = 480;\nif ($poang >= 500) {\n    echo \"Godkänd\\n\";\n} else {\n    echo \"Underkänd\\n\";\n}"
+    }
+   ],
+   "lesson": "php-villkor.md"
+  },
+  {
+   "id": "php-arrayer",
+   "title": "PHP: arrayer",
+   "requires": [
+    "php-villkor"
+   ],
+   "summary": "`[\"a\", \"b\"]`, `$a[] = x`, `count()`; nycklar `[\"namn\" => \"Bo\"]`; `foreach ($a as $k => $v)`; `sort`/`rsort`/`usort`; `implode`.",
+   "tasks": [
+    {
+     "id": "php-arrayer-1",
+     "level": 2,
+     "title": "Resultatlista",
+     "prompt": "Med $skyttar = [[\"namn\" => \"Anna\", \"poang\" => 612], [\"namn\" => \"Bo\", \"poang\" => 655]]: sortera högst först och skriv ut \"Bo 655\" och \"Anna 612\" på var sin rad.",
+     "starter": "<?php\n$skyttar = [[\"namn\" => \"Anna\", \"poang\" => 612], [\"namn\" => \"Bo\", \"poang\" => 655]];\n",
+     "check": {
+      "expect": "Bo 655\nAnna 612"
+     },
+     "hints": [
+      "usort($skyttar, fn($a, $b) => $b[\"poang\"] <=> $a[\"poang\"]);",
+      "foreach ($skyttar as $s) { echo … }"
+     ],
+     "solution": "<?php\n$skyttar = [[\"namn\" => \"Anna\", \"poang\" => 612], [\"namn\" => \"Bo\", \"poang\" => 655]];\nusort($skyttar, fn($a, $b) => $b[\"poang\"] <=> $a[\"poang\"]);\nforeach ($skyttar as $s) {\n    echo $s[\"namn\"] . \" \" . $s[\"poang\"] . \"\\n\";\n}"
+    }
+   ],
+   "lesson": "php-arrayer.md"
+  },
+  {
+   "id": "php-funktioner",
+   "title": "PHP: funktioner",
+   "requires": [
+    "php-arrayer"
+   ],
+   "summary": "`function namn(int $a): int { return …; }`; typer på parametrar och svar; standardvärden.",
+   "tasks": [
+    {
+     "id": "php-funktioner-1",
+     "level": 2,
+     "title": "Totalpoäng",
+     "prompt": "Skriv function total(array $serier): int som returnerar summan, och skriv ut total([54, 52, 57]).",
+     "starter": "",
+     "check": {
+      "expect": "163"
+     },
+     "hints": [
+      "array_sum() summerar.",
+      "echo total([54, 52, 57]);"
+     ],
+     "solution": "<?php\nfunction total(array $serier): int {\n    return array_sum($serier);\n}\necho total([54, 52, 57]) . \"\\n\";"
+    }
+   ],
+   "lesson": "php-funktioner.md"
+  },
+  {
+   "id": "php-formular",
+   "title": "PHP: ta emot formulär",
+   "requires": [
+    "php-funktioner",
+    "html-formular"
+   ],
+   "summary": "`$_POST[\"namn\"] ?? \"\"`, `trim()`, kontrollera alltid på servern; skriv ut med `htmlspecialchars()`; `$_SERVER[\"REQUEST_METHOD\"] === \"POST\"`.",
+   "tasks": [
+    {
+     "id": "php-formular-1",
+     "level": 2,
+     "title": "Anmälan",
+     "prompt": "Överst finns $_SERVER[\"REQUEST_METHOD\"] = \"POST\" och $_POST = [\"namn\" => \"  Bo \", \"roll\" => \"Tank\"]. Skriv ut \"Bo anmäld som Tank\" (namnet utan mellanslag, båda genom htmlspecialchars), eller \"Fel roll\" om rollen inte är Tank, Healer eller DPS.",
+     "starter": "<?php\n$_SERVER[\"REQUEST_METHOD\"] = \"POST\";\n$_POST = [\"namn\" => \"  Bo \", \"roll\" => \"Tank\"];\n\n",
+     "check": {
+      "type": "script",
+      "script": "check_formular.py"
+     },
+     "hints": [
+      "trim() tar bort mellanslagen; in_array($roll, [\"Tank\", \"Healer\", \"DPS\"], true) kollar rollen.",
+      "echo htmlspecialchars($namn) . \" anmäld som \" . htmlspecialchars($roll);"
+     ],
+     "solution": "<?php\n$_SERVER[\"REQUEST_METHOD\"] = \"POST\";\n$_POST = [\"namn\" => \"  Bo \", \"roll\" => \"Tank\"];\n\n$namn = trim($_POST[\"namn\"] ?? \"\");\n$roll = $_POST[\"roll\"] ?? \"\";\nif (!in_array($roll, [\"Tank\", \"Healer\", \"DPS\"], true)) {\n    echo \"Fel roll\\n\";\n} else {\n    echo htmlspecialchars($namn) . \" anmäld som \" . htmlspecialchars($roll) . \"\\n\";\n}"
+    }
+   ],
+   "lesson": "php-formular.md"
+  },
+  {
+   "id": "php-pdo",
+   "title": "PHP: databaser med PDO",
+   "requires": [
+    "php-formular",
+    "sql-select"
+   ],
+   "summary": "`new PDO($dsn, $user, $pass, [ERRMODE_EXCEPTION])`; `$db->query(\"SELECT …\")->fetchAll(PDO::FETCH_ASSOC)`; med användardata: alltid `prepare` + `execute` (spåret Säkerhet).",
+   "tasks": [
+    {
+     "id": "php-pdo-1",
+     "level": 2,
+     "title": "Topplistan",
+     "prompt": "Koden skapar en SQLite-databas med tabellen skyttar. Hämta namn och poang för alla, högst först, och skriv ut \"namn poang\" per rad.",
+     "starter": "<?php\n$db = new PDO(\"sqlite::memory:\", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);\n$db->exec(file_get_contents(\"setup.sql\"));\n\n",
+     "check": {
+      "expect": "Bo 655\nAnna 612\nDan 601\nCia 590"
+     },
+     "hints": [
+      "$db->query(\"SELECT namn, poang FROM skyttar ORDER BY poang DESC\")",
+      "foreach (… as $rad) { echo $rad[\"namn\"] . \" \" . $rad[\"poang\"] . \"\\n\"; }"
+     ],
+     "solution": "<?php\n$db = new PDO(\"sqlite::memory:\", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);\n$db->exec(file_get_contents(\"setup.sql\"));\n\nforeach ($db->query(\"SELECT namn, poang FROM skyttar ORDER BY poang DESC\") as $rad) {\n    echo $rad[\"namn\"] . \" \" . $rad[\"poang\"] . \"\\n\";\n}",
+     "files": {
+      "setup.sql": "CREATE TABLE skyttar (id INTEGER PRIMARY KEY, namn TEXT, klubb TEXT, poang INTEGER);\nINSERT INTO skyttar (namn, klubb, poang) VALUES ('Anna', 'Lund', 612), ('Bo', 'Malmö', 655), ('Cia', 'Lund', 590), ('Dan', 'Malmö', 601);\n"
+     }
+    }
+   ],
+   "lesson": "php-pdo.md"
+  }
+ ]
+}

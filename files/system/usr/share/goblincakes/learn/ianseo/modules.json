@@ -1,0 +1,63 @@
+{
+ "modules": [
+  {
+   "id": "ianseo-struktur",
+   "title": "Hur Ianseo är byggt",
+   "requires": [
+    "php-pdo",
+    "sql-join"
+   ],
+   "summary": "PHP + MariaDB; i GOBLINCAKES i containern `ianseo-web` (`/opt/ianseo`), databasen ianseo; tabeller med prefix: `Entries` (En…), `Countries` (Co…), `Qualifications` (Qu…), `Tournament` (To…); jobba alltid mot en kopia.",
+   "tasks": [
+    {
+     "id": "ianseo-struktur-1",
+     "level": 2,
+     "title": "Kvallistan",
+     "prompt": "Skriv PHP som hämtar förnamn, efternamn och poäng och skriver ut kvallistan högst först – vid lika poäng avgör flest 10:or och sedan flest X: \"Cia Carlsson 655\" per rad.",
+     "starter": "<?php\n$db = new PDO(\"sqlite::memory:\", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);\n$db->exec(file_get_contents(\"setup.sql\"));\n\n",
+     "check": {
+      "expect": "Cia Carlsson 655\nBo Berg 655\nAnna Andersson 612\nDan Dahl 601"
+     },
+     "hints": [
+      "JOIN Qualifications ON QuId = EnId",
+      "ORDER BY QuScore DESC, QuGold DESC, QuXnine DESC"
+     ],
+     "solution": "<?php\n$db = new PDO(\"sqlite::memory:\", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);\n$db->exec(file_get_contents(\"setup.sql\"));\n\n$sql = \"SELECT EnFirstName, EnName, QuScore FROM Entries JOIN Qualifications ON QuId = EnId ORDER BY QuScore DESC, QuGold DESC, QuXnine DESC\";\nforeach ($db->query($sql) as $r) {\n    echo $r[\"EnFirstName\"] . \" \" . $r[\"EnName\"] . \" \" . $r[\"QuScore\"] . \"\\n\";\n}",
+     "files": {
+      "setup.sql": "CREATE TABLE Countries (CoId INTEGER PRIMARY KEY, CoCode TEXT, CoName TEXT);\nCREATE TABLE Entries (EnId INTEGER PRIMARY KEY, EnName TEXT, EnFirstName TEXT, EnCountry INTEGER, EnDivision TEXT, EnClass TEXT);\nCREATE TABLE Qualifications (QuId INTEGER PRIMARY KEY, QuScore INTEGER, QuGold INTEGER, QuXnine INTEGER);\nINSERT INTO Countries VALUES (1, 'BKL', 'BK Lund'), (2, 'MBS', 'Malmö BS');\nINSERT INTO Entries VALUES (1, 'Andersson', 'Anna', 1, 'R', 'D'), (2, 'Berg', 'Bo', 2, 'R', 'H'), (3, 'Carlsson', 'Cia', 1, 'C', 'D'), (4, 'Dahl', 'Dan', 2, 'R', 'H');\nINSERT INTO Qualifications VALUES (1, 612, 18, 6), (2, 655, 25, 9), (3, 655, 25, 11), (4, 601, 15, 4);\n"
+     }
+    }
+   ],
+   "lesson": "ianseo-struktur.md"
+  },
+  {
+   "id": "ianseo-export",
+   "title": "En egen export",
+   "requires": [
+    "ianseo-struktur"
+   ],
+   "summary": "Gör om Ianseo-data till CSV (`fputcsv`) eller HTML; filtrera på klass/division med prepared statements; `header('Content-Type: text/csv')` på riktigt.",
+   "tasks": [
+    {
+     "id": "ianseo-export-1",
+     "level": 3,
+     "title": "Recurve till CSV",
+     "prompt": "Exportera division \"R\" som CSV med rubrikraden Namn,Klubb,Poäng och sedan en rad per skytt (förnamn + efternamn, klubbens namn, poäng), högst först med samma tie-break. Använd prepare för divisionen och fputcsv.",
+     "starter": "<?php\n$db = new PDO(\"sqlite::memory:\", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);\n$db->exec(file_get_contents(\"setup.sql\"));\n$division = \"R\";\n\n",
+     "check": {
+      "expect": "Namn,Klubb,Poäng\n\"Bo Berg\",\"Malmö BS\",655\n\"Anna Andersson\",\"BK Lund\",612\n\"Dan Dahl\",\"Malmö BS\",601"
+     },
+     "hints": [
+      "JOIN Countries ON CoId = EnCountry och WHERE EnDivision = ? med prepare.",
+      "fputcsv($ut, [… , $r[\"CoName\"], $r[\"QuScore\"]]);"
+     ],
+     "solution": "<?php\n$db = new PDO(\"sqlite::memory:\", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);\n$db->exec(file_get_contents(\"setup.sql\"));\n$division = \"R\";\n\n$st = $db->prepare(\"SELECT EnFirstName, EnName, CoName, QuScore FROM Entries JOIN Qualifications ON QuId = EnId JOIN Countries ON CoId = EnCountry WHERE EnDivision = ? ORDER BY QuScore DESC, QuGold DESC, QuXnine DESC\");\n$st->execute([$division]);\n$ut = fopen(\"php://output\", \"w\");\nfputcsv($ut, [\"Namn\", \"Klubb\", \"Poäng\"]);\nforeach ($st as $r) {\n    fputcsv($ut, [$r[\"EnFirstName\"] . \" \" . $r[\"EnName\"], $r[\"CoName\"], $r[\"QuScore\"]]);\n}",
+     "files": {
+      "setup.sql": "CREATE TABLE Countries (CoId INTEGER PRIMARY KEY, CoCode TEXT, CoName TEXT);\nCREATE TABLE Entries (EnId INTEGER PRIMARY KEY, EnName TEXT, EnFirstName TEXT, EnCountry INTEGER, EnDivision TEXT, EnClass TEXT);\nCREATE TABLE Qualifications (QuId INTEGER PRIMARY KEY, QuScore INTEGER, QuGold INTEGER, QuXnine INTEGER);\nINSERT INTO Countries VALUES (1, 'BKL', 'BK Lund'), (2, 'MBS', 'Malmö BS');\nINSERT INTO Entries VALUES (1, 'Andersson', 'Anna', 1, 'R', 'D'), (2, 'Berg', 'Bo', 2, 'R', 'H'), (3, 'Carlsson', 'Cia', 1, 'C', 'D'), (4, 'Dahl', 'Dan', 2, 'R', 'H');\nINSERT INTO Qualifications VALUES (1, 612, 18, 6), (2, 655, 25, 9), (3, 655, 25, 11), (4, 601, 15, 4);\n"
+     }
+    }
+   ],
+   "lesson": "ianseo-export.md"
+  }
+ ]
+}

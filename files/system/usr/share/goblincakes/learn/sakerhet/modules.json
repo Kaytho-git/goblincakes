@@ -1,0 +1,118 @@
+{
+ "modules": [
+  {
+   "id": "sak-sqlinjektion",
+   "title": "SQL-injektion och prepared statements",
+   "requires": [
+    "php-pdo"
+   ],
+   "locked": true,
+   "summary": "Sätt **aldrig** ihop SQL med användarens text; `$st = $db->prepare(\"… WHERE namn = ?\"); $st->execute([$namn]);`.",
+   "tasks": [
+    {
+     "id": "sak-sqlinjektion-1",
+     "level": 2,
+     "title": "Säker sökning",
+     "prompt": "Variabeln $sok kommer från användaren och är just nu en attack: \"x' OR '1'='1\". Skriv om sökningen med prepare och execute så att den skriver ut \"Inga träffar\" (attacken fungerar inte). Med $sok = \"Bo\" ska den skriva \"Bo 655\".",
+     "starter": "<?php\n$db = new PDO(\"sqlite::memory:\", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);\n$db->exec(file_get_contents(\"setup.sql\"));\n$sok = \"x' OR '1'='1\";\n\n$rader = $db->query(\"SELECT namn, poang FROM skyttar WHERE namn = '$sok'\")->fetchAll(PDO::FETCH_ASSOC);\nif (!$rader) {\n    echo \"Inga träffar\\n\";\n}\nforeach ($rader as $r) {\n    echo $r[\"namn\"] . \" \" . $r[\"poang\"] . \"\\n\";\n}\n",
+     "check": {
+      "type": "script",
+      "script": "check_injektion.py"
+     },
+     "hints": [
+      "$st = $db->prepare(\"SELECT namn, poang FROM skyttar WHERE namn = ?\");",
+      "$st->execute([$sok]); och sedan $st->fetchAll(PDO::FETCH_ASSOC)"
+     ],
+     "solution": "<?php\n$db = new PDO(\"sqlite::memory:\", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);\n$db->exec(file_get_contents(\"setup.sql\"));\n$sok = \"x' OR '1'='1\";\n\n$st = $db->prepare(\"SELECT namn, poang FROM skyttar WHERE namn = ?\");\n$st->execute([$sok]);\n$rader = $st->fetchAll(PDO::FETCH_ASSOC);\nif (!$rader) {\n    echo \"Inga träffar\\n\";\n}\nforeach ($rader as $r) {\n    echo $r[\"namn\"] . \" \" . $r[\"poang\"] . \"\\n\";\n}",
+     "files": {
+      "setup.sql": "CREATE TABLE skyttar (id INTEGER PRIMARY KEY, namn TEXT, klubb TEXT, poang INTEGER);\nINSERT INTO skyttar (namn, klubb, poang) VALUES ('Anna', 'Lund', 612), ('Bo', 'Malmö', 655), ('Cia', 'Lund', 590), ('Dan', 'Malmö', 601);\n"
+     }
+    }
+   ],
+   "lesson": "sak-sqlinjektion.md"
+  },
+  {
+   "id": "sak-losenord",
+   "title": "Lösenord: hasha, spara aldrig",
+   "requires": [
+    "sak-sqlinjektion"
+   ],
+   "locked": true,
+   "summary": "`password_hash($lösen, PASSWORD_DEFAULT)` när kontot skapas; `password_verify($lösen, $hash)` vid inloggning; aldrig md5/sha1, aldrig klartext.",
+   "tasks": [
+    {
+     "id": "sak-losenord-1",
+     "level": 2,
+     "title": "Hasha och kontrollera",
+     "prompt": "Skriv function skapa(string $losen): string som returnerar en hash, och function kolla(string $losen, string $hash): bool. Skriv sedan ut kolla(\"hunter2\", skapa(\"hunter2\")) och kolla(\"fel\", skapa(\"hunter2\")) som ja/nej: ja och nej.",
+     "starter": "",
+     "check": {
+      "type": "script",
+      "script": "check_losenord.py"
+     },
+     "hints": [
+      "password_hash($losen, PASSWORD_DEFAULT)",
+      "password_verify($losen, $hash)"
+     ],
+     "solution": "<?php\nfunction skapa(string $losen): string {\n    return password_hash($losen, PASSWORD_DEFAULT);\n}\nfunction kolla(string $losen, string $hash): bool {\n    return password_verify($losen, $hash);\n}\necho (kolla(\"hunter2\", skapa(\"hunter2\")) ? \"ja\" : \"nej\") . \"\\n\";\necho (kolla(\"fel\", skapa(\"hunter2\")) ? \"ja\" : \"nej\") . \"\\n\";"
+    }
+   ],
+   "lesson": "sak-losenord.md"
+  },
+  {
+   "id": "sak-xss",
+   "title": "XSS: skriv ut användarens text säkert",
+   "requires": [
+    "sak-losenord"
+   ],
+   "locked": true,
+   "summary": "Allt från användare som skrivs ut i HTML: `htmlspecialchars($text, ENT_QUOTES, 'UTF-8')`; i JavaScript `textContent`, inte `innerHTML`.",
+   "tasks": [
+    {
+     "id": "sak-xss-1",
+     "level": 2,
+     "title": "Ofarligt namn",
+     "prompt": "Namnet $namn = \"<script>alert(1)</script>\" kommer från ett formulär. Skriv ut <p>Anmäld: …</p> så att taggen visas som text (med htmlspecialchars och ENT_QUOTES).",
+     "starter": "<?php\n$namn = \"<script>alert(1)</script>\";\necho \"<p>Anmäld: \" . $namn . \"</p>\\n\";\n",
+     "check": {
+      "expect": "<p>Anmäld: &lt;script&gt;alert(1)&lt;/script&gt;</p>"
+     },
+     "hints": [
+      "htmlspecialchars($namn, ENT_QUOTES, \"UTF-8\")",
+      "Lägg den runt $namn inne i echo."
+     ],
+     "solution": "<?php\n$namn = \"<script>alert(1)</script>\";\necho \"<p>Anmäld: \" . htmlspecialchars($namn, ENT_QUOTES, \"UTF-8\") . \"</p>\\n\";"
+    }
+   ],
+   "lesson": "sak-xss.md"
+  },
+  {
+   "id": "sak-sessioner",
+   "title": "Inloggning med sessioner",
+   "requires": [
+    "sak-xss"
+   ],
+   "locked": true,
+   "summary": "`session_start()`; efter lyckad inloggning `session_regenerate_id(true)` + `$_SESSION[\"anvandare\"]`; logga ut: `session_destroy()`; cookie `httponly`, `secure`, `samesite`.",
+   "tasks": [
+    {
+     "id": "sak-sessioner-1",
+     "level": 3,
+     "title": "Logga in rätt",
+     "prompt": "Skriv function logga_in(string $namn, string $losen, string $hash): bool som kontrollerar lösenordet med password_verify och, om det stämmer, byter sessionsnyckel med session_regenerate_id(true) och sparar namnet i $_SESSION[\"anvandare\"]. Returnera true/false.",
+     "starter": "<?php\nfunction logga_in(string $namn, string $losen, string $hash): bool {\n    return false;\n}\n",
+     "check": {
+      "type": "script",
+      "script": "check_sessioner.py"
+     },
+     "hints": [
+      "Börja med if (!password_verify($losen, $hash)) { return false; }",
+      "session_regenerate_id(true); $_SESSION[\"anvandare\"] = $namn; return true;"
+     ],
+     "solution": "<?php\nfunction logga_in(string $namn, string $losen, string $hash): bool {\n    if (!password_verify($losen, $hash)) {\n        return false;\n    }\n    session_regenerate_id(true);\n    $_SESSION[\"anvandare\"] = $namn;\n    return true;\n}"
+    }
+   ],
+   "lesson": "sak-sessioner.md"
+  }
+ ]
+}

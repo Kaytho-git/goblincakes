@@ -3,29 +3,207 @@
   {
    "id": "sql-select",
    "title": "Hämta data med SELECT",
-   "summary": "`SELECT kolumner FROM tabell WHERE villkor ORDER BY kolumn;`",
    "requires": [],
-   "lesson": "sql-select.md",
+   "summary": "`SELECT kolumner FROM tabell ORDER BY kolumn DESC LIMIT n;`, `*` = alla kolumner.",
    "tasks": [
     {
      "id": "sql-select-1",
      "level": 1,
      "title": "Alla bågskyttar",
-     "prompt": "Tabellen skyttar har kolumnerna namn och poang. Hämta namn och poang för alla, med högst poäng först.",
-     "files": {
-      "setup.sql": "CREATE TABLE skyttar (namn TEXT, poang INTEGER);\nINSERT INTO skyttar VALUES ('Anna', 612), ('Bo', 655), ('Cia', 590);\n"
-     },
+     "prompt": "Hämta namn och poang för alla i tabellen skyttar, med högst poäng först.",
      "starter": "SELECT ",
      "check": {
-      "expect": "namn | poang\nBo | 655\nAnna | 612\nCia | 590"
+      "expect": "namn | poang\nBo | 655\nAnna | 612\nDan | 601\nCia | 590"
      },
      "hints": [
       "SELECT namn, poang FROM skyttar …",
       "ORDER BY poang DESC sorterar högst först."
      ],
-     "solution": "SELECT namn, poang FROM skyttar ORDER BY poang DESC;"
+     "solution": "SELECT namn, poang FROM skyttar ORDER BY poang DESC;",
+     "files": {
+      "setup.sql": "CREATE TABLE skyttar (id INTEGER PRIMARY KEY, namn TEXT, klubb TEXT, poang INTEGER);\nINSERT INTO skyttar (namn, klubb, poang) VALUES ('Anna', 'Lund', 612), ('Bo', 'Malmö', 655), ('Cia', 'Lund', 590), ('Dan', 'Malmö', 601);\n"
+     }
+    },
+    {
+     "id": "sql-select-2",
+     "level": 2,
+     "title": "Pallen",
+     "prompt": "Hämta bara namnen på de tre bästa, högst först.",
+     "starter": "",
+     "check": {
+      "expect": "namn\nBo\nAnna\nDan"
+     },
+     "hints": [
+      "LIMIT 3 ger tre rader.",
+      "SELECT namn FROM skyttar ORDER BY poang DESC LIMIT 3;"
+     ],
+     "solution": "SELECT namn FROM skyttar ORDER BY poang DESC LIMIT 3;",
+     "files": {
+      "setup.sql": "CREATE TABLE skyttar (id INTEGER PRIMARY KEY, namn TEXT, klubb TEXT, poang INTEGER);\nINSERT INTO skyttar (namn, klubb, poang) VALUES ('Anna', 'Lund', 612), ('Bo', 'Malmö', 655), ('Cia', 'Lund', 590), ('Dan', 'Malmö', 601);\n"
+     }
     }
-   ]
+   ],
+   "lesson": "sql-select.md"
+  },
+  {
+   "id": "sql-where",
+   "title": "Välja rader med WHERE",
+   "requires": [
+    "sql-select"
+   ],
+   "summary": "`WHERE poang > 600 AND klubb = 'Lund'`; `OR`, `NOT`, `IN (…)`, `BETWEEN`, `LIKE 'A%'`, `IS NULL`.",
+   "tasks": [
+    {
+     "id": "sql-where-1",
+     "level": 1,
+     "title": "En klubb",
+     "prompt": "Hämta namnen på skyttarna från Lund, i bokstavsordning.",
+     "starter": "",
+     "check": {
+      "expect": "namn\nAnna\nCia"
+     },
+     "hints": [
+      "WHERE klubb = 'Lund'",
+      "ORDER BY namn ger bokstavsordning."
+     ],
+     "solution": "SELECT namn FROM skyttar WHERE klubb = 'Lund' ORDER BY namn;",
+     "files": {
+      "setup.sql": "CREATE TABLE skyttar (id INTEGER PRIMARY KEY, namn TEXT, klubb TEXT, poang INTEGER);\nINSERT INTO skyttar (namn, klubb, poang) VALUES ('Anna', 'Lund', 612), ('Bo', 'Malmö', 655), ('Cia', 'Lund', 590), ('Dan', 'Malmö', 601);\n"
+     }
+    },
+    {
+     "id": "sql-where-2",
+     "level": 2,
+     "title": "Malmö över 600",
+     "prompt": "Hämta namn och poang för dem från Malmö som har mer än 600 poäng, högst först.",
+     "starter": "",
+     "check": {
+      "expect": "namn | poang\nBo | 655\nDan | 601"
+     },
+     "hints": [
+      "Två villkor binds ihop med AND.",
+      "WHERE klubb = 'Malmö' AND poang > 600"
+     ],
+     "solution": "SELECT namn, poang FROM skyttar WHERE klubb = 'Malmö' AND poang > 600 ORDER BY poang DESC;",
+     "files": {
+      "setup.sql": "CREATE TABLE skyttar (id INTEGER PRIMARY KEY, namn TEXT, klubb TEXT, poang INTEGER);\nINSERT INTO skyttar (namn, klubb, poang) VALUES ('Anna', 'Lund', 612), ('Bo', 'Malmö', 655), ('Cia', 'Lund', 590), ('Dan', 'Malmö', 601);\n"
+     }
+    }
+   ],
+   "lesson": "sql-where.md"
+  },
+  {
+   "id": "sql-andra",
+   "title": "Ändra data: INSERT, UPDATE, DELETE",
+   "requires": [
+    "sql-where"
+   ],
+   "summary": "`INSERT INTO t (a, b) VALUES (…);` `UPDATE t SET a = … WHERE …;` `DELETE FROM t WHERE …;` – glöm aldrig WHERE.",
+   "tasks": [
+    {
+     "id": "sql-andra-1",
+     "level": 2,
+     "title": "Ny skytt och rättning",
+     "prompt": "Lägg till Eva från Ystad med 640 poäng, ändra Bos poäng till 660, ta bort Cia, och visa sedan namn och poang för alla, högst först.",
+     "starter": "",
+     "check": {
+      "expect": "namn | poang\nBo | 660\nEva | 640\nAnna | 612\nDan | 601"
+     },
+     "hints": [
+      "En sats per rad, var och en avslutad med ;",
+      "UPDATE … SET poang = 660 WHERE namn = 'Bo';"
+     ],
+     "solution": "INSERT INTO skyttar (namn, klubb, poang) VALUES ('Eva', 'Ystad', 640);\nUPDATE skyttar SET poang = 660 WHERE namn = 'Bo';\nDELETE FROM skyttar WHERE namn = 'Cia';\nSELECT namn, poang FROM skyttar ORDER BY poang DESC;",
+     "files": {
+      "setup.sql": "CREATE TABLE skyttar (id INTEGER PRIMARY KEY, namn TEXT, klubb TEXT, poang INTEGER);\nINSERT INTO skyttar (namn, klubb, poang) VALUES ('Anna', 'Lund', 612), ('Bo', 'Malmö', 655), ('Cia', 'Lund', 590), ('Dan', 'Malmö', 601);\n"
+     }
+    }
+   ],
+   "lesson": "sql-andra.md"
+  },
+  {
+   "id": "sql-gruppera",
+   "title": "Räkna och gruppera",
+   "requires": [
+    "sql-andra"
+   ],
+   "summary": "`COUNT(*)`, `SUM`, `AVG`, `MAX`, `MIN`; `GROUP BY kolumn`; `HAVING` = WHERE för grupper; `AS` byter namn.",
+   "tasks": [
+    {
+     "id": "sql-gruppera-1",
+     "level": 2,
+     "title": "Per klubb",
+     "prompt": "Visa varje klubb med antal skyttar och högsta poäng (kolumnerna klubb, antal, basta), i bokstavsordning.",
+     "starter": "",
+     "check": {
+      "expect": "klubb | antal | basta\nLund | 2 | 612\nMalmö | 2 | 655"
+     },
+     "hints": [
+      "GROUP BY klubb ger en rad per klubb.",
+      "COUNT(*) AS antal, MAX(poang) AS basta"
+     ],
+     "solution": "SELECT klubb, COUNT(*) AS antal, MAX(poang) AS basta FROM skyttar GROUP BY klubb ORDER BY klubb;",
+     "files": {
+      "setup.sql": "CREATE TABLE skyttar (id INTEGER PRIMARY KEY, namn TEXT, klubb TEXT, poang INTEGER);\nINSERT INTO skyttar (namn, klubb, poang) VALUES ('Anna', 'Lund', 612), ('Bo', 'Malmö', 655), ('Cia', 'Lund', 590), ('Dan', 'Malmö', 601);\n"
+     }
+    }
+   ],
+   "lesson": "sql-gruppera.md"
+  },
+  {
+   "id": "sql-join",
+   "title": "Flera tabeller: JOIN",
+   "requires": [
+    "sql-gruppera"
+   ],
+   "summary": "Data delas upp i tabeller kopplade med id; `JOIN t2 ON t1.x = t2.id`; `LEFT JOIN` behåller rader utan träff.",
+   "tasks": [
+    {
+     "id": "sql-join-1",
+     "level": 2,
+     "title": "Skytt och klubb",
+     "prompt": "Tabellerna deltagare (namn, klubb_id) och klubbar (id, namn). Visa varje deltagares namn och klubbens namn (kolumnerna namn och klubb) i bokstavsordning efter deltagaren.",
+     "starter": "",
+     "check": {
+      "expect": "namn | klubb\nAnna | BK Lund\nBo | Malmö BS"
+     },
+     "hints": [
+      "JOIN klubbar k ON d.klubb_id = k.id",
+      "SELECT d.namn, k.namn AS klubb …"
+     ],
+     "solution": "SELECT d.namn, k.namn AS klubb FROM deltagare d JOIN klubbar k ON d.klubb_id = k.id ORDER BY d.namn;",
+     "files": {
+      "setup.sql": "CREATE TABLE klubbar (id INTEGER PRIMARY KEY, namn TEXT);\nCREATE TABLE deltagare (id INTEGER PRIMARY KEY, namn TEXT, klubb_id INTEGER);\nINSERT INTO klubbar VALUES (1, 'BK Lund'), (2, 'Malmö BS');\nINSERT INTO deltagare (namn, klubb_id) VALUES ('Bo', 2), ('Anna', 1);\n"
+     }
+    }
+   ],
+   "lesson": "sql-join.md"
+  },
+  {
+   "id": "sql-tabeller",
+   "title": "Skapa tabeller",
+   "requires": [
+    "sql-join"
+   ],
+   "summary": "`CREATE TABLE t (id INTEGER PRIMARY KEY, namn TEXT NOT NULL, … )`; `UNIQUE`, `DEFAULT`, `FOREIGN KEY`; en sak per tabell.",
+   "tasks": [
+    {
+     "id": "sql-tabeller-1",
+     "level": 3,
+     "title": "Anmälningar",
+     "prompt": "Skapa tabellen anmalan med id (INTEGER PRIMARY KEY), namn (TEXT NOT NULL) och roll (TEXT NOT NULL, standard 'DPS'). Lägg in Kaytho med rollen Healer och Bo utan roll, och visa namn och roll i id-ordning.",
+     "starter": "",
+     "check": {
+      "expect": "namn | roll\nKaytho | Healer\nBo | DPS"
+     },
+     "hints": [
+      "roll TEXT NOT NULL DEFAULT 'DPS'",
+      "Utelämna roll i INSERT för Bo, så tar den standardvärdet."
+     ],
+     "solution": "CREATE TABLE anmalan (id INTEGER PRIMARY KEY, namn TEXT NOT NULL, roll TEXT NOT NULL DEFAULT 'DPS');\nINSERT INTO anmalan (namn, roll) VALUES ('Kaytho', 'Healer');\nINSERT INTO anmalan (namn) VALUES ('Bo');\nSELECT namn, roll FROM anmalan ORDER BY id;"
+    }
+   ],
+   "lesson": "sql-tabeller.md"
   }
  ]
 }

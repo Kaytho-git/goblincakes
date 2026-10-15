@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-15  Lär dig koda har nu riktiga kurser: Python, Lua, WoW-tillägg, Bash och Linux, Git, HTML och CSS, JavaScript, PHP, SQL, säkerhet och Ianseo – 97 uppgifter som kontrolleras direkt.
 2026-10-15  Lär dig koda i Goblin AI: välj ett mål (hemsida, WoW-tillägg, Ianseo-modul …) eller spår (Python, PHP, Lua …), skriv koden själv på en avskild övningsdator och få den kontrollerad direkt. Läraren ger ledtrådar och förklarar fel – bara lokalt om du vill. Fler lektioner kommer.
 2026-10-15  Goblin AI har projekt: samla chattar med egna instruktioner, filer som alltid följer med, egna lokala modeller och en egen mapp – och välj om projektet bara får använda lokal AI. Tryck + vid PROJEKT i sidopanelen.
 2026-10-15  Lokal AI: Goblin AI kan nu köras på din egen dator med Ollama – gratis och utan att något skickas iväg. Installera under AI-tjänster → Lokal AI, välj var den ska ligga och hämta modellerna som passar ditt grafikkort. Du väljer själv om din dator eller molnet ska svara först.
