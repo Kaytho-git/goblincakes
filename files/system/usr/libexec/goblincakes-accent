@@ -25,6 +25,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import sys
 from pathlib import Path
 
@@ -89,6 +90,12 @@ def apply_plasma(pal):
         r, g, b = A.rgb(pal["color"])
         run(["kwriteconfig6", "--file", "kdeglobals", "--group", "General", "--key", "AccentColor", f"{r},{g},{b}"])
         run(["plasma-apply-colorscheme", "--accent-color", pal["color"]])
+    # Plasma's SVG buttons (AppGrid's tabs, 15 Oct) were drawn with the colours from before –
+    # one change behind: the next change showed this one. A second palette signal once the
+    # files are written makes Plasma read the colours again and draw them anew.
+    time.sleep(1.5)
+    run(["dbus-send", "--session", "--type=signal", "/KGlobalSettings",
+         "org.kde.KGlobalSettings.notifyChange", "int32:0", "int32:0"])
 
 
 # ── Kvantum ───────────────────────────────────────────────────────
