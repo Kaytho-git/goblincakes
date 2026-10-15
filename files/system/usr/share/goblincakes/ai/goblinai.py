@@ -126,14 +126,17 @@ def local_settings():
     return {"installed": installed, "order": data.get("order") or "local-first", "roles": data.get("roles") or {}}
 
 
-def providers_in_order(keys):
-    """The services to ask, in order: the local AI before or after the cloud ones (or alone)."""
+def providers_in_order(keys, order=None):
+    """The services to ask, in order: the local AI before or after the cloud ones (or alone).
+    order: a project's own choice (None/"inherit" = the one in AI-tjänster)."""
     cloud = [p for p in PROVIDERS if keys.get(p["env"])]
     local = local_settings()
-    if not local["installed"] or local["order"] == "cloud-only":
+    order = order if order in ("local-first", "cloud-first", "local-only", "cloud-only") else local["order"]
+    if order == "local-only":
+        return [LOCAL] if local["installed"] else []
+    if not local["installed"] or order == "cloud-only":
         return cloud
-    return {"local-first": [LOCAL] + cloud, "cloud-first": cloud + [LOCAL],
-            "local-only": [LOCAL]}.get(local["order"], [LOCAL] + cloud)
+    return cloud + [LOCAL] if order == "cloud-first" else [LOCAL] + cloud
 
 
 def start_local():
@@ -149,20 +152,24 @@ def start_local():
     return False
 
 
-def local_models(messages):
-    """The installed models, the one for this question first: code → the "kod" model, else "vardag"."""
+def local_models(messages, project=None):
+    """The installed models, the one for this question first: code → the "kod" model, else "vardag".
+    A project can pick its own models per role and which role comes first (its template)."""
     try:
         with urllib.request.urlopen("http://127.0.0.1:11434/v1/models", timeout=5) as r:
             ids = [m["id"] for m in json.loads(r.read()).get("data", [])]
     except (urllib.error.URLError, OSError, ValueError):
         if not start_local():
             raise ServiceError("Ollama startar inte") from None
-        return local_models(messages)
+        return local_models(messages, project)
     if not ids:
         raise ServiceError("ingen modell hämtad än (AI-tjänster → Lokal AI)")
-    roles = local_settings()["roles"]
+    roles = dict(local_settings()["roles"])
+    roles.update({r: m for r, m in ((project or {}).get("models") or {}).items() if m})
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
     want = [roles.get("kod")] if CODE_WORDS.search(question) else []
+    if project and project.get("prefer") in roles:
+        want.append(roles.get(project["prefer"]))
     want += [roles.get("vardag"), roles.get("kod"), roles.get("bild")]
     first = [m for m in dict.fromkeys(want) if m and m in ids]
     return first + [m for m in ids if m not in first]
@@ -337,20 +344,22 @@ def search_request(text):
     return " ".join(m.group(1).split()) if m and m.group(1).strip() else None
 
 
-def ask(messages, keys, status=None, notice=None):
+def ask(messages, keys, status=None, notice=None, project=None):
     """Asks the services, searching the web in between when the AI wants to (and a Tavily key is set).
 
     Returns (answer, "service · model"); the sources are listed at the end of the answer.
     """
     key = keys.get(SEARCH["env"])
+    if project and project.get("search") is False:
+        key = None
     if not key:
-        return ask_once(messages, keys, status, notice)
+        return ask_once(messages, keys, status, notice, project)
     messages = [dict(m) for m in messages]
     if messages and messages[0]["role"] == "system":
         messages[0]["content"] += SEARCH_PROMPT.format(limit=SEARCH_LIMIT)
     sources, searches = [], 0
     while True:
-        answer, service = ask_once(messages, keys, status, notice)
+        answer, service = ask_once(messages, keys, status, notice, project)
         query = search_request(answer)
         if not query:
             break
@@ -382,20 +391,20 @@ def ask(messages, keys, status=None, notice=None):
     return answer, service
 
 
-def ask_once(messages, keys, status=None, notice=None):
+def ask_once(messages, keys, status=None, notice=None, project=None):
     """Asks the services in order; returns (answer, "service · model").
 
     status(text): "asking X…"; notice(text): a service failed and the next is tried.
     """
     errors = []
-    for provider in providers_in_order(keys):
+    for provider in providers_in_order(keys, (project or {}).get("order")):
         key = keys.get(provider["env"]) if provider["env"] else ""
         if (not key and not provider.get("local")) or provider["id"] in EXHAUSTED:
             continue
         try:
             reply = None
             for attempt in range(2):
-                models = local_models(messages) if provider.get("local") else pick_models(provider, key, refresh=attempt > 0)
+                models = local_models(messages, project) if provider.get("local") else pick_models(provider, key, refresh=attempt > 0)
                 models = sorted(models, key=lambda m: time.time() - BUSY.get(m, 0) < 600)
                 if status:
                     status(f"Frågar {provider['name']}…")
@@ -429,6 +438,8 @@ def ask_once(messages, keys, status=None, notice=None):
             if notice:
                 notice(f"{provider['name']}: {e} – provar nästa")
     if not errors:
+        if project and project.get("order") == "local-only":
+            raise ServiceError("Projektet får bara använda lokal AI, men den är inte installerad (AI-tjänster → Lokal AI).")
         raise ServiceError("Ingen AI-tjänst är inställd.")
     raise ServiceError("Ingen AI-tjänst svarade.\n" + "\n".join(errors))
 
@@ -559,3 +570,76 @@ def file_message(path, question, limit=200_000):
         raise ValueError("Filen är för stor (max cirka 200 000 tecken).")
     name = Path(path).name
     return f"{question}\n\nBifogad fil: {name}\n```\n{text}\n```"
+
+
+# ── Projects (15 Oct): own instructions, files, models and where they may run ──────────
+
+PROJECTS_FILE = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes/ai/projects.json"
+ORDERS = ("inherit", "local-first", "cloud-first", "local-only", "cloud-only")
+
+# Starting points for a new project (all of it can be changed afterwards)
+TEMPLATES = {
+    "kod": {"name": "Kod", "prefer": "kod", "search": True, "order": "inherit",
+            "instructions": "Du hjälper till med programmering. Svara med fungerande kod i kodblock, "
+                            "förklara kort vad den gör och varför, och säg till om något behöver testas."},
+    "vardag": {"name": "Vardag", "prefer": "vardag", "search": True, "order": "inherit", "instructions": ""},
+    "bilder": {"name": "Bilder", "prefer": "bild", "search": False, "order": "inherit",
+               "instructions": "Du hjälper till att läsa av, beskriva och tolka bilder och skärmbilder."},
+    "privat": {"name": "Privat", "prefer": "vardag", "search": False, "order": "local-only",
+               "instructions": "Allt i det här projektet stannar på datorn."},
+}
+FILE_LIMIT = 60_000      # characters per fixed file
+FILES_LIMIT = 150_000    # all fixed files together
+
+
+def load_projects():
+    try:
+        data = json.loads(PROJECTS_FILE.read_text())
+    except (OSError, ValueError):
+        return []
+    return [clean_project(p) for p in data if isinstance(p, dict) and p.get("id")]
+
+
+def clean_project(p):
+    return {"id": str(p["id"]), "name": str(p.get("name") or "Projekt")[:60],
+            "instructions": str(p.get("instructions") or "")[:20_000],
+            "order": p.get("order") if p.get("order") in ORDERS else "inherit",
+            "prefer": p.get("prefer") if p.get("prefer") in ("vardag", "kod", "bild") else "vardag",
+            "models": {r: str(m) for r, m in (p.get("models") or {}).items() if r in ("vardag", "kod", "bild") and m},
+            "files": [str(f) for f in p.get("files") or []][:20],
+            "search": p.get("search") is not False,
+            "folder": str(p.get("folder") or "")}
+
+
+def save_projects(projects):
+    PROJECTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = PROJECTS_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps([clean_project(p) for p in projects], ensure_ascii=False, indent=1))
+    tmp.replace(PROJECTS_FILE)
+
+
+def project_prompt(project):
+    """The project's part of the system prompt: its name, instructions and fixed files (read each time,
+    so a changed file is seen at once)."""
+    if not project:
+        return ""
+    parts = [f"\n\nProjekt: {project['name']}. Det här samtalet hör till projektet."]
+    if project["instructions"].strip():
+        parts.append("Projektets instruktioner (följ dem):\n" + project["instructions"].strip())
+    if project["folder"]:
+        parts.append(f"Projektets mapp för sparade filer: {project['folder']}")
+    used = 0
+    for f in project["files"]:
+        path = Path(f).expanduser()
+        try:
+            text = path.read_text(errors="replace")
+        except OSError:
+            parts.append(f"(Den fasta filen {path.name} gick inte att läsa.)")
+            continue
+        text = text[:FILE_LIMIT]
+        if used + len(text) > FILES_LIMIT:
+            parts.append(f"(Den fasta filen {path.name} fick inte plats.)")
+            continue
+        used += len(text)
+        parts.append(f"Fast fil i projektet – {path.name} ({path}):\n```\n{text}\n```")
+    return "\n\n".join(parts)

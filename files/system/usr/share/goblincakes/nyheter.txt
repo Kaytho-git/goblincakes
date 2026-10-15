@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-15  Goblin AI har projekt: samla chattar med egna instruktioner, filer som alltid följer med, egna lokala modeller och en egen mapp – och välj om projektet bara får använda lokal AI. Tryck + vid PROJEKT i sidopanelen.
 2026-10-15  Lokal AI: Goblin AI kan nu köras på din egen dator med Ollama – gratis och utan att något skickas iväg. Installera under AI-tjänster → Lokal AI, välj var den ska ligga och hämta modellerna som passar ditt grafikkort. Du väljer själv om din dator eller molnet ska svara först.
 2026-10-15  Chrome, Brave och Chromium får GOBLINCAKES-temat: mörka flikar och verktygsfält, och goblinen på nya flikar. Det installeras av sig självt (Ångra på raden som dyker upp om du vill ha ett annat tema).
 2026-10-15  Automatiska rutor: nya fönster läggs själva i nästa lediga ruta, och drar du ett fönster till en annan ruta byter de två plats. Meta+Shift+T tar ut ett fönster ur rutorna. Slå på i Config → Fönster eller med goblin tile auto på.

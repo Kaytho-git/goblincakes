@@ -93,6 +93,36 @@ Window {
     property bool localRemoving: false
     function gb(n) { return (Math.round(n * 10) / 10).toString().replace(".", ",") + " GB"; }
 
+    // Projects: the sidebar list, the chosen one and the one being edited (view "project")
+    readonly property var projects: JSON.parse(backend.projects)
+    readonly property var project: projects.find(p => p.id === backend.currentProject) || null
+    property bool choosingTemplate: false
+    property bool removingProject: false
+    function editProject(change) {
+        if (!win.project)
+            return;
+        const p = JSON.parse(JSON.stringify(win.project));
+        change(p);
+        backend.saveProject(JSON.stringify(p));
+    }
+
+    FileDialog {
+        id: projectFileDialog
+        title: "Fast fil i projektet"
+        onAccepted: {
+            const path = backend.localPath(selectedFile.toString());
+            win.editProject(p => { if (p.files.indexOf(path) < 0) p.files.push(path); });
+        }
+    }
+    FolderDialog {
+        id: projectFolderDialog
+        title: "Mapp för projektets filer"
+        onAccepted: {
+            const path = backend.localPath(selectedFolder.toString());
+            win.editProject(p => { p.folder = path; });
+        }
+    }
+
     FileDialog {
         id: openDialog
         title: "Bifoga en textfil"
@@ -251,10 +281,130 @@ Window {
             onClicked: { backend.newConversation(); win.view = backend.hasKeys ? "chat" : "settings"; }
         }
 
+        // Projects: own instructions, files, models and chats
+        Item {
+            id: projectHead
+            anchors { left: parent.left; right: parent.right; top: newButton.bottom; topMargin: 24 }
+            height: 22
+            Label {
+                anchors { left: parent.left; leftMargin: 22; verticalCenter: parent.verticalCenter }
+                text: "PROJEKT"
+            }
+            Text {
+                anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                text: win.choosingTemplate ? "×" : "+"
+                color: addArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                font.pixelSize: 20
+                MouseArea {
+                    id: addArea
+                    anchors.fill: parent
+                    anchors.margins: -8
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: win.choosingTemplate = !win.choosingTemplate
+                }
+            }
+        }
+        Flow {
+            id: templateRow
+            anchors { left: parent.left; right: parent.right; leftMargin: 18; rightMargin: 18; top: projectHead.bottom; topMargin: 8 }
+            visible: win.choosingTemplate
+            height: visible ? implicitHeight : 0
+            spacing: 6
+            Repeater {
+                model: JSON.parse(backend.templates)
+                FlatButton {
+                    required property var modelData
+                    small: true
+                    text: modelData.name
+                    onClicked: {
+                        win.choosingTemplate = false;
+                        backend.createProject(modelData.id);
+                        win.view = "project";
+                    }
+                }
+            }
+        }
+        ListView {
+            id: projectList
+            anchors { left: parent.left; right: parent.right; top: templateRow.bottom; topMargin: 6 }
+            height: Math.min(count, 6) * 34
+            clip: true
+            interactive: count > 6
+            model: win.projects
+            boundsBehavior: Flickable.StopAtBounds
+            delegate: Rectangle {
+                id: projItem
+                required property var modelData
+                readonly property bool active: modelData.id === backend.currentProject
+                width: projectList.width
+                height: 34
+                color: projArea.containsMouse || active ? "#121B2B" : "transparent"
+                Rectangle {
+                    visible: projItem.active
+                    width: 2
+                    height: parent.height
+                    color: accent.color
+                }
+                Text {
+                    anchors { left: parent.left; leftMargin: 22; right: gear.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                    text: "▸  " + projItem.modelData.name + (projItem.modelData.order === "local-only" ? "  ·  lokalt" : "")
+                    color: projItem.active ? "#E6ECF5" : "#B8C2D3"
+                    elide: Text.ElideRight
+                    font.family: "IBM Plex Sans"
+                    font.weight: projItem.active ? Font.DemiBold : Font.Normal
+                    font.pixelSize: 14
+                }
+                MouseArea {
+                    id: projArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        backend.selectProject(projItem.active ? "" : projItem.modelData.id);
+                        win.view = backend.hasKeys ? "chat" : "settings";
+                    }
+                }
+                Text {
+                    id: gear
+                    anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                    visible: projArea.containsMouse || gearArea.containsMouse || (projItem.active && win.view === "project")
+                    text: "⚙"
+                    color: gearArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                    font.pixelSize: 15
+                    MouseArea {
+                        id: gearArea
+                        anchors.fill: parent
+                        anchors.margins: -6
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (!projItem.active)
+                                backend.selectProject(projItem.modelData.id);
+                            win.removingProject = false;
+                            win.view = "project";
+                        }
+                    }
+                }
+            }
+        }
+        Text {
+            id: noProjects
+            anchors { left: parent.left; leftMargin: 22; right: parent.right; rightMargin: 18; top: projectList.bottom }
+            visible: win.projects.length === 0 && !win.choosingTemplate
+            height: visible ? implicitHeight : 0
+            text: "Samla chattar med egna instruktioner och filer – tryck +."
+            color: "#5C6880"
+            wrapMode: Text.WordWrap
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 12
+        }
+
         Label {
             id: recentLabel
-            anchors { left: parent.left; leftMargin: 22; top: newButton.bottom; topMargin: 26 }
-            text: "SENASTE"
+            anchors { left: parent.left; leftMargin: 22; right: parent.right; rightMargin: 18; top: noProjects.bottom; topMargin: 22 }
+            text: win.project ? "CHATTAR I " + win.project.name.toUpperCase() : "SENASTE"
+            elide: Text.ElideRight
         }
 
         ListView {
@@ -345,7 +495,7 @@ Window {
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "VAD KAN JAG HJÄLPA DIG MED?"
+                text: win.project ? win.project.name.toUpperCase() : "VAD KAN JAG HJÄLPA DIG MED?"
                 color: "#E6ECF5"
                 font.family: "Chakra Petch"
                 font.weight: Font.Bold
@@ -356,13 +506,18 @@ Window {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: "Fråga vad du vill, be om hjälp med datorn, eller bifoga en textfil som ska rättas. Kommandon körs bara när du trycker Kör."
+                text: win.project
+                      ? "Ny chatt i projektet" + (win.project.files.length ? " – " + win.project.files.length + " fasta filer följer med" : "")
+                        + ({ "local-only": " · bara lokal AI", "local-first": " · lokal AI först", "cloud-first": " · molnet först",
+                             "cloud-only": " · bara molnet" }[win.project.order] || "") + "."
+                      : "Fråga vad du vill, be om hjälp med datorn, eller bifoga en textfil som ska rättas. Kommandon körs bara när du trycker Kör."
                 color: "#8B98AD"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 14
             }
             Flow {
                 width: parent.width
+                visible: !win.project
                 spacing: 10
                 Repeater {
                     model: win.examples
@@ -588,6 +743,13 @@ Window {
                                             onClicked: backend.saveFile(msgItem.index, segItem.index)
                                         }
                                         FlatButton {
+                                            visible: !!(win.project && win.project.folder)
+                                            primary: !segItem.s.canOverwrite
+                                            small: true
+                                            text: "Spara i " + (win.project ? win.project.folder.split("/").pop() : "")
+                                            onClicked: backend.saveToProject(msgItem.index, segItem.index)
+                                        }
+                                        FlatButton {
                                             small: true
                                             text: "Spara som…"
                                             onClicked: {
@@ -733,6 +895,274 @@ Window {
                     text: "Skicka"
                     enabledState: !backend.busy && (input.text.trim() !== "" || win.attachment !== "")
                     onClicked: win.send()
+                }
+            }
+        }
+    }
+
+    // ── A project's settings (view "project") ───────────────
+
+    Flickable {
+        id: projectView
+        FastWheel { flick: projectView }
+        visible: win.view === "project" && !!win.project
+        anchors { left: sidebar.right; right: parent.right; top: parent.top; bottom: parent.bottom }
+        contentHeight: projCol.height + 80
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        Column {
+            id: projCol
+            x: 48
+            y: 40
+            width: Math.min(820, projectView.width - 96)
+            spacing: 14
+
+            Text {
+                text: "PROJEKT"
+                color: "#E6ECF5"
+                font.family: "Chakra Petch"
+                font.weight: Font.Bold
+                font.pixelSize: 28
+                font.letterSpacing: 4
+            }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "Allt här gäller bara chattarna i projektet. Ändringar sparas direkt."
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 14
+            }
+
+            Label { text: "NAMN" }
+            Rectangle {
+                width: 360
+                height: 36
+                color: "#07090D"
+                border.width: 1
+                border.color: projName.activeFocus ? accent.color : "#1E2A40"
+                TextInput {
+                    id: projName
+                    anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+                    verticalAlignment: TextInput.AlignVCenter
+                    clip: true
+                    text: win.project ? win.project.name : ""
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 15
+                    onEditingFinished: if (text.trim() && win.project && text.trim() !== win.project.name)
+                        win.editProject(p => { p.name = text.trim(); })
+                }
+            }
+
+            Label { text: "INSTRUKTIONER" }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "Det AI:n alltid ska veta i projektet, t.ex. \"WoW Retail, aktuellt API, Lua\" eller \"Ianseo med PHP 8.3 och MariaDB\"."
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 13
+            }
+            Rectangle {
+                width: parent.width
+                height: 140
+                color: "#07090D"
+                border.width: 1
+                border.color: projInstr.activeFocus ? accent.color : "#1E2A40"
+                Flickable {
+                    id: instrFlick
+                    anchors { fill: parent; margins: 10 }
+                    contentHeight: projInstr.contentHeight
+                    clip: true
+                    FastWheel { flick: instrFlick }
+                    TextEdit {
+                        id: projInstr
+                        width: instrFlick.width
+                        text: win.project ? win.project.instructions : ""
+                        wrapMode: TextEdit.Wrap
+                        selectByMouse: true
+                        color: "#E6ECF5"
+                        selectionColor: accent.color
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                        onActiveFocusChanged: if (!activeFocus && win.project && text !== win.project.instructions)
+                            win.editProject(p => { p.instructions = text; })
+                    }
+                }
+            }
+
+            Label { text: "VAR FÅR DET KÖRAS?" }
+            Flow {
+                width: parent.width
+                spacing: 8
+                Repeater {
+                    model: [{ "id": "inherit", "name": "Som i AI-tjänster" }, { "id": "local-first", "name": "Lokalt först" },
+                            { "id": "cloud-first", "name": "Molnet först" }, { "id": "local-only", "name": "Bara lokalt" },
+                            { "id": "cloud-only", "name": "Bara molnet" }]
+                    FlatButton {
+                        required property var modelData
+                        small: true
+                        primary: !!win.project && win.project.order === modelData.id
+                        text: modelData.name
+                        onClicked: win.editProject(p => { p.order = modelData.id; })
+                    }
+                }
+            }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                visible: !!win.project && win.project.order === "local-only"
+                text: win.localStatus.installed ? "Bara lokalt: inget i projektet lämnar datorn – inte heller nätsökningar."
+                                                : "Bara lokalt kräver lokal AI – installera den under AI-tjänster → Lokal AI."
+                color: win.localStatus.installed ? "#8B98AD" : accent.errorBright
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 13
+            }
+
+            Label { text: "LOKALA MODELLER"; visible: (win.localStatus.models || []).length > 0 }
+            Repeater {
+                model: (win.localStatus.models || []).length > 0 ? [{ "id": "vardag", "name": "Vardag" }, { "id": "kod", "name": "Kod" },
+                                                                    { "id": "bild", "name": "Bilder" }] : []
+                Flow {
+                    id: roleFlow
+                    required property var modelData
+                    width: projCol.width
+                    spacing: 6
+                    Text {
+                        width: 90
+                        height: 30
+                        verticalAlignment: Text.AlignVCenter
+                        text: roleFlow.modelData.name
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                    FlatButton {
+                        small: true
+                        primary: !!win.project && !win.project.models[roleFlow.modelData.id]
+                        text: "Som i AI-tjänster"
+                        onClicked: win.editProject(p => { delete p.models[roleFlow.modelData.id]; })
+                    }
+                    Repeater {
+                        model: win.localStatus.models || []
+                        FlatButton {
+                            required property var modelData
+                            small: true
+                            primary: !!win.project && win.project.models[roleFlow.modelData.id] === modelData.name
+                            text: modelData.name
+                            onClicked: win.editProject(p => { p.models[roleFlow.modelData.id] = modelData.name; })
+                        }
+                    }
+                }
+            }
+
+            Label { text: "FASTA FILER" }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "Följer med varje fråga i projektet (textfiler: kod, anteckningar, dokumentation). Läses om varje gång, så ändringar syns direkt."
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 13
+            }
+            Repeater {
+                model: win.project ? win.project.files : []
+                Row {
+                    required property string modelData
+                    spacing: 10
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: projCol.width - 60
+                        elide: Text.ElideMiddle
+                        text: modelData
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 13
+                    }
+                    FlatButton {
+                        small: true
+                        text: "×"
+                        onClicked: win.editProject(p => { p.files = p.files.filter(f => f !== modelData); })
+                    }
+                }
+            }
+            FlatButton {
+                small: true
+                text: "Lägg till fil…"
+                onClicked: projectFileDialog.open()
+            }
+
+            Label { text: "SÖKA PÅ NÄTET" }
+            Row {
+                spacing: 8
+                FlatButton {
+                    small: true
+                    primary: !!win.project && win.project.search
+                    text: "På"
+                    onClicked: win.editProject(p => { p.search = true; })
+                }
+                FlatButton {
+                    small: true
+                    primary: !!win.project && !win.project.search
+                    text: "Av"
+                    onClicked: win.editProject(p => { p.search = false; })
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Kräver en Tavily-nyckel (AI-tjänster). Gäller aldrig Bara lokalt."
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                }
+            }
+
+            Label { text: "MAPP FÖR SPARADE FILER" }
+            Row {
+                spacing: 10
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: win.project && win.project.folder ? win.project.folder : "Ingen – filkorten frågar var de ska sparas"
+                    color: win.project && win.project.folder ? "#E6ECF5" : "#8B98AD"
+                    font.family: win.project && win.project.folder ? "IBM Plex Mono" : "IBM Plex Sans"
+                    font.pixelSize: 13
+                }
+                FlatButton {
+                    small: true
+                    text: "Välj mapp…"
+                    onClicked: projectFolderDialog.open()
+                }
+                FlatButton {
+                    small: true
+                    visible: !!win.project && win.project.folder !== ""
+                    text: "Ingen"
+                    onClicked: win.editProject(p => { p.folder = ""; })
+                }
+            }
+
+            Item { width: 1; height: 10 }
+            Flow {
+                width: parent.width
+                spacing: 10
+                FlatButton {
+                    primary: true
+                    text: "Till chatten"
+                    onClicked: win.view = backend.hasKeys ? "chat" : "settings"
+                }
+                FlatButton {
+                    text: "Ta bort projektet …"
+                    onClicked: win.removingProject = !win.removingProject
+                }
+                FlatButton {
+                    visible: win.removingProject
+                    text: "Ta bort, behåll chattarna"
+                    onClicked: { win.removingProject = false; backend.deleteProject(win.project.id, false); win.view = "chat"; }
+                }
+                FlatButton {
+                    visible: win.removingProject
+                    text: "Ta bort med chattarna"
+                    onClicked: { win.removingProject = false; backend.deleteProject(win.project.id, true); win.view = "chat"; }
                 }
             }
         }
