@@ -151,6 +151,7 @@ modules:
         - goblincakes-recorder.service    # GoblinRecorder – only runs for those who chose it in Config
         - goblincakes-graph.service       # goblin graph opens when music plays – only with goblin graph auto on
         - goblincakes-season.timer        # the desktop's look by date (login + midnight)
+        - goblincakes-ollama.service      # lokal AI – only runs for those who installed it in Goblin AI
 
   # GOBLINCAKES name in About this System and the boot menu
   - type: os-release

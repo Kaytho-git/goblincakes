@@ -278,7 +278,7 @@ for unit in rpm-ostreed-automatic.timer uupd.timer rpm-ostree-countme.service rp
 done
 for unit in ublue-user-setup.service ublue-flatpak-manager.service podman-auto-update.timer goblincakes-updates.timer \
     goblincakes-disk-owner.path goblincakes-recorder.service goblincakes-graph.service \
-    goblincakes-ianseo-backup.timer; do
+    goblincakes-ianseo-backup.timer goblincakes-ollama.service; do
     systemctl --global disable "$unit" 2>/dev/null || :
 done
 # BlueBuild's Flatpak installation at first start (Firefox, Piper, Chromium): happens on the installed system

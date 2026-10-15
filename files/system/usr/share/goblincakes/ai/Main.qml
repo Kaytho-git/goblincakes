@@ -70,9 +70,28 @@ Window {
             r[id] = message;
             win.keyResults = r;
         }
+        function onLocalProgress(text, fraction) {
+            win.localText = text;
+            win.localFraction = fraction;
+        }
+        function onLocalDone(ok, message) {
+            win.localText = message;
+            win.localFraction = -1;
+            win.localError = !ok;
+        }
     }
 
     property var keyResults: ({})
+    // Local AI (Ollama): status, places and suggestions from goblincakes-ollama
+    readonly property var local: JSON.parse(backend.local || "{}")
+    readonly property var localStatus: local.status || {}
+    property string localPlace: ""
+    property string localText: ""
+    property real localFraction: -1
+    property bool localError: false
+    property bool localMoving: false
+    property bool localRemoving: false
+    function gb(n) { return (Math.round(n * 10) / 10).toString().replace(".", ",") + " GB"; }
 
     FileDialog {
         id: openDialog
@@ -760,6 +779,313 @@ Window {
                 color: "#E6ECF5"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 14
+            }
+
+
+            // ── Local AI (15 Oct): Ollama on this computer ──
+            Rectangle {
+                width: settingsCol.width
+                height: localCol.height + 36
+                color: "#0E1420"
+                border.width: 1
+                border.color: win.localStatus.installed ? accent.color : "#1E2A40"
+
+                Column {
+                    id: localCol
+                    x: 20
+                    y: 18
+                    width: parent.width - 40
+                    spacing: 12
+
+                    Row {
+                        spacing: 12
+                        Text {
+                            text: "Lokal AI (Ollama)"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            text: !win.local.status ? "Kollar…"
+                                : !win.localStatus.installed ? "Inte installerad"
+                                : win.localStatus.waiting ? "Väntar på disken"
+                                : (win.localStatus.running ? "Igång" : "Startar…") + " · Ollama " + win.localStatus.version
+                            color: win.localStatus.installed ? accent.text : "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: "AI som körs på din egen dator – gratis, utan nyckel och utan att något skickas iväg. "
+                              + "Snabbast med ett grafikkort med mycket minne. Modellen släpps ur grafikminnet när ett spel startar."
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        visible: !!win.local.recommend
+                        text: {
+                            const r = win.local.recommend || {};
+                            const g = r.graphics || {};
+                            return (g.vram ? "Din dator: " + (g.name || "grafikkort") + " med " + win.gb(g.vram) + " grafikminne"
+                                           : "Din dator: " + win.gb(r.ram || 0) + " vanligt minne")
+                                   + (r.note ? ". " + r.note : ".");
+                        }
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+
+                    // Where it goes: when installing or moving
+                    Column {
+                        visible: !win.localStatus.installed || win.localMoving
+                        width: parent.width
+                        spacing: 8
+                        Label { text: win.localMoving ? "FLYTTA TILL" : "VAR SKA DEN LIGGA?" }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Programmet tar ungefär 2 GB och varje modell 3–25 GB. Välj en disk med gott om plats – "
+                                  + "en annan disk än systemets går bra (den måste vara inkopplad när du använder lokal AI)."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Repeater {
+                            model: win.local.places || []
+                            Rectangle {
+                                id: placeRow
+                                required property var modelData
+                                readonly property bool chosen: (win.localPlace || (win.local.places || [{}])[0].path) === modelData.path
+                                width: localCol.width
+                                height: 40
+                                color: chosen ? "#12203A" : placeArea.containsMouse ? "#111A2A" : "transparent"
+                                border.width: chosen ? 2 : 1
+                                border.color: chosen ? accent.color : "#2A3852"
+                                opacity: modelData.writable ? 1 : 0.4
+                                Text {
+                                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                                    text: placeRow.modelData.label + "  ·  " + win.gb(placeRow.modelData.free) + " ledigt"
+                                          + (placeRow.modelData.slow ? "  ·  " + placeRow.modelData.fs + " – fungerar men långsammare" : "")
+                                          + (placeRow.modelData.writable ? "" : "  ·  går inte att skriva till")
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                }
+                                MouseArea {
+                                    id: placeArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (placeRow.modelData.writable) win.localPlace = placeRow.modelData.path
+                                }
+                            }
+                        }
+                        Row {
+                            spacing: 10
+                            FlatButton {
+                                primary: true
+                                enabledState: !backend.localBusy && !!win.local.places
+                                text: win.localMoving ? "Flytta hit" : "Installera lokal AI"
+                                onClicked: {
+                                    const place = win.localPlace || (win.local.places || [{}])[0].path;
+                                    win.localError = false;
+                                    if (win.localMoving) { backend.moveLocal(place); win.localMoving = false; }
+                                    else backend.installLocal(place);
+                                }
+                            }
+                            FlatButton {
+                                visible: win.localMoving
+                                text: "Avbryt"
+                                onClicked: win.localMoving = false
+                            }
+                        }
+                    }
+
+                    // Installed: the order, the models, the rest
+                    Column {
+                        visible: !!win.localStatus.installed && !win.localMoving
+                        width: parent.width
+                        spacing: 10
+                        Label { text: "NÄR SKA DEN ANVÄNDAS?" }
+                        Flow {
+                            width: parent.width
+                            spacing: 8
+                            Repeater {
+                                model: [{ "id": "local-first", "name": "Lokalt först", "sub": "Molnet svarar bara om den lokala inte kan" },
+                                        { "id": "cloud-first", "name": "Molnet först", "sub": "Den lokala svarar när molntjänsterna inte kan" },
+                                        { "id": "local-only", "name": "Bara lokalt", "sub": "Inget lämnar datorn" },
+                                        { "id": "cloud-only", "name": "Bara molnet", "sub": "Den lokala används inte" }]
+                                FlatButton {
+                                    required property var modelData
+                                    small: true
+                                    primary: win.localStatus.order === modelData.id
+                                    text: modelData.name
+                                    onClicked: backend.setLocalOrder(modelData.id)
+                                }
+                            }
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: ({ "local-first": "Lokalt först: din dator svarar, molntjänsterna bara om den inte kan.",
+                                     "cloud-first": "Molnet först: molntjänsterna svarar, din dator när de inte kan.",
+                                     "local-only": "Bara lokalt: inget lämnar datorn.",
+                                     "cloud-only": "Bara molnet: den lokala AI:n används inte." })[win.localStatus.order] || ""
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+
+                        Label { text: "VAD VILL DU ANVÄNDA DEN TILL?" }
+                        Repeater {
+                            model: (win.local.recommend || {}).roles || []
+                            Rectangle {
+                                id: roleRow
+                                required property var modelData
+                                readonly property bool have: (win.localStatus.models || []).some(m => m.name === modelData.model
+                                                                 || m.name === modelData.model + ":latest")
+                                width: localCol.width
+                                height: 56
+                                color: "#0B1018"
+                                border.width: 1
+                                border.color: have ? accent.color : "#1E2A40"
+                                Column {
+                                    anchors { left: parent.left; leftMargin: 14; right: roleButton.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                                    spacing: 2
+                                    Text {
+                                        text: roleRow.modelData.name + "  ·  " + roleRow.modelData.model
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.weight: Font.DemiBold
+                                        font.pixelSize: 13
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        elide: Text.ElideRight
+                                        text: roleRow.modelData.text
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                }
+                                FlatButton {
+                                    id: roleButton
+                                    anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                                    small: true
+                                    primary: !roleRow.have
+                                    enabledState: !roleRow.have && !backend.localBusy
+                                    text: roleRow.have ? "Hämtad" : "Hämta"
+                                    onClicked: { win.localError = false; backend.pullLocal(roleRow.modelData.model, roleRow.modelData.id); }
+                                }
+                            }
+                        }
+
+                        Label { text: "HÄMTADE MODELLER"; visible: (win.localStatus.models || []).length > 0 }
+                        Repeater {
+                            model: win.localStatus.models || []
+                            Row {
+                                required property var modelData
+                                spacing: 12
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 320
+                                    text: modelData.name + "  ·  " + win.gb(modelData.size)
+                                          + ((win.localStatus.loaded || []).indexOf(modelData.name) >= 0 ? "  ·  i minnet" : "")
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Mono"
+                                    font.pixelSize: 13
+                                }
+                                FlatButton {
+                                    small: true
+                                    text: "Ta bort"
+                                    enabledState: !backend.localBusy
+                                    onClicked: backend.removeLocalModel(modelData.name)
+                                }
+                            }
+                        }
+                        Row {
+                            spacing: 10
+                            Rectangle {
+                                width: 300
+                                height: 30
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: otherModel.activeFocus ? accent.color : "#1E2A40"
+                                TextInput {
+                                    id: otherModel
+                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    clip: true
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Mono"
+                                    font.pixelSize: 13
+                                    onAccepted: if (text.trim()) { backend.pullLocal(text, ""); text = ""; }
+                                    Text {
+                                        visible: otherModel.text === ""
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "Annan modell, t.ex. gpt-oss:20b"
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                            }
+                            FlatButton {
+                                small: true
+                                text: "Hämta"
+                                enabledState: otherModel.text.trim() !== "" && !backend.localBusy
+                                onClicked: { win.localError = false; backend.pullLocal(otherModel.text, ""); otherModel.text = ""; }
+                            }
+                        }
+
+                        Flow {
+                            width: parent.width
+                            spacing: 8
+                            FlatButton { small: true; text: "Uppdatera Ollama"; enabledState: !backend.localBusy; onClicked: backend.updateLocal() }
+                            FlatButton { small: true; text: "Flytta …"; enabledState: !backend.localBusy; onClicked: { win.localPlace = ""; win.localMoving = true; } }
+                            FlatButton { small: true; text: "Ta bort lokal AI …"; enabledState: !backend.localBusy; onClicked: win.localRemoving = !win.localRemoving }
+                            FlatButton { small: true; visible: win.localRemoving; text: "Ta bort, behåll modellerna"; onClicked: { win.localRemoving = false; backend.uninstallLocal(false); } }
+                            FlatButton { small: true; visible: win.localRemoving; text: "Ta bort allt"; onClicked: { win.localRemoving = false; backend.uninstallLocal(true); } }
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Plats: " + (win.localStatus.dir || "") + ". I terminalen finns kommandot ollama (t.ex. ollama run "
+                                  + (((win.local.recommend || {}).roles || [{}])[0].model || "gemma4") + ")."
+                            color: "#5C6880"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
+                        }
+                    }
+
+                    // Progress and the last message
+                    Rectangle {
+                        visible: backend.localBusy && win.localFraction >= 0
+                        width: parent.width
+                        height: 4
+                        color: "#1A2438"
+                        Rectangle {
+                            width: parent.width * Math.max(0, Math.min(1, win.localFraction))
+                            height: parent.height
+                            color: accent.color
+                        }
+                    }
+                    Text {
+                        visible: win.localText !== ""
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: win.localText
+                        color: win.localError ? accent.errorBright : "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                }
             }
 
             Repeater {

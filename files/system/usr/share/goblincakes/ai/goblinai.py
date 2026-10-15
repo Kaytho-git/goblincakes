@@ -102,6 +102,71 @@ SEARCH = {
 }
 SERVICES = PROVIDERS + [SEARCH]
 
+# Local AI (15 Oct): Ollama on this computer (/usr/libexec/goblincakes-ollama, Goblin AI → AI-tjänster →
+# Lokal AI) – no key, nothing leaves the computer. Its place among the services is the user's choice
+# ("order" in ~/.config/goblincakes/ollama.json): local first (default), cloud first, only local, only cloud.
+LOCAL = {
+    "id": "ollama", "name": "Lokal AI", "env": "", "local": True,
+    "url": "http://127.0.0.1:11434/v1",
+    "temperature": 0.4,
+}
+OLLAMA_FILE = CONFIG / "ollama.json"
+OLLAMA_HELPER = os.environ.get("GOBLINCAKES_OLLAMA_HELPER", "/usr/libexec/goblincakes-ollama")
+CODE_WORDS = re.compile(r"```|\b(kod|koden|skript|script|python|lua|php|javascript|bash|html|css|sql|"
+                        r"funktion|program(mera|met)?|bugg|felmeddelande|traceback|addon|tillägg)\b", re.I)
+
+
+def local_settings():
+    """{"installed", "order", "roles"} for the local AI; installed = Ollama is set up."""
+    try:
+        data = json.loads(OLLAMA_FILE.read_text())
+    except (OSError, ValueError):
+        return {"installed": False, "order": "cloud-only", "roles": {}}
+    installed = bool(data.get("dir")) and (Path(data["dir"]) / "bin/ollama").is_file()
+    return {"installed": installed, "order": data.get("order") or "local-first", "roles": data.get("roles") or {}}
+
+
+def providers_in_order(keys):
+    """The services to ask, in order: the local AI before or after the cloud ones (or alone)."""
+    cloud = [p for p in PROVIDERS if keys.get(p["env"])]
+    local = local_settings()
+    if not local["installed"] or local["order"] == "cloud-only":
+        return cloud
+    return {"local-first": [LOCAL] + cloud, "cloud-first": cloud + [LOCAL],
+            "local-only": [LOCAL]}.get(local["order"], [LOCAL] + cloud)
+
+
+def start_local():
+    """Ollama's user service, when it isn't running (it starts at login, but may have been stopped)."""
+    subprocess.run(["systemctl", "--user", "start", "goblincakes-ollama.service"], capture_output=True)
+    end = time.time() + 30
+    while time.time() < end:
+        try:
+            urllib.request.urlopen("http://127.0.0.1:11434/api/version", timeout=2).close()
+            return True
+        except (urllib.error.URLError, OSError):
+            time.sleep(0.5)
+    return False
+
+
+def local_models(messages):
+    """The installed models, the one for this question first: code → the "kod" model, else "vardag"."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:11434/v1/models", timeout=5) as r:
+            ids = [m["id"] for m in json.loads(r.read()).get("data", [])]
+    except (urllib.error.URLError, OSError, ValueError):
+        if not start_local():
+            raise ServiceError("Ollama startar inte") from None
+        return local_models(messages)
+    if not ids:
+        raise ServiceError("ingen modell hämtad än (AI-tjänster → Lokal AI)")
+    roles = local_settings()["roles"]
+    question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+    want = [roles.get("kod")] if CODE_WORDS.search(question) else []
+    want += [roles.get("vardag"), roles.get("kod"), roles.get("bild")]
+    first = [m for m in dict.fromkeys(want) if m and m in ids]
+    return first + [m for m in ids if m not in first]
+
 
 def load_keys():
     keys = {}
@@ -134,7 +199,9 @@ class ServiceError(Exception):
 
 def request(provider, key, path, body=None, timeout=90):
     headers = {"Content-Type": "application/json", "User-Agent": "goblincakes-ai"}
-    if provider["id"] == "anthropic":
+    if provider.get("local"):
+        timeout = max(timeout, 600)  # the first question loads the model into the graphics card
+    elif provider["id"] == "anthropic":
         headers |= {"x-api-key": key, "anthropic-version": "2023-06-01"}
         if body is not None:
             # A declined question is answered by another Claude model instead of stopping
@@ -321,14 +388,14 @@ def ask_once(messages, keys, status=None, notice=None):
     status(text): "asking X…"; notice(text): a service failed and the next is tried.
     """
     errors = []
-    for provider in PROVIDERS:
-        key = keys.get(provider["env"])
-        if not key or provider["id"] in EXHAUSTED:
+    for provider in providers_in_order(keys):
+        key = keys.get(provider["env"]) if provider["env"] else ""
+        if (not key and not provider.get("local")) or provider["id"] in EXHAUSTED:
             continue
         try:
             reply = None
             for attempt in range(2):
-                models = pick_models(provider, key, refresh=attempt > 0)
+                models = local_models(messages) if provider.get("local") else pick_models(provider, key, refresh=attempt > 0)
                 models = sorted(models, key=lambda m: time.time() - BUSY.get(m, 0) < 600)
                 if status:
                     status(f"Frågar {provider['name']}…")
@@ -357,7 +424,7 @@ def ask_once(messages, keys, status=None, notice=None):
             return text, f"{provider['name']} · {model}"
         except (ServiceError, KeyError, IndexError) as e:
             errors.append(f"{provider['name']}: {e}")
-            if re.search(r"slut på (gratisfrågor|krediter)|fel nyckel", str(e)):
+            if not provider.get("local") and re.search(r"slut på (gratisfrågor|krediter)|fel nyckel", str(e)):
                 EXHAUSTED.add(provider["id"])
             if notice:
                 notice(f"{provider['name']}: {e} – provar nästa")
@@ -394,7 +461,7 @@ def chat(provider, key, model, messages):
 
 
 def has_keys(keys):
-    return any(keys.get(p["env"]) for p in PROVIDERS)
+    return bool(providers_in_order(keys))
 
 
 def system_info():

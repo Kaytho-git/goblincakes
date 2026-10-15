@@ -1,0 +1,635 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: local AI with Ollama (15 Oct, the user's project – Goblin AI → AI-tjänster → Lokal AI).
+
+    goblincakes-ollama status                 JSON: installed, version, place, running, graphics card, models
+    goblincakes-ollama places                 JSON: where it can go (the home folder, mounted disks) with free space
+    goblincakes-ollama install [folder]       Ollama's own Linux package into <folder>/goblincakes-ollama (default
+                                              ~/.local/share), started as the user service goblincakes-ollama
+    goblincakes-ollama update                 a newer Ollama when there is one (goblin update)
+    goblincakes-ollama move <folder>          everything (program + models) to another place
+    goblincakes-ollama uninstall [--models]   the program; with --models the models too
+    goblincakes-ollama pull <model> [role]    download a model (role: vardag, kod, bild – Goblin AI picks by it)
+    goblincakes-ollama rm <model>
+    goblincakes-ollama order <local-first|cloud-first|local-only|cloud-only>
+    goblincakes-ollama recommend              JSON: suggested models for this computer's graphics memory
+    goblincakes-ollama unload                 empty the graphics memory now
+    goblincakes-ollama serve                  the service: Ollama + games watch (models out when a game runs)
+
+Nothing goes into the image: Ollama's package (the program and its CUDA/Vulkan parts, ~2 GB)
+and the models (3–25 GB each) live where the user chose – the home folder or another disk
+(OLLAMA_MODELS). Nvidia uses CUDA (the Nvidia variants), AMD and Intel Vulkan (built in).
+Settings: ~/.config/goblincakes/ollama.json {"dir", "version", "order", "roles"}.
+Lines starting with "@@ " (and JSON progress lines "@@progress {…}") are for the window.
+"""
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+HOME = Path.home()
+CONFIG_FILE = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes/ollama.json"
+DEFAULT_PARENT = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share")
+FOLDER = "goblincakes-ollama"
+HOST = "127.0.0.1:11434"
+API = f"http://{HOST}"
+DOWNLOAD = os.environ.get("GOBLINCAKES_OLLAMA_URL", "https://ollama.com/download/ollama-linux-amd64.tar.zst")
+RELEASES = os.environ.get("GOBLINCAKES_OLLAMA_RELEASES", "https://api.github.com/repos/ollama/ollama/releases/latest")
+SERVICE = "goblincakes-ollama.service"
+ORDERS = ("local-first", "cloud-first", "local-only", "cloud-only")
+ROLES = ("vardag", "kod", "bild")
+
+
+def say(text):
+    print(f"@@ {text}", flush=True)
+
+
+def progress(**fields):
+    print("@@progress " + json.dumps(fields), flush=True)
+
+
+# ── Settings ──────────────────────────────────────────────────────
+
+def load():
+    try:
+        data = json.loads(CONFIG_FILE.read_text())
+    except (OSError, ValueError):
+        data = {}
+    if data.get("order") not in ORDERS:
+        data["order"] = "local-first"
+    data.setdefault("roles", {})
+    return data
+
+
+def save(data):
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = CONFIG_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=1))
+    tmp.replace(CONFIG_FILE)
+
+
+def base(data=None):
+    data = data or load()
+    return Path(data["dir"]) if data.get("dir") else None
+
+
+def binary(data=None):
+    b = base(data)
+    return b / "bin/ollama" if b else None
+
+
+def installed(data=None):
+    b = binary(data)
+    return bool(b and b.is_file())
+
+
+# ── The server ────────────────────────────────────────────────────
+
+def api(path, body=None, method=None, timeout=10):
+    req = urllib.request.Request(API + path, method=method,
+                                 data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        raw = r.read()
+    return json.loads(raw) if raw.strip() else {}
+
+
+def running():
+    try:
+        api("/api/version", timeout=2)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def systemctl(*args):
+    return subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True)
+
+
+def start(wait=30):
+    """The user service, and wait until the server answers."""
+    systemctl("daemon-reload")
+    systemctl("enable", "--now", SERVICE)
+    systemctl("start", SERVICE)
+    end = time.time() + wait
+    while time.time() < end:
+        if running():
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def stop():
+    systemctl("stop", SERVICE)
+    for _ in range(40):
+        if not running():
+            return
+        time.sleep(0.25)
+
+
+def version_of(binary_path):
+    try:
+        out = subprocess.run([str(binary_path), "--version"], capture_output=True, text=True, timeout=20,
+                             env=dict(os.environ, OLLAMA_HOST="127.0.0.1:1")).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    m = re.search(r"(\d+\.\d+\.\d+[\w.-]*)", out.split("client version")[-1] if "client version" in out else out)
+    return m.group(1) if m else ""
+
+
+def latest_version():
+    try:
+        req = urllib.request.Request(RELEASES, headers={"Accept": "application/vnd.github+json",
+                                                        "User-Agent": "goblincakes"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.loads(r.read())["tag_name"].lstrip("v")
+    except (OSError, ValueError, KeyError):
+        return ""
+
+
+def newer(a, b):
+    def parts(v):
+        return [int(x) for x in re.findall(r"\d+", v)[:3]] or [0]
+    return parts(a) > parts(b)
+
+
+# ── The computer ──────────────────────────────────────────────────
+
+def graphics():
+    """{"name", "vram" (GB), "kind": nvidia|amd|intel|none} – the card with the most memory."""
+    best = {"name": "", "vram": 0.0, "kind": "none"}
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
+                             capture_output=True, text=True, timeout=10).stdout
+        for line in out.splitlines():
+            name, _, mib = line.rpartition(",")
+            if mib.strip().isdigit() and int(mib) / 1024 > best["vram"]:
+                best = {"name": name.strip(), "vram": round(int(mib) / 1024, 1), "kind": "nvidia"}
+    except (OSError, subprocess.SubprocessError):
+        pass
+    for card in sorted(Path("/sys/class/drm").glob("card[0-9]")):
+        dev = card / "device"
+        try:
+            vendor = (dev / "vendor").read_text().strip()
+            vram = int((dev / "mem_info_vram_total").read_text()) / 1024 ** 3
+        except (OSError, ValueError):
+            continue
+        if vendor == "0x1002" and vram > best["vram"] and vram >= 1:
+            best = {"name": "AMD Radeon", "vram": round(vram, 1), "kind": "amd"}
+    if best["kind"] == "none":
+        try:
+            lspci = subprocess.run(["lspci"], capture_output=True, text=True, timeout=10).stdout
+            if re.search(r"VGA.*Intel", lspci):
+                best["kind"] = "intel"
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return best
+
+
+def ram_gb():
+    try:
+        kb = int(re.search(r"MemTotal:\s+(\d+)", Path("/proc/meminfo").read_text()).group(1))
+        return round(kb / 1024 ** 2, 1)
+    except (OSError, AttributeError):
+        return 0.0
+
+
+def places():
+    """Where it can go: the home folder and the disks mounted in /run/media/<user> (goblincakes-automount)."""
+    out = []
+    candidates = [(DEFAULT_PARENT, "Hemmappen")]
+    media = Path("/run/media") / os.environ.get("USER", HOME.name)
+    if media.is_dir():
+        candidates += [(p, p.name) for p in sorted(media.iterdir()) if p.is_dir()]
+    seen = set()
+    for path, label in candidates:
+        try:
+            st = os.statvfs(path)
+            dev = os.stat(path).st_dev
+        except OSError:
+            continue
+        if dev in seen and path != DEFAULT_PARENT:
+            continue
+        seen.add(dev)
+        fs = ""
+        try:
+            fs = subprocess.run(["findmnt", "-no", "FSTYPE", "-T", str(path)], capture_output=True,
+                                text=True, timeout=5).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            pass
+        writable = os.access(path, os.W_OK)
+        out.append({"path": str(path), "label": label, "free": round(st.f_bavail * st.f_frsize / 1024 ** 3, 1),
+                    "fs": fs, "writable": writable,
+                    "slow": fs in ("ntfs", "ntfs3", "exfat", "vfat", "fuseblk")})
+    return out
+
+
+# ── Models ────────────────────────────────────────────────────────
+
+# Suggestions by graphics memory (GB, the most that fits fully on the card). Tags from Ollama's own
+# docs where they are named there (gemma4, gemma4:e2b, gemma4:31b, qwen3-vl:8b, gpt-oss:20b,
+# qwen3-coder, qwen3.6); the others are from Ollama's library as read in Oct 2026.
+TIERS = [
+    (0, {"vardag": "gemma4:e2b", "kod": "gemma4:e2b", "bild": "gemma4:e2b"}),
+    (8, {"vardag": "gemma4:e4b", "kod": "qwen2.5-coder:7b", "bild": "qwen3-vl:8b"}),
+    (12, {"vardag": "gemma4:e4b", "kod": "qwen2.5-coder:14b", "bild": "qwen3-vl:8b"}),
+    (16, {"vardag": "gemma4:26b", "kod": "qwen3-coder", "bild": "gemma4:26b"}),
+    (24, {"vardag": "gemma4:31b", "kod": "qwen3.6", "bild": "gemma4:31b"}),
+]
+ROLE_TEXT = {
+    "vardag": ("Vardag och svenska", "Texter, mejl, sammanfattningar, frågor – och kan se bilder."),
+    "kod": ("Kod", "Skript, webbsidor, WoW-tillägg i Lua, PHP för Ianseo."),
+    "bild": ("Bilder och skärmbilder", "Läser av bilder och skärmbilder du drar in (PDF kommer senare)."),
+}
+
+
+def recommend():
+    g = graphics()
+    memory = g["vram"] if g["kind"] in ("nvidia", "amd") else 0
+    pick = TIERS[0][1]
+    for floor, models in TIERS:
+        if memory >= floor:
+            pick = models
+    note = ("" if memory else
+            "Inget grafikkort med eget minne hittades – lokal AI går då på processorn och vanliga minnet, "
+            "vilket fungerar men är långsamt. Små modeller rekommenderas.")
+    return {"graphics": g, "ram": ram_gb(), "note": note,
+            "roles": [{"id": r, "name": ROLE_TEXT[r][0], "text": ROLE_TEXT[r][1], "model": pick[r]} for r in ROLES]}
+
+
+def models():
+    try:
+        tags = api("/api/tags").get("models", [])
+    except (OSError, ValueError):
+        return None
+    return [{"name": m["name"], "size": round(m.get("size", 0) / 1024 ** 3, 1)} for m in tags]
+
+
+def loaded():
+    try:
+        return [m["name"] for m in api("/api/ps").get("models", [])]
+    except (OSError, ValueError):
+        return []
+
+
+def unload():
+    for name in loaded():
+        try:
+            api("/api/generate", {"model": name, "keep_alive": 0}, timeout=30)
+        except (OSError, ValueError):
+            pass
+
+
+# ── Commands ──────────────────────────────────────────────────────
+
+def cmd_status():
+    data = load()
+    up = running()
+    out = {"installed": installed(data), "dir": data.get("dir", ""), "version": data.get("version", ""),
+           "latest": data.get("latest", ""), "running": up, "order": data["order"], "roles": data["roles"],
+           "models": (models() or []) if up else [], "loaded": loaded() if up else [],
+           "waiting": bool(data.get("dir")) and not Path(data["dir"]).exists()}
+    print(json.dumps(out, ensure_ascii=False))
+    return 0
+
+
+def download(dest_dir):
+    """Ollama's Linux package, unpacked into dest_dir (a new folder)."""
+    tmp = Path(tempfile.mkdtemp(prefix="goblincakes-ollama-", dir=dest_dir.parent))
+    archive = tmp / "ollama.tar.zst"
+    say("Hämtar Ollama…")
+    req = urllib.request.Request(DOWNLOAD, headers={"User-Agent": "goblincakes"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r, open(archive, "wb") as f:
+            total = int(r.headers.get("Content-Length") or 0)
+            done, last = 0, 0.0
+            while True:
+                chunk = r.read(1 << 20)
+                if not chunk:
+                    break
+                f.write(chunk)
+                done += len(chunk)
+                if time.time() - last > 0.5:
+                    last = time.time()
+                    progress(what="ollama", completed=done, total=total)
+    except (OSError, urllib.error.URLError) as e:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise RuntimeError(f"Kunde inte hämta Ollama ({getattr(e, 'reason', e)})") from None
+    say("Packar upp…")
+    unpacked = tmp / "x"
+    unpacked.mkdir()
+    r = subprocess.run(["tar", "--zstd", "-xf", str(archive), "-C", str(unpacked)], capture_output=True, text=True)
+    archive.unlink(missing_ok=True)
+    if r.returncode != 0 or not (unpacked / "bin/ollama").is_file():
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise RuntimeError("Kunde inte packa upp Ollama: " + (r.stderr.strip().splitlines() or ["okänt fel"])[-1])
+    return unpacked, tmp
+
+
+def link_cli(data):
+    """`ollama` in the terminal too (~/.local/bin, already in PATH)."""
+    bindir = HOME / ".local/bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    wrapper = bindir / "ollama"
+    wrapper.write_text("#!/bin/sh\n# GOBLINCAKES lokal AI (goblincakes-ollama)\n"
+                       f"export OLLAMA_HOST={HOST}\nexec \"{binary(data)}\" \"$@\"\n")
+    wrapper.chmod(0o755)
+
+
+def place_program(unpacked, target, data):
+    """The new bin/ and lib/ into target (models stay)."""
+    target.mkdir(parents=True, exist_ok=True)
+    for part in ("bin", "lib"):
+        old = target / part
+        if old.exists():
+            shutil.rmtree(old)
+        if (unpacked / part).exists():
+            shutil.move(str(unpacked / part), str(old))
+    (target / "models").mkdir(exist_ok=True)
+    data["version"] = version_of(target / "bin/ollama")
+
+
+def cmd_install(args):
+    data = load()
+    parent = Path(args[0]).expanduser() if args else DEFAULT_PARENT
+    if not parent.is_dir() or not os.access(parent, os.W_OK):
+        print(f"Kan inte skriva till {parent}", file=sys.stderr)
+        return 1
+    target = parent / FOLDER
+    try:
+        unpacked, tmp = download(target)
+    except RuntimeError as e:
+        print(e, file=sys.stderr)
+        return 1
+    stop()
+    place_program(unpacked, target, data)
+    shutil.rmtree(tmp, ignore_errors=True)
+    data["dir"] = str(target)
+    save(data)
+    link_cli(data)
+    say("Startar Ollama…")
+    if not start():
+        print("Ollama installerades men startade inte – se journalctl --user -u goblincakes-ollama", file=sys.stderr)
+        return 1
+    say(f"Klart – Ollama {data['version']} i {target}")
+    return 0
+
+
+def cmd_update():
+    data = load()
+    if not installed(data):
+        return 0
+    want = latest_version()
+    if not want:
+        say("Kunde inte se senaste versionen (nätverket?)")
+        return 1
+    data["latest"] = want
+    if not newer(want, data.get("version", "")):
+        save(data)
+        say(f"Redan senaste (Ollama {data.get('version')})")
+        return 0
+    target = base(data)
+    try:
+        unpacked, tmp = download(target)
+    except RuntimeError as e:
+        print(e, file=sys.stderr)
+        return 1
+    was = running()
+    stop()
+    place_program(unpacked, target, data)
+    shutil.rmtree(tmp, ignore_errors=True)
+    save(data)
+    if was:
+        start()
+    say(f"Uppdaterat: Ollama {data['version']}")
+    return 0
+
+
+def tree_size(path):
+    total = 0
+    for root, _, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.lstat(os.path.join(root, f)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def cmd_move(args):
+    data = load()
+    if not args or not installed(data):
+        print("Använd: goblincakes-ollama move <mapp> (när Ollama är installerat)", file=sys.stderr)
+        return 2
+    old = base(data)
+    parent = Path(args[0]).expanduser()
+    target = parent / FOLDER
+    if target == old:
+        say("Ligger redan där")
+        return 0
+    if not parent.is_dir() or not os.access(parent, os.W_OK):
+        print(f"Kan inte skriva till {parent}", file=sys.stderr)
+        return 1
+    need = tree_size(old)
+    if shutil.disk_usage(parent).free < need + 1024 ** 3:
+        print(f"Får inte plats: behöver {need / 1024 ** 3:.1f} GB", file=sys.stderr)
+        return 1
+    stop()
+    say(f"Kopierar {need / 1024 ** 3:.1f} GB…")
+    tmp = parent / (FOLDER + ".moving")
+    shutil.rmtree(tmp, ignore_errors=True)
+    copied = [0]
+
+    def copy(src, dst):
+        shutil.copy2(src, dst)
+        copied[0] += os.path.getsize(dst)
+        progress(what="move", completed=copied[0], total=need)
+    shutil.copytree(old, tmp, symlinks=True, copy_function=copy)
+    if tree_size(tmp) != need:
+        shutil.rmtree(tmp, ignore_errors=True)
+        start()
+        print("Kopian blev inte lika stor som originalet – inget flyttades", file=sys.stderr)
+        return 1
+    tmp.rename(target)
+    data["dir"] = str(target)
+    save(data)
+    link_cli(data)
+    shutil.rmtree(old, ignore_errors=True)
+    start()
+    say(f"Flyttat till {target}")
+    return 0
+
+
+def cmd_uninstall(args):
+    data = load()
+    stop()
+    systemctl("disable", SERVICE)
+    b = base(data)
+    if b and b.exists():
+        for part in ("bin", "lib"):
+            shutil.rmtree(b / part, ignore_errors=True)
+        if "--models" in args:
+            shutil.rmtree(b, ignore_errors=True)
+    (HOME / ".local/bin/ollama").unlink(missing_ok=True)
+    if "--models" in args:
+        CONFIG_FILE.unlink(missing_ok=True)
+    else:
+        data.pop("version", None)
+        save(data)
+        CONFIG_FILE.replace(CONFIG_FILE.with_suffix(".json.removed"))  # the service only runs with the file
+    say("Ollama är borttaget" + (" (modellerna också)" if "--models" in args else " – modellerna ligger kvar"))
+    return 0
+
+
+def cmd_pull(args):
+    if not args:
+        print("Använd: goblincakes-ollama pull <modell> [vardag|kod|bild]", file=sys.stderr)
+        return 2
+    name = args[0].strip()
+    if not running() and not start():
+        print("Ollama startar inte", file=sys.stderr)
+        return 1
+    say(f"Hämtar {name}…")
+    req = urllib.request.Request(API + "/api/pull", data=json.dumps({"model": name, "stream": True}).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=3600) as r:
+            for line in r:
+                try:
+                    ev = json.loads(line)
+                except ValueError:
+                    continue
+                if ev.get("error"):
+                    msg = ev["error"]
+                    if "file does not exist" in msg or "not found" in msg:
+                        msg = f"Ollama har ingen modell som heter {name}"
+                    print(msg, file=sys.stderr)
+                    return 1
+                progress(what=name, status=ev.get("status", ""), completed=ev.get("completed", 0),
+                         total=ev.get("total", 0))
+    except (OSError, urllib.error.URLError) as e:
+        print(f"Hämtningen avbröts ({getattr(e, 'reason', e)})", file=sys.stderr)
+        return 1
+    role = args[1] if len(args) > 1 and args[1] in ROLES else ""
+    if role:
+        data = load()
+        data["roles"][role] = name
+        save(data)
+    say(f"Klart: {name}")
+    return 0
+
+
+def cmd_rm(args):
+    if not args:
+        return 2
+    try:
+        api("/api/delete", {"model": args[0]}, method="DELETE", timeout=60)
+    except (OSError, ValueError) as e:
+        print(f"Kunde inte ta bort {args[0]} ({e})", file=sys.stderr)
+        return 1
+    data = load()
+    data["roles"] = {r: m for r, m in data["roles"].items() if m != args[0]}
+    save(data)
+    say(f"Borttagen: {args[0]}")
+    return 0
+
+
+def cmd_order(args):
+    if not args or args[0] not in ORDERS:
+        print("Använd: goblincakes-ollama order " + "|".join(ORDERS), file=sys.stderr)
+        return 2
+    data = load()
+    data["order"] = args[0]
+    save(data)
+    return 0
+
+
+GAME = re.compile(r"^(reaper|.*\.exe|gamescope|wine.*preloader)$", re.I)
+
+
+def game_running():
+    """A game: Steam's game wrapper (reaper), a Windows program in Wine/Proton, or gamescope."""
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            comm = Path(f"/proc/{pid}/comm").read_text().strip()
+        except OSError:
+            continue
+        if GAME.match(comm) and comm.lower() not in ("steamwebhelper.exe", "explorer.exe", "services.exe",
+                                                     "winedevice.exe", "plugplay.exe", "svchost.exe",
+                                                     "rpcss.exe", "conhost.exe", "start.exe", "tabtip.exe"):
+            return True
+    return False
+
+
+def cmd_serve():
+    """Ollama in the foreground (the user service) + the games watch."""
+    data = load()
+    b = base(data)
+    if not b:
+        return 0
+    while not b.exists():  # on a disk that isn't mounted yet (goblincakes-automount at login)
+        time.sleep(10)
+    if not binary(data).is_file():
+        print("Ollama saknas i " + str(b), file=sys.stderr)
+        return 1
+    env = dict(os.environ, OLLAMA_HOST=HOST, OLLAMA_MODELS=str(b / "models"))
+    proc = subprocess.Popen([str(binary(data)), "serve"], env=env)
+
+    def watch():
+        # A game wants the graphics memory: the models out (Ollama loads them again on the next question)
+        was = False
+        while proc.poll() is None:
+            now = game_running()
+            if now and not was:
+                unload()
+            if now:
+                for _ in range(6):  # while the game runs: again if something got loaded
+                    time.sleep(5)
+                    if loaded():
+                        unload()
+            was = now
+            time.sleep(5)
+    threading.Thread(target=watch, daemon=True).start()
+
+    def stop_child(*_):
+        proc.terminate()
+    signal.signal(signal.SIGTERM, stop_child)
+    signal.signal(signal.SIGINT, stop_child)
+    return proc.wait()
+
+
+def main(argv):
+    cmd = argv[0] if argv else "status"
+    rest = argv[1:]
+    commands = {
+        "status": lambda: cmd_status(),
+        "places": lambda: print(json.dumps(places(), ensure_ascii=False)) or 0,
+        "install": lambda: cmd_install(rest),
+        "update": lambda: cmd_update(),
+        "move": lambda: cmd_move(rest),
+        "uninstall": lambda: cmd_uninstall(rest),
+        "pull": lambda: cmd_pull(rest),
+        "rm": lambda: cmd_rm(rest),
+        "order": lambda: cmd_order(rest),
+        "recommend": lambda: print(json.dumps(recommend(), ensure_ascii=False)) or 0,
+        "unload": lambda: unload() or 0,
+        "serve": lambda: cmd_serve(),
+    }
+    if cmd not in commands:
+        print(__doc__, file=sys.stderr)
+        return 2
+    return commands[cmd]()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

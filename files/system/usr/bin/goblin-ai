@@ -10,6 +10,7 @@ Only one window: starting it again brings the open one to the front.
 import json
 import os
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -70,6 +71,10 @@ class Backend(QObject):
         self._statusText.connect(lambda text: self._set_busy(True, text))
         self._keyResult.connect(self._on_key_result)
         self._procs = {}
+        self._local = "{}"
+        self._local_proc = None
+        self._localInfo.connect(self._on_local_info)
+        self.refreshLocal()
 
     # ── Conversation ──────────────────────────────────────────
 
@@ -363,6 +368,107 @@ class Backend(QObject):
         self._keys.pop(p["env"], None)
         goblinai.save_keys(self._keys)
         self.keysChanged.emit()
+
+
+    # ── Local AI (Ollama, /usr/libexec/goblincakes-ollama) ──────
+
+    localChanged = Signal()
+    localProgress = Signal(str, float)  # status line, 0–1 (-1 = unknown)
+    localDone = Signal(bool, str)  # ok, message
+    _localInfo = Signal(str)
+
+    @Property(str, notify=localChanged)
+    def local(self):
+        return self._local
+
+    @Property(bool, notify=localChanged)
+    def localBusy(self):
+        return self._local_proc is not None
+
+    @Slot()
+    def refreshLocal(self):
+        """Status, places and suggestions together (in a thread – nvidia-smi and the server take a moment)."""
+        def work():
+            out = {}
+            for key, args in (("status", ["status"]), ("places", ["places"]), ("recommend", ["recommend"])):
+                try:
+                    r = subprocess.run([goblinai.OLLAMA_HELPER, *args], capture_output=True, text=True, timeout=30)
+                    out[key] = json.loads(r.stdout)
+                except (OSError, ValueError, subprocess.SubprocessError):
+                    out[key] = None
+            self._localInfo.emit(json.dumps(out))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_local_info(self, text):
+        self._local = text
+        self.localChanged.emit()
+        self.keysChanged.emit()  # the chat can be used with only the local AI
+
+    def _local_run(self, args, done_text):
+        if self._local_proc is not None:
+            return
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.SeparateChannels)
+        errors = []
+
+        def read():
+            while proc.canReadLine():
+                line = bytes(proc.readLine()).decode(errors="replace").rstrip("\n")
+                if line.startswith("@@progress "):
+                    try:
+                        ev = json.loads(line[11:])
+                    except ValueError:
+                        continue
+                    total, done = ev.get("total") or 0, ev.get("completed") or 0
+                    gb = f"{done / 1024 ** 3:.1f} av {total / 1024 ** 3:.1f} GB" if total else ev.get("status", "")
+                    self.localProgress.emit(gb, done / total if total else -1.0)
+                elif line.startswith("@@ "):
+                    self.localProgress.emit(line[3:], -1.0)
+
+        def finished(code, _status):
+            read()
+            errors.append(bytes(proc.readAllStandardError()).decode(errors="replace").strip())
+            ok = code == 0
+            self._local_proc = None
+            self.localDone.emit(ok, done_text if ok else (errors[-1].splitlines() or ["Något gick fel"])[-1])
+            self.refreshLocal()
+            proc.deleteLater()
+        proc.readyReadStandardOutput.connect(read)
+        proc.finished.connect(finished)
+        self._local_proc = proc
+        self.localChanged.emit()
+        proc.start(goblinai.OLLAMA_HELPER, args)
+
+    @Slot(str)
+    def installLocal(self, place):
+        self._local_run(["install", place], "Lokal AI är installerad. Hämta en modell nedan.")
+
+    @Slot(str, str)
+    def pullLocal(self, model, role):
+        model = model.strip()
+        if model:
+            self._local_run(["pull", model] + ([role] if role else []), f"{model} är hämtad.")
+
+    @Slot(str)
+    def removeLocalModel(self, model):
+        self._local_run(["rm", model], f"{model} är borttagen.")
+
+    @Slot(str)
+    def moveLocal(self, place):
+        self._local_run(["move", place], "Lokal AI är flyttad.")
+
+    @Slot()
+    def updateLocal(self):
+        self._local_run(["update"], "Ollama är uppdaterat.")
+
+    @Slot(bool)
+    def uninstallLocal(self, models_too):
+        self._local_run(["uninstall"] + (["--models"] if models_too else []), "Lokal AI är borttagen.")
+
+    @Slot(str)
+    def setLocalOrder(self, order):
+        subprocess.run([goblinai.OLLAMA_HELPER, "order", order], capture_output=True)
+        self.refreshLocal()
 
 
 def use_accent(engine):

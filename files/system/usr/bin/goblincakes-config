@@ -803,9 +803,9 @@ class Config(QObject):
     # ── Uppdatera: `goblin update --gui` ──────────────────────
 
     # The steps in goblin update's order (its @@step headings), for the progress bar
-    UPDATE_STEPS = ["System (GOBLINCAKES-imagen)", "Flatpak-program", "AppImage-program", "VS Code", "Discord", "GE-Proton", "Firmware"]
+    UPDATE_STEPS = ["System (GOBLINCAKES-imagen)", "Flatpak-program", "AppImage-program", "VS Code", "Discord", "GE-Proton", "Lokal AI", "Firmware"]
     # goblin update --only names, in the same order
-    UPDATE_PARTS = ["system", "flatpak", "appimages", "vscode", "discord", "proton", "firmware"]
+    UPDATE_PARTS = ["system", "flatpak", "appimages", "vscode", "discord", "proton", "ollama", "firmware"]
 
     @Property(bool, notify=updateBusyChanged)
     def updateBusy(self):

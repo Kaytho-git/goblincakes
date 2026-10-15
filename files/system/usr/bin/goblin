@@ -161,6 +161,14 @@ update_proton() {
     fi
 }
 
+update_ollama() {
+    # Lokal AI (Goblin AI → AI-tjänster → Lokal AI): Ollama in the place the user chose
+    [ -r "${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/ollama.json" ] || return 0
+    heading "Lokal AI"
+    /usr/libexec/goblincakes-ollama update | sed -n 's/^@@ //p' | while IFS= read -r line; do info "$line"; done
+    return "${PIPESTATUS[0]}"
+}
+
 update_firmware() {
     command -v fwupdmgr >/dev/null || return 0
     heading "Firmware"
@@ -176,7 +184,7 @@ update_firmware() {
 }
 
 cmd_update() {
-    # --gui: lines for GOBLINCAKES Config. --only system,flatpak,appimages,vscode,discord,proton,firmware:
+    # --gui: lines for GOBLINCAKES Config. --only system,flatpak,appimages,vscode,discord,proton,ollama,firmware:
     # just those parts (Config → Uppdatera updates each part on its own, 11 Oct)
     local only=""
     while [ $# -gt 0 ]; do
@@ -197,6 +205,7 @@ cmd_update() {
     part vscode && step "VS Code" update_vscode
     part discord && step "Discord" update_discord
     part proton && step "GE-Proton" update_proton
+    part ollama && step "Lokal AI" update_ollama
     # GTK theme copy for Flatpak programs (Quod Libet): follow the theme in the image
     [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/themes/GoblinCakes" ] && "$config_install" gtk-theme >/dev/null 2>&1
     part firmware && step "Firmware" update_firmware
