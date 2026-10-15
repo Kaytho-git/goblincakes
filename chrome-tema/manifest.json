@@ -1,0 +1,124 @@
+{
+ "manifest_version": 3,
+ "name": "GOBLINCAKES",
+ "version": "1.0",
+ "description": "GOBLINCAKES OS – mörka färger och blå accent, goblinen på nya flikar.",
+ "theme": {
+  "images": {
+   "theme_ntp_background": "goblin-ntp.png"
+  },
+  "colors": {
+   "frame": [
+    5,
+    7,
+    10
+   ],
+   "frame_inactive": [
+    11,
+    16,
+    24
+   ],
+   "frame_incognito": [
+    5,
+    7,
+    10
+   ],
+   "frame_incognito_inactive": [
+    11,
+    16,
+    24
+   ],
+   "background_tab": [
+    5,
+    7,
+    10
+   ],
+   "background_tab_inactive": [
+    11,
+    16,
+    24
+   ],
+   "toolbar": [
+    14,
+    20,
+    32
+   ],
+   "toolbar_text": [
+    230,
+    236,
+    245
+   ],
+   "toolbar_button_icon": [
+    230,
+    236,
+    245
+   ],
+   "tab_text": [
+    230,
+    236,
+    245
+   ],
+   "tab_background_text": [
+    139,
+    152,
+    173
+   ],
+   "tab_background_text_inactive": [
+    139,
+    152,
+    173
+   ],
+   "bookmark_text": [
+    230,
+    236,
+    245
+   ],
+   "button_background": [
+    14,
+    20,
+    32
+   ],
+   "omnibox_background": [
+    7,
+    9,
+    13
+   ],
+   "omnibox_text": [
+    230,
+    236,
+    245
+   ],
+   "ntp_background": [
+    18,
+    32,
+    58
+   ],
+   "ntp_text": [
+    230,
+    236,
+    245
+   ],
+   "ntp_link": [
+    47,
+    111,
+    237
+   ],
+   "ntp_header": [
+    47,
+    111,
+    237
+   ]
+  },
+  "tints": {
+   "buttons": [
+    -1,
+    -1,
+    -1
+   ]
+  },
+  "properties": {
+   "ntp_background_alignment": "bottom right",
+   "ntp_background_repeat": "no-repeat"
+  }
+ }
+}

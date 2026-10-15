@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-15  Chrome, Brave och Chromium får GOBLINCAKES-temat: mörka flikar och verktygsfält, och goblinen på nya flikar. Det installeras av sig självt (Ångra på raden som dyker upp om du vill ha ett annat tema).
 2026-10-15  Automatiska rutor: nya fönster läggs själva i nästa lediga ruta, och drar du ett fönster till en annan ruta byter de två plats. Meta+Shift+T tar ut ett fönster ur rutorna. Slå på i Config → Fönster eller med goblin tile auto på.
 2026-10-15  En fönsterlayout kan få ett eget skrivbord (Config → Fönster → Eget skrivbord) – Meta+Ctrl+siffran byter då både layout och skrivbord, och programmen hamnar på rätt skrivbord.
 2026-10-15  Fönster: markera dina viktigaste program som huvudfönster (★) och tryck Föreslå layout – de får de stora rutorna och de andra programmen läggs runt dem eller på skärm 2. Finns i GOBLINCAKES Config → Fönster och som goblin tile huvud / goblin tile förslag.

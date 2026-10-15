@@ -1,0 +1,86 @@
+# GOBLINCAKES' theme for Chrome, Brave and Chromium (chrome-tema/): packed as a signed CRX and
+# published with its update manifest in the release "chrome-tema". The browsers install it
+# through policies in the image (/etc/opt/chrome/policies/managed, /etc/brave/policies/managed
+# and the Flatpak extension org.chromium.Chromium.Policy.goblincakes) and update it themselves
+# through updates.xml – a higher "version" in manifest.json = a new version for everyone.
+# The extension's id (hfekdaicheicjhbhbholffmgcgmaijmi) comes from the signing key: the secret
+# CHROME_THEME_KEY (a PEM private key) must stay the same, or the browsers see a new extension.
+name: Packa Chrome-temat
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "chrome-tema/**"
+      - ".github/workflows/build-chrome-theme.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write # the release "chrome-tema"
+
+concurrency:
+  group: chrome-theme
+  cancel-in-progress: false
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          version=$(jq -r .version chrome-tema/manifest.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view chrome-tema -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' 2>/dev/null \
+              | grep -qx "goblincakes-theme-$version.crx"; then
+            echo "Version $version finns redan – höj version i chrome-tema/manifest.json för en ny."
+            echo "done=true" >> "$GITHUB_OUTPUT"
+          elif [ "$HAS_KEY" != true ]; then
+            echo "::warning::Hemligheten CHROME_THEME_KEY saknas än (Settings → Secrets and variables → Actions) – inget packas."
+            echo "done=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_KEY: ${{ secrets.CHROME_THEME_KEY != '' }}
+
+      - uses: actions/setup-node@v4
+        if: steps.v.outputs.done != 'true'
+        with:
+          node-version: 22
+
+      - name: Packa och signera (CRX3)
+        if: steps.v.outputs.done != 'true'
+        run: |
+          umask 077
+          printf '%s\n' "$CHROME_THEME_KEY" > "$RUNNER_TEMP/key.pem"
+          id=$(openssl rsa -in "$RUNNER_TEMP/key.pem" -pubout -outform DER 2>/dev/null | sha256sum | cut -c1-32 | tr '0-9a-f' 'a-p')
+          echo "Tillägg: $id"
+          if [ "$id" != hfekdaicheicjhbhbholffmgcgmaijmi ]; then
+            echo "::error::Nyckeln ger id $id – policyerna i imagen väntar sig hfekdaicheicjhbhbholffmgcgmaijmi."
+            exit 1
+          fi
+          v=${{ steps.v.outputs.version }}
+          mkdir out
+          npx --yes crx3@2.0.0 -p "$RUNNER_TEMP/key.pem" -o "out/goblincakes-theme-$v.crx" -x out/updates.xml \
+            --appVersion "$v" \
+            --crxURL "https://github.com/$GITHUB_REPOSITORY/releases/download/chrome-tema/goblincakes-theme-$v.crx" \
+            -- chrome-tema
+          rm -f "$RUNNER_TEMP/key.pem"
+          cp "out/goblincakes-theme-$v.crx" out/goblincakes-theme.crx
+          cat out/updates.xml
+        env:
+          CHROME_THEME_KEY: ${{ secrets.CHROME_THEME_KEY }}
+
+      - name: Lägg upp i releasen "chrome-tema"
+        if: steps.v.outputs.done != 'true'
+        run: |
+          gh release view chrome-tema -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create chrome-tema -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest=false \
+              --title "GOBLINCAKES Chrome-tema" \
+              --notes "GOBLINCAKES tema för Chrome, Brave och Chromium. Installeras av sig självt i GOBLINCAKES."
+          gh release upload chrome-tema out/goblincakes-theme.crx "out/goblincakes-theme-${{ steps.v.outputs.version }}.crx" \
+            out/updates.xml --clobber -R "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
