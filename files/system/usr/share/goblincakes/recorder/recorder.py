@@ -837,9 +837,9 @@ def set_meta(video_path, **fields):
 
 
 # ---------------------------------------------------------------- YouTube
-# The video is cut and made ready here; the upload itself is done in YouTube Studio in the
-# browser (13 Oct, the user's choice – the API's uploads stay private until Google has
-# reviewed the app). Title and description are ready to paste.
+# The video is cut and made ready here; then either YouTube Studio in the browser (13 Oct,
+# the user's choice – title and description are ready to paste) or, when you have signed in,
+# straight up with the API (yt_upload below, 15 Oct).
 
 YT_RESULT = {"kill": "Kill", "wipe": "Wipe", "timed": "i tid", "depleted": "för sent",
              "win": "vinst", "loss": "förlust", "done": "klar"}
@@ -915,6 +915,284 @@ def youtube_clip(video, start, end, dest):
     if r.returncode != 0 or not dest.is_file():
         return (r.stderr or "ffmpeg misslyckades").strip().splitlines()[-1]
     return ""
+
+
+# ---------------------------------------------------------------- YouTube upload (API)
+
+# Straight to your channel with YouTube Data API v3 (15 Oct, the user's wish – the browser way
+# above stays). You make a Google Cloud project with an OAuth client of the type "Desktop
+# app" once (like the Warcraft Logs client); signing in goes through the browser to a port on
+# 127.0.0.1 (PKCE). Only the right to upload (youtube.upload) + your e-mail address to show
+# who is signed in. Note: Google locks videos from an API project that hasn't been audited
+# (projects made after 28 July 2020) as private – the YouTube API audit form lifts it.
+YT_FILE = CONFIG_DIR / "youtube.json"  # client id/secret + refresh token, only readable by you
+YT_CONSOLE = "https://console.cloud.google.com/apis/credentials"
+YT_AUDIT = "https://support.google.com/youtube/contact/yt_api_form"
+YT_SCOPES = "https://www.googleapis.com/auth/youtube.upload openid email"
+YT_CHUNK = 16 * 1024 * 1024  # bytes per request (a multiple of 256 KiB, as YouTube wants)
+
+
+def yt_load():
+    try:
+        return json.loads(YT_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def yt_save(data):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = YT_FILE.with_suffix(".tmp")
+    tmp.touch(mode=0o600)
+    os.chmod(tmp, 0o600)
+    tmp.write_text(json.dumps(data, indent=1))
+    tmp.replace(YT_FILE)
+
+
+def yt_state():
+    """{"client": the OAuth client is saved, "signedIn": a refresh token, "email": who}."""
+    d = yt_load()
+    return {"client": bool(d.get("clientId") and d.get("clientSecret")),
+            "signedIn": bool(d.get("refreshToken")), "email": d.get("email", "")}
+
+
+def yt_set_client(client_id, secret):
+    client_id, secret = client_id.strip(), secret.strip()
+    if not client_id.endswith(".apps.googleusercontent.com"):
+        raise RuntimeError("Client ID ska sluta med .apps.googleusercontent.com")
+    yt_save({"clientId": client_id, "clientSecret": secret})
+
+
+def yt_forget(keep_client=True):
+    d = yt_load()
+    token = d.get("refreshToken")
+    if token:  # also tell Google, so the access is gone from your account too
+        import urllib.parse
+        import urllib.request
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                "https://oauth2.googleapis.com/revoke",
+                data=urllib.parse.urlencode({"token": token}).encode()), timeout=10).close()
+        except (OSError, urllib.error.URLError):
+            pass
+    if keep_client and d.get("clientId"):
+        yt_save({"clientId": d["clientId"], "clientSecret": d.get("clientSecret", "")})
+    else:
+        try:
+            YT_FILE.unlink()
+        except OSError:
+            pass
+
+
+def _yt_token_request(fields):
+    import urllib.parse
+    import urllib.request
+    req = urllib.request.Request("https://oauth2.googleapis.com/token",
+                                 data=urllib.parse.urlencode(fields).encode(),
+                                 headers={"Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try:
+            err = json.loads(e.read()).get("error", "")
+        except ValueError:
+            err = ""
+        if err == "invalid_grant":
+            raise RuntimeError("Inloggningen har gått ut – logga in på YouTube igen "
+                               "(Google gör så efter 7 dagar när projektet står på Testing)") from e
+        if err == "invalid_client":
+            raise RuntimeError("Fel Client ID eller hemlighet") from e
+        raise RuntimeError(f"Google svarade {e.code} {err}".strip()) from e
+
+
+def yt_login(open_url, timeout=300):
+    """Sign in through the browser: Google sends you back to a port on 127.0.0.1 with a code,
+    which becomes a refresh token. open_url(url) opens the browser. Returns the e-mail."""
+    import http.server
+    import threading
+    import urllib.parse
+    d = yt_load()
+    if not d.get("clientId"):
+        raise RuntimeError("Ingen OAuth-klient inlagd")
+    verifier = secrets.token_urlsafe(64)
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+    state = secrets.token_urlsafe(16)
+    got = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            if q.get("state", [""])[0] != state:
+                self.send_response(404)
+                self.end_headers()
+                return
+            got["code"] = q.get("code", [""])[0]
+            got["error"] = q.get("error", [""])[0]
+            ok = bool(got["code"])
+            page = ("<h2>Klart – du kan stänga fliken och gå tillbaka till GoblinRecorder.</h2>" if ok
+                    else "<h2>Inloggningen avbröts.</h2>")
+            body = ("<!doctype html><meta charset=utf-8><title>GoblinRecorder</title>"
+                    "<body style='background:#0E1420;color:#E6ECF5;font-family:sans-serif;padding:40px'>"
+                    + page).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    redirect = f"http://127.0.0.1:{server.server_port}"
+    url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode({
+        "client_id": d["clientId"], "redirect_uri": redirect, "response_type": "code",
+        "scope": YT_SCOPES, "code_challenge": challenge, "code_challenge_method": "S256",
+        "state": state, "access_type": "offline", "prompt": "consent"})
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        open_url(url)
+        end = time.time() + timeout
+        while "code" not in got and time.time() < end:
+            time.sleep(0.2)
+    finally:
+        server.shutdown()
+        server.server_close()
+    if not got.get("code"):
+        raise RuntimeError("Inloggningen avbröts" if got.get("error") or "code" in got
+                           else "Ingen inloggning inom 5 minuter")
+    tok = _yt_token_request({"client_id": d["clientId"], "client_secret": d.get("clientSecret", ""),
+                             "code": got["code"], "code_verifier": verifier,
+                             "grant_type": "authorization_code", "redirect_uri": redirect})
+    if not tok.get("refresh_token"):
+        raise RuntimeError("Google gav ingen inloggning som håller – försök igen")
+    email = ""
+    try:  # the id token's middle part says who signed in (straight from Google, over https)
+        part = tok.get("id_token", "").split(".")[1]
+        email = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4))).get("email", "")
+    except (IndexError, ValueError):
+        pass
+    d.update({"refreshToken": tok["refresh_token"], "accessToken": tok.get("access_token", ""),
+              "expires": time.time() + tok.get("expires_in", 3600) - 60, "email": email})
+    yt_save(d)
+    return email
+
+
+def _yt_access():
+    d = yt_load()
+    if not d.get("refreshToken"):
+        raise RuntimeError("Inte inloggad på YouTube")
+    if d.get("accessToken") and time.time() < d.get("expires", 0):
+        return d["accessToken"]
+    tok = _yt_token_request({"client_id": d["clientId"], "client_secret": d.get("clientSecret", ""),
+                             "refresh_token": d["refreshToken"], "grant_type": "refresh_token"})
+    d.update({"accessToken": tok["access_token"], "expires": time.time() + tok.get("expires_in", 3600) - 60})
+    yt_save(d)
+    return d["accessToken"]
+
+
+YT_ERRORS = {
+    "quotaExceeded": "YouTubes dagliga gräns för API-projektet är nådd – försök igen i morgon",
+    "uploadLimitExceeded": "Kanalen har laddat upp så många filmer som YouTube tillåter i dag",
+    "youtubeSignupRequired": "Google-kontot har ingen YouTube-kanal än – skapa en på youtube.com först",
+    "forbidden": "YouTube nekade uppladdningen – är YouTube Data API v3 påslaget i projektet?",
+    "accessNotConfigured": "YouTube Data API v3 är inte påslaget i Google Cloud-projektet",
+    "insufficientPermissions": "Inloggningen saknar rätt att ladda upp – logga in igen",
+    "invalidTitle": "YouTube godtog inte titeln",
+    "invalidDescription": "YouTube godtog inte beskrivningen",
+}
+
+
+def _yt_error(status, body):
+    try:
+        err = json.loads(body).get("error", {})
+        reasons = [e.get("reason", "") for e in err.get("errors", [])]
+        for r in reasons:
+            if r in YT_ERRORS:
+                return YT_ERRORS[r]
+        if any("SERVICE_DISABLED" in json.dumps(d) for d in err.get("details", [])):
+            return YT_ERRORS["accessNotConfigured"]
+        return f"YouTube svarade {status}: {err.get('message', '')}".strip()
+    except (ValueError, AttributeError):
+        return f"YouTube svarade {status}"
+
+
+def _yt_request(method, url, body=None, headers=None):
+    import http.client
+    import urllib.parse
+    u = urllib.parse.urlsplit(url)
+    conn = http.client.HTTPSConnection(u.netloc, timeout=120)
+    try:
+        conn.request(method, u.path + ("?" + u.query if u.query else ""), body=body, headers=headers or {})
+        r = conn.getresponse()
+        return r.status, {k.lower(): v for k, v in r.getheaders()}, r.read()
+    finally:
+        conn.close()
+
+
+def yt_upload(path, title, description, privacy="private", progress=None, cancelled=None):
+    """Resumable upload (several tries per piece, continues where it stopped). progress(sent,
+    total) after each piece; cancelled() → True stops. Returns the video's id."""
+    total = os.path.getsize(path)
+    meta = {"snippet": {"title": title[:100], "description": description[:5000], "categoryId": "20"},
+            "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False}}
+    status, head, body = _yt_request(
+        "POST", "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+        json.dumps(meta).encode(), {"Authorization": "Bearer " + _yt_access(),
+                                    "Content-Type": "application/json; charset=UTF-8",
+                                    "X-Upload-Content-Length": str(total),
+                                    "X-Upload-Content-Type": "video/mp4"})
+    if status != 200 or "location" not in head:
+        raise RuntimeError(_yt_error(status, body))
+    session = head["location"]
+    sent, tries = 0, 0
+    with open(path, "rb") as f:
+        while True:
+            if cancelled and cancelled():
+                try:
+                    _yt_request("DELETE", session, headers={"Authorization": "Bearer " + _yt_access()})
+                except OSError:
+                    pass
+                raise RuntimeError("Avbruten")
+            f.seek(sent)
+            chunk = f.read(YT_CHUNK)
+            hdr = {"Authorization": "Bearer " + _yt_access(), "Content-Length": str(len(chunk)),
+                   "Content-Range": f"bytes {sent}-{sent + len(chunk) - 1}/{total}" if chunk else f"bytes */{total}"}
+            try:
+                status, head, body = _yt_request("PUT", session, chunk, hdr)
+            except OSError:
+                status, head, body = 0, {}, b""
+            if status in (200, 201):
+                if progress:
+                    progress(total, total)
+                return json.loads(body)["id"]
+            if status == 308:  # this much has arrived – go on from there
+                rng = head.get("range", "")
+                sent = int(rng.rsplit("-", 1)[1]) + 1 if rng else 0
+                tries = 0
+                if progress:
+                    progress(sent, total)
+                continue
+            if status in (400, 401, 403, 404):
+                raise RuntimeError(_yt_error(status, body))
+            tries += 1  # 5xx or the connection broke: ask how much arrived, then go on
+            if tries > 8:
+                raise RuntimeError(_yt_error(status, body) if status else "Uppladdningen avbröts – nätverket?")
+            time.sleep(min(60, 2 ** tries))
+            try:
+                status, head, body = _yt_request("PUT", session, b"", {
+                    "Authorization": "Bearer " + _yt_access(), "Content-Length": "0",
+                    "Content-Range": f"bytes */{total}"})
+                if status in (200, 201):
+                    if progress:
+                        progress(total, total)
+                    return json.loads(body)["id"]
+                if status == 308:
+                    rng = head.get("range", "")
+                    sent = int(rng.rsplit("-", 1)[1]) + 1 if rng else 0
+            except OSError:
+                pass
 
 
 def make_thumb(video, at, dest):

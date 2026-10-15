@@ -367,7 +367,7 @@ class Service:
         data = {k: v for k, v in meta.items() if not k.startswith("_")}
         try:  # keep what was added to the file since (Warcraft Logs link and numbers, kept)
             old = json.loads(Path(meta["_path"]).read_text())
-            data.update({k: old[k] for k in ("wcl", "wclStats", "keep") if k in old})
+            data.update({k: old[k] for k in ("wcl", "wclStats", "keep", "youtube") if k in old})
         except (OSError, ValueError):
             pass
         data["markers"] = sorted(data["markers"], key=lambda m: m["t"])

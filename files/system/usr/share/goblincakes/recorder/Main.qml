@@ -32,6 +32,14 @@ Window {
     property bool ytBusy: false
     property string ytFile: ""
     property string ytError: ""
+    // Straight up with YouTube's API when signed in (Inställningar → YouTube)
+    readonly property var yt: JSON.parse(backend.youtubeState)
+    property bool ytLoginBusy: false
+    property bool ytUploading: false
+    property real ytSent: 0
+    property real ytTotal: 0
+    property string ytUrl: ""
+    property string ytPrivacy: "unlisted"
     function ytRefresh() {
         if (!selected)
             return;
@@ -40,6 +48,8 @@ Window {
         ytDesc = t.description;
         ytFile = "";
         ytError = "";
+        if (!ytUploading)
+            ytUrl = "";
     }
     function ytShow() {
         ytStart = 0;
@@ -156,6 +166,19 @@ Window {
             noteTimer.restart();
         }
         function onWclBusy(busy) { win.wclBusy = busy; }
+        function onYoutubeLoginBusy(busy) { win.ytLoginBusy = busy; }
+        function onYoutubeProgress(sent, total) {
+            win.ytSent = sent;
+            win.ytTotal = total;
+        }
+        function onYoutubeUploaded(json) {
+            const r = JSON.parse(json);
+            win.ytUploading = false;
+            win.ytUrl = r.url || "";
+            win.ytError = r.error || "";
+            if (r.url)
+                backend.copyText(r.url);
+        }
         function onStatsBusy(path) { win.statsBusy = path; }
         function onYoutubeDone(json) {
             const r = JSON.parse(json);
@@ -1292,6 +1315,11 @@ Window {
                             onClicked: { player.pause(); win.ytShow(); }
                         }
                         FlatButton {
+                            visible: !!(playerPane.v && playerPane.v.youtube)
+                            text: "Öppna på YouTube"
+                            onClicked: backend.openUrl(playerPane.v.youtube.url)
+                        }
+                        FlatButton {
                             visible: !!(playerPane.v && (playerPane.v.wcl || backend.wclConfigured))
                             primary: !!(playerPane.v && playerPane.v.wcl)
                             enabledState: !win.wclBusy
@@ -1388,12 +1416,65 @@ Window {
                             }
                         }
                     }
+                    Flow { // straight up to the channel (signed in under Inställningar → YouTube)
+                        visible: win.yt.signedIn
+                        width: parent.width
+                        spacing: 10
+                        Repeater {
+                            model: [{ "id": "private", "name": "Privat", "sub": "Bara du ser filmen." },
+                                    { "id": "unlisted", "name": "Olistad", "sub": "Den som har länken kan se filmen – den syns inte på kanalen eller i sökningar." },
+                                    { "id": "public", "name": "Offentlig", "sub": "Alla kan hitta och se filmen." }]
+                            Choice {
+                                text: modelData.name
+                                sub: modelData.sub
+                                chosen: win.ytPrivacy === modelData.id
+                                enabledState: !win.ytUploading
+                                onPicked: win.ytPrivacy = modelData.id
+                            }
+                        }
+                        FlatButton {
+                            primary: true
+                            enabledState: !win.ytUploading && !win.ytBusy && win.ytTitle.length > 0
+                            text: win.ytUploading ? (win.ytTotal > 0 ? "Laddar upp " + Math.floor(100 * win.ytSent / win.ytTotal) + " %" : "Gör filmen …")
+                                                  : "Ladda upp till YouTube"
+                            onClicked: {
+                                win.ytUploading = true;
+                                win.ytSent = 0;
+                                win.ytTotal = 0;
+                                win.ytUrl = "";
+                                win.ytError = "";
+                                backend.youtubeUpload(playerPane.v.path, win.ytStart, win.ytEnd, win.ytTitle, win.ytDesc, win.ytPrivacy);
+                            }
+                        }
+                        FlatButton {
+                            visible: win.ytUploading && win.ytTotal > 0
+                            danger: true
+                            text: "Avbryt"
+                            onClicked: backend.youtubeCancel()
+                        }
+                        FlatButton {
+                            visible: win.ytUrl !== ""
+                            text: "Öppna på YouTube"
+                            onClicked: backend.openUrl(win.ytUrl)
+                        }
+                    }
+                    Rectangle { // how far the upload has come
+                        visible: win.ytUploading && win.ytTotal > 0
+                        width: parent.width
+                        height: 4
+                        color: "#1A2438"
+                        Rectangle {
+                            width: win.ytTotal > 0 ? parent.width * win.ytSent / win.ytTotal : 0
+                            height: parent.height
+                            color: accent.color
+                        }
+                    }
                     Flow {
                         width: parent.width
                         spacing: 10
                         FlatButton {
-                            primary: true
-                            enabledState: !win.ytBusy && win.ytTitle.length > 0
+                            primary: !win.yt.signedIn
+                            enabledState: !win.ytBusy && !win.ytUploading && win.ytTitle.length > 0
                             text: win.ytBusy ? "Gör filmen …" : "Gör filmen och öppna YouTube"
                             onClicked: {
                                 win.ytBusy = true;
@@ -1424,10 +1505,16 @@ Window {
                     }
                     Note {
                         width: parent.width
-                        text: win.ytError ? "Det gick inte att göra filmen: " + win.ytError
+                        text: win.ytError ? (win.ytError.indexOf("Det gick inte") === 0 || win.ytError.indexOf("YouTube") === 0
+                                             || win.ytError === "Avbruten" ? win.ytError : "Det gick inte att göra filmen: " + win.ytError)
+                            : win.ytUrl ? "Uppladdad: " + win.ytUrl + " (länken är kopierad). YouTube behöver en stund till att göra klart filmen i alla storlekar. "
+                                          + "Är den låst som privat fast du valde något annat? Se Inställningar → YouTube."
+                            : win.ytUploading ? (win.ytTotal > 0 ? win.size(win.ytSent) + " av " + win.size(win.ytTotal) + " – du kan titta på andra filmer under tiden, men låt fönstret vara öppet."
+                                                                 : "Klipper filmen …")
                             : win.ytFile ? "Klar. Dra in filen i YouTube Studio (den är markerad i filhanteraren). Titeln är kopierad – klistra in den, "
                                            + "sedan Kopiera beskrivningen och klistra in den. Bossarnas tider blir kapitel i YouTube."
                             : "Bara filmens första ljudspår (allt) kommer med. Klipps utan omkodning – går fort, samma kvalitet."
+                              + (win.yt.signedIn ? "" : " Vill du ladda upp direkt härifrån? Logga in under Inställningar → YouTube.")
                         color: win.ytError ? "#E5534B" : "#8B98AD"
                     }
                 }
@@ -1480,6 +1567,61 @@ Window {
                 visible: backend.wclConfigured
                 text: "Koppla bort Warcraft Logs"
                 onClicked: backend.forgetWcl()
+            }
+
+            Item { width: 1; height: 14 }
+            SectionTitle { text: "YOUTUBE" }
+            Note {
+                width: Math.min(820, parent.width)
+                text: win.yt.signedIn
+                    ? "Inloggad" + (win.yt.email ? " som " + win.yt.email : "") + ". Till YouTube … i spelaren får knappen Ladda upp till YouTube. "
+                      + "Obs: Google låser filmer från ett eget API-projekt som privata tills projektet granskats – ansök en gång med "
+                      + "YouTubes formulär (gratis, kan ta några veckor). Tills dess: välj Privat och byt i YouTube Studio när låset är borta, "
+                      + "eller använd Gör filmen och öppna YouTube."
+                    : win.yt.client
+                    ? "Klienten är sparad. Logga in med det Google-konto som har din YouTube-kanal."
+                    : "Ladda upp filmerna direkt till din kanal. Gör en gång i Google Cloud (gratis): skapa ett projekt, slå på "
+                      + "YouTube Data API v3 (APIs & Services → Library), ställ in OAuth consent screen (External, lägg till din "
+                      + "e-postadress som testanvändare – eller Publish app, annars måste du logga in igen var 7:e dag), skapa sedan "
+                      + "Credentials → OAuth client ID av typen Desktop app och klistra in Client ID och Client Secret här."
+            }
+            Row {
+                visible: !win.yt.client
+                spacing: 12
+                FlatButton { text: "Öppna Google Cloud …"; onClicked: backend.openYoutubeConsole() }
+                FlatField { id: ytId; width: 260; hint: "Client ID" }
+                FlatField { id: ytSecret; width: 260; hint: "Client Secret"; echoMode: TextInput.Password }
+                FlatButton {
+                    primary: true
+                    enabledState: ytId.text.length > 20 && ytSecret.text.length > 10 && !win.ytLoginBusy
+                    text: "Spara och logga in"
+                    onClicked: backend.setYoutubeClient(ytId.text, ytSecret.text)
+                }
+            }
+            Row {
+                visible: win.yt.client
+                spacing: 12
+                FlatButton {
+                    visible: !win.yt.signedIn
+                    primary: true
+                    enabledState: !win.ytLoginBusy
+                    text: win.ytLoginBusy ? "Väntar på webbläsaren …" : "Logga in på YouTube"
+                    onClicked: backend.youtubeLogin()
+                }
+                FlatButton {
+                    visible: win.yt.signedIn
+                    text: "Ansök om granskning …"
+                    onClicked: backend.openYoutubeAudit()
+                }
+                FlatButton {
+                    visible: win.yt.signedIn
+                    text: "Logga ut"
+                    onClicked: backend.youtubeLogout(false)
+                }
+                FlatButton {
+                    text: "Ta bort klienten"
+                    onClicked: backend.youtubeLogout(true)
+                }
             }
 
             Item { width: 1; height: 14 }

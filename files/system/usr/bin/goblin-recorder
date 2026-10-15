@@ -56,6 +56,8 @@ class Backend(QObject):
         self._folder_time = None
         self._preview = ""
         self.refreshLater.connect(self.refreshVideos)
+        self._openLink.connect(self.openUrl)  # the browser from the main thread
+        self._yt_cancel = False
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll)
         self.timer.start(1000)
@@ -375,6 +377,90 @@ class Backend(QObject):
             err = R.youtube_clip(path, start, end, dest)
             self.youtubeDone.emit(json.dumps({"error": err} if err else {"file": str(dest)}, ensure_ascii=False))
         threading.Thread(target=work, daemon=True).start()
+
+    # ---------------------------------------------------------- YouTube upload (API)
+    youtubeChanged = Signal()
+    youtubeLoginBusy = Signal(bool)
+    youtubeProgress = Signal(float, float)  # sent, total (bytes; total 0 = cutting the video)
+    youtubeUploaded = Signal(str)  # JSON: {"url": …} or {"error": …}
+    _openLink = Signal(str)
+
+    @Property(str, notify=youtubeChanged)
+    def youtubeState(self):
+        return json.dumps(R.yt_state())
+
+    @Slot()
+    def openYoutubeConsole(self):
+        QDesktopServices.openUrl(QUrl(R.YT_CONSOLE))
+
+    @Slot()
+    def openYoutubeAudit(self):
+        QDesktopServices.openUrl(QUrl(R.YT_AUDIT))
+
+    @Slot(str, str)
+    def setYoutubeClient(self, client_id, secret):
+        try:
+            R.yt_set_client(client_id, secret)
+            self.youtubeChanged.emit()
+            self.youtubeLogin()
+        except RuntimeError as e:
+            self.message.emit(f"YouTube: {e}")
+
+    @Slot()
+    def youtubeLogin(self):
+        def work():
+            try:
+                email = R.yt_login(self._openLink.emit)
+                self.message.emit("Inloggad på YouTube" + (f" som {email}." if email else "."))
+            except Exception as e:  # noqa: BLE001
+                self.message.emit(f"YouTube: {e}")
+            self.youtubeChanged.emit()
+            self.youtubeLoginBusy.emit(False)
+        self.youtubeLoginBusy.emit(True)
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(bool)
+    def youtubeLogout(self, forget_client):
+        threading.Thread(target=lambda: (R.yt_forget(keep_client=not forget_client),
+                                         self.youtubeChanged.emit()), daemon=True).start()
+
+    @Slot(str, float, float, str, str, str)
+    def youtubeUpload(self, path, start, end, title, description, privacy):
+        """Cut (as for YouTube Studio), then straight up to the channel. The cut file goes when
+        it's up – the video itself stays in GoblinRecorder."""
+        dest = Path(R.load_config()["folder"]) / "YouTube" / (R.safe_name(title) + ".mp4")
+        self._yt_cancel = False
+
+        def work():
+            last = [0.0]
+
+            def progress(sent, total):
+                if time.time() - last[0] > 0.3 or sent >= total:
+                    last[0] = time.time()
+                    self.youtubeProgress.emit(float(sent), float(total))
+            try:
+                self.youtubeProgress.emit(0.0, 0.0)
+                err = R.youtube_clip(path, start, end, dest)
+                if err:
+                    raise RuntimeError(f"Det gick inte att göra filmen: {err}")
+                vid = R.yt_upload(str(dest), title, description, privacy, progress, lambda: self._yt_cancel)
+                url = f"https://youtu.be/{vid}"
+                R.set_meta(path, youtube={"id": vid, "url": url, "privacy": privacy,
+                                          "title": title, "uploaded": time.time()})
+                try:
+                    dest.unlink()
+                except OSError:
+                    pass
+                self.youtubeUploaded.emit(json.dumps({"url": url}))
+            except Exception as e:  # noqa: BLE001
+                self.youtubeUploaded.emit(json.dumps({"error": str(e)}, ensure_ascii=False))
+            finally:
+                self.refreshLater.emit()
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot()
+    def youtubeCancel(self):
+        self._yt_cancel = True
 
     @Slot(str)
     def copyText(self, text):
