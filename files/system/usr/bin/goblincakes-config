@@ -60,6 +60,7 @@ GPU = os.environ.get("GOBLINCAKES_CONFIG_GPU", "/usr/libexec/goblincakes-gpu")
 BROWSER = os.environ.get("GOBLINCAKES_CONFIG_BROWSER", "/usr/libexec/goblincakes-browser")
 TERMINAL = os.environ.get("GOBLINCAKES_CONFIG_TERMINAL", "/usr/libexec/goblincakes-terminal")
 ACCENT = os.environ.get("GOBLINCAKES_CONFIG_ACCENT", "/usr/libexec/goblincakes-accent")
+TILE = os.environ.get("GOBLINCAKES_CONFIG_TILE", "/usr/libexec/goblincakes-tile")
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
 DONE_FILE = STATE / "config-done"
 OLD_DONE_FILE = STATE / "setup-done"  # from when the window was called GOBLINCAKES Setup
@@ -240,6 +241,9 @@ class Config(QObject):
     mainBrowserChanged = Signal()
     terminalChanged = Signal()
     accentsChanged = Signal()  # Utseende: the colours, which one is chosen, busy
+    tilesLoaded = Signal(str)   # Fönster: goblincakes-tile json ("" = failed)
+    tilesCaptured = Signal(str)  # Fönster: KDE's tiles now, {"screens": {connector: tree}}
+    tileDone = Signal(str)      # Fönster: a layout was used – the message
     autostartChanged = Signal()
     webappsChanged = Signal()
     fullscreenChanged = Signal()
@@ -406,6 +410,43 @@ class Config(QObject):
         proc.finished.connect(done)
         proc.errorOccurred.connect(lambda error: done() if error == QProcess.FailedToStart else None)
         proc.start(ACCENT, ["set", accent_id])
+
+    # ── Fönster: window layouts (goblincakes-tile) ─────────────
+
+    def _tile_proc(self, args, done, stdin=None):
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.SeparateChannels)
+
+        def finished(*_):
+            out = bytes(proc.readAllStandardOutput()).decode(errors="replace")
+            ok = proc.exitStatus() == QProcess.NormalExit and proc.exitCode() == 0
+            done(out if ok else "", bytes(proc.readAllStandardError()).decode(errors="replace"))
+            proc.deleteLater()
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda e: (done("", "goblincakes-tile startade inte"), proc.deleteLater())
+                                   if e == QProcess.FailedToStart else None)
+        proc.start(TILE, args)
+        if stdin is not None:
+            proc.write(stdin.encode())
+            proc.closeWriteChannel()
+
+    @Slot()
+    def loadTiles(self):
+        self._tile_proc(["json"], lambda out, err: self.tilesLoaded.emit(out.strip()))
+
+    @Slot(str)
+    def saveLayouts(self, data):
+        self._tile_proc(["save"], lambda out, err: None, stdin=data)
+
+    @Slot()
+    def captureTiles(self):
+        self._tile_proc(["capture"], lambda out, err: self.tilesCaptured.emit(out.strip()))
+
+    @Slot(str, bool)
+    def useLayout(self, name, start_apps):
+        self._tile_proc(["open" if start_apps else "layout", name],
+                        lambda out, err: self.tileDone.emit((out or err).strip().splitlines()[-1]
+                                                            if (out or err).strip() else ""))
 
     # ── The user's own web apps ("Egen webbapp") ──────────────
 
@@ -906,7 +947,7 @@ def main():
             QFontDatabase.addApplicationFont(font)
 
     start_tab = sys.argv[sys.argv.index("--tab") + 1] if "--tab" in sys.argv[:-1] else "apps"
-    start_tab = {"graphics": "graphics", "tweaks": "tweaks", "update": "update", "system": "system"}.get(start_tab, "apps")
+    start_tab = {"graphics": "graphics", "tweaks": "tweaks", "update": "update", "system": "system", "windows": "windows"}.get(start_tab, "apps")
 
     # One window at a time: a second start (the update arrow, AppGrid, Meta+C) hands its tab to
     # the open window instead of opening another one (10 Oct). The first-run start just stops.

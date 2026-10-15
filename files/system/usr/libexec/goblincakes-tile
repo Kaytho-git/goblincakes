@@ -4,6 +4,10 @@
     goblincakes-tile                                 screens with their tiles, your rules, programs
     goblincakes-tile add <program> <screen> <tile>   e.g. add discord 2 1 (screen 2, tile 1)
     goblincakes-tile remove <program>
+    goblincakes-tile layouts                         your saved layouts (GOBLINCAKES Config → Fönster)
+    goblincakes-tile layout <name|number>            use a layout: KDE's tiles, the rules, open windows in place
+    goblincakes-tile open <name|number>              the same + start the layout's programs that aren't running
+    goblincakes-tile json | save | capture           for GOBLINCAKES Config (JSON out, JSON on stdin, KDE's tiles now)
 
 The tiles are KDE's own (Meta+T draws them per screen, Shift+drag drops a window in one);
 GOBLINCAKES only adds rules program → tile. Tiles are numbered in the order KDE keeps them:
@@ -15,6 +19,15 @@ The rules are kept in kwinrc [Script-goblincakes-windows] tileRules
 ("discord=DP-1:1;org.mozilla.firefox|firefox=HDMI-A-1:2" – a program's window names joined
 by |, as in screenRules) and applied by the KWin script goblincakes-windows when a window of
 the program opens. A tile rule goes before a screen rule (goblin screen); games ignore both.
+
+Layouts (15 Oct, steps 2 and 3): ~/.config/goblincakes/tile-layouts.json = {"active": name,
+"layouts": [{"name", "screens": {connector: tree}}]}, at most 9 (Meta+Ctrl+1–9, the
+kglobalaccel file goblincakes-tile-layouts.desktop). A tree is {"dir": "h"|"v", "children":
+[…]} (h = side by side) or a tile {"apps": [desktop ids]}; every child has "size" = its part
+of the parent. Using a layout writes its programs as the tileRules above and loads the KWin
+script /usr/share/goblincakes/tile/apply.js for a moment: it rebuilds KDE's tiles on every
+screen of the layout (split/resizeByPixels – KWin can't reload its tiles from kwinrc) and puts
+the open windows in their tiles; it reports back over D-Bus (org.goblincakes.tile.p<pid>).
 """
 import importlib.util
 import json
@@ -261,8 +274,353 @@ def cmd_remove(args):
     return 0
 
 
+# ---- Layouts (GOBLINCAKES Config → Fönster, Meta+Ctrl+1–9) ----------------------------------
+
+LAYOUTS = CONFIG / "goblincakes/tile-layouts.json"
+TILE_SHARE = Path(os.environ.get("GOBLINCAKES_TILE_SHARE") or Path(__file__).resolve().parents[1] / "share/goblincakes/tile")
+MAX_LAYOUTS = 9
+GAMES = ["gamescope", "cs2", "dota2"]  # as in the KWin script goblincakes-windows
+
+
+def clean_tree(node, depth=0):
+    """A tree from Config or the file, checked: sizes add up, no empty splits, the same
+    direction never inside itself (KWin builds a split inside a tile of the other direction)."""
+    if not isinstance(node, dict) or depth > 6:
+        return {}
+    kids = [c for c in node.get("children") or [] if isinstance(c, dict)][:8]
+    if len(kids) == 1:  # a split with one part left is that part
+        return clean_tree(dict(kids[0], size=node.get("size")), depth + 1)
+    if node.get("dir") in ("h", "v") and len(kids) >= 2:
+        sizes = []
+        for c in kids:
+            try:
+                sizes.append(max(0.0, float(c.get("size") or 0)))
+            except (TypeError, ValueError):
+                sizes.append(0.0)
+        total = sum(sizes)
+        if total <= 0 or min(sizes) <= 0:
+            sizes, total = [1.0] * len(kids), float(len(kids))
+        out = []
+        for c, size in zip(kids, sizes):
+            child = clean_tree(c, depth + 1)
+            part = max(0.05, size / total)
+            if child.get("dir") == node["dir"]:  # same direction: its parts become ours
+                out += [dict(g, size=g["size"] * part) for g in child["children"]]
+            else:
+                out.append(dict(child, size=part))
+        total = sum(c["size"] for c in out)
+        for c in out:
+            c["size"] = round(c["size"] / total, 4)
+        return {"dir": node["dir"], "children": out}
+    apps = [a for a in node.get("apps") or [] if isinstance(a, str) and a][:8]
+    return {"apps": apps} if apps else {}
+
+
+def tree_leaves(node):
+    """The tiles of a tree in KDE's order (depth first: left to right, top to bottom)."""
+    kids = node.get("children") or []
+    if not kids:
+        return [node]
+    out = []
+    for c in kids:
+        out += tree_leaves(c)
+    return out
+
+
+def load_layouts():
+    try:
+        data = json.loads(LAYOUTS.read_text())
+    except (OSError, ValueError):
+        data = {}
+    layouts = []
+    for lay in data.get("layouts") or []:
+        if not isinstance(lay, dict):
+            continue
+        name = str(lay.get("name") or "").strip()[:40]
+        screens = lay.get("screens") if isinstance(lay.get("screens"), dict) else {}
+        if name and name not in [x["name"] for x in layouts]:
+            layouts.append({"name": name, "screens": {str(k): clean_tree(v) for k, v in screens.items()}})
+    layouts = layouts[:MAX_LAYOUTS]
+    active = data.get("active") if data.get("active") in [x["name"] for x in layouts] else ""
+    return {"active": active, "layouts": layouts}
+
+
+def save_layouts(data):
+    LAYOUTS.parent.mkdir(parents=True, exist_ok=True)
+    tmp = LAYOUTS.with_name(LAYOUTS.name + ".new")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
+    os.replace(tmp, LAYOUTS)
+
+
+def find_layout(data, text):
+    text = text.strip()
+    if text.isdigit() and 1 <= int(text) <= len(data["layouts"]):
+        return data["layouts"][int(text) - 1]
+    return next((x for x in data["layouts"] if x["name"].lower() == text.lower()), None)
+
+
+def kwin_tree(node, w=1.0, h=1.0):
+    """KDE's own tiles from kwinrc (sizes are parts of the whole screen) → a GOBLINCAKES tree."""
+    kids = node.get("tiles") or []
+    direction = node.get("layoutDirection", "horizontal")
+    if not kids or direction not in ("horizontal", "vertical"):
+        return {}
+    horizontal = direction == "horizontal"
+    extent = w if horizontal else h
+    key = "width" if horizontal else "height"
+    given = sum(c.get(key, 0) for c in kids)
+    free = [c for c in kids if not c.get(key)]
+    rest = max(0.0, extent - given) / len(free) if free else 0.0
+    out = []
+    for c in kids:
+        part = c.get(key) or rest
+        child = kwin_tree(c, part if horizontal else w, h if horizontal else part)
+        out.append(dict(child, size=part / extent if extent else 1 / len(kids)))
+    return clean_tree({"dir": "h" if horizontal else "v", "children": out})
+
+
+def current_trees():
+    """KDE's tiles on every screen now (first virtual desktop), as GOBLINCAKES trees."""
+    desktop = read_config("Id_1", "Desktops")
+    out = {}
+    for conn, uuid in screen_uuids().items():
+        raw = subprocess.run(["kreadconfig6", "--file", "kwinrc", "--group", "Tiling", "--group", desktop,
+                              "--group", uuid, "--key", "tiles"], capture_output=True, text=True).stdout.strip()
+        try:
+            out[conn] = kwin_tree(json.loads(raw)) if raw and desktop else {}
+        except (ValueError, AttributeError):
+            out[conn] = {}
+    return out
+
+
+def screen_geometry():
+    """[{n, name, desc, x, y, w, h}] in goblin screen's order, the size as the desktop has it."""
+    try:
+        data = json.loads(subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True,
+                                         timeout=5).stdout)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        data = {}
+    geo = {}
+    for o in data.get("outputs", []):
+        mode = next((m for m in o.get("modes", []) if m.get("id") == o.get("currentModeId")), {})
+        size = mode.get("size") or o.get("size") or {}
+        scale = o.get("scale") or 1
+        w, h = (size.get("width") or 1920) / scale, (size.get("height") or 1080) / scale
+        if o.get("rotation") in (2, 8):
+            w, h = h, w
+        pos = o.get("pos") or {}
+        geo[o.get("name")] = (pos.get("x", 0), pos.get("y", 0), round(w), round(h))
+    out = []
+    for n, conn, desc in screen_list():
+        x, y, w, h = geo.get(conn, (0, 0, 1920, 1080))
+        out.append({"n": n, "name": conn, "desc": desc, "x": x, "y": y, "w": w, "h": h})
+    return out
+
+
+def app_icons(ids):
+    import configparser
+    icons = {}
+    for d in SCREEN.APP_DIRS:
+        for app_id in ids:
+            f = d / f"{app_id}.desktop"
+            if app_id in icons or not f.exists():
+                continue
+            cp = configparser.RawConfigParser(interpolation=None, strict=False)
+            try:
+                cp.read(f, encoding="utf-8")
+                icons[app_id] = cp["Desktop Entry"].get("Icon", "")
+            except (configparser.Error, KeyError, UnicodeDecodeError):
+                icons[app_id] = ""
+    return icons
+
+
+def cmd_json():
+    progs = SCREEN.programs()
+    icons = app_icons(progs)
+    apps = sorted(({"id": i, "name": v[0], "word": SCREEN.word(i, v[0]), "icon": icons.get(i, "")}
+                   for i, v in progs.items()), key=lambda a: a["name"].lower())
+    data = load_layouts()
+    print(json.dumps({"screens": screen_geometry(), "layouts": data["layouts"], "active": data["active"],
+                      "apps": apps, "current": current_trees()}, ensure_ascii=False))
+    return 0
+
+
+def cmd_save():
+    try:
+        incoming = json.loads(sys.stdin.read())
+    except ValueError:
+        print("Ogiltig JSON", file=sys.stderr)
+        return 2
+    LAYOUTS.parent.mkdir(parents=True, exist_ok=True)
+    tmp = LAYOUTS.with_name(LAYOUTS.name + ".in")
+    tmp.write_text(json.dumps(incoming))
+    try:
+        os.replace(tmp, LAYOUTS)
+        save_layouts(load_layouts())  # checked and tidied
+    except OSError as e:
+        print(e, file=sys.stderr)
+        return 1
+    return 0
+
+
+def kwin_script(payload, wait=True, timeout=5000):
+    """Loads apply.js for a moment with the payload; returns its D-Bus report (a dict) or None."""
+    from PySide6.QtCore import ClassInfo, QCoreApplication, QEventLoop, QObject, QTimer, Slot
+    from PySide6.QtDBus import QDBusConnection
+    app = QCoreApplication.instance() or QCoreApplication([])  # noqa: F841 – the event loop needs it
+    service = f"org.goblincakes.tile.p{os.getpid()}"
+    payload = dict(payload, service=service)
+    result = {}
+    loop = QEventLoop()
+
+    @ClassInfo({"D-Bus Interface": "org.goblincakes.tile"})
+    class Receiver(QObject):
+        @Slot(str)
+        def report(self, text):
+            try:
+                result["data"] = json.loads(text)
+            except ValueError:
+                result["data"] = None
+            loop.quit()
+
+    receiver = Receiver()
+    bus = QDBusConnection.sessionBus()
+    if wait and bus.registerService(service):
+        bus.registerObject("/tile", receiver, QDBusConnection.ExportAllSlots)
+    try:
+        template = (TILE_SHARE / "apply.js").read_text()
+    except OSError:
+        return None
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp")
+    script = runtime / f"goblincakes-tile-{os.getpid()}.js"
+    script.write_text(template.replace("__DATA__", json.dumps(payload)))
+    name = f"goblincakes-tile-{os.getpid()}"
+
+    def kwin(*args):
+        return subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/Scripting",
+                               "org.kde.kwin.Scripting", *args], capture_output=True, text=True)
+    try:
+        if kwin("loadScript", "ss", str(script), name).returncode != 0:
+            return None
+        kwin("start")
+        if wait:
+            QTimer.singleShot(timeout, loop.quit)
+            loop.exec(QEventLoop.AllEvents)
+        return result.get("data")
+    finally:
+        kwin("unloadScript", "s", name)
+        script.unlink(missing_ok=True)
+        bus.unregisterService(service)
+
+
+def layout_rules(layout, progs):
+    """The layout's programs → tileRules {key: (connector, tile)} and the script's rules."""
+    rules, script = {}, []
+    for conn, tree in layout["screens"].items():
+        for n, leaf in enumerate(tree_leaves(tree), 1):
+            for app in leaf.get("apps") or []:
+                if app not in progs:
+                    continue
+                classes = progs[app][1]
+                rules[SCREEN.rule_key(app, classes)] = (conn, n)
+                script.append({"names": sorted(set([app.lower()] + classes)), "screen": conn, "tile": n})
+    return rules, script
+
+
+def cmd_layout(args, start_apps=False):
+    data = load_layouts()
+    if not args:
+        return cmd_layouts()
+    layout = find_layout(data, " ".join(args))
+    if not layout:
+        print(f"Ingen layout heter {' '.join(args)}. Dina layouter: goblin tile layouts", file=sys.stderr)
+        return 1
+    progs = SCREEN.programs()
+    rules, script_rules = layout_rules(layout, progs)
+    write_rules(rules)
+    report = kwin_script({"mode": "apply", "screens": layout["screens"], "rules": script_rules, "games": GAMES},
+                         wait=True)
+    data["active"] = layout["name"]
+    save_layouts(data)
+    started = []
+    if start_apps:
+        running = set()
+        for names in (report or {}).get("running", []):
+            running.update(n for n in names if n)
+        for leaf_apps in (leaf.get("apps") or [] for t in layout["screens"].values() for leaf in tree_leaves(t)):
+            for app in leaf_apps:
+                if app in progs and not (set([app.lower()] + progs[app][1]) & running) and app not in started:
+                    subprocess.Popen(["gtk-launch", app], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                     start_new_session=True)
+                    started.append(app)
+    msg = f"Layouten {layout['name']} används."
+    if report is None:
+        msg += " (KWin svarade inte – rutorna kommer när du loggar in igen.)"
+    if started:
+        msg += " Startar: " + ", ".join(progs[a][0] for a in started) + "."
+    print(msg)
+    return 0
+
+
+def cmd_layouts():
+    data = load_layouts()
+    if not data["layouts"]:
+        print(f"Inga layouter än. Gör en i GOBLINCAKES Config → Fönster.")
+        return 0
+    progs = SCREEN.programs()
+    print(f"{ACCENT}Dina layouter{RESET} {MUTED}(Meta+Ctrl+siffran byter){RESET}")
+    for i, lay in enumerate(data["layouts"], 1):
+        tiles = sum(len(tree_leaves(t)) for t in lay["screens"].values())
+        apps = [progs[a][0] for t in lay["screens"].values() for leaf in tree_leaves(t)
+                for a in leaf.get("apps") or [] if a in progs]
+        mark = f" {ACCENT}← används{RESET}" if lay["name"] == data["active"] else ""
+        print(f"  {FROST}{i}{RESET}  {lay['name']}{mark}  {MUTED}Meta+Ctrl+{i} · {tiles} rutor"
+              + (f" · {', '.join(apps)}" if apps else "") + RESET)
+    print(f"\n{MUTED}Använd: goblin tile layout 1   Öppna allt: goblin tile open 1{RESET}")
+    return 0
+
+
+def cmd_capture():
+    """KDE's tiles now and which programs sit in them → {connector: tree} for Config."""
+    report = kwin_script({"mode": "capture", "games": GAMES}, wait=True)
+    if report is None:
+        print(json.dumps({"screens": current_trees()}))
+        return 0
+    progs = SCREEN.programs()
+    by_name = {}
+    for app, (_, classes) in progs.items():
+        for n in [app.lower()] + classes:
+            by_name.setdefault(n, app)
+
+    def apps_of(node):
+        kids = node.get("children") or []
+        if kids:
+            return {"dir": node["dir"], "children": [dict(apps_of(c), size=c.get("size", 0)) for c in kids]}
+        found = []
+        for names in node.get("windows") or []:
+            app = next((by_name[n] for n in names if n in by_name), None)
+            if app and app not in found:
+                found.append(app)
+        return {"apps": found} if found else {}
+    screens = {conn: clean_tree(apps_of(tree)) for conn, tree in (report.get("screens") or {}).items()}
+    print(json.dumps({"screens": screens}))
+    return 0
+
+
 def main(argv):
     cmd = argv[0] if argv else "list"
+    if cmd == "json":
+        return cmd_json()
+    if cmd == "save":
+        return cmd_save()
+    if cmd == "capture":
+        return cmd_capture()
+    if cmd in ("layouts", "layoutlist"):
+        return cmd_layouts()
+    if cmd in ("layout", "use", "använd"):
+        return cmd_layout(argv[1:])
+    if cmd in ("open", "öppna"):
+        return cmd_layout(argv[1:], start_apps=True)
     if cmd in ("list", "ls"):
         return cmd_list()
     if cmd in ("add", "set"):

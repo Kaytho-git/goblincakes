@@ -581,6 +581,7 @@ Window {
                         : win.tab === "update"
                           ? (win.updateState === "running" ? "UPPDATERAR…" : win.updateState === "done" ? "UPPDATERAT" : "UPPDATERA")
                         : win.tab === "graphics" ? "GRAFIK"
+                        : win.tab === "windows" ? "FÖNSTER"
                         : win.tab === "tweaks" ? "INSTÄLLNINGAR"
                         : win.page === "choose" ? "VÄLJ DINA PROGRAM"
                         : win.page === "install" ? "INSTALLERAR…" : "KLART"
@@ -597,6 +598,8 @@ Window {
                         ? (win.updateState === "running" ? "Du kan använda datorn under tiden. Stäng inte fönstret."
                            : win.updateState === "done" ? (win.updateOk ? "Allt är uppdaterat." : "Klart, men något gick inte – se listan nedan.")
                            : "Systemet, program, VS Code, Discord, AppImages, GE-Proton och firmware – samma som goblin update.")
+                        : win.tab === "windows"
+                        ? "Hur fönstren ligger på skärmarna – egna rutor och vilket program som öppnas var. Byt layout med Meta+Ctrl+1–9."
                         : win.tab === "graphics"
                         ? "Drivrutiner för ditt grafikkort. Den gamla varianten finns kvar i startmenyn om något går fel."
                         : win.tab === "tweaks"
@@ -629,7 +632,7 @@ Window {
             spacing: 32
 
             Repeater {
-                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "INSTÄLLNINGAR" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
+                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "INSTÄLLNINGAR" }, { "id": "windows", "label": "FÖNSTER" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
 
                 Item {
                     id: tabItem
@@ -1555,6 +1558,769 @@ Window {
         }
     }
 
+    // ── Fönster: window layouts (goblincakes-tile, Meta+Ctrl+1–9) ─────────
+    // KDE's own tiles per screen, drawn here: split, drag the borders, templates, and which
+    // program opens in which tile. Several named layouts (Raid, Jobb …), each on Meta+Ctrl+N.
+    // The tree: {dir: "h"|"v", children: [{size, …}]} or a tile {apps: [desktop ids]}.
+
+    // A small flat button (templates, tile tools)
+    component SmallButton: Rectangle {
+        id: sb
+        property string text
+        property bool on: false
+        property bool enabledState: true
+        signal clicked()
+        width: sbLabel.implicitWidth + 24
+        height: 30
+        opacity: enabledState ? 1 : 0.35
+        color: on ? accent.dim : sbArea.containsMouse && enabledState ? "#12203A" : "transparent"
+        border.width: 1
+        border.color: on ? accent.color : "#2A3852"
+        Text {
+            id: sbLabel
+            anchors.centerIn: parent
+            text: sb.text
+            color: "#E6ECF5"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 13
+        }
+        MouseArea {
+            id: sbArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: sb.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: if (sb.enabledState) sb.clicked()
+        }
+    }
+
+    Item {
+        id: windowsView
+        visible: win.tab === "windows"
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
+
+        property var info: ({ "screens": [], "layouts": [], "apps": [], "current": {}, "active": "" })
+        property bool loaded: false
+        property int sel: 0                 // the layout being edited
+        property string selScreen: ""
+        property var selPath: null          // the chosen tile (path in its screen's tree)
+        property string pendingApp: ""      // clicked in the list: the next tile clicked gets it
+        property string status: ""
+        property string filter: ""
+        readonly property var layout: info.layouts.length ? info.layouts[Math.min(sel, info.layouts.length - 1)] : null
+        readonly property var appsById: {
+            const m = {};
+            for (const a of info.apps) m[a.id] = a;
+            return m;
+        }
+
+        onVisibleChanged: if (visible && !loaded) backend.loadTiles()
+
+        Connections {
+            target: backend
+            function onTilesLoaded(json) {
+                if (!json) {
+                    windowsView.status = "Kunde inte läsa skärmarna.";
+                    return;
+                }
+                windowsView.info = JSON.parse(json);
+                windowsView.loaded = true;
+                const i = windowsView.info.layouts.findIndex(l => l.name === windowsView.info.active);
+                windowsView.sel = Math.max(0, i);
+            }
+            function onTilesCaptured(json) {
+                if (!json || !windowsView.layout)
+                    return;
+                const got = JSON.parse(json).screens || {};
+                windowsView.edit(d => { Object.assign(d.layouts[windowsView.sel].screens, got); });
+                windowsView.status = "Sparat som det ser ut nu.";
+            }
+            function onTileDone(message) {
+                windowsView.status = message || "Klart.";
+                windowsView.info = Object.assign({}, windowsView.info, { "active": windowsView.layout ? windowsView.layout.name : "" });
+            }
+        }
+
+        Timer {
+            id: saveTimer
+            interval: 500
+            onTriggered: backend.saveLayouts(JSON.stringify({ "active": windowsView.info.active, "layouts": windowsView.info.layouts }))
+        }
+
+        // ── Changing the layouts (a copy, then saved half a second later) ──
+        function edit(fn) {
+            const d = JSON.parse(JSON.stringify(info));
+            fn(d);
+            info = d;
+            saveTimer.restart();
+        }
+        function treeOf(d, conn) {
+            const L = d.layouts[sel];
+            if (!L.screens[conn])
+                L.screens[conn] = {};
+            return L.screens[conn];
+        }
+        function nodeAt(tree, path) {
+            let n = tree;
+            for (const i of path)
+                n = n.children[i];
+            return n;
+        }
+        function leavesOf(tree) {
+            const kids = tree && tree.children ? tree.children : [];
+            if (kids.length < 2)
+                return [tree || {}];
+            let out = [];
+            for (const c of kids)
+                out = out.concat(leavesOf(c));
+            return out;
+        }
+        function flatten(node, x, y, w, h, path, out) {
+            const kids = node && node.children ? node.children : [];
+            if (kids.length >= 2) {
+                const horiz = node.dir !== "v";
+                let pos = 0;
+                for (let i = 0; i < kids.length; i++) {
+                    const s = kids[i].size;
+                    const cx = horiz ? x + pos * w : x, cy = horiz ? y : y + pos * h;
+                    const cw = horiz ? s * w : w, ch = horiz ? h : s * h;
+                    flatten(kids[i], cx, cy, cw, ch, path.concat([i]), out);
+                    if (i < kids.length - 1)
+                        out.seps.push({ "horiz": horiz, "x": horiz ? cx + cw : x, "y": horiz ? y : cy + ch,
+                                        "len": horiz ? h : w, "path": path, "index": i,
+                                        "start": horiz ? cx : cy, "extent": horiz ? w : h, "pair": s + kids[i + 1].size });
+                    pos += s;
+                }
+            } else {
+                out.leaves.push({ "x": x, "y": y, "w": w, "h": h, "path": path,
+                                  "apps": (node && node.apps) || [], "n": out.leaves.length + 1 });
+            }
+        }
+        function samePath(a, b) {
+            return !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
+        }
+        function newLayout() {
+            const names = info.layouts.map(l => l.name);
+            let n = info.layouts.length + 1, name = "Layout " + n;
+            while (names.indexOf(name) >= 0)
+                name = "Layout " + (++n);
+            edit(d => {
+                const screens = {};
+                for (const s of d.screens)
+                    screens[s.name] = JSON.parse(JSON.stringify(d.current[s.name] || {}));
+                d.layouts.push({ "name": name, "screens": screens });
+            });
+            sel = info.layouts.length - 1;
+            selPath = null;
+            status = "Ny layout med KDE:s rutor som de är nu. Ändra, dra in program och tryck Använd.";
+        }
+        function removeLayout() {
+            const i = sel;
+            edit(d => { d.layouts.splice(i, 1); if (d.active === (info.layouts[i] || {}).name) d.active = ""; });
+            sel = Math.max(0, i - 1);
+            selPath = null;
+        }
+        function rename(name) {
+            name = name.trim();
+            if (!name || !layout || name === layout.name || info.layouts.some(l => l.name === name))
+                return;
+            const old = layout.name;
+            edit(d => { d.layouts[sel].name = name; if (d.active === old) d.active = name; });
+        }
+        function split(dir) {
+            const conn = selScreen, path = selPath;
+            if (!conn || !path)
+                return;
+            let next = path;
+            edit(d => {
+                const tree = treeOf(d, conn);
+                if (!path.length) {
+                    d.layouts[sel].screens[conn] = { "dir": dir, "children": [{ "size": 0.5, "apps": tree.apps || [] }, { "size": 0.5 }] };
+                    next = [0];
+                    return;
+                }
+                const parent = nodeAt(tree, path.slice(0, -1)), i = path[path.length - 1], node = parent.children[i];
+                if (parent.dir === dir) {
+                    node.size /= 2;
+                    parent.children.splice(i + 1, 0, { "size": node.size });
+                } else {
+                    parent.children[i] = { "dir": dir, "size": node.size, "children": [{ "size": 0.5, "apps": node.apps || [] }, { "size": 0.5 }] };
+                    next = path.concat([0]);
+                }
+            });
+            selPath = next;
+        }
+        function removeTile() {
+            const conn = selScreen, path = selPath;
+            if (!conn || !path || !path.length)
+                return;
+            edit(d => {
+                const tree = treeOf(d, conn);
+                const parent = nodeAt(tree, path.slice(0, -1)), i = path[path.length - 1];
+                const gone = parent.children.splice(i, 1)[0];
+                const neighbour = parent.children[Math.max(0, i - 1)];
+                neighbour.size += gone.size;
+                if (!neighbour.children && gone.apps)
+                    neighbour.apps = (neighbour.apps || []).concat(gone.apps);
+                if (parent.children.length === 1) {
+                    const only = parent.children[0];
+                    if (path.length === 1) {
+                        delete only.size;
+                        d.layouts[sel].screens[conn] = only;
+                    } else {
+                        only.size = parent.size;
+                        nodeAt(tree, path.slice(0, -2)).children[path[path.length - 2]] = only;
+                    }
+                }
+            });
+            selPath = null;
+        }
+        function template(kind) {
+            const conn = selScreen || (info.screens[0] || {}).name;
+            if (!conn)
+                return;
+            const half = (a, b) => ({ "dir": "h", "children": [{ "size": a }, { "size": b }] });
+            const trees = {
+                "full": {},
+                "half": half(0.5, 0.5),
+                "twothirds": half(0.667, 0.333),
+                "three": { "dir": "h", "children": [{ "size": 0.334 }, { "size": 0.333 }, { "size": 0.333 }] },
+                "grid": { "dir": "h", "children": [
+                    { "size": 0.5, "dir": "v", "children": [{ "size": 0.5 }, { "size": 0.5 }] },
+                    { "size": 0.5, "dir": "v", "children": [{ "size": 0.5 }, { "size": 0.5 }] }] },
+                "bigtwo": { "dir": "h", "children": [{ "size": 0.6 },
+                    { "size": 0.4, "dir": "v", "children": [{ "size": 0.5 }, { "size": 0.5 }] }] }
+            };
+            edit(d => {
+                const old = leavesOf(treeOf(d, conn)).map(l => l.apps || []);
+                const tree = JSON.parse(JSON.stringify(trees[kind]));
+                const fresh = leavesOf(tree);
+                old.forEach((apps, i) => {
+                    if (!apps.length) return;
+                    const leaf = fresh[Math.min(i, fresh.length - 1)];
+                    leaf.apps = (leaf.apps || []).concat(apps);
+                });
+                d.layouts[sel].screens[conn] = tree;
+            });
+            selScreen = conn;
+            selPath = null;
+        }
+        function assign(conn, path, app) {
+            if (!app)
+                return;
+            edit(d => {
+                const L = d.layouts[sel];
+                for (const c in L.screens)
+                    for (const leaf of leavesOf(L.screens[c]))
+                        if (leaf.apps)
+                            leaf.apps = leaf.apps.filter(a => a !== app);
+                const leaf = path.length ? nodeAt(treeOf(d, conn), path) : treeOf(d, conn);
+                leaf.apps = (leaf.apps || []).concat([app]);
+            });
+            pendingApp = "";
+            selScreen = conn;
+            selPath = path;
+        }
+        function unassign(conn, path, app) {
+            edit(d => {
+                const leaf = path.length ? nodeAt(treeOf(d, conn), path) : treeOf(d, conn);
+                leaf.apps = (leaf.apps || []).filter(a => a !== app);
+            });
+        }
+        function resize(conn, sep, size) {
+            edit(d => {
+                const parent = nodeAt(treeOf(d, conn), sep.path);
+                parent.children[sep.index].size = size;
+                parent.children[sep.index + 1].size = sep.pair - size;
+            });
+        }
+
+        // ── Left: the layouts and the screens ──
+        Flickable {
+            id: windowsFlick
+            FastWheel { flick: windowsFlick }
+            anchors { left: parent.left; right: appPane.left; rightMargin: 24; top: parent.top; bottom: parent.bottom }
+            contentHeight: winCol.height + 56
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
+            Column {
+                id: winCol
+                x: 48
+                y: 28
+                width: windowsFlick.width - 48
+                spacing: 16
+
+                Text {
+                    width: parent.width
+                    visible: !windowsView.loaded
+                    text: windowsView.status || "Läser skärmarna…"
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 15
+                }
+
+                // The layouts: 1 Raid, 2 Jobb … (Meta+Ctrl+number)
+                Flow {
+                    width: parent.width
+                    spacing: 8
+                    visible: windowsView.loaded
+                    Repeater {
+                        model: windowsView.info.layouts
+                        Rectangle {
+                            id: chip
+                            required property var modelData
+                            required property int index
+                            readonly property bool chosen: index === windowsView.sel
+                            width: chipRow.implicitWidth + 28
+                            height: 36
+                            color: chosen ? accent.dim : chipArea.containsMouse ? "#111A2A" : "#0E1420"
+                            border.width: 1
+                            border.color: chosen ? accent.color : "#1E2A40"
+                            Row {
+                                id: chipRow
+                                anchors.centerIn: parent
+                                spacing: 8
+                                Text {
+                                    text: chip.index + 1
+                                    color: chip.chosen ? "#E6ECF5" : "#8B98AD"
+                                    font.family: "IBM Plex Mono"
+                                    font.pixelSize: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: chip.modelData.name
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.weight: chip.chosen ? Font.DemiBold : Font.Normal
+                                    font.pixelSize: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Rectangle {
+                                    visible: chip.modelData.name === windowsView.info.active
+                                    width: 7
+                                    height: 7
+                                    color: "#3FB950"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            MouseArea {
+                                id: chipArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { windowsView.sel = chip.index; windowsView.selPath = null; }
+                            }
+                        }
+                    }
+                    SmallButton {
+                        height: 36
+                        visible: windowsView.info.layouts.length < 9
+                        text: "+ Ny layout"
+                        onClicked: windowsView.newLayout()
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    visible: windowsView.loaded && !windowsView.layout
+                    text: "Gör en layout: hur rutorna ligger på varje skärm och vilket program som öppnas i vilken ruta. Spara flera – till exempel Raid, Jobb och Ianseo – och byt med Meta+Ctrl+1, 2, 3 …"
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 14
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.2
+                }
+
+                // Name, shortcut, save as it is now, remove
+                Row {
+                    visible: !!windowsView.layout
+                    spacing: 10
+                    FlatField {
+                        id: layoutName
+                        width: 220
+                        height: 36
+                        hint: "Namn"
+                        text: windowsView.layout ? windowsView.layout.name : ""
+                        onAccepted: windowsView.rename(text)
+                        onActiveFocusChanged: if (!activeFocus) windowsView.rename(text)
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Meta+Ctrl+" + (windowsView.sel + 1)
+                        color: accent.text
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 13
+                    }
+                    SmallButton {
+                        height: 36
+                        text: "Spara som det ser ut nu"
+                        onClicked: { windowsView.status = "Läser KDE:s rutor…"; backend.captureTiles(); }
+                    }
+                    SmallButton {
+                        height: 36
+                        text: "Ta bort layouten"
+                        onClicked: windowsView.removeLayout()
+                    }
+                }
+
+                // The screens side by side, as in System Settings → Display
+                Item {
+                    id: screensArea
+                    visible: !!windowsView.layout
+                    width: parent.width
+                    readonly property var box: {
+                        const s = windowsView.info.screens;
+                        if (!s.length) return { "x": 0, "y": 0, "w": 1, "h": 1 };
+                        const x0 = Math.min(...s.map(o => o.x)), y0 = Math.min(...s.map(o => o.y));
+                        const x1 = Math.max(...s.map(o => o.x + o.w)), y1 = Math.max(...s.map(o => o.y + o.h));
+                        return { "x": x0, "y": y0, "w": x1 - x0, "h": y1 - y0 };
+                    }
+                    readonly property real scale: Math.min((width - 12) / box.w, 330 / box.h)
+                    height: box.h * scale + 30
+
+                    Repeater {
+                        model: windowsView.info.screens
+                        Item {
+                            id: scr
+                            required property var modelData
+                            readonly property string conn: modelData.name
+                            readonly property var tree: windowsView.layout ? (windowsView.layout.screens[conn] || {}) : {}
+                            readonly property var flat: {
+                                const out = { "leaves": [], "seps": [] };
+                                windowsView.flatten(tree, 0, 0, screenBox.width, screenBox.height, [], out);
+                                return out;
+                            }
+                            x: (modelData.x - screensArea.box.x) * screensArea.scale + 4
+                            y: (modelData.y - screensArea.box.y) * screensArea.scale
+                            width: modelData.w * screensArea.scale - 8
+                            height: modelData.h * screensArea.scale + 26
+
+                            Text {
+                                text: "Skärm " + scr.modelData.n + " · " + scr.conn + (scr.modelData.n === 1 ? " · huvudskärm" : "")
+                                color: windowsView.selScreen === scr.conn ? "#E6ECF5" : "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                            }
+                            Rectangle {
+                                id: screenBox
+                                y: 22
+                                width: parent.width
+                                height: scr.modelData.h * screensArea.scale
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: "#2A3852"
+
+                                Repeater {
+                                    model: scr.flat.leaves
+                                    Rectangle {
+                                        id: leaf
+                                        required property var modelData
+                                        readonly property bool chosen: windowsView.selScreen === scr.conn && windowsView.samePath(windowsView.selPath, modelData.path)
+                                        x: modelData.x + 3
+                                        y: modelData.y + 3
+                                        width: modelData.w - 6
+                                        height: modelData.h - 6
+                                        color: drop.containsDrag ? accent.dim : leafArea.containsMouse ? "#111A2A" : "#0B1018"
+                                        border.width: chosen || drop.containsDrag ? 2 : 1
+                                        border.color: chosen || drop.containsDrag ? accent.color : "#1E2A40"
+                                        Text {
+                                            x: 8
+                                            y: 6
+                                            text: leaf.modelData.n
+                                            color: leaf.chosen ? accent.text : "#5C6880"
+                                            font.family: "Chakra Petch"
+                                            font.weight: Font.Bold
+                                            font.pixelSize: 15
+                                        }
+                                        MouseArea {
+                                            id: leafArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (windowsView.pendingApp)
+                                                    windowsView.assign(scr.conn, leaf.modelData.path, windowsView.pendingApp);
+                                                windowsView.selScreen = scr.conn;
+                                                windowsView.selPath = leaf.modelData.path;
+                                            }
+                                        }
+                                        Column {
+                                            anchors { left: parent.left; leftMargin: 8; right: parent.right; rightMargin: 8; top: parent.top; topMargin: 28 }
+                                            spacing: 4
+                                            clip: true
+                                            Repeater {
+                                                model: leaf.modelData.apps
+                                                Rectangle {
+                                                    id: appChip
+                                                    required property string modelData
+                                                    readonly property var app: windowsView.appsById[modelData] || { "name": modelData, "icon": "" }
+                                                    width: parent.width
+                                                    height: 24
+                                                    color: "#12203A"
+                                                    border.width: 1
+                                                    border.color: "#2A3852"
+                                                    Image {
+                                                        id: chipIcon
+                                                        x: 4
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        width: 16
+                                                        height: 16
+                                                        sourceSize.width: 32
+                                                        sourceSize.height: 32
+                                                        source: appChip.app.icon ? "image://icon/" + appChip.app.icon : ""
+                                                    }
+                                                    Text {
+                                                        anchors { left: chipIcon.right; leftMargin: 6; right: chipX.left; verticalCenter: parent.verticalCenter }
+                                                        text: appChip.app.name
+                                                        color: "#E6ECF5"
+                                                        font.family: "IBM Plex Sans"
+                                                        font.pixelSize: 12
+                                                        elide: Text.ElideRight
+                                                    }
+                                                    Text {
+                                                        id: chipX
+                                                        anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                                                        text: "✕"
+                                                        color: chipXArea.containsMouse ? accent.errorBright : "#8B98AD"
+                                                        font.pixelSize: 11
+                                                        MouseArea {
+                                                            id: chipXArea
+                                                            anchors { fill: parent; margins: -5 }
+                                                            hoverEnabled: true
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            onClicked: windowsView.unassign(scr.conn, leaf.modelData.path, appChip.modelData)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        DropArea {
+                                            id: drop
+                                            anchors.fill: parent
+                                            keys: ["goblincakes-app"]
+                                            onDropped: drop => windowsView.assign(scr.conn, leaf.modelData.path, drop.source.appId)
+                                        }
+                                    }
+                                }
+
+                                // The borders between tiles: drag to make one bigger (shown while dragging,
+                                // set when let go – the tiles are drawn again from the new sizes)
+                                Repeater {
+                                    model: scr.flat.seps
+                                    Item {
+                                        id: sep
+                                        required property var modelData
+                                        property real offset: 0
+                                        x: modelData.horiz ? modelData.x - 5 + offset : modelData.x
+                                        y: modelData.horiz ? modelData.y : modelData.y - 5 + offset
+                                        width: modelData.horiz ? 10 : modelData.len
+                                        height: modelData.horiz ? modelData.len : 10
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: sep.modelData.horiz ? 2 : parent.width
+                                            height: sep.modelData.horiz ? parent.height : 2
+                                            color: sepArea.pressed || sepArea.containsMouse ? accent.color : "transparent"
+                                        }
+                                        MouseArea {
+                                            id: sepArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: sep.modelData.horiz ? Qt.SplitHCursor : Qt.SplitVCursor
+                                            property real pressAt: 0
+                                            onPressed: mouse => { pressAt = sep.modelData.horiz ? mapToItem(screenBox, mouse.x, 0).x : mapToItem(screenBox, 0, mouse.y).y; }
+                                            onPositionChanged: mouse => {
+                                                if (!pressed) return;
+                                                const at = sep.modelData.horiz ? mapToItem(screenBox, mouse.x, 0).x : mapToItem(screenBox, 0, mouse.y).y;
+                                                sep.offset = at - pressAt;
+                                            }
+                                            onReleased: {
+                                                const m = sep.modelData;
+                                                const edge = (m.horiz ? m.x : m.y) + sep.offset;
+                                                const size = Math.max(0.08, Math.min(m.pair - 0.08, (edge - m.start) / m.extent));
+                                                sep.offset = 0;
+                                                windowsView.resize(scr.conn, m, size);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Tools for the chosen tile and templates for its screen
+                Flow {
+                    visible: !!windowsView.layout
+                    width: parent.width
+                    spacing: 8
+                    SmallButton {
+                        text: "Dela sida vid sida"
+                        enabledState: !!windowsView.selPath
+                        onClicked: windowsView.split("h")
+                    }
+                    SmallButton {
+                        text: "Dela uppe/nere"
+                        enabledState: !!windowsView.selPath
+                        onClicked: windowsView.split("v")
+                    }
+                    SmallButton {
+                        text: "Ta bort rutan"
+                        enabledState: !!windowsView.selPath && windowsView.selPath.length > 0
+                        onClicked: windowsView.removeTile()
+                    }
+                }
+                Flow {
+                    visible: !!windowsView.layout
+                    width: parent.width
+                    spacing: 8
+                    Text {
+                        height: 30
+                        verticalAlignment: Text.AlignVCenter
+                        text: "Mall för " + (windowsView.selScreen || "skärm 1") + ":"
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                    Repeater {
+                        model: [["full", "Hel"], ["half", "50/50"], ["twothirds", "⅔ + ⅓"], ["three", "Tre kolumner"],
+                                ["grid", "2 × 2"], ["bigtwo", "Stor + två små"]]
+                        SmallButton {
+                            required property var modelData
+                            text: modelData[1]
+                            onClicked: windowsView.template(modelData[0])
+                        }
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    visible: !!windowsView.layout
+                    text: windowsView.status || "Klicka på en ruta för att dela den, dra i kanterna mellan rutorna, och dra ett program från listan till en ruta. Spel och dialogrutor lämnas i fred."
+                    color: windowsView.status ? "#E6ECF5" : "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.15
+                }
+            }
+        }
+        FlatScrollBar { flick: windowsFlick }
+
+        // ── Right: the programs to drag into the tiles ──
+        Rectangle {
+            id: appPane
+            visible: !!windowsView.layout
+            anchors { right: parent.right; rightMargin: 48; top: parent.top; topMargin: 28; bottom: parent.bottom; bottomMargin: 20 }
+            width: 270
+            color: "#0E1420"
+            border.width: 1
+            border.color: "#1E2A40"
+
+            FlatField {
+                id: appSearch
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                height: 36
+                hint: "Sök program"
+                onTextChanged: windowsView.filter = text.toLowerCase()
+            }
+            Text {
+                id: appHint
+                anchors { left: parent.left; right: parent.right; top: appSearch.bottom; margins: 10; topMargin: 8 }
+                text: windowsView.pendingApp ? "Klicka på rutan där " + (windowsView.appsById[windowsView.pendingApp] || {}).name + " ska öppnas."
+                                             : "Dra till en ruta – eller klicka här och sedan på rutan."
+                color: windowsView.pendingApp ? accent.text : "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+            ListView {
+                id: appList
+                FastWheel { flick: appList }
+                anchors { left: parent.left; right: parent.right; top: appHint.bottom; bottom: parent.bottom; topMargin: 8; bottomMargin: 6 }
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                model: windowsView.info.apps.filter(a => !windowsView.filter || a.name.toLowerCase().indexOf(windowsView.filter) >= 0 || a.word.indexOf(windowsView.filter) >= 0)
+                delegate: Rectangle {
+                    id: appRow
+                    required property var modelData
+                    width: appList.width
+                    height: 34
+                    color: windowsView.pendingApp === modelData.id ? accent.dim : rowArea.containsMouse ? "#111A2A" : "transparent"
+                    Image {
+                        id: rowIcon
+                        x: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 20
+                        height: 20
+                        sourceSize.width: 40
+                        sourceSize.height: 40
+                        source: appRow.modelData.icon ? "image://icon/" + appRow.modelData.icon : ""
+                    }
+                    Text {
+                        anchors { left: rowIcon.right; leftMargin: 10; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                        text: appRow.modelData.name
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                        elide: Text.ElideRight
+                    }
+                    MouseArea {
+                        id: rowArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.OpenHandCursor
+                        drag.target: appGhost
+                        drag.threshold: 6
+                        onPressed: mouse => {
+                            const p = mapToItem(appGhost.parent, mouse.x, mouse.y);
+                            appGhost.appId = appRow.modelData.id;
+                            appGhost.label = appRow.modelData.name;
+                            appGhost.x = p.x - 16;
+                            appGhost.y = p.y - 14;
+                        }
+                        onPositionChanged: if (drag.active) appGhost.dragging = true
+                        onReleased: {
+                            if (appGhost.dragging) {
+                                appGhost.Drag.drop();
+                                appGhost.dragging = false;
+                            } else {
+                                windowsView.pendingApp = windowsView.pendingApp === appRow.modelData.id ? "" : appRow.modelData.id;
+                            }
+                        }
+                    }
+                }
+            }
+            FlatScrollBar { flick: appList }
+        }
+    }
+
+    // A program being dragged from the list to a tile
+    Rectangle {
+        id: appGhost
+        property string appId
+        property string label
+        property bool dragging: false
+        parent: win.contentItem
+        z: 100
+        visible: dragging
+        width: ghostText.implicitWidth + 24
+        height: 28
+        color: accent.color
+        opacity: 0.92
+        Drag.active: dragging
+        Drag.keys: ["goblincakes-app"]
+        Drag.hotSpot.x: 16
+        Drag.hotSpot.y: 14
+        Text {
+            id: ghostText
+            anchors.centerIn: parent
+            text: appGhost.label
+            color: accent.on
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 13
+        }
+    }
+
     // ── Graphics drivers ─────────────────────────────────────
 
     Flickable {
@@ -2172,6 +2938,7 @@ Window {
                     ? (win.updateState === "done" && win.updateReboot ? "Den nya versionen används efter en omstart."
                        : win.updateState === "running" ? "Uppdaterar…" : "Samma sak som goblin update i terminalen.")
                 : win.tab === "graphics" ? "Bytet frågar efter ditt lösenord."
+                : win.tab === "windows" ? "Sparas av sig själv. Använd = rutorna och fönstren på plats nu."
                 : win.tab === "tweaks" ? "Ändringar gäller direkt. Systeminställningar frågar efter ditt lösenord."
                 : win.chosenCount === 0 ? "Inget valt" : win.chosenCount === 1 ? "1 program valt" : win.chosenCount + " program valda"
             color: "#8B98AD"
@@ -2206,6 +2973,17 @@ Window {
                 enabledState: win.page === "done"
                 text: "Klar"
                 onClicked: win.finish()
+            }
+            FlatButton {
+                visible: win.tab === "windows" && !!windowsView.layout
+                text: "Använd"
+                onClicked: { windowsView.status = "Ordnar fönstren…"; backend.useLayout(windowsView.layout.name, false); }
+            }
+            FlatButton {
+                visible: win.tab === "windows" && !!windowsView.layout
+                primary: true
+                text: "Öppna hela layouten"
+                onClicked: { windowsView.status = "Ordnar fönstren och startar programmen…"; backend.useLayout(windowsView.layout.name, true); }
             }
             FlatButton {
                 visible: win.tab === "system"

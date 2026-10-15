@@ -1,0 +1,56 @@
+[Desktop Entry]
+# GOBLINCAKES' window layouts (Config → Fönster): Meta+Ctrl+1–9 uses layout 1–9
+# (goblincakes-tile layout N). kglobalacceld reads this at session start; the keys can be
+# changed in System Settings → Shortcuts. A number without a layout does nothing.
+Type=Application
+Name=GOBLINCAKES fönsterlayouter
+Exec=/usr/libexec/goblincakes-tile layouts
+Icon=goblincakes
+NoDisplay=true
+OnlyShowIn=KDE;
+Actions=layout1;layout2;layout3;layout4;layout5;layout6;layout7;layout8;layout9;
+
+[Desktop Action layout1]
+Name=Fönsterlayout 1
+Exec=/usr/libexec/goblincakes-tile layout 1
+X-KDE-Shortcuts=Meta+Ctrl+1
+
+[Desktop Action layout2]
+Name=Fönsterlayout 2
+Exec=/usr/libexec/goblincakes-tile layout 2
+X-KDE-Shortcuts=Meta+Ctrl+2
+
+[Desktop Action layout3]
+Name=Fönsterlayout 3
+Exec=/usr/libexec/goblincakes-tile layout 3
+X-KDE-Shortcuts=Meta+Ctrl+3
+
+[Desktop Action layout4]
+Name=Fönsterlayout 4
+Exec=/usr/libexec/goblincakes-tile layout 4
+X-KDE-Shortcuts=Meta+Ctrl+4
+
+[Desktop Action layout5]
+Name=Fönsterlayout 5
+Exec=/usr/libexec/goblincakes-tile layout 5
+X-KDE-Shortcuts=Meta+Ctrl+5
+
+[Desktop Action layout6]
+Name=Fönsterlayout 6
+Exec=/usr/libexec/goblincakes-tile layout 6
+X-KDE-Shortcuts=Meta+Ctrl+6
+
+[Desktop Action layout7]
+Name=Fönsterlayout 7
+Exec=/usr/libexec/goblincakes-tile layout 7
+X-KDE-Shortcuts=Meta+Ctrl+7
+
+[Desktop Action layout8]
+Name=Fönsterlayout 8
+Exec=/usr/libexec/goblincakes-tile layout 8
+X-KDE-Shortcuts=Meta+Ctrl+8
+
+[Desktop Action layout9]
+Name=Fönsterlayout 9
+Exec=/usr/libexec/goblincakes-tile layout 9
+X-KDE-Shortcuts=Meta+Ctrl+9
