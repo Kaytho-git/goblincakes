@@ -1,7 +1,7 @@
 # GOBLINCAKES lärläge: the practice computer the user's code runs in (no network, built once
 # on the user's computer by Goblin AI – learn.py build_sandbox). Python, PHP, Node.js, Lua 5.1
-# (the version WoW uses), Bash, Git, SQLite (through Python), and Godot 4.5.1 without a window
-# (godotrun.py). Practice podman for the container lessons: podrun.py/fakepodman.py.
+# (the version WoW uses), Bash, Git, SQLite (through Python), Godot 4.5.1 without a window
+# (godotrun.py) and PySide6 without a screen (qtrun.py). Practice podman for the container lessons: podrun.py/fakepodman.py.
 FROM registry.fedoraproject.org/fedora-minimal:44
 RUN microdnf install -y --setopt=install_weak_deps=0 python3 php-cli php-pdo php-mbstring nodejs compat-lua bash coreutils git-core findutils grep sed gawk \
     && microdnf clean all \
@@ -14,5 +14,14 @@ data = urllib.request.urlopen('https://github.com/godotengine/godot/releases/dow
 sys.exit('Godot: fel kontrollsumma') if hashlib.sha256(data).hexdigest() != '${GODOT_SHA256}' else None; \
 zipfile.ZipFile(io.BytesIO(data)).extract('Godot_v${GODOT}_linux.x86_64', '/opt/godot')" \
     && mv /opt/godot/Godot_v${GODOT}_linux.x86_64 /opt/godot/godot && chmod 755 /opt/godot/godot
+# PySide6 for the window lessons (qtrun.py: Qt's offscreen platform, no screen): the official
+# PySide6-Essentials wheels (Core, Gui, Widgets, Test – Fedora's python3-pyside6 pulls in all of Qt,
+# WebEngine too) with the libraries Qt needs, checked against their sha256
+RUN microdnf install -y --setopt=install_weak_deps=0 python3-pip mesa-libGL mesa-libEGL libxkbcommon fontconfig dejavu-sans-fonts glib2 dbus-libs \
+    && microdnf clean all \
+    && printf '%s\n' \
+       'PySide6-Essentials==6.11.2 --hash=sha256:aaf9f25f0f324874085fa5b26a610318db8a8e243cf85bb3e5400595191c7778' \
+       'shiboken6==6.11.2 --hash=sha256:7a7a0a72a9ed26c9bf77d42246b1c736486befb8f31aa2fb29957ea4cdd1c1c2' > /tmp/req.txt \
+    && pip install --no-cache-dir --require-hashes --only-binary=:all: -r /tmp/req.txt && rm /tmp/req.txt
 # Root in a rootless container = the user's own account outside it, with no network
 WORKDIR /work

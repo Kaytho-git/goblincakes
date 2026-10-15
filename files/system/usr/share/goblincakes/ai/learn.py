@@ -8,10 +8,16 @@ checker script, or rules for HTML/CSS – never by the AI. The AI is the teacher
 gives hints and reviews code (Goblin AI's project "Lärläge", only local AI by default).
 
 The code runs in a separate container (podman, image localhost/goblincakes-learn built once from
-sandbox/Containerfile: Python, PHP, Node.js, Lua 5.1, Bash, SQLite) without network – nothing the
+sandbox/Containerfile: Python with PySide6, PHP, Node.js, Lua 5.1, Bash, SQLite, Godot) without network – nothing the
 user writes can harm the system. GOBLINCAKES_LEARN_SANDBOX=host runs it directly (tests only).
 
 Progress: ~/.local/share/goblincakes/learn/progress.json.
+
+Own courses (15 Oct, the user's wish – a course only on this computer, using the course base's
+runners and practice computer): ~/.local/share/goblincakes/learn/egna/ with the same layout –
+tracks.json (tracks + goals) and <track>/modules.json + lessons. They are read together with the
+course base (an own track with the same id as a base track replaces it); GOBLINCAKES_LEARN_LOCAL
+points elsewhere (tests).
 """
 import json
 import os
@@ -25,7 +31,8 @@ from pathlib import Path
 BASE = Path(os.environ.get("GOBLINCAKES_LEARN_BASE", "/usr/share/goblincakes/learn"))
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes/learn"
 PROGRESS = DATA / "progress.json"
-IMAGE = "localhost/goblincakes-learn:2"
+LOCAL = Path(os.environ.get("GOBLINCAKES_LEARN_LOCAL") or DATA / "egna")
+IMAGE = "localhost/goblincakes-learn:3"
 LEVELS = ("nybörjare", "lite", "van")
 REVIEW_AFTER = 2 * 86400  # a task that was hard comes back after two days
 
@@ -39,6 +46,7 @@ RUNNERS = {
     "bash": ("main.sh", ["bash", "/code/main.sh"]),  # beside the work folder: not in ls/git status
     "sql": ("main.sql", ["python3", "/course/sandbox/sqlrun.py", "main.sql"]),
     "godot": ("main.gd", ["python3", "/course/sandbox/godotrun.py", "main.gd"]),  # Godot without a window
+    "pyside": ("main.py", ["python3", "/course/sandbox/qtrun.py", "main.py"]),  # window programs without a screen
     "podman": ("main.sh", ["python3", "/course/sandbox/podrun.py", "/code/main.sh"]),  # practice podman
     "html": ("index.html", None),  # checked by rules, shown in the browser
     "check": ("check.py", ["python3", "check.py"]),  # a task's checker script (the user's file beside it)
@@ -52,11 +60,26 @@ def load_base():
     try:
         top = json.loads((BASE / "tracks.json").read_text())
     except (OSError, ValueError):
+        top = {}
+    tracks = [dict(t, dir=str(BASE / t["id"])) for t in top.get("tracks", [])]
+    goals = list(top.get("goals", []))
+    try:
+        own = json.loads((LOCAL / "tracks.json").read_text())
+    except (OSError, ValueError):
+        own = {}
+    for t in own.get("tracks", []):
+        if not t.get("id"):
+            continue
+        tracks = [x for x in tracks if x["id"] != t["id"]] + [dict(t, dir=str(LOCAL / t["id"]), own=True)]
+    for g in own.get("goals", []):
+        if g.get("id"):
+            goals = [x for x in goals if x["id"] != g["id"]] + [dict(g, own=True)]
+    if not tracks:
         return {"tracks": [], "goals": [], "modules": {}}
     modules = {}
-    for track in top.get("tracks", []):
+    for track in tracks:
         try:
-            data = json.loads((BASE / track["id"] / "modules.json").read_text())
+            data = json.loads((Path(track["dir"]) / "modules.json").read_text())
         except (OSError, ValueError):
             data = {"modules": []}
         track["count"] = len(data.get("modules", []))
@@ -64,16 +87,17 @@ def load_base():
             track["status"] = "ai"  # no lessons written yet: the AI teaches freely ("AI-läge")
         for m in data.get("modules", []):
             m["track"] = track["id"]
+            m["dir"] = track["dir"]
             m.setdefault("requires", [])
             m.setdefault("tasks", [])
             modules[m["id"]] = m
-    return {"tracks": top.get("tracks", []), "goals": top.get("goals", []), "modules": modules}
+    return {"tracks": tracks, "goals": goals, "modules": modules}
 
 
 def lesson_text(module):
     """The lesson without its first heading (the window shows the module's title itself)."""
     try:
-        text = (BASE / module["track"] / module.get("lesson", module["id"] + ".md")).read_text()
+        text = (Path(module.get("dir") or BASE / module["track"]) / module.get("lesson", module["id"] + ".md")).read_text()
     except OSError:
         return ""
     return re.sub(r"\A\s*# [^\n]*\n+", "", text)
@@ -230,7 +254,14 @@ def build_sandbox(progress=None):
         last = line.strip() or last
         if progress and line.strip():
             progress(line.strip()[:120])
-    return proc.wait() == 0, last
+    ok = proc.wait() == 0
+    if ok:  # older practice computers (a new version = a new tag) only take room
+        r = subprocess.run(["podman", "image", "ls", "--format", "{{.Repository}}:{{.Tag}}",
+                            IMAGE.rsplit(":", 1)[0]], capture_output=True, text=True)
+        for old in r.stdout.split():
+            if old != IMAGE:
+                subprocess.run(["podman", "rmi", old], capture_output=True)
+    return ok, last
 
 
 def run_code(run, code, files=None, timeout=10):
@@ -308,7 +339,7 @@ def check_task(task_id, code):
     else:
         files = dict(task.get("files") or {})  # e.g. setup.sql, slash.txt
         if check.get("type") == "script":
-            files["check.py"] = (BASE / module["track"] / check["script"]).read_text()
+            files["check.py"] = (Path(module.get("dir") or BASE / module["track"]) / check["script"]).read_text()
         code_, out = run_code(run, code, files)
         output = out
         if check.get("type") == "script":

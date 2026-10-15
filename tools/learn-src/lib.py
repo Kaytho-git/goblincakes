@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
-ROOT = Path(__file__).resolve().parents[2] / "files/system/usr/share/goblincakes/learn"
+import os
+# GOBLINCAKES_LEARN_OUT = an own course's folder (~/.local/share/goblincakes/learn/egna) instead of the course base
+ROOT = Path(os.environ.get("GOBLINCAKES_LEARN_OUT") or Path(__file__).resolve().parents[2] / "files/system/usr/share/goblincakes/learn")
 
 def write_track(track, modules):
     """modules: list of dicts with "lesson_md" text; writes <track>/modules.json and the .md files."""

@@ -2,7 +2,8 @@
 """Checks GOBLINCAKES' course base (files/system/usr/share/goblincakes/learn): every module has its
 lesson, every "requires" exists, and every task's solution passes its own check (and the
 starter does not). Runs the code directly (needs python3, php with pdo_sqlite, node, lua5.1,
-bash, git). Usage: python3 tools/learn-validate.py [track …]"""
+bash, git). Usage: python3 tools/learn-validate.py [track …]
+An own course (~/.local/share/goblincakes/learn/egna): GOBLINCAKES_LEARN_LOCAL=<that folder>."""
 import json
 import os
 import sys
