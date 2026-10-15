@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-15  WowUp och Archon startar i systemfältet vid inloggning i stället för i ett stort fönster
 2026-10-15  Fönsterrutor går att stänga av helt: reglaget Rutor i GOBLINCAKES Config → Fönster eller goblin tile av – inga program läggs i rutor, layouterna sparas, och väljer du en layout slås rutorna på igen
 2026-10-15  GoblinRecorder: knappen Testa inspelningen (30 s) under Kvalitet – spelar in en halv minut med dina inställningar så att du kan se hur filmen blir
 2026-10-15  GoblinRecorder: ny kvalitet Bäst – riktigt fin bild, grafikkortet ger varje bild så mycket som behövs (ungefär 300–500 MB per minut)

@@ -83,7 +83,11 @@ AUTOSTART = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "
 LOCAL_APPS = Path.home() / ".local/share/applications"
 FLATPAK_APPS = [Path.home() / ".local/share/flatpak/exports/share/applications",
                 Path("/var/lib/flatpak/exports/share/applications")]
-AUTOSTART_ARGS = {"discord": "--start-minimized"}  # as when Discord is installed
+# Each app's own "start quietly" flag (Discord as when it is installed). WowUp: --hidden = to the
+# tray (what its own "start with the system" writes); Archon: --run-on-startup = what its own
+# Windows start-up entry passes, so the app knows it was started at login (15 Oct, the user:
+# both opened full size at every login).
+AUTOSTART_ARGS = {"discord": "--start-minimized", "wowup": "--hidden", "archon": "--run-on-startup"}
 
 
 def app_launcher(app):

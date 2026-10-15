@@ -166,6 +166,22 @@ if [ -e /proc/driver/nvidia/version ] && [ -f "$_gc_auto" ] && ! grep -q 'ozone-
     sed -i '/^Exec=.*\/app-[0-9.]*\/Discord/s/$/ --ozone-platform=x11/' "$_gc_auto"
 fi
 
+# Autostart entries an AppImage wrote itself point into its temporary mount (/tmp/.mount_…),
+# which is gone at the next login – WowUp's "start with the system" did that (15 Oct). They never
+# work, so they go; GOBLINCAKES Config's own entries (Starta vid inloggning) start the AppImage.
+# Those made before 15 Oct lack the app's quiet flag (WowUp --hidden, Archon --run-on-startup).
+for _gc_f in "${XDG_CONFIG_HOME:-$HOME/.config}"/autostart/*.desktop; do
+    [ -f "$_gc_f" ] || continue
+    grep -q '^Exec=["]*/tmp/\.mount_' "$_gc_f" && rm -f "$_gc_f" && continue
+    case "$_gc_f" in
+        */appimage-wowup.desktop) _gc_arg=--hidden ;;
+        */appimage-archon.desktop) _gc_arg=--run-on-startup ;;
+        *) continue ;;
+    esac
+    grep -q '^X-GOBLINCAKES-Autostart=true' "$_gc_f" && ! grep -q -- "$_gc_arg" "$_gc_f" \
+        && sed -i "s|^Exec=.*|& $_gc_arg|" "$_gc_f"
+done
+
 # VS Code left the image on 11 Oct (now Microsoft's own build in the home folder, from
 # Config). Those who used the old one get the new one once, in the background (the
 # download mustn't hold up the login); tried again at the next login if there's no network.
