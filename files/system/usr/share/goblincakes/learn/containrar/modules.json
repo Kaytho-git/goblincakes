@@ -1,0 +1,415 @@
+{
+ "modules": [
+  {
+   "id": "cont-forsta",
+   "title": "Vad är en container?",
+   "requires": [
+    "bash-kommandon"
+   ],
+   "summary": "Image = färdig mall (filer + vad som ska köras), container = en körning av en image. `podman run --rm alpine echo hej`, `podman pull`, `podman images`; rootless = körs som du, inte root.",
+   "tasks": [
+    {
+     "id": "cont-forsta-1",
+     "level": 1,
+     "title": "Första containern",
+     "prompt": "Kör en container från alpine som skriver Hej från containern och tas bort efteråt. Skriv sedan ut raden PRETTY_NAME ur /etc/os-release inne i en alpine-container (använd grep).",
+     "starter": "",
+     "check": {
+      "regex": "(?m)Hej från containern[\\s\\S]*PRETTY_NAME=\\\"Alpine Linux"
+     },
+     "hints": [
+      "podman run --rm alpine echo \"…\"",
+      "podman run --rm alpine cat /etc/os-release | grep PRETTY_NAME – grep körs utanför, på containerns utskrift."
+     ],
+     "solution": "podman run --rm alpine echo \"Hej från containern\"\npodman run --rm alpine cat /etc/os-release | grep PRETTY_NAME"
+    },
+    {
+     "id": "cont-forsta-2",
+     "level": 2,
+     "title": "Två system",
+     "prompt": "Hämta både alpine och fedora med podman pull, och skriv sedan bara namnen och taggarna med podman images --format \"{{.Repository}}:{{.Tag}}\". Kolla sist vilken Fedora-version containern har (PRETTY_NAME).",
+     "starter": "",
+     "check": {
+      "regex": "(?m)^docker\\.io/library/alpine:latest$[\\s\\S]*^registry\\.fedoraproject\\.org/fedora:44$[\\s\\S]*Fedora Linux 44"
+     },
+     "hints": [
+      "podman pull alpine och podman pull fedora.",
+      "podman images --format \"{{.Repository}}:{{.Tag}}\""
+     ],
+     "solution": "podman pull alpine\npodman pull fedora\npodman images --format \"{{.Repository}}:{{.Tag}}\"\npodman run --rm fedora grep PRETTY_NAME /etc/os-release"
+    }
+   ],
+   "lesson": "cont-forsta.md"
+  },
+  {
+   "id": "cont-bakgrund",
+   "title": "Containrar i bakgrunden",
+   "requires": [
+    "cont-forsta"
+   ],
+   "summary": "`podman run -d --name web nginx` (bakgrund), `podman ps` / `ps -a` (även stoppade), `podman logs web`, `stop`, `start`, `rm` (`-f` om den kör); samma namn går inte två gånger (`--replace`).",
+   "tasks": [
+    {
+     "id": "cont-bakgrund-1",
+     "level": 1,
+     "title": "Webbservern i bakgrunden",
+     "prompt": "Starta nginx i bakgrunden med namnet web, och visa sedan körande containrar med podman ps --format \"{{.Names}} {{.State}}\".",
+     "starter": "",
+     "check": {
+      "regex": "(?m)^web running$"
+     },
+     "hints": [
+      "-d och --name web före imagens namn.",
+      "podman ps --format \"{{.Names}} {{.State}}\""
+     ],
+     "solution": "podman run -d --name web nginx\npodman ps --format \"{{.Names}} {{.State}}\""
+    },
+    {
+     "id": "cont-bakgrund-2",
+     "level": 2,
+     "title": "Loggar och städning",
+     "prompt": "Starta nginx som web i bakgrunden, visa dess loggar, stoppa den, ta bort den och visa till sist alla containrar (även stoppade) med podman ps -a --format \"{{.Names}}\" – listan ska vara tom. Skriv sist ordet klart.",
+     "starter": "",
+     "check": {
+      "regex": "(?m)start worker processes\\s+web\\s+web\\s+klart\\s*$"
+     },
+     "hints": [
+      "podman logs web, podman stop web, podman rm web.",
+      "ps -a visar även stoppade – efter rm ska web vara borta."
+     ],
+     "solution": "podman run -d --name web nginx\npodman logs web\npodman stop web\npodman rm web\npodman ps -a --format \"{{.Names}}\"\necho klart"
+    },
+    {
+     "id": "cont-bakgrund-3",
+     "level": 3,
+     "title": "Namnet är upptaget",
+     "prompt": "Skriptet startar web två gånger och får ett fel. Rätta det så att den andra raden ersätter den första containern, utan fel, och visa namnen och läget.",
+     "starter": "podman run -d --name web nginx\npodman run -d --name web nginx\npodman ps -a --format \"{{.Names}} {{.State}}\"\n",
+     "check": {
+      "regex": "(?m)\\A(?![\\s\\S]*Error)[\\s\\S]*^web running$"
+     },
+     "hints": [
+      "Felet säger vad som gäller: ta bort den gamla eller använd --replace.",
+      "podman run -d --replace --name web nginx"
+     ],
+     "solution": "podman run -d --name web nginx\npodman run -d --replace --name web nginx\npodman ps -a --format \"{{.Names}} {{.State}}\""
+    }
+   ],
+   "lesson": "cont-bakgrund.md"
+  },
+  {
+   "id": "cont-portar",
+   "title": "Portar – nå tjänsten",
+   "requires": [
+    "cont-bakgrund"
+   ],
+   "summary": "`-p 8080:80` = datorns port 8080 → containerns 80; `-p 127.0.0.1:8180:80` = bara den här datorn (Ianseo); rootless får inte portar under 1024; `podman port web`; prova med `curl localhost:8080`.",
+   "tasks": [
+    {
+     "id": "cont-portar-1",
+     "level": 1,
+     "title": "Hämta sidan",
+     "prompt": "Starta nginx som web i bakgrunden med datorns port 8080 kopplad till containerns port 80, och hämta sidan med curl -s localhost:8080.",
+     "starter": "",
+     "check": {
+      "contains": [
+       "Welcome to nginx!"
+      ]
+     },
+     "hints": [
+      "-p 8080:80 före imagens namn.",
+      "curl -s localhost:8080"
+     ],
+     "solution": "podman run -d --name web -p 8080:80 nginx\ncurl -s localhost:8080"
+    },
+    {
+     "id": "cont-portar-2",
+     "level": 2,
+     "title": "Bara den här datorn",
+     "prompt": "Starta nginx som web så att port 8180 bara går att nå från den här datorn (som Ianseo), och visa portarna med podman port web.",
+     "starter": "",
+     "check": {
+      "contains": [
+       "80/tcp -> 127.0.0.1:8180"
+      ]
+     },
+     "hints": [
+      "Lägg till adressen först: -p 127.0.0.1:8180:80",
+      "podman port web visar kopplingen."
+     ],
+     "solution": "podman run -d --name web -p 127.0.0.1:8180:80 nginx\npodman port web"
+    },
+    {
+     "id": "cont-portar-3",
+     "level": 2,
+     "title": "Port 80 går inte",
+     "prompt": "Skriptet försöker använda port 80 och får ett fel. Rätta det (välj 8080) så att curl visar sidan.",
+     "starter": "podman run -d --name web -p 80:80 nginx\ncurl -s localhost\n",
+     "check": {
+      "regex": "(?m)\\A(?![\\s\\S]*Error)[\\s\\S]*Welcome to nginx!"
+     },
+     "hints": [
+      "Rootless får inte portar under 1024 – byt datorns port, inte containerns.",
+      "-p 8080:80 och curl localhost:8080"
+     ],
+     "solution": "podman run -d --name web -p 8080:80 nginx\ncurl -s localhost:8080"
+    }
+   ],
+   "lesson": "cont-portar.md"
+  },
+  {
+   "id": "cont-volymer",
+   "title": "Volymer – data som blir kvar",
+   "requires": [
+    "cont-portar"
+   ],
+   "summary": "Containerns egna filer försvinner med `rm`. Volym: `podman volume create data` + `-v data:/data`; egen mapp: `-v ./sida:/usr/share/nginx/html:Z` (`:Z` = SELinux-etikett på Fedora); databaser alltid på en volym.",
+   "tasks": [
+    {
+     "id": "cont-volymer-1",
+     "level": 1,
+     "title": "Anteckningen överlever",
+     "prompt": "Skapa volymen spara. Skriv texten Raid kl 20 till /data/anteckning.txt i en alpine-container som har volymen på /data (och tas bort efteråt). Läs sedan filen i en ny container.",
+     "starter": "",
+     "check": {
+      "regex": "(?m)^Raid kl 20$"
+     },
+     "hints": [
+      "-v spara:/data i båda containrarna.",
+      "sh -c \"echo 'Raid kl 20' > /data/anteckning.txt\" – omdirigeringen ska ske inne i containern."
+     ],
+     "solution": "podman volume create spara\npodman run --rm -v spara:/data alpine sh -c \"echo 'Raid kl 20' > /data/anteckning.txt\"\npodman run --rm -v spara:/data alpine cat /data/anteckning.txt"
+    },
+    {
+     "id": "cont-volymer-2",
+     "level": 2,
+     "title": "Din egen sida",
+     "prompt": "Gör mappen sida med index.html som innehåller <h1>Goblin-sidan</h1>. Kör nginx med mappen på /usr/share/nginx/html (glöm inte :Z) och port 8080, och hämta sidan med curl.",
+     "starter": "",
+     "check": {
+      "contains": [
+       "<h1>Goblin-sidan</h1>"
+      ]
+     },
+     "hints": [
+      "-v ./sida:/usr/share/nginx/html:Z",
+      "Gör filen före podman run."
+     ],
+     "solution": "mkdir sida\necho \"<h1>Goblin-sidan</h1>\" > sida/index.html\npodman run -d --name web -p 8080:80 -v ./sida:/usr/share/nginx/html:Z nginx\ncurl -s localhost:8080"
+    },
+    {
+     "id": "cont-volymer-3",
+     "level": 3,
+     "title": "Databasen finns kvar",
+     "prompt": "Starta mariadb:11 som db med -e MARIADB_ROOT_PASSWORD=hemligt, -e MARIADB_DATABASE=gilde och volymen dbdata på /var/lib/mysql. Ta bort containern (rm -f) och starta en ny db med samma volym – utan att ange databasen igen. Visa sist databaserna med podman exec db mariadb -uroot -phemligt -e \"SHOW DATABASES\".",
+     "starter": "",
+     "check": {
+      "regex": "(?m)\\A(?![\\s\\S]*Error)[\\s\\S]*^gilde$"
+     },
+     "hints": [
+      "Samma -v dbdata:/var/lib/mysql båda gångerna.",
+      "podman rm -f db tar bort en container som kör."
+     ],
+     "solution": "podman run -d --name db -e MARIADB_ROOT_PASSWORD=hemligt -e MARIADB_DATABASE=gilde -v dbdata:/var/lib/mysql mariadb:11\npodman rm -f db\npodman run -d --name db -e MARIADB_ROOT_PASSWORD=hemligt -v dbdata:/var/lib/mysql mariadb:11\npodman exec db mariadb -uroot -phemligt -e \"SHOW DATABASES\""
+    }
+   ],
+   "lesson": "cont-volymer.md"
+  },
+  {
+   "id": "cont-miljo",
+   "title": "Miljövariabler och hemligheter",
+   "requires": [
+    "cont-volymer"
+   ],
+   "summary": "`-e NAMN=värde` och `--env-file fil.env` ställer in containern; MariaDB vägrar starta utan lösenordsval; hemligheter i en fil med `chmod 600` – aldrig i Git eller i Containerfile.",
+   "tasks": [
+    {
+     "id": "cont-miljo-1",
+     "level": 1,
+     "title": "Klassen inne i containern",
+     "prompt": "Kör en alpine-container med miljövariabeln KLASS=Druid som skriver Klass: Druid med hjälp av variabeln.",
+     "starter": "",
+     "check": {
+      "regex": "(?m)^Klass: Druid$"
+     },
+     "hints": [
+      "-e KLASS=Druid före imagens namn.",
+      "Enkla citattecken runt sh -c-kommandot, så läses $KLASS inne i containern."
+     ],
+     "solution": "podman run --rm -e KLASS=Druid alpine sh -c 'echo \"Klass: $KLASS\"'"
+    },
+    {
+     "id": "cont-miljo-2",
+     "level": 2,
+     "title": "Databasen vill inte starta",
+     "prompt": "Skriptet startar mariadb utan lösenord och containern stannar. Läs felet (podman logs db), rätta det med MARIADB_ROOT_PASSWORD och skapa databasen gilde med MARIADB_DATABASE. Visa sist läget med podman ps -a --format \"{{.Names}} {{.State}}\".",
+     "starter": "podman run -d --name db mariadb:11\npodman logs db\npodman ps -a --format \"{{.Names}} {{.State}}\"\n",
+     "check": {
+      "regex": "(?m)Creating database gilde[\\s\\S]*^db running$"
+     },
+     "hints": [
+      "Loggen säger vilka variabler som behövs.",
+      "-e MARIADB_ROOT_PASSWORD=… -e MARIADB_DATABASE=gilde"
+     ],
+     "solution": "podman run -d --name db -e MARIADB_ROOT_PASSWORD=hemligt -e MARIADB_DATABASE=gilde mariadb:11\npodman logs db\npodman ps -a --format \"{{.Names}} {{.State}}\""
+    },
+    {
+     "id": "cont-miljo-3",
+     "level": 3,
+     "title": "Lösenordet i en fil",
+     "prompt": "Skriv MARIADB_ROOT_PASSWORD=Goblin123 och MARIADB_DATABASE=gilde i filen db.env, ge den rättigheterna 600 och skriv ut dem med stat -c %a db.env. Starta mariadb:11 som db med --env-file db.env och visa databaserna (lösenordet får du med . db.env eller source i skriptet).",
+     "starter": "",
+     "check": {
+      "regex": "(?m)^600$[\\s\\S]*^gilde$"
+     },
+     "hints": [
+      "printf med \\n skriver två rader; chmod 600 db.env.",
+      ". ./db.env läser in variablerna i skriptet; -p\"$MARIADB_ROOT_PASSWORD\" (inget mellanslag efter -p)."
+     ],
+     "solution": "printf \"MARIADB_ROOT_PASSWORD=Goblin123\\nMARIADB_DATABASE=gilde\\n\" > db.env\nchmod 600 db.env\nstat -c %a db.env\npodman run -d --name db --env-file db.env mariadb:11\n. ./db.env\npodman exec db mariadb -uroot -p\"$MARIADB_ROOT_PASSWORD\" -e \"SHOW DATABASES\""
+    }
+   ],
+   "lesson": "cont-miljo.md"
+  },
+  {
+   "id": "cont-bygga",
+   "title": "Egen image med Containerfile",
+   "requires": [
+    "cont-miljo"
+   ],
+   "summary": "`Containerfile`: `FROM`, `WORKDIR`, `COPY`, `RUN`, `ENV`, `EXPOSE`, `CMD [\"python3\", \"app.py\"]`; `podman build -t namn .`; `-e` vid run går före `ENV`; inga hemligheter i imagen.",
+   "tasks": [
+    {
+     "id": "cont-bygga-1",
+     "level": 2,
+     "title": "Hej från min image",
+     "prompt": "Skriv hej.py som skriver Hej från min image!, och en Containerfile: FROM python:3.13-slim, WORKDIR /app, COPY hej.py ., CMD som kör python3 hej.py. Bygg den som hej och kör den.",
+     "starter": "",
+     "check": {
+      "regex": "(?m)Successfully tagged localhost/hej:latest[\\s\\S]*^Hej från min image!$"
+     },
+     "hints": [
+      "cat > fil <<'EOF' … EOF skriver flera rader till en fil.",
+      "CMD [\"python3\", \"hej.py\"] – JSON med dubbla citattecken."
+     ],
+     "solution": "cat > hej.py <<'EOF'\nprint(\"Hej från min image!\")\nEOF\ncat > Containerfile <<'EOF'\nFROM python:3.13-slim\nWORKDIR /app\nCOPY hej.py .\nCMD [\"python3\", \"hej.py\"]\nEOF\npodman build -t hej .\npodman run --rm hej"
+    },
+    {
+     "id": "cont-bygga-2",
+     "level": 2,
+     "title": "Standardvärde och eget värde",
+     "prompt": "Gör välkommen.py som skriver Välkommen, <GAST> (läs miljövariabeln GAST med os.environ). Containerfile med ENV GAST=främling. Bygg som valkommen, kör den en gång utan och en gång med -e GAST=Kaytho.",
+     "starter": "",
+     "check": {
+      "regex": "(?m)^Välkommen, främling$\\s+^Välkommen, Kaytho$"
+     },
+     "hints": [
+      "ENV GAST=främling i Containerfile.",
+      "-e GAST=Kaytho när du kör går före ENV."
+     ],
+     "solution": "cat > valkommen.py <<'EOF'\nimport os\nprint(\"Välkommen,\", os.environ[\"GAST\"])\nEOF\ncat > Containerfile <<'EOF'\nFROM python:3.13-slim\nWORKDIR /app\nCOPY valkommen.py .\nENV GAST=främling\nCMD [\"python3\", \"valkommen.py\"]\nEOF\npodman build -t valkommen .\npodman run --rm valkommen\npodman run --rm -e GAST=Kaytho valkommen"
+    },
+    {
+     "id": "cont-bygga-3",
+     "level": 3,
+     "title": "Webbsidan i imagen",
+     "prompt": "Gör mappen sida med index.html (<h1>Gildets sida</h1>). Bygg en image minsida från nginx som kopierar in mappen till /usr/share/nginx/html/. Kör den i bakgrunden på port 8080 och hämta sidan med curl.",
+     "starter": "",
+     "check": {
+      "contains": [
+       "<h1>Gildets sida</h1>"
+      ]
+     },
+     "hints": [
+      "COPY sida/ /usr/share/nginx/html/ kopierar mappens innehåll.",
+      "nginx-imagen startar webbservern själv – ingen CMD behövs."
+     ],
+     "solution": "mkdir sida\necho \"<h1>Gildets sida</h1>\" > sida/index.html\ncat > Containerfile <<'EOF'\nFROM nginx\nCOPY sida/ /usr/share/nginx/html/\nEOF\npodman build -t minsida .\npodman run -d --name web -p 8080:80 minsida\ncurl -s localhost:8080"
+    }
+   ],
+   "lesson": "cont-bygga.md"
+  },
+  {
+   "id": "cont-pod",
+   "title": "Pods – containrar som hör ihop",
+   "requires": [
+    "cont-bygga"
+   ],
+   "summary": "`podman pod create --name ianseo -p 8180:80`; `podman run -d --pod ianseo …`; containrarna i en pod delar nätverk (når varandra på localhost) och portarna sätts på poden; `podman pod ps`, `pod rm -f`.",
+   "tasks": [
+    {
+     "id": "cont-pod-1",
+     "level": 2,
+     "title": "Webb och databas i en pod",
+     "prompt": "Skapa poden spel med port 8080:80. Starta nginx som spel-web och mariadb:11 (med root-lösenord) som spel-db i poden. Visa poden med podman pod ps och containrarna med podman ps --format \"{{.Names}} {{.PodName}}\".",
+     "starter": "",
+     "check": {
+      "regex": "(?m)\\A(?![\\s\\S]*Error)[\\s\\S]*spel\\s+Running[\\s\\S]*^spel-web spel$[\\s\\S]*^spel-db spel$"
+     },
+     "hints": [
+      "podman pod create --name spel -p 8080:80",
+      "--pod spel i båda podman run."
+     ],
+     "solution": "podman pod create --name spel -p 8080:80\npodman run -d --pod spel --name spel-web nginx\npodman run -d --pod spel --name spel-db -e MARIADB_ROOT_PASSWORD=hemligt mariadb:11\npodman pod ps\npodman ps --format \"{{.Names}} {{.PodName}}\""
+    },
+    {
+     "id": "cont-pod-2",
+     "level": 3,
+     "title": "Porten på fel ställe",
+     "prompt": "Skriptet får ett fel när webbcontainern startas. Rätta det så att sidan går att hämta med curl på port 8080.",
+     "starter": "podman pod create --name spel\npodman run -d --pod spel --name spel-web -p 8080:80 nginx\ncurl -s localhost:8080\n",
+     "check": {
+      "regex": "(?m)\\A(?![\\s\\S]*Error)[\\s\\S]*Welcome to nginx!"
+     },
+     "hints": [
+      "Läs felet: portarna måste sättas när poden skapas.",
+      "Flytta -p 8080:80 till podman pod create."
+     ],
+     "solution": "podman pod create --name spel -p 8080:80\npodman run -d --pod spel --name spel-web nginx\ncurl -s localhost:8080"
+    }
+   ],
+   "lesson": "cont-pod.md"
+  },
+  {
+   "id": "cont-quadlet",
+   "title": "Quadlets – containrar som startar själva",
+   "requires": [
+    "cont-pod"
+   ],
+   "summary": "Filer i `~/.config/containers/systemd/`: `namn.container` ([Container] Image=, PublishPort=, Volume=, Environment=, Pod=), `.pod`, `.volume`; `[Install] WantedBy=default.target` = start vid inloggning; `systemctl --user daemon-reload` + `start`; `enable` fungerar inte (genererade enheter).",
+   "tasks": [
+    {
+     "id": "cont-quadlet-1",
+     "level": 2,
+     "title": "Webbsidan som quadlet",
+     "prompt": "Skriv ~/.config/containers/systemd/web.container: nginx, port 127.0.0.1:8090:80, startar vid inloggning. Läs in den, starta web, skriv ut systemctl --user is-active web och hämta sidan med curl.",
+     "starter": "",
+     "check": {
+      "regex": "(?m)\\A(?![\\s\\S]*Error)[\\s\\S]*^active$[\\s\\S]*Welcome to nginx!"
+     },
+     "hints": [
+      "mkdir -p ~/.config/containers/systemd och skriv filen med cat > … <<'EOF'.",
+      "daemon-reload först, sedan start web."
+     ],
+     "solution": "mkdir -p ~/.config/containers/systemd\ncat > ~/.config/containers/systemd/web.container <<'EOF'\n[Unit]\nDescription=Min webbsida\n\n[Container]\nImage=docker.io/library/nginx:latest\nPublishPort=127.0.0.1:8090:80\n\n[Install]\nWantedBy=default.target\nEOF\nsystemctl --user daemon-reload\nsystemctl --user start web\nsystemctl --user is-active web\ncurl -s localhost:8090"
+    },
+    {
+     "id": "cont-quadlet-2",
+     "level": 3,
+     "title": "Som Ianseo",
+     "prompt": "Bygg Ianseos upplägg med quadlets: ianseo.pod (PodName=ianseo, PublishPort=127.0.0.1:8180:80), ianseo-db.volume, och ianseo-db.container (mariadb:11, Pod=ianseo.pod, Environment=MARIADB_ROOT_PASSWORD=ianseo MARIADB_DATABASE=ianseo, Volume=ianseo-db.volume:/var/lib/mysql). Läs in, starta ianseo-db och visa databaserna med podman exec.",
+     "starter": "",
+     "check": {
+      "regex": "(?m)\\A(?![\\s\\S]*Error)[\\s\\S]*ianseo\\s+Running[\\s\\S]*^ianseo$"
+     },
+     "hints": [
+      "Tre filer: .pod, .volume och .container – Pod= och Volume= pekar på de andra filerna.",
+      "ContainerName=ianseo-db, annars heter containern systemd-ianseo-db."
+     ],
+     "solution": "d=~/.config/containers/systemd\nmkdir -p $d\ncat > $d/ianseo.pod <<'EOF'\n[Pod]\nPodName=ianseo\nPublishPort=127.0.0.1:8180:80\nEOF\ncat > $d/ianseo-db.volume <<'EOF'\n[Volume]\nEOF\ncat > $d/ianseo-db.container <<'EOF'\n[Container]\nImage=docker.io/library/mariadb:11\nContainerName=ianseo-db\nPod=ianseo.pod\nEnvironment=MARIADB_ROOT_PASSWORD=ianseo MARIADB_DATABASE=ianseo\nVolume=ianseo-db.volume:/var/lib/mysql\n\n[Install]\nWantedBy=default.target\nEOF\nsystemctl --user daemon-reload\nsystemctl --user start ianseo-db\npodman pod ps\npodman exec ianseo-db mariadb -uroot -pianseo -e \"SHOW DATABASES\""
+    }
+   ],
+   "lesson": "cont-quadlet.md"
+  }
+ ]
+}
