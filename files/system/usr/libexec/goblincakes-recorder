@@ -31,7 +31,7 @@ import recorder as R  # noqa: E402
 
 LIVE_LIMIT = 30  # a start line older than this (seconds) is not recorded
 LATE_MARKS = 120  # seconds after a video ends that late log lines may still add marks
-MAX_LENGTH = {"raid": 45 * 60, "mplus": 3 * 3600, "arena": 45 * 60}
+MAX_LENGTH = {"raid": 45 * 60, "mplus": 3 * 3600, "arena": 45 * 60, "test": 5 * 60}
 WCL_EVERY = 5 * 60  # look for Warcraft Logs fights this often …
 WCL_LIVE_EVERY = 30  # … and this often while a report is live logged (or just after a recording)
 WCL_LIVE_FOR = 20 * 60  # live = a live-logged report seen this recently
@@ -77,6 +77,7 @@ class Service:
         self.screen_ok = None  # KDE told OBS which screen to record?
         self.screen_check = 0
         self.stall_check = 0  # last look for a frozen screen capture / OBS restart for it
+        self.test_wait = 0  # when a test recording was asked for (waiting for OBS)
 
     @staticmethod
     def mtime(p):
@@ -197,7 +198,10 @@ class Service:
             diff = int(a[2]) if a[2].isdigit() else 0
             if self.current and self.current["kind"] == "mplus":
                 self.marker(t, "boss", a[1])
-            elif R.raid_level_wanted(self.cfg, diff) and live and not self.current:
+            elif R.raid_level_wanted(self.cfg, diff) and live and (
+                    not self.current or self.current["kind"] == "test"):
+                if self.current:
+                    self.stop_now()
                 self.begin(t, now, {"kind": "raid", "name": a[1], "encounter": a[0],
                                     "difficulty": R.RAID_DIFFICULTIES[diff]})
         elif ev == "ENCOUNTER_END":
@@ -323,6 +327,8 @@ class Service:
         if cur["kind"] == "raid":
             title = f"{cur['name']} {cur['difficulty']}"
             result = {"kill": "KILL", "wipe": "WIPE"}.get(cur["result"], "AVBRUTEN")
+        elif cur["kind"] == "test":
+            title, result = "Testinspelning", cur["difficulty"]
         elif cur["kind"] == "arena":
             title = f"{cur['difficulty']} {cur['name']}"
             result = {"win": "VINST", "loss": "FÖRLUST", "done": "KLAR"}.get(cur["result"], "AVBRUTEN")
@@ -359,6 +365,9 @@ class Service:
         if not self.cfg.get("keepWipes"):
             for name in R.drop_old_wipes(dest.parent, dict(meta, path=str(dest))):
                 log("older wipe removed:", name)
+        if cur["kind"] == "test":
+            for name in R.drop_old_tests(dest.parent, dest):
+                log("older test removed:", name)
         R.prune(dest.parent, self.cfg["maxGB"])
 
     def write_meta(self, meta, dest=None):
@@ -392,6 +401,39 @@ class Service:
             self.current = None
             self.stop_at = 0
             self.error = "OBS stängdes under inspelningen."
+
+    # ------------------------------------------------------------ test recording
+    def check_test(self):
+        """The window asked for a test: OBS is started if needed, then TEST_SECONDS are
+        recorded with the settings as they are – the same way a boss is recorded."""
+        if self.current or not R.TEST_REQUEST.exists():
+            return
+        now = time.time()
+        if not self.test_wait:
+            self.test_wait = now
+            log("test recording asked for")
+            if not R.obs_running():
+                err = R.start_obs()
+                if err:
+                    return self.test_failed(err)
+        if now - self.test_wait > 90:
+            return self.test_failed("Testinspelningen blev inte av – OBS kom inte igång"
+                                    + (" (välj skärm först)." if self.obs and not self.screen_ok else "."))
+        if not self.connect() or not self.screen_ok:
+            return  # OBS is starting, being set up or waits for the screen choice
+        R.TEST_REQUEST.unlink(missing_ok=True)
+        self.test_wait = 0
+        quality = R.QUALITY_NAMES.get(self.cfg.get("quality"), "Normal")
+        self.begin(now, now, {"kind": "test", "name": "Testinspelning", "difficulty": quality})
+        if self.current:
+            self.current["result"] = "test"
+            self.stop_at = self.current["wall"] + R.TEST_SECONDS
+
+    def test_failed(self, message):
+        self.error = message
+        log(message)
+        R.TEST_REQUEST.unlink(missing_ok=True)
+        self.test_wait = 0
 
     def tidy_up(self):
         """WoW closed (or the computer shuts down): only kills stay – no heaps of wipes."""
@@ -473,12 +515,13 @@ class Service:
             self.wow = running
         self.follow()
         self.check_recording()
+        self.check_test()
         if self.tidy and not self.current:
             self.tidy = False
             self.tidy_up()
         self.closing = [m for m in self.closing if m["_until"] > now]
         self.wcl_check()
-        if self.wow or self.current or R.obs_running():
+        if self.wow or self.current or self.test_wait or R.obs_running():
             self.connect()
             if self.obs and not self.screen_ok and now - self.screen_check > 5:
                 self.screen_check = now
@@ -513,6 +556,8 @@ class Service:
                         } if self.current else None,
             "lastVideo": self.last_video, "error": self.error, "player": self.me,
             "screen": self.screen_ok,
+            "testWaiting": bool(self.test_wait),
+            "stopAt": self.stop_at if self.current else 0,
         })
 
     def run(self):
@@ -523,7 +568,7 @@ class Service:
                 self.tick()
             except Exception:  # noqa: BLE001 – the service must keep going
                 log(traceback.format_exc())
-            time.sleep(0.25 if (self.wow or self.current) else 2)
+            time.sleep(0.25 if (self.wow or self.current or self.test_wait) else 2)
 
 
 def main():

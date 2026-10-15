@@ -106,6 +106,13 @@ class Backend(QObject):
         self.configChanged.emit()
 
     @Slot()
+    def testRecording(self):
+        """30 seconds of the screen with the settings as they are – the service records it."""
+        R.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        R.TEST_REQUEST.write_text(str(time.time()))
+        self.message.emit("Testinspelningen startar – OBS startas om det inte redan är igång.")
+
+    @Slot()
     def restartObs(self):
         """OBS is running without its remote control: close it, turn it on, start again."""
         threading.Thread(target=lambda: (R.stop_obs(), self.startObs()), daemon=True).start()

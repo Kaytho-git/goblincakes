@@ -22,6 +22,7 @@ Window {
     readonly property var videos: JSON.parse(backend.videos)
     property string tab: "videos" // videos | settings
     property var selected: null
+    property bool testAsked: false  // "Testa inspelningen" pressed – open the test video when it is saved
 
     // To YouTube: cut, ready-made title and description, then YouTube Studio in the browser
     property bool ytOpen: false
@@ -88,6 +89,8 @@ Window {
     }
 
     function resultText(v) {
+        if (v.kind === "test")
+            return "TEST · " + String(v.difficulty || "").toUpperCase();  // the quality it was made with
         return ({ kill: "KILL", wipe: "WIPE", timed: "I TID", depleted: "FÖR SENT", win: "VINST", loss: "FÖRLUST", done: "KLAR" })[v.result] || "AVBRUTEN";
     }
 
@@ -144,6 +147,11 @@ Window {
             return "OBS behövs – välj GoblinRecorder i GOBLINCAKES Config → Program → Spel.";
         if (st.obs === "connected" && st.screen === false)
             return "Välj vilken skärm OBS ska spela in – tryck Välj skärm och välj skärmen där WoW är.";
+        if (st.current && st.current.kind === "test")
+            return "Testinspelning (" + st.current.difficulty + ") – "
+                + Math.max(0, Math.ceil(st.stopAt - Date.now() / 1000)) + " s kvar …";
+        if (st.testWaiting)
+            return "Testinspelningen väntar på OBS …";
         if (st.current)
             return "Spelar in " + (st.current.kind === "mplus" ? "nyckeln"
                 : st.current.kind === "arena" ? st.current.difficulty + " i " + st.current.name
@@ -198,6 +206,12 @@ Window {
                 win.selected = win.videos.find(v => v.path === win.selected.path) || null;
             if (!win.selected && win.videos.length)
                 win.selected = win.videos[0];
+            // the test video just saved: straight to it
+            if (win.testAsked && !win.st.current && win.videos.length && win.videos[0].kind === "test") {
+                win.testAsked = false;
+                win.selected = win.videos[0];
+                win.tab = "videos";
+            }
         }
     }
     Component.onCompleted: if (videos.length) selected = videos[0]
@@ -1707,6 +1721,25 @@ Window {
                         chosen: (win.cfg.quality || "normal") === modelData.id
                         onPicked: win.set("quality", modelData.id)
                     }
+                }
+            }
+            Item { width: 1; height: 4 }
+            Row {
+                spacing: 12
+                FlatButton {
+                    readonly property bool busy: !!(win.st.testWaiting || (win.st.current && win.st.current.kind === "test"))
+                    enabledState: !!win.st.service && !win.st.recording && !busy && win.st.obs !== "missing"
+                    text: busy ? "Testar …" : "Testa inspelningen (30 s)"
+                    onClicked: {
+                        win.testAsked = true;
+                        backend.testRecording();
+                    }
+                }
+                Note {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 420
+                    text: "Spelar in 30 sekunder av skärmen med inställningarna här – kör WoW samtidigt för att se hur "
+                        + "spelet blir. Filmen läggs överst i Inspelningar och tas bort när WoW stängs (om du inte sparar den)."
                 }
             }
 

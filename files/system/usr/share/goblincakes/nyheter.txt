@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-15  GoblinRecorder: knappen Testa inspelningen (30 s) under Kvalitet – spelar in en halv minut med dina inställningar så att du kan se hur filmen blir
 2026-10-15  GoblinRecorder: ny kvalitet Bäst – riktigt fin bild, grafikkortet ger varje bild så mycket som behövs (ungefär 300–500 MB per minut)
 2026-10-15  Fönsterrutor: är ett program för stort för sin ruta (Spotify kan inte bli mindre än 800×600) blir rutan större – förut gick fönstret in i rutan bredvid eller över på nästa skärm
 2026-10-15  Goblin AI: kommandona körs i samma mapp efter varandra, som i en terminal – går AI:n in i en mapp med cd hamnar nästa kommando också där

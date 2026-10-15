@@ -30,6 +30,11 @@ CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "goblin
 CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", HOME / ".cache")) / "goblincakes"
 CONFIG_FILE = CONFIG_DIR / "recorder.json"
 STATUS_FILE = CACHE_DIR / "recorder-status.json"
+# "Testa inspelningen" in the window (15 Oct, the user's wish): the window writes this file, the
+# service records TEST_SECONDS of the screen with the current settings
+TEST_REQUEST = CACHE_DIR / "recorder-test"
+TEST_SECONDS = 30
+QUALITY_NAMES = {"best": "Bäst", "high": "Hög", "normal": "Normal", "small": "Liten"}
 OVERLAY_DIR = CONFIG_DIR / "recorder-overlays"  # copies of the images you cover parts of the video with
 
 OBS_APP = "com.obsproject.Studio"
@@ -1240,6 +1245,15 @@ def drop_old_wipes(folder, video):
             and v.get("name") == video.get("name") and v.get("difficulty") == video.get("difficulty")
             and not v.get("keep")]
     gone = sorted(same, key=lambda v: v.get("started", 0), reverse=True)[RAID_WIPES_KEPT:]
+    for v in gone:
+        remove_video(v["path"])
+    return [v["file"] for v in gone]
+
+
+def drop_old_tests(folder, video):
+    """Only the newest test recording stays (unless kept); a test also goes when WoW closes."""
+    gone = [v for v in video_files(folder) if v.get("kind") == "test" and v["path"] != str(video)
+            and not v.get("keep")]
     for v in gone:
         remove_video(v["path"])
     return [v["file"] for v in gone]
