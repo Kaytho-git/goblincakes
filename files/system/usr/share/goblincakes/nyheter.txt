@@ -1,5 +1,7 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-16  Goblin AI kan se bilder: knappen Skärmbild vid Skicka, eller dra in en bild. Ber du den titta på skärmen frågar den först – inget tas förrän du trycker Tillåt. Bilder går bara till din lokala AI om du inte själv väljer en tjänst på nätet.
+2026-10-16  Goblin AI känner till alla goblin-kommandon och kan förklara dem. Lokal AI orkar nu längre samtal.
 2026-10-16  Goblin AI: välj själv vilken modell du pratar med – knappen bredvid Skicka (Automatiskt, dina lokala modeller eller en tjänst du har nyckel till) – de bästa är märkta BÄST, BÄST TILL KOD och liknande. I snabbrutan (Meta+§) byter du med Tab. Valet gäller tills du ändrar det, även i goblin ai i terminalen.
 2026-10-16  Goblin AI växer med fönstret: maximerat eller i helskärm blir texten och knapparna större
 2026-10-16  Goblin AI kan skapa bilder: be om en bild i chatten ("gör en bild på …") eller tryck på Skapa bild. Bilden ritas på din egen dator (installera bildprogrammet under AI-tjänster → Skapa bilder), annars gratis hos Cloudflare eller med dina egna nycklar till OpenAI, Grok eller Gemini.

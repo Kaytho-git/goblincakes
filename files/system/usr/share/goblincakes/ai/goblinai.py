@@ -8,6 +8,7 @@ answers. With a Tavily key the AI can search the web (Tavily's free
 tier; Gemini's own Google search needs a paid plan). Keys:
 ~/.config/goblincakes/ai.env (only readable by you).
 """
+import base64
 import getpass
 import json
 import os
@@ -183,6 +184,13 @@ def local_models(messages, project=None):
         raise ServiceError("ingen modell hämtad än (AI-tjänster → Lokal AI)")
     roles = dict(local_settings()["roles"])
     roles.update({r: m for r, m in ((project or {}).get("models") or {}).items() if m})
+    if has_images(messages):
+        # A picture: only the models that see pictures, the one for pictures first
+        seeing = [m for m in ids if local_sees(m)]
+        if not seeing:
+            raise ServiceError("ingen hämtad modell kan se bilder – hämta t.ex. qwen3-vl:8b under AI-tjänster → Lokal AI")
+        first = [m for m in (roles.get("bild"), roles.get("vardag")) if m in seeing]
+        return list(dict.fromkeys(first + seeing))
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
     want = [roles.get("kod")] if CODE_WORDS.search(question) else []
     if project and project.get("prefer") in roles:
@@ -371,8 +379,8 @@ def ask(messages, keys, status=None, notice=None, project=None, choice=""):
     Returns (answer, "service · model"); the sources are listed at the end of the answer.
     """
     key = keys.get(SEARCH["env"])
-    if project and project.get("search") is False:
-        key = None
+    if (project and project.get("search") is False) or has_images(messages):
+        key = None  # a picture: look at it, don't search (small models searched for "skärmbild")
     if not key:
         return ask_once(messages, keys, status, notice, project, choice)
     messages = [dict(m) for m in messages]
@@ -426,6 +434,17 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
         chosen = None
     if chosen:
         return ask_chosen(*chosen, messages, keys, status)
+    if has_images(messages):
+        # Automatic never sends a picture of the screen (or a photo) to the cloud: only the local AI
+        if not local_settings()["installed"]:
+            raise ServiceError("Bilder skickas bara till lokal AI när Automatiskt är valt, och den är inte installerad "
+                               "(AI-tjänster → Lokal AI). Vill du skicka bilden till en tjänst i molnet: välj en modell vid Skicka.")
+        try:
+            models = local_models(messages, project)
+        except ServiceError as e:
+            raise ServiceError(f"Lokal AI: {e}.\nBilder skickas bara till lokal AI när Automatiskt är valt – "
+                               "vill du skicka bilden till molnet: välj en modell vid Skicka.") from None
+        return ask_chosen(LOCAL, models[0], messages, keys, status)
     errors = []
     for provider in providers_in_order(keys, (project or {}).get("order")):
         key = keys.get(provider["env"]) if provider["env"] else ""
@@ -594,6 +613,9 @@ def ask_chosen(provider, model, messages, keys, status=None):
             raise ServiceError("Lokal AI är avstängd medan ett spel kör – välj Automatiskt eller en modell i molnet.")
         if not local_ids() and not start_local():
             raise ServiceError("Lokal AI (Ollama) startar inte.")
+    if has_images(messages) and not (local_sees(model) if provider.get("local") else provider["id"] in VISION_CLOUD):
+        raise ServiceError(f"{name} kan inte se bilder – välj Automatiskt (din lokala bildmodell) "
+                           "eller en modell som kan, vid Skicka.")
     if status:
         status(f"Frågar {name}…")
     try:
@@ -605,10 +627,126 @@ def ask_chosen(provider, model, messages, keys, status=None):
     return text, f"{provider['name']} · {model}"
 
 
+# ── Pictures in questions (16 Oct): screenshots and pictures the user attaches ───────────
+# A user message may carry "images": [paths] (JPEG/PNG kept in Goblin AI's data folder). Only the
+# latest one among the last few questions is sent as a picture – older ones become a short note,
+# so a chat with many screenshots doesn't send them all again with every question.
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
+IMAGES_RECENT = 3  # user messages back where a picture is still sent
+VISION_CLOUD = {"anthropic", "openai", "gemini", "xai"}  # services whose models see pictures
+
+SHOT_PROMPT = """
+
+Skärmbilder och bilder: användaren kan bifoga bilder, och du kan se dem. Vill användaren att du ska
+titta på skärmen (t.ex. "titta på min skärm", "vad står det här", "varför ser det ut så här"), svara med
+BARA ett tomt kodblock märkt ```skärmbild (skriv raden `båda` i blocket om båda skärmarna behövs).
+Användaren får då frågan om skärmbilden får tas, och du får bilden efteråt. Be bara om en skärmbild när
+användaren vill att du ska se skärmen – aldrig annars."""
+
+
+def is_image(path):
+    return str(path).lower().endswith(IMAGE_EXTS)
+
+
+def active_images(messages):
+    """The index of the message whose pictures are sent (the latest with pictures among the last
+    IMAGES_RECENT user messages), or None."""
+    users = [i for i, m in enumerate(messages) if m.get("role") == "user"][-IMAGES_RECENT:]
+    for i in reversed(users):
+        if messages[i].get("images"):
+            return i
+    return None
+
+
+def has_images(messages):
+    return active_images(messages) is not None
+
+
+def image_data(path):
+    data = base64.b64encode(Path(path).read_bytes()).decode()
+    ext = Path(path).suffix.lower().lstrip(".")
+    return {"jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(ext, f"image/{ext}"), data
+
+
+def wire_messages(messages, anthropic=False):
+    """The messages as the services want them: pictures as content parts (OpenAI style, or Claude's)."""
+    active = active_images(messages)
+    out = []
+    for i, m in enumerate(messages):
+        images = m.get("images") or []
+        msg = {"role": m["role"], "content": m["content"]}
+        if images and i == active:
+            parts = []
+            for path in images:
+                try:
+                    mime, data = image_data(path)
+                except OSError:
+                    continue
+                parts.append({"type": "image", "source": {"type": "base64", "media_type": mime, "data": data}}
+                             if anthropic else
+                             {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}})
+            msg["content"] = parts + [{"type": "text", "text": m["content"]}]
+        elif images:
+            msg["content"] = m["content"] + f"\n\n({len(images)} bild(er) visades tidigare i samtalet)"
+        out.append(msg)
+    return out
+
+
+LOCAL_VISION = {}  # model -> sees pictures (Ollama's "capabilities")
+
+
+def local_sees(model):
+    if model not in LOCAL_VISION:
+        try:
+            req = urllib.request.Request("http://127.0.0.1:11434/api/show", data=json.dumps({"model": model}).encode(),
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                LOCAL_VISION[model] = "vision" in (json.loads(r.read()).get("capabilities") or [])
+        except (urllib.error.URLError, OSError, ValueError):
+            return False
+    return LOCAL_VISION[model]
+
+
+def sees_images(choice=""):
+    """Whether a picture can be looked at now: the chosen model, or (automatic) the local AI."""
+    chosen = chosen_provider(choice)
+    if chosen:
+        p, model = chosen
+        return local_sees(model) if p.get("local") else p["id"] in VISION_CLOUD
+    return local_settings()["installed"]
+
+
+LOCAL_BUDGET = 36_000  # characters (≈ 11 000 tokens) of a chat sent to the local AI (16 384 tokens, see goblincakes-ollama)
+PICTURE_CHARS = 5_000  # what a picture counts as
+
+
+def fit_local(messages):
+    """A long chat for the local AI: the system prompt and the latest messages that fit – the oldest
+    are left out (the window keeps them), instead of Ollama refusing the question."""
+    system = [m for m in messages if m["role"] == "system"]
+    rest = [m for m in messages if m["role"] != "system"]
+    used = sum(len(m["content"]) for m in system)
+    active = active_images(messages)
+    kept = []
+    for m in reversed(rest):
+        size = len(m["content"]) + (PICTURE_CHARS * len(m.get("images") or []) if messages.index(m) == active else 0)
+        if kept and used + size > LOCAL_BUDGET:
+            break
+        kept.insert(0, m)
+        used += size
+    if len(kept) < len(rest):
+        kept.insert(0, {"role": "user", "content": "(Äldre delar av samtalet är utelämnade för att få plats.)"})
+        if kept[1]["role"] == "user":  # keep user/assistant turns alternating
+            kept.insert(1, {"role": "assistant", "content": "Okej."})
+    return system + kept
+
+
 def chat(provider, key, model, messages):
     """One question to one model; returns the answer's text."""
+    if provider.get("local"):
+        messages = fit_local(messages)
     if provider["id"] != "anthropic":
-        body = {"model": model, "messages": messages}
+        body = {"model": model, "messages": wire_messages(messages)}
         temperature = provider.get("temperature", 0.4)
         if temperature is not None:
             body["temperature"] = temperature
@@ -622,7 +760,7 @@ def chat(provider, key, model, messages):
         return text
     # Claude's Messages API: the system prompt goes beside the messages, not among them
     system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
-    turns = [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] in ("user", "assistant")]
+    turns = [m for m in wire_messages(messages, anthropic=True) if m["role"] in ("user", "assistant")]
     reply = request(provider, key, "/messages", {
         "model": model, "max_tokens": 16000, "system": system, "messages": turns,
         "fallbacks": "default",
@@ -694,8 +832,29 @@ När användaren har bifogat en fil och vill ha den ändrad (t.ex. rättad, öve
   Kort före blocket: vad du har ändrat."""
 
 
+GOBLIN_BIN = os.environ.get("GOBLINCAKES_GOBLIN_BIN", "/usr/bin/goblin")
+
+
+def goblin_commands():
+    """GOBLINCAKES' own commands, read from the COMMANDS list in /usr/bin/goblin (the same text as goblin help)."""
+    try:
+        text = Path(GOBLIN_BIN).read_text()
+        block = text[text.index("COMMANDS=(") + 10:]
+        block = block[:block.index("\n)")]
+    except (OSError, ValueError):
+        return ""
+    lines = []
+    for entry in re.findall(r'^\s*"([^"]+)"', block, re.M):
+        name, _, desc = entry.partition("|")
+        lines.append(f"- `goblin {name}` – {desc}")
+    if not lines:
+        return ""
+    return ("\n\nGOBLINCAKES egna kommandon (det här är hela listan – hitta inte på andra goblin-kommandon; "
+            "`goblin help` visar samma lista):\n" + "\n".join(lines))
+
+
 def system_prompt():
-    text = SYSTEM_PROMPT.format(info=system_info())
+    text = SYSTEM_PROMPT.format(info=system_info()) + goblin_commands()
     if images_possible(load_keys()):
         text += IMAGE_PROMPT
     return text
@@ -751,6 +910,9 @@ def segments(text):
         lang, code = m.group(1).strip(), m.group(2).rstrip("\n")
         if lang.lower() in ("bash", "sh", "shell", "console"):
             parts.append({"type": "command", "code": code, "danger": bool(DANGER.search(code)), "state": "new", "output": ""})
+        elif lang.lower() in ("skärmbild", "skarmbild", "screenshot"):
+            both = bool(re.search(r"båda|alla|both|all", code, re.I))
+            parts.append({"type": "shot", "scope": "all" if both else "screen", "state": "new"})
         elif lang.lower() in ("bild", "image", "picture"):
             prompt, fmt = image_request(code)
             if prompt:
@@ -1064,7 +1226,6 @@ def cloudflare_account(key, refresh=False):
 
 
 def draw_cloudflare(prompt, fmt, keys):
-    import base64
     account, token = cloudflare_account(keys[CLOUDFLARE["env"]])
     run = f"{CLOUDFLARE['url']}/accounts/{account}/ai/run/@cf/black-forest-labs/"
     auth = {"Authorization": f"Bearer {token}"}
@@ -1120,7 +1281,6 @@ def provider(pid):
 
 
 def draw_openai_style(pid, prompt, fmt, keys):
-    import base64
     p = provider(pid)
     key = keys[p["env"]]
     if pid == "openai":
@@ -1144,7 +1304,6 @@ def draw_openai_style(pid, prompt, fmt, keys):
 
 
 def draw_gemini(prompt, fmt, keys):
-    import base64
     p = provider("gemini")
     key = keys[p["env"]]
     model = image_model(p, key, [r"^gemini-[\d.]+-flash-image$", r"^gemini-.*-image$"], "gemini-2.5-flash-image")

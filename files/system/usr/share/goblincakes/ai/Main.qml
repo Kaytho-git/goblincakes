@@ -59,6 +59,14 @@ Window {
         return hit ? hit.name : choice.slice(choice.indexOf(":") + 1);
     }
 
+    // A picture (by its name): attached pictures are shown and sent to the AI as pictures
+    function isImage(path) {
+        return /\.(png|jpe?g|webp|gif|bmp)$/i.test(path || "");
+    }
+    function fileUrl(path) {
+        return path.startsWith("file:") ? path : "file://" + path;
+    }
+
     function send() {
         if (pictureMode) {
             if (input.text.trim() === "")
@@ -97,6 +105,11 @@ Window {
         }
         function onMessageUpdated(index, json) {
             chatModel.set(index, { "msg": json });
+        }
+        function onScreenshotReady(path) {
+            win.attachment = path;
+            win.view = "chat";
+            input.forceActiveFocus();
         }
         function onNotice(text) {
             toast.show(text);
@@ -223,7 +236,7 @@ Window {
 
     FileDialog {
         id: openDialog
-        title: "Bifoga en textfil"
+        title: "Bifoga en textfil eller en bild"
         onAccepted: win.attachment = selectedFile.toString()
     }
 
@@ -999,6 +1012,27 @@ Window {
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 15
                             }
+                            Flow {
+                                visible: !!msgItem.m.images && msgItem.m.images.length > 0
+                                width: msgItem.maxWidth * 0.75 - 32
+                                spacing: 8
+                                Repeater {
+                                    model: msgItem.m.images || []
+                                    Image {
+                                        required property string modelData
+                                        source: win.fileUrl(modelData)
+                                        sourceSize.width: 360
+                                        width: Math.min(360, msgItem.maxWidth * 0.75 - 32)
+                                        fillMode: Image.PreserveAspectFit
+                                        asynchronous: true
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: Qt.openUrlExternally(win.fileUrl(parent.modelData))
+                                        }
+                                    }
+                                }
+                            }
                             Text {
                                 visible: msgItem.m.file !== ""
                                 text: "📎  " + msgItem.m.file
@@ -1074,13 +1108,14 @@ Window {
                                         Label {
                                             text: segItem.s.type === "command" ? (segItem.s.danger ? "KOMMANDO – ÄNDRAR SYSTEMET, LÄS IGENOM" : "KOMMANDO")
                                                 : segItem.s.type === "image" ? "BILD"
+                                                : segItem.s.type === "shot" ? "SKÄRMBILD"
                                                 : segItem.s.type === "file" ? "NY VERSION AV " + segItem.s.name.toUpperCase()
                                                 : (segItem.s.lang ? segItem.s.lang.toUpperCase() : "TEXT")
                                             color: segItem.s.type === "command" && segItem.s.danger ? "#E8A0A4" : "#8B98AD"
                                         }
 
                                         CodeBox {
-                                            visible: segItem.s.type !== "image"
+                                            visible: segItem.s.type !== "image" && segItem.s.type !== "shot"
                                             code: segItem.s.code || ""
                                             maxHeight: segItem.s.type === "file" ? 320 : 220
                                         }
@@ -1187,6 +1222,44 @@ Window {
                                                 spacing: 10
                                                 FlatButton { small: true; primary: true; text: "Försök igen"; onClicked: backend.retryImage(msgItem.index, segItem.index) }
                                                 FlatButton { small: true; text: "AI-tjänster"; onClicked: win.view = "settings" }
+                                            }
+                                        }
+
+                                        // The AI asks for a screenshot: nothing is taken until the user allows it
+                                        Text {
+                                            visible: segItem.s.type === "shot"
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            text: segItem.s.state === "new"
+                                                  ? "Goblin AI vill se din skärm. Bilden skickas till " + backend.shotTarget + "."
+                                                  : segItem.s.state === "running" ? "Tar skärmbilden…"
+                                                  : segItem.s.state === "skipped" ? "Ingen skärmbild togs."
+                                                  : segItem.s.state === "error" ? (segItem.s.error || "Skärmbilden gick inte att ta.")
+                                                  : "Skärmbilden är skickad."
+                                            color: segItem.s.state === "error" ? accent.errorBright : "#C9D3E3"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 14
+                                        }
+                                        Row {
+                                            visible: segItem.s.type === "shot" && segItem.s.state === "new"
+                                            spacing: 10
+                                            FlatButton {
+                                                primary: true
+                                                small: true
+                                                text: segItem.s.scope === "all" ? "Tillåt – båda skärmarna" : "Tillåt – den här skärmen"
+                                                enabledState: !backend.busy && !backend.shooting
+                                                onClicked: backend.allowShot(msgItem.index, segItem.index, segItem.s.scope === "all" ? "all" : "screen")
+                                            }
+                                            FlatButton {
+                                                small: true
+                                                text: segItem.s.scope === "all" ? "Bara den här skärmen" : "Båda skärmarna"
+                                                enabledState: !backend.busy && !backend.shooting
+                                                onClicked: backend.allowShot(msgItem.index, segItem.index, segItem.s.scope === "all" ? "screen" : "all")
+                                            }
+                                            FlatButton {
+                                                small: true
+                                                text: "Nej"
+                                                onClicked: backend.skipShot(msgItem.index, segItem.index)
                                             }
                                         }
 
@@ -1318,13 +1391,28 @@ Window {
                     Row {
                         visible: win.attachment !== ""
                         spacing: 8
+                        Image {
+                            visible: win.isImage(win.attachment)
+                            anchors.verticalCenter: parent.verticalCenter
+                            source: visible ? win.fileUrl(win.attachment) : ""
+                            sourceSize.height: 56
+                            height: 56
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            cache: false
+                        }
                         Text {
-                            text: "📎  " + (win.attachment !== "" ? backend.fileName(win.attachment) : "")
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: win.isImage(win.attachment)
+                                  ? (win.attachment.indexOf("/goblincakes/ai/bilder/") >= 0 ? "Skärmbild" : backend.fileName(win.attachment))
+                                    + " – skickas som bild"
+                                  : "📎  " + (win.attachment !== "" ? backend.fileName(win.attachment) : "")
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 13
                         }
                         Text {
+                            anchors.verticalCenter: parent.verticalCenter
                             text: "×"
                             color: "#8B98AD"
                             font.pixelSize: 16
@@ -1388,6 +1476,13 @@ Window {
                             if (modelMenu.visible)
                                 backend.refreshModels();
                         }
+                    }
+                    FlatButton {
+                        small: true
+                        visible: !win.pictureMode
+                        text: backend.shooting ? "Tar bilden…" : "Skärmbild"
+                        enabledState: !backend.shooting
+                        onClicked: backend.takeScreenshot("screen")
                     }
                     FlatButton {
                         small: true

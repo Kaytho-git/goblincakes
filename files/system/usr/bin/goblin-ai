@@ -23,7 +23,7 @@ sys.path.insert(0, str(SHARE))
 import goblinai  # noqa: E402
 import learn  # noqa: E402
 
-from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QUrl, Property, Signal, Slot  # noqa: E402
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QUrl, Property, Qt, Signal, Slot  # noqa: E402
 from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QIcon, QImage  # noqa: E402
 from PySide6.QtNetwork import QLocalServer, QLocalSocket  # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine  # noqa: E402
@@ -31,6 +31,63 @@ from PySide6.QtQml import QQmlApplicationEngine  # noqa: E402
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes" / "ai"
 SOCKET_NAME = f"goblin-ai-{os.getuid()}"
 KEEP_CONVERSATIONS = 50
+PICTURES = DATA / "bilder"  # pictures in chats: screenshots and attached pictures (smaller copies)
+PICTURE_SIDE = 1600  # longest side sent to the AI – enough to read text, fewer tokens for local models
+
+
+def prepare_image(path):
+    """A copy of a picture for the chat: at most PICTURE_SIDE px, JPEG; returns its path."""
+    image = QImage(str(path))
+    if image.isNull():
+        raise ValueError("Bilden går inte att läsa.")
+    if max(image.width(), image.height()) > PICTURE_SIDE:
+        image = image.scaled(PICTURE_SIDE, PICTURE_SIDE, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    PICTURES.mkdir(parents=True, exist_ok=True)
+    out = PICTURES / f"{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 1000000}.jpg"
+    if not image.convertToFormat(QImage.Format_RGB888).save(str(out), "JPEG", 88):
+        raise ValueError("Bilden gick inte att spara.")
+    return str(out)
+
+
+def kwin_script(code):
+    """Runs a short KWin script (Plasma): minimizes/brings back this program's window."""
+    fd, name = tempfile.mkstemp(prefix="goblin-ai-", suffix=".js")
+    os.write(fd, code.encode())
+    os.close(fd)
+    plugin = f"goblin-ai-{os.getpid()}-{time.time_ns()}"
+    call = ["busctl", "--user", "call", "org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting"]
+    try:
+        subprocess.run(call + ["loadScript", "ss", name, plugin], capture_output=True, timeout=5)
+        subprocess.run(call + ["start"], capture_output=True, timeout=5)
+        time.sleep(0.2)
+        subprocess.run(call + ["unloadScript", "s", plugin], capture_output=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    finally:
+        os.unlink(name)
+
+
+def take_screenshot(scope):
+    """Goblin AI's window steps aside, Spectacle takes the screen with the pointer (or both), the window
+    comes back; returns the prepared picture. scope: "screen" | "all"."""
+    mine = f"w.pid == {os.getpid()} && w.normalWindow"
+    kwin_script(f"for (const w of workspace.windowList()) if ({mine}) w.minimized = true;")
+    time.sleep(0.6)  # the minimize animation
+    fd, raw = tempfile.mkstemp(prefix="goblin-ai-shot-", suffix=".png")
+    os.close(fd)
+    try:
+        proc = subprocess.run(["spectacle", "--background", "--nonotify",
+                               "--fullscreen" if scope == "all" else "--current", "--output", raw],
+                              capture_output=True, text=True, timeout=30)
+        if proc.returncode != 0 or os.path.getsize(raw) == 0:
+            raise ValueError("Skärmbilden gick inte att ta (Spectacle).")
+        return prepare_image(raw)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise ValueError(f"Skärmbilden gick inte att ta: {e}") from None
+    finally:
+        os.unlink(raw)
+        kwin_script(f"for (const w of workspace.windowList()) if ({mine}) "
+                    "{ w.minimized = false; workspace.activeWindow = w; }")
 
 
 def season_logo():
@@ -64,6 +121,9 @@ class Backend(QObject):
     _keyResult = Signal(str, str, bool, str)  # provider id, key, ok, message
     modelChanged = Signal()
     _modelsLoaded = Signal(str)
+    screenshotReady = Signal(str)  # the button's screenshot (a path), for the attachment
+    shootingChanged = Signal()
+    _shotDone = Signal(str, str, str)  # what it was for (JSON), path, error
 
     def __init__(self):
         super().__init__()
@@ -95,6 +155,8 @@ class Backend(QObject):
         self._model_choices = "[]"
         self._models_loading = False
         self._modelsLoaded.connect(self._on_models)
+        self._shooting = False
+        self._shotDone.connect(self._on_shot)
 
     # ── Conversation ──────────────────────────────────────────
 
@@ -140,18 +202,32 @@ class Backend(QObject):
             return
         content = text or "Titta på den här filen."
         shown = {"role": "user", "text": text, "segments": [], "service": "", "file": ""}
+        images = []
         if attachment:
             path = QUrl(attachment).toLocalFile() if attachment.startswith("file:") else attachment
-            try:
-                content = goblinai.file_message(path, content)
-            except (OSError, ValueError) as e:
-                self.notice.emit(str(e))
-                return
-            self._file = path
-            shown["file"] = Path(path).name
+            if goblinai.is_image(path):
+                # A picture: a copy in Goblin AI's folder (smaller, JPEG) so the chat keeps it
+                try:
+                    images = [path if Path(path).parent == PICTURES else prepare_image(path)]
+                except (OSError, ValueError) as e:
+                    self.notice.emit(str(e))
+                    return
+                content = text or "Titta på bilden."
+                shown["images"] = images
+            else:
+                try:
+                    content = goblinai.file_message(path, content)
+                except (OSError, ValueError) as e:
+                    self.notice.emit(str(e))
+                    return
+                self._file = path
+                shown["file"] = Path(path).name
         self._display.append(shown)
         self.messageAdded.emit(json.dumps(shown))
-        self._api.append({"role": "user", "content": content})
+        question = {"role": "user", "content": content}
+        if images:
+            question["images"] = images
+        self._api.append(question)
         self._ask()
 
     def _project_of(self, project_id):
@@ -162,7 +238,10 @@ class Backend(QObject):
         project = self._project_of(self._project)
         messages = list(self._api)
         # The project's instructions and fixed files, read now (changed files are seen at once)
-        messages[0] = {"role": "system", "content": goblinai.system_prompt() + goblinai.project_prompt(project)}
+        prompt = goblinai.system_prompt() + goblinai.project_prompt(project)
+        if goblinai.sees_images(self._model):
+            prompt += goblinai.SHOT_PROMPT
+        messages[0] = {"role": "system", "content": prompt}
 
         def work():
             try:
@@ -276,6 +355,81 @@ class Backend(QObject):
                           + "\n\nFortsätt med nästa steg, eller säg kort att det är klart."})
         self._ask()
 
+    # ── Screenshots (16 Oct): the button by Skicka, or the AI's card (Tillåt / Nej) ─────────
+
+    @Property(bool, notify=shootingChanged)
+    def shooting(self):
+        return self._shooting
+
+    @Property(str, notify=modelChanged)
+    def shotTarget(self):
+        """Where a screenshot goes with the chosen model – said on the card before it is taken."""
+        chosen = goblinai.chosen_provider(self._model)
+        if chosen and not chosen[0].get("local"):
+            return f"{chosen[0]['name'].replace(' (betald)', '')} (på nätet)"
+        return "din lokala AI – den lämnar inte datorn"
+
+    @Slot(str)
+    def takeScreenshot(self, scope):
+        self._shoot({"for": "attach"}, scope)
+
+    @Slot(int, int, str)
+    def allowShot(self, index, seg, scope):
+        part = self._display[index]["segments"][seg]
+        if part["state"] != "new" or self._shooting or self._busy:
+            return
+        part["state"] = "running"
+        self._update(index)
+        self._shoot({"for": "card", "conv": self._id, "index": index, "seg": seg}, scope)
+
+    @Slot(int, int)
+    def skipShot(self, index, seg):
+        part = self._display[index]["segments"][seg]
+        if part["state"] == "new":
+            part["state"] = "skipped"
+            self._update(index)
+            self._save()
+
+    def _shoot(self, purpose, scope):
+        if self._shooting:
+            return
+        self._shooting = True
+        self.shootingChanged.emit()
+
+        def work():
+            try:
+                self._shotDone.emit(json.dumps(purpose), take_screenshot(scope), "")
+            except Exception as e:  # noqa: BLE001 – told on the card / as a notice
+                self._shotDone.emit(json.dumps(purpose), "", str(e))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_shot(self, purpose, path, error):
+        self._shooting = False
+        self.shootingChanged.emit()
+        purpose = json.loads(purpose)
+        if purpose["for"] == "attach":
+            if error:
+                self.notice.emit(error)
+            else:
+                self.screenshotReady.emit(path)
+            return
+        if purpose["conv"] != self._id:  # another chat was opened meanwhile
+            return
+        index, seg = purpose["index"], purpose["seg"]
+        part = self._display[index]["segments"][seg]
+        if error:
+            part.update(state="error", error=error)
+            self._update(index)
+            return
+        part.update(state="done", image=path)
+        self._update(index)
+        shown = {"role": "user", "text": "", "segments": [], "service": "", "file": "", "images": [path]}
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        self._api.append({"role": "user", "content": "Här är skärmbilden du bad om (tagen nyss).", "images": [path]})
+        self._ask()
+
     # ── Files and copying ─────────────────────────────────────
 
     @Slot(int, int)
@@ -370,6 +524,8 @@ class Backend(QObject):
                 if (part.get("type") == "image" and part.get("state") in ("new", "waiting", "running")
                         and (self._id, i, j) not in self._image_jobs):
                     part.update(state="error", error="Avbröts – tryck på Försök igen.")
+                if part.get("type") == "shot" and part.get("state") == "running" and not self._shooting:
+                    part.update(state="error", error="Avbröts – be om skärmbilden igen.")
         self._file = d.get("file")
         self._cwd = d.get("cwd") or str(Path.home())
         self.conversationChanged.emit()
