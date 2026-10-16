@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-16  GoblinRecorder: nytt val för mikrofonen, Stäng mot tangentbordet – ditt tal kommer med, men inte klicken från tangentbord och mus.
 2026-10-16  AppGrid (appmenyn bakom loggan) är ungefär hälften så stor: mindre ikoner, 4 × 3 per sida. Vill du ha den större går det att ändra i AppGrids inställningar.
 2026-10-16  Spelas nu i toppfältet visar när Steam laddar ner ett spel eller bearbetar shaders (med hur långt det kommit) – då vet du varför fläktarna låter. Klicka för att se Steams nedladdningar.
 2026-10-16  Lokal AI stängs nu av helt medan du spelar och startar igen när spelet är stängt – inget av den ligger kvar och stör. Frågar du Goblin AI under tiden svarar molntjänsterna.

@@ -57,7 +57,7 @@ DEFAULTS = {
     "mic": True,  # your microphone on tracks 1 and 3 (with noise suppression)
     "capture": "all",  # all = WoW, Discord and your microphone on three tracks | wow = only the game, one track
     "gameBoost": 12,
-    "micGate": "normal",  # off | normal | strong – the gate after the noise suppression, see MIC_GATES
+    "micGate": "normal",  # off | normal | strong | keys – after the noise suppression, see MIC_GATES
     "quality": "normal",  # best | high | normal | small – see QUALITY_MBIT/encoder_settings  # dB louder game sound – WoW plays quietly next to Discord
     "overlays": [],  # boxes over the video: {"file": image or "" = black, "text", "x", "y", "w", "h" as 0–1 of the picture}
     "postRoll": 5,  # seconds after the end
@@ -700,11 +700,19 @@ MIC = "Mikrofon"
 MIC_GATES = {"normal": {"open_threshold": -26.0, "close_threshold": -32.0},
              "strong": {"open_threshold": -20.0, "close_threshold": -26.0}}
 MIC_GATE = "Brusspärr"
+# Against the keyboard (16 Oct, the user: "Stäng mellan orden" let the keys through loud, "Stäng
+# mer" cut the words): the gate opens on the peak level, and a key click is short but loud. OBS's
+# expander as a gate instead, on the RMS level – speech is loud for a while, a click too short to
+# lift it (the 30 ms attack smooths it further) – so the threshold can stay low enough for the
+# words. On the filter "Tangentspärr", the gate is off then.
+MIC_KEYS = "Tangentspärr"
+MIC_KEYS_SETTINGS = {"presets": "gate", "detector": "RMS", "ratio": 10.0, "threshold": -32.0,
+                     "attack_time": 30, "release_time": 200, "output_gain": 0.0}
 
 
 def set_audio(obs, cfg):
     """Your microphone (the system's default one, with RNNoise noise suppression and a noise
-    gate against breathing) on tracks
+    gate against breathing – or the expander against the keyboard) on tracks
     1 and 3, and the game sound boosted – a limiter keeps it from clipping. Works while
     OBS runs."""
     inputs = {i["inputName"] for i in obs.call("GetInputList")["inputs"]}
@@ -716,7 +724,8 @@ def set_audio(obs, cfg):
         obs.call("CreateSourceFilter", {"sourceName": MIC, "filterName": "Brusreducering",
                                         "filterKind": "noise_suppress_filter_v2",
                                         "filterSettings": {"method": "rnnoise"}}, check=False)
-    gate = MIC_GATES.get(cfg.get("micGate", "normal"))
+    mode = cfg.get("micGate", "normal")
+    gate = MIC_GATES.get(mode)
     settings = dict(gate or MIC_GATES["normal"], attack_time=25, hold_time=200, release_time=150)
     if MIC_GATE not in filters:
         obs.call("CreateSourceFilter", {"sourceName": MIC, "filterName": MIC_GATE, "filterKind": "noise_gate_filter",
@@ -726,6 +735,14 @@ def set_audio(obs, cfg):
                                              "filterSettings": settings}, check=False)
     obs.call("SetSourceFilterEnabled", {"sourceName": MIC, "filterName": MIC_GATE,
                                         "filterEnabled": gate is not None}, check=False)
+    if MIC_KEYS not in filters:
+        obs.call("CreateSourceFilter", {"sourceName": MIC, "filterName": MIC_KEYS, "filterKind": "expander_filter",
+                                        "filterSettings": MIC_KEYS_SETTINGS}, check=False)
+    else:
+        obs.call("SetSourceFilterSettings", {"sourceName": MIC, "filterName": MIC_KEYS,
+                                             "filterSettings": MIC_KEYS_SETTINGS}, check=False)
+    obs.call("SetSourceFilterEnabled", {"sourceName": MIC, "filterName": MIC_KEYS,
+                                        "filterEnabled": mode == "keys"}, check=False)
     on = bool(cfg.get("mic", True)) and not only_wow(cfg)
     obs.call("SetInputAudioTracks", {"inputName": MIC, "inputAudioTracks":
              {str(t): on and t in (1, 3) for t in range(1, 7)}})

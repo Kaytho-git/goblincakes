@@ -1819,9 +1819,10 @@ Window {
                 spacing: 12
                 opacity: win.cfg.mic !== false && win.cfg.capture !== "wow" ? 1 : 0.35
                 Repeater {
-                    model: [{ "id": "off", "name": "Släpp igenom", "sub": "Allt som mikrofonen hör kommer med (brusreduceringen tar fortfarande bort fläktar och tangentbord)." },
+                    model: [{ "id": "off", "name": "Släpp igenom", "sub": "Allt som mikrofonen hör kommer med (brusreduceringen tar fortfarande bort jämnt brus som fläktar)." },
                             { "id": "normal", "name": "Stäng mellan orden", "sub": "Mikrofonen stängs när du inte pratar – andning och små ljud kommer inte med." },
-                            { "id": "strong", "name": "Stäng mer", "sub": "För en känslig mikrofon: stängs även vid starkare andning. Hörs början av ord försvinna – välj Stäng mellan orden." }]
+                            { "id": "strong", "name": "Stäng mer", "sub": "För en känslig mikrofon: stängs även vid starkare andning. Hörs början av ord försvinna – välj Stäng mellan orden." },
+                            { "id": "keys", "name": "Stäng mot tangentbordet", "sub": "Som Stäng mellan orden, men lyssnar på hur länge ljudet håller i sig: tal släpps igenom, korta klick från tangentbordet och musen gör det inte." }]
                     Choice {
                         required property var modelData
                         enabledState: win.cfg.mic !== false && win.cfg.capture !== "wow"
