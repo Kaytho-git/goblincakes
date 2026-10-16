@@ -82,7 +82,7 @@ MODELS = {
     # slower, never broken; out of memory = that picture fails with an error. Licence: only non-commercial use.
     "flux2-klein-9b": {
         "name": "FLUX.2 [klein] 9B",
-        "text": "Större och bättre, men långsammare (ett par minuter per bild med 12 GB). Får bara användas privat (licensen).",
+        "text": "Större och bättre, men långsammare (ett par minuter per bild med 12 GB). Licensen: bara icke-kommersiellt – fritt för eget bruk, men inte i ett företag eller en betaltjänst.",
         "diffusion": [("leejet/FLUX.2-klein-9B-GGUF", "flux-2-klein-9b-Q4_0.gguf", 5.6, "Mellan"),
                       ("leejet/FLUX.2-klein-9B-GGUF", "flux-2-klein-9b-Q8_0.gguf", 10.0, "Mycket bra")],
         "llm": ("unsloth/Qwen3-8B-GGUF", "Qwen3-8B-Q4_K_M.gguf", 5.0),
