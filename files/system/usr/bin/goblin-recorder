@@ -301,6 +301,20 @@ class Backend(QObject):
     def openUrl(self, url):
         QDesktopServices.openUrl(QUrl(url))
 
+    @Property(str, constant=True)
+    def aiName(self):
+        """The name the user gave Goblin AI (its AI-tjänster → Namn), for the button."""
+        try:
+            return (Path.home() / ".config/goblincakes/ai-name").read_text().strip() or "Goblin AI"
+        except OSError:
+            return "Goblin AI"
+
+    @Slot(str)
+    def askAi(self, question):
+        """Goblin AI opens with the question – it fetches the pull from Warcraft Logs itself."""
+        exe = Path(__file__).resolve().parent / "goblin-ai"
+        QProcess.startDetached(str(exe) if exe.exists() else "goblin-ai", ["--ask", question])
+
     @Slot(str, str)
     def setWcl(self, client_id, secret):
         def work():

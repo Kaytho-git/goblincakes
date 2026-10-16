@@ -1353,6 +1353,16 @@ Window {
                             onClicked: playerPane.v.wcl ? backend.openUrl(playerPane.v.wcl.url) : backend.wclFind(playerPane.v.path)
                         }
                         FlatButton {
+                            visible: !!(playerPane.v && playerPane.v.wcl)
+                            text: "Fråga " + backend.aiName + " om pullen"
+                            onClicked: {
+                                const v = playerPane.v;
+                                const what = v.wcl.kill ? "Hur gick det på " + v.name + "? Vad kan vi göra bättre?"
+                                                        : "Varför wipade vi på " + v.name + "?";
+                                backend.askAi(what + " " + v.wcl.url);
+                            }
+                        }
+                        FlatButton {
                             text: playerPane.v && playerPane.v.keep ? "Sparas för alltid ✓" : "Spara för alltid"
                             onClicked: {
                                 const p = playerPane.v.path, k = !playerPane.v.keep;

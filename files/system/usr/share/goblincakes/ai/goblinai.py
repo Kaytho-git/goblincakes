@@ -15,6 +15,7 @@ import os
 import re
 import shlex
 import subprocess
+import sys
 import tempfile
 import time
 from datetime import date
@@ -366,57 +367,121 @@ Du får sedan sökresultaten och svarar användaren utifrån dem. Sök inte för
 SEARCH_LIMIT = 3
 
 
-def search_request(text):
-    """The search query when the answer is a ```sök block, else None."""
-    m = re.search(r"```(?:sök|sok|search)\s*\n(.*?)```", text, re.S | re.I)
-    return " ".join(m.group(1).split()) if m and m.group(1).strip() else None
+# ── Tools the AI asks for with a code block (search, WoW errors, Warcraft Logs) ───────────
+WOW_ERRORS_PROMPT = """
+
+WoW-fel: frågar användaren om fel i WoW eller ett tillägg (BugSack, Lua-fel, "ett tillägg strular"),
+svara med BARA ett kodblock märkt ```wowfel – tomt, eller med ett tilläggs namn att leta efter.
+Du får då felen som BugSack har sparat. Förklara vilket tillägg som orsakar felet (titta i stacken –
+Blizzard_-filer är sällan boven) och vad användaren kan göra: uppdatera tillägget (WowUp), stänga av det,
+eller rapportera felet till den som gjort tillägget. Föreslå aldrig att ändra WoW:s egna filer."""
+
+WCL_PROMPT = """
+
+Warcraft Logs: frågar användaren om en pull, wipe, kill eller raidkväll ("varför wipade vi?",
+"vem dog först?", "hur gick Kith'ix?"), svara med BARA ett kodblock märkt ```warcraftlogs med vad
+som söks: `senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, eller en länk till rapporten.
+Du får då pullens data från Warcraft Logs. Analysera: i vilken ordning och av vad folk dog (de första
+dödsfallen avgör oftast), skada från förmågor som går att undvika, och jämför med de andra pullsen.
+Var konkret och vänlig – häng inte ut någon. Användarens karaktär står i datan."""
+
+TOOL_LIMIT = 4  # tool uses per question
+
+
+def wow_tools():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import wowtools  # noqa: PLC0415
+    return wowtools
+
+
+def tools_for(keys, project, messages):
+    """The tools the AI may ask for now: {block word: (name, prompt, run(query) -> (text, sources))}."""
+    tools = {}
+    key = keys.get(SEARCH["env"])
+    if key and not (project and project.get("search") is False) and not has_images(messages):
+        def search(query):
+            results = web_search(query, key)
+            found = "\n\n".join(f"[{i}] {r['title']} – {r['url']}\n{r['content']}" for i, r in enumerate(results, 1))
+            return found or "Inga träffar.", results
+        tools["sök"] = ("Söker på nätet", SEARCH_PROMPT.format(limit=SEARCH_LIMIT), search)
+    if list(Path.home().glob("Games/WoW/*/AddOns")):
+        tools["wowfel"] = ("Läser WoW-felen", WOW_ERRORS_PROMPT, lambda q: (wow_tools().wow_errors(q), []))
+    wcl = CONFIG / "wcl.json"
+    try:
+        configured = bool(json.loads(wcl.read_text()).get("clientId"))
+    except (OSError, ValueError):
+        configured = False
+    if configured:
+        tools["warcraftlogs"] = ("Hämtar pullen från Warcraft Logs", WCL_PROMPT, lambda q: (wow_tools().wcl_pull(q), []))
+    return tools
+
+
+TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel", "wow-fel": "wowfel",
+              "bugsack": "wowfel", "warcraftlogs": "warcraftlogs", "wcl": "warcraftlogs"}
+
+
+def tool_request(text, tools):
+    """(tool, query) when the answer asks for a tool, else None."""
+    for m in re.finditer(r"```([\w-]+)[ \t]*\n?(.*?)```", text, re.S):
+        tool = TOOL_WORDS.get(m.group(1).lower())
+        if tool in tools:
+            return tool, " ".join(m.group(2).split())
+    return None
 
 
 def ask(messages, keys, status=None, notice=None, project=None, choice=""):
-    """Asks the services, searching the web in between when the AI wants to (and a Tavily key is set).
+    """Asks the services; the AI may use tools in between (web search with a Tavily key, the errors
+    BugSack saved, a pull from Warcraft Logs) – it answers with the tool's code block, gets the result
+    and answers again (at most TOOL_LIMIT times).
 
     choice: a model picked by the user ("<service id>:<model>", see model_choices) – "" = automatic.
-    Returns (answer, "service · model"); the sources are listed at the end of the answer.
+    Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
-    key = keys.get(SEARCH["env"])
-    if (project and project.get("search") is False) or has_images(messages):
-        key = None  # a picture: look at it, don't search (small models searched for "skärmbild")
-    if not key:
+    tools = tools_for(keys, project, messages)
+    if not tools:
         return ask_once(messages, keys, status, notice, project, choice)
     messages = [dict(m) for m in messages]
     if messages and messages[0]["role"] == "system":
-        messages[0]["content"] += SEARCH_PROMPT.format(limit=SEARCH_LIMIT)
-    sources, searches = [], 0
+        messages[0]["content"] += "".join(t[1] for t in tools.values())
+    sources, used, searched = [], 0, False
+    question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:2000]
     while True:
         answer, service = ask_once(messages, keys, status, notice, project, choice)
-        query = search_request(answer)
-        if not query:
+        request_ = tool_request(answer, tools)
+        if not request_:
             break
+        tool, query = request_
         messages.append({"role": "assistant", "content": answer})
-        if searches >= SEARCH_LIMIT:
-            messages.append({"role": "user", "content": "Inga fler sökningar – svara nu med det du har."})
+        if used >= TOOL_LIMIT:
+            messages.append({"role": "user", "content": "Inga fler sökningar eller hämtningar – svara nu med det du har."})
             continue
-        searches += 1
+        used += 1
+        name, _, run = tools[tool]
         if status:
-            status(f"Söker på nätet: {query}…")
+            status(f"{name}{': ' + query if query else ''}…")
         try:
-            results = web_search(query, key)
-        except ServiceError as e:
+            text, found = run(query)
+        except Exception as e:  # noqa: BLE001 – ServiceError, wowtools.ToolError, the network
             if notice:
-                notice(f"Sökningen fungerade inte: {e}")
-            messages.append({"role": "user", "content": f"Sökningen fungerade inte ({e}). Svara utan att söka, och säg att svaret kan vara gammalt."})
+                notice(f"{name} gick inte: {e}")
+            messages.append({"role": "user", "content": f"Det gick inte ({e}). Svara utan det, och säg varför."})
             continue
-        for r in results:
+        searched = searched or tool == "sök"
+        for r in found:
             if r["url"] not in (s["url"] for s in sources):
                 sources.append(r)
-        found = "\n\n".join(f"[{i}] {r['title']} – {r['url']}\n{r['content']}" for i, r in enumerate(results, 1))
         messages.append({"role": "user", "content":
-                         f"Sökresultat för \"{query}\" (det här skrev inte användaren):\n\n{found or 'Inga träffar.'}\n\n"
-                         "Svara nu på användarens fråga utifrån resultaten (eller sök igen med en bättre fråga)."})
+                         f"[Svar från verktyget {tool} som du själv bad om – det här skrev eller klistrade "
+                         f"användaren inte in]\n\n{text}\n\n[Slut på verktygets svar]\n\n"
+                         f"Användarens fråga var: \"{question}\"\n"
+                         "Svara nu på den frågan utifrån det här (eller be om mer med ett nytt block)."})
     if sources:
         answer = answer.rstrip() + "\n\n**Källor:** " + " · ".join(
             f"[{s['title'][:60].replace('[', '(').replace(']', ')')}]({s['url']})" for s in sources[:5])
+    if searched:
         service += " · sökte på nätet"
+    elif used:
+        service += " · hämtade data"
     return answer, service
 
 

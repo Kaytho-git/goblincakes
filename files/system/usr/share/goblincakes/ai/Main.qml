@@ -106,6 +106,10 @@ Window {
         function onMessageUpdated(index, json) {
             chatModel.set(index, { "msg": json });
         }
+        function onPendingQuestion(text) {
+            input.text = text;
+            win.view = "chat";
+        }
         function onScreenshotReady(path) {
             win.attachment = path;
             win.view = "chat";

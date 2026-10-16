@@ -1234,6 +1234,20 @@ class Backend(QObject):
 
     quickShow = Signal()
 
+    @Slot(str)
+    def askNew(self, text):
+        """A new chat with this question (goblin-ai --ask); waits if an answer is being written."""
+        if self._busy:
+            self.notice.emit("Svarar redan på något – frågan står i rutan, skicka den sedan.")
+            self.pendingQuestion.emit(text)
+            return
+        if self._display:
+            self._new_conversation()
+            self.conversationChanged.emit()
+        self.send(text, "")
+
+    pendingQuestion = Signal(str)
+
     @Slot(result=str)
     def clipboard(self):
         """What was copied, offered once per copy in the quick box (16 Oct):
@@ -1328,11 +1342,13 @@ def main():
             QFontDatabase.addApplicationFont(font)
 
     quick = "--quick" in sys.argv[1:]
+    # --ask <question>: a new chat with the question, the window shown (GoblinRecorder's "Fråga Kakan")
+    ask = sys.argv[sys.argv.index("--ask") + 1] if "--ask" in sys.argv[1:-1] else ""
     # Already open: bring that window (or the quick box) to the front instead
     probe = QLocalSocket()
     probe.connectToServer(SOCKET_NAME)
     if probe.waitForConnected(300):
-        probe.write(b"quick" if quick else b"show")
+        probe.write(b"ask:" + ask.encode() if ask else b"quick" if quick else b"show")
         probe.waitForBytesWritten(300)
         return 0
     QLocalServer.removeServer(SOCKET_NAME)
@@ -1349,6 +1365,10 @@ def main():
             wish = bytes(sock.readAll())
         else:
             wish = b"show"
+        if wish.startswith(b"ask:"):
+            backend.askNew(wish[4:].decode(errors="replace"))
+            backend.raiseWindow.emit()
+            return
         (backend.quickShow if wish == b"quick" else backend.raiseWindow).emit()
     server.newConnection.connect(connection)
 
@@ -1361,6 +1381,8 @@ def main():
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1
+    if ask:
+        backend.askNew(ask)
     return app.exec()
 
 

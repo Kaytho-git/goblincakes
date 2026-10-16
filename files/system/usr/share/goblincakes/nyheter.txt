@@ -1,5 +1,7 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-16  Fråga Goblin AI "varför wipade vi på …?" – den hämtar pullen från Warcraft Logs (dödsfall, skada, alla försök) och förklarar. Knappen Fråga … om pullen finns också på filmerna i GoblinRecorder.
+2026-10-16  Fråga Goblin AI om fel i WoW – den läser vad BugSack har sparat och säger vilket tillägg som strular och vad du kan göra.
 2026-10-16  Snabbrutan (Meta+§) tar med det du nyss kopierade – text eller bild – så du kan skriva "förklara" direkt. Skärmbild-knappen kan också ta bara ett område du drar upp.
 2026-10-16  Goblin AI har ett minne: säg "kom ihåg att …" så vet den det i alla chattar ("glöm att …" tar bort). Listan finns under AI-tjänster → Minne.
 2026-10-16  Ge din AI ett eget namn under AI-tjänster → Namn – den kallar sig det i alla chattar och i snabbrutan.
