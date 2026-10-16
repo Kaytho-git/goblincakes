@@ -7,6 +7,7 @@ and saved back. Suggested commands are cards with a Run button; their output goe
 back to the AI. Conversations are kept in ~/.local/share/goblincakes/ai/.
 Only one window: starting it again brings the open one to the front.
 """
+import hashlib
 import json
 import re
 import os
@@ -35,9 +36,16 @@ PICTURES = DATA / "bilder"  # pictures in chats: screenshots and attached pictur
 PICTURE_SIDE = 1600  # longest side sent to the AI – enough to read text, fewer tokens for local models
 
 
+CLIP_STATE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "goblincakes" / "ai-clip"
+CLIP_LIMIT = 20_000  # characters of copied text sent along
+
+
 def prepare_image(path):
     """A copy of a picture for the chat: at most PICTURE_SIDE px, JPEG; returns its path."""
-    image = QImage(str(path))
+    return prepare_qimage(QImage(str(path)))
+
+
+def prepare_qimage(image):
     if image.isNull():
         raise ValueError("Bilden går inte att läsa.")
     if max(image.width(), image.height()) > PICTURE_SIDE:
@@ -69,18 +77,18 @@ def kwin_script(code):
 
 def take_screenshot(scope):
     """Goblin AI's window steps aside, Spectacle takes the screen with the pointer (or both), the window
-    comes back; returns the prepared picture. scope: "screen" | "all"."""
+    comes back; returns the prepared picture. scope: "screen" | "all" | "region" (drag a box; Esc = none)."""
     mine = f"w.pid == {os.getpid()} && w.normalWindow"
     kwin_script(f"for (const w of workspace.windowList()) if ({mine}) w.minimized = true;")
     time.sleep(0.6)  # the minimize animation
     fd, raw = tempfile.mkstemp(prefix="goblin-ai-shot-", suffix=".png")
     os.close(fd)
     try:
-        proc = subprocess.run(["spectacle", "--background", "--nonotify",
-                               "--fullscreen" if scope == "all" else "--current", "--output", raw],
-                              capture_output=True, text=True, timeout=30)
+        mode = {"all": "--fullscreen", "region": "--region"}.get(scope, "--current")
+        proc = subprocess.run(["spectacle", "--background", "--nonotify", mode, "--output", raw],
+                              capture_output=True, text=True, timeout=180 if scope == "region" else 30)
         if proc.returncode != 0 or os.path.getsize(raw) == 0:
-            raise ValueError("Skärmbilden gick inte att ta (Spectacle).")
+            raise ValueError("Ingen skärmbild togs." if scope == "region" else "Skärmbilden gick inte att ta (Spectacle).")
         return prepare_image(raw)
     except (OSError, subprocess.SubprocessError) as e:
         raise ValueError(f"Skärmbilden gick inte att ta: {e}") from None
@@ -377,7 +385,7 @@ class Backend(QObject):
     @Slot(int, int, str)
     def allowShot(self, index, seg, scope):
         part = self._display[index]["segments"][seg]
-        if part["state"] != "new" or self._shooting or self._busy:
+        if part["state"] not in ("new", "error") or self._shooting or self._busy:
             return
         part["state"] = "running"
         self._update(index)
@@ -1226,16 +1234,55 @@ class Backend(QObject):
 
     quickShow = Signal()
 
-    @Slot(str, result=bool)
-    def quickSend(self, text):
-        """A new chat with the question; False when Goblin AI is busy answering something else."""
-        if self._busy or not text.strip():
+    @Slot(result=str)
+    def clipboard(self):
+        """What was copied, offered once per copy in the quick box (16 Oct):
+        {"kind": "text", "text"} / {"kind": "image", "path"} / {} (nothing new)."""
+        board = QGuiApplication.clipboard()
+        data = board.mimeData()
+        if data is None:
+            return "{}"
+        if data.hasImage() and not board.image().isNull():
+            image = board.image()
+            key = "image:" + hashlib.sha1(bytes(image.scaled(64, 64).constBits())).hexdigest()
+            item = {"kind": "image"}
+        else:
+            text = board.text().strip()
+            if not text:
+                return "{}"
+            key = "text:" + hashlib.sha1(text.encode()).hexdigest()
+            item = {"kind": "text", "text": text[:CLIP_LIMIT]}
+        try:
+            if CLIP_STATE.read_text() == key:
+                return "{}"  # already offered: an old copy isn't sent along by mistake
+        except OSError:
+            pass
+        CLIP_STATE.parent.mkdir(parents=True, exist_ok=True)
+        CLIP_STATE.write_text(key)
+        if item["kind"] == "image":
+            try:
+                item["path"] = prepare_qimage(image)
+            except ValueError:
+                return "{}"
+        return json.dumps(item)
+
+    @Slot(str, str, result=bool)
+    def quickSend(self, text, clip):
+        """A new chat with the question (and what was copied); False when Goblin AI is busy."""
+        clip = json.loads(clip or "{}")
+        text = text.strip()
+        if self._busy or not (text or clip):
             return False
         if self._display:
             self._new_conversation()
             self.conversationChanged.emit()
         self._quick_waiting = True
-        self.send(text, "")
+        if clip.get("kind") == "image":
+            self.send(text or "Titta på bilden.", clip["path"])
+        elif clip.get("kind") == "text":
+            self.send((text or "Förklara det här.") + "\n\nUrklipp:\n```\n" + clip["text"] + "\n```", "")
+        else:
+            self.send(text, "")
         return True
 
     def _quick_answered(self):

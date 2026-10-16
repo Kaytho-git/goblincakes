@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-16  Snabbrutan (Meta+§) tar med det du nyss kopierade – text eller bild – så du kan skriva "förklara" direkt. Skärmbild-knappen kan också ta bara ett område du drar upp.
 2026-10-16  Goblin AI har ett minne: säg "kom ihåg att …" så vet den det i alla chattar ("glöm att …" tar bort). Listan finns under AI-tjänster → Minne.
 2026-10-16  Ge din AI ett eget namn under AI-tjänster → Namn – den kallar sig det i alla chattar och i snabbrutan.
 2026-10-16  Goblin AI kan se bilder: knappen Skärmbild vid Skicka, eller dra in en bild. Ber du den titta på skärmen frågar den först – inget tas förrän du trycker Tillåt. Bilder går bara till din lokala AI om du inte själv väljer en tjänst på nätet.

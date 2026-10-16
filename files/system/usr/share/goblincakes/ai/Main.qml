@@ -292,10 +292,13 @@ Window {
             quickInput.forceActiveFocus();
         }
 
+        property var clip: ({})  // what was copied (backend.clipboard), sent along unless removed
+
         function open() {
             quickInput.text = "";
             quickNote.text = "";
             picking = false;
+            clip = {};
             wasActive = false;
             show();
             raise();
@@ -309,9 +312,9 @@ Window {
         }
         function ask() {
             const text = quickInput.text.trim();
-            if (text === "")
+            if (text === "" && !clip.kind)
                 return;
-            if (!backend.quickSend(text)) {
+            if (!backend.quickSend(text, JSON.stringify(clip))) {
                 quickNote.text = "Goblin AI svarar redan på något – vänta en stund.";
                 return;
             }
@@ -320,6 +323,8 @@ Window {
                 win.view = "chat";
         }
         onActiveChanged: {
+            if (active && !wasActive)  // the clipboard can only be read with the focus (Wayland)
+                clip = JSON.parse(backend.clipboard());
             if (active)
                 wasActive = true;
             else if (wasActive && visible)
@@ -380,6 +385,46 @@ Window {
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 12
                 }
+                // What was copied: goes along with the question (× = not)
+                Row {
+                    visible: !!quick.clip.kind
+                    width: parent.width
+                    spacing: 10
+                    Image {
+                        visible: quick.clip.kind === "image"
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: visible ? win.fileUrl(quick.clip.path) : ""
+                        sourceSize.height: 48
+                        height: 48
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    Text {
+                        width: parent.width - 40 - (quick.clip.kind === "image" ? 100 : 0)
+                        anchors.verticalCenter: parent.verticalCenter
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                        text: quick.clip.kind === "image" ? "📋  Bilden du kopierade följer med"
+                              : "📋  Urklipp följer med: " + (quick.clip.text || "").replace(/\s+/g, " ")
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "×"
+                        color: clipX.containsMouse ? "#E6ECF5" : "#8B98AD"
+                        font.pixelSize: 18
+                        MouseArea {
+                            id: clipX
+                            anchors.fill: parent
+                            anchors.margins: -6
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { quick.clip = {}; quickInput.forceActiveFocus(); }
+                        }
+                    }
+                }
+
                 // The model list (Tab): ↑/↓ and Enter, or a click
                 Flickable {
                     id: quickPicks
@@ -1270,7 +1315,7 @@ Window {
                                             font.pixelSize: 14
                                         }
                                         Row {
-                                            visible: segItem.s.type === "shot" && segItem.s.state === "new"
+                                            visible: segItem.s.type === "shot" && (segItem.s.state === "new" || segItem.s.state === "error")
                                             spacing: 10
                                             FlatButton {
                                                 primary: true
@@ -1284,6 +1329,12 @@ Window {
                                                 text: segItem.s.scope === "all" ? "Bara den här skärmen" : "Båda skärmarna"
                                                 enabledState: !backend.busy && !backend.shooting
                                                 onClicked: backend.allowShot(msgItem.index, segItem.index, segItem.s.scope === "all" ? "screen" : "all")
+                                            }
+                                            FlatButton {
+                                                small: true
+                                                text: "Välj område"
+                                                enabledState: !backend.busy && !backend.shooting
+                                                onClicked: backend.allowShot(msgItem.index, segItem.index, "region")
                                             }
                                             FlatButton {
                                                 small: true
@@ -1507,11 +1558,12 @@ Window {
                         }
                     }
                     FlatButton {
+                        id: shotButton
                         small: true
                         visible: !win.pictureMode
-                        text: backend.shooting ? "Tar bilden…" : "Skärmbild"
+                        text: backend.shooting ? "Tar bilden…" : "Skärmbild  ▾"
                         enabledState: !backend.shooting
-                        onClicked: backend.takeScreenshot("screen")
+                        onClicked: shotMenu.visible = !shotMenu.visible
                     }
                     FlatButton {
                         small: true
@@ -1536,6 +1588,72 @@ Window {
                     }
                 }
             }
+            // ── The screenshot menu (the button by Skicka) ──
+            MouseArea {
+                anchors.fill: parent
+                visible: shotMenu.visible
+                z: 19
+                onClicked: shotMenu.visible = false
+            }
+            Rectangle {
+                id: shotMenu
+                visible: false
+                z: 20
+                width: 240
+                height: shotMenuCol.height + 2
+                anchors { bottom: inputBar.top; bottomMargin: 6 }
+                x: Math.max(24, Math.min(inputBar.x + buttons.x + shotButton.x, chatArea.width - width - 24))
+                color: "#0B1018"
+                border.width: 1
+                border.color: "#2A3852"
+                Column {
+                    id: shotMenuCol
+                    x: 1
+                    y: 1
+                    width: parent.width - 2
+                    Repeater {
+                        model: [
+                            { scope: "screen", name: "Den här skärmen", note: "skärmen där muspekaren är" },
+                            { scope: "all", name: "Båda skärmarna", note: "allt på en gång" },
+                            { scope: "region", name: "Välj ett område", note: "dra en ruta – Esc avbryter" }
+                        ]
+                        Rectangle {
+                            id: shotItem
+                            required property var modelData
+                            width: shotMenuCol.width
+                            height: 44
+                            color: shotArea.containsMouse ? "#1A2438" : "transparent"
+                            Column {
+                                anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                                spacing: 2
+                                Text {
+                                    text: shotItem.modelData.name
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 14
+                                }
+                                Text {
+                                    text: shotItem.modelData.note
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                }
+                            }
+                            MouseArea {
+                                id: shotArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    shotMenu.visible = false;
+                                    backend.takeScreenshot(shotItem.modelData.scope);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── The model menu (the button by Skicka), like switching model in Claude Code ──
             MouseArea {  // a click beside the menu closes it
                 anchors.fill: parent
