@@ -367,7 +367,7 @@ Window {
                         Keys.onDownPressed: if (quick.picking) quick.pickIndex = Math.min(quick.picks.length - 1, quick.pickIndex + 1)
                         Text {
                             visible: quickInput.text === ""
-                            text: "Fråga Goblin AI …"
+                            text: "Fråga " + (backend.aiName || "Goblin AI") + " …"
                             color: "#5C6880"
                             font: quickInput.font
                         }
@@ -1454,7 +1454,7 @@ Window {
                             Text {
                                 visible: input.text === ""
                                 text: win.pictureMode ? "Beskriv bilden – t.ex. en goblin som skjuter pilbåge i solnedgången, målning (Enter ritar)"
-                                                      : "Skriv din fråga…  (Enter skickar, Shift+Enter ny rad)"
+                                                      : (backend.aiName ? "Skriv till " + backend.aiName + "…" : "Skriv din fråga…") + "  (Enter skickar, Shift+Enter ny rad)"
                                 color: "#5C6880"
                                 font: input.font
                             }
@@ -2523,6 +2523,81 @@ Window {
                     font.pixelSize: 14
                 }
 
+                // ── The AI's own name (16 Oct) ──
+                Rectangle {
+                    width: settingsCol.width
+                    height: nameCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+
+                    Column {
+                        id: nameCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 12
+                        Text {
+                            text: "Namn"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: backend.aiName
+                                  ? "Din AI heter " + backend.aiName + " – i alla chattar och i snabbrutan (Meta+§), både lokalt och i molnet."
+                                  : "Ge din AI ett eget namn, så kallar den sig det i alla chattar – t.ex. Kakan."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Row {
+                            spacing: 10
+                            Rectangle {
+                                width: 240
+                                height: 30
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: nameInput.activeFocus ? accent.color : "#1E2A40"
+                                TextInput {
+                                    id: nameInput
+                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    clip: true
+                                    maximumLength: 30
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                    onAccepted: { backend.setAiName(text); text = ""; }
+                                    Text {
+                                        visible: nameInput.text === ""
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: backend.aiName || "Goblin AI"
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                            }
+                            FlatButton {
+                                small: true
+                                primary: true
+                                text: "Spara"
+                                enabledState: nameInput.text.trim() !== ""
+                                onClicked: { backend.setAiName(nameInput.text); nameInput.text = ""; }
+                            }
+                            FlatButton {
+                                visible: backend.aiName !== ""
+                                small: true
+                                text: "Heta Goblin AI igen"
+                                onClicked: backend.setAiName("")
+                            }
+                        }
+                    }
+                }
 
                 // ── Local AI (15 Oct): Ollama on this computer ──
                 Rectangle {

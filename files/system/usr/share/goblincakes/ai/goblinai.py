@@ -853,8 +853,33 @@ def goblin_commands():
             "`goblin help` visar samma lista):\n" + "\n".join(lines))
 
 
+NAME_FILE = CONFIG / "ai-name"  # the name the user gave the AI (AI-tjänster → Namn), e.g. Kakan
+
+
+def ai_name():
+    try:
+        return NAME_FILE.read_text().strip()
+    except OSError:
+        return ""
+
+
+def set_ai_name(name):
+    name = " ".join(name.split())[:30]
+    CONFIG.mkdir(parents=True, exist_ok=True)
+    if name and name.lower() != "goblin ai":
+        NAME_FILE.write_text(name + "\n")
+    else:
+        NAME_FILE.unlink(missing_ok=True)
+    return ai_name()
+
+
 def system_prompt():
     text = SYSTEM_PROMPT.format(info=system_info()) + goblin_commands()
+    name = ai_name()
+    if name:
+        text = text.replace("Du är Goblin AI, hjälparen i GOBLINCAKES",
+                            f"Du heter {name} – användaren har döpt dig till det, så kalla dig {name} och svara "
+                            f"när du blir tilltalad så. Du är hjälparen (Goblin AI) i GOBLINCAKES", 1)
     if images_possible(load_keys()):
         text += IMAGE_PROMPT
     return text

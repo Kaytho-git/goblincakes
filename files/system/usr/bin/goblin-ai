@@ -579,6 +579,19 @@ class Backend(QObject):
         goblinai.set_chosen_model(choice)
         self.modelChanged.emit()
 
+    # ── The AI's own name (AI-tjänster → Namn) ────────────────
+
+    nameChanged = Signal()
+
+    @Property(str, notify=nameChanged)
+    def aiName(self):
+        return goblinai.ai_name()
+
+    @Slot(str)
+    def setAiName(self, name):
+        goblinai.set_ai_name(name)
+        self.nameChanged.emit()
+
     # ── Services and keys ─────────────────────────────────────
 
     @Property(str, notify=keysChanged)

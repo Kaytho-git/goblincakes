@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-16  Ge din AI ett eget namn under AI-tjänster → Namn – den kallar sig det i alla chattar och i snabbrutan.
 2026-10-16  Goblin AI kan se bilder: knappen Skärmbild vid Skicka, eller dra in en bild. Ber du den titta på skärmen frågar den först – inget tas förrän du trycker Tillåt. Bilder går bara till din lokala AI om du inte själv väljer en tjänst på nätet.
 2026-10-16  Goblin AI känner till alla goblin-kommandon och kan förklara dem. Lokal AI orkar nu längre samtal.
 2026-10-16  Goblin AI: välj själv vilken modell du pratar med – knappen bredvid Skicka (Automatiskt, dina lokala modeller eller en tjänst du har nyckel till) – de bästa är märkta BÄST, BÄST TILL KOD och liknande. I snabbrutan (Meta+§) byter du med Tab. Valet gäller tills du ändrar det, även i goblin ai i terminalen.
