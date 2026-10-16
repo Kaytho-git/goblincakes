@@ -515,25 +515,38 @@ def local_ids():
         return []
 
 
+def local_sizes():
+    """{model: "12B"} from Ollama's own list (the number of parameters – bigger = smarter, slower)."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=3) as r:
+            return {m["name"]: (m.get("details") or {}).get("parameter_size", "").replace(".0B", "B")
+                    for m in json.loads(r.read()).get("models", [])}
+    except (urllib.error.URLError, OSError, ValueError, KeyError):
+        return {}
+
+
 def model_choices(keys):
-    """What the window lists: [{"id", "name", "group", "note"}], automatic first.
+    """What the window lists: [{"id", "name", "group", "note", "tag"}], automatic first.
+    tag = which one is best in its group (BÄST, BÄST TILL KOD …, SNABBAST) – the cloud lists are
+    best first already (pick_models), the local ones are the models chosen per role in Lokal AI.
     The cloud lists come from the services' own model lists (cached for a day, see pick_models)."""
-    items = [{"id": "", "name": "Automatiskt", "group": "",
+    items = [{"id": "", "name": "Automatiskt", "group": "", "tag": "",
               "note": "Goblin AI väljer – ordningen i AI-tjänster, nästa tjänst om en inte svarar"}]
     local = local_settings()
     if local["installed"]:
         ids = local_ids()
         if not ids and not LOCAL_PAUSED.exists() and start_local():
             ids = local_ids()
+        sizes = local_sizes()
         roles = {m: r for r, m in local["roles"].items() if m}
-        names = {"vardag": "vardag", "kod": "kod", "bild": "bilder"}
+        tags = {"vardag": "BÄST TILL VARDAG", "kod": "BÄST TILL KOD", "bild": "SER BILDER"}
         for m in ids:
-            note = "på din dator · gratis"
-            if m in roles:
-                note += f" · {names.get(roles[m], roles[m])}"
-            items.append({"id": f"{LOCAL['id']}:{m}", "name": m, "group": "Lokal AI", "note": note})
+            size = sizes.get(m) or sizes.get(f"{m}:latest") or ""
+            note = (f"{size} · " if size else "") + "på din dator · gratis"
+            items.append({"id": f"{LOCAL['id']}:{m}", "name": m, "group": "Lokal AI", "note": note,
+                          "tag": tags.get(roles.get(m), "")})
         if LOCAL_PAUSED.exists():
-            items.append({"id": "", "name": "", "group": "Lokal AI", "note": "Avstängd medan ett spel kör"})
+            items.append({"id": "", "name": "", "group": "Lokal AI", "tag": "", "note": "Avstängd medan ett spel kör"})
     for p in PROVIDERS:
         key = keys.get(p["env"])
         if not key:
@@ -544,14 +557,30 @@ def model_choices(keys):
             models = p.get("models") or []
         if p["id"] == "openrouter":
             models = models[:8]
-        for m in models:
+        for i, m in enumerate(models):
+            info = MODEL_INFO.get(m)
+            if info:
+                tag, note = info
+            else:
+                fast = re.search(r"(^|[-_.:/])(lite|mini|nano|fast|small)([-_.:]|$)", m)
+                tag = "BÄST" if i == 0 else "SNABBAST" if fast else ""
+                note = "" if i == 0 else "snabbare, enklare svar" if fast else "äldre – reserv"
+            note = ("betald" if p.get("paid") else "gratis") + (f" · {note}" if note else "")
             items.append({"id": f"{p['id']}:{m}", "name": MODEL_NAMES.get(m, m), "group": p["name"],
-                          "note": "betald" if p.get("paid") else "gratis"})
+                          "note": note, "tag": tag})
     return items
 
 
 MODEL_NAMES = {"claude-opus-5-5": "Claude Opus 5.5", "claude-sonnet-5-5": "Claude Sonnet 5.5",
                "claude-haiku-5-5": "Claude Haiku 5.5"}
+# Models whose strengths are known: (tag, note)
+MODEL_INFO = {
+    "claude-opus-5-5": ("BÄST", "smartast, för svåra saker och kod – dyrast"),
+    "claude-sonnet-5-5": ("", "nästan lika bra, billigare och snabbare"),
+    "claude-haiku-5-5": ("SNABBAST", "billigast, för enkla frågor"),
+    "sonar-pro": ("BÄST", "söker grundligare"),
+    "sonar": ("SNABBAST", "billigare"),
+}
 
 
 def ask_chosen(provider, model, messages, keys, status=None):

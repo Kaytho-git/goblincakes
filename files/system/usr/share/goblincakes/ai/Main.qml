@@ -29,6 +29,27 @@ Window {
         "Hur mycket diskutrymme har jag kvar?"
     ]
 
+    // Which model is best in its group (BÄST, BÄST TILL KOD, SNABBAST …), see goblinai.model_choices
+    component ModelTag: Rectangle {
+        property string tag
+        visible: tag !== ""
+        width: tagText.implicitWidth + 10
+        height: 16
+        color: "transparent"
+        border.width: 1
+        border.color: tag === "SNABBAST" ? "#2A3852" : accent.color
+        Text {
+            id: tagText
+            anchors.centerIn: parent
+            text: parent.tag
+            color: parent.tag === "SNABBAST" ? "#8B98AD" : accent.text
+            font.family: "Chakra Petch"
+            font.weight: Font.DemiBold
+            font.pixelSize: 10
+            font.letterSpacing: 1
+        }
+    }
+
     // The button's text: "Automatiskt" or the chosen model (the part after the service id)
     function modelName(choice) {
         if (!choice)
@@ -383,8 +404,13 @@ Window {
                                     font.family: "IBM Plex Sans"
                                     font.weight: qp.chosen ? Font.DemiBold : Font.Normal
                                     font.pixelSize: 14
+                                    ModelTag {
+                                        id: qpTag
+                                        tag: qp.modelData.tag || ""
+                                        anchors { left: parent.right; verticalCenter: parent.verticalCenter }
+                                    }
                                     Text {
-                                        anchors { left: parent.right; baseline: parent.baseline }
+                                        anchors { left: qpTag.visible ? qpTag.right : parent.right; leftMargin: qpTag.visible ? 8 : 0; baseline: parent.baseline }
                                         text: qp.modelData.group ? qp.modelData.group + " · " + qp.modelData.note : ""
                                         color: "#8B98AD"
                                         font.family: "IBM Plex Sans"
@@ -1454,15 +1480,19 @@ Window {
                             Column {
                                 anchors { left: parent.left; leftMargin: 14; right: parent.right; rightMargin: 30; verticalCenter: parent.verticalCenter }
                                 spacing: 2
-                                Text {
+                                Row {
                                     visible: row.modelData.name !== ""
-                                    width: parent.width
-                                    elide: Text.ElideRight
-                                    text: row.modelData.name
-                                    color: row.chosen ? accent.text : "#E6ECF5"
-                                    font.family: "IBM Plex Sans"
-                                    font.weight: row.chosen ? Font.DemiBold : Font.Normal
-                                    font.pixelSize: 14
+                                    spacing: 8
+                                    Text {
+                                        width: Math.min(implicitWidth, modelList.width - 44 - (rowTag.visible ? rowTag.width + 8 : 0))
+                                        elide: Text.ElideRight
+                                        text: row.modelData.name
+                                        color: row.chosen ? accent.text : "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.weight: row.chosen ? Font.DemiBold : Font.Normal
+                                        font.pixelSize: 14
+                                    }
+                                    ModelTag { id: rowTag; tag: row.modelData.tag || ""; anchors.verticalCenter: parent.verticalCenter }
                                 }
                                 Text {
                                     width: parent.width
