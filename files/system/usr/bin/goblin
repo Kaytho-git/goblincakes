@@ -163,10 +163,16 @@ update_proton() {
 
 update_ollama() {
     # Lokal AI (Goblin AI → AI-tjänster → Lokal AI): Ollama in the place the user chose
-    [ -r "${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/ollama.json" ] || return 0
+    # and the picture program (AI-tjänster → Skapa bilder, goblincakes-image)
+    local conf="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes" rc=0 helper
+    [ -r "$conf/ollama.json" ] || [ -r "$conf/image.json" ] || return 0
     heading "Lokal AI"
-    /usr/libexec/goblincakes-ollama update | sed -n 's/^@@ //p' | while IFS= read -r line; do info "$line"; done
-    return "${PIPESTATUS[0]}"
+    for helper in ollama image; do
+        [ -r "$conf/$helper.json" ] || continue
+        /usr/libexec/goblincakes-$helper update | sed -n 's/^@@ //p' | while IFS= read -r line; do info "$line"; done
+        [ "${PIPESTATUS[0]}" -eq 0 ] || rc=1
+    done
+    return "$rc"
 }
 
 update_firmware() {

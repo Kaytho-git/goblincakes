@@ -11,13 +11,16 @@ Window {
     height: 800
     minimumWidth: 760
     minimumHeight: 520
-    visible: true
+    visible: !startQuick  // started for the quick box only: the window comes with the answer
     title: "Goblin AI"
     color: "#07090D"
+    onClosing: Qt.quit()
 
     property string view: backend.hasKeys ? "chat" : "settings"
     property string attachment: ""
     property var pendingSave: null // {index, seg} while the "save as" dialog is open
+    property string pendingImage: "" // the picture being saved with "Spara som…"
+    property bool pictureMode: false // the Skapa bild button: the words go straight to the picture
 
     readonly property var examples: [
         "Rätta stavningen i en fil",
@@ -27,6 +30,14 @@ Window {
     ]
 
     function send() {
+        if (pictureMode) {
+            if (input.text.trim() === "")
+                return;
+            backend.createImage(input.text);
+            input.text = "";
+            pictureMode = false;
+            return;
+        }
         if (backend.busy || (input.text.trim() === "" && attachment === ""))
             return;
         backend.send(input.text, attachment);
@@ -79,7 +90,26 @@ Window {
             win.localFraction = -1;
             win.localError = !ok;
         }
+        function onImageProgress(text, fraction) {
+            win.imageText = text;
+            win.imageFraction = fraction;
+        }
+        function onImageDone(ok, message) {
+            win.imageText = message;
+            win.imageFraction = -1;
+            win.imageError = !ok;
+        }
+        function onQuickShow() { quick.open(); }
     }
+
+    // Pictures on this computer (goblincakes-image): status, models
+    readonly property var imageStatus: JSON.parse(backend.image || "{}")
+    property string imagePlace: ""
+    property string imageText: ""
+    property real imageFraction: -1
+    property bool imageError: false
+    property bool imageRemoving: false
+    property var imageVariant: ({})  // model -> the size picked in the window
 
     property var keyResults: ({})
     // Local AI (Ollama): status, places and suggestions from goblincakes-ollama
@@ -91,6 +121,7 @@ Window {
     property bool localError: false
     property bool localMoving: false
     property bool localRemoving: false
+    property var rolePick: ({})  // role -> the model picked in the window
     function gb(n) { return (Math.round(n * 10) / 10).toString().replace(".", ",") + " GB"; }
 
     // Learning mode (view "learn"): the course, the open module and the last run per task
@@ -164,6 +195,14 @@ Window {
         id: openDialog
         title: "Bifoga en textfil"
         onAccepted: win.attachment = selectedFile.toString()
+    }
+
+    FileDialog {
+        id: saveImageDialog
+        title: "Spara bilden som"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["Bilder (*.png *.jpg *.webp)"]
+        onAccepted: if (win.pendingImage) backend.saveImageAs(win.pendingImage, selectedFile.toString())
     }
 
     FileDialog {
@@ -679,6 +718,15 @@ Window {
                         y: 12
                         width: parent.width - 32
                         spacing: 8
+                        Text {
+                            visible: !!msgItem.m.picture
+                            text: "SKAPA BILD"
+                            color: accent.text
+                            font.family: "Chakra Petch"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 11
+                            font.letterSpacing: 2
+                        }
                         TextEdit {
                             width: Math.min(implicitWidth, msgItem.maxWidth * 0.75 - 32)
                             visible: msgItem.m.text !== ""
@@ -765,14 +813,121 @@ Window {
 
                                     Label {
                                         text: segItem.s.type === "command" ? (segItem.s.danger ? "KOMMANDO – ÄNDRAR SYSTEMET, LÄS IGENOM" : "KOMMANDO")
+                                            : segItem.s.type === "image" ? "BILD"
                                             : segItem.s.type === "file" ? "NY VERSION AV " + segItem.s.name.toUpperCase()
                                             : (segItem.s.lang ? segItem.s.lang.toUpperCase() : "TEXT")
                                         color: segItem.s.type === "command" && segItem.s.danger ? "#E8A0A4" : "#8B98AD"
                                     }
 
                                     CodeBox {
+                                        visible: segItem.s.type !== "image"
                                         code: segItem.s.code || ""
                                         maxHeight: segItem.s.type === "file" ? 320 : 220
+                                    }
+
+                                    // A picture: drawn at once (this computer, Cloudflare or a paid service), shown here
+                                    Column {
+                                        visible: segItem.s.type === "image"
+                                        width: parent.width
+                                        spacing: 10
+                                        Text {
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 3
+                                            elide: Text.ElideRight
+                                            text: segItem.s.prompt || ""
+                                            color: "#8B98AD"
+                                            font.family: "IBM Plex Sans"
+                                            font.italic: true
+                                            font.pixelSize: 13
+                                        }
+                                        Column {
+                                            visible: ["new", "waiting", "running"].indexOf(segItem.s.state) >= 0
+                                            width: parent.width
+                                            spacing: 8
+                                            Text {
+                                                text: segItem.s.progress || "Ritar bilden…"
+                                                color: "#E6ECF5"
+                                                font.family: "IBM Plex Sans"
+                                                font.pixelSize: 14
+                                            }
+                                            Rectangle {
+                                                width: Math.min(parent.width, 360)
+                                                height: 4
+                                                color: "#1A2438"
+                                                clip: true
+                                                Rectangle {
+                                                    visible: (segItem.s.fraction || -1) >= 0
+                                                    width: parent.width * Math.max(0, Math.min(1, segItem.s.fraction || 0))
+                                                    height: parent.height
+                                                    color: accent.color
+                                                }
+                                                Rectangle {
+                                                    visible: (segItem.s.fraction || -1) < 0
+                                                    width: 60
+                                                    height: parent.height
+                                                    color: accent.color
+                                                    SequentialAnimation on x {
+                                                        running: segItem.s.type === "image" && (segItem.s.fraction || -1) < 0
+                                                        loops: Animation.Infinite
+                                                        NumberAnimation { from: -60; to: 360; duration: 1300; easing.type: Easing.InOutQuad }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Image {
+                                            id: picture
+                                            visible: segItem.s.state === "done"
+                                            source: segItem.s.state === "done" ? "file://" + encodeURI(segItem.s.path) : ""
+                                            sourceSize.width: 1120
+                                            asynchronous: true
+                                            fillMode: Image.PreserveAspectFit
+                                            width: Math.min(parent.width, 560)
+                                            height: visible && implicitWidth > 0 ? width * implicitHeight / implicitWidth : 0
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: backend.openImage(segItem.s.path)
+                                            }
+                                        }
+                                        Text {
+                                            visible: segItem.s.state === "done"
+                                            text: (segItem.s.service || "") + "  ·  " + (segItem.s.path || "").split("/").pop()
+                                            width: parent.width
+                                            elide: Text.ElideMiddle
+                                            color: "#5C6880"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 12
+                                        }
+                                        Flow {
+                                            visible: segItem.s.state === "done"
+                                            width: parent.width
+                                            spacing: 10
+                                            FlatButton { small: true; primary: true; text: "Öppna"; onClicked: backend.openImage(segItem.s.path) }
+                                            FlatButton { small: true; text: "Visa i mappen"; onClicked: backend.showImageInFolder(segItem.s.path) }
+                                            FlatButton {
+                                                small: true
+                                                text: "Spara som…"
+                                                onClicked: { win.pendingImage = segItem.s.path; saveImageDialog.open(); }
+                                            }
+                                            FlatButton { small: true; text: "Kopiera bilden"; onClicked: backend.copyImage(segItem.s.path) }
+                                            FlatButton { small: true; text: "Gör en till"; onClicked: backend.anotherImage(msgItem.index, segItem.index) }
+                                        }
+                                        Text {
+                                            visible: segItem.s.state === "error"
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            text: segItem.s.error || ""
+                                            color: accent.errorBright
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 13
+                                        }
+                                        Row {
+                                            visible: segItem.s.state === "error"
+                                            spacing: 10
+                                            FlatButton { small: true; primary: true; text: "Försök igen"; onClicked: backend.retryImage(msgItem.index, segItem.index) }
+                                            FlatButton { small: true; text: "AI-tjänster"; onClicked: win.view = "settings" }
+                                        }
                                     }
 
                                     // Command: run / skip, then the output
@@ -893,7 +1048,7 @@ Window {
             height: inputCol.height + 24
             color: "#0E1420"
             border.width: 1
-            border.color: input.activeFocus ? accent.color : "#1E2A40"
+            border.color: input.activeFocus || win.pictureMode ? accent.color : "#1E2A40"
 
             Column {
                 id: inputCol
@@ -950,7 +1105,8 @@ Window {
 
                         Text {
                             visible: input.text === ""
-                            text: "Skriv din fråga…  (Enter skickar, Shift+Enter ny rad)"
+                            text: win.pictureMode ? "Beskriv bilden – t.ex. en goblin som skjuter pilbåge i solnedgången, målning (Enter ritar)"
+                                                  : "Skriv din fråga…  (Enter skickar, Shift+Enter ny rad)"
                             color: "#5C6880"
                             font: input.font
                         }
@@ -964,14 +1120,23 @@ Window {
                 spacing: 8
                 FlatButton {
                     small: true
+                    visible: !win.pictureMode
                     text: "Bifoga fil"
                     onClicked: openDialog.open()
                 }
                 FlatButton {
                     small: true
+                    visible: backend.canDraw
+                    primary: win.pictureMode
+                    text: win.pictureMode ? "Fråga i stället" : "Skapa bild"
+                    onClicked: { win.pictureMode = !win.pictureMode; input.forceActiveFocus(); }
+                }
+                FlatButton {
+                    small: true
                     primary: true
-                    text: "Skicka"
-                    enabledState: !backend.busy && (input.text.trim() !== "" || win.attachment !== "")
+                    text: win.pictureMode ? "Rita" : "Skicka"
+                    enabledState: win.pictureMode ? input.text.trim() !== ""
+                                                  : !backend.busy && (input.text.trim() !== "" || win.attachment !== "")
                     onClicked: win.send()
                 }
             }
@@ -2041,23 +2206,38 @@ Window {
                         }
 
                         Label { text: "VAD VILL DU ANVÄNDA DEN TILL?" }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Modellen märkt REKOMMENDERAS ryms i ditt grafikminne. Större svarar bättre men långsammare "
+                                  + "(det som inte ryms läggs i vanliga minnet) – inget går sönder, så välj det du vill."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
                         Repeater {
                             model: (win.local.recommend || {}).roles || []
                             Rectangle {
                                 id: roleRow
                                 required property var modelData
-                                readonly property bool have: (win.localStatus.models || []).some(m => m.name === modelData.model
-                                                                 || m.name === modelData.model + ":latest")
+                                readonly property var have: (win.localStatus.models || []).map(m => m.name.replace(/:latest$/, ""))
+                                readonly property string current: (win.localStatus.roles || {})[modelData.id] || ""
+                                // picked in the window, else the role's model, else the suggestion
+                                readonly property string picked: win.rolePick[modelData.id] || current || modelData.model
+                                readonly property bool pickedHave: have.indexOf(picked) >= 0
                                 width: localCol.width
-                                height: 56
+                                height: roleCol.height + 24
                                 color: "#0B1018"
                                 border.width: 1
-                                border.color: have ? accent.color : "#1E2A40"
+                                border.color: current && have.indexOf(current) >= 0 ? accent.color : "#1E2A40"
                                 Column {
-                                    anchors { left: parent.left; leftMargin: 14; right: roleButton.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                                    spacing: 2
+                                    id: roleCol
+                                    x: 14
+                                    y: 12
+                                    width: parent.width - 28
+                                    spacing: 8
                                     Text {
-                                        text: roleRow.modelData.name + "  ·  " + roleRow.modelData.model
+                                        text: roleRow.modelData.name + (roleRow.current ? "  ·  använder " + roleRow.current : "")
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
                                         font.weight: Font.DemiBold
@@ -2065,21 +2245,75 @@ Window {
                                     }
                                     Text {
                                         width: parent.width
-                                        elide: Text.ElideRight
+                                        wrapMode: Text.WordWrap
                                         text: roleRow.modelData.text
                                         color: "#8B98AD"
                                         font.family: "IBM Plex Sans"
                                         font.pixelSize: 12
                                     }
-                                }
-                                FlatButton {
-                                    id: roleButton
-                                    anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                                    small: true
-                                    primary: !roleRow.have
-                                    enabledState: !roleRow.have && !backend.localBusy
-                                    text: roleRow.have ? "Hämtad" : "Hämta"
-                                    onClicked: { win.localError = false; backend.pullLocal(roleRow.modelData.model, roleRow.modelData.id); }
+                                    Flow {
+                                        width: parent.width
+                                        spacing: 6
+                                        Repeater {
+                                            model: roleRow.modelData.options || []
+                                            Rectangle {
+                                                id: optionChip
+                                                required property var modelData
+                                                readonly property bool chosen: roleRow.picked === modelData.model
+                                                width: optionText.implicitWidth + 20
+                                                height: 30
+                                                color: chosen ? "#12203A" : optionArea.containsMouse ? "#111A2A" : "transparent"
+                                                border.width: chosen ? 2 : 1
+                                                border.color: chosen ? accent.color : "#2A3852"
+                                                Text {
+                                                    id: optionText
+                                                    anchors.centerIn: parent
+                                                    text: optionChip.modelData.model
+                                                          + (optionChip.modelData.size ? " · " + win.gb(optionChip.modelData.size) : "")
+                                                          + (optionChip.modelData.recommended ? " · REKOMMENDERAS"
+                                                             : optionChip.modelData.slow ? " · långsammare" : "")
+                                                          + (roleRow.have.indexOf(optionChip.modelData.model) >= 0 ? " ✓" : "")
+                                                    color: optionChip.modelData.recommended ? accent.text : "#E6ECF5"
+                                                    font.family: "IBM Plex Sans"
+                                                    font.pixelSize: 12
+                                                }
+                                                MouseArea {
+                                                    id: optionArea
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        const p = Object.assign({}, win.rolePick);
+                                                        p[roleRow.modelData.id] = optionChip.modelData.model;
+                                                        win.rolePick = p;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        wrapMode: Text.WordWrap
+                                        text: ((roleRow.modelData.options || []).find(o => o.model === roleRow.picked) || {}).note || ""
+                                        visible: text !== ""
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                    FlatButton {
+                                        small: true
+                                        visible: roleRow.picked !== roleRow.current || !roleRow.pickedHave
+                                        primary: true
+                                        enabledState: !backend.localBusy
+                                        text: (roleRow.pickedHave ? "Använd " : "Hämta ") + roleRow.picked
+                                        onClicked: {
+                                            win.localError = false;
+                                            if (roleRow.pickedHave)
+                                                backend.setLocalRole(roleRow.modelData.id, roleRow.picked);
+                                            else
+                                                backend.pullLocal(roleRow.picked, roleRow.modelData.id);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2180,6 +2414,268 @@ Window {
                         wrapMode: Text.WordWrap
                         text: win.localText
                         color: win.localError ? accent.errorBright : "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                }
+            }
+
+            // ── Pictures (16 Oct): drawn on this computer, else in the cloud ──
+            Rectangle {
+                width: settingsCol.width
+                height: imageCol.height + 36
+                color: "#0E1420"
+                border.width: 1
+                border.color: win.imageStatus.installed ? accent.color : "#1E2A40"
+
+                Column {
+                    id: imageCol
+                    x: 20
+                    y: 18
+                    width: parent.width - 40
+                    spacing: 12
+
+                    Row {
+                        spacing: 12
+                        Text {
+                            text: "Skapa bilder"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            text: win.imageStatus.installed === undefined ? "Kollar…"
+                                : !win.imageStatus.installed ? "Inte installerat på din dator"
+                                : win.imageStatus.waiting ? "Väntar på disken"
+                                : win.imageStatus.game ? "Ett spel kör – bilder ritas i molnet så länge"
+                                : win.imageStatus.model ? "Ritar på din dator" : "Ingen modell hämtad"
+                            color: win.imageStatus.installed ? accent.text : "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: "Be om en bild i chatten (\"gör en bild på …\") eller tryck på Skapa bild. Bilden ritas på din dator om "
+                              + "bildprogrammet är installerat – gratis och utan att något skickas iväg. Annars, eller medan ett spel kör: "
+                              + "Cloudflare (gratis, nyckel nedan), sedan Gemini (bara med Googles betalplan), OpenAI och Grok om du har nycklar. "
+                              + "Inget ligger kvar i grafikminnet mellan bilderna. Bilderna sparas i Bilder/Goblin AI (eller projektets mapp)."
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+
+                    Column {
+                        visible: win.imageStatus.installed === false
+                        width: parent.width
+                        spacing: 8
+                        Label { text: "VAR SKA DET LIGGA?" }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Programmet tar 40 MB, en bildmodell 7–15 GB."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Repeater {
+                            model: win.local.places || []
+                            Rectangle {
+                                id: imagePlaceRow
+                                required property var modelData
+                                readonly property bool chosen: (win.imagePlace || (win.local.places || [{}])[0].path) === modelData.path
+                                width: imageCol.width
+                                height: 40
+                                color: chosen ? "#12203A" : imagePlaceArea.containsMouse ? "#111A2A" : "transparent"
+                                border.width: chosen ? 2 : 1
+                                border.color: chosen ? accent.color : "#2A3852"
+                                opacity: modelData.writable ? 1 : 0.4
+                                Text {
+                                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                                    text: imagePlaceRow.modelData.label + "  ·  " + win.gb(imagePlaceRow.modelData.free) + " ledigt"
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                }
+                                MouseArea {
+                                    id: imagePlaceArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (imagePlaceRow.modelData.writable) win.imagePlace = imagePlaceRow.modelData.path
+                                }
+                            }
+                        }
+                        FlatButton {
+                            primary: true
+                            enabledState: !backend.imageBusy && !!win.local.places
+                            text: "Installera bildprogrammet"
+                            onClicked: {
+                                win.imageError = false;
+                                backend.installImage(win.imagePlace || (win.local.places || [{}])[0].path);
+                            }
+                        }
+                    }
+
+                    Column {
+                        visible: !!win.imageStatus.installed
+                        width: parent.width
+                        spacing: 10
+                        Label { text: "BILDMODELL" }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Storleken märkt REKOMMENDERAS ryms i ditt grafikminne. Större ger bättre bilder men tar längre tid "
+                                  + "på din dator (det som inte ryms läggs i vanliga minnet) – inget går sönder, så välj det du vill."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Repeater {
+                            model: win.imageStatus.models || []
+                            Rectangle {
+                                id: imageModelRow
+                                required property var modelData
+                                readonly property bool used: win.imageStatus.model === modelData.id
+                                // the size picked in the window, else the downloaded one, else the suggested one
+                                readonly property string picked: win.imageVariant[modelData.id] || modelData.file
+                                readonly property var pickedVariant: modelData.variants.find(v => v.file === picked) || modelData.variants[0]
+                                readonly property bool changing: modelData.ready && picked !== modelData.file
+                                width: imageCol.width
+                                height: imageModelCol.height + 24
+                                color: "#0B1018"
+                                border.width: used ? 2 : 1
+                                border.color: used ? accent.color : modelData.ready ? "#2A3852" : "#1E2A40"
+                                Column {
+                                    id: imageModelCol
+                                    x: 14
+                                    y: 12
+                                    width: parent.width - 28
+                                    spacing: 8
+                                    Text {
+                                        text: imageModelRow.modelData.name
+                                              + (imageModelRow.modelData.ready ? "  ·  hämtad" : "")
+                                              + (imageModelRow.used ? "  ·  används" : "")
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.weight: Font.DemiBold
+                                        font.pixelSize: 13
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        wrapMode: Text.WordWrap
+                                        text: imageModelRow.modelData.text
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                    Flow {
+                                        width: parent.width
+                                        spacing: 6
+                                        Repeater {
+                                            model: imageModelRow.modelData.variants
+                                            Rectangle {
+                                                id: variantChip
+                                                required property var modelData
+                                                readonly property bool chosen: imageModelRow.picked === modelData.file
+                                                width: variantText.implicitWidth + 20
+                                                height: 30
+                                                color: chosen ? "#12203A" : variantArea.containsMouse ? "#111A2A" : "transparent"
+                                                border.width: chosen ? 2 : 1
+                                                border.color: chosen ? accent.color : "#2A3852"
+                                                Text {
+                                                    id: variantText
+                                                    anchors.centerIn: parent
+                                                    text: variantChip.modelData.name + " · " + win.gb(variantChip.modelData.size)
+                                                          + (variantChip.modelData.recommended ? " · REKOMMENDERAS"
+                                                             : variantChip.modelData.slow ? " · långsammare" : "")
+                                                          + (variantChip.modelData.file === imageModelRow.modelData.file && imageModelRow.modelData.ready ? " ✓" : "")
+                                                    color: variantChip.modelData.recommended ? accent.text : "#E6ECF5"
+                                                    font.family: "IBM Plex Sans"
+                                                    font.pixelSize: 12
+                                                }
+                                                MouseArea {
+                                                    id: variantArea
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        const v = Object.assign({}, win.imageVariant);
+                                                        v[imageModelRow.modelData.id] = variantChip.modelData.file;
+                                                        win.imageVariant = v;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Row {
+                                        spacing: 8
+                                        FlatButton {
+                                            small: true
+                                            visible: !imageModelRow.modelData.ready || imageModelRow.changing
+                                            primary: true
+                                            enabledState: !backend.imageBusy
+                                            text: (imageModelRow.changing ? "Byt till " : "Hämta ") + imageModelRow.pickedVariant.name.toLowerCase()
+                                                  + " (" + win.gb(imageModelRow.pickedVariant.size) + ")"
+                                            onClicked: {
+                                                win.imageError = false;
+                                                backend.pullImage(imageModelRow.modelData.id, imageModelRow.picked);
+                                            }
+                                        }
+                                        FlatButton {
+                                            small: true
+                                            visible: imageModelRow.modelData.ready && !imageModelRow.used
+                                            text: "Använd"
+                                            onClicked: backend.useImageModel(imageModelRow.modelData.id)
+                                        }
+                                        FlatButton {
+                                            small: true
+                                            visible: imageModelRow.modelData.ready
+                                            enabledState: !backend.imageBusy
+                                            text: "Ta bort"
+                                            onClicked: backend.removeImageModel(imageModelRow.modelData.id)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Flow {
+                            width: parent.width
+                            spacing: 8
+                            FlatButton { small: true; text: "Uppdatera bildprogrammet"; enabledState: !backend.imageBusy; onClicked: backend.updateImage() }
+                            FlatButton { small: true; text: "Ta bort bildprogrammet …"; enabledState: !backend.imageBusy; onClicked: win.imageRemoving = !win.imageRemoving }
+                            FlatButton { small: true; visible: win.imageRemoving; text: "Ta bort, behåll modellerna"; onClicked: { win.imageRemoving = false; backend.uninstallImage(false); } }
+                            FlatButton { small: true; visible: win.imageRemoving; text: "Ta bort allt"; onClicked: { win.imageRemoving = false; backend.uninstallImage(true); } }
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Plats: " + (win.imageStatus.dir || "") + " · stable-diffusion.cpp " + (win.imageStatus.version || "")
+                            color: "#5C6880"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
+                        }
+                    }
+
+                    Rectangle {
+                        visible: backend.imageBusy && win.imageFraction >= 0
+                        width: parent.width
+                        height: 4
+                        color: "#1A2438"
+                        Rectangle {
+                            width: parent.width * Math.max(0, Math.min(1, win.imageFraction))
+                            height: parent.height
+                            color: accent.color
+                        }
+                    }
+                    Text {
+                        visible: win.imageText !== ""
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: win.imageText
+                        color: win.imageError ? accent.errorBright : "#E6ECF5"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13
                     }
@@ -2292,6 +2788,111 @@ Window {
                 primary: true
                 text: "Till chatten"
                 onClicked: win.view = "chat"
+            }
+        }
+    }
+
+    // ── Quick question (Meta+§): a small box like KDE's search – the window opens with the answer ──
+
+    Window {
+        id: quick
+        title: "Goblin AI – snabbfråga"  // the KWin script goblincakes-windows places it by this title
+        flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+        width: 680
+        height: quickBox.height
+        color: "#0B1018"
+        property bool wasActive: false
+
+        function open() {
+            quickInput.text = "";
+            quickNote.text = "";
+            wasActive = false;
+            show();
+            raise();
+            requestActivate();
+            quickInput.forceActiveFocus();
+        }
+        function dismiss() {
+            hide();
+            if (!win.visible && !backend.busy)  // only started for the box
+                Qt.quit();
+        }
+        function ask() {
+            const text = quickInput.text.trim();
+            if (text === "")
+                return;
+            if (!backend.quickSend(text)) {
+                quickNote.text = "Goblin AI svarar redan på något – vänta en stund.";
+                return;
+            }
+            hide();
+            if (win.visible)
+                win.view = "chat";
+        }
+        onActiveChanged: {
+            if (active)
+                wasActive = true;
+            else if (wasActive && visible)
+                dismiss();
+        }
+        Component.onCompleted: if (startQuick) open()
+
+        Rectangle {
+            id: quickBox
+            width: parent.width
+            height: quickCol.height + 28
+            color: "#0B1018"
+            border.width: 2
+            border.color: accent.color
+
+            Column {
+                id: quickCol
+                x: 18
+                y: 14
+                width: parent.width - 36
+                spacing: 8
+                Row {
+                    width: parent.width
+                    spacing: 14
+                    Image {
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: logoUrl
+                        sourceSize.width: 30
+                        sourceSize.height: 30
+                    }
+                    TextInput {
+                        id: quickInput
+                        width: parent.width - 44
+                        anchors.verticalCenter: parent.verticalCenter
+                        clip: true
+                        color: "#E6ECF5"
+                        selectionColor: accent.color
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 20
+                        Keys.onReturnPressed: quick.ask()
+                        Keys.onEnterPressed: quick.ask()
+                        Keys.onEscapePressed: quick.dismiss()
+                        Text {
+                            visible: quickInput.text === ""
+                            text: "Fråga Goblin AI …"
+                            color: "#5C6880"
+                            font: quickInput.font
+                        }
+                    }
+                }
+                Text {
+                    id: quickNote
+                    visible: text !== ""
+                    color: accent.errorBright
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 12
+                }
+                Text {
+                    text: "Enter frågar – Goblin AI öppnas när svaret finns  ·  Esc stänger"
+                    color: "#5C6880"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 12
+                }
             }
         }
     }

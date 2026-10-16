@@ -330,9 +330,30 @@ function appGridAdded(window) {
     window.frameGeometryChanged.connect(fit);
 }
 
+// Goblin AI's quick question (Meta+§, 16 Oct): like KDE's search box – at the top third of the
+// screen with the pointer, not in the taskbar or Alt+Tab, never in a tile
+const QUICK = "Goblin AI – snabbfråga";
+function quickAdded(window) {
+    window.skipTaskbar = true;
+    window.skipSwitcher = true;
+    window.skipPager = true;
+    const area = workspace.clientArea(KWin.PlacementArea, workspace.activeScreen, workspace.currentDesktop);
+    const geo = window.frameGeometry;
+    window.frameGeometry = {
+        x: Math.round(area.x + Math.max(0, (area.width - geo.width) / 2)),
+        y: Math.round(area.y + area.height * 0.22),
+        width: geo.width,
+        height: geo.height
+    };
+}
+
 function added(window) {
     if (!window)
         return;
+    if (String(window.caption) === QUICK) {
+        quickAdded(window);
+        return;
+    }
     if (ordinaryWindow(window))
         watchDrag(window);
     if (isAppGrid(window)) {

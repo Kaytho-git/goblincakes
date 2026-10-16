@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Meta+§ (the key under Esc) opens Goblin AI's quick question: a small box like KDE's search;
+# Goblin AI opens when the answer is there. Can be changed in System Settings → Shortcuts.
+Type=Application
+Name=Goblin AI – snabbfråga
+Exec=goblin-ai --quick
+Icon=goblincakes-ai
+OnlyShowIn=KDE;
+X-KDE-Shortcuts=Meta+§

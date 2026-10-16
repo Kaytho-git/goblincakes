@@ -1,0 +1,481 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: pictures from your own computer for Goblin AI (16 Oct, the user's project – Goblin AI →
+AI-tjänster → Skapa bilder). stable-diffusion.cpp with Z-Image-Turbo or FLUX.2 [klein] 4B.
+
+    goblincakes-image status                  JSON: installed, version, place, models, chosen model, game running
+    goblincakes-image install [folder]        stable-diffusion.cpp (Vulkan build, ~40 MB) into <folder>/goblincakes-bild
+                                              (default: next to the local AI, else ~/.local/share)
+    goblincakes-image update                  a newer stable-diffusion.cpp when there is one (goblin update)
+    goblincakes-image pull <model> [file]     download a model (z-image-turbo, flux2-klein-4b, flux2-klein-9b) and
+                                              use it; file = one of its sizes (default: the one for this computer)
+    goblincakes-image use <model>
+    goblincakes-image rm <model>
+    goblincakes-image uninstall [--models]
+    goblincakes-image generate <out> <width> <height> [model]   the description on stdin
+
+Nothing stays in the graphics memory: every picture is its own sd-cli run (loads the model, draws,
+quits). Not while a game runs (exit 3) – and a game that starts while drawing stops it. Vulkan for
+every graphics card (Nvidia, AMD, Intel; the project has no Linux CUDA build), the processor without one.
+Settings: ~/.config/goblincakes/image.json {"dir", "version", "model", "files"}.
+Lines starting with "@@ " (and JSON progress lines "@@progress {…}") are for the window.
+"""
+import importlib.util
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+import zipfile
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+
+HOME = Path.home()
+CONFIG_FILE = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes/image.json"
+DEFAULT_PARENT = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share")
+FOLDER = "goblincakes-bild"
+RELEASES = os.environ.get("GOBLINCAKES_SD_RELEASES",
+                          "https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/latest")
+HF = "https://huggingface.co"
+
+# The local AI's helper has the graphics card, the places and the games watch – the same rules here
+_here = Path(__file__).resolve().parent
+_ollama = next((p for p in (os.environ.get("GOBLINCAKES_OLLAMA_HELPER"), _here / "goblincakes-ollama",
+                            "/usr/libexec/goblincakes-ollama") if p and Path(p).is_file()), None)
+O = None
+if _ollama:
+    _loader = SourceFileLoader("goblincakes_ollama", str(_ollama))
+    O = importlib.util.module_from_spec(importlib.util.spec_from_loader(_loader.name, _loader))
+    _loader.exec_module(O)
+
+# The models (no login on Hugging Face). The diffusion model comes in sizes ("variants": repo, path, GB,
+# name), smallest first – the one for this computer is suggested (recommend), but the user may take any:
+# bigger = better pictures but slower when it doesn't fit in the graphics memory (never broken).
+# Text encoder and VAE are shared files.
+MODELS = {
+    "z-image-turbo": {
+        "name": "Z-Image-Turbo",
+        "text": "Bäst på foton, detaljer och text i bilden. Ungefär en minut per bild med 12 GB grafikminne.",
+        "diffusion": [("leejet/Z-Image-Turbo-GGUF", "z_image_turbo-Q3_K.gguf", 3.1, "Liten"),
+                      ("leejet/Z-Image-Turbo-GGUF", "z_image_turbo-Q4_K.gguf", 3.9, "Mellan"),
+                      ("leejet/Z-Image-Turbo-GGUF", "z_image_turbo-Q6_K.gguf", 5.3, "Bra"),
+                      ("leejet/Z-Image-Turbo-GGUF", "z_image_turbo-Q8_0.gguf", 6.6, "Mycket bra"),
+                      ("Comfy-Org/z_image_turbo", "split_files/diffusion_models/z_image_turbo_bf16.safetensors", 12.3, "Full")],
+        "llm": ("unsloth/Qwen3-4B-Instruct-2507-GGUF", "Qwen3-4B-Instruct-2507-Q4_K_M.gguf", 2.5),
+        "vae": ("Comfy-Org/z_image_turbo", "split_files/vae/ae.safetensors", 0.3),
+        "steps": 8,
+    },
+    "flux2-klein-4b": {
+        "name": "FLUX.2 [klein] 4B",
+        "text": "Snabbast – bra på illustrationer och tecknat. Några sekunder till en halv minut per bild.",
+        "diffusion": [("leejet/FLUX.2-klein-4B-GGUF", "flux-2-klein-4b-Q4_0.gguf", 2.5, "Mellan"),
+                      ("leejet/FLUX.2-klein-4B-GGUF", "flux-2-klein-4b-Q8_0.gguf", 4.3, "Mycket bra")],
+        "llm": ("unsloth/Qwen3-4B-GGUF", "Qwen3-4B-Q4_K_M.gguf", 2.5),
+        "vae": ("black-forest-labs/FLUX.2-small-decoder", "full_encoder_small_decoder.safetensors", 0.25),
+        "steps": 4,
+    },
+    # Bigger: what doesn't fit in the graphics memory goes to the ordinary memory (sd-cli's auto-fit) –
+    # slower, never broken; out of memory = that picture fails with an error. Licence: only non-commercial use.
+    "flux2-klein-9b": {
+        "name": "FLUX.2 [klein] 9B",
+        "text": "Större och bättre, men långsammare (ett par minuter per bild med 12 GB). Får bara användas privat (licensen).",
+        "diffusion": [("leejet/FLUX.2-klein-9B-GGUF", "flux-2-klein-9b-Q4_0.gguf", 5.6, "Mellan"),
+                      ("leejet/FLUX.2-klein-9B-GGUF", "flux-2-klein-9b-Q8_0.gguf", 10.0, "Mycket bra")],
+        "llm": ("unsloth/Qwen3-8B-GGUF", "Qwen3-8B-Q4_K_M.gguf", 5.0),
+        "vae": ("black-forest-labs/FLUX.2-small-decoder", "full_encoder_small_decoder.safetensors", 0.25),
+        "steps": 4,
+    },
+}
+DEFAULT_MODEL = "z-image-turbo"
+
+
+def say(text):
+    print(f"@@ {text}", flush=True)
+
+
+def progress(**fields):
+    print("@@progress " + json.dumps(fields), flush=True)
+
+
+def load():
+    try:
+        data = json.loads(CONFIG_FILE.read_text())
+    except (OSError, ValueError):
+        data = {}
+    data.setdefault("files", {})
+    return data
+
+
+def save(data):
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = CONFIG_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=1))
+    tmp.replace(CONFIG_FILE)
+
+
+def base(data):
+    return Path(data["dir"]) if data.get("dir") else None
+
+
+def cli(data):
+    b = base(data)
+    return b / "bin/sd-cli" if b else None
+
+
+def installed(data):
+    c = cli(data)
+    return bool(c and c.is_file())
+
+
+def vram():
+    if not O:
+        return 0.0
+    g = O.graphics()
+    return g["vram"] if g["kind"] in ("nvidia", "amd") else 0.0
+
+
+def fits(gb, memory):
+    """A diffusion file that runs fully in the graphics memory (room left for the picture itself)."""
+    return gb <= memory * 0.7
+
+
+def recommended(model_id, memory):
+    """The biggest size that fits this computer's graphics memory, else the smallest."""
+    variants = MODELS[model_id]["diffusion"]
+    return next((v for v in reversed(variants) if fits(v[2], memory)), variants[0])
+
+
+def model_files(model_id, data, variant=None):
+    """[(repo, path, GB)] for a model: the given size, else the downloaded one, else the suggested one."""
+    m = MODELS[model_id]
+    want = variant or data["files"].get(model_id)
+    diff = next((d for d in m["diffusion"] if d[1] == want or local_name(d[1]) == want), None)
+    if not diff:
+        diff = recommended(model_id, vram())
+    return [diff[:3], m["llm"], m["vae"]]
+
+
+def local_name(path):
+    return Path(path).name
+
+
+def model_ready(model_id, data):
+    b = base(data)
+    return bool(b and data["files"].get(model_id)) and all(
+        (b / "models" / local_name(f[1])).is_file() for f in model_files(model_id, data))
+
+
+def game_running():
+    return bool(O and (O.PAUSED.exists() or O.game_running()))
+
+
+# ── Commands ──────────────────────────────────────────────────────
+
+def cmd_status():
+    data = load()
+    b = base(data)
+    models = []
+    memory = vram()
+    for mid, m in MODELS.items():
+        files = model_files(mid, data)
+        rec = recommended(mid, memory)
+        shared = sum(f[2] for f in files[1:])
+        variants = [{"file": v[1], "name": v[3], "size": round(v[2] + shared, 1), "recommended": v is rec,
+                     "slow": not fits(v[2], memory)} for v in m["diffusion"]]
+        models.append({"id": mid, "name": m["name"], "text": m["text"], "ready": model_ready(mid, data),
+                       "size": round(sum(f[2] for f in files), 1), "file": files[0][1], "variants": variants,
+                       "suits": fits(rec[2], memory)})
+    model = data.get("model") if model_ready(data.get("model", ""), data) else next(
+        (m["id"] for m in models if m["ready"]), "")
+    print(json.dumps({"installed": installed(data), "dir": data.get("dir", ""), "version": data.get("version", ""),
+                      "latest": data.get("latest", ""), "waiting": bool(b) and not b.exists(),
+                      "models": models, "model": model, "game": game_running(), "vram": vram()},
+                     ensure_ascii=False))
+    return 0
+
+
+def latest_release():
+    req = urllib.request.Request(RELEASES, headers={"Accept": "application/vnd.github+json", "User-Agent": "goblincakes"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        rel = json.loads(r.read())
+    asset = next(a for a in rel["assets"] if a["name"].endswith("-x86_64-vulkan.zip") and "Linux" in a["name"])
+    return rel["tag_name"], asset["browser_download_url"]
+
+
+def fetch(url, dest, what):
+    """Downloads url to dest (via dest.part, so a broken download is never taken for a whole file)."""
+    part = dest.with_name(dest.name + ".part")
+    req = urllib.request.Request(url, headers={"User-Agent": "goblincakes"})
+    with urllib.request.urlopen(req, timeout=60) as r, open(part, "wb") as f:
+        total = int(r.headers.get("Content-Length") or 0)
+        done, last = 0, 0.0
+        while True:
+            chunk = r.read(1 << 20)
+            if not chunk:
+                break
+            f.write(chunk)
+            done += len(chunk)
+            if time.time() - last > 0.5:
+                last = time.time()
+                progress(what=what, completed=done, total=total)
+    part.replace(dest)
+
+
+def put_program(target, data):
+    """The newest release's bin/ into target (the models stay)."""
+    say("Hämtar stable-diffusion.cpp…")
+    tag, url = latest_release()
+    tmp = Path(tempfile.mkdtemp(prefix="goblincakes-bild-", dir=target.parent))
+    try:
+        archive = tmp / "sd.zip"
+        fetch(url, archive, "stable-diffusion.cpp")
+        say("Packar upp…")
+        unpacked = tmp / "bin"
+        with zipfile.ZipFile(archive) as z:
+            z.extractall(unpacked)
+        for f in unpacked.iterdir():
+            f.chmod(0o755)
+        if not (unpacked / "sd-cli").is_file():
+            raise RuntimeError("Paketet saknar sd-cli")
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.rmtree(target / "bin", ignore_errors=True)
+        shutil.move(str(unpacked), str(target / "bin"))
+        (target / "models").mkdir(exist_ok=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    data["version"] = data["latest"] = tag
+
+
+def default_parent():
+    """Next to the local AI when there is one (the user already chose a disk with room), else the home folder."""
+    try:
+        d = json.loads((CONFIG_FILE.parent / "ollama.json").read_text()).get("dir")
+        if d and Path(d).parent.is_dir():
+            return Path(d).parent
+    except (OSError, ValueError):
+        pass
+    return DEFAULT_PARENT
+
+
+def cmd_install(args):
+    data = load()
+    parent = Path(args[0]).expanduser() if args else default_parent()
+    if not parent.is_dir() or not os.access(parent, os.W_OK):
+        print(f"Kan inte skriva till {parent}", file=sys.stderr)
+        return 1
+    target = parent / FOLDER
+    try:
+        put_program(target, data)
+    except (OSError, ValueError, KeyError, StopIteration, RuntimeError, zipfile.BadZipFile) as e:
+        print(f"Kunde inte hämta stable-diffusion.cpp ({getattr(e, 'reason', e)})", file=sys.stderr)
+        return 1
+    data["dir"] = str(target)
+    save(data)
+    say(f"Klart – bildprogrammet ligger i {target}")
+    return 0
+
+
+def cmd_update():
+    data = load()
+    if not installed(data):
+        return 0
+    try:
+        tag, _ = latest_release()
+    except (OSError, ValueError, KeyError, StopIteration):
+        say("Kunde inte se senaste versionen (nätverket?)")
+        return 1
+    data["latest"] = tag
+    if tag == data.get("version"):
+        save(data)
+        say(f"Redan senaste (stable-diffusion.cpp {tag})")
+        return 0
+    try:
+        put_program(base(data), data)
+    except (OSError, ValueError, KeyError, StopIteration, RuntimeError, zipfile.BadZipFile) as e:
+        print(f"Kunde inte uppdatera ({getattr(e, 'reason', e)})", file=sys.stderr)
+        return 1
+    save(data)
+    say(f"Uppdaterat: stable-diffusion.cpp {tag}")
+    return 0
+
+
+def cmd_pull(args):
+    data = load()
+    if not args or args[0] not in MODELS:
+        print("Använd: goblincakes-image pull " + "|".join(MODELS), file=sys.stderr)
+        return 2
+    if not installed(data):
+        print("Installera bildprogrammet först", file=sys.stderr)
+        return 1
+    mid = args[0]
+    old = model_files(mid, data)[0][1] if model_ready(mid, data) else None
+    # The size the user picked (any – bigger is slower, never broken), else the suggested one
+    files = model_files(mid, data, args[1] if len(args) > 1 else recommended(mid, vram())[1])
+    folder = base(data) / "models"
+    folder.mkdir(parents=True, exist_ok=True)
+    need = sum(f[2] for f in files if not (folder / local_name(f[1])).is_file()) * 1024 ** 3
+    if shutil.disk_usage(folder).free < need + 1024 ** 3:
+        print(f"Får inte plats: behöver {need / 1024 ** 3:.1f} GB", file=sys.stderr)
+        return 1
+    for repo, path, _gb in files:
+        dest = folder / local_name(path)
+        if dest.is_file():
+            continue
+        say(f"Hämtar {local_name(path)}…")
+        try:
+            fetch(f"{HF}/{repo}/resolve/main/{path}", dest, local_name(path))
+        except (OSError, urllib.error.URLError) as e:
+            print(f"Hämtningen avbröts ({getattr(e, 'reason', e)})", file=sys.stderr)
+            return 1
+    data["files"][mid] = files[0][1]
+    data["model"] = mid
+    save(data)
+    in_use = {model_files(other, data)[0][1] for other in MODELS if model_ready(other, data)}
+    if old and old not in in_use:  # another size of the same model replaced it
+        (folder / local_name(old)).unlink(missing_ok=True)
+    say(f"Klart: {MODELS[mid]['name']}")
+    return 0
+
+
+def cmd_use(args):
+    data = load()
+    if not args or not model_ready(args[0], data):
+        return 2
+    data["model"] = args[0]
+    save(data)
+    return 0
+
+
+def cmd_rm(args):
+    data = load()
+    if not args or args[0] not in MODELS or not base(data):
+        return 2
+    mid = args[0]
+    keep = {local_name(f[1]) for other in MODELS if other != mid and model_ready(other, data)
+            for f in model_files(other, data)}
+    for f in model_files(mid, data):
+        if local_name(f[1]) not in keep:
+            (base(data) / "models" / local_name(f[1])).unlink(missing_ok=True)
+    data["files"].pop(mid, None)
+    if data.get("model") == mid:
+        data.pop("model")
+    save(data)
+    say(f"Borttagen: {MODELS[mid]['name']}")
+    return 0
+
+
+def cmd_uninstall(args):
+    data = load()
+    b = base(data)
+    if b and b.exists():
+        shutil.rmtree(b / "bin", ignore_errors=True)
+        if "--models" in args:
+            shutil.rmtree(b, ignore_errors=True)
+    if "--models" in args:
+        CONFIG_FILE.unlink(missing_ok=True)
+    else:
+        data.pop("version", None)
+        save(data)
+    say("Bildprogrammet är borttaget" + (" (modellerna också)" if "--models" in args else " – modellerna ligger kvar"))
+    return 0
+
+
+def cmd_generate(args):
+    """Draws one picture: exit 0 = done, 3 = a game runs, 1 = error (the reason on stderr)."""
+    data = load()
+    if len(args) < 3:
+        print("Använd: goblincakes-image generate <fil> <bredd> <höjd> [modell]  (beskrivningen på stdin)", file=sys.stderr)
+        return 2
+    out, width, height = Path(args[0]), int(args[1]), int(args[2])
+    mid = args[3] if len(args) > 3 and args[3] in MODELS else data.get("model") or DEFAULT_MODEL
+    prompt = sys.stdin.read().strip()
+    if not installed(data):
+        print("bildprogrammet är inte installerat", file=sys.stderr)
+        return 1
+    if not base(data).exists():
+        print(f"disken med bildprogrammet är inte inkopplad ({base(data)})", file=sys.stderr)
+        return 1
+    if not model_ready(mid, data):
+        mid = next((m for m in MODELS if model_ready(m, data)), "")
+        if not mid:
+            print("ingen bildmodell hämtad än (AI-tjänster → Skapa bilder)", file=sys.stderr)
+            return 1
+    if game_running():
+        print("avstängd medan ett spel kör", file=sys.stderr)
+        return 3
+    if O:  # the local AI's model out of the graphics memory first – both don't fit on most cards
+        O.unload()
+    folder = base(data) / "models"
+    diff, llm, vae = (folder / local_name(f[1]) for f in model_files(mid, data))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [str(cli(data)), "--diffusion-model", str(diff), "--llm", str(llm), "--vae", str(vae),
+           "-p", prompt, "--cfg-scale", "1.0", "--steps", str(MODELS[mid]["steps"]),
+           "-W", str(width), "-H", str(height), "-s", str(int.from_bytes(os.urandom(4), "big") >> 1),
+           "-o", str(out)]
+    say(f"Ritar med {MODELS[mid]['name']}…")
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            env=dict(os.environ, LD_LIBRARY_PATH=str(cli(data).parent)), start_new_session=True)
+    os.set_blocking(proc.stdout.fileno(), False)
+    buf, tail, last_check, stage = b"", [], 0.0, ""
+    while proc.poll() is None:
+        try:
+            chunk = proc.stdout.read() or b""
+        except OSError:
+            chunk = b""
+        buf += chunk
+        *lines, buf = buf.replace(b"\r", b"\n").split(b"\n")
+        for raw in lines:
+            line = raw.decode(errors="replace").strip()
+            if not line:
+                continue
+            tail = (tail + [line])[-20:]
+            # "|=====>     | 3/8 - 4.36s/it" = a drawing step; "… MB/s" = loading the model
+            if "s/it" in line or "it/s" in line:
+                stage = "steps"
+                try:
+                    step, total = line.split("|")[-1].split("-")[0].strip().split("/")
+                    progress(what="steps", completed=int(step), total=int(total))
+                except ValueError:
+                    pass
+            elif "MB/s" in line and stage != "load":
+                stage = "load"
+                say("Laddar modellen…")
+            elif "decoding" in line and stage == "steps":
+                say("Gör klart bilden…")
+        if time.time() - last_check > 2:
+            last_check = time.time()
+            if O and O.game_running():
+                os.killpg(proc.pid, signal.SIGTERM)
+                proc.wait()
+                out.unlink(missing_ok=True)
+                print("ett spel startade – bilden avbröts", file=sys.stderr)
+                return 3
+        time.sleep(0.1)
+    if proc.returncode != 0 or not out.is_file():
+        reason = next((t for t in reversed(tail) if "[E]" in t or "error" in t.lower()), tail[-1] if tail else "okänt fel")
+        print(f"bilden blev inte klar: {reason}", file=sys.stderr)
+        return 1
+    say(f"Klart: {out}")
+    return 0
+
+
+def main(argv):
+    cmd = argv[0] if argv else "status"
+    rest = argv[1:]
+    commands = {
+        "status": cmd_status, "install": lambda: cmd_install(rest), "update": cmd_update,
+        "pull": lambda: cmd_pull(rest), "use": lambda: cmd_use(rest), "rm": lambda: cmd_rm(rest),
+        "uninstall": lambda: cmd_uninstall(rest), "generate": lambda: cmd_generate(rest),
+    }
+    if cmd not in commands:
+        print(__doc__, file=sys.stderr)
+        return 2
+    return commands[cmd]()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

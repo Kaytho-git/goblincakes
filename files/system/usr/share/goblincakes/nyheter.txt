@@ -1,5 +1,8 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-16  Goblin AI kan skapa bilder: be om en bild i chatten ("gör en bild på …") eller tryck på Skapa bild. Bilden ritas på din egen dator (installera bildprogrammet under AI-tjänster → Skapa bilder), annars gratis hos Cloudflare eller med dina egna nycklar till OpenAI, Grok eller Gemini.
+2026-10-16  Goblin AI: snabbfråga med Meta+§ – en liten ruta som KDE:s sökruta. Skriv frågan och tryck Enter, så öppnas Goblin AI när svaret är klart.
+2026-10-16  Goblin AI: du väljer själv modell för lokal AI och bilder. Den som passar ditt grafikkort är märkt REKOMMENDERAS, men vill du ha bättre svar eller bilder och kan vänta lite längre går det att välja en större.
 2026-10-16  GoblinRecorder: nytt val för mikrofonen, Stäng mot tangentbordet – ditt tal kommer med, men inte klicken från tangentbord och mus.
 2026-10-16  AppGrid (appmenyn bakom loggan) är ungefär hälften så stor: mindre ikoner, 4 × 3 per sida. Vill du ha den större går det att ändra i AppGrids inställningar.
 2026-10-16  Spelas nu i toppfältet visar när Steam laddar ner ett spel eller bearbetar shaders (med hur långt det kommit) – då vet du varför fläktarna låter. Klicka för att se Steams nedladdningar.

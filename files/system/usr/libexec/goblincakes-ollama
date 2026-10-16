@@ -10,6 +10,7 @@
     goblincakes-ollama uninstall [--models]   the program; with --models the models too
     goblincakes-ollama pull <model> [role]    download a model (role: vardag, kod, bild – Goblin AI picks by it)
     goblincakes-ollama rm <model>
+    goblincakes-ollama role <role> <model>    use a downloaded model for a role
     goblincakes-ollama order <local-first|cloud-first|local-only|cloud-only>
     goblincakes-ollama recommend              JSON: suggested models for this computer's graphics memory
     goblincakes-ollama unload                 empty the graphics memory now
@@ -240,9 +241,23 @@ TIERS = [
     (0, {"vardag": "gemma4:e2b", "kod": "gemma4:e2b", "bild": "gemma4:e2b"}),
     (8, {"vardag": "gemma4:e4b", "kod": "qwen2.5-coder:7b", "bild": "qwen3-vl:8b"}),
     (12, {"vardag": "gemma4:e4b", "kod": "qwen2.5-coder:14b", "bild": "qwen3-vl:8b"}),
-    (16, {"vardag": "gemma4:26b", "kod": "qwen3-coder", "bild": "gemma4:26b"}),
-    (24, {"vardag": "gemma4:31b", "kod": "qwen3.6", "bild": "gemma4:31b"}),
+    (16, {"vardag": "gemma4:26b", "kod": "qwen3-coder:30b", "bild": "gemma4:12b"}),
+    (24, {"vardag": "gemma4:31b", "kod": "qwen3.6:27b", "bild": "qwen3-vl:30b"}),
 ]
+# Everything the user may pick per role (16 Oct, the user's wish: the suggestion fits the graphics card,
+# but a bigger model is the user's choice – slower when it doesn't fit, never broken: Ollama puts the
+# rest in the ordinary memory). Sizes (GB) from ollama.com/library, Oct 2026.
+OPTIONS = {
+    "vardag": [("gemma4:e2b", 4.6, "Snabbast"), ("gemma4:e4b", 6.6, "Bra till det mesta"),
+               ("gemma4:12b", 7.7, "Bättre svenska och texter"), ("gpt-oss:20b", 14, "Tänker efter längre"),
+               ("gemma4:26b", 16, "Mycket bra"), ("gemma4:31b", 19, "Bäst")],
+    "kod": [("qwen2.5-coder:3b", 1.9, "Snabbast"), ("qwen2.5-coder:7b", 4.7, "Bra till små skript"),
+            ("qwen2.5-coder:14b", 9.0, "Bra till det mesta"), ("qwen3.6:27b", 18, "Mycket bra"),
+            ("qwen3-coder:30b", 19, "Mycket bra, snabb för sin storlek"), ("qwen2.5-coder:32b", 20, "Bäst av qwen2.5")],
+    "bild": [("qwen3-vl:2b", 1.9, "Snabbast"), ("qwen3-vl:4b", 3.3, "Bra"), ("qwen3-vl:8b", 6.1, "Mycket bra"),
+             ("gemma4:12b", 7.7, "Läser också bilder, bättre svenska"), ("qwen3-vl:30b", 20, "Bäst, snabb för sin storlek"),
+             ("qwen3-vl:32b", 21, "Bäst")],
+}
 ROLE_TEXT = {
     "vardag": ("Vardag och svenska", "Texter, mejl, sammanfattningar, frågor – och kan se bilder."),
     "kod": ("Kod", "Skript, webbsidor, WoW-tillägg i Lua, PHP för Ianseo."),
@@ -260,8 +275,15 @@ def recommend():
     note = ("" if memory else
             "Inget grafikkort med eget minne hittades – lokal AI går då på processorn och vanliga minnet, "
             "vilket fungerar men är långsamt. Små modeller rekommenderas.")
+    def options(role):
+        out = [{"model": m, "size": size, "note": text, "recommended": m == pick[role],
+                "slow": size > (memory or 0) * 0.95} for m, size, text in OPTIONS[role]]
+        if not any(o["recommended"] for o in out):
+            out.insert(0, {"model": pick[role], "size": 0, "note": "", "recommended": True, "slow": False})
+        return out
     return {"graphics": g, "ram": ram_gb(), "note": note,
-            "roles": [{"id": r, "name": ROLE_TEXT[r][0], "text": ROLE_TEXT[r][1], "model": pick[r]} for r in ROLES]}
+            "roles": [{"id": r, "name": ROLE_TEXT[r][0], "text": ROLE_TEXT[r][1], "model": pick[r],
+                       "options": options(r)} for r in ROLES]}
 
 
 def models():
@@ -541,6 +563,17 @@ def cmd_rm(args):
     return 0
 
 
+def cmd_role(args):
+    """A downloaded model for a role (vardag, kod, bild) – Goblin AI picks by it."""
+    if len(args) < 2 or args[0] not in ROLES:
+        print("Använd: goblincakes-ollama role vardag|kod|bild <modell>", file=sys.stderr)
+        return 2
+    data = load()
+    data["roles"][args[0]] = args[1]
+    save(data)
+    return 0
+
+
 def cmd_order(args):
     if not args or args[0] not in ORDERS:
         print("Använd: goblincakes-ollama order " + "|".join(ORDERS), file=sys.stderr)
@@ -638,6 +671,7 @@ def main(argv):
         "pull": lambda: cmd_pull(rest),
         "rm": lambda: cmd_rm(rest),
         "order": lambda: cmd_order(rest),
+        "role": lambda: cmd_role(rest),
         "recommend": lambda: print(json.dumps(recommend(), ensure_ascii=False)) or 0,
         "unload": lambda: unload() or 0,
         "serve": lambda: cmd_serve(),

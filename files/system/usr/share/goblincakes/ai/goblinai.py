@@ -102,7 +102,16 @@ SEARCH = {
     "how": "Gör att Goblin AI kan söka på nätet när frågan gäller något färskt (nyheter, patchar, priser). "
            "Logga in med ditt Google-konto – nyckeln (tvly-…) står direkt på sidan. Gratis 1 000 sökningar i månaden.",
 }
-SERVICES = PROVIDERS + [SEARCH]
+# Pictures from the cloud (16 Oct): free with Cloudflare's daily allowance, the services below only with a key
+CLOUDFLARE = {
+    "id": "cloudflare", "name": "Cloudflare – bilder (gratis)", "env": "CLOUDFLARE_API_TOKEN",
+    "url": "https://api.cloudflare.com/client/v4",
+    "keys_page": "https://dash.cloudflare.com/?to=/:account/ai/workers-ai",
+    "how": "Gratis bilder från molnet när din dator inte kan rita själv (ett spel kör, eller inget bildprogram) – "
+           "ungefär 90 bilder om dagen. Skapa ett gratis konto, gå till Workers AI → REST API → "
+           "Create a Workers AI API Token och klistra in nyckeln. Inget betalkort behövs.",
+}
+SERVICES = PROVIDERS + [CLOUDFLARE, SEARCH]
 
 # Local AI (15 Oct): Ollama on this computer (/usr/libexec/goblincakes-ollama, Goblin AI → AI-tjänster →
 # Lokal AI) – no key, nothing leaves the computer. Its place among the services is the user's choice
@@ -274,6 +283,9 @@ def test_key(service, key):
     if service["id"] == SEARCH["id"]:
         web_search("GOBLINCAKES Linux", key)
         return "kan söka på nätet"
+    if service["id"] == CLOUDFLARE["id"]:
+        cloudflare_account(key, refresh=True)
+        return "kan skapa bilder"
     model = pick_model(service, key, refresh=True)
     if service.get("no_model_list"):
         chat(service, key, model, [{"role": "user", "content": "Svara bara: ok"}])
@@ -542,7 +554,10 @@ När användaren har bifogat en fil och vill ha den ändrad (t.ex. rättad, öve
 
 
 def system_prompt():
-    return SYSTEM_PROMPT.format(info=system_info())
+    text = SYSTEM_PROMPT.format(info=system_info())
+    if images_possible(load_keys()):
+        text += IMAGE_PROMPT
+    return text
 
 
 DANGER = re.compile(r"\brm\s+-[a-z]*r|\bmkfs|\bdd\s|\bwipefs|>\s*/dev/sd|\bchmod\s+-R\s+777\s+/|\bsudo\b", re.I)
@@ -595,6 +610,10 @@ def segments(text):
         lang, code = m.group(1).strip(), m.group(2).rstrip("\n")
         if lang.lower() in ("bash", "sh", "shell", "console"):
             parts.append({"type": "command", "code": code, "danger": bool(DANGER.search(code)), "state": "new", "output": ""})
+        elif lang.lower() in ("bild", "image", "picture"):
+            prompt, fmt = image_request(code)
+            if prompt:
+                parts.append({"type": "image", "prompt": prompt, "format": fmt, "state": "new"})
         elif lang.lower().startswith(("fil:", "file:")):
             parts.append({"type": "file", "name": lang.split(":", 1)[1].strip(), "code": code, "state": "new"})
         else:
@@ -688,3 +707,321 @@ def project_prompt(project):
         used += len(text)
         parts.append(f"Fast fil i projektet – {path.name} ({path}):\n```\n{text}\n```")
     return "\n\n".join(parts)
+
+
+# ── Pictures (16 Oct): "make a picture of …" in the chat, or the Skapa bild button ─────────
+# The AI answers with a ```bild block (an English description); the window draws it at once.
+# Order: this computer (goblincakes-image, stable-diffusion.cpp) → Cloudflare (free daily allowance)
+# → Gemini (only with Google's paid plan), OpenAI, Grok – each only with a key. A project's
+# "where it may run" (and the local AI's choice in AI-tjänster) decides like for text.
+
+IMAGE_HELPER = os.environ.get("GOBLINCAKES_IMAGE_HELPER", "/usr/libexec/goblincakes-image")
+IMAGE_FILE = CONFIG / "image.json"
+FORMATS = {"1:1": (1024, 1024), "16:9": (1280, 720), "9:16": (720, 1280), "4:3": (1152, 864), "3:4": (864, 1152)}
+FORMAT_WORDS = {"kvadrat": "1:1", "fyrkantig": "1:1", "square": "1:1", "liggande": "16:9", "bred": "16:9",
+                "landscape": "16:9", "stående": "9:16", "hög": "9:16", "portrait": "9:16"}
+IMAGE_PAID = ("gemini", "openai", "xai")  # the cloud services that can draw, after Cloudflare
+
+IMAGE_PROMPT = """
+
+Bilder: du kan skapa bilder. När användaren vill ha en bild (skapa, rita, göra, måla, en bild på …) eller vill
+ändra den förra bilden: skriv en kort mening på användarens språk och sedan ett kodblock märkt ```bild med en
+utförlig beskrivning PÅ ENGELSKA – motiv, stil (foto, målning, tecknat, pixelkonst …), ljus, färger, komposition;
+text som ska synas i bilden inom citattecken. Valfri första rad i blocket: Format: 16:9 (liggande), 9:16 (stående),
+1:1, 4:3 eller 3:4. Exempel:
+```bild
+Format: 16:9
+A small green goblin baking blue cupcakes in a cozy cave, warm candle light, detailed digital painting
+```
+Bilden skapas automatiskt av Goblin AI och visas under svaret – skriv aldrig att du inte kan skapa bilder.
+Ska bilden ändras: skriv en ny, hel beskrivning (den förra bilden följer inte med). Ett block per bild."""
+
+
+def image_request(code):
+    """(English description, format) from a ```bild block; an optional first line "Format: 16:9"."""
+    lines = code.strip().splitlines()
+    fmt = "1:1"
+    if lines:
+        m = re.match(r"\s*(format|storlek|size)\s*:\s*(.+)$", lines[0], re.I)
+        if m:
+            value = m.group(2).strip().lower()
+            fmt = value if value in FORMATS else FORMAT_WORDS.get(value.split()[0], "1:1")
+            lines = lines[1:]
+    return " ".join(" ".join(lines).split()), fmt
+
+
+def local_image_status():
+    """{"ready", "model"}: the picture program is installed and has a model."""
+    try:
+        data = json.loads(IMAGE_FILE.read_text())
+    except (OSError, ValueError):
+        return {"ready": False, "model": ""}
+    ready = bool(data.get("dir")) and (Path(data["dir"]) / "bin/sd-cli").is_file() and bool(data.get("files"))
+    return {"ready": ready, "model": data.get("model") or next(iter(data.get("files") or {}), "")}
+
+
+def images_possible(keys):
+    """Can a picture be made at all (Gemini's free key can't – it needs the paid plan)?"""
+    return local_image_status()["ready"] or any(keys.get(p["env"]) for p in [CLOUDFLARE] + [
+        p for p in PROVIDERS if p["id"] in ("openai", "xai")])
+
+
+def image_sources(keys, order=None):
+    """The places to draw, in order: "local", then the cloud services (ids) that have a key."""
+    cloud = [s for s in ("cloudflare",) + IMAGE_PAID
+             if keys.get(CLOUDFLARE["env"] if s == "cloudflare" else next(p["env"] for p in PROVIDERS if p["id"] == s))]
+    local = ["local"] if local_image_status()["ready"] else []
+    order = order if order in ("local-first", "cloud-first", "local-only", "cloud-only") else local_settings()["order"]
+    if not local_settings()["installed"] and order == "cloud-only":
+        order = "local-first"  # without the local AI its choice says nothing about pictures
+    if order == "local-only":
+        return local
+    if order == "cloud-only":
+        return cloud
+    return cloud + local if order == "cloud-first" else local + cloud
+
+
+def pictures_folder(project=None):
+    if project and project.get("folder"):
+        return Path(project["folder"]).expanduser()
+    try:
+        pics = subprocess.run(["xdg-user-dir", "PICTURES"], capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pics = ""
+    return Path(pics if pics and pics != str(Path.home()) else Path.home() / "Bilder") / "Goblin AI"
+
+
+def image_path(folder, prompt, ext="png"):
+    words = re.sub(r"[^\w\s-]", "", prompt.lower()).split()[:6]
+    name = time.strftime("%Y-%m-%d %H.%M.%S") + (" " + "-".join(words) if words else "")
+    return Path(folder) / f"{name[:90]}.{ext}"
+
+
+def save_picture(data, folder, prompt):
+    """Bytes from a cloud service → a file (PNG, JPEG or WebP, by its first bytes)."""
+    ext = "jpg" if data[:3] == b"\xff\xd8\xff" else "webp" if data[8:12] == b"WEBP" else "png"
+    path = image_path(folder, prompt, ext)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return path
+
+
+def make_image(prompt, fmt, keys, project=None, status=None, notice=None, progress=None):
+    """Draws a picture; returns (path, "where · model"). status(text), progress(text, 0–1 or -1)."""
+    folder = pictures_folder(project)
+    errors = []
+    sources = image_sources(keys, (project or {}).get("order"))
+    for source in sources:
+        if source in EXHAUSTED_IMAGES:
+            continue
+        try:
+            if source == "local":
+                return local_image(prompt, fmt, folder, status, progress)
+            if status:
+                status(f"Ritar bilden hos {IMAGE_NAMES[source]}…")
+            data, model = CLOUD_DRAW[source](prompt, fmt, keys)
+            return save_picture(data, folder, prompt), f"{IMAGE_NAMES[source]} · {model}"
+        except ServiceError as e:
+            errors.append(f"{'Din dator' if source == 'local' else IMAGE_NAMES[source]}: {e}")
+            if source != "local" and re.search(r"slut|fel nyckel|betalplan", str(e)):
+                EXHAUSTED_IMAGES.add(source)
+            if notice and source != sources[-1]:
+                notice(f"{errors[-1]} – provar nästa")
+    if not errors:
+        if project and project.get("order") == "local-only":
+            raise ServiceError("Projektet får bara använda din dator, men bildprogrammet är inte installerat "
+                               "(AI-tjänster → Skapa bilder).")
+        raise ServiceError("Inget kan skapa bilder än: installera bildprogrammet eller lägg in en "
+                           "Cloudflare-nyckel under AI-tjänster.")
+    hint = ("" if keys.get(CLOUDFLARE["env"]) else
+            "\nTips: med en gratis Cloudflare-nyckel (AI-tjänster) ritas bilder i molnet när din dator inte kan.")
+    raise ServiceError("Bilden kunde inte skapas.\n" + "\n".join(errors) + hint)
+
+
+EXHAUSTED_IMAGES = set()
+IMAGE_NAMES = {"cloudflare": "Cloudflare", "gemini": "Google Gemini", "openai": "OpenAI", "xai": "Grok"}
+
+
+def local_image(prompt, fmt, folder, status=None, progress=None):
+    width, height = FORMATS.get(fmt, FORMATS["1:1"])
+    path = image_path(folder, prompt)
+    model = local_image_status()["model"]
+    names = {"z-image-turbo": "Z-Image-Turbo", "flux2-klein-4b": "FLUX.2 klein 4B", "flux2-klein-9b": "FLUX.2 klein 9B"}
+    if status:
+        status("Ritar bilden på din dator…")
+    proc = subprocess.Popen([IMAGE_HELPER, "generate", str(path), str(width), str(height)],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc.stdin.write(prompt)
+    proc.stdin.close()
+    for line in proc.stdout:
+        line = line.rstrip("\n")
+        if line.startswith("@@progress ") and progress:
+            try:
+                ev = json.loads(line[11:])
+                progress(f"Ritar på din dator – steg {ev['completed']} av {ev['total']}", ev["completed"] / ev["total"])
+            except (ValueError, KeyError, ZeroDivisionError):
+                pass
+        elif line.startswith("@@ ") and progress:
+            progress(line[3:], -1.0)
+    err = proc.stderr.read().strip()
+    if proc.wait() != 0 or not path.is_file():
+        raise ServiceError((err.splitlines() or ["bilden blev inte klar"])[-1])
+    return path, f"Din dator · {names.get(model, model)}"
+
+
+def post(url, headers, body, timeout=300, raw_body=None):
+    """POST JSON (or raw multipart bytes); returns the JSON answer. Errors as ServiceError."""
+    req = urllib.request.Request(url, data=raw_body if raw_body is not None else json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json", "User-Agent": "goblincakes-ai", **headers})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode(errors="replace")[:400]
+        if e.code in (401, 403) and "billing" not in detail:
+            raise ServiceError("fel nyckel") from None
+        if re.search(r"limit: 0|billing|paid plan", detail):
+            raise ServiceError("kräver tjänstens betalplan") from None
+        if e.code in (402, 429) or re.search(r"daily free allocation|insufficient_quota|credit", detail, re.I):
+            raise ServiceError("slut på bilder just nu (dagens gratisbilder eller krediterna)") from None
+        if re.search(r"safety|moderation|content_policy|blocked", detail, re.I):
+            raise ServiceError("tjänsten ville inte göra den bilden") from None
+        if e.code >= 500:
+            raise ServiceError(f"överbelastad just nu (fel {e.code})") from None
+        raise ServiceError(f"fel {e.code} ({detail.strip()[:200]})") from None
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise ServiceError(f"nås inte ({getattr(e, 'reason', e)})") from None
+
+
+def cloudflare_account(key, refresh=False):
+    """(account id, token): "id:token" as given, else the token's first account (cached)."""
+    if ":" in key:
+        account, token = key.split(":", 1)
+        return account.strip(), token.strip()
+    cache_file = CACHE / "cloudflare.json"
+    try:
+        cache = json.loads(cache_file.read_text())
+    except (OSError, ValueError):
+        cache = {}
+    tag = key[-8:]
+    if cache.get("tag") == tag and cache.get("account") and not refresh:
+        return cache["account"], key
+    req = urllib.request.Request(CLOUDFLARE["url"] + "/accounts", headers={"Authorization": f"Bearer {key}",
+                                                                          "User-Agent": "goblincakes-ai"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            accounts = json.loads(r.read()).get("result") or []
+    except urllib.error.HTTPError as e:
+        raise ServiceError("fel nyckel" if e.code in (400, 401, 403) else f"fel {e.code}") from None
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise ServiceError(f"nås inte ({getattr(e, 'reason', e)})") from None
+    if not accounts:
+        raise ServiceError("nyckeln hör inte till något konto – skapa den under Workers AI")
+    CACHE.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(json.dumps({"tag": tag, "account": accounts[0]["id"]}))
+    return accounts[0]["id"], key
+
+
+def draw_cloudflare(prompt, fmt, keys):
+    import base64
+    account, token = cloudflare_account(keys[CLOUDFLARE["env"]])
+    run = f"{CLOUDFLARE['url']}/accounts/{account}/ai/run/@cf/black-forest-labs/"
+    auth = {"Authorization": f"Bearer {token}"}
+    width, height = FORMATS.get(fmt, FORMATS["1:1"])
+    # FLUX.2 [klein] takes a form (multipart); FLUX.1 schnell (JSON, always square) when it fails
+    boundary = "goblincakes" + os.urandom(8).hex()
+    fields = {"prompt": prompt[:2048], "width": str(width), "height": str(height)}
+    body = b"".join(f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
+                    for k, v in fields.items()) + f"--{boundary}--\r\n".encode()
+    try:
+        reply = post(run + "flux-2-klein-4b", dict(auth, **{"Content-Type": f"multipart/form-data; boundary={boundary}"}),
+                     None, raw_body=body)
+        model = "FLUX.2 klein 4B"
+    except ServiceError as e:
+        if re.search(r"slut|fel nyckel", str(e)):
+            raise
+        reply = post(run + "flux-1-schnell", auth, {"prompt": prompt[:2048], "steps": 6})
+        model = "FLUX.1 schnell"
+    image = (reply.get("result") or {}).get("image")
+    if not image:
+        raise ServiceError("tomt svar")
+    return base64.b64decode(image), model
+
+
+def image_model(provider, key, patterns, default):
+    """The service's image model, from its model list (cached for a day)."""
+    cache = {}
+    try:
+        cache = json.loads(MODELS_CACHE.read_text())
+    except (OSError, ValueError):
+        pass
+    entry = cache.get(provider["id"] + "-image")
+    if entry and time.time() - entry["time"] < 86400:
+        return entry["model"]
+    try:
+        ids = [m["id"].removeprefix("models/") for m in request(provider, key, "/models", timeout=30).get("data", [])]
+    except ServiceError:
+        ids = []
+    model = default
+    for pattern in patterns:
+        found = sorted((i for i in ids if re.search(pattern, i)), reverse=True)
+        if found:
+            model = found[0]
+            break
+    cache[provider["id"] + "-image"] = {"model": model, "time": time.time()}
+    CACHE.mkdir(parents=True, exist_ok=True)
+    MODELS_CACHE.write_text(json.dumps(cache))
+    return model
+
+
+def provider(pid):
+    return next(p for p in PROVIDERS if p["id"] == pid)
+
+
+def draw_openai_style(pid, prompt, fmt, keys):
+    import base64
+    p = provider(pid)
+    key = keys[p["env"]]
+    if pid == "openai":
+        model = image_model(p, key, [r"^gpt-image-\d+(\.\d+)?$", r"^gpt-image"], "gpt-image-1")
+        size = {"16:9": "1536x1024", "4:3": "1536x1024", "9:16": "1024x1536", "3:4": "1024x1536"}.get(fmt, "1024x1024")
+        body = {"model": model, "prompt": prompt, "size": size, "n": 1}
+    else:
+        model = image_model(p, key, [r"imagine-image", r"image"], "grok-2-image")
+        body = {"model": model, "prompt": prompt, "n": 1, "response_format": "b64_json"}
+    reply = post(p["url"] + "/images/generations", {"Authorization": f"Bearer {key}"}, body)
+    data = (reply.get("data") or [{}])[0]
+    if data.get("b64_json"):
+        return base64.b64decode(data["b64_json"]), model
+    if data.get("url"):
+        try:
+            with urllib.request.urlopen(data["url"], timeout=60) as r:
+                return r.read(), model
+        except (urllib.error.URLError, OSError) as e:
+            raise ServiceError(f"bilden gick inte att hämta ({e})") from None
+    raise ServiceError("tomt svar")
+
+
+def draw_gemini(prompt, fmt, keys):
+    import base64
+    p = provider("gemini")
+    key = keys[p["env"]]
+    model = image_model(p, key, [r"^gemini-[\d.]+-flash-image$", r"^gemini-.*-image$"], "gemini-2.5-flash-image")
+    reply = post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                 {"x-goog-api-key": key},
+                 {"contents": [{"parts": [{"text": prompt}]}],
+                  "generationConfig": {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": fmt}}})
+    for cand in reply.get("candidates") or []:
+        for part in (cand.get("content") or {}).get("parts") or []:
+            data = part.get("inlineData") or part.get("inline_data")
+            if data and data.get("data"):
+                return base64.b64decode(data["data"]), model
+    raise ServiceError("tjänsten ville inte göra den bilden")
+
+
+CLOUD_DRAW = {
+    "cloudflare": draw_cloudflare,
+    "gemini": draw_gemini,
+    "openai": lambda prompt, fmt, keys: draw_openai_style("openai", prompt, fmt, keys),
+    "xai": lambda prompt, fmt, keys: draw_openai_style("xai", prompt, fmt, keys),
+}

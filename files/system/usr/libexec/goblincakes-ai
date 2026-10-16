@@ -17,7 +17,7 @@ import threading
 
 sys.path.insert(0, "/usr/share/goblincakes/ai")
 from goblinai import (SERVICES, DANGER, ServiceError, ask as ask_services, code_blocks,  # noqa: E402
-                      has_keys, load_keys, run_in_folder, save_keys, system_prompt, test_key)
+                      has_keys, load_keys, make_image, run_in_folder, save_keys, segments, system_prompt, test_key)
 
 MAX_ROUNDS = 8  # command → output → next step, per question
 cwd = os.getcwd()  # where the next block runs: starts where goblin ai was started, follows `cd`
@@ -130,6 +130,30 @@ def run_blocks(blocks):
     return results
 
 
+def draw_pictures(answer, keys):
+    """The answer's ```bild blocks: drawn now, the file is printed (the window shows them instead)."""
+    for part in segments(answer):
+        if part["type"] != "image":
+            continue
+        with Spinner("Ritar bilden…") as spinner:
+            def status(text):
+                spinner.text = text
+
+            def notice(text):
+                print(f"\r\033[K{MUTED}({text}){RESET}" if TTY else f"({text})")
+            try:
+                path, where = make_image(part["prompt"], part["format"], keys, status=status, notice=notice,
+                                         progress=lambda text, _f: status(text))
+            except ServiceError as e:
+                path = None
+                error = str(e)
+        if path:
+            print(f"{ACCENT}▌ Bilden:{RESET} {FROST}{path}{RESET}")
+            muted(f"— {where}")
+        else:
+            print(f"{RED}Ingen bild:{RESET} {error}")
+
+
 def handle(question, messages, keys):
     messages.append({"role": "user", "content": question})
     for _ in range(MAX_ROUNDS):
@@ -138,6 +162,7 @@ def handle(question, messages, keys):
         print()
         render(answer.strip())
         muted(f"\n— {service}")
+        draw_pictures(answer, keys)
         blocks = code_blocks(answer)
         if not blocks:
             return
