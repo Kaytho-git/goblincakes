@@ -364,22 +364,23 @@ def search_request(text):
     return " ".join(m.group(1).split()) if m and m.group(1).strip() else None
 
 
-def ask(messages, keys, status=None, notice=None, project=None):
+def ask(messages, keys, status=None, notice=None, project=None, choice=""):
     """Asks the services, searching the web in between when the AI wants to (and a Tavily key is set).
 
+    choice: a model picked by the user ("<service id>:<model>", see model_choices) – "" = automatic.
     Returns (answer, "service · model"); the sources are listed at the end of the answer.
     """
     key = keys.get(SEARCH["env"])
     if project and project.get("search") is False:
         key = None
     if not key:
-        return ask_once(messages, keys, status, notice, project)
+        return ask_once(messages, keys, status, notice, project, choice)
     messages = [dict(m) for m in messages]
     if messages and messages[0]["role"] == "system":
         messages[0]["content"] += SEARCH_PROMPT.format(limit=SEARCH_LIMIT)
     sources, searches = [], 0
     while True:
-        answer, service = ask_once(messages, keys, status, notice, project)
+        answer, service = ask_once(messages, keys, status, notice, project, choice)
         query = search_request(answer)
         if not query:
             break
@@ -411,11 +412,20 @@ def ask(messages, keys, status=None, notice=None, project=None):
     return answer, service
 
 
-def ask_once(messages, keys, status=None, notice=None, project=None):
+def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
     """Asks the services in order; returns (answer, "service · model").
 
     status(text): "asking X…"; notice(text): a service failed and the next is tried.
+    choice: the user's own model – only that one is asked (no other service behind the user's back).
     """
+    chosen = chosen_provider(choice)
+    if chosen and not chosen[0].get("local") and (project or {}).get("order") == "local-only":
+        # A private project: nothing may leave the computer, whatever is picked by the send button
+        if notice:
+            notice("Projektet får bara använda lokal AI – den valda modellen används inte här")
+        chosen = None
+    if chosen:
+        return ask_chosen(*chosen, messages, keys, status)
     errors = []
     for provider in providers_in_order(keys, (project or {}).get("order")):
         key = keys.get(provider["env"]) if provider["env"] else ""
@@ -462,6 +472,108 @@ def ask_once(messages, keys, status=None, notice=None, project=None):
             raise ServiceError("Projektet får bara använda lokal AI, men den är inte installerad (AI-tjänster → Lokal AI).")
         raise ServiceError("Ingen AI-tjänst är inställd.")
     raise ServiceError("Ingen AI-tjänst svarade.\n" + "\n".join(errors))
+
+
+# The model picked in the window (or goblin ai --model), like switching model in Claude Code: kept until changed
+MODEL_FILE = CONFIG / "ai-model"
+
+
+def chosen_model():
+    try:
+        return MODEL_FILE.read_text().strip()
+    except OSError:
+        return ""
+
+
+def set_chosen_model(choice):
+    CONFIG.mkdir(parents=True, exist_ok=True)
+    if choice:
+        MODEL_FILE.write_text(choice + "\n")
+    else:
+        MODEL_FILE.unlink(missing_ok=True)
+
+
+def chosen_provider(choice):
+    """(provider, model) for "<service id>:<model>" (the model may itself have a colon: gemma4:e4b)."""
+    pid, _, model = (choice or "").partition(":")
+    if not model:
+        return None
+    if pid == LOCAL["id"]:
+        return LOCAL, model
+    p = next((p for p in PROVIDERS if p["id"] == pid), None)
+    return (p, model) if p else None
+
+
+def local_ids():
+    """The models Ollama has (no start: [] when it isn't running or a game pauses it)."""
+    if LOCAL_PAUSED.exists():
+        return []
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:11434/v1/models", timeout=3) as r:
+            return [m["id"] for m in json.loads(r.read()).get("data", [])]
+    except (urllib.error.URLError, OSError, ValueError):
+        return []
+
+
+def model_choices(keys):
+    """What the window lists: [{"id", "name", "group", "note"}], automatic first.
+    The cloud lists come from the services' own model lists (cached for a day, see pick_models)."""
+    items = [{"id": "", "name": "Automatiskt", "group": "",
+              "note": "Goblin AI väljer – ordningen i AI-tjänster, nästa tjänst om en inte svarar"}]
+    local = local_settings()
+    if local["installed"]:
+        ids = local_ids()
+        if not ids and not LOCAL_PAUSED.exists() and start_local():
+            ids = local_ids()
+        roles = {m: r for r, m in local["roles"].items() if m}
+        names = {"vardag": "vardag", "kod": "kod", "bild": "bilder"}
+        for m in ids:
+            note = "på din dator · gratis"
+            if m in roles:
+                note += f" · {names.get(roles[m], roles[m])}"
+            items.append({"id": f"{LOCAL['id']}:{m}", "name": m, "group": "Lokal AI", "note": note})
+        if LOCAL_PAUSED.exists():
+            items.append({"id": "", "name": "", "group": "Lokal AI", "note": "Avstängd medan ett spel kör"})
+    for p in PROVIDERS:
+        key = keys.get(p["env"])
+        if not key:
+            continue
+        try:
+            models = pick_models(p, key)
+        except ServiceError:
+            models = p.get("models") or []
+        if p["id"] == "openrouter":
+            models = models[:8]
+        for m in models:
+            items.append({"id": f"{p['id']}:{m}", "name": MODEL_NAMES.get(m, m), "group": p["name"],
+                          "note": "betald" if p.get("paid") else "gratis"})
+    return items
+
+
+MODEL_NAMES = {"claude-opus-5-5": "Claude Opus 5.5", "claude-sonnet-5-5": "Claude Sonnet 5.5",
+               "claude-haiku-5-5": "Claude Haiku 5.5"}
+
+
+def ask_chosen(provider, model, messages, keys, status=None):
+    """One question to the model the user picked; a failure is an error (no other service is asked)."""
+    name = f"{provider['name']} · {MODEL_NAMES.get(model, model)}"
+    key = "" if provider.get("local") else keys.get(provider["env"])
+    if not provider.get("local") and not key:
+        raise ServiceError(f"{provider['name']} har ingen nyckel längre – välj en annan modell vid Skicka.")
+    if provider.get("local"):
+        if LOCAL_PAUSED.exists():
+            raise ServiceError("Lokal AI är avstängd medan ett spel kör – välj Automatiskt eller en modell i molnet.")
+        if not local_ids() and not start_local():
+            raise ServiceError("Lokal AI (Ollama) startar inte.")
+    if status:
+        status(f"Frågar {name}…")
+    try:
+        text = chat(provider, key, model, messages)
+    except ServiceError as e:
+        raise ServiceError(f"{name}: {e}\nVälj Automatiskt eller en annan modell vid Skicka.") from None
+    if not text.strip():
+        raise ServiceError(f"{name} gav ett tomt svar.")
+    return text, f"{provider['name']} · {model}"
 
 
 def chat(provider, key, model, messages):

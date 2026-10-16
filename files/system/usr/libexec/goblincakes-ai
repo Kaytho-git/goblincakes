@@ -16,7 +16,7 @@ import sys
 import threading
 
 sys.path.insert(0, "/usr/share/goblincakes/ai")
-from goblinai import (SERVICES, DANGER, ServiceError, ask as ask_services, code_blocks,  # noqa: E402
+from goblinai import (SERVICES, DANGER, ServiceError, ask as ask_services, chosen_model, code_blocks,  # noqa: E402
                       has_keys, load_keys, make_image, run_in_folder, save_keys, segments, system_prompt, test_key)
 
 MAX_ROUNDS = 8  # command → output → next step, per question
@@ -96,7 +96,7 @@ def ask(messages, keys):
         def notice(text):
             print(f"\r\033[K{MUTED}({text}){RESET}" if TTY else f"({text})")
 
-        return ask_services(messages, keys, status=status, notice=notice)
+        return ask_services(messages, keys, status=status, notice=notice, choice=chosen_model())
 
 
 # ── Commands from the answer ───────────────────────────────────────

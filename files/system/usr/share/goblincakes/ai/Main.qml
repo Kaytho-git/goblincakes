@@ -29,6 +29,15 @@ Window {
         "Hur mycket diskutrymme har jag kvar?"
     ]
 
+    // The button's text: "Automatiskt" or the chosen model (the part after the service id)
+    function modelName(choice) {
+        if (!choice)
+            return "Automatiskt";
+        const items = JSON.parse(backend.modelChoices);
+        const hit = items.find(i => i.id === choice);
+        return hit ? hit.name : choice.slice(choice.indexOf(":") + 1);
+    }
+
     function send() {
         if (pictureMode) {
             if (input.text.trim() === "")
@@ -223,9 +232,36 @@ Window {
         color: "#0B1018"
         property bool wasActive: false
 
+        property bool picking: false  // the model list is open (Tab or a click on the model)
+        property int pickIndex: 0
+        onPickIndexChanged: {  // keep the highlighted one in view (rows are 34 px)
+            const y = pickIndex * 34;
+            if (y < quickPicks.contentY)
+                quickPicks.contentY = y;
+            else if (y + 34 > quickPicks.contentY + quickPicks.height)
+                quickPicks.contentY = y + 34 - quickPicks.height;
+        }
+        readonly property var picks: JSON.parse(backend.modelChoices).filter(i => i.name !== "")
+
+        function togglePicking() {
+            picking = !picking;
+            if (picking) {
+                backend.refreshModels();
+                pickIndex = Math.max(0, picks.findIndex(i => i.id === backend.model));
+            }
+            quickInput.forceActiveFocus();
+        }
+        function pick(i) {
+            if (i >= 0 && i < picks.length)
+                backend.setModel(picks[i].id);
+            picking = false;
+            quickInput.forceActiveFocus();
+        }
+
         function open() {
             quickInput.text = "";
             quickNote.text = "";
+            picking = false;
             wasActive = false;
             show();
             raise();
@@ -289,9 +325,12 @@ Window {
                         selectionColor: accent.color
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 20
-                        Keys.onReturnPressed: quick.ask()
-                        Keys.onEnterPressed: quick.ask()
-                        Keys.onEscapePressed: quick.dismiss()
+                        Keys.onReturnPressed: quick.picking ? quick.pick(quick.pickIndex) : quick.ask()
+                        Keys.onEnterPressed: quick.picking ? quick.pick(quick.pickIndex) : quick.ask()
+                        Keys.onEscapePressed: quick.picking ? quick.picking = false : quick.dismiss()
+                        Keys.onTabPressed: quick.togglePicking()
+                        Keys.onUpPressed: if (quick.picking) quick.pickIndex = Math.max(0, quick.pickIndex - 1)
+                        Keys.onDownPressed: if (quick.picking) quick.pickIndex = Math.min(quick.picks.length - 1, quick.pickIndex + 1)
                         Text {
                             visible: quickInput.text === ""
                             text: "Fråga Goblin AI …"
@@ -307,11 +346,91 @@ Window {
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 12
                 }
-                Text {
-                    text: "Enter frågar – Goblin AI öppnas när svaret finns  ·  Esc stänger"
-                    color: "#5C6880"
-                    font.family: "IBM Plex Sans"
-                    font.pixelSize: 12
+                // The model list (Tab): ↑/↓ and Enter, or a click
+                Flickable {
+                    id: quickPicks
+                    visible: quick.picking
+                    width: parent.width
+                    height: Math.min(contentHeight, 8 * 34)
+                    contentHeight: quickPickCol.height
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    Column {
+                        id: quickPickCol
+                        width: parent.width
+                        Text {
+                            visible: backend.modelsLoading && quick.picks.length <= 1
+                            text: "Hämtar modellerna…"
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Repeater {
+                            model: quick.picks
+                            Rectangle {
+                                id: qp
+                                required property var modelData
+                                required property int index
+                                readonly property bool chosen: modelData.id === backend.model
+                                width: quickPickCol.width
+                                height: 34
+                                color: quick.pickIndex === index || qpArea.containsMouse ? "#1A2438" : "transparent"
+                                Rectangle { visible: qp.chosen; width: 3; height: parent.height; color: accent.color }
+                                Text {
+                                    anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                                    text: qp.modelData.name + (qp.modelData.group ? "   " : "")
+                                    color: qp.chosen ? accent.text : "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.weight: qp.chosen ? Font.DemiBold : Font.Normal
+                                    font.pixelSize: 14
+                                    Text {
+                                        anchors { left: parent.right; baseline: parent.baseline }
+                                        text: qp.modelData.group ? qp.modelData.group + " · " + qp.modelData.note : ""
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                }
+                                MouseArea {
+                                    id: qpArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: quick.pick(qp.index)
+                                }
+                            }
+                        }
+                    }
+                }
+                Item {
+                    width: parent.width
+                    height: quickHelp.height
+                    Text {
+                        id: quickHelp
+                        width: parent.width - quickModel.width - 12
+                        elide: Text.ElideRight
+                        text: quick.picking ? "↑/↓ väljer, Enter använder modellen  ·  Esc tillbaka"
+                                            : "Enter frågar – Goblin AI öppnas när svaret finns  ·  Tab byter modell  ·  Esc stänger"
+                        color: "#5C6880"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
+                    Text {
+                        id: quickModel
+                        anchors.right: parent.right
+                        text: win.modelName(backend.model) + "  ▾"
+                        color: quickModelArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                        MouseArea {
+                            id: quickModelArea
+                            anchors.fill: parent
+                            anchors.margins: -6
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: quick.togglePicking()
+                        }
+                    }
                 }
             }
         }
@@ -1234,6 +1353,17 @@ Window {
                     anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
                     spacing: 8
                     FlatButton {
+                        id: modelButton
+                        small: true
+                        visible: !win.pictureMode
+                        text: win.modelName(backend.model) + "  ▾"
+                        onClicked: {
+                            modelMenu.visible = !modelMenu.visible;
+                            if (modelMenu.visible)
+                                backend.refreshModels();
+                        }
+                    }
+                    FlatButton {
                         small: true
                         visible: !win.pictureMode
                         text: "Bifoga fil"
@@ -1253,6 +1383,116 @@ Window {
                         enabledState: win.pictureMode ? input.text.trim() !== ""
                                                       : !backend.busy && (input.text.trim() !== "" || win.attachment !== "")
                         onClicked: win.send()
+                    }
+                }
+            }
+            // ── The model menu (the button by Skicka), like switching model in Claude Code ──
+            MouseArea {  // a click beside the menu closes it
+                anchors.fill: parent
+                visible: modelMenu.visible
+                z: 19
+                onClicked: modelMenu.visible = false
+            }
+            Rectangle {
+                id: modelMenu
+                visible: false
+                z: 20
+                property var items: JSON.parse(backend.modelChoices)
+                width: 380
+                height: Math.min(modelList.contentHeight + 2, chatArea.height - inputBar.height - 80)
+                anchors { bottom: inputBar.top; bottomMargin: 6 }
+                x: Math.max(24, Math.min(inputBar.x + buttons.x + modelButton.x, chatArea.width - width - 24))
+                color: "#0B1018"
+                border.width: 1
+                border.color: "#2A3852"
+                Keys.onEscapePressed: visible = false
+
+                ListView {
+                    id: modelList
+                    FastWheel { flick: modelList }
+                    anchors { fill: parent; margins: 1 }
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: modelMenu.items
+                    header: Text {
+                        width: modelList.width
+                        visible: backend.modelsLoading
+                        height: visible ? 30 : 0
+                        leftPadding: 14
+                        topPadding: 8
+                        text: "Hämtar modellerna…"
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
+                    delegate: Column {
+                        id: row
+                        required property var modelData
+                        required property int index
+                        readonly property bool firstInGroup: index === 0 || modelMenu.items[index - 1].group !== modelData.group
+                        readonly property bool chosen: modelData.name !== "" && modelData.id === backend.model
+                        width: modelList.width
+
+                        Label {
+                            visible: row.modelData.group !== "" && row.firstInGroup
+                            text: row.modelData.group.toUpperCase()
+                            leftPadding: 14
+                            topPadding: 12
+                            bottomPadding: 4
+                            font.pixelSize: 11
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: row.modelData.name !== "" ? 44 : 28
+                            color: pickArea.containsMouse && row.modelData.name !== "" ? "#1A2438" : "transparent"
+                            Rectangle {  // the chosen one: an accent line, like the tabs
+                                visible: row.chosen
+                                width: 3
+                                height: parent.height
+                                color: accent.color
+                            }
+                            Column {
+                                anchors { left: parent.left; leftMargin: 14; right: parent.right; rightMargin: 30; verticalCenter: parent.verticalCenter }
+                                spacing: 2
+                                Text {
+                                    visible: row.modelData.name !== ""
+                                    width: parent.width
+                                    elide: Text.ElideRight
+                                    text: row.modelData.name
+                                    color: row.chosen ? accent.text : "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.weight: row.chosen ? Font.DemiBold : Font.Normal
+                                    font.pixelSize: 14
+                                }
+                                Text {
+                                    width: parent.width
+                                    elide: Text.ElideRight
+                                    text: row.modelData.note
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                }
+                            }
+                            Text {
+                                visible: row.chosen
+                                anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                                text: "✓"
+                                color: accent.text
+                                font.pixelSize: 15
+                            }
+                            MouseArea {
+                                id: pickArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: row.modelData.name !== ""
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    backend.setModel(row.modelData.id);
+                                    modelMenu.visible = false;
+                                    input.forceActiveFocus();
+                                }
+                            }
+                        }
                     }
                 }
             }

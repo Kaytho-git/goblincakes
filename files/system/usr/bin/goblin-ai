@@ -62,6 +62,8 @@ class Backend(QObject):
     _failed = Signal(str)
     _statusText = Signal(str)
     _keyResult = Signal(str, str, bool, str)  # provider id, key, ok, message
+    modelChanged = Signal()
+    _modelsLoaded = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -89,6 +91,10 @@ class Backend(QObject):
         self._imageEvent.connect(self._on_image_event)
         self.refreshImage()
         self._quick_waiting = False
+        self._model = goblinai.chosen_model()  # "" = automatic
+        self._model_choices = "[]"
+        self._models_loading = False
+        self._modelsLoaded.connect(self._on_models)
 
     # ── Conversation ──────────────────────────────────────────
 
@@ -164,7 +170,8 @@ class Backend(QObject):
                     messages, self._keys,
                     status=self._statusText.emit,
                     notice=self.notice.emit,
-                    project=project)
+                    project=project,
+                    choice=self._model)
                 self._answered.emit(answer, service)
             except goblinai.ServiceError as e:
                 self._failed.emit(str(e))
@@ -374,6 +381,47 @@ class Backend(QObject):
             self._new_conversation()
             self.conversationChanged.emit()
         self.conversationsChanged.emit()
+
+    # ── The model to talk to (the button by Skicka) ───────────
+
+    @Property(str, notify=modelChanged)
+    def model(self):
+        return self._model
+
+    @Property(str, notify=modelChanged)
+    def modelChoices(self):
+        return self._model_choices
+
+    @Property(bool, notify=modelChanged)
+    def modelsLoading(self):
+        return self._models_loading
+
+    @Slot()
+    def refreshModels(self):
+        """The list is read when it is opened (Ollama and the services' lists may take a moment)."""
+        if self._models_loading:
+            return
+        self._models_loading = True
+        self.modelChanged.emit()
+
+        def work():
+            try:
+                items = goblinai.model_choices(self._keys)
+            except Exception:  # noqa: BLE001 – the list must never hang the window
+                items = []
+            self._modelsLoaded.emit(json.dumps(items))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_models(self, text):
+        self._model_choices, self._models_loading = text, False
+        self.modelChanged.emit()
+
+    @Slot(str)
+    def setModel(self, choice):
+        self._model = choice
+        goblinai.set_chosen_model(choice)
+        self.modelChanged.emit()
 
     # ── Services and keys ─────────────────────────────────────
 
