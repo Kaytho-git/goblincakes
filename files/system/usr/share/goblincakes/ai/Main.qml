@@ -240,7 +240,7 @@ Window {
 
     FileDialog {
         id: openDialog
-        title: "Bifoga en textfil eller en bild"
+        title: "Bifoga en textfil, bild eller PDF"
         onAccepted: win.attachment = selectedFile.toString()
     }
 
@@ -250,6 +250,15 @@ Window {
         fileMode: FileDialog.SaveFile
         nameFilters: ["Bilder (*.png *.jpg *.webp)"]
         onAccepted: if (win.pendingImage) backend.saveImageAs(win.pendingImage, selectedFile.toString())
+    }
+
+    property int pendingPdf: -1  // the answer being saved as a PDF
+    FileDialog {
+        id: savePdfDialog
+        title: "Spara svaret som PDF"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["PDF (*.pdf)"]
+        onAccepted: if (win.pendingPdf >= 0) backend.savePdf(win.pendingPdf, selectedFile.toString())
     }
 
     FileDialog {
@@ -1451,6 +1460,23 @@ Window {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: backend.copy(msgItem.m.text)
+                                }
+                            }
+                            Text {
+                                text: "Spara som PDF"
+                                color: pdfArea.containsMouse ? "#E6ECF5" : "#5C6880"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                MouseArea {
+                                    id: pdfArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        win.pendingPdf = msgItem.index;
+                                        savePdfDialog.selectedFile = backend.pdfName(msgItem.index);
+                                        savePdfDialog.open();
+                                    }
                                 }
                             }
                         }

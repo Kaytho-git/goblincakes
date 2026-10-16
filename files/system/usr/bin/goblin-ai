@@ -24,8 +24,10 @@ sys.path.insert(0, str(SHARE))
 import goblinai  # noqa: E402
 import learn  # noqa: E402
 
-from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QUrl, Property, Qt, Signal, Slot  # noqa: E402
-from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QIcon, QImage  # noqa: E402
+from PySide6.QtCore import QMarginsF, QObject, QProcess, QProcessEnvironment, QSize, QUrl, Property, Qt, Signal, Slot  # noqa: E402
+from PySide6.QtGui import (QDesktopServices, QFont, QFontDatabase, QGuiApplication, QIcon, QImage,  # noqa: E402
+                           QPageLayout, QPageSize, QPdfWriter, QTextDocument)
+from PySide6.QtPdf import QPdfDocument  # noqa: E402
 from PySide6.QtNetwork import QLocalServer, QLocalSocket  # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine  # noqa: E402
 
@@ -55,6 +57,47 @@ def prepare_qimage(image):
     if not image.convertToFormat(QImage.Format_RGB888).save(str(out), "JPEG", 88):
         raise ValueError("Bilden gick inte att spara.")
     return str(out)
+
+
+PDF_TEXT_LIMIT = 150_000  # characters of a PDF's text sent along
+PDF_PICTURE_PAGES = 4  # pages of a scanned PDF sent as pictures
+
+
+def read_pdf(path):
+    """(text, pages, pictures): the PDF's text with page markers; a scanned PDF (hardly any text)
+    gives its first pages as pictures instead (for a model that sees pictures)."""
+    doc = QPdfDocument()
+    if doc.load(str(path)) != QPdfDocument.Error.None_:
+        raise ValueError("PDF:en går inte att öppna (skadad eller lösenordsskyddad?).")
+    pages = doc.pageCount()
+    parts = [f"--- Sida {i + 1} ---\n{doc.getAllText(i).text().strip()}" for i in range(pages)]
+    text = "\n\n".join(parts)
+    if len(text) - sum(len(f"--- Sida {i + 1} ---") + 2 for i in range(pages)) < 80 * max(pages, 1):
+        pictures = []
+        for i in range(min(pages, PDF_PICTURE_PAGES)):
+            size = doc.pagePointSize(i)
+            scale = PICTURE_SIDE / max(size.width(), size.height(), 1)
+            image = doc.render(i, QSize(int(size.width() * scale), int(size.height() * scale)))
+            pictures.append(prepare_qimage(image))
+        doc.close()
+        return "", pages, pictures
+    doc.close()
+    if len(text) > PDF_TEXT_LIMIT:
+        text = text[:PDF_TEXT_LIMIT] + "\n\n…(resten av PDF:en är utelämnad – den var för lång)"
+    return text, pages, []
+
+
+def save_pdf(markdown, path, title):
+    """An answer as a PDF (A4, IBM Plex Sans, black on white) – made here, nothing is sent anywhere."""
+    doc = QTextDocument()
+    doc.setDefaultFont(QFont("IBM Plex Sans", 10))
+    doc.setMarkdown(markdown)
+    writer = QPdfWriter(str(path))
+    writer.setTitle(title)
+    writer.setCreator("Goblin AI – GOBLINCAKES")
+    writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    writer.setPageMargins(QMarginsF(20, 20, 20, 20), QPageLayout.Unit.Millimeter)
+    doc.print_(writer)
 
 
 def kwin_script(code):
@@ -213,7 +256,22 @@ class Backend(QObject):
         images = []
         if attachment:
             path = QUrl(attachment).toLocalFile() if attachment.startswith("file:") else attachment
-            if goblinai.is_image(path):
+            if path.lower().endswith(".pdf"):
+                # A PDF: its text – or, when it is scanned (no text), its first pages as pictures
+                try:
+                    pdf_text, pages, images = read_pdf(path)
+                except ValueError as e:
+                    self.notice.emit(str(e))
+                    return
+                name = Path(path).name
+                if images:
+                    content = (f"{text or 'Titta på PDF:en.'}\n\nBifogad PDF: {name} ({pages} sidor, inskannad – "
+                               f"de första {len(images)} sidorna som bilder).")
+                else:
+                    content = f"{text or 'Titta på PDF:en.'}\n\nBifogad PDF: {name} ({pages} sidor):\n```\n{pdf_text}\n```"
+                shown["file"] = name
+                shown["images"] = images
+            elif goblinai.is_image(path):
                 # A picture: a copy in Goblin AI's folder (smaller, JPEG) so the chat keeps it
                 try:
                     images = [path if Path(path).parent == PICTURES else prepare_image(path)]
@@ -1221,6 +1279,31 @@ class Backend(QObject):
     def copyImage(self, path):
         QGuiApplication.clipboard().setImage(QImage(path))
         self.notice.emit("Bilden är kopierad")
+
+    @Slot(int, str)
+    def savePdf(self, index, url):
+        path = QUrl(url).toLocalFile() if url.startswith("file:") else url
+        if not path.lower().endswith(".pdf"):
+            path += ".pdf"
+        try:
+            save_pdf(self._display[index]["text"], path, Path(path).stem)
+            self.notice.emit(f"Sparad: {Path(path).name}")
+            self.pdfSaved.emit(path)
+        except (OSError, IndexError, KeyError) as e:
+            self.notice.emit(f"Kunde inte spara: {e}")
+
+    pdfSaved = Signal(str)
+
+    @Slot(int, result=str)
+    def pdfName(self, index):
+        """A file name for "Spara som PDF": the question before the answer, in the documents folder."""
+        question = next((m["text"] for m in reversed(self._display[:index]) if m["role"] == "user" and m["text"]), "Svar")
+        name = re.sub(r"[^\w åäöÅÄÖ.,-]", "", question.split("\n")[0])[:60].strip() or "Svar"
+        try:
+            docs = subprocess.run(["xdg-user-dir", "DOCUMENTS"], capture_output=True, text=True, timeout=5).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            docs = ""
+        return QUrl.fromLocalFile(str(Path(docs or Path.home()) / f"{name}.pdf")).toString()
 
     @Slot(str, str)
     def saveImageAs(self, path, url):
