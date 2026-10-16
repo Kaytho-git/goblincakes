@@ -266,6 +266,7 @@ class Backend(QObject):
         for seg in shown["segments"]:
             if seg["type"] == "file":
                 seg["canOverwrite"] = bool(self._file) and Path(self._file).name == seg["name"]
+        self._apply_memory(shown)
         self._display.append(shown)
         self.messageAdded.emit(json.dumps(shown))
         self._set_busy(False)
@@ -578,6 +579,55 @@ class Backend(QObject):
         self._model = choice
         goblinai.set_chosen_model(choice)
         self.modelChanged.emit()
+
+    # ── The memory: ```minne / ```glöm in an answer, the list in AI-tjänster ─────
+
+    memoryChanged = Signal()
+
+    def _apply_memory(self, shown):
+        changed = False
+        for part in shown["segments"]:
+            if part["type"] == "memory" and part["state"] == "new":
+                part.update(state="saved", done=goblinai.remember(part["items"]))
+                changed = True
+            elif part["type"] == "forget" and part["state"] == "new":
+                part.update(state="saved", done=goblinai.forget(part["items"]))
+                changed = True
+        if changed:
+            self.memoryChanged.emit()
+
+    @Slot(int, int)
+    def undoMemory(self, index, seg):
+        part = self._display[index]["segments"][seg]
+        if part.get("state") != "saved":
+            return
+        if part["type"] == "memory":
+            items = goblinai.load_memory()
+            done = {t.casefold() for t in part.get("done", [])}
+            goblinai.save_memory([i for i in items if i["text"].casefold() not in done])
+        else:
+            goblinai.remember(part.get("done", []))
+        part["state"] = "undone"
+        self._update(index)
+        self._save()
+        self.memoryChanged.emit()
+
+    @Property(str, notify=memoryChanged)
+    def memory(self):
+        return json.dumps(goblinai.load_memory(), ensure_ascii=False)
+
+    @Slot(str)
+    def addMemory(self, text):
+        goblinai.remember([text])
+        self.memoryChanged.emit()
+
+    @Slot(int)
+    def removeMemory(self, index):
+        items = goblinai.load_memory()
+        if 0 <= index < len(items):
+            del items[index]
+            goblinai.save_memory(items)
+            self.memoryChanged.emit()
 
     # ── The AI's own name (AI-tjänster → Namn) ────────────────
 

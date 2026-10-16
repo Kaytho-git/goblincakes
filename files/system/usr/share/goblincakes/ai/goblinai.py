@@ -873,8 +873,85 @@ def set_ai_name(name):
     return ai_name()
 
 
+# ── The memory (16 Oct): things the AI always knows, in every chat ──────────────────────
+MEMORY_FILE = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes/ai/minne.json"
+MEMORY_MAX = 60       # things
+MEMORY_LENGTH = 300   # characters per thing
+
+MEMORY_PROMPT = """
+
+Minne: du har ett minne som följer med i alla chattar. När användaren ber dig komma ihåg något
+("kom ihåg att …", "spara att …") – eller berättar något om sig själv som tydligt är bra att veta
+framöver – skriv ett kodblock märkt ```minne med en sak per rad, kort och i tredje person
+(t.ex. "Spelar WoW som Kaytho på Stormscale (EU)."). Ber användaren dig glömma något, skriv ett
+kodblock märkt ```glöm med det som ska bort, en sak per rad. Säg kort i texten vad du sparade eller glömde.
+Spara inga lösenord, nycklar eller annat hemligt."""
+
+
+def load_memory():
+    try:
+        items = json.loads(MEMORY_FILE.read_text())
+        return [i for i in items if isinstance(i, dict) and str(i.get("text", "")).strip()]
+    except (OSError, ValueError):
+        return []
+
+
+def save_memory(items):
+    MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    MEMORY_FILE.write_text(json.dumps(items[-MEMORY_MAX:], ensure_ascii=False, indent=1))
+
+
+def remember(texts):
+    """Adds things (not twice); returns the ones that were new."""
+    items = load_memory()
+    known = {i["text"].casefold() for i in items}
+    added = []
+    for t in texts:
+        t = " ".join(t.split())[:MEMORY_LENGTH].lstrip("-•* ").strip()
+        if t and t.casefold() not in known:
+            items.append({"text": t, "added": date.today().isoformat()})
+            known.add(t.casefold())
+            added.append(t)
+    save_memory(items)
+    return added
+
+
+def forget(texts):
+    """Removes the things that best match each line (exact, else containing it, else most shared words);
+    returns the removed ones."""
+    items = load_memory()
+    removed = []
+    for t in texts:
+        t = " ".join(t.split()).lstrip("-•* ").strip().casefold()
+        if not t or not items:
+            continue
+        words = set(re.findall(r"\w+", t))
+
+        def score(i):
+            text = i["text"].casefold()
+            if text == t:
+                return 1000
+            if t in text or text in t:
+                return 500
+            return len(words & set(re.findall(r"\w+", text)))
+        best = max(items, key=score)
+        if score(best) >= max(2, len(words) // 2):
+            items.remove(best)
+            removed.append(best["text"])
+    save_memory(items)
+    return removed
+
+
+def memory_prompt():
+    items = load_memory()
+    if not items:
+        return MEMORY_PROMPT
+    return MEMORY_PROMPT + "\n\nDet här har användaren bett dig komma ihåg (gäller alltid):\n" + "\n".join(
+        f"- {i['text']}" for i in items)
+
+
 def system_prompt():
-    text = SYSTEM_PROMPT.format(info=system_info()) + goblin_commands()
+    text = SYSTEM_PROMPT.format(info=system_info()) + goblin_commands() + memory_prompt()
     name = ai_name()
     if name:
         text = text.replace("Du är Goblin AI, hjälparen i GOBLINCAKES",
@@ -935,6 +1012,11 @@ def segments(text):
         lang, code = m.group(1).strip(), m.group(2).rstrip("\n")
         if lang.lower() in ("bash", "sh", "shell", "console"):
             parts.append({"type": "command", "code": code, "danger": bool(DANGER.search(code)), "state": "new", "output": ""})
+        elif lang.lower() in ("minne", "kom ihåg", "memory", "glöm", "glom", "forget"):
+            items = [line.strip().lstrip("-•* ").strip() for line in code.splitlines() if line.strip()]
+            if items:
+                kind = "forget" if lang.lower() in ("glöm", "glom", "forget") else "memory"
+                parts.append({"type": kind, "items": items, "state": "new"})
         elif lang.lower() in ("skärmbild", "skarmbild", "screenshot"):
             both = bool(re.search(r"båda|alla|both|all", code, re.I))
             parts.append({"type": "shot", "scope": "all" if both else "screen", "state": "new"})

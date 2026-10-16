@@ -1109,13 +1109,15 @@ Window {
                                             text: segItem.s.type === "command" ? (segItem.s.danger ? "KOMMANDO – ÄNDRAR SYSTEMET, LÄS IGENOM" : "KOMMANDO")
                                                 : segItem.s.type === "image" ? "BILD"
                                                 : segItem.s.type === "shot" ? "SKÄRMBILD"
+                                                : segItem.s.type === "memory" ? "MINNE"
+                                                : segItem.s.type === "forget" ? "MINNE – GLÖMT"
                                                 : segItem.s.type === "file" ? "NY VERSION AV " + segItem.s.name.toUpperCase()
                                                 : (segItem.s.lang ? segItem.s.lang.toUpperCase() : "TEXT")
                                             color: segItem.s.type === "command" && segItem.s.danger ? "#E8A0A4" : "#8B98AD"
                                         }
 
                                         CodeBox {
-                                            visible: segItem.s.type !== "image" && segItem.s.type !== "shot"
+                                            visible: ["image", "shot", "memory", "forget"].indexOf(segItem.s.type) < 0
                                             code: segItem.s.code || ""
                                             maxHeight: segItem.s.type === "file" ? 320 : 220
                                         }
@@ -1223,6 +1225,33 @@ Window {
                                                 FlatButton { small: true; primary: true; text: "Försök igen"; onClicked: backend.retryImage(msgItem.index, segItem.index) }
                                                 FlatButton { small: true; text: "AI-tjänster"; onClicked: win.view = "settings" }
                                             }
+                                        }
+
+                                        // The memory: saved at once, can be undone
+                                        Text {
+                                            visible: segItem.s.type === "memory" || segItem.s.type === "forget"
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            textFormat: Text.PlainText
+                                            text: {
+                                                const done = segItem.s.done || [];
+                                                if (segItem.s.state === "undone")
+                                                    return "Ångrat.";
+                                                if (done.length === 0)
+                                                    return segItem.s.type === "memory" ? "Fanns redan i minnet." : "Hittade inget sådant i minnet.";
+                                                return (segItem.s.type === "memory" ? "Kommer ihåg:\n" : "Glömde:\n")
+                                                       + done.map(t => "• " + t).join("\n");
+                                            }
+                                            color: "#C9D3E3"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 14
+                                        }
+                                        FlatButton {
+                                            visible: (segItem.s.type === "memory" || segItem.s.type === "forget")
+                                                     && segItem.s.state === "saved" && (segItem.s.done || []).length > 0
+                                            small: true
+                                            text: "Ångra"
+                                            onClicked: backend.undoMemory(msgItem.index, segItem.index)
                                         }
 
                                         // The AI asks for a screenshot: nothing is taken until the user allows it
@@ -2594,6 +2623,108 @@ Window {
                                 small: true
                                 text: "Heta Goblin AI igen"
                                 onClicked: backend.setAiName("")
+                            }
+                        }
+                    }
+                }
+
+                // ── The memory (16 Oct): what the AI always knows ──
+                Rectangle {
+                    id: memCard
+                    width: settingsCol.width
+                    height: memCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    property var items: JSON.parse(backend.memory)
+
+                    Column {
+                        id: memCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 10
+                        Text {
+                            text: "Minne"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Saker " + (backend.aiName || "Goblin AI") + " alltid vet, i alla chattar. Säg \"kom ihåg att …\" eller \"glöm att …\" i en chatt, eller skriv här. "
+                                  + "Minnet skickas med varje fråga – även till tjänster på nätet när de används, så skriv inget hemligt."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Repeater {
+                            model: memCard.items
+                            Row {
+                                id: memRow
+                                required property var modelData
+                                required property int index
+                                width: memCol.width
+                                spacing: 10
+                                Text {
+                                    width: parent.width - 30
+                                    wrapMode: Text.WordWrap
+                                    text: "• " + memRow.modelData.text
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 14
+                                }
+                                Text {
+                                    text: "×"
+                                    color: memX.containsMouse ? accent.errorBright : "#8B98AD"
+                                    font.pixelSize: 18
+                                    MouseArea {
+                                        id: memX
+                                        anchors.fill: parent
+                                        anchors.margins: -6
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: backend.removeMemory(memRow.index)
+                                    }
+                                }
+                            }
+                        }
+                        Row {
+                            spacing: 10
+                            Rectangle {
+                                width: Math.min(460, memCol.width - 110)
+                                height: 30
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: memInput.activeFocus ? accent.color : "#1E2A40"
+                                TextInput {
+                                    id: memInput
+                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    clip: true
+                                    maximumLength: 300
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                    onAccepted: if (text.trim() !== "") { backend.addMemory(text); text = ""; }
+                                    Text {
+                                        visible: memInput.text === ""
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "T.ex. Spelar WoW som Kaytho på Stormscale (EU)"
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                            }
+                            FlatButton {
+                                small: true
+                                primary: true
+                                text: "Lägg till"
+                                enabledState: memInput.text.trim() !== ""
+                                onClicked: { backend.addMemory(memInput.text); memInput.text = ""; }
                             }
                         }
                     }

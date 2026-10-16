@@ -17,7 +17,7 @@ import threading
 
 sys.path.insert(0, "/usr/share/goblincakes/ai")
 from goblinai import (SERVICES, DANGER, ServiceError, ask as ask_services, chosen_model, code_blocks,  # noqa: E402
-                      has_keys, load_keys, make_image, run_in_folder, save_keys, segments, system_prompt, test_key)
+                      forget, has_keys, load_keys, remember, make_image, run_in_folder, save_keys, segments, system_prompt, test_key)
 
 MAX_ROUNDS = 8  # command → output → next step, per question
 cwd = os.getcwd()  # where the next block runs: starts where goblin ai was started, follows `cd`
@@ -162,6 +162,13 @@ def handle(question, messages, keys):
         print()
         render(answer.strip())
         muted(f"\n— {service}")
+        for part in segments(answer):  # the memory: saved at once, like in the window
+            if part["type"] == "memory":
+                for t in remember(part["items"]):
+                    print(f"{ACCENT}▌ Kommer ihåg:{RESET} {t}")
+            elif part["type"] == "forget":
+                for t in forget(part["items"]):
+                    print(f"{ACCENT}▌ Glömde:{RESET} {t}")
         draw_pictures(answer, keys)
         blocks = code_blocks(answer)
         if not blocks:
