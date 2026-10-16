@@ -509,7 +509,10 @@ QUALITY_MBIT = {"high": 25, "normal": 10, "small": 5}  # HEVC/AV1 at 60 fps
 # "best" (15 Oct, the user: Hög looked a bit rough): constant quality instead of a bitrate – as
 # many bits as each picture needs (raid effects take a lot), near what the eye can tell apart.
 # The level per encoder family; lower = finer. The size follows what happens on screen.
-BEST_QP = {"nvenc": 18, "vaapi": 20, "x264": 18}
+# 22 = Warcraft Recorder's "Ultra" (17 Oct, the user: +14 on 18 was 11.8 GB for 29 min ≈ 56 Mbit/s).
+# Measured on a minute of that key (HEVC NVENC, VMAF against the 18 film): 18 → 98.0, 21 → 97.2,
+# 23 → 96.5, Hög (VBR 25 Mbit) 97.2 – about 40 % smaller than 18 for a difference hard to see.
+BEST_QP = {"nvenc": 22, "vaapi": 22, "x264": 22}
 
 
 def encoder_settings(cfg, codec, family="nvenc"):

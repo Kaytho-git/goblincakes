@@ -1724,7 +1724,7 @@ Window {
                         text: modelData.name
                         sub: modelData.id === "best"
                              ? "Riktigt fin bild – grafikkortet ger varje bild så mycket som behövs, så storleken följer vad som händer: "
-                               + "ungefär 300–500 MB per minut, mest i stora raidstrider. Håll koll på platsgränsen."
+                               + "ungefär 200–300 MB per minut, mest i stora raidstrider och M+-pulls. Håll koll på platsgränsen."
                              : "≈ " + Math.round(mb / 5) * 5 + " MB per minut. "
                              + ({ high: "Om du vill klippa ihop filmer i efterhand.", normal: "Räcker gott för WoW.",
                                   small: "När disken är liten." })[modelData.id] + " En lugn stund blir mindre."
