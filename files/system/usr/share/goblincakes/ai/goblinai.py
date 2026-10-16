@@ -141,6 +141,10 @@ def providers_in_order(keys, order=None):
     return cloud + [LOCAL] if order == "cloud-first" else [LOCAL] + cloud
 
 
+# goblincakes-ollama serve stops the local AI entirely while a game runs (and writes this file)
+LOCAL_PAUSED = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-ollama-paused"
+
+
 def start_local():
     """Ollama's user service, when it isn't running (it starts at login, but may have been stopped)."""
     subprocess.run(["systemctl", "--user", "start", "goblincakes-ollama.service"], capture_output=True)
@@ -157,6 +161,8 @@ def start_local():
 def local_models(messages, project=None):
     """The installed models, the one for this question first: code → the "kod" model, else "vardag".
     A project can pick its own models per role and which role comes first (its template)."""
+    if LOCAL_PAUSED.exists():
+        raise ServiceError("avstängd medan ett spel kör")
     try:
         with urllib.request.urlopen("http://127.0.0.1:11434/v1/models", timeout=5) as r:
             ids = [m["id"] for m in json.loads(r.read()).get("data", [])]

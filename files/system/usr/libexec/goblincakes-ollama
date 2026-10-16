@@ -29,7 +29,6 @@ import signal
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import urllib.error
 import urllib.request
@@ -296,7 +295,7 @@ def cmd_status():
     out = {"installed": installed(data), "dir": data.get("dir", ""), "version": data.get("version", ""),
            "latest": data.get("latest", ""), "running": up, "order": data["order"], "roles": data["roles"],
            "models": (models() or []) if up else [], "loaded": loaded() if up else [],
-           "waiting": bool(data.get("dir")) and not Path(data["dir"]).exists()}
+           "waiting": bool(data.get("dir")) and not Path(data["dir"]).exists(), "paused": PAUSED.exists()}
     print(json.dumps(out, ensure_ascii=False))
     return 0
 
@@ -571,8 +570,14 @@ def game_running():
     return False
 
 
+# While a game runs the whole local AI is stopped (the user's decision 16 Oct: never used while
+# playing – questions go to the cloud services then); this file says so to Goblin AI and the window
+PAUSED = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-ollama-paused"
+
+
 def cmd_serve():
-    """Ollama in the foreground (the user service) + the games watch."""
+    """Ollama in the foreground (the user service) – stopped entirely while a game runs, started
+    again when it has closed."""
     data = load()
     b = base(data)
     if not b:
@@ -583,29 +588,41 @@ def cmd_serve():
         print("Ollama saknas i " + str(b), file=sys.stderr)
         return 1
     env = dict(os.environ, OLLAMA_HOST=HOST, OLLAMA_MODELS=str(b / "models"))
-    proc = subprocess.Popen([str(binary(data)), "serve"], env=env)
+    state = {"proc": None, "quit": False}
 
-    def watch():
-        # A game wants the graphics memory: the models out (Ollama loads them again on the next question)
-        was = False
-        while proc.poll() is None:
-            now = game_running()
-            if now and not was:
-                unload()
-            if now:
-                for _ in range(6):  # while the game runs: again if something got loaded
-                    time.sleep(5)
-                    if loaded():
-                        unload()
-            was = now
-            time.sleep(5)
-    threading.Thread(target=watch, daemon=True).start()
+    def end_child():
+        proc = state["proc"]
+        if proc and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+        state["proc"] = None
 
-    def stop_child(*_):
-        proc.terminate()
-    signal.signal(signal.SIGTERM, stop_child)
-    signal.signal(signal.SIGINT, stop_child)
-    return proc.wait()
+    def quit_(*_):
+        state["quit"] = True
+    signal.signal(signal.SIGTERM, quit_)
+    signal.signal(signal.SIGINT, quit_)
+    try:
+        while not state["quit"]:
+            if game_running():
+                if state["proc"]:
+                    print("Ett spel kör – lokal AI stängs av tills spelet är stängt", flush=True)
+                    end_child()
+                PAUSED.touch()
+            else:
+                PAUSED.unlink(missing_ok=True)
+                if not state["proc"]:
+                    state["proc"] = subprocess.Popen([str(binary(data)), "serve"], env=env)
+                elif state["proc"].poll() is not None:
+                    return state["proc"].returncode or 1  # Ollama itself stopped: systemd restarts the service
+            time.sleep(3)
+    finally:
+        end_child()
+        PAUSED.unlink(missing_ok=True)
+    return 0
 
 
 def main(argv):

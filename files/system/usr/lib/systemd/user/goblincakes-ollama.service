@@ -4,8 +4,8 @@ Description=GOBLINCAKES lokal AI (Ollama, installed from Goblin AI → AI-tjäns
 ConditionPathExists=%h/.config/goblincakes/ollama.json
 
 [Service]
-# Waits for the folder when it is on a disk that is mounted after login; empties the graphics
-# memory when a game runs
+# Waits for the folder when it is on a disk that is mounted after login; stops Ollama entirely
+# while a game runs
 ExecStart=/usr/libexec/goblincakes-ollama serve
 Restart=on-failure
 RestartSec=10

@@ -1907,6 +1907,7 @@ Window {
                             text: !win.local.status ? "Kollar…"
                                 : !win.localStatus.installed ? "Inte installerad"
                                 : win.localStatus.waiting ? "Väntar på disken"
+                                : win.localStatus.paused ? "Avstängd medan ett spel kör – frågor går till molnet"
                                 : (win.localStatus.running ? "Igång" : "Startar…") + " · Ollama " + win.localStatus.version
                             color: win.localStatus.installed ? accent.text : "#8B98AD"
                             font.family: "IBM Plex Sans"
