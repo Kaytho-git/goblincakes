@@ -106,6 +106,29 @@ EOF
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
+# AppGrid about half its size (16 Oct, the user's wish – as layout.js now does): small icons,
+# 4 × 3 per page. Once, and only the keys not already set (own choices in AppGrid stay).
+_gc_flag="$_gc_state/appgrid-smaller"
+if [ ! -e "$_gc_flag" ]; then
+    [ -f "$_gc_applets" ] && python3 - "$_gc_applets" <<'EOF' >/dev/null 2>&1
+import re, sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+want = {"iconSize": "0", "gridColumns": "4", "gridRows": "3"}
+for applet in re.findall(r"^\[(Containments\]\[\d+\]\[Applets\]\[\d+)\]\n(?:[^\[\n][^\n]*\n)*?plugin=dev\.xarbit\.appgrid\n", text, re.M):
+    head = "[" + applet + "][Configuration][General]\n"
+    if head not in text:
+        text = text.rstrip("\n") + "\n\n" + head
+    start = text.index(head) + len(head)
+    end = re.compile(r"^\[", re.M).search(text, start)
+    body = text[start:end.start() if end else len(text)]
+    text = text[:start] + "".join(f"{k}={v}\n" for k, v in want.items()
+                                  if not re.search(rf"^{k}=", body, re.M)) + text[start:]
+open(path, "w", encoding="utf-8").write(text)
+EOF
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
 # Middle-click autoscroll as on Windows (11 Oct, the user's choice) in the Chromium-based
 # Flatpaks – Chromium has it switched off on Linux. Firefox gets it from
 # /usr/share/goblincakes/firefox. Once per browser, when it is installed; a browser

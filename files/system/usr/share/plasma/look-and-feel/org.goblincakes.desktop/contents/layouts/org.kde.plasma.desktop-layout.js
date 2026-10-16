@@ -22,6 +22,10 @@ try { topBar.opacity = "opaque"; } catch (e) {}
 var apps = topBar.addWidget("dev.xarbit.appgrid");
 apps.currentConfigGroup = ["General"];
 apps.writeConfig("icon", "goblincakes");
+// About half AppGrid's default size (16 Oct, the user's wish): small icons, 4 × 3 per page
+apps.writeConfig("iconSize", 0);
+apps.writeConfig("gridColumns", 4);
+apps.writeConfig("gridRows", 3);
 
 // Open programs (icons only), left-aligned after the logo. It fills the free
 // space, so it grows to the right while "now playing" grows to the left.
