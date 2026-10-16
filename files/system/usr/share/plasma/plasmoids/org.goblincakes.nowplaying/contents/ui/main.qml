@@ -13,6 +13,10 @@
     while you are in it (~/.config/goblincakes/discord-channels), else "Röstkanal".
     Also with Discord's window closed to the system tray (11 Oct): the helper says whether
     Discord runs, and a click brings the window back like its tray icon does.
+    Steam (16 Oct, the user's wish – the fans were loud and it wasn't clear why): while Steam
+    downloads a game or processes its Vulkan shaders, the game and how far (shaders in %,
+    downloads in Mbit/s); click = Steam's downloads. /usr/libexec/goblincakes-steam-activity
+    reads Steam's logs every 5 s, only while Steam runs.
     Nothing to show = the widget takes no space.
 */
 import QtQuick
@@ -165,6 +169,14 @@ PlasmoidItem {
         }
     }
 
+    // ---- Steam ----
+    property var steam: ({})          // {kind: "download"|"shader"|"", name, phase, percent, rate}
+    readonly property string steamText: !steam.kind ? ""
+        : steam.name + "  ·  " + (steam.kind === "shader" ? "shaders" : steam.phase)
+          + (steam.percent !== null && steam.percent !== undefined ? " " + steam.percent + " %" : "")
+          + (steam.rate ? "  ·  " + steam.rate + " Mbit/s" : "")
+    readonly property string steamCommand: "pgrep -x steam >/dev/null && /usr/libexec/goblincakes-steam-activity || echo '{}'"
+
     readonly property string voiceCommand: "/usr/libexec/goblincakes-discord-voice"
 
     P5Support.DataSource {
@@ -185,6 +197,12 @@ PlasmoidItem {
                     root.discordRunning = false;
                 }
                 root.learnServerName();
+            } else if (source === root.steamCommand) {
+                try {
+                    root.steam = JSON.parse(data["stdout"] || "{}");
+                } catch (e) {
+                    root.steam = {};
+                }
             }
             disconnectSource(source);
         }
@@ -199,6 +217,15 @@ PlasmoidItem {
         repeat: true
         triggeredOnStart: true
         onTriggered: exec.connectSource(root.voiceCommand)
+    }
+
+    // Steam's progress changes by the second; without Steam only a pgrep
+    Timer {
+        interval: 5000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: exec.connectSource(root.steamCommand)
     }
 
     TaskManager.TasksModel {
@@ -235,7 +262,7 @@ PlasmoidItem {
 
     fullRepresentation: Item {
         id: full
-        readonly property bool empty: !music.visible && !chat.visible
+        readonly property bool empty: !music.visible && !chat.visible && !steamPart.visible
 
         Layout.minimumWidth: row.implicitWidth
         Layout.preferredWidth: row.implicitWidth
@@ -362,6 +389,59 @@ PlasmoidItem {
                             exec.connectSource(root.voiceCommand + " show");
                         }
                     }
+                }
+            }
+
+            Rectangle {
+                visible: (music.visible || chat.visible) && steamPart.visible
+                color: root.line
+                implicitWidth: 1
+                implicitHeight: Math.round(Kirigami.Units.gridUnit * 1.1)
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            // Steam downloading or processing shaders: click = Steam's downloads
+            Item {
+                id: steamPart
+                visible: root.steamText !== ""
+                implicitWidth: steamRow.implicitWidth
+                implicitHeight: steamRow.implicitHeight
+                Layout.alignment: Qt.AlignVCenter
+
+                RowLayout {
+                    id: steamRow
+                    anchors.fill: parent
+                    spacing: Math.round(Kirigami.Units.smallSpacing * 1.5)
+
+                    Kirigami.Icon {
+                        source: "steam"
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: Kirigami.Units.iconSizes.small
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    Text {
+                        text: root.steamText
+                        color: root.muted
+                        font: Kirigami.Theme.defaultFont
+                        elide: Text.ElideRight
+                        Layout.maximumWidth: Kirigami.Units.gridUnit * 22
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                }
+
+                PlasmaCore.ToolTipArea {
+                    anchors.fill: parent
+                    mainText: root.steam.kind === "shader" ? "Steam bearbetar shaders" : "Steam " + (root.steam.phase || "")
+                    subText: (root.steam.kind === "shader"
+                        ? "Gör " + root.steam.name + " redo så att spelet inte hackar. Det tar mycket processorkraft – fläktarna kan låta en stund.\n"
+                        : root.steam.name + "\n") + "Klicka för att visa Steams nedladdningar"
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -Kirigami.Units.smallSpacing
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: exec.connectSource("setsid -f xdg-open steam://open/downloads >/dev/null 2>&1 < /dev/null")
                 }
             }
         }

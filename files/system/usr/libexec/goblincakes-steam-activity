@@ -1,0 +1,146 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: what Steam is busy with right now, for the update mark in the top bar.
+
+    goblincakes-steam-activity     one JSON line: {"kind": "download"|"shader"|"", "appid",
+                                   "name", "phase", "percent", "rate"}
+
+Downloads: content_log.txt – the last "AppID N state changed" line says whether an update is
+running ("Update Running"), the last "App update changed" line what it is doing (Downloading,
+Verifying, Committing …), "Current download rate" the speed. Shaders ("Bearbetar Vulkan-shaders"
+– all CPU cores, the fans are heard): a fossilize_replay process; the game is in its
+shadercache/<appid>/ path and shader_log.txt says "Still replaying N (12%, …)" every 10 s.
+Only reads the logs' last 256 kB.
+"""
+import json
+import os
+import re
+import time
+from pathlib import Path
+
+HOME = Path.home()
+STEAM_ROOTS = [HOME / ".local/share/Steam", HOME / ".steam/steam",
+               HOME / ".var/app/com.valvesoftware.Steam/.local/share/Steam"]
+TAIL = 256 * 1024
+LINE = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\] (.*)$")
+PHASES = [("Downloading", "laddar ner"), ("Verifying", "kontrollerar"),
+          ("Committing", "installerar"), ("Staging", "installerar"),
+          ("Preallocating", "förbereder"), ("Reconfiguring", "förbereder")]
+
+
+def steam_root():
+    for root in STEAM_ROOTS:
+        if (root / "logs").is_dir():
+            return root.resolve()
+    return None
+
+
+def tail_lines(path):
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - TAIL))
+            return f.read().decode("utf-8", "replace").splitlines()
+    except OSError:
+        return []
+
+
+def stamp(text):
+    try:
+        return time.mktime(time.strptime(text, "%Y-%m-%d %H:%M:%S"))
+    except ValueError:
+        return 0
+
+
+def app_name(root, appid):
+    folders = {root}
+    try:
+        vdf = (root / "steamapps/libraryfolders.vdf").read_text(errors="replace")
+        folders |= {Path(p) for p in re.findall(r'"path"\s+"([^"]+)"', vdf)}
+    except OSError:
+        pass
+    for folder in folders:
+        try:
+            text = (folder / f"steamapps/appmanifest_{appid}.acf").read_text(errors="replace")
+        except OSError:
+            continue
+        name = re.search(r'"name"\s+"([^"]+)"', text)
+        if name:
+            return name.group(1)
+    return f"spel {appid}"
+
+
+def shader_app():
+    """The game a fossilize_replay process is working on, or None."""
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            if Path(f"/proc/{pid}/comm").read_text().strip() != "fossilize_repla":
+                continue
+            cmd = Path(f"/proc/{pid}/cmdline").read_bytes().decode("utf-8", "replace")
+        except OSError:
+            continue
+        found = re.search(r"shadercache/(\d+)/", cmd)
+        if found:
+            return found.group(1)
+    return None
+
+
+def shader(root, appid):
+    percent = None
+    for line in reversed(tail_lines(root / "logs/shader_log.txt")):
+        found = re.search(rf"Still replaying {appid} \((\d+)%", line)
+        if found:
+            percent = int(found.group(1))
+            break
+    return {"kind": "shader", "appid": appid, "name": app_name(root, appid),
+            "phase": "bearbetar shaders", "percent": percent, "rate": None}
+
+
+def download(root):
+    state, flags = {}, {}
+    rate, rate_at = None, 0
+    for line in tail_lines(root / "logs/content_log.txt"):
+        m = LINE.match(line)
+        if not m:
+            continue
+        text = m.group(2)
+        found = re.match(r"AppID (\d+) state changed : (.*)", text)
+        if found:
+            state[found.group(1)] = found.group(2)
+            continue
+        found = re.match(r"AppID (\d+) App update changed : (.*)", text)
+        if found:
+            # "Running Update," alone comes between every step – keep the step before it
+            if found.group(2).strip(", ") != "Running Update":
+                flags[found.group(1)] = found.group(2)
+            continue
+        found = re.match(r"Current download rate: ([\d.]+) Mbps", text)
+        if found:
+            rate, rate_at = float(found.group(1)), stamp(m.group(1))
+    for appid, st in reversed(list(state.items())):
+        if "Update Running" not in st:
+            continue
+        step = flags.get(appid, "")
+        phase = next((sv for en, sv in PHASES if en in step), "uppdaterar")
+        recent = rate if rate and time.time() - rate_at < 120 else None
+        return {"kind": "download", "appid": appid, "name": app_name(root, appid),
+                "phase": phase, "percent": None,
+                "rate": round(recent) if recent and phase == "laddar ner" else None}
+    return None
+
+
+def main():
+    root = steam_root()
+    result = {"kind": ""}
+    if root:
+        result = download(root) or result
+        if not result["kind"]:
+            appid = shader_app()
+            if appid:
+                result = shader(root, appid)
+    print(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
