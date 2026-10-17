@@ -124,8 +124,9 @@ LOCAL = {
     "url": "http://127.0.0.1:11434/v1",
     "temperature": 0.4,
 }
-LOCAL_CONTEXT = 16384  # OLLAMA_CONTEXT_LENGTH in goblincakes-ollama
+LOCAL_CONTEXT = 32768  # OLLAMA_CONTEXT_LENGTH in goblincakes-ollama
 LOCAL_MIN_TOKENS = 3000  # answer + thinking at least, even when the question is long
+LOCAL_MAX_TOKENS = 8000  # and at most – with room for more, gemma4 thought for 28 000 tokens (13 min, 18 Oct)
 OLLAMA_FILE = CONFIG / "ollama.json"
 OLLAMA_HELPER = os.environ.get("GOBLINCAKES_OLLAMA_HELPER", "/usr/libexec/goblincakes-ollama")
 CODE_WORDS = re.compile(r"```|\b(kod|koden|skript|script|python|lua|php|javascript|bash|html|css|sql|"
@@ -855,7 +856,7 @@ def sees_images(choice=""):
     return local_settings()["installed"]
 
 
-LOCAL_BUDGET = 36_000  # characters (≈ 11 000 tokens) of a chat sent to the local AI (16 384 tokens, see goblincakes-ollama)
+LOCAL_BUDGET = 80_000  # characters (≈ 24 000 tokens) of a chat sent to the local AI (32 768 tokens, see goblincakes-ollama; 18 Oct: 16 384 was too little for a whole raid night + one ability)
 PICTURE_CHARS = 5_000  # what a picture counts as
 
 
@@ -893,7 +894,7 @@ def chat(provider, key, model, messages):
             # Thinking models (gemma4) sometimes think in circles until the whole context is full and
             # give no answer (18 Oct: 12 000 tokens, 3 min) – a ceiling, then once more without thinking
             used = sum(len(m["content"]) if isinstance(m["content"], str) else 2000 for m in messages) // 3
-            body["max_tokens"] = max(LOCAL_MIN_TOKENS, LOCAL_CONTEXT - used - 500)
+            body["max_tokens"] = max(LOCAL_MIN_TOKENS, min(LOCAL_MAX_TOKENS, LOCAL_CONTEXT - used - 500))
         reply = request(provider, key, "/chat/completions", body)
         text = reply["choices"][0]["message"].get("content") or ""
         if provider.get("local") and reply["choices"][0].get("finish_reason") == "length":  # empty or cut off

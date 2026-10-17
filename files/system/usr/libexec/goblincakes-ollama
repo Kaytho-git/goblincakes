@@ -624,7 +624,7 @@ def cmd_serve():
     # Ollama's own 4096 tokens were too few (16 Oct). Flash attention + an 8-bit cache keep it in
     # 12 GB of graphics memory; a card without flash attention just gets the normal cache.
     env = dict(os.environ, OLLAMA_HOST=HOST, OLLAMA_MODELS=str(b / "models"),
-               OLLAMA_CONTEXT_LENGTH=os.environ.get("OLLAMA_CONTEXT_LENGTH", "16384"),
+               OLLAMA_CONTEXT_LENGTH=os.environ.get("OLLAMA_CONTEXT_LENGTH", "32768"),
                OLLAMA_FLASH_ATTENTION="1", OLLAMA_KV_CACHE_TYPE="q8_0")
     state = {"proc": None, "quit": False}
 
