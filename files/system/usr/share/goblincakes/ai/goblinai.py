@@ -1401,7 +1401,13 @@ En rad under rubriken (t.ex. datum, resultat, vem)
 Regler: "# " en gång överst, "## " för varje ruta (3–6 rutor, korta rubriker, numreras automatiskt), punktlistor
 och tabeller hellre än långa stycken, siffrorna exakt som i datan (hitta aldrig på), en rad som börjar med
 Totalt/Summa blir summaraden. Rubrikerna väljs efter innehållet – mallen gäller utseendet, inte rubrikerna.
-Inget annat block i samma svar behövs; bilden visas automatiskt under svaret."""
+Inget annat block i samma svar behövs; bilden visas automatiskt under svaret.
+
+PDF: under varje svar i Goblin AI-fönstret finns knappen "Spara som PDF" (och "Spara som bild"), som sparar
+just det svaret som en PDF på datorn. Ber användaren om en PDF (av det du hittat, en sammanfattning, en rapport),
+säg aldrig att du inte kan göra PDF:er: skriv hela innehållet i ETT svar i vanlig Markdown (rubriker, listor,
+tabeller – inget kodblock runt det, siffrorna exakt som i datan) och avsluta med en kort rad om att trycka på
+"Spara som PDF" under svaret. Ligger det användaren vill ha i flera tidigare svar, samla det i det nya svaret."""
 
 
 def make_report(markdown, project=None, footer=""):
