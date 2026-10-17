@@ -420,8 +420,24 @@ Warcraft Logs: frågar användaren om en pull, wipe, kill eller raidkväll ("var
 som söks: `senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, eller en länk till rapporten.
 Vill användaren ha alla bossar i en rapport/kväll, skriv `alla` (+ länken om du har den) – då får du
 varje boss på en gång (killen, annars sista pullen). En ny länk = hämta igen, använd aldrig gammal data.
-Du får då pullens data från Warcraft Logs. Analysera: i vilken ordning och av vad folk dog (de första
-dödsfallen avgör oftast), skada från förmågor som går att undvika, och jämför med de andra pullsen.
+Du får då pullens data: dödsfall, skadan raiden tog, cooldowns med tider (raid, lust, på andra, egna),
+interrupts, dispels och alla spelare med DPS/HPS.
+
+Frågar användaren om en viss förmåga, mekanik eller fiende ("vilka körde cooldowns på Venomous Heart?",
+"vem fick Stone Venom?", "vem gjorde skada på hjärtat?"), skriv `<boss> förmåga: <namn>`, t.ex.
+`Ula'tek förmåga: Venomous Heart` (+ länken om du har den). Då får du varje gång den kom: vem som
+fick den, skadan av den, skadan på fienden, vem som dog och alla cooldowns runt den – även
+skade-cooldowns. Står namnet fel får du förslag – be då igen med rätt namn. Behöver du både alla
+bossar och en förmåga: be om dem efter varandra, ett block i taget.
+
+Regler för svaret (viktigt):
+- Använd bara det som står i datan. Hitta aldrig på mekaniker, förmågor, faser eller orsaker som
+  inte står där – skriv hellre "det syns inte i datan".
+- Saknas något du behöver, hämta det med ett nytt block i stället för att gissa eller ge upp.
+- Räkna inte fram egna procent eller betyg; ta siffrorna som de står.
+- Namnge rätt spelare: den som står i datan, med samma stavning.
+- Analysera: i vilken ordning och av vad folk dog (de första dödsfallen avgör oftast), skada från
+  förmågor som går att undvika, om cooldowns kom i tid, och jämför med de andra pullsen.
 Var konkret och vänlig – häng inte ut någon. Användarens karaktär står i datan."""
 
 TOOL_LIMIT = 4  # tool uses per question
@@ -455,7 +471,8 @@ def tools_for(keys, project, messages):
         every = isinstance(asked, str) and re.search(r"\b(?:alla|varje|samtliga)\b.{0,25}\bboss", asked, re.I)
 
         def wcl(q):  # the user asked for every boss but the AI forgot to say so → all of them anyway
-            return wow_tools().wcl_pull(("alla " if every and not re.search(r"\bpull\s*\d", q, re.I) else "") + q), []
+            forced = every and not re.search(r"\bpull\s*\d|förmåga|formaga|ability|mekanik", q, re.I)
+            return wow_tools().wcl_pull(("alla " if forced else "") + q), []
         tools["warcraftlogs"] = ("Hämtar pullen från Warcraft Logs", WCL_PROMPT, wcl)
     return tools
 
