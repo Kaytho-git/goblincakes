@@ -418,6 +418,8 @@ WCL_PROMPT = """
 Warcraft Logs: frågar användaren om en pull, wipe, kill eller raidkväll ("varför wipade vi?",
 "vem dog först?", "hur gick Kith'ix?"), svara med BARA ett kodblock märkt ```warcraftlogs med vad
 som söks: `senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, eller en länk till rapporten.
+Vill användaren ha alla bossar i en rapport/kväll, skriv `alla` (+ länken om du har den) – då får du
+varje boss på en gång (killen, annars sista pullen). En ny länk = hämta igen, använd aldrig gammal data.
 Du får då pullens data från Warcraft Logs. Analysera: i vilken ordning och av vad folk dog (de första
 dödsfallen avgör oftast), skada från förmågor som går att undvika, och jämför med de andra pullsen.
 Var konkret och vänlig – häng inte ut någon. Användarens karaktär står i datan."""
@@ -449,7 +451,12 @@ def tools_for(keys, project, messages):
     except (OSError, ValueError):
         configured = False
     if configured:
-        tools["warcraftlogs"] = ("Hämtar pullen från Warcraft Logs", WCL_PROMPT, lambda q: (wow_tools().wcl_pull(q), []))
+        asked = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+        every = isinstance(asked, str) and re.search(r"\b(?:alla|varje|samtliga)\b.{0,25}\bboss", asked, re.I)
+
+        def wcl(q):  # the user asked for every boss but the AI forgot to say so → all of them anyway
+            return wow_tools().wcl_pull(("alla " if every and not re.search(r"\bpull\s*\d", q, re.I) else "") + q), []
+        tools["warcraftlogs"] = ("Hämtar pullen från Warcraft Logs", WCL_PROMPT, wcl)
     return tools
 
 

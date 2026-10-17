@@ -3,7 +3,8 @@
 - wow_errors(query): the errors BugSack/BugGrabber saved (!BugGrabber.lua in WTF – only read,
   never changed: WoW's files are not touched), with the add-on's version from its .toc.
 - wcl_pull(query): one pull from Warcraft Logs – result, boss health and phase, deaths with what
-  killed them, the damage the raid took, everyone's DPS/HPS and the other pulls on the boss –
+  killed them, the damage the raid took, everyone's DPS/HPS and the other pulls on the boss – or,
+  with "alla" in the query, every boss in the report (the kill, else the last pull; 17 Oct) –
   through GoblinRecorder's Warcraft Logs client (recorder.py, ~/.config/goblincakes/wcl.json).
 
 Both return plain text for the AI (Swedish headings, the game's own English names).
@@ -265,8 +266,13 @@ def find_fight(r, query):
                     "publika loggar – eller ge rapportens länk)")
 
 
+ALL_WORDS = re.compile(r"\b(?:alla|allihop|varje|samtliga|all|every|bossar|bossarna)\b", re.I)
+
+
 def wcl_pull(query=""):
     r = recorder()
+    if ALL_WORDS.search(query):
+        return wcl_all(r, query)
     try:
         rep, fight, player = find_fight(r, query)
         data = r.wcl_query(
@@ -279,7 +285,11 @@ def wcl_pull(query=""):
         raise
     except Exception as e:  # noqa: BLE001 – the API or the network
         raise ToolError(f"Warcraft Logs svarade inte: {e}") from None
+    return pull_text(rep, fight, player, data, stats)
 
+
+def pull_text(rep, fight, player, data, stats, compact=False):
+    """The pull as text for the AI; compact = fewer rows (several bosses in one answer)."""
     same = [f for f in rep["fights"] if f["encounterID"] == fight["encounterID"]]
     number = same.index(fight) + 1
     length = fight["endTime"] - fight["startTime"]
@@ -290,17 +300,18 @@ def wcl_pull(query=""):
     out = [f"Warcraft Logs: {rep.get('title', '')} – {fight['name']} {diff}, pull {number} av {len(same)}: {result}, "
            f"{mmss(length)} lång.",
            f"Länk: https://www.warcraftlogs.com/reports/{rep['code']}#fight={fight['id']}"]
-    if player:
+    if player and not compact:
         out.append(f"Användarens karaktär: {player.split('-')[0]}")
 
     def table(key):
         v = data.get(key) or {}
         return (v.get("data") or {}) if isinstance(v, dict) else {}
 
+    limit = 8 if compact else 20
     deaths = sorted(table("deaths").get("entries") or [], key=lambda d: d.get("timestamp", 0))
     if deaths:
         out.append("\nDödsfall i ordning (tid in i pullen – vem – dödande förmåga och från vem – skada sista sekunderna):")
-        for d in deaths[:20]:
+        for d in deaths[:limit]:
             dmg = d.get("damage") or {}
             ability = (d.get("killingBlow") or {}).get("name") or "?"
             src = ", ".join(s["name"] for s in (dmg.get("sources") or [])[:2])
@@ -308,11 +319,11 @@ def wcl_pull(query=""):
                 dmg.get("abilities") or [], key=lambda a: -a.get("total", 0))[:3])
             out.append(f"- {mmss(d.get('timestamp', 0) - fight['startTime'])} {d['name']} ({d.get('icon', d.get('type', '')).replace('-', ' ')})"
                        f" – {ability}{' (' + src + ')' if src else ''}; {top}")
-        if len(deaths) > 20:
-            out.append(f"- … och {len(deaths) - 20} till")
+        if len(deaths) > limit:
+            out.append(f"- … och {len(deaths) - limit} till")
     else:
         out.append("\nInga dödsfall.")
-    taken = sorted(table("taken").get("entries") or [], key=lambda a: -a.get("total", 0))[:10]
+    taken = sorted(table("taken").get("entries") or [], key=lambda a: -a.get("total", 0))[:6 if compact else 10]
     if taken:
         out.append("\nSkadan raiden tog, mest först (förmåga – från – totalt – träffar):")
         for a in taken:
@@ -331,3 +342,40 @@ def wcl_pull(query=""):
             mark = "  ← den här" if f is fight else ""
             out.append(f"- {i} – {res} – {mmss(f['endTime'] - f['startTime'])}{mark}")
     return "\n".join(out)
+
+
+def wcl_all(r, query):
+    """Every boss in one report: the kill (else the last pull) per boss, in the order they were fought."""
+    m = re.search(r"reports/([A-Za-z0-9]{16})", query) or re.search(r"\b([A-Za-z0-9]{16})\b", query)
+    try:
+        codes, player = ([m.group(1)], "") if m else candidate_reports(r)
+        for code in codes:
+            rep, _, player2 = find_fight(r, f"reports/{code}")
+            break
+        else:
+            raise ToolError("hittade ingen rapport på Warcraft Logs – ge rapportens länk")
+        player = player or player2
+        bosses = {}
+        for f in rep["fights"]:  # the kill wins, else the latest pull
+            b = bosses.get(f["encounterID"])
+            if not b or not b.get("kill"):
+                bosses[f["encounterID"]] = f
+        chosen = sorted(bosses.values(), key=lambda f: f["startTime"])
+        parts = [f"Warcraft Logs: {rep.get('title', '')} – {len(chosen)} bossar i rapporten "
+                 f"({', '.join(f['name'] + (' (kill)' if f.get('kill') else ' (ingen kill)') for f in chosen)})."
+                 " Analysera varje boss för sig, sedan det som går igen."]
+        if player:
+            parts.append(f"Användarens karaktär: {player.split('-')[0]}")
+        for f in chosen:
+            data = r.wcl_query(
+                "query($c:String,$f:[Int]){ reportData { report(code:$c) {"
+                " deaths: table(dataType: Deaths, fightIDs:$f)"
+                " taken: table(dataType: DamageTaken, fightIDs:$f, viewBy: Ability, hostilityType: Friendlies)"
+                " } } }", {"c": rep["code"], "f": [f["id"]]})["reportData"]["report"]
+            stats = r.wcl_stats({"code": rep["code"], "fight": f["id"]})
+            parts.append("\n══════ " + f["name"] + " ══════\n" + pull_text(rep, f, "", data, stats, compact=True))
+    except ToolError:
+        raise
+    except Exception as e:  # noqa: BLE001 – the API or the network
+        raise ToolError(f"Warcraft Logs svarade inte: {e}") from None
+    return "\n".join(parts)
