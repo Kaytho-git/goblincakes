@@ -503,9 +503,23 @@ def ask(messages, keys, status=None, notice=None, project=None, choice=""):
     """
     activity("ask", "tänker")
     try:
-        return _ask(messages, keys, status, notice, project, choice)
+        answer, service = _ask(messages, keys, status, notice, project, choice)
     finally:
         activity_done()
+    question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+    return no_unasked_report(answer, question), service
+
+
+PICTURE_WORDS = re.compile(r"bild|png|jpe?g|infografik|mallen|picture|image", re.I)
+
+
+def no_unasked_report(answer, question):
+    """A ```rapport block (= a PNG) only when the user asked for a picture – small models made one for every
+    summary; otherwise the block's Markdown is shown as plain text (the user is asked: bild eller PDF?)."""
+    if not isinstance(question, str) or PICTURE_WORDS.search(question):
+        return answer
+    return re.sub(r"```(?:rapport|report|infografik|sammanst[aä]llning)[^\n]*\n(.*?)(?:\n```|\Z)",
+                  lambda m: m.group(1).strip(), answer, flags=re.S | re.I)
 
 
 def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
@@ -1381,8 +1395,9 @@ REPORT_WORDS = ("rapport", "report", "infografik", "sammanställning", "sammanst
 
 REPORT_PROMPT = """
 
-Rapporter som bild: vill användaren ha en sammanställning, analys, rapport, jämförelse eller översikt som bild,
-png, infografik eller "i GOBLINCAKES-mallen", skriv EN kort mening och sedan hela innehållet i ett kodblock
+Rapporter som bild: BARA när användaren själv uttryckligen ber om en bild, png, infografik eller "i
+GOBLINCAKES-mallen" (aldrig av dig själv, aldrig för en sammanställning, analys eller PDF som inte bett om bild –
+då svarar du med vanlig text), skriv EN kort mening och sedan hela innehållet i ett kodblock
 märkt ```rapport i Markdown – Goblin AI gör blocket till en PNG (mörk bakgrund, numrerade rutor, tabeller):
 ```rapport
 # Rubrik
@@ -1407,7 +1422,11 @@ PDF: under varje svar i Goblin AI-fönstret finns knappen "Spara som PDF" (och "
 just det svaret som en PDF på datorn. Ber användaren om en PDF (av det du hittat, en sammanfattning, en rapport),
 säg aldrig att du inte kan göra PDF:er: skriv hela innehållet i ETT svar i vanlig Markdown (rubriker, listor,
 tabeller – inget kodblock runt det, siffrorna exakt som i datan) och avsluta med en kort rad om att trycka på
-"Spara som PDF" under svaret. Ligger det användaren vill ha i flera tidigare svar, samla det i det nya svaret."""
+"Spara som PDF" under svaret. Ligger det användaren vill ha i flera tidigare svar, samla det i det nya svaret.
+
+Efter en sammanställning eller analys (t.ex. av Warcraft Logs) som användaren inte bett om i ett visst format:
+avsluta med frågan "Vill du ha det här som bild eller PDF?". Svarar användaren bild → ```rapport med samma
+innehåll; PDF → säg att knappen "Spara som PDF" under svaret sparar det."""
 
 
 def make_report(markdown, project=None, footer=""):
