@@ -285,7 +285,7 @@ RAID_CDS = ("Spirit Link Totem", "Healing Tide Totem", "Tranquility", "Divine Hy
 EXTERNAL_CDS = ("Pain Suppression", "Guardian Spirit", "Ironbark", "Life Cocoon", "Blessing of Sacrifice",
                 "Blessing of Protection", "Blessing of Spellwarding", "Lay on Hands", "Time Dilation",
                 "Intervene", "Power Infusion")
-PERSONAL_CDS = ("Healthstone", "Ice Block", "Ice Cold", "Alter Time", "Greater Invisibility", "Mirror Image",
+PERSONAL_CDS = ("Healthstone", "Demonic Healthstone", "Death Pact", "Ice Block", "Ice Cold", "Alter Time", "Greater Invisibility", "Mirror Image",
                 "Divine Shield", "Divine Protection", "Ardent Defender", "Guardian of Ancient Kings",
                 "Shield of Vengeance", "Astral Shift", "Unending Resolve", "Dark Pact", "Barkskin",
                 "Survival Instincts", "Frenzied Regeneration", "Renewal", "Icebound Fortitude",
@@ -296,7 +296,7 @@ PERSONAL_CDS = ("Healthstone", "Ice Block", "Ice Cold", "Alter Time", "Greater I
                 "Enraged Regeneration", "Shield Wall", "Last Stand", "Spell Reflection", "Desperate Prayer",
                 "Dispersion", "Fade")
 LUST = ("Bloodlust", "Heroism", "Time Warp", "Fury of the Aspects", "Primal Rage", "Ancient Hysteria")
-DPS_CDS = ("Avenging Wrath", "Crusade", "Pillar of Frost", "Empower Rune Weapon", "Army of the Dead",
+DPS_CDS = ("Avenging Wrath", "Breath of Sindragosa", "Invoke Chi-Ji, the Red Crane", "Tip the Scales", "Crusade", "Pillar of Frost", "Empower Rune Weapon", "Army of the Dead",
            "Dark Transformation", "Unholy Assault", "Abomination Limb", "Apocalypse", "Dancing Rune Weapon",
            "Metamorphosis", "The Hunt", "Celestial Alignment", "Incarnation: Chosen of Elune",
            "Incarnation: Avatar of Ashamane", "Berserk", "Force of Nature", "Dragonrage", "Deep Breath",
@@ -306,6 +306,12 @@ DPS_CDS = ("Avenging Wrath", "Crusade", "Pillar of Frost", "Empower Rune Weapon"
            "Adrenaline Rush", "Shadow Blades", "Deathmark", "Kingsbane", "Shadow Dance", "Ascendance",
            "Stormkeeper", "Feral Spirit", "Doom Winds", "Summon Darkglare", "Summon Demonic Tyrant",
            "Summon Infernal", "Avatar", "Recklessness", "Bladestorm", "Ravager", "Thunderous Roar")
+RARE_CASTS = 12  # cast at most this often in the pull = not the rotation
+SKIP_RARE = {"Auto Shot", "Melee", "Mark of the Wild", "Power Word: Fortitude", "Arcane Intellect", "Battle Shout",
+             "Skyfury", "Blessing of the Bronze", "Devotion Aura", "Raise Ally", "Rebirth", "Revive Pet",
+             "Call Pet 1", "Lightning Shield", "Death's Advance", "Wild Charge", "Heroic Leap", "Shimmer",
+             "Blink", "Disengage", "Dash", "Divine Steed", "Gust of Wind", "Aspect of the Cheetah",
+             "Dark Command", "Hand of Reckoning", "Taunt", "Growl", "Provoke", "Death Grip", "Flap"}
 CD_KIND = {**{n: "dps" for n in DPS_CDS}, **{n: "egen" for n in PERSONAL_CDS},
            **{n: "extern" for n in EXTERNAL_CDS}, **{n: "lust" for n in LUST},
            **{n: "raid" for n in RAID_CDS}}
@@ -509,6 +515,9 @@ def wcl_all(r, query):
             data = fight_data(r, rep, f)
             stats = r.wcl_stats({"code": rep["code"], "fight": f["id"]})
             parts.append("\n══════ " + f["name"] + " ══════\n" + pull_text(rep, f, "", data, stats, compact=True))
+        parts.append("\nOBS: här finns inte skade-cooldowns eller vad som hände under en viss förmåga eller fiende. "
+                     "Frågar användaren om en förmåga/mekanik/fiende (t.ex. vilka som körde cooldowns på något), be nu "
+                     "om den med ett nytt block `<boss> förmåga: <namn>` innan du svarar – gissa inte ur listorna ovan.")
     except ToolError:
         raise
     except Exception as e:  # noqa: BLE001 – the API or the network
@@ -549,6 +558,8 @@ def wcl_ability(r, boss_query, wanted):
                                      ("fd", "Debuffs", "Friendlies"), ("fc", "Casts", "Friendlies"),
                                      ("dt", "DamageTaken", "Friendlies")):
                 evs += [{**e, "src": src} for e in events(r, code, fight, dataType=dtype, hostilityType=host, abilityID=i)]
+        casts = [e for e in events(r, code, fight, dataType="Casts", hostilityType="Friendlies")
+                 if e["type"] == "cast" and (actors.get(e.get("sourceID")) or {}).get("type") == "Player"]
         hits = []  # damage on the enemy asked about
         for a in enemies:
             hits += events(r, code, fight, dataType="DamageDone", hostilityType="Friendlies", targetID=a["id"])
@@ -597,6 +608,25 @@ def wcl_ability(r, boss_query, wanted):
                 out_[n] = out_.get(n, 0) + (e.get("amount") or 0) + (e.get("absorbed") or 0)
         return sorted(out_.items(), key=lambda x: -x[1])
 
+    # Everything a player casts rarely (trinkets, potions, cooldowns – whatever they are called this
+    # season) counts; spells cast often are the rotation. The name lists only miss new things.
+    count = {}
+    for e in casts:
+        k = (e["sourceID"], e.get("abilityGameID"))
+        count[k] = count.get(k, 0) + 1
+    players = sorted({who(e["sourceID"]) for e in casts})
+
+    def rare(a, b):
+        found, seen = {}, set()
+        for e in casts:
+            name = abilities.get(e.get("abilityGameID"), "?")
+            k = (e["sourceID"], e.get("abilityGameID"))
+            if a - 5000 <= e["timestamp"] <= b + 3000 and count[k] <= RARE_CASTS and k not in seen \
+                    and CD_KIND.get(name) not in ("raid", "extern", "egen", "lust", "dps") and name not in SKIP_RARE:
+                seen.add(k)
+                found.setdefault(who(e["sourceID"]), []).append(f"{mmss(e['timestamp'] - start)} {name}")
+        return found
+
     deaths = sorted(((data.get("deaths") or {}).get("data") or {}).get("entries") or [],
                     key=lambda d: d.get("timestamp", 0))
     out.append(f"Den kom {len(waves)} gång{'er' if len(waves) != 1 else ''}. Tiderna är från pullens början; "
@@ -630,6 +660,13 @@ def wcl_ability(r, boss_query, wanted):
             for d in died) if died else "ingen"))
         if not long:
             out.append("- Cooldowns: " + ("; ".join(cd_text(c) for c in cds) if cds else "inga"))
+            other = rare(a, b)
+            if other:
+                out.append("- Annat som castades sällan (trinkets, potions, andra cooldowns): " + "; ".join(
+                    f"{p}: {', '.join(v)}" for p, v in sorted(other.items())))
+            busy = {c["who"] for c in cds} | set(other)
+            idle = [p for p in players if p not in busy]
+            out.append("- Använde ingen cooldown, trinket eller potion här: " + (", ".join(idle) if idle else "alla använde något"))
     if len(waves) > 15:
         out.append(f"\n… och {len(waves) - 15} gånger till.")
     if len(waves) > 1:
