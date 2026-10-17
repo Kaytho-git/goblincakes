@@ -1165,7 +1165,7 @@ Window {
 
                                         Label {
                                             text: segItem.s.type === "command" ? (segItem.s.danger ? "KOMMANDO – ÄNDRAR SYSTEMET, LÄS IGENOM" : "KOMMANDO")
-                                                : segItem.s.type === "image" ? "BILD"
+                                                : segItem.s.type === "image" ? (segItem.s.report ? "RAPPORT" : "BILD")
                                                 : segItem.s.type === "shot" ? "SKÄRMBILD"
                                                 : segItem.s.type === "memory" ? "MINNE"
                                                 : segItem.s.type === "forget" ? "MINNE – GLÖMT"
@@ -1266,7 +1266,7 @@ Window {
                                                     onClicked: { win.pendingImage = segItem.s.path; saveImageDialog.open(); }
                                                 }
                                                 FlatButton { small: true; text: "Kopiera bilden"; onClicked: backend.copyImage(segItem.s.path) }
-                                                FlatButton { small: true; text: "Gör en till"; onClicked: backend.anotherImage(msgItem.index, segItem.index) }
+                                                FlatButton { visible: !segItem.s.report; small: true; text: "Gör en till"; onClicked: backend.anotherImage(msgItem.index, segItem.index) }
                                             }
                                             Text {
                                                 visible: segItem.s.state === "error"
@@ -1477,6 +1477,19 @@ Window {
                                         savePdfDialog.selectedFile = backend.pdfName(msgItem.index);
                                         savePdfDialog.open();
                                     }
+                                }
+                            }
+                            Text {
+                                text: "Spara som bild"
+                                color: reportArea.containsMouse ? "#E6ECF5" : "#5C6880"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                MouseArea {
+                                    id: reportArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.saveReport(msgItem.index)
                                 }
                             }
                         }

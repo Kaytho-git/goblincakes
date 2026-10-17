@@ -1178,6 +1178,15 @@ class Backend(QObject):
         another chat is open by then)."""
         conv, part = self._id, self._display[index]["segments"][seg]
         project = self._project_of(self._project)
+        if part.get("report"):  # a ```rapport block: drawn here at once with Qt (well under a second)
+            try:
+                path = goblinai.make_report(part["markdown"], project, self._display[index].get("service", ""))
+                part.update(state="done", path=path, service="Rapport gjord på datorn", error="")
+            except Exception as e:  # noqa: BLE001 – ValueError, OSError: shown on the card
+                part.update(state="error", error=f"Rapporten gick inte att göra: {e}")
+            self._update(index)
+            self._save()
+            return
         part.update(state="waiting", progress="Väntar på bilden före…" if self._image_lock.locked() else "Ritar bilden…",
                     fraction=-1.0, error="")
         self._image_jobs[(conv, index, seg)] = part
@@ -1293,6 +1302,20 @@ class Backend(QObject):
             self.notice.emit(f"Kunde inte spara: {e}")
 
     pdfSaved = Signal(str)
+
+    @Slot(int)
+    def saveReport(self, index):
+        """Spara som bild: the answer as a report picture (report.py) in the pictures folder, then opened."""
+        try:
+            m = self._display[index]
+            text = "\n\n".join(p["markdown"] if p.get("report") else p["text"] if p["type"] == "text" else ""
+                                 for p in m.get("segments") or []) or m["text"]
+            path = goblinai.make_report(text, self._project_of(self._project), m.get("service", ""))
+        except Exception as e:  # noqa: BLE001
+            self.notice.emit(f"Kunde inte göra bilden: {e}")
+            return
+        self.notice.emit(f"Sparad: {Path(path).name}")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     @Slot(int, result=str)
     def pdfName(self, index):

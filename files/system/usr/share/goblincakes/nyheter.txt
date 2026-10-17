@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-17  Goblin AI gör sammanställningar som bild i GOBLINCAKES-stil (be om en rapport "som bild"), med exakta siffror och tabeller. Knappen Spara som bild under varje svar gör samma sak.
 2026-10-17  Toppfältet visar när Goblin AI tänker eller ritar en bild (på din dator eller i molnet) – bra efter Meta+§. Klicka för att se fönstret.
 2026-10-17  GoblinRecorder: Bäst ger mindre filer (samma nivå som Warcraft Recorders Ultra)
 2026-10-16  Goblin AI läser PDF:er (dra in eller Bifoga fil – inskannade läses som bilder), och varje svar kan sparas som PDF.

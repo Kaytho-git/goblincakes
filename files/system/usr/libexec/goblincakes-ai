@@ -17,7 +17,7 @@ import threading
 
 sys.path.insert(0, "/usr/share/goblincakes/ai")
 from goblinai import (SERVICES, DANGER, ServiceError, ask as ask_services, chosen_model, code_blocks,  # noqa: E402
-                      forget, has_keys, load_keys, remember, make_image, run_in_folder, save_keys, segments, system_prompt, test_key)
+                      forget, has_keys, load_keys, remember, make_image, make_report, run_in_folder, save_keys, segments, system_prompt, test_key)
 
 MAX_ROUNDS = 8  # command → output → next step, per question
 cwd = os.getcwd()  # where the next block runs: starts where goblin ai was started, follows `cd`
@@ -134,6 +134,12 @@ def draw_pictures(answer, keys):
     """The answer's ```bild blocks: drawn now, the file is printed (the window shows them instead)."""
     for part in segments(answer):
         if part["type"] != "image":
+            continue
+        if part.get("report"):  # a ```rapport block: drawn here with Qt
+            try:
+                print(f"{ACCENT}▌ Rapporten:{RESET} {FROST}{make_report(part['markdown'])}{RESET}")
+            except Exception as e:  # noqa: BLE001
+                print(f"{RED}Ingen rapport:{RESET} {e}")
             continue
         with Spinner("Ritar bilden…") as spinner:
             def status(text):

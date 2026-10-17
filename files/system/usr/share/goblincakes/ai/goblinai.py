@@ -1070,6 +1070,7 @@ def system_prompt():
         text = text.replace("Du är Goblin AI, hjälparen i GOBLINCAKES",
                             f"Du heter {name} – användaren har döpt dig till det, så kalla dig {name} och svara "
                             f"när du blir tilltalad så. Du är hjälparen (Goblin AI) i GOBLINCAKES", 1)
+    text += REPORT_PROMPT
     if images_possible(load_keys()):
         text += IMAGE_PROMPT
     return text
@@ -1133,6 +1134,11 @@ def segments(text):
         elif lang.lower() in ("skärmbild", "skarmbild", "screenshot"):
             both = bool(re.search(r"båda|alla|both|all", code, re.I))
             parts.append({"type": "shot", "scope": "all" if both else "screen", "state": "new"})
+        elif lang.lower() in REPORT_WORDS:
+            if code.strip():
+                title = next((re.sub(r"^#+\s*", "", l).strip() for l in code.splitlines() if l.strip()), "Rapport")
+                parts.append({"type": "image", "report": True, "markdown": code, "prompt": title,
+                              "format": "", "state": "new"})
         elif lang.lower() in ("bild", "image", "picture"):
             prompt, fmt = image_request(code)
             if prompt:
@@ -1257,6 +1263,8 @@ Format: 16:9
 A small green goblin baking blue cupcakes in a cozy cave, warm candle light, detailed digital painting
 ```
 Bilden skapas automatiskt av Goblin AI och visas under svaret – skriv aldrig att du inte kan skapa bilder.
+```bild är bara för bilder med motiv. Sammanställningar, rapporter, analyser, tabeller och listor "som bild/png"
+görs ALDRIG med ```bild (bildmodellen kan inte skriva exakt text eller siffror) – använd ```rapport.
 Ska bilden ändras: skriv en ny, hel beskrivning (den förra bilden följer inte med). Ett block per bild."""
 
 
@@ -1312,6 +1320,45 @@ def pictures_folder(project=None):
     except (OSError, subprocess.SubprocessError):
         pics = ""
     return Path(pics if pics and pics != str(Path.home()) else Path.home() / "Bilder") / "Goblin AI"
+
+
+REPORT_WORDS = ("rapport", "report", "infografik", "sammanställning", "sammanstallning")
+
+REPORT_PROMPT = """
+
+Rapporter som bild: vill användaren ha en sammanställning, analys, rapport, jämförelse eller översikt som bild,
+png, infografik eller "i GOBLINCAKES-mallen", skriv EN kort mening och sedan hela innehållet i ett kodblock
+märkt ```rapport i Markdown – Goblin AI gör blocket till en PNG (mörk bakgrund, numrerade rutor, tabeller):
+```rapport
+# Rubrik
+En rad under rubriken (t.ex. datum, resultat, vem)
+
+## Första avsnittet
+- **Fetstil:** punkt
+- punkt
+
+## Avsnitt med tabell
+| Namn | Värde |
+|---|---|
+| A | 12 |
+| Totalt | 12 |
+```
+Regler: "# " en gång överst, "## " för varje ruta (3–6 rutor, korta rubriker, numreras automatiskt), punktlistor
+och tabeller hellre än långa stycken, siffrorna exakt som i datan (hitta aldrig på), en rad som börjar med
+Totalt/Summa blir summaraden. Rubrikerna väljs efter innehållet – mallen gäller utseendet, inte rubrikerna.
+Inget annat block i samma svar behövs; bilden visas automatiskt under svaret."""
+
+
+def make_report(markdown, project=None, footer=""):
+    """A ```rapport block → a PNG in GOBLINCAKES' look (report.py, drawn here with Qt). Returns the path."""
+    here = Path(__file__).resolve().parent
+    for d in (here, here.parent):
+        if str(d) not in sys.path:
+            sys.path.insert(0, str(d))
+    import report  # noqa: PLC0415 – Qt is loaded only when a report is drawn
+    title = next((re.sub(r"^#+\s*", "", l).strip() for l in markdown.splitlines() if l.strip()), "rapport")
+    path, _ = report.render(markdown, image_path(pictures_folder(project), "rapport " + title), footer)
+    return path
 
 
 def image_path(folder, prompt, ext="png"):
