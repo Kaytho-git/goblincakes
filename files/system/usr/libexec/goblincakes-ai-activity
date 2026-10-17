@@ -1,0 +1,48 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: what Goblin AI is busy with right now, for "Spelas nu" in the top bar.
+
+    goblincakes-ai-activity     one JSON line: {"kind": "ask"|"image"|"", "name", "text",
+                                "local", "progress", "seconds"}
+
+goblinai.py writes one file per process and thread in $XDG_RUNTIME_DIR/goblincakes-ai/ while a
+question or a picture is under way (the window, Meta+§, goblin ai in the terminal, the tutor).
+The newest file of a process that still runs wins; files left by a process that crashed are removed.
+"""
+import json
+import os
+import time
+from pathlib import Path
+
+RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+FOLDER = RUNTIME / "goblincakes-ai"
+NAME_FILE = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "goblincakes" / "ai-name"
+
+
+def main():
+    best = None
+    for path in FOLDER.glob("*.json") if FOLDER.is_dir() else []:
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            continue
+        if not Path(f"/proc/{data.get('pid', 0)}").exists():
+            path.unlink(missing_ok=True)
+            continue
+        # A picture on the graphics card says more than a question waiting for the cloud
+        rank = (data.get("local", False), data.get("started", 0))
+        if not best or rank > best[0]:
+            best = (rank, data)
+    if not best:
+        print("{}")
+        return
+    data = best[1]
+    try:
+        name = NAME_FILE.read_text().strip()
+    except OSError:
+        name = ""
+    print(json.dumps({"kind": data.get("kind", "ask"), "name": name or "Goblin AI", "text": data.get("text", ""),
+                      "local": data.get("local", False), "progress": data.get("progress"),
+                      "seconds": int(time.time() - data.get("started", time.time()))}, ensure_ascii=False))
+
+
+main()

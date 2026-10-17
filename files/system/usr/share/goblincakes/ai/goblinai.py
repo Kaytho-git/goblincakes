@@ -17,6 +17,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from datetime import date
 import urllib.error
@@ -154,6 +155,42 @@ def providers_in_order(keys, order=None):
 
 # goblincakes-ollama serve stops the local AI entirely while a game runs (and writes this file)
 LOCAL_PAUSED = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-ollama-paused"
+
+
+# What Goblin AI is busy with, for "Spelas nu" in the top bar (17 Oct, the user's wish – after Meta+§
+# the quick box closes and nothing showed that the AI was still working). One file per process and
+# thread in $XDG_RUNTIME_DIR/goblincakes-ai/ while a question or a picture is under way:
+# {"pid", "kind": "ask"|"image", "text", "local", "progress", "started"}; read by
+# /usr/libexec/goblincakes-ai-activity (which skips files of processes that are gone).
+ACTIVITY_DIR = LOCAL_PAUSED.parent / "goblincakes-ai"
+
+
+def _activity_file():
+    return ACTIVITY_DIR / f"{os.getpid()}-{threading.get_ident()}.json"
+
+
+def activity(kind, text, local=False, progress=None):
+    path = _activity_file()
+    try:
+        old = json.loads(path.read_text())
+    except (OSError, ValueError):
+        old = {}
+    data = {"pid": os.getpid(), "kind": kind, "text": text, "local": bool(local),
+            "progress": progress, "started": old.get("started") or time.time()}
+    try:
+        ACTIVITY_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False))
+        tmp.replace(path)
+    except OSError:
+        pass
+
+
+def activity_done():
+    try:
+        _activity_file().unlink()
+    except OSError:
+        pass
 
 
 def start_local():
@@ -437,6 +474,14 @@ def ask(messages, keys, status=None, notice=None, project=None, choice=""):
     choice: a model picked by the user ("<service id>:<model>", see model_choices) – "" = automatic.
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
+    activity("ask", "tänker")
+    try:
+        return _ask(messages, keys, status, notice, project, choice)
+    finally:
+        activity_done()
+
+
+def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
     tools = tools_for(keys, project, messages)
     if not tools:
         return ask_once(messages, keys, status, notice, project, choice)
@@ -457,6 +502,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice=""):
             continue
         used += 1
         name, _, run = tools[tool]
+        activity("ask", name[0].lower() + name[1:])
         if status:
             status(f"{name}{': ' + query if query else ''}…")
         try:
@@ -520,6 +566,7 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
             for attempt in range(2):
                 models = local_models(messages, project) if provider.get("local") else pick_models(provider, key, refresh=attempt > 0)
                 models = sorted(models, key=lambda m: time.time() - BUSY.get(m, 0) < 600)
+                activity("ask", "tänker · " + ("din dator" if provider.get("local") else provider["name"]), provider.get("local"))
                 if status:
                     status(f"Frågar {provider['name']}…")
                 try:
@@ -681,6 +728,7 @@ def ask_chosen(provider, model, messages, keys, status=None):
     if has_images(messages) and not (local_sees(model) if provider.get("local") else provider["id"] in VISION_CLOUD):
         raise ServiceError(f"{name} kan inte se bilder – välj Automatiskt (din lokala bildmodell) "
                            "eller en modell som kan, vid Skicka.")
+    activity("ask", "tänker · " + ("din dator" if provider.get("local") else provider["name"]), provider.get("local"))
     if status:
         status(f"Frågar {name}…")
     try:
@@ -1283,6 +1331,14 @@ def save_picture(data, folder, prompt):
 
 def make_image(prompt, fmt, keys, project=None, status=None, notice=None, progress=None):
     """Draws a picture; returns (path, "where · model"). status(text), progress(text, 0–1 or -1)."""
+    activity("image", "ritar en bild")
+    try:
+        return _make_image(prompt, fmt, keys, project, status, notice, progress)
+    finally:
+        activity_done()
+
+
+def _make_image(prompt, fmt, keys, project=None, status=None, notice=None, progress=None):
     folder = pictures_folder(project)
     errors = []
     sources = image_sources(keys, (project or {}).get("order"))
@@ -1292,6 +1348,7 @@ def make_image(prompt, fmt, keys, project=None, status=None, notice=None, progre
         try:
             if source == "local":
                 return local_image(prompt, fmt, folder, status, progress)
+            activity("image", f"ritar en bild · {IMAGE_NAMES[source]}")
             if status:
                 status(f"Ritar bilden hos {IMAGE_NAMES[source]}…")
             data, model = CLOUD_DRAW[source](prompt, fmt, keys)
@@ -1322,6 +1379,7 @@ def local_image(prompt, fmt, folder, status=None, progress=None):
     path = image_path(folder, prompt)
     model = local_image_status()["model"]
     names = {"z-image-turbo": "Z-Image-Turbo", "flux2-klein-4b": "FLUX.2 klein 4B", "flux2-klein-9b": "FLUX.2 klein 9B"}
+    activity("image", "ritar en bild · din dator", True)
     if status:
         status("Ritar bilden på din dator…")
     proc = subprocess.Popen([IMAGE_HELPER, "generate", str(path), str(width), str(height)],
@@ -1330,10 +1388,12 @@ def local_image(prompt, fmt, folder, status=None, progress=None):
     proc.stdin.close()
     for line in proc.stdout:
         line = line.rstrip("\n")
-        if line.startswith("@@progress ") and progress:
+        if line.startswith("@@progress "):
             try:
                 ev = json.loads(line[11:])
-                progress(f"Ritar på din dator – steg {ev['completed']} av {ev['total']}", ev["completed"] / ev["total"])
+                activity("image", "ritar en bild · din dator", True, round(100 * ev["completed"] / ev["total"]))
+                if progress:
+                    progress(f"Ritar på din dator – steg {ev['completed']} av {ev['total']}", ev["completed"] / ev["total"])
             except (ValueError, KeyError, ZeroDivisionError):
                 pass
         elif line.startswith("@@ ") and progress:

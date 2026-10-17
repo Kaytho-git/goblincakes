@@ -17,6 +17,10 @@
     downloads a game or processes its Vulkan shaders, the game and how far (shaders in %,
     downloads in Mbit/s); click = Steam's downloads. /usr/libexec/goblincakes-steam-activity
     reads Steam's logs every 5 s, only while Steam runs.
+    Goblin AI (17 Oct, the user's wish – after Meta+§ the quick box closes and nothing showed that
+    the AI was still working): "Kakan tänker · din dator" / "ritar en bild · din dator 40 %" while a
+    question or a picture is under way, with the seconds so far; click = the Goblin AI window.
+    /usr/libexec/goblincakes-ai-activity reads the files goblinai.py writes, every second.
     Nothing to show = the widget takes no space.
 */
 import QtQuick
@@ -177,6 +181,14 @@ PlasmoidItem {
           + (steam.rate ? "  ·  " + steam.rate + " Mbit/s" : "")
     readonly property string steamCommand: "pgrep -x steam >/dev/null && /usr/libexec/goblincakes-steam-activity || echo '{}'"
 
+    // ---- Goblin AI ----
+    property var ai: ({})             // {kind: "ask"|"image"|"", name, text, local, progress, seconds}
+    readonly property string aiText: !ai.kind ? ""
+        : ai.name + " " + ai.text
+          + (ai.progress !== null && ai.progress !== undefined ? " " + ai.progress + " %" : "")
+          + (ai.seconds >= 3 ? "  ·  " + ai.seconds + " s" : "")
+    readonly property string aiCommand: "/usr/libexec/goblincakes-ai-activity"
+
     readonly property string voiceCommand: "/usr/libexec/goblincakes-discord-voice"
 
     P5Support.DataSource {
@@ -197,6 +209,12 @@ PlasmoidItem {
                     root.discordRunning = false;
                 }
                 root.learnServerName();
+            } else if (source === root.aiCommand) {
+                try {
+                    root.ai = JSON.parse(data["stdout"] || "{}");
+                } catch (e) {
+                    root.ai = {};
+                }
             } else if (source === root.steamCommand) {
                 try {
                     root.steam = JSON.parse(data["stdout"] || "{}");
@@ -226,6 +244,15 @@ PlasmoidItem {
         repeat: true
         triggeredOnStart: true
         onTriggered: exec.connectSource(root.steamCommand)
+    }
+
+    // A file read (~0.03 s); every second so the indicator comes and goes with the answer
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: exec.connectSource(root.aiCommand)
     }
 
     TaskManager.TasksModel {
@@ -262,7 +289,7 @@ PlasmoidItem {
 
     fullRepresentation: Item {
         id: full
-        readonly property bool empty: !music.visible && !chat.visible && !steamPart.visible
+        readonly property bool empty: !music.visible && !chat.visible && !steamPart.visible && !aiPart.visible
 
         Layout.minimumWidth: row.implicitWidth
         Layout.preferredWidth: row.implicitWidth
@@ -442,6 +469,67 @@ PlasmoidItem {
                     anchors.margins: -Kirigami.Units.smallSpacing
                     cursorShape: Qt.PointingHandCursor
                     onClicked: exec.connectSource("setsid -f xdg-open steam://open/downloads >/dev/null 2>&1 < /dev/null")
+                }
+            }
+
+            Rectangle {
+                visible: (music.visible || chat.visible || steamPart.visible) && aiPart.visible
+                color: root.line
+                implicitWidth: 1
+                implicitHeight: Math.round(Kirigami.Units.gridUnit * 1.1)
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            // Goblin AI answering or drawing: click = the Goblin AI window
+            Item {
+                id: aiPart
+                visible: root.aiText !== ""
+                implicitWidth: aiRow.implicitWidth
+                implicitHeight: aiRow.implicitHeight
+                Layout.alignment: Qt.AlignVCenter
+
+                RowLayout {
+                    id: aiRow
+                    anchors.fill: parent
+                    spacing: Math.round(Kirigami.Units.smallSpacing * 1.5)
+
+                    Kirigami.Icon {
+                        source: "goblincakes-ai"
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: Kirigami.Units.iconSizes.small
+                        Layout.alignment: Qt.AlignVCenter
+                        // Breathes while it works, so it reads as busy and not as a leftover
+                        SequentialAnimation on opacity {
+                            running: aiPart.visible
+                            loops: Animation.Infinite
+                            NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
+                            NumberAnimation { to: 1.0; duration: 700; easing.type: Easing.InOutSine }
+                        }
+                    }
+                    Text {
+                        text: root.aiText
+                        color: root.ai.local ? root.frost : root.muted
+                        font: Kirigami.Theme.defaultFont
+                        elide: Text.ElideRight
+                        Layout.maximumWidth: Kirigami.Units.gridUnit * 22
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                }
+
+                PlasmaCore.ToolTipArea {
+                    anchors.fill: parent
+                    mainText: root.ai.kind === "image" ? root.ai.name + " ritar en bild" : root.ai.name + " arbetar på ett svar"
+                    subText: (root.ai.local
+                        ? "På din dator – grafikkortet arbetar, fläktarna kan låta en stund.\n"
+                        : "I molnet – din dator väntar bara på svaret.\n")
+                        + "Goblin AI-fönstret visas när svaret är klart. Klicka för att visa det nu."
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -Kirigami.Units.smallSpacing
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: exec.connectSource("setsid -f goblin-ai >/dev/null 2>&1 < /dev/null")
                 }
             }
         }
