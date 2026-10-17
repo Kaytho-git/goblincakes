@@ -30,6 +30,7 @@ from PySide6.QtGui import (QDesktopServices, QFont, QFontDatabase, QGuiApplicati
 from PySide6.QtPdf import QPdfDocument  # noqa: E402
 from PySide6.QtNetwork import QLocalServer, QLocalSocket  # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine  # noqa: E402
+from PySide6.QtQuick import QQuickWindow  # noqa: E402
 
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes" / "ai"
 SOCKET_NAME = f"goblin-ai-{os.getuid()}"
@@ -1274,6 +1275,12 @@ class Backend(QObject):
         self._display.append(answer)
         self.messageAdded.emit(json.dumps(answer))
         self._start_images(len(self._display) - 1)
+
+    @Slot()
+    def sharpText(self):
+        """After a file dialog: Qt's own text again (KDE's dialog style switches to native text, which
+        gets coloured and blurry when the window is zoomed)."""
+        QQuickWindow.setTextRenderType(QQuickWindow.TextRenderType.QtTextRendering)
 
     @Slot(str)
     def openImage(self, path):

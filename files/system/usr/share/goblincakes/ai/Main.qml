@@ -221,9 +221,12 @@ Window {
         backend.saveProject(JSON.stringify(p));
     }
 
+    // The dialogs load KDE's style, which switches the whole program to native text – drawn small and
+    // then zoomed (zoomRoot) that gives coloured, blurry letters. Back to Qt's own text right away.
     FileDialog {
         id: projectFileDialog
         title: "Fast fil i projektet"
+        onVisibleChanged: backend.sharpText()
         onAccepted: {
             const path = backend.localPath(selectedFile.toString());
             win.editProject(p => { if (p.files.indexOf(path) < 0) p.files.push(path); });
@@ -232,6 +235,7 @@ Window {
     FolderDialog {
         id: projectFolderDialog
         title: "Mapp för projektets filer"
+        onVisibleChanged: backend.sharpText()
         onAccepted: {
             const path = backend.localPath(selectedFolder.toString());
             win.editProject(p => { p.folder = path; });
@@ -241,12 +245,14 @@ Window {
     FileDialog {
         id: openDialog
         title: "Bifoga en textfil, bild eller PDF"
+        onVisibleChanged: backend.sharpText()
         onAccepted: win.attachment = selectedFile.toString()
     }
 
     FileDialog {
         id: saveImageDialog
         title: "Spara bilden som"
+        onVisibleChanged: backend.sharpText()
         fileMode: FileDialog.SaveFile
         nameFilters: ["Bilder (*.png *.jpg *.webp)"]
         onAccepted: if (win.pendingImage) backend.saveImageAs(win.pendingImage, selectedFile.toString())
@@ -256,6 +262,7 @@ Window {
     FileDialog {
         id: savePdfDialog
         title: "Spara svaret som PDF"
+        onVisibleChanged: backend.sharpText()
         fileMode: FileDialog.SaveFile
         nameFilters: ["PDF (*.pdf)"]
         onAccepted: if (win.pendingPdf >= 0) backend.savePdf(win.pendingPdf, selectedFile.toString())
@@ -264,6 +271,7 @@ Window {
     FileDialog {
         id: saveDialog
         title: "Spara som"
+        onVisibleChanged: backend.sharpText()
         fileMode: FileDialog.SaveFile
         onAccepted: if (win.pendingSave) backend.saveFileAs(win.pendingSave.index, win.pendingSave.seg, selectedFile.toString())
     }
