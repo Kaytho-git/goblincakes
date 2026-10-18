@@ -239,4 +239,11 @@ if [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/accent" ]; then
     /usr/libexec/goblincakes-accent refresh >/dev/null 2>&1
 fi
 
+# Steam switches (goblin frames, MangoHud, the powerful graphics card) also in Steam's own
+# "start at login" entry – Steam writes it again from its menu entry when that is switched
+if ls "${XDG_CONFIG_HOME:-$HOME/.config}"/goblincakes/steam-* >/dev/null 2>&1 \
+    && [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/steam.desktop" ]; then
+    /usr/libexec/goblincakes-tweak apply steam-desktop >/dev/null 2>&1 || :
+fi
+
 unset _gc_auto _gc_was _gc_now _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets

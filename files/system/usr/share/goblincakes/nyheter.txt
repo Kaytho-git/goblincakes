@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-18  Spelmätningen (goblin frames) och MangoHud fungerar nu även när Steam startar av sig själv vid inloggningen
 2026-10-18  Goblin AI gör inte längre en bild av varje sammanställning – den frågar i stället om du vill ha det som bild eller PDF
 2026-10-18  Goblin AI vet nu att den kan göra PDF:er: be om en PDF så samlar den allt i ett svar som du sparar med "Spara som PDF".
 2026-10-18  Goblin AI läser Warcraft Logs på djupet: cooldowns med tider, Bloodlust, interrupts och dispels i varje pull, och kan titta på en enskild förmåga eller fiende (t.ex. vilka som körde cooldowns på Venomous Heart). Hittar inte heller på mekaniker som inte står i loggen
