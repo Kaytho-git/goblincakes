@@ -14,11 +14,11 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QProcess, QTimer, QUrl, Property, Signal, Slot
-from PySide6.QtGui import QDesktopServices, QFontDatabase, QIcon
+from PySide6.QtCore import QObject, QProcess, QRectF, QTimer, QUrl, Property, Qt, Signal, Slot
+from PySide6.QtGui import QColor, QDesktopServices, QFontDatabase, QIcon, QPainter, QPixmap
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtWidgets import QApplication, QFileDialog
+from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QSystemTrayIcon
 
 SHARE = Path(os.environ.get("GOBLINCAKES_RECORDER_SHARE", "/usr/share/goblincakes/recorder"))
 SERVICE = os.environ.get("GOBLINCAKES_RECORDER_SERVICE", "/usr/libexec/goblincakes-recorder")
@@ -522,6 +522,91 @@ def use_accent(engine):
             "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
 
 
+def tray_text(st):
+    """What the system tray icon says: is anything being recorded, and if not, why."""
+    if not st.get("service"):
+        return "Tjänsten körs inte – inget spelas in"
+    cur = st.get("current")
+    if cur:
+        if cur.get("kind") == "test":
+            return f"Testinspelning ({cur.get('difficulty', '')})"
+        if cur.get("kind") == "mplus":
+            return f"Spelar in nyckeln: {cur.get('name', '')}"
+        if cur.get("kind") == "arena":
+            return f"Spelar in {cur.get('difficulty', '')} i {cur.get('name', '')}"
+        return f"Spelar in {cur.get('name', '')} ({cur.get('difficulty', '')})"
+    if st.get("error"):
+        return "Fel: " + st["error"]
+    if not st.get("wow"):
+        return "Igång – väntar på WoW"
+    if not st.get("logging"):
+        return "WoW körs men stridsloggen är av (/combatlog)"
+    if st.get("obs") != "connected":
+        return "WoW körs – OBS är inte igång"
+    return "Redo – spelar in vid nästa boss eller nyckel"
+
+
+def make_tray(app, win, backend, base):
+    """19 Oct (the user's wish): minimized, nothing showed that GoblinRecorder was running.
+    The icon stays in the system tray while the window is open or closed; a red dot while
+    recording, a dimmed icon when the service isn't running. Left click = show/hide."""
+    def icon(kind):
+        pix = base.pixmap(64, 64)
+        if kind == "off":
+            faded = QPixmap(pix.size())
+            faded.fill(Qt.GlobalColor.transparent)
+            p = QPainter(faded)
+            p.setOpacity(0.4)
+            p.drawPixmap(0, 0, pix)
+            p.end()
+            return QIcon(faded)
+        if kind == "rec":
+            p = QPainter(pix)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setPen(QColor("#07090D"))
+            p.setBrush(QColor("#E5484D"))
+            p.drawEllipse(QRectF(36, 36, 26, 26))
+            p.end()
+        return QIcon(pix)
+    icons = {k: icon(k) for k in ("on", "rec", "off")}
+
+    tray = QSystemTrayIcon(icons["on"], app)
+    menu = QMenu()
+    show = menu.addAction("Visa GoblinRecorder")
+    menu.addSeparator()
+    menu.addAction("Stäng fönstret (inspelningen fortsätter)").triggered.connect(app.quit)
+
+    def bring():
+        win.show()
+        win.raise_()
+        win.requestActivate()
+    show.triggered.connect(bring)
+
+    def toggle(reason):
+        if reason != QSystemTrayIcon.ActivationReason.Trigger:
+            return
+        if win.isVisible() and win.isActive():
+            win.hide()
+        else:
+            bring()
+    tray.activated.connect(toggle)
+
+    def sync():
+        try:
+            st = json.loads(backend.status)
+        except ValueError:
+            st = {}
+        kind = "off" if not st.get("service") else "rec" if st.get("current") else "on"
+        tray.setIcon(icons[kind])
+        tray.setToolTip("GoblinRecorder\n" + tray_text(st))
+    backend.statusChanged.connect(sync)
+    sync()
+    tray.setContextMenu(menu)
+    tray.show()
+    tray.menu = menu  # the menu has no parent: keep it alive with the icon
+    return tray
+
+
 def main():
     own_scale = "QT_SCALE_FACTOR" not in os.environ
     if own_scale:
@@ -535,7 +620,8 @@ def main():
     # The goblin above a recording screen (REC light, timeline); the file next to /usr/bin when
     # the icon theme doesn't know it yet (started from the repo)
     icon = Path(__file__).resolve().parents[1] / "share/icons/hicolor/scalable/apps/goblincakes-recorder.svg"
-    app.setWindowIcon(QIcon.fromTheme("goblincakes-recorder", QIcon(str(icon))))
+    app_icon = QIcon.fromTheme("goblincakes-recorder", QIcon(str(icon)))
+    app.setWindowIcon(app_icon)
     for font in os.environ.get("GOBLINCAKES_CONFIG_FONTS", "").split(":"):
         if font:
             QFontDatabase.addApplicationFont(font)
@@ -562,6 +648,9 @@ def main():
     if not engine.rootObjects():
         return 1
     win = engine.rootObjects()[0]
+    # Closing the window hides it in the system tray (the tray menu closes it for real)
+    tray = make_tray(app, win, backend, app_icon) if QSystemTrayIcon.isSystemTrayAvailable() else None
+    app.setQuitOnLastWindowClosed(tray is None)
 
     def raise_window():
         conn = server.nextPendingConnection()
