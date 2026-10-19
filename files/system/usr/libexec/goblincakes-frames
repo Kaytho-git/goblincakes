@@ -103,6 +103,8 @@ class Session:
         self.vram = []
         self.ram = []
         self.swap = []
+        self.ram_total = 0.0  # GB, from MangoHud's system line
+        self._system = None
         self.events = []   # (seconds, ms, cpu load, gpu load) of stutters
         self.pauses = 0
         self._recent = []
@@ -122,6 +124,15 @@ class Session:
         for raw in data[:end].decode(errors="replace").splitlines():
             parts = raw.split(",")
             if self.columns is None:
+                if self._system is not None and "ram" in self._system:
+                    try:
+                        self.ram_total = float(parts[self._system.index("ram")]) / 1024 / 1024
+                    except (ValueError, IndexError):
+                        pass
+                    self._system = None
+                if parts and parts[0] == "os":
+                    self._system = parts
+                    continue
                 if parts and parts[0] == "fps" and "frametime" in parts:
                     self.columns = {name: i for i, name in enumerate(parts)}
                 continue
@@ -267,9 +278,11 @@ def advice(s):
         tips.append(f"Grafikkortet blev varmt ({max(s.gpu_temp):.0f} °C) – kolla fläktar och damm.")
     if max(s.cpu_temp or [0]) >= 90:
         tips.append(f"Processorn blev varm ({max(s.cpu_temp):.0f} °C) – kolla kylningen.")
-    if max(s.swap or [0]) > 0.5:
-        tips.append(f"Datorn fick använda swap ({max(s.swap):.1f} GB) – arbetsminnet räckte inte. "
-                    "Stäng program i bakgrunden.")
+    # Swap alone says little: Fedora's swap is zram (compressed RAM) and always holds a bit.
+    # Only warn when the RAM itself was nearly full.
+    if s.ram_total and max(s.ram or [0]) >= 0.9 * s.ram_total:
+        tips.append(f"Arbetsminnet var nästan fullt ({max(s.ram):.1f} av {s.ram_total:.0f} GB) – "
+                    "stäng program i bakgrunden.")
     if not tips:
         tips.append("Inget att anmärka – spelet flöt jämnt.")
     return tips
