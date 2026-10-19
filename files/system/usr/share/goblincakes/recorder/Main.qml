@@ -22,6 +22,28 @@ Window {
     readonly property var videos: JSON.parse(backend.videos)
     property string tab: "videos" // videos | settings
     property var selected: null
+    // The ✕ (19 Oct, the user's wish): hide in the system tray or close – asks until remembered
+    property bool closeAsk: false
+    property bool closeRemember: false
+    onClosing: (close) => {
+        const act = hasTray ? (win.cfg.closeAction || "ask") : "quit";
+        if (act === "ask") {
+            close.accepted = false;
+            win.closeRemember = false;
+            win.closeAsk = true;
+        } else if (act === "quit") {
+            Qt.quit();
+        } // tray: the window just hides, the program keeps running in the system tray
+    }
+    function closeAs(act) {
+        if (win.closeRemember)
+            win.set("closeAction", act);
+        win.closeAsk = false;
+        if (act === "quit")
+            Qt.quit();
+        else
+            win.hide();
+    }
     property bool testAsked: false  // "Testa inspelningen" pressed – open the test video when it is saved
 
     // To YouTube: cut, ready-made title and description, then YouTube Studio in the browser
@@ -1887,6 +1909,27 @@ Window {
             }
 
             Item { width: 1; height: 14 }
+            SectionTitle { text: "NÄR FÖNSTRET STÄNGS"; visible: hasTray }
+            Row {
+                visible: hasTray
+                spacing: 12
+                Repeater {
+                    model: [
+                        { id: "ask", name: "Fråga", sub: "Krysset frågar varje gång om fönstret ska gömmas i systemfältet eller stängas." },
+                        { id: "tray", name: "Göm i systemfältet", sub: "Krysset gömmer fönstret – ikonen i systemfältet visar om något spelas in, klick tar fram fönstret igen." },
+                        { id: "quit", name: "Stäng", sub: "Krysset stänger fönstret. Inspelningen fortsätter ändå – den sköts av en egen tjänst." }
+                    ]
+                    Choice {
+                        required property var modelData
+                        text: modelData.name
+                        sub: modelData.sub
+                        chosen: (win.cfg.closeAction || "ask") === modelData.id
+                        onPicked: win.set("closeAction", modelData.id)
+                    }
+                }
+            }
+
+            Item { width: 1; height: 14 }
             SectionTitle { text: "DÖLJ DELAR AV BILDEN" }
             Note {
                 width: Math.min(820, parent.width)
@@ -2071,6 +2114,64 @@ Window {
             font.pixelSize: 13
             wrapMode: Text.WordWrap
             lineHeight: 1.15
+        }
+    }
+
+    // The ✕ asks: hide in the system tray or close
+    Rectangle {
+        visible: win.closeAsk
+        anchors.fill: parent
+        z: 50
+        color: "#B307090D"
+        MouseArea { anchors.fill: parent; onClicked: win.closeAsk = false }
+        Rectangle {
+            anchors.centerIn: parent
+            width: 460
+            height: askCol.implicitHeight + 48
+            color: "#0E1420"
+            border.width: 1
+            border.color: accent.color
+            MouseArea { anchors.fill: parent } // clicks inside don't close it
+            Column {
+                id: askCol
+                x: 24
+                y: 24
+                width: parent.width - 48
+                spacing: 14
+                Text {
+                    text: "STÄNGA GOBLINRECORDER?"
+                    color: "#E6ECF5"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.Bold
+                    font.pixelSize: 16
+                    font.letterSpacing: 2
+                }
+                Note {
+                    width: parent.width
+                    text: "Inspelningen fortsätter i båda fallen – den sköts av en egen tjänst. I systemfältet syns ikonen med en röd prick när något spelas in."
+                }
+                Row {
+                    spacing: 10
+                    ToggleSwitch {
+                        anchors.verticalCenter: parent.verticalCenter
+                        on: win.closeRemember
+                        onToggled: win.closeRemember = !win.closeRemember
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Kom ihåg mitt val (ändras i Inställningar)"
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                }
+                Row {
+                    spacing: 10
+                    FlatButton { primary: true; text: "Göm i systemfältet"; onClicked: win.closeAs("tray") }
+                    FlatButton { text: "Stäng"; onClicked: win.closeAs("quit") }
+                    FlatButton { text: "Avbryt"; onClicked: win.closeAsk = false }
+                }
+            }
         }
     }
 

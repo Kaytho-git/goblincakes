@@ -644,12 +644,15 @@ def main():
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO") or season_logo()))
     use_accent(engine)
+    has_tray = QSystemTrayIcon.isSystemTrayAvailable()
+    engine.rootContext().setContextProperty("hasTray", has_tray)
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1
     win = engine.rootObjects()[0]
-    # Closing the window hides it in the system tray (the tray menu closes it for real)
-    tray = make_tray(app, win, backend, app_icon) if QSystemTrayIcon.isSystemTrayAvailable() else None
+    # The window's ✕ asks (or does what was chosen): hide in the system tray or close –
+    # Main.qml's onClosing; the tray menu always closes for real
+    tray = make_tray(app, win, backend, app_icon) if has_tray else None
     app.setQuitOnLastWindowClosed(tray is None)
 
     def raise_window():

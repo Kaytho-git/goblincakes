@@ -62,6 +62,7 @@ DEFAULTS = {
     "overlays": [],  # boxes over the video: {"file": image or "" = black, "text", "x", "y", "w", "h" as 0–1 of the picture}
     "postRoll": 5,  # seconds after the end
     "maxGB": 100,  # oldest videos are removed above this
+    "closeAction": "ask",  # the window's ✕: ask | tray = hide in the system tray | quit
     "keepWipes": False,  # False: only kills stay when WoW closes (and 2 wipes per raid boss meanwhile)
 }
 
