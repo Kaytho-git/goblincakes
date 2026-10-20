@@ -783,7 +783,9 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
             BUSY[model] = time.time()
             if notice:
                 notice(f"{provider['name']} · {MODEL_NAMES.get(model, model)} svarar inte – provar nästa")
-            fallback = [provider] + [p for p in PROVIDERS if p is not provider and keys.get(p["env"])]
+            # A service that doesn't answer at all: its other models are on the same servers – skip them
+            fallback = ([] if "nås inte" in str(e) else [provider]) + [
+                p for p in PROVIDERS if p is not provider and keys.get(p["env"])]
             if LOCAL in providers_in_order(keys, (project or {}).get("order")):  # not with "Bara molnet"
                 fallback.append(LOCAL)
     if has_images(messages):
@@ -807,7 +809,7 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
             for attempt in range(2):
                 models = local_models(messages, project) if provider.get("local") else pick_models(provider, key, refresh=attempt > 0)
                 models = sorted(models, key=lambda m: time.time() - BUSY.get(m, 0) < 600)
-                if fallback and provider is fallback[0]:
+                if fallback and provider is chosen[0]:
                     models = [m for m in models if m != chosen[1]] or models  # the picked one was just asked
                 activity("ask", "tänker · " + ("din dator" if provider.get("local") else provider["name"]), provider.get("local"))
                 if status:
@@ -1114,7 +1116,10 @@ def chat(provider, key, model, messages):
             # give no answer (18 Oct: 12 000 tokens, 3 min) – a ceiling, then once more without thinking
             used = sum(len(m["content"]) if isinstance(m["content"], str) else 2000 for m in messages) // 3
             body["max_tokens"] = max(LOCAL_MIN_TOKENS, min(LOCAL_MAX_TOKENS, LOCAL_CONTEXT - used - 500))
-        reply = request(provider, key, "/chat/completions", body)
+        # The facts are already fetched (a button): a short job – an overloaded server that keeps the
+        # question for 50–90 s before saying so is left after 30 (20 Oct, Gemini)
+        quick = getattr(QUICK, "on", False) and not provider.get("local")
+        reply = request(provider, key, "/chat/completions", body, **({"timeout": 30} if quick else {}))
         text = reply["choices"][0]["message"].get("content") or ""
         if provider.get("local") and reply["choices"][0].get("finish_reason") == "length":  # empty or cut off
             reply = request(provider, key, "/chat/completions", {**body, "reasoning_effort": "none"})
