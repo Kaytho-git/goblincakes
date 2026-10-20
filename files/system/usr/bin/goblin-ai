@@ -248,6 +248,7 @@ class Backend(QObject):
             return
         self._new_conversation()
         self.conversationChanged.emit()
+        self.runDaily()  # today's updates not yet asked come first in the new chat
 
     @Slot(str, str)
     def send(self, text, attachment):
@@ -781,6 +782,7 @@ class Backend(QObject):
             items.append({"text": text[:300], "model": model, "last": ""})
             goblinai.save_daily(items)
             self.dailyChanged.emit()
+            QTimer.singleShot(500, self.runDaily)
 
     @Slot(int)
     def removeDaily(self, index):
