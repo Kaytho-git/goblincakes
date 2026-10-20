@@ -24,7 +24,7 @@ sys.path.insert(0, str(SHARE))
 import goblinai  # noqa: E402
 import learn  # noqa: E402
 
-from PySide6.QtCore import QMarginsF, QObject, QProcess, QProcessEnvironment, QSize, QUrl, Property, Qt, Signal, Slot  # noqa: E402
+from PySide6.QtCore import QMarginsF, QObject, QProcess, QProcessEnvironment, QSize, QTimer, QUrl, Property, Qt, Signal, Slot  # noqa: E402
 from PySide6.QtGui import (QDesktopServices, QFont, QFontDatabase, QGuiApplication, QIcon, QImage,  # noqa: E402
                            QPageLayout, QPageSize, QPdfWriter, QTextDocument)
 from PySide6.QtPdf import QPdfDocument  # noqa: E402
@@ -296,6 +296,8 @@ class Backend(QObject):
         question = {"role": "user", "content": content}
         if images:
             question["images"] = images
+        if self._daily_running:  # a daily update: the AI is told what it is (the chat shows only the wish)
+            question["content"] += goblinai.DAILY_PROMPT
         self._api.append(question)
         self._ask()
 
@@ -319,7 +321,7 @@ class Backend(QObject):
                     status=self._statusText.emit,
                     notice=self.notice.emit,
                     project=project,
-                    choice=self._model)
+                    choice=self._daily_model if self._daily_running else self._model)
                 self._answered.emit(answer, service)
             except goblinai.ServiceError as e:
                 self._failed.emit(str(e))
@@ -342,6 +344,7 @@ class Backend(QObject):
         self._save()
         self._start_images(len(self._display) - 1)
         self._quick_answered()
+        self._daily_done()
 
     def _on_failure(self, message):
         shown = {"role": "error", "text": message, "segments": [], "service": "", "file": ""}
@@ -352,6 +355,7 @@ class Backend(QObject):
             self._api.pop()
         self._set_busy(False)
         self._quick_answered()
+        self._daily_done(failed=True)
 
     def _update(self, index):
         self.messageUpdated.emit(index, json.dumps(self._display[index]))
@@ -756,6 +760,101 @@ class Backend(QObject):
     def removeAvatar(self):
         AVATAR.unlink(missing_ok=True)
         self.avatarChanged.emit()
+
+    # ── Daily updates (20 Oct): each in a new chat with its own model, first time the window opens a day ──
+
+    dailyChanged = Signal()
+    _daily_running = False
+    _daily_model = ""
+    _daily_queue = []
+
+    @Property(str, notify=dailyChanged)
+    def daily(self):
+        return json.dumps(goblinai.load_daily(), ensure_ascii=False)
+
+    @Slot(str, str)
+    def addDaily(self, text, model):
+        text = " ".join(text.split())
+        items = goblinai.load_daily()
+        if text and len(items) < goblinai.DAILY_MAX:
+            # Not asked today when added – it comes right away (or the next time the window is opened)
+            items.append({"text": text[:300], "model": model, "last": ""})
+            goblinai.save_daily(items)
+            self.dailyChanged.emit()
+
+    @Slot(int)
+    def removeDaily(self, index):
+        items = goblinai.load_daily()
+        if 0 <= index < len(items):
+            del items[index]
+            goblinai.save_daily(items)
+            self.dailyChanged.emit()
+
+    @Slot(int, str)
+    def setDailyModel(self, index, model):
+        items = goblinai.load_daily()
+        if 0 <= index < len(items):
+            items[index]["model"] = model
+            goblinai.save_daily(items)
+            self.dailyChanged.emit()
+
+    @Slot()
+    def runDaily(self):
+        """Called when the window is shown (and every 10 minutes while it is): asks today's updates not yet
+        asked, one at a time, each in a new chat."""
+        if self._daily_running or self._daily_queue:
+            return
+        items = goblinai.load_daily()
+        due = goblinai.daily_due()
+        if not due:
+            return
+        today = time.strftime("%Y-%m-%d")
+        for i in due:  # marked at once: a failed one is not asked again and again today
+            items[i]["last"] = today
+        goblinai.save_daily(items)
+        self._daily_queue = [items[i] for i in due]
+        self.dailyChanged.emit()
+        self._next_daily()
+
+    def _next_daily(self):
+        if not self._daily_queue:
+            return
+        if self._busy:  # an answer is being written: the update waits a little
+            QTimer.singleShot(5000, self._next_daily)
+            return
+        item = self._daily_queue.pop(0)
+        if self._display:
+            self._new_conversation()
+            self.conversationChanged.emit()
+        self._daily_running, self._daily_model = True, item.get("model", "")
+        self.notice.emit("Daglig uppdatering: " + item["text"][:60])
+        self.send("Daglig uppdatering: " + item["text"], "")
+        self._daily_conv, self._daily_tries = self._id, 0
+        self._daily_question = self._api[-1] if self._api else None
+
+    def _daily_done(self, failed=False):
+        if not self._daily_running:
+            return
+        if failed and self._daily_tries < 2 and self._daily_question:
+            # A busy service should not cost today's update: the same model again in a minute,
+            # then Automatiskt (the next service that answers)
+            self._daily_tries += 1
+            if self._daily_tries == 2:
+                self._daily_model = ""
+            QTimer.singleShot(60000 if self._daily_tries == 1 else 3000, self._daily_retry)
+            return
+        self._daily_running, self._daily_model = False, ""
+        QTimer.singleShot(500, self._next_daily)
+
+    def _daily_retry(self):
+        if self._busy or self._id != self._daily_conv or (self._api and self._api[-1]["role"] == "user"):
+            self._daily_running, self._daily_model = False, ""  # the user took over the chat
+            QTimer.singleShot(500, self._next_daily)
+            return
+        self.notice.emit("Försöker igen med den dagliga uppdateringen"
+                         + (" – med Automatiskt" if not self._daily_model else ""))
+        self._api.append(self._daily_question)
+        self._ask()
 
     # ── Services and keys ─────────────────────────────────────
 

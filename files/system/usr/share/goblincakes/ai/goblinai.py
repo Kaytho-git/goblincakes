@@ -1137,6 +1137,33 @@ def save_memory(items):
     MEMORY_FILE.write_text(json.dumps(items[-MEMORY_MAX:], ensure_ascii=False, indent=1))
 
 
+# ── Daily updates (20 Oct): asked by a chosen model the first time the window opens each day ──
+DAILY_FILE = MEMORY_FILE.parent / "dagligt.json"  # [{"text", "model": choice id or "", "last": "YYYY-MM-DD"}]
+DAILY_MAX = 10
+DAILY_PROMPT = ("\n\n(Det här är en daglig uppdatering som användaren har bett om – den frågas automatiskt första "
+                "gången Goblin AI öppnas varje dag. Ge det senaste just nu; sök på nätet om du kan. Kort och "
+                "överskådligt, med datum.)")
+
+
+def load_daily():
+    try:
+        items = json.loads(DAILY_FILE.read_text())
+        return [i for i in items if isinstance(i, dict) and str(i.get("text", "")).strip()]
+    except (OSError, ValueError):
+        return []
+
+
+def save_daily(items):
+    DAILY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    DAILY_FILE.write_text(json.dumps(items[:DAILY_MAX], ensure_ascii=False, indent=1))
+
+
+def daily_due():
+    """The daily updates not yet asked today (their indexes in load_daily())."""
+    today = time.strftime("%Y-%m-%d")
+    return [i for i, item in enumerate(load_daily()) if item.get("last") != today]
+
+
 def remember(texts):
     """Adds things (not twice); returns the ones that were new."""
     items = load_memory()

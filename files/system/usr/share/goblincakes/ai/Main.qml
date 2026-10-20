@@ -91,7 +91,22 @@ Window {
 
     ListModel { id: chatModel }
 
-    Component.onCompleted: reload()
+    Component.onCompleted: {
+        reload();
+        if (visible)
+            backend.runDaily();
+    }
+
+    // Daily updates (20 Oct): asked the first time the window is shown each day – and after midnight
+    onVisibleChanged: if (visible) backend.runDaily()
+    Timer {
+        interval: 600000
+        repeat: true
+        running: win.visible
+        onTriggered: backend.runDaily()
+    }
+    property int dailyPick: -1          // the daily update whose model list is open (-2 = the new one)
+    property string dailyNewModel: ""   // the model for the one being added
 
     Connections {
         target: backend
@@ -3075,6 +3090,176 @@ Window {
                                 onClicked: { backend.addMemory(memInput.text); memInput.text = ""; }
                             }
                         }
+                    }
+                }
+
+                // ── Daily updates (20 Oct): a chosen model gives an update the first time each day ──
+                Rectangle {
+                    id: dailyCard
+                    width: settingsCol.width
+                    height: dailyCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    property var items: JSON.parse(backend.daily)
+                    readonly property var picks: JSON.parse(backend.modelChoices).filter(i => i.name !== "")
+
+                    // The model list under an update (or under the field for a new one)
+                    component DailyModels: Column {
+                        property int target: -1
+                        visible: win.dailyPick === target
+                        width: parent.width
+                        Text {
+                            visible: backend.modelsLoading
+                            text: "Hämtar modellerna…"
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
+                        }
+                        Flow {
+                            width: parent.width
+                            spacing: 6
+                            Repeater {
+                                model: dailyCard.picks
+                                FlatButton {
+                                    required property var modelData
+                                    small: true
+                                    primary: (target === -2 ? win.dailyNewModel : (dailyCard.items[target] || {}).model || "") === modelData.id
+                                    text: modelData.name
+                                    onClicked: {
+                                        if (target === -2)
+                                            win.dailyNewModel = modelData.id;
+                                        else
+                                            backend.setDailyModel(target, modelData.id);
+                                        win.dailyPick = -1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Column {
+                        id: dailyCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 10
+                        Text {
+                            text: "Dagliga uppdateringar"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Första gången Goblin AI öppnas varje dag frågar den här modellen om det du skriver, i en egen chatt – "
+                                  + "t.ex. \"Senaste om Anaheim Ducks: ställning, senaste och nästa match\". Välj en modell som kan söka på nätet (en tjänst i molnet med Tavily-nyckel)."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Repeater {
+                            model: dailyCard.items
+                            Column {
+                                id: dailyRow
+                                required property var modelData
+                                required property int index
+                                width: dailyCol.width
+                                spacing: 6
+                                Row {
+                                    width: parent.width
+                                    spacing: 10
+                                    Text {
+                                        width: parent.width - modelChip.width - 40
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        wrapMode: Text.WordWrap
+                                        text: "• " + dailyRow.modelData.text
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 14
+                                    }
+                                    FlatButton {
+                                        id: modelChip
+                                        small: true
+                                        text: win.modelName(dailyRow.modelData.model || "") + "  ▾"
+                                        onClicked: {
+                                            win.dailyPick = win.dailyPick === dailyRow.index ? -1 : dailyRow.index;
+                                            backend.refreshModels();
+                                        }
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "×"
+                                        color: dailyX.containsMouse ? accent.errorBright : "#8B98AD"
+                                        font.pixelSize: 18
+                                        MouseArea {
+                                            id: dailyX
+                                            anchors.fill: parent
+                                            anchors.margins: -6
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: { win.dailyPick = -1; backend.removeDaily(dailyRow.index); }
+                                        }
+                                    }
+                                }
+                                DailyModels { target: dailyRow.index }
+                            }
+                        }
+                        Row {
+                            spacing: 10
+                            Rectangle {
+                                width: Math.min(420, dailyCol.width - 260)
+                                height: 30
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: dailyInput.activeFocus ? accent.color : "#1E2A40"
+                                TextInput {
+                                    id: dailyInput
+                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    clip: true
+                                    maximumLength: 300
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                    onAccepted: dailyAdd.clicked()
+                                    Text {
+                                        visible: dailyInput.text === ""
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "T.ex. Senaste om Anaheim Ducks"
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                            }
+                            FlatButton {
+                                small: true
+                                text: win.modelName(win.dailyNewModel) + "  ▾"
+                                onClicked: {
+                                    win.dailyPick = win.dailyPick === -2 ? -1 : -2;
+                                    backend.refreshModels();
+                                }
+                            }
+                            FlatButton {
+                                id: dailyAdd
+                                small: true
+                                primary: true
+                                text: "Lägg till"
+                                enabledState: dailyInput.text.trim() !== ""
+                                onClicked: {
+                                    if (!enabledState)
+                                        return;
+                                    backend.addDaily(dailyInput.text, win.dailyNewModel);
+                                    dailyInput.text = "";
+                                    win.dailyNewModel = "";
+                                    win.dailyPick = -1;
+                                }
+                            }
+                        }
+                        DailyModels { target: -2 }
                     }
                 }
 
