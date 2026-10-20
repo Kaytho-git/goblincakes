@@ -248,7 +248,6 @@ class Backend(QObject):
             return
         self._new_conversation()
         self.conversationChanged.emit()
-        self.runDaily()  # today's updates not yet asked come first in the new chat
 
     @Slot(str, str)
     def send(self, text, attachment):
@@ -299,6 +298,9 @@ class Backend(QObject):
             question["images"] = images
         if self._daily_running:  # a daily update: the AI is told what it is (the chat shows only the wish)
             question["content"] += goblinai.DAILY_PROMPT
+            links = goblinai.links_in(content)
+            if links:
+                question["links"] = links  # read in the ask thread (goblinai.read_links)
         self._api.append(question)
         self._ask()
 
@@ -762,27 +764,24 @@ class Backend(QObject):
         AVATAR.unlink(missing_ok=True)
         self.avatarChanged.emit()
 
-    # ── Daily updates (20 Oct): each in a new chat with its own model, first time the window opens a day ──
+    # ── Own buttons (20 Oct): a named instruction, asked by its own model in a new chat ──
 
     dailyChanged = Signal()
     _daily_running = False
     _daily_model = ""
-    _daily_queue = []
 
     @Property(str, notify=dailyChanged)
     def daily(self):
         return json.dumps(goblinai.load_daily(), ensure_ascii=False)
 
-    @Slot(str, str)
-    def addDaily(self, text, model):
-        text = " ".join(text.split())
+    @Slot(str, str, str)
+    def addDaily(self, name, text, model):
+        name, text = " ".join(name.split()), " ".join(text.split())
         items = goblinai.load_daily()
         if text and len(items) < goblinai.DAILY_MAX:
-            # Not asked today when added – it comes right away (or the next time the window is opened)
-            items.append({"text": text[:300], "model": model, "last": ""})
+            items.append({"name": name[:20] or " ".join(text.split()[:2])[:20], "text": text[:300], "model": model})
             goblinai.save_daily(items)
             self.dailyChanged.emit()
-            QTimer.singleShot(500, self.runDaily)
 
     @Slot(int)
     def removeDaily(self, index):
@@ -800,37 +799,18 @@ class Backend(QObject):
             goblinai.save_daily(items)
             self.dailyChanged.emit()
 
-    @Slot()
-    def runDaily(self):
-        """Called when the window is shown (and every 10 minutes while it is): asks today's updates not yet
-        asked, one at a time, each in a new chat."""
-        if self._daily_running or self._daily_queue:
-            return
+    @Slot(int)
+    def runButton(self, index):
+        """A button above the input: its instruction in a new chat (this one if it is empty), its own model."""
         items = goblinai.load_daily()
-        due = goblinai.daily_due()
-        if not due:
+        if self._busy or not 0 <= index < len(items):
             return
-        today = time.strftime("%Y-%m-%d")
-        for i in due:  # marked at once: a failed one is not asked again and again today
-            items[i]["last"] = today
-        goblinai.save_daily(items)
-        self._daily_queue = [items[i] for i in due]
-        self.dailyChanged.emit()
-        self._next_daily()
-
-    def _next_daily(self):
-        if not self._daily_queue:
-            return
-        if self._busy:  # an answer is being written: the update waits a little
-            QTimer.singleShot(5000, self._next_daily)
-            return
-        item = self._daily_queue.pop(0)
+        item = items[index]
         if self._display:
             self._new_conversation()
             self.conversationChanged.emit()
         self._daily_running, self._daily_model = True, item.get("model", "")
-        self.notice.emit("Daglig uppdatering: " + item["text"][:60])
-        self.send("Daglig uppdatering: " + item["text"], "")
+        self.send(item["text"], "")
         self._daily_conv, self._daily_tries = self._id, 0
         self._daily_question = self._api[-1] if self._api else None
 
@@ -846,14 +826,12 @@ class Backend(QObject):
             QTimer.singleShot(60000 if self._daily_tries == 1 else 3000, self._daily_retry)
             return
         self._daily_running, self._daily_model = False, ""
-        QTimer.singleShot(500, self._next_daily)
 
     def _daily_retry(self):
         if self._busy or self._id != self._daily_conv or (self._api and self._api[-1]["role"] == "user"):
             self._daily_running, self._daily_model = False, ""  # the user took over the chat
-            QTimer.singleShot(500, self._next_daily)
             return
-        self.notice.emit("Försöker igen med den dagliga uppdateringen"
+        self.notice.emit("Försöker igen"
                          + (" – med Automatiskt" if not self._daily_model else ""))
         self._api.append(self._daily_question)
         self._ask()

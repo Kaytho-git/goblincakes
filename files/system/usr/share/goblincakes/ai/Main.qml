@@ -91,21 +91,9 @@ Window {
 
     ListModel { id: chatModel }
 
-    Component.onCompleted: {
-        reload();
-        if (visible)
-            backend.runDaily();
-    }
+    Component.onCompleted: reload()
 
-    // Daily updates (20 Oct): asked the first time the window is shown each day – and after midnight
-    onVisibleChanged: if (visible) backend.runDaily()
-    Timer {
-        interval: 600000
-        repeat: true
-        running: win.visible
-        onTriggered: backend.runDaily()
-    }
-    property int dailyPick: -1          // the daily update whose model list is open (-2 = the new one)
+    property int dailyPick: -1          // the button whose model list is open (-2 = the new one)
     property string dailyNewModel: ""   // the model for the one being added
 
     Connections {
@@ -1011,7 +999,7 @@ Window {
             ListView {
                 id: messagesView
                 FastWheel { flick: messagesView }
-                anchors { left: parent.left; right: parent.right; top: parent.top; bottom: inputBar.top }
+                anchors { left: parent.left; right: parent.right; top: parent.top; bottom: ownButtons.top }
                 anchors.leftMargin: 40
                 anchors.rightMargin: 40
                 topMargin: 32
@@ -1560,6 +1548,26 @@ Window {
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // ── Own buttons (20 Oct): a saved instruction with its own model, AI-tjänster → Egna knappar ──
+            Flow {
+                id: ownButtons
+                anchors { left: parent.left; right: parent.right; bottom: inputBar.top; leftMargin: 24; rightMargin: 24; bottomMargin: items.length ? 8 : 0 }
+                property var items: JSON.parse(backend.daily)
+                height: items.length ? implicitHeight : 0
+                spacing: 6
+                Repeater {
+                    model: ownButtons.items
+                    FlatButton {
+                        required property var modelData
+                        required property int index
+                        small: true
+                        text: modelData.name
+                        enabledState: !backend.busy
+                        onClicked: if (enabledState) backend.runButton(index)
                     }
                 }
             }
@@ -3093,7 +3101,7 @@ Window {
                     }
                 }
 
-                // ── Daily updates (20 Oct): a chosen model gives an update the first time each day ──
+                // ── Own buttons (20 Oct): above the input, a new chat with the instruction and its model ──
                 Rectangle {
                     id: dailyCard
                     width: settingsCol.width
@@ -3145,7 +3153,7 @@ Window {
                         width: parent.width - 40
                         spacing: 10
                         Text {
-                            text: "Dagliga uppdateringar"
+                            text: "Egna knappar"
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
@@ -3154,8 +3162,8 @@ Window {
                         Text {
                             width: parent.width
                             wrapMode: Text.WordWrap
-                            text: "Första gången Goblin AI öppnas varje dag frågar den här modellen om det du skriver, i en egen chatt – "
-                                  + "t.ex. \"Senaste om Anaheim Ducks: ställning, senaste och nästa match\". Välj en modell som kan söka på nätet (en tjänst i molnet med Tavily-nyckel)."
+                            text: "Knapparna ligger ovanför rutan där du skriver. Ett tryck = en ny chatt där modellen du valt får instruktionen – "
+                                  + "t.ex. Ducks: \"Senaste om Anaheim Ducks: ställning, senaste och nästa match\". Skriv länkar i instruktionen så läses de sidorna när du trycker. Välj en modell som kan söka på nätet (en tjänst i molnet med Tavily-nyckel)."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 13
@@ -3175,7 +3183,8 @@ Window {
                                         width: parent.width - modelChip.width - 40
                                         anchors.verticalCenter: parent.verticalCenter
                                         wrapMode: Text.WordWrap
-                                        text: "• " + dailyRow.modelData.text
+                                        text: "<b>" + dailyRow.modelData.name + "</b>  " + dailyRow.modelData.text
+                                        textFormat: Text.StyledText
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
                                         font.pixelSize: 14
@@ -3210,7 +3219,33 @@ Window {
                         Row {
                             spacing: 10
                             Rectangle {
-                                width: Math.min(420, dailyCol.width - 260)
+                                width: 150
+                                height: 30
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: dailyName.activeFocus ? accent.color : "#1E2A40"
+                                TextInput {
+                                    id: dailyName
+                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    clip: true
+                                    maximumLength: 20
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                    KeyNavigation.tab: dailyInput
+                                    Text {
+                                        visible: dailyName.text === ""
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "Namn, t.ex. Ducks"
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                width: Math.min(420, dailyCol.width - 420)
                                 height: 30
                                 color: "#07090D"
                                 border.width: 1
@@ -3228,7 +3263,7 @@ Window {
                                     Text {
                                         visible: dailyInput.text === ""
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: "T.ex. Senaste om Anaheim Ducks"
+                                        text: "Instruktion, t.ex. Senaste om Anaheim Ducks"
                                         color: "#5C6880"
                                         font.family: "IBM Plex Sans"
                                         font.pixelSize: 13
@@ -3252,7 +3287,8 @@ Window {
                                 onClicked: {
                                     if (!enabledState)
                                         return;
-                                    backend.addDaily(dailyInput.text, win.dailyNewModel);
+                                    backend.addDaily(dailyName.text, dailyInput.text, win.dailyNewModel);
+                                    dailyName.text = "";
                                     dailyInput.text = "";
                                     win.dailyNewModel = "";
                                     win.dailyPick = -1;

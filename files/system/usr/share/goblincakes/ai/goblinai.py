@@ -327,6 +327,118 @@ def web_search(query, key):
             for r in data.get("results", []) if r.get("url")]
 
 
+# Links in an own button's instruction (20 Oct, the user's wish): the pages are read when the button is
+# pressed and sent along – Tavily's extract with a key (pages built with JavaScript too), otherwise plain HTML
+LINK_RE = re.compile(r"https?://[^\s<>\"')\]]+")
+LINKS_MAX, LINK_CHARS = 5, 12000
+
+
+def links_in(text):
+    """The links in a text (a comma or full stop after one is not part of it), at most LINKS_MAX."""
+    return list(dict.fromkeys(u.rstrip(".,;:!?") for u in LINK_RE.findall(text)))[:LINKS_MAX]
+
+
+def read_links(messages, keys, status=None):
+    """The question with "links" (set by goblin-ai for a button) gets the pages' text added, once."""
+    question = next((m for m in reversed(messages) if m["role"] == "user"), None)
+    urls = (question or {}).pop("links", None)
+    if not urls:
+        return False
+    if status:
+        status("Läser länkarna…")
+    pages, key = {}, keys.get(SEARCH["env"])
+    if key:
+        try:
+            req = urllib.request.Request(
+                SEARCH["url"] + "/extract", data=json.dumps({"urls": urls, "extract_depth": "advanced"}).encode(),
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                         "User-Agent": "goblincakes-ai"})
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                for r in json.loads(resp.read().decode()).get("results", []):
+                    if r.get("url") and (r.get("raw_content") or "").strip():
+                        pages[r["url"]] = r["raw_content"]
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+            pass
+    for url in urls:
+        if url not in pages:
+            pages[url] = page_text(url)
+    wish = LINK_RE.sub("", question["content"].split("\n\n(")[0])
+    parts = [f"--- {url} ---\n{relevant_part(pages.get(url) or '', wish) or '(gick inte att läsa)'}" for url in urls]
+    question["content"] += ("\n\n(Sidorna i instruktionen, hämtade nu – utgå från dem:)\n" + "\n\n".join(parts))
+    return True
+
+
+QUICK = threading.local()  # .on: the answer needs no thinking (a local model is told not to)
+
+
+def relevant_part(text, wish):
+    """A long page: its beginning (a table's headings) and the parts around the instruction's names
+    (Anaheim, Ducks …) – a standings table had the team past the limit."""
+    text = text.strip()
+    if len(text) <= LINK_CHARS:
+        return text
+    words = {w for w in re.findall(r"\b[A-ZÅÄÖ][\w'-]{3,}", wish)} - {"Senaste", "Vad", "Hur", "Ge"}
+    spans = [(0, 3000)]
+    for w in words:
+        for m in re.finditer(re.escape(w), text):
+            spans.append((max(0, m.start() - 1200), m.end() + 1200))
+    spans.sort()
+    merged = []
+    for a, b in spans:
+        if merged and a <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], b)
+        else:
+            merged.append([a, b])
+    # Heading rows: table rows of 3+ cells without digits (the row after one says if a name column has no heading)
+    heads = []
+    for m in re.finditer(r"^\|([^\n]*)\|[ \t]*\n(\|[^\n]*)?", text, re.M):
+        cells = [c.strip() for c in m.group(1).split("|")]
+        if len(cells) >= 3 and not any(re.search(r"\d", c) for c in cells) and not all(re.fullmatch(r":?-+:?", c) for c in cells):
+            data = next((r for r in text[m.end():m.end() + 2000].splitlines() if re.search(r"\|\s*[\d.]+\s*\|", r)), "")
+            if data.count("|") - 1 == len(cells) + 1:
+                cells.insert(0, "Namn")
+            heads.append((m.start(), "| " + " | ".join(cells) + " |"))
+    out, used = [], 0
+    for a, b in merged:
+        # A part of a table gets the table's heading row (GP, W, L …) – without it the columns were misread
+        head = next((h for start, h in reversed(heads) if start < a), "")
+        piece = ((head + "\n") if head and a > 0 else "") + text[a:b]
+        piece = piece[:LINK_CHARS - used]
+        out.append(piece)
+        used += len(piece)
+        if used >= LINK_CHARS:
+            break
+    return "\n[…]\n".join(out)
+
+
+def page_text(url):
+    """A page's text without Tavily (no JavaScript – may be almost empty for some sites)."""
+    from html.parser import HTMLParser
+
+    class Text(HTMLParser):
+        skip, out = 0, []
+
+        def handle_starttag(self, tag, attrs):
+            self.skip += tag in ("script", "style", "noscript", "svg")
+
+        def handle_endtag(self, tag):
+            self.skip -= tag in ("script", "style", "noscript", "svg") and self.skip > 0
+
+        def handle_data(self, data):
+            if not self.skip and data.strip():
+                self.out.append(" ".join(data.split()))
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) goblincakes-ai"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            html = resp.read(3_000_000).decode(resp.headers.get_content_charset() or "utf-8", "replace")
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return ""
+    parser = Text()
+    parser.out = []
+    parser.feed(html)
+    return "\n".join(parser.out)
+
+
 def test_key(service, key):
     """Tries a key; returns what to show ("använder <modell>") or raises ServiceError."""
     if service["id"] == SEARCH["id"]:
@@ -537,8 +649,15 @@ def ask(messages, keys, status=None, notice=None, project=None, choice=""):
     """
     activity("ask", "tänker")
     try:
-        answer, service = _ask(messages, keys, status, notice, project, choice)
+        if read_links(messages, keys, status):
+            # The pages are there: one plain answer – no searching on top, no long thinking (a button
+            # with links took 3–4 minutes)
+            QUICK.on = True
+            answer, service = ask_once(messages, keys, status, notice, project, choice)
+        else:
+            answer, service = _ask(messages, keys, status, notice, project, choice)
     finally:
+        QUICK.on = False
         activity_done()
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
     return no_unasked_report(answer, question), service
@@ -956,6 +1075,8 @@ def chat(provider, key, model, messages):
         temperature = provider.get("temperature", 0.4)
         if temperature is not None:
             body["temperature"] = temperature
+        if provider.get("local") and getattr(QUICK, "on", False):
+            body["reasoning_effort"] = "none"
         if provider.get("local"):
             # Thinking models (gemma4) sometimes think in circles until the whole context is full and
             # give no answer (18 Oct: 12 000 tokens, 3 min) – a ceiling, then once more without thinking
@@ -1156,31 +1277,30 @@ def save_memory(items):
     MEMORY_FILE.write_text(json.dumps(items[-MEMORY_MAX:], ensure_ascii=False, indent=1))
 
 
-# ── Daily updates (20 Oct): asked by a chosen model the first time the window opens each day ──
-DAILY_FILE = MEMORY_FILE.parent / "dagligt.json"  # [{"text", "model": choice id or "", "last": "YYYY-MM-DD"}]
+# ── Own buttons (20 Oct; first a daily update asked when the window opened – too slow, the user's
+# wish): a named instruction asked by its own model in a new chat when its button above the input is pressed ──
+DAILY_FILE = MEMORY_FILE.parent / "dagligt.json"  # [{"name", "text", "model": choice id or ""}]
 DAILY_MAX = 10
-DAILY_PROMPT = ("\n\n(Det här är en daglig uppdatering som användaren har bett om – den frågas automatiskt första "
-                "gången Goblin AI öppnas varje dag. Ge det senaste just nu; sök på nätet om du kan. Kort och "
-                "överskådligt, med datum.)")
+DAILY_PROMPT = ("\n\n(Det här är en sparad knapp som användaren tryckt på. Ge det senaste just nu – står det länkar "
+                "i instruktionen får du sidornas text nedan, utgå i första hand från dem; sök annars på nätet om du kan. "
+                "Kort och överskådligt, med datum.)")
 
 
 def load_daily():
     try:
         items = json.loads(DAILY_FILE.read_text())
-        return [i for i in items if isinstance(i, dict) and str(i.get("text", "")).strip()]
+        items = [i for i in items if isinstance(i, dict) and str(i.get("text", "")).strip()]
     except (OSError, ValueError):
         return []
+    for i in items:  # from the time of daily updates: no name yet
+        i.pop("last", None)
+        i["name"] = str(i.get("name") or "").strip() or " ".join(i["text"].split()[:2])[:20]
+    return items
 
 
 def save_daily(items):
     DAILY_FILE.parent.mkdir(parents=True, exist_ok=True)
     DAILY_FILE.write_text(json.dumps(items[:DAILY_MAX], ensure_ascii=False, indent=1))
-
-
-def daily_due():
-    """The daily updates not yet asked today (their indexes in load_daily())."""
-    today = time.strftime("%Y-%m-%d")
-    return [i for i, item in enumerate(load_daily()) if item.get("last") != today]
 
 
 def remember(texts):
