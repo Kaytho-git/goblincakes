@@ -1,7 +1,7 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
 2026-10-20  Svarar inte AI-modellen du valt (t.ex. överbelastad Gemini) frågar Goblin AI nästa modell eller tjänst i stället, och din egen dator i sista hand.
-2026-10-20  Goblin AI har egna knappar ovanför rutan där du skriver – t.ex. "Ducks" som hämtar det senaste om ditt lag med den AI-modell du väljer. Skriv länkar i knappens instruktion så läses de sidorna (AI-tjänster → Egna knappar).
+2026-10-20  Goblin AI har egna knappar ovanför rutan där du skriver – t.ex. "Ducks" som hämtar det senaste om ditt lag med den AI-modell du väljer. Står det ett lag i knappen (NHL, NBA, NFL, fotboll med Allsvenskan m.fl.) hämtas tabellplats, senaste och nästa match direkt, och länkar i instruktionen läses (AI-tjänster → Egna knappar).
 2026-10-20  Goblin AI kan leta upp fel i datorn – fråga t.ex. "Steam kraschar, vad är fel?". Den läser krascher och felloggar, säger vad som är ofarligt och föreslår lösningar steg för steg.
 2026-10-20  Goblin AI kan få en avatar som visas vid varje svar – välj en egen bild eller be AI:n rita en (AI-tjänster → Avatar, eller "Använd som avatar" under en bild). Vid namnet kan du också välja hon, han eller hen.
 2026-10-19  goblin frames varnar inte längre för swap i onödan – bara när arbetsminnet faktiskt nästan tagit slut.

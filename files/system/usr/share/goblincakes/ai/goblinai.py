@@ -339,11 +339,24 @@ def links_in(text):
 
 
 def read_links(messages, keys, status=None):
-    """The question with "links" (set by goblin-ai for a button) gets the pages' text added, once."""
+    """A button's question ("button" set by goblin-ai) gets, once, the pages of its links and the facts
+    of the sports teams it names (ESPN). True when something was added."""
     question = next((m for m in reversed(messages) if m["role"] == "user"), None)
-    urls = (question or {}).pop("links", None)
-    if not urls:
+    if not (question or {}).pop("button", False):
         return False
+    wish = question["content"].split("\n\n(")[0]
+    urls, teams = links_in(wish), ""
+    try:
+        if sport_tools().find_teams(LINK_RE.sub("", wish)):
+            if status:
+                status("Hämtar lagen från ESPN…")
+            teams = sport_tools().sport_info(LINK_RE.sub("", wish))
+    except Exception:  # noqa: BLE001 – the sports data is extra; the question goes anyway
+        teams = ""
+    if teams:
+        question["content"] += "\n\n(Lagens fakta från ESPN, hämtade nu – exakta, utgå från dem:)\n" + teams
+    if not urls:
+        return bool(teams)
     if status:
         status("Läser länkarna…")
     pages, key = {}, keys.get(SEARCH["env"])
@@ -362,7 +375,7 @@ def read_links(messages, keys, status=None):
     for url in urls:
         if url not in pages:
             pages[url] = page_text(url)
-    wish = LINK_RE.sub("", question["content"].split("\n\n(")[0])
+    wish = LINK_RE.sub("", wish)
     parts = [f"--- {url} ---\n{relevant_part(pages.get(url) or '', wish) or '(gick inte att läsa)'}" for url in urls]
     question["content"] += ("\n\n(Sidorna i instruktionen, hämtade nu – utgå från dem:)\n" + "\n\n".join(parts))
     return True
@@ -590,6 +603,23 @@ def wow_tools():
     return wowtools
 
 
+def sport_tools():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import sporttools  # noqa: PLC0415
+    return sporttools
+
+
+SPORT_PROMPT = """
+
+Sport: frågar användaren om ett lags ställning, tabell, senaste eller nästa match (NHL, NBA, NFL, MLB, WNBA,
+MLS och de stora fotbollsligorna inklusive Allsvenskan), svara med BARA ett kodblock märkt ```sport med lagets
+namn, t.ex.
+```sport
+Anaheim Ducks
+```
+Du får då exakta siffror från ESPN – använd dem i stället för att söka eller gissa, och räkna inte om placeringen."""
+
+
 def sys_tools():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import systools  # noqa: PLC0415
@@ -606,6 +636,7 @@ def tools_for(keys, project, messages):
             found = "\n\n".join(f"[{i}] {r['title']} – {r['url']}\n{r['content']}" for i, r in enumerate(results, 1))
             return found or "Inga träffar.", results
         tools["sök"] = ("Söker på nätet", SEARCH_PROMPT.format(limit=SEARCH_LIMIT), search)
+    tools["sport"] = ("Hämtar lagets ställning", SPORT_PROMPT, lambda q: (sport_tools().sport_info(q), []))
     tools["systemfel"] = ("Läser datorns fel", SYSTEM_ERRORS_PROMPT, lambda q: (sys_tools().system_errors(q), []))
     if list(Path.home().glob("Games/WoW/*/AddOns")):
         tools["wowfel"] = ("Läser WoW-felen", WOW_ERRORS_PROMPT, lambda q: (wow_tools().wow_errors(q), []))
@@ -627,6 +658,7 @@ def tools_for(keys, project, messages):
 
 TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel", "wow-fel": "wowfel",
               "bugsack": "wowfel", "warcraftlogs": "warcraftlogs", "wcl": "warcraftlogs",
+              "sport": "sport", "lag": "sport",
               "systemfel": "systemfel", "system-fel": "systemfel", "systemlogg": "systemfel"}
 
 
@@ -1281,8 +1313,8 @@ def save_memory(items):
 # wish): a named instruction asked by its own model in a new chat when its button above the input is pressed ──
 DAILY_FILE = MEMORY_FILE.parent / "dagligt.json"  # [{"name", "text", "model": choice id or ""}]
 DAILY_MAX = 10
-DAILY_PROMPT = ("\n\n(Det här är en sparad knapp som användaren tryckt på. Ge det senaste just nu – står det länkar "
-                "i instruktionen får du sidornas text nedan, utgå i första hand från dem; sök annars på nätet om du kan. "
+DAILY_PROMPT = ("\n\n(Det här är en sparad knapp som användaren tryckt på. Ge det senaste just nu – får du lagens fakta "
+                "från ESPN eller sidornas text nedan, utgå från dem (räkna inte om något); sök annars på nätet om du kan. "
                 "Kort och överskådligt, med datum.)")
 
 
