@@ -443,6 +443,31 @@ Regler för svaret (viktigt):
   förmågor som går att undvika, om cooldowns kom i tid, och jämför med de andra pullsen.
 Var konkret och vänlig – häng inte ut någon. Användarens karaktär står i datan."""
 
+SYSTEM_ERRORS_PROMPT = """
+
+Systemfel: frågar användaren om fel, krascher eller något som strular i datorn ("Steam kraschar",
+"programmet startar inte", "något är fel efter uppdateringen", "kolla om allt är ok"), svara med BARA
+ett kodblock märkt ```systemfel – tomt för en översikt, eller med ett programs namn för detaljer
+(alla krascher med tider, början av stacken, journalens rader om det). Du får då vad datorn själv har
+loggat: krascher, journalens fel, misslyckade tjänster, GOBLINCAKES-versionen och vad som ändrats nyligen.
+
+Så här hittar och lagar du felet:
+- Använd bara datan. Står det "känt:" vid ett program är det vad programmet ÄR – beskriv det med de orden,
+  aldrig på annat sätt, och säg rakt ut när något är ofarligt (många krascher och journalrader är det).
+  Ett ofarligt program är ingen orsak till något annat. Koppla inte ihop program som datan inte kopplar ihop.
+  Gissa aldrig vad ett okänt program är; be om detaljer eller fråga.
+- Börja svaret med det som faktiskt är fel (eller att inget allvarligt syns), sedan det som är ofarligt.
+- Leta orsaken i tid: vad uppdaterades eller ändrades strax före den första kraschen? Samma fel med olika
+  Proton-versioner pekar bort från Proton.
+- Behöver du veta mer: be om ett nytt ```systemfel med programmets namn, föreslå ett ofarligt
+  läskommando (```bash, t.ex. journalctl, systemctl status, ls, cat) eller fråga användaren vad som hände
+  (vad syntes, när, går det att göra om?). Du ser inget själv utöver det du får.
+- Lösning: ett steg i taget, det säkraste först, som ```bash-kort med en mening om vad det gör. Hellre
+  goblin-kommandon, GOBLINCAKES inställningar, flatpak, systemctl --user eller rpm-ostree än att ändra
+  filer i /etc. Aldrig ta bort användarens filer eller spelens filer. Kräver det sudo, säg varför.
+- Ska användaren göra något (starta om Steam, starta spelet, starta om datorn), säg det och vänta på svar.
+- Kolla efteråt med ```systemfel igen innan du säger att det är löst."""
+
 TOOL_LIMIT = 4  # tool uses per question
 
 
@@ -450,6 +475,12 @@ def wow_tools():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import wowtools  # noqa: PLC0415
     return wowtools
+
+
+def sys_tools():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import systools  # noqa: PLC0415
+    return systools
 
 
 def tools_for(keys, project, messages):
@@ -462,6 +493,7 @@ def tools_for(keys, project, messages):
             found = "\n\n".join(f"[{i}] {r['title']} – {r['url']}\n{r['content']}" for i, r in enumerate(results, 1))
             return found or "Inga träffar.", results
         tools["sök"] = ("Söker på nätet", SEARCH_PROMPT.format(limit=SEARCH_LIMIT), search)
+    tools["systemfel"] = ("Läser datorns fel", SYSTEM_ERRORS_PROMPT, lambda q: (sys_tools().system_errors(q), []))
     if list(Path.home().glob("Games/WoW/*/AddOns")):
         tools["wowfel"] = ("Läser WoW-felen", WOW_ERRORS_PROMPT, lambda q: (wow_tools().wow_errors(q), []))
     wcl = CONFIG / "wcl.json"
@@ -481,7 +513,8 @@ def tools_for(keys, project, messages):
 
 
 TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel", "wow-fel": "wowfel",
-              "bugsack": "wowfel", "warcraftlogs": "warcraftlogs", "wcl": "warcraftlogs"}
+              "bugsack": "wowfel", "warcraftlogs": "warcraftlogs", "wcl": "warcraftlogs",
+              "systemfel": "systemfel", "system-fel": "systemfel", "systemlogg": "systemfel"}
 
 
 def tool_request(text, tools):
