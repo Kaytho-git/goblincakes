@@ -391,6 +391,7 @@ def pick_models(provider, key, refresh=False):
 
 EXHAUSTED = set()  # services out of free questions: not asked again while the program runs
 BUSY = {}  # model -> when it was overloaded: tried last for 10 minutes
+ROTATE_ERRORS = r"överbelastad|fel 404|nås inte|slut på gratisfrågor"  # worth trying the next model
 
 
 SEARCH_PROMPT = """
@@ -617,8 +618,23 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
         if notice:
             notice("Projektet får bara använda lokal AI – den valda modellen används inte här")
         chosen = None
+    fallback = None
     if chosen:
-        return ask_chosen(*chosen, messages, keys, status)
+        try:
+            return ask_chosen(*chosen, messages, keys, status)
+        except ServiceError as e:
+            # The picked model is overloaded (or out of free questions, or doesn't answer – 20 Oct, the
+            # user's wish): its service's other models, then the other services, the local AI last.
+            # Pictures still go nowhere else.
+            provider, model = chosen
+            if provider.get("local") or has_images(messages) or not re.search(ROTATE_ERRORS, str(e)):
+                raise
+            BUSY[model] = time.time()
+            if notice:
+                notice(f"{provider['name']} · {MODEL_NAMES.get(model, model)} svarar inte – provar nästa")
+            fallback = [provider] + [p for p in PROVIDERS if p is not provider and keys.get(p["env"])]
+            if LOCAL in providers_in_order(keys, (project or {}).get("order")):  # not with "Bara molnet"
+                fallback.append(LOCAL)
     if has_images(messages):
         # Automatic never sends a picture of the screen (or a photo) to the cloud: only the local AI
         if not local_settings()["installed"]:
@@ -631,7 +647,7 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
                                "vill du skicka bilden till molnet: välj en modell vid Skicka.") from None
         return ask_chosen(LOCAL, models[0], messages, keys, status)
     errors = []
-    for provider in providers_in_order(keys, (project or {}).get("order")):
+    for provider in fallback or providers_in_order(keys, (project or {}).get("order")):
         key = keys.get(provider["env"]) if provider["env"] else ""
         if (not key and not provider.get("local")) or provider["id"] in EXHAUSTED:
             continue
@@ -640,6 +656,8 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
             for attempt in range(2):
                 models = local_models(messages, project) if provider.get("local") else pick_models(provider, key, refresh=attempt > 0)
                 models = sorted(models, key=lambda m: time.time() - BUSY.get(m, 0) < 600)
+                if fallback and provider is fallback[0]:
+                    models = [m for m in models if m != chosen[1]] or models  # the picked one was just asked
                 activity("ask", "tänker · " + ("din dator" if provider.get("local") else provider["name"]), provider.get("local"))
                 if status:
                     status(f"Frågar {provider['name']}…")
@@ -650,7 +668,8 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
                             break
                         except ServiceError as e:
                                 # Overloaded, or listed but closed to new users: the next model
-                            if re.search(r"överbelastad|fel 404", str(e)) and i + 1 < len(models):
+                            # (Gemini's free questions are counted per model: 429 = the next model too)
+                            if re.search(ROTATE_ERRORS, str(e)) and "nås inte" not in str(e) and i + 1 < len(models):
                                 BUSY[model] = time.time()
                                 if status:
                                     status(f"{model} svarar inte – provar {models[i + 1]}…")
