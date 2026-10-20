@@ -250,6 +250,14 @@ Window {
     }
 
     FileDialog {
+        id: avatarDialog
+        title: "Välj en bild som avatar"
+        onVisibleChanged: backend.sharpText()
+        nameFilters: ["Bilder (*.png *.jpg *.jpeg *.webp *.gif *.bmp)"]
+        onAccepted: backend.setAvatar(selectedFile.toString())
+    }
+
+    FileDialog {
         id: saveImageDialog
         title: "Spara bilden som"
         onVisibleChanged: backend.sharpText()
@@ -1127,6 +1135,35 @@ Window {
                         width: msgItem.maxWidth
                         spacing: 14
 
+                        // The AI's avatar and name (20 Oct) – only when it has an avatar
+                        Row {
+                            visible: backend.avatar !== ""
+                            spacing: 10
+                            Rectangle {
+                                width: 34
+                                height: 34
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: "#1E2A40"
+                                Image {
+                                    anchors { fill: parent; margins: 1 }
+                                    source: backend.avatar
+                                    sourceSize: Qt.size(68, 68)
+                                    fillMode: Image.PreserveAspectCrop
+                                    cache: false
+                                    asynchronous: true
+                                }
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: backend.aiName || "Goblin AI"
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 14
+                            }
+                        }
+
                         Repeater {
                             model: msgItem.m.role === "assistant" ? msgItem.m.segments : []
 
@@ -1275,6 +1312,7 @@ Window {
                                                 }
                                                 FlatButton { small: true; text: "Kopiera bilden"; onClicked: backend.copyImage(segItem.s.path) }
                                                 FlatButton { visible: !segItem.s.report; small: true; text: "Gör en till"; onClicked: backend.anotherImage(msgItem.index, segItem.index) }
+                                                FlatButton { visible: !segItem.s.report; small: true; text: "Använd som avatar"; onClicked: backend.setAvatar(segItem.s.path) }
                                             }
                                             Text {
                                                 visible: segItem.s.state === "error"
@@ -2746,7 +2784,7 @@ Window {
                             width: parent.width
                             wrapMode: Text.WordWrap
                             text: backend.aiName
-                                  ? "Din AI heter " + backend.aiName + " – i alla chattar och i snabbrutan (Meta+§), både lokalt och i molnet."
+                                  ? "Din AI heter " + backend.aiName + (backend.aiGender ? " (" + backend.aiGender + ")" : "") + " – i alla chattar och i snabbrutan (Meta+§), både lokalt och i molnet."
                                   : "Ge din AI ett eget namn, så kallar den sig det i alla chattar – t.ex. Kakan."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
@@ -2792,6 +2830,141 @@ Window {
                                 small: true
                                 text: "Heta Goblin AI igen"
                                 onClicked: backend.setAiName("")
+                            }
+                        }
+                        // Gender (20 Oct, the user's wish – cosmetic: how the AI speaks of and draws itself)
+                        Row {
+                            spacing: 10
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 60
+                                text: "Är en"
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Repeater {
+                                model: [["hon", "Hon"], ["han", "Han"], ["hen", "Hen"], ["", "Inget valt"]]
+                                FlatButton {
+                                    required property var modelData
+                                    small: true
+                                    primary: backend.aiGender === modelData[0]
+                                    text: modelData[1]
+                                    onClicked: backend.setAiGender(modelData[0])
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── The AI's avatar (20 Oct): own picture or one it draws ──
+                Rectangle {
+                    width: settingsCol.width
+                    height: avatarCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+
+                    Column {
+                        id: avatarCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 12
+                        Text {
+                            text: "Avatar"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Row {
+                            width: parent.width
+                            spacing: 16
+                            Rectangle {
+                                width: 72
+                                height: 72
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: "#1E2A40"
+                                Image {
+                                    visible: backend.avatar !== ""
+                                    anchors { fill: parent; margins: 1 }
+                                    source: backend.avatar
+                                    sourceSize: Qt.size(140, 140)
+                                    fillMode: Image.PreserveAspectCrop
+                                    cache: false
+                                }
+                                Text {
+                                    visible: backend.avatar === ""
+                                    anchors.centerIn: parent
+                                    text: "?"
+                                    color: "#5C6880"
+                                    font.family: "Chakra Petch"
+                                    font.pixelSize: 28
+                                }
+                            }
+                            Text {
+                                width: parent.width - 88
+                                anchors.verticalCenter: parent.verticalCenter
+                                wrapMode: Text.WordWrap
+                                text: (backend.avatar
+                                       ? "Visas vid varje svar från " + (backend.aiName || "Goblin AI") + ". "
+                                       : "Ge " + (backend.aiName || "Goblin AI") + " en bild som visas vid varje svar. ")
+                                      + "Välj en egen bild, eller beskriv hur avataren ska se ut så ritar "
+                                      + (backend.aiName || "Goblin AI") + " den – tryck sedan \"Använd som avatar\" under bilden."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                        }
+                        Row {
+                            spacing: 10
+                            Rectangle {
+                                width: 320
+                                height: 30
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: avatarInput.activeFocus ? accent.color : "#1E2A40"
+                                TextInput {
+                                    id: avatarInput
+                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    clip: true
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                    onAccepted: avatarDraw.clicked()
+                                    Text {
+                                        visible: avatarInput.text === ""
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "T.ex. en goblin som bakar cupcakes"
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                            }
+                            FlatButton {
+                                id: avatarDraw
+                                small: true
+                                primary: true
+                                text: "Rita den"
+                                enabledState: avatarInput.text.trim() !== "" && !backend.busy
+                                onClicked: {
+                                    if (!enabledState)
+                                        return;
+                                    backend.askNew("Rita en avatar åt dig själv: " + avatarInput.text.trim());
+                                    avatarInput.text = "";
+                                    win.view = "chat";
+                                }
+                            }
+                            FlatButton { small: true; text: "Välj bild…"; onClicked: avatarDialog.open() }
+                            FlatButton {
+                                visible: backend.avatar !== ""
+                                small: true
+                                text: "Ta bort"
+                                onClicked: backend.removeAvatar()
                             }
                         }
                     }

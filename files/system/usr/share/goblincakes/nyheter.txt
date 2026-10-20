@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-20  Goblin AI kan få en avatar som visas vid varje svar – välj en egen bild eller be AI:n rita en (AI-tjänster → Avatar, eller "Använd som avatar" under en bild). Vid namnet kan du också välja hon, han eller hen.
 2026-10-19  goblin frames varnar inte längre för swap i onödan – bara när arbetsminnet faktiskt nästan tagit slut.
 2026-10-19  GoblinRecorder har en ikon i systemfältet: röd prick när den spelar in, håll musen över för att se vad den gör. När du stänger fönstret får du välja om det ska gömmas i systemfältet eller stängas (går att ändra i Inställningar).
 2026-10-18  Spelmätningen (goblin frames) och MangoHud fungerar nu även när Steam startar av sig själv vid inloggningen

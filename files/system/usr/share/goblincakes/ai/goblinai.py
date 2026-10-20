@@ -1055,6 +1055,27 @@ def set_ai_name(name):
     return ai_name()
 
 
+GENDER_FILE = CONFIG / "ai-gender"  # chosen with the name (20 Oct, cosmetic): hon, han, hen or nothing
+GENDERS = {"hon": "hon/henne", "han": "han/honom", "hen": "hen/hen"}
+
+
+def ai_gender():
+    try:
+        gender = GENDER_FILE.read_text().strip()
+    except OSError:
+        return ""
+    return gender if gender in GENDERS else ""
+
+
+def set_ai_gender(gender):
+    CONFIG.mkdir(parents=True, exist_ok=True)
+    if gender in GENDERS:
+        GENDER_FILE.write_text(gender + "\n")
+    else:
+        GENDER_FILE.unlink(missing_ok=True)
+    return ai_gender()
+
+
 # ── The memory (16 Oct): things the AI always knows, in every chat ──────────────────────
 MEMORY_FILE = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes/ai/minne.json"
 MEMORY_MAX = 60       # things
@@ -1139,6 +1160,10 @@ def system_prompt():
         text = text.replace("Du är Goblin AI, hjälparen i GOBLINCAKES",
                             f"Du heter {name} – användaren har döpt dig till det, så kalla dig {name} och svara "
                             f"när du blir tilltalad så. Du är hjälparen (Goblin AI) i GOBLINCAKES", 1)
+    gender = ai_gender()
+    if gender:
+        text += (f"\n\nAnvändaren har valt att du är en {gender} ({GENDERS[gender]}): när någon pratar om dig, "
+                 f"eller du beskriver eller ritar dig själv (t.ex. en avatar), utgå från det. Ta inte upp det i onödan.")
     text += REPORT_PROMPT
     if images_possible(load_keys()):
         text += IMAGE_PROMPT
@@ -1334,7 +1359,10 @@ A small green goblin baking blue cupcakes in a cozy cave, warm candle light, det
 Bilden skapas automatiskt av Goblin AI och visas under svaret – skriv aldrig att du inte kan skapa bilder.
 ```bild är bara för bilder med motiv. Sammanställningar, rapporter, analyser, tabeller och listor "som bild/png"
 görs ALDRIG med ```bild (bildmodellen kan inte skriva exakt text eller siffror) – använd ```rapport.
-Ska bilden ändras: skriv en ny, hel beskrivning (den förra bilden följer inte med). Ett block per bild."""
+Ska bilden ändras: skriv en ny, hel beskrivning (den förra bilden följer inte med). Ett block per bild.
+Vill användaren att du får en avatar/profilbild (en bild av dig själv): rita den med ```bild, Format: 1:1, ett tydligt
+porträtt eller en figur mitt i bilden mot en enkel bakgrund (den visas liten och beskärs till en fyrkant). Säg sedan
+att knappen "Använd som avatar" under bilden gör den till din avatar, och att "Gör en till" ger ett nytt förslag."""
 
 
 def image_request(code):

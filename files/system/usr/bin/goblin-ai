@@ -36,6 +36,8 @@ DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "go
 SOCKET_NAME = f"goblin-ai-{os.getuid()}"
 KEEP_CONVERSATIONS = 50
 PICTURES = DATA / "bilder"  # pictures in chats: screenshots and attached pictures (smaller copies)
+AVATAR = DATA / "avatar.png"  # the AI's avatar (AI-tjänster → Avatar, or "Använd som avatar" on a drawn picture)
+AVATAR_SIDE = 256
 PICTURE_SIDE = 1600  # longest side sent to the AI – enough to read text, fewer tokens for local models
 
 
@@ -708,6 +710,52 @@ class Backend(QObject):
     def setAiName(self, name):
         goblinai.set_ai_name(name)
         self.nameChanged.emit()
+
+    @Property(str, notify=nameChanged)
+    def aiGender(self):
+        return goblinai.ai_gender()
+
+    @Slot(str)
+    def setAiGender(self, gender):
+        goblinai.set_ai_gender(gender)
+        self.nameChanged.emit()
+
+    # ── The AI's avatar (20 Oct): a picture of its own, shown at every answer ──
+
+    avatarChanged = Signal()
+
+    @Property(str, notify=avatarChanged)
+    def avatar(self):
+        """file:// URL of the avatar (with its time, so a new one is not taken from Qt's cache), or ""."""
+        try:
+            return QUrl.fromLocalFile(str(AVATAR)).toString() + f"?v={AVATAR.stat().st_mtime_ns}"
+        except OSError:
+            return ""
+
+    @Slot(str)
+    def setAvatar(self, source):
+        """A picture (path or file:// URL – chosen or drawn in a chat) becomes the avatar: the middle
+        square, AVATAR_SIDE px, PNG."""
+        path = QUrl(source).toLocalFile() if source.startswith("file:") else source
+        image = QImage(path)
+        if image.isNull():
+            self.notice.emit("Bilden går inte att läsa.")
+            return
+        side = min(image.width(), image.height())
+        image = image.copy((image.width() - side) // 2, (image.height() - side) // 2, side, side)
+        if side > AVATAR_SIDE:
+            image = image.scaled(AVATAR_SIDE, AVATAR_SIDE, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        DATA.mkdir(parents=True, exist_ok=True)
+        if not image.save(str(AVATAR), "PNG"):
+            self.notice.emit("Avataren gick inte att spara.")
+            return
+        self.avatarChanged.emit()
+        self.notice.emit(f"{goblinai.ai_name() or 'Goblin AI'} har fått en ny avatar.")
+
+    @Slot()
+    def removeAvatar(self):
+        AVATAR.unlink(missing_ok=True)
+        self.avatarChanged.emit()
 
     # ── Services and keys ─────────────────────────────────────
 
