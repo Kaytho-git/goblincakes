@@ -1047,7 +1047,8 @@ Window {
                     readonly property real maxWidth: Math.min(860, messagesView.width)
 
                     width: messagesView.width
-                    height: m.role === "user" ? userBox.height : m.role === "error" ? errorText.height : answer.height
+                    height: m.role === "user" ? userBox.height : m.role === "error" ? errorText.height
+                            : Math.max(answer.height, avatarBox.visible ? avatarBox.height : 0)
 
                     // The user's question: box to the right
                     Rectangle {
@@ -1128,41 +1129,46 @@ Window {
                         font.pixelSize: 14
                     }
 
+                    // The AI's avatar with its name under it, left of the answer (20 Oct) – only when it has one
+                    Column {
+                        id: avatarBox
+                        visible: msgItem.m.role === "assistant" && backend.avatar !== ""
+                        width: 64
+                        spacing: 6
+                        Rectangle {
+                            width: 64
+                            height: 64
+                            color: "#07090D"
+                            border.width: 1
+                            border.color: "#1E2A40"
+                            Image {
+                                anchors { fill: parent; margins: 1 }
+                                source: backend.avatar
+                                sourceSize: Qt.size(128, 128)
+                                fillMode: Image.PreserveAspectCrop
+                                cache: false
+                                asynchronous: true
+                            }
+                        }
+                        Text {
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
+                            text: backend.aiName || "Goblin AI"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 12
+                        }
+                    }
+
                     // The answer: text, command cards, new file versions, code
                     Column {
                         id: answer
                         visible: msgItem.m.role === "assistant"
-                        width: msgItem.maxWidth
+                        x: avatarBox.visible ? 80 : 0
+                        width: msgItem.maxWidth - x
                         spacing: 14
-
-                        // The AI's avatar and name (20 Oct) – only when it has an avatar
-                        Row {
-                            visible: backend.avatar !== ""
-                            spacing: 10
-                            Rectangle {
-                                width: 34
-                                height: 34
-                                color: "#07090D"
-                                border.width: 1
-                                border.color: "#1E2A40"
-                                Image {
-                                    anchors { fill: parent; margins: 1 }
-                                    source: backend.avatar
-                                    sourceSize: Qt.size(68, 68)
-                                    fillMode: Image.PreserveAspectCrop
-                                    cache: false
-                                    asynchronous: true
-                                }
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: backend.aiName || "Goblin AI"
-                                color: "#E6ECF5"
-                                font.family: "IBM Plex Sans"
-                                font.weight: Font.DemiBold
-                                font.pixelSize: 14
-                            }
-                        }
 
                         Repeater {
                             model: msgItem.m.role === "assistant" ? msgItem.m.segments : []
