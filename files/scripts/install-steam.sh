@@ -8,7 +8,11 @@ fedora=$(rpm -E %fedora)
 added=()
 for repo in free nonfree; do
     if ! rpm -q "rpmfusion-$repo-release" >/dev/null 2>&1; then
-        dnf5 -y install "https://mirrors.rpmfusion.org/$repo/fedora/rpmfusion-$repo-release-$fedora.noarch.rpm"
+        # mirrors.rpmfusion.org redirects to a random mirror, which may be dead (20 Oct:
+        # repos.eggycrew.com no longer resolved) – the main server first, then the redirector
+        rpm_file="rpmfusion-$repo-release-$fedora.noarch.rpm"
+        dnf5 -y install "https://download1.rpmfusion.org/$repo/fedora/$rpm_file" \
+            || dnf5 -y install "https://mirrors.rpmfusion.org/$repo/fedora/$rpm_file"
         added+=("rpmfusion-$repo-release")
     fi
 done
