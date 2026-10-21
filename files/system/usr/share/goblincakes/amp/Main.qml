@@ -129,6 +129,7 @@ Window {
         property string glyph: ""
         property string label: ""
         property bool active: false
+        readonly property bool hovered: btnArea.containsMouse
         signal clicked()
         width: label ? labelText.implicitWidth + 14 : 30
         height: 20
@@ -635,6 +636,7 @@ Window {
             }
         }
         Btn {   // the album Spotify plays now, opened in the SPOTIFY/GENRER tab
+            id: albumBtn
             visible: win.pl.signedIn
             anchors.right: parent.right
             anchors.rightMargin: 6
@@ -1644,6 +1646,45 @@ Window {
                     plPanel.footMenu(p.x - 190, p.y - 170);
                 }
             }
+        }
+    }
+
+    // ♪ ALBUMET's hover: which album plays, when another view is open (over the playlist)
+    Rectangle {
+        id: albumTip
+        readonly property var entry: win.pl.list || null
+        readonly property bool open: !!entry && !!entry.album && !!win.st.album
+                                     && (entry.name === win.st.album || entry.name.endsWith(" – " + win.st.album))
+        visible: albumBtn.visible && albumBtn.hovered && plFrame.visible && !!win.st.album && !win.st.local && !open
+        z: 20
+        x: Math.max(6, plFrame.x + plFrame.width - 6 - width)
+        y: plFrame.y + 29
+        width: Math.min(Math.max(tipAlbum.implicitWidth, tipArtist.implicitWidth) + 16, win.width - 12)
+        height: (tipArtist.visible ? 36 : 22)
+        color: "#0B1018"
+        border.width: 1
+        border.color: accent.color
+        Text {
+            id: tipAlbum
+            x: 8; y: 4
+            width: albumTip.width - 16
+            text: win.st.album || ""
+            color: "#E6ECF5"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 12
+            font.weight: Font.Medium
+            elide: Text.ElideRight
+        }
+        Text {
+            id: tipArtist
+            x: 8; y: 19
+            width: albumTip.width - 16
+            text: win.st.artist || ""
+            visible: text !== ""
+            color: "#8B98AD"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 11
+            elide: Text.ElideRight
         }
     }
 
