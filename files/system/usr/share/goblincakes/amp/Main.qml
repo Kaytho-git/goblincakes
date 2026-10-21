@@ -9,7 +9,12 @@ Window {
     title: "GoblinAmp"
     flags: Qt.Window | Qt.FramelessWindowHint
     width: 380
-    height: shade ? 22 : 152
+    height: shade ? 22 : 152 + (pl.open ? plHeight : 0)
+    readonly property int plHeight: 300
+    readonly property var pl: JSON.parse(amp.pl || "{}")
+    // The playing track's Spotify address (MPRIS: /com/spotify/track/<id>)
+    readonly property string playingUri: (st.trackid || "").indexOf("/com/spotify/track/") === 0
+        ? "spotify:track:" + st.trackid.split("/").pop() : ""
     minimumWidth: 380
     maximumWidth: 380
     minimumHeight: height
@@ -454,7 +459,309 @@ Window {
                 active: win.st.loop === "Playlist" || win.st.loop === "Track"
                 onClicked: amp.cycleLoop()
             }
-            Btn { label: "PL"; onClicked: amp.playlists() }
+            Btn { label: "PL"; active: win.pl.open; onClicked: amp.togglePlaylist() }
+        }
+    }
+
+    // ── The playlist (PL): Spotify's lists, liked songs and the queue (Winamp's PL window) ──
+
+    component FastWheel: WheelHandler {
+        required property Flickable flick
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: event => {
+            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 2;
+            event.accepted = true;
+            const top = flick.originY, bottom = top + Math.max(0, flick.contentHeight - flick.height);
+            flick.cancelFlick();
+            flick.contentY = Math.max(top, Math.min(bottom, flick.contentY - delta));
+        }
+    }
+
+    component SmallLink: Text {
+        signal clicked()
+        color: linkArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+        font.family: "IBM Plex Sans"
+        font.pixelSize: 11
+        MouseArea {
+            id: linkArea
+            anchors.fill: parent
+            anchors.margins: -3
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: parent.clicked()
+        }
+    }
+
+    function clockLong(seconds) {
+        const h = Math.floor(seconds / 3600);
+        return h > 0 ? h + ":" + win.clock(seconds % 3600) : win.clock(seconds);
+    }
+
+    Item {
+        id: plPanel
+        visible: !win.shade && win.pl.open
+        x: 1
+        y: 152
+        width: parent.width - 2
+        height: win.plHeight - 1
+        readonly property var entry: win.pl.list || null
+        readonly property string filter: plFilter.text.toLowerCase()
+        // the rows shown: lists or tracks, filtered; each keeps its index in the full list
+        readonly property var shown: {
+            const all = entry ? (win.pl.rows || []) : (win.pl.lists || []);
+            const out = [];
+            for (let i = 0; i < all.length; i++) {
+                const r = all[i];
+                const text = (entry ? (r.artist + " " + r.title) : r.name).toLowerCase();
+                if (!filter || text.indexOf(filter) >= 0)
+                    out.push({ row: r, index: i });
+            }
+            return out;
+        }
+
+        Rectangle { anchors.fill: parent; color: "#0B1018" }
+        Rectangle { width: parent.width; height: 1; color: "#1E2A40" }
+
+        // The header: SPELLISTA / ◀ the list's name
+        Item {
+            id: plHead
+            x: 8; y: 6
+            width: parent.width - 16
+            height: 16
+            Text {
+                id: plTitle
+                visible: !plPanel.entry
+                text: "SPELLISTA" + (win.pl.name ? "  ·  " + win.pl.name : "")
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.weight: Font.Bold
+                font.pixelSize: 10
+                font.letterSpacing: 1.5
+            }
+            SmallLink {
+                visible: !!plPanel.entry
+                width: Math.min(implicitWidth, parent.width - 130)
+                elide: Text.ElideRight
+                text: "◀  " + (plPanel.entry ? plPanel.entry.name : "")
+                color: accent.text
+                font.weight: Font.DemiBold
+                onClicked: { plFilter.text = ""; amp.backToLists(); }
+            }
+            SmallLink {
+                visible: !!plPanel.entry && plPanel.entry.id !== "queue"
+                anchors { right: refresh.left; rightMargin: 12 }
+                text: "▶ Spela listan"
+                onClicked: amp.playList(plPanel.entry.id)
+            }
+            SmallLink {
+                id: refresh
+                visible: win.pl.signedIn
+                anchors.right: parent.right
+                text: "↻"
+                font.pixelSize: 13
+                onClicked: plPanel.entry ? amp.openList(plPanel.entry.id) : amp.refreshLists()
+            }
+        }
+
+        // ── Not signed in: how to set it up (once) ──
+        Column {
+            visible: !win.pl.signedIn
+            x: 10; y: 30
+            width: parent.width - 20
+            spacing: 7
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "Spellistan hämtar dina listor från Spotify med en egen, gratis Spotify-app (görs en gång, kräver Premium):"
+                color: "#B8C2D3"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 11
+            }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "1. Öppna Spotifys utvecklarsida, logga in och välj Create app (namn t.ex. GoblinAmp).\n"
+                      + "2. Redirect URI: " + win.pl.redirect + " – kryssa i Web API och spara.\n"
+                      + "3. Kopiera appens Client ID hit och logga in."
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 11
+                lineHeight: 1.2
+            }
+            Row {
+                spacing: 6
+                Btn { label: "UTVECKLARSIDAN"; onClicked: amp.openDashboard() }
+                Btn { label: "KOPIERA REDIRECT URI"; onClicked: amp.copyText(win.pl.redirect) }
+            }
+            Row {
+                spacing: 6
+                Rectangle {
+                    width: 230
+                    height: 22
+                    color: "#07090D"
+                    border.width: 1
+                    border.color: clientInput.activeFocus ? accent.color : "#1E2A40"
+                    TextInput {
+                        id: clientInput
+                        anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
+                        verticalAlignment: TextInput.AlignVCenter
+                        clip: true
+                        text: win.pl.clientId || ""
+                        color: "#E6ECF5"
+                        selectionColor: accent.color
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 11
+                        onAccepted: amp.signIn(text)
+                        Text {
+                            visible: clientInput.text === ""
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Client ID"
+                            color: "#5C6880"
+                            font: clientInput.font
+                        }
+                    }
+                }
+                Btn { label: "LOGGA IN"; active: true; onClicked: amp.signIn(clientInput.text) }
+            }
+        }
+
+        // ── Signed in: the lists, or a list's tracks ──
+        ListView {
+            id: plView
+            visible: win.pl.signedIn
+            x: 4
+            y: 26
+            width: parent.width - 8
+            height: parent.height - 26 - 30
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            model: plPanel.shown
+            FastWheel { flick: plView }
+            delegate: Rectangle {
+                id: rowItem
+                required property var modelData
+                required property int index
+                readonly property var r: modelData.row
+                readonly property bool isTrack: !!plPanel.entry
+                readonly property bool current: isTrack && r.uri === win.playingUri && r.uri !== ""
+                width: plView.width
+                height: 18
+                color: rowArea.containsMouse ? "#16203A" : current ? "#12203A" : "transparent"
+                Text {
+                    x: 4
+                    width: parent.width - 60
+                    anchors.verticalCenter: parent.verticalCenter
+                    elide: Text.ElideRight
+                    text: rowItem.isTrack
+                          ? (rowItem.modelData.index + 1) + ". " + (rowItem.r.artist ? rowItem.r.artist + " – " : "") + rowItem.r.title
+                          : (rowItem.r.special ? "♪ " : "") + rowItem.r.name
+                            + (!rowItem.r.special && !rowItem.r.mine && rowItem.r.owner ? "  · " + rowItem.r.owner : "")
+                    color: rowItem.current ? accent.text : rowItem.r.local ? "#5C6880" : "#C8D1DE"
+                    font.family: "IBM Plex Sans"
+                    font.weight: rowItem.current ? Font.DemiBold : Font.Normal
+                    font.pixelSize: 11
+                }
+                Text {
+                    anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                    text: rowItem.isTrack ? win.clock(rowItem.r.seconds) : (rowItem.r.count !== undefined ? rowItem.r.count : "")
+                    color: rowItem.current ? accent.text : "#5C6880"
+                    font.family: "IBM Plex Mono"
+                    font.pixelSize: 10
+                }
+                MouseArea {
+                    id: rowArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: if (!rowItem.isTrack) { plFilter.text = ""; amp.openList(rowItem.r.id); }
+                    onDoubleClicked: rowItem.isTrack ? amp.playRow(rowItem.modelData.index) : amp.playList(rowItem.r.id)
+                }
+            }
+            Text {
+                anchors.centerIn: parent
+                width: parent.width - 30
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                visible: plView.count === 0 && !win.pl.busy && !win.pl.message
+                text: plFilter.text ? "Inget som matchar" : plPanel.entry ? "Listan är tom" : "Inga listor än – tryck ↻"
+                color: "#5C6880"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 11
+            }
+        }
+
+        // What is happening, or what went wrong
+        Rectangle {
+            visible: !!win.pl.busy || !!win.pl.message
+            anchors { left: parent.left; right: parent.right; bottom: plFoot.top; margins: 6 }
+            height: busyText.implicitHeight + 10
+            color: win.pl.message ? "#2A1418" : "#12203A"
+            border.width: 1
+            border.color: win.pl.message ? accent.error : accent.dim
+            Text {
+                id: busyText
+                anchors { fill: parent; margins: 5 }
+                wrapMode: Text.WordWrap
+                text: win.pl.busy || win.pl.message || ""
+                color: "#E6ECF5"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 11
+            }
+        }
+
+        // The foot: filter, count and length, the web app, sign out
+        Item {
+            id: plFoot
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 6 }
+            height: 20
+            visible: win.pl.signedIn
+            Rectangle {
+                id: filterBox
+                width: 130
+                height: 20
+                color: "#07090D"
+                border.width: 1
+                border.color: plFilter.activeFocus ? accent.color : "#1E2A40"
+                TextInput {
+                    id: plFilter
+                    anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
+                    verticalAlignment: TextInput.AlignVCenter
+                    clip: true
+                    color: "#E6ECF5"
+                    selectionColor: accent.color
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 11
+                    Keys.onEscapePressed: text = ""
+                    Text {
+                        visible: plFilter.text === ""
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Sök i listan…"
+                        color: "#5C6880"
+                        font: plFilter.font
+                    }
+                }
+            }
+            Text {
+                anchors { left: filterBox.right; leftMargin: 8; verticalCenter: parent.verticalCenter }
+                text: {
+                    if (!plPanel.entry)
+                        return (win.pl.lists || []).length ? Math.max(0, win.pl.lists.length - 2) + " listor" : "";
+                    const rows = win.pl.rows || [];
+                    let sum = 0;
+                    for (let i = 0; i < rows.length; i++)
+                        sum += rows[i].seconds;
+                    return rows.length + " låtar · " + win.clockLong(sum);
+                }
+                color: "#5C6880"
+                font.family: "IBM Plex Mono"
+                font.pixelSize: 10
+            }
+            Row {
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                spacing: 10
+                SmallLink { text: "Spotify-fönstret"; onClicked: amp.playlists() }
+                SmallLink { text: "Logga ut"; onClicked: amp.signOut() }
+            }
         }
     }
 }

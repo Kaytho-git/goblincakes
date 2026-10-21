@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-21  GoblinAmp har fått en spellista som i Winamp: tryck PL så visas dina Spotify-listor, Gillade låtar och kön under spelaren – dubbelklicka på en låt för att spela den. Första gången skapar du en gratis Spotify-app och loggar in (stegen står i fönstret).
 2026-10-21  GoblinAmp: en liten spelare i Winamps anda som styr Spotify – stor tid, rullande titel, staplar till musiken, play/paus/nästa, sökfält, volym, blanda och upprepa. PL öppnar spellistorna. Finns i AppGrid och som goblin amp.
 2026-10-21  Nytt i Config → Program → Media: Spotify (GOBLINCAKES) – Spotify i GOBLINCAKES-stil och din färg, bara spellistor, sök och uppspelning. Ljudet kommer från Spotify-appen som ligger gömd i systemfältet, så kvaliteten blir som vanligt. Välj datorn under "Anslut till en enhet" första gången.
 2026-10-21  Under varje svar i Goblin AI finns nu Gör kortare, Mer formell, Rätta stavningen och Översätt till engelska. Spara som… sparar svaret som PDF, Word, LibreOffice-dokument eller text, och Kopiera svaret behåller rubriker och fetstil när du klistrar in i Word eller mejl.

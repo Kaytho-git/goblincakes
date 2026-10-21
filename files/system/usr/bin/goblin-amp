@@ -7,6 +7,11 @@ a seek bar, volume, ⏮ ▶ ❚❚ ■ ⏭, shuffle and repeat. "PL" opens the p
 (GOBLINCAKES) when it is installed, else the player itself. A double-click on the title bar
 rolls the window up to one line (Winamp's windowshade).
 
+The playlist (PL, Winamp's PL window – under the player in the same window): Spotify's lists,
+liked songs and the queue through Spotify's Web API with the user's own app (spotifyweb.py,
+sign-in once with a Client ID); a double-click plays a track from there in its list on the
+Spotify app (started if it isn't running). Without sign-in PL shows how to set it up.
+
   goblin amp          start (or bring the open one forward)
 
 Where the window was moved to is kept by KWin's goblincakes-windows script (kwinrc
@@ -26,7 +31,7 @@ from pathlib import Path
 
 from PySide6.QtCore import ClassInfo, Property, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtDBus import QDBusConnection, QDBusInterface
-from PySide6.QtGui import QGuiApplication, QIcon
+from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
 
@@ -40,6 +45,9 @@ POLL = 1.0           # seconds between looks at the player (the time counts on b
 MPRIS = "/org/mpris/MediaPlayer2"
 PLAYER = "org.mpris.MediaPlayer2.Player"
 SPOTIFY_WEB = Path.home() / ".local/share/applications/goblincakes-webapp-spotify-web.desktop"
+SETTINGS = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes/amp.json"
+sys.path.insert(0, str(SHARE))
+import spotifyweb as SW  # noqa: E402
 
 
 def load_graph():
@@ -154,14 +162,36 @@ class PlaceBus(QObject):
         QDBusInterface("org.kde.KWin", "/KWin", "org.kde.KWin").call("reconfigure")
 
 
+def start_spotify_app():
+    """The Spotify app for the sound, hidden like goblincakes-spotify-web does it."""
+    helper = Path("/usr/libexec/goblincakes-spotify-web")
+    if helper.exists():
+        subprocess.run([str(helper), "app"], capture_output=True, timeout=10)
+    else:
+        subprocess.Popen(["flatpak", "run", "com.spotify.Client"], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 class Amp(QObject):
     stateRead = Signal(str)
     stateChanged = Signal()
     levelsChanged = Signal()
     raiseWindow = Signal()
+    plChanged = Signal()
+    _plDone = Signal(str)   # a playlist job finished in its thread: the new state as JSON
 
     def __init__(self):
         super().__init__()
+        try:
+            self.settings = json.loads(SETTINGS.read_text())
+        except (OSError, ValueError):
+            self.settings = {}
+        self.library = SW.Library()
+        account = SW.load()
+        self._pl = {"open": bool(self.settings.get("playlist")), "clientId": account.get("clientId", ""),
+                    "signedIn": bool(account.get("refreshToken")), "name": account.get("name", ""),
+                    "busy": "", "message": "", "lists": [], "list": None, "rows": [], "redirect": SW.REDIRECT}
+        self._plDone.connect(self._pl_done)
         self._state = "{}"
         self._levels = [0.0] * BARS
         self.spec = G.Spectrum()
@@ -174,6 +204,8 @@ class Amp(QObject):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.tick)
         self.timer.start(33)
+        if self._pl["open"] and self._pl["signedIn"]:
+            QTimer.singleShot(0, self.refreshLists)
 
     def _read(self, state):
         if state != self._state:
@@ -256,6 +288,114 @@ class Amp(QObject):
         if state.get("loop") in order:
             self._call("set-property", PLAYER, "LoopStatus", "s",
                        order[(order.index(state["loop"]) + 1) % len(order)])
+
+    # ── The playlist (PL) ──
+
+    @Property(str, notify=plChanged)
+    def pl(self):
+        return json.dumps(self._pl, ensure_ascii=False)
+
+    def _pl_update(self, **changes):
+        self._pl.update(changes)
+        self.plChanged.emit()
+
+    def _pl_done(self, changes):
+        self._pl_update(**json.loads(changes))
+
+    def _pl_job(self, busy, work):
+        """work() → dict of changes, in a thread; a SpotifyError becomes the message."""
+        if self._pl["busy"]:
+            return
+        self._pl_update(busy=busy, message="")
+
+        def run():
+            try:
+                changes = work() or {}
+            except SW.SpotifyError as e:
+                changes = {"message": str(e).split(":", 1)[1] if str(e)[:4] in ("403:", "404:") else str(e)}
+            except Exception as e:  # noqa: BLE001 – never leave it busy
+                changes = {"message": f"Något gick fel: {e}"}
+            changes["busy"] = ""
+            self._plDone.emit(json.dumps(changes, ensure_ascii=False))
+        threading.Thread(target=run, daemon=True).start()
+
+    def _save_settings(self):
+        SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+        SETTINGS.write_text(json.dumps(self.settings))
+
+    @Slot()
+    def togglePlaylist(self):
+        self.settings["playlist"] = not self._pl["open"]
+        self._save_settings()
+        self._pl_update(open=self.settings["playlist"])
+        if self._pl["open"] and self._pl["signedIn"] and not self._pl["lists"]:
+            self.refreshLists()
+
+    @Slot(str)
+    def copyText(self, text):
+        QGuiApplication.clipboard().setText(text)
+
+    @Slot()
+    def openDashboard(self):
+        QDesktopServices.openUrl(QUrl(SW.DASHBOARD))
+
+    @Slot(str)
+    def signIn(self, client_id):
+        def work():
+            name = SW.login(client_id, lambda url: QDesktopServices.openUrl(QUrl(url)))
+            return {"signedIn": True, "name": name, "clientId": client_id.strip(),
+                    "lists": self.library.lists(), "list": None, "rows": []}
+        self._pl_update(clientId=client_id.strip())
+        self._pl_job("Logga in i webbläsaren som öppnades…", work)
+
+    @Slot()
+    def signOut(self):
+        SW.logout()
+        self.library.cache.clear()
+        self._pl_update(signedIn=False, name="", lists=[], list=None, rows=[], message="")
+
+    @Slot()
+    def refreshLists(self):
+        self._pl_job("Hämtar dina listor…", lambda: {"lists": self.library.lists()})
+
+    @Slot(str)
+    def openList(self, list_id):
+        entry = next((e for e in self._pl["lists"] if e["id"] == list_id), None)
+        if entry is None:
+            return
+        self._pl_update(list=entry, rows=[])
+        self._pl_job("Hämtar låtarna…", lambda: {"rows": self.library.tracks(entry)})
+
+    @Slot()
+    def backToLists(self):
+        self._pl_update(list=None, rows=[], message="")
+
+    @Slot(int)
+    def playRow(self, index):
+        entry, rows = self._pl["list"], self._pl["rows"]
+        if not entry or entry["id"] == SW.QUEUE or not (0 <= index < len(rows)):
+            return
+
+        def work():
+            self.library.play(entry, rows, index, start_spotify_app)
+            time.sleep(0.6)
+            self.watcher.wake.set()
+            return {}
+        self._pl_job("Startar…", work)
+
+    @Slot(str)
+    def playList(self, list_id):
+        entry = next((e for e in self._pl["lists"] if e["id"] == list_id), None)
+        if entry is None or entry["id"] == SW.QUEUE:
+            return
+
+        def work():
+            rows = self.library.tracks(entry) if entry["id"] == SW.LIKED else None
+            self.library.play(entry, rows, None, start_spotify_app)
+            time.sleep(0.6)
+            self.watcher.wake.set()
+            return {}
+        self._pl_job("Startar listan…", work)
 
     @Slot()
     def playlists(self):

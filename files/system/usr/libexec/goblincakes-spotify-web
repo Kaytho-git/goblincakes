@@ -10,6 +10,7 @@
 #   goblincakes-spotify-web           opens the web app (and the hidden Spotify app); the menu
 #                                     entry adds --app=… (ignored) to look like a web app
 #   goblincakes-spotify-web url       the address it would open (the colours in its #goblincakes=)
+#   goblincakes-spotify-web app       only the Spotify app, hidden (GoblinAmp's playlist plays on it)
 #
 # The colours: the user's accent (GOBLINCAKES Config → Inställningar → Utseende → Färg), read at
 # every start – a new colour shows the next time the web app opens.
@@ -70,6 +71,10 @@ case ${1:-open} in
     url)
         url
         ;;
+    app)
+        # Only the Spotify app, hidden (GoblinAmp's playlist plays on it)
+        start_spotify_hidden
+        ;;
     open)
         start_spotify_hidden
         if has_flatpak "$CHROME"; then
@@ -83,7 +88,7 @@ case ${1:-open} in
         exit 1
         ;;
     *)
-        echo "Användning: goblincakes-spotify-web [open|url]" >&2
+        echo "Användning: goblincakes-spotify-web [open|url|app]" >&2
         exit 2
         ;;
 esac
