@@ -7,12 +7,24 @@ a seek bar, volume, ⏮ ▶ ❚❚ ■ ⏭, shuffle and repeat. "PL" opens the p
 (GOBLINCAKES) when it is installed, else the player itself. A double-click on the title bar
 rolls the window up to one line (Winamp's windowshade).
 
+Own music (21 Oct, the user's wish): the playlist's LOKALT tab plays music files itself (Qt's
+media player) – "Nu spelas" (Winamp's playlist), Musikmappen (~/Musik) and the user's own
+lists (.m3u8 in ~/Musik/Spellistor, Winamp's format): drag files and folders in from Dolphin,
+drag rows to move them, right-click for more, sort, rename. While it plays its own music
+GoblinAmp is an MPRIS player (amp/mpris.py) – Plasma's media controls, the media keys and
+the Now playing widget see it; starting Spotify music pauses it and the other way round.
+
+goblin graph inside GoblinAmp (21 Oct, the user's wish): GRAF shows the graph under the player
+instead of in its own window; goblin graph doesn't open loose while it shows here
+($XDG_RUNTIME_DIR/goblincakes-amp-graph = GoblinAmp's pid), and goblin graph's words come here.
+
 The playlist (PL, Winamp's PL window – under the player in the same window): Spotify's lists,
 liked songs and the queue through Spotify's Web API with the user's own app (spotifyweb.py,
 sign-in once with a Client ID); a double-click plays a track from there in its list on the
 Spotify app (started if it isn't running). Without sign-in PL shows how to set it up.
 
-  goblin amp          start (or bring the open one forward)
+  goblin amp            start (or bring the open one forward)
+  goblin amp <filer|mappar>  play them (Nu spelas is replaced) – also "Öppna med" in Dolphin
 
 Where the window was moved to is kept by KWin's goblincakes-windows script (kwinrc
 [Script-goblincakes-windows] ampPlace) – Wayland doesn't let a window know or choose its place.
@@ -25,6 +37,7 @@ import math
 import os
 import subprocess
 import sys
+import random
 import threading
 import time
 from pathlib import Path
@@ -32,6 +45,7 @@ from pathlib import Path
 from PySide6.QtCore import ClassInfo, Property, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtDBus import QDBusConnection, QDBusInterface
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
 
@@ -46,8 +60,14 @@ MPRIS = "/org/mpris/MediaPlayer2"
 PLAYER = "org.mpris.MediaPlayer2.Player"
 SPOTIFY_WEB = Path.home() / ".local/share/applications/goblincakes-webapp-spotify-web.desktop"
 SETTINGS = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes/amp.json"
+GRAPH_FLAG = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-amp-graph"
 sys.path.insert(0, str(SHARE))
+import local as L  # noqa: E402
 import spotifyweb as SW  # noqa: E402
+try:
+    import mpris as M  # noqa: E402 – needs python3-gobject
+except Exception:  # noqa: BLE001 – plays anyway, only not seen by Plasma
+    M = None
 
 
 def load_graph():
@@ -76,7 +96,8 @@ def players():
         return []
     names = [n["name"] for item in listed for n in (item if isinstance(item, list) else [item])
              if str(n.get("name", "")).startswith("org.mpris.MediaPlayer2.")]
-    music = [n for n in names if any(app.replace(" ", "") in n.lower() for app in G.MUSIC_APPS)]
+    music = [n for n in names if any(app.replace(" ", "") in n.lower() for app in G.MUSIC_APPS)
+             and not n.endswith(".goblinamp")]   # ourselves, while we play our own music
     return sorted(music, key=lambda n: (".spotify" not in n.lower(), n))
 
 
@@ -172,6 +193,238 @@ def start_spotify_app():
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+class LocalPlayer(QObject):
+    """GoblinAmp's own music (21 Oct): "Nu spelas" (Winamp's playlist) played with Qt's media
+    player. The queue is kept in local.NOW and the place/choices in amp.json, so it is still
+    there next time. state() has the same shape as read_player()."""
+    changed = Signal()
+    queueChanged = Signal()
+    _cover = Signal(str, str)   # path, cover (from a thread)
+
+    def __init__(self, settings, save):
+        super().__init__()
+        self.settings, self.save = settings, save
+        self.player = QMediaPlayer(self)
+        self.out = QAudioOutput(self)
+        self.player.setAudioOutput(self.out)
+        self.out.setVolume(float(settings.get("localVolume", 0.8)))
+        self.queue = [L.row_for(p) for p in L.read_list(L.NOW)]
+        self.index = max(0, min(int(settings.get("localIndex", 0)), len(self.queue) - 1)) if self.queue else -1
+        self.shuffle = bool(settings.get("localShuffle"))
+        self.loop = settings.get("localLoop") if settings.get("localLoop") in ("None", "Playlist", "Track") else "None"
+        self.row = None          # the row whose file is loaded (stays when it is removed from the queue)
+        self.history = []        # indexes played before (⏮ in shuffle)
+        self.played = set()      # shuffle: already played this round
+        self.errors = 0
+        self.cover = ""
+        self.message = ""
+        self.player.playbackStateChanged.connect(self._changed)
+        self.player.durationChanged.connect(self._changed)
+        self.player.mediaStatusChanged.connect(self._status)
+        self.player.errorOccurred.connect(self._error)
+        self._cover.connect(self._got_cover)
+
+    def _changed(self, *_):
+        self.changed.emit()
+
+    def current(self):
+        if self.row is not None:
+            return self.row
+        return self.queue[self.index] if 0 <= self.index < len(self.queue) else None
+
+    def playing(self):
+        return self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+
+    def state(self):
+        row = self.current()
+        if row is None:
+            return {}
+        status = {QMediaPlayer.PlaybackState.PlayingState: "Playing",
+                  QMediaPlayer.PlaybackState.PausedState: "Paused"}.get(self.player.playbackState(), "Stopped")
+        loaded = self.row is not None
+        duration = self.player.duration() / 1000 if loaded and self.player.duration() > 0 else row.get("seconds") or 0
+        return {
+            "service": "local", "local": True, "player": "GoblinAmp", "status": status,
+            "path": row["path"], "title": row.get("title") or Path(row["path"]).stem,
+            "artist": row.get("artist") or "", "album": row.get("album") or "",
+            "trackid": f"/org/goblincakes/amp/track/{max(self.index, 0)}",
+            "length": duration, "position": self.player.position() / 1000 if loaded else 0,
+            "volume": round(self.out.volume(), 3), "shuffle": self.shuffle, "loop": self.loop,
+            "canSeek": True, "readAt": time.time() * 1000, "cover": self.cover,
+            "index": self.index, "message": self.message,
+        }
+
+    # ── playing ──
+    def play_index(self, i, remember=True):
+        if not 0 <= i < len(self.queue):
+            return
+        if remember and 0 <= self.index < len(self.queue) and self.row is not None and i != self.index:
+            self.history = (self.history + [self.index])[-200:]
+        self.index = i
+        self.played.add(i)
+        self.row = self.queue[i]
+        self.message = ""
+        self.cover = ""
+        self.player.setSource(QUrl.fromLocalFile(self.row["path"]))
+        self.player.play()
+        self.settings["localIndex"] = i
+        self.save()
+        path = self.row["path"]
+        threading.Thread(target=lambda: self._cover.emit(path, L.cover_for(path) or ""), daemon=True).start()
+        self.changed.emit()
+
+    def _got_cover(self, path, cover):
+        if self.row is not None and self.row["path"] == path:
+            self.cover = cover
+            self.changed.emit()
+
+    def next_index(self, by_hand):
+        n = len(self.queue)
+        if not n:
+            return None
+        if self.loop == "Track" and not by_hand:
+            return max(self.index, 0)
+        if self.shuffle:
+            left = [i for i in range(n) if i not in self.played and i != self.index]
+            if not left and (self.loop == "Playlist" or by_hand):
+                self.played = set()
+                left = [i for i in range(n) if i != self.index] or [max(self.index, 0)]
+            return random.choice(left) if left else None
+        nxt = self.index + 1
+        if nxt >= n:
+            return 0 if (self.loop == "Playlist" or by_hand) else None
+        return nxt
+
+    def control(self, what):
+        if not self.queue:
+            return
+        if what == "play":
+            if self.row is None:     # nothing loaded yet (just started, another list)
+                self.play_index(max(self.index, 0))
+            else:
+                self.player.play()
+        elif what == "pause":
+            self.player.pause()
+        elif what == "playpause":
+            self.control("pause" if self.playing() else "play")
+        elif what == "stop":
+            self.player.stop()
+        elif what == "next":
+            n = self.next_index(True)
+            if n is not None:
+                self.play_index(n)
+        elif what == "previous":
+            if self.row is not None and self.player.position() > 3000:
+                self.player.setPosition(0)
+            elif self.shuffle and self.history:
+                self.play_index(self.history.pop(), remember=False)
+            else:
+                prev = self.index - 1
+                self.play_index(prev if prev >= 0 else len(self.queue) - 1, remember=False)
+        self.changed.emit()
+
+    def _status(self, status):
+        S = QMediaPlayer.MediaStatus
+        if status in (S.LoadedMedia, S.BufferedMedia):
+            self.errors = 0
+        if status == S.EndOfMedia:
+            n = self.next_index(False)
+            if n is None:
+                self.player.stop()
+                self.player.setPosition(0)
+            else:
+                self.play_index(n)
+        self.changed.emit()
+
+    def _error(self, error, text):
+        if error == QMediaPlayer.Error.NoError:
+            return
+        name = Path(self.row["path"]).name if self.row else ""
+        self.message = f"Kunde inte spela {name}" + (" – filen finns inte" if self.row and not Path(self.row["path"]).exists() else "")
+        self.errors += 1
+        self.changed.emit()
+        if self.errors < min(len(self.queue), 20):   # the next one, but not round and round
+            n = self.next_index(False)
+            if n is not None:
+                QTimer.singleShot(400, lambda: self.play_index(n))
+
+    def seek_to(self, seconds):
+        if self.row is None:
+            self.play_index(max(self.index, 0))
+        self.player.setPosition(int(max(0.0, seconds) * 1000))
+        self.changed.emit()
+
+    def set_volume(self, v):
+        self.out.setVolume(max(0.0, min(1.0, float(v))))
+        self.settings["localVolume"] = round(self.out.volume(), 3)
+        self.save()
+        self.changed.emit()
+
+    def set_shuffle(self, on):
+        self.shuffle = bool(on)
+        self.played = {self.index}
+        self.settings["localShuffle"] = self.shuffle
+        self.save()
+        self.changed.emit()
+
+    def set_loop(self, loop):
+        self.loop = loop
+        self.settings["localLoop"] = loop
+        self.save()
+        self.changed.emit()
+
+    # ── the queue (Nu spelas) ──
+    def _keep(self, change):
+        """change() rearranges self.queue; the index follows the same row afterwards."""
+        cur = self.queue[self.index] if 0 <= self.index < len(self.queue) else None
+        old = self.index
+        change()
+        if cur is not None:
+            self.index = next((i for i, r in enumerate(self.queue) if r is cur), min(old, len(self.queue)) - 1)
+        if self.index >= len(self.queue):
+            self.index = len(self.queue) - 1
+        if not self.queue:
+            self.index = -1
+        self.played = {self.index}
+        self.history = []
+        self.store()
+
+    def store(self):
+        L.write_list(L.NOW, self.queue)
+        self.settings["localIndex"] = max(self.index, 0)
+        self.save()
+        self.queueChanged.emit()
+        self.changed.emit()
+
+    def replace(self, rows, start):
+        """Another list is played: it becomes Nu spelas (as in Winamp)."""
+        self.queue = [dict(r) for r in rows]
+        self.index = -1
+        self.row = None
+        self.history, self.played = [], set()
+        self.store()
+        if self.queue:
+            if start is None:
+                start = random.randrange(len(self.queue)) if self.shuffle else 0
+            self.play_index(start, remember=False)
+
+    def insert(self, rows, at=None):
+        rows = [dict(r) for r in rows]
+        if at is None or at > len(self.queue):
+            at = len(self.queue)
+        if at <= self.index:
+            self.index += len(rows)
+        self.queue[at:at] = rows
+        if self.index < 0 and self.queue:
+            self.index = 0
+        self.store()
+
+    def open_paths(self, paths):
+        rows = [L.row_for(p) for p in L.expand(paths)]
+        if rows:
+            self.replace(rows, 0)
+
+
 class Amp(QObject):
     stateRead = Signal(str)
     stateChanged = Signal()
@@ -179,6 +432,10 @@ class Amp(QObject):
     raiseWindow = Signal()
     plChanged = Signal()
     _plDone = Signal(str)   # a playlist job finished in its thread: the new state as JSON
+    localChanged = Signal()
+    localRowsChanged = Signal()
+    graphChanged = Signal()
+    _main = Signal(object)  # a function from a thread, run in the window's thread
 
     def __init__(self):
         super().__init__()
@@ -192,25 +449,98 @@ class Amp(QObject):
                     "signedIn": bool(account.get("refreshToken")), "name": account.get("name", ""),
                     "busy": "", "message": "", "lists": [], "list": None, "rows": [], "redirect": SW.REDIRECT}
         self._plDone.connect(self._pl_done)
+        self._main.connect(self._run_main)
         self._state = "{}"
+        self._external = {}      # what the other player (Spotify …) does, from the Watcher
+        self.source = "external"  # whose state shows and gets the buttons: "local" or "external"
+        self._was_playing = False
         self._levels = [0.0] * BARS
         self.spec = G.Spectrum()
         self.gain = 1e-3
-        self.listener = G.Listener("goblin-amp", "GoblinAmp")
+        self.listener = G.Listener("goblin-amp-bars", "GoblinAmp")
         self.listener.start()
+        # Own music (the playlist's LOKALT tab)
+        self.local = LocalPlayer(self.settings, self._save_settings)
+        self.local.changed.connect(self._compose)
+        self.local.queueChanged.connect(self._queue_changed)
+        self.mpris = M.Mpris(self.local, self.raiseWindow.emit, QGuiApplication.quit) if M else None
+        self._loc = {"tab": self.settings.get("plTab") or ("spotify" if self._pl["signedIn"] else "local"),
+                     "list": None, "lists": [], "busy": "", "message": "",
+                     "musicDir": str(L.music_dir()).replace(str(Path.home()), "~", 1)}
+        self._rows = []          # the open local list's rows (for "now": the queue itself)
+        self._library = None     # Musikmappen's rows, once read
+        self._probing = 0        # a tag reading's number (a newer one makes an older stop)
+        self._lists_now()
+        # goblin graph inside the window (GRAF)
+        try:
+            graph_cfg = json.loads(G.CONFIG.read_text())
+        except (OSError, ValueError):
+            graph_cfg = {}
+        self.graph = G.Graph(graph_cfg, listener=self.listener)
+        self._graph_on = False
         self.watcher = Watcher(self)
         self.stateRead.connect(self._read)
         self.watcher.start()
+        if self.settings.get("graph"):
+            QTimer.singleShot(0, lambda: self.showGraph(True))
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.tick)
         self.timer.start(33)
         if self._pl["open"] and self._pl["signedIn"]:
             QTimer.singleShot(0, self.refreshLists)
 
+    def _run_main(self, fn):
+        fn()
+
     def _read(self, state):
+        try:
+            self._external = json.loads(state)
+        except ValueError:
+            self._external = {}
+        self._compose()
+
+    def _compose(self, *_):
+        """Which player shows: our own music while it plays (and after, until another player
+        plays), else the other player; with nothing else, our own queue."""
+        ext, loc = self._external, self.local.state()
+        playing = self.local.playing()
+        if playing:
+            if not self._was_playing:
+                self._pause_external()      # our music started: Spotify pauses
+            self.source = "local"
+        elif self.source == "local" and ext.get("status") == "Playing":
+            self.source = "external"        # Spotify was started elsewhere
+        self._was_playing = playing
+        use_local = bool(loc) and (self.source == "local" or not ext)
+        shown = loc if use_local else ext
+        if self.mpris:
+            if use_local:
+                self.mpris.start()
+                self.mpris.changed()
+            else:
+                self.mpris.stop()
+        self.graph.setNowPlaying(" – ".join(t for t in (shown.get("artist"), shown.get("title")) if t))
+        state = json.dumps(shown, ensure_ascii=False)
         if state != self._state:
             self._state = state
             self.stateChanged.emit()
+
+    def _uses_local(self):
+        try:
+            return bool(json.loads(self._state).get("local"))
+        except ValueError:
+            return False
+
+    def _pause_external(self):
+        def work():
+            for name in players():
+                try:
+                    subprocess.run(["busctl", "--user", "call", name, MPRIS, PLAYER, "Pause"],
+                                   capture_output=True, timeout=5)
+                except (OSError, subprocess.SubprocessError):
+                    pass
+            self.watcher.wake.set()
+        threading.Thread(target=work, daemon=True).start()
 
     @Property(str, notify=stateChanged)
     def state(self):
@@ -260,6 +590,9 @@ class Amp(QObject):
     @Slot(str)
     def control(self, what):
         """previous, playpause, stop, next."""
+        if self._uses_local():
+            self.local.control(what)
+            return
         method = {"previous": "Previous", "playpause": "PlayPause", "stop": "Stop", "next": "Next",
                   "play": "Play", "pause": "Pause"}.get(what)
         if method:
@@ -267,16 +600,27 @@ class Amp(QObject):
 
     @Slot(float)
     def seek(self, seconds):
+        if self._uses_local():
+            self.local.seek_to(seconds)
+            if self.mpris:
+                self.mpris.seeked(seconds)
+            return
         state = json.loads(self._state or "{}")
         if state.get("trackid"):
             self._call("call", PLAYER, "SetPosition", "ox", state["trackid"], str(int(seconds * 1e6)))
 
     @Slot(float)
     def setVolume(self, volume):
+        if self._uses_local():
+            self.local.set_volume(volume)
+            return
         self._call("set-property", PLAYER, "Volume", "d", f"{max(0.0, min(1.0, volume)):.3f}")
 
     @Slot()
     def toggleShuffle(self):
+        if self._uses_local():
+            self.local.set_shuffle(not self.local.shuffle)
+            return
         state = json.loads(self._state or "{}")
         if state.get("shuffle") is not None:
             self._call("set-property", PLAYER, "Shuffle", "b", "false" if state["shuffle"] else "true")
@@ -285,6 +629,9 @@ class Amp(QObject):
     def cycleLoop(self):
         state = json.loads(self._state or "{}")
         order = ["None", "Playlist", "Track"]
+        if self._uses_local():
+            self.local.set_loop(order[(order.index(self.local.loop) + 1) % len(order)])
+            return
         if state.get("loop") in order:
             self._call("set-property", PLAYER, "LoopStatus", "s",
                        order[(order.index(state["loop"]) + 1) % len(order)])
@@ -376,6 +723,8 @@ class Amp(QObject):
         if not entry or entry["id"] == SW.QUEUE or not (0 <= index < len(rows)):
             return
 
+        self._spotify_takes_over()
+
         def work():
             self.library.play(entry, rows, index, start_spotify_app)
             time.sleep(0.6)
@@ -388,6 +737,8 @@ class Amp(QObject):
         entry = next((e for e in self._pl["lists"] if e["id"] == list_id), None)
         if entry is None or entry["id"] == SW.QUEUE:
             return
+
+        self._spotify_takes_over()
 
         def work():
             rows = self.library.tracks(entry) if entry["id"] == SW.LIKED else None
@@ -411,10 +762,431 @@ class Amp(QObject):
             subprocess.Popen(["flatpak", "run", "com.spotify.Client"], start_new_session=True,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+    def _spotify_takes_over(self):
+        self.local.player.pause()
+        self.source = "external"
+        self._compose()
+
     def stop(self):
         self.watcher.alive = False
         self.watcher.wake.set()
+        self.showGraph(False, remember=False)
+        if self.mpris:
+            self.mpris.stop()
         self.listener.stop()
+
+    # ── goblin graph inside the window (GRAF) ──
+
+    @Property(bool, notify=graphChanged)
+    def graphShown(self):
+        return self._graph_on
+
+    @Slot()
+    def toggleGraph(self):
+        self.showGraph(not self._graph_on)
+
+    def showGraph(self, on, remember=True):
+        """On: the graph runs here, the flag file tells goblin graph (and its watcher) that it
+        shows here, and a loose goblin graph window closes. Off: the flag goes."""
+        if on == self._graph_on:
+            return
+        self._graph_on = on
+        self.graph.setActive(on)
+        if on:
+            try:
+                GRAPH_FLAG.write_text(str(os.getpid()))
+            except OSError:
+                pass
+            loose = QLocalSocket()
+            loose.connectToServer(f"goblin-graph-{os.getuid()}")
+            if loose.waitForConnected(300):
+                loose.write(json.dumps(["--quit"]).encode())
+                loose.waitForBytesWritten(1000)
+                loose.disconnectFromServer()
+        else:
+            try:
+                if GRAPH_FLAG.read_text().strip() == str(os.getpid()):
+                    GRAPH_FLAG.unlink()
+            except OSError:
+                pass
+        if remember:
+            self.settings["graph"] = on
+            self._save_settings()
+        self.graphChanged.emit()
+
+    @Slot()
+    def popOutGraph(self):
+        """⇱: goblin graph in its own window again."""
+        self.showGraph(False)
+        subprocess.Popen([sys.executable, str(HERE.parent / "goblin-graph")], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def message(self, data):
+        """From a second start: b"raise", or JSON {"graph": words} / {"files": paths}."""
+        try:
+            msg = json.loads(data)
+        except ValueError:
+            msg = {}
+        if isinstance(msg, dict) and "graph" in msg:
+            self.graph.apply_args([a for a in msg["graph"] if a != "--quit"])
+            self.showGraph(True)
+        if isinstance(msg, dict) and msg.get("files"):
+            self.openFiles(msg["files"])
+        self.raiseWindow.emit()
+
+    def openFiles(self, paths):
+        self.local.open_paths(paths)
+        self._loc["tab"] = "local"
+        self.localChanged.emit()
+
+    # ── The playlist's LOKALT tab: Nu spelas, Musikmappen, the own lists ──
+
+    @Property(str, notify=localChanged)
+    def localState(self):
+        return json.dumps(self._loc, ensure_ascii=False)
+
+    @Property(str, notify=localRowsChanged)
+    def localRows(self):
+        keys = ("path", "title", "artist", "album", "seconds", "missing")
+        return json.dumps([{k: r.get(k) for k in keys} for r in self._rows], ensure_ascii=False)
+
+    def _loc_update(self, **changes):
+        self._loc.update(changes)
+        self.localChanged.emit()
+
+    @Slot(str)
+    def setPlTab(self, tab):
+        self.settings["plTab"] = tab
+        self._save_settings()
+        self._loc_update(tab=tab)
+        if tab == "spotify" and self._pl["signedIn"] and not self._pl["lists"]:
+            self.refreshLists()
+
+    def _lists_now(self):
+        """The rows of the lists view: Nu spelas, Musikmappen, then the own lists."""
+        q = self.local.queue
+        lists = [{"id": "now", "name": "Nu spelas", "count": len(q),
+                  "seconds": sum(r.get("seconds") or 0 for r in q), "special": True},
+                 {"id": "library", "name": "Musikmappen", "special": True,
+                  "count": len(self._library) if self._library is not None else None,
+                  "note": self._loc["musicDir"]}]
+        for list_id, name, path in L.saved_lists():
+            paths = L.read_list(path)
+            lists.append({"id": list_id, "name": name, "count": len(paths)})
+        self._loc_update(lists=lists)
+
+    def _entry(self, list_id):
+        return next((e for e in self._loc["lists"] if e["id"] == list_id), None)
+
+    def _list_path(self, list_id):
+        return L.lists_dir() / list_id[5:] if list_id.startswith("file:") else None
+
+    def _rows_of(self, list_id):
+        if list_id == "now":
+            return self.local.queue
+        if list_id == "library":
+            return self._library or []
+        path = self._list_path(list_id)
+        return [L.row_for(p) for p in L.read_list(path)] if path else []
+
+    def _set_rows(self, rows):
+        self._rows = rows
+        self.localRowsChanged.emit()
+        self._probe(rows)
+
+    def _probe(self, rows):
+        """Tags for the rows the cache doesn't know, in a thread; the rows fill in as they come."""
+        todo = [r["path"] for r in rows if not r.get("known") and not r.get("missing")]
+        if not todo:
+            return
+        self._probing += 1
+        number = self._probing
+
+        def fill(done):
+            for row in list(self._rows) + list(self.local.queue) + list(self._library or []):
+                if row["path"] in done:
+                    row.update(done[row["path"]])
+            self.localRowsChanged.emit()
+            self.local.changed.emit()
+            self._lists_now()
+
+        def progress(i, total, done):
+            self._main.emit(lambda: (self._loc_update(busy=f"Läser taggar {i}/{total}…" if i < total else ""), fill(done)))
+
+        def work():
+            done = L.probe(todo, progress, stop=lambda: number != self._probing)
+            self._main.emit(lambda: (self._loc_update(busy=""), fill(done)))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _queue_changed(self):
+        if (self._loc.get("list") or {}).get("id") == "now":
+            self._rows = self.local.queue
+            self.localRowsChanged.emit()
+        self._lists_now()
+
+    def _save_open(self):
+        """After a change in the open list: Nu spelas → the player keeps it; an own list → its file."""
+        entry = self._loc.get("list") or {}
+        if entry.get("id") == "now":
+            self.local.store()
+        elif self._list_path(entry.get("id", "")):
+            L.write_list(self._list_path(entry["id"]), self._rows)
+            self.localRowsChanged.emit()
+            self._lists_now()
+
+    @Slot(str)
+    def localOpen(self, list_id):
+        entry = self._entry(list_id)
+        if entry is None:
+            return
+        self._loc_update(list=entry, message="")
+        if list_id == "library" and self._library is None:
+            self.localRescan()
+            return
+        self._set_rows(self._rows_of(list_id))
+
+    @Slot()
+    def localBack(self):
+        self._probing += 1
+        self._rows = []
+        self.localRowsChanged.emit()
+        self._loc_update(list=None, message="", busy="")
+        self._lists_now()
+
+    @Slot()
+    def localRescan(self):
+        """Musikmappen: every music file in the music folder (read again)."""
+        folder = L.music_dir()
+        self._loc_update(busy=f"Letar efter musik i {self._loc['musicDir']}…")
+
+        def work():
+            rows = [L.row_for(p) for p in L.scan(folder)] if folder.is_dir() else []
+
+            def done():
+                self._library = sorted(rows, key=L.SORTS["path"])
+                self._loc_update(busy="", message="" if rows else f"Ingen musik i {self._loc['musicDir']} än – dra in filer eller lägg musik där.")
+                if (self._loc.get("list") or {}).get("id") == "library":
+                    self._set_rows(self._library)
+                self._lists_now()
+            self._main.emit(done)
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(int)
+    def localPlay(self, index):
+        """Double-click on a row: Nu spelas plays from there; another list becomes Nu spelas."""
+        entry = self._loc.get("list") or {}
+        if not 0 <= index < len(self._rows):
+            return
+        if entry.get("id") == "now":
+            self.local.play_index(index)
+        else:
+            self.local.replace(self._rows, index)
+
+    @Slot(str)
+    def localPlayList(self, list_id):
+        if list_id == "now":
+            self.local.control("play")
+            return
+        rows = self._rows if (self._loc.get("list") or {}).get("id") == list_id else self._rows_of(list_id)
+        if rows:
+            self.local.replace(rows, None)
+            self._probe(self.local.queue)
+
+    def _picked(self, indexes):
+        try:
+            picked = sorted({int(i) for i in json.loads(indexes)})
+        except (ValueError, TypeError):
+            return []
+        return [i for i in picked if 0 <= i < len(self._rows)]
+
+    @Slot(str, bool)
+    def localEnqueue(self, indexes, next_up):
+        """Lägg i kön / Spela härnäst: the rows into Nu spelas."""
+        rows = [self._rows[i] for i in self._picked(indexes)]
+        if rows:
+            self.local.insert(rows, self.local.index + 1 if next_up and self.local.queue else None)
+            self._loc_update(message=f"{len(rows)} {'låt' if len(rows) == 1 else 'låtar'} i Nu spelas")
+
+    @Slot(str, str)
+    def localAddTo(self, list_id, indexes):
+        """The rows (of the open list) into another list."""
+        rows = [self._rows[i] for i in self._picked(indexes)]
+        if not rows:
+            return
+        if list_id == "now":
+            self.local.insert(rows)
+        else:
+            path = self._list_path(list_id)
+            if not path:
+                return
+            L.write_list(path, [L.row_for(p) for p in L.read_list(path)] + rows)
+            self._lists_now()
+        name = (self._entry(list_id) or {}).get("name", "")
+        self._loc_update(message=f"{len(rows)} {'låt' if len(rows) == 1 else 'låtar'} till {name}")
+
+    @Slot(str)
+    def localRemove(self, indexes):
+        entry = self._loc.get("list") or {}
+        picked = set(self._picked(indexes))
+        if not picked or entry.get("id") == "library":
+            return
+        keep = lambda: [r for i, r in enumerate(self._rows) if i not in picked]  # noqa: E731
+        if entry.get("id") == "now":
+            self.local._keep(lambda: self.local.queue.__setitem__(slice(None), keep()))
+        else:
+            self._rows = keep()
+            self._save_open()
+
+    @Slot(str, int)
+    def localMove(self, indexes, to):
+        """Drag in the list: the picked rows (in their order) go in before row `to`."""
+        entry = self._loc.get("list") or {}
+        picked = self._picked(indexes)
+        if not picked or entry.get("id") == "library":
+            return
+        rows = self._rows
+
+        def move():
+            moving = [rows[i] for i in picked]
+            before = sum(1 for i in picked if i < to)
+            rest = [r for i, r in enumerate(rows) if i not in set(picked)]
+            at = max(0, min(len(rest), to - before))
+            rows[:] = rest[:at] + moving + rest[at:]
+        if entry.get("id") == "now":
+            self.local._keep(move)
+        else:
+            move()
+            self._save_open()
+
+    @Slot(str)
+    def localSort(self, how):
+        entry = self._loc.get("list") or {}
+        rows = self._rows
+        new = L.sort_rows(rows, how)
+        if entry.get("id") == "now":
+            self.local._keep(lambda: rows.__setitem__(slice(None), new))
+        elif entry.get("id") == "library":
+            self._library = new
+            self._rows = new
+            self.localRowsChanged.emit()
+        else:
+            self._rows = new
+            self._save_open()
+
+    @Slot(str)
+    def localAddPaths(self, urls):
+        """Files, folders and lists dropped from Dolphin or chosen: lists (.m3u …) on the lists
+        view become own lists, everything else goes into the open list (Musikmappen: Nu spelas)."""
+        try:
+            paths = [L.to_path(u) for u in json.loads(urls)]
+        except (ValueError, TypeError):
+            return
+        paths = [p for p in paths if p]
+        entry = self._loc.get("list") or {}
+        if not entry:
+            lists = [p for p in paths if Path(p).suffix.lower() in L.LIST_EXT]
+            for p in lists:
+                L.import_list(p)
+            paths = [p for p in paths if p not in lists]
+            if lists:
+                self._lists_now()
+                self._loc_update(message=f"{len(lists)} {'lista' if len(lists) == 1 else 'listor'} inlagda")
+            if not paths:
+                return
+            entry = {"id": "now"}
+        self._loc_update(busy="Lägger till…")
+
+        def work():
+            rows = [L.row_for(p) for p in L.expand(paths)]
+
+            def done():
+                self._loc_update(busy="", message="" if rows else "Ingen musik hittades där")
+                if not rows:
+                    return
+                if entry["id"] in ("now", "library"):
+                    self.local.insert(rows)
+                    self._probe(self.local.queue)
+                    if entry["id"] == "library":
+                        self._loc_update(message=f"{len(rows)} låtar i Nu spelas")
+                else:
+                    self._rows = self._rows + rows
+                    self._save_open()
+                    self._probe(self._rows)
+            self._main.emit(done)
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(str, str, result=str)
+    def localNewList(self, name, indexes):
+        """+ Ny lista (indexes: rows of the open list to put in it, "[]" = empty). Returns its id."""
+        rows = [self._rows[i] for i in self._picked(indexes)] if indexes else []
+        path = L.free_file(name.strip() or "Ny lista")
+        L.write_list(path, rows)
+        self._lists_now()
+        return "file:" + path.name
+
+    @Slot(str)
+    def localSaveNowAs(self, name):
+        path = L.free_file(name.strip() or "Nu spelas")
+        L.write_list(path, self.local.queue)
+        self._lists_now()
+        self._loc_update(message=f"Sparad som {path.stem}")
+
+    @Slot(str, str)
+    def localRename(self, list_id, name):
+        path = self._list_path(list_id)
+        name = L.safe_name(name)
+        if not path or not name or not path.exists():
+            return
+        target = path.with_name(name + path.suffix)
+        if target.exists() and target != path:
+            self._loc_update(message=f"Det finns redan en lista som heter {name}")
+            return
+        path.rename(target)
+        self._lists_now()
+        if (self._loc.get("list") or {}).get("id") == list_id:
+            self._loc_update(list=self._entry("file:" + target.name))
+
+    @Slot(str)
+    def localDelete(self, list_id):
+        """The list file goes to the trash (gio trash) – the music itself is never touched."""
+        path = self._list_path(list_id)
+        if not path or not path.exists():
+            return
+        if subprocess.run(["gio", "trash", str(path)], capture_output=True).returncode != 0:
+            path.unlink(missing_ok=True)
+        if (self._loc.get("list") or {}).get("id") == list_id:
+            self.localBack()
+        self._lists_now()
+        self._loc_update(message=f"{path.stem} ligger i papperskorgen")
+
+    @Slot()
+    def localClear(self):
+        self.local.player.stop()
+        self.local.row = None
+        self.local._keep(lambda: self.local.queue.clear())
+        self._compose()
+
+    @Slot(str)
+    def showFile(self, path):
+        """Visa i mappen: Dolphin with the file picked."""
+        subprocess.Popen(["dolphin", "--select", path], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    @Slot(str)
+    def showList(self, list_id):
+        path = self._list_path(list_id)
+        if path:
+            self.showFile(str(path))
+
+    @Slot()
+    def openMusicDir(self):
+        folder = L.music_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    @Slot()
+    def localClearMessage(self):
+        self._loc_update(message="")
 
 
 def amp_icon():
@@ -432,10 +1204,12 @@ def main():
     app.setDesktopFileName("goblin-amp")
     app.setWindowIcon(amp_icon())
 
+    # files and folders to play (goblin amp <filer>, Dolphin's Öppna med)
+    files = [str(Path(a).resolve()) for a in sys.argv[1:] if Path(a).exists()]
     probe = QLocalSocket()
     probe.connectToServer(SOCKET)
     if probe.waitForConnected(300):
-        probe.write(b"raise")
+        probe.write(json.dumps({"files": files}).encode() if files else b"raise")
         probe.waitForBytesWritten(1000)
         probe.disconnectFromServer()
         return 0
@@ -448,7 +1222,7 @@ def main():
     def incoming():
         sock = server.nextPendingConnection()
         if sock is not None:
-            sock.readyRead.connect(amp.raiseWindow.emit)
+            sock.readyRead.connect(lambda: amp.message(bytes(sock.readAll()).decode(errors="replace")))
             sock.disconnected.connect(sock.deleteLater)
     server.newConnection.connect(incoming)
 
@@ -459,12 +1233,15 @@ def main():
 
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("amp", amp)
+    engine.rootContext().setContextProperty("graph", amp.graph)
     icon = HERE.parents[1] / "share/icons/hicolor/scalable/apps/goblincakes-amp.svg"
     engine.rootContext().setContextProperty("iconUrl", QUrl.fromLocalFile(str(icon)) if icon.exists() else QUrl())
     G.use_accent(engine)
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1
+    if files:
+        amp.openFiles(files)
     code = app.exec()
     amp.stop()
     return code

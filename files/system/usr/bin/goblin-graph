@@ -19,6 +19,9 @@ view (the circle and the explosion get a square window of their own), right-clic
 between all classes and one class, the scroll wheel picks
 another class, Esc closes.
 Position, size and choice are kept in ~/.config/goblincakes/graph.json.
+GoblinAmp can show the graph inside its window (GRAF, 21 Oct): then this window doesn't open –
+the watcher waits, and "goblin graph …" hands its words to GoblinAmp (in_amp()). The views
+themselves are graph/Views.qml, shared with GoblinAmp.
 
 Sound: only music (the user's wish 12 Oct – not games, Netflix and so on): pw-record with a
 capture node that links to nothing by itself, and every 2 s the output streams of music
@@ -50,7 +53,7 @@ from pathlib import Path
 MUSIC_APPS = ("spotify", "quodlibet", "quod libet", "elisa", "strawberry", "audacious",
               "rhythmbox", "lollypop", "amberol", "clementine", "deadbeef", "tauon", "cmus",
               "g4music", "gapless", "harmonoid", "cider", "tidal", "deezer", "youtube-music",
-              "youtubemusic", "nuclear", "museeks", "sayonara", "juk", "qmmp", "mpd")
+              "youtubemusic", "nuclear", "museeks", "sayonara", "juk", "qmmp", "mpd", "goblinamp")
 def is_music(props):
     if props.get("media.role") == "Music":
         return True
@@ -124,14 +127,26 @@ def session_env():
     return env if env.get("WAYLAND_DISPLAY") or env.get("DISPLAY") else None
 
 
+AMP_FLAG = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-amp-graph"
+def in_amp():
+    """GoblinAmp shows the graph in its own window right now (21 Oct, the user's wish: then it
+    is shown there instead of loose): the flag file with GoblinAmp's pid, while it lives."""
+    try:
+        pid = int(AMP_FLAG.read_text().strip())
+        os.kill(pid, 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
 def watch():
     """Every 2 s: music playing and no window of ours → start one; music gone 15 s → close the
     one we started. Closed by hand while the music plays = stays closed until the music stops
-    and starts again."""
+    and starts again. Not while GoblinAmp shows the graph (in_amp)."""
     child, dismissed, quiet = None, False, 0.0
     while True:
         try:
-            playing = music_playing()
+            playing = music_playing() and not in_amp()
         except Exception:
             playing = False
         running = child is not None and child.poll() is None
@@ -437,9 +452,12 @@ class Graph(QObject):
     nowPlayingChanged = Signal()
     raiseWindow = Signal()
 
-    def __init__(self, settings):
+    def __init__(self, settings, listener=None):
+        """listener: GoblinAmp's own (the graph inside GoblinAmp); then no now-playing look,
+        and the graph only runs while it shows (setActive)."""
         super().__init__()
         self.cfg = settings
+        self.embedded = listener is not None
         self._levels = []
         self._wave = []
         self._rings = []     # [age, strength, colour index]
@@ -455,18 +473,34 @@ class Graph(QObject):
         self.loud_gain = 1e-3
         self.spec = Spectrum()
         self.gain = 1e-3
-        self.listener = Listener()
-        self.listener.start()
+        if listener is None:
+            listener = Listener()
+            listener.start()
+        self.listener = listener
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.tick)
-        self.timer.start(33)
         # What is playing, for the hover and the tray icon: asked every 3 s in a thread
         self._now = ""
         self._now_new = None
         self.now_timer = QTimer(self)
         self.now_timer.timeout.connect(self.ask_now_playing)
-        self.now_timer.start(3000)
-        self.ask_now_playing()
+        if not self.embedded:
+            self.timer.start(33)
+            self.now_timer.start(3000)
+            self.ask_now_playing()
+
+    def setActive(self, on):
+        """GoblinAmp: the graph runs only while it shows."""
+        if on and not self.timer.isActive():
+            self.timer.start(33)
+        elif not on:
+            self.timer.stop()
+
+    def setNowPlaying(self, text):
+        """GoblinAmp tells what plays (it knows already)."""
+        if text != self._now:
+            self._now = text
+            self.nowPlayingChanged.emit()
 
     def ask_now_playing(self):
         if self._now_new is not None and self._now_new != self._now:  # the thread's last answer
@@ -593,6 +627,11 @@ class Graph(QObject):
 
     def apply_args(self, args):
         """goblin graph alla / klass / <class> / lås / lås upp – also sent to an open window."""
+        try:   # the loose window may have changed the choices since GoblinAmp read them
+            if self.embedded:
+                self.cfg.update(json.loads(CONFIG.read_text()))
+        except (OSError, ValueError):
+            pass
         words = [a.lower() for a in args]
         if words[:2] in (["lås", "upp"], ["las", "upp"]) or words[:1] in (["låsupp"], ["unlock"]):
             self.cfg["locked"] = False
@@ -741,6 +780,15 @@ def main():
     app.setDesktopFileName("goblin-graph")
     app.setWindowIcon(graph_icon())
 
+    # GoblinAmp shows the graph: the words go there (and GoblinAmp comes forward)
+    if in_amp():
+        amp = QLocalSocket()
+        amp.connectToServer(f"goblin-amp-{os.getuid()}")
+        if amp.waitForConnected(300):
+            amp.write(json.dumps({"graph": args}).encode())
+            amp.waitForBytesWritten(1000)
+            amp.disconnectFromServer()
+            return 0
     # One window: a second start hands its words to the open one and brings it forward
     probe = QLocalSocket()
     probe.connectToServer(SOCKET)
@@ -781,9 +829,13 @@ def main():
 
         def read():
             try:
-                graph.apply_args(json.loads(bytes(sock.readAll()).decode()))
+                words = json.loads(bytes(sock.readAll()).decode())
             except ValueError:
-                pass
+                words = []
+            if words == ["--quit"]:      # GoblinAmp took the graph in
+                app.quit()
+                return
+            graph.apply_args(words)
             graph.raiseWindow.emit()
         sock.readyRead.connect(read)
         sock.disconnected.connect(sock.deleteLater)

@@ -2,16 +2,23 @@
 // program over MPRIS (goblin-amp). Winamp's main window in GOBLINCAKES' look – flat, square,
 // Void/Night with thin frames, the time and title in the user's accent colour (accent.*),
 // IBM Plex Mono for the digits, Chakra Petch for the name.
+// Own music and goblin graph inside (21 Oct): the playlist's LOKALT tab (local files, Nu spelas,
+// Musikmappen, own .m3u8 lists) and GRAF (goblin graph's views under the player).
 import QtQuick
+import QtQuick.Dialogs
+import "../graph" as GG
 
 Window {
     id: win
     title: "GoblinAmp"
     flags: Qt.Window | Qt.FramelessWindowHint
     width: 380
-    height: shade ? 22 : 152 + (pl.open ? plHeight : 0)
-    readonly property int plHeight: 300
+    height: shade ? 22 : 152 + (amp.graphShown ? graphHeight : 0) + (pl.open ? plHeight : 0)
+    readonly property int plHeight: 330
+    readonly property int graphHeight: 140
     readonly property var pl: JSON.parse(amp.pl || "{}")
+    readonly property var loc: JSON.parse(amp.localState || "{}")
+    readonly property var lrows: JSON.parse(amp.localRows || "[]")
     // The playing track's Spotify address (MPRIS: /com/spotify/track/<id>)
     readonly property string playingUri: (st.trackid || "").indexOf("/com/spotify/track/") === 0
         ? "spotify:track:" + st.trackid.split("/").pop() : ""
@@ -341,8 +348,10 @@ Window {
         // The player's name, and volume
         Text {
             anchors { left: titleBox.left; top: titleBox.bottom; topMargin: 8 }
-            text: win.hasPlayer ? win.st.player.toUpperCase() : "—"
-            color: "#5C6880"
+            width: titleBox.width - volume.width - 34
+            elide: Text.ElideRight
+            text: win.st.message ? win.st.message : win.hasPlayer ? win.st.player.toUpperCase() : "—"
+            color: win.st.message ? accent.errorBright : "#5C6880"
             font.family: "Chakra Petch"
             font.weight: Font.DemiBold
             font.pixelSize: 10
@@ -459,6 +468,7 @@ Window {
                 active: win.st.loop === "Playlist" || win.st.loop === "Track"
                 onClicked: amp.cycleLoop()
             }
+            Btn { label: "GRAF"; active: amp.graphShown; onClicked: amp.toggleGraph() }
             Btn { label: "PL"; active: win.pl.open; onClicked: amp.togglePlaylist() }
         }
     }
@@ -498,13 +508,517 @@ Window {
         return h > 0 ? h + ":" + win.clock(seconds % 3600) : win.clock(seconds);
     }
 
+    // ── goblin graph inside the window (GRAF; the user's wish 21 Oct – instead of its own window) ──
     Item {
-        id: plPanel
-        visible: !win.shade && win.pl.open
+        id: graphPanel
+        visible: !win.shade && amp.graphShown
         x: 1
         y: 152
         width: parent.width - 2
+        height: win.graphHeight
+        Rectangle { anchors.fill: parent; color: "#05070A" }
+        Rectangle { width: parent.width; height: 1; color: "#1E2A40" }
+        Loader {
+            anchors { fill: parent; topMargin: 1 }
+            active: amp.graphShown
+            sourceComponent: GG.Views { barOpacity: 0.85; margin: 6 }
+        }
+        HoverHandler { id: graphHover }
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: mouse => { if (mouse.button === Qt.RightButton) graph.toggleMode(); }
+            onDoubleClicked: mouse => { if (mouse.button === Qt.LeftButton) graph.cycleView(); }
+            onWheel: wheel => graph.stepClass(wheel.angleDelta.y > 0 ? -1 : 1)
+        }
+        Text {
+            anchors { left: parent.left; top: parent.top; margins: 7 }
+            visible: graphHover.hovered
+            text: ({ bars: "STAPLAR", scope: "VÅG", circle: "CIRKEL", burst: "EXPLOSION" })[graph.view] + "  ·  "
+                  + (graph.mode === "all" ? "ALLA KLASSER" : graph.className.toUpperCase())
+            color: graph.mode === "all" ? "#E6ECF5" : graph.classColor
+            style: Text.Outline
+            styleColor: "#05070A"
+            font.family: "Chakra Petch"
+            font.weight: Font.DemiBold
+            font.pixelSize: 10
+            font.letterSpacing: 1.5
+        }
+        Text {
+            anchors { left: parent.left; bottom: parent.bottom; margins: 7 }
+            visible: graphHover.hovered
+            text: "Dubbelklick: nästa vy · högerklick: färger · hjul: klass"
+            color: "#8B98AD"
+            style: Text.Outline
+            styleColor: "#05070A"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 10
+        }
+        Btn {
+            anchors { right: parent.right; top: parent.top; margins: 5 }
+            visible: graphHover.hovered
+            label: "EGET FÖNSTER"
+            onClicked: amp.popOutGraph()
+        }
+    }
+
+    // ── The playlist (PL): LOKALT (own music) and SPOTIFY tabs ──
+    Item {
+        id: plFrame
+        visible: !win.shade && win.pl.open
+        x: 1
+        y: 152 + (amp.graphShown ? win.graphHeight : 0)
+        width: parent.width - 2
         height: win.plHeight - 1
+        Rectangle { anchors.fill: parent; color: "#0B1018" }
+        Rectangle { width: parent.width; height: 1; color: "#1E2A40" }
+        Row {
+            x: 6; y: 5
+            spacing: 3
+            Repeater {
+                model: [["local", "LOKALT"], ["spotify", "SPOTIFY"]]
+                Btn {
+                    required property var modelData
+                    label: modelData[1]
+                    active: win.loc.tab === modelData[0]
+                    onClicked: amp.setPlTab(modelData[0])
+                }
+            }
+        }
+        Item {
+            id: localPane
+            visible: win.loc.tab !== "spotify"
+            y: 28
+            width: parent.width
+            height: parent.height - 28
+            readonly property var entry: win.loc.list || null
+            readonly property string listId: entry ? entry.id : ""
+            readonly property bool editable: !!entry && listId !== "library"
+            readonly property string filter: localFilter.text.toLowerCase()
+            property var sel: []            // picked rows (indexes in the full list)
+            property int anchorRow: -1      // Shift+click picks from here
+            property bool dragging: false
+            property int dropAt: -1
+            onListIdChanged: { sel = []; anchorRow = -1; localFilter.text = ""; }
+            // the rows shown: lists, or tracks (filtered); each keeps its index in the full list
+            readonly property var shown: {
+                const all = entry ? win.lrows : (win.loc.lists || []);
+                const out = [];
+                for (let i = 0; i < all.length; i++) {
+                    const r = all[i];
+                    const text = (entry ? (r.artist + " " + r.title + " " + r.album) : r.name).toLowerCase();
+                    if (!filter || text.indexOf(filter) >= 0)
+                        out.push({ row: r, index: i });
+                }
+                return out;
+            }
+            function picked(i) { return sel.indexOf(i) >= 0 ? sel : [i]; }
+            function isCurrent(i, r) {
+                if (!win.st.local)
+                    return false;
+                return listId === "now" ? i === win.st.index : r.path === win.st.path;
+            }
+            function pick(i, mods) {
+                if (mods & Qt.ShiftModifier && anchorRow >= 0) {
+                    const out = [];
+                    for (let k = Math.min(anchorRow, i); k <= Math.max(anchorRow, i); k++)
+                        out.push(k);
+                    sel = out;
+                } else if (mods & Qt.ControlModifier) {
+                    const k = sel.indexOf(i);
+                    sel = k >= 0 ? sel.filter(x => x !== i) : sel.concat([i]);
+                    anchorRow = i;
+                } else {
+                    sel = [i];
+                    anchorRow = i;
+                }
+            }
+            function openList(id) { amp.localOpen(id); }
+            // Right-click on a track: what can be done with the picked rows
+            function trackMenu(i, x, y) {
+                if (sel.indexOf(i) < 0) { sel = [i]; anchorRow = i; }
+                const rows = JSON.stringify(sel), n = sel.length;
+                const items = [
+                    { text: "Spela", act: () => amp.localPlay(sel[0]) },
+                    { text: "Spela härnäst", act: () => amp.localEnqueue(rows, true), hide: listId === "now" },
+                    { text: "Lägg i Nu spelas", act: () => amp.localEnqueue(rows, false), hide: listId === "now" },
+                    { sep: true },
+                ];
+                for (const l of win.loc.lists || [])
+                    if (!l.special && l.id !== listId)
+                        items.push({ text: "Lägg till i " + l.name, act: () => amp.localAddTo(l.id, rows) });
+                items.push({ text: "Lägg till i en ny lista…", act: () => win.askName("newfrom", "", rows, "") });
+                items.push({ sep: true });
+                if (editable)
+                    items.push({ text: n > 1 ? "Ta bort " + n + " låtar ur listan" : "Ta bort ur listan", act: () => amp.localRemove(rows) });
+                items.push({ text: "Visa i mappen", act: () => amp.showFile(win.lrows[sel[0]].path) });
+                win.openMenu(items.filter(m => !m.hide), x, y);
+            }
+            // Right-click on a list, or ⋯ in an open list
+            function listMenu(l, x, y) {
+                const items = [{ text: l.id === "now" ? "Spela" : "Spela listan", act: () => amp.localPlayList(l.id) }];
+                if (l.id === win.loc.list?.id) {
+                    items.push({ sep: true });
+                    for (const s of [["artist", "Sortera efter artist"], ["album", "Sortera efter album"], ["title", "Sortera efter titel"],
+                                     ["path", "Sortera efter filnamn"], ["length", "Sortera efter längd"]])
+                        items.push({ text: s[1], act: () => amp.localSort(s[0]) });
+                    if (l.id !== "library") {
+                        items.push({ text: "Blanda ordningen", act: () => amp.localSort("shuffle") });
+                        items.push({ text: "Vänd ordningen", act: () => amp.localSort("reverse") });
+                    }
+                }
+                items.push({ sep: true });
+                if (l.id === "now") {
+                    items.push({ text: "Spara som en ny lista…", act: () => win.askName("saveas", "", "", "") });
+                    items.push({ text: "Töm Nu spelas", act: () => amp.localClear() });
+                } else if (l.id === "library") {
+                    items.push({ text: "Läs om musikmappen", act: () => amp.localRescan() });
+                } else {
+                    items.push({ text: "Byt namn…", act: () => win.askName("rename", l.id, "", l.name) });
+                    items.push({ text: "Visa filen", act: () => amp.showList(l.id) });
+                    items.push({ text: "Ta bort listan", act: () => amp.localDelete(l.id) });
+                }
+                win.openMenu(items, x, y);
+            }
+
+            // The header: LOKAL MUSIK / ◀ the list's name
+            Item {
+                x: 8; y: 2
+                width: parent.width - 16
+                height: 16
+                Text {
+                    visible: !localPane.entry
+                    text: "LOKAL MUSIK"
+                    color: "#8B98AD"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.Bold
+                    font.pixelSize: 10
+                    font.letterSpacing: 1.5
+                }
+                SmallLink {
+                    visible: !!localPane.entry
+                    width: Math.min(implicitWidth, parent.width - 120)
+                    elide: Text.ElideRight
+                    text: "◀  " + (localPane.entry ? localPane.entry.name : "")
+                    color: accent.text
+                    font.weight: Font.DemiBold
+                    onClicked: amp.localBack()
+                }
+                Row {
+                    anchors.right: parent.right
+                    spacing: 12
+                    SmallLink {
+                        visible: !localPane.entry
+                        text: "+ Ny lista"
+                        onClicked: win.askName("new", "", "", "")
+                    }
+                    SmallLink {
+                        visible: !!localPane.entry && win.lrows.length > 0
+                        text: "▶ Spela"
+                        onClicked: amp.localPlayList(localPane.listId)
+                    }
+                    SmallLink {
+                        id: moreLink
+                        visible: !!localPane.entry
+                        text: "⋯"
+                        font.pixelSize: 14
+                        onClicked: {
+                            const p = moreLink.mapToItem(win.contentItem, 0, moreLink.height);
+                            localPane.listMenu(localPane.entry, p.x - 160, p.y + 2);
+                        }
+                    }
+                }
+            }
+
+            // A name for a list (new, rename, save Nu spelas)
+            Row {
+                id: nameRow
+                visible: win.nameMode !== ""
+                x: 8; y: 22
+                spacing: 6
+                Rectangle {
+                    width: 210
+                    height: 20
+                    color: "#07090D"
+                    border.width: 1
+                    border.color: nameInput.activeFocus ? accent.color : "#1E2A40"
+                    TextInput {
+                        id: nameInput
+                        anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
+                        verticalAlignment: TextInput.AlignVCenter
+                        clip: true
+                        color: "#E6ECF5"
+                        selectionColor: accent.color
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 11
+                        onAccepted: win.nameDone(true)
+                        Keys.onEscapePressed: win.nameDone(false)
+                        Text {
+                            visible: nameInput.text === ""
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Listans namn"
+                            color: "#5C6880"
+                            font: nameInput.font
+                        }
+                    }
+                }
+                Btn { label: "OK"; active: true; onClicked: win.nameDone(true) }
+                Btn { label: "AVBRYT"; onClicked: win.nameDone(false) }
+            }
+
+            ListView {
+                id: localView
+                x: 4
+                y: nameRow.visible ? 46 : 22
+                width: parent.width - 8
+                height: parent.height - y - 30
+                clip: true
+                focus: true
+                boundsBehavior: Flickable.StopAtBounds
+                model: localPane.shown
+                FastWheel { flick: localView }
+                Keys.onDeletePressed: if (localPane.editable && localPane.sel.length) amp.localRemove(JSON.stringify(localPane.sel))
+                Keys.onReturnPressed: if (localPane.entry && localPane.sel.length) amp.localPlay(localPane.sel[0])
+                Keys.onPressed: event => {
+                    if (localPane.entry && event.key === Qt.Key_A && event.modifiers & Qt.ControlModifier) {
+                        localPane.sel = win.lrows.map((r, i) => i);
+                        event.accepted = true;
+                    }
+                }
+                delegate: Rectangle {
+                    id: lrow
+                    required property var modelData
+                    required property int index
+                    readonly property var r: modelData.row
+                    readonly property int full: modelData.index
+                    readonly property bool isTrack: !!localPane.entry
+                    readonly property bool current: isTrack && localPane.isCurrent(full, r)
+                    readonly property bool picked: isTrack && localPane.sel.indexOf(full) >= 0
+                    readonly property bool playingList: !isTrack && r.id === "now" && !!win.st.local && win.playing
+                    width: localView.width
+                    height: 18
+                    color: picked ? accent.dim : lrowArea.containsMouse ? "#16203A" : current ? "#12203A" : "transparent"
+                    Text {
+                        x: 4
+                        width: parent.width - 60
+                        anchors.verticalCenter: parent.verticalCenter
+                        elide: Text.ElideRight
+                        text: lrow.isTrack
+                              ? (lrow.full + 1) + ". " + (lrow.r.artist ? lrow.r.artist + " – " : "") + lrow.r.title + (lrow.r.missing ? "  (saknas)" : "")
+                              : (lrow.r.special ? (lrow.playingList ? "▶ " : "♪ ") : "") + lrow.r.name + (lrow.r.note ? "  · " + lrow.r.note : "")
+                        color: lrow.current || lrow.playingList ? accent.text : lrow.picked ? accent.on : lrow.r.missing ? "#5C6880" : "#C8D1DE"
+                        font.family: "IBM Plex Sans"
+                        font.weight: lrow.current ? Font.DemiBold : Font.Normal
+                        font.strikeout: !!lrow.r.missing
+                        font.pixelSize: 11
+                    }
+                    Text {
+                        anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                        text: lrow.isTrack ? (lrow.r.seconds ? win.clock(lrow.r.seconds) : "")
+                              : (lrow.r.count === null || lrow.r.count === undefined ? "" : lrow.r.count)
+                        color: lrow.current ? accent.text : lrow.picked ? accent.on : "#5C6880"
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 10
+                    }
+                    MouseArea {
+                        id: lrowArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        property real pressY: 0
+                        onPressed: mouse => {
+                            localView.forceActiveFocus();
+                            pressY = mouse.y;
+                            if (lrow.isTrack && mouse.button === Qt.LeftButton && !(mouse.modifiers & (Qt.ShiftModifier | Qt.ControlModifier))
+                                    && localPane.sel.indexOf(lrow.full) < 0)
+                                localPane.pick(lrow.full, 0);
+                        }
+                        onPositionChanged: mouse => {
+                            if (!pressed || !lrow.isTrack || !localPane.editable || localPane.filter)
+                                return;
+                            if (!localPane.dragging && Math.abs(mouse.y - pressY) < 6)
+                                return;
+                            localPane.dragging = true;
+                            const p = mapToItem(localView, mouse.x, mouse.y);
+                            if (p.y < 12) localView.contentY = Math.max(0, localView.contentY - 6);
+                            else if (p.y > localView.height - 12)
+                                localView.contentY = Math.min(Math.max(0, localView.contentHeight - localView.height), localView.contentY + 6);
+                            localPane.dropAt = Math.max(0, Math.min(win.lrows.length, Math.round((p.y + localView.contentY) / 18)));
+                        }
+                        onReleased: mouse => {
+                            if (localPane.dragging) {
+                                amp.localMove(JSON.stringify(localPane.picked(lrow.full)), localPane.dropAt);
+                                localPane.dragging = false;
+                                localPane.dropAt = -1;
+                            }
+                        }
+                        onClicked: mouse => {
+                            if (!lrow.isTrack) {
+                                if (mouse.button === Qt.RightButton) {
+                                    const p = mapToItem(win.contentItem, mouse.x, mouse.y);
+                                    localPane.listMenu(lrow.r, p.x, p.y);
+                                } else {
+                                    localPane.openList(lrow.r.id);
+                                }
+                                return;
+                            }
+                            if (mouse.button === Qt.RightButton) {
+                                const p = mapToItem(win.contentItem, mouse.x, mouse.y);
+                                localPane.trackMenu(lrow.full, p.x, p.y);
+                            } else {
+                                localPane.pick(lrow.full, mouse.modifiers);
+                            }
+                        }
+                        onDoubleClicked: mouse => {
+                            if (mouse.button !== Qt.LeftButton) return;
+                            lrow.isTrack ? amp.localPlay(lrow.full) : amp.localPlayList(lrow.r.id);
+                        }
+                    }
+                }
+                // Where the dragged rows go
+                Rectangle {
+                    visible: localPane.dragging && localPane.dropAt >= 0
+                    x: 0
+                    y: localPane.dropAt * 18 - localView.contentY - 1
+                    width: localView.width
+                    height: 2
+                    color: accent.color
+                    z: 5
+                }
+                Text {
+                    anchors.centerIn: parent
+                    width: parent.width - 30
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    visible: localView.count === 0 && !win.loc.busy
+                    text: localFilter.text ? "Inget som matchar"
+                          : localPane.listId === "library" ? "Ingen musik i " + win.loc.musicDir + " än"
+                          : localPane.entry ? "Listan är tom – dra in filer eller mappar från Dolphin, eller tryck + Filer"
+                          : ""
+                    color: "#5C6880"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 11
+                }
+            }
+
+            // Dropped from Dolphin: files, folders, lists
+            DropArea {
+                anchors.fill: parent
+                onEntered: drag => drag.accept(Qt.CopyAction)
+                onDropped: drop => {
+                    if (drop.hasUrls) {
+                        amp.localAddPaths(JSON.stringify(drop.urls.map(u => String(u))));
+                        drop.acceptProposedAction();
+                    }
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    visible: parent.containsDrag
+                    color: "#C0101828"
+                    border.width: 1
+                    border.color: accent.color
+                    Text {
+                        anchors.centerIn: parent
+                        text: localPane.entry && localPane.listId !== "library"
+                              ? "Släpp för att lägga till i " + localPane.entry.name
+                              : "Släpp för att lägga till i Nu spelas"
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
+                }
+            }
+
+            // What is happening, or what went wrong
+            Rectangle {
+                visible: !!win.loc.busy || !!win.loc.message
+                anchors { left: parent.left; right: parent.right; bottom: localFoot.top; margins: 6 }
+                height: localBusy.implicitHeight + 10
+                color: "#12203A"
+                border.width: 1
+                border.color: accent.dim
+                Text {
+                    id: localBusy
+                    anchors { fill: parent; margins: 5 }
+                    wrapMode: Text.WordWrap
+                    text: win.loc.busy || win.loc.message || ""
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 11
+                }
+                MouseArea { anchors.fill: parent; onClicked: amp.localClearMessage() }
+                Timer {
+                    running: !!win.loc.message && !win.loc.busy
+                    interval: 5000
+                    onTriggered: amp.localClearMessage()
+                }
+            }
+
+            // The foot: filter, count and length, add files/folders, bring in a list
+            Item {
+                id: localFoot
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 6 }
+                height: 20
+                Rectangle {
+                    id: localFilterBox
+                    visible: !!localPane.entry
+                    width: 112
+                    height: 20
+                    color: "#07090D"
+                    border.width: 1
+                    border.color: localFilter.activeFocus ? accent.color : "#1E2A40"
+                    TextInput {
+                        id: localFilter
+                        anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
+                        verticalAlignment: TextInput.AlignVCenter
+                        clip: true
+                        color: "#E6ECF5"
+                        selectionColor: accent.color
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 11
+                        Keys.onEscapePressed: text = ""
+                        Text {
+                            visible: localFilter.text === ""
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Sök…"
+                            color: "#5C6880"
+                            font: localFilter.font
+                        }
+                    }
+                }
+                Text {
+                    anchors { left: localPane.entry ? localFilterBox.right : parent.left; leftMargin: localPane.entry ? 8 : 2; verticalCenter: parent.verticalCenter }
+                    text: {
+                        if (!localPane.entry)
+                            return Math.max(0, (win.loc.lists || []).length - 2) + " egna listor";
+                        let sum = 0;
+                        for (let i = 0; i < win.lrows.length; i++)
+                            sum += win.lrows[i].seconds || 0;
+                        return (localPane.sel.length > 1 ? localPane.sel.length + " av " : "") + win.lrows.length + " · " + win.clockLong(sum);
+                    }
+                    color: "#5C6880"
+                    font.family: "IBM Plex Mono"
+                    font.pixelSize: 10
+                }
+                Row {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    spacing: 10
+                    SmallLink { visible: !localPane.entry; text: "Öppna lista…"; onClicked: importDialog.open() }
+                    SmallLink { visible: !localPane.entry; text: "Musikmappen"; onClicked: amp.openMusicDir() }
+                    SmallLink { visible: localPane.editable || localPane.listId === "library"; text: "+ Filer"; onClicked: filesDialog.open() }
+                    SmallLink { visible: localPane.editable || localPane.listId === "library"; text: "+ Mapp"; onClicked: folderDialog.open() }
+                }
+            }
+        }
+    }
+
+    Item {
+        id: plPanel
+        visible: !win.shade && win.pl.open && win.loc.tab === "spotify"
+        x: 1
+        y: plFrame.y + 28
+        width: parent.width - 2
+        height: win.plHeight - 29
         readonly property var entry: win.pl.list || null
         readonly property string filter: plFilter.text.toLowerCase()
         // the rows shown: lists or tracks, filtered; each keeps its index in the full list
@@ -532,7 +1046,7 @@ Window {
             Text {
                 id: plTitle
                 visible: !plPanel.entry
-                text: "SPELLISTA" + (win.pl.name ? "  ·  " + win.pl.name : "")
+                text: "SPOTIFY" + (win.pl.name ? "  ·  " + win.pl.name : "")
                 color: "#8B98AD"
                 font.family: "Chakra Petch"
                 font.weight: Font.Bold
@@ -776,5 +1290,128 @@ Window {
                 SmallLink { text: "Logga ut"; onClicked: amp.signOut() }
             }
         }
+    }
+
+    // ── A small right-click menu (no Controls): items {text, act} or {sep: true} ──
+    property var menuItems: []
+    property point menuAt: Qt.point(0, 0)
+    function openMenu(items, x, y) {
+        menuAt = Qt.point(x, y);
+        menuItems = items;
+    }
+    Item {
+        anchors.fill: parent
+        visible: win.menuItems.length > 0
+        z: 50
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onPressed: win.menuItems = []
+            onWheel: win.menuItems = []
+        }
+        Rectangle {
+            id: menuBox
+            width: 210
+            height: menuCol.height + 6
+            x: Math.max(2, Math.min(win.menuAt.x, win.width - width - 2))
+            y: Math.max(2, Math.min(win.menuAt.y, win.height - height - 2))
+            color: "#0E1420"
+            border.width: 1
+            border.color: "#2A3852"
+            Column {
+                id: menuCol
+                x: 1; y: 3
+                width: parent.width - 2
+                Repeater {
+                    model: win.menuItems
+                    Rectangle {
+                        id: mi
+                        required property var modelData
+                        width: menuCol.width
+                        height: modelData.sep ? 7 : 22
+                        color: !modelData.sep && miArea.containsMouse ? accent.dim : "transparent"
+                        Rectangle {
+                            visible: !!mi.modelData.sep
+                            anchors.centerIn: parent
+                            width: parent.width - 12
+                            height: 1
+                            color: "#1E2A40"
+                        }
+                        Text {
+                            visible: !mi.modelData.sep
+                            x: 10
+                            width: parent.width - 16
+                            anchors.verticalCenter: parent.verticalCenter
+                            elide: Text.ElideRight
+                            text: mi.modelData.text || ""
+                            color: miArea.containsMouse ? accent.on : "#C8D1DE"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 11
+                        }
+                        MouseArea {
+                            id: miArea
+                            anchors.fill: parent
+                            enabled: !mi.modelData.sep
+                            hoverEnabled: true
+                            onClicked: {
+                                const act = mi.modelData.act;
+                                win.menuItems = [];
+                                act();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── A list's name: new, new with the picked rows, rename, save Nu spelas ──
+    property string nameMode: ""
+    property string nameTarget: ""
+    property string nameRows: ""
+    function askName(mode, target, rows, current) {
+        nameMode = mode;
+        nameTarget = target;
+        nameRows = rows;
+        nameInput.text = current;
+        nameInput.selectAll();
+        nameInput.forceActiveFocus();
+    }
+    function nameDone(ok) {
+        const name = nameInput.text.trim();
+        const mode = nameMode;
+        nameMode = "";
+        if (!ok || !name)
+            return;
+        if (mode === "new")
+            amp.localOpen(amp.localNewList(name, "[]"));
+        else if (mode === "newfrom")
+            amp.localNewList(name, nameRows);
+        else if (mode === "rename")
+            amp.localRename(nameTarget, name);
+        else if (mode === "saveas")
+            amp.localSaveNowAs(name);
+    }
+
+    // ── Choosing files, a folder, a list to bring in ──
+    FileDialog {
+        id: filesDialog
+        title: "Lägg till musik"
+        fileMode: FileDialog.OpenFiles
+        nameFilters: ["Musik (*.mp3 *.flac *.ogg *.oga *.opus *.m4a *.aac *.wav *.wma *.ape *.wv *.aif *.aiff *.mka *.mpc)",
+                      "Spellistor (*.m3u *.m3u8 *.pls)", "Alla filer (*)"]
+        onAccepted: amp.localAddPaths(JSON.stringify(selectedFiles.map(u => String(u))))
+    }
+    FolderDialog {
+        id: folderDialog
+        title: "Lägg till en mapp med musik"
+        onAccepted: amp.localAddPaths(JSON.stringify([String(selectedFolder)]))
+    }
+    FileDialog {
+        id: importDialog
+        title: "Öppna en spellista (t.ex. från Winamp)"
+        fileMode: FileDialog.OpenFiles
+        nameFilters: ["Spellistor (*.m3u *.m3u8 *.pls)"]
+        onAccepted: amp.localAddPaths(JSON.stringify(selectedFiles.map(u => String(u))))
     }
 }

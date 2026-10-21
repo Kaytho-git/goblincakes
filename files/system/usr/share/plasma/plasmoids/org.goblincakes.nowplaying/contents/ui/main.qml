@@ -49,7 +49,7 @@ PlasmoidItem {
     readonly property var musicPlayers: ["spotify", "quodlibet", "quod libet", "elisa", "strawberry",
         "audacious", "rhythmbox", "lollypop", "amberol", "clementine", "deadbeef", "tauon",
         "cmus", "g4music", "gapless", "harmonoid", "cider", "tidal", "deezer", "youtube-music",
-        "youtubemusic", "nuclear", "museeks", "sayonara", "juk", "qmmp", "mpd", "mpv"]
+        "youtubemusic", "nuclear", "museeks", "sayonara", "juk", "qmmp", "mpd", "mpv", "goblinamp", "goblin-amp"]
 
     property int playerRevision: 0
 
