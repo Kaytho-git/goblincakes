@@ -13,8 +13,11 @@ Window {
     title: "GoblinAmp"
     flags: Qt.Window | Qt.FramelessWindowHint
     width: 380
-    height: shade ? 22 : 152 + (amp.graphShown ? graphHeight : 0) + (pl.open ? plHeight : 0)
-    readonly property int plHeight: 330
+    readonly property int wantedHeight: shade ? 22 : 152 + (amp.graphShown ? graphHeight : 0) + (pl.open ? plHeight : 0)
+    height: wantedHeight
+    // the playlist's height: dragged at the window's bottom edge, kept in amp.json (plHeight)
+    property int plHeight: Math.max(minPlHeight, amp.savedPlHeight)
+    readonly property int minPlHeight: 200
     readonly property int graphHeight: 140
     readonly property var pl: JSON.parse(amp.pl || "{}")
     readonly property var loc: JSON.parse(amp.localState || "{}")
@@ -24,8 +27,20 @@ Window {
         ? "spotify:track:" + st.trackid.split("/").pop() : ""
     minimumWidth: 380
     maximumWidth: 380
-    minimumHeight: height
-    maximumHeight: height
+    // a fixed height: the limits moved in the right order, else the old one cuts the new height
+    minimumHeight: wantedHeight
+    maximumHeight: wantedHeight
+    onWantedHeightChanged: {
+        if (wantedHeight > height) {
+            maximumHeight = wantedHeight;
+            height = wantedHeight;
+            minimumHeight = wantedHeight;
+        } else {
+            minimumHeight = wantedHeight;
+            height = wantedHeight;
+            maximumHeight = wantedHeight;
+        }
+    }
     visible: true
     color: "#07090D"
 
@@ -733,7 +748,7 @@ Window {
             // A name for a list (new, rename, save Nu spelas)
             Row {
                 id: nameRow
-                visible: win.nameMode !== ""
+                visible: win.nameMode !== "" && win.nameMode.indexOf("sp-") !== 0
                 x: 8; y: 22
                 spacing: 6
                 Rectangle {
@@ -1020,7 +1035,13 @@ Window {
         width: parent.width - 2
         height: win.plHeight - 29
         readonly property var entry: win.pl.list || null
-        readonly property string filter: plFilter.text.toLowerCase()
+        readonly property bool searching: !!entry && entry.id === "search"
+        // the foot's field: the words for Spotify's search, else a filter of the open list
+        readonly property string filter: searching ? "" : plFilter.text.toLowerCase()
+        readonly property bool editable: !!entry && !!entry.mine && !entry.special
+        property int dragRow: -1        // an own list's row being dragged (one at a time – Spotify moves ranges)
+        property int dropAt: -1
+        onEntryChanged: { dragRow = -1; dropAt = -1; }
         // the rows shown: lists or tracks, filtered; each keeps its index in the full list
         readonly property var shown: {
             const all = entry ? (win.pl.rows || []) : (win.pl.lists || []);
@@ -1032,6 +1053,67 @@ Window {
                     out.push({ row: r, index: i });
             }
             return out;
+        }
+        function openEntry(id) {
+            plFilter.text = id === "search" ? (win.pl.query || "") : "";
+            amp.openList(id);
+            if (id === "search")
+                plFilter.forceActiveFocus();
+        }
+        // own lists to add to (the open one left out); at most 8 in the menu
+        function targets() {
+            return (win.pl.lists || []).filter(l => l.mine && !l.special && (!entry || l.id !== entry.id)).slice(0, 8);
+        }
+        // Right-click on a track (a list's, the queue's or a search's)
+        function trackMenu(i, x, y) {
+            const r = win.pl.rows[i];
+            if (r.kind === "more")
+                return;
+            const items = [];
+            if (entry.id !== "queue")
+                items.push({ text: r.kind === "album" ? "Spela albumet" : r.kind === "playlist" ? "Spela listan" : "Spela", act: () => amp.playRow(i) });
+            if (!r.kind || r.kind === "track") {
+                if (!r.local) {
+                    items.push({ text: "Lägg i kön", act: () => amp.spEnqueue(JSON.stringify([r.uri])) });
+                    items.push({ sep: true });
+                    for (const l of targets())
+                        items.push({ text: "Lägg till i " + l.name, act: () => amp.spAddTo(l.id, JSON.stringify([r.uri])) });
+                    items.push({ text: "Lägg till i en ny lista…", act: () => win.askName("sp-newfrom", "", JSON.stringify([r.uri]), "") });
+                }
+                if (editable) {
+                    items.push({ sep: true });
+                    items.push({ text: "Ta bort ur listan", act: () => amp.spRemove(i) });
+                }
+            }
+            win.openMenu(items, x, y);
+        }
+        // Right-click on a list, or ⋯ in an open one
+        function listMenu(l, x, y) {
+            const items = [];
+            if (l.id !== "queue" && l.id !== "search")
+                items.push({ text: "Spela listan", act: () => amp.playList(l.id) });
+            if (!l.special) {
+                items.push({ sep: true });
+                if (l.own)
+                    items.push({ text: "Byt namn…", act: () => win.askName("sp-rename", l.id, "", l.name) });
+                items.push({ text: "Ta bort ur dina listor…", act: () => win.openMenu([
+                    { text: "Ja, ta bort " + l.name, act: () => amp.spDelete(l.id) },
+                    { text: "Avbryt", act: () => {} }], x, y) });
+            }
+            if (items.length)
+                win.openMenu(items, x, y);
+        }
+        // ⋯ in the foot: what used to be links there
+        function footMenu(x, y) {
+            win.openMenu([
+                { text: "Ny lista…", act: () => win.askName("sp-new", "", "", "") },
+                { text: "Sök i hela Spotify", act: () => openEntry("search") },
+                { text: "Uppdatera listorna", act: () => amp.refreshLists() },
+                { sep: true },
+                { text: "Spotify-fönstret", act: () => amp.playlists() },
+                { text: "Hjälp", act: () => plPanel.showHelp = true },
+                { sep: true },
+                { text: "Logga ut", act: () => amp.signOut() }], x, y);
         }
 
         Rectangle { anchors.fill: parent; color: "#0B1018" }
@@ -1062,20 +1144,74 @@ Window {
                 font.weight: Font.DemiBold
                 onClicked: { plFilter.text = ""; amp.backToLists(); }
             }
-            SmallLink {
-                visible: !!plPanel.entry && plPanel.entry.id !== "queue"
-                anchors { right: refresh.left; rightMargin: 12 }
-                text: "▶ Spela listan"
-                onClicked: amp.playList(plPanel.entry.id)
-            }
-            SmallLink {
-                id: refresh
-                visible: win.pl.signedIn
+            Row {
+                visible: win.pl.signedIn && !plPanel.showHelp
                 anchors.right: parent.right
-                text: "↻"
-                font.pixelSize: 13
-                onClicked: plPanel.entry ? amp.openList(plPanel.entry.id) : amp.refreshLists()
+                spacing: 12
+                SmallLink {
+                    visible: !plPanel.entry
+                    text: "+ Ny lista"
+                    onClicked: win.askName("sp-new", "", "", "")
+                }
+                SmallLink {
+                    visible: !!plPanel.entry && plPanel.entry.id !== "queue" && !plPanel.searching
+                    text: "▶ Spela listan"
+                    onClicked: amp.playList(plPanel.entry.id)
+                }
+                SmallLink {
+                    id: plMore
+                    visible: !!plPanel.entry && !plPanel.entry.special
+                    text: "⋯"
+                    font.pixelSize: 14
+                    onClicked: {
+                        const p = plMore.mapToItem(win.contentItem, 0, plMore.height);
+                        plPanel.listMenu(plPanel.entry, p.x - 160, p.y + 2);
+                    }
+                }
+                SmallLink {
+                    visible: !plPanel.searching
+                    text: "↻"
+                    font.pixelSize: 13
+                    onClicked: plPanel.entry ? amp.openList(plPanel.entry.id) : amp.refreshLists()
+                }
             }
+        }
+
+        // A name for a Spotify list (new, new with a track, rename)
+        Row {
+            id: spNameRow
+            visible: win.nameMode.indexOf("sp-") === 0
+            x: 8; y: 24
+            z: 3
+            spacing: 6
+            Rectangle {
+                width: 210
+                height: 20
+                color: "#07090D"
+                border.width: 1
+                border.color: spNameInput.activeFocus ? accent.color : "#1E2A40"
+                TextInput {
+                    id: spNameInput
+                    anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
+                    verticalAlignment: TextInput.AlignVCenter
+                    clip: true
+                    color: "#E6ECF5"
+                    selectionColor: accent.color
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 11
+                    onAccepted: win.nameDone(true)
+                    Keys.onEscapePressed: win.nameDone(false)
+                    Text {
+                        visible: spNameInput.text === ""
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Listans namn i Spotify"
+                        color: "#5C6880"
+                        font: spNameInput.font
+                    }
+                }
+            }
+            Btn { label: "OK"; active: true; onClicked: win.nameDone(true) }
+            Btn { label: "AVBRYT"; onClicked: win.nameDone(false) }
         }
 
         property bool showHelp: false   // "Hjälp" in the foot: the setup steps again
@@ -1115,10 +1251,12 @@ Window {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 text: "Du är inloggad som " + win.pl.name + ". Samma steg finns i terminalen: goblin amp hjälp."
+                      + (win.pl.canEdit ? "" : "\nFör att skapa och ändra listor: Logga ut och logga in igen en gång.")
                 color: accent.text
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 11
             }
+            Btn { visible: win.pl.signedIn; label: "TILLBAKA"; onClicked: plPanel.showHelp = false }
             Row {
                 visible: !win.pl.signedIn
                 spacing: 6
@@ -1157,9 +1295,9 @@ Window {
             id: plView
             visible: win.pl.signedIn && !plPanel.showHelp
             x: 4
-            y: 26
+            y: spNameRow.visible ? 48 : 26
             width: parent.width - 8
-            height: parent.height - 26 - 30
+            height: parent.height - y - 30
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             model: plPanel.shown
@@ -1170,27 +1308,35 @@ Window {
                 required property int index
                 readonly property var r: modelData.row
                 readonly property bool isTrack: !!plPanel.entry
+                readonly property string kind: r.kind || "track"
                 readonly property bool current: isTrack && r.uri === win.playingUri && r.uri !== ""
+                readonly property bool dragged: plPanel.dragRow === modelData.index
                 width: plView.width
                 height: 18
-                color: rowArea.containsMouse ? "#16203A" : current ? "#12203A" : "transparent"
+                color: dragged ? accent.dim : rowArea.containsMouse && kind !== "more" ? "#16203A" : current ? "#12203A" : "transparent"
                 Text {
                     x: 4
                     width: parent.width - 60
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
-                    text: rowItem.isTrack
-                          ? (rowItem.modelData.index + 1) + ". " + (rowItem.r.artist ? rowItem.r.artist + " – " : "") + rowItem.r.title
-                          : (rowItem.r.special ? "♪ " : "") + rowItem.r.name
+                    text: !rowItem.isTrack
+                          ? (rowItem.r.special ? (rowItem.r.id === "search" ? "⌕ " : "♪ ") : "") + rowItem.r.name
                             + (!rowItem.r.special && !rowItem.r.mine && rowItem.r.owner ? "  · " + rowItem.r.owner : "")
-                    color: rowItem.current ? accent.text : rowItem.r.local ? "#5C6880" : "#C8D1DE"
+                          : rowItem.kind === "more" ? "Visa fler låtar…"
+                          : rowItem.kind === "album" ? "Album: " + (rowItem.r.artist ? rowItem.r.artist + " – " : "") + rowItem.r.title
+                          : rowItem.kind === "playlist" ? "Lista: " + rowItem.r.title + (rowItem.r.artist ? "  · " + rowItem.r.artist : "")
+                          : (rowItem.modelData.index + 1) + ". " + (rowItem.r.artist ? rowItem.r.artist + " – " : "") + rowItem.r.title
+                    color: rowItem.current || rowItem.kind === "more" ? accent.text : rowItem.dragged ? accent.on
+                           : rowItem.r.local ? "#5C6880" : rowItem.kind === "track" ? "#C8D1DE" : "#9AA7BC"
                     font.family: "IBM Plex Sans"
                     font.weight: rowItem.current ? Font.DemiBold : Font.Normal
                     font.pixelSize: 11
                 }
                 Text {
                     anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                    text: rowItem.isTrack ? win.clock(rowItem.r.seconds) : (rowItem.r.count !== undefined ? rowItem.r.count : "")
+                    text: !rowItem.isTrack ? (rowItem.r.count !== undefined ? rowItem.r.count : "")
+                          : rowItem.kind === "track" ? win.clock(rowItem.r.seconds)
+                          : rowItem.kind === "more" ? "" : rowItem.r.count
                     color: rowItem.current ? accent.text : "#5C6880"
                     font.family: "IBM Plex Mono"
                     font.pixelSize: 10
@@ -1199,9 +1345,60 @@ Window {
                     id: rowArea
                     anchors.fill: parent
                     hoverEnabled: true
-                    onClicked: if (!rowItem.isTrack) { plFilter.text = ""; amp.openList(rowItem.r.id); }
-                    onDoubleClicked: rowItem.isTrack ? amp.playRow(rowItem.modelData.index) : amp.playList(rowItem.r.id)
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    property real pressY: 0
+                    onPressed: mouse => pressY = mouse.y
+                    // own lists: drag a row to move it (not while filtered)
+                    onPositionChanged: mouse => {
+                        if (!pressed || !rowItem.isTrack || !plPanel.editable || plPanel.filter || win.pl.busy)
+                            return;
+                        if (plPanel.dragRow < 0 && Math.abs(mouse.y - pressY) < 6)
+                            return;
+                        plPanel.dragRow = rowItem.modelData.index;
+                        const p = mapToItem(plView, mouse.x, mouse.y);
+                        if (p.y < 12) plView.contentY = Math.max(0, plView.contentY - 6);
+                        else if (p.y > plView.height - 12)
+                            plView.contentY = Math.min(Math.max(0, plView.contentHeight - plView.height), plView.contentY + 6);
+                        plPanel.dropAt = Math.max(0, Math.min(win.pl.rows.length, Math.round((p.y + plView.contentY) / 18)));
+                    }
+                    onReleased: {
+                        if (plPanel.dragRow >= 0) {
+                            amp.spMove(plPanel.dragRow, plPanel.dropAt);
+                            plPanel.dragRow = -1;
+                            plPanel.dropAt = -1;
+                        }
+                    }
+                    onClicked: mouse => {
+                        const p = mapToItem(win.contentItem, mouse.x, mouse.y);
+                        if (!rowItem.isTrack) {
+                            if (mouse.button === Qt.RightButton)
+                                plPanel.listMenu(rowItem.r, p.x, p.y);
+                            else
+                                plPanel.openEntry(rowItem.r.id);
+                        } else if (mouse.button === Qt.RightButton) {
+                            plPanel.trackMenu(rowItem.modelData.index, p.x, p.y);
+                        } else if (rowItem.kind === "more") {
+                            amp.searchMore();
+                        }
+                    }
+                    onDoubleClicked: mouse => {
+                        if (mouse.button !== Qt.LeftButton || rowItem.kind === "more")
+                            return;
+                        if (!rowItem.isTrack)
+                            rowItem.r.id === "search" ? plPanel.openEntry("search") : amp.playList(rowItem.r.id);
+                        else
+                            amp.playRow(rowItem.modelData.index);
+                    }
                 }
+            }
+            // Where the dragged row goes
+            Rectangle {
+                visible: plPanel.dragRow >= 0 && plPanel.dropAt >= 0
+                y: plPanel.dropAt * 18 - plView.contentY - 1
+                width: plView.width
+                height: 2
+                color: accent.color
+                z: 5
             }
             Text {
                 anchors.centerIn: parent
@@ -1209,7 +1406,8 @@ Window {
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 visible: plView.count === 0 && !win.pl.busy && !win.pl.message
-                text: plFilter.text ? "Inget som matchar" : plPanel.entry ? "Listan är tom" : "Inga listor än – tryck ↻"
+                text: plPanel.searching ? (win.pl.query ? "Inget hittades för " + win.pl.query : "Skriv i rutan nedanför och tryck Enter – låtar, album och listor i hela Spotify")
+                      : plFilter.text ? "Inget som matchar" : plPanel.entry ? "Listan är tom" : "Inga listor än – tryck ↻"
                 color: "#5C6880"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 11
@@ -1218,20 +1416,26 @@ Window {
 
         // What is happening, or what went wrong
         Rectangle {
-            visible: !!win.pl.busy || !!win.pl.message
+            visible: !!win.pl.busy || !!win.pl.message || !!win.pl.note
             anchors { left: parent.left; right: parent.right; bottom: plFoot.top; margins: 6 }
             height: busyText.implicitHeight + 10
-            color: win.pl.message ? "#2A1418" : "#12203A"
+            color: win.pl.message && !win.pl.busy ? "#2A1418" : "#12203A"
             border.width: 1
-            border.color: win.pl.message ? accent.error : accent.dim
+            border.color: win.pl.message && !win.pl.busy ? accent.error : accent.dim
             Text {
                 id: busyText
                 anchors { fill: parent; margins: 5 }
                 wrapMode: Text.WordWrap
-                text: win.pl.busy || win.pl.message || ""
+                text: win.pl.busy || win.pl.message || win.pl.note || ""
                 color: "#E6ECF5"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 11
+            }
+            // "Tillagd i …" and the like go away by themselves
+            Timer {
+                running: !!win.pl.note && !win.pl.busy && !win.pl.message
+                interval: 4000
+                onTriggered: amp.clearNote()
             }
         }
 
@@ -1243,7 +1447,7 @@ Window {
             visible: win.pl.signedIn
             Rectangle {
                 id: filterBox
-                width: 130
+                width: plPanel.searching ? parent.width - 30 : 150
                 height: 20
                 color: "#07090D"
                 border.width: 1
@@ -1258,20 +1462,22 @@ Window {
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 11
                     Keys.onEscapePressed: text = ""
+                    onAccepted: if (plPanel.searching) amp.searchSpotify(text)
                     Text {
                         visible: plFilter.text === ""
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Sök i listan…"
+                        text: plPanel.searching ? "Sök i hela Spotify… (Enter)" : plPanel.entry ? "Sök i listan…" : "Filtrera listorna…"
                         color: "#5C6880"
                         font: plFilter.font
                     }
                 }
             }
             Text {
+                visible: !plPanel.searching
                 anchors { left: filterBox.right; leftMargin: 8; verticalCenter: parent.verticalCenter }
                 text: {
                     if (!plPanel.entry)
-                        return (win.pl.lists || []).length ? Math.max(0, win.pl.lists.length - 2) + " listor" : "";
+                        return (win.pl.lists || []).length ? Math.max(0, win.pl.lists.filter(l => !l.special).length) + " listor" : "";
                     const rows = win.pl.rows || [];
                     let sum = 0;
                     for (let i = 0; i < rows.length; i++)
@@ -1282,13 +1488,57 @@ Window {
                 font.family: "IBM Plex Mono"
                 font.pixelSize: 10
             }
-            Row {
-                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                spacing: 10
-                SmallLink { text: plPanel.showHelp ? "Tillbaka" : "Hjälp"; onClicked: plPanel.showHelp = !plPanel.showHelp }
-                SmallLink { text: "Spotify-fönstret"; onClicked: amp.playlists() }
-                SmallLink { text: "Logga ut"; onClicked: amp.signOut() }
+            SmallLink {
+                id: footMore
+                anchors { right: parent.right; rightMargin: 2; verticalCenter: parent.verticalCenter }
+                text: "⋯"
+                font.pixelSize: 14
+                onClicked: {
+                    const p = footMore.mapToItem(win.contentItem, 0, 0);
+                    plPanel.footMenu(p.x - 190, p.y - 170);
+                }
             }
+        }
+    }
+
+    // ── The playlist's height: drag the bottom edge (or the grip in the corner) ──
+    Item {
+        visible: !win.shade && win.pl.open
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+        height: 5
+        z: 10
+        // Winamp's corner grip, drawn
+        Canvas {
+            anchors { right: parent.right; bottom: parent.bottom; margins: 1 }
+            width: 9; height: 9
+            onPaint: {
+                const c = getContext("2d");
+                c.fillStyle = "#3A4A66";
+                for (const [x, y] of [[6, 0], [3, 3], [6, 3], [0, 6], [3, 6], [6, 6]])
+                    c.fillRect(x, y, 2, 2);
+            }
+        }
+        MouseArea {
+            anchors.fill: parent
+            anchors.topMargin: -3
+            cursorShape: Qt.SizeVerCursor
+            property real startY: 0
+            property int startHeight: 0
+            onPressed: mouse => {
+                startY = mapToGlobal(mouse.x, mouse.y).y;
+                startHeight = win.plHeight;
+            }
+            onPositionChanged: mouse => {
+                if (!pressed)
+                    return;
+                const top = 152 + (amp.graphShown ? win.graphHeight : 0);
+                const most = Math.max(win.minPlHeight, Screen.desktopAvailableHeight - top - 40);
+                // the window grows under the mouse, so the window-relative y moves with it: use the screen's
+                const y = mapToGlobal(mouse.x, mouse.y).y;
+                win.plHeight = Math.round(Math.max(win.minPlHeight, Math.min(most, startHeight + y - startY)) / 18) * 18 + 6;
+            }
+            onReleased: amp.setPlHeight(win.plHeight)
+            onDoubleClicked: { win.plHeight = 330; amp.setPlHeight(330); }
         }
     }
 
@@ -1373,12 +1623,13 @@ Window {
         nameMode = mode;
         nameTarget = target;
         nameRows = rows;
-        nameInput.text = current;
-        nameInput.selectAll();
-        nameInput.forceActiveFocus();
+        const field = mode.indexOf("sp-") === 0 ? spNameInput : nameInput;
+        field.text = current;
+        field.selectAll();
+        field.forceActiveFocus();
     }
     function nameDone(ok) {
-        const name = nameInput.text.trim();
+        const name = (nameMode.indexOf("sp-") === 0 ? spNameInput : nameInput).text.trim();
         const mode = nameMode;
         nameMode = "";
         if (!ok || !name)
@@ -1391,6 +1642,10 @@ Window {
             amp.localRename(nameTarget, name);
         else if (mode === "saveas")
             amp.localSaveNowAs(name);
+        else if (mode === "sp-new" || mode === "sp-newfrom")
+            amp.spNewList(name, nameRows || "[]");
+        else if (mode === "sp-rename")
+            amp.spRename(nameTarget, name);
     }
 
     // ── Choosing files, a folder, a list to bring in ──

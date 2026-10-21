@@ -444,10 +444,12 @@ class Amp(QObject):
         except (OSError, ValueError):
             self.settings = {}
         self.library = SW.Library()
+        self._search_rows = []
         account = SW.load()
         self._pl = {"open": bool(self.settings.get("playlist")), "clientId": account.get("clientId", ""),
                     "signedIn": bool(account.get("refreshToken")), "name": account.get("name", ""),
-                    "busy": "", "message": "", "lists": [], "list": None, "rows": [], "redirect": SW.REDIRECT}
+                    "busy": "", "message": "", "lists": [], "list": None, "rows": [], "redirect": SW.REDIRECT,
+                    "canEdit": SW.can_edit(), "query": "", "note": ""}
         self._plDone.connect(self._pl_done)
         self._main.connect(self._run_main)
         self._state = "{}"
@@ -653,7 +655,7 @@ class Amp(QObject):
         """work() → dict of changes, in a thread; a SpotifyError becomes the message."""
         if self._pl["busy"]:
             return
-        self._pl_update(busy=busy, message="")
+        self._pl_update(busy=busy, message="", note="")
 
         def run():
             try:
@@ -690,7 +692,7 @@ class Amp(QObject):
     def signIn(self, client_id):
         def work():
             name = SW.login(client_id, lambda url: QDesktopServices.openUrl(QUrl(url)))
-            return {"signedIn": True, "name": name, "clientId": client_id.strip(),
+            return {"signedIn": True, "name": name, "clientId": client_id.strip(), "canEdit": SW.can_edit(),
                     "lists": self.library.lists(), "list": None, "rows": []}
         self._pl_update(clientId=client_id.strip())
         self._pl_job("Logga in i webbläsaren som öppnades…", work)
@@ -699,7 +701,7 @@ class Amp(QObject):
     def signOut(self):
         SW.logout()
         self.library.cache.clear()
-        self._pl_update(signedIn=False, name="", lists=[], list=None, rows=[], message="")
+        self._pl_update(signedIn=False, name="", lists=[], list=None, rows=[], message="", canEdit=False, query="")
 
     @Slot()
     def refreshLists(self):
@@ -709,6 +711,9 @@ class Amp(QObject):
     def openList(self, list_id):
         entry = next((e for e in self._pl["lists"] if e["id"] == list_id), None)
         if entry is None:
+            return
+        if list_id == SW.SEARCH:   # the last search's rows stay until a new one
+            self._pl_update(list=entry, rows=self._search_rows, message="")
             return
         self._pl_update(list=entry, rows=[])
         self._pl_job("Hämtar låtarna…", lambda: {"rows": self.library.tracks(entry)})
@@ -721,6 +726,9 @@ class Amp(QObject):
     def playRow(self, index):
         entry, rows = self._pl["list"], self._pl["rows"]
         if not entry or entry["id"] == SW.QUEUE or not (0 <= index < len(rows)):
+            return
+        if rows[index].get("kind") == "more":
+            self.searchMore()
             return
 
         self._spotify_takes_over()
@@ -735,7 +743,7 @@ class Amp(QObject):
     @Slot(str)
     def playList(self, list_id):
         entry = next((e for e in self._pl["lists"] if e["id"] == list_id), None)
-        if entry is None or entry["id"] == SW.QUEUE:
+        if entry is None or entry["id"] in (SW.QUEUE, SW.SEARCH):
             return
 
         self._spotify_takes_over()
@@ -761,6 +769,168 @@ class Amp(QObject):
         else:
             subprocess.Popen(["flatpak", "run", "com.spotify.Client"], start_new_session=True,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    # Search in all of Spotify, own lists changed (21 Oct)
+
+    @Slot(str)
+    def searchSpotify(self, query):
+        query = query.strip()
+        entry = next((e for e in self._pl["lists"] if e["id"] == SW.SEARCH), None)
+        if not query or entry is None:
+            return
+
+        def work():
+            self._search_rows = self.library.search(query)
+            return {"rows": self._search_rows, "list": entry}
+        self._pl_update(query=query, list=entry)
+        self._pl_job("Söker…", work)
+
+    @Slot()
+    def clearNote(self):
+        self._pl_update(note="")
+
+    @Slot()
+    def searchMore(self):
+        rows = list(self._pl["rows"])
+        if not rows or rows[-1].get("kind") != "more":
+            return
+        offset, query = rows[-1]["offset"], self._pl["query"]
+
+        def work():
+            found = self.library.search(query, offset)
+            tracks = [r for r in rows[:-1] if r.get("kind") == "track"]
+            others = [r for r in rows[:-1] if r.get("kind") != "track"]
+            more = [r for r in found if r.get("kind") == "more"]
+            self._search_rows = tracks + [r for r in found if r.get("kind") == "track"] + others + more
+            return {"rows": self._search_rows}
+        self._pl_job("Hämtar fler…", work)
+
+    @Property(int, constant=True)
+    def savedPlHeight(self):
+        return int(self.settings.get("plHeight") or 330)
+
+    @Slot(int)
+    def setPlHeight(self, height):
+        self.settings["plHeight"] = height
+        self._save_settings()
+
+    def _list_entry(self, list_id):
+        return next((e for e in self._pl["lists"] if e["id"] == list_id), None)
+
+    def _lists_with(self, list_id, **changes):
+        """The lists with one entry changed (count, snapshot, name)."""
+        out = []
+        for e in self._pl["lists"]:
+            if e["id"] == list_id:
+                e = dict(e, **changes)
+            out.append(e)
+        return out
+
+    def _open_entry_changed(self, lists, list_id):
+        entry = self._pl["list"]
+        if entry and entry["id"] == list_id:
+            return next((e for e in lists if e["id"] == list_id), entry)
+        return entry
+
+    @Slot(str)
+    def spEnqueue(self, uris):
+        uris = json.loads(uris)
+
+        def work():
+            for uri in uris:
+                self.library.enqueue(uri, start_spotify_app)
+            return {"note": "I kön" if len(uris) == 1 else f"{len(uris)} låtar i kön"}
+        self._pl_job("Lägger i kön…", work)
+
+    @Slot(str, str)
+    def spAddTo(self, list_id, uris):
+        entry, uris = self._list_entry(list_id), json.loads(uris)
+        if entry is None:
+            return
+
+        def work():
+            snapshot = self.library.add(list_id, uris)
+            lists = self._lists_with(list_id, count=entry.get("count", 0) + len(uris), snapshot=snapshot)
+            return {"lists": lists, "list": self._open_entry_changed(lists, list_id),
+                    "note": f"Tillagd i {entry['name']}" if len(uris) == 1 else f"{len(uris)} låtar tillagda i {entry['name']}"}
+        self._pl_job("Lägger till…", work)
+
+    @Slot(str, str)
+    def spNewList(self, name, uris):
+        uris = json.loads(uris or "[]")
+
+        def work():
+            entry = self.library.create(name)
+            if uris:
+                entry["snapshot"] = self.library.add(entry["id"], uris)
+                entry["count"] = len(uris)
+            specials = [e for e in self._pl["lists"] if e.get("special")]
+            others = [e for e in self._pl["lists"] if not e.get("special")]
+            return {"lists": specials + [entry] + others, "note": f"Listan {name} är skapad"}
+        self._pl_job("Skapar listan…", work)
+
+    @Slot(int)
+    def spRemove(self, index):
+        entry, rows = self._pl["list"], list(self._pl["rows"])
+        if not entry or not entry.get("mine") or not (0 <= index < len(rows)):
+            return
+        uri = rows[index]["uri"]
+
+        def work():
+            snapshot = self.library.remove(entry["id"], [uri], entry.get("snapshot", ""))
+            kept = [r for r in rows if r["uri"] != uri]
+            lists = self._lists_with(entry["id"], count=len(kept), snapshot=snapshot)
+            new = self._open_entry_changed(lists, entry["id"])
+            self.library.cache[entry["id"]] = (snapshot, kept)
+            return {"rows": kept, "lists": lists, "list": new}
+        self._pl_job("Tar bort…", work)
+
+    @Slot(int, int)
+    def spMove(self, index, before):
+        entry, rows = self._pl["list"], list(self._pl["rows"])
+        if (not entry or not entry.get("mine") or not (0 <= index < len(rows))
+                or before in (index, index + 1)):
+            return
+        moved = rows.pop(index)
+        rows.insert(before - 1 if before > index else before, moved)
+        if self._pl["busy"]:
+            return
+        old = self._pl["rows"]
+        self._pl_update(rows=rows)   # at once; back again if Spotify says no
+
+        def work():
+            try:
+                snapshot = self.library.move(entry["id"], index, before, entry.get("snapshot", ""))
+            except SW.SpotifyError:
+                self._main.emit(lambda: self._pl_update(rows=old))
+                raise
+            lists = self._lists_with(entry["id"], snapshot=snapshot)
+            self.library.cache[entry["id"]] = (snapshot, rows)
+            return {"lists": lists, "list": self._open_entry_changed(lists, entry["id"])}
+        self._pl_job("Flyttar…", work)
+
+    @Slot(str, str)
+    def spRename(self, list_id, name):
+        def work():
+            self.library.rename(list_id, name)
+            lists = self._lists_with(list_id, name=name)
+            return {"lists": lists, "list": self._open_entry_changed(lists, list_id)}
+        self._pl_job("Byter namn…", work)
+
+    @Slot(str)
+    def spDelete(self, list_id):
+        entry = self._list_entry(list_id)
+        if entry is None:
+            return
+
+        def work():
+            self.library.delete(list_id)
+            open_ = self._pl["list"]
+            return {"lists": [e for e in self._pl["lists"] if e["id"] != list_id],
+                    "list": None if open_ and open_["id"] == list_id else open_,
+                    "rows": [] if open_ and open_["id"] == list_id else self._pl["rows"],
+                    "note": f"{entry['name']} är borttagen (kan återställas på spotify.com → Konto → Återställ spellistor)"}
+        self._pl_job("Tar bort listan…", work)
 
     def _spotify_takes_over(self):
         self.local.player.pause()

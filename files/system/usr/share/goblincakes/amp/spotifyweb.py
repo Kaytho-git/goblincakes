@@ -11,6 +11,12 @@ users, fewer endpoints – a playlist's tracks only for lists the user made or c
 (others' give 403: the list can still be played as a whole), and playlist entries are under
 "item" (was "track"); both names are read. Queries are kept few (the lists once, a list's
 tracks when it is opened, cached until the list's snapshot changes).
+
+Search and own lists (21 Oct, the user's yes to the proposals): /search gives at most 10 per type
+and call in Development Mode (more with offset); new lists with POST /me/playlists, the tracks
+with /playlists/{id}/items (add, remove by uri, move a range), a list away with DELETE
+/me/library (Spotify keeps it a while – it can be brought back on spotify.com → Account →
+Recover playlists). The modify scopes came with this – an older sign-in has to be redone once.
 """
 import base64
 import hashlib
@@ -31,10 +37,14 @@ REDIRECT = f"http://127.0.0.1:{PORT}/callback"
 API = os.environ.get("GOBLINCAKES_SPOTIFY_API", "https://api.spotify.com/v1")
 ACCOUNTS = os.environ.get("GOBLINCAKES_SPOTIFY_ACCOUNTS", "https://accounts.spotify.com")
 SCOPES = ("playlist-read-private playlist-read-collaborative user-library-read "
-          "user-read-playback-state user-modify-playback-state user-read-currently-playing")
+          "user-read-playback-state user-modify-playback-state user-read-currently-playing "
+          "playlist-modify-private playlist-modify-public user-library-modify user-follow-modify")
+EDIT_SCOPE = "playlist-modify-private"
 DASHBOARD = "https://developer.spotify.com/dashboard"
 LIKED = "liked"     # the list id of "Gillade låtar"
 QUEUE = "queue"     # the list id of "Kö"
+SEARCH = "search"   # the list id of "Sök i hela Spotify"
+SEARCH_LIMIT = 10   # per type and call – the most Development Mode allows
 PAGE_LIMIT = 1000   # tracks read from one list at most (pages of 100 – Spotify counts every call)
 
 
@@ -133,7 +143,8 @@ def login(client_id, open_url, timeout=300):
     tok = _token_request({"client_id": client_id, "grant_type": "authorization_code", "code": got["code"],
                           "redirect_uri": REDIRECT, "code_verifier": verifier})
     data = {"clientId": client_id, "refreshToken": tok.get("refresh_token", ""),
-            "accessToken": tok.get("access_token", ""), "expires": time.time() + tok.get("expires_in", 3600) - 60}
+            "accessToken": tok.get("access_token", ""), "expires": time.time() + tok.get("expires_in", 3600) - 60,
+            "scope": tok.get("scope", "")}
     save(data)
     me = Client().get("/me")
     data["user"] = me.get("id", "")
@@ -142,9 +153,14 @@ def login(client_id, open_url, timeout=300):
     return data["name"]
 
 
+def can_edit():
+    """Signed in with the scopes for changing lists (sign-ins before 21 Oct lack them)."""
+    return EDIT_SCOPE in load().get("scope", "").split()
+
+
 def logout():
     data = load()
-    for key in ("refreshToken", "accessToken", "expires", "user", "name"):
+    for key in ("refreshToken", "accessToken", "expires", "user", "name", "scope"):
         data.pop(key, None)
     save(data)
 
@@ -168,6 +184,8 @@ class Client:
             data["expires"] = time.time() + tok.get("expires_in", 3600) - 60
             if tok.get("refresh_token"):
                 data["refreshToken"] = tok["refresh_token"]
+            if tok.get("scope"):
+                data["scope"] = tok["scope"]
             save(data)
             return data["accessToken"]
 
@@ -219,6 +237,20 @@ def track_row(item):
             "local": bool(item.get("is_local"))}
 
 
+def list_entry(p, me):
+    """A playlist object as GoblinAmp's list row."""
+    total = (p.get("items") or p.get("tracks") or {}).get("total", 0)
+    owner = (p.get("owner") or {}).get("id", "")
+    return {"id": p.get("id", ""), "name": p.get("name", ""), "uri": p.get("uri", ""),
+            "count": total, "snapshot": p.get("snapshot_id", ""),
+            "mine": owner == me or bool(p.get("collaborative")), "own": owner == me,
+            "owner": (p.get("owner") or {}).get("display_name") or owner}
+
+
+def _artists(item):
+    return ", ".join(a.get("name", "") for a in item.get("artists") or [] if a)
+
+
 class Library:
     """The lists, their tracks (cached by snapshot), the queue, playing."""
 
@@ -228,7 +260,8 @@ class Library:
 
     def lists(self):
         me = load().get("user", "")
-        out = [{"id": QUEUE, "name": "Kö – det som spelas härnäst", "special": True},
+        out = [{"id": SEARCH, "name": "Sök i hela Spotify", "special": True},
+               {"id": QUEUE, "name": "Kö – det som spelas härnäst", "special": True},
                {"id": LIKED, "name": "Gillade låtar", "special": True, "uri": f"spotify:user:{me}:collection"}]
         url, seen = "/me/playlists", 0
         query = {"limit": 50}
@@ -238,12 +271,7 @@ class Library:
             for p in page.get("items") or []:
                 if not p:
                     continue
-                total = (p.get("items") or p.get("tracks") or {}).get("total", 0)
-                owner = (p.get("owner") or {}).get("id", "")
-                out.append({"id": p.get("id", ""), "name": p.get("name", ""), "uri": p.get("uri", ""),
-                            "count": total, "snapshot": p.get("snapshot_id", ""),
-                            "mine": owner == me or bool(p.get("collaborative")),
-                            "owner": (p.get("owner") or {}).get("display_name") or owner})
+                out.append(list_entry(p, me))
                 seen += 1
             url = page.get("next")
         return out
@@ -312,7 +340,14 @@ class Library:
     def play(self, entry, rows=None, index=None, start_app=None):
         """Double-click: a track in its list (from there on), or a whole list."""
         device = self.device(start_app)
-        if entry["id"] == LIKED or not entry.get("uri"):
+        if entry["id"] == SEARCH:
+            row = rows[index]
+            if row.get("kind") in ("album", "playlist"):
+                body = {"context_uri": row["uri"]}
+            else:   # a found track, and the found tracks after it
+                tracks = [r for r in rows if r.get("kind") == "track"]
+                body = {"uris": [r["uri"] for r in tracks[tracks.index(row):]]}
+        elif entry["id"] == LIKED or not entry.get("uri"):
             if not rows:
                 raise SpotifyError("Inget att spela")
             start = index or 0
@@ -322,3 +357,92 @@ class Library:
             if index is not None and rows:
                 body["offset"] = {"uri": rows[index]["uri"]}
         self.client.request("PUT", "/me/player/play", {"device_id": device}, body)
+
+    # ── Search ──
+
+    def search(self, query, offset=0):
+        """Tracks, albums and lists for the words; with offset only more tracks.
+        Rows: kind track/album/playlist, plus "more" when Spotify has further tracks."""
+        query = query.strip()
+        if not query:
+            return []
+        types = "track" if offset else "track,album,playlist"
+        page = self.client.get("/search", {"q": query, "type": types, "limit": SEARCH_LIMIT, "offset": offset})
+        rows = []
+        tracks = page.get("tracks") or {}
+        for item in tracks.get("items") or []:
+            row = track_row(item)
+            if row:
+                row["kind"] = "track"
+                rows.append(row)
+        for item in (page.get("albums") or {}).get("items") or []:
+            if item:
+                rows.append({"kind": "album", "uri": item.get("uri", ""), "title": item.get("name", ""),
+                             "artist": _artists(item), "count": item.get("total_tracks", 0), "seconds": 0})
+        for item in (page.get("playlists") or {}).get("items") or []:
+            if item:   # Spotify gives null for lists it hides
+                rows.append({"kind": "playlist", "uri": item.get("uri", ""), "title": item.get("name", ""),
+                             "artist": (item.get("owner") or {}).get("display_name", ""),
+                             "count": (item.get("items") or item.get("tracks") or {}).get("total", 0), "seconds": 0})
+        if tracks.get("next"):
+            rows.append({"kind": "more", "offset": offset + SEARCH_LIMIT, "uri": "", "title": "", "artist": "", "seconds": 0})
+        return rows
+
+    def enqueue(self, uri, start_app=None):
+        self.client.request("POST", "/me/player/queue", {"uri": uri, "device_id": self.device(start_app)})
+
+    # ── Own lists ──
+
+    def _check_edit(self):
+        if not can_edit():
+            raise SpotifyError("GoblinAmp behöver lov att ändra dina listor – Logga ut (⋯) och logga in igen en gång.")
+
+    def _forget(self, list_id):
+        self.cache.pop(list_id, None)
+
+    def create(self, name):
+        """A new private list → its list row."""
+        self._check_edit()
+        p = self.client.request("POST", "/me/playlists", body={"name": name, "public": False})
+        return list_entry(p, load().get("user", ""))
+
+    def add(self, list_id, uris):
+        """Last in the list. Returns the new snapshot."""
+        self._check_edit()
+        uris = [u for u in uris if u.startswith("spotify:") and ":local:" not in u]
+        if not uris:
+            raise SpotifyError("Lokala filer kan inte läggas i Spotify-listor")
+        snapshot = ""
+        for i in range(0, len(uris), 100):
+            snapshot = self.client.request("POST", f"/playlists/{list_id}/items",
+                                           body={"uris": uris[i:i + 100]}).get("snapshot_id", "")
+        self._forget(list_id)
+        return snapshot
+
+    def remove(self, list_id, uris, snapshot=""):
+        """Every copy of the tracks out of the list."""
+        self._check_edit()
+        body = {"items": [{"uri": u} for u in uris[:100]]}
+        if snapshot:
+            body["snapshot_id"] = snapshot
+        self._forget(list_id)
+        return self.client.request("DELETE", f"/playlists/{list_id}/items", body=body).get("snapshot_id", "")
+
+    def move(self, list_id, start, before, snapshot=""):
+        """The row at start to before (the index it lands in front of, as before the move)."""
+        self._check_edit()
+        body = {"range_start": start, "insert_before": before, "range_length": 1}
+        if snapshot:
+            body["snapshot_id"] = snapshot
+        self._forget(list_id)
+        return self.client.request("PUT", f"/playlists/{list_id}/items", body=body).get("snapshot_id", "")
+
+    def rename(self, list_id, name):
+        self._check_edit()
+        self.client.request("PUT", f"/playlists/{list_id}", body={"name": name})
+
+    def delete(self, list_id):
+        """Off the user's lists (Spotify's "Remove from library"; recoverable on spotify.com)."""
+        self._check_edit()
+        self.client.request("DELETE", "/me/library", {"uris": f"spotify:playlist:{list_id}"})
+        self._forget(list_id)

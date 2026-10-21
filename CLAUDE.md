@@ -81,11 +81,10 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Chrome/Brave/Chromium-tema, Firefox-tema
 - [x] Tiling med egna regler (Config → Fönster, layouter, Meta+Ctrl+1–9)
 - [x] Spotify (GOBLINCAKES) – webbspelaren i GOBLINCAKES-stil (ej provat mot riktiga Spotify)
-- [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, MPRIS, GRAF)
+- [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, sök/egna listor, MPRIS, GRAF)
 
 ## Att göra
 - [ ] **Lokal AI** – kvar: Ianseo-spåret mot riktiga Ianseo, Podman-övningsdatorn och läraren med riktiga Ollama.
-- [ ] **GoblinAmp-förslag** (21 okt, väntar på användarens ja): sök i hela Spotify, dra spellistan högre, städad fot (⋯-meny), skapa/ändra egna Spotify-listor.
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav).
 - [ ] **GoblinRecorder för CS2** (utrett: GSI + demo, bara egna spelarens statistik; beslut om cfg-filen i spelmappen).
 - [ ] **GOBLINCAKES-ljud** (inloggning, notiser, utloggning).
