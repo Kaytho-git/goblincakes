@@ -1547,6 +1547,35 @@ Window {
                                     onClicked: backend.saveReport(msgItem.index)
                                 }
                             }
+                            // ♥ (21 Oct): a good answer – the AI saves how it did it and does the same next time
+                            Text {
+                                id: heartText
+                                property string state_: msgItem.m.heart || ""
+                                text: state_ === "busy" ? "♥ Sparar…"
+                                      : state_ !== "" ? (heartArea.containsMouse ? "♥ Ångra" : "♥ Sparat")
+                                      : heartArea.containsMouse ? "♥ Bra svar – gör likadant nästa gång" : "♥"
+                                color: state_ !== "" && state_ !== "busy" ? accent.errorBright
+                                       : heartArea.containsMouse ? "#E6ECF5" : "#5C6880"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                MouseArea {
+                                    id: heartArea
+                                    anchors.fill: parent
+                                    anchors.margins: -4
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.heart(msgItem.index)
+                                }
+                            }
+                        }
+                        Text {
+                            visible: !!msgItem.m.lesson
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "♥ Lärdom: " + (msgItem.m.lesson || "") + "   (ändra eller ta bort under AI-tjänster → Lärdomar)"
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
                         }
                     }
                 }
@@ -1664,6 +1693,13 @@ Window {
                     id: buttons
                     anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
                     spacing: 8
+                    FlatButton {
+                        small: true
+                        visible: !win.pictureMode && backend.canSearch
+                        primary: backend.searchNext
+                        text: backend.searchNext ? "Söker på nätet ✓" : "Sök på nätet"
+                        onClicked: { backend.setSearchNext(!backend.searchNext); input.forceActiveFocus(); }
+                    }
                     FlatButton {
                         id: modelButton
                         small: true
@@ -3096,6 +3132,103 @@ Window {
                                 text: "Lägg till"
                                 enabledState: memInput.text.trim() !== ""
                                 onClicked: { backend.addMemory(memInput.text); memInput.text = ""; }
+                            }
+                        }
+                    }
+                }
+
+                // ── The lessons (21 Oct): what the ♥ under good answers saved ──
+                Rectangle {
+                    id: lessonCard
+                    width: settingsCol.width
+                    height: heartCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    property var items: JSON.parse(backend.lessons)
+
+                    Column {
+                        id: heartCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 10
+                        Text {
+                            text: "Lärdomar  ♥"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Tryck ♥ under ett bra svar, så skriver " + (backend.aiName || "Goblin AI") + " en kort lärdom om hur det gick till. "
+                                  + "Vid en liknande fråga följer de 2–3 lärdomar som passar bäst med. Ett hjärta på ett svar som var fel lär in felet – "
+                                  + "ändra eller ta bort sådana här. Klicka på en lärdom för att ändra den." + (lessonCard.items.length ? "  (" + lessonCard.items.length + " av 100)" : "")
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Text {
+                            visible: lessonCard.items.length === 0
+                            text: "Inga lärdomar än."
+                            color: "#5C6880"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Repeater {
+                            model: lessonCard.items
+                            Column {
+                                id: lessonRow
+                                required property var modelData
+                                width: heartCol.width
+                                spacing: 4
+                                Text {
+                                    width: parent.width - 30
+                                    elide: Text.ElideRight
+                                    text: "Frågan: " + lessonRow.modelData.question + "  ·  " + lessonRow.modelData.added
+                                    color: "#5C6880"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                }
+                                Row {
+                                    width: parent.width
+                                    spacing: 10
+                                    Rectangle {
+                                        width: parent.width - 30
+                                        height: lessonEdit.contentHeight + 12
+                                        color: lessonEdit.activeFocus ? "#07090D" : "transparent"
+                                        border.width: lessonEdit.activeFocus ? 1 : 0
+                                        border.color: accent.color
+                                        TextEdit {
+                                            id: lessonEdit
+                                            anchors { fill: parent; margins: 6 }
+                                            text: lessonRow.modelData.lesson
+                                            wrapMode: TextEdit.WordWrap
+                                            selectByMouse: true
+                                            color: "#E6ECF5"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 14
+                                            Keys.onReturnPressed: event => { focus = false; event.accepted = true; }
+                                            onActiveFocusChanged: if (!activeFocus && text.trim() !== "" && text !== lessonRow.modelData.lesson)
+                                                                      backend.editLesson(lessonRow.modelData.id, text)
+                                        }
+                                    }
+                                    Text {
+                                        text: "×"
+                                        color: lessonX.containsMouse ? accent.errorBright : "#8B98AD"
+                                        font.pixelSize: 18
+                                        MouseArea {
+                                            id: lessonX
+                                            anchors.fill: parent
+                                            anchors.margins: -6
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: backend.removeLesson(lessonRow.modelData.id)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

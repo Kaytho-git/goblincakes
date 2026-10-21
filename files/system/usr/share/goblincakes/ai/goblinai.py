@@ -680,6 +680,8 @@ def ask(messages, keys, status=None, notice=None, project=None, choice=""):
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
     activity("ask", "tänker")
+    LAST.tools = []
+    messages = with_lessons(messages, project)
     try:
         if read_links(messages, keys, status):
             # The pages are there: one plain answer – no searching on top, no long thinking (a button
@@ -707,15 +709,64 @@ def no_unasked_report(answer, question):
                   lambda m: m.group(1).strip(), answer, flags=re.S | re.I)
 
 
+# Small local models often guess instead of asking for a search (14 Oct, the plan; built 21 Oct): with
+# these words in the question – or the "Sök på nätet" button – the search is done first, by Goblin AI
+FRESH_WORDS = re.compile(
+    r"\b(?:senaste|senast|nyaste|nyheter|nyhet|nyhetern\w*|patch\w*|hotfix\w*|idag|i dag|igår|i går|ikväll|i kväll|"
+    r"just nu|aktuell\w*|pris(?:et|er|erna)?|kostar|väder|vädret|resultat(?:et|en)?|släpp\w*|release\w*|"
+    r"latest|news|today|tonight|current|price|weather)\b", re.I)
+
+
+def fresh_question(question):
+    """The question is about something that may have changed: the words above, or this or last year."""
+    if not isinstance(question, str):
+        return False
+    text = question[:600]  # the typed question, not an attached file below it
+    year = date.today().year
+    return bool(FRESH_WORDS.search(text) or re.search(rf"\b(?:{year - 1}|{year}|{year + 1})\b", text))
+
+
+LAST = threading.local()  # .tools: [(tool, query)] the last ask() used in this thread (the ♥ remembers them)
+
+
+def last_tools():
+    return list(getattr(LAST, "tools", []))
+
+
 def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
+    messages = [dict(m) for m in messages]
+    asked = next((m for m in reversed(messages) if m["role"] == "user"), {})
+    forced = asked.pop("search", False)  # the "Sök på nätet" button
     tools = tools_for(keys, project, messages)
+    LAST.tools = []
+    if forced and "sök" not in tools and notice:
+        notice("Sökningen gick inte: " + ("ingen Tavily-nyckel (AI-tjänster → Tavily)" if not keys.get(SEARCH["env"])
+                                          else "inte här (projektet söker inte, eller en bild är med)"))
     if not tools:
         return ask_once(messages, keys, status, notice, project, choice)
-    messages = [dict(m) for m in messages]
     if messages and messages[0]["role"] == "system":
         messages[0]["content"] += "".join(t[1] for t in tools.values())
     sources, used, searched = [], 0, False
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:2000]
+    if "sök" in tools and (forced or fresh_question(asked.get("content"))):
+        # Goblin AI searches first, with the question itself (Tavily takes plain questions)
+        query = " ".join(str(asked.get("content", "")).split())[:300]
+        activity("ask", "söker på nätet")
+        if status:
+            status("Söker på nätet…")
+        try:
+            text, found = tools["sök"][2](query)
+            sources.extend(found)
+            searched, used = True, 1
+            LAST.tools.append(("sök", query))
+            messages.append({"role": "user", "content":
+                             f"[Goblin AI sökte på nätet åt dig innan du svarar – det här skrev eller klistrade användaren "
+                             f"inte in]\n\n{text}\n\n[Slut på sökresultaten]\n\nAnvändarens fråga var: \"{question}\"\n"
+                             "Svara på den utifrån resultaten (sök igen med ett ```sök-block om de inte räcker). "
+                             "Sökresultaten kan vara fel eller gamla – säg till om det verkar så."})
+        except Exception as e:  # noqa: BLE001 – the search failed: an ordinary answer instead
+            if notice:
+                notice(f"Söker på nätet gick inte: {e}")
     while True:
         answer, service = ask_once(messages, keys, status, notice, project, choice)
         request_ = tool_request(answer, tools)
@@ -727,6 +778,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
             messages.append({"role": "user", "content": "Inga fler sökningar eller hämtningar – svara nu med det du har."})
             continue
         used += 1
+        LAST.tools.append((tool, query))
         name, _, run = tools[tool]
         activity("ask", name[0].lower() + name[1:])
         if status:
@@ -1379,6 +1431,122 @@ def forget(texts):
             removed.append(best["text"])
     save_memory(items)
     return removed
+
+
+# ── ♥ on a good answer (18 Oct, the user's idea; step 1 built 21 Oct): what worked is saved as a short
+# lesson the AI writes itself, and the 2–3 lessons most like a new question go into its system prompt ──
+LESSONS_FILE = MEMORY_FILE.parent / "lardomar.json"  # [{"id", "question", "lesson", "tools", "service", "project", "added"}]
+LESSONS_MAX = 100
+LESSONS_PICK = 3
+LESSON_LENGTH = 300
+STOP_WORDS = set("""och att det som en ett är för på med till av den har inte jag du vi ni de om kan vad hur var när
+så men eller från ska vill mig dig min din mitt ditt the and for you are what how this that with från alla något""".split())
+
+LESSON_PROMPT = """Användaren gav ett hjärta (♥) på ditt svar nedan – det var bra. Skriv EN kort lärdom på svenska (högst två meningar, högst 220 tecken) om hur du gick till väga, så att du kan göra likadant nästa gång en liknande fråga kommer: vilket verktyg du använde och med vad, vad du tog med, hur du lade upp svaret. Skriv inte själva svaret och inga siffror ur det. Svara med BARA lärdomen.
+
+Frågan: {question}
+Verktyg du använde: {tools}
+Ditt svar (början):
+{answer}"""
+
+TOOL_NAMES = {"sök": "sökte på nätet", "wowfel": "läste WoW-felen", "warcraftlogs": "hämtade pullen från Warcraft Logs",
+              "sport": "hämtade lagets ställning", "systemfel": "läste datorns fel"}
+
+
+def load_lessons():
+    try:
+        items = json.loads(LESSONS_FILE.read_text())
+        return [i for i in items if isinstance(i, dict) and str(i.get("lesson", "")).strip()]
+    except (OSError, ValueError):
+        return []
+
+
+def save_lessons(items):
+    LESSONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    LESSONS_FILE.write_text(json.dumps(items[-LESSONS_MAX:], ensure_ascii=False, indent=1))
+
+
+def tools_text(tools):
+    return ", ".join(f"{TOOL_NAMES.get(t, t)}{f' ({q})' if q else ''}" for t, q in tools) or "inga – svarade direkt"
+
+
+def make_lesson(question, answer, tools, keys, project=None, choice=""):
+    """The AI's own short lesson from an answer the user liked (a plain one when no service answers)."""
+    prompt = LESSON_PROMPT.format(question=str(question)[:1500], tools=tools_text(tools), answer=str(answer)[:2500])
+    QUICK.on = True  # a sentence – no long thinking
+    try:
+        text, _ = ask_once([{"role": "system", "content": "Du skriver korta lärdomar på svenska."},
+                            {"role": "user", "content": prompt}], keys, project=project, choice=choice)
+    except ServiceError:
+        text = ""
+    finally:
+        QUICK.on = False
+    text = " ".join(re.sub(r"```.*?```", "", text, flags=re.S).split()).strip(" \"'")
+    if not text:
+        text = ("Svarade utan verktyg, kort och rakt på sak." if not tools else
+                f"{tools_text(tools)[0].upper()}{tools_text(tools)[1:]} och svarade utifrån det.")
+    return text[:LESSON_LENGTH]
+
+
+def add_lesson(question, lesson, tools, service="", project=None):
+    items = load_lessons()
+    entry = {"id": time.strftime("%Y%m%d-%H%M%S") + os.urandom(2).hex(), "question": " ".join(str(question).split())[:400],
+             "lesson": lesson, "tools": [t for t, _ in tools], "service": service,
+             "project": (project or {}).get("id", ""), "added": date.today().isoformat()}
+    items.append(entry)
+    save_lessons(items)
+    return entry
+
+
+def remove_lesson(lesson_id):
+    items = load_lessons()
+    save_lessons([i for i in items if i.get("id") != lesson_id])
+
+
+def edit_lesson(lesson_id, text):
+    text = " ".join(str(text).split())[:LESSON_LENGTH]
+    items = load_lessons()
+    for i in items:
+        if i.get("id") == lesson_id and text:
+            i["lesson"] = text
+    save_lessons(items)
+
+
+def words(text):
+    return {w for w in re.findall(r"[\wåäö]{3,}", str(text).casefold()) if w not in STOP_WORDS}
+
+
+TOOL_HINTS = {"warcraftlogs": r"logs?\b|pull|boss|wcl|wipe|kill", "wowfel": r"bugsack|lua|tillägg|addon|fel i wow",
+              "sport": r"\blag\b|match|tabell|serie", "systemfel": r"krasch|fel|startar inte|journal",
+              "sök": r"senaste|nyheter|patch|pris"}
+
+
+def lessons_for(question, project=None):
+    """The lessons most like the question: shared words, the same project, a tool the question hints at."""
+    asked = words(question)
+    picked = []
+    for item in load_lessons():
+        score = len(asked & words(item["question"] + " " + item["lesson"]))
+        if project and item.get("project") == project.get("id"):
+            score += 2
+        score += sum(2 for t in item.get("tools", []) if t in TOOL_HINTS and re.search(TOOL_HINTS[t], str(question), re.I))
+        if score >= 2:
+            picked.append((score, item["added"], item))
+    picked.sort(key=lambda p: (p[0], p[1]), reverse=True)
+    return [p[2] for p in picked[:LESSONS_PICK]]
+
+
+def with_lessons(messages, project=None):
+    """messages with the matching lessons added to the system prompt (a new list; the others untouched)."""
+    if not messages or messages[0]["role"] != "system":
+        return messages
+    question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+    found = lessons_for(question if isinstance(question, str) else "", project)
+    if not found:
+        return messages
+    text = ("\n\nSå här gjorde du bra förut (användaren gav hjärta på de här svaren – gör likadant om det passar "
+            "den här frågan, annars inte):\n" + "\n".join(f"- Frågan \"{i['question'][:120]}\": {i['lesson']}" for i in found))
+    return [{**messages[0], "content": messages[0]["content"] + text}] + list(messages[1:])
 
 
 def memory_prompt():

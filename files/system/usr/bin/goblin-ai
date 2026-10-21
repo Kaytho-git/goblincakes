@@ -178,6 +178,9 @@ class Backend(QObject):
     screenshotReady = Signal(str)  # the button's screenshot (a path), for the attachment
     shootingChanged = Signal()
     _shotDone = Signal(str, str, str)  # what it was for (JSON), path, error
+    searchNextChanged = Signal()
+    lessonsChanged = Signal()
+    _hearted = Signal(str, int, str)  # conversation id, message index, the saved lesson (JSON, "" = failed)
 
     def __init__(self):
         super().__init__()
@@ -189,6 +192,9 @@ class Backend(QObject):
         self._new_conversation()
         self._answered.connect(self._on_answer)
         self._failed.connect(self._on_failure)
+        self._search_next = False  # "Sök på nätet": the next question is searched first
+        self._pending_tools = []  # the tools the answer on its way used (for the ♥)
+        self._hearted.connect(self._on_hearted)
         self._statusText.connect(lambda text: self._set_busy(True, text))
         self._keyResult.connect(self._on_key_result)
         self._procs = {}
@@ -296,6 +302,11 @@ class Backend(QObject):
         question = {"role": "user", "content": content}
         if images:
             question["images"] = images
+        if self._search_next:
+            question["search"] = True
+            shown["searched"] = True
+            self._search_next = False
+            self.searchNextChanged.emit()
         if self._daily_running:  # a daily update: the AI is told what it is (the chat shows only the wish)
             question["content"] += goblinai.DAILY_PROMPT
             question["button"] = True  # its links and sports teams are read in the ask thread (goblinai.read_links)
@@ -323,6 +334,7 @@ class Backend(QObject):
                     notice=self.notice.emit,
                     project=project,
                     choice=self._daily_model if self._daily_running else self._model)
+                self._pending_tools = goblinai.last_tools()
                 self._answered.emit(answer, service)
             except goblinai.ServiceError as e:
                 self._failed.emit(str(e))
@@ -334,7 +346,8 @@ class Backend(QObject):
     def _on_answer(self, answer, service):
         self._api.append({"role": "assistant", "content": answer})
         shown = {"role": "assistant", "text": answer, "segments": goblinai.segments(answer),
-                 "service": service, "file": ""}
+                 "service": service, "file": "", "tools": self._pending_tools}
+        self._pending_tools = []
         for seg in shown["segments"]:
             if seg["type"] == "file":
                 seg["canOverwrite"] = bool(self._file) and Path(self._file).name == seg["name"]
@@ -653,6 +666,101 @@ class Backend(QObject):
         self._model = choice
         goblinai.set_chosen_model(choice)
         self.modelChanged.emit()
+
+    # ── "Sök på nätet" and the ♥ on good answers ───────────────
+
+    @Property(bool, notify=searchNextChanged)
+    def searchNext(self):
+        return self._search_next
+
+    @Slot(bool)
+    def setSearchNext(self, on):
+        self._search_next = bool(on)
+        self.searchNextChanged.emit()
+
+    @Property(bool, notify=keysChanged)
+    def canSearch(self):
+        return bool(self._keys.get(goblinai.SEARCH["env"]))
+
+    @Slot(int)
+    def heart(self, index):
+        """♥ under an answer: the AI writes a lesson from it (saved, can be undone); again = undone."""
+        try:
+            m = self._display[index]
+        except IndexError:
+            return
+        if m.get("role") != "assistant" or m.get("heart") == "busy":
+            return
+        if m.get("heart"):
+            goblinai.remove_lesson(m["heart"])
+            m.pop("heart", None)
+            m.pop("lesson", None)
+            self._update(index)
+            self._save()
+            self.lessonsChanged.emit()
+            return
+        question = next((d["text"] for d in reversed(self._display[:index]) if d["role"] == "user" and d["text"]), "")
+        tools = [tuple(t) for t in m.get("tools") or []]
+        m["heart"] = "busy"
+        self._update(index)
+        cid, project, keys, choice = self._id, self._project_of(self._project), dict(self._keys), self._model
+
+        def work():
+            try:
+                lesson = goblinai.make_lesson(question, m["text"], tools, keys, project, choice)
+                entry = goblinai.add_lesson(question, lesson, tools, m.get("service", ""), project)
+                self._hearted.emit(cid, index, json.dumps(entry, ensure_ascii=False))
+            except Exception:  # noqa: BLE001 – never leave the heart spinning
+                self._hearted.emit(cid, index, "")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_hearted(self, cid, index, entry):
+        if cid != self._id or index >= len(self._display):
+            # Another chat is shown now: the lesson is kept, the old chat's file gets the mark
+            if entry:
+                self._mark_saved_heart(cid, index, json.loads(entry))
+            self.lessonsChanged.emit()
+            return
+        m = self._display[index]
+        if entry:
+            e = json.loads(entry)
+            m.update(heart=e["id"], lesson=e["lesson"])
+        else:
+            m.pop("heart", None)
+            self.notice.emit("Hjärtat kunde inte sparas")
+        self._update(index)
+        self._save()
+        self.lessonsChanged.emit()
+
+    def _mark_saved_heart(self, cid, index, entry):
+        path = DATA / f"{cid}.json"
+        try:
+            data = json.loads(path.read_text())
+            data["display"][index].update(heart=entry["id"], lesson=entry["lesson"])
+            path.write_text(json.dumps(data, ensure_ascii=False))
+        except (OSError, ValueError, IndexError, KeyError):
+            pass
+
+    @Property(str, notify=lessonsChanged)
+    def lessons(self):
+        return json.dumps(list(reversed(goblinai.load_lessons())), ensure_ascii=False)
+
+    @Slot(str)
+    def removeLesson(self, lesson_id):
+        goblinai.remove_lesson(lesson_id)
+        for i, m in enumerate(self._display):  # the open chat's ♥ goes out too
+            if m.get("heart") == lesson_id:
+                m.pop("heart", None)
+                m.pop("lesson", None)
+                self._update(i)
+                self._save()
+        self.lessonsChanged.emit()
+
+    @Slot(str, str)
+    def editLesson(self, lesson_id, text):
+        goblinai.edit_lesson(lesson_id, text)
+        self.lessonsChanged.emit()
 
     # ── The memory: ```minne / ```glöm in an answer, the list in AI-tjänster ─────
 
