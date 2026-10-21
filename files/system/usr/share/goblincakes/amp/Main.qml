@@ -634,6 +634,14 @@ Window {
                 }
             }
         }
+        Btn {   // the album Spotify plays now, opened in the SPOTIFY/GENRER tab
+            visible: win.pl.signedIn
+            anchors.right: parent.right
+            anchors.rightMargin: 6
+            y: 5
+            label: "♪ ALBUMET"
+            onClicked: amp.openPlayingAlbum()
+        }
         Item {
             id: localPane
             visible: win.loc.tab === "local"

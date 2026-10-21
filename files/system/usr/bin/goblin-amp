@@ -831,6 +831,29 @@ class Amp(QObject):
         self._pl_update(list=entry, rows=[], message="")
         self._pl_job("Hämtar albumet…", lambda: {"rows": self.library.tracks(entry)})
 
+    @Slot()
+    def openPlayingAlbum(self):
+        """♪ ALBUMET: the album Spotify plays now, in the SPOTIFY or GENRER tab (◀ back)."""
+        if self._pl["busy"]:
+            return
+        if self._loc["tab"] not in ("spotify", "genre"):
+            self.setPlTab("spotify")
+            if self._pl["busy"]:   # the lists are being fetched first
+                return
+        self._push()
+
+        def work():
+            row = self.library.playing_album()
+            if row is None:
+                self._stack.pop()
+                return {"message": "Spotify spelar inget just nu – starta en låt, så visar ♪ ALBUMET dess album"}
+            entry = SW.Library.album_entry(row)
+            if (self._pl["list"] or {}).get("id") == entry["id"]:
+                self._stack.pop()   # already open
+                return {}
+            return {"list": entry, "rows": self.library.tracks(entry)}
+        self._pl_job("Hämtar albumet som spelas…", work)
+
     def _open_found(self, list_id):
         """The open genre/artist/"Liknande" view, when that is the list asked for."""
         entry = self._pl["list"]

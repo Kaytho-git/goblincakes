@@ -533,6 +533,14 @@ class Library:
                 break
         return out[:10]
 
+    def playing_album(self):
+        """The album of what Spotify plays now, as a found album – or None."""
+        album = (self.client.get("/me/player/currently-playing").get("item") or {}).get("album")
+        if not album or not album.get("uri"):
+            return None
+        return {"kind": "album", "uri": album["uri"], "title": album.get("name", ""), "artist": _artists(album),
+                "count": album.get("total_tracks", 0), "seconds": 0}
+
     @staticmethod
     def album_entry(row):
         """A found album as an open list: its tracks, ◀ back to the search."""

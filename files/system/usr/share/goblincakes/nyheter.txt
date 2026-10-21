@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-21  GoblinAmp: knappen ♪ ALBUMET överst i spellistan öppnar albumet som spelas i Spotify just nu
 2026-10-21  GoblinAmp: sök på en artist i Spotify-fliken – artisten kommer överst, och när du öppnar den ser du alla album, artistens populäraste låtar och singlarna
 2026-10-21  GoblinAmp: ny flik GENRER i spellistan – välj eller skriv en genre och få populära låtar, låtar och artister i genren. Klicka på en artist för album och liknande artister, eller tryck Liknande det som spelas nu. Populärt och Liknande kommer från Last.fm och kräver en gratis Last.fm-nyckel (⋯ → Last.fm-nyckel…).
 2026-10-21  GoblinAmp: spara ett helt album från Spotify-sökningen som en egen lista ("Grupp – Album"). Album du redan har sparat får en ✓ och sparas inte en gång till.
