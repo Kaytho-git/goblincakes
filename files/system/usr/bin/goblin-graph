@@ -300,9 +300,10 @@ class Linker(threading.Thread):
     node (same channel, or every input when the channels differ). PipeWire removes the links
     itself when a stream ends."""
 
-    def __init__(self):
+    def __init__(self, node="goblin-graph"):
         super().__init__(daemon=True)
         self.alive = True
+        self.node = node  # the capture node's name (GoblinAmp has its own)
 
     def run(self):
         while self.alive:
@@ -325,7 +326,7 @@ class Linker(threading.Thread):
             elif kind == "Link":
                 info = o.get("info") or {}
                 links.add((info.get("output-port-id"), info.get("input-port-id")))
-        mine = next((i for i, p in nodes.items() if p.get("node.name") == "goblin-graph"
+        mine = next((i for i, p in nodes.items() if p.get("node.name") == self.node
                      and p.get("media.class") == "Stream/Input/Audio"), None)
         if mine is None:
             return
@@ -351,19 +352,20 @@ class Listener(threading.Thread):
     """Reads the music (see Linker) into a ring buffer (mono floats). Nothing linked = no data
     comes; then samples() gives silence, so the bars fall."""
 
-    def __init__(self):
+    def __init__(self, node="goblin-graph", title="goblin graph"):
         super().__init__(daemon=True)
         self.lock = threading.Lock()
         self.ring = [0.0] * RING
         self.proc = None
         self.alive = True
         self.last = 0.0      # when sound last came
-        self.linker = Linker()
+        self.node, self.title = node, title
+        self.linker = Linker(node)
         self.linker.start()
 
     def run(self):
-        cmd = ["pw-record", "-P", "{ node.autoconnect = false node.name = goblin-graph "
-               "media.name = \"goblin graph\" }", "--rate", str(RATE), "--channels", "1",
+        cmd = ["pw-record", "-P", f"{{ node.autoconnect = false node.name = {self.node} "
+               f"media.name = \"{self.title}\" }}", "--rate", str(RATE), "--channels", "1",
                "--format", "s16", "-"]
         try:
             self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)

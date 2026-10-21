@@ -269,6 +269,7 @@ COMMANDS=(
     "screen|Vilken skärm ett program öppnas på – t.ex. goblin screen add discord screen 2"
     "tile|Fönsterlayouter (Config → Fönster, Meta+Ctrl+1–9): goblin tile layouts, goblin tile open raid; förslag: goblin tile huvud firefox discord + goblin tile förslag; automatiska rutor: goblin tile auto på; alla rutor av: goblin tile av; en ruta: goblin tile add discord 2 1"
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
+    "amp|GoblinAmp – liten spelare i Winamps anda som styr Spotify (Z X C V B, mellanslag = paus)"
     "graph|Ljudgraf i WoW:s klassfärger till musiken – goblin graph [staplar|våg|cirkel|explosion] [alla|klass|mage …] [lås|lås upp]; goblin graph auto on = öppnas när musik spelar"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
@@ -588,6 +589,10 @@ cmd_motd() {
 
 case ${1:-help} in
     update|upgrade) shift; cmd_update "$@" ;;
+    amp) shift
+        # GoblinAmp: a small Winamp-like player that steers Spotify (MPRIS); one window
+        (setsid goblin-amp "$@" >/dev/null 2>&1 &)
+        ;;
     graph) shift
         # Bars that move with the sound, in WoW's class colours (a window without frame or
         # background); a second start passes its words to the open window

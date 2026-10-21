@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- GoblinAmp A: the goblin above a little player – the display with a play triangle and bars -->
+  <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+  <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
+  <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
+  <rect x="26" y="72" width="68" height="36" fill="#2F6FED"/>
+  <rect x="31" y="77" width="58" height="16" fill="#07090D" opacity="0.45"/>
+  <path d="M36 80 L46 85 L36 90 Z" fill="#E6ECF5"/>
+  <rect x="52" y="86" width="4" height="4" fill="#E6ECF5"/><rect x="58" y="82" width="4" height="8" fill="#E6ECF5"/>
+  <rect x="64" y="84" width="4" height="6" fill="#E6ECF5"/><rect x="70" y="80" width="4" height="10" fill="#E6ECF5"/>
+  <rect x="76" y="85" width="4" height="5" fill="#E6ECF5"/><rect x="82" y="83" width="4" height="7" fill="#E6ECF5"/>
+  <rect x="31" y="98" width="58" height="5" fill="#07090D" opacity="0.45"/>
+  <rect x="31" y="98" width="24" height="5" fill="#E6ECF5"/>
+</svg>

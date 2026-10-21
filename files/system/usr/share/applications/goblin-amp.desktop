@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=GoblinAmp
+GenericName=Musikspelare
+Comment=Liten spelare i Winamps anda som styr Spotify (eller musikprogrammet som spelar) – tid, titel, staplar, play/paus/nästa och volym
+Exec=goblin-amp
+Icon=goblincakes-amp
+Categories=AudioVideo;Audio;Player;
+Keywords=winamp;spotify;musik;music;spelare;player;
+StartupWMClass=goblin-amp

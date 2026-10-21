@@ -1,0 +1,334 @@
+#!/usr/bin/python3
+"""GoblinAmp – a small player window in Winamp's spirit (21 Oct, the user's wish "tänk Winamp"):
+it steers the music program that plays – Spotify's own app first (also when it lies hidden behind
+Spotify (GOBLINCAKES), the web app), else another music player – over MPRIS. Time in big digits
+(click: time left), the title scrolling through, little bars that move with the music,
+a seek bar, volume, ⏮ ▶ ❚❚ ■ ⏭, shuffle and repeat. "PL" opens the playlists: Spotify
+(GOBLINCAKES) when it is installed, else the player itself. A double-click on the title bar
+rolls the window up to one line (Winamp's windowshade).
+
+  goblin amp          start (or bring the open one forward)
+
+Where the window was moved to is kept by KWin's goblincakes-windows script (kwinrc
+[Script-goblincakes-windows] ampPlace) – Wayland doesn't let a window know or choose its place.
+The bars: goblin graph's own reading of the music (only music players, never games or films).
+"""
+import importlib.machinery
+import importlib.util
+import json
+import math
+import os
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+from PySide6.QtCore import ClassInfo, Property, QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtDBus import QDBusConnection, QDBusInterface
+from PySide6.QtGui import QGuiApplication, QIcon
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtQml import QQmlApplicationEngine
+
+HERE = Path(__file__).resolve()
+SHARE = Path(os.environ.get("GOBLINCAKES_AMP_SHARE", "/usr/share/goblincakes/amp"))
+if not (SHARE / "Main.qml").exists():  # run from the repo
+    SHARE = HERE.parents[1] / "share/goblincakes/amp"
+SOCKET = f"goblin-amp-{os.getuid()}"
+BARS = 19            # little bars under the time, as many as Winamp's
+POLL = 1.0           # seconds between looks at the player (the time counts on by itself between)
+MPRIS = "/org/mpris/MediaPlayer2"
+PLAYER = "org.mpris.MediaPlayer2.Player"
+SPOTIFY_WEB = Path.home() / ".local/share/applications/goblincakes-webapp-spotify-web.desktop"
+
+
+def load_graph():
+    """goblin graph as a module: its music reading (Listener, Spectrum) and the music players."""
+    path = HERE.parent / "goblin-graph"
+    loader = importlib.machinery.SourceFileLoader("goblin_graph", str(path))
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader("goblin_graph", loader))
+    loader.exec_module(module)
+    return module
+
+
+G = load_graph()
+
+
+def busctl(*args, timeout=3):
+    out = subprocess.run(["busctl", "--user", "--json=short", *args], capture_output=True,
+                         text=True, timeout=timeout).stdout
+    return [json.loads(line) for line in out.splitlines() if line.strip()]
+
+
+def players():
+    """MPRIS names of the music players running now (Spotify first)."""
+    try:
+        listed = busctl("list")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+    names = [n["name"] for item in listed for n in (item if isinstance(item, list) else [item])
+             if str(n.get("name", "")).startswith("org.mpris.MediaPlayer2.")]
+    music = [n for n in names if any(app.replace(" ", "") in n.lower() for app in G.MUSIC_APPS)]
+    return sorted(music, key=lambda n: (".spotify" not in n.lower(), n))
+
+
+def unwrap(value):
+    """busctl's JSON {"type", "data"} (also inside a{sv}) → plain values."""
+    if isinstance(value, dict) and set(value) == {"type", "data"}:
+        return unwrap(value["data"])
+    if isinstance(value, dict):
+        return {k: unwrap(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [unwrap(v) for v in value]
+    return value
+
+
+def read_player(name):
+    props = ("PlaybackStatus", "Metadata", "Position", "Volume", "Shuffle", "LoopStatus", "CanSeek")
+    state = {}
+    for prop in props:  # one at a time: a player without Volume or Shuffle fails only that one
+        try:
+            got = busctl("get-property", name, MPRIS, PLAYER, prop, timeout=2)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            got = []
+        if got:
+            state[prop] = unwrap(got[0])
+    meta = state.get("Metadata") or {}
+    artists = meta.get("xesam:artist") or []
+    try:
+        identity = unwrap(busctl("get-property", name, MPRIS, "org.mpris.MediaPlayer2", "Identity")[0])
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+        identity = name.rsplit(".", 1)[-1]
+    return {
+        "service": name,
+        "player": str(identity),
+        "status": state.get("PlaybackStatus", "Stopped"),
+        "title": str(meta.get("xesam:title") or ""),
+        "artist": ", ".join(artists) if isinstance(artists, list) else str(artists),
+        "album": str(meta.get("xesam:album") or ""),
+        "trackid": str(meta.get("mpris:trackid") or ""),
+        "length": (meta.get("mpris:length") or 0) / 1e6,
+        "position": (state.get("Position") or 0) / 1e6,
+        "volume": state["Volume"] if isinstance(state.get("Volume"), (int, float)) else -1,
+        "shuffle": state.get("Shuffle") if isinstance(state.get("Shuffle"), bool) else None,
+        "loop": state.get("LoopStatus") if isinstance(state.get("LoopStatus"), str) else None,
+        "canSeek": bool(state.get("CanSeek", False)),
+        "readAt": time.time() * 1000,
+    }
+
+
+class Watcher(threading.Thread):
+    """Looks at the player every POLL seconds (at once after a button) – never in the window's thread."""
+
+    def __init__(self, amp):
+        super().__init__(daemon=True)
+        self.amp = amp
+        self.wake = threading.Event()
+        self.alive = True
+
+    def run(self):
+        while self.alive:
+            state = {}
+            for name in players():
+                found = read_player(name)
+                # a playing one before a paused one, Spotify before the others otherwise
+                if not state or (found["status"] == "Playing" and state["status"] != "Playing"):
+                    state = found
+            self.amp.stateRead.emit(json.dumps(state))
+            self.wake.wait(POLL)
+            self.wake.clear()
+
+
+@ClassInfo({"D-Bus Interface": "org.goblincakes.amp"})
+class PlaceBus(QObject):
+    """KWin's goblincakes-windows script calls placed("x,y") after the window was moved."""
+
+    @Slot(str)
+    def placed(self, xy):
+        try:
+            x, y = (int(v) for v in xy.split(","))
+        except ValueError:
+            return
+        subprocess.run(["kwriteconfig6", "--file", "kwinrc", "--group", "Script-goblincakes-windows",
+                        "--key", "ampPlace", f"{x},{y}"], capture_output=True)
+        QDBusInterface("org.kde.KWin", "/KWin", "org.kde.KWin").call("reconfigure")
+
+
+class Amp(QObject):
+    stateRead = Signal(str)
+    stateChanged = Signal()
+    levelsChanged = Signal()
+    raiseWindow = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self._state = "{}"
+        self._levels = [0.0] * BARS
+        self.spec = G.Spectrum()
+        self.gain = 1e-3
+        self.listener = G.Listener("goblin-amp", "GoblinAmp")
+        self.listener.start()
+        self.watcher = Watcher(self)
+        self.stateRead.connect(self._read)
+        self.watcher.start()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.tick)
+        self.timer.start(33)
+
+    def _read(self, state):
+        if state != self._state:
+            self._state = state
+            self.stateChanged.emit()
+
+    @Property(str, notify=stateChanged)
+    def state(self):
+        return self._state
+
+    @Property("QVariantList", notify=levelsChanged)
+    def levels(self):
+        return self._levels
+
+    def tick(self):
+        samples = self.listener.samples()[-G.SIZE:]
+        raw = self.spec.levels(samples, BARS)
+        top = max(raw) if raw else 0
+        self.gain = max(top, self.gain * 0.995, 1e-3)
+        new = []
+        for i, v in enumerate(raw):
+            db = 20 * math.log10(max(v / self.gain, 1e-6))
+            level = max(0.0, min(1.0, 1 + db / 40))
+            old = self._levels[i]
+            new.append(level if level > old else old * 0.8 + level * 0.2)
+        if any(abs(a - b) > 0.004 for a, b in zip(new, self._levels)):
+            self._levels = new
+            self.levelsChanged.emit()
+
+    def _service(self):
+        try:
+            return json.loads(self._state).get("service", "")
+        except ValueError:
+            return ""
+
+    def _call(self, *args):
+        """A busctl call on the player, in a thread; then a fresh look at once."""
+        service = self._service()
+        if not service:
+            return
+
+        def work():
+            try:
+                subprocess.run(["busctl", "--user", *args[:1], service, MPRIS, *args[1:]],
+                               capture_output=True, timeout=5)
+            except (OSError, subprocess.SubprocessError):
+                pass
+            time.sleep(0.15)
+            self.watcher.wake.set()
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(str)
+    def control(self, what):
+        """previous, playpause, stop, next."""
+        method = {"previous": "Previous", "playpause": "PlayPause", "stop": "Stop", "next": "Next",
+                  "play": "Play", "pause": "Pause"}.get(what)
+        if method:
+            self._call("call", PLAYER, method)
+
+    @Slot(float)
+    def seek(self, seconds):
+        state = json.loads(self._state or "{}")
+        if state.get("trackid"):
+            self._call("call", PLAYER, "SetPosition", "ox", state["trackid"], str(int(seconds * 1e6)))
+
+    @Slot(float)
+    def setVolume(self, volume):
+        self._call("set-property", PLAYER, "Volume", "d", f"{max(0.0, min(1.0, volume)):.3f}")
+
+    @Slot()
+    def toggleShuffle(self):
+        state = json.loads(self._state or "{}")
+        if state.get("shuffle") is not None:
+            self._call("set-property", PLAYER, "Shuffle", "b", "false" if state["shuffle"] else "true")
+
+    @Slot()
+    def cycleLoop(self):
+        state = json.loads(self._state or "{}")
+        order = ["None", "Playlist", "Track"]
+        if state.get("loop") in order:
+            self._call("set-property", PLAYER, "LoopStatus", "s",
+                       order[(order.index(state["loop"]) + 1) % len(order)])
+
+    @Slot()
+    def playlists(self):
+        """PL: the playlists – Spotify (GOBLINCAKES) when it is installed, else the player."""
+        if SPOTIFY_WEB.exists():
+            subprocess.Popen(["gtk-launch", SPOTIFY_WEB.stem], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        service = self._service()
+        if service:
+            self._call("call", "org.mpris.MediaPlayer2", "Raise")
+        else:
+            subprocess.Popen(["flatpak", "run", "com.spotify.Client"], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def stop(self):
+        self.watcher.alive = False
+        self.watcher.wake.set()
+        self.listener.stop()
+
+
+def amp_icon():
+    path = HERE.parents[1] / "share/icons/hicolor/scalable/apps/goblincakes-amp.svg"
+    return QIcon.fromTheme("goblincakes-amp", QIcon(str(path)) if path.exists() else QIcon.fromTheme("goblincakes"))
+
+
+def main():
+    if sys.argv[1:2] in (["-h"], ["--help"], ["help"]):
+        print(__doc__)
+        return 0
+    app = QGuiApplication(sys.argv[:1])
+    app.setApplicationName("goblin-amp")
+    app.setApplicationDisplayName("GoblinAmp")
+    app.setDesktopFileName("goblin-amp")
+    app.setWindowIcon(amp_icon())
+
+    probe = QLocalSocket()
+    probe.connectToServer(SOCKET)
+    if probe.waitForConnected(300):
+        probe.write(b"raise")
+        probe.waitForBytesWritten(1000)
+        probe.disconnectFromServer()
+        return 0
+    QLocalServer.removeServer(SOCKET)
+    server = QLocalServer()
+    server.listen(SOCKET)
+
+    amp = Amp()
+
+    def incoming():
+        sock = server.nextPendingConnection()
+        if sock is not None:
+            sock.readyRead.connect(amp.raiseWindow.emit)
+            sock.disconnected.connect(sock.deleteLater)
+    server.newConnection.connect(incoming)
+
+    bus = QDBusConnection.sessionBus()
+    place = PlaceBus()
+    if bus.registerService("org.goblincakes.amp"):
+        bus.registerObject("/amp", place, QDBusConnection.ExportAllSlots)
+
+    engine = QQmlApplicationEngine()
+    engine.rootContext().setContextProperty("amp", amp)
+    icon = HERE.parents[1] / "share/icons/hicolor/scalable/apps/goblincakes-amp.svg"
+    engine.rootContext().setContextProperty("iconUrl", QUrl.fromLocalFile(str(icon)) if icon.exists() else QUrl())
+    G.use_accent(engine)
+    engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
+    if not engine.rootObjects():
+        return 1
+    code = app.exec()
+    amp.stop()
+    return code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

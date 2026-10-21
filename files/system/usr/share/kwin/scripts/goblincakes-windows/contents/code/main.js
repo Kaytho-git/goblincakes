@@ -290,6 +290,29 @@ function graphAdded(window) {
     });
 }
 
+// GoblinAmp (21 Oct): back where it was moved to – kwinrc ampPlace = "x,y", written by goblin-amp
+// when the script tells it (D-Bus org.goblincakes.amp placed) after a move; like goblin graph.
+const AMP = "goblin-amp";
+
+function ampAdded(window) {
+    const xy = String(readConfig("ampPlace", "")).split(",").map(Number);
+    const geo = window.frameGeometry;
+    if (xy.length === 2 && !isNaN(xy[0]) && !isNaN(xy[1])) {
+        const onScreen = workspace.screens.some(function (s) {
+            const g = s.geometry;
+            return xy[0] + geo.width / 2 >= g.x && xy[0] + geo.width / 2 < g.x + g.width
+                && xy[1] + geo.height / 2 >= g.y && xy[1] + geo.height / 2 < g.y + g.height;
+        });
+        if (onScreen)
+            window.frameGeometry = { x: xy[0], y: xy[1], width: geo.width, height: geo.height };
+    }
+    window.interactiveMoveResizeFinished.connect(function () {
+        const g = window.frameGeometry;
+        callDBus("org.goblincakes.amp", "/amp", "org.goblincakes.amp", "placed",
+                 Math.round(g.x) + "," + Math.round(g.y));
+    });
+}
+
 // AppGrid (12 Oct, the user: with AppGrid open, the system tray and the dock couldn't be
 // clicked – the click went back to the game): AppGrid opens a see-through window over the
 // whole screen with the grid in the middle, above the panels, and a click on it closes
@@ -394,6 +417,10 @@ function added(window) {
     }
     if (window.normalWindow && isSpotify(window) && spotifyAdded(window))
         return;
+    if (window.resourceClass === AMP) {
+        ampAdded(window);
+        return;
+    }
     const tiled = window.normalWindow && !window.transient && !isGame(window) ? ruleTile(window) : null;
     const ruled = window.normalWindow ? ruleScreen(window) : null;
     if (CENTERED.indexOf(window.resourceClass) >= 0) {
