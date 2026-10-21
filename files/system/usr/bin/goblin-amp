@@ -51,9 +51,8 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
 
 HERE = Path(__file__).resolve()
-SHARE = Path(os.environ.get("GOBLINCAKES_AMP_SHARE", "/usr/share/goblincakes/amp"))
-if not (SHARE / "Main.qml").exists():  # run from the repo
-    SHARE = HERE.parents[1] / "share/goblincakes/amp"
+# Next to this file first: run from the repo, the repo's own parts (not the image's older ones)
+SHARE = Path(os.environ.get("GOBLINCAKES_AMP_SHARE") or HERE.parents[1] / "share/goblincakes/amp")
 SOCKET = f"goblin-amp-{os.getuid()}"
 BARS = 19            # little bars under the time, as many as Winamp's
 POLL = 1.0           # seconds between looks at the player (the time counts on by itself between)
