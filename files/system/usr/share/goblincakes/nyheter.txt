@@ -1,6 +1,7 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
 2026-10-21  GoblinAmp spelar nu din egen musik: PL → LOKALT visar Nu spelas, Musikmappen (~/Musik) och dina egna spellistor. Dra in låtar och mappar från Dolphin, dra rader för att ändra ordningen och högerklicka för att lägga till i en lista, sortera eller byta namn. Listorna sparas i ~/Musik/Spellistor i Winamps format, och gamla Winamp-listor går att öppna.
+2026-10-21  Datorn ska inte längre hänga sig när skärmarna stängs av eller väcks med Nvidia-kort. KDE ändrar därför inte längre ljusstyrkan på själva skärmarna (ställ in den med skärmens knappar).
 2026-10-21  När GoblinAmp spelar din musik syns den i Spelas nu och Plasmas mediakontroller, och mediatangenterna på tangentbordet fungerar. Startar du Spotify pausas GoblinAmp, och tvärtom.
 2026-10-21  goblin graph kan visas inne i GoblinAmp: tryck GRAF. Då öppnas den inte längre som ett eget fönster – EGET FÖNSTER tar ut den igen.
 2026-10-21  GoblinAmp har fått en spellista som i Winamp: tryck PL så visas dina Spotify-listor, Gillade låtar och kön under spelaren – dubbelklicka på en låt för att spela den. Första gången skapar du en gratis Spotify-app och loggar in (stegen står i fönstret).
