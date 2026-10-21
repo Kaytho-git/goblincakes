@@ -709,7 +709,7 @@ class Amp(QObject):
 
     @Slot(str)
     def openList(self, list_id):
-        entry = next((e for e in self._pl["lists"] if e["id"] == list_id), None)
+        entry = self._list_entry(list_id) or self._open_album(list_id)
         if entry is None:
             return
         if list_id == SW.SEARCH:   # the last search's rows stay until a new one
@@ -717,6 +717,21 @@ class Amp(QObject):
             return
         self._pl_update(list=entry, rows=[])
         self._pl_job("Hämtar låtarna…", lambda: {"rows": self.library.tracks(entry)})
+
+    def _open_album(self, list_id):
+        """The album opened from the search, when that is the list asked for."""
+        entry = self._pl["list"]
+        return entry if entry and entry.get("album") and entry["id"] == list_id else None
+
+    @Slot(int)
+    def openAlbum(self, index):
+        """A found album: open it with its tracks (◀ goes back to the search)."""
+        rows = self._pl["rows"]
+        if not (0 <= index < len(rows)) or rows[index].get("kind") != "album":
+            return
+        entry = SW.Library.album_entry(rows[index])
+        self._pl_update(list=entry, rows=[], message="")
+        self._pl_job("Hämtar albumet…", lambda: {"rows": self.library.tracks(entry)})
 
     @Slot()
     def backToLists(self):
@@ -742,7 +757,7 @@ class Amp(QObject):
 
     @Slot(str)
     def playList(self, list_id):
-        entry = next((e for e in self._pl["lists"] if e["id"] == list_id), None)
+        entry = self._list_entry(list_id) or self._open_album(list_id)
         if entry is None or entry["id"] in (SW.QUEUE, SW.SEARCH):
             return
 

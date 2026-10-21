@@ -287,7 +287,9 @@ class Library:
         if cached and list_id != LIKED and cached[0] == entry.get("snapshot"):
             return cached[1]
         rows = []
-        if list_id == LIKED:
+        if entry.get("album"):   # an album opened from the search
+            url, query = f"/albums/{entry['uri'].rsplit(':', 1)[-1]}/tracks", {"limit": 50}
+        elif list_id == LIKED:
             url, query = "/me/tracks", {"limit": 50}
         else:
             url, query = f"/playlists/{list_id}/items", {"limit": 100, "additional_types": "track,episode"}
@@ -296,7 +298,8 @@ class Library:
                 page = self.client.get(url, query)
                 query = None
                 for entry_ in page.get("items") or []:
-                    row = track_row(entry_.get("item") or entry_.get("track"))
+                    row = track_row(entry_.get("item") or entry_.get("track")
+                                    or (entry_ if entry.get("album") else None))
                     if row:
                         rows.append(row)
                 url = page.get("next")
@@ -387,6 +390,12 @@ class Library:
         if tracks.get("next"):
             rows.append({"kind": "more", "offset": offset + SEARCH_LIMIT, "uri": "", "title": "", "artist": "", "seconds": 0})
         return rows
+
+    @staticmethod
+    def album_entry(row):
+        """A found album as an open list: its tracks, ◀ back to the search."""
+        return {"id": "album:" + row["uri"].rsplit(":", 1)[-1], "uri": row["uri"], "album": True, "special": True,
+                "name": (row["artist"] + " – " if row.get("artist") else "") + row["title"], "count": row.get("count", 0)}
 
     def enqueue(self, uri, start_app=None):
         self.client.request("POST", "/me/player/queue", {"uri": uri, "device_id": self.device(start_app)})

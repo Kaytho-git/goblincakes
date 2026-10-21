@@ -1060,6 +1060,11 @@ Window {
             if (id === "search")
                 plFilter.forceActiveFocus();
         }
+        // a found album: its tracks (the search words leave the field, it filters the album)
+        function openAlbum(i) {
+            plFilter.text = "";
+            amp.openAlbum(i);
+        }
         // own lists to add to (the open one left out); at most 8 in the menu
         function targets() {
             return (win.pl.lists || []).filter(l => l.mine && !l.special && (!entry || l.id !== entry.id)).slice(0, 8);
@@ -1070,6 +1075,8 @@ Window {
             if (r.kind === "more")
                 return;
             const items = [];
+            if (r.kind === "album")
+                items.push({ text: "Öppna albumet", act: () => plPanel.openAlbum(i) });
             if (entry.id !== "queue")
                 items.push({ text: r.kind === "album" ? "Spela albumet" : r.kind === "playlist" ? "Spela listan" : "Spela", act: () => amp.playRow(i) });
             if (!r.kind || r.kind === "track") {
@@ -1142,7 +1149,14 @@ Window {
                 text: "◀  " + (plPanel.entry ? plPanel.entry.name : "")
                 color: accent.text
                 font.weight: Font.DemiBold
-                onClicked: { plFilter.text = ""; amp.backToLists(); }
+                onClicked: {
+                    if (plPanel.entry.album)   // an album from the search: back to the search
+                        plPanel.openEntry("search");
+                    else {
+                        plFilter.text = "";
+                        amp.backToLists();
+                    }
+                }
             }
             Row {
                 visible: win.pl.signedIn && !plPanel.showHelp
@@ -1155,7 +1169,7 @@ Window {
                 }
                 SmallLink {
                     visible: !!plPanel.entry && plPanel.entry.id !== "queue" && !plPanel.searching
-                    text: "▶ Spela listan"
+                    text: plPanel.entry && plPanel.entry.album ? "▶ Spela albumet" : "▶ Spela listan"
                     onClicked: amp.playList(plPanel.entry.id)
                 }
                 SmallLink {
@@ -1379,10 +1393,12 @@ Window {
                             plPanel.trackMenu(rowItem.modelData.index, p.x, p.y);
                         } else if (rowItem.kind === "more") {
                             amp.searchMore();
+                        } else if (rowItem.kind === "album") {
+                            plPanel.openAlbum(rowItem.modelData.index);
                         }
                     }
                     onDoubleClicked: mouse => {
-                        if (mouse.button !== Qt.LeftButton || rowItem.kind === "more")
+                        if (mouse.button !== Qt.LeftButton || rowItem.kind === "more" || rowItem.kind === "album")
                             return;
                         if (!rowItem.isTrack)
                             rowItem.r.id === "search" ? plPanel.openEntry("search") : amp.playList(rowItem.r.id);
