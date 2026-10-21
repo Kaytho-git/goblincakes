@@ -79,8 +79,15 @@ Spelar in WoW av sig själv med OBS – du behöver inte trycka på något:
 - **Fjärråtkomst:** nå Ianseo via internet bakom ett lösenord (Cloudflare-tunnel, inga ändringar i routern). En ikon i systemfältet visar när Ianseo är nåbart utifrån.
 
 ### Musik: GoblinAmp och Spotify
-- **GoblinAmp** – en liten spelare i Winamps anda: stor tid, rullande titel, staplar till musiken och knapparna du minns (Z X C V B). Den spelar din egen musik med egna spellistor (Winamps format, dra och släpp från Dolphin) och styr Spotify, med dina Spotify-listor och Gillade låtar i spellistan. goblin graph kan visas inne i spelaren (**GRAF**).
+- **GoblinAmp** – en liten spelare i Winamps anda: stor tid, rullande titel, staplar till musiken och knapparna du minns (Z X C V B). goblin graph kan visas inne i spelaren (**GRAF**), och spellistan (**PL**) dras högre i nederkanten.
+  - **Egen musik:** Nu spelas, musikmappen och egna spellistor i Winamps format – dra in låtar och mappar från Dolphin, dra rader för att ändra ordningen, öppna gamla Winamp-listor.
+  - **Spotify:** dina listor, Gillade låtar och kön; sök i hela Spotify, skapa egna listor, lägg till låtar med högerklick och ändra ordningen genom att dra. Styr Spotify-appen, så ljudet och kvaliteten är som vanligt.
 - **Spotify (GOBLINCAKES)** – Spotify i GOBLINCAKES-stil och din färg, utan förslag och sidopaneler. Ljudet kommer från Spotify-appen, som ligger gömd i systemfältet, så kvaliteten blir som vanligt.
+
+<p>
+  <img src="docs/goblinamp-spotify.png" width="380" alt="GoblinAmp med staplar i klassfärger och en sökning i hela Spotify">
+  <img src="docs/goblinamp-lokalt.png" width="380" alt="GoblinAmp med en egen spellista och goblin graphs våg">
+</p>
 
 ### goblin graph
 Ljudstaplar till musiken i WoW:s klassfärger – ett fönster utan ram som ligger bland de andra fönstren, med bara staplarna synliga. Varje stapel i en klassfärg, eller allt i din klass färg (läses ur stridsloggen). Fyra vyer: staplar, våg, cirkel och explosion som smäller i takt. Lyssnar bara på musikprogram (Spotify, Quod Libet m.fl.), inte på spel eller film, och kan öppnas av sig själv när musiken börjar (`goblin graph auto on`). Ikonen i systemfältet byter vy och låser fönstret.
@@ -104,7 +111,9 @@ Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**), i en 
 - **Söker på nätet** själv när du frågar om något nytt (gratis Tavily-nyckel).
 - **Läser och skapar:** PDF:er, bilder och skärmbilder; ritar bilder (på datorn eller gratis via Cloudflare); sparar svar som PDF, Word eller bild.
 - **Hjälper med datorn och spelet:** hittar fel i systemloggarna och föreslår lösningar steg för steg, läser WoW-tilläggens felmeddelanden och analyserar dina Warcraft Logs (dödsfall, cooldowns, förmågor).
-- **Projekt** med egna instruktioner, filer och modeller, ett **minne**, egna knappar (t.ex. det senaste om ditt lag), avatar och namn. ♥ under ett bra svar lär den att göra likadant nästa gång.
+- **Projekt** med egna instruktioner, filer och modeller, ett **minne**, avatar och namn. ♥ under ett bra svar lär den att göra likadant nästa gång, 👎 att undvika det.
+- **Egna knappar** ovanför rutan: ett tryck ger t.ex. det senaste om ditt lag (tabell och matcher hämtas direkt) eller sammanfattar en sida du länkar.
+- **Ger inte upp:** är en modell överbelastad tar den nästa modell eller tjänst, och den lokala AI:n sist. Svar kan kopieras med formateringen kvar.
 - **Lär dig koda:** kurser i Python, Lua, WoW-tillägg, HTML/CSS, JavaScript, PHP, SQL, Bash, Git, Godot och containrar – med uppgifter som kontrolleras automatiskt i en avskild övningsdator och en AI-lärare som ger ledtrådar i stället för svaret.
 
 ### Kommandon i terminalen
