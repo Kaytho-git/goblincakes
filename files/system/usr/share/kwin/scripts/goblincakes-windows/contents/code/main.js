@@ -190,10 +190,27 @@ function isGame(window) {
         || /\.exe$/.test(cls));
 }
 
-function toMainScreen(window) {
-    const screen = mainScreen(window);
-    if (window.output !== screen)
-        workspace.sendClientToScreen(window, screen);
+// A game stays on its screen (the main one, or its own rule – goblin screen add wow screen 1):
+// games switch to fullscreen, or move their borderless window, a moment after opening – onto the
+// screen the mouse was on (21 Oct, the user: WoW opened on screen 2 when the mouse got there in
+// time). Every move to another screen during the first half minute is taken back, unless the
+// game is moved by hand.
+function keepGame(window, screen) {
+    const back = function () {
+        const target = screen || mainScreen(window);
+        if (window.output !== target && workspace.screens.indexOf(target) >= 0)
+            workspace.sendClientToScreen(window, target);
+    };
+    back();
+    const start = Date.now();
+    let byHand = false;
+    window.interactiveMoveResizeStarted.connect(function () { byHand = true; });
+    const check = function () {
+        if (!byHand && Date.now() - start < 30000)
+            back();
+    };
+    window.fullScreenChanged.connect(check);
+    window.outputChanged.connect(check);
 }
 
 function center(window) {
@@ -433,6 +450,8 @@ function added(window) {
             toTile(window, tile);
         else if (tiled.desktop)
             waiting.push({ window: window, rule: tiled });
+    } else if (isGame(window)) {
+        keepGame(window, ruled);
     } else if (ruled) {
         if (window.output !== ruled)
             workspace.sendClientToScreen(window, ruled);
@@ -452,15 +471,6 @@ function added(window) {
         window.frameGeometryChanged.connect(function () {
             if (Date.now() - start < 5000)
                 fit(window);
-        });
-    } else if (isGame(window)) {
-        toMainScreen(window);
-        // Games often switch to fullscreen a moment later, on the screen the window is on –
-        // the first switch during the first half minute is kept on the main screen as well.
-        const start = Date.now();
-        window.fullScreenChanged.connect(function () {
-            if (window.fullScreen && Date.now() - start < 30000)
-                toMainScreen(window);
         });
     }
 }

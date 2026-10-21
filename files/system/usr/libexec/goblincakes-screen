@@ -13,6 +13,8 @@ goblincakes-windows when a window of the program opens – it can be moved after
 KDE's own window rules number screens in another order, hence our own.
 """
 import configparser
+import importlib.machinery
+import importlib.util
 import json
 import os
 import re
@@ -25,6 +27,7 @@ DATA_HOME = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share")
 APP_DIRS = [DATA_HOME / "applications", DATA_HOME / "flatpak/exports/share/applications",
             Path("/var/lib/flatpak/exports/share/applications"), Path("/usr/share/applications")]
 GROUP, KEY = "Script-goblincakes-windows", "screenRules"
+GAMES = Path(__file__).resolve().with_name("goblincakes-games")
 ACCENT, MUTED, FROST, RESET = "\033[38;2;47;111;237m", "\033[38;2;139;152;173m", \
     "\033[38;2;230;236;245m", "\033[0m"
 if not sys.stdout.isatty():
@@ -109,12 +112,12 @@ def write_rules(rules):
                     "reconfigure"], capture_output=True)
 
 
-def find(text, progs):
+def find(text, progs, prefix=True):
     q = squash(text)
     exact = [(i, v) for i, v in progs.items()
              if q and q in (word(i, v[0]), squash(i), squash(i.rsplit(".", 1)[-1]))
              or text.lower() in v[1]]
-    if exact:
+    if exact or not prefix:
         return exact
     return [(i, v) for i, v in progs.items() if len(q) >= 3 and word(i, v[0]).startswith(q)]
 
@@ -144,13 +147,46 @@ def cmd_list():
     width = max((len(w) for w, _ in items), default=10) + 2
     for w, name in items:
         print(f"  {FROST}{w:<{width}}{RESET}{MUTED}{name}{RESET}")
-    print(f"\n{MUTED}Lägg till: goblin screen add discord screen 2   Ta bort: goblin screen remove discord{RESET}")
+    print(f"\n{MUTED}Spel går också: ordet från goblin play, namnet eller .exe (goblin screen add wow screen 1){RESET}")
+    print(f"{MUTED}Lägg till: goblin screen add discord screen 2   Ta bort: goblin screen remove discord{RESET}")
     return 0
 
 
+def find_game(text):
+    """A game – goblin play's words, its name or its .exe (21 Oct, the user: goblin screen add
+    wow.exe found nothing, games aren't in AppGrid): (rule id, (name, window classes)) or None.
+    Its window is <name>.exe under Wine, steam_app_<appid> under Proton (a non-Steam game's
+    appid is the high half of its game id)."""
+    try:
+        loader = importlib.machinery.SourceFileLoader("goblincakes_games", str(GAMES))
+        games = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+        loader.exec_module(games)
+        hits = games.find(text, games.games())
+    except Exception:  # noqa: BLE001 – no Steam, or no helper: only a plain .exe below
+        hits = []
+    if len(hits) == 1:
+        name, gameid = hits[0]
+        number = int(gameid)
+        classes = [f"steam_app_{number >> 32 if number > 0xFFFFFFFF else number}"]
+        if games.EXES.get(gameid):
+            classes.insert(0, games.EXES[gameid])
+        return classes[0], (name, classes)
+    low = text.lower()
+    if re.fullmatch(r"[\w .+-]+\.exe|steam_app_\d+", low):
+        return low, (text, [low])
+    return None
+
+
 def resolve(text):
-    progs = programs()
-    hits = find(text, progs)
+    # games through goblin play's words (their dock entries in AppGrid don't know the window)
+    progs = {i: v for i, v in programs().items() if not i.startswith("goblincakes-game-")}
+    hits = find(text, progs, prefix=False)
+    if len(hits) == 1:
+        return hits[0]
+    game = find_game(text) if not hits else None
+    if game:
+        return game
+    hits = hits or find(text, progs)
     if len(hits) == 1:
         return hits[0]
     if not hits:
@@ -197,7 +233,7 @@ def cmd_remove(args):
         return 2
     rules = read_rules()
     text = " ".join(args)
-    hit = find(text, programs())
+    hit = find(text, programs(), prefix=False) or ([find_game(text)] if find_game(text) else [])
     keys = set(hit[0][1][1]) if len(hit) == 1 else set()
     keys.add(text.lower())
     gone = [k for k in rules if set(k.split("|")) & keys]
