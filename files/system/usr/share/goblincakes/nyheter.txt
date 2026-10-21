@@ -1,5 +1,7 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-21  Under varje svar i Goblin AI finns nu Gör kortare, Mer formell, Rätta stavningen och Översätt till engelska. Spara som… sparar svaret som PDF, Word, LibreOffice-dokument eller text, och Kopiera svaret behåller rubriker och fetstil när du klistrar in i Word eller mejl.
+2026-10-21  👎 under ett dåligt svar: skriv gärna vad som var fel, så kommer Goblin AI ihåg vad den ska undvika vid liknande frågor.
 2026-10-21  Tryck ♥ under ett bra svar så skriver Goblin AI en kort lärdom om hur det gick till och gör likadant vid liknande frågor – lärdomarna finns under AI-tjänster.
 2026-10-21  Goblin AI söker på nätet själv när du frågar om något nytt (senaste, patch, nyheter …), och knappen Sök på nätet gör att nästa fråga söks först.
 2026-10-20  Svarar inte AI-modellen du valt (t.ex. överbelastad Gemini) frågar Goblin AI nästa modell eller tjänst i stället, och din egen dator i sista hand.

@@ -272,11 +272,13 @@ Window {
     property int pendingPdf: -1  // the answer being saved as a PDF
     FileDialog {
         id: savePdfDialog
-        title: "Spara svaret som PDF"
+        title: "Spara svaret som"
         onVisibleChanged: backend.sharpText()
         fileMode: FileDialog.SaveFile
-        nameFilters: ["PDF (*.pdf)"]
-        onAccepted: if (win.pendingPdf >= 0) backend.savePdf(win.pendingPdf, selectedFile.toString())
+        nameFilters: ["PDF (*.pdf)", "Word (*.docx)", "OpenDocument – LibreOffice (*.odt)", "Text (*.txt)", "Markdown (*.md)"]
+        onAccepted: if (win.pendingPdf >= 0)
+            backend.savePdf(win.pendingPdf, selectedFile.toString(),
+                            selectedNameFilter.extensions.length ? selectedNameFilter.extensions[0] : "pdf")
     }
 
     FileDialog {
@@ -1514,11 +1516,11 @@ Window {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.copy(msgItem.m.text)
+                                    onClicked: backend.copyAnswer(msgItem.index)
                                 }
                             }
                             Text {
-                                text: "Spara som PDF"
+                                text: "Spara som…"
                                 color: pdfArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 12
@@ -1550,6 +1552,7 @@ Window {
                             // ♥ (21 Oct): a good answer – the AI saves how it did it and does the same next time
                             Text {
                                 id: heartText
+                                visible: !msgItem.m.thumb
                                 property string state_: msgItem.m.heart || ""
                                 text: state_ === "busy" ? "♥ Sparar…"
                                       : state_ !== "" ? (heartArea.containsMouse ? "♥ Ångra" : "♥ Sparat")
@@ -1567,12 +1570,110 @@ Window {
                                     onClicked: backend.heart(msgItem.index)
                                 }
                             }
+                            // 👎 (21 Oct): a bad answer – the AI saves what to avoid (the user may say why)
+                            Text {
+                                visible: !msgItem.m.heart || !!msgItem.m.thumb
+                                property string state_: msgItem.m.thumb ? msgItem.m.heart || "" : ""
+                                text: state_ === "busy" ? "👎 Sparar…"
+                                      : state_ !== "" ? (thumbArea.containsMouse ? "👎 Ångra" : "👎 Sparat")
+                                      : thumbArea.containsMouse ? "👎 Dåligt svar – gör inte så här igen" : "👎"
+                                color: state_ !== "" && state_ !== "busy" ? "#F0883E"
+                                       : thumbArea.containsMouse ? "#E6ECF5" : "#5C6880"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                MouseArea {
+                                    id: thumbArea
+                                    anchors.fill: parent
+                                    anchors.margins: -4
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (msgItem.m.thumb) {
+                                            if (msgItem.m.heart !== "busy")
+                                                backend.undoLesson(msgItem.index);
+                                        } else {
+                                            whyRow.visible = !whyRow.visible;
+                                            if (whyRow.visible)
+                                                whyInput.forceActiveFocus();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // 👎 – what was wrong (optional), then the AI writes the lesson
+                        Row {
+                            id: whyRow
+                            visible: false
+                            spacing: 10
+                            Rectangle {
+                                width: Math.min(460, answer.width - 220)
+                                height: 30
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: whyInput.activeFocus ? accent.color : "#1E2A40"
+                                TextInput {
+                                    id: whyInput
+                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    clip: true
+                                    maximumLength: 400
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                    onAccepted: { backend.thumbDown(msgItem.index, text); text = ""; whyRow.visible = false; }
+                                    Keys.onEscapePressed: whyRow.visible = false
+                                    Text {
+                                        visible: whyInput.text === ""
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "Vad var fel? (går att hoppa över)"
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                            }
+                            FlatButton {
+                                small: true
+                                primary: true
+                                text: "Spara"
+                                onClicked: { backend.thumbDown(msgItem.index, whyInput.text); whyInput.text = ""; whyRow.visible = false; }
+                            }
+                            FlatButton {
+                                small: true
+                                text: "Avbryt"
+                                onClicked: { whyInput.text = ""; whyRow.visible = false; }
+                            }
+                        }
+                        // Quick buttons (21 Oct): the answer again – shorter, more formal, corrected or in English
+                        Row {
+                            spacing: 14
+                            visible: !!msgItem.m.text && !backend.busy
+                            Repeater {
+                                model: [["kortare", "Gör kortare"], ["formell", "Mer formell"],
+                                        ["stavning", "Rätta stavningen"], ["engelska", "Översätt till engelska"]]
+                                Text {
+                                    required property var modelData
+                                    text: "↻ " + modelData[1]
+                                    color: rwArea.containsMouse ? "#E6ECF5" : "#5C6880"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                    MouseArea {
+                                        id: rwArea
+                                        anchors.fill: parent
+                                        anchors.margins: -3
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: backend.rewrite(msgItem.index, parent.modelData[0])
+                                    }
+                                }
+                            }
                         }
                         Text {
                             visible: !!msgItem.m.lesson
                             width: parent.width
                             wrapMode: Text.WordWrap
-                            text: "♥ Lärdom: " + (msgItem.m.lesson || "") + "   (ändra eller ta bort under AI-tjänster → Lärdomar)"
+                            text: (msgItem.m.thumb ? "👎 Undvik: " : "♥ Lärdom: ") + (msgItem.m.lesson || "")
+                                  + "   (ändra eller ta bort under AI-tjänster → Lärdomar)"
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 12
@@ -3163,7 +3264,7 @@ Window {
                         Text {
                             width: parent.width
                             wrapMode: Text.WordWrap
-                            text: "Tryck ♥ under ett bra svar, så skriver " + (backend.aiName || "Goblin AI") + " en kort lärdom om hur det gick till. "
+                            text: "Tryck ♥ under ett bra svar, så skriver " + (backend.aiName || "Goblin AI") + " en kort lärdom om hur det gick till – 👎 under ett dåligt, så skrivs vad som ska undvikas. "
                                   + "Vid en liknande fråga följer de 2–3 lärdomar som passar bäst med. Ett hjärta på ett svar som var fel lär in felet – "
                                   + "ändra eller ta bort sådana här. Klicka på en lärdom för att ändra den." + (lessonCard.items.length ? "  (" + lessonCard.items.length + " av 100)" : "")
                             color: "#8B98AD"
@@ -3187,7 +3288,7 @@ Window {
                                 Text {
                                     width: parent.width - 30
                                     elide: Text.ElideRight
-                                    text: "Frågan: " + lessonRow.modelData.question + "  ·  " + lessonRow.modelData.added
+                                    text: (lessonRow.modelData.kind === "avoid" ? "👎 Undvik  ·  " : "♥  ·  ") + "Frågan: " + lessonRow.modelData.question + "  ·  " + lessonRow.modelData.added
                                     color: "#5C6880"
                                     font.family: "IBM Plex Sans"
                                     font.pixelSize: 12

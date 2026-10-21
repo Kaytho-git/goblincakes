@@ -737,6 +737,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
     messages = [dict(m) for m in messages]
     asked = next((m for m in reversed(messages) if m["role"] == "user"), {})
     forced = asked.pop("search", False)  # the "Sök på nätet" button
+    if asked.pop("rewrite", False):  # a quick button under an answer: only the text again – no tools
+        return ask_once(messages, keys, status, notice, project, choice)
     tools = tools_for(keys, project, messages)
     LAST.tools = []
     if forced and "sök" not in tools and notice:
@@ -1435,7 +1437,7 @@ def forget(texts):
 
 # ── ♥ on a good answer (18 Oct, the user's idea; step 1 built 21 Oct): what worked is saved as a short
 # lesson the AI writes itself, and the 2–3 lessons most like a new question go into its system prompt ──
-LESSONS_FILE = MEMORY_FILE.parent / "lardomar.json"  # [{"id", "question", "lesson", "tools", "service", "project", "added"}]
+LESSONS_FILE = MEMORY_FILE.parent / "lardomar.json"  # [{"id", "kind" good|avoid, "question", "lesson", "tools", "service", "project", "added"}]
 LESSONS_MAX = 100
 LESSONS_PICK = 3
 LESSON_LENGTH = 300
@@ -1448,6 +1450,32 @@ Frågan: {question}
 Verktyg du använde: {tools}
 Ditt svar (början):
 {answer}"""
+
+AVOID_PROMPT = """Användaren gav tumme ner (👎) på ditt svar nedan – det var inte bra. {reason}Skriv EN kort lärdom på svenska (högst två meningar, högst 220 tecken) om vad du ska UNDVIKA nästa gång en liknande fråga kommer, och vad du gör i stället: t.ex. gissade i stället för att hämta data, för långt, fel verktyg, fel ton. Skriv inte själva svaret. Svara med BARA lärdomen.
+
+Frågan: {question}
+Verktyg du använde: {tools}
+Ditt svar (början):
+{answer}"""
+
+# The quick buttons under an answer (21 Oct): what each asks the AI to do with that answer
+REWRITES = {
+    "kortare": ("Gör kortare", "Skriv om svaret kortare – behåll det viktigaste, samma språk och samma fakta."),
+    "formell": ("Mer formell", "Skriv om svaret i en mer formell och artig ton, med samma innehåll."),
+    "stavning": ("Rätta stavningen", "Rätta stavning, grammatik och skiljetecken i svaret utan att ändra innehållet eller stilen."),
+    "engelska": ("Översätt till engelska", "Översätt svaret till engelska. Behåll formatering, kod, länkar och namn."),
+}
+REWRITE_TAIL = " Svara bara med den nya versionen – ingen inledning, inga kommentarer, inga verktyg."
+
+
+def rewrite_message(kind, answer, last=True):
+    """(what the chat shows, what the AI is asked) for a quick button; the answer is quoted unless it is the last one."""
+    label, wish = REWRITES[kind]
+    content = wish + REWRITE_TAIL
+    if not last or len(answer) <= 20000:
+        content += "\n\nSvaret:\n\"\"\"\n" + answer[:20000] + "\n\"\"\""
+    return label, content
+
 
 TOOL_NAMES = {"sök": "sökte på nätet", "wowfel": "läste WoW-felen", "warcraftlogs": "hämtade pullen från Warcraft Logs",
               "sport": "hämtade lagets ställning", "systemfel": "läste datorns fel"}
@@ -1470,9 +1498,15 @@ def tools_text(tools):
     return ", ".join(f"{TOOL_NAMES.get(t, t)}{f' ({q})' if q else ''}" for t, q in tools) or "inga – svarade direkt"
 
 
-def make_lesson(question, answer, tools, keys, project=None, choice=""):
-    """The AI's own short lesson from an answer the user liked (a plain one when no service answers)."""
-    prompt = LESSON_PROMPT.format(question=str(question)[:1500], tools=tools_text(tools), answer=str(answer)[:2500])
+def make_lesson(question, answer, tools, keys, project=None, choice="", kind="good", reason=""):
+    """The AI's own short lesson from an answer the user liked – or, kind "avoid", disliked (👎, with the
+    user's reason if given); a plain one when no service answers."""
+    if kind == "avoid":
+        why = f"Användaren skrev vad som var fel: \"{' '.join(str(reason).split())[:400]}\". " if reason.strip() else ""
+        prompt = AVOID_PROMPT.format(reason=why, question=str(question)[:1500], tools=tools_text(tools),
+                                     answer=str(answer)[:2500])
+    else:
+        prompt = LESSON_PROMPT.format(question=str(question)[:1500], tools=tools_text(tools), answer=str(answer)[:2500])
     QUICK.on = True  # a sentence – no long thinking
     try:
         text, _ = ask_once([{"role": "system", "content": "Du skriver korta lärdomar på svenska."},
@@ -1482,15 +1516,18 @@ def make_lesson(question, answer, tools, keys, project=None, choice=""):
     finally:
         QUICK.on = False
     text = " ".join(re.sub(r"```.*?```", "", text, flags=re.S).split()).strip(" \"'")
+    if not text and kind == "avoid":
+        text = (f"Användaren tyckte inte om svaret: {' '.join(reason.split())}"[:LESSON_LENGTH] if reason.strip() else
+                "Svaret var inte bra – hämta data i stället för att gissa, och håll dig till det som frågades.")
     if not text:
         text = ("Svarade utan verktyg, kort och rakt på sak." if not tools else
                 f"{tools_text(tools)[0].upper()}{tools_text(tools)[1:]} och svarade utifrån det.")
     return text[:LESSON_LENGTH]
 
 
-def add_lesson(question, lesson, tools, service="", project=None):
+def add_lesson(question, lesson, tools, service="", project=None, kind="good"):
     items = load_lessons()
-    entry = {"id": time.strftime("%Y%m%d-%H%M%S") + os.urandom(2).hex(), "question": " ".join(str(question).split())[:400],
+    entry = {"id": time.strftime("%Y%m%d-%H%M%S") + os.urandom(2).hex(), "kind": kind, "question": " ".join(str(question).split())[:400],
              "lesson": lesson, "tools": [t for t, _ in tools], "service": service,
              "project": (project or {}).get("id", ""), "added": date.today().isoformat()}
     items.append(entry)
@@ -1544,8 +1581,15 @@ def with_lessons(messages, project=None):
     found = lessons_for(question if isinstance(question, str) else "", project)
     if not found:
         return messages
-    text = ("\n\nSå här gjorde du bra förut (användaren gav hjärta på de här svaren – gör likadant om det passar "
-            "den här frågan, annars inte):\n" + "\n".join(f"- Frågan \"{i['question'][:120]}\": {i['lesson']}" for i in found))
+    good = [i for i in found if i.get("kind") != "avoid"]
+    avoid = [i for i in found if i.get("kind") == "avoid"]
+    text = ""
+    if good:
+        text += ("\n\nSå här gjorde du bra förut (användaren gav hjärta på de här svaren – gör likadant om det passar "
+                 "den här frågan, annars inte):\n" + "\n".join(f"- Frågan \"{i['question'][:120]}\": {i['lesson']}" for i in good))
+    if avoid:
+        text += ("\n\nGör inte så här (användaren gav tumme ner på de här svaren – undvik samma misstag):\n"
+                 + "\n".join(f"- Frågan \"{i['question'][:120]}\": {i['lesson']}" for i in avoid))
     return [{**messages[0], "content": messages[0]["content"] + text}] + list(messages[1:])
 
 
@@ -1850,15 +1894,17 @@ och tabeller hellre än långa stycken, siffrorna exakt som i datan (hitta aldri
 Totalt/Summa blir summaraden. Rubrikerna väljs efter innehållet – mallen gäller utseendet, inte rubrikerna.
 Inget annat block i samma svar behövs; bilden visas automatiskt under svaret.
 
-PDF: under varje svar i Goblin AI-fönstret finns knappen "Spara som PDF" (och "Spara som bild"), som sparar
-just det svaret som en PDF på datorn. Ber användaren om en PDF (av det du hittat, en sammanfattning, en rapport),
-säg aldrig att du inte kan göra PDF:er: skriv hela innehållet i ETT svar i vanlig Markdown (rubriker, listor,
+PDF och Word: under varje svar i Goblin AI-fönstret finns knappen "Spara som…" (och "Spara som bild"), som sparar
+just det svaret som PDF, Word (.docx), OpenDocument, text eller Markdown på datorn, och "Kopiera svaret" kopierar
+med formatering (klistras in snyggt i Word och mejl). Där finns också snabbknapparna Gör kortare, Mer formell,
+Rätta stavningen och Översätt till engelska. Ber användaren om en PDF eller ett Word-dokument (av det du hittat,
+en sammanfattning, en rapport), säg aldrig att du inte kan göra sådana: skriv hela innehållet i ETT svar i vanlig Markdown (rubriker, listor,
 tabeller – inget kodblock runt det, siffrorna exakt som i datan) och avsluta med en kort rad om att trycka på
-"Spara som PDF" under svaret. Ligger det användaren vill ha i flera tidigare svar, samla det i det nya svaret.
+"Spara som…" under svaret och välja PDF eller Word. Ligger det användaren vill ha i flera tidigare svar, samla det i det nya svaret.
 
 Efter en sammanställning eller analys (t.ex. av Warcraft Logs) som användaren inte bett om i ett visst format:
 avsluta med frågan "Vill du ha det här som bild eller PDF?". Svarar användaren bild → ```rapport med samma
-innehåll; PDF → säg att knappen "Spara som PDF" under svaret sparar det."""
+innehåll; PDF → säg att knappen "Spara som…" under svaret sparar det (välj PDF)."""
 
 
 def make_report(markdown, project=None, footer=""):

@@ -24,9 +24,10 @@ sys.path.insert(0, str(SHARE))
 import goblinai  # noqa: E402
 import learn  # noqa: E402
 
-from PySide6.QtCore import QMarginsF, QObject, QProcess, QProcessEnvironment, QSize, QTimer, QUrl, Property, Qt, Signal, Slot  # noqa: E402
+from PySide6.QtCore import QMarginsF, QMimeData, QObject, QProcess, QProcessEnvironment, QSize, QTimer, QUrl, Property, Qt, Signal, Slot  # noqa: E402
 from PySide6.QtGui import (QDesktopServices, QFont, QFontDatabase, QGuiApplication, QIcon, QImage,  # noqa: E402
-                           QPageLayout, QPageSize, QPdfWriter, QTextDocument)
+                           QPageLayout, QPageSize, QPdfWriter, QTextCursor, QTextDocument, QTextDocumentWriter,
+                           QTextListFormat)
 from PySide6.QtPdf import QPdfDocument  # noqa: E402
 from PySide6.QtNetwork import QLocalServer, QLocalSocket  # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine  # noqa: E402
@@ -101,6 +102,171 @@ def save_pdf(markdown, path, title):
     writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
     writer.setPageMargins(QMarginsF(20, 20, 20, 20), QPageLayout.Unit.Millimeter)
     doc.print_(writer)
+
+
+def answer_document(markdown):
+    doc = QTextDocument()
+    doc.setDefaultFont(QFont("IBM Plex Sans", 10))
+    doc.setMarkdown(markdown)
+    return doc
+
+
+def xml_text(text):
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def docx_runs(block):
+    """A paragraph's text as Word runs: bold, italic and code kept."""
+    runs = []
+    it = block.begin()
+    while not it.atEnd():
+        frag = it.fragment()
+        if frag.isValid() and frag.text():
+            f = frag.charFormat()
+            props = ""
+            if f.fontWeight() >= 600:
+                props += "<w:b/>"
+            if f.fontItalic():
+                props += "<w:i/>"
+            if f.fontFixedPitch() or "monospace" in (f.fontFamilies() or []):
+                props += '<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/>'
+            if f.isAnchor():
+                props += '<w:color w:val="2F6FED"/><w:u w:val="single"/>'
+            for i, part in enumerate(frag.text().replace("\u2029", "\n").replace("\u2028", "\n").split("\n")):
+                if i:
+                    runs.append("<w:r><w:br/></w:r>")
+                if part:
+                    runs.append(f'<w:r>{f"<w:rPr>{props}</w:rPr>" if props else ""}'
+                                f'<w:t xml:space="preserve">{xml_text(part)}</w:t></w:r>')
+        it += 1
+    return "".join(runs)
+
+
+def docx_paragraph(block):
+    fmt = block.blockFormat()
+    props, prefix = "", ""
+    level = fmt.headingLevel()
+    if level:
+        props += f'<w:pStyle w:val="Heading{min(level, 3)}"/>'
+    lst = block.textList()
+    if lst:
+        depth = max(1, lst.format().indent())
+        props += f'<w:ind w:left="{360 * depth + 360}" w:hanging="360"/>'
+        style = lst.format().style()
+        numbered = style in (QTextListFormat.Style.ListDecimal, QTextListFormat.Style.ListLowerAlpha,
+                             QTextListFormat.Style.ListUpperAlpha)
+        prefix = f"{lst.itemNumber(block) + 1}.\t" if numbered else "•\t"
+    if fmt.nonBreakableLines():  # a code block
+        props += '<w:spacing w:after="0"/><w:shd w:val="clear" w:fill="F0F2F5"/>'
+    align = fmt.alignment()
+    if align & Qt.AlignmentFlag.AlignRight:
+        props += '<w:jc w:val="right"/>'
+    elif align & Qt.AlignmentFlag.AlignHCenter:
+        props += '<w:jc w:val="center"/>'
+    body = (f'<w:r><w:t xml:space="preserve">{xml_text(prefix)}</w:t></w:r>' if prefix else "") + docx_runs(block)
+    return f'<w:p>{f"<w:pPr>{props}</w:pPr>" if props else ""}{body}</w:p>'
+
+
+DOCX_STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="IBM Plex Sans" w:hAnsi="IBM Plex Sans" w:cs="Arial"/><w:sz w:val="21"/></w:rPr></w:rPrDefault>
+<w:pPrDefault><w:pPr><w:spacing w:after="120"/></w:pPr></w:pPrDefault></w:docDefaults>
+<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="240"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="200"/><w:outlineLvl w:val="1"/></w:pPr><w:rPr><w:b/><w:sz w:val="27"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="160"/><w:outlineLvl w:val="2"/></w:pPr><w:rPr><w:b/><w:sz w:val="23"/></w:rPr></w:style>
+<w:style w:type="table" w:styleId="Grid"><w:name w:val="Table Grid"/><w:tblPr><w:tblBorders>
+<w:top w:val="single" w:sz="4" w:color="BFC6D2"/><w:left w:val="single" w:sz="4" w:color="BFC6D2"/><w:bottom w:val="single" w:sz="4" w:color="BFC6D2"/>
+<w:right w:val="single" w:sz="4" w:color="BFC6D2"/><w:insideH w:val="single" w:sz="4" w:color="BFC6D2"/><w:insideV w:val="single" w:sz="4" w:color="BFC6D2"/>
+</w:tblBorders></w:tblPr></w:style>
+</w:styles>"""
+
+
+def save_docx(markdown, path, title):
+    """An answer as a Word document (.docx): headings, paragraphs, bold/italic/code, lists and tables –
+    written here with the standard library (Qt has no Word writer), nothing is sent anywhere."""
+    import zipfile
+    doc = answer_document(markdown)
+    body, block = [], doc.begin()
+    while block.isValid():
+        table = QTextCursor(block).currentTable()
+        if table:
+            rows = []
+            for r in range(table.rows()):
+                cells = []
+                for col in range(table.columns()):
+                    cell = table.cellAt(r, col)
+                    paras, b = [], cell.firstCursorPosition().block()
+                    while b.isValid() and b.position() <= cell.lastCursorPosition().position():
+                        paras.append(docx_paragraph(b))
+                        b = b.next()
+                    head = '<w:tcPr><w:shd w:val="clear" w:fill="E6ECF5"/></w:tcPr>' if r == 0 else ""
+                    cells.append(f"<w:tc>{head}{''.join(paras) or '<w:p/>'}</w:tc>")
+                rows.append(f"<w:tr>{''.join(cells)}</w:tr>")
+            grid = "".join(f'<w:gridCol w:w="{9638 // table.columns()}"/>' for _ in range(table.columns()))
+            body.append('<w:tbl><w:tblPr><w:tblStyle w:val="Grid"/><w:tblW w:w="5000" w:type="pct"/></w:tblPr>'
+                        f"<w:tblGrid>{grid}</w:tblGrid>" + "".join(rows) + "</w:tbl><w:p/>")
+            block = table.lastCursorPosition().block().next()
+            continue
+        if block.text().strip() or block.blockFormat().headingLevel():
+            body.append(docx_paragraph(block))
+        block = block.next()
+    document = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+                + "".join(body) + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
+                '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="0" w:footer="0" w:gutter="0"/>'
+                "</w:sectPr></w:body></w:document>")
+    core = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties '
+            'xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
+            'xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>' + xml_text(title) + "</dc:title>"
+            "<dc:creator>Goblin AI – GOBLINCAKES</dc:creator></cp:coreProperties>")
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                   '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+                   '<Default Extension="xml" ContentType="application/xml"/>'
+                   '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+                   '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+                   '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
+                   "</Types>")
+        z.writestr("_rels/.rels",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+                   '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>'
+                   "</Relationships>")
+        z.writestr("word/_rels/document.xml.rels",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+                   "</Relationships>")
+        z.writestr("word/document.xml", document)
+        z.writestr("word/styles.xml", DOCX_STYLES)
+        z.writestr("docProps/core.xml", core)
+
+
+def save_answer(markdown, path, title):
+    """Spara som…: the format follows the file ending – .pdf, .docx (Word), .odt, .txt, .md or .html."""
+    ext = Path(path).suffix.lower()
+    if ext == ".pdf":
+        save_pdf(markdown, path, title)
+    elif ext == ".docx":
+        save_docx(markdown, path, title)
+    elif ext == ".odt":
+        writer = QTextDocumentWriter(str(path), b"odf")
+        if not writer.write(answer_document(markdown)):
+            raise OSError("kunde inte skriva filen")
+    elif ext in (".md", ".markdown"):
+        Path(path).write_text(markdown.rstrip() + "\n")
+    elif ext in (".html", ".htm"):
+        Path(path).write_text(answer_document(markdown).toHtml())
+    else:  # text: the Markdown without its marks (lists, tables and line breaks stay readable)
+        text = re.sub(r"\[([^\]]+)\]\((\S+?)\)", r"\1 (\2)", markdown)
+        text = re.sub(r"(\*\*|__|(?<!`)`(?!`))", "", text)
+        text = re.sub(r"^```\w*\n?", "", text, flags=re.M)
+        text = re.sub(r"^#{1,6}\s+", "", text, flags=re.M)
+        Path(path).write_text(text.rstrip() + "\n")
 
 
 def kwin_script(code):
@@ -685,35 +851,86 @@ class Backend(QObject):
     @Slot(int)
     def heart(self, index):
         """♥ under an answer: the AI writes a lesson from it (saved, can be undone); again = undone."""
+        self._lesson(index, "good", "")
+
+    @Slot(int, str)
+    def thumbDown(self, index, reason):
+        """👎 under an answer (21 Oct): the AI writes what to avoid next time (with the user's reason, if any)."""
+        self._lesson(index, "avoid", reason)
+
+    @Slot(int)
+    def undoLesson(self, index):
+        try:
+            m = self._display[index]
+        except IndexError:
+            return
+        if m.get("heart") and m["heart"] != "busy":
+            goblinai.remove_lesson(m["heart"])
+        for key in ("heart", "lesson", "thumb"):
+            m.pop(key, None)
+        self._update(index)
+        self._save()
+        self.lessonsChanged.emit()
+
+    def _lesson(self, index, kind, reason):
         try:
             m = self._display[index]
         except IndexError:
             return
         if m.get("role") != "assistant" or m.get("heart") == "busy":
             return
-        if m.get("heart"):
-            goblinai.remove_lesson(m["heart"])
-            m.pop("heart", None)
-            m.pop("lesson", None)
-            self._update(index)
-            self._save()
-            self.lessonsChanged.emit()
-            return
+        if m.get("heart"):  # the same mark again = undone (the other kind replaces it)
+            same = (m.get("thumb") == "down") == (kind == "avoid")
+            self.undoLesson(index)
+            if same:
+                return
         question = next((d["text"] for d in reversed(self._display[:index]) if d["role"] == "user" and d["text"]), "")
         tools = [tuple(t) for t in m.get("tools") or []]
         m["heart"] = "busy"
+        if kind == "avoid":
+            m["thumb"] = "down"
         self._update(index)
         cid, project, keys, choice = self._id, self._project_of(self._project), dict(self._keys), self._model
 
         def work():
             try:
-                lesson = goblinai.make_lesson(question, m["text"], tools, keys, project, choice)
-                entry = goblinai.add_lesson(question, lesson, tools, m.get("service", ""), project)
+                lesson = goblinai.make_lesson(question, m["text"], tools, keys, project, choice, kind, reason)
+                entry = goblinai.add_lesson(question, lesson, tools, m.get("service", ""), project, kind)
                 self._hearted.emit(cid, index, json.dumps(entry, ensure_ascii=False))
-            except Exception:  # noqa: BLE001 – never leave the heart spinning
+            except Exception:  # noqa: BLE001 – never leave the mark spinning
                 self._hearted.emit(cid, index, "")
 
         threading.Thread(target=work, daemon=True).start()
+
+    @Slot(int, str)
+    def rewrite(self, index, kind):
+        """The quick buttons under an answer: shorter, more formal, spelling, English – a new answer in the chat."""
+        if self._busy or kind not in goblinai.REWRITES:
+            return
+        try:
+            m = self._display[index]
+        except IndexError:
+            return
+        last = all(d["role"] != "assistant" for d in self._display[index + 1:])
+        label, content = goblinai.rewrite_message(kind, m["text"], last)
+        shown = {"role": "user", "text": label, "segments": [], "service": "", "file": "", "rewrite": kind}
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        self._api.append({"role": "user", "content": content, "rewrite": True})
+        self._ask()
+
+    @Slot(int)
+    def copyAnswer(self, index):
+        """Kopiera svaret: with formatting (HTML for Word, mail, LibreOffice) and as plain Markdown."""
+        try:
+            text = self._display[index]["text"]
+        except (IndexError, KeyError):
+            return
+        data = QMimeData()
+        data.setText(text)
+        data.setHtml(answer_document(text).toHtml())
+        QGuiApplication.clipboard().setMimeData(data)
+        self.notice.emit("Svaret är kopierat – med formatering")
 
     def _on_hearted(self, cid, index, entry):
         if cid != self._id or index >= len(self._display):
@@ -728,7 +945,7 @@ class Backend(QObject):
             m.update(heart=e["id"], lesson=e["lesson"])
         else:
             m.pop("heart", None)
-            self.notice.emit("Hjärtat kunde inte sparas")
+            self.notice.emit("Tummen kunde inte sparas" if m.pop("thumb", None) else "Hjärtat kunde inte sparas")
         self._update(index)
         self._save()
         self.lessonsChanged.emit()
@@ -751,8 +968,8 @@ class Backend(QObject):
         goblinai.remove_lesson(lesson_id)
         for i, m in enumerate(self._display):  # the open chat's ♥ goes out too
             if m.get("heart") == lesson_id:
-                m.pop("heart", None)
-                m.pop("lesson", None)
+                for key in ("heart", "lesson", "thumb"):
+                    m.pop(key, None)
                 self._update(i)
                 self._save()
         self.lessonsChanged.emit()
@@ -1529,13 +1746,17 @@ class Backend(QObject):
         QGuiApplication.clipboard().setImage(QImage(path))
         self.notice.emit("Bilden är kopierad")
 
-    @Slot(int, str)
-    def savePdf(self, index, url):
+    @Slot(int, str, str)
+    def savePdf(self, index, url, ext="pdf"):
+        """Spara som…: PDF, Word, OpenDocument, text or Markdown – by the file ending, else the chosen filter."""
         path = QUrl(url).toLocalFile() if url.startswith("file:") else url
-        if not path.lower().endswith(".pdf"):
-            path += ".pdf"
+        ext = "." + ext.lstrip("*.").lower()
+        if Path(path).suffix.lower() not in (".pdf", ".docx", ".odt", ".txt", ".md", ".markdown", ".html", ".htm"):
+            path += ext
+        elif Path(path).suffix.lower() == ".pdf" and ext in (".docx", ".odt", ".txt", ".md"):
+            path = str(Path(path).with_suffix(ext))  # the name still has the first filter's ending
         try:
-            save_pdf(self._display[index]["text"], path, Path(path).stem)
+            save_answer(self._display[index]["text"], path, Path(path).stem)
             self.notice.emit(f"Sparad: {Path(path).name}")
             self.pdfSaved.emit(path)
         except (OSError, IndexError, KeyError) as e:
