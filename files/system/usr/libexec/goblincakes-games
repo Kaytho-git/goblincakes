@@ -421,6 +421,8 @@ def dock(text, pin):
     if not game:
         return 1
     name, gameid = game
+    if name.lower().endswith(".exe"):
+        name = name[:-4]  # shortcut named after its file (Wow.exe) → Wow
     desktop = APPS / f"goblincakes-game-{gameid}.desktop"
     launcher = f"applications:{desktop.name}"
     if not pin:
