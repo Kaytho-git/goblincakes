@@ -403,7 +403,9 @@ class Library:
         page = self.client.get("/search", {"q": query, "type": types, "limit": SEARCH_LIMIT, "offset": offset})
         artists = [i for i in (page.get("artists") or {}).get("items") or [] if i]
         exact = [i for i in artists if i.get("name", "").lower() == query.lower()]
-        rows = [artist_row(i) for i in (exact or artists)[:3]]   # first: a search for an artist finds the artist
+        # first: a search for an artist finds the artist – only one, Spotify's first (the official page;
+        # namesakes and fan pages come further down, and popularity is not given to own apps any more)
+        rows = [artist_row(i) for i in (exact or artists)[:1]]
         tracks = page.get("tracks") or {}
         for item in tracks.get("items") or []:
             row = track_row(item)
