@@ -682,6 +682,12 @@ HELP
     play|games|spel) shift
         case ${1:-} in
             add|remove) exec /usr/libexec/goblincakes-games "$@" ;;
+            dock|docka|docker) shift
+                case ${1:-} in
+                    remove|bort|ta-bort) shift; exec /usr/libexec/goblincakes-games undock "${1:?spel}" ;;
+                    "") echo "Använd: goblin play dock <spel>   (ta bort: goblin play dock remove <spel>)" >&2; exit 2 ;;
+                esac
+                exec /usr/libexec/goblincakes-games dock "$1" ;;
             steam) heading "Installerade spel i Steam – och vad du skriver i goblin play add"
                 exec /usr/libexec/goblincakes-games steam ;;
         esac
@@ -693,6 +699,7 @@ HELP
         echo
         info "Eget ord: goblin play add <spel> <ord>  (t.ex. goblin play add wow.exe wow)"
         info "Ta bort:  goblin play remove <ord>"
+        info "Fäst i dockan: goblin play dock <spel>  (startas via Steam; ta bort: goblin play dock remove <spel>)"
         info "Alla spel med vad du skriver i add: goblin play steam" ;;
     nyheter|news) shift; heading "Nytt i GOBLINCAKES"; exec /usr/libexec/goblincakes-news latest "${1:-15}" ;;
     färg|farg|color|colour) shift; cmd_farg "$@" ;;

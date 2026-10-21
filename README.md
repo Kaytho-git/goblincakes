@@ -26,23 +26,28 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 
 ### Utseende och skrivbord
 - Eget tema i hela systemet: mörk palett, Chakra Petch och IBM Plex, raka hörn överallt.
+- **Välj färg:** GOBLINCAKES blå eller någon av WoW:s 13 klassfärger – knappar, ramar, markeringar, inloggningen och de egna fönstren byter färg (Config → Inställningar → Utseende, eller `goblin färg`).
+- **Webbläsarna** får GOBLINCAKES-tema: Firefox (med goblinen i fliklisten), Chrome, Brave och Chromium.
 - Egen startskärm, inloggning, låsskärm och utloggning (*"Goodbye! See you next raid!"*). Vid inloggningen väljer du **Skrivbord** eller **TV-läge**.
 - **Toppfältet:** appmenyn (AppGrid) mitt på skärmen, öppna program, *Spelas nu* och en ruta som visar när det finns uppdateringar.
-- **Spelas nu** i toppfältet: vad Spotify eller musikspelaren spelar (klicka = pausa, scrolla = byt låt), och vilken Discord-röstkanal du är i.
+- **Spelas nu** i toppfältet: vad Spotify eller musikspelaren spelar (klicka = pausa, scrolla = byt låt), vilken Discord-röstkanal du är i, vad Steam laddar ner eller vilka shaders som förbereds – och när Goblin AI tänker.
 - **Dockan** gömmer sig när ett fönster täcker den.
-- Ghostty som terminal, med GOBLINCAKES-färger och en lista över `goblin`-kommandona i varje nytt fönster.
+- **Fönster i rutor:** rita egna layouter för skärmarna (Config → Fönster), dra program till rutorna och byt layout med **Meta+Ctrl+1–9** – gärna med ett eget skrivbord per layout. Nya fönster kan hamna i lediga rutor av sig själva, och drar du ett fönster till en upptagen ruta byter de plats.
+- Ghostty som terminal (eller Konsole – välj i Config), med GOBLINCAKES-färger och en lista över `goblin`-kommandona i varje nytt fönster.
 - Fedora-program som sällan behövs är dolda i appmenyn men finns kvar – och kan visas igen eller avinstalleras på riktigt (**Avinstallera program** i appmenyn).
 
 ### Spel
 - **Steam** förinstallerat, plus Gamescope, GameMode och MangoHud (FPS-mätare). Windows-program utanför spelen: Bottles i GOBLINCAKES Config.
 - **GE-Proton** hämtas och uppdateras automatiskt.
-- **Starta spel från terminalen:** skriv spelets namn eller förkortning (t.ex. `wow`, `cs2`) så startas det via Steam.
+- **Starta spel från terminalen:** skriv spelets namn eller förkortning (t.ex. `wow`, `cs2`) så startas det via Steam. `goblin play dock cs2` fäster spelet i dockan med sin egen ikon – det startas fortfarande via Steam.
+- **Spelmätning:** `goblin frames` visar hur jämnt spelet flöt – snitt-fps, 1 % low, ryck och frysningar med klockslag – och ger råd. En notis sammanfattar passet när du stänger spelet.
 - **Handkontroller:** Xbox via dongel, USB och Bluetooth (xone, xpadneo), plus de vanliga PlayStation- och Switch-reglerna.
 - **TV-läge:** Steam Big Picture i helskärm, som en Steam Deck – välj det vid inloggningen eller starta det från appmenyn.
 - **Emulatorer:** RetroDECK (Super Nintendo, Mega Drive, N64, PlayStation, GameCube, Switch med flera) och Steam ROM Manager, som lägger in spelen i Steam och TV-läget.
 - **Snabbare:** NTSYNC för Windows-spel och snabbare förberedelse av shaders i Steam.
 - **Flera skärmar:** den snabbaste skärmen blir huvudskärm, och spelen öppnas där.
 - **Laptops** med två grafikkort: spel startar på det kraftfulla kortet, skrivbordet på det snåla.
+- **Äldre Nvidia-kort** (GTX 900- och 10-serien) får en egen variant med Nvidias legacy-drivrutin.
 
 ### World of Warcraft
 - Battle.net via Lutris med GE-Proton, installerat så att butiken fungerar.
@@ -56,7 +61,9 @@ Spelar in WoW av sig själv med OBS – du behöver inte trycka på något:
 - **Arena:** hela matchen (2v2, 3v3, Solo Shuffle, Skirmish) med vinst eller förlust.
 - Bossar och dödsfall blir markeringar på tidslinjen – klicka för att hoppa dit – och filmen får en knapp till rätt försök på **Warcraft Logs**.
 - Tre ljudspår (allt, bara WoW, Discord med din röst), brusreducering och en spärr mot andning i mikrofonen, och rutor som döljer chatten eller annat i filmerna.
-- Inspelningen görs av grafikkortets egen videokrets (NVENC) – spelet märker inget.
+- Inspelningen görs av grafikkortets egen videokrets (NVENC, eller VAAPI på AMD/Intel) – spelet märker inget. **Testa inspelningen** gör en 30-sekundersfilm så att du ser kvaliteten innan raiden.
+- **Till YouTube:** klipp ut en del av filmen och ladda upp den direkt – titel, beskrivning med Warcraft Logs-länk och kapitel för varje boss skrivs åt dig.
+- Ikon i systemfältet: röd prick när den spelar in.
 
 ![GoblinRecorder med inspelade raidbossar, en Mythic+-nyckel och en arenamatch](docs/goblinrecorder.png)
 
@@ -71,6 +78,10 @@ Spelar in WoW av sig själv med OBS – du behöver inte trycka på något:
 - **Tävlingsläge:** surfplattor och mobiler på samma nätverk når Ianseo.
 - **Fjärråtkomst:** nå Ianseo via internet bakom ett lösenord (Cloudflare-tunnel, inga ändringar i routern). En ikon i systemfältet visar när Ianseo är nåbart utifrån.
 
+### Musik: GoblinAmp och Spotify
+- **GoblinAmp** – en liten spelare i Winamps anda: stor tid, rullande titel, staplar till musiken och knapparna du minns (Z X C V B). Den spelar din egen musik med egna spellistor (Winamps format, dra och släpp från Dolphin) och styr Spotify, med dina Spotify-listor och Gillade låtar i spellistan. goblin graph kan visas inne i spelaren (**GRAF**).
+- **Spotify (GOBLINCAKES)** – Spotify i GOBLINCAKES-stil och din färg, utan förslag och sidopaneler. Ljudet kommer från Spotify-appen, som ligger gömd i systemfältet, så kvaliteten blir som vanligt.
+
 ### goblin graph
 Ljudstaplar till musiken i WoW:s klassfärger – ett fönster utan ram som ligger bland de andra fönstren, med bara staplarna synliga. Varje stapel i en klassfärg, eller allt i din klass färg (läses ur stridsloggen). Fyra vyer: staplar, våg, cirkel och explosion som smäller i takt. Lyssnar bara på musikprogram (Spotify, Quod Libet m.fl.), inte på spel eller film, och kan öppnas av sig själv när musiken börjar (`goblin graph auto on`). Ikonen i systemfältet byter vy och låser fönstret.
 
@@ -82,19 +93,28 @@ Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+
   - **Egen webbapp:** klistra in en länk så blir sidan ett eget program med ikon.
   - **Starta vid inloggning:** reglage på installerade program.
 - **Förinstallerat** – visa eller dölj systemets program i appmenyn.
-- **Inställningar** – reglage med rubriker: prestandaläge, spelschemaläggare, MangoHud, spel på det kraftfulla grafikkortet, shader-cache, ljud med låg fördröjning, HDR, ingen musacceleration, automatiska uppdateringar, kalender med konton (Google, Outlook), Ianseo – och en knapp som återställer GOBLINCAKES-utseendet.
+- **Inställningar** – reglage med rubriker: prestandaläge, spelschemaläggare, MangoHud, spel på det kraftfulla grafikkortet, shader-cache, ljud med låg fördröjning, HDR, ingen musacceleration, automatiska uppdateringar, kalender med konton (Google, Outlook), Ianseo – plus färgval och en knapp som återställer GOBLINCAKES-utseendet.
+- **Fönster** – layouter med rutor för skärmarna och vilka program som hamnar var; **Föreslå layout** ordnar dina huvudfönster åt dig.
 - **Grafik** – byt mellan AMD/Intel- och Nvidia-drivrutiner med en knapp; hjälp med Secure Boot.
 - **Uppdatera** – se vad som är nytt och uppdatera allt eller en del i taget (systemet, Flatpak-program, VS Code, Discord, WoW-tillägg, GE-Proton, firmware).
 
 ### Goblin AI
-Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**) eller i terminalen (`goblin ai`). Använder gratisnivåerna hos Gemini och OpenRouter (egen nyckel, hämtas med en knapp) och kan söka på nätet med en gratis Tavily-nyckel. Föreslagna kommandon körs bara när du säger ja, och AI:n kan ändra filer du bifogar.
+Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**), i en snabbruta (**Meta+§**) eller i terminalen (`goblin ai`). Föreslagna kommandon körs bara när du säger ja, och AI:n kan ändra filer du bifogar.
+- **Lokalt eller i molnet:** kör AI:n på din egen dator med Ollama (inget lämnar datorn; installeras med en knapp, förslag på modeller efter ditt grafikkort, stängs av medan du spelar) och/eller gratisnivåerna hos Gemini och OpenRouter – eller dina egna nycklar till Claude, OpenAI m.fl.
+- **Söker på nätet** själv när du frågar om något nytt (gratis Tavily-nyckel).
+- **Läser och skapar:** PDF:er, bilder och skärmbilder; ritar bilder (på datorn eller gratis via Cloudflare); sparar svar som PDF, Word eller bild.
+- **Hjälper med datorn och spelet:** hittar fel i systemloggarna och föreslår lösningar steg för steg, läser WoW-tilläggens felmeddelanden och analyserar dina Warcraft Logs (dödsfall, cooldowns, förmågor).
+- **Projekt** med egna instruktioner, filer och modeller, ett **minne**, egna knappar (t.ex. det senaste om ditt lag), avatar och namn. ♥ under ett bra svar lär den att göra likadant nästa gång.
+- **Lär dig koda:** kurser i Python, Lua, WoW-tillägg, HTML/CSS, JavaScript, PHP, SQL, Bash, Git, Godot och containrar – med uppgifter som kontrolleras automatiskt i en avskild övningsdator och en AI-lärare som ger ledtrådar i stället för svaret.
 
 ### Kommandon i terminalen
 | Kommando | Gör |
 |---|---|
 | `goblin update` | Uppdaterar allt: systemet, program, WoW-tillägg, GE-Proton och firmware – och visar vad som är nytt |
 | `goblin ai` | **Goblin AI** – fråga om datorn eller vad som helst (även **Meta+A**) |
-| `goblin play` | Dina spel – skriv spelets namn eller förkortning direkt i terminalen (t.ex. `wow`, `cs2`) så startas det via Steam |
+| `goblin play` | Dina spel – skriv spelets namn eller förkortning direkt i terminalen (t.ex. `wow`, `cs2`) så startas det via Steam; `goblin play dock cs2` fäster det i dockan |
+| `goblin amp` | **GoblinAmp** – musikspelaren (`goblin amp hjälp` visar hur Spotify-listorna kopplas in) |
+| `goblin färg` | Byter GOBLINCAKES färg (`goblin färg mage`) |
 | `goblin graph` | Ljudstaplar i WoW:s klassfärger till musiken (`goblin graph mage`, `goblin graph cirkel`) |
 | `goblin screen` | Vilken skärm ett program öppnas på (`goblin screen add discord screen 2`) |
 | `goblin tile` | Vilken ruta (KDE:s rutor, Meta+T) ett program öppnas i (`goblin tile add discord 2 1`) |
@@ -116,12 +136,13 @@ Du får också en notis när GOBLINCAKES har gått över till en ny Fedora-versi
 - Alla diskar syns och monteras automatiskt – även för Steam.
 - **För egna projekt:** git och GitHub CLI (`gh`) är med från start; VS Code (Microsofts egen) och Claude Code installeras med ett klick i Config.
 
-## Två varianter
+## Tre varianter
 
 | Image | För |
 |---|---|
 | `ghcr.io/kaytho-git/goblincakes` | AMD- och Intel-grafik (och Nvidia med den öppna drivrutinen) |
 | `ghcr.io/kaytho-git/goblincakes-nvidia` | Nvidia GTX 16-serien, RTX 20-serien och nyare, med Nvidias egna drivrutiner |
+| `ghcr.io/kaytho-git/goblincakes-nvidia-legacy` | Äldre Nvidia: GTX 900- och 10-serien (Nvidias 580-drivrutin) |
 
 Du behöver inte välja själv: GOBLINCAKES känner av grafikkortet och byter till rätt variant efter första starten, och **Config → Grafik** visar vilken du har.
 

@@ -6,6 +6,8 @@
     goblincakes-games steam              every installed game with what to give `add`
     goblincakes-games add <game> <word>  own short word for a game (name, word or .exe)
     goblincakes-games remove <word>      removes an own word
+    goblincakes-games dock <game>        pins the game in the dock (own menu entry + icon)
+    goblincakes-games undock <game>      unpins it and removes the menu entry
 
 Typing a game's word straight in the terminal (e.g. `wow`, `cs2`, `worldofwarcraft`)
 works through bash's command_not_found_handle (/etc/profile.d/zz-goblincakes-games.sh),
@@ -18,9 +20,11 @@ non-Steam games added to Steam (e.g. World of Warcraft through Battle.net/Lutris
 import os
 import re
 import shutil
+import json
 import struct
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 HOME = Path.home()
@@ -123,10 +127,14 @@ def shortcut_games(root):
                 exe = (entry.get("Exe") or entry.get("exe") or "").strip().strip('"')
                 if exe:
                     EXES[gameid] = Path(exe.replace("\\", "/")).name.lower()
+                icon = (entry.get("icon") or "").strip().strip('"')
+                if icon:
+                    ICONS[gameid] = icon
                 yield name, gameid
 
 
 EXES = {}  # non-Steam game id → its .exe's file name (filled by shortcut_games)
+ICONS = {}  # non-Steam game id → the icon chosen in Steam (filled by shortcut_games)
 
 
 def words(name):
@@ -196,6 +204,171 @@ def launch(name, gameid):
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+# ---- goblin play dock: the game as an own menu entry, pinned in the dock ----
+APPS = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share") / "applications"
+ICON_DIR = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share") / "goblincakes/game-icons"
+ICON_CDN = "https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/{}/{}.ico"
+
+
+def client_icon(appid):
+    """The hash of a Steam game's .ico (up to 512 px) from Steam's appinfo.vdf (format 29:
+    keys are indexes into a string table at the end of the file)."""
+    for root in steam_roots():
+        try:
+            data = (root / "appcache/appinfo.vdf").read_bytes()
+            if struct.unpack_from("<I", data, 0)[0] != 0x07564429:
+                continue
+            table = struct.unpack_from("<q", data, 8)[0]
+            count, pos, keys = struct.unpack_from("<I", data, table)[0], table + 4, []
+            for _ in range(count):
+                end = data.index(b"\0", pos)
+                keys.append(data[pos:end])
+                pos = end + 1
+            pattern = b"\x01" + struct.pack("<I", keys.index(b"clienticon"))
+            pos = 16
+            while pos < table:
+                app, size = struct.unpack_from("<II", data, pos)
+                if app == 0:
+                    break
+                if app == int(appid):
+                    block = data[pos + 8:pos + 8 + size]
+                    hit = block.find(pattern)
+                    if hit >= 0:
+                        return block[hit + 5:block.index(b"\0", hit + 5)].decode()
+                    break
+                pos += 8 + size
+        except (OSError, ValueError, struct.error):
+            continue
+    return None
+
+
+def largest_image(data_or_path):
+    """The biggest picture in a file (an .ico has several) as a QImage, or None."""
+    from PySide6.QtCore import QBuffer, QByteArray
+    from PySide6.QtGui import QImageReader
+    if isinstance(data_or_path, bytes):
+        buffer = QBuffer()
+        buffer.setData(QByteArray(data_or_path))
+        reader = QImageReader(buffer)
+    else:
+        reader = QImageReader(str(data_or_path))
+    best = None
+    while True:
+        image = reader.read()
+        if not image.isNull() and (best is None or image.width() > best.width()):
+            best = image
+        if not reader.jumpToNextImage():
+            break
+    return best
+
+
+def game_icon(gameid):
+    """A PNG for the game: Steam's .ico from its CDN, else the small icon in Steam's
+    library cache, else the icon of a non-Steam shortcut. None = Steam's own icon."""
+    from PySide6.QtCore import Qt
+    target = ICON_DIR / f"{gameid}.png"
+    image = None
+    if gameid not in EXES:
+        icon_hash = client_icon(gameid)
+        if icon_hash:
+            try:
+                with urllib.request.urlopen(ICON_CDN.format(gameid, icon_hash), timeout=15) as reply:
+                    image = largest_image(reply.read())
+            except OSError:
+                image = None
+        if image is None:
+            for root in steam_roots():
+                for jpg in (root / "appcache/librarycache" / gameid).glob("*.jpg"):
+                    if re.fullmatch(r"[0-9a-f]{40}\.jpg", jpg.name):
+                        image = largest_image(jpg)
+                        break
+    else:
+        icon = Path(ICONS.get(gameid, "").replace("\\", "/"))
+        if icon.suffix.lower() in (".png", ".ico", ".jpg", ".jpeg", ".svg") and icon.is_file():
+            image = largest_image(icon)
+    if image is None or image.isNull():
+        return None
+    if image.width() > 256:
+        image = image.scaled(256, 256, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    ICON_DIR.mkdir(parents=True, exist_ok=True)
+    image.save(str(target), "PNG")
+    return str(target)
+
+
+def dock_script(launcher, pin):
+    """Plasma script: add/remove a launcher in the dock (the bottom panel – not the top bar)."""
+    return """
+var launcher = %s, pin = %s;
+panels().forEach(function (panel) {
+    if (panel.location !== "bottom") return;
+    panel.widgets().forEach(function (widget) {
+        if (widget.type !== "org.kde.plasma.icontasks") return;
+        widget.currentConfigGroup = ["General"];
+        var list = widget.readConfig("launchers", []);
+        if (typeof list === "string") list = list ? list.split(",") : [];
+        var at = list.indexOf(launcher);
+        if (pin && at < 0) list.push(launcher);
+        else if (!pin && at >= 0) list.splice(at, 1);
+        else return;
+        widget.writeConfig("launchers", list);
+    });
+});""" % (json.dumps(launcher), "true" if pin else "false")
+
+
+def plasma(script):
+    return subprocess.run(["busctl", "--user", "call", "org.kde.plasmashell", "/PlasmaShell",
+                           "org.kde.PlasmaShell", "evaluateScript", "s", script],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+
+def one_game(text):
+    all_games = games()
+    matches = find(text, all_games) or [(n, g) for n, g in all_games
+                                        if len(squash(text)) >= 3 and squash(n).startswith(squash(text))]
+    if not matches:
+        print(f"Hittar inget spel i Steam som heter {text}. Se listan: goblin play", file=sys.stderr)
+    elif len(matches) > 1:
+        print(f"Flera spel passar {text} – skriv hela namnet:", file=sys.stderr)
+        for name, _ in matches:
+            print(f"  {words(name)[0]:<28} {name}", file=sys.stderr)
+    else:
+        return matches[0]
+    return None
+
+
+def dock(text, pin):
+    game = one_game(text)
+    if not game:
+        return 1
+    name, gameid = game
+    desktop = APPS / f"goblincakes-game-{gameid}.desktop"
+    launcher = f"applications:{desktop.name}"
+    if not pin:
+        plasma(dock_script(launcher, False))
+        desktop.unlink(missing_ok=True)
+        (ICON_DIR / f"{gameid}.png").unlink(missing_ok=True)
+        subprocess.run(["kbuildsycoca6"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"{name} är borttaget ur dockan.")
+        return 0
+    icon = game_icon(gameid) or "steam"
+    lines = ["[Desktop Entry]", "Type=Application", f"Name={name}",
+             f"Comment=Startas via Steam",
+             f"Exec=xdg-open steam://rungameid/{gameid}", f"Icon={icon}",
+             "Terminal=false", "Categories=Game;", f"X-GOBLINCAKES-Game={gameid}"]
+    if gameid not in EXES:
+        # Proton games' windows are called steam_app_<id> → the dock shows them on the pin
+        lines.append(f"StartupWMClass=steam_app_{gameid}")
+    APPS.mkdir(parents=True, exist_ok=True)
+    desktop.write_text("\n".join(lines) + "\n")
+    subprocess.run(["kbuildsycoca6"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if not plasma(dock_script(launcher, True)):
+        print(f"Kunde inte nå Plasma – {name} finns i AppGrid men är inte fäst i dockan.", file=sys.stderr)
+        return 1
+    print(f"Klart: {name} är fäst i dockan" + ("." if icon != "steam" else " (med Steams ikon – spelets hittades inte)."))
+    print(f"Ta bort igen: goblin play dock remove {text}")
+    return 0
+
+
 def main(argv):
     cmd = argv[0] if argv else "list"
     if cmd == "list":
@@ -260,6 +433,10 @@ def main(argv):
         write_aliases(aliases)
         print(f"Borttaget: {word}")
         return 0
+    if cmd == "dock" and len(argv) == 2:
+        return dock(argv[1], True)
+    if cmd == "undock" and len(argv) == 2:
+        return dock(argv[1], False)
     if cmd == "run" and len(argv) >= 2:
         matches = find(argv[1], games())
         if not matches:

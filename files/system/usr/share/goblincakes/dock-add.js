@@ -2,6 +2,7 @@
 // Run through plasmashell's evaluateScript; %LAUNCHER% is replaced with "applications:<id>.desktop".
 var launcher = "%LAUNCHER%";
 panels().forEach(function (panel) {
+    if (panel.location !== "bottom") return;  // the dock, not the top bar
     panel.widgets().forEach(function (widget) {
         if (widget.type !== "org.kde.plasma.icontasks") return;
         widget.currentConfigGroup = ["General"];
