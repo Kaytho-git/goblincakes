@@ -1,0 +1,14 @@
+{
+ "manifest_version": 3,
+ "name": "GOBLINCAKES för Spotify",
+ "version": "1.0",
+ "description": "Spotifys webbspelare i GOBLINCAKES-stil – bara i Spotify-appen som GOBLINCAKES startar, vanliga flikar rörs inte.",
+ "content_scripts": [
+  {
+   "matches": ["https://open.spotify.com/*"],
+   "js": ["goblin.js"],
+   "css": ["goblin.css"],
+   "run_at": "document_start"
+  }
+ ]
+}

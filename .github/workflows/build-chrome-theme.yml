@@ -1,10 +1,12 @@
-# GOBLINCAKES' theme for Chrome, Brave and Chromium (chrome-tema/): packed as a signed CRX and
-# published with its update manifest in the release "chrome-tema". The browsers install it
-# through policies in the image (/etc/opt/chrome/policies/managed, /etc/brave/policies/managed
-# and the Flatpak extension org.chromium.Chromium.Policy.goblincakes) and update it themselves
-# through updates.xml – a higher "version" in manifest.json = a new version for everyone.
-# The extension's id (hfekdaicheicjhbhbholffmgcgmaijmi) comes from the signing key: the secret
-# CHROME_THEME_KEY (a PEM private key) must stay the same, or the browsers see a new extension.
+# GOBLINCAKES' theme for Chrome, Brave and Chromium (chrome-tema/) and the extension
+# "GOBLINCAKES för Spotify" (spotify-tillagg/, the Spotify web app's look – 21 Oct): each packed
+# as a signed CRX and published with its update manifest in the release "chrome-tema". The
+# browsers install them through policies in the image (/etc/opt/chrome/policies/managed,
+# /etc/brave/policies/managed and the Flatpak extension org.chromium.Chromium.Policy.goblincakes)
+# and update them themselves – a higher "version" in its manifest.json = a new version for everyone.
+# An extension's id comes from its signing key, so each secret (a PEM private key) must stay the
+# same, or the browsers see a new extension: CHROME_THEME_KEY → hfekdaicheicjhbhbholffmgcgmaijmi,
+# SPOTIFY_EXT_KEY → oipoofhgljbkkinfiendjpongddmaclg.
 name: Packa Chrome-temat
 
 on:
@@ -12,6 +14,7 @@ on:
     branches: [main]
     paths:
       - "chrome-tema/**"
+      - "spotify-tillagg/**"
       - ".github/workflows/build-chrome-theme.yml"
   workflow_dispatch:
 
@@ -25,25 +28,40 @@ concurrency:
 jobs:
   pack:
     runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1 # both upload to the same release
+      fail-fast: false
+      matrix:
+        include:
+          - dir: chrome-tema
+            file: goblincakes-theme
+            updates: updates.xml
+            id: hfekdaicheicjhbhbholffmgcgmaijmi
+            secret: CHROME_THEME_KEY
+          - dir: spotify-tillagg
+            file: goblincakes-spotify
+            updates: spotify-updates.xml
+            id: oipoofhgljbkkinfiendjpongddmaclg
+            secret: SPOTIFY_EXT_KEY
     steps:
       - uses: actions/checkout@v4
 
       - name: Version
         id: v
         run: |
-          version=$(jq -r .version chrome-tema/manifest.json)
+          version=$(jq -r .version "${{ matrix.dir }}/manifest.json")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if gh release view chrome-tema -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' 2>/dev/null \
-              | grep -qx "goblincakes-theme-$version.crx"; then
-            echo "Version $version finns redan – höj version i chrome-tema/manifest.json för en ny."
+              | grep -qx "${{ matrix.file }}-$version.crx"; then
+            echo "Version $version finns redan – höj version i ${{ matrix.dir }}/manifest.json för en ny."
             echo "done=true" >> "$GITHUB_OUTPUT"
-          elif [ "$HAS_KEY" != true ]; then
-            echo "::warning::Hemligheten CHROME_THEME_KEY saknas än (Settings → Secrets and variables → Actions) – inget packas."
+          elif [ -z "$KEY" ]; then
+            echo "::warning::Hemligheten ${{ matrix.secret }} saknas än (Settings → Secrets and variables → Actions) – ${{ matrix.dir }} packas inte."
             echo "done=true" >> "$GITHUB_OUTPUT"
           fi
         env:
           GH_TOKEN: ${{ github.token }}
-          HAS_KEY: ${{ secrets.CHROME_THEME_KEY != '' }}
+          KEY: ${{ secrets[matrix.secret] }}
 
       - uses: actions/setup-node@v4
         if: steps.v.outputs.done != 'true'
@@ -54,24 +72,25 @@ jobs:
         if: steps.v.outputs.done != 'true'
         run: |
           umask 077
-          printf '%s\n' "$CHROME_THEME_KEY" > "$RUNNER_TEMP/key.pem"
+          printf '%s\n' "$KEY" > "$RUNNER_TEMP/key.pem"
           id=$(openssl rsa -in "$RUNNER_TEMP/key.pem" -pubout -outform DER 2>/dev/null | sha256sum | cut -c1-32 | tr '0-9a-f' 'a-p')
           echo "Tillägg: $id"
-          if [ "$id" != hfekdaicheicjhbhbholffmgcgmaijmi ]; then
-            echo "::error::Nyckeln ger id $id – policyerna i imagen väntar sig hfekdaicheicjhbhbholffmgcgmaijmi."
+          if [ "$id" != "${{ matrix.id }}" ]; then
+            echo "::error::Nyckeln ger id $id – policyerna i imagen väntar sig ${{ matrix.id }}."
             exit 1
           fi
           v=${{ steps.v.outputs.version }}
+          f=${{ matrix.file }}
           mkdir out
-          npx --yes crx3@2.0.0 -p "$RUNNER_TEMP/key.pem" -o "out/goblincakes-theme-$v.crx" -x out/updates.xml \
+          npx --yes crx3@2.0.0 -p "$RUNNER_TEMP/key.pem" -o "out/$f-$v.crx" -x "out/${{ matrix.updates }}" \
             --appVersion "$v" \
-            --crxURL "https://github.com/$GITHUB_REPOSITORY/releases/download/chrome-tema/goblincakes-theme-$v.crx" \
-            -- chrome-tema
+            --crxURL "https://github.com/$GITHUB_REPOSITORY/releases/download/chrome-tema/$f-$v.crx" \
+            -- "${{ matrix.dir }}"
           rm -f "$RUNNER_TEMP/key.pem"
-          cp "out/goblincakes-theme-$v.crx" out/goblincakes-theme.crx
-          cat out/updates.xml
+          cp "out/$f-$v.crx" "out/$f.crx"
+          cat "out/${{ matrix.updates }}"
         env:
-          CHROME_THEME_KEY: ${{ secrets.CHROME_THEME_KEY }}
+          KEY: ${{ secrets[matrix.secret] }}
 
       - name: Lägg upp i releasen "chrome-tema"
         if: steps.v.outputs.done != 'true'
@@ -79,8 +98,9 @@ jobs:
           gh release view chrome-tema -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
             gh release create chrome-tema -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest=false \
               --title "GOBLINCAKES Chrome-tema" \
-              --notes "GOBLINCAKES tema för Chrome, Brave och Chromium. Installeras av sig självt i GOBLINCAKES."
-          gh release upload chrome-tema out/goblincakes-theme.crx "out/goblincakes-theme-${{ steps.v.outputs.version }}.crx" \
-            out/updates.xml --clobber -R "$GITHUB_REPOSITORY"
+              --notes "GOBLINCAKES tema för Chrome, Brave och Chromium, och tillägget GOBLINCAKES för Spotify. Installeras av sig självt i GOBLINCAKES."
+          f=${{ matrix.file }}
+          gh release upload chrome-tema "out/$f.crx" "out/$f-${{ steps.v.outputs.version }}.crx" \
+            "out/${{ matrix.updates }}" --clobber -R "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ github.token }}

@@ -347,6 +347,34 @@ function quickAdded(window) {
     };
 }
 
+// Spotify (GOBLINCAKES) (21 Oct): goblincakes-spotify-web starts Spotify's own app to play the
+// sound behind the web app and sets kwinrc spotifyHide for a while – the window that opens then
+// is hidden: minimized, not in the dock, Alt+Tab or the pager. When it is brought back (its tray
+// icon, or Spotify in AppGrid) it is an ordinary window again.
+function isSpotify(window) {
+    return /^spotify$/i.test(String(window.resourceClass || ""))
+        || String(window.desktopFileName || "") === "com.spotify.Client";
+}
+
+function spotifyAdded(window) {
+    if (String(readConfig("spotifyHide", "false")) !== "true")
+        return false;
+    window.skipTaskbar = true;
+    window.skipSwitcher = true;
+    window.skipPager = true;
+    window.minimized = true;
+    const back = function () {
+        if (window.minimized)
+            return;
+        window.skipTaskbar = false;
+        window.skipSwitcher = false;
+        window.skipPager = false;
+        window.minimizedChanged.disconnect(back);
+    };
+    window.minimizedChanged.connect(back);
+    return true;
+}
+
 function added(window) {
     if (!window)
         return;
@@ -364,6 +392,8 @@ function added(window) {
         graphAdded(window);
         return;
     }
+    if (window.normalWindow && isSpotify(window) && spotifyAdded(window))
+        return;
     const tiled = window.normalWindow && !window.transient && !isGame(window) ? ruleTile(window) : null;
     const ruled = window.normalWindow ? ruleScreen(window) : null;
     if (CENTERED.indexOf(window.resourceClass) >= 0) {
