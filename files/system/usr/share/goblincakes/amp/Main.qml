@@ -625,7 +625,7 @@ Window {
             x: 6; y: 5
             spacing: 3
             Repeater {
-                model: [["local", "LOKALT"], ["spotify", "SPOTIFY"]]
+                model: [["local", "LOKALT"], ["spotify", "SPOTIFY"], ["genre", "GENRER"]]
                 Btn {
                     required property var modelData
                     label: modelData[1]
@@ -636,7 +636,7 @@ Window {
         }
         Item {
             id: localPane
-            visible: win.loc.tab !== "spotify"
+            visible: win.loc.tab === "local"
             y: 28
             width: parent.width
             height: parent.height - 28
@@ -1063,13 +1063,18 @@ Window {
 
     Item {
         id: plPanel
-        visible: !win.shade && win.pl.open && win.loc.tab === "spotify"
+        visible: !win.shade && win.pl.open && (win.loc.tab === "spotify" || win.loc.tab === "genre")
         x: 1
         y: plFrame.y + 28
         width: parent.width - 2
         height: win.plHeight - 29
         readonly property var entry: win.pl.list || null
         readonly property bool searching: !!entry && entry.id === "search"
+        // GENRER: the genres (home), and what was opened from them (a genre, an artist, "Liknande")
+        readonly property bool home: !!entry && !!entry.home
+        readonly property bool found: !!entry && !!entry.found
+        readonly property string entryId: entry ? entry.id : ""
+        onEntryIdChanged: if (searching) plFilter.text = win.pl.query || "";
         // the foot's field: the words for Spotify's search, else a filter of the open list
         readonly property string filter: searching ? "" : plFilter.text.toLowerCase()
         readonly property bool editable: !!entry && !!entry.mine && !entry.special
@@ -1120,12 +1125,27 @@ Window {
         function targets() {
             return (win.pl.lists || []).filter(l => l.mine && !l.special && (!entry || l.id !== entry.id)).slice(0, 8);
         }
+        // ◀ in a view opened from the search or a genre: back the way it came
+        function goBack() {
+            plFilter.text = "";
+            amp.goBack();
+        }
+        function openGenre(name) {
+            plFilter.text = "";
+            amp.openGenre(name);
+        }
+        function askLastfm() {
+            amp.openLastfmPage();
+            win.askName("sp-lastfm", "", "", "");
+        }
         // Right-click on a track (a list's, the queue's or a search's)
         function trackMenu(i, x, y) {
             const r = win.pl.rows[i];
-            if (r.kind === "more")
+            if (["more", "head", "genre", "similar", "lastfm"].indexOf(r.kind) >= 0)
                 return;
             const items = [];
+            if (r.kind === "artist")
+                items.push({ text: "Öppna artisten", act: () => amp.openArtist(i) });
             if (r.kind === "album") {
                 items.push({ text: "Öppna albumet", act: () => plPanel.openAlbum(i) });
                 const saved = savedAlbum(r.uri, albumName(r));
@@ -1133,7 +1153,8 @@ Window {
                              act: () => plPanel.saveAlbum(r.uri, albumName(r), r.count) });
             }
             if (entry.id !== "queue")
-                items.push({ text: r.kind === "album" ? "Spela albumet" : r.kind === "playlist" ? "Spela listan" : "Spela", act: () => amp.playRow(i) });
+                items.push({ text: r.kind === "album" ? "Spela albumet" : r.kind === "playlist" ? "Spela listan"
+                                   : r.kind === "artist" ? "Spela artisten" : "Spela", act: () => amp.playRow(i) });
             if (!r.kind || r.kind === "track") {
                 if (!r.local) {
                     items.push({ text: "Lägg i kön", act: () => amp.spEnqueue(JSON.stringify([r.uri])) });
@@ -1167,15 +1188,19 @@ Window {
         }
         // ⋯ in the foot: what used to be links there
         function footMenu(x, y) {
-            win.openMenu([
+            const genre = win.loc.tab === "genre";
+            win.openMenu((genre ? [
+                { text: "Last.fm-nyckel…", act: () => plPanel.askLastfm() }]
+                .concat(win.pl.lastfm ? [{ text: "Ta bort Last.fm-nyckeln", act: () => amp.setLastfmKey("") }] : [])
+            : [
                 { text: "Ny lista…", act: () => win.askName("sp-new", "", "", "") },
                 { text: "Sök i hela Spotify", act: () => openEntry("search") },
-                { text: "Uppdatera listorna", act: () => amp.refreshLists() },
+                { text: "Uppdatera listorna", act: () => amp.refreshLists() }]).concat([
                 { sep: true },
                 { text: "Spotify-fönstret", act: () => amp.playlists() },
                 { text: "Hjälp", act: () => plPanel.showHelp = true },
                 { sep: true },
-                { text: "Logga ut", act: () => amp.signOut() }], x, y);
+                { text: "Logga ut", act: () => amp.signOut() }]), x, y);
         }
 
         Rectangle { anchors.fill: parent; color: "#0B1018" }
@@ -1189,8 +1214,9 @@ Window {
             height: 16
             Text {
                 id: plTitle
-                visible: !plPanel.entry
-                text: "SPOTIFY" + (win.pl.name ? "  ·  " + win.pl.name : "")
+                visible: !plPanel.entry || plPanel.home
+                text: plPanel.home ? "GENRER" + (win.pl.lastfm ? "  ·  SPOTIFY + LAST.FM" : "  ·  SPOTIFY")
+                      : "SPOTIFY" + (win.pl.name ? "  ·  " + win.pl.name : "")
                 color: "#8B98AD"
                 font.family: "Chakra Petch"
                 font.weight: Font.Bold
@@ -1198,15 +1224,15 @@ Window {
                 font.letterSpacing: 1.5
             }
             SmallLink {
-                visible: !!plPanel.entry
+                visible: !!plPanel.entry && !plPanel.home
                 width: Math.min(implicitWidth, parent.width - 130)
                 elide: Text.ElideRight
                 text: "◀  " + (plPanel.entry ? plPanel.entry.name : "")
                 color: accent.text
                 font.weight: Font.DemiBold
                 onClicked: {
-                    if (plPanel.entry.album)   // an album from the search: back to the search
-                        plPanel.openEntry("search");
+                    if (plPanel.entry.album || plPanel.found)   // opened from the search or a genre: back there
+                        plPanel.goBack();
                     else {
                         plFilter.text = "";
                         amp.backToLists();
@@ -1230,8 +1256,9 @@ Window {
                     onClicked: plPanel.saveAlbum(plPanel.entry.uri, plPanel.entry.name, plPanel.entry.count)
                 }
                 SmallLink {
-                    visible: !!plPanel.entry && plPanel.entry.id !== "queue" && !plPanel.searching
-                    text: plPanel.entry && plPanel.entry.album ? "▶ Spela albumet" : "▶ Spela listan"
+                    visible: !!plPanel.entry && plPanel.entry.id !== "queue" && !plPanel.searching && !plPanel.home
+                    text: !plPanel.entry ? "" : plPanel.entry.album ? "▶ Spela albumet"
+                          : plPanel.entry.artistView ? "▶ Spela artisten" : plPanel.found ? "▶ Spela alla" : "▶ Spela listan"
                     onClicked: amp.playList(plPanel.entry.id)
                 }
                 SmallLink {
@@ -1245,7 +1272,7 @@ Window {
                     }
                 }
                 SmallLink {
-                    visible: !plPanel.searching
+                    visible: !plPanel.searching && !plPanel.home && !plPanel.found
                     text: "↻"
                     font.pixelSize: 13
                     onClicked: plPanel.entry ? amp.openList(plPanel.entry.id) : amp.refreshLists()
@@ -1280,7 +1307,7 @@ Window {
                     Text {
                         visible: spNameInput.text === ""
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Listans namn i Spotify"
+                        text: win.nameMode === "sp-lastfm" ? "Last.fm: API key (klistra in)" : "Listans namn i Spotify"
                         color: "#5C6880"
                         font: spNameInput.font
                     }
@@ -1389,7 +1416,8 @@ Window {
                 readonly property bool dragged: plPanel.dragRow === modelData.index
                 width: plView.width
                 height: 18
-                color: dragged ? accent.dim : rowArea.containsMouse && kind !== "more" ? "#16203A" : current ? "#12203A" : "transparent"
+                readonly property bool plain: kind === "head"   // a heading in a genre view: not clickable
+                color: dragged ? accent.dim : rowArea.containsMouse && kind !== "more" && !plain ? "#16203A" : current ? "#12203A" : "transparent"
                 Text {
                     x: 4
                     width: parent.width - 60
@@ -1401,12 +1429,18 @@ Window {
                           : rowItem.kind === "more" ? "Visa fler låtar…"
                           : rowItem.kind === "album" ? "Album: " + (rowItem.r.artist ? rowItem.r.artist + " – " : "") + rowItem.r.title
                           : rowItem.kind === "playlist" ? "Lista: " + rowItem.r.title + (rowItem.r.artist ? "  · " + rowItem.r.artist : "")
-                          : (rowItem.modelData.index + 1) + ". " + (rowItem.r.artist ? rowItem.r.artist + " – " : "") + rowItem.r.title
-                    color: rowItem.current || rowItem.kind === "more" ? accent.text : rowItem.dragged ? accent.on
-                           : rowItem.r.local ? "#5C6880" : rowItem.kind === "track" ? "#C8D1DE" : "#9AA7BC"
-                    font.family: "IBM Plex Sans"
-                    font.weight: rowItem.current ? Font.DemiBold : Font.Normal
-                    font.pixelSize: 11
+                          : rowItem.kind === "artist" ? "Artist: " + rowItem.r.title
+                          : rowItem.kind === "genre" ? "♪ " + rowItem.r.title
+                          : rowItem.kind === "head" || rowItem.kind === "similar" || rowItem.kind === "lastfm" ? rowItem.r.title
+                          : (plPanel.found ? "" : (rowItem.modelData.index + 1) + ". ")
+                            + (rowItem.r.artist ? rowItem.r.artist + " – " : "") + rowItem.r.title
+                    color: rowItem.current || ["more", "similar", "lastfm"].indexOf(rowItem.kind) >= 0 ? accent.text
+                           : rowItem.dragged ? accent.on : rowItem.plain ? "#5C6880"
+                           : rowItem.r.local ? "#5C6880" : rowItem.kind === "track" || rowItem.kind === "genre" ? "#C8D1DE" : "#9AA7BC"
+                    font.family: rowItem.plain ? "Chakra Petch" : "IBM Plex Sans"
+                    font.weight: rowItem.current || rowItem.plain ? Font.DemiBold : Font.Normal
+                    font.pixelSize: rowItem.plain ? 9 : 11
+                    font.letterSpacing: rowItem.plain ? 1.2 : 0
                 }
                 Text {   // a found album that is already saved as a list
                     anchors { right: parent.right; rightMargin: 34; verticalCenter: parent.verticalCenter }
@@ -1420,7 +1454,7 @@ Window {
                     anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
                     text: !rowItem.isTrack ? (rowItem.r.count !== undefined ? rowItem.r.count : "")
                           : rowItem.kind === "track" ? win.clock(rowItem.r.seconds)
-                          : rowItem.kind === "more" ? "" : rowItem.r.count
+                          : rowItem.kind === "album" || rowItem.kind === "playlist" ? rowItem.r.count : ""
                     color: rowItem.current ? accent.text : "#5C6880"
                     font.family: "IBM Plex Mono"
                     font.pixelSize: 10
@@ -1465,10 +1499,20 @@ Window {
                             amp.searchMore();
                         } else if (rowItem.kind === "album") {
                             plPanel.openAlbum(rowItem.modelData.index);
+                        } else if (rowItem.kind === "artist") {
+                            amp.openArtist(rowItem.modelData.index);
+                        } else if (rowItem.kind === "genre") {
+                            plPanel.openGenre(rowItem.r.title);
+                        } else if (rowItem.kind === "similar") {
+                            amp.openSimilar();
+                        } else if (rowItem.kind === "lastfm") {
+                            plPanel.askLastfm();
                         }
                     }
                     onDoubleClicked: mouse => {
-                        if (mouse.button !== Qt.LeftButton || rowItem.kind === "more" || rowItem.kind === "album")
+                        // these open a view on the first click (the second would land in it)
+                        if (mouse.button !== Qt.LeftButton || rowItem.kind !== "track" && rowItem.isTrack
+                                && rowItem.kind !== "playlist")
                             return;
                         if (!rowItem.isTrack)
                             rowItem.r.id === "search" ? plPanel.openEntry("search") : amp.playList(rowItem.r.id);
@@ -1533,7 +1577,7 @@ Window {
             visible: win.pl.signedIn
             Rectangle {
                 id: filterBox
-                width: plPanel.searching ? parent.width - 30 : 150
+                width: plPanel.searching || plPanel.home ? parent.width - 30 : 150
                 height: 20
                 color: "#07090D"
                 border.width: 1
@@ -1548,23 +1592,31 @@ Window {
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 11
                     Keys.onEscapePressed: text = ""
-                    onAccepted: if (plPanel.searching) amp.searchSpotify(text)
+                    onAccepted: {
+                        if (plPanel.searching)
+                            amp.searchSpotify(text);
+                        else if (plPanel.home && text.trim())
+                            plPanel.openGenre(text);
+                    }
                     Text {
                         visible: plFilter.text === ""
                         anchors.verticalCenter: parent.verticalCenter
-                        text: plPanel.searching ? "Sök i hela Spotify… (Enter)" : plPanel.entry ? "Sök i listan…" : "Filtrera listorna…"
+                        text: plPanel.searching ? "Sök i hela Spotify… (Enter)" : plPanel.home ? "Skriv en genre… (Enter)"
+                              : plPanel.entry ? "Sök i listan…" : "Filtrera listorna…"
                         color: "#5C6880"
                         font: plFilter.font
                     }
                 }
             }
             Text {
-                visible: !plPanel.searching
+                visible: !plPanel.searching && !plPanel.home
                 anchors { left: filterBox.right; leftMargin: 8; verticalCenter: parent.verticalCenter }
                 text: {
                     if (!plPanel.entry)
                         return (win.pl.lists || []).length ? Math.max(0, win.pl.lists.filter(l => !l.special).length) + " listor" : "";
-                    const rows = win.pl.rows || [];
+                    const rows = (win.pl.rows || []).filter(r => !plPanel.found || r.kind === "track");
+                    if (plPanel.found && !rows.length)
+                        return "";
                     let sum = 0;
                     for (let i = 0; i < rows.length; i++)
                         sum += rows[i].seconds;
@@ -1732,6 +1784,8 @@ Window {
             amp.spNewList(name, nameRows || "[]");
         else if (mode === "sp-rename")
             amp.spRename(nameTarget, name);
+        else if (mode === "sp-lastfm")
+            amp.setLastfmKey(name);
     }
 
     // ── Choosing files, a folder, a list to bring in ──

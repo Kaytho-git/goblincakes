@@ -19,6 +19,7 @@ with /playlists/{id}/items (add, remove by uri, move a range), a list away with 
 Recover playlists). The modify scopes came with this – an older sign-in has to be redone once.
 """
 import base64
+import concurrent.futures
 import hashlib
 import http.server
 import json
@@ -265,6 +266,11 @@ def saved_album(lists, uri, name):
     return None
 
 
+def artist_row(item):
+    return {"kind": "artist", "uri": item.get("uri", ""), "title": item.get("name", ""), "artist": "",
+            "count": 0, "seconds": 0}
+
+
 def _artists(item):
     return ", ".join(a.get("name", "") for a in item.get("artists") or [] if a)
 
@@ -361,9 +367,15 @@ class Library:
     def play(self, entry, rows=None, index=None, start_app=None):
         """Double-click: a track in its list (from there on), or a whole list."""
         device = self.device(start_app)
-        if entry["id"] == SEARCH:
+        if entry.get("artistView") and index is None:   # ▶ Spela artisten
+            body = {"context_uri": entry["uri"]}
+        elif entry["id"] == SEARCH or entry.get("found"):   # the search, or a genre/"Liknande" view
+            if index is None:   # ▶ Spela alla: the found tracks
+                index = next((i for i, r in enumerate(rows or []) if r.get("kind") == "track"), None)
+                if index is None:
+                    raise SpotifyError("Inga låtar att spela")
             row = rows[index]
-            if row.get("kind") in ("album", "playlist"):
+            if row.get("kind") in ("album", "playlist", "artist"):
                 body = {"context_uri": row["uri"]}
             else:   # a found track, and the found tracks after it
                 tracks = [r for r in rows if r.get("kind") == "track"]
@@ -408,6 +420,70 @@ class Library:
         if tracks.get("next"):
             rows.append({"kind": "more", "offset": offset + SEARCH_LIMIT, "uri": "", "title": "", "artist": "", "seconds": 0})
         return rows
+
+    # ── Genres (the GENRER tab) ──
+
+    def genre_search(self, genre):
+        """Spotify's own genre filter: tracks and artists."""
+        page = self.client.get("/search", {"q": f'genre:"{genre}"', "type": "track,artist", "limit": SEARCH_LIMIT})
+        tracks = [dict(r, kind="track") for r in
+                  (track_row(i) for i in (page.get("tracks") or {}).get("items") or []) if r]
+        artists = [artist_row(i) for i in (page.get("artists") or {}).get("items") or [] if i]
+        return tracks, artists
+
+    def find_track(self, artist, title):
+        """A track Last.fm named, in Spotify – or None."""
+        page = self.client.get("/search", {"q": f'track:"{title}" artist:"{artist}"', "type": "track", "limit": 1})
+        items = [i for i in (page.get("tracks") or {}).get("items") or [] if i]
+        if not items:   # Spotify's filters are strict about punctuation: plain words, the artist must match
+            page = self.client.get("/search", {"q": f"{artist} {title}", "type": "track", "limit": 3})
+            items = [i for i in (page.get("tracks") or {}).get("items") or []
+                     if i and artist.lower() in _artists(i).lower()]
+        row = track_row(items[0]) if items else None
+        return dict(row, kind="track") if row else None
+
+    def find_tracks(self, pairs):
+        """[(artist, title)] → the rows found in Spotify, in the same order (5 at a time)."""
+        with concurrent.futures.ThreadPoolExecutor(5) as pool:
+            found = list(pool.map(lambda p: self._quiet(self.find_track, *p), pairs))
+        seen, out = set(), []
+        for row in found:
+            if row and row["uri"] not in seen:
+                seen.add(row["uri"])
+                out.append(row)
+        return out
+
+    def find_artist(self, name):
+        page = self.client.get("/search", {"q": name, "type": "artist", "limit": 3})
+        items = [i for i in (page.get("artists") or {}).get("items") or [] if i]
+        exact = [i for i in items if i.get("name", "").lower() == name.lower()]
+        return artist_row((exact or items)[0]) if items else None
+
+    def find_artists(self, names):
+        with concurrent.futures.ThreadPoolExecutor(5) as pool:
+            return [r for r in pool.map(lambda n: self._quiet(self.find_artist, n), names) if r]
+
+    @staticmethod
+    def _quiet(fn, *args):
+        """One of many lookups: a failed one is left out (waiting, sign-in or the net is not)."""
+        try:
+            return fn(*args)
+        except SpotifyError as e:
+            if any(w in str(e) for w in ("väntar", "godkände inte", "nås inte")):
+                raise
+            return None
+
+    def artist_albums(self, artist):
+        """An artist row's albums and singles, newest first, as found albums."""
+        artist_id = artist["uri"].rsplit(":", 1)[-1]
+        try:
+            page = self.client.get(f"/artists/{artist_id}/albums", {"include_groups": "album,single", "limit": 10})
+            items = page.get("items") or []
+        except SpotifyError:   # not for own apps any more → the search
+            page = self.client.get("/search", {"q": f'artist:"{artist["title"]}"', "type": "album", "limit": SEARCH_LIMIT})
+            items = (page.get("albums") or {}).get("items") or []
+        return [{"kind": "album", "uri": i.get("uri", ""), "title": i.get("name", ""), "artist": _artists(i),
+                 "count": i.get("total_tracks", 0), "seconds": 0} for i in items if i]
 
     @staticmethod
     def album_entry(row):

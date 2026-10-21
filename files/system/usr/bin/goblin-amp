@@ -65,6 +65,18 @@ GRAPH_FLAG = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}
 sys.path.insert(0, str(SHARE))
 import local as L  # noqa: E402
 import spotifyweb as SW  # noqa: E402
+import lastfm as LF  # noqa: E402
+
+# The GENRER tab's own genres (names both Last.fm's tags and Spotify's genre filter know)
+GENRES = ["rock", "hard rock", "metal", "heavy metal", "power metal", "symphonic metal", "punk", "indie",
+          "alternative", "pop", "synthpop", "hip-hop", "electronic", "house", "techno", "drum and bass",
+          "ambient", "lo-fi", "jazz", "blues", "soul", "funk", "country", "folk", "classical", "soundtrack",
+          "video game music", "reggae", "latin", "k-pop"]
+
+
+def _plain(kind, title):
+    """A row of the GENRER tab that is not music: a heading, a genre, "Liknande…"."""
+    return {"kind": kind, "uri": "", "title": title, "artist": "", "seconds": 0}
 try:
     import mpris as M  # noqa: E402 – needs python3-gobject
 except Exception:  # noqa: BLE001 – plays anyway, only not seen by Plasma
@@ -463,7 +475,15 @@ class Amp(QObject):
         self._pl = {"open": bool(self.settings.get("playlist")), "clientId": account.get("clientId", ""),
                     "signedIn": bool(account.get("refreshToken")), "name": account.get("name", ""),
                     "busy": "", "message": "", "lists": [], "list": None, "rows": [], "redirect": SW.REDIRECT,
-                    "canEdit": SW.can_edit(), "query": saved.get("query", ""), "note": ""}
+                    "canEdit": SW.can_edit(), "query": saved.get("query", ""), "note": "",
+                    "lastfm": bool(LF.key())}
+        # SPOTIFY and GENRER share the panel: each tab's open view is kept while the other shows,
+        # and ◀ goes back through what was opened from where (search → album, genre → artist → album)
+        self._mode = "genre" if self.settings.get("plTab") == "genre" else "spotify"
+        self._views = {}
+        self._stack = []
+        if self._mode == "genre":
+            self._pl["list"], self._pl["rows"] = self._genre_home()
         self._plDone.connect(self._pl_done)
         self._main.connect(self._run_main)
         self._state = "{}"
@@ -691,7 +711,7 @@ class Amp(QObject):
         self.plChanged.emit()
         # what is open, and the last search, are there again next time (21 Oct, the user's wish)
         entry = self._pl["list"]
-        if "list" in changes and self._reopen is None:
+        if "list" in changes and self._reopen is None and self._mode == "spotify":
             self.settings["spOpen"] = entry
             self._save_settings()
         if "rows" in changes and entry and entry["id"] == SW.SEARCH:
@@ -700,31 +720,46 @@ class Amp(QObject):
 
     def _pl_done(self, changes):
         changes = json.loads(changes)
+        mode = changes.pop("_mode", self._mode)
+        if mode != self._mode and mode in self._views:   # the tab was changed meanwhile: its view gets it
+            entry, rows, stack = self._views[mode]
+            self._views[mode] = (changes.pop("list", entry), changes.pop("rows", rows), stack)
         self._pl_update(**changes)
-        if "lists" in changes and self._reopen:
-            entry, self._reopen = self._reopen, None
-            if entry.get("album"):
-                self._pl_update(list=entry, rows=[])
-                self._pl_job("Hämtar albumet…", lambda: {"rows": self.library.tracks(entry)})
-            else:
-                self.openList(entry["id"])
+        if self._mode == "genre":
+            if self._pl["signedIn"] and not self._pl["list"]:   # signed in from the tab
+                entry, rows = self._genre_home()
+                self._pl_update(list=entry, rows=rows)
+        elif "lists" in changes and self._reopen:
+            self._do_reopen()
         elif "lists" in changes or "message" in changes:
             self._reopen = None   # nothing to open again (or it failed): what opens is kept from now
+
+    def _do_reopen(self):
+        entry, self._reopen = self._reopen, None
+        if entry.get("album"):
+            self._pl_update(list=entry, rows=[])
+            self._pl_job("Hämtar albumet…", lambda: {"rows": self.library.tracks(entry)})
+        else:
+            self.openList(entry["id"])
 
     def _pl_job(self, busy, work):
         """work() → dict of changes, in a thread; a SpotifyError becomes the message."""
         if self._pl["busy"]:
             return
         self._pl_update(busy=busy, message="", note="")
+        mode = self._mode
 
         def run():
             try:
                 changes = work() or {}
             except SW.SpotifyError as e:
                 changes = {"message": str(e).split(":", 1)[1] if str(e)[:4] in ("403:", "404:") else str(e)}
+            except LF.LastfmError as e:
+                changes = {"message": str(e)}
             except Exception as e:  # noqa: BLE001 – never leave it busy
                 changes = {"message": f"Något gick fel: {e}"}
             changes["busy"] = ""
+            changes["_mode"] = mode
             self._plDone.emit(json.dumps(changes, ensure_ascii=False))
         threading.Thread(target=run, daemon=True).start()
 
@@ -772,6 +807,7 @@ class Amp(QObject):
         entry = self._list_entry(list_id) or self._open_album(list_id)
         if entry is None:
             return
+        self._stack = []
         if list_id == SW.SEARCH:   # the last search's rows stay until a new one
             self._pl_update(list=entry, rows=self._search_rows, message="")
             return
@@ -789,12 +825,141 @@ class Amp(QObject):
         rows = self._pl["rows"]
         if not (0 <= index < len(rows)) or rows[index].get("kind") != "album":
             return
+        if self._pl["busy"]:
+            return
         entry = SW.Library.album_entry(rows[index])
+        self._push()
         self._pl_update(list=entry, rows=[], message="")
         self._pl_job("Hämtar albumet…", lambda: {"rows": self.library.tracks(entry)})
 
+    def _open_found(self, list_id):
+        """The open genre/artist/"Liknande" view, when that is the list asked for."""
+        entry = self._pl["list"]
+        return entry if entry and entry.get("found") and entry["id"] == list_id else None
+
+    # ── GENRER: Spotify's genre filter + Last.fm's suggestions (22 Oct) ──
+
+    def _genre_home(self):
+        recent = [g for g in self.settings.get("genres") or [] if g]
+        rows = [_plain("similar", "≈ Liknande det som spelas nu")] if LF.key() else [
+            _plain("lastfm", "+ Last.fm-nyckel: Populärt i genren och Liknande det som spelas nu")]
+        if recent:
+            rows += [_plain("head", "DINA SENASTE")] + [_plain("genre", g) for g in recent]
+        rows += [_plain("head", "GENRER")] + [_plain("genre", g) for g in GENRES if g not in recent]
+        return {"id": "genres", "name": "Genrer", "special": True, "home": True}, rows
+
+    def _push(self):
+        self._stack = (self._stack + [(self._pl["list"], self._pl["rows"])])[-20:]
+
+    @Slot()
+    def goBack(self):
+        if self._pl["busy"]:
+            return
+        if self._stack:
+            entry, rows = self._stack.pop()
+            if entry and entry.get("home"):   # the latest genres first again
+                rows = self._genre_home()[1]
+            self._pl_update(list=entry, rows=rows, message="")
+        elif self._mode == "genre":
+            entry, rows = self._genre_home()
+            self._pl_update(list=entry, rows=rows, message="")
+        else:
+            self.openList(SW.SEARCH)
+
+    def _open_view(self, entry, busy, work):
+        """A genre/artist/"Liknande" view: ◀ comes back here."""
+        if self._pl["busy"]:
+            return
+        self._push()
+        self._pl_update(list=dict(entry, special=True, found=True), rows=[], message="", note="")
+        self._pl_job(busy, work)
+
+    @Slot(str)
+    def openGenre(self, name):
+        name = " ".join(name.split()).lower()
+        if not name:
+            return
+        self.settings["genres"] = ([name] + [g for g in self.settings.get("genres") or [] if g != name])[:8]
+        self._save_settings()
+
+        def work():
+            rows, problem = [], ""
+            if LF.key():
+                try:
+                    found = self.library.find_tracks(LF.tag_tracks(name))
+                    if found:
+                        rows += [_plain("head", "POPULÄRT I GENREN · LAST.FM")] + found
+                except LF.LastfmError as e:
+                    problem = str(e)
+            tracks, artists = self.library.genre_search(name)
+            if tracks:
+                rows += [_plain("head", "LÅTAR I GENREN · SPOTIFY")] + tracks
+            if artists:
+                rows += [_plain("head", "ARTISTER")] + artists
+            changes = {"rows": rows}
+            if problem or not rows:
+                changes["message"] = problem or f"Hittade inget för {name} – prova genrens namn på engelska"
+            return changes
+        self._open_view({"id": "genre:" + name, "name": name[:1].upper() + name[1:]}, f"Letar i {name}…", work)
+
+    @Slot(int)
+    def openArtist(self, index):
+        rows = self._pl["rows"]
+        if not (0 <= index < len(rows)) or rows[index].get("kind") != "artist":
+            return
+        artist = rows[index]
+
+        def work():
+            out = [_plain("head", "ALBUM OCH SINGLAR")] + self.library.artist_albums(artist)
+            if LF.key():
+                try:
+                    similar = self.library.find_artists(LF.similar_artists(artist["title"]))
+                    if similar:
+                        out += [_plain("head", "LIKNANDE ARTISTER · LAST.FM")] + similar
+                except LF.LastfmError:
+                    pass   # the albums are what was asked for
+            return {"rows": out}
+        self._open_view({"id": "artist:" + artist["uri"].rsplit(":", 1)[-1], "name": artist["title"],
+                         "uri": artist["uri"], "artistView": True}, "Hämtar artisten…", work)
+
+    @Slot()
+    def openSimilar(self):
+        state = json.loads(self._state or "{}")
+        artist, title = (state.get("artist") or "").split(",")[0].strip(), state.get("title") or ""
+        if not (artist and title):
+            self._pl_update(message="Inget spelas just nu – starta en låt, så letar GoblinAmp efter liknande")
+            return
+
+        def work():
+            rows = []
+            tracks = self.library.find_tracks(LF.similar_tracks(artist, title))
+            if tracks:
+                rows += [_plain("head", "LIKNANDE LÅTAR · LAST.FM")] + tracks
+            artists = self.library.find_artists(LF.similar_artists(artist))
+            if artists:
+                rows += [_plain("head", "LIKNANDE ARTISTER · LAST.FM")] + artists
+            return {"rows": rows} if rows else {"rows": [], "message": f"Last.fm känner inte till något likt {artist} – {title}"}
+        self._open_view({"id": "similar", "name": f"Likt {artist} – {title}"}, "Letar efter liknande…", work)
+
+    @Slot(str)
+    def setLastfmKey(self, key):
+        def work():
+            LF.set_key(key)
+            changes = {"lastfm": bool(LF.key()),
+                       "note": "Last.fm-nyckeln är sparad" if key.strip() else "Last.fm-nyckeln är borttagen"}
+            entry = self._pl["list"]
+            if entry and entry.get("home"):
+                changes["rows"] = self._genre_home()[1]
+            return changes
+        self._pl_job("Provar nyckeln hos Last.fm…", work)
+
+    @Slot()
+    def openLastfmPage(self):
+        QDesktopServices.openUrl(QUrl(LF.CREATE_URL))
+
     @Slot()
     def backToLists(self):
+        self._stack = []
         self._pl_update(list=None, rows=[], message="")
 
     @Slot(int)
@@ -804,6 +969,8 @@ class Amp(QObject):
             return
         if rows[index].get("kind") == "more":
             self.searchMore()
+            return
+        if rows[index].get("kind") in ("head", "genre", "similar", "lastfm"):
             return
 
         self._spotify_takes_over()
@@ -817,14 +984,15 @@ class Amp(QObject):
 
     @Slot(str)
     def playList(self, list_id):
-        entry = self._list_entry(list_id) or self._open_album(list_id)
+        entry = self._list_entry(list_id) or self._open_album(list_id) or self._open_found(list_id)
         if entry is None or entry["id"] in (SW.QUEUE, SW.SEARCH):
             return
 
         self._spotify_takes_over()
 
         def work():
-            rows = self.library.tracks(entry) if entry["id"] == SW.LIKED else None
+            rows = (self.library.tracks(entry) if entry["id"] == SW.LIKED
+                    else self._pl["rows"] if entry.get("found") else None)
             self.library.play(entry, rows, None, start_spotify_app)
             time.sleep(0.6)
             self.watcher.wake.set()
@@ -857,6 +1025,7 @@ class Amp(QObject):
         def work():
             self._search_rows = self.library.search(query)
             return {"rows": self._search_rows, "list": entry}
+        self._stack = []
         self._pl_update(query=query, list=entry)
         self._pl_job("Söker…", work)
 
@@ -1139,7 +1308,16 @@ class Amp(QObject):
         self.settings["plTab"] = tab
         self._save_settings()
         self._loc_update(tab=tab)
-        if tab == "spotify" and self._pl["signedIn"] and not self._pl["lists"]:
+        if tab in ("spotify", "genre") and tab != self._mode:
+            self._views[self._mode] = (self._pl["list"], self._pl["rows"], self._stack)
+            self._mode = tab
+            entry, rows, self._stack = self._views.get(tab) or (None, [], [])
+            if tab == "genre" and not entry:
+                entry, rows = self._genre_home()
+            self._pl_update(list=entry, rows=rows, message="", note="")
+            if tab == "spotify" and self._reopen and self._pl["lists"]:
+                self._do_reopen()
+        if tab in ("spotify", "genre") and self._pl["signedIn"] and not self._pl["lists"]:
             self.refreshLists()
 
     def _lists_now(self):

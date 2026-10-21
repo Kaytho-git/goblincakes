@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-21  GoblinAmp: ny flik GENRER i spellistan – välj eller skriv en genre och få populära låtar, låtar och artister i genren. Klicka på en artist för album och liknande artister, eller tryck Liknande det som spelas nu. Populärt och Liknande kommer från Last.fm och kräver en gratis Last.fm-nyckel (⋯ → Last.fm-nyckel…).
 2026-10-21  GoblinAmp: spara ett helt album från Spotify-sökningen som en egen lista ("Grupp – Album"). Album du redan har sparat får en ✓ och sparas inte en gång till.
 2026-10-21  goblin play dock: spel som lagts till i Steam utanför butiken (t.ex. WoW) får nu spelets egen ikon i dockan i stället för Steams. Kör goblin play dock <spel> igen för ett spel som redan sitter där.
 2026-10-21  Spel stannar på sin skärm även om musen hinner till en annan skärm medan spelet startar (t.ex. WoW). goblin screen fungerar nu för spel också: goblin screen add wow screen 1 (ordet från goblin play, spelets namn eller .exe).
