@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
-  <!-- GoblinAmp A: the goblin above a little player – the display with a play triangle and bars -->
+  <!-- GoblinAmp: the goblin above a little player – the display with a play triangle and bars, a seek bar (the user's choice of three, 21 Oct) -->
   <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
   <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
   <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
