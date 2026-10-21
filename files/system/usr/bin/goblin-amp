@@ -944,6 +944,23 @@ class Amp(QObject):
             return {"lists": specials + [entry] + others, "note": f"Listan {name} är skapad"}
         self._pl_job("Skapar listan…", work)
 
+    @Slot(str, str, int)
+    def spSaveAlbum(self, uri, name, count):
+        """A whole album as an own list "Artist – Album" – not again when it is already saved."""
+        saved = SW.saved_album(self._pl["lists"], uri, name)
+        if saved:
+            self._pl_update(note=f"Redan sparat som {saved['name']}", message="")
+            return
+        album = {"id": "album:" + uri.rsplit(":", 1)[-1], "uri": uri, "album": True, "special": True,
+                 "name": name, "count": count}
+
+        def work():
+            entry = self.library.save_album(album)
+            specials = [e for e in self._pl["lists"] if e.get("special")]
+            others = [e for e in self._pl["lists"] if not e.get("special")]
+            return {"lists": specials + [entry] + others, "note": f"Albumet är sparat som {name}"}
+        self._pl_job("Sparar albumet…", work)
+
     @Slot(int)
     def spRemove(self, index):
         entry, rows = self._pl["list"], list(self._pl["rows"])

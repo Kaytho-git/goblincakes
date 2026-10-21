@@ -1099,6 +1099,23 @@ Window {
             plFilter.text = "";
             amp.openAlbum(i);
         }
+        // a found album's name as a saved list: "Artist – Album"
+        function albumName(r) {
+            return (r.artist ? r.artist + " – " : "") + r.title;
+        }
+        // the own list an album is already saved as (same album, or the same name), else null
+        function savedAlbum(uri, name) {
+            const lower = name.trim().toLowerCase();
+            return (win.pl.lists || []).find(l => l.own && !l.special
+                && ((uri && l.fromAlbum === uri) || (l.name || "").trim().toLowerCase() === lower)) || null;
+        }
+        function saveAlbum(uri, name, count) {
+            const saved = savedAlbum(uri, name);
+            if (saved)
+                plPanel.openEntry(saved.id);
+            else
+                amp.spSaveAlbum(uri, name, count || 0);
+        }
         // own lists to add to (the open one left out); at most 8 in the menu
         function targets() {
             return (win.pl.lists || []).filter(l => l.mine && !l.special && (!entry || l.id !== entry.id)).slice(0, 8);
@@ -1109,8 +1126,12 @@ Window {
             if (r.kind === "more")
                 return;
             const items = [];
-            if (r.kind === "album")
+            if (r.kind === "album") {
                 items.push({ text: "Öppna albumet", act: () => plPanel.openAlbum(i) });
+                const saved = savedAlbum(r.uri, albumName(r));
+                items.push({ text: saved ? "✓ Sparat – öppna " + saved.name : "Spara albumet som lista",
+                             act: () => plPanel.saveAlbum(r.uri, albumName(r), r.count) });
+            }
             if (entry.id !== "queue")
                 items.push({ text: r.kind === "album" ? "Spela albumet" : r.kind === "playlist" ? "Spela listan" : "Spela", act: () => amp.playRow(i) });
             if (!r.kind || r.kind === "track") {
@@ -1200,6 +1221,13 @@ Window {
                     visible: !plPanel.entry
                     text: "+ Ny lista"
                     onClicked: win.askName("sp-new", "", "", "")
+                }
+                SmallLink {
+                    readonly property var saved: plPanel.entry && plPanel.entry.album
+                                                 ? plPanel.savedAlbum(plPanel.entry.uri, plPanel.entry.name) : null
+                    visible: !!plPanel.entry && !!plPanel.entry.album
+                    text: saved ? "✓ Sparat" : "+ Spara albumet"
+                    onClicked: plPanel.saveAlbum(plPanel.entry.uri, plPanel.entry.name, plPanel.entry.count)
                 }
                 SmallLink {
                     visible: !!plPanel.entry && plPanel.entry.id !== "queue" && !plPanel.searching
@@ -1379,6 +1407,14 @@ Window {
                     font.family: "IBM Plex Sans"
                     font.weight: rowItem.current ? Font.DemiBold : Font.Normal
                     font.pixelSize: 11
+                }
+                Text {   // a found album that is already saved as a list
+                    anchors { right: parent.right; rightMargin: 34; verticalCenter: parent.verticalCenter }
+                    visible: rowItem.kind === "album" && !!plPanel.savedAlbum(rowItem.r.uri, plPanel.albumName(rowItem.r))
+                    text: "✓"
+                    color: accent.text
+                    font.pixelSize: 11
+                    font.weight: Font.Bold
                 }
                 Text {
                     anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }

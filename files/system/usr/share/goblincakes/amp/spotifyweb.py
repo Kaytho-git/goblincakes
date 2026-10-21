@@ -23,6 +23,7 @@ import hashlib
 import http.server
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -244,7 +245,24 @@ def list_entry(p, me):
     return {"id": p.get("id", ""), "name": p.get("name", ""), "uri": p.get("uri", ""),
             "count": total, "snapshot": p.get("snapshot_id", ""),
             "mine": owner == me or bool(p.get("collaborative")), "own": owner == me,
-            "owner": (p.get("owner") or {}).get("display_name") or owner}
+            "owner": (p.get("owner") or {}).get("display_name") or owner,
+            "fromAlbum": _album_in(p.get("description") or "")}
+
+
+def _album_in(description):
+    """The album a list was saved from (its uri is in the description – see save_album)."""
+    found = re.search(r"spotify:album:[A-Za-z0-9]+", description)
+    return found.group(0) if found else ""
+
+
+def saved_album(lists, uri, name):
+    """The own list an album is already saved as: same album uri, or the same name."""
+    name = name.strip().lower()
+    for e in lists:
+        if e.get("own") and not e.get("special") and (
+                (uri and e.get("fromAlbum") == uri) or e.get("name", "").strip().lower() == name):
+            return e
+    return None
 
 
 def _artists(item):
@@ -409,11 +427,27 @@ class Library:
     def _forget(self, list_id):
         self.cache.pop(list_id, None)
 
-    def create(self, name):
+    def create(self, name, description=""):
         """A new private list → its list row."""
         self._check_edit()
-        p = self.client.request("POST", "/me/playlists", body={"name": name, "public": False})
-        return list_entry(p, load().get("user", ""))
+        body = {"name": name, "public": False}
+        if description:
+            body["description"] = description
+        p = self.client.request("POST", "/me/playlists", body=body)
+        entry = list_entry(p, load().get("user", ""))
+        entry["fromAlbum"] = entry["fromAlbum"] or _album_in(description)
+        return entry
+
+    def save_album(self, album):
+        """A whole album as an own list named "Artist – Album" (album = album_entry). → its list row."""
+        self._check_edit()
+        rows = self.tracks(album)
+        if not rows:
+            raise SpotifyError("Albumet har inga låtar att spara")
+        entry = self.create(album["name"], f"Hela albumet, sparat med GoblinAmp · {album['uri']}")
+        entry["snapshot"] = self.add(entry["id"], [r["uri"] for r in rows])
+        entry["count"] = len(rows)
+        return entry
 
     def add(self, list_id, uris):
         """Last in the list. Returns the new snapshot."""
