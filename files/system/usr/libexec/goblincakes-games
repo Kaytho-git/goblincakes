@@ -127,6 +127,7 @@ def shortcut_games(root):
                 exe = (entry.get("Exe") or entry.get("exe") or "").strip().strip('"')
                 if exe:
                     EXES[gameid] = Path(exe.replace("\\", "/")).name.lower()
+                    EXE_PATHS[gameid] = exe
                 icon = (entry.get("icon") or "").strip().strip('"')
                 if icon:
                     ICONS[gameid] = icon
@@ -135,6 +136,7 @@ def shortcut_games(root):
 
 EXES = {}  # non-Steam game id → its .exe's file name (filled by shortcut_games)
 ICONS = {}  # non-Steam game id → the icon chosen in Steam (filled by shortcut_games)
+EXE_PATHS = {}  # non-Steam game id → its .exe (filled by shortcut_games)
 
 
 def words(name):
@@ -262,6 +264,81 @@ def largest_image(data_or_path):
     return best
 
 
+def exe_icon(path):
+    """The picture inside a Windows .exe, or None – read only, the game's file is never changed
+    (21 Oct, the user: WoW in the dock got Steam's icon). Windows' game explorer picture
+    (__GDF_THUMBNAIL, a 256 px PNG – Wow.exe's icons are at most 48 px) if there is one, else
+    the first icon group as .ico bytes. PE: the resource table's RT_GROUP_ICON (14) lists the
+    pictures, RT_ICON (3) holds them."""
+    try:
+        with open(path, "rb") as f:
+            def at(offset, size):
+                f.seek(offset)
+                return f.read(size)
+            pe = struct.unpack_from("<I", at(0x3C, 4))[0]
+            sections, opt_size = struct.unpack_from("<H12xH", at(pe + 6, 16))
+            opt = pe + 24
+            magic = struct.unpack_from("<H", at(opt, 2))[0]
+            res_rva = struct.unpack_from("<I", at(opt + (112 if magic == 0x10B else 128), 4))[0]
+            table = []
+            for i in range(sections):
+                vsize, vaddr, rsize, raw = struct.unpack_from("<IIII", at(opt + opt_size + 40 * i + 8, 16))
+                table.append((vaddr, max(vsize, rsize), raw))
+
+            def offset(rva):
+                for vaddr, size, raw in table:
+                    if vaddr <= rva < vaddr + size:
+                        return raw + rva - vaddr
+                raise ValueError("rva")
+            base = offset(res_rva)
+
+            def entries(directory):
+                named, ids = struct.unpack_from("<HH", at(base + directory + 12, 4))
+                for i in range(named + ids):
+                    name, data = struct.unpack_from("<II", at(base + directory + 16 + 8 * i, 8))
+                    yield name, data
+
+            def first_data(data):   # down the tree to the first leaf (language)
+                while data & 0x80000000:
+                    data = next(entries(data & 0x7FFFFFFF))[1]
+                rva, size = struct.unpack_from("<II", at(base + data, 8))
+                return at(offset(rva), size)
+            def name_of(name):
+                if not name & 0x80000000:
+                    return name
+                length = struct.unpack_from("<H", at(base + (name & 0x7FFFFFFF), 2))[0]
+                return at(base + (name & 0x7FFFFFFF) + 2, 2 * length).decode("utf-16-le", "replace")
+            types = {name_of(n): d for n, d in entries(0)}
+            for data in types.values():
+                if data & 0x80000000:
+                    for n, d in entries(data & 0x7FFFFFFF):
+                        if name_of(n) == "__GDF_THUMBNAIL":
+                            thumb = first_data(d)
+                            if thumb[:8] == b"\x89PNG\r\n\x1a\n":
+                                return thumb
+            if 14 not in types or 3 not in types:
+                return None
+            group = first_data(next(entries(types[14] & 0x7FFFFFFF))[1])
+            icons = {name: data for name, data in entries(types[3] & 0x7FFFFFFF)}
+            count = struct.unpack_from("<H", group, 4)[0]
+            heads, blobs = [], []
+            for i in range(count):
+                w, h, colors, _, planes, bits, _, nid = struct.unpack_from("<BBBBHHIH", group, 6 + 14 * i)
+                if nid in icons:
+                    blob = first_data(icons[nid])
+                    heads.append((w, h, colors, planes, bits, len(blob)))
+                    blobs.append(blob)
+    except (OSError, ValueError, StopIteration, struct.error):
+        return None
+    if not blobs:
+        return None
+    out, pos = struct.pack("<HHH", 0, 1, len(blobs)), 6 + 16 * len(blobs)
+    for (w, h, colors, planes, bits, size) in heads:
+        out += struct.pack("<BBBBHHII", w, h, colors, 0, planes, bits, size, pos)
+        pos += size
+    return out + b"".join(blobs)
+
+
 def game_icon(gameid):
     """A PNG for the game: Steam's .ico from its CDN, else the small icon in Steam's
     library cache, else the icon of a non-Steam shortcut. None = Steam's own icon."""
@@ -286,6 +363,9 @@ def game_icon(gameid):
         icon = Path(ICONS.get(gameid, "").replace("\\", "/"))
         if icon.suffix.lower() in (".png", ".ico", ".jpg", ".jpeg", ".svg") and icon.is_file():
             image = largest_image(icon)
+        elif EXE_PATHS.get(gameid):   # no icon chosen in Steam: the one inside the .exe
+            data = exe_icon(EXE_PATHS[gameid])
+            image = largest_image(data) if data else None
     if image is None or image.isNull():
         return None
     if image.width() > 256:
