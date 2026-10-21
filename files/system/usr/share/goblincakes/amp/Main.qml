@@ -87,7 +87,39 @@ Window {
     Shortcut { sequence: "C"; onActivated: amp.control("pause") }
     Shortcut { sequence: "V"; onActivated: amp.control("stop") }
     Shortcut { sequence: "B"; onActivated: amp.control("next") }
-    Shortcut { sequence: "Esc"; onActivated: Qt.quit() }
+    Shortcut { sequence: "Esc"; onActivated: win.closeWin() }
+
+    // ✕ (21 Oct, the user's wish): hide in the system tray, or close GoblinAmp and Spotify –
+    // asks until remembered; a right-click on ✕ always asks (the tray menu: "Fråga igen")
+    property bool closeAsk: false
+    property bool closeRemember: false
+    onClosing: close => {
+        close.accepted = false;
+        win.closeWin();
+    }
+    function closeWin() {
+        const act = hasTray ? amp.closeAction : "quit";
+        if (act === "quit")
+            amp.quitAll();
+        else if (act === "tray")
+            win.hide();
+        else
+            win.askClose();
+    }
+    function askClose() {
+        win.shade = false;
+        win.closeRemember = false;
+        win.closeAsk = true;
+    }
+    function closeAs(act) {
+        if (win.closeRemember)
+            amp.setCloseAction(act);
+        win.closeAsk = false;
+        if (act === "quit")
+            amp.quitAll();
+        else
+            win.hide();
+    }
 
     // ── Small parts ──
 
@@ -224,8 +256,10 @@ Window {
                         id: tbArea
                         anchors.fill: parent
                         hoverEnabled: true
-                        onClicked: {
-                            if (tb.modelData[1] === "close") Qt.quit();
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: mouse => {
+                            if (tb.modelData[1] === "close") mouse.button === Qt.RightButton && hasTray ? win.askClose() : win.closeWin();
+                            else if (mouse.button === Qt.RightButton) return;
                             else if (tb.modelData[1] === "min") win.showMinimized();
                             else win.shade = !win.shade;
                         }
@@ -1665,6 +1699,65 @@ Window {
     }
 
     // ── Choosing files, a folder, a list to bring in ──
+    // The ✕'s question, over the player
+    Rectangle {
+        visible: win.closeAsk
+        x: 1; y: 22
+        width: parent.width - 2
+        height: 129
+        z: 60
+        color: "#0B1018"
+        border.width: 1
+        border.color: accent.color
+        MouseArea { anchors.fill: parent }   // nothing under it takes the clicks
+        Column {
+            x: 12; y: 12
+            width: parent.width - 24
+            spacing: 9
+            Text {
+                text: "STÄNGA GOBLINAMP?"
+                color: "#E6ECF5"
+                font.family: "Chakra Petch"
+                font.weight: Font.Bold
+                font.pixelSize: 12
+                font.letterSpacing: 1.5
+            }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "I systemfältet spelar musiken vidare – klick på ikonen tar fram fönstret. Stäng stänger även Spotify."
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 11
+            }
+            Row {
+                spacing: 6
+                Btn { label: "GÖM I SYSTEMFÄLTET"; active: true; onClicked: win.closeAs("tray") }
+                Btn { label: "STÄNG ÄVEN SPOTIFY"; onClicked: win.closeAs("quit") }
+                Btn { label: "AVBRYT"; onClicked: win.closeAsk = false }
+            }
+            Row {
+                spacing: 6
+                Rectangle {
+                    width: 12; height: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: win.closeRemember ? accent.color : "transparent"
+                    border.width: 1
+                    border.color: win.closeRemember ? accent.color : "#2A3852"
+                    Text { anchors.centerIn: parent; visible: win.closeRemember; text: "✓"; color: accent.on; font.pixelSize: 9 }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Kom ihåg mitt val (högerklick på ✕ frågar igen)"
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 11
+                    MouseArea { anchors.fill: parent; anchors.leftMargin: -18; onClicked: win.closeRemember = !win.closeRemember }
+                }
+            }
+        }
+    }
+
     FileDialog {
         id: filesDialog
         title: "Lägg till musik"

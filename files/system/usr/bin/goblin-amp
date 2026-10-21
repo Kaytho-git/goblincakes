@@ -45,6 +45,7 @@ from pathlib import Path
 from PySide6.QtCore import ClassInfo, Property, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtDBus import QDBusConnection, QDBusInterface
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
@@ -191,6 +192,14 @@ def start_spotify_app():
     else:
         subprocess.Popen(["flatpak", "run", "com.spotify.Client"], start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def stop_spotify_app():
+    """Closing GoblinAmp for good closes the Spotify app too (21 Oct, the user's wish): MPRIS Quit,
+    then a plain TERM for a Spotify still there – in its own process, GoblinAmp doesn't wait."""
+    subprocess.Popen(["sh", "-c", "busctl --user call org.mpris.MediaPlayer2.spotify " + MPRIS
+                      + " org.mpris.MediaPlayer2 Quit; sleep 4; pkill -TERM -x spotify"],
+                     start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 class LocalPlayer(QObject):
@@ -435,6 +444,7 @@ class Amp(QObject):
     localChanged = Signal()
     localRowsChanged = Signal()
     graphChanged = Signal()
+    closeActionChanged = Signal()
     _main = Signal(object)  # a function from a thread, run in the window's thread
 
     def __init__(self):
@@ -444,12 +454,16 @@ class Amp(QObject):
         except (OSError, ValueError):
             self.settings = {}
         self.library = SW.Library()
-        self._search_rows = []
+        saved = self.settings.get("spSearch") or {}
+        self._search_rows = saved.get("rows") or []
+        self._reopen = self.settings.get("spOpen")   # the list/album open last time, opened again
+        self._vol_service = ""   # the player whose volume was looked at last
+        self._vol_tries = 0      # polls left to give a newly started player its saved volume
         account = SW.load()
         self._pl = {"open": bool(self.settings.get("playlist")), "clientId": account.get("clientId", ""),
                     "signedIn": bool(account.get("refreshToken")), "name": account.get("name", ""),
                     "busy": "", "message": "", "lists": [], "list": None, "rows": [], "redirect": SW.REDIRECT,
-                    "canEdit": SW.can_edit(), "query": "", "note": ""}
+                    "canEdit": SW.can_edit(), "query": saved.get("query", ""), "note": ""}
         self._plDone.connect(self._pl_done)
         self._main.connect(self._run_main)
         self._state = "{}"
@@ -499,7 +513,34 @@ class Amp(QObject):
             self._external = json.loads(state)
         except ValueError:
             self._external = {}
+        self._keep_volume(self._external)
         self._compose()
+
+    def _keep_volume(self, ext):
+        """Spotify started at 100 % every time (21 Oct, the user's wish): each player's volume is
+        kept in amp.json (volumes, by MPRIS name), and a player that has just started at 100 % gets
+        it back – each poll until the music plays (and a few more), Spotify forgets it before that."""
+        service, vol = ext.get("service", ""), ext.get("volume", -1)
+        if service != self._vol_service:
+            self._vol_service = service
+            self._vol_tries = 15 if service else 0
+        if not service or not isinstance(vol, (int, float)) or vol < 0:
+            return
+        volumes = self.settings.setdefault("volumes", {})
+        saved = volumes.get(service)
+        if self._vol_tries and saved is not None and saved < 0.99 and vol >= 0.99:
+            if ext.get("status") == "Playing":
+                self._vol_tries -= 1   # before the music: tried on until it plays
+            if abs(vol - saved) > 0.01:
+                threading.Thread(target=lambda: subprocess.run(
+                    ["busctl", "--user", "set-property", service, MPRIS, PLAYER, "Volume", "d", f"{saved:.3f}"],
+                    capture_output=True, timeout=5), daemon=True).start()
+                return
+        if ext.get("status") == "Playing" or vol < 0.99:
+            self._vol_tries = 0
+        if saved is None or abs(vol - saved) > 0.005:
+            volumes[service] = round(vol, 3)
+            self._save_settings()
 
     def _compose(self, *_):
         """Which player shows: our own music while it plays (and after, until another player
@@ -616,6 +657,7 @@ class Amp(QObject):
         if self._uses_local():
             self.local.set_volume(volume)
             return
+        self._vol_tries = 0   # the user's own choice: not taken back to the saved one
         self._call("set-property", PLAYER, "Volume", "d", f"{max(0.0, min(1.0, volume)):.3f}")
 
     @Slot()
@@ -647,9 +689,27 @@ class Amp(QObject):
     def _pl_update(self, **changes):
         self._pl.update(changes)
         self.plChanged.emit()
+        # what is open, and the last search, are there again next time (21 Oct, the user's wish)
+        entry = self._pl["list"]
+        if "list" in changes and self._reopen is None:
+            self.settings["spOpen"] = entry
+            self._save_settings()
+        if "rows" in changes and entry and entry["id"] == SW.SEARCH:
+            self.settings["spSearch"] = {"query": self._pl["query"], "rows": self._search_rows}
+            self._save_settings()
 
     def _pl_done(self, changes):
-        self._pl_update(**json.loads(changes))
+        changes = json.loads(changes)
+        self._pl_update(**changes)
+        if "lists" in changes and self._reopen:
+            entry, self._reopen = self._reopen, None
+            if entry.get("album"):
+                self._pl_update(list=entry, rows=[])
+                self._pl_job("Hämtar albumet…", lambda: {"rows": self.library.tracks(entry)})
+            else:
+                self.openList(entry["id"])
+        elif "lists" in changes or "message" in changes:
+            self._reopen = None   # nothing to open again (or it failed): what opens is kept from now
 
     def _pl_job(self, busy, work):
         """work() → dict of changes, in a thread; a SpotifyError becomes the message."""
@@ -951,6 +1011,24 @@ class Amp(QObject):
         self.local.player.pause()
         self.source = "external"
         self._compose()
+
+    # ✕: hide in the system tray or close for good (with Spotify) – 21 Oct, the user's wish
+
+    @Property(str, notify=closeActionChanged)
+    def closeAction(self):
+        return self.settings.get("closeAction", "ask")
+
+    @Slot(str)
+    def setCloseAction(self, action):
+        self.settings["closeAction"] = action
+        self._save_settings()
+        self.closeActionChanged.emit()
+
+    @Slot()
+    def quitAll(self):
+        """Close GoblinAmp and the Spotify app."""
+        stop_spotify_app()
+        QGuiApplication.quit()
 
     def stop(self):
         self.watcher.alive = False
@@ -1379,11 +1457,44 @@ def amp_icon():
     return QIcon.fromTheme("goblincakes-amp", QIcon(str(path)) if path.exists() else QIcon.fromTheme("goblincakes"))
 
 
+def make_tray(app, win, amp):
+    """While the window is hidden (✕ → Göm i systemfältet): GoblinAmp's icon in the system tray,
+    what plays in the tooltip. Left click = the window back, right click = Öppna / Stäng helt."""
+    tray = QSystemTrayIcon(amp_icon(), app)
+    menu = QMenu()
+
+    def bring():
+        win.show()
+        win.raise_()
+        win.requestActivate()
+    menu.addAction("Öppna GoblinAmp").triggered.connect(bring)
+    ask = menu.addAction("Fråga igen vid krysset")
+    ask.triggered.connect(lambda: amp.setCloseAction("ask"))
+    menu.addSeparator()
+    menu.addAction("Stäng helt (även Spotify)").triggered.connect(amp.quitAll)
+    menu.aboutToShow.connect(lambda: ask.setVisible(amp.settings.get("closeAction", "ask") != "ask"))
+    tray.setContextMenu(menu)
+    tray.menu = menu  # the menu has no parent: keep it alive with the icon
+    tray.activated.connect(lambda reason: bring() if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
+
+    def tip():
+        try:
+            st = json.loads(amp.state)
+        except ValueError:
+            st = {}
+        now = " – ".join(t for t in (st.get("artist"), st.get("title")) if t)
+        tray.setToolTip("GoblinAmp" + ("\n" + now if now else ""))
+    amp.stateChanged.connect(tip)
+    tip()
+    win.visibleChanged.connect(lambda shown: tray.setVisible(not shown))
+    return tray
+
+
 def main():
     if sys.argv[1:2] in (["-h"], ["--help"], ["help"]):
         print(__doc__)
         return 0
-    app = QGuiApplication(sys.argv[:1])
+    app = QApplication(sys.argv[:1])   # Widgets for the system tray's menu
     app.setApplicationName("goblin-amp")
     app.setApplicationDisplayName("GoblinAmp")
     app.setDesktopFileName("goblin-amp")
@@ -1420,11 +1531,15 @@ def main():
     engine.rootContext().setContextProperty("amp", amp)
     engine.rootContext().setContextProperty("graph", amp.graph)
     icon = HERE.parents[1] / "share/icons/hicolor/scalable/apps/goblincakes-amp.svg"
+    has_tray = QSystemTrayIcon.isSystemTrayAvailable()
+    engine.rootContext().setContextProperty("hasTray", has_tray)
     engine.rootContext().setContextProperty("iconUrl", QUrl.fromLocalFile(str(icon)) if icon.exists() else QUrl())
     G.use_accent(engine)
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1
+    tray = make_tray(app, engine.rootObjects()[0], amp) if has_tray else None  # noqa: F841 – kept alive
+    app.setQuitOnLastWindowClosed(not has_tray)
     if files:
         amp.openFiles(files)
     code = app.exec()
