@@ -90,3 +90,9 @@ def similar_tracks(artist, title, limit=20):
 def similar_artists(artist, limit=8):
     found = (call("artist.getsimilar", artist=artist, autocorrect=1, limit=limit).get("similarartists") or {})
     return [a["name"] for a in found.get("artist") or [] if a.get("name")]
+
+
+def artist_tracks(artist, limit=10):
+    """The artist's most played tracks (Spotify's own top tracks are closed to own apps)."""
+    return _pairs((call("artist.gettoptracks", artist=artist, autocorrect=1,
+                        limit=limit).get("toptracks") or {}).get("track"))

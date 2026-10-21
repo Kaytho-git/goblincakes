@@ -399,9 +399,11 @@ class Library:
         query = query.strip()
         if not query:
             return []
-        types = "track" if offset else "track,album,playlist"
+        types = "track" if offset else "artist,track,album,playlist"
         page = self.client.get("/search", {"q": query, "type": types, "limit": SEARCH_LIMIT, "offset": offset})
-        rows = []
+        artists = [i for i in (page.get("artists") or {}).get("items") or [] if i]
+        exact = [i for i in artists if i.get("name", "").lower() == query.lower()]
+        rows = [artist_row(i) for i in (exact or artists)[:3]]   # first: a search for an artist finds the artist
         tracks = page.get("tracks") or {}
         for item in tracks.get("items") or []:
             row = track_row(item)
@@ -474,16 +476,60 @@ class Library:
             return None
 
     def artist_albums(self, artist):
-        """An artist row's albums and singles, newest first, as found albums."""
+        """All of an artist row's albums and singles, newest first: (albums, singles) as found albums.
+        The same name twice (editions, other markets) is shown once."""
         artist_id = artist["uri"].rsplit(":", 1)[-1]
+        items, limit = [], 50
         try:
-            page = self.client.get(f"/artists/{artist_id}/albums", {"include_groups": "album,single", "limit": 10})
-            items = page.get("items") or []
-        except SpotifyError:   # not for own apps any more → the search
-            page = self.client.get("/search", {"q": f'artist:"{artist["title"]}"', "type": "album", "limit": SEARCH_LIMIT})
-            items = (page.get("albums") or {}).get("items") or []
-        return [{"kind": "album", "uri": i.get("uri", ""), "title": i.get("name", ""), "artist": _artists(i),
-                 "count": i.get("total_tracks", 0), "seconds": 0} for i in items if i]
+            url, query = f"/artists/{artist_id}/albums", {"include_groups": "album,single", "limit": limit,
+                                                          "market": "from_token"}
+            while url and len(items) < 300:
+                try:
+                    page = self.client.get(url, query)
+                except SpotifyError:
+                    if query is None or query["limit"] == 10:
+                        raise
+                    query["limit"] = 10   # in case Development Mode lowers this limit as it did the search's
+                    continue
+                items += [i for i in page.get("items") or [] if i]
+                url, query = page.get("next"), None
+        except SpotifyError:
+            if items:
+                pass   # the pages that came
+            else:   # not for own apps any more → the search
+                page = self.client.get("/search", {"q": f'artist:"{artist["title"]}"', "type": "album", "limit": SEARCH_LIMIT})
+                items = [i for i in (page.get("albums") or {}).get("items") or [] if i]
+        items.sort(key=lambda i: i.get("release_date") or "", reverse=True)
+        seen, albums, singles = set(), [], []
+        for i in items:
+            single = (i.get("album_group") or i.get("album_type")) == "single"
+            name = (single, i.get("name", "").lower())
+            if name in seen:
+                continue
+            seen.add(name)
+            (singles if single else albums).append(
+                {"kind": "album", "uri": i.get("uri", ""), "title": i.get("name", ""), "artist": _artists(i),
+                 "count": i.get("total_tracks", 0), "seconds": 0})
+        return albums, singles
+
+    def artist_tracks(self, artist):
+        """The artist's popular tracks from Spotify's search (best first), at most 10:
+        only tracks the artist is on."""
+        artist_id = artist["uri"].rsplit(":", 1)[-1]
+        out, seen = [], set()
+        for offset in (0, SEARCH_LIMIT):
+            page = self.client.get("/search", {"q": f'artist:"{artist["title"]}"', "type": "track",
+                                               "limit": SEARCH_LIMIT, "offset": offset})
+            for item in (page.get("tracks") or {}).get("items") or []:
+                if not item or artist_id not in {a.get("id") for a in item.get("artists") or [] if a}:
+                    continue
+                row = track_row(item)
+                if row and row["title"].lower() not in seen:
+                    seen.add(row["title"].lower())
+                    out.append(dict(row, kind="track"))
+            if len(out) >= 10 or not (page.get("tracks") or {}).get("next"):
+                break
+        return out[:10]
 
     @staticmethod
     def album_entry(row):

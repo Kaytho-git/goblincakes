@@ -910,7 +910,20 @@ class Amp(QObject):
         artist = rows[index]
 
         def work():
-            out = [_plain("head", "ALBUM OCH SINGLAR")] + self.library.artist_albums(artist)
+            albums, singles = self.library.artist_albums(artist)
+            out = [_plain("head", f"ALBUM ({len(albums)})")] + albums if albums else []
+            tracks, source = [], "SPOTIFY"
+            if LF.key():   # Last.fm's most played: Spotify's own top tracks are closed to own apps
+                try:
+                    tracks, source = self.library.find_tracks(LF.artist_tracks(artist["title"])), "LAST.FM"
+                except LF.LastfmError:
+                    pass
+            if not tracks:
+                tracks, source = self.library.artist_tracks(artist), "SPOTIFY"
+            if tracks:
+                out += [_plain("head", f"POPULÄRA LÅTAR · {source}")] + tracks
+            if singles:
+                out += [_plain("head", f"SINGLAR OCH EP ({len(singles)})")] + singles
             if LF.key():
                 try:
                     similar = self.library.find_artists(LF.similar_artists(artist["title"]))
@@ -1042,10 +1055,11 @@ class Amp(QObject):
 
         def work():
             found = self.library.search(query, offset)
+            artists = [r for r in rows[:-1] if r.get("kind") == "artist"]
             tracks = [r for r in rows[:-1] if r.get("kind") == "track"]
-            others = [r for r in rows[:-1] if r.get("kind") != "track"]
+            others = [r for r in rows[:-1] if r.get("kind") not in ("track", "artist")]
             more = [r for r in found if r.get("kind") == "more"]
-            self._search_rows = tracks + [r for r in found if r.get("kind") == "track"] + others + more
+            self._search_rows = artists + tracks + [r for r in found if r.get("kind") == "track"] + others + more
             return {"rows": self._search_rows}
         self._pl_job("Hämtar fler…", work)
 
