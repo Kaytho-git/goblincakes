@@ -269,7 +269,7 @@ COMMANDS=(
     "screen|Vilken skärm ett program öppnas på – t.ex. goblin screen add discord screen 2"
     "tile|Fönsterlayouter (Config → Fönster, Meta+Ctrl+1–9): goblin tile layouts, goblin tile open raid; förslag: goblin tile huvud firefox discord + goblin tile förslag; automatiska rutor: goblin tile auto på; alla rutor av: goblin tile av; en ruta: goblin tile add discord 2 1"
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
-    "amp|GoblinAmp – liten spelare i Winamps anda som styr Spotify (Z X C V B, mellanslag = paus)"
+    "amp|GoblinAmp – liten spelare i Winamps anda som styr Spotify (Z X C V B, mellanslag = paus); goblin amp hjälp = så ställer du in spellistan"
     "graph|Ljudgraf i WoW:s klassfärger till musiken – goblin graph [staplar|våg|cirkel|explosion] [alla|klass|mage …] [lås|lås upp]; goblin graph auto on = öppnas när musik spelar"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
@@ -590,8 +590,33 @@ cmd_motd() {
 case ${1:-help} in
     update|upgrade) shift; cmd_update "$@" ;;
     amp) shift
-        # GoblinAmp: a small Winamp-like player that steers Spotify (MPRIS); one window
-        (setsid goblin-amp "$@" >/dev/null 2>&1 &)
+        # GoblinAmp: a small Winamp-like player that steers Spotify (MPRIS); one window.
+        # goblin amp hjälp: how the playlist (Spotify's Web API, the user's own app) is set up
+        case "${1:-}" in
+            hjälp|hjalp|help|setup)
+                cat <<'HELP'
+GoblinAmp – så ställer du in spellistan (en gång, kräver Spotify Premium)
+
+Spellistan (PL) läser dina Spotify-listor med en egen, gratis Spotify-app:
+
+  1. Gå till https://developer.spotify.com/dashboard och logga in med ditt Spotify-konto.
+  2. Create app – namn t.ex. GoblinAmp, beskrivning valfri.
+  3. Redirect URI:  http://127.0.0.1:8898/callback   (exakt så, tryck Add)
+  4. Kryssa i Web API, godkänn villkoren och spara.
+  5. Öppna appen → Settings och kopiera Client ID (ingen Client secret behövs).
+  6. I GoblinAmp: tryck PL, klistra in Client ID och tryck LOGGA IN.
+     Webbläsaren öppnas – godkänn, så är det klart.
+
+Bra att veta:
+  • Dubbelklick på en låt spelar den i Spotify-appen (startas gömd om den inte kör).
+  • Spotify visar bara låtarna i listor som du själv gjort eller samarbetar i –
+    andras listor (t.ex. Spotifys egna) spelas hela med ▶ Spela listan.
+  • Inloggningen sparas i ~/.config/goblincakes/spotify.json. Logga ut finns längst ner i PL.
+  • Stegen finns också i GoblinAmp: PL → Hjälp.
+HELP
+                ;;
+            *) (setsid goblin-amp "$@" >/dev/null 2>&1 &) ;;
+        esac
         ;;
     graph) shift
         # Bars that move with the sound, in WoW's class colours (a window without frame or

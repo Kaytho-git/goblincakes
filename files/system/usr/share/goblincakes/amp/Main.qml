@@ -564,9 +564,10 @@ Window {
             }
         }
 
-        // ── Not signed in: how to set it up (once) ──
+        property bool showHelp: false   // "Hjälp" in the foot: the setup steps again
+        // ── Not signed in (or Hjälp): how to set it up (once) ──
         Column {
-            visible: !win.pl.signedIn
+            visible: !win.pl.signedIn || plPanel.showHelp
             x: 10; y: 30
             width: parent.width - 20
             spacing: 7
@@ -581,9 +582,10 @@ Window {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "1. Öppna Spotifys utvecklarsida, logga in och välj Create app (namn t.ex. GoblinAmp).\n"
-                      + "2. Redirect URI: " + win.pl.redirect + " – kryssa i Web API och spara.\n"
-                      + "3. Kopiera appens Client ID hit och logga in."
+                text: "1. Öppna Spotifys utvecklarsida och logga in med ditt Spotify-konto.\n"
+                      + "2. Create app – namn t.ex. GoblinAmp.\n"
+                      + "3. Redirect URI: " + win.pl.redirect + " (exakt så) – kryssa i Web API och spara.\n"
+                      + "4. Appen → Settings: kopiera Client ID hit och tryck Logga in (ingen secret behövs)."
                 color: "#8B98AD"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 11
@@ -594,7 +596,17 @@ Window {
                 Btn { label: "UTVECKLARSIDAN"; onClicked: amp.openDashboard() }
                 Btn { label: "KOPIERA REDIRECT URI"; onClicked: amp.copyText(win.pl.redirect) }
             }
+            Text {
+                visible: win.pl.signedIn
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "Du är inloggad som " + win.pl.name + ". Samma steg finns i terminalen: goblin amp hjälp."
+                color: accent.text
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 11
+            }
             Row {
+                visible: !win.pl.signedIn
                 spacing: 6
                 Rectangle {
                     width: 230
@@ -629,7 +641,7 @@ Window {
         // ── Signed in: the lists, or a list's tracks ──
         ListView {
             id: plView
-            visible: win.pl.signedIn
+            visible: win.pl.signedIn && !plPanel.showHelp
             x: 4
             y: 26
             width: parent.width - 8
@@ -759,6 +771,7 @@ Window {
             Row {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 spacing: 10
+                SmallLink { text: plPanel.showHelp ? "Tillbaka" : "Hjälp"; onClicked: plPanel.showHelp = !plPanel.showHelp }
                 SmallLink { text: "Spotify-fönstret"; onClicked: amp.playlists() }
                 SmallLink { text: "Logga ut"; onClicked: amp.signOut() }
             }
