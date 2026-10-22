@@ -110,7 +110,7 @@ class Service:
         self.buf = ""
         self.delays = []
         # what is going on in the game
-        self.zone = None  # {"name", "difficulty", "kind"}
+        self.zone = None  # {"id", "name", "difficulty", "kind"}
         self.zone_name = ""  # the last ZONE_CHANGE, also outside raids/dungeons (the arena's name)
         self.current = None  # the pull / key being recorded
         self.stop_at = 0  # wall time to stop OBS (after the end + postRoll)
@@ -253,9 +253,10 @@ class Service:
                 if self.current["kind"] == "arena":
                     if self.current["zone"] and self.zone_name != self.current["zone"]:
                         self.finish(t, "abandoned")  # left the arena before the end
-                elif kind is None or a[1] != (self.zone or {}).get("name"):
+                elif kind is None or a[0] != (self.zone or {}).get("id"):
+                    # by the zone id: some dungeons have parts with their own name (Murder Row → Den of Indulgence)
                     self.finish(t, "abandoned")  # left the dungeon/raid mid key or pull
-            self.zone = {"name": a[1], "difficulty": diff, "kind": kind} if kind else None
+            self.zone = {"id": a[0], "name": a[1], "difficulty": diff, "kind": kind} if kind else None
         elif ev == "ENCOUNTER_START":
             a = R.split_args(rest)
             diff = int(a[2]) if a[2].isdigit() else 0
