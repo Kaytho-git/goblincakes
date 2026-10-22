@@ -94,6 +94,19 @@ Window {
     onTabChanged: if (tab === "settings") backend.refreshPreview()
 
     function set(key, value) { backend.setConfig(key, JSON.stringify(value)); }
+    // A CS2 match's clips are under its card, not in the list – look there too
+    function findVideo(path) {
+        for (const v of videos) {
+            if (v.path === path)
+                return v;
+            for (const c of v.clips || [])
+                if (c.path === path)
+                    return c;
+        }
+        return null;
+    }
+    // what to play for a card: a match whose video went after the clips → its first clip
+    function playable(v) { return v && v.videoRemoved && v.clips && v.clips.length ? v.clips[0] : v; }
     readonly property var gameIcons: JSON.parse(backend.gameIcons)
 
     function clock(sec) {
@@ -160,7 +173,8 @@ Window {
     }
 
     function videoTitle(v) {
-        return v.kind === "mplus" ? "+" + v.level + " " + v.name : v.kind === "cs2" ? "CS2 · " + v.name : v.name;
+        return v.kind === "mplus" ? "+" + v.level + " " + v.name : v.kind === "cs2" ? "CS2 · " + v.name
+             : v.kind === "cs2clip" ? "CS2 · " + v.name + " · " + v.clip + (v.round ? " runda " + v.round : "") : v.name;
     }
 
     // One sentence about what is going on right now
@@ -234,12 +248,10 @@ Window {
             }
         }
         function onVideosChanged() {
-            if (win.selected && !win.videos.some(v => v.path === win.selected.path))
-                win.selected = null;
             if (win.selected)
-                win.selected = win.videos.find(v => v.path === win.selected.path) || null;
+                win.selected = win.findVideo(win.selected.path);
             if (!win.selected && win.videos.length)
-                win.selected = win.videos[0];
+                win.selected = win.playable(win.videos[0]);
             // the test video just saved: straight to it
             if (win.testAsked && !win.st.current && win.videos.length && win.videos[0].kind === "test") {
                 win.testAsked = false;
@@ -835,7 +847,13 @@ Window {
                 name: "CS2-matcher"
                 key: "cs2"
                 tip: "Varje match (alla lägen), från att uppvärmningen är slut till sista rundan. Dina kills (2K–ACE), dödsfall, "
-                     + "rundor och bomben blir markeringar i filmen."
+                     + "rundor och bomben blir markeringar i filmen. Efter matchen blir varje 2K–ACE ett eget klipp, plus ett med alla kills."
+            }
+            PanelSwitch {
+                name: "Behåll hela matchen"
+                key: "cs2KeepMatch"
+                tip: "Av: hela matchen (7–10 GB på Bäst) tas bort när klippen är klara – klippen och kortet blir kvar. "
+                     + "Spara för alltid på en match skyddar den."
             }
             Note {
                 width: parent.width
@@ -909,11 +927,13 @@ Window {
             delegate: Rectangle {
                 id: card
                 required property var modelData
-                readonly property bool active: win.selected && win.selected.path === modelData.path
-                readonly property bool open: win.expanded === modelData.path && !!modelData.wcl
+                readonly property bool active: win.selected && (win.selected.path === modelData.path
+                                                                || win.selected.parent === modelData.file)
+                readonly property var clips: modelData.clips || []
+                readonly property bool open: win.expanded === modelData.path && (!!modelData.wcl || clips.length > 0)
                 readonly property var stats: modelData.wclStats || null
                 width: list.width - 16
-                height: 84 + (open ? statsCol.height + 12 : 0)
+                height: 84 + (open ? (clips.length ? clipsCol.height : statsCol.height) + 12 : 0)
                 color: active ? "#12203A" : cardArea.containsMouse ? "#0E1420" : "transparent"
                 border.width: active ? 2 : 1
                 border.color: active ? accent.color : "#1E2A40"
@@ -948,7 +968,7 @@ Window {
                     asynchronous: true
                 }
                 Column {
-                    anchors { left: thumbBox.right; leftMargin: 12; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    anchors { left: thumbBox.right; leftMargin: 12; right: parent.right; rightMargin: 36; verticalCenter: parent.verticalCenter } // the game's icon to the right
                     spacing: 4
                     Row {
                         spacing: 8
@@ -989,7 +1009,12 @@ Window {
                         font.pixelSize: 12
                     }
                     Text {
-                        text: win.clock(card.modelData.fight) + (card.modelData.kind === "cs2" ? " match · " : " strid · ") + win.size(card.modelData.size)
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: card.clips.length
+                              ? win.clock(card.modelData.fight) + " match · " + card.clips.length + " klipp "
+                                + (card.open ? "▴" : "▾") + " · " + win.size(card.modelData.size + card.clips.reduce((a, c) => a + c.size, 0))
+                              : win.clock(card.modelData.fight) + (card.modelData.kind === "cs2" ? " match · " : " strid · ") + win.size(card.modelData.size)
                               + (card.modelData.keep ? " · sparad" : "") + (card.modelData.wcl ? (card.open ? " · WCL ▴" : " · WCL ▾") : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
@@ -1003,16 +1028,64 @@ Window {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        win.selected = card.modelData;
-                        if (card.modelData.wcl)
+                        win.selected = win.playable(card.modelData);
+                        if (card.clips.length) // a CS2 match: its clips fold out
+                            win.expanded = win.expanded === card.modelData.path ? "" : card.modelData.path;
+                        else if (card.modelData.wcl)
                             win.toggleStats(card.modelData); // the players from Warcraft Logs
+                    }
+                }
+
+                // A CS2 match's clips: all kills first, then 2K–ACE in the order they came
+                Column {
+                    id: clipsCol
+                    visible: card.open && card.clips.length > 0
+                    anchors { left: parent.left; right: parent.right; top: head.bottom; leftMargin: 12; rightMargin: 12 }
+                    spacing: 2
+                    Rectangle { width: parent.width; height: 1; color: "#1E2A40" }
+                    Repeater {
+                        model: card.clips
+                        Rectangle {
+                            id: clipRow
+                            required property var modelData
+                            readonly property bool chosen: win.selected && win.selected.path === modelData.path
+                            width: clipsCol.width
+                            height: 34
+                            color: chosen ? "#1A2C4E" : clipArea.containsMouse ? "#0E1420" : "transparent"
+                            Rectangle { visible: clipRow.chosen; width: 3; height: parent.height; color: accent.color }
+                            Text {
+                                anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                                text: (clipRow.modelData.clip === "Alla kills"
+                                       ? "▶ Alla kills (" + clipRow.modelData.markers.length + ")"
+                                       : clipRow.modelData.clip + "  ·  runda " + clipRow.modelData.round)
+                                      + (clipRow.modelData.keep ? "  ·  sparad" : "")
+                                color: clipRow.modelData.clip === "Alla kills" || clipRow.modelData.clip === "Kill" ? "#E6ECF5" : "#E5CC80"
+                                font.family: "IBM Plex Sans"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 13
+                            }
+                            Text {
+                                anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                                text: win.clock(clipRow.modelData.duration) + " · " + win.size(clipRow.modelData.size)
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                            }
+                            MouseArea {
+                                id: clipArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: win.selected = clipRow.modelData
+                            }
+                        }
                     }
                 }
 
                 // The players: parse, DPS, HPS and deaths from Warcraft Logs
                 Column {
                     id: statsCol
-                    visible: card.open
+                    visible: card.open && !card.clips.length
                     anchors { left: parent.left; right: parent.right; top: head.bottom; leftMargin: 12; rightMargin: 12 }
                     spacing: 4
                     readonly property var cols: [width - 44 - 44 - 58 - 58 - 38, 44, 44, 58, 58, 38]
@@ -1420,7 +1493,7 @@ Window {
                             if (!v)
                                 return "";
                             const deaths = v.markers.filter(m => m.kind === "death");
-                            if (v.kind === "cs2") {
+                            if (v.kind === "cs2" || v.kind === "cs2clip") {
                                 const kills = v.markers.filter(m => m.kind === "kill");
                                 const multi = kills.filter(m => !m.text.startsWith("Kill")).length;
                                 return win.when(v.started) + " · " + win.resultText(v).toLowerCase() + " efter " + win.clock(v.fight)
@@ -1448,7 +1521,7 @@ Window {
                             onClicked: backend.openUrl(playerPane.v.youtube.url)
                         }
                         FlatButton {
-                            visible: !!(playerPane.v && playerPane.v.kind !== "cs2" && (playerPane.v.wcl || backend.wclConfigured))
+                            visible: !!(playerPane.v && !String(playerPane.v.kind).startsWith("cs2") && (playerPane.v.wcl || backend.wclConfigured))
                             primary: !!(playerPane.v && playerPane.v.wcl)
                             enabledState: !win.wclBusy
                             text: playerPane.v && playerPane.v.wcl ? "Öppna i Warcraft Logs" : win.wclBusy ? "Söker …" : "Sök i Warcraft Logs"
@@ -1469,7 +1542,7 @@ Window {
                             onClicked: {
                                 const p = playerPane.v.path, k = !playerPane.v.keep;
                                 backend.setKeep(p, k);
-                                win.selected = win.videos.find(v => v.path === p) || null;
+                                win.selected = win.findVideo(p);
                             }
                         }
                         FlatButton {
@@ -2144,6 +2217,30 @@ Window {
                     id: textSave
                     interval: 600
                     onTriggered: backend.setOverlayText(win.overlayPick, overlayText.text)
+                }
+            }
+            Row { // the picked box: in which games it covers the picture (22 Oct, the user's wish)
+                visible: win.overlayPick >= 0 && win.overlayPick < (win.cfg.overlays || []).length
+                spacing: 8
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    rightPadding: 4
+                    text: "Döljer i"
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 15
+                }
+                Repeater {
+                    model: [{ "id": "wow", "name": "WoW" }, { "id": "cs2", "name": "CS2" }]
+                    Choice {
+                        required property var modelData
+                        readonly property var games: ((win.cfg.overlays || [])[win.overlayPick] || {}).games || ["wow", "cs2"]
+                        text: (chosen ? "✓  " : "") + modelData.name
+                        sub: "Av: rutan syns inte i filmerna från " + modelData.name + "."
+                        chosen: games.indexOf(modelData.id) >= 0
+                        onPicked: backend.setOverlayGames(win.overlayPick, JSON.stringify(
+                            chosen ? games.filter(g => g !== modelData.id) : games.concat([modelData.id])))
+                    }
                 }
             }
             Flow {

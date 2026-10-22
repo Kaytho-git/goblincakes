@@ -65,6 +65,7 @@ DEFAULTS = {
     "closeAction": "ask",  # the window's ✕: ask | tray = hide in the system tray | quit
     "keepWipes": False,  # False: only kills stay when WoW closes (and 2 wipes per raid boss meanwhile)
     "cs2": True,  # Counter-Strike 2 matches, from the end of the warm-up to the end (needs the GSI file)
+    "cs2KeepMatch": False,  # False: the whole match goes when its clips (2K–ACE, all kills) are made
 }
 
 CODECS = {"h264": "NVENC H.264", "hevc": "NVENC HEVC", "av1": "NVENC AV1", "x264": "x264"}
@@ -671,6 +672,20 @@ def set_overlays(obs, cfg, w, h):
         obs.call("SetSceneItemIndex", {"sceneName": OBS_NAME, "sceneItemId": item, "sceneItemIndex": top})
 
 
+def overlays_for_game(obs, cfg, game):
+    """Each box can be off in a game (22 Oct, the user's wish: not in CS2) – shown or hidden in
+    OBS's scene when a recording starts. game None (the test) = all of them."""
+    for i, ov in enumerate(cfg.get("overlays") or [], 1):
+        on = game is None or game in (ov.get("games") or ["wow", "cs2"])
+        for name in (f"{OVERLAY_PREFIX}{i}", f"{OVERLAY_PREFIX}{i} text"):
+            try:
+                item = obs.call("GetSceneItemId", {"sceneName": OBS_NAME, "sourceName": name})["sceneItemId"]
+            except OBSError:
+                continue  # no text in this box
+            obs.call("SetSceneItemEnabled", {"sceneName": OBS_NAME, "sceneItemId": item,
+                                             "sceneItemEnabled": on}, check=False)
+
+
 def overlay_kind(ov):
     return "image_source" if ov.get("file") else "color_source_v3"
 
@@ -967,13 +982,140 @@ def cs2_kill_text(n, headshot):
     return ({1: "Kill", 5: "ACE"}.get(n) or f"{n}K") + (" · HS" if headshot else "")
 
 
+# The match → clips (22 Oct, the user's wish – a whole match is 7–10 GB on Bäst): every 2K–ACE
+# as its own clip, a reel with all your kills, then the whole match goes. Cut without
+# re-encoding (keyframes every 2 s – a clip may start up to 2 s earlier), all audio tracks.
+CLIP_BEFORE, CLIP_AFTER = 5.0, 3.0  # 2K–ACE: from the first kill of the round to the last
+REEL_BEFORE, REEL_AFTER = 3.0, 1.5  # each kill in the reel; kills close together become one piece
+
+
+def cs2_clip_plan(meta):
+    """[(label, round, start, end, [kill times])] for the multikills, and the reel's pieces
+    [(start, end, [kill times])]."""
+    dur = meta.get("duration") or 0
+    rounds = cs2_has_rounds(meta.get("mode"))
+    rnd, per_round = 1, {}
+    kills = []
+    for m in sorted(meta.get("markers", []), key=lambda m: m["t"]):
+        if m["kind"] == "round":
+            rnd += 1
+        elif m["kind"] == "kill":
+            kills.append(m["t"])
+            per_round.setdefault(rnd, []).append(m["t"])
+    multi = []
+    if rounds:
+        for r, ts in sorted(per_round.items()):
+            if len(ts) >= 2:
+                label = "ACE" if len(ts) >= 5 else f"{len(ts)}K"
+                multi.append((label, r, max(ts[0] - CLIP_BEFORE, 0), min(ts[-1] + CLIP_AFTER, dur), ts))
+    pieces = []
+    for t in kills:
+        s, e = max(t - REEL_BEFORE, 0), min(t + REEL_AFTER, dur)
+        if pieces and s <= pieces[-1][1] + 1:
+            pieces[-1] = (pieces[-1][0], e, pieces[-1][2] + [t])
+        else:
+            pieces.append((s, e, [t]))
+    return multi, pieces
+
+
+def video_length(path):
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                        str(path)], capture_output=True, text=True)
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+def cut_copy(video, start, end, dest):
+    """All streams (the three audio tracks too), no re-encoding. True if the file is there.
+    A .ts piece (for the reel): MPEG-TS joins without the time stamp jumps MP4 pieces gave."""
+    out = ["-f", "mpegts"] if dest.suffix == ".ts" else ["-avoid_negative_ts", "make_zero", "-movflags", "+faststart"]
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{start:.3f}",
+                        "-i", str(video), "-t", f"{end - start:.3f}", "-map", "0", "-c", "copy", *out, str(dest)],
+                       capture_output=True, text=True)
+    return r.returncode == 0 and video_length(dest) > 0.5
+
+
+def cs2_make_clips(meta_path, keep_match=False):
+    """Makes the clips of a CS2 match (each with its own .json, "parent" = the match) and, when
+    they are all there, removes the match's video (its .json and picture stay, for the card).
+    Returns (the clips' names, error text)."""
+    meta_path = Path(meta_path)
+    meta = json.loads(meta_path.read_text())
+    folder, video = meta_path.parent, meta_path.parent / meta["file"]
+    if not video.is_file():
+        return [], "Matchens film finns inte."
+    multi, pieces = cs2_clip_plan(meta)
+    base = Path(meta["file"]).stem
+    made, todo = [], []
+    shared = {k: meta.get(k) for k in ("name", "difficulty", "result", "score", "tracks", "codec", "fps",
+                                       "player", "map", "mode")}
+
+    def clip_meta(dest, label, rnd, start, length, marks):
+        data = dict(shared, file=dest.name, kind="cs2clip", parent=meta["file"], clip=label, round=rnd,
+                    started=meta["started"] + start, fight=length, duration=length, fightStart=0,
+                    markers=marks)
+        dest.with_suffix(".json").write_text(json.dumps(data, ensure_ascii=False, indent=1))
+        make_thumb(dest, min(max((marks[0]["t"] if marks else 1) - 0.5, 0), max(length - 0.5, 0)),
+                   dest.with_suffix(".jpg"))
+        made.append(dest.name)
+
+    for label, rnd, start, end, ts in multi:
+        dest = folder / (safe_name(f"{base} – {label} runda {rnd}") + video.suffix)
+        todo.append(dest)
+        if cut_copy(video, start, end, dest):
+            length = video_length(dest)
+            lead = length - (end - start)  # the cut starts on the keyframe before
+            marks = [{"t": round(t - start + lead, 2), "kind": "kill", "text": m["text"]}
+                     for m in meta["markers"] if m["kind"] == "kill" and start <= m["t"] <= end for t in [m["t"]]]
+            clip_meta(dest, label, rnd, start, length, marks)
+    if pieces:
+        dest = folder / (safe_name(f"{base} – alla kills") + video.suffix)
+        todo.append(dest)
+        tmp = folder / f".goblincakes-reel-{os.getpid()}"
+        tmp.mkdir(exist_ok=True)
+        try:
+            parts, marks, at = [], [], 0.0
+            texts = {m["t"]: m["text"] for m in meta["markers"] if m["kind"] == "kill"}
+            for i, (s, e, ts) in enumerate(pieces):
+                part = tmp / f"{i:04d}.ts"
+                if not cut_copy(video, s, e, part):
+                    continue
+                length = video_length(part)
+                lead = length - (e - s)
+                marks += [{"t": round(at + t - s + lead, 2), "kind": "kill", "text": texts.get(t, "Kill")} for t in ts]
+                parts.append(part)
+                at += length
+            (tmp / "list.txt").write_text("".join(f"file '{p.name}'\n" for p in parts))
+            r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0",
+                                "-i", str(tmp / "list.txt"), "-map", "0", "-c", "copy", "-movflags", "+faststart",
+                                str(dest)], capture_output=True, text=True)
+            if parts and r.returncode == 0 and video_length(dest) > 0.5:
+                clip_meta(dest, "Alla kills", None, pieces[0][0], video_length(dest), marks)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    if len(made) < len(todo):
+        return made, f"{len(todo) - len(made)} av {len(todo)} klipp gick inte att göra – hela matchen sparas."
+    data = json.loads(meta_path.read_text())
+    data["clipsMade"] = True
+    if made and not keep_match and not data.get("keep"):
+        video.unlink(missing_ok=True)
+        data["videoRemoved"] = True
+    meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    return made, ""
+
+
 # ---------------------------------------------------------------- videos
 
 def safe_name(text):
     return re.sub(r'[/\\:*?"<>|]', "", text).strip() or "WoW"
 
 
-def video_files(folder):
+def video_files(folder, grouped=False):
+    """Every video, newest first. A CS2 match whose video was removed after the clips stays
+    (size 0) for its card. grouped (the window): a match's clips under it ("clips"), not on
+    their own."""
     folder = Path(folder)
     out = []
     for meta in sorted(folder.glob("*.json"), reverse=True):
@@ -982,15 +1124,26 @@ def video_files(folder):
         except (OSError, ValueError):
             continue
         video = folder / data.get("file", "")
-        if not video.is_file():
+        if not video.is_file() and not data.get("videoRemoved"):
             continue
         data["path"] = str(video)
-        data["size"] = video.stat().st_size
+        data["size"] = video.stat().st_size if video.is_file() else 0
         thumb = meta.with_suffix(".jpg")
         data["thumb"] = str(thumb) if thumb.exists() else ""
         out.append(data)
     out.sort(key=lambda v: v.get("started", 0), reverse=True)
+    if grouped:
+        matches = {v["file"]: v for v in out if v.get("kind") == "cs2"}
+        for v in sorted(out, key=lambda v: (v.get("clip") != "Alla kills", v.get("started", 0))):
+            if v.get("parent") in matches:
+                matches[v["parent"]].setdefault("clips", []).append(v)
+        out = [v for v in out if v.get("parent") not in matches]
+        out = [v for v in out if not (v.get("videoRemoved") and not v.get("clips"))]
     return out
+
+
+def match_clips(folder, match_file):
+    return [v for v in video_files(folder) if v.get("parent") == match_file]
 
 
 def folder_mtime(folder):
@@ -1423,7 +1576,7 @@ def drop_old_tests(folder, video):
 def drop_non_kills(folder):
     """When WoW closes: everything that is not a kill (or a key in time) goes, unless kept."""
     gone = [v for v in video_files(folder) if v.get("result") not in KEPT_RESULTS and not v.get("keep")
-            and v.get("kind") != "cs2"]
+            and v.get("kind") not in ("cs2", "cs2clip")]
     for v in gone:
         remove_video(v["path"])
     return [v["file"] for v in gone]
@@ -1437,9 +1590,13 @@ def prune(folder, max_gb):
     for v in reversed(vids):
         if total <= limit:
             break
-        if v.get("keep"):
+        if v.get("keep") or not v["size"]:
             continue
-        remove_video(v["path"])
+        if v.get("kind") == "cs2" and v.get("clipsMade"):  # the clips stay, the match's card too
+            Path(v["path"]).unlink(missing_ok=True)
+            set_meta(v["path"], videoRemoved=True)
+        else:
+            remove_video(v["path"])
         total -= v["size"]
 
 

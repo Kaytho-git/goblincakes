@@ -6,6 +6,7 @@ goblincakes-recorder.service). The window is /usr/bin/goblin-recorder.
   goblincakes-recorder start-obs  start OBS hidden, ready for GoblinRecorder
   goblincakes-recorder setup      make OBS's profile/scenes/audio tracks (OBS must run)
   goblincakes-recorder status     what the service sees right now (JSON)
+  goblincakes-recorder cs2-clips <video>  the 2K–ACE clips and the reel of a CS2 match again
 
 Raid: every boss pull becomes its own video. Mythic+: the whole key. Arena (also Solo
 Shuffle): the whole match. Counter-Strike 2: the match from the end of the warm-up to the end,
@@ -389,7 +390,7 @@ class Service:
     def begin(self, t, now, info):
         for attempt in (1, 2):
             try:
-                wall = self.start_record()
+                wall = self.start_record(info["kind"])
                 break
             except R.OBSError as e:
                 # OBS was restarted since the last call: the old connection is only found dead
@@ -410,11 +411,16 @@ class Service:
         self.error = ""
         log("recording", info["kind"], info["name"], f"(log {now - t:.2f} s late)")
 
-    def start_record(self):
+    def start_record(self, kind=None):
         """Starts OBS's recording; the time of the first frame, or None (error set)."""
         if self.call("GetRecordStatus").get("outputActive"):
             self.error = "OBS spelar redan in (startat för hand) – GoblinRecorder hoppar över den här."
             return None
+        if self.obs and self.cfg.get("overlays"):
+            try:  # the boxes that are on for this game
+                R.overlays_for_game(self.obs, self.cfg, None if kind == "test" else "cs2" if kind == "cs2" else "wow")
+            except (R.OBSError, OSError) as e:
+                log("overlays:", e)
         self.call("StartRecord")
         for _ in range(20):  # OBS answers at once and starts the output a moment later
             if self.call("GetRecordStatus").get("outputActive"):
@@ -506,8 +512,22 @@ class Service:
         if cur["kind"] == "test":
             for name in R.drop_old_tests(dest.parent, dest):
                 log("older test removed:", name)
+        if cur["kind"] == "cs2":
+            threading.Thread(target=self.cs2_clips, args=(dest.with_suffix(".json"),), daemon=True).start()
         R.prune(dest.parent, self.cfg["maxGB"])
 
+    def cs2_clips(self, meta_path):
+        """2K–ACE and the reel – after the late marks have had their time (none come for CS2, but
+        the .json is written once more when the video is saved)."""
+        time.sleep(3)
+        try:
+            made, err = R.cs2_make_clips(meta_path, keep_match=bool(self.cfg.get("cs2KeepMatch")))
+        except Exception as e:  # noqa: BLE001 – the match stays as it is
+            made, err = [], str(e)
+        log("CS2 clips:", len(made), err)
+        if err:
+            self.error = f"CS2-klippen: {err}"
+        self.last_video = f"clips {time.time()}"  # the window reads the list again
     def write_meta(self, meta, dest=None):
         dest = dest or Path(self.cfg["folder"]) / meta["file"]
         meta["_path"] = str(dest.with_suffix(".json"))
@@ -736,6 +756,11 @@ def main():
     elif cmd == "setup":
         with R.OBS() as obs:
             print(", ".join(R.setup_obs(obs, R.load_config())) or "redan klart")
+    elif cmd == "cs2-clips" and len(sys.argv) > 2:  # again by hand: goblincakes-recorder cs2-clips <video>
+        made, err = R.cs2_make_clips(Path(sys.argv[2]).with_suffix(".json"),
+                                     keep_match=bool(R.load_config().get("cs2KeepMatch")))
+        print("\n".join(made) or "inga klipp", err, sep="\n" if err else "")
+        sys.exit(1 if err else 0)
     elif cmd == "status":
         print(json.dumps(R.read_status(), ensure_ascii=False, indent=1))
     else:

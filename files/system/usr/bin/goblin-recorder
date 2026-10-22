@@ -217,11 +217,14 @@ class Backend(QObject):
     @Slot()
     def refreshVideos(self):
         cfg = R.load_config()
-        self._videos = json.dumps(R.video_files(cfg["folder"]), ensure_ascii=False)
+        self._videos = json.dumps(R.video_files(cfg["folder"], grouped=True), ensure_ascii=False)
         self.videosChanged.emit()
 
     @Slot(str)
     def removeVideo(self, path):
+        cfg = R.load_config()
+        for clip in R.match_clips(cfg["folder"], Path(path).name):  # a CS2 match: its clips too
+            R.remove_video(clip["path"])
         R.remove_video(path)
         self.refreshVideos()
 
@@ -317,6 +320,14 @@ class Backend(QObject):
         overlays = R.load_config().get("overlays") or []
         if 0 <= index < len(overlays) and overlays[index].get("text", "") != text:
             overlays[index]["text"] = text
+            self._save_overlays(overlays)
+
+    @Slot(int, str)
+    def setOverlayGames(self, index, games_json):
+        """In which games the box covers the picture (wow, cs2)."""
+        overlays = R.load_config().get("overlays") or []
+        if 0 <= index < len(overlays):
+            overlays[index]["games"] = json.loads(games_json)
             self._save_overlays(overlays)
 
     @Slot(int, float, float, float, float)

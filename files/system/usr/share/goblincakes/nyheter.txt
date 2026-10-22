@@ -1,5 +1,7 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-22  GoblinRecorder: efter en CS2-match blir varje 2K, 3K, 4K och ACE ett eget klipp, plus ett klipp med alla dina kills. Hela matchen tas sedan bort så att den inte tar plats (slå på Behåll hela matchen om du vill ha kvar den). Matchen är ett kort i listan – tryck på det så fälls klippen ut
+2026-10-22  GoblinRecorder: varje ruta under Dölj delar av bilden kan stängas av för WoW eller CS2 – välj rutan och klicka i Döljer i
 2026-10-22  GoblinRecorder: varje film har spelets ikon nere till höger i listan – WoW eller CS2
 2026-10-22  GoblinRecorder spelar in Counter-Strike 2: varje match (alla lägen) från att uppvärmningen är slut till sista rundan, med dina kills (guld för 2K–ACE), dödsfall, rundor och bomben som markeringar. Slå på det under Inställningar → Counter-Strike 2 och tryck Koppla in CS2. Sök i Warcraft Logs visas inte på CS2-filmer
 2026-10-22  GoblinAmp kan ha en egen färg: högerklicka på namnlisten (eller ⋯ → Färg…) och välj en klassfärg, eller Följ GOBLINCAKES för att ha samma färg som resten av systemet
