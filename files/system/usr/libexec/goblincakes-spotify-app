@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# GOBLINCAKES: Spotify's own app, started hidden in the system tray – GoblinAmp's Spotify lists
+# play on it (it plays in its own quality, Lossless included). The KWin script
+# goblincakes-windows hides the window that opens (kwinrc spotifyHide, set for 40 s): minimized,
+# not in the dock or Alt+Tab – the tray icon brings it back.
+# (Until 22 Oct also a Spotify web app in GOBLINCAKES' look – removed, GoblinAmp does it all.)
+set -uo pipefail
+
+SPOTIFY_APP=com.spotify.Client
+
+spotify_running() {
+    # The Flatpak's app (its main process is called spotify) or a Spotify from elsewhere
+    pgrep -x spotify >/dev/null 2>&1 || flatpak ps --columns=application 2>/dev/null | grep -qx "$SPOTIFY_APP"
+}
+
+kwin_reconfigure() {
+    busctl --user call org.kde.KWin /KWin org.kde.KWin reconfigure >/dev/null 2>&1 || true
+}
+
+flatpak info "$SPOTIFY_APP" >/dev/null 2>&1 || exit 0
+spotify_running && exit 0
+kwriteconfig6 --file kwinrc --group Script-goblincakes-windows --key spotifyHide true
+kwin_reconfigure
+setsid flatpak run "$SPOTIFY_APP" >/dev/null 2>&1 < /dev/null &
+(
+    sleep 40
+    kwriteconfig6 --file kwinrc --group Script-goblincakes-windows --key spotifyHide false
+    kwin_reconfigure
+) >/dev/null 2>&1 < /dev/null &
+disown -a

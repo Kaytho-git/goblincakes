@@ -9,7 +9,7 @@ Personlig Linux-distro byggd med **BlueBuild**, Fedora Kinoite (KDE Plasma 6) vi
 - `goblincakes-nvidia-legacy` (Nvidias 580-drivrutin för GTX 900/10, `files/scripts/install-nvidia-legacy.sh`).
 Images `ghcr.io/kaytho-git/<variant>:latest`. Byte i GOBLINCAKES Config → Grafik (`goblincakes-gpu`).
 
-**Recepten:** `recipes/recipe*.yml` har bara namn/bas; innehållet i `recipes/common-modules.yml` (moduler) och `recipes/common-stages.yml` (byggsteg) – ändra där. Bygget: `.github/workflows/build.yml` (matris, cosign, dagligen 06:00 UTC; BuildKit från `mirror.gcr.io`). Kör inte om ett äldre bygge när ett nyare finns (samma concurrency-grupp). Andra flöden: `build-iso.yml` (ISO, söndagar, release `iso`), `build-usb-creator.yml` (release `usb-skaparen`), `build-firefox-theme.yml`, `build-chrome-theme.yml` (Chrome-tema + Spotify-tillägg, release `chrome-tema` – höj `version` i manifesten vid ändring).
+**Recepten:** `recipes/recipe*.yml` har bara namn/bas; innehållet i `recipes/common-modules.yml` (moduler) och `recipes/common-stages.yml` (byggsteg) – ändra där. Bygget: `.github/workflows/build.yml` (matris, cosign, dagligen 06:00 UTC; BuildKit från `mirror.gcr.io`). Kör inte om ett äldre bygge när ett nyare finns (samma concurrency-grupp). Andra flöden: `build-iso.yml` (ISO, söndagar, release `iso`), `build-usb-creator.yml` (release `usb-skaparen`), `build-firefox-theme.yml`, `build-chrome-theme.yml` (Chrome-tema, release `chrome-tema` – höj `version` i manifesten vid ändring).
 
 Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prova direkt), har VS Code, redigerar ibland på GitHub. Nybörjare på Git – förklara kort.
 
@@ -82,7 +82,6 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Chrome/Brave/Chromium-tema, Firefox-tema
 - [x] Discord i GOBLINCAKES-stil (Vencord, eget val i Config; läggs in igen efter Discord-uppdateringar)
 - [x] Tiling med egna regler (Config → Fönster, layouter, Meta+Ctrl+1–9)
-- [x] Spotify (GOBLINCAKES) – webbspelaren i GOBLINCAKES-stil (ej provat mot riktiga Spotify)
 - [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, sök/egna listor, spara album, GENRER med Last.fm, MPRIS, GRAF)
 
 ## Att göra

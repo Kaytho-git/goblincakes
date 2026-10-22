@@ -1,12 +1,10 @@
-# GOBLINCAKES' theme for Chrome, Brave and Chromium (chrome-tema/) and the extension
-# "GOBLINCAKES för Spotify" (spotify-tillagg/, the Spotify web app's look – 21 Oct): each packed
+# GOBLINCAKES' theme for Chrome, Brave and Chromium (chrome-tema/): packed
 # as a signed CRX and published with its update manifest in the release "chrome-tema". The
 # browsers install them through policies in the image (/etc/opt/chrome/policies/managed,
 # /etc/brave/policies/managed and the Flatpak extension org.chromium.Chromium.Policy.goblincakes)
 # and update them themselves – a higher "version" in its manifest.json = a new version for everyone.
 # An extension's id comes from its signing key, so each secret (a PEM private key) must stay the
-# same, or the browsers see a new extension: CHROME_THEME_KEY → kffbncidpcaljkphgpmhlmbjjplajgli,
-# SPOTIFY_EXT_KEY → daanfinnnidalompgohdbodpoeijfpkh.
+# same, or the browsers see a new extension: CHROME_THEME_KEY → kffbncidpcaljkphgpmhlmbjjplajgli.
 name: Packa Chrome-temat
 
 on:
@@ -14,7 +12,6 @@ on:
     branches: [main]
     paths:
       - "chrome-tema/**"
-      - "spotify-tillagg/**"
       - ".github/workflows/build-chrome-theme.yml"
   workflow_dispatch:
 
@@ -38,11 +35,6 @@ jobs:
             updates: updates.xml
             id: kffbncidpcaljkphgpmhlmbjjplajgli
             secret: CHROME_THEME_KEY
-          - dir: spotify-tillagg
-            file: goblincakes-spotify
-            updates: spotify-updates.xml
-            id: daanfinnnidalompgohdbodpoeijfpkh
-            secret: SPOTIFY_EXT_KEY
     steps:
       - uses: actions/checkout@v4
 

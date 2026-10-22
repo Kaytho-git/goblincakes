@@ -197,32 +197,6 @@ DESKTOP
         status "$name finns nu i AppGrid"
         ;;
 
-    spotify-web)
-        # Spotify as a web app in GOBLINCAKES' look (/usr/libexec/goblincakes-spotify-web): the
-        # web player is the window, Spotify's own app plays the sound hidden in the tray.
-        # Named and made like the other web apps (goblincakes-webapp-<id>, an --app= in Exec – the
-        # script ignores it), so Config's "Helskärm" and "Starta vid inloggning" work for it too;
-        # same window class as a Chrome app for open.spotify.com, so the dock groups it.
-        apps="$HOME/.local/share/applications"
-        mkdir -p "$apps"
-        fullscreen=
-        grep -q '^X-GOBLINCAKES-Fullscreen=true' "$apps/goblincakes-webapp-spotify-web.desktop" 2>/dev/null \
-            && fullscreen=$'\nX-GOBLINCAKES-Fullscreen=true'
-        cat > "$apps/goblincakes-webapp-spotify-web.desktop" <<DESKTOP
-[Desktop Entry]
-Type=Application
-Name=Spotify (GOBLINCAKES)
-GenericName=Musik
-Comment=Spotifys spellistor och sök i GOBLINCAKES-stil – ljudet från Spotify-appen i bakgrunden
-Exec=/usr/libexec/goblincakes-spotify-web --app=https://open.spotify.com/
-Icon=com.spotify.Client
-Categories=AudioVideo;Audio;Player;
-Keywords=spotify;musik;music;
-StartupWMClass=chrome-open.spotify.com__-Default$fullscreen
-DESKTOP
-        update-desktop-database "$apps" >/dev/null 2>&1 || true
-        status "Spotify (GOBLINCAKES) finns nu i AppGrid – välj datorn under \"Anslut till en enhet\" en gång"
-        ;;
 
     webapp-custom)
         # GOBLINCAKES Config → "Egen webbapp": any website as its own app. url [name]

@@ -13,7 +13,6 @@ on:
       - "firefox-tema/**" # the Firefox theme is signed and published by build-firefox-theme.yml
       - ".github/workflows/build-firefox-theme.yml"
       - "chrome-tema/**" # the Chrome/Brave theme is packed and published by build-chrome-theme.yml
-      - "spotify-tillagg/**" # so is the extension for the Spotify web app
       - ".github/workflows/build-chrome-theme.yml"
       - "usb-skaparen/**"
       - ".github/workflows/build-usb-creator.yml"

@@ -92,7 +92,6 @@ Spelar in WoW och Counter-Strike 2 av sig själv med OBS – du behöver inte tr
   - **Spotify:** dina listor, Gillade låtar och kön; sök i hela Spotify, skapa egna listor, lägg till låtar med högerklick och ändra ordningen genom att dra. Artister visar alla album, populära låtar, singlar och liknande artister; ett helt album kan sparas som egen lista, och **♪ ALBUMET** öppnar albumet som spelas. Styr Spotify-appen, så ljudet och kvaliteten är som vanligt.
   - **GENRER:** välj en genre och få det populäraste i den (Last.fm) och Spotifys egna låtar och artister – eller musik som liknar det som spelas nu.
   - **Egen färg:** någon av klassfärgerna, eller samma som resten av GOBLINCAKES (högerklick på namnlisten).
-- **Spotify (GOBLINCAKES)** – Spotify i GOBLINCAKES-stil och din färg, utan förslag och sidopaneler. Ljudet kommer från Spotify-appen, som ligger gömd i systemfältet, så kvaliteten blir som vanligt.
 
 <p>
   <img src="docs/goblinamp-spotify.png" width="380" alt="GoblinAmp med staplar i klassfärger och en sökning i hela Spotify">

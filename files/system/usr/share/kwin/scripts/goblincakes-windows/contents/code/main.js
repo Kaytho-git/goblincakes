@@ -387,8 +387,8 @@ function quickAdded(window) {
     };
 }
 
-// Spotify (GOBLINCAKES) (21 Oct): goblincakes-spotify-web starts Spotify's own app to play the
-// sound behind the web app and sets kwinrc spotifyHide for a while – the window that opens then
+// Spotify hidden (21 Oct): goblincakes-spotify-app starts Spotify's own app to play the
+// sound behind GoblinAmp and sets kwinrc spotifyHide for a while – the window that opens then
 // is hidden: minimized, not in the dock, Alt+Tab or the pager. When it is brought back (its tray
 // icon, or Spotify in AppGrid) it is an ordinary window again.
 function isSpotify(window) {
