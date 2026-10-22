@@ -1194,7 +1194,8 @@ Window {
                 readonly property bool open: win.expanded === modelData.path && (!!modelData.wcl || cs2match)
                 readonly property var stats: modelData.wclStats || null
                 width: list.width - 16
-                height: 84 + (open ? (cs2match ? clipsCol.height : statsCol.height) + 12 : 0)
+                readonly property int headHeight: modelData.avgIlvl ? 100 : 84 // a 4th line: a.ilvl
+                height: headHeight + (open ? (cs2match ? clipsCol.height : statsCol.height) + 12 : 0)
                 color: active ? "#12203A" : cardArea.containsMouse ? "#0E1420" : "transparent"
                 border.width: active ? 2 : 1
                 border.color: active ? accent.color : "#1E2A40"
@@ -1202,7 +1203,7 @@ Window {
                 Item {
                     id: head
                     width: parent.width
-                    height: 84
+                    height: card.headHeight
                 Rectangle {
                     id: thumbBox
                     x: 8
@@ -1277,8 +1278,15 @@ Window {
                                 + (card.open ? "▴" : "▾") + " · " + win.size(card.modelData.size + card.clips.reduce((a, c) => a + c.size, 0))
                               : win.clock(card.modelData.fight) + (card.modelData.kind === "cs2" ? " match" + win.demoNote(card.modelData) + " · " : " strid · ") + win.size(card.modelData.size)
                               + (card.modelData.keep ? " · sparad" : "") + (card.modelData.wcl ? (card.open ? " · WCL ▴" : " · WCL ▾") : "")
-                              + (card.modelData.avgIlvl ? " · a.ilvl (" + win.num(card.modelData.avgIlvl.toFixed(1)) + ")" : "")
                               + (card.cs2match ? (card.open ? " ▴" : " ▾") : "")
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
+                    Text { // the raid's average item level in the fight (Warcraft Logs), and yours
+                        visible: !!card.modelData.avgIlvl
+                        text: "a.ilvl (" + win.num((card.modelData.avgIlvl || 0).toFixed(1)) + ")"
+                              + (card.modelData.ilvl ? " · din " + card.modelData.ilvl : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 12
