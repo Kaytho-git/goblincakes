@@ -2105,19 +2105,17 @@ Window {
         Column {
             anchors.centerIn: parent
             spacing: 2
-            Row {
+            Text {
+                id: tileValue
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 4
-                Text {
-                    text: tile.value
-                    color: tile.valueColor
-                    font.family: "IBM Plex Sans"
-                    font.weight: Font.DemiBold
-                    font.pixelSize: 18
-                }
-                Text { // green = better, red = worse
+                text: tile.value
+                color: tile.valueColor
+                font.family: "IBM Plex Sans"
+                font.weight: Font.DemiBold
+                font.pixelSize: 18
+                Text { // green = better, red = worse; beside the value, which stays in the middle
                     visible: tile.dir !== 0
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors { left: parent.right; leftMargin: 4; verticalCenter: parent.verticalCenter }
                     text: tile.dir === 1 ? "▲" : "▼"
                     color: (tile.dir === 1) !== tile.lowerBetter ? "#3FB950" : "#E5534B"
                     font.pixelSize: 11
@@ -2142,6 +2140,7 @@ Window {
         property var cells: []
         property var colors: []
         property var arrows: [] // per cell: 1 = ▲ (better), -1 = ▼ (worse), else nothing
+        property var arrowCols: [] // columns with room for an arrow after the number (every row, the heading too)
         property bool heading: false
         property string link
         property string tip
@@ -2159,10 +2158,16 @@ Window {
                     required property int index
                     width: trow.cols[index] || 80
                     horizontalAlignment: index ? Text.AlignRight : Text.AlignLeft
-                    text: (modelData === null || modelData === undefined ? "–" : String(modelData))
-                          + (trow.arrows[index] === 1 ? " <font color=\"#3FB950\">▲</font>"
-                             : trow.arrows[index] === -1 ? " <font color=\"#E5534B\">▼</font>" : "")
-                    textFormat: trow.arrows.length ? Text.StyledText : Text.PlainText
+                    rightPadding: trow.arrowCols.indexOf(index) >= 0 ? 14 : 0
+                    text: modelData === null || modelData === undefined ? "–" : String(modelData)
+                    Text {
+                        visible: arrow !== 0
+                        readonly property int arrow: trow.arrows[parent.index] || 0
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        text: arrow === 1 ? "▲" : "▼"
+                        color: arrow === 1 ? "#3FB950" : "#E5534B"
+                        font.pixelSize: 9
+                    }
                     color: trow.colors[index] || (trow.heading || index ? "#8B98AD" : "#E6ECF5")
                     elide: Text.ElideRight
                     font.family: trow.heading ? "Chakra Petch" : "IBM Plex Sans"
@@ -2476,6 +2481,7 @@ Window {
                 TableRow {
                     heading: true
                     cols: parent.cols
+                    arrowCols: [1]
                     cells: ["BOSS", "SENASTE", "BÄST", "MEDIAN", "ILVL %", "KILLS", "WIPES", "SNABBAST", "BÄSTA " + wowPage.metric, "ILVL", "AVG.ILVL", "SENAST"]
                 }
                 Repeater {
@@ -2487,6 +2493,7 @@ Window {
                         cells: [modelData.name, modelData.lastParse, modelData.best, modelData.median, modelData.ilvlParse, modelData.kills,
                                 modelData.wipes, win.fmtTime(modelData.fastest), modelData.amount ? win.amount(modelData.amount) : null,
                                 modelData.ilvl, modelData.avgIlvl ? win.num(modelData.avgIlvl.toFixed(1)) : null, win.day(modelData.last)]
+                        arrowCols: [1]
                         arrows: [0, wowPage.arrow(modelData.lastParse, modelData.prevParse)]
                         tip: (modelData.prevParse !== null ? "Senaste parse " + modelData.lastParse + ", förra " + modelData.prevParse + ". " : "")
                              + (modelData.url ? "Öppna din bästa kill i Warcraft Logs" : "")
@@ -2506,6 +2513,7 @@ Window {
                 TableRow {
                     heading: true
                     cols: parent.cols
+                    arrowCols: [5]
                     cells: ["DUNGEON", "BÄSTA I TID", "HÖGSTA", "KÖRNINGAR", "I TID", "SENASTE", "BÄST", "MEDIAN", "BÄSTA " + wowPage.metric]
                 }
                 Repeater {
@@ -2517,6 +2525,7 @@ Window {
                         cells: [modelData.name, modelData.bestLevel ? "+" + modelData.bestLevel : null,
                                 modelData.topLevel ? "+" + modelData.topLevel : null, modelData.pulls, modelData.kills,
                                 modelData.lastParse, modelData.best, modelData.median, modelData.amount ? win.amount(modelData.amount) : null]
+                        arrowCols: [5]
                         arrows: [0, 0, 0, 0, 0, wowPage.arrow(modelData.lastParse, modelData.prevParse)]
                         tip: modelData.prevParse !== null ? "Senaste parse " + modelData.lastParse + ", förra " + modelData.prevParse : ""
                         colors: [null, null, null, null, null, modelData.lastParse !== null ? win.parseColor(modelData.lastParse) : null,
