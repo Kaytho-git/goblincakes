@@ -190,6 +190,27 @@ CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "gobl
 WOW_LOGS = Path.home() / "Games/WoW"  # <Version>/Logs (goblincakes-wow-links)
 SOCKET = f"goblin-graph-{os.getuid()}"
 
+# A game runs: the same look as the local AI's game watcher (goblincakes-ollama) – Steam's game
+# wrapper (reaper), a Windows program in Wine/Proton, or gamescope. The graph stands still then
+# (the user's wish 22 Oct: less load while playing) and starts again when the game is closed.
+GAME = re.compile(r"^(reaper|.*\.exe|gamescope|wine.*preloader)$", re.I)
+NOT_GAMES = ("steamwebhelper.exe", "explorer.exe", "services.exe", "winedevice.exe", "plugplay.exe",
+             "svchost.exe", "rpcss.exe", "conhost.exe", "start.exe", "tabtip.exe")
+
+
+def game_running():
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            comm = Path(f"/proc/{pid}/comm").read_text().strip()
+        except OSError:
+            continue
+        if GAME.match(comm) and comm.lower() not in NOT_GAMES:
+            return True
+    return False
+
+
 # World of Warcraft Retail's class colours, in the game's own (alphabetical) order
 CLASSES = [
     ("deathknight", "Death Knight", "#C41E3A"), ("demonhunter", "Demon Hunter", "#A330C9"),
@@ -484,17 +505,35 @@ class Graph(QObject):
         self._now_new = None
         self.now_timer = QTimer(self)
         self.now_timer.timeout.connect(self.ask_now_playing)
+        self._want = not self.embedded   # GoblinAmp: only while it shows (setActive)
+        self.gaming = False
+        self.game_timer = QTimer(self)
+        self.game_timer.timeout.connect(self._look_for_game)
+        self.game_timer.start(3000)
         if not self.embedded:
-            self.timer.start(33)
             self.now_timer.start(3000)
             self.ask_now_playing()
+        self._run()
 
     def setActive(self, on):
         """GoblinAmp: the graph runs only while it shows."""
-        if on and not self.timer.isActive():
-            self.timer.start(33)
-        elif not on:
+        self._want = on
+        self._run()
+
+    def _run(self):
+        if self._want and not self.gaming:
+            if not self.timer.isActive():
+                self.timer.start(33)
+        elif self.timer.isActive():
             self.timer.stop()
+            self._levels, self._wave, self._rings, self._sparks = [], [], [], []
+            self.levelsChanged.emit()
+
+    def _look_for_game(self):
+        gaming = game_running()
+        if gaming != self.gaming:
+            self.gaming = gaming
+            self._run()
 
     def setNowPlaying(self, text):
         """GoblinAmp tells what plays (it knows already)."""

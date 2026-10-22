@@ -166,6 +166,7 @@ class Watcher(threading.Thread):
         self.amp = amp
         self.wake = threading.Event()
         self.alive = True
+        self.slow = False   # the window is hidden: only the tray's tooltip needs it
 
     def run(self):
         while self.alive:
@@ -176,7 +177,7 @@ class Watcher(threading.Thread):
                 if not state or (found["status"] == "Playing" and state["status"] != "Playing"):
                     state = found
             self.amp.stateRead.emit(json.dumps(state))
-            self.wake.wait(POLL)
+            self.wake.wait(POLL * 5 if self.slow else POLL)
             self.wake.clear()
 
 
@@ -224,10 +225,11 @@ class LocalPlayer(QObject):
     def __init__(self, settings, save):
         super().__init__()
         self.settings, self.save = settings, save
-        self.player = QMediaPlayer(self)
-        self.out = QAudioOutput(self)
-        self.player.setAudioOutput(self.out)
-        self.out.setVolume(float(settings.get("localVolume", 0.8)))
+        # Qt's media player is made at the first own song: it loads FFmpeg (and CUDA with
+        # Nvidia) – about 150 MB that someone who only steers Spotify never needs (22 Oct)
+        self._player = None
+        self.out = None
+        self.volume = float(settings.get("localVolume", 0.8))
         self.queue = [L.row_for(p) for p in L.read_list(L.NOW)]
         self.index = max(0, min(int(settings.get("localIndex", 0)), len(self.queue) - 1)) if self.queue else -1
         self.shuffle = bool(settings.get("localShuffle"))
@@ -238,11 +240,25 @@ class LocalPlayer(QObject):
         self.errors = 0
         self.cover = ""
         self.message = ""
-        self.player.playbackStateChanged.connect(self._changed)
-        self.player.durationChanged.connect(self._changed)
-        self.player.mediaStatusChanged.connect(self._status)
-        self.player.errorOccurred.connect(self._error)
         self._cover.connect(self._got_cover)
+
+    @property
+    def player(self):
+        if self._player is None:
+            self._player = QMediaPlayer(self)
+            self.out = QAudioOutput(self)
+            self._player.setAudioOutput(self.out)
+            self.out.setVolume(self.volume)
+            self._player.playbackStateChanged.connect(self._changed)
+            self._player.durationChanged.connect(self._changed)
+            self._player.mediaStatusChanged.connect(self._status)
+            self._player.errorOccurred.connect(self._error)
+        return self._player
+
+    def halt(self, stop=False):
+        """Pause (or stop) – nothing to do while no own song was played yet."""
+        if self._player is not None:
+            self._player.stop() if stop else self._player.pause()
 
     def _changed(self, *_):
         self.changed.emit()
@@ -253,23 +269,25 @@ class LocalPlayer(QObject):
         return self.queue[self.index] if 0 <= self.index < len(self.queue) else None
 
     def playing(self):
-        return self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+        return self._player is not None and \
+            self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
 
     def state(self):
         row = self.current()
         if row is None:
             return {}
+        p = self._player
         status = {QMediaPlayer.PlaybackState.PlayingState: "Playing",
-                  QMediaPlayer.PlaybackState.PausedState: "Paused"}.get(self.player.playbackState(), "Stopped")
-        loaded = self.row is not None
-        duration = self.player.duration() / 1000 if loaded and self.player.duration() > 0 else row.get("seconds") or 0
+                  QMediaPlayer.PlaybackState.PausedState: "Paused"}.get(p and p.playbackState(), "Stopped")
+        loaded = self.row is not None and p is not None
+        duration = p.duration() / 1000 if loaded and p.duration() > 0 else row.get("seconds") or 0
         return {
             "service": "local", "local": True, "player": "GoblinAmp", "status": status,
             "path": row["path"], "title": row.get("title") or Path(row["path"]).stem,
             "artist": row.get("artist") or "", "album": row.get("album") or "",
             "trackid": f"/org/goblincakes/amp/track/{max(self.index, 0)}",
-            "length": duration, "position": self.player.position() / 1000 if loaded else 0,
-            "volume": round(self.out.volume(), 3), "shuffle": self.shuffle, "loop": self.loop,
+            "length": duration, "position": p.position() / 1000 if loaded else 0,
+            "volume": round(self.volume, 3), "shuffle": self.shuffle, "loop": self.loop,
             "canSeek": True, "readAt": time.time() * 1000, "cover": self.cover,
             "index": self.index, "message": self.message,
         }
@@ -324,11 +342,11 @@ class LocalPlayer(QObject):
             else:
                 self.player.play()
         elif what == "pause":
-            self.player.pause()
+            self.halt()
         elif what == "playpause":
             self.control("pause" if self.playing() else "play")
         elif what == "stop":
-            self.player.stop()
+            self.halt(stop=True)
         elif what == "next":
             n = self.next_index(True)
             if n is not None:
@@ -375,8 +393,10 @@ class LocalPlayer(QObject):
         self.changed.emit()
 
     def set_volume(self, v):
-        self.out.setVolume(max(0.0, min(1.0, float(v))))
-        self.settings["localVolume"] = round(self.out.volume(), 3)
+        self.volume = max(0.0, min(1.0, float(v)))
+        if self.out is not None:
+            self.out.setVolume(self.volume)
+        self.settings["localVolume"] = round(self.volume, 3)
         self.save()
         self.changed.emit()
 
@@ -614,6 +634,14 @@ class Amp(QObject):
         return self._levels
 
     def tick(self):
+        # Silence (nothing playing, a pause): the bars have fallen – no Python FFT 30 times a second
+        if time.monotonic() - self.listener.last > 1 and not any(self._levels):
+            return
+        if self.graph.gaming:   # a game runs: the bars rest too (goblin graph looks for it)
+            if any(self._levels):
+                self._levels = [0.0] * BARS
+                self.levelsChanged.emit()
+            return
         samples = self.listener.samples()[-G.SIZE:]
         raw = self.spec.levels(samples, BARS)
         top = max(raw) if raw else 0
@@ -623,10 +651,23 @@ class Amp(QObject):
             db = 20 * math.log10(max(v / self.gain, 1e-6))
             level = max(0.0, min(1.0, 1 + db / 40))
             old = self._levels[i]
-            new.append(level if level > old else old * 0.8 + level * 0.2)
+            new.append(level if level > old else 0.0 if old < 0.004 else old * 0.8 + level * 0.2)
         if any(abs(a - b) > 0.004 for a, b in zip(new, self._levels)):
             self._levels = new
             self.levelsChanged.emit()
+
+    def setShown(self, shown):
+        """The window hidden in the system tray: the bars, the graph and the quick look at the
+        player stand still (they drew ~12 % of a CPU core for nobody – 22 Oct)."""
+        if shown:
+            self.timer.start(33)
+            self.graph.setActive(self._graph_on)
+            self.watcher.slow = False
+            self.watcher.wake.set()
+        else:
+            self.timer.stop()
+            self.graph.setActive(False)
+            self.watcher.slow = True
 
     def _service(self):
         try:
@@ -1231,7 +1272,7 @@ class Amp(QObject):
         self._pl_job("Tar bort listan…", work)
 
     def _spotify_takes_over(self):
-        self.local.player.pause()
+        self.local.halt()
         self.source = "external"
         self._compose()
 
@@ -1705,7 +1746,7 @@ class Amp(QObject):
 
     @Slot()
     def localClear(self):
-        self.local.player.stop()
+        self.local.halt(stop=True)
         self.local.row = None
         self.local._keep(lambda: self.local.queue.clear())
         self._compose()
@@ -1767,7 +1808,7 @@ def make_tray(app, win, amp):
         tray.setToolTip("GoblinAmp" + ("\n" + now if now else ""))
     amp.stateChanged.connect(tip)
     tip()
-    win.visibleChanged.connect(lambda shown: tray.setVisible(not shown))
+    win.visibleChanged.connect(lambda shown: (tray.setVisible(not shown), amp.setShown(shown)))
     return tray
 
 
@@ -1775,6 +1816,9 @@ def main():
     if sys.argv[1:2] in (["-h"], ["--help"], ["help"]):
         print(__doc__)
         return 0
+    # Drawn by the CPU: a small window that mostly lies in the tray – the GPU's driver alone took
+    # ~45 MB (Nvidia) that it never gives back; Canvas paints with the CPU either way (22 Oct)
+    os.environ.setdefault("QT_QUICK_BACKEND", "software")
     app = QApplication(sys.argv[:1])   # Widgets for the system tray's menu
     app.setApplicationName("goblin-amp")
     app.setApplicationDisplayName("GoblinAmp")

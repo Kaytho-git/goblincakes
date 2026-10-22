@@ -24,6 +24,30 @@ Window {
     // a big window (full screen): the settings bigger instead of small text spread out (22 Oct, the user)
     readonly property real zoom: Math.max(1, Math.min(1.7, width / 1320))
     property var selected: null
+    // The video player is made at the first film that plays or is sought (22 Oct): Qt's media
+    // player loads FFmpeg (and CUDA with Nvidia) – ~150 MB for a window that mostly lies in the
+    // tray. Until then idlePlayer stands in: the same properties, stopped.
+    property QtObject player: idlePlayer
+    property bool wantVideo: false
+    function realPlayer() {
+        if (player === idlePlayer) {
+            wantVideo = true; // the surface first, so the player has somewhere to show
+            player = mediaPlayer.createObject(win, { source: idlePlayer.source });
+        }
+        return player;
+    }
+    QtObject {
+        id: idlePlayer
+        readonly property int duration: 0
+        readonly property int position: 0
+        readonly property int playbackState: MediaPlayer.StoppedState
+        readonly property var audioTracks: []
+        property int activeAudioTrack: 0
+        property url source: ""
+        function play() { win.realPlayer().play(); }
+        function pause() {}
+        function stop() {}
+    }
     // The ✕ (19 Oct, the user's wish): hide in the system tray or close – asks until remembered
     property bool closeAsk: false
     property bool closeRemember: false
@@ -695,8 +719,8 @@ Window {
                     const xs = ds.trend.map(o => o.demoStats[k]).filter(x => x !== undefined && x !== null);
                     return xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : null;
                 }
-                text: "Snitt: ADR " + win.num(avg("adr").toFixed(1)) + " · K/D " + win.num(avg("kd").toFixed(2))
-                      + " · HS " + Math.round(avg("hs")) + " % · KAST " + Math.round(avg("kast")) + " %"
+                text: "Snitt: ADR " + win.num(avg("adr")?.toFixed(1) ?? "–") + " · K/D " + win.num(avg("kd")?.toFixed(2) ?? "–")
+                      + " · HS " + win.num(avg("hs") === null ? null : Math.round(avg("hs"))) + " % · KAST " + win.num(avg("kast") === null ? null : Math.round(avg("kast"))) + " %"
                       + (avg("ttd") !== null ? " · TTD " + Math.round(avg("ttd")) + " ms" : "")
                       + (avg("cp") !== null ? " · sikte " + win.num(avg("cp").toFixed(1)) + "°" : "")
                 color: "#8B98AD"
@@ -1591,10 +1615,12 @@ Window {
                 player.activeAudioTrack = 0;
             }
 
-            MediaPlayer {
-                id: player
-                videoOutput: video
-                audioOutput: AudioOutput { id: audio; volume: 0.8 }
+            Component {
+                id: mediaPlayer
+                MediaPlayer {
+                    videoOutput: video.item
+                    audioOutput: AudioOutput { volume: 0.8 }
+                }
             }
 
             Rectangle {
@@ -1607,10 +1633,12 @@ Window {
                 color: "#000000"
                 border.width: 1
                 border.color: "#1E2A40"
-                VideoOutput {
+                Loader { // the video surface loads FFmpeg too: made with the player (win.realPlayer)
                     id: video
                     anchors.fill: parent
                     anchors.margins: 1
+                    active: win.player !== idlePlayer || win.wantVideo
+                    sourceComponent: VideoOutput {}
                 }
                 Image { // the thumbnail until it plays
                     anchors.fill: parent
@@ -1694,7 +1722,7 @@ Window {
                             anchors.margins: -4
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: player.position = Math.max(0, mark.modelData.t - 5) * 1000
+                            onClicked: win.realPlayer().position = Math.max(0, mark.modelData.t - 5) * 1000
                         }
                         Rectangle {
                             visible: markArea.containsMouse
@@ -1729,7 +1757,7 @@ Window {
                     anchors.fill: parent
                     z: -1
                     cursorShape: Qt.PointingHandCursor
-                    function seek(x) { player.position = Math.max(0, Math.min(1, x / width)) * playerPane.dur * 1000; }
+                    function seek(x) { win.realPlayer().position = Math.max(0, Math.min(1, x / width)) * playerPane.dur * 1000; }
                     onPressed: mouse => seek(mouse.x)
                     onPositionChanged: mouse => { if (pressed) seek(mouse.x); }
                 }
