@@ -2275,29 +2275,42 @@ Window {
                 }
             }
 
-            Flow {
+            Row { // the tiles, and the parses over time to the right of them
                 visible: !!wowPage.d.player
-                width: parent.width
-                spacing: 6
-                StatTile {
-                    label: "BÄSTA SNITT"
-                    value: wowPage.r && wowPage.r.best !== null ? win.num(wowPage.r.best) : "–"
-                    valueColor: wowPage.r && wowPage.r.best !== null ? win.parseColor(wowPage.r.best) : "#E6ECF5"
-                    tip: "Snittet av din bästa parse per boss (" + win.wowShownDiff + ") – som Best Perf. Avg hos Warcraft Logs."
+                spacing: 28
+                Flow {
+                    width: 6 * 112 + 5 * 6
+                    spacing: 6
+                    StatTile {
+                        label: "BÄSTA SNITT"
+                        value: wowPage.r && wowPage.r.best !== null ? win.num(wowPage.r.best) : "–"
+                        valueColor: wowPage.r && wowPage.r.best !== null ? win.parseColor(wowPage.r.best) : "#E6ECF5"
+                        tip: "Snittet av din bästa parse per boss (" + win.wowShownDiff + ") – som Best Perf. Avg hos Warcraft Logs."
+                    }
+                    StatTile {
+                        label: "MEDIAN SNITT"
+                        value: wowPage.r && wowPage.r.median !== null ? win.num(wowPage.r.median) : "–"
+                        valueColor: wowPage.r && wowPage.r.median !== null ? win.parseColor(wowPage.r.median) : "#E6ECF5"
+                        tip: "Snittet av din median-parse per boss – hur du brukar prestera, inte bara din bästa."
+                    }
+                    StatTile { label: "KILLS"; value: wowPage.r ? String(wowPage.r.kills) : "–"; tip: "Inspelade kills på " + win.wowShownDiff + "." }
+                    StatTile { label: "PULLS"; value: wowPage.r ? String(wowPage.r.pulls) : "–"; tip: "Alla inspelade pulls, wipes också." }
+                    StatTile { label: "ITEM LEVEL"; value: wowPage.d.ilvl ? String(wowPage.d.ilvl) : "–"; tip: "Din item level i den senaste loggen." }
+                    StatTile {
+                        label: "M+ I TID"
+                        value: wowPage.d.mplus ? wowPage.d.mplus.timed + "/" + wowPage.d.mplus.runs : "–"
+                        tip: "Inspelade nycklar i tid av alla."
+                    }
                 }
-                StatTile {
-                    label: "MEDIAN SNITT"
-                    value: wowPage.r && wowPage.r.median !== null ? win.num(wowPage.r.median) : "–"
-                    valueColor: wowPage.r && wowPage.r.median !== null ? win.parseColor(wowPage.r.median) : "#E6ECF5"
-                    tip: "Snittet av din median-parse per boss – hur du brukar prestera, inte bara din bästa."
-                }
-                StatTile { label: "KILLS"; value: wowPage.r ? String(wowPage.r.kills) : "–"; tip: "Inspelade kills på " + win.wowShownDiff + "." }
-                StatTile { label: "PULLS"; value: wowPage.r ? String(wowPage.r.pulls) : "–"; tip: "Alla inspelade pulls, wipes också." }
-                StatTile { label: "ITEM LEVEL"; value: wowPage.d.ilvl ? String(wowPage.d.ilvl) : "–"; tip: "Din item level i den senaste loggen." }
-                StatTile {
-                    label: "M+ I TID"
-                    value: wowPage.d.mplus ? wowPage.d.mplus.timed + "/" + wowPage.d.mplus.runs : "–"
-                    tip: "Inspelade nycklar i tid av alla."
+                Bars {
+                    visible: (wowPage.d.trend || []).length > 1
+                    title: "PARSE ÖVER TID"
+                    values: (wowPage.d.trend || []).map(t => t.parse)
+                    barColors: (wowPage.d.trend || []).map(t => win.parseColor(t.parse))
+                    maxValue: 100
+                    tips: (wowPage.d.trend || []).map(t => t.name + (t.level ? " +" + t.level : " " + (t.difficulty || "")) + " · "
+                                                          + win.day(t.started) + " · parse " + t.parse + (t.ilvl ? " · ilvl " + t.ilvl : "")
+                                                          + (t.avgIlvl ? " · avg.ilvl " + win.num(t.avgIlvl.toFixed(1)) : ""))
                 }
             }
 
@@ -2308,16 +2321,6 @@ Window {
                 text: wowPage.d.missing + " kills/nycklar saknar siffror än – tjänsten hämtar loggen själv när den finns i Warcraft Logs."
             }
 
-            Bars {
-                visible: (wowPage.d.trend || []).length > 1
-                title: "PARSE ÖVER TID · senaste " + (wowPage.d.trend || []).length + " kills och nycklar"
-                values: (wowPage.d.trend || []).map(t => t.parse)
-                barColors: (wowPage.d.trend || []).map(t => win.parseColor(t.parse))
-                maxValue: 100
-                tips: (wowPage.d.trend || []).map(t => t.name + (t.level ? " +" + t.level : " " + (t.difficulty || "")) + " · "
-                                                      + win.day(t.started) + " · parse " + t.parse + (t.ilvl ? " · ilvl " + t.ilvl : "")
-                                                      + (t.avgIlvl ? " · avg.ilvl " + win.num(t.avgIlvl.toFixed(1)) : ""))
-            }
             // RAID: one table per difficulty
             Item { visible: !!wowPage.r; width: 1; height: 6 }
             Row {
