@@ -43,6 +43,8 @@ WCL_LIVE_EVERY = 30  # … and this often while a report is live logged (or just
 WCL_LIVE_FOR = 20 * 60  # live = a live-logged report seen this recently
 WCL_FOR = 24 * 3600  # … for videos this young
 WCL_FRESH = 15 * 60  # a video this young without a link is looked for …
+REPORT_AGAIN = 30 * 60  # a report from tonight is read again this often (it grows during the evening)
+REPORT_FRESH = 12 * 3600  # … while its newest video is this young
 DEMO_EVERY = 30  # look for new CS2 demos this often (while a match waits for one)
 DEMO_SETTLE = 15  # a demo unchanged this long is whole (downloaded / `stop` given)
 WCL_FRESH_EVERY = 15  # … this often (only the fresh ones: Live Log has the fight within seconds)
@@ -673,12 +675,21 @@ class Service:
         # a.ilvl on the card: every video with a link, old ones too (cheap)
         ilvl = [v for v in R.video_files(self.cfg["folder"])
                 if v.get("kind") in ("raid", "mplus", "arena") and v.get("wcl") and "avgIlvl" not in v][:20]
-        if not todo and not stats and not ilvl:
+        # WoW Stats: every pull in the reports your videos point to – wipes too, also deleted/unrecorded ones
+        newest = {}
+        for v in R.video_files(self.cfg["folder"]):
+            if v.get("kind") == "raid" and v.get("wcl") and v.get("player"):
+                c = v["wcl"]["code"]
+                newest[c] = max(newest.get(c, (0, ""))[0], v["started"]), v["player"]
+        seen = R.reports_read()
+        reports = [(c, p) for c, (t, p) in newest.items()
+                   if c not in seen or (now - t < REPORT_FRESH and now - seen[c] > REPORT_AGAIN)][:5]
+        if not todo and not stats and not ilvl and not reports:
             return
         self.wcl_busy = True
-        threading.Thread(target=self.wcl_run, args=(todo, stats, ilvl), daemon=True).start()
+        threading.Thread(target=self.wcl_run, args=(todo, stats, ilvl, reports), daemon=True).start()
 
-    def wcl_run(self, todo, stats=(), ilvl=()):
+    def wcl_run(self, todo, stats=(), ilvl=(), reports=()):
         try:
             for v in todo:
                 found = R.wcl_find(v)
@@ -694,6 +705,10 @@ class Service:
                 R.set_meta(v["path"], **R.wcl_ilvl(v["wcl"], v.get("player", "")))
                 R.wow_history_add(json.loads(Path(v["path"]).with_suffix(".json").read_text()))
                 self.last_video = Path(v["path"]).name + "#ilvl"
+            for code, player in reports:
+                n = R.wcl_report_pulls(code, player)
+                R.reports_read(code)
+                log("Warcraft Logs report", code, "read for WoW Stats:", n, "new pulls")
         except Exception as e:  # noqa: BLE001 – no network etc.: try again later
             log("Warcraft Logs:", e)
         finally:

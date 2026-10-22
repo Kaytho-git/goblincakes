@@ -2450,6 +2450,10 @@ def wow_history_add(meta, stats=None):
         return
     hist = wow_history()
     key = f"{meta['player']}|{int(meta.get('started', 0))}"
+    if key not in hist:  # the same pull already came from the log: this one takes its place
+        twin = _same_pull(hist, meta)
+        if twin:
+            hist[key] = hist.pop(twin)
     e = dict(hist.get(key) or {})  # a copy: compared with the saved one below
     e.update({k: meta.get(k) for k in ("player", "kind", "name", "difficulty", "level", "result", "started",
                                        "fight", "encounterId", "avgIlvl")})
@@ -2466,10 +2470,73 @@ def wow_history_add(meta, stats=None):
     if hist.get(key) == e:
         return
     hist[key] = e
+    _save_history(hist)
+
+
+WCL_DIFFICULTIES = {1: "LFR", 3: "Normal", 4: "Heroic", 5: "Mythic"}  # Warcraft Logs' numbers
+SAME_PULL = 60  # a recorded pull and a fight in the log this close (seconds, same boss) are the same
+
+
+def _same_pull(hist, e):
+    for k, o in hist.items():
+        if (o.get("player") == e.get("player") and str(o.get("encounterId")) == str(e.get("encounterId"))
+                and o.get("kind") == "raid" and abs((o.get("started") or 0) - (e.get("started") or 0)) < SAME_PULL):
+            return k
+    return None
+
+
+def _save_history(hist):
     WOW_HISTORY.parent.mkdir(parents=True, exist_ok=True)
     tmp = WOW_HISTORY.with_suffix(".tmp")
     tmp.write_text(json.dumps(hist, ensure_ascii=False))
     tmp.replace(WOW_HISTORY)
+
+
+def wcl_report_pulls(code, player):
+    """Every boss pull in a Warcraft Logs report that you were in – wipes too, also ones that were
+    not recorded or whose video is gone (22 Oct, the user: "the log is collected anyway") – into the
+    history. A pull that is recorded too counts once. About 3 of the hour's 1000 points. Returns
+    how many were new."""
+    name = player.split("-")[0]
+    r = wcl_query("query($c:String){ reportData { report(code:$c) { startTime fights(killType: Encounters) {"
+                  " id encounterID name kill startTime endTime difficulty friendlyPlayers }"
+                  " masterData { actors(type: \"Player\") { id name } } } } }", {"c": code})["reportData"]["report"]
+    if not r:
+        return 0
+    ids = {a["id"] for a in (r.get("masterData") or {}).get("actors") or [] if a.get("name") == name}
+    hist, new = wow_history(), 0
+    for f in r.get("fights") or []:
+        if f.get("difficulty") not in WCL_DIFFICULTIES or not ids & set(f.get("friendlyPlayers") or []):
+            continue
+        e = {"player": player, "kind": "raid", "name": f["name"], "difficulty": WCL_DIFFICULTIES[f["difficulty"]],
+             "result": "kill" if f.get("kill") else "wipe", "started": (r["startTime"] + f["startTime"]) / 1000,
+             "fight": (f["endTime"] - f["startTime"]) / 1000, "encounterId": str(f["encounterID"]),
+             "url": f"{WCL}/reports/{code}#fight={f['id']}", "fromLog": True}
+        twin = _same_pull(hist, e)
+        if twin:
+            if not hist[twin].get("url"):
+                hist[twin]["url"] = e["url"]
+            continue
+        hist[f"{player}|log|{code}|{f['id']}"] = e
+        new += 1
+    _save_history(hist)
+    return new
+
+
+REPORTS_READ = CACHE_DIR / "wcl-reports-read.json"
+
+
+def reports_read(code=None):
+    """When each report's pulls were read (code → time); with a code: mark it read now."""
+    try:
+        seen = json.loads(REPORTS_READ.read_text())
+    except (OSError, ValueError):
+        seen = {}
+    if code:
+        seen[code] = time.time()
+        REPORTS_READ.parent.mkdir(parents=True, exist_ok=True)
+        REPORTS_READ.write_text(json.dumps(seen))
+    return seen
 
 
 def wow_overview(folder, player="", days=0):
