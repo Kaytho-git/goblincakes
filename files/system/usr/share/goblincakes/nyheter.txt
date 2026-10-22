@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-22  GoblinAmp kan ha en egen färg: högerklicka på namnlisten (eller ⋯ → Färg…) och välj en klassfärg, eller Följ GOBLINCAKES för att ha samma färg som resten av systemet
 2026-10-22  GoblinAmp: ett långt albumnamn överst i spellistan skrivs inte längre över knapparna Spara albumet och Spela albumet – namnet kortas med … i stället, och håller du musen över det ser du hela namnet
 2026-10-21  GoblinAmp: knappen ♪ ALBUMET överst i spellistan öppnar albumet som spelas i Spotify just nu. Håll musen över knappen så ser du vilket album och vilken artist det är
 2026-10-21  GoblinAmp: sök på en artist i Spotify-fliken – artisten kommer överst, och när du öppnar den ser du alla album, artistens populäraste låtar och singlarna

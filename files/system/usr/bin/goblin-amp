@@ -456,6 +456,7 @@ class Amp(QObject):
     localRowsChanged = Signal()
     graphChanged = Signal()
     closeActionChanged = Signal()
+    accentChoiceChanged = Signal()
     _main = Signal(object)  # a function from a thread, run in the window's thread
 
     def __init__(self):
@@ -1246,6 +1247,55 @@ class Amp(QObject):
         self._save_settings()
         self.closeActionChanged.emit()
 
+    # The accent: GOBLINCAKES' own (Config → Utseende) or one of the class colours just for
+    # GoblinAmp – 22 Oct, the user's wish. "" = follow GOBLINCAKES.
+
+    engine = None
+
+    @Property(str, notify=accentChoiceChanged)
+    def accentChoice(self):
+        return self.settings.get("accent", "")
+
+    @Property(list, constant=True)
+    def accentList(self):
+        try:
+            import accent
+            return [{"id": a["id"], "name": a["name"], "color": a["color"]} for a in accent.accents()
+                    if a["id"] != "standard"]   # the blue is "Följ GOBLINCAKES" (the user's wish)
+        except Exception:  # noqa: BLE001 – no accent.py: only following GOBLINCAKES
+            return []
+
+    @Slot(result=str)
+    def osAccent(self):
+        """GOBLINCAKES' own colour right now (the swatch beside Följ GOBLINCAKES)."""
+        try:
+            import accent
+            return accent.current()["color"]
+        except Exception:  # noqa: BLE001
+            return "#2F6FED"
+
+    @Slot(str)
+    def setAccent(self, accent_id):
+        if accent_id:
+            self.settings["accent"] = accent_id
+        else:
+            self.settings.pop("accent", None)
+        self._save_settings()
+        self.accentChoiceChanged.emit()
+        self.applyAccent()
+
+    @Slot()
+    def applyAccent(self):
+        """Puts GoblinAmp's own colour over GOBLINCAKES' one (also after that one changes)."""
+        own = self.settings.get("accent", "")
+        if self.engine is None:
+            return
+        try:
+            import accent
+            self.engine.rootContext().setContextProperty("accent", accent.palette(own) if own else accent.current())
+        except Exception:  # noqa: BLE001
+            pass
+
     @Slot()
     def quitAll(self):
         """Close GoblinAmp and the Spotify app."""
@@ -1766,6 +1816,12 @@ def main():
     engine.rootContext().setContextProperty("hasTray", has_tray)
     engine.rootContext().setContextProperty("iconUrl", QUrl.fromLocalFile(str(icon)) if icon.exists() else QUrl())
     G.use_accent(engine)
+    amp.engine = engine
+    amp.applyAccent()
+    watcher = engine.property("goblincakesAccentWatcher")
+    if watcher is not None:   # after accent.py's own update, so GoblinAmp's colour stays
+        watcher.directoryChanged.connect(lambda *_: amp.applyAccent())
+        watcher.fileChanged.connect(lambda *_: amp.applyAccent())
     engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1

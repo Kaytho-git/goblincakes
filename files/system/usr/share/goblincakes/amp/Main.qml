@@ -195,8 +195,14 @@ Window {
         color: "#05070A"
         MouseArea {
             anchors.fill: parent
-            onPressed: win.startSystemMove()
-            onDoubleClicked: win.shade = !win.shade
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onPressed: mouse => {
+                if (mouse.button === Qt.RightButton)
+                    win.accentMenu(mouse.x, mouse.y + 12);
+                else
+                    win.startSystemMove();
+            }
+            onDoubleClicked: mouse => { if (mouse.button === Qt.LeftButton) win.shade = !win.shade; }
         }
         Image {
             x: 6
@@ -1209,6 +1215,7 @@ Window {
                 { text: "Uppdatera listorna", act: () => amp.refreshLists() }]).concat([
                 { sep: true },
                 { text: "Spotify-fönstret", act: () => amp.playlists() },
+                { text: "Färg…", act: () => win.accentMenu(x, y) },
                 { text: "Hjälp", act: () => plPanel.showHelp = true },
                 { sep: true },
                 { text: "Logga ut", act: () => amp.signOut() }]), x, y);
@@ -1765,6 +1772,13 @@ Window {
         menuAt = Qt.point(x, y);
         menuItems = items;
     }
+    // GoblinAmp's colour: GOBLINCAKES' own or a class colour just for GoblinAmp (right-click the title bar, ⋯)
+    function accentMenu(x, y) {
+        const mark = id => amp.accentChoice === id ? "✓  " : "";
+        openMenu([{ text: mark("") + "Följ GOBLINCAKES", swatch: amp.osAccent(), act: () => amp.setAccent("") }, { sep: true }]
+            .concat(amp.accentList.map(a => ({ text: mark(a.id) + a.name, swatch: a.color, act: () => amp.setAccent(a.id) }))),
+            x, y);
+    }
     Item {
         anchors.fill: parent
         visible: win.menuItems.length > 0
@@ -1803,10 +1817,17 @@ Window {
                             height: 1
                             color: "#1E2A40"
                         }
+                        Rectangle {
+                            visible: !!mi.modelData.swatch
+                            x: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 10; height: 10
+                            color: mi.modelData.swatch || "transparent"
+                        }
                         Text {
                             visible: !mi.modelData.sep
-                            x: 10
-                            width: parent.width - 16
+                            x: mi.modelData.swatch ? 28 : 10
+                            width: parent.width - x - 6
                             anchors.verticalCenter: parent.verticalCenter
                             elide: Text.ElideRight
                             text: mi.modelData.text || ""
