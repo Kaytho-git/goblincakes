@@ -887,17 +887,22 @@ Window {
                         }
                     }
                 }
-                Text {
+                Text { // wraps before the status and buttons to the right (it ran in under them)
+                    width: Math.min(implicitWidth, header.width - 40 - 60 - 20 - statusCol.width - 40 - 32)
                     text: win.stateLine()
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 15
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
                 }
             }
         }
 
         // Status and the OBS button, top right
         Column {
+            id: statusCol
             anchors { right: parent.right; rightMargin: 40; top: parent.top; topMargin: 26 }
             spacing: 12
 
@@ -2165,6 +2170,8 @@ Window {
         property string info // an ⓘ after the title: the explanation on hover
         property int barHeight: 56
         property real maxValue: Math.max(1, ...values.filter(x => x !== null && x !== undefined))
+        property real maxWidth: Infinity // only the newest bars that fit (12 px + 3 between)
+        readonly property int first: Math.max(0, values.length - Math.floor((maxWidth + 3) / 15))
         spacing: 4
         Row {
             spacing: 6
@@ -2201,21 +2208,25 @@ Window {
             height: bars.barHeight
             spacing: 3
             Repeater {
-                model: bars.values.length
+                model: bars.values.length - bars.first
                 Rectangle {
                     required property int index
-                    readonly property var v: bars.values[index]
+                    readonly property int i: bars.first + index
+                    readonly property var v: bars.values[i]
                     anchors.bottom: parent.bottom
                     width: 12
                     height: v === null || v === undefined ? 2 : 4 + (bars.barHeight - 4) * v / bars.maxValue
-                    color: bars.barColors[index] || "#2A3852"
-                    HoverTip { tip: bars.tips[index] || "" }
+                    color: bars.barColors[i] || "#2A3852"
+                    HoverTip { tip: bars.tips[i] || "" }
                 }
             }
         }
     }
 
-    function fmtTime(sec) { return sec ? Math.floor(sec / 60) + ":" + String(Math.round(sec % 60)).padStart(2, "0") : "–"; }
+    function fmtTime(sec) { // rounded first: 4:59.6 is 5:00, not 4:60
+        const s = Math.round(sec || 0);
+        return s ? Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0") : "–";
+    }
     function day(t) { return t ? new Date(t * 1000).toLocaleDateString(Qt.locale("sv_SE"), "d MMM") : ""; }
 
     property string wowPlayer: ""
@@ -2360,6 +2371,7 @@ Window {
                     visible: (wowPage.d.trend || []).length > 1
                     title: "PARSE ÖVER TID (" + wowPage.metric + ")"
                     barHeight: 34 // the same height as the tiles beside it
+                    maxWidth: wowCol.width - (6 * 112 + 5 * 6) - 28
                     info: "Bara pulls och nycklar som GoblinRecorder spelat in. Parse = Warcraft Logs (healers på HPS, övriga på DPS); "
                           + "ILVL % = mot spelare med samma item level; ILVL = din, AVG.ILVL = gruppens snitt i den killen. "
                           + "Klicka på en rad i tabellen för att öppna din bästa i Warcraft Logs."
