@@ -702,6 +702,13 @@ Window {
                 font.pixelSize: 12
             }
         }
+        FlatButton { // Goblin AI reads the numbers itself (its ```cs2 tool) and coaches
+            text: "Fråga " + backend.aiName + " vad jag ska träna på"
+            onClicked: backend.askAi("Hur gick min CS2-match på " + ds.v.name + " " + (ds.v.score || "") + " ("
+                                     + win.when(ds.v.started) + ")? Jämför med mitt snitt för de senaste 10 matcherna "
+                                     + "och säg vad jag ska arbeta på.")
+            HoverTip { tip: "Öppnar Goblin AI med frågan – den läser matchen och ditt snitt själv. Du kan också fråga i chatten när som helst, t.ex. \"snitt senaste 20 CS2-matcherna\"." }
+        }
     }
 
     // Hover explanation for any item: HoverTip { tip: "…" } inside it

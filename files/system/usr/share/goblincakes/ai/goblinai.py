@@ -620,6 +620,29 @@ Anaheim Ducks
 Du får då exakta siffror från ESPN – använd dem i stället för att söka eller gissa, och räkna inte om placeringen."""
 
 
+def cs2_tools():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import cs2tools  # noqa: PLC0415
+    return cs2tools
+
+
+CS2_PROMPT = """
+
+Counter-Strike 2: frågar användaren om sina CS2-matcher, sin statistik, sitt snitt eller vad hen ska träna på,
+svara med BARA ett kodblock märkt ```cs2 med `senaste` (eller antal matcher för snittet, t.ex. `senaste 20`,
+eller en karta, t.ex. `Mirage`), t.ex.
+```cs2
+senaste 10
+```
+Du får då användarens egna siffror ur GoblinRecorders lästa demos: senaste matchen, snittet, match för match
+och ungefärliga riktvärden. Coacha utifrån dem:
+- Börja kort med hur senaste matchen gick jämfört med snittet (siffrorna som de står).
+- Välj 2–3 saker att arbeta på – de som ligger längst från riktvärdena eller blivit sämre – och säg varför med siffran.
+- Ge för varje en konkret övning (t.ex. Aim Botz/deathmatch för träff och huvudskott, prefire-kartor och att
+  hålla siktet i huvudhöjd vid hörn för sikte, utility-lineups för granater, spela med lagkamrat för trades).
+- Nämn också något som går bra. Hitta inte på siffror som inte står i datan; TTD och sikte är ungefärliga."""
+
+
 def sys_tools():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import systools  # noqa: PLC0415
@@ -638,6 +661,12 @@ def tools_for(keys, project, messages):
         tools["sök"] = ("Söker på nätet", SEARCH_PROMPT.format(limit=SEARCH_LIMIT), search)
     tools["sport"] = ("Hämtar lagets ställning", SPORT_PROMPT, lambda q: (sport_tools().sport_info(q), []))
     tools["systemfel"] = ("Läser datorns fel", SYSTEM_ERRORS_PROMPT, lambda q: (sys_tools().system_errors(q), []))
+    try:  # GoblinRecorder records CS2 → your numbers from its read demos
+        cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
+    except (OSError, ValueError):
+        cs2_on = False
+    if cs2_on:
+        tools["cs2"] = ("Läser dina CS2-siffror", CS2_PROMPT, lambda q: (cs2_tools().cs2_stats(q), []))
     if list(Path.home().glob("Games/WoW/*/AddOns")):
         tools["wowfel"] = ("Läser WoW-felen", WOW_ERRORS_PROMPT, lambda q: (wow_tools().wow_errors(q), []))
     wcl = CONFIG / "wcl.json"
@@ -659,6 +688,7 @@ def tools_for(keys, project, messages):
 TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel", "wow-fel": "wowfel",
               "bugsack": "wowfel", "warcraftlogs": "warcraftlogs", "wcl": "warcraftlogs",
               "sport": "sport", "lag": "sport",
+              "cs2": "cs2", "counterstrike": "cs2", "cs": "cs2",
               "systemfel": "systemfel", "system-fel": "systemfel", "systemlogg": "systemfel"}
 
 
