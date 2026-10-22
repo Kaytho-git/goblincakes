@@ -2252,6 +2252,7 @@ Window {
                     }
                     Text {
                         text: [wowPage.d.spec, wowPage.d["class"], wowPage.d.realm, wowPage.d.region].filter(x => x).join(" · ")
+                              + (wowPage.d.role ? " · parse på " + wowPage.metric : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13
@@ -2307,13 +2308,13 @@ Window {
                     width: 6 * 112 + 5 * 6
                     spacing: 6
                     StatTile {
-                        label: "BÄSTA SNITT"
+                        label: "BÄSTA SNITT " + wowPage.metric
                         value: wowPage.r && wowPage.r.best !== null ? win.num(wowPage.r.best) : "–"
                         valueColor: wowPage.r && wowPage.r.best !== null ? win.parseColor(wowPage.r.best) : "#E6ECF5"
                         tip: "Snittet av din bästa parse per boss (" + win.wowShownDiff + ") – som Best Perf. Avg hos Warcraft Logs."
                     }
                     StatTile {
-                        label: "MEDIAN SNITT"
+                        label: "MEDIAN " + wowPage.metric
                         value: wowPage.r && wowPage.r.median !== null ? win.num(wowPage.r.median) : "–"
                         valueColor: wowPage.r && wowPage.r.median !== null ? win.parseColor(wowPage.r.median) : "#E6ECF5"
                         tip: "Snittet av din median-parse per boss – hur du brukar prestera, inte bara din bästa."
@@ -2329,7 +2330,7 @@ Window {
                 }
                 Bars {
                     visible: (wowPage.d.trend || []).length > 1
-                    title: "PARSE ÖVER TID"
+                    title: "PARSE ÖVER TID (" + wowPage.metric + ")"
                     barHeight: 34 // the same height as the tiles beside it
                     info: "Bara pulls och nycklar som GoblinRecorder spelat in. Parse = Warcraft Logs (healers på HPS, övriga på DPS); "
                           + "ILVL % = mot spelare med samma item level; ILVL = din, AVG.ILVL = gruppens snitt i den killen. "
