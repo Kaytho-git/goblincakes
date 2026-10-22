@@ -60,6 +60,12 @@ modules:
     scripts:
       - install-goverlay.sh
 
+  # demoparser2 for GoblinRecorder's CS2 demos (~490 MB: pandas, pyarrow, polars – 22 Oct,
+  # the user's choice: in the image, the newest version with each image)
+  - type: script
+    scripts:
+      - install-demoparser.sh
+
   # AppGrid (app grid in the middle of the screen) from its COPR package – brings the
   # dependencies, and is the fallback if our own build below failed. Doesn't stop the
   # build by itself (a new Plasma the COPR hasn't been rebuilt for yet)

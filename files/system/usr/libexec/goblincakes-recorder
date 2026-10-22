@@ -7,6 +7,7 @@ goblincakes-recorder.service). The window is /usr/bin/goblin-recorder.
   goblincakes-recorder setup      make OBS's profile/scenes/audio tracks (OBS must run)
   goblincakes-recorder status     what the service sees right now (JSON)
   goblincakes-recorder cs2-clips <video>  the 2K–ACE clips and the reel of a CS2 match again
+  goblincakes-recorder cs2-demo <demo> [<video>]  read a CS2 demo into its match (step 2)
 
 Raid: every boss pull becomes its own video. Mythic+: the whole key. Arena (also Solo
 Shuffle): the whole match. Counter-Strike 2: the match from the end of the warm-up to the end,
@@ -23,6 +24,7 @@ import re
 import signal
 import threading
 import statistics
+import subprocess
 import sys
 import time
 import traceback
@@ -41,12 +43,35 @@ WCL_LIVE_EVERY = 30  # … and this often while a report is live logged (or just
 WCL_LIVE_FOR = 20 * 60  # live = a live-logged report seen this recently
 WCL_FOR = 24 * 3600  # … for videos this young
 WCL_FRESH = 15 * 60  # a video this young without a link is looked for …
+DEMO_EVERY = 30  # look for new CS2 demos this often (while a match waits for one)
+DEMO_SETTLE = 15  # a demo unchanged this long is whole (downloaded / `stop` given)
 WCL_FRESH_EVERY = 15  # … this often (only the fresh ones: Live Log has the fight within seconds)
 ME = re.compile(r'^(Player-[^,]+),"([^"]+)",0x511,')  # a line by your own character
 
 
 def log(*a):
     print(datetime.now().strftime("%H:%M:%S"), *a, flush=True)
+
+
+def notify(title, text):
+    try:
+        subprocess.Popen(["notify-send", "-a", "GoblinRecorder", "-i", "goblincakes-recorder", title, text],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
+
+
+def load_seen():
+    """The demos already looked at (path → mtime) – they stay in CS2's folders."""
+    try:
+        return json.loads(R.DEMO_SEEN.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def save_seen(seen):
+    R.DEMO_SEEN.parent.mkdir(parents=True, exist_ok=True)
+    R.DEMO_SEEN.write_text(json.dumps(seen))
 
 
 class GSIHandler(BaseHTTPRequestHandler):
@@ -107,6 +132,8 @@ class Service:
         self.cs2_error = ""
         self.cs2_map = ""
         self.gs = {}  # what the last messages said: own team, kills this round, health, phases
+        self.demo_next = time.time() + 20
+        self.demo_busy = False
 
     @staticmethod
     def mtime(p):
@@ -334,6 +361,7 @@ class Service:
                                   "map": m.get("name", ""), "mode": m.get("mode", "")})
                 if self.current:
                     self.current["player"] = p.get("name", "") if own else ""
+                    self.current["steamid"] = me or ""  # finds you in the demo
                     self.current["tracks"] = R.track_names(self.cfg, "CS2")
                 gs.update(kills=None, killhs=None, dead=False, round=None, bomb=None)
             rec = self.current and self.current["kind"] == "cs2" and not self.stop_at
@@ -497,7 +525,11 @@ class Service:
             "codec": self.cfg["codec"], "fps": self.cfg["fps"], "tracks": cur.get("tracks", R.TRACK_NAMES),
             "player": cur.get("player", ""), "encounterId": cur.get("encounter"),
             **({"score": cur.get("score", ""), "map": cur.get("map", ""), "mode": cur.get("mode", ""),
-                "spawns": [round(max(t - wall, 0), 2) for t in cur.get("spawns", [])]}
+                "spawns": [round(max(t - wall, 0), 2) for t in cur.get("spawns", [])],
+                "steamid": cur.get("steamid", ""),
+                # step 2: the whole video waits for the demo (Valve keeps those of these modes)
+                **({"demo": "waiting"} if cur.get("mode") in R.DEMO_MODES and cur["result"] in ("win", "loss", "tie")
+                   else {})}
                if cur["kind"] == "cs2" else {}),
             "_wall": wall, "_until": time.time() + LATE_MARKS,
         }
@@ -537,7 +569,8 @@ class Service:
         data = {k: v for k, v in meta.items() if not k.startswith("_")}
         try:  # keep what was added to the file since (Warcraft Logs link and numbers, kept)
             old = json.loads(Path(meta["_path"]).read_text())
-            data.update({k: old[k] for k in ("wcl", "wclStats", "keep", "youtube") if k in old})
+            data.update({k: old[k] for k in ("wcl", "wclStats", "keep", "youtube", "clipsMade", "videoRemoved",
+                                         "demo", "demoFile", "demoStats", "demoRounds") if k in old})
         except (OSError, ValueError):
             pass
         data["markers"] = sorted(data["markers"], key=lambda m: m["t"])
@@ -647,6 +680,50 @@ class Service:
         finally:
             self.wcl_busy = False
 
+    # ------------------------------------------------------------ CS2 demos (step 2)
+    def demo_check(self):
+        """A new demo in CS2's folders → the match waiting for it; 3 days without one → the
+        whole video goes (the clips and the card stay). Not while recording."""
+        now = time.time()
+        if self.demo_busy or now < self.demo_next or self.current or self.closing:  # closing: its .json is still written
+            return
+        self.demo_next = now + DEMO_EVERY
+        waiting = []
+        for v in R.cs2_waiting(self.cfg["folder"]):
+            if now - v.get("started", 0) > R.DEMO_WAIT:
+                R.cs2_demo_skip(v["path"], expired=True)
+                log("no demo in 3 days, video removed:", v["file"])
+                self.last_video = f"demo {now}"
+            else:
+                waiting.append(v)
+        if not waiting or not R.demoparser_ok():
+            return
+        seen = load_seen()
+        new = []
+        for dem in R.cs2_demo_files():
+            mtime = dem.stat().st_mtime
+            if seen.get(str(dem)) != mtime and now - mtime > DEMO_SETTLE and mtime >= waiting[0]["started"]:
+                new.append((dem, mtime))
+        if new:
+            self.demo_busy = True
+            threading.Thread(target=self.demo_run, args=(new,), daemon=True).start()
+
+    def demo_run(self, demos):
+        try:
+            for dem, mtime in demos:
+                res = R.cs2_demo_process(dem)
+                log("CS2 demo", dem.name + ":", res)
+                if res.get("error") and "demoparser2" in res["error"]:
+                    return  # not seen – read when the library is there
+                seen = load_seen()
+                seen[str(dem)] = mtime
+                save_seen(seen)
+                if res.get("match"):
+                    notify(res["text"], "Siffrorna och klippen finns på matchens kort i GoblinRecorder.")
+                    self.last_video = f"demo {time.time()}"
+        finally:
+            self.demo_busy = False
+
     # ------------------------------------------------------------ main loop
     def tick(self):
         now = time.time()
@@ -679,6 +756,11 @@ class Service:
             running = R.cs2_running()
             if running and not self.cs2:
                 log("CS2 started")
+                waiting = R.cs2_waiting(self.cfg["folder"])
+                if waiting:  # the reminder: matches whose demo isn't downloaded yet
+                    n = len(waiting)
+                    notify(f"{n} CS2-match{'er' if n > 1 else ''} väntar på demon",
+                           "Ladda ner i CS2: Watch → Your Matches. GoblinRecorder läser den själv.")
                 if self.cfg["autoStartObs"] and self.cfg.get("cs2") and not R.obs_running():
                     R.start_obs()
             if not running and self.cs2:
@@ -696,6 +778,7 @@ class Service:
             self.tidy_up()
         self.closing = [m for m in self.closing if m["_until"] > now]
         self.wcl_check()
+        self.demo_check()
         if self.wow or self.cs2 or self.current or self.test_wait or R.obs_running():
             self.connect()
             if self.obs and not self.screen_ok and now - self.screen_check > 5:
@@ -759,6 +842,9 @@ def main():
     elif cmd == "setup":
         with R.OBS() as obs:
             print(", ".join(R.setup_obs(obs, R.load_config())) or "redan klart")
+    elif cmd == "cs2-demo" and len(sys.argv) > 2:  # by hand: goblincakes-recorder cs2-demo <demo> [<video>]
+        print(json.dumps(R.cs2_demo_run(sys.argv[2], Path(sys.argv[3]).with_suffix(".json") if len(sys.argv) > 3 else None),
+                         ensure_ascii=False))
     elif cmd == "cs2-clips" and len(sys.argv) > 2:  # again by hand: goblincakes-recorder cs2-clips <video>
         made, err = R.cs2_make_clips(Path(sys.argv[2]).with_suffix(".json"),
                                      keep_match=bool(R.load_config().get("cs2KeepMatch")))

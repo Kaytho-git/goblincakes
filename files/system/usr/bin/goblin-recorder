@@ -428,6 +428,33 @@ class Backend(QObject):
         self.statsBusy.emit(path)
         threading.Thread(target=work, daemon=True).start()
 
+    # ---------------------------------------------------------- CS2 demos (step 2)
+    demoBusy = Signal(str)  # the match whose demo is being read, "" = done
+
+    @Slot(str)
+    def cs2PickDemo(self, path):
+        """A demo picked by hand (FACEIT, or one the service didn't find) for this match."""
+        start = next((str(d) for d in R.cs2_demo_dirs() if d.is_dir()), str(Path.home()))
+        dem, _ = QFileDialog.getOpenFileName(None, "Välj matchens demo", start, "CS2-demo (*.dem)")
+        if not dem:
+            return
+
+        def work():
+            try:
+                res = R.cs2_demo_process(dem, Path(path).with_suffix(".json"))
+                self.message.emit(res.get("text") or res.get("error") or "Demon passar inte matchen.")
+            finally:
+                self.demoBusy.emit("")
+                self.refreshLater.emit()
+        self.demoBusy.emit(path)
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(str)
+    def cs2NoDemo(self, path):
+        """Klar utan demo: the whole video goes now, the clips and the card stay."""
+        R.cs2_demo_skip(path)
+        self.refreshVideos()
+
     # ---------------------------------------------------------- YouTube
     youtubeDone = Signal(str)  # JSON: {"file": …} or {"error": …}
 

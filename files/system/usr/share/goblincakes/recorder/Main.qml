@@ -84,6 +84,7 @@ Window {
     property bool wclBusy: false
     property string expanded: "" // the video card that shows its players from Warcraft Logs
     property string statsBusy: ""
+    property string demoBusy: "" // the CS2 match whose demo is being read
     property int overlayPick: -1 // the chosen box in "Dölj delar av bilden"
     // The explanation shown while the mouse rests on a choice (12 Oct: smaller buttons, the
     // explanations as hover instead of text under them)
@@ -108,6 +109,22 @@ Window {
     // what to play for a card: a match whose video went after the clips → its first clip
     function playable(v) { return v && v.videoRemoved && v.clips && v.clips.length ? v.clips[0] : v; }
     readonly property var gameIcons: JSON.parse(backend.gameIcons)
+
+    // CS2 step 2: the demo (22 Oct)
+    function demoNote(v) {
+        return v.demo === "waiting" ? (demoBusy === v.path ? " · läser demon …" : " · väntar på demo")
+             : v.demo === "done" ? " · demo läst" : "";
+    }
+    function demoLeft(v) {
+        const left = v.started + 3 * 86400 - Date.now() / 1000;
+        return left > 86400 ? Math.round(left / 86400) + " dagar" : Math.max(1, Math.round(left / 3600)) + " h";
+    }
+    function num(x) { return x === undefined || x === null ? "–" : String(x).replace(".", ","); }
+    // the matches with a read demo up to this one, the last 10 – how it goes over time
+    function cs2Trend(v) {
+        return videos.filter(o => o.kind === "cs2" && o.demoStats && o.started <= v.started)
+                     .sort((a, b) => a.started - b.started).slice(-10);
+    }
 
     function clock(sec) {
         sec = Math.max(0, Math.floor(sec));
@@ -236,6 +253,7 @@ Window {
                 backend.copyText(r.url);
         }
         function onStatsBusy(path) { win.statsBusy = path; }
+        function onDemoBusy(path) { win.demoBusy = path; }
         function onYoutubeDone(json) {
             const r = JSON.parse(json);
             win.ytBusy = false;
@@ -469,6 +487,206 @@ Window {
         font.pixelSize: 13
         wrapMode: Text.WordWrap
         lineHeight: 1.15
+    }
+
+    // CS2 step 2: what the demo said about your match – the numbers, each round, the guns,
+    // utility and money, and the last 10 matches (ADR) to see how it goes over time
+    component DemoStats: Column {
+        id: ds
+        property var v
+        readonly property var s: v && v.demoStats ? v.demoStats : ({})
+        readonly property var trend: v ? win.cs2Trend(v) : []
+        readonly property real maxAdr: Math.max(1, ...trend.map(o => o.demoStats.adr))
+        readonly property var cols: [width - 4 * 56, 56, 56, 56, 56]
+        spacing: 8
+        topPadding: 6
+        bottomPadding: 8
+        Flow {
+            width: parent.width
+            spacing: 6
+            Repeater {
+                model: [["K–D–A", ds.s.kills + "–" + ds.s.deaths + "–" + ds.s.assists, "Kills, dödsfall och assist"],
+                        ["K/D", win.num(ds.s.kd), "Kills per dödsfall"],
+                        ["ADR", win.num(ds.s.adr), "Skada per runda (bara skada som tog liv, inte överskott)"],
+                        ["KAST", ds.s.kast + " %", "Rundor där du fick en kill, en assist, överlevde eller blev hämnad (trade)"],
+                        ["HS", ds.s.hs + " %", "Kills med huvudskott"],
+                        ["ENTRY", ds.s.entryWon + "–" + ds.s.entryLost, "Rundans första kill: vunna–förlorade"],
+                        ["TRADE", String(ds.s.trades), "Du dödade den som just dödat en lagkamrat (inom 5 s)"],
+                        ["CLUTCH", ds.s.clutchWon + "/" + ds.s.clutches, "1vX: vunna av alla gånger du var ensam kvar"]]
+                Rectangle {
+                    required property var modelData
+                    width: 84
+                    height: 46
+                    color: "#0B1018"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    HoverTip { tip: parent.modelData[2] }
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 1
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: parent.parent.modelData[1]
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 15
+                        }
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: parent.parent.modelData[0]
+                            color: "#8B98AD"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 10
+                            font.letterSpacing: 1
+                        }
+                    }
+                }
+            }
+        }
+        Text {
+            text: "RUNDOR · siffran = dina kills, guldram = vunnen clutch"
+            color: "#8B98AD"
+            font.family: "Chakra Petch"
+            font.weight: Font.DemiBold
+            font.pixelSize: 11
+            font.letterSpacing: 1
+        }
+        Flow {
+            width: parent.width
+            spacing: 3
+            Repeater {
+                model: ds.v && ds.v.demoRounds ? ds.v.demoRounds : []
+                Rectangle {
+                    required property var modelData
+                    width: 22
+                    height: 22
+                    color: modelData.won ? "#16351F" : "#3A1418"
+                    border.width: modelData.clutch > 0 ? 2 : 1
+                    border.color: modelData.clutch > 0 ? "#E5CC80" : modelData.won ? "#2E6B3E" : "#6B2A2E"
+                    HoverTip {
+                        tip: "Runda " + parent.modelData.r + (parent.modelData.won ? " vunnen" : " förlorad") + " · "
+                             + parent.modelData.k + " kills · " + parent.modelData.dmg + " skada"
+                             + (parent.modelData.died ? "" : " · överlevde")
+                             + (parent.modelData.equip !== null ? " · utrustning $" + parent.modelData.equip : "")
+                             + (parent.modelData.clutch ? " · clutch 1v" + Math.abs(parent.modelData.clutch)
+                                                          + (parent.modelData.clutch > 0 ? " vunnen" : " förlorad") : "")
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        text: parent.modelData.k || ""
+                        color: parent.modelData.k >= 2 ? "#E5CC80" : "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 11
+                    }
+                }
+            }
+        }
+        Row { // the guns
+            visible: (ds.s.weapons || []).length > 0
+            Repeater {
+                model: ["VAPEN", "KILLS", "HS", "TRÄFF", "SKOTT"]
+                Text {
+                    required property string modelData
+                    required property int index
+                    width: ds.cols[index]
+                    horizontalAlignment: index ? Text.AlignRight : Text.AlignLeft
+                    text: modelData
+                    color: "#8B98AD"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 11
+                    font.letterSpacing: 1
+                }
+            }
+        }
+        Repeater {
+            model: ds.s.weapons || []
+            Row {
+                id: wrow
+                required property var modelData
+                Repeater {
+                    model: [wrow.modelData.name, wrow.modelData.kills, wrow.modelData.hs,
+                            wrow.modelData.acc === null ? "–" : wrow.modelData.acc + " %", wrow.modelData.shots]
+                    Text {
+                        required property var modelData
+                        required property int index
+                        width: ds.cols[index]
+                        horizontalAlignment: index ? Text.AlignRight : Text.AlignLeft
+                        text: modelData
+                        color: index ? "#8B98AD" : "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
+                }
+            }
+        }
+        Text {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            readonly property var t: ds.s.thrown || {}
+            text: "Granater: " + (t.flash || 0) + " flash (" + (ds.s.flashed || 0) + " fiender bländade"
+                  + (ds.s.teamFlashed ? ", " + ds.s.teamFlashed + " lagkamrater" : "") + ", " + (ds.s.flashAssists || 0) + " flash-assist) · "
+                  + (t.smoke || 0) + " smoke · " + (t.he || 0) + " HE (" + (ds.s.heDmg || 0) + " skada) · "
+                  + (t.molotov || 0) + " molotov (" + (ds.s.fireDmg || 0) + " skada)"
+                  + ((ds.s.wallbangs || ds.s.smokeKills || ds.s.noscopes)
+                     ? "\nKills genom vägg " + (ds.s.wallbangs || 0) + " · genom rök " + (ds.s.smokeKills || 0)
+                       + " · noscope " + (ds.s.noscopes || 0) : "")
+            color: "#8B98AD"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 12
+        }
+        Text {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            readonly property var b: ds.s.buys || {}
+            function part(name, x) { return x && x.rounds ? name + " " + x.rounds + " (" + x.won + " vunna, " + x.kills + " kills)" : ""; }
+            text: "Ekonomi: snitt $" + (ds.s.avgEquip || 0) + " · "
+                  + [part("fullköp", b.full), part("halvköp", b.force), part("eco", b.eco)].filter(x => x).join(" · ")
+            color: "#8B98AD"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 12
+        }
+        Column { // over time: ADR in the last matches with a read demo, this one in the accent colour
+            visible: ds.trend.length > 1
+            spacing: 4
+            Text {
+                text: "SENASTE " + ds.trend.length + " MATCHERNA · ADR"
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.weight: Font.DemiBold
+                font.pixelSize: 11
+                font.letterSpacing: 1
+            }
+            Row {
+                height: 40
+                spacing: 3
+                Repeater {
+                    model: ds.trend
+                    Rectangle {
+                        required property var modelData
+                        anchors.bottom: parent.bottom
+                        width: 18
+                        height: 4 + 36 * modelData.demoStats.adr / ds.maxAdr
+                        color: modelData.path === ds.v.path ? accent.color : "#2A3852"
+                        HoverTip {
+                            tip: parent.modelData.name + " " + (parent.modelData.score || "") + " · ADR " + win.num(parent.modelData.demoStats.adr)
+                                 + " · K/D " + win.num(parent.modelData.demoStats.kd) + " · HS " + parent.modelData.demoStats.hs + " %"
+                        }
+                    }
+                }
+            }
+            Text {
+                readonly property var avg: k => ds.trend.reduce((a, o) => a + o.demoStats[k], 0) / Math.max(1, ds.trend.length)
+                text: "Snitt: ADR " + win.num(avg("adr").toFixed(1)) + " · K/D " + win.num(avg("kd").toFixed(2))
+                      + " · HS " + Math.round(avg("hs")) + " % · KAST " + Math.round(avg("kast")) + " %"
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 12
+            }
+        }
     }
 
     // Hover explanation for any item: HoverTip { tip: "…" } inside it
@@ -847,12 +1065,14 @@ Window {
                 name: "CS2-matcher"
                 key: "cs2"
                 tip: "Varje match (alla lägen), från att uppvärmningen är slut till sista rundan. Dina kills (2K–ACE), dödsfall, "
-                     + "rundor och bomben blir markeringar i filmen. Efter matchen blir varje 2K–ACE ett eget klipp, plus ett med alla kills."
+                     + "rundor och bomben blir markeringar i filmen. Efter matchen blir varje 2K–ACE ett eget klipp, plus ett med alla kills. "
+                     + "Competitive/Premier/Wingman: när du laddat ner demon (Watch → Your Matches) läses den – dina siffror, "
+                     + "vapen och vunna clutchar som klipp."
             }
             PanelSwitch {
                 name: "Behåll hela matchen"
                 key: "cs2KeepMatch"
-                tip: "Av: hela matchen (7–10 GB på Bäst) tas bort när klippen är klara – klippen och kortet blir kvar. "
+                tip: "Av: hela matchen (7–10 GB på Bäst) tas bort när klippen är klara och demon är läst (högst 3 dagar) – klippen och kortet blir kvar. "
                      + "Spara för alltid på en match skyddar den."
             }
             Note {
@@ -930,10 +1150,12 @@ Window {
                 readonly property bool active: win.selected && (win.selected.path === modelData.path
                                                                 || win.selected.parent === modelData.file)
                 readonly property var clips: modelData.clips || []
-                readonly property bool open: win.expanded === modelData.path && (!!modelData.wcl || clips.length > 0)
+                // a CS2 match folds out: its clips and its demo (waiting, or its numbers)
+                readonly property bool cs2match: modelData.kind === "cs2" && (clips.length > 0 || !!modelData.demo)
+                readonly property bool open: win.expanded === modelData.path && (!!modelData.wcl || cs2match)
                 readonly property var stats: modelData.wclStats || null
                 width: list.width - 16
-                height: 84 + (open ? (clips.length ? clipsCol.height : statsCol.height) + 12 : 0)
+                height: 84 + (open ? (cs2match ? clipsCol.height : statsCol.height) + 12 : 0)
                 color: active ? "#12203A" : cardArea.containsMouse ? "#0E1420" : "transparent"
                 border.width: active ? 2 : 1
                 border.color: active ? accent.color : "#1E2A40"
@@ -1012,10 +1234,11 @@ Window {
                         width: parent.width
                         elide: Text.ElideRight
                         text: card.clips.length
-                              ? win.clock(card.modelData.fight) + " match · " + card.clips.length + " klipp "
+                              ? win.clock(card.modelData.fight) + " match" + win.demoNote(card.modelData) + " · " + card.clips.length + " klipp "
                                 + (card.open ? "▴" : "▾") + " · " + win.size(card.modelData.size + card.clips.reduce((a, c) => a + c.size, 0))
-                              : win.clock(card.modelData.fight) + (card.modelData.kind === "cs2" ? " match · " : " strid · ") + win.size(card.modelData.size)
+                              : win.clock(card.modelData.fight) + (card.modelData.kind === "cs2" ? " match" + win.demoNote(card.modelData) + " · " : " strid · ") + win.size(card.modelData.size)
                               + (card.modelData.keep ? " · sparad" : "") + (card.modelData.wcl ? (card.open ? " · WCL ▴" : " · WCL ▾") : "")
+                              + (card.cs2match ? (card.open ? " ▴" : " ▾") : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 12
@@ -1029,20 +1252,58 @@ Window {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         win.selected = win.playable(card.modelData);
-                        if (card.clips.length) // a CS2 match: its clips fold out
+                        if (card.cs2match) // a CS2 match: its clips and demo fold out
                             win.expanded = win.expanded === card.modelData.path ? "" : card.modelData.path;
                         else if (card.modelData.wcl)
                             win.toggleStats(card.modelData); // the players from Warcraft Logs
                     }
                 }
 
-                // A CS2 match's clips: all kills first, then 2K–ACE in the order they came
+                // A CS2 match: the demo (waiting for it, or its numbers), then the clips – all
+                // kills first, then 2K–ACE and clutches in the order they came
                 Column {
                     id: clipsCol
-                    visible: card.open && card.clips.length > 0
+                    visible: card.open && card.cs2match
                     anchors { left: parent.left; right: parent.right; top: head.bottom; leftMargin: 12; rightMargin: 12 }
                     spacing: 2
                     Rectangle { width: parent.width; height: 1; color: "#1E2A40" }
+                    Column {
+                        visible: card.modelData.demo === "waiting"
+                        width: parent.width
+                        topPadding: 6
+                        bottomPadding: 8
+                        spacing: 8
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: win.demoBusy === card.modelData.path ? "Läser demon …"
+                                  : "Hela matchen sparas tills demon är läst (" + win.demoLeft(card.modelData) + " kvar). "
+                                    + "Ladda ner den i CS2: Watch → Your Matches – GoblinRecorder hittar den själv."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
+                        }
+                        Row {
+                            spacing: 8
+                            FlatButton {
+                                text: "Välj demo …"
+                                enabledState: !win.demoBusy
+                                onClicked: backend.cs2PickDemo(card.modelData.path)
+                                HoverTip { tip: "En demo från FACEIT eller en egen (record i konsolen) – den läses för den här matchen." }
+                            }
+                            FlatButton {
+                                text: "Klar utan demo"
+                                enabledState: !win.demoBusy
+                                onClicked: backend.cs2NoDemo(card.modelData.path)
+                                HoverTip { tip: "Hela matchen tas bort nu – klippen och kortet blir kvar." }
+                            }
+                        }
+                    }
+                    DemoStats {
+                        visible: !!card.modelData.demoStats
+                        width: parent.width
+                        v: card.modelData
+                    }
                     Repeater {
                         model: card.clips
                         Rectangle {
@@ -1085,7 +1346,7 @@ Window {
                 // The players: parse, DPS, HPS and deaths from Warcraft Logs
                 Column {
                     id: statsCol
-                    visible: card.open && !card.clips.length
+                    visible: card.open && !card.cs2match
                     anchors { left: parent.left; right: parent.right; top: head.bottom; leftMargin: 12; rightMargin: 12 }
                     spacing: 4
                     readonly property var cols: [width - 44 - 44 - 58 - 58 - 38, 44, 44, 58, 58, 38]

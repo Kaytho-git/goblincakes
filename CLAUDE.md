@@ -75,7 +75,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Spel från terminalen (`goblin play`, egna ord, `goblin play dock <spel>`)
 - [x] Spelverktyg + gaming-optimering (reglage)
 - [x] goblin graph (ljudstaplar i klassfärger)
-- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI → 2K–ACE-klipp + alla kills, matchen tas bort; spelikon på korten)
+- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI → 2K–ACE-klipp + alla kills, matchen tas bort; CS2-demon läses: egna siffror, vunna clutchar som klipp; spelikon på korten)
 - [x] Plasma 6.8-förberedelser
 - [x] Välj färg (blå + 13 klassfärger)
 - [x] Chrome/Brave/Chromium-tema, Firefox-tema
@@ -86,7 +86,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 ## Att göra
 - [ ] **Lokal AI** – kvar: Ianseo-spåret mot riktiga Ianseo, Podman-övningsdatorn och läraren med riktiga Ollama.
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav).
-- [ ] **GoblinRecorder för CS2** – steg 1 (GSI, inspelning + markeringar) byggt 22 okt; kvar: prova med riktig match, steg 2 (demon: matchen sparas tills demon läst, max 3 dagar; clutch/entry/trade + egen statistik; demoparser2 i imagen – plan i anteckningarna).
+- [ ] **GoblinRecorder för CS2** – steg 1 (GSI) och steg 2 (demon, demoparser2 i imagen) byggda 22 okt; kvar: prova med en riktig Premier/Competitive + nedladdad demo.
 - [ ] **GOBLINCAKES-ljud** (inloggning, notiser, utloggning).
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 - [ ] **Privat schemaprogram** (inte i repot, se Claudes minne; väntar på PDF).

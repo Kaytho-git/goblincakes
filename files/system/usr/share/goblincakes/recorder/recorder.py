@@ -18,8 +18,10 @@ import re
 import secrets
 import shutil
 import socket
+import statistics
 import struct
 import subprocess
+import sys
 import time
 import urllib.error
 from datetime import datetime
@@ -1105,11 +1107,453 @@ def cs2_make_clips(meta_path, keep_match=False):
         return made, f"{len(todo) - len(made)} av {len(todo)} klipp gick inte att göra – hela matchen sparas."
     data = json.loads(meta_path.read_text())
     data["clipsMade"] = True
-    if made and not keep_match and not data.get("keep"):
+    if made and not keep_match and not data.get("keep") and data.get("demo") != "waiting":
         video.unlink(missing_ok=True)
         data["videoRemoved"] = True
     meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
     return made, ""
+
+
+# ---------------------------------------------------------------- CS2 step 2: the demo
+# (22 Oct, the user's decision) A Competitive/Premier/Wingman match keeps its whole video until
+# its demo is read: CS2's own download (Watch → Your Matches → game/csgo/replays/) or your own
+# `record` (game/csgo/) is found by the service, or picked by hand (FACEIT …). The demo knows
+# what GSI can't: who was alive (clutches), entry kills, trades, damage, accuracy, utility and
+# money. Only your own numbers – the other nine are Leetify's job. No demo in 3 days: the video
+# goes, the clips and the card stay. The demo files are left where they are.
+DEMO_LIB = Path(os.environ.get("GOBLINCAKES_DEMOPARSER", "/usr/lib/goblincakes/demoparser"))  # the image's build
+DEMO_MODES = ("competitive", "scrimcomp2v2", "premier")  # Valve keeps demos of these
+DEMO_WAIT = 3 * 24 * 3600
+DEMO_SEEN = CACHE_DIR / "cs2-demos.json"  # demos already looked at (path → mtime)
+TICKRATE = 64
+TRADE_TIME = 5.0  # killing the enemy who killed your teammate this soon after = a trade
+CLUTCH_BEFORE, CLUTCH_AFTER = 3.0, 3.0
+ALIGN_SLACK = 1.5  # GSI's times and the demo's ticks may differ this much and still pair
+NOT_GUNS = re.compile(r"knife|bayonet|grenade|flashbang|smoke|molotov|decoy|inferno|c4|taser|world")
+# player_hurt names only the base gun (an M4A1-S hit = "m4a1") – fires and kills name the real one
+SAME_GUN = {"m4a1_silencer": "m4a1", "m4a1_silencer_off": "m4a1", "usp_silencer": "hkp2000",
+            "usp_silencer_off": "hkp2000", "revolver": "deagle", "cz75a": "p250"}
+GRENADES = {"flashbang": "flash", "smokegrenade": "smoke", "hegrenade": "he", "molotov": "molotov",
+            "incgrenade": "molotov", "decoy": "decoy"}
+WEAPON_NAMES = {"ak47": "AK-47", "m4a1": "M4A4", "m4a1_silencer": "M4A1-S", "awp": "AWP", "deagle": "Desert Eagle",
+                "usp_silencer": "USP-S", "hkp2000": "P2000", "glock": "Glock-18", "p250": "P250",
+                "fiveseven": "Five-SeveN", "tec9": "Tec-9", "cz75a": "CZ75-Auto", "elite": "Dual Berettas",
+                "revolver": "R8", "ssg08": "SSG 08", "famas": "FAMAS", "galilar": "Galil AR", "aug": "AUG",
+                "sg556": "SG 553", "mac10": "MAC-10", "mp9": "MP9", "mp7": "MP7", "mp5sd": "MP5-SD",
+                "ump45": "UMP-45", "p90": "P90", "bizon": "PP-Bizon", "nova": "Nova", "xm1014": "XM1014",
+                "mag7": "MAG-7", "sawedoff": "Sawed-Off", "negev": "Negev", "m249": "M249",
+                "g3sg1": "G3SG1", "scar20": "SCAR-20", "taser": "Zeus", "hegrenade": "HE-granat",
+                "inferno": "molotov", "knife": "kniv"}
+
+
+def weapon_name(raw):
+    w = str(raw or "").removeprefix("weapon_")
+    if w.startswith(("knife", "bayonet")):
+        return "kniv"
+    return WEAPON_NAMES.get(w, w.upper() if w else "?")
+
+
+def cs2_demo_dirs():
+    """Where CS2 puts demos: replays/ (Watch → Your Matches) and csgo/ (your own `record`)."""
+    d = cs2_cfg_dir()
+    return [d.parent / "replays", d.parent] if d else []
+
+
+def cs2_demo_files():
+    out = []
+    for d in cs2_demo_dirs():
+        out += [p for p in d.glob("*.dem") if p.is_file()]
+    return sorted(out, key=lambda p: p.stat().st_mtime)
+
+
+def cs2_waiting(folder):
+    """The matches whose video waits for a demo, oldest first."""
+    return sorted((v for v in video_files(folder) if v.get("kind") == "cs2" and v.get("demo") == "waiting"),
+                  key=lambda v: v.get("started", 0))
+
+
+def demoparser_ok():
+    return (DEMO_LIB / "demoparser2").is_dir()
+
+
+def _sid(v):
+    """A steamid from the demo as text ("" for none – pandas gives NaN)."""
+    return "" if v is None or v != v or v == "" else str(v).split(".")[0]
+
+
+def cs2_demo_load(path):
+    """What we use of a demo, as plain lists (no pandas outside this function)."""
+    if str(DEMO_LIB) not in sys.path:
+        sys.path.insert(0, str(DEMO_LIB))
+    from demoparser2 import DemoParser  # noqa: PLC0415 – ~490 MB of libraries, only when a demo is read
+
+    p = DemoParser(str(path))
+
+    def rows(event, **kw):
+        try:
+            df = p.parse_event(event, **kw)
+        except Exception:  # noqa: BLE001 – an event the demo doesn't have
+            return []
+        return df.to_dict("records") if df is not None and len(df) else []
+
+    live = [r["tick"] for r in rows("round_announce_match_start")] or [r["tick"] for r in rows("begin_new_match")]
+    start = max(live) if live else 0
+    other = {"other": ["is_warmup_period"]}
+
+    def live_rows(event, **kw):
+        return sorted((r for r in rows(event, **kw, **other) if r["tick"] >= start and not r.get("is_warmup_period")),
+                      key=lambda r: r["tick"])
+
+    round_ends = [{"tick": r["tick"], "winner": int(r.get("winner") or 0)} for r in live_rows("round_end")]
+    freeze = [r["tick"] for r in live_rows("round_freeze_end")]
+    at = {}  # freeze-end tick → {steamid: [team, alive, equipment value]}
+    if freeze:
+        try:
+            df = p.parse_ticks(["team_num", "is_alive", "current_equip_value"], ticks=freeze)
+            for r in df.to_dict("records"):
+                at.setdefault(r["tick"], {})[_sid(r["steamid"])] = [int(r["team_num"] or 0), bool(r["is_alive"]),
+                                                                    int(r["current_equip_value"] or 0)]
+        except Exception:  # noqa: BLE001
+            pass
+    players = {}
+    try:
+        for r in p.parse_player_info().to_dict("records"):
+            players[_sid(r["steamid"])] = str(r["name"])
+    except Exception:  # noqa: BLE001
+        pass
+    return {
+        "map": p.parse_header().get("map_name", ""), "players": players, "start": start,
+        "roundEnds": round_ends, "freeze": [{"tick": t, "players": at.get(t, {})} for t in freeze],
+        "deaths": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "killer": _sid(r.get("attacker_steamid")),
+                    "assister": _sid(r.get("assister_steamid")), "flash": bool(r.get("assistedflash")),
+                    "weapon": str(r.get("weapon") or ""), "hs": bool(r.get("headshot")),
+                    "wall": int(r.get("penetrated") or 0) > 0, "smoke": bool(r.get("thrusmoke")),
+                    "noscope": bool(r.get("noscope")), "blind": bool(r.get("attackerblind"))}
+                   for r in live_rows("player_death")],
+        "hurts": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "attacker": _sid(r.get("attacker_steamid")),
+                   "dmg": int(r.get("dmg_health") or 0), "health": int(r.get("health") or 0),
+                   "weapon": str(r.get("weapon") or "")} for r in live_rows("player_hurt")],
+        "fires": [{"tick": r["tick"], "who": _sid(r.get("user_steamid")), "weapon": str(r.get("weapon") or "")}
+                  for r in live_rows("weapon_fire")],
+        "blinds": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "attacker": _sid(r.get("attacker_steamid")),
+                    "time": float(r.get("blind_duration") or 0)} for r in live_rows("player_blind")],
+    }
+
+
+def cs2_demo_me(raw, steamid="", name=""):
+    """Your steamid in the demo – by the id GSI gave, or by the name (videos from before step 2)."""
+    if steamid and steamid in raw["players"]:
+        return steamid
+    for sid, n in raw["players"].items():
+        if name and n.strip().lower() == name.strip().lower():
+            return sid
+    return ""
+
+
+def cs2_demo_analyse(raw, me):
+    """Your match from the demo: kills (weapon, wallbang, smoke, entry, trade), clutches, the
+    numbers (K/D, ADR, KAST, HS %, accuracy per weapon, utility, money) and each round."""
+    ends = raw["roundEnds"]
+    n = len(ends)
+
+    def round_of(tick):  # the round a tick belongs to (None after the last round's end)
+        for i, e in enumerate(ends):
+            if tick <= e["tick"]:
+                return i
+        return None
+
+    teams = [{} for _ in range(n)]  # per round: steamid → team
+    alive0 = [set() for _ in range(n)]
+    equip = [None] * n  # your equipment's value when the round starts (none: ended before, a surrender)
+    last = {}
+    for f in raw["freeze"]:
+        r = round_of(f["tick"])
+        if r is not None:
+            teams[r] = {sid: v[0] for sid, v in f["players"].items() if v[0] in (2, 3)}
+            alive0[r] = {sid for sid, v in f["players"].items() if v[0] in (2, 3) and v[1]}
+            if me in f["players"]:
+                equip[r] = f["players"][me][2]
+    for r in range(n):  # a round without its freeze end: the round before's teams
+        if not teams[r] and last:
+            teams[r], alive0[r] = dict(last["t"]), set(last["a"])
+        if teams[r]:
+            last = {"t": teams[r], "a": alive0[r]}
+    my_team = [teams[r].get(me, 0) for r in range(n)]
+
+    def enemy(r, sid):
+        return bool(sid) and teams[r].get(sid) not in (None, my_team[r])
+
+    def mate(r, sid):
+        return bool(sid) and sid != me and teams[r].get(sid) == my_team[r]
+
+    kills, deaths, assists, flash_assists = [], [], 0, 0
+    clutches = []
+    rounds = [{"r": r + 1, "won": ends[r]["winner"] == my_team[r] and my_team[r] > 0, "k": 0, "dmg": 0,
+               "died": False, "kast": False, "equip": equip[r], "clutch": 0} for r in range(n)]
+    entry = {"won": 0, "lost": 0}
+    trades = traded = 0
+    by_round = {}
+    for d in raw["deaths"]:
+        r = round_of(d["tick"])
+        if r is not None and my_team[r]:
+            by_round.setdefault(r, []).append(d)
+    for r, ds in by_round.items():
+        alive = set(alive0[r])
+        first = True
+        clutch = None
+        mate_deaths = []  # (tick, killer)
+        for d in ds:
+            alive.discard(d["victim"])
+            if d["killer"] == me and enemy(r, d["victim"]):
+                k = dict(d, round=r + 1, entry=first, trade=any(d["tick"] - t <= TRADE_TIME * TICKRATE and kr == d["victim"]
+                                                                 for t, kr in mate_deaths))
+                kills.append(k)
+                rounds[r]["k"] += 1
+                trades += k["trade"]
+                if first:
+                    entry["won"] += 1
+            elif d["victim"] == me:
+                rounds[r]["died"] = True
+                deaths.append(dict(d, round=r + 1))
+                if first and enemy(r, d["killer"]):
+                    entry["lost"] += 1
+                # traded: a teammate killed your killer soon after
+                if any(o["killer"] != me and mate(r, o["killer"]) and o["victim"] == d["killer"]
+                       and 0 <= o["tick"] - d["tick"] <= TRADE_TIME * TICKRATE for o in ds):
+                    rounds[r]["kast"] = True
+                    traded += 1
+            elif mate(r, d["victim"]):
+                mate_deaths.append((d["tick"], d["killer"]))
+            if d["assister"] == me and enemy(r, d["victim"]):
+                assists += 1
+                flash_assists += d["flash"]
+                rounds[r]["kast"] = True
+            if enemy(r, d["killer"]) or enemy(r, d["victim"]):
+                first = False
+            mine = {s for s in alive if teams[r].get(s) == my_team[r]}
+            theirs = {s for s in alive if enemy(r, s)}
+            if clutch is None and mine == {me} and theirs:
+                clutch = {"round": r + 1, "vs": len(theirs), "start": d["tick"], "end": ends[r]["tick"],
+                          "won": rounds[r]["won"]}
+        if clutch:
+            clutch["kills"] = sum(1 for k in kills if k["round"] == r + 1 and k["tick"] >= clutch["start"])
+            clutches.append(clutch)
+            rounds[r]["clutch"] = clutch["vs"] if clutch["won"] else -clutch["vs"]
+    for rd in rounds:
+        rd["kast"] = rd["kast"] or rd["k"] > 0 or not rd["died"]
+
+    # damage (capped at the health the enemy had left), hits and shots per weapon
+    health, dmg, util = {}, 0, {"heDmg": 0, "fireDmg": 0}
+    weapons, variant = {}, {}  # base gun → numbers; base gun → {the name you shot with: shots}
+
+    def gun(w, count=0):
+        base = SAME_GUN.get(w, w)
+        v = variant.setdefault(base, {})
+        v[w] = v.get(w, 0) + count
+        return weapons.setdefault(base, {"shots": 0, "hits": 0, "kills": 0, "hs": 0})
+    for h in raw["hurts"]:
+        r = round_of(h["tick"])
+        if r is None or h["attacker"] != me or not enemy(r, h["victim"]):
+            continue
+        real = min(h["dmg"], health.get((r, h["victim"]), 100))
+        health[(r, h["victim"])] = h["health"]
+        dmg += real
+        rounds[r]["dmg"] += real
+        w = h["weapon"].removeprefix("weapon_")
+        if w == "hegrenade":
+            util["heDmg"] += real
+        elif w in ("inferno", "molotov", "incgrenade"):
+            util["fireDmg"] += real
+        elif w and not NOT_GUNS.search(w):
+            gun(w)["hits"] += 1
+    thrown = {"flash": 0, "smoke": 0, "he": 0, "molotov": 0, "decoy": 0}
+    for f in raw["fires"]:
+        if f["who"] != me or round_of(f["tick"]) is None:
+            continue
+        w = f["weapon"].removeprefix("weapon_")
+        if w in GRENADES:
+            thrown[GRENADES[w]] += 1
+        elif w and not NOT_GUNS.search(w):
+            gun(w, 1)["shots"] += 1
+    for k in kills:
+        w = k["weapon"].removeprefix("weapon_")
+        if w and not NOT_GUNS.search(w):
+            g = gun(w, 1)
+            g["kills"] += 1
+            g["hs"] += k["hs"]
+    flashed = sum(1 for b in raw["blinds"] if b["attacker"] == me and b["time"] >= 1.0
+                  and (r := round_of(b["tick"])) is not None and enemy(r, b["victim"]))
+    team_flashed = sum(1 for b in raw["blinds"] if b["attacker"] == me and b["time"] >= 1.0
+                       and (r := round_of(b["tick"])) is not None and mate(r, b["victim"]))
+
+    nk, nd = len(kills), len(deaths)
+    played = max(n, 1)
+    buys = {"eco": [], "force": [], "full": []}
+    bought = [rd for rd in rounds if rd["equip"] is not None]
+    for rd in bought:
+        buys["eco" if rd["equip"] < 1500 else "force" if rd["equip"] < 4000 else "full"].append(rd)
+    stats = {
+        "kills": nk, "deaths": nd, "assists": assists, "kd": round(nk / max(nd, 1), 2),
+        "adr": round(dmg / played, 1), "kast": round(100 * sum(rd["kast"] for rd in rounds) / played),
+        "hs": round(100 * sum(k["hs"] for k in kills) / max(nk, 1)),
+        "entryWon": entry["won"], "entryLost": entry["lost"], "trades": trades, "traded": traded,
+        "clutchWon": sum(c["won"] for c in clutches), "clutches": len(clutches),
+        "multi": {f"{c}K" if c < 5 else "ACE": sum(1 for rd in rounds if (rd["k"] == c if c < 5 else rd["k"] >= 5))
+                  for c in (2, 3, 4, 5)},
+        "wallbangs": sum(k["wall"] for k in kills), "smokeKills": sum(k["smoke"] for k in kills),
+        "noscopes": sum(k["noscope"] for k in kills), "blindKills": sum(k["blind"] for k in kills),
+        "thrown": thrown, "flashed": flashed, "teamFlashed": team_flashed, "flashAssists": flash_assists, **util,
+        "weapons": sorted(({"name": weapon_name(max(variant[w], key=variant[w].get)), **v, "acc": round(100 * v["hits"] / v["shots"]) if v["shots"] else None}
+                           for w, v in weapons.items() if v["kills"] or v["shots"] >= 5),
+                          key=lambda v: (-v["kills"], -v["shots"])),
+        "buys": {b: {"rounds": len(rs), "won": sum(rd["won"] for rd in rs), "kills": sum(rd["k"] for rd in rs)}
+                 for b, rs in buys.items()},
+        "avgEquip": round(sum(rd["equip"] for rd in bought) / max(len(bought), 1)),
+    }
+    won = sum(rd["won"] for rd in rounds)
+    return {"map": raw["map"], "rounds": n, "score": [won, n - won], "kills": kills, "deaths": deaths,
+            "clutches": clutches, "stats": stats, "perRound": rounds, "roundEnds": [e["tick"] for e in ends]}
+
+
+def cs2_demo_fits(meta, a):
+    """Is this demo the match of the video? Same map, you in it, and the same score."""
+    if a["map"] and meta.get("map") and a["map"] != meta["map"]:
+        return False
+    score = re.findall(r"\d+", meta.get("score") or "")
+    if len(score) == 2:
+        return [int(score[0]), int(score[1])] == a["score"]
+    return True
+
+
+def cs2_demo_offset(meta, a):
+    """Video seconds = tick / 64 + offset. The round ends and your kills are in both (GSI
+    marked them in the video), paired from the end – a recording that started late (you
+    reconnected) misses the first rounds, not the last. None if they don't agree."""
+    diffs = []
+    for kind, ticks in (("round", a["roundEnds"]), ("kill", [k["tick"] for k in a["kills"]])):
+        ts = sorted(m["t"] for m in meta.get("markers", []) if m["kind"] == kind)
+        diffs += [t - tick / TICKRATE for t, tick in zip(reversed(ts), reversed(ticks))]
+    if len(diffs) < 3:
+        return None
+    med = statistics.median(diffs)
+    good = [d for d in diffs if abs(d - med) <= ALIGN_SLACK]
+    if len(good) < max(3, len(diffs) / 2):
+        return None
+    return statistics.median(good)
+
+
+def cs2_kill_detail(k):
+    parts = [weapon_name(k["weapon"])]
+    parts += [t for flag, t in (("noscope", "noscope"), ("wall", "genom vägg"), ("smoke", "genom rök"),
+                                ("blind", "bländad"), ("entry", "entry"), ("trade", "trade")) if k.get(flag)]
+    return " · ".join(parts)
+
+
+def cs2_demo_apply(meta_path, dem, a, offset):
+    """The demo's knowledge into the match: weapon etc. on the kill marks, a clip per won
+    clutch, the numbers on the card; then the whole video goes (as after the clips). Returns
+    the text for the notification."""
+    meta_path = Path(meta_path)
+    meta = json.loads(meta_path.read_text())
+    folder, video = meta_path.parent, meta_path.parent / meta["file"]
+    # the kill marks get the weapon, wallbang, smoke, entry, trade
+    marks = meta.get("markers", [])
+    for k in a["kills"]:
+        t = k["tick"] / TICKRATE + offset
+        near = [m for m in marks if m["kind"] == "kill" and abs(m["t"] - t) <= ALIGN_SLACK and "·" not in m["text"].replace(" · HS", "")]
+        if near:
+            m = min(near, key=lambda m: abs(m["t"] - t))
+            m["text"] += " · " + cs2_kill_detail(k)
+    made = []
+    if video.is_file():
+        base = Path(meta["file"]).stem
+        dur = meta.get("duration") or video_length(video)
+        ends = [e / TICKRATE + offset for e in a["roundEnds"]]
+        for c in a["clutches"]:
+            if not c["won"]:
+                continue
+            r = c["round"] - 1
+            round_start = ends[r - 1] if r > 0 else 0
+            start = max(c["start"] / TICKRATE + offset - CLUTCH_BEFORE, round_start, 0)
+            end = min(c["end"] / TICKRATE + offset + CLUTCH_AFTER, dur)
+            label = f"Clutch 1v{c['vs']}"
+            dest = folder / (safe_name(f"{base} – {label} runda {c['round']}") + video.suffix)
+            if end - start < 1 or not cut_copy(video, start, end, dest):
+                continue
+            length = video_length(dest)
+            lead = length - (end - start)
+            cm = [{"t": round(m["t"] - start + lead, 2), "kind": m["kind"], "text": m["text"]}
+                  for m in marks if m["kind"] in ("kill", "death") and start <= m["t"] <= end]
+            data = {k: meta.get(k) for k in ("name", "difficulty", "result", "score", "tracks", "codec", "fps",
+                                             "player", "map", "mode")}
+            data.update(file=dest.name, kind="cs2clip", parent=meta["file"], clip=label, round=c["round"],
+                        started=meta["started"] + start, fight=length, duration=length, fightStart=0, markers=cm)
+            dest.with_suffix(".json").write_text(json.dumps(data, ensure_ascii=False, indent=1))
+            make_thumb(dest, min(max((cm[0]["t"] if cm else 1) - 0.5, 0), max(length - 0.5, 0)), dest.with_suffix(".jpg"))
+            made.append(dest.name)
+    data = json.loads(meta_path.read_text())
+    data.update(markers=marks, demo="done", demoFile=str(dem), demoStats=a["stats"], demoRounds=a["perRound"])
+    meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    cs2_drop_match_video(meta_path)
+    won = sum(c["won"] for c in a["clutches"])
+    text = f"Demon för {meta.get('name', 'matchen')} är läst"
+    return text + (f" – {won} {'clutch' if won == 1 else 'clutchar'}" if won else f" – ADR {a['stats']['adr']:g}")
+
+
+def cs2_drop_match_video(meta_path):
+    """The whole match's video goes when it has clips, unless kept (Behåll hela matchen /
+    Spara för alltid)."""
+    meta_path = Path(meta_path)
+    data = json.loads(meta_path.read_text())
+    video = meta_path.parent / data["file"]
+    if (data.get("keep") or load_config().get("cs2KeepMatch") or not video.is_file()
+            or not match_clips(meta_path.parent, data["file"])):
+        return False
+    video.unlink(missing_ok=True)
+    data["videoRemoved"] = True
+    meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    return True
+
+
+def cs2_demo_skip(meta_path, expired=False):
+    """Klar utan demo (or 3 days passed): the clips and the card stay, the whole video goes."""
+    set_meta(meta_path, demo="expired" if expired else "none")
+    cs2_drop_match_video(Path(meta_path).with_suffix(".json"))
+
+
+def cs2_demo_run(dem, meta_path=None):
+    """Reads a demo and gives it to its match: the one given (picked by hand), else the
+    waiting match it fits. {"match": file, "text": …} or {"error": …} or {"match": None}."""
+    if not demoparser_ok():
+        return {"error": "demoparser2 saknas – den kommer med nästa GOBLINCAKES-uppdatering."}
+    try:
+        raw = cs2_demo_load(dem)
+    except Exception as e:  # noqa: BLE001 – a broken or unknown demo
+        return {"error": f"Kunde inte läsa demon: {e}"}
+    if meta_path:
+        candidates = [json.loads(Path(meta_path).with_suffix(".json").read_text())]
+        candidates[0]["path"] = str(Path(meta_path).with_suffix(".json"))
+    else:
+        mtime = Path(dem).stat().st_mtime
+        candidates = [dict(v, path=str(Path(v["path"]).with_suffix(".json"))) for v in cs2_waiting(load_config()["folder"])
+                      if v.get("started", 0) <= mtime]
+    why = "Demon passar ingen match som väntar."
+    for meta in reversed(candidates):  # the newest match first
+        me = cs2_demo_me(raw, meta.get("steamid", ""), meta.get("player", ""))
+        if not me:
+            why = f"Hittar inte {meta.get('player') or 'dig'} i demon."
+            continue
+        a = cs2_demo_analyse(raw, me)
+        if not cs2_demo_fits(meta, a):
+            why = (f"Demon är {cs2_map_name(a['map'])} {a['score'][0]}–{a['score'][1]}, "
+                   f"matchen {meta.get('name', '')} {meta.get('score', '')}.")
+            continue
+        offset = cs2_demo_offset(meta, a)
+        if offset is None:
+            why = "Demons tider stämmer inte med filmens (rundorna och dina kills)."
+            continue
+        return {"match": meta["file"], "text": cs2_demo_apply(meta["path"], dem, a, offset)}
+    return {"error": why} if meta_path else {"match": None, "why": why}
 
 
 # ---------------------------------------------------------------- videos
@@ -1837,3 +2281,18 @@ def wcl_find(meta):
                         "bossPercentage": f.get("bossPercentage"),
                         "url": f"{WCL}/reports/{rep['code']}#fight={f['id']}"}
     return best
+
+
+def cs2_demo_process(dem, meta_path=None):
+    """cs2_demo_run in its own process (pandas & co. stay out of the service and the window),
+    with low priority – a demo takes some seconds of CPU, maybe while you play."""
+    cmd = ["nice", "-n", "10", sys.executable, "-I", __file__, "cs2-demo", str(dem)] + ([str(meta_path)] if meta_path else [])
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError) as e:
+        return {"error": f"Kunde inte läsa demon: {e}"}
+
+
+if __name__ == "__main__" and len(sys.argv) > 2 and sys.argv[1] == "cs2-demo":
+    print(json.dumps(cs2_demo_run(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None), ensure_ascii=False))
