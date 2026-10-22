@@ -59,7 +59,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] `goblin update` + grön/färgad uppdateringsmarkering i toppfältet, Config → Uppdatera
 - [x] Steg 4: GOBLINCAKES Config (Program, Förinstallerat, Inställningar, Fönster, Grafik, Uppdatera; webbappar, huvudwebbläsare, starta vid inloggning)
 - [x] Steg 5: Ianseo i container (+ systemfältsikon, nätverk, internet)
-- [x] Goblin AI (fönster, Meta+A, Meta+§, terminal; lokal AI, bilder, projekt, lärläge, verktyg: sök/WCL/wowfel/sport/systemfel/cs2, minne, ♥/👎-lärdomar, avatar, egna knappar, Spara som PDF/Word)
+- [x] Goblin AI (fönster, Meta+A, Meta+§, terminal; lokal AI, bilder, projekt, lärläge, verktyg: sök/WCL/wowfel/sport/systemfel/cs2/wowstats, minne, ♥/👎-lärdomar, avatar, egna knappar, Spara som PDF/Word)
 - [x] Laptop och dubbla grafikkort (ej testat – kräver laptop)
 - [x] Grafikdrivrutiner: tre varianter, Grafik-fliken, Secure Boot
 - [x] Diskar: automontering, ägare, I/O-schemaläggare
@@ -75,7 +75,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Spel från terminalen (`goblin play`, egna ord, `goblin play dock <spel>`)
 - [x] Spelverktyg + gaming-optimering (reglage)
 - [x] goblin graph (ljudstaplar i klassfärger)
-- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI → 2K–ACE-klipp + alla kills, matchen tas bort; CS2-demon läses: egna siffror, vunna clutchar som klipp; spelikon på korten)
+- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI → 2K–ACE-klipp + alla kills, matchen tas bort; CS2-demon läses: egna siffror, vunna clutchar som klipp; WoW Stats/CS2 Stats sammanställt lokalt; spelikon på korten)
 - [x] Plasma 6.8-förberedelser
 - [x] Välj färg (blå + 13 klassfärger)
 - [x] Chrome/Brave/Chromium-tema, Firefox-tema

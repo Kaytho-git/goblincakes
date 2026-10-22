@@ -679,3 +679,41 @@ def wcl_ability(r, boss_query, wanted):
             out.append(f"\nSkada på {enemies[0]['name']} under hela pullen: "
                        + ", ".join(f"{w} {short(v)}" for w, v in done[:20]))
     return "\n".join(out)
+
+
+def _v(x):
+    return "–" if x is None else x
+
+
+def wow_stats(query):
+    """Goblin AI's ```wowstats tool (22 Oct, the user's wish): your parses per boss and dungeon, kills,
+    item level – put together from GoblinRecorder's history (recorder.wow_overview), no calls."""
+    sys.path.insert(0, os.environ.get("GOBLINCAKES_RECORDER_SHARE", "/usr/share/goblincakes/recorder"))
+    import recorder as R  # noqa: PLC0415
+    q = (query or "").lower()
+    days = int(m.group(1)) if (m := re.search(r"(\d+)\s*dag", q)) else 0
+    o = R.wow_overview(R.load_config()["folder"], "", days)
+    if not o["player"]:
+        return "Inga WoW-siffror än – GoblinRecorder sparar dem när loggen för en inspelad pull hämtas från Warcraft Logs."
+    metric = "HPS" if o["role"] == "healers" else "DPS"
+    lines = [f"{o['name']} – {o['spec']} {o['class']}, item level {o['ilvl'] or '?'}"
+             + (f", de senaste {days} dagarna" if days else ", allt inspelat"),
+             "Parse = Warcraft Logs percentil (healers på HPS, andra på DPS); ilvl-parse = mot samma item level. "
+             "Färger hos WCL: 25 grön, 50 blå, 75 lila, 95 orange, 99 rosa, 100 guld."]
+    for d, r in o["raid"].items():
+        lines.append(f"\nRAID {d}: bästa snitt {_v(r['best'])}, median snitt {_v(r['median'])}, {r['kills']} kills av {r['pulls']} pulls")
+        for b in r["bosses"]:
+            lines.append(f"- {b['name']}: bäst {_v(b['best'])}, median {_v(b['median'])}, ilvl-parse {_v(b['ilvlParse'])}, "
+                         f"{b['kills']} kills, {b['wipes']} wipes, bästa {metric} {b['amount'] or '–'}, snabbast "
+                         f"{round(b['fastest'] or 0)} s")
+    mp = o["mplus"]
+    if mp["runs"]:
+        lines.append(f"\nMYTHIC+: {mp['timed']} i tid av {mp['runs']}, bästa snitt {_v(mp['best'])}, median snitt {_v(mp['median'])}")
+        for x in mp["dungeons"]:
+            lines.append(f"- {x['name']}: bästa i tid +{x['bestLevel'] or '–'}, högsta +{x['topLevel'] or '–'}, "
+                         f"{x['pulls']} körningar, {x['kills']} i tid, parse bäst {_v(x['best'])}, median {_v(x['median'])}")
+    if o["trend"]:
+        lines.append("\nParse över tid (äldst först): " + ", ".join(f"{t['name']} {t['parse']}" for t in o["trend"][-20:]))
+    if o["missing"]:
+        lines.append(f"\n{o['missing']} kills/nycklar saknar siffror (loggen inte hämtad).")
+    return "\n".join(lines)

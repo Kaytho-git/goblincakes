@@ -534,6 +534,7 @@ class Service:
             "_wall": wall, "_until": time.time() + LATE_MARKS,
         }
         self.write_meta(meta, dest)
+        R.wow_history_add(meta)  # WoW Stats: every pull and key, also when the video goes later
         # A live-logged fight is on Warcraft Logs within seconds – look at once, not in 5 minutes
         self.wcl_next = min(self.wcl_next, time.time() + 3)
         R.make_thumb(dest, min(max(meta["fightStart"] + 20, 0), max(meta["duration"] - 2, 0)),
@@ -662,12 +663,19 @@ class Service:
         if fresh:
             todo = fresh
             self.wcl_next = time.time() + WCL_FRESH_EVERY
-        if not todo:
+        # WoW Stats: your numbers from the log of each kill and key – at once, and once more when the
+        # parses have settled (an hour after the end)
+        now = time.time()
+        stats = [v for v in R.video_files(self.cfg["folder"])
+                 if v.get("kind") in ("raid", "mplus") and v.get("wcl") and v.get("result") in ("kill", "timed")
+                 and now - v["started"] < WCL_FOR + 3600
+                 and (not v.get("wclStats") or v["wclStats"].get("fetched", 0) < v["started"] + (v.get("fight") or 0) + 3600 <= now)]
+        if not todo and not stats:
             return
         self.wcl_busy = True
-        threading.Thread(target=self.wcl_run, args=(todo,), daemon=True).start()
+        threading.Thread(target=self.wcl_run, args=(todo, stats), daemon=True).start()
 
-    def wcl_run(self, todo):
+    def wcl_run(self, todo, stats=()):
         try:
             for v in todo:
                 found = R.wcl_find(v)
@@ -675,6 +683,10 @@ class Service:
                     R.set_meta(v["path"], wcl=found)
                     self.last_video = Path(v["path"]).name + "#wcl"
                     log("Warcraft Logs:", v["file"], found["url"])
+            for v in stats:
+                R.set_meta(v["path"], wclStats=R.wcl_stats(v["wcl"]))
+                R.wow_history_add(json.loads(Path(v["path"]).with_suffix(".json").read_text()))
+                log("Warcraft Logs numbers:", v["file"])
         except Exception as e:  # noqa: BLE001 – no network etc.: try again later
             log("Warcraft Logs:", e)
         finally:

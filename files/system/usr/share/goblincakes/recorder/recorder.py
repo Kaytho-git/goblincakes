@@ -2252,8 +2252,12 @@ def wcl_query(query, variables=None):
         "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as r:
         out = json.loads(r.read())
-    if out.get("errors") and not out.get("data"):
-        raise RuntimeError(out["errors"][0].get("message", "fel från Warcraft Logs"))
+    errors = out.get("errors") or []
+    # 22 Oct: with the hour's 1000 points spent the answer has data, but the asked parts are null
+    if any("points remaining" in (e.get("message") or "") for e in errors):
+        raise RuntimeError("timkvoten är slut (1000 poäng i timmen) – prova igen om en stund")
+    if errors and not out.get("data"):
+        raise RuntimeError(errors[0].get("message", "fel från Warcraft Logs"))
     return out["data"]
 
 
@@ -2379,7 +2383,7 @@ def wcl_stats(wcl):
                 "name": name, "class": p.get("type", ""), "role": role,
                 "spec": (p.get("specs") or [{}])[0].get("spec", ""),
                 "dps": round(dps.get(name, 0)), "hps": round(hps.get(name, 0)),
-                "parse": parse, "ilvlParse": ilvl_parse,
+                "parse": parse, "ilvlParse": ilvl_parse, "ilvl": p.get("maxItemLevel") or p.get("minItemLevel"),
                 "deaths": deaths.get(name, 0)})
     players.sort(key=lambda p: (ROLE_ORDER.get(p["role"], 3), -p["dps"]))
     return {"players": players, "deaths": sum(deaths.values()), "fetched": time.time(),
@@ -2409,6 +2413,170 @@ def wcl_find(meta):
                         "bossPercentage": f.get("bossPercentage"),
                         "url": f"{WCL}/reports/{rep['code']}#fight={f['id']}"}
     return best
+
+# ---------------------------------------------------------------- WoW Stats / CS2 Stats
+# (22 Oct, the user's wish: two buttons at the top of the window, and – the user's decision – put
+# together from what is already fetched, not from more Warcraft Logs/Raider.io calls.) Every
+# recorded pull and key goes into your own history when it is saved; its Warcraft Logs numbers
+# (your parse, DPS/HPS, item level) are added when the log is fetched. The history stays when the
+# video goes (wipes and old videos are pruned), so WoW Stats keeps everything you recorded.
+WOW_HISTORY = Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share")) / "goblincakes" / "wow-history.json"
+DIFF_ORDER = ["Mythic", "Heroic", "Normal", "LFR"]
+
+
+def wow_history():
+    try:
+        return json.loads(WOW_HISTORY.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def wow_history_add(meta, stats=None):
+    """A recorded pull/key into the history (kind raid or mplus), with your own row of the log's
+    numbers when they are there."""
+    if meta.get("kind") not in ("raid", "mplus") or not meta.get("player"):
+        return
+    hist = wow_history()
+    key = f"{meta['player']}|{int(meta.get('started', 0))}"
+    e = hist.get(key) or {}
+    e.update({k: meta.get(k) for k in ("player", "kind", "name", "difficulty", "level", "result", "started",
+                                       "fight", "encounterId")})
+    if meta.get("wcl"):
+        e["url"] = meta["wcl"].get("url")
+    stats = stats or meta.get("wclStats")
+    me = meta["player"].split("-")[0]
+    row = next((p for p in (stats or {}).get("players", []) if p.get("name") == me), None)
+    if row:
+        e.update({k: row.get(k) for k in ("class", "spec", "role", "dps", "hps", "parse", "ilvlParse", "ilvl", "deaths")})
+    if hist.get(key) == e:
+        return
+    hist[key] = e
+    WOW_HISTORY.parent.mkdir(parents=True, exist_ok=True)
+    tmp = WOW_HISTORY.with_suffix(".tmp")
+    tmp.write_text(json.dumps(hist, ensure_ascii=False))
+    tmp.replace(WOW_HISTORY)
+
+
+def wow_overview(folder, player="", days=0):
+    """The WoW Stats page: per raid difficulty and boss your best and median parse, kills, wipes,
+    fastest kill, best DPS/HPS and item level (like Warcraft Logs' character page), per dungeon your
+    best key and parses, and the parses and item level over time. days = only the last days."""
+    for v in video_files(folder):  # videos from before the history (or fetched in the window)
+        if v.get("kind") in ("raid", "mplus") and v.get("player"):
+            wow_history_add(v)
+    entries = list(wow_history().values())
+    players = []
+    for e in sorted(entries, key=lambda e: -(e.get("started") or 0)):
+        if e.get("player") and e["player"] not in players:
+            players.append(e["player"])
+    player = player if player in players else (players[0] if players else "")
+    since = time.time() - days * 86400 if days else 0
+    mine = sorted((e for e in entries if e.get("player") == player and (e.get("started") or 0) >= since),
+                  key=lambda e: e.get("started") or 0)
+    with_row = [e for e in mine if e.get("spec")]
+    last = with_row[-1] if with_row else {}
+
+    def amount(e):
+        return e.get("hps") if e.get("role") == "healers" else e.get("dps")
+
+    def boss_rows(es, key):
+        groups = {}
+        for e in es:
+            groups.setdefault(e.get(key) or e.get("name"), []).append(e)
+        rows = []
+        for _, g in groups.items():
+            done = [e for e in g if e.get("result") in ("kill", "timed")]
+            parses = [e["parse"] for e in done if e.get("parse") is not None]
+            best = max(done, key=lambda e: e["parse"] if e.get("parse") is not None else -1, default=None)
+            rows.append({
+                "name": g[-1].get("name"), "encounterId": g[-1].get("encounterId"), "pulls": len(g),
+                "kills": len(done), "wipes": sum(e.get("result") in ("wipe", "depleted") for e in g),
+                "best": max(parses) if parses else None,
+                "median": round(statistics.median(parses)) if parses else None,
+                "ilvlParse": max((e["ilvlParse"] for e in done if e.get("ilvlParse") is not None), default=None),
+                "amount": max((amount(e) or 0 for e in done), default=0) or None,
+                "fastest": min((e.get("fight") or 0 for e in done), default=0) or None,
+                "ilvl": best.get("ilvl") if best else None, "url": (best or {}).get("url") or g[-1].get("url"),
+                "spec": (best or g[-1]).get("spec") or "", "last": g[-1].get("started"),
+                "bestLevel": max((e.get("level") or 0 for e in done), default=0) or None,
+                "topLevel": max((e.get("level") or 0 for e in g), default=0) or None,
+            })
+        return rows
+
+    raid = {}
+    for d in DIFF_ORDER + sorted({e.get("difficulty") for e in mine if e.get("kind") == "raid"} - set(DIFF_ORDER) - {None}):
+        es = [e for e in mine if e.get("kind") == "raid" and e.get("difficulty") == d]
+        if not es:
+            continue
+        rows = sorted(boss_rows(es, "encounterId"), key=lambda r: r.get("encounterId") or 0)
+        ranked = [r for r in rows if r["best"] is not None]
+        raid[d] = {"bosses": rows,
+                   "best": round(sum(r["best"] for r in ranked) / len(ranked), 1) if ranked else None,
+                   "median": round(sum(r["median"] for r in ranked) / len(ranked), 1) if ranked else None,
+                   "kills": sum(r["kills"] for r in rows), "pulls": sum(r["pulls"] for r in rows)}
+    keys = [e for e in mine if e.get("kind") == "mplus"]
+    dungeons = sorted(boss_rows(keys, "name"), key=lambda r: -(r["bestLevel"] or 0))
+    ranked = [r for r in dungeons if r["best"] is not None]
+    trend = [{"name": e.get("name"), "difficulty": e.get("difficulty"), "level": e.get("level"), "kind": e.get("kind"),
+              "parse": e["parse"], "ilvl": e.get("ilvl"), "started": e.get("started"), "url": e.get("url")}
+             for e in mine if e.get("parse") is not None][-40:]
+    name, realm, region = (player.split("-")[0], *player.split("-", 1)[1].rsplit("-", 1)) if player.count("-") >= 2 else (player, "", "")
+    return {
+        "players": players, "player": player, "name": name, "realm": realm, "region": region,
+        "class": last.get("class", ""), "spec": last.get("spec", ""), "role": last.get("role", ""),
+        "ilvl": next((e["ilvl"] for e in reversed(with_row) if e.get("ilvl")), None),
+        "wclUrl": f"{WCL}/character/{region.lower()}/{server_slug(realm)}/{name.lower()}" if region else "",
+        "difficulties": list(raid), "raid": raid,
+        "mplus": {"dungeons": dungeons, "runs": len(keys), "timed": sum(e.get("result") == "timed" for e in keys),
+                  "best": round(sum(r["best"] for r in ranked) / len(ranked), 1) if ranked else None,
+                  "median": round(sum(r["median"] for r in ranked) / len(ranked), 1) if ranked else None},
+        "trend": trend, "missing": sum(1 for e in mine if e.get("result") in ("kill", "timed") and not e.get("spec")),
+    }
+
+
+def cs2_overview(folder, count=10):
+    """The CS2 Stats page: your matches with a read demo – the average of the last `count` (0 = all),
+    each map, the guns in all of them, and the matches for the over-time charts."""
+    ms = sorted((v for v in video_files(folder) if v.get("kind") == "cs2" and v.get("demoStats")),
+                key=lambda v: v.get("started", 0))
+    waiting = sum(1 for v in video_files(folder) if v.get("kind") == "cs2" and v.get("demo") == "waiting")
+    recent = ms[-count:] if count else ms
+
+    def avg(key, of=recent):
+        xs = [m["demoStats"].get(key) for m in of if m["demoStats"].get(key) is not None]
+        return round(sum(xs) / len(xs), 2) if xs else None
+
+    def per(key):
+        return round(sum(m["demoStats"].get(key, 0) for m in recent) / len(recent), 2) if recent else None
+
+    maps = {}
+    for m in ms:
+        g = maps.setdefault(m.get("name", "?"), [])
+        g.append(m)
+    guns = {}
+    for m in recent:
+        for w in m["demoStats"].get("weapons", []):
+            g = guns.setdefault(w["name"], {"name": w["name"], "kills": 0, "hs": 0, "shots": 0, "hits": 0})
+            for k in ("kills", "hs", "shots", "hits"):
+                g[k] += w.get(k) or 0
+    for g in guns.values():
+        g["acc"] = round(100 * g["hits"] / g["shots"]) if g["shots"] else None
+        g["hsp"] = round(100 * g["hs"] / g["kills"]) if g["kills"] else None
+    return {
+        "count": len(recent), "all": len(ms), "waiting": waiting,
+        "wins": sum(m.get("result") == "win" for m in recent), "losses": sum(m.get("result") == "loss" for m in recent),
+        "avg": {k: avg(k) for k in ("kd", "adr", "kast", "hs", "ttd", "cp")},
+        "per": {k: per(k) for k in ("kills", "deaths", "assists", "entryWon", "entryLost", "trades", "clutchWon",
+                                     "clutches", "flashed", "teamFlashed", "flashAssists", "heDmg", "fireDmg")},
+        "maps": sorted(({"name": n, "matches": len(g), "wins": sum(m.get("result") == "win" for m in g),
+                         "adr": avg("adr", g), "kd": avg("kd", g)} for n, g in maps.items()), key=lambda x: -x["matches"]),
+        "weapons": sorted(guns.values(), key=lambda g: -g["kills"])[:10],
+        "matches": [{"path": m["path"], "name": m.get("name", ""), "mode": m.get("difficulty", ""), "score": m.get("score", ""),
+                     "result": m.get("result", ""), "started": m.get("started", 0),
+                     **{k: m["demoStats"].get(k) for k in ("kd", "adr", "kast", "hs", "ttd", "cp", "kills", "deaths")}}
+                    for m in ms[-30:]],
+    }
+
 
 
 def cs2_demo_process(dem, meta_path=None):

@@ -420,6 +420,7 @@ class Backend(QObject):
                 if old.get("fetched", 0) > meta.get("started", 0) + meta.get("fight", 0) + 3600:
                     return
                 R.set_meta(path, wclStats=R.wcl_stats(meta["wcl"]))
+                R.wow_history_add(json.loads(Path(path).with_suffix(".json").read_text()))
             except Exception as e:  # noqa: BLE001
                 self.message.emit(f"Warcraft Logs: {e}")
             finally:
@@ -427,6 +428,16 @@ class Backend(QObject):
                 self.refreshLater.emit()
         self.statsBusy.emit(path)
         threading.Thread(target=work, daemon=True).start()
+
+    # ---------------------------------------------------------- WoW Stats / CS2 Stats
+    @Slot(str, int, result=str)
+    def wowOverview(self, player, days):
+        """The WoW Stats page, put together from your own history (no Warcraft Logs calls)."""
+        return json.dumps(R.wow_overview(R.load_config()["folder"], player, days), ensure_ascii=False)
+
+    @Slot(int, result=str)
+    def cs2Overview(self, count):
+        return json.dumps(R.cs2_overview(R.load_config()["folder"], count), ensure_ascii=False)
 
     # ---------------------------------------------------------- CS2 demos (step 2)
     demoBusy = Signal(str)  # the match whose demo is being read, "" = done

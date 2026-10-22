@@ -643,10 +643,27 @@ och ungefärliga riktvärden. Coacha utifrån dem:
 - Nämn också något som går bra. Hitta inte på siffror som inte står i datan; TTD och sikte är ungefärliga."""
 
 
+WOWSTATS_PROMPT = """
+
+WoW-statistik: frågar användaren om sina egna parses, bossar, dungeons, item level, hur hen ligger till eller vad
+hen ska förbättra i WoW (inte en viss pull – då warcraftlogs), svara med BARA ett kodblock märkt ```wowstats
+med `allt` eller en period (t.ex. `30 dagar`). Du får användarens parses per boss och svårighetsgrad, per dungeon
+och över tid, sammanställt av GoblinRecorders inspelningar. Peka ut de svagaste bossarna/dungeonsen (lägst median
+och störst skillnad mellan bäst och median = ojämnt), säg vad som går bra, och föreslå konkret vad som kan hämtas
+med warcraftlogs-verktyget för en viss boss. Hitta inte på siffror."""
+
+
 def sys_tools():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import systools  # noqa: PLC0415
     return systools
+
+
+def configured_wcl():
+    try:
+        return bool(json.loads((CONFIG / "wcl.json").read_text()).get("clientId"))
+    except (OSError, ValueError):
+        return False
 
 
 def tools_for(keys, project, messages):
@@ -665,6 +682,8 @@ def tools_for(keys, project, messages):
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
     except (OSError, ValueError):
         cs2_on = False
+    if (Path.home() / ".local/share/goblincakes/wow-history.json").exists() or configured_wcl():
+        tools["wowstats"] = ("Läser dina WoW-siffror", WOWSTATS_PROMPT, lambda q: (wow_tools().wow_stats(q), []))
     if cs2_on:
         tools["cs2"] = ("Läser dina CS2-siffror", CS2_PROMPT, lambda q: (cs2_tools().cs2_stats(q), []))
     if list(Path.home().glob("Games/WoW/*/AddOns")):
@@ -688,6 +707,7 @@ def tools_for(keys, project, messages):
 TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel", "wow-fel": "wowfel",
               "bugsack": "wowfel", "warcraftlogs": "warcraftlogs", "wcl": "warcraftlogs",
               "sport": "sport", "lag": "sport",
+              "wowstats": "wowstats", "wow-stats": "wowstats", "parses": "wowstats",
               "cs2": "cs2", "counterstrike": "cs2", "cs": "cs2",
               "systemfel": "systemfel", "system-fel": "systemfel", "systemlogg": "systemfel"}
 

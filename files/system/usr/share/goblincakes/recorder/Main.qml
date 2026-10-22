@@ -20,7 +20,7 @@ Window {
     readonly property var cfg: JSON.parse(backend.config)
     readonly property var enc: JSON.parse(backend.encoders)
     readonly property var videos: JSON.parse(backend.videos)
-    property string tab: "videos" // videos | settings
+    property string tab: "videos" // videos | settings | wowstats | cs2stats
     property var selected: null
     // The ✕ (19 Oct, the user's wish): hide in the system tray or close – asks until remembered
     property bool closeAsk: false
@@ -983,6 +983,23 @@ Window {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: win.tab = tabItem.modelData.id
                     }
+                }
+            }
+        }
+
+        // WoW Stats and CS2 Stats (22 Oct, the user's wish: at the top of the window)
+        Row {
+            anchors { right: parent.right; rightMargin: 40; bottom: parent.bottom; bottomMargin: 5 }
+            spacing: 8
+            Repeater {
+                model: [{ id: "wowstats", t: "WoW Stats", sub: "Dina parses per boss och dungeon, kills, item level – från dina inspelningar" },
+                        { id: "cs2stats", t: "CS2 Stats", sub: "Ditt snitt, utveckling, kartor och vapen – från dina lästa demos" }]
+                Choice {
+                    required property var modelData
+                    text: modelData.t
+                    sub: modelData.sub
+                    chosen: win.tab === modelData.id
+                    onPicked: win.tab = win.tab === modelData.id ? "videos" : modelData.id
                 }
             }
         }
@@ -2015,6 +2032,551 @@ Window {
             }
         }
     }
+
+    // ── WoW Stats / CS2 Stats (22 Oct, the user's wish) ─────
+    // Put together from what is already here: WoW from your own history (each recorded pull with
+    // your row of its Warcraft Logs numbers), CS2 from the read demos. No calls of their own.
+    component StatTile: Rectangle {
+        id: tile
+        property string label
+        property string value
+        property color valueColor: "#E6ECF5"
+        property string tip
+        width: 112
+        height: 54
+        color: "#0B1018"
+        border.width: 1
+        border.color: "#1E2A40"
+        HoverTip { tip: tile.tip }
+        Column {
+            anchors.centerIn: parent
+            spacing: 2
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: tile.value
+                color: tile.valueColor
+                font.family: "IBM Plex Sans"
+                font.weight: Font.DemiBold
+                font.pixelSize: 18
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: tile.label
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.weight: Font.DemiBold
+                font.pixelSize: 10
+                font.letterSpacing: 1
+            }
+        }
+    }
+
+    // A table row: the first column to the left, the rest to the right; colors per cell (or the default)
+    component TableRow: Rectangle {
+        id: trow
+        property var cols: []
+        property var cells: []
+        property var colors: []
+        property bool heading: false
+        property string link
+        property string tip
+        width: parent ? parent.width : 0
+        height: heading ? 26 : 30
+        color: !heading && trowArea.containsMouse ? "#0E1420" : "transparent"
+        Rectangle { visible: !trow.heading; anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+        Row {
+            anchors.verticalCenter: parent.verticalCenter
+            x: 8
+            Repeater {
+                model: trow.cells
+                Text {
+                    required property var modelData
+                    required property int index
+                    width: trow.cols[index] || 80
+                    horizontalAlignment: index ? Text.AlignRight : Text.AlignLeft
+                    text: modelData === null || modelData === undefined ? "–" : String(modelData)
+                    color: trow.colors[index] || (trow.heading || index ? "#8B98AD" : "#E6ECF5")
+                    elide: Text.ElideRight
+                    font.family: trow.heading ? "Chakra Petch" : "IBM Plex Sans"
+                    font.weight: trow.heading ? Font.DemiBold : (index ? Font.Normal : Font.Medium)
+                    font.pixelSize: trow.heading ? 11 : 13
+                    font.letterSpacing: trow.heading ? 1 : 0
+                }
+            }
+        }
+        MouseArea {
+            id: trowArea
+            anchors.fill: parent
+            hoverEnabled: !trow.heading
+            cursorShape: trow.link ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: if (trow.link) backend.openUrl(trow.link)
+            onContainsMouseChanged: containsMouse && trow.tip ? win.showTip(trow, trow.tip) : win.hideTip(trow)
+        }
+    }
+
+    // Bars over time: values (null = gap), the colour per bar, a tip per bar
+    component Bars: Column {
+        id: bars
+        property string title
+        property var values: []
+        property var barColors: []
+        property var tips: []
+        property real maxValue: Math.max(1, ...values.filter(x => x !== null && x !== undefined))
+        spacing: 4
+        Text {
+            text: bars.title
+            color: "#8B98AD"
+            font.family: "Chakra Petch"
+            font.weight: Font.DemiBold
+            font.pixelSize: 11
+            font.letterSpacing: 1
+        }
+        Row {
+            height: 56
+            spacing: 3
+            Repeater {
+                model: bars.values.length
+                Rectangle {
+                    required property int index
+                    readonly property var v: bars.values[index]
+                    anchors.bottom: parent.bottom
+                    width: 12
+                    height: v === null || v === undefined ? 2 : 4 + 52 * v / bars.maxValue
+                    color: bars.barColors[index] || "#2A3852"
+                    HoverTip { tip: bars.tips[index] || "" }
+                }
+            }
+        }
+    }
+
+    function fmtTime(sec) { return sec ? Math.floor(sec / 60) + ":" + String(Math.round(sec % 60)).padStart(2, "0") : "–"; }
+    function day(t) { return t ? new Date(t * 1000).toLocaleDateString(Qt.locale("sv_SE"), "d MMM") : ""; }
+
+    property string wowPlayer: ""
+    property int wowDays: 0
+    property string wowDiff: ""
+    property int cs2Count: 10
+    readonly property var wowData: tab === "wowstats" ? (videos, JSON.parse(backend.wowOverview(wowPlayer, wowDays))) : ({})
+    readonly property var cs2Data: tab === "cs2stats" ? (videos, JSON.parse(backend.cs2Overview(cs2Count))) : ({})
+    readonly property string wowShownDiff: wowData.difficulties && wowData.difficulties.indexOf(wowDiff) >= 0
+                                           ? wowDiff : (wowData.difficulties || [""])[0] || ""
+
+    Flickable {
+        id: wowPage
+        FastWheel { flick: wowPage }
+        visible: win.tab === "wowstats"
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
+        contentHeight: wowCol.height + 64
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        readonly property var d: win.wowData
+        readonly property var r: d.raid ? d.raid[win.wowShownDiff] : null
+        readonly property string metric: d.role === "healers" ? "HPS" : "DPS"
+
+        Column {
+            id: wowCol
+            x: 40
+            y: 28
+            width: Math.min(1100, wowPage.width - 80)
+            spacing: 14
+
+            Column {
+                visible: !wowPage.d.player
+                width: parent.width
+                spacing: 10
+                SectionTitle { text: "INGA WOW-SIFFROR ÄN" }
+                Note {
+                    width: parent.width
+                    text: "WoW Stats sammanställs av dina inspelade pulls och nycklar: när loggen hämtas från Warcraft Logs "
+                          + "sparas din parse, DPS/HPS och item level. Spela in en raid eller en nyckel med Warcraft Logs inkopplat "
+                          + "(Inställningar) – siffrorna kommer här."
+                }
+            }
+
+            // the character: name in its class colour, spec, item level
+            Item {
+                visible: !!wowPage.d.player
+                width: parent.width
+                height: 56
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+                    Text {
+                        text: wowPage.d.name || ""
+                        color: win.classColors[wowPage.d["class"]] || "#E6ECF5"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.Bold
+                        font.pixelSize: 26
+                    }
+                    Text {
+                        text: [wowPage.d.spec, wowPage.d["class"], wowPage.d.realm, wowPage.d.region].filter(x => x).join(" · ")
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                }
+                Row {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    spacing: 8
+                    FlatButton {
+                        visible: !!wowPage.d.wclUrl
+                        text: "Warcraft Logs"
+                        onClicked: backend.openUrl(wowPage.d.wclUrl)
+                    }
+                    FlatButton {
+                        primary: true
+                        text: "Fråga " + backend.aiName + " vad jag ska förbättra"
+                        onClicked: backend.askAi("Hur ser mina WoW-parses ut för " + (wowPage.d.name || "min karaktär")
+                                                 + "? Vilka bossar och dungeons är svagast och vad ska jag förbättra?")
+                    }
+                }
+            }
+
+            Flow { // which character, which period
+                visible: !!wowPage.d.player
+                width: parent.width
+                spacing: 8
+                Repeater {
+                    model: (wowPage.d.players || []).length > 1 ? wowPage.d.players : []
+                    Choice {
+                        required property string modelData
+                        text: modelData.split("-")[0]
+                        sub: modelData
+                        chosen: wowPage.d.player === modelData
+                        onPicked: win.wowPlayer = modelData
+                    }
+                }
+                Item { visible: (wowPage.d.players || []).length > 1; width: 16; height: 1 }
+                Repeater {
+                    model: [{ d: 0, t: "Allt" }, { d: 30, t: "30 dagar" }, { d: 7, t: "7 dagar" }]
+                    Choice {
+                        required property var modelData
+                        text: modelData.t
+                        chosen: win.wowDays === modelData.d
+                        onPicked: win.wowDays = modelData.d
+                    }
+                }
+            }
+
+            Flow {
+                visible: !!wowPage.d.player
+                width: parent.width
+                spacing: 6
+                StatTile {
+                    label: "BÄSTA SNITT"
+                    value: wowPage.r && wowPage.r.best !== null ? win.num(wowPage.r.best) : "–"
+                    valueColor: wowPage.r && wowPage.r.best !== null ? win.parseColor(wowPage.r.best) : "#E6ECF5"
+                    tip: "Snittet av din bästa parse per boss (" + win.wowShownDiff + ") – som Best Perf. Avg hos Warcraft Logs."
+                }
+                StatTile {
+                    label: "MEDIAN SNITT"
+                    value: wowPage.r && wowPage.r.median !== null ? win.num(wowPage.r.median) : "–"
+                    valueColor: wowPage.r && wowPage.r.median !== null ? win.parseColor(wowPage.r.median) : "#E6ECF5"
+                    tip: "Snittet av din median-parse per boss – hur du brukar prestera, inte bara din bästa."
+                }
+                StatTile { label: "KILLS"; value: wowPage.r ? String(wowPage.r.kills) : "–"; tip: "Inspelade kills på " + win.wowShownDiff + "." }
+                StatTile { label: "PULLS"; value: wowPage.r ? String(wowPage.r.pulls) : "–"; tip: "Alla inspelade pulls, wipes också." }
+                StatTile { label: "ITEM LEVEL"; value: wowPage.d.ilvl ? String(wowPage.d.ilvl) : "–"; tip: "Från den senaste loggen." }
+                StatTile {
+                    label: "M+ I TID"
+                    value: wowPage.d.mplus ? wowPage.d.mplus.timed + "/" + wowPage.d.mplus.runs : "–"
+                    tip: "Inspelade nycklar i tid av alla."
+                }
+            }
+
+            Note {
+                visible: !!wowPage.d.missing
+                width: parent.width
+                font.pixelSize: 12
+                text: wowPage.d.missing + " kills/nycklar saknar siffror än – tjänsten hämtar loggen själv när den finns i Warcraft Logs."
+            }
+
+            // RAID: one table per difficulty
+            Item { visible: !!wowPage.r; width: 1; height: 6 }
+            Row {
+                visible: !!wowPage.r
+                spacing: 16
+                SectionTitle { text: "RAID"; anchors.verticalCenter: parent.verticalCenter }
+                Repeater {
+                    model: wowPage.d.difficulties || []
+                    Choice {
+                        required property string modelData
+                        text: modelData
+                        chosen: win.wowShownDiff === modelData
+                        onPicked: win.wowDiff = modelData
+                    }
+                }
+            }
+            Column {
+                visible: !!wowPage.r
+                width: parent.width
+                readonly property var cols: [width - 8 - 70 * 5 - 80 * 2 - 90 - 60, 70, 70, 70, 70, 70, 80, 90, 60, 80]
+                TableRow {
+                    heading: true
+                    cols: parent.cols
+                    cells: ["BOSS", "BÄST", "MEDIAN", "ILVL %", "KILLS", "WIPES", "SNABBAST", "BÄSTA " + wowPage.metric, "ILVL", "SENAST"]
+                }
+                Repeater {
+                    model: wowPage.r ? wowPage.r.bosses : []
+                    TableRow {
+                        required property var modelData
+                        cols: parent.cols
+                        link: modelData.url || ""
+                        tip: modelData.url ? "Öppna din bästa kill i Warcraft Logs" : ""
+                        cells: [modelData.name, modelData.best, modelData.median, modelData.ilvlParse, modelData.kills,
+                                modelData.wipes, win.fmtTime(modelData.fastest), modelData.amount ? win.amount(modelData.amount) : null,
+                                modelData.ilvl, win.day(modelData.last)]
+                        colors: [null, modelData.best !== null ? win.parseColor(modelData.best) : null,
+                                 modelData.median !== null ? win.parseColor(modelData.median) : null,
+                                 modelData.ilvlParse !== null ? win.parseColor(modelData.ilvlParse) : null]
+                    }
+                }
+            }
+
+            // MYTHIC+: per dungeon
+            Item { visible: !!(wowPage.d.mplus && wowPage.d.mplus.runs); width: 1; height: 6 }
+            Row {
+                visible: !!(wowPage.d.mplus && wowPage.d.mplus.runs)
+                spacing: 16
+                SectionTitle { text: "MYTHIC+" }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: wowPage.d.mplus && wowPage.d.mplus.best !== null ? "bästa snitt " + win.num(wowPage.d.mplus.best)
+                                                                               + " · median snitt " + win.num(wowPage.d.mplus.median) : ""
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                }
+            }
+            Column {
+                visible: !!(wowPage.d.mplus && wowPage.d.mplus.runs)
+                width: parent.width
+                readonly property var cols: [width - 8 - 100 * 2 - 80 * 4 - 90, 100, 100, 80, 80, 80, 80, 90]
+                TableRow {
+                    heading: true
+                    cols: parent.cols
+                    cells: ["DUNGEON", "BÄSTA I TID", "HÖGSTA", "KÖRNINGAR", "I TID", "BÄST", "MEDIAN", "BÄSTA " + wowPage.metric]
+                }
+                Repeater {
+                    model: wowPage.d.mplus ? wowPage.d.mplus.dungeons : []
+                    TableRow {
+                        required property var modelData
+                        cols: parent.cols
+                        link: modelData.url || ""
+                        cells: [modelData.name, modelData.bestLevel ? "+" + modelData.bestLevel : null,
+                                modelData.topLevel ? "+" + modelData.topLevel : null, modelData.pulls, modelData.kills,
+                                modelData.best, modelData.median, modelData.amount ? win.amount(modelData.amount) : null]
+                        colors: [null, null, null, null, null, modelData.best !== null ? win.parseColor(modelData.best) : null,
+                                 modelData.median !== null ? win.parseColor(modelData.median) : null]
+                    }
+                }
+            }
+
+            Item { visible: (wowPage.d.trend || []).length > 1; width: 1; height: 6 }
+            Bars {
+                visible: (wowPage.d.trend || []).length > 1
+                title: "PARSE ÖVER TID · senaste " + (wowPage.d.trend || []).length + " kills och nycklar"
+                values: (wowPage.d.trend || []).map(t => t.parse)
+                barColors: (wowPage.d.trend || []).map(t => win.parseColor(t.parse))
+                maxValue: 100
+                tips: (wowPage.d.trend || []).map(t => t.name + (t.level ? " +" + t.level : " " + (t.difficulty || "")) + " · "
+                                                      + win.day(t.started) + " · parse " + t.parse + (t.ilvl ? " · ilvl " + t.ilvl : ""))
+            }
+            Note {
+                visible: !!wowPage.d.player
+                width: parent.width
+                font.pixelSize: 12
+                text: "Bara pulls och nycklar som GoblinRecorder spelat in. Parse = Warcraft Logs (healers på HPS, övriga på DPS); "
+                      + "ILVL % = mot spelare med samma item level. Klicka på en rad för att öppna din bästa i Warcraft Logs."
+            }
+        }
+    }
+    FlatScrollBar { flick: wowPage }
+
+    Flickable {
+        id: cs2Page
+        FastWheel { flick: cs2Page }
+        visible: win.tab === "cs2stats"
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
+        contentHeight: cs2Col.height + 64
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        readonly property var d: win.cs2Data
+        readonly property var ms: (d.matches || []).slice(-(win.cs2Count || 30))
+
+        Column {
+            id: cs2Col
+            x: 40
+            y: 28
+            width: Math.min(1100, cs2Page.width - 80)
+            spacing: 14
+
+            Column {
+                visible: !cs2Page.d.all
+                width: parent.width
+                spacing: 10
+                SectionTitle { text: "INGA CS2-SIFFROR ÄN" }
+                Note {
+                    width: parent.width
+                    text: "CS2 Stats sammanställs av dina lästa demos. Spela en Competitive/Premier/Wingman-match med CS2 inkopplat "
+                          + "och ladda ner demon i CS2 (Watch → Your Matches)."
+                          + (cs2Page.d.waiting ? " " + cs2Page.d.waiting + " match(er) väntar på demon nu." : "")
+                }
+            }
+
+            Item {
+                visible: !!cs2Page.d.all
+                width: parent.width
+                height: 56
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+                    Text {
+                        text: "COUNTER-STRIKE 2"
+                        color: "#E6ECF5"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.Bold
+                        font.pixelSize: 26
+                    }
+                    Text {
+                        text: cs2Page.d.count + " matcher · " + cs2Page.d.wins + " vinster, " + cs2Page.d.losses + " förluster"
+                              + (cs2Page.d.waiting ? " · " + cs2Page.d.waiting + " väntar på demon" : "")
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                }
+                FlatButton {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    primary: true
+                    text: "Fråga " + backend.aiName + " vad jag ska träna på"
+                    onClicked: backend.askAi("Hur ser mina CS2-siffror ut över de senaste " + (win.cs2Count || 30)
+                                             + " matcherna? Vad går bra och vad ska jag träna på?")
+                }
+            }
+
+            Flow {
+                visible: !!cs2Page.d.all
+                width: parent.width
+                spacing: 8
+                Repeater {
+                    model: [{ n: 10, t: "Senaste 10" }, { n: 20, t: "Senaste 20" }, { n: 0, t: "Alla" }]
+                    Choice {
+                        required property var modelData
+                        text: modelData.t
+                        chosen: win.cs2Count === modelData.n
+                        onPicked: win.cs2Count = modelData.n
+                    }
+                }
+            }
+
+            Flow {
+                visible: !!cs2Page.d.all
+                width: parent.width
+                spacing: 6
+                readonly property var a: cs2Page.d.avg || {}
+                readonly property var p: cs2Page.d.per || {}
+                StatTile { label: "K/D"; value: win.num(parent.a.kd); tip: "Kills per dödsfall, snitt per match." }
+                StatTile { label: "ADR"; value: win.num(parent.a.adr); tip: "Skada per runda, snitt." }
+                StatTile { label: "KAST"; value: parent.a.kast === null || parent.a.kast === undefined ? "–" : Math.round(parent.a.kast) + " %"; tip: "Rundor med kill, assist, överlevt eller trade." }
+                StatTile { label: "HS"; value: parent.a.hs === null || parent.a.hs === undefined ? "–" : Math.round(parent.a.hs) + " %"; tip: "Kills med huvudskott." }
+                StatTile { label: "TTD"; value: parent.a.ttd ? Math.round(parent.a.ttd) + " ms" : "–"; tip: "Time to damage (ungefärlig), snitt av matchernas median." }
+                StatTile { label: "SIKTE"; value: parent.a.cp ? win.num(parent.a.cp.toFixed(1)) + "°" : "–"; tip: "Crosshair placement (ungefärlig) – lägre är bättre." }
+                StatTile { label: "ENTRY / MATCH"; value: win.num(parent.p.entryWon) + "–" + win.num(parent.p.entryLost); tip: "Rundans första kill: vunna–förlorade per match." }
+                StatTile { label: "TRADES / MATCH"; value: win.num(parent.p.trades); tip: "Du hämnades en lagkamrat inom 5 s." }
+                StatTile { label: "CLUTCH / MATCH"; value: win.num(parent.p.clutchWon) + "/" + win.num(parent.p.clutches); tip: "1vX vunna av alla, per match." }
+                StatTile { label: "BLÄNDADE / MATCH"; value: win.num(parent.p.flashed); tip: "Fiender du bländat minst 1 s." }
+            }
+
+            Item { visible: cs2Page.ms.length > 1; width: 1; height: 6 }
+            Flow {
+                visible: cs2Page.ms.length > 1
+                width: parent.width
+                spacing: 28
+                Repeater {
+                    model: [{ k: "adr", t: "ADR" }, { k: "kd", t: "K/D" }, { k: "hs", t: "HS %" },
+                            { k: "ttd", t: "TTD (lägre = bättre)" }, { k: "cp", t: "SIKTE ° (lägre = bättre)" }]
+                    Bars {
+                        required property var modelData
+                        title: modelData.t
+                        values: cs2Page.ms.map(m => m[modelData.k])
+                        barColors: cs2Page.ms.map((m, i) => i === cs2Page.ms.length - 1 ? accent.color
+                                                           : m.result === "win" ? "#2E6B3E" : "#6B2A2E")
+                        tips: cs2Page.ms.map(m => m.name + " " + m.score + " · " + win.day(m.started) + " · "
+                                                  + modelData.t.split(" ")[0] + " " + win.num(m[modelData.k]))
+                    }
+                }
+            }
+
+            Item { visible: (cs2Page.d.maps || []).length > 0; width: 1; height: 6 }
+            SectionTitle { visible: (cs2Page.d.maps || []).length > 0; text: "KARTOR" }
+            Column {
+                visible: (cs2Page.d.maps || []).length > 0
+                width: parent.width
+                readonly property var cols: [width - 8 - 90 * 4, 90, 90, 90, 90]
+                TableRow { heading: true; cols: parent.cols; cells: ["KARTA", "MATCHER", "VINST %", "ADR", "K/D"] }
+                Repeater {
+                    model: cs2Page.d.maps || []
+                    TableRow {
+                        required property var modelData
+                        cols: parent.cols
+                        cells: [modelData.name, modelData.matches, Math.round(100 * modelData.wins / modelData.matches) + " %",
+                                win.num(modelData.adr), win.num(modelData.kd)]
+                    }
+                }
+            }
+
+            Item { visible: (cs2Page.d.weapons || []).length > 0; width: 1; height: 6 }
+            SectionTitle { visible: (cs2Page.d.weapons || []).length > 0; text: "VAPEN" }
+            Column {
+                visible: (cs2Page.d.weapons || []).length > 0
+                width: parent.width
+                readonly property var cols: [width - 8 - 90 * 4, 90, 90, 90, 90]
+                TableRow { heading: true; cols: parent.cols; cells: ["VAPEN", "KILLS", "HS %", "TRÄFF %", "SKOTT"] }
+                Repeater {
+                    model: cs2Page.d.weapons || []
+                    TableRow {
+                        required property var modelData
+                        cols: parent.cols
+                        cells: [modelData.name, modelData.kills, modelData.hsp, modelData.acc, modelData.shots]
+                    }
+                }
+            }
+
+            Item { visible: cs2Page.ms.length > 0; width: 1; height: 6 }
+            SectionTitle { visible: cs2Page.ms.length > 0; text: "MATCHER" }
+            Column {
+                visible: cs2Page.ms.length > 0
+                width: parent.width
+                readonly property var cols: [width - 8 - 90 * 6, 90, 90, 90, 90, 90, 90]
+                TableRow { heading: true; cols: parent.cols; cells: ["MATCH", "RESULTAT", "K–D", "ADR", "HS %", "TTD", "SIKTE"] }
+                Repeater {
+                    model: cs2Page.ms.slice().reverse()
+                    TableRow {
+                        required property var modelData
+                        cols: parent.cols
+                        tip: "Visa matchen i Inspelningar"
+                        cells: [modelData.name + " · " + modelData.mode + " · " + win.day(modelData.started), modelData.score,
+                                modelData.kills + "–" + modelData.deaths, win.num(modelData.adr), modelData.hs + " %",
+                                modelData.ttd ? modelData.ttd + " ms" : null, modelData.cp ? win.num(modelData.cp) + "°" : null]
+                        colors: [null, modelData.result === "win" ? "#3FB950" : modelData.result === "loss" ? "#E5534B" : null]
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                win.tab = "videos";
+                                win.expanded = parent.modelData.path;
+                                const v = win.videos.find(x => x.path === parent.modelData.path);
+                                if (v)
+                                    win.selected = win.playable(v);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    FlatScrollBar { flick: cs2Page }
 
     // ── Settings ─────────────────────────────────────────────
 
