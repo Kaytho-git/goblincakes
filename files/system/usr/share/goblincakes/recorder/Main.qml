@@ -2141,6 +2141,7 @@ Window {
         property var cols: []
         property var cells: []
         property var colors: []
+        property var arrows: [] // per cell: 1 = ▲ (better), -1 = ▼ (worse), else nothing
         property bool heading: false
         property string link
         property string tip
@@ -2158,7 +2159,10 @@ Window {
                     required property int index
                     width: trow.cols[index] || 80
                     horizontalAlignment: index ? Text.AlignRight : Text.AlignLeft
-                    text: modelData === null || modelData === undefined ? "–" : String(modelData)
+                    text: (modelData === null || modelData === undefined ? "–" : String(modelData))
+                          + (trow.arrows[index] === 1 ? " <font color=\"#3FB950\">▲</font>"
+                             : trow.arrows[index] === -1 ? " <font color=\"#E5534B\">▼</font>" : "")
+                    textFormat: trow.arrows.length ? Text.StyledText : Text.PlainText
                     color: trow.colors[index] || (trow.heading || index ? "#8B98AD" : "#E6ECF5")
                     elide: Text.ElideRight
                     font.family: trow.heading ? "Chakra Petch" : "IBM Plex Sans"
@@ -2276,6 +2280,11 @@ Window {
         readonly property string sec: win.wowSection === "mplus" && hasKeys || !hasRaid ? "mplus" : "raid"
         readonly property bool keys: sec === "mplus"
         readonly property var s: keys ? d.mplus : r // best/median for the tiles
+        // the same before the latest day you played (the arrows)
+        readonly property var b: (keys ? (d.before || {}).mplus : ((d.before || {}).raid || {})[win.wowShownDiff]) || {}
+        function arrow(now, before) {
+            return now === null || now === undefined || before === null || before === undefined || now === before ? 0 : now > before ? 1 : -1;
+        }
         readonly property var trend: (d.trend || []).filter(t => (t.kind === "mplus") === keys)
 
         Column {
@@ -2375,6 +2384,8 @@ Window {
                     StatTile {
                         label: "BÄSTA SNITT " + wowPage.metric
                         value: wowPage.s && wowPage.s.best !== null ? win.num(wowPage.s.best) : "–"
+                        now: wowPage.s ? wowPage.s.best : null
+                        before: wowPage.b.best
                         valueColor: wowPage.s && wowPage.s.best !== null ? win.parseColor(wowPage.s.best) : "#E6ECF5"
                         tip: wowPage.keys ? "Snittet av din bästa parse per dungeon – som Best Perf. Avg hos Warcraft Logs."
                                           : "Snittet av din bästa parse per boss (" + win.wowShownDiff + ") – som Best Perf. Avg hos Warcraft Logs."
@@ -2382,6 +2393,8 @@ Window {
                     StatTile {
                         label: "MEDIAN " + wowPage.metric
                         value: wowPage.s && wowPage.s.median !== null ? win.num(wowPage.s.median) : "–"
+                        now: wowPage.s ? wowPage.s.median : null
+                        before: wowPage.b.median
                         valueColor: wowPage.s && wowPage.s.median !== null ? win.parseColor(wowPage.s.median) : "#E6ECF5"
                         tip: "Snittet av din median-parse per " + (wowPage.keys ? "dungeon" : "boss") + " – hur du brukar prestera, inte bara din bästa."
                     }
@@ -2459,11 +2472,11 @@ Window {
             Column {
                 visible: !wowPage.keys && !!wowPage.r
                 width: parent.width
-                readonly property var cols: [width - 8 - 70 * 5 - 80 * 3 - 90 - 60, 70, 70, 70, 70, 70, 80, 90, 60, 80, 80]
+                readonly property var cols: [width - 8 - 70 * 6 - 80 * 3 - 90 - 60, 70, 70, 70, 70, 70, 70, 80, 90, 60, 80, 80]
                 TableRow {
                     heading: true
                     cols: parent.cols
-                    cells: ["BOSS", "BÄST", "MEDIAN", "ILVL %", "KILLS", "WIPES", "SNABBAST", "BÄSTA " + wowPage.metric, "ILVL", "AVG.ILVL", "SENAST"]
+                    cells: ["BOSS", "SENASTE", "BÄST", "MEDIAN", "ILVL %", "KILLS", "WIPES", "SNABBAST", "BÄSTA " + wowPage.metric, "ILVL", "AVG.ILVL", "SENAST"]
                 }
                 Repeater {
                     model: wowPage.r ? wowPage.r.bosses : []
@@ -2471,11 +2484,14 @@ Window {
                         required property var modelData
                         cols: parent.cols
                         link: modelData.url || ""
-                        tip: modelData.url ? "Öppna din bästa kill i Warcraft Logs" : ""
-                        cells: [modelData.name, modelData.best, modelData.median, modelData.ilvlParse, modelData.kills,
+                        cells: [modelData.name, modelData.lastParse, modelData.best, modelData.median, modelData.ilvlParse, modelData.kills,
                                 modelData.wipes, win.fmtTime(modelData.fastest), modelData.amount ? win.amount(modelData.amount) : null,
                                 modelData.ilvl, modelData.avgIlvl ? win.num(modelData.avgIlvl.toFixed(1)) : null, win.day(modelData.last)]
-                        colors: [null, modelData.best !== null ? win.parseColor(modelData.best) : null,
+                        arrows: [0, wowPage.arrow(modelData.lastParse, modelData.prevParse)]
+                        tip: (modelData.prevParse !== null ? "Senaste parse " + modelData.lastParse + ", förra " + modelData.prevParse + ". " : "")
+                             + (modelData.url ? "Öppna din bästa kill i Warcraft Logs" : "")
+                        colors: [null, modelData.lastParse !== null ? win.parseColor(modelData.lastParse) : null,
+                                 modelData.best !== null ? win.parseColor(modelData.best) : null,
                                  modelData.median !== null ? win.parseColor(modelData.median) : null,
                                  modelData.ilvlParse !== null ? win.parseColor(modelData.ilvlParse) : null]
                     }
@@ -2486,11 +2502,11 @@ Window {
             Column {
                 visible: wowPage.keys
                 width: parent.width
-                readonly property var cols: [width - 8 - 100 * 2 - 80 * 4 - 90, 100, 100, 80, 80, 80, 80, 90]
+                readonly property var cols: [width - 8 - 100 * 2 - 80 * 5 - 90, 100, 100, 80, 80, 80, 80, 80, 90]
                 TableRow {
                     heading: true
                     cols: parent.cols
-                    cells: ["DUNGEON", "BÄSTA I TID", "HÖGSTA", "KÖRNINGAR", "I TID", "BÄST", "MEDIAN", "BÄSTA " + wowPage.metric]
+                    cells: ["DUNGEON", "BÄSTA I TID", "HÖGSTA", "KÖRNINGAR", "I TID", "SENASTE", "BÄST", "MEDIAN", "BÄSTA " + wowPage.metric]
                 }
                 Repeater {
                     model: wowPage.d.mplus ? wowPage.d.mplus.dungeons : []
@@ -2500,8 +2516,11 @@ Window {
                         link: modelData.url || ""
                         cells: [modelData.name, modelData.bestLevel ? "+" + modelData.bestLevel : null,
                                 modelData.topLevel ? "+" + modelData.topLevel : null, modelData.pulls, modelData.kills,
-                                modelData.best, modelData.median, modelData.amount ? win.amount(modelData.amount) : null]
-                        colors: [null, null, null, null, null, modelData.best !== null ? win.parseColor(modelData.best) : null,
+                                modelData.lastParse, modelData.best, modelData.median, modelData.amount ? win.amount(modelData.amount) : null]
+                        arrows: [0, 0, 0, 0, 0, wowPage.arrow(modelData.lastParse, modelData.prevParse)]
+                        tip: modelData.prevParse !== null ? "Senaste parse " + modelData.lastParse + ", förra " + modelData.prevParse : ""
+                        colors: [null, null, null, null, null, modelData.lastParse !== null ? win.parseColor(modelData.lastParse) : null,
+                                 modelData.best !== null ? win.parseColor(modelData.best) : null,
                                  modelData.median !== null ? win.parseColor(modelData.median) : null]
                     }
                 }

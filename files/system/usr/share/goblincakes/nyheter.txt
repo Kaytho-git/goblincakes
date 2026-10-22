@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-22  WoW Stats: pilar upp/ner på parsen – per boss och dungeon (senaste mot förra) och på snitten (mot innan senaste kvällen)
 2026-10-22  CS2 Stats visar vunna clutchar 1v1, 1v2, 1v3 och 1v4 (från demon) och antal ACE
 2026-10-22  CS2 Stats fylls nu av alla matcher du spelar (kills, huvudskott, dödsfall per runda) – demon ger resten – och varje ruta har en pil som visar om det gått upp eller ner
 2026-10-22  WoW Stats och CS2 Stats behåller siffrorna även när du tar bort filmerna

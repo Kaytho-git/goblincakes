@@ -2600,8 +2600,28 @@ def wow_overview(folder, player="", days=0):
                 "spec": (best or g[-1]).get("spec") or "", "last": g[-1].get("started"),
                 "bestLevel": max((e.get("level") or 0 for e in done), default=0) or None,
                 "topLevel": max((e.get("level") or 0 for e in g), default=0) or None,
+                # the arrow: your latest parse here against the one before
+                "lastParse": parses[-1] if parses else None, "prevParse": parses[-2] if len(parses) > 1 else None,
             })
         return rows
+
+    def before_last_day(es):
+        last = time.localtime(max((e.get("started") or 0 for e in es), default=0))[:3]
+        return [e for e in es if e.get("started") and time.localtime(e["started"])[:3] != last]
+
+    def averages(es):
+        """Best/median average per raid difficulty and for the keys – for the tiles' arrows."""
+        out = {"raid": {}}
+        for d in {e.get("difficulty") for e in es if e.get("kind") == "raid"}:
+            rs = [r for r in boss_rows([e for e in es if e.get("kind") == "raid" and e.get("difficulty") == d], "encounterId")
+                  if r["best"] is not None]
+            if rs:
+                out["raid"][d] = {"best": round(sum(r["best"] for r in rs) / len(rs), 1),
+                                  "median": round(sum(r["median"] for r in rs) / len(rs), 1)}
+        rs = [r for r in boss_rows([e for e in es if e.get("kind") == "mplus"], "name") if r["best"] is not None]
+        out["mplus"] = {"best": round(sum(r["best"] for r in rs) / len(rs), 1),
+                        "median": round(sum(r["median"] for r in rs) / len(rs), 1)} if rs else {}
+        return out
 
     raid = {}
     for d in DIFF_ORDER + sorted({e.get("difficulty") for e in mine if e.get("kind") == "raid"} - set(DIFF_ORDER) - {None}):
@@ -2631,6 +2651,9 @@ def wow_overview(folder, player="", days=0):
         "mplus": {"dungeons": dungeons, "runs": len(keys), "timed": sum(e.get("result") == "timed" for e in keys),
                   "best": round(sum(r["best"] for r in ranked) / len(ranked), 1) if ranked else None,
                   "median": round(sum(r["median"] for r in ranked) / len(ranked), 1) if ranked else None},
+        # the tiles' arrows: against how it was before the latest day you raided / ran keys
+        "before": {"raid": averages(before_last_day([e for e in mine if e.get("kind") == "raid"]))["raid"],
+                   "mplus": averages(before_last_day(keys))["mplus"]},
         "trend": trend, "missing": sum(1 for e in mine if e.get("result") in ("kill", "timed") and not e.get("spec")),
     }
 
