@@ -1,0 +1,8 @@
+// GOBLINCAKES Spelläge: GameMode may set the CPU governor, split-lock and the GPU for a game
+// without a password. gamemoded runs as a user service (D-Bus activated) – outside the login
+// session, so polkit's "active session" never matched and every change was "Not authorized".
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("com.feralinteractive.GameMode.") === 0 && subject.isInGroup("wheel")) {
+        return polkit.Result.YES;
+    }
+});

@@ -124,6 +124,10 @@ class Service:
         self.screen_ok = None  # KDE told OBS which screen to record?
         self.screen_check = 0
         self.stall_check = 0  # last look for a frozen screen capture / OBS restart for it
+        # OBS that we started with WoW/CS2 is closed a minute after the game (22 Oct, the user's
+        # wish: it drew ~7 % of a CPU core and ~370 MB between games). One the user opened stays.
+        self.obs_ours = False
+        self.obs_close_at = 0
         self.test_wait = 0  # when a test recording was asked for (waiting for OBS)
         # Counter-Strike 2
         self.cs2 = False
@@ -777,8 +781,10 @@ class Service:
             running = R.wow_running()
             if running and not self.wow:
                 log("WoW started")
+                self.obs_close_at = 0
                 if self.cfg["autoStartObs"] and not R.obs_running():
                     R.start_obs()
+                    self.obs_ours = True
             if not running and self.wow:
                 log("WoW stopped")
                 self.finish(now, "abandoned")
@@ -795,14 +801,19 @@ class Service:
                     n = len(waiting)
                     notify(f"{n} CS2-match{'er' if n > 1 else ''} väntar på demon",
                            "Ladda ner i CS2: Watch → Your Matches. GoblinRecorder läser den själv.")
+                self.obs_close_at = 0
                 if self.cfg["autoStartObs"] and self.cfg.get("cs2") and not R.obs_running():
                     R.start_obs()
+                    self.obs_ours = True
             if not running and self.cs2:
                 log("CS2 stopped")
                 if self.current and self.current["kind"] == "cs2":
                     self.finish(now, "abandoned")
                 self.gs, self.cs2_map = {}, ""
             self.cs2 = running
+        if self.obs_ours and not (self.wow or self.cs2) and not self.obs_close_at:
+            self.obs_close_at = now + 60
+        self.close_obs_after_game(now)
         self.cs2_listen()
         self.follow()
         self.check_recording()
@@ -832,6 +843,25 @@ class Service:
         if now - self.last_status >= 1:
             self.last_status = now
             self.status()
+
+    def close_obs_after_game(self, now):
+        if not self.obs_close_at or now < self.obs_close_at:
+            return
+        if self.wow or self.cs2:
+            self.obs_close_at = 0
+            return
+        if self.current or self.test_wait or self.demo_busy:
+            return   # a recording is finished, a test or a demo first
+        self.obs_close_at = 0
+        self.obs_ours = False
+        if not R.obs_running():
+            return
+        log("game closed a minute ago – closing the OBS we started")
+        if self.obs:
+            self.obs.close()
+            self.obs = None
+        self.last_try = now + 40   # no new connection (or frozen-capture restart) while it closes
+        threading.Thread(target=R.stop_obs, daemon=True).start()
 
     def status(self):
         delays = self.delays[-500:]

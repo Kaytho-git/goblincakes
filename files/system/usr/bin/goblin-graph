@@ -190,25 +190,17 @@ CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "gobl
 WOW_LOGS = Path.home() / "Games/WoW"  # <Version>/Logs (goblincakes-wow-links)
 SOCKET = f"goblin-graph-{os.getuid()}"
 
-# A game runs: the same look as the local AI's game watcher (goblincakes-ollama) – Steam's game
-# wrapper (reaper), a Windows program in Wine/Proton, or gamescope. The graph stands still then
-# (the user's wish 22 Oct: less load while playing) and starts again when the game is closed.
-GAME = re.compile(r"^(reaper|.*\.exe|gamescope|wine.*preloader)$", re.I)
-NOT_GAMES = ("steamwebhelper.exe", "explorer.exe", "services.exe", "winedevice.exe", "plugplay.exe",
-             "svchost.exe", "rpcss.exe", "conhost.exe", "start.exe", "tabtip.exe")
+# A game runs: GOBLINCAKES Spelläge (goblincakes-gameguard) keeps this file fresh while one does.
+# The graph stands still then (the user's wish 22 Oct: less load while playing) and starts again
+# when the game is closed. Spelläge switched off in Config = the graph keeps running.
+GAMING = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-gaming"
 
 
 def game_running():
-    for pid in os.listdir("/proc"):
-        if not pid.isdigit():
-            continue
-        try:
-            comm = Path(f"/proc/{pid}/comm").read_text().strip()
-        except OSError:
-            continue
-        if GAME.match(comm) and comm.lower() not in NOT_GAMES:
-            return True
-    return False
+    try:
+        return time.time() - GAMING.stat().st_mtime < 30
+    except OSError:
+        return False
 
 
 # World of Warcraft Retail's class colours, in the game's own (alphabetical) order

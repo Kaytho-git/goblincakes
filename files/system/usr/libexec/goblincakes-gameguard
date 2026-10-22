@@ -1,0 +1,250 @@
+#!/usr/bin/python3
+"""GOBLINCAKES Spelläge: more of the computer for the game while one runs (22 Oct, the user's wish).
+
+    goblincakes-gameguard run         the user service: looks for a game every 3 s
+    goblincakes-gameguard status      on / off (Config → Inställningar → Spel)
+    goblincakes-gameguard set on|off  the switch (off = a flag file, the service stops and undoes)
+    goblincakes-gameguard wait        root's update units (ExecStartPre): wait while a game runs
+
+While a game runs (Steam's game wrapper reaper, a Windows game in Wine/Proton, gamescope –
+not the launchers themselves):
+  - GameMode for the game (gamemoded: the CPU's performance governor, priorities) – without
+    gamemoderun in the launch options
+  - automatic updates wait: rpm-ostree, Flatpak (system and user) have a drop-in
+    ExecStartPre=… wait that waits until the game is closed (never mid-game downloads)
+  - Akonadi (the calendar's background service, ~400 MB) and Baloo (file search) rest
+  - WoWUp closes while WoW runs (only updates add-ons) and starts again afterwards
+  - $XDG_RUNTIME_DIR/goblincakes-gaming exists (touched every look): goblin graph and
+    GoblinAmp's bars rest, root's wait() sees it
+Everything is undone when the game is closed, and when the service stops (logout, switch off).
+The local AI has its own watcher (goblincakes-ollama) and stops also with Spelläge off.
+"""
+import os
+import re
+import shlex
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(os.environ.get("GOBLINCAKES_SHARE") or
+                            Path(__file__).resolve().parents[1] / "share/goblincakes")))
+from gaming import WOW, find_game, processes  # noqa: E402 – one rule for what a game is
+
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes"
+OFF = CONFIG / "gameguard-off"
+RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+STATE = RUNTIME / "goblincakes-gaming"
+FRESH = 30          # seconds: an older state file is left over from a crash
+LOOK = 3
+
+def log(*a):
+    print(*a, flush=True)
+
+
+GAMEMODE = ("com.feralinteractive.GameMode", "/com/feralinteractive/GameMode", "com.feralinteractive.GameMode")
+
+
+def gaming_somewhere():
+    """Root: a fresh state file of any user (written only while that user's Spelläge is on)."""
+    for f in Path("/run/user").glob("*/goblincakes-gaming"):
+        try:
+            if time.time() - f.stat().st_mtime < FRESH:
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def run(*cmd, timeout=20):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def cmdline(pid):
+    try:
+        return Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+    except OSError:
+        return []
+
+
+def wowup_starter(pids):
+    """How WoWUp is started again: its autostart unit (Electron's main process moves to a
+    scope of its own, its helpers stay in the unit), else its menu or autostart entry."""
+    for pid in pids:
+        try:
+            cgroup = Path(f"/proc/{pid}/cgroup").read_text().strip()
+        except OSError:
+            continue
+        unit = re.search(r"/(app-[^/]+\.service)$", cgroup)
+        if unit:
+            return ("unit", unit.group(1))
+    home = Path.home()
+    for folder in (CONFIG.parent / "autostart", home / ".local/share/applications"):
+        for entry in sorted(folder.glob("*.desktop")):
+            try:
+                text = entry.read_text(errors="replace")
+            except OSError:
+                continue
+            exec_line = re.search(r"^Exec=(.*)$", text, re.M)
+            if exec_line and "wowup" in exec_line.group(1).lower():
+                argv = [a for a in shlex.split(exec_line.group(1)) if not re.fullmatch(r"%[a-zA-Z]", a)]
+                return ("run", argv)
+    return None
+
+
+# ── What rests during a game ──────────────────────────────────────
+
+class Guard:
+    def __init__(self):
+        self.game = None          # the pid registered with GameMode
+        self.akonadi = False      # we stopped it
+        self.baloo = False        # we suspended it
+        self.wowup = None         # how to start it again: ("unit", name) or ("run", [argv])
+        self.gone = 0             # looks without a game (two in a row = closed)
+
+    def start(self, pid, procs):
+        log(f"Spel startat ({pid}) – Spelläge på")
+        self.register(pid)
+        r = run("akonadictl", "status")
+        if r and "Akonadi Server: running" in (r.stdout + r.stderr):
+            run("akonadictl", "stop")
+            self.akonadi = True
+        r = run("env", "LC_ALL=C", "balooctl6", "status")   # English: "Indexer state: Suspended"
+        if r and r.returncode == 0 and "running" in r.stdout.lower() and "suspended" not in r.stdout.lower():
+            run("balooctl6", "suspend")
+            self.baloo = True
+
+    def register(self, pid):
+        r = run("busctl", "--user", "call", *GAMEMODE, "RegisterGameByPID", "ii", str(os.getpid()), str(pid))
+        self.game = pid
+        if not r or r.returncode != 0:
+            log("GameMode svarade inte:", (r.stderr.strip() if r else ""))
+
+    def unregister(self):
+        if self.game:
+            run("busctl", "--user", "call", *GAMEMODE, "UnregisterGameByPID", "ii",
+                str(os.getpid()), str(self.game))
+            self.game = None
+
+    def wowup_check(self, procs):
+        """WoWUp only updates add-ons: closed while WoW runs, started again afterwards."""
+        wow = any(WOW.match(p[1]) for p in procs)
+        mine = [p[0] for p in procs if p[1] == "wowup-cf"]
+        if wow and self.wowup is None and mine:
+            self.wowup = wowup_starter(mine) or ("none", None)
+            # The main process (Electron writes its whole command line as one string): SIGINT
+            # = WoWUp quits by itself in ~2 s; SIGTERM made it crash (SIGBUS/SIGTRAP, core dump)
+            main = [pid for pid in mine if b"--type=" not in b" ".join(cmdline(pid))]
+            for pid in main:
+                try:
+                    os.kill(pid, signal.SIGINT)
+                except OSError:
+                    pass
+            log("WoW kör – WoWUp stängt tills WoW stängs")
+        elif not wow and self.wowup is not None:
+            self.wowup_back()
+
+    def wowup_back(self):
+        kind, what = self.wowup
+        self.wowup = None
+        if kind == "none":   # closed, but no way to start it again was found
+            return
+        if kind == "unit":
+            r = run("systemctl", "--user", "start", what)
+            if r and r.returncode == 0:
+                log("WoWUp startat igen")
+                return
+            log("WoWUp gick inte att starta igen")
+        else:
+            run("systemd-run", "--user", "--quiet", "--collect", "--", *what)
+            log("WoWUp startat igen")
+
+    def stop(self):
+        log("Spelet stängt – allt tillbaka")
+        self.unregister()
+        if self.akonadi:
+            run("akonadictl", "start")
+            self.akonadi = False
+        if self.baloo:
+            run("balooctl6", "resume")
+            self.baloo = False
+        if self.wowup is not None:
+            self.wowup_back()
+        STATE.unlink(missing_ok=True)
+
+    def look(self):
+        procs = processes()
+        pid = find_game(procs)
+        if pid is None:
+            if STATE.exists():
+                self.gone += 1
+                if self.gone >= 2:
+                    self.stop()
+            return
+        self.gone = 0
+        if not STATE.exists():
+            STATE.write_text(f"{pid}\n")
+            self.start(pid, procs)
+        else:
+            os.utime(STATE)
+            if not Path(f"/proc/{self.game}").exists():   # the wrapper gave way to the game
+                self.unregister()
+                self.register(pid)
+        self.wowup_check(procs)
+
+
+def serve():
+    guard = Guard()
+    STATE.unlink(missing_ok=True)   # left over from a crash: nothing of ours is paused
+    stop = {"now": False}
+
+    def quit_(*_):
+        stop["now"] = True
+    signal.signal(signal.SIGTERM, quit_)
+    signal.signal(signal.SIGINT, quit_)
+    try:
+        while not stop["now"]:
+            guard.look()
+            for _ in range(LOOK * 4):
+                if stop["now"]:
+                    break
+                time.sleep(0.25)
+    finally:
+        if STATE.exists() or guard.game or guard.akonadi or guard.baloo or guard.wowup:
+            guard.stop()
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if cmd == "run":
+        serve()
+    elif cmd == "status":
+        print("off" if OFF.exists() else "on")
+    elif cmd == "set" and sys.argv[2:3] in (["on"], ["off"]):
+        if sys.argv[2] == "on":
+            OFF.unlink(missing_ok=True)
+            run("systemctl", "--user", "start", "goblincakes-gameguard.service")
+        else:
+            CONFIG.mkdir(parents=True, exist_ok=True)
+            OFF.touch()
+            run("systemctl", "--user", "stop", "goblincakes-gameguard.service")
+    elif cmd == "wait":
+        # Root, before an automatic update: never in the middle of a game
+        said = False
+        while gaming_somewhere():
+            if not said:
+                log("Ett spel kör – uppdateringen väntar tills det är stängt")
+                said = True
+            time.sleep(30)
+    else:
+        print(__doc__.strip())
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

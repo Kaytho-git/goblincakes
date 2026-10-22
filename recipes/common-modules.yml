@@ -160,6 +160,7 @@ modules:
         - goblincakes-ollama.service      # lokal AI – only runs for those who installed it in Goblin AI
         - goblincakes-vencord.path        # Vencord back into Discord after Discord updates – only when switched on in Config
         - goblincakes-vencord.service     # the same at login
+        - goblincakes-gameguard.service   # Spelläge: GameMode, updates wait, Akonadi/Baloo/WoWUp rest during games (switch in Config)
 
   # GOBLINCAKES name in About this System and the boot menu
   - type: os-release

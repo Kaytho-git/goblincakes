@@ -1,0 +1,15 @@
+[Unit]
+Description=GOBLINCAKES Spelläge (GameMode, updates wait, Akonadi/Baloo/WoWUp rest while a game runs)
+ConditionKernelCommandLine=!rd.live.image
+# Switched off in Config → Inställningar → Spel
+ConditionPathExists=!%h/.config/goblincakes/gameguard-off
+
+[Service]
+ExecStart=/usr/libexec/goblincakes-gameguard run
+Restart=on-failure
+RestartSec=10
+# On stop it starts what it paused again (Akonadi, Baloo, WoWUp)
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

@@ -584,23 +584,10 @@ def cmd_order(args):
     return 0
 
 
-GAME = re.compile(r"^(reaper|.*\.exe|gamescope|wine.*preloader)$", re.I)
-
-
-def game_running():
-    """A game: Steam's game wrapper (reaper), a Windows program in Wine/Proton, or gamescope."""
-    for pid in os.listdir("/proc"):
-        if not pid.isdigit():
-            continue
-        try:
-            comm = Path(f"/proc/{pid}/comm").read_text().strip()
-        except OSError:
-            continue
-        if GAME.match(comm) and comm.lower() not in ("steamwebhelper.exe", "explorer.exe", "services.exe",
-                                                     "winedevice.exe", "plugplay.exe", "svchost.exe",
-                                                     "rpcss.exe", "conhost.exe", "start.exe", "tabtip.exe"):
-            return True
-    return False
+sys.path.insert(0, str(Path(os.environ.get("GOBLINCAKES_SHARE") or
+                            Path(__file__).resolve().parents[1] / "share/goblincakes")))
+# One rule for what a game is (gaming.py): Battle.net open to update is not playing (22 Oct)
+from gaming import game_running  # noqa: E402,F401 – goblincakes-image uses O.game_running too
 
 
 # While a game runs the whole local AI is stopped (the user's decision 16 Oct: never used while

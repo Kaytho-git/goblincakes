@@ -142,6 +142,13 @@ for o in outputs:
             set) /usr/libexec/goblincakes-season set "$value" ;;
         esac ;;
 
+    gameguard)
+        # Spelläge: GameMode, waiting updates and resting background services while a game runs
+        case $cmd in
+            status) /usr/libexec/goblincakes-gameguard status ;;
+            set) /usr/libexec/goblincakes-gameguard set "$value" ;;
+        esac ;;
+
     discord-vencord)
         # Discord in GOBLINCAKES' look (Vencord + our theme) – only for those who choose it
         case $cmd in
