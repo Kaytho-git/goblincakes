@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-22  Systemfältet under spel: GoblinRecorder, GoblinAmp, Goblin AI och Config kommer nu fram framför spelet när du klickar på ikonen
 2026-10-22  GoblinRecorder: nycklar i Murder Row (och andra instanser med egna delar) avbryts inte längre mitt i
 2026-10-22  GoblinRecorder: nycklarnas parses visades som 0 direkt efter nyckeln – nu står de som ”inte klara än” och hämtas igen (var 5:e minut första timmen) tills Warcraft Logs har räknat fram dem
 2026-10-22  Spotify (GOBLINCAKES), webbappen i Config → Program → Media, är borttagen – dina Spotify-listor, sök och uppspelning finns i GoblinAmp

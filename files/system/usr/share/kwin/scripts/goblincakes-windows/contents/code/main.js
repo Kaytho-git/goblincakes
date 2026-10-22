@@ -415,9 +415,53 @@ function spotifyAdded(window) {
     return true;
 }
 
+// Our windows over a game (22 Oct, the user: Meta during a game, then a click on a tray icon –
+// the window seldom came up): the click goes to plasmashell, so the app has no input of its own
+// and KWin's focus stealing prevention refuses its activation – the window opens (or stays)
+// behind the fullscreen game and only demands attention. While a game is open, one of our
+// windows that opens or asks to be activated is activated by the script instead. A window that
+// already demands attention sends no new signal, so that is cleared whenever a game is activated.
+const OURS = ["goblin-recorder", "goblin-amp", "goblin-ai", "goblincakes-config"];
+const ours = [];
+function gameOpen() {
+    const list = workspace.windowList();
+    for (let i = 0; i < list.length; i++)
+        if (isGame(list[i]))
+            return true;
+    return false;
+}
+
+function ourWindow(window, opened) {
+    if (!window.normalWindow || OURS.indexOf(String(window.resourceClass)) < 0)
+        return;
+    const bring = function () {
+        if (gameOpen() && workspace.activeWindow !== window)
+            workspace.activeWindow = window;
+    };
+    if (opened)
+        bring();
+    window.demandsAttentionChanged.connect(function () {
+        if (window.demandsAttention)
+            bring();
+    });
+    ours.push(window);
+    window.closed.connect(function () {
+        ours.splice(ours.indexOf(window), 1);
+    });
+}
+
+workspace.windowActivated.connect(function (window) {
+    if (!window || !isGame(window))
+        return;
+    for (let i = 0; i < ours.length; i++)
+        if (ours[i].demandsAttention)
+            ours[i].demandsAttention = false;
+});
+
 function added(window) {
     if (!window)
         return;
+    ourWindow(window, true);
     if (String(window.caption) === QUICK) {
         quickAdded(window);
         return;
@@ -598,9 +642,11 @@ registerShortcut("GOBLINCAKES Tile Float", "GOBLINCAKES: fönstret ut ur rutorna
     });
 
 const existing = workspace.windowList();
-for (let i = 0; i < existing.length; i++)
+for (let i = 0; i < existing.length; i++) {
     if (ordinaryWindow(existing[i]))
         watchDrag(existing[i]);
+    ourWindow(existing[i], false);
+}
 
 // 2 px between tiled windows (12 Oct, the user's wish): KDE's tiles have 4 px padding by default
 // (between two windows = the padding, half from each). Set on every screen whose tiles still
