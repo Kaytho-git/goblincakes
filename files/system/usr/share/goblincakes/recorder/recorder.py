@@ -2365,8 +2365,9 @@ def wcl_stats(wcl):
         for fight in data(table) or []:
             for role in (fight.get("roles") or {}).values():
                 for c in role.get("characters") or []:
-                    # "~192764": not ranked yet, only Warcraft Logs' guess with 0 % (keys, 22 Oct)
-                    if c.get("rankPercent") is not None and not str(c.get("rank", "")).startswith("~"):
+                    # rank = totalParses with 0 %: a key Warcraft Logs hasn't ranked yet (no team/affixes in the
+                    # rankings either – 22 Oct); "~N" alone is its usual estimate with a real percent
+                    if c.get("rankPercent") is not None and str(c.get("rank", "")).lstrip("~") != str(c.get("totalParses")):
                         out[c["name"]] = (c["rankPercent"], c.get("bracketPercent"))
         return out
 

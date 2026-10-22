@@ -1,6 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
-2026-10-22  GoblinRecorder: nycklarnas parses visades som 0 direkt efter nyckeln – nu står de som ”inte klara än” och hämtas igen varje timme tills Warcraft Logs har räknat fram dem
+2026-10-22  GoblinRecorder: nycklarnas parses visades som 0 direkt efter nyckeln – nu står de som ”inte klara än” och hämtas igen (var 5:e minut första timmen) tills Warcraft Logs har räknat fram dem
 2026-10-22  Spotify (GOBLINCAKES), webbappen i Config → Program → Media, är borttagen – dina Spotify-listor, sök och uppspelning finns i GoblinAmp
 2026-10-22  Två egna låtar följer med: skriv goblin moonbyte eller goblin moonlit pixel drift så spelas de i terminalen med grafens staplar i klassfärger (mellanslag pausar, pilarna hoppar 10 sekunder, q avslutar)
 2026-10-22  Config → Program har en ny kategori, Moddar: Limo (moddar från Nexus Mods till bl.a. Skyrim, Fallout, Cyberpunk 2077 och The Witcher 3) och r2modman (moddar från Thunderstore till bl.a. Valheim, Lethal Company och GTFO)
