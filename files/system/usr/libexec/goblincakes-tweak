@@ -142,6 +142,13 @@ for o in outputs:
             set) /usr/libexec/goblincakes-season set "$value" ;;
         esac ;;
 
+    discord-vencord)
+        # Discord in GOBLINCAKES' look (Vencord + our theme) – only for those who choose it
+        case $cmd in
+            status) /usr/libexec/goblincakes-vencord status ;;
+            set) /usr/libexec/goblincakes-vencord set "$value" ;;
+        esac ;;
+
     no-autolock)
         # Don't lock the screen (password again) when the computer has been left alone for a
         # while – KDE's own setting (System Settings → Screen Locking → Lock automatically).

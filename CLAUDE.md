@@ -79,6 +79,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Plasma 6.8-förberedelser
 - [x] Välj färg (blå + 13 klassfärger)
 - [x] Chrome/Brave/Chromium-tema, Firefox-tema
+- [x] Discord i GOBLINCAKES-stil (Vencord, eget val i Config; läggs in igen efter Discord-uppdateringar)
 - [x] Tiling med egna regler (Config → Fönster, layouter, Meta+Ctrl+1–9)
 - [x] Spotify (GOBLINCAKES) – webbspelaren i GOBLINCAKES-stil (ej provat mot riktiga Spotify)
 - [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, sök/egna listor, spara album, GENRER med Last.fm, MPRIS, GRAF)

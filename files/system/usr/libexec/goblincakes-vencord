@@ -1,0 +1,406 @@
+#!/usr/bin/python3
+"""Discord in GOBLINCAKES' look: Vencord + our theme (Config → Inställningar → Utseende).
+
+    goblincakes-vencord status     on / off / unavailable (Discord isn't installed)
+    goblincakes-vencord set on|off  switch on: fetch Vencord, patch Discord, the theme on;
+                                    off: Discord as it was, the theme off
+    goblincakes-vencord ensure     patch again when Discord has updated itself (the path
+                                   unit, at login) – only while it is switched on
+    goblincakes-vencord theme      write the theme again (goblincakes-accent, a new colour)
+
+Only for those who switch it on – client mods are against Discord's terms (no known bans
+for themes, the user's choice 22 Oct). Discord's own Linux build (goblincakes-config-install
+step discord) updates itself into ~/.config/discord/app-<version>/; every new host version
+comes without Vencord, so goblincakes-vencord.path watches that folder and patches the new
+one the way Vencord's installer does: resources/app.asar → _app.asar, and a small app.asar
+that loads ~/.config/Vencord/dist/patcher.js (which starts the original). Vencord keeps its
+own files up to date after that (its autoUpdate). The theme is a Vencord theme file, which
+Vencord reloads live when it changes (the accent colour follows without a restart).
+"""
+import hashlib
+import json
+import os
+import re
+import signal
+import struct
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+sys.path.insert(0, str(Path(os.environ.get("GOBLINCAKES_SHARE") or
+                            Path(__file__).resolve().parents[1] / "share/goblincakes")))
+import accent as A  # noqa: E402
+
+HOME = Path.home()
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config")
+DATA_HOME = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share")
+DISCORD = CONFIG_HOME / "discord"                 # app-<version>/ from Discord's updater
+LAUNCHER = DATA_HOME / "discord-app/discord"      # what goblincakes-config-install puts there
+VENCORD = CONFIG_HOME / "Vencord"
+DIST = VENCORD / "dist"
+THEME = VENCORD / "themes/goblincakes.theme.css"
+SETTINGS = VENCORD / "settings/settings.json"
+FLAG = CONFIG_HOME / "goblincakes/vencord-on"
+RELEASE = "https://api.github.com/repos/Vendicated/Vencord/releases/latest"
+RELEASE_FALLBACK = "https://vencord.dev/releases/vencord"
+FILES = ("patcher.js", "preload.js", "renderer.js", "renderer.css")
+UNIT = "goblincakes-vencord.path"
+
+
+def log(*a):
+    print(*a, file=sys.stderr, flush=True)
+
+
+# ── Discord's folders ─────────────────────────────────────────────
+
+def version_key(p):
+    return [int(x) for x in re.findall(r"\d+", p.name)]
+
+
+def app_dirs():
+    """Discord's app-<version> folders with a resources/app.asar, newest last."""
+    try:
+        dirs = [d for d in DISCORD.iterdir() if d.is_dir() and d.name.startswith("app-")
+                and ((d / "resources/app.asar").exists() or (d / "resources/_app.asar").exists())]
+    except OSError:
+        return []
+    return sorted(dirs, key=version_key)
+
+
+def patched(app):
+    return (app / "resources/_app.asar").exists()
+
+
+# ── Vencord's own files ───────────────────────────────────────────
+
+def fetch(url, timeout=30):
+    req = urllib.request.Request(url, headers={"User-Agent": "GOBLINCAKES (goblincakes-vencord)"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
+
+
+def download_vencord():
+    """Vencord's latest build into ~/.config/Vencord/dist (sha256 from GitHub when it gives one)."""
+    try:
+        release = json.loads(fetch(RELEASE))
+    except Exception:  # GitHub's 60 requests an hour – Vencord's own fallback
+        release = json.loads(fetch(RELEASE_FALLBACK))
+    assets = {a["name"]: a for a in release.get("assets", [])}
+    if any(f not in assets for f in FILES):
+        raise RuntimeError("Vencords nedladdning saknar filer")
+    DIST.mkdir(parents=True, exist_ok=True)
+    # Without it node looks for a package.json further up (a ~/package.json could break it)
+    (DIST / "package.json").write_text("{}")
+    for name in FILES:
+        data = fetch(assets[name]["browser_download_url"], timeout=120)
+        digest = (assets[name].get("digest") or "").removeprefix("sha256:")
+        if digest and hashlib.sha256(data).hexdigest() != digest:
+            raise RuntimeError(f"{name}: fel kontrollsumma")
+        tmp = DIST / (name + ".goblincakes-new")
+        tmp.write_bytes(data)
+        os.replace(tmp, DIST / name)
+
+
+def write_app_asar(path, patcher):
+    """The small app.asar Vencord's installer writes: index.js requires patcher.js."""
+    index = f"require({json.dumps(str(patcher))})".encode()
+    package = b'{"name":"discord","main":"index.js"}'
+    header = json.dumps({"files": {
+        "index.js": {"size": len(index), "offset": "0"},
+        "package.json": {"size": len(package), "offset": str(len(index))},
+    }}, separators=(",", ":")).encode()
+    size = len(header)
+    aligned = (size + 3) & ~3
+    with open(path, "wb") as f:
+        # pickle sizes as asar has them: 4, header size, header object size, the JSON's length
+        f.write(struct.pack("<4I", 4, aligned + 8, aligned + 4, size))
+        f.write(header + b"0" * (aligned - size) + index + package)
+
+
+def patch(app):
+    res = app / "resources"
+    if patched(app):
+        return False
+    os.replace(res / "app.asar", res / "_app.asar")
+    try:
+        write_app_asar(res / "app.asar", DIST / "patcher.js")
+    except OSError:
+        os.replace(res / "_app.asar", res / "app.asar")
+        raise
+    log("Vencord inlagt i", app.name)
+    return True
+
+
+def unpatch(app):
+    res = app / "resources"
+    if patched(app):
+        (res / "app.asar").unlink(missing_ok=True)
+        os.replace(res / "_app.asar", res / "app.asar")
+
+
+def settled(app, wait=120):
+    """Discord's updater writes a new app-<version> for a while: wait until it rests."""
+    end = time.monotonic() + wait
+    while time.monotonic() < end:
+        try:
+            newest = max(f.stat().st_mtime for f in (app / "resources").iterdir())
+        except (OSError, ValueError):
+            newest = time.time()
+        if time.time() - newest > 10 and (app / "resources/app.asar").exists():
+            return True
+        time.sleep(3)
+    return False
+
+
+# ── Vencord's settings: our theme on/off ──────────────────────────
+
+def set_theme_enabled(on):
+    try:
+        settings = json.loads(SETTINGS.read_text())
+    except (OSError, ValueError):
+        settings = {}
+    themes = [t for t in settings.get("enabledThemes", []) if t != THEME.name]
+    if on:
+        themes.append(THEME.name)
+    settings["enabledThemes"] = themes
+    SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    tmp = SETTINGS.with_name(SETTINGS.name + ".goblincakes-new")
+    tmp.write_text(json.dumps(settings, indent=4))
+    os.replace(tmp, SETTINGS)
+
+
+# ── The theme ─────────────────────────────────────────────────────
+
+def theme_css(pal):
+    c, hover, on, text, dim = pal["color"], pal["hover"], pal["on"], pal["text"], pal["dim"]
+    # Discord's dark themes; !important wins over Discord's own colours and Nitro's themes
+    v = {
+        # surfaces, darkest first (Discord: app frame → server list → … → popouts)
+        "app-frame-background": "#05070A",
+        "background-base-lowest": A.VOID,
+        "background-base-lower": "#0E1420",
+        "background-base-low": "#0B1018",
+        "background-surface-high": "#0F1828",
+        "background-surface-higher": "#12203A",
+        "background-surface-highest": "#16284A",
+        "background-secondary-alt": "#0B1018",
+        "background-accent": "#1E2A40",
+        "background-brand": c,
+        "background-code": "#0B1018",
+        "chat-background": "#0E1420",
+        "chat-background-default": "#0E1420",
+        "channeltextarea-background": "#0B1018",
+        "panel-bg": "#0B1018",
+        "home-background": "#0E1420",
+        "modal-background": "#0F1828",
+        "modal-footer-background": "#0B1018",
+        "card-background-default": "#0F1828",
+        "bg-surface-raised": "#12203A",
+        "input-background-default": A.VOID,
+        "scrollbar-auto-thumb": "#1E2A40",
+        "scrollbar-auto-track": "transparent",
+        "scrollbar-thin-thumb": "#1E2A40",
+        "scrollbar-thin-track": "transparent",
+        # lines
+        "border-subtle": "#1A2438", "border-muted": "#1A2438", "border-normal": "#1E2A40",
+        "border-strong": "#2A3A58", "border-focus": c, "app-frame-border": "#1A2438",
+        "chat-border": "#1A2438", "card-border-default": "#1E2A40",
+        "input-border-default": "#1E2A40", "input-border-hover": "#2A3A58",
+        "input-border-active": c,
+        # text and icons
+        "text-default": A.FROST, "text-strong": A.FROST, "text-muted": "#8B98AD",
+        "text-subtle": "#8B98AD", "text-link": text, "text-brand": text,
+        "icon-default": A.FROST, "icon-strong": A.FROST, "icon-muted": "#8B98AD",
+        "icon-subtle": "#8B98AD", "icon-brand": text, "icon-link": text,
+        "channel-icon": "#8B98AD", "channels-default": "#8B98AD",
+        "interactive-text-default": "#8B98AD", "interactive-text-hover": A.FROST,
+        "interactive-text-active": A.FROST, "interactive-icon-default": "#8B98AD",
+        "interactive-icon-hover": A.FROST, "interactive-icon-active": A.FROST,
+        "interactive-background-hover": "#12203A", "interactive-background-active": "#16284A",
+        "interactive-background-selected": dim,
+        "interactive-accent-background-hover": c, "interactive-accent-background-selected": c,
+        "interactive-accent-background-active": hover,
+        "input-text-default": A.FROST, "input-placeholder-text-default": "#8B98AD",
+        # the accent: buttons, mentions, the brand colour older parts still use
+        "control-primary-background-default": c, "control-primary-background-hover": hover,
+        "control-primary-background-active": hover, "control-primary-text-default": on,
+        "control-primary-text-hover": on, "control-primary-text-active": on,
+        "control-primary-icon-default": on, "control-primary-icon-hover": on,
+        "control-primary-icon-active": on, "control-brand-foreground": text,
+        "control-brand-foreground-new": text,
+        "mention-foreground": A.FROST, "mention-background": c + "4D",
+        "message-highlight-background-default": c + "26",
+        "message-highlight-background-hover": c + "1F",
+        "brand-500": c, "brand-560": hover, "brand-360": text, "blurple-50": c,
+        # straight corners (round stays round: avatars, status dots)
+        "radius-xs": "0", "radius-sm": "0", "radius-md": "0", "radius-lg": "0",
+        "radius-xl": "0", "radius-xxl": "0",
+        # GOBLINCAKES' fonts
+        "font-primary": '"IBM Plex Sans", "Noto Sans", sans-serif',
+        "font-display": '"Chakra Petch", "IBM Plex Sans", sans-serif',
+        "font-headline": '"Chakra Petch", "IBM Plex Sans", sans-serif',
+        "font-code": '"IBM Plex Mono", monospace',
+    }
+    lines = "\n".join(f"    --{k}: {val} !important;" for k, val in v.items())
+    return f"""/**
+ * @name GOBLINCAKES
+ * @description Discord i GOBLINCAKES-stil – platt, raka hörn, {pal['name']}. Skrivs av goblincakes-vencord (GOBLINCAKES Config → Inställningar → Utseende); ändringar här skrivs över.
+ * @author GOBLINCAKES
+ */
+
+.theme-dark, .theme-darker, .theme-midnight {{
+{lines}
+}}
+
+/* Corners Discord draws without its variables: straight too – except what is meant to be
+   round (avatars, status dots, switches, sliders, the unread pill) */
+:is(.theme-dark, .theme-darker, .theme-midnight) :where(button, input, textarea, [class*="button"], [class*="card"], [class*="modal"],
+  [class*="popout"], [class*="menu"], [class*="tooltip"], [class*="container"], [class*="wrapper"],
+  [class*="message"], [class*="embed"], [class*="attachment"], [class*="input"], [class*="channel"],
+  [class*="item"], [class*="panel"], [class*="tab"], [class*="chat"], [class*="form"]):not(
+  [class*="avatar"], [class*="status"], [class*="dot"], [class*="switch"], [class*="knob"],
+  [class*="slider"], [class*="pill"], [class*="badge"], [class*="circle"], [class*="round"]) {{
+    border-radius: 0 !important;
+}}
+
+/* The login page: GOBLINCAKES' dark background instead of Discord's artwork */
+[class*="characterBackground"] {{ background: {A.VOID} !important; }}
+[class*="characterBackground"] > [class*="artwork"] {{ display: none !important; }}
+[class*="authBox"] {{ border: 1px solid #1E2A40 !important; box-shadow: none !important; }}
+
+h1, h2, h3, [class*="title"], [class*="header"] h1, [class*="header"] h2 {{
+    font-family: var(--font-display);
+}}
+
+::selection {{ background: {c}; color: {on}; }}
+"""
+
+
+def write_theme():
+    pal = A.palette()
+    text = theme_css(pal)
+    try:
+        if THEME.read_text() == text:
+            return
+    except OSError:
+        pass
+    THEME.parent.mkdir(parents=True, exist_ok=True)
+    tmp = THEME.with_name(THEME.name + ".goblincakes-new")
+    tmp.write_text(text)
+    os.replace(tmp, THEME)
+
+
+# ── A Discord that just updated itself gets Vencord at its next start ──
+
+def discord_main_pids(app):
+    """Discord's main process from this app-<version> (not its helpers: --type=…)."""
+    exe = str(app / "Discord")
+    out = []
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            argv = (proc / "cmdline").read_bytes().split(b"\0")
+            if os.path.realpath(proc / "exe") == os.path.realpath(exe) and \
+                    not any(a.startswith(b"--type=") for a in argv):
+                out.append((int(proc.name), [a.decode(errors="replace") for a in argv if a][1:]))
+        except OSError:
+            continue
+    return out
+
+
+def restart_if_just_started(app):
+    """The updater starts the new version itself, before we could patch it. A Discord that
+    has run for less than three minutes is that one – start it again, so the look is there
+    right away. One that has run longer (a call, a game) is left alone until next time."""
+    ticks = os.sysconf("SC_CLK_TCK")
+    uptime = float(Path("/proc/uptime").read_text().split()[0])
+    for pid, args in discord_main_pids(app):
+        try:
+            started = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]) / ticks
+        except (OSError, IndexError, ValueError):
+            continue
+        if uptime - started > 180:
+            continue
+        os.kill(pid, signal.SIGTERM)
+        for _ in range(50):
+            if not Path(f"/proc/{pid}").exists():
+                break
+            time.sleep(0.2)
+        subprocess.run(["systemd-run", "--user", "--quiet", "--collect", "--",
+                        str(LAUNCHER), *args], check=False)
+        log("Discord startad igen med Vencord")
+
+
+# ── Commands ──────────────────────────────────────────────────────
+
+def ensure():
+    if not FLAG.exists():
+        return
+    apps = app_dirs()
+    if not apps:
+        return
+    app = apps[-1]
+    if patched(app):
+        write_theme()
+        return
+    if not settled(app):
+        log("Discord uppdateras fortfarande – försöker vid nästa ändring")
+        return
+    if not (DIST / "patcher.js").exists():
+        download_vencord()
+    write_theme()
+    if patch(app):
+        restart_if_just_started(app)
+
+
+def switch_on():
+    apps = app_dirs()
+    if not apps:
+        raise RuntimeError("Discord är inte installerat")
+    download_vencord()
+    write_theme()
+    set_theme_enabled(True)
+    patch(apps[-1])
+    FLAG.parent.mkdir(parents=True, exist_ok=True)
+    FLAG.touch()
+    subprocess.run(["systemctl", "--user", "start", UNIT], capture_output=True, check=False)
+
+
+def switch_off():
+    FLAG.unlink(missing_ok=True)
+    subprocess.run(["systemctl", "--user", "stop", UNIT], capture_output=True, check=False)
+    for app in app_dirs():
+        unpatch(app)
+    if SETTINGS.exists():
+        set_theme_enabled(False)
+    THEME.unlink(missing_ok=True)
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if cmd == "status":
+        if FLAG.exists():
+            print("on")
+        else:
+            print("off" if LAUNCHER.exists() and app_dirs() else "unavailable")
+    elif cmd == "set" and len(sys.argv) > 2 and sys.argv[2] in ("on", "off"):
+        switch_on() if sys.argv[2] == "on" else switch_off()
+    elif cmd == "ensure":
+        ensure()
+    elif cmd == "theme":
+        if FLAG.exists():
+            write_theme()
+    else:
+        print(__doc__.strip())
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:  # noqa: BLE001 – one line for Config/the journal, not a traceback
+        log(f"goblincakes-vencord: {e}")
+        sys.exit(1)

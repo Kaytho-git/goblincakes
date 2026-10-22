@@ -158,6 +158,8 @@ modules:
         - goblincakes-graph.service       # goblin graph opens when music plays – only with goblin graph auto on
         - goblincakes-season.timer        # the desktop's look by date (login + midnight)
         - goblincakes-ollama.service      # lokal AI – only runs for those who installed it in Goblin AI
+        - goblincakes-vencord.path        # Vencord back into Discord after Discord updates – only when switched on in Config
+        - goblincakes-vencord.service     # the same at login
 
   # GOBLINCAKES name in About this System and the boot menu
   - type: os-release

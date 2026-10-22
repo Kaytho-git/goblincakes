@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-22  Discord kan få GOBLINCAKES utseende: färger, typsnitt, raka hörn och färgen du valt. Slå på det i GOBLINCAKES Config → Inställningar → Utseende om du vill (det görs med tillägget Vencord och sitter kvar när Discord uppdaterar sig)
 2026-10-22  GoblinRecorder: varje WoW-film med Warcraft Logs-länk visar raidens snitt-item level i kortet (avg.ilvl), och WoW Stats visar din och gruppens item level per boss
 2026-10-22  GoblinRecorder: knapparna WoW Stats och CS2 Stats överst i fönstret. WoW: dina parses per boss och svårighetsgrad (bästa och median, som på Warcraft Logs), kills, wipes, item level, Mythic+ per dungeon och parse över tid – från dina inspelningar. CS2: ditt snitt, utvecklingen, kartor, vapen och matcherna. Goblin AI kan läsa båda och säga vad du ska förbättra
 2026-10-22  Goblin AI kan läsa dina CS2-siffror: fråga t.ex. "hur gick min senaste CS2-match?" eller "vad ska jag träna på i CS2?" så jämför den med ditt snitt och ger övningar. Knappen finns också på matchens kort i GoblinRecorder

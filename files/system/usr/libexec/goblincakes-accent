@@ -17,6 +17,7 @@ Where it goes (all in the home folder, the standard blue = the copies are remove
   - GTK programs (Quod Libet …): the copy in ~/.local/share/themes/GoblinCakes, if there is one
   - window frames: Death Knight only – the red close button turns orange (~/.local/share/aurorae)
   - Firefox: a marked block in userChrome.css of every profile (the signed theme stays)
+  - Discord: the Vencord theme, only when switched on (goblincakes-vencord theme)
   - the login screen: /var/lib/goblincakes/sddm-theme.conf through pkexec (no password)
   - GOBLINCAKES' own windows: ~/.config/goblincakes/accent.json, followed live
 """
@@ -279,6 +280,13 @@ def apply_firefox(pal):
         write_if_changed(f, firefox_css(pal) + "\n" + rest)
 
 
+# ── Discord (Vencord) ─────────────────────────────────────────────
+
+def apply_discord():
+    """Our Vencord theme, when the user switched it on – Vencord reloads it live."""
+    run([str(sys_path("/usr/libexec/goblincakes-vencord")), "theme"])
+
+
 # ── The login screen ──────────────────────────────────────────────
 
 def apply_sddm(pal):
@@ -320,6 +328,7 @@ def apply_files(pal):
     apply_gtk(pal)
     frames = apply_aurorae(pal)
     apply_firefox(pal)
+    apply_discord()
     STAMP.parent.mkdir(parents=True, exist_ok=True)
     STAMP.write_text(files_stamp(pal) + "\n")
     return frames

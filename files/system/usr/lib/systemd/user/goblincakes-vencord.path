@@ -1,0 +1,12 @@
+[Unit]
+Description=GOBLINCAKES: Vencord back into Discord after Discord updated itself
+ConditionKernelCommandLine=!rd.live.image
+ConditionPathExists=%h/.config/goblincakes/vencord-on
+
+[Path]
+# A new host version is a new app-<version> folder here (Discord's own updater)
+PathChanged=%h/.config/discord
+Unit=goblincakes-vencord.service
+
+[Install]
+WantedBy=default.target

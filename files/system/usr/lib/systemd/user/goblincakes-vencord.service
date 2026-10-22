@@ -1,0 +1,10 @@
+[Unit]
+Description=GOBLINCAKES: Vencord and the GOBLINCAKES look in Discord (only when switched on in Config)
+ConditionPathExists=%h/.config/goblincakes/vencord-on
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/goblincakes-vencord ensure
+
+[Install]
+WantedBy=default.target
