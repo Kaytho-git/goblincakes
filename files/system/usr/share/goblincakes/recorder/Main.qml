@@ -2308,6 +2308,16 @@ Window {
                 text: wowPage.d.missing + " kills/nycklar saknar siffror än – tjänsten hämtar loggen själv när den finns i Warcraft Logs."
             }
 
+            Bars {
+                visible: (wowPage.d.trend || []).length > 1
+                title: "PARSE ÖVER TID · senaste " + (wowPage.d.trend || []).length + " kills och nycklar"
+                values: (wowPage.d.trend || []).map(t => t.parse)
+                barColors: (wowPage.d.trend || []).map(t => win.parseColor(t.parse))
+                maxValue: 100
+                tips: (wowPage.d.trend || []).map(t => t.name + (t.level ? " +" + t.level : " " + (t.difficulty || "")) + " · "
+                                                      + win.day(t.started) + " · parse " + t.parse + (t.ilvl ? " · ilvl " + t.ilvl : "")
+                                                      + (t.avgIlvl ? " · avg.ilvl " + win.num(t.avgIlvl.toFixed(1)) : ""))
+            }
             // RAID: one table per difficulty
             Item { visible: !!wowPage.r; width: 1; height: 6 }
             Row {
@@ -2389,17 +2399,6 @@ Window {
                 }
             }
 
-            Item { visible: (wowPage.d.trend || []).length > 1; width: 1; height: 6 }
-            Bars {
-                visible: (wowPage.d.trend || []).length > 1
-                title: "PARSE ÖVER TID · senaste " + (wowPage.d.trend || []).length + " kills och nycklar"
-                values: (wowPage.d.trend || []).map(t => t.parse)
-                barColors: (wowPage.d.trend || []).map(t => win.parseColor(t.parse))
-                maxValue: 100
-                tips: (wowPage.d.trend || []).map(t => t.name + (t.level ? " +" + t.level : " " + (t.difficulty || "")) + " · "
-                                                      + win.day(t.started) + " · parse " + t.parse + (t.ilvl ? " · ilvl " + t.ilvl : "")
-                                                      + (t.avgIlvl ? " · avg.ilvl " + win.num(t.avgIlvl.toFixed(1)) : ""))
-            }
             Note {
                 visible: !!wowPage.d.player
                 width: parent.width
