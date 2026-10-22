@@ -1235,7 +1235,7 @@ Window {
             }
             SmallLink {
                 visible: !!plPanel.entry && !plPanel.home
-                width: Math.min(implicitWidth, parent.width - 130)
+                width: Math.min(implicitWidth, parent.width - (plTools.visible ? plTools.width + 12 : 0))
                 elide: Text.ElideRight
                 text: "◀  " + (plPanel.entry ? plPanel.entry.name : "")
                 color: accent.text
@@ -1250,6 +1250,7 @@ Window {
                 }
             }
             Row {
+                id: plTools
                 visible: win.pl.signedIn && !plPanel.showHelp
                 anchors.right: parent.right
                 spacing: 12
