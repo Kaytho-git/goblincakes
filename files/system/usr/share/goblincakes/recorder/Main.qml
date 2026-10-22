@@ -2134,18 +2134,30 @@ Window {
         property var values: []
         property var barColors: []
         property var tips: []
+        property string info // an ⓘ after the title: the explanation on hover
+        property int barHeight: 56
         property real maxValue: Math.max(1, ...values.filter(x => x !== null && x !== undefined))
         spacing: 4
-        Text {
-            text: bars.title
-            color: "#8B98AD"
-            font.family: "Chakra Petch"
-            font.weight: Font.DemiBold
-            font.pixelSize: 11
-            font.letterSpacing: 1
+        Row {
+            spacing: 6
+            Text {
+                text: bars.title
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.weight: Font.DemiBold
+                font.pixelSize: 11
+                font.letterSpacing: 1
+            }
+            Text {
+                visible: !!bars.info
+                text: "ⓘ"
+                color: infoHover.hovered ? "#E6ECF5" : "#8B98AD"
+                font.pixelSize: 12
+                HoverTip { id: infoHover; tip: bars.info }
+            }
         }
         Row {
-            height: 56
+            height: bars.barHeight
             spacing: 3
             Repeater {
                 model: bars.values.length
@@ -2154,7 +2166,7 @@ Window {
                     readonly property var v: bars.values[index]
                     anchors.bottom: parent.bottom
                     width: 12
-                    height: v === null || v === undefined ? 2 : 4 + 52 * v / bars.maxValue
+                    height: v === null || v === undefined ? 2 : 4 + (bars.barHeight - 4) * v / bars.maxValue
                     color: bars.barColors[index] || "#2A3852"
                     HoverTip { tip: bars.tips[index] || "" }
                 }
@@ -2305,6 +2317,10 @@ Window {
                 Bars {
                     visible: (wowPage.d.trend || []).length > 1
                     title: "PARSE ÖVER TID"
+                    barHeight: 34 // the same height as the tiles beside it
+                    info: "Bara pulls och nycklar som GoblinRecorder spelat in. Parse = Warcraft Logs (healers på HPS, övriga på DPS); "
+                          + "ILVL % = mot spelare med samma item level; ILVL = din, AVG.ILVL = gruppens snitt i den killen. "
+                          + "Klicka på en rad i tabellen för att öppna din bästa i Warcraft Logs."
                     values: (wowPage.d.trend || []).map(t => t.parse)
                     barColors: (wowPage.d.trend || []).map(t => win.parseColor(t.parse))
                     maxValue: 100
@@ -2402,14 +2418,6 @@ Window {
                 }
             }
 
-            Note {
-                visible: !!wowPage.d.player
-                width: parent.width
-                font.pixelSize: 12
-                text: "Bara pulls och nycklar som GoblinRecorder spelat in. Parse = Warcraft Logs (healers på HPS, övriga på DPS); "
-                      + "ILVL % = mot spelare med samma item level; ILVL = din, AVG.ILVL = gruppens snitt i den killen. "
-                      + "Klicka på en rad för att öppna din bästa i Warcraft Logs."
-            }
         }
     }
     FlatScrollBar { flick: wowPage }
