@@ -107,7 +107,7 @@ Ljudstaplar till musiken i WoW:s klassfärger – ett fönster utan ram som ligg
 
 ### GOBLINCAKES Config
 Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+C** eller från appmenyn:
-- **Program** – kryssa i det du vill ha, i hopfällbara kategorier: webbläsare (Brave, Opera GX, Google Chrome – med reglaget *Huvudwebbläsare*), spel och WoW (Lutris, Battle.net, Discord, Heroic, ProtonUp-Qt, GPU Screen Recorder, WowUp, Raider.IO, Archon m.fl.), emulatorer, media (Spotify, OBS, GIMP, VLC, EasyEffects, Quod Libet), streaming (Netflix, Disney+, HBO Max, Prime Video, YouTube, SVT Play, TV4 Play), kontor (LibreOffice, Okular, Ark, FileZilla), Ianseo och system (Claude, VS Code, Claude Code, Pika Backup m.fl.).
+- **Program** – kryssa i det du vill ha, i hopfällbara kategorier: webbläsare (Brave, Opera GX, Google Chrome – med reglaget *Huvudwebbläsare*), spel och WoW (Lutris, Battle.net, Discord, Heroic, ProtonUp-Qt, GPU Screen Recorder, WowUp, Raider.IO, Archon m.fl.), moddar (Limo för Nexus Mods, r2modman för Thunderstore), emulatorer, media (Spotify, OBS, GIMP, VLC, EasyEffects, Quod Libet), streaming (Netflix, Disney+, HBO Max, Prime Video, YouTube, SVT Play, TV4 Play), kontor (LibreOffice, Okular, Ark, FileZilla), Ianseo och system (Claude, VS Code, Claude Code, Pika Backup m.fl.).
   - **Egen webbapp:** klistra in en länk så blir sidan ett eget program med ikon.
   - **Starta vid inloggning:** reglage på installerade program.
 - **Förinstallerat** – visa eller dölj systemets program i appmenyn.

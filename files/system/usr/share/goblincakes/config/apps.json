@@ -2,6 +2,7 @@
   "categories": [
     {"id": "browsers", "name": "Webbläsare", "note": "Väljer du ingen är Firefox huvudwebbläsare – den är redan installerad. Reglaget under en webbläsare installerar den och gör den till huvudwebbläsare. Google Chrome installeras ändå om du väljer streamingapparna (webbapparna)."},
     {"id": "games", "name": "Spel och WoW"},
+    {"id": "mods", "name": "Moddar"},
     {"id": "emulators", "name": "Emulatorer"},
     {"id": "media", "name": "Media och kreativt"},
     {"id": "streaming", "name": "Streaming"},
@@ -25,6 +26,8 @@
     {"id": "raiderio", "name": "Raider.IO", "category": "games", "desc": "Raider.IO-klienten, senaste versionen.", "steps": [["appimage-github", "RaiderIO/raiderio-client-builds", "RaiderIO"]], "check": ["appimage", "RaiderIO"]},
     {"id": "archon", "name": "Archon", "category": "games", "desc": "Archon-appen (Warcraft Logs), senaste versionen.", "steps": [["appimage-github", "RPGLogs/Uploaders-archon", "Archon"]], "check": ["appimage", "Archon"]},
     {"id": "goblinrecorder", "name": "GoblinRecorder", "category": "games", "desc": "Spelar in raidbossar och Mythic+-nycklar av sig själv med OBS – varje boss blir en egen film med dödsfallen markerade, WoW och Discord på egna ljudspår, länk till Warcraft Logs. Öppna GoblinRecorder efteråt och tryck Starta OBS.", "steps": [["flatpak", "com.obsproject.Studio"], ["flatpak", "com.obsproject.Studio.Plugin.PipeWireAudioCapture"], ["recorder-on"]], "check": ["recorder"]},
+    {"id": "limo", "name": "Limo", "category": "mods", "desc": "Modhanterare för Linux med Nexus Mods – Skyrim, Fallout, Cyberpunk 2077, The Witcher 3 med flera. Sorterar Skyrims och Fallouts moddar med LOOT.", "steps": [["flatpak", "io.github.limo_app.limo"]], "check": ["flatpak", "io.github.limo_app.limo"]},
+    {"id": "r2modman", "name": "r2modman", "category": "mods", "desc": "Moddar från Thunderstore – Valheim, Lethal Company, GTFO, Risk of Rain 2 med flera. Profiler per spel, moddarna startas via Steam. Senaste versionen.", "steps": [["appimage-github", "ebkr/r2modmanPlus", "r2modman"]], "check": ["appimage", "r2modman"]},
     {"id": "retrodeck", "name": "RetroDECK", "category": "emulators", "desc": "Alla klassiska konsoler i ett: Super Nintendo, Mega Drive, N64, PlayStation 1–3, GameCube, Wii, Switch, DS, Game Boy med flera. Snyggt spelbibliotek som styrs med handkontroll – passar TV-läget. Dina egna spel och BIOS-filer läggs i ~/retrodeck.", "steps": [["flatpak", "net.retrodeck.retrodeck"]], "check": ["flatpak", "net.retrodeck.retrodeck"]},
     {"id": "steamrommanager", "name": "Steam ROM Manager", "category": "emulators", "desc": "Lägger in dina emulatorspel i Steam med omslag, så att de startas som vanliga Steam-spel – även i TV-läget.", "steps": [["flatpak", "com.steamgriddb.steam-rom-manager"]], "check": ["flatpak", "com.steamgriddb.steam-rom-manager"]},
     {"id": "vlc", "name": "VLC", "category": "media", "desc": "Spelar upp alla sorters film- och ljudfiler.", "steps": [["flatpak", "org.videolan.VLC"]], "check": ["flatpak", "org.videolan.VLC"]},

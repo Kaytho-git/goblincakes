@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-22  Config → Program har en ny kategori, Moddar: Limo (moddar från Nexus Mods till bl.a. Skyrim, Fallout, Cyberpunk 2077 och The Witcher 3) och r2modman (moddar från Thunderstore till bl.a. Valheim, Lethal Company och GTFO)
 2026-10-22  GoblinRecorder: snabbaste kill visas rätt (5:00 i stället för 4:60), parse över tid går inte längre utanför fönstret och texten överst hamnar inte under knapparna
 2026-10-22  Spelläge: medan du spelar får spelet mer av datorn av sig själv – GameMode slås på (utan startalternativ), uppdateringar väntar tills spelet är stängt, kalenderns och filsökningens bakgrundstjänster vilar, WoWUp stängs medan WoW kör och OBS stängs efter spelet. Battle.net räknas inte som spel (lokal AI stängs inte av bara för att Battle.net är öppet). Reglage i GOBLINCAKES Config → Inställningar → Spel
 2026-10-22  GoblinAmp och GoblinRecorder drar mycket mindre minne, och GoblinAmp vilar helt när den ligger i systemfältet. goblin graph och GoblinAmps staplar pausar medan du spelar och startar igen när spelet stängs
