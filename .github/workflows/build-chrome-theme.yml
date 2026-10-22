@@ -5,8 +5,8 @@
 # /etc/brave/policies/managed and the Flatpak extension org.chromium.Chromium.Policy.goblincakes)
 # and update them themselves – a higher "version" in its manifest.json = a new version for everyone.
 # An extension's id comes from its signing key, so each secret (a PEM private key) must stay the
-# same, or the browsers see a new extension: CHROME_THEME_KEY → hfekdaicheicjhbhbholffmgcgmaijmi,
-# SPOTIFY_EXT_KEY → oipoofhgljbkkinfiendjpongddmaclg.
+# same, or the browsers see a new extension: CHROME_THEME_KEY → kffbncidpcaljkphgpmhlmbjjplajgli,
+# SPOTIFY_EXT_KEY → daanfinnnidalompgohdbodpoeijfpkh.
 name: Packa Chrome-temat
 
 on:
@@ -36,12 +36,12 @@ jobs:
           - dir: chrome-tema
             file: goblincakes-theme
             updates: updates.xml
-            id: hfekdaicheicjhbhbholffmgcgmaijmi
+            id: kffbncidpcaljkphgpmhlmbjjplajgli
             secret: CHROME_THEME_KEY
           - dir: spotify-tillagg
             file: goblincakes-spotify
             updates: spotify-updates.xml
-            id: oipoofhgljbkkinfiendjpongddmaclg
+            id: daanfinnnidalompgohdbodpoeijfpkh
             secret: SPOTIFY_EXT_KEY
     steps:
       - uses: actions/checkout@v4
