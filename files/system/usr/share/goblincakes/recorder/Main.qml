@@ -21,6 +21,8 @@ Window {
     readonly property var enc: JSON.parse(backend.encoders)
     readonly property var videos: JSON.parse(backend.videos)
     property string tab: "videos" // videos | settings | wowstats | cs2stats
+    // a big window (full screen): the settings bigger instead of small text spread out (22 Oct, the user)
+    readonly property real zoom: Math.max(1, Math.min(1.7, width / 1320))
     property var selected: null
     // The ✕ (19 Oct, the user's wish): hide in the system tray or close – asks until remembered
     property bool closeAsk: false
@@ -1018,7 +1020,7 @@ Window {
         id: recordPanel
         visible: win.tab === "settings"
         anchors { right: parent.right; top: header.bottom; bottom: parent.bottom }
-        width: 268
+        width: 268 * win.zoom
         color: "#0B1018"
         Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom } width: 1; color: "#1E2A40" }
 
@@ -1026,7 +1028,7 @@ Window {
             id: recordFlick
             FastWheel { flick: recordFlick }
             anchors { fill: parent; leftMargin: 1 }
-            contentHeight: recordColumn.height + 48
+            contentHeight: recordColumn.height * win.zoom + 48
             clip: true
             boundsBehavior: Flickable.StopAtBounds
 
@@ -1034,7 +1036,9 @@ Window {
             id: recordColumn
             x: 23
             y: 24
-            width: recordPanel.width - 48
+            transformOrigin: Item.TopLeft
+            scale: win.zoom
+            width: (recordPanel.width - 48) / win.zoom
             spacing: 12
 
             SectionTitle { text: "SPELAS IN" }
@@ -2604,7 +2608,7 @@ Window {
         FastWheel { flick: settingsView }
         visible: win.tab === "settings"
         anchors { left: parent.left; right: recordPanel.left; top: header.bottom; bottom: parent.bottom }
-        contentHeight: settingsCol.height + 64
+        contentHeight: settingsCol.height * win.zoom + 64
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
@@ -2612,7 +2616,9 @@ Window {
             id: settingsCol
             x: 40
             y: 30
-            width: settingsView.width - 80
+            transformOrigin: Item.TopLeft
+            scale: win.zoom
+            width: (settingsView.width - 80) / win.zoom
             spacing: 14
 
             SectionTitle { text: "WARCRAFT LOGS" }
