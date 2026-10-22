@@ -2148,11 +2148,24 @@ Window {
                 font.pixelSize: 11
                 font.letterSpacing: 1
             }
-            Text {
+            Rectangle { // a ring with an i (22 Oct, the user: the ⓘ character looked like a squiggle)
                 visible: !!bars.info
-                text: "ⓘ"
-                color: infoHover.hovered ? "#E6ECF5" : "#8B98AD"
-                font.pixelSize: 12
+                anchors.verticalCenter: parent.verticalCenter
+                width: 15
+                height: 15
+                radius: 7.5
+                antialiasing: true
+                color: "transparent"
+                border.width: 1.5
+                border.color: infoHover.hovered ? "#E6ECF5" : "#8B98AD"
+                Text {
+                    anchors.centerIn: parent
+                    text: "i"
+                    color: infoHover.hovered ? "#E6ECF5" : "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.weight: Font.Bold
+                    font.pixelSize: 10
+                }
                 HoverTip { id: infoHover; tip: bars.info }
             }
         }
