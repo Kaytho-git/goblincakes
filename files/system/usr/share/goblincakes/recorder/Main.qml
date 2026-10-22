@@ -512,7 +512,13 @@ Window {
                         ["HS", ds.s.hs + " %", "Kills med huvudskott"],
                         ["ENTRY", ds.s.entryWon + "–" + ds.s.entryLost, "Rundans första kill: vunna–förlorade"],
                         ["TRADE", String(ds.s.trades), "Du dödade den som just dödat en lagkamrat (inom 5 s)"],
-                        ["CLUTCH", ds.s.clutchWon + "/" + ds.s.clutches, "1vX: vunna av alla gånger du var ensam kvar"]]
+                        ["CLUTCH", ds.s.clutchWon + "/" + ds.s.clutches, "1vX: vunna av alla gånger du var ensam kvar"],
+                        ["TTD", ds.s.ttd === undefined || ds.s.ttd === null ? "–" : ds.s.ttd + " ms",
+                         "Time to damage: från att du kunde se fienden till din första skada på honom (median av "
+                         + (ds.s.ttdCount || 0) + " gånger). Ungefärligt: väggar och smokes räknas, inte flashar."],
+                        ["SIKTE", ds.s.cp === undefined || ds.s.cp === null ? "–" : win.num(ds.s.cp) + "°",
+                         "Crosshair placement: hur långt från fiendens huvud siktet var när du kunde se honom (median av "
+                         + (ds.s.cpCount || 0) + " gånger) – lägre är bättre. Ungefärligt: väggar och smokes räknas, inte flashar."]]
                 Rectangle {
                     required property var modelData
                     width: 84
@@ -674,14 +680,23 @@ Window {
                         HoverTip {
                             tip: parent.modelData.name + " " + (parent.modelData.score || "") + " · ADR " + win.num(parent.modelData.demoStats.adr)
                                  + " · K/D " + win.num(parent.modelData.demoStats.kd) + " · HS " + parent.modelData.demoStats.hs + " %"
+                                 + (parent.modelData.demoStats.ttd ? " · TTD " + parent.modelData.demoStats.ttd + " ms" : "")
+                                 + (parent.modelData.demoStats.cp ? " · sikte " + win.num(parent.modelData.demoStats.cp) + "°" : "")
                         }
                     }
                 }
             }
             Text {
-                readonly property var avg: k => ds.trend.reduce((a, o) => a + o.demoStats[k], 0) / Math.max(1, ds.trend.length)
+                width: ds.width
+                wrapMode: Text.WordWrap
+                readonly property var avg: k => {
+                    const xs = ds.trend.map(o => o.demoStats[k]).filter(x => x !== undefined && x !== null);
+                    return xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : null;
+                }
                 text: "Snitt: ADR " + win.num(avg("adr").toFixed(1)) + " · K/D " + win.num(avg("kd").toFixed(2))
                       + " · HS " + Math.round(avg("hs")) + " % · KAST " + Math.round(avg("kast")) + " %"
+                      + (avg("ttd") !== null ? " · TTD " + Math.round(avg("ttd")) + " ms" : "")
+                      + (avg("cp") !== null ? " · sikte " + win.num(avg("cp").toFixed(1)) + "°" : "")
                 color: "#8B98AD"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 12

@@ -13,6 +13,7 @@ import base64
 import glob
 import hashlib
 import json
+import math
 import os
 import re
 import secrets
@@ -1415,6 +1416,129 @@ def cs2_demo_analyse(raw, me):
             "clutches": clutches, "stats": stats, "perRound": rounds, "roundEnds": [e["tick"] for e in ends]}
 
 
+# Time to damage and crosshair placement (22 Oct, the user's wish). Approximate: awpy's map
+# geometry (downloaded once per map release to ~/.cache/goblincakes/awpy) says whether you
+# could see the enemy through the walls; smokes come from the demo, flashes are not counted.
+# An encounter = an enemy you can see (free line of sight, inside the screen, no smoke between)
+# after he was out of sight for a second. Placement = the angle from your crosshair to his head
+# then; time to damage = from then to your first damage on him (within 2 s).
+AWPY_DIR = CACHE_DIR / "awpy"
+AWPY_REFRESH = 7 * 24 * 3600  # look for newer map geometry (CS2 updates the maps) this often
+AIM_FOV = 53.0  # half of CS2's ~106° wide view (16:9) – an enemy farther out is not on the screen
+AIM_GAP = TICKRATE  # out of sight this long and back = a new encounter
+TTD_WINDOW = 2 * TICKRATE
+SMOKE_RADIUS = 144.0
+EYE, DUCK = 64.0, 18.0  # eye height standing, and how much lower crouched
+
+
+def cs2_map_mesh(map_name):
+    """awpy's collision geometry for the map (a download the first time), or None."""
+    os.environ["AWPY_DATA_DIR"] = str(AWPY_DIR)
+    from awpy import data  # noqa: PLC0415
+    try:
+        local = data.local_versions()
+        old = not local or time.time() - (AWPY_DIR / local[-1]).stat().st_mtime > AWPY_REFRESH
+        if old:  # a newer release of the maps? (no network: the cached one)
+            socket.setdefaulttimeout(20)
+            try:
+                return data.mesh_path(map_name, version=int(data.latest_version()))
+            except (OSError, ValueError):
+                pass
+        return data.mesh_path(map_name)
+    except (OSError, ValueError, FileNotFoundError):
+        return None
+
+
+def _seg_dist(a, b, c):
+    """Distance from point c to the segment a–b."""
+    ab = [b[i] - a[i] for i in range(3)]
+    ac = [c[i] - a[i] for i in range(3)]
+    ll = sum(x * x for x in ab) or 1.0
+    k = max(0.0, min(1.0, sum(ab[i] * ac[i] for i in range(3)) / ll))
+    return math.dist(c, [a[i] + k * ab[i] for i in range(3)])
+
+
+def cs2_demo_aim(dem, raw, a, me):
+    """{"ttd": ms (median), "cp": degrees (median), and how many encounters each} or {}."""
+    mesh = cs2_map_mesh(raw["map"])
+    if not mesh:
+        return {}
+    from awpy import VisibilityChecker  # noqa: PLC0415
+    from demoparser2 import DemoParser  # noqa: PLC0415
+    vc = VisibilityChecker(mesh)
+    p = DemoParser(str(dem))
+    ends = a["roundEnds"]
+    spans = []  # each round from the end of the freeze time to its end
+    for f in raw["freeze"]:
+        end = next((e for e in ends if e >= f["tick"]), None)
+        if end:
+            spans.append((f["tick"], end))
+    if not spans:
+        return {}
+    df = p.parse_ticks(["X", "Y", "Z", "pitch", "yaw", "duck_amount", "is_alive", "team_num"],
+                       ticks=[t for s, e in spans for t in range(s, e + 1)])
+    df = df.sort_values("tick")
+    cols = {c: df[c].tolist() for c in ("tick", "steamid", "X", "Y", "Z", "pitch", "yaw", "duck_amount", "is_alive", "team_num")}
+    smokes, started = [], {}
+    try:
+        for r in p.parse_event("smokegrenade_detonate").to_dict("records"):
+            started[r["entityid"]] = (r["tick"], (r["x"], r["y"], r["z"] + 60))
+        for r in p.parse_event("smokegrenade_expired").to_dict("records"):
+            if r["entityid"] in started:
+                t0, c = started.pop(r["entityid"])
+                smokes.append((t0, r["tick"], c))
+    except Exception:  # noqa: BLE001 – no smokes
+        pass
+    smokes += [(t0, 10 ** 9, c) for t0, c in started.values()]
+    my_hits = {}
+    for h in raw["hurts"]:
+        if h["attacker"] == me and h["victim"] != me:
+            my_hits.setdefault(h["victim"], []).append(h["tick"])
+    seen_at, cp, ttd = {}, [], []
+
+    def tick_done(tick, rows):
+        mine = rows.get(me)
+        if not mine or not mine[6]:
+            seen_at.clear()
+            return
+        x, y, z, pitch, yaw, duck, alive, team = mine[:8]
+        eye = (x, y, z + EYE - DUCK * duck)
+        pr, yr = math.radians(pitch), math.radians(yaw)
+        view = (math.cos(pr) * math.cos(yr), math.cos(pr) * math.sin(yr), -math.sin(pr))
+        for sid, (ex, ey, ez, _p, _y, educk, ealive, eteam) in rows.items():
+            if sid == me or not ealive or eteam in (team, 0, 1):
+                continue
+            head = (ex, ey, ez + EYE - DUCK * educk)
+            d = math.dist(eye, head) or 1.0
+            cosang = sum(view[i] * (head[i] - eye[i]) / d for i in range(3))
+            angle = math.degrees(math.acos(max(-1.0, min(1.0, cosang))))
+            if angle > AIM_FOV or not vc.is_visible(eye, head):
+                continue
+            if any(t0 <= tick <= t1 and _seg_dist(eye, head, c) < SMOKE_RADIUS for t0, t1, c in smokes):
+                continue
+            if tick - seen_at.get(sid, -10 ** 9) > AIM_GAP:  # a new encounter
+                cp.append(angle)
+                hit = next((t for t in my_hits.get(sid, []) if tick <= t <= tick + TTD_WINDOW), None)
+                if hit is not None:
+                    ttd.append((hit - tick) * 1000 / TICKRATE)
+            seen_at[sid] = tick
+
+    rows, cur = {}, None
+    c = cols
+    for i in range(len(c["tick"])):
+        t = c["tick"][i]
+        if t != cur:
+            if cur is not None:
+                tick_done(cur, rows)
+            rows, cur = {}, t
+        rows[_sid(c["steamid"][i])] = (c["X"][i], c["Y"][i], c["Z"][i], c["pitch"][i], c["yaw"][i],
+                                       c["duck_amount"][i] or 0.0, bool(c["is_alive"][i]), int(c["team_num"][i] or 0))
+    if cur is not None:
+        tick_done(cur, rows)
+    return {"ttd": round(statistics.median(ttd)) if ttd else None, "ttdCount": len(ttd),
+            "cp": round(statistics.median(cp), 1) if cp else None, "cpCount": len(cp)}
+
+
 def cs2_demo_fits(meta, a):
     """Is this demo the match of the video? Same map, you in it, and the same score."""
     if a["map"] and meta.get("map") and a["map"] != meta["map"]:
@@ -1552,6 +1676,10 @@ def cs2_demo_run(dem, meta_path=None):
         if offset is None:
             why = "Demons tider stämmer inte med filmens (rundorna och dina kills)."
             continue
+        try:
+            a["stats"].update(cs2_demo_aim(dem, raw, a, me))
+        except Exception:  # noqa: BLE001 – the rest of the numbers still count
+            pass
         return {"match": meta["file"], "text": cs2_demo_apply(meta["path"], dem, a, offset)}
     return {"error": why} if meta_path else {"match": None, "why": why}
 
