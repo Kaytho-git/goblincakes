@@ -670,12 +670,15 @@ class Service:
                  if v.get("kind") in ("raid", "mplus") and v.get("wcl") and v.get("result") in ("kill", "timed")
                  and now - v["started"] < WCL_FOR + 3600
                  and (not v.get("wclStats") or v["wclStats"].get("fetched", 0) < v["started"] + (v.get("fight") or 0) + 3600 <= now)]
-        if not todo and not stats:
+        # a.ilvl on the card: every video with a link, old ones too (cheap)
+        ilvl = [v for v in R.video_files(self.cfg["folder"])
+                if v.get("kind") in ("raid", "mplus", "arena") and v.get("wcl") and "avgIlvl" not in v][:20]
+        if not todo and not stats and not ilvl:
             return
         self.wcl_busy = True
-        threading.Thread(target=self.wcl_run, args=(todo, stats), daemon=True).start()
+        threading.Thread(target=self.wcl_run, args=(todo, stats, ilvl), daemon=True).start()
 
-    def wcl_run(self, todo, stats=()):
+    def wcl_run(self, todo, stats=(), ilvl=()):
         try:
             for v in todo:
                 found = R.wcl_find(v)
@@ -687,6 +690,10 @@ class Service:
                 R.set_meta(v["path"], wclStats=R.wcl_stats(v["wcl"]))
                 R.wow_history_add(json.loads(Path(v["path"]).with_suffix(".json").read_text()))
                 log("Warcraft Logs numbers:", v["file"])
+            for v in ilvl:
+                R.set_meta(v["path"], **R.wcl_ilvl(v["wcl"], v.get("player", "")))
+                R.wow_history_add(json.loads(Path(v["path"]).with_suffix(".json").read_text()))
+                self.last_video = Path(v["path"]).name + "#ilvl"
         except Exception as e:  # noqa: BLE001 – no network etc.: try again later
             log("Warcraft Logs:", e)
         finally:

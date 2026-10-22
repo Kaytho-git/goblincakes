@@ -1277,6 +1277,7 @@ Window {
                                 + (card.open ? "▴" : "▾") + " · " + win.size(card.modelData.size + card.clips.reduce((a, c) => a + c.size, 0))
                               : win.clock(card.modelData.fight) + (card.modelData.kind === "cs2" ? " match" + win.demoNote(card.modelData) + " · " : " strid · ") + win.size(card.modelData.size)
                               + (card.modelData.keep ? " · sparad" : "") + (card.modelData.wcl ? (card.open ? " · WCL ▴" : " · WCL ▾") : "")
+                              + (card.modelData.avgIlvl ? " · a.ilvl (" + win.num(card.modelData.avgIlvl.toFixed(1)) + ")" : "")
                               + (card.cs2match ? (card.open ? " ▴" : " ▾") : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
@@ -2276,7 +2277,7 @@ Window {
                 }
                 StatTile { label: "KILLS"; value: wowPage.r ? String(wowPage.r.kills) : "–"; tip: "Inspelade kills på " + win.wowShownDiff + "." }
                 StatTile { label: "PULLS"; value: wowPage.r ? String(wowPage.r.pulls) : "–"; tip: "Alla inspelade pulls, wipes också." }
-                StatTile { label: "ITEM LEVEL"; value: wowPage.d.ilvl ? String(wowPage.d.ilvl) : "–"; tip: "Från den senaste loggen." }
+                StatTile { label: "ITEM LEVEL"; value: wowPage.d.ilvl ? String(wowPage.d.ilvl) : "–"; tip: "Din item level i den senaste loggen." }
                 StatTile {
                     label: "M+ I TID"
                     value: wowPage.d.mplus ? wowPage.d.mplus.timed + "/" + wowPage.d.mplus.runs : "–"
@@ -2310,11 +2311,11 @@ Window {
             Column {
                 visible: !!wowPage.r
                 width: parent.width
-                readonly property var cols: [width - 8 - 70 * 5 - 80 * 2 - 90 - 60, 70, 70, 70, 70, 70, 80, 90, 60, 80]
+                readonly property var cols: [width - 8 - 70 * 5 - 80 * 2 - 90 - 60 * 2, 70, 70, 70, 70, 70, 80, 90, 60, 60, 80]
                 TableRow {
                     heading: true
                     cols: parent.cols
-                    cells: ["BOSS", "BÄST", "MEDIAN", "ILVL %", "KILLS", "WIPES", "SNABBAST", "BÄSTA " + wowPage.metric, "ILVL", "SENAST"]
+                    cells: ["BOSS", "BÄST", "MEDIAN", "ILVL %", "KILLS", "WIPES", "SNABBAST", "BÄSTA " + wowPage.metric, "ILVL", "A.ILVL", "SENAST"]
                 }
                 Repeater {
                     model: wowPage.r ? wowPage.r.bosses : []
@@ -2325,7 +2326,7 @@ Window {
                         tip: modelData.url ? "Öppna din bästa kill i Warcraft Logs" : ""
                         cells: [modelData.name, modelData.best, modelData.median, modelData.ilvlParse, modelData.kills,
                                 modelData.wipes, win.fmtTime(modelData.fastest), modelData.amount ? win.amount(modelData.amount) : null,
-                                modelData.ilvl, win.day(modelData.last)]
+                                modelData.ilvl, modelData.avgIlvl ? win.num(modelData.avgIlvl.toFixed(1)) : null, win.day(modelData.last)]
                         colors: [null, modelData.best !== null ? win.parseColor(modelData.best) : null,
                                  modelData.median !== null ? win.parseColor(modelData.median) : null,
                                  modelData.ilvlParse !== null ? win.parseColor(modelData.ilvlParse) : null]
@@ -2380,14 +2381,16 @@ Window {
                 barColors: (wowPage.d.trend || []).map(t => win.parseColor(t.parse))
                 maxValue: 100
                 tips: (wowPage.d.trend || []).map(t => t.name + (t.level ? " +" + t.level : " " + (t.difficulty || "")) + " · "
-                                                      + win.day(t.started) + " · parse " + t.parse + (t.ilvl ? " · ilvl " + t.ilvl : ""))
+                                                      + win.day(t.started) + " · parse " + t.parse + (t.ilvl ? " · ilvl " + t.ilvl : "")
+                                                      + (t.avgIlvl ? " · a.ilvl " + win.num(t.avgIlvl.toFixed(1)) : ""))
             }
             Note {
                 visible: !!wowPage.d.player
                 width: parent.width
                 font.pixelSize: 12
                 text: "Bara pulls och nycklar som GoblinRecorder spelat in. Parse = Warcraft Logs (healers på HPS, övriga på DPS); "
-                      + "ILVL % = mot spelare med samma item level. Klicka på en rad för att öppna din bästa i Warcraft Logs."
+                      + "ILVL % = mot spelare med samma item level; ILVL = din, A.ILVL = gruppens snitt i den killen. "
+                      + "Klicka på en rad för att öppna din bästa i Warcraft Logs."
             }
         }
     }

@@ -2268,7 +2268,7 @@ def server_slug(realm):
 
 
 REPORT_FIELDS = ("code startTime endTime fights { id encounterID name kill startTime endTime "
-                 "bossPercentage fightPercentage keystoneLevel difficulty }")
+                 "bossPercentage fightPercentage keystoneLevel difficulty averageItemLevel }")
 
 
 WCL_LIVE_AGE = 10 * 60  # a report that grew this recently is being live logged
@@ -2390,6 +2390,18 @@ def wcl_stats(wcl):
             "ranked": bool(pdps or phps)}
 
 
+def wcl_ilvl(wcl, player=""):
+    """The group's average item level in the fight ("a.ilvl" on the card – Warcraft Logs' own
+    figure for the fight) and your own – about 3 of the hour's 1000 points (22 Oct, the user's wish)."""
+    rep = wcl_query("query($c:String,$f:[Int]){ reportData { report(code:$c) { fights(fightIDs:$f) { averageItemLevel }"
+                    " details: playerDetails(fightIDs:$f) } } }",
+                    {"c": wcl["code"], "f": [int(wcl["fight"])]})["reportData"]["report"]
+    people = [p for ps in ((((rep.get("details") or {}).get("data")) or {}).get("playerDetails") or {}).values() for p in ps]
+    mine = next((p for p in people if player and p["name"] == player.split("-")[0]), {})
+    avg = ((rep.get("fights") or [{}])[0] or {}).get("averageItemLevel")
+    return {"avgIlvl": round(avg, 2) if avg else None, "ilvl": mine.get("maxItemLevel") or mine.get("minItemLevel")}
+
+
 def wcl_find(meta):
     """The Warcraft Logs fight a video shows, or None (not uploaded yet / not public)."""
     start_ms = meta["started"] * 1000
@@ -2410,7 +2422,7 @@ def wcl_find(meta):
             if best_score is None or score < best_score:
                 best_score = score
                 best = {"code": rep["code"], "fight": f["id"], "kill": f.get("kill"),
-                        "bossPercentage": f.get("bossPercentage"),
+                        "bossPercentage": f.get("bossPercentage"), "avgIlvl": f.get("averageItemLevel"),
                         "url": f"{WCL}/reports/{rep['code']}#fight={f['id']}"}
     return best
 
@@ -2440,14 +2452,17 @@ def wow_history_add(meta, stats=None):
     key = f"{meta['player']}|{int(meta.get('started', 0))}"
     e = hist.get(key) or {}
     e.update({k: meta.get(k) for k in ("player", "kind", "name", "difficulty", "level", "result", "started",
-                                       "fight", "encounterId")})
+                                       "fight", "encounterId", "avgIlvl")})
+    if meta.get("ilvl"):
+        e["ilvl"] = meta["ilvl"]
     if meta.get("wcl"):
         e["url"] = meta["wcl"].get("url")
     stats = stats or meta.get("wclStats")
     me = meta["player"].split("-")[0]
     row = next((p for p in (stats or {}).get("players", []) if p.get("name") == me), None)
     if row:
-        e.update({k: row.get(k) for k in ("class", "spec", "role", "dps", "hps", "parse", "ilvlParse", "ilvl", "deaths")})
+        e.update({k: row.get(k) for k in ("class", "spec", "role", "dps", "hps", "parse", "ilvlParse", "deaths")})
+        e["ilvl"] = row.get("ilvl") or e.get("ilvl")
     if hist.get(key) == e:
         return
     hist[key] = e
@@ -2497,6 +2512,7 @@ def wow_overview(folder, player="", days=0):
                 "amount": max((amount(e) or 0 for e in done), default=0) or None,
                 "fastest": min((e.get("fight") or 0 for e in done), default=0) or None,
                 "ilvl": best.get("ilvl") if best else None, "url": (best or {}).get("url") or g[-1].get("url"),
+                "avgIlvl": best.get("avgIlvl") if best else None,
                 "spec": (best or g[-1]).get("spec") or "", "last": g[-1].get("started"),
                 "bestLevel": max((e.get("level") or 0 for e in done), default=0) or None,
                 "topLevel": max((e.get("level") or 0 for e in g), default=0) or None,
@@ -2518,13 +2534,14 @@ def wow_overview(folder, player="", days=0):
     dungeons = sorted(boss_rows(keys, "name"), key=lambda r: -(r["bestLevel"] or 0))
     ranked = [r for r in dungeons if r["best"] is not None]
     trend = [{"name": e.get("name"), "difficulty": e.get("difficulty"), "level": e.get("level"), "kind": e.get("kind"),
-              "parse": e["parse"], "ilvl": e.get("ilvl"), "started": e.get("started"), "url": e.get("url")}
+              "parse": e["parse"], "ilvl": e.get("ilvl"), "avgIlvl": e.get("avgIlvl"), "started": e.get("started"),
+              "url": e.get("url")}
              for e in mine if e.get("parse") is not None][-40:]
     name, realm, region = (player.split("-")[0], *player.split("-", 1)[1].rsplit("-", 1)) if player.count("-") >= 2 else (player, "", "")
     return {
         "players": players, "player": player, "name": name, "realm": realm, "region": region,
         "class": last.get("class", ""), "spec": last.get("spec", ""), "role": last.get("role", ""),
-        "ilvl": next((e["ilvl"] for e in reversed(with_row) if e.get("ilvl")), None),
+        "ilvl": next((e["ilvl"] for e in reversed(mine) if e.get("ilvl")), None),
         "wclUrl": f"{WCL}/character/{region.lower()}/{server_slug(realm)}/{name.lower()}" if region else "",
         "difficulties": list(raid), "raid": raid,
         "mplus": {"dungeons": dungeons, "runs": len(keys), "timed": sum(e.get("result") == "timed" for e in keys),

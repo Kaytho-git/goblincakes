@@ -393,7 +393,7 @@ class Backend(QObject):
                     return
                 found = R.wcl_find(meta)
                 if found:
-                    R.set_meta(path, wcl=found)
+                    R.set_meta(path, wcl=found, **R.wcl_ilvl(found, meta.get("player", "")))
                     self.message.emit("Hittad i Warcraft Logs.")
                 else:
                     self.message.emit("Inte i Warcraft Logs än – har loggen laddats upp (Archon)?")
