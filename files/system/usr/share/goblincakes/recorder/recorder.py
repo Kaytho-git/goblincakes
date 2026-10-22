@@ -2391,7 +2391,7 @@ def wcl_stats(wcl):
 
 
 def wcl_ilvl(wcl, player=""):
-    """The group's average item level in the fight ("a.ilvl" on the card – Warcraft Logs' own
+    """The group's average item level in the fight ("avg.ilvl" on the card – Warcraft Logs' own
     figure for the fight) and your own – about 3 of the hour's 1000 points (22 Oct, the user's wish)."""
     rep = wcl_query("query($c:String,$f:[Int]){ reportData { report(code:$c) { fights(fightIDs:$f) { averageItemLevel }"
                     " details: playerDetails(fightIDs:$f) } } }",

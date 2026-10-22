@@ -1194,7 +1194,7 @@ Window {
                 readonly property bool open: win.expanded === modelData.path && (!!modelData.wcl || cs2match)
                 readonly property var stats: modelData.wclStats || null
                 width: list.width - 16
-                readonly property int headHeight: modelData.avgIlvl ? 100 : 84 // a 4th line: a.ilvl
+                readonly property int headHeight: modelData.avgIlvl ? 100 : 84 // a 4th line: avg.ilvl
                 height: headHeight + (open ? (cs2match ? clipsCol.height : statsCol.height) + 12 : 0)
                 color: active ? "#12203A" : cardArea.containsMouse ? "#0E1420" : "transparent"
                 border.width: active ? 2 : 1
@@ -1285,7 +1285,7 @@ Window {
                     }
                     Text { // the raid's average item level in the fight (Warcraft Logs), and yours
                         visible: !!card.modelData.avgIlvl
-                        text: "a.ilvl (" + win.num((card.modelData.avgIlvl || 0).toFixed(1)) + ")"
+                        text: "avg.ilvl (" + win.num((card.modelData.avgIlvl || 0).toFixed(1)) + ")"
                               + (card.modelData.ilvl ? " · din " + card.modelData.ilvl : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
@@ -2319,11 +2319,11 @@ Window {
             Column {
                 visible: !!wowPage.r
                 width: parent.width
-                readonly property var cols: [width - 8 - 70 * 5 - 80 * 2 - 90 - 60 * 2, 70, 70, 70, 70, 70, 80, 90, 60, 60, 80]
+                readonly property var cols: [width - 8 - 70 * 5 - 80 * 3 - 90 - 60, 70, 70, 70, 70, 70, 80, 90, 60, 80, 80]
                 TableRow {
                     heading: true
                     cols: parent.cols
-                    cells: ["BOSS", "BÄST", "MEDIAN", "ILVL %", "KILLS", "WIPES", "SNABBAST", "BÄSTA " + wowPage.metric, "ILVL", "A.ILVL", "SENAST"]
+                    cells: ["BOSS", "BÄST", "MEDIAN", "ILVL %", "KILLS", "WIPES", "SNABBAST", "BÄSTA " + wowPage.metric, "ILVL", "AVG.ILVL", "SENAST"]
                 }
                 Repeater {
                     model: wowPage.r ? wowPage.r.bosses : []
@@ -2390,14 +2390,14 @@ Window {
                 maxValue: 100
                 tips: (wowPage.d.trend || []).map(t => t.name + (t.level ? " +" + t.level : " " + (t.difficulty || "")) + " · "
                                                       + win.day(t.started) + " · parse " + t.parse + (t.ilvl ? " · ilvl " + t.ilvl : "")
-                                                      + (t.avgIlvl ? " · a.ilvl " + win.num(t.avgIlvl.toFixed(1)) : ""))
+                                                      + (t.avgIlvl ? " · avg.ilvl " + win.num(t.avgIlvl.toFixed(1)) : ""))
             }
             Note {
                 visible: !!wowPage.d.player
                 width: parent.width
                 font.pixelSize: 12
                 text: "Bara pulls och nycklar som GoblinRecorder spelat in. Parse = Warcraft Logs (healers på HPS, övriga på DPS); "
-                      + "ILVL % = mot spelare med samma item level; ILVL = din, A.ILVL = gruppens snitt i den killen. "
+                      + "ILVL % = mot spelare med samma item level; ILVL = din, AVG.ILVL = gruppens snitt i den killen. "
                       + "Klicka på en rad för att öppna din bästa i Warcraft Logs."
             }
         }
