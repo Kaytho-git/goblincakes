@@ -86,12 +86,9 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] ChatGPT-appen (OpenAIs RPM uppackad i hemmappen, `goblincakes-chatgpt`; Goblin AI → "Skicka till ChatGPT" via urklipp) – ej provad med riktiga paketet
 
 ## Att göra
-- [ ] **Lokal AI** – kvar: Ianseo-spåret mot riktiga Ianseo, Podman-övningsdatorn och läraren med riktiga Ollama.
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav).
-- [ ] **GoblinRecorder för CS2** – steg 1 (GSI) och steg 2 (demon, demoparser2 i imagen) byggda 22 okt; kvar: prova med en riktig Premier/Competitive + nedladdad demo.
-- [ ] **GOBLINCAKES-ljud** (inloggning, notiser, utloggning).
+- [ ] **GoblinRecorder för CS2** – byggt 22 okt: GSI (2K–ACE-klipp + alla kills, matchen tas bort), demon (egna siffror, TTD/första skottet/spray/counter-strafe, vunna clutchar som klipp), CS2 Stats (clutchar 1v1–1v4, ACE, pilar, utfällbar match med alla tio, per säsong med Arkiv). Deathmatch provat på riktigt. Kvar: efter nästa image en riktig Premier/Competitive till slut + nedladdad demo – stämmer siffrorna mot Leetify, blir klippen rätt?
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
-- [ ] **Privat schemaprogram** (inte i repot, se Claudes minne; väntar på PDF).
 
 ## Framtida idéer (byggs bara på begäran – detaljer i anteckningarna)
 Kakan lär sig steg 2 (LoRA-finjustering), Goblin AI som vardags-AI (röst, Google-tjänster), Steam-DM i Spelas nu (väntar på freedesktop-notiser), GoblinRecorder fristående (Flatpak/AppImage), Ianseo-nedladdningssida på Simply med TOTP.
