@@ -1399,6 +1399,8 @@ def cs2_demo_analyse(raw, me):
         "hs": round(100 * sum(k["hs"] for k in kills) / max(nk, 1)),
         "entryWon": entry["won"], "entryLost": entry["lost"], "trades": trades, "traded": traded,
         "clutchWon": sum(c["won"] for c in clutches), "clutches": len(clutches),
+        "clutchVs": {str(n): [sum(c["won"] for c in clutches if c["vs"] == n), sum(c["vs"] == n for c in clutches)]
+                     for n in range(1, 6)},
         "multi": {f"{c}K" if c < 5 else "ACE": sum(1 for rd in rounds if (rd["k"] == c if c < 5 else rd["k"] >= 5))
                   for c in (2, 3, 4, 5)},
         "wallbangs": sum(k["wall"] for k in kills), "smokeKills": sum(k["smoke"] for k in kills),
@@ -2673,6 +2675,12 @@ def cs2_history_add(metas):
         rounds = sum(map(int, re.findall(r"\d+", v.get("score") or "")))
         if v.get("demoStats") and rounds:
             st = dict(st, kpr=round(st["kills"] / rounds, 2), dpr=round(st["deaths"] / rounds, 2))
+        if v.get("demoStats") and "clutchVs" not in st and v.get("demoRounds"):  # read before 1vX was kept
+            vs = [rd["clutch"] for rd in v["demoRounds"] if rd.get("clutch")]
+            st = dict(st, clutchVs={str(n): [vs.count(n), vs.count(n) + vs.count(-n)] for n in range(1, 6)})
+        # aces: the game's own kill markers (every match), else the demo's
+        aces = sum(m.get("kind") == "kill" and m.get("text", "").startswith("ACE") for m in v.get("markers") or [])
+        st = dict(st, aces=aces or (st.get("multi") or {}).get("ACE", 0))
         e = {k: v.get(k) for k in ("file", "name", "difficulty", "score", "result", "started")}
         e["stats"] = st
         key = str(int(v.get("started", 0)))
@@ -2725,9 +2733,15 @@ def cs2_overview(folder, count=10):
     for g in guns.values():
         g["acc"] = round(100 * g["hits"] / g["shots"]) if g["shots"] else None
         g["hsp"] = round(100 * g["hs"] / g["kills"]) if g["kills"] else None
+    clutch_vs = {str(n): [0, 0] for n in range(1, 6)}  # won, all – the chosen matches with a demo
+    for m in recent:
+        for n, (won, tries) in (m["stats"].get("clutchVs") or {}).items():
+            clutch_vs[n][0] += won
+            clutch_vs[n][1] += tries
     return {
         "count": len(recent), "all": len(ms), "waiting": waiting,
         "demos": sum(not m["stats"].get("fromGame") for m in recent),
+        "clutchVs": clutch_vs, "aces": sum(m["stats"].get("aces") or 0 for m in recent),
         "wins": sum(m.get("result") == "win" for m in recent), "losses": sum(m.get("result") == "loss" for m in recent),
         "avg": {k: avg(k) for k in CS2_TREND_KEYS},
         "per": {k: per(k) for k in per_keys},

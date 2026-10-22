@@ -2616,6 +2616,30 @@ Window {
                 StatTile { label: "BLÄNDADE / MATCH"; value: win.num(parent.p.flashed); now: parent.n.flashed; before: parent.b.flashed; tip: "Fiender du bländat minst 1 s (demon)." }
             }
 
+            Flow { // clutches per 1vX and aces in the chosen matches (totals, not per match)
+                visible: !!cs2Page.d.all
+                width: parent.width
+                spacing: 6
+                Repeater {
+                    model: [1, 2, 3, 4]
+                    StatTile {
+                        required property int modelData
+                        readonly property var c: (cs2Page.d.clutchVs || {})[String(modelData)] || [0, 0]
+                        label: "CLUTCH 1V" + modelData
+                        value: c[0] + "/" + c[1]
+                        valueColor: c[0] > 0 ? "#E5CC80" : "#E6ECF5"
+                        tip: "Vunna av alla gånger du var ensam kvar mot " + modelData + " (matcher med demo: "
+                             + (cs2Page.d.demos || 0) + " av " + cs2Page.d.count + ")."
+                    }
+                }
+                StatTile {
+                    label: "ACE"
+                    value: String(cs2Page.d.aces || 0)
+                    valueColor: cs2Page.d.aces ? "#E5CC80" : "#E6ECF5"
+                    tip: "Alla fem fiender i samma runda – i de valda matcherna."
+                }
+            }
+
             Item { visible: cs2Page.ms.length > 1; width: 1; height: 6 }
             Flow {
                 visible: cs2Page.ms.length > 1
