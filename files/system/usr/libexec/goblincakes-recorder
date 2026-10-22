@@ -675,7 +675,8 @@ class Service:
         stats = [v for v in R.video_files(self.cfg["folder"])
                  if v.get("kind") in ("raid", "mplus") and v.get("wcl") and v.get("result") in ("kill", "timed")
                  and now - v["started"] < WCL_FOR + 3600
-                 and (not v.get("wclStats") or v["wclStats"].get("fetched", 0) < v["started"] + (v.get("fight") or 0) + 3600 <= now)]
+                 and (not v.get("wclStats") or v["wclStats"].get("fetched", 0) < v["started"] + (v.get("fight") or 0) + 3600 <= now
+                      or not v["wclStats"].get("ranked") and now - v["wclStats"].get("fetched", 0) > 3600)]  # keys: parses can take hours
         # a.ilvl on the card: every video with a link, old ones too (cheap)
         ilvl = [v for v in R.video_files(self.cfg["folder"])
                 if v.get("kind") in ("raid", "mplus", "arena") and v.get("wcl") and "avgIlvl" not in v][:20]

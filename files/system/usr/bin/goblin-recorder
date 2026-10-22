@@ -417,7 +417,7 @@ class Backend(QObject):
             try:
                 meta = json.loads(Path(path).with_suffix(".json").read_text())
                 old = meta.get("wclStats") or {}
-                if old.get("fetched", 0) > meta.get("started", 0) + meta.get("fight", 0) + 3600:
+                if old.get("ranked") and old.get("fetched", 0) > meta.get("started", 0) + meta.get("fight", 0) + 3600:
                     return
                 R.set_meta(path, wclStats=R.wcl_stats(meta["wcl"]))
                 R.wow_history_add(json.loads(Path(path).with_suffix(".json").read_text()))
