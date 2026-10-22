@@ -539,6 +539,7 @@ Window {
     }
 
     component SmallLink: Text {
+        readonly property bool hovered: linkArea.containsMouse
         signal clicked()
         color: linkArea.containsMouse ? "#E6ECF5" : "#8B98AD"
         font.family: "IBM Plex Sans"
@@ -1234,6 +1235,7 @@ Window {
                 font.letterSpacing: 1.5
             }
             SmallLink {
+                id: plBack
                 visible: !!plPanel.entry && !plPanel.home
                 width: Math.min(implicitWidth, parent.width - (plTools.visible ? plTools.width + 12 : 0))
                 elide: Text.ElideRight
@@ -1686,6 +1688,32 @@ Window {
             font.family: "IBM Plex Sans"
             font.pixelSize: 11
             elide: Text.ElideRight
+        }
+    }
+
+    // The playlist title's hover: the whole name, when it is cut short with …
+    Rectangle {
+        id: backTip
+        readonly property point at: plBack.visible && plBack.hovered ? plBack.mapToItem(win.contentItem, 0, plBack.height) : Qt.point(0, 0)
+        visible: plBack.visible && plBack.hovered && plBack.truncated
+        z: 20
+        x: Math.max(6, Math.min(at.x - 4, win.width - 6 - width))
+        y: at.y + 4
+        width: Math.min(backTipText.implicitWidth + 16, win.width - 12)
+        height: backTipText.height + 8
+        color: "#0B1018"
+        border.width: 1
+        border.color: accent.color
+        Text {
+            id: backTipText
+            x: 8; y: 4
+            width: backTip.width - 16
+            text: plPanel.entry ? plPanel.entry.name : ""
+            color: "#E6ECF5"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 12
+            font.weight: Font.Medium
+            wrapMode: Text.Wrap
         }
     }
 
