@@ -986,7 +986,9 @@ def cs2_kill_text(n, headshot):
 # as its own clip, a reel with all your kills, then the whole match goes. Cut without
 # re-encoding (keyframes every 2 s – a clip may start up to 2 s earlier), all audio tracks.
 CLIP_BEFORE, CLIP_AFTER = 5.0, 3.0  # 2K–ACE: from the first kill of the round to the last
-REEL_BEFORE, REEL_AFTER = 3.0, 1.5  # each kill in the reel; kills close together become one piece
+REEL_BEFORE, REEL_AFTER = 3.0, 1.5  # each kill in the reel …
+REEL_JOIN = 8.0  # … and kills at most this far apart become one piece (22 Oct, the user: it jumped
+# from a kill straight to a death without what happened between)
 
 
 def cs2_clip_plan(meta):
@@ -1009,9 +1011,13 @@ def cs2_clip_plan(meta):
                 label = "ACE" if len(ts) >= 5 else f"{len(ts)}K"
                 multi.append((label, r, max(ts[0] - CLIP_BEFORE, 0), min(ts[-1] + CLIP_AFTER, dur), ts))
     pieces = []
+    spawns = meta.get("spawns")
+    if spawns is None:  # videos from before 22 Oct: about when you were back after a death
+        spawns = [m["t"] + 1.0 for m in meta.get("markers", []) if m["kind"] == "death"]
     for t in kills:
         s, e = max(t - REEL_BEFORE, 0), min(t + REEL_AFTER, dur)
-        if pieces and s <= pieces[-1][1] + 1:
+        s = max([s] + [sp for sp in spawns if sp < t])  # just spawned: not from the death screen
+        if pieces and t - pieces[-1][2][-1] <= REEL_JOIN:
             pieces[-1] = (pieces[-1][0], e, pieces[-1][2] + [t])
         else:
             pieces.append((s, e, [t]))

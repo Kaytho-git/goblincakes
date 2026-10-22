@@ -350,6 +350,8 @@ class Service:
             health = st.get("health")
             if health == 0 and not gs.get("dead"):
                 self.marker(t, "death", "Du dog")
+            elif health and gs.get("dead"):  # alive again (deathmatch; a new round): the reel starts here
+                self.current.setdefault("spawns", []).append(t)
             gs["dead"] = health == 0
             if not self.current.get("player"):
                 self.current["player"] = p.get("name", "")
@@ -494,7 +496,8 @@ class Service:
                         for m in cur["markers"]],
             "codec": self.cfg["codec"], "fps": self.cfg["fps"], "tracks": cur.get("tracks", R.TRACK_NAMES),
             "player": cur.get("player", ""), "encounterId": cur.get("encounter"),
-            **({"score": cur.get("score", ""), "map": cur.get("map", ""), "mode": cur.get("mode", "")}
+            **({"score": cur.get("score", ""), "map": cur.get("map", ""), "mode": cur.get("mode", ""),
+                "spawns": [round(max(t - wall, 0), 2) for t in cur.get("spawns", [])]}
                if cur["kind"] == "cs2" else {}),
             "_wall": wall, "_until": time.time() + LATE_MARKS,
         }
