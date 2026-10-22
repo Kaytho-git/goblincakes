@@ -271,6 +271,8 @@ COMMANDS=(
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
     "amp|GoblinAmp – liten spelare i Winamps anda: dina musikfiler och spellistor eller Spotify (Z X C V B, mellanslag = paus); goblin amp <filer|mapp> spelar dem; goblin amp hjälp = så ställer du in Spotify-listorna"
     "graph|Ljudgraf i WoW:s klassfärger till musiken – goblin graph [staplar|våg|cirkel|explosion] [alla|klass|mage …] [lås|lås upp]; goblin graph auto on = öppnas när musik spelar"
+    "moonbyte|Spelar Moonbyte Drift i terminalen med grafen (mellanslag paus, ←/→ 10 s, q avslutar)"
+    "moonlit|Spelar Moonlit Pixel Drift i terminalen med grafen (goblin moonlit pixel drift går också)"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
     "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
     "fast|Systeminfo med GOBLINCAKES-loggan"
@@ -649,6 +651,9 @@ HELP
             exit 0
         fi
         exec /usr/libexec/goblincakes-ai "$@" ;;
+    # The user's own songs, with goblin graph's bars in the terminal
+    moonbyte) exec /usr/libexec/goblincakes-song "/usr/share/goblincakes/songs/Moonbyte Drift.mp3" ;;
+    moonlit) exec /usr/libexec/goblincakes-song "/usr/share/goblincakes/songs/Moonlit Pixel Drift.mp3" ;;
     tv) exec goblincakes-tv ;;
     discord) shift
         case ${1:-} in

@@ -1,0 +1,244 @@
+#!/usr/bin/python3
+"""goblin moonbyte / goblin moonlit pixel drift – the user's own songs (22 Oct), played in the
+terminal with goblin graph's bars drawn in it, in WoW's class colours (Death Knight → Warrior).
+
+  goblincakes-song <file.mp3>
+
+ffmpeg decodes the whole song to 48 kHz stereo, pw-cat plays it from a pipe. The pipe is fed
+by the clock (LEAD seconds ahead), so the bars show what is heard. Keys: space = pause,
+←/→ = 10 s back/forward, q/Esc = quit. Without a terminal it only plays.
+Spectrum and levels as goblin-graph's (plain-Python FFT, the top 40 dB fill the height).
+"""
+import array
+import cmath
+import json
+import math
+import os
+import select
+import shutil
+import signal
+import subprocess
+import sys
+import termios
+import time
+import tty
+from pathlib import Path
+
+RATE = 48000
+SIZE = 1024          # samples per spectrum, as goblin-graph
+LOW, HIGH = 40, 16000
+TILT, TILT_FROM = 3.5, 150
+LEAD = 0.15          # seconds of sound in the pipe ahead of the clock
+LATENCY = 0.10       # pw-cat's node latency: what is heard is this far behind what is sent
+FPS = 30
+CLASSES = ["#C41E3A", "#A330C9", "#FF7C0A", "#33937F", "#AAD372", "#3FC7EB", "#00FF98",
+           "#F48CBA", "#FFFFFF", "#FFF468", "#0070DD", "#8788EE", "#C69B6D"]
+EIGHTHS = " ▁▂▃▄▅▆▇█"
+
+
+class Spectrum:
+    """goblin-graph's Spectrum: radix-2 FFT with a Hann window, bars on a log frequency scale."""
+
+    def __init__(self):
+        bits = SIZE.bit_length() - 1
+        self.rev = [int(format(i, f"0{bits}b")[::-1], 2) for i in range(SIZE)]
+        self.win = [0.5 - 0.5 * math.cos(2 * math.pi * i / (SIZE - 1)) for i in range(SIZE)]
+        self.tw = {}
+        size = 2
+        while size <= SIZE:
+            self.tw[size] = [cmath.exp(-2j * math.pi * k / size) for k in range(size // 2)]
+            size *= 2
+        self.bars = 0
+
+    def layout(self, bars):
+        if bars == self.bars:
+            return
+        self.bars = bars
+        hz = SIZE / RATE
+        edges = [max(1, int(LOW * (HIGH / LOW) ** (i / bars) * hz)) for i in range(bars + 1)]
+        for i in range(1, len(edges)):
+            edges[i] = max(edges[i], edges[i - 1] + 1)
+        self.edges = [min(e, SIZE // 2 - 1) for e in edges]
+        self.tilt = []
+        for i in range(bars):
+            mid = math.sqrt(self.edges[i] * max(self.edges[i] + 1, self.edges[i + 1])) / hz
+            self.tilt.append(10 ** (TILT * max(0.0, math.log2(mid / TILT_FROM)) / 20))
+
+    def levels(self, samples, bars):
+        self.layout(bars)
+        rev, win = self.rev, self.win
+        a = [samples[rev[i]] * win[rev[i]] for i in range(SIZE)]
+        size = 2
+        while size <= SIZE:
+            h, t = size // 2, self.tw[size]
+            for s in range(0, SIZE, size):
+                for k in range(h):
+                    u, v = a[s + k], a[s + k + h] * t[k]
+                    a[s + k], a[s + k + h] = u + v, u - v
+            size *= 2
+        out = []
+        for i in range(bars):
+            lo, hi = self.edges[i], max(self.edges[i] + 1, self.edges[i + 1])
+            peak = max(abs(a[k]) for k in range(lo, min(hi, SIZE // 2)))
+            out.append(peak / (SIZE / 4) * self.tilt[i])
+        return out
+
+
+def esc_rgb(hexcolor, bg=False):
+    r, g, b = (int(hexcolor[i:i + 2], 16) for i in (1, 3, 5))
+    return f"\x1b[{48 if bg else 38};2;{r};{g};{b}m"
+
+
+def accent_text():
+    """The chosen accent colour (Config → Utseende) for text, else the standard blue."""
+    sys.path.insert(0, "/usr/share/goblincakes")
+    try:
+        import accent
+        return accent.current()["text"]
+    except Exception:  # noqa: BLE001
+        return "#2F6FED"
+
+
+def tags(path):
+    """Title and artist from the file (ffprobe), else the file name."""
+    try:
+        out = subprocess.run(["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", str(path)],
+                             capture_output=True, text=True, timeout=10).stdout
+        t = {k.lower(): v for k, v in json.loads(out)["format"].get("tags", {}).items()}
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+        t = {}
+    return t.get("title") or Path(path).stem, t.get("artist", "")
+
+
+def clock(s):
+    s = max(0, int(s))
+    return f"{s // 60}:{s % 60:02d}"
+
+
+def main():
+    if len(sys.argv) < 2 or not Path(sys.argv[1]).is_file():
+        sys.exit("goblincakes-song: hittar inte låten.")
+    path = sys.argv[1]
+    title, artist = tags(path)
+    pcm = subprocess.run(["ffmpeg", "-v", "quiet", "-i", path, "-f", "s16le", "-ac", "2", "-ar", str(RATE), "-"],
+                         capture_output=True).stdout
+    if not pcm:
+        sys.exit("goblincakes-song: kunde inte läsa låten (ffmpeg).")
+    frames = len(pcm) // 4
+    length = frames / RATE
+    player = subprocess.Popen(["pw-cat", "--playback", "--raw", "--format", "s16", "--rate", str(RATE),
+                               "--channels", "2", "--latency", f"{int(LATENCY * 1000)}ms",
+                               "-P", "{ application.name = \"goblin\" node.description = \"" + title + "\" }", "-"],
+                              stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    pipe = player.stdin
+    try:
+        import fcntl
+        fcntl.fcntl(pipe.fileno(), 1031, 16384)  # F_SETPIPE_SZ: a small pipe keeps the bars in step
+    except OSError:
+        pass
+
+    tty_on = sys.stdin.isatty() and sys.stdout.isatty()
+    old = None
+    out = sys.stdout
+    if tty_on:
+        old = termios.tcgetattr(sys.stdin)
+        tty.setcbreak(sys.stdin.fileno())
+        out.write("\x1b[?1049h\x1b[?25l")
+
+    def restore(*_):
+        if tty_on:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old)
+            out.write("\x1b[0m\x1b[?25h\x1b[?1049l")
+            out.flush()
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+    spec = Spectrum()
+    acc = esc_rgb(accent_text())
+    frost, muted, dim = esc_rgb("#E6ECF5"), esc_rgb("#8B98AD"), esc_rgb("#1E2A40")
+    levels, gain = [], 1e-3
+    sent = 0                       # frames written to pw-cat
+    start = time.monotonic()       # wall time when the song's frame 0 is sent
+    paused_at = None
+    try:
+        while True:
+            now = time.monotonic()
+            pos = (paused_at if paused_at is not None else now) - start
+            if pos >= length + LATENCY:
+                break
+            # feed the pipe up to LEAD seconds ahead
+            if paused_at is None:
+                want = min(frames, int((pos + LEAD) * RATE))
+                if want > sent:
+                    try:
+                        pipe.write(pcm[sent * 4:want * 4])
+                        pipe.flush()
+                    except BrokenPipeError:
+                        break
+                    sent = want
+            if tty_on:
+                cols, rows = shutil.get_terminal_size((80, 24))
+                height = max(3, rows - 4)
+                bars = max(4, (cols - 2) // 3)
+                heard = int(max(0.0, pos - LATENCY) * RATE)
+                chunk = array.array("h", pcm[heard * 4:(heard + SIZE) * 4])
+                if len(chunk) < SIZE * 2:
+                    chunk.extend([0] * (SIZE * 2 - len(chunk)))
+                mono = [(chunk[2 * i] + chunk[2 * i + 1]) / 65536 for i in range(SIZE)]
+                raw = spec.levels(mono, bars)
+                gain = max(max(raw), gain * 0.995, 1e-3)
+                if len(levels) != bars:
+                    levels = [0.0] * bars
+                for i, v in enumerate(raw):
+                    level = max(0.0, min(1.0, 1 + 20 * math.log10(max(v / gain, 1e-6)) / 40))
+                    if paused_at is not None:
+                        level = 0.0
+                    levels[i] = level if level > levels[i] else levels[i] * 0.82 + level * 0.18
+                colours = [esc_rgb(CLASSES[i * len(CLASSES) // bars]) for i in range(bars)]
+                left = (cols - bars * 3 + 1) // 2
+                lines = []
+                head = f"♪ {title}" + (f"  ·  {artist}" if artist else "")
+                lines.append(" " * left + acc + "\x1b[1m" + head[:cols - left] + "\x1b[0m")
+                for row in range(height):
+                    floor = (height - 1 - row) * 8
+                    parts = [" " * left]
+                    for i in range(bars):
+                        e = min(8, max(0, int(levels[i] * height * 8) - floor))
+                        parts.append(colours[i] + EIGHTHS[e] * 2 + " ")
+                    lines.append("".join(parts) + "\x1b[0m")
+                width = max(10, cols - left * 2 - 12)
+                done = int(min(1.0, pos / length) * width)
+                lines.append(" " * left + frost + f"{clock(pos):>5} " + acc + "━" * done + dim + "━" * (width - done)
+                             + frost + f" {clock(length)}")
+                hint = ("PAUS – mellanslag spelar vidare" if paused_at is not None else "mellanslag paus") \
+                    + "  ·  ←/→ 10 s  ·  q avslutar"
+                lines.append(" " * left + muted + hint[:cols - left] + "\x1b[0m")
+                out.write("\x1b[H" + "\x1b[K\n".join(lines) + "\x1b[K\x1b[J")
+                out.flush()
+                # keys
+                if select.select([sys.stdin], [], [], 1 / FPS)[0]:
+                    key = os.read(sys.stdin.fileno(), 16)
+                    if key in (b"q", b"Q", b"\x1b"):
+                        break
+                    if key == b" ":
+                        if paused_at is None:
+                            paused_at = now
+                        else:
+                            start += now - paused_at
+                            paused_at = None
+                    elif key in (b"\x1b[C", b"\x1b[D") and paused_at is None:
+                        step = 10 if key == b"\x1b[C" else -10
+                        new = min(max(0.0, pos + step), length)
+                        start = now - new
+                        sent = int(new * RATE)
+            else:
+                time.sleep(0.05)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        restore()
+        player.terminate()
+        player.wait()
+
+
+if __name__ == "__main__":
+    main()
