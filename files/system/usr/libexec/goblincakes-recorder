@@ -325,8 +325,7 @@ class Service:
         phase = m.get("phase")
         if phase == "live" and not self.current or (phase == "live" and self.current
                                                      and self.current["kind"] == "test"):
-            if (self.cfg.get("cs2") and gs.get("playing")
-                    and m.get("mode") in (self.cfg.get("cs2Modes") or [])):
+            if self.cfg.get("cs2") and gs.get("playing"):
                 if self.current:
                     self.stop_now()
                 self.begin(t, t, {"kind": "cs2", "name": R.cs2_map_name(m.get("name", "")),
@@ -343,8 +342,9 @@ class Service:
         if own and st:
             kills, hs = st.get("round_kills", 0), st.get("round_killhs", 0)
             if gs.get("kills") is not None and kills > gs["kills"]:
+                rounds = R.cs2_has_rounds(self.current.get("mode"))  # deathmatch: no rounds, no 2K–ACE
                 for n in range(gs["kills"] + 1, kills + 1):
-                    self.marker(t, "kill", R.cs2_kill_text(n, hs > (gs.get("killhs") or 0)))
+                    self.marker(t, "kill", R.cs2_kill_text(n if rounds else 1, hs > (gs.get("killhs") or 0)))
             gs["kills"], gs["killhs"] = kills, hs
             health = st.get("health")
             if health == 0 and not gs.get("dead"):
@@ -370,7 +370,8 @@ class Service:
         ct = (m.get("team_ct") or {}).get("score", 0)
         tt = (m.get("team_t") or {}).get("score", 0)
         mine, theirs = (ct, tt) if gs.get("team") == "CT" else (tt, ct)
-        self.current["score"] = f"{mine}–{theirs}"
+        if R.cs2_has_rounds(self.current.get("mode")):
+            self.current["score"] = f"{mine}–{theirs}"
         if phase == "gameover":
             self.finish(t, "win" if mine > theirs else "loss" if mine < theirs else "tie")
 
@@ -465,7 +466,8 @@ class Service:
         elif cur["kind"] == "cs2":
             title = f"CS2 {cur['name']} {cur['difficulty']}"
             result = {"win": "VINST", "loss": "FÖRLUST", "tie": "OAVGJORT"}.get(cur["result"], "AVBRUTEN")
-            result += " " + cur.get("score", "").replace("–", "-")
+            if cur.get("score"):
+                result += " " + cur["score"].replace("–", "-")
         else:
             title = f"+{cur['level']} {cur['name']}"
             result = {"timed": "I TID", "depleted": "FÖR SENT"}.get(cur["result"], "AVBRUTEN")

@@ -65,7 +65,6 @@ DEFAULTS = {
     "closeAction": "ask",  # the window's ✕: ask | tray = hide in the system tray | quit
     "keepWipes": False,  # False: only kills stay when WoW closes (and 2 wipes per raid boss meanwhile)
     "cs2": True,  # Counter-Strike 2 matches, from the end of the warm-up to the end (needs the GSI file)
-    "cs2Modes": ["competitive", "scrimcomp2v2"],  # see CS2_MODES
 }
 
 CODECS = {"h264": "NVENC H.264", "hevc": "NVENC HEVC", "av1": "NVENC AV1", "x264": "x264"}
@@ -94,7 +93,7 @@ def track_names(cfg, game="WoW"):
     return [game] if only_wow(cfg) else names
 AUDIO_INPUTS = [
     {"name": "WoW-ljud", "target": "World of Warcraft", "tracks": [1, 2]},
-    {"name": "CS2-ljud", "target": "cs2", "tracks": [1, 2]},  # the program's name in PipeWire – not checked yet
+    {"name": "CS2-ljud", "target": "cs2", "tracks": [1, 2]},  # the program's name in PipeWire (heard in a real match 22 Oct)
     {"name": "Discord-ljud", "target": "Discord", "tracks": [1, 3]},
 ]
 
@@ -850,7 +849,7 @@ CS2_PORT = 37730
 CS2_CFG = "gamestate_integration_goblincakes.cfg"
 CS2_OLD_TEST = "gamestate_integration_goblincake.cfg"  # the probe of 17 Oct (port 3000)
 CS2_MODES = {"competitive": "Competitive", "scrimcomp2v2": "Wingman", "casual": "Casual",
-             "deathmatch": "Deathmatch"}  # GSI's map.mode → name; Premier is "competitive" too
+             "deathmatch": "Deathmatch"}  # GSI's map.mode → the name on the video (all modes are recorded)
 STEAM_ROOTS = [HOME / ".local/share/Steam", HOME / ".steam/steam",
                HOME / ".var/app/com.valvesoftware.Steam/.local/share/Steam"]
 
@@ -957,6 +956,11 @@ def cs2_map_name(raw):
     if re.match(r"^(de|cs|ar|dz|gd)_", name):
         name = name.split("_", 1)[1].replace("_", " ").title()
     return name
+
+
+def cs2_has_rounds(mode):
+    """Deathmatch (and Arms Race) have no rounds: round_kills just grows, and there is no score."""
+    return mode not in ("deathmatch", "gungameprogressive")
 
 
 def cs2_kill_text(n, headshot):

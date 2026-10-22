@@ -22,6 +22,7 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QSystemTrayIcon
 
 SHARE = Path(os.environ.get("GOBLINCAKES_RECORDER_SHARE", "/usr/share/goblincakes/recorder"))
 SERVICE = os.environ.get("GOBLINCAKES_RECORDER_SERVICE", "/usr/libexec/goblincakes-recorder")
+GAMES = Path(__file__).resolve().parents[1] / "libexec/goblincakes-games"  # /usr/libexec, or the repo's
 sys.path.insert(0, str(SHARE))
 import recorder as R  # noqa: E402
 
@@ -45,6 +46,7 @@ class Backend(QObject):
     wclChanged = Signal()
     previewChanged = Signal()
     wclBusy = Signal(bool)
+    gameIconsChanged = Signal()
 
     def __init__(self):
         super().__init__()
@@ -55,6 +57,8 @@ class Backend(QObject):
         self._last_video = None
         self._folder_time = None
         self._preview = ""
+        self._game_icons = "{}"
+        threading.Thread(target=self._load_game_icons, daemon=True).start()
         self.refreshLater.connect(self.refreshVideos)
         self._openLink.connect(self.openUrl)  # the browser from the main thread
         self._yt_cancel = False
@@ -63,6 +67,26 @@ class Backend(QObject):
         self.timer.start(1000)
         self.poll()
         self.refreshVideos()
+
+    # ---------------------------------------------------------- game icons on the cards
+    def _load_game_icons(self):
+        """WoW's and CS2's icons (as goblin play dock makes them: from the .exe / Steam) – the
+        first time they may be fetched, so not in the main thread."""
+        icons = {}
+        for kind, word in (("wow", "wow"), ("cs2", "cs2")):
+            try:
+                out = subprocess.run([sys.executable, "-I", str(GAMES), "icon", word], capture_output=True,
+                                     text=True, timeout=30).stdout.strip()
+            except (OSError, subprocess.TimeoutExpired):
+                out = ""
+            if out and Path(out).is_file():
+                icons[kind] = QUrl.fromLocalFile(out).toString()
+        self._game_icons = json.dumps(icons)
+        self.gameIconsChanged.emit()
+
+    @Property(str, notify=gameIconsChanged)
+    def gameIcons(self):
+        return self._game_icons
 
     # ---------------------------------------------------------- status
     @Property(str, notify=statusChanged)

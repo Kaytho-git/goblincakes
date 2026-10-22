@@ -94,6 +94,7 @@ Window {
     onTabChanged: if (tab === "settings") backend.refreshPreview()
 
     function set(key, value) { backend.setConfig(key, JSON.stringify(value)); }
+    readonly property var gameIcons: JSON.parse(backend.gameIcons)
 
     function clock(sec) {
         sec = Math.max(0, Math.floor(sec));
@@ -833,27 +834,8 @@ Window {
             PanelSwitch {
                 name: "CS2-matcher"
                 key: "cs2"
-                tip: "Hela matchen, från att uppvärmningen är slut till sista rundan. Dina kills (2K–ACE), dödsfall, "
+                tip: "Varje match (alla lägen), från att uppvärmningen är slut till sista rundan. Dina kills (2K–ACE), dödsfall, "
                      + "rundor och bomben blir markeringar i filmen."
-            }
-            Flow {
-                width: parent.width
-                spacing: 6
-                opacity: win.cfg.cs2 ? 1 : 0.35
-                Repeater {
-                    model: [{ "id": "competitive", "name": "Premier", "sub": "Premier och Competitive (CS2 skickar samma läge för båda)." }, { "id": "scrimcomp2v2", "name": "Wingman" },
-                            { "id": "casual", "name": "Casual" }, { "id": "deathmatch", "name": "Deathmatch" }]
-                    Choice {
-                        required property var modelData
-                        readonly property var modes: win.cfg.cs2Modes || ["competitive", "scrimcomp2v2"]
-                        sub: modelData.sub || ""
-                        width: (recordPanel.width - 48 - 6) / 2
-                        enabledState: !!win.cfg.cs2
-                        text: (chosen ? "✓  " : "") + modelData.name
-                        chosen: modes.indexOf(modelData.id) >= 0
-                        onPicked: win.set("cs2Modes", chosen ? modes.filter(l => l !== modelData.id) : modes.concat([modelData.id]))
-                    }
-                }
             }
             Note {
                 width: parent.width
@@ -953,6 +935,17 @@ Window {
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                     }
+                }
+                Image { // the game, bottom right (22 Oct, the user's wish)
+                    readonly property string game: card.modelData.kind === "cs2" ? "cs2" : card.modelData.kind === "test" ? "" : "wow"
+                    anchors { right: parent.right; bottom: parent.bottom; rightMargin: 8; bottomMargin: 8 }
+                    width: 22
+                    height: 22
+                    source: game ? (win.gameIcons[game] || "") : ""
+                    sourceSize: Qt.size(44, 44)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    asynchronous: true
                 }
                 Column {
                     anchors { left: thumbBox.right; leftMargin: 12; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
@@ -1455,7 +1448,7 @@ Window {
                             onClicked: backend.openUrl(playerPane.v.youtube.url)
                         }
                         FlatButton {
-                            visible: !!(playerPane.v && (playerPane.v.wcl || backend.wclConfigured))
+                            visible: !!(playerPane.v && playerPane.v.kind !== "cs2" && (playerPane.v.wcl || backend.wclConfigured))
                             primary: !!(playerPane.v && playerPane.v.wcl)
                             enabledState: !win.wclBusy
                             text: playerPane.v && playerPane.v.wcl ? "Öppna i Warcraft Logs" : win.wclBusy ? "Söker …" : "Sök i Warcraft Logs"

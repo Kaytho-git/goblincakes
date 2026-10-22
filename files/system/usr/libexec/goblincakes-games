@@ -8,6 +8,7 @@
     goblincakes-games remove <word>      removes an own word
     goblincakes-games dock <game>        pins the game in the dock (own menu entry + icon)
     goblincakes-games undock <game>      unpins it and removes the menu entry
+    goblincakes-games icon <game>        the game's icon as a PNG (prints the path)
 
 Typing a game's word straight in the terminal (e.g. `wow`, `cs2`, `worldofwarcraft`)
 works through bash's command_not_found_handle (/etc/profile.d/zz-goblincakes-games.sh),
@@ -515,6 +516,13 @@ def main(argv):
         write_aliases(aliases)
         print(f"Borttaget: {word}")
         return 0
+    if cmd == "icon" and len(argv) == 2:  # the game's icon as a PNG (GoblinRecorder's video cards)
+        game = one_game(argv[1])
+        cached = ICON_DIR / f"{game[1]}.png" if game else None
+        icon = str(cached) if cached and cached.is_file() else game_icon(game[1]) if game else None
+        if icon:
+            print(icon)
+        return 0 if icon else 1
     if cmd == "dock" and len(argv) == 2:
         return dock(argv[1], True)
     if cmd == "undock" and len(argv) == 2:
