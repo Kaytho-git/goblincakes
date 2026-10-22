@@ -1,5 +1,9 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-22  CS2 Stats fylls nu av alla matcher du spelar (kills, huvudskott, dödsfall per runda) – demon ger resten – och varje ruta har en pil som visar om det gått upp eller ner
+2026-10-22  WoW Stats och CS2 Stats behåller siffrorna även när du tar bort filmerna
+2026-10-22  WoW Stats: knapparna RAID och MYTHIC+ visar en del i taget, mindre att scrolla
+2026-10-22  GoblinRecorder visar parsen för en nyckel direkt, som Warcraft Logs hemsida, innan nyckeln hunnit rankas
 2026-10-22  Config → Uppdatera hittar nu en nyare GOBLINCAKES-version även när en äldre redan är hämtad och väntar på omstart (förut såg bara goblin update den)
 2026-10-22  Systemfältet under spel: GoblinRecorder, GoblinAmp, Goblin AI och Config kommer nu fram framför spelet när du klickar på ikonen
 2026-10-22  GoblinRecorder: nycklar i Murder Row (och andra instanser med egna delar) avbryts inte längre mitt i

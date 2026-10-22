@@ -1581,7 +1581,8 @@ Window {
                         topPadding: 4
                         wrapMode: Text.WordWrap
                         text: card.stats ? (card.stats.deaths ? card.stats.deaths + " dödsfall" : "Inga dödsfall")
-                              + (card.stats.ranked ? " · ILVL = parse mot samma item level" : " · parses bara för kills och nycklar i tid (kan dröja en stund efter uppladdningen)")
+                              + (card.stats.estimate ? " · parses mot alla körningar tills Warcraft Logs rankat nyckeln"
+                                 : card.stats.ranked ? " · ILVL = parse mot samma item level" : " · parses bara för kills och nycklar i tid (kan dröja en stund efter uppladdningen)")
                               + (win.statsBusy === card.modelData.path ? " · uppdaterar …" : "") : ""
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
@@ -2088,22 +2089,39 @@ Window {
         property string value
         property color valueColor: "#E6ECF5"
         property string tip
+        // an arrow up/down: the latest matches (now) against as many before them
+        property var now: null
+        property var before: null
+        property bool lowerBetter: false
+        property string beforeText: before === null || before === undefined ? "" : win.num(before)
+        readonly property int dir: now === null || now === undefined || before === null || before === undefined
+                                   || Math.abs(now - before) < 0.005 ? 0 : now > before ? 1 : -1
         width: 112
         height: 54
         color: "#0B1018"
         border.width: 1
         border.color: "#1E2A40"
-        HoverTip { tip: tile.tip }
+        HoverTip { tip: tile.tip + (tile.dir ? "\nFörut: " + tile.beforeText + (tile.dir === 1 ? " – har gått upp" : " – har gått ner") : "") }
         Column {
             anchors.centerIn: parent
             spacing: 2
-            Text {
+            Row {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: tile.value
-                color: tile.valueColor
-                font.family: "IBM Plex Sans"
-                font.weight: Font.DemiBold
-                font.pixelSize: 18
+                spacing: 4
+                Text {
+                    text: tile.value
+                    color: tile.valueColor
+                    font.family: "IBM Plex Sans"
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 18
+                }
+                Text { // green = better, red = worse
+                    visible: tile.dir !== 0
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: tile.dir === 1 ? "▲" : "▼"
+                    color: (tile.dir === 1) !== tile.lowerBetter ? "#3FB950" : "#E5534B"
+                    font.pixelSize: 11
+                }
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -2232,6 +2250,7 @@ Window {
     property string wowPlayer: ""
     property int wowDays: 0
     property string wowDiff: ""
+    property string wowSection: "" // "raid" or "mplus" – one at a time, less to scroll
     property int cs2Count: 10
     readonly property var wowData: tab === "wowstats" ? (videos, JSON.parse(backend.wowOverview(wowPlayer, wowDays))) : ({})
     readonly property var cs2Data: tab === "cs2stats" ? (videos, JSON.parse(backend.cs2Overview(cs2Count))) : ({})
@@ -2251,6 +2270,13 @@ Window {
         readonly property var d: win.wowData
         readonly property var r: d.raid ? d.raid[win.wowShownDiff] : null
         readonly property string metric: d.role === "healers" ? "HPS" : "DPS"
+        readonly property bool hasRaid: !!(d.difficulties && d.difficulties.length)
+        readonly property bool hasKeys: !!(d.mplus && d.mplus.runs)
+        // the chosen part, or the one there is something in
+        readonly property string sec: win.wowSection === "mplus" && hasKeys || !hasRaid ? "mplus" : "raid"
+        readonly property bool keys: sec === "mplus"
+        readonly property var s: keys ? d.mplus : r // best/median for the tiles
+        readonly property var trend: (d.trend || []).filter(t => (t.kind === "mplus") === keys)
 
         Column {
             id: wowCol
@@ -2348,37 +2374,48 @@ Window {
                     spacing: 6
                     StatTile {
                         label: "BÄSTA SNITT " + wowPage.metric
-                        value: wowPage.r && wowPage.r.best !== null ? win.num(wowPage.r.best) : "–"
-                        valueColor: wowPage.r && wowPage.r.best !== null ? win.parseColor(wowPage.r.best) : "#E6ECF5"
-                        tip: "Snittet av din bästa parse per boss (" + win.wowShownDiff + ") – som Best Perf. Avg hos Warcraft Logs."
+                        value: wowPage.s && wowPage.s.best !== null ? win.num(wowPage.s.best) : "–"
+                        valueColor: wowPage.s && wowPage.s.best !== null ? win.parseColor(wowPage.s.best) : "#E6ECF5"
+                        tip: wowPage.keys ? "Snittet av din bästa parse per dungeon – som Best Perf. Avg hos Warcraft Logs."
+                                          : "Snittet av din bästa parse per boss (" + win.wowShownDiff + ") – som Best Perf. Avg hos Warcraft Logs."
                     }
                     StatTile {
                         label: "MEDIAN " + wowPage.metric
-                        value: wowPage.r && wowPage.r.median !== null ? win.num(wowPage.r.median) : "–"
-                        valueColor: wowPage.r && wowPage.r.median !== null ? win.parseColor(wowPage.r.median) : "#E6ECF5"
-                        tip: "Snittet av din median-parse per boss – hur du brukar prestera, inte bara din bästa."
+                        value: wowPage.s && wowPage.s.median !== null ? win.num(wowPage.s.median) : "–"
+                        valueColor: wowPage.s && wowPage.s.median !== null ? win.parseColor(wowPage.s.median) : "#E6ECF5"
+                        tip: "Snittet av din median-parse per " + (wowPage.keys ? "dungeon" : "boss") + " – hur du brukar prestera, inte bara din bästa."
                     }
-                    StatTile { label: "KILLS"; value: wowPage.r ? String(wowPage.r.kills) : "–"; tip: "Inspelade kills på " + win.wowShownDiff + "." }
-                    StatTile { label: "PULLS"; value: wowPage.r ? String(wowPage.r.pulls) : "–"; tip: "Alla inspelade pulls, wipes också." }
+                    StatTile {
+                        label: wowPage.keys ? "I TID" : "KILLS"
+                        value: wowPage.keys ? wowPage.d.mplus.timed + "/" + wowPage.d.mplus.runs : wowPage.r ? String(wowPage.r.kills) : "–"
+                        tip: wowPage.keys ? "Inspelade nycklar i tid av alla." : "Inspelade kills på " + win.wowShownDiff + "."
+                    }
+                    StatTile {
+                        label: wowPage.keys ? "HÖGSTA I TID" : "PULLS"
+                        value: wowPage.keys ? (wowPage.d.mplus.dungeons.reduce((m, x) => Math.max(m, x.bestLevel || 0), 0)
+                                               ? "+" + wowPage.d.mplus.dungeons.reduce((m, x) => Math.max(m, x.bestLevel || 0), 0) : "–")
+                                            : wowPage.r ? String(wowPage.r.pulls) : "–"
+                        tip: wowPage.keys ? "Din högsta nyckel i tid." : "Alla inspelade pulls, wipes också."
+                    }
                     StatTile { label: "ITEM LEVEL"; value: wowPage.d.ilvl ? String(wowPage.d.ilvl) : "–"; tip: "Din item level i den senaste loggen." }
                     StatTile {
-                        label: "M+ I TID"
-                        value: wowPage.d.mplus ? wowPage.d.mplus.timed + "/" + wowPage.d.mplus.runs : "–"
-                        tip: "Inspelade nycklar i tid av alla."
+                        label: wowPage.keys ? "NYCKLAR" : "M+ I TID"
+                        value: wowPage.keys ? String(wowPage.d.mplus.runs) : wowPage.d.mplus ? wowPage.d.mplus.timed + "/" + wowPage.d.mplus.runs : "–"
+                        tip: wowPage.keys ? "Inspelade nycklar." : "Inspelade nycklar i tid av alla."
                     }
                 }
                 Bars {
-                    visible: (wowPage.d.trend || []).length > 1
+                    visible: wowPage.trend.length > 1
                     title: "PARSE ÖVER TID (" + wowPage.metric + ")"
                     barHeight: 34 // the same height as the tiles beside it
                     maxWidth: wowCol.width - (6 * 112 + 5 * 6) - 28
                     info: "Bara pulls och nycklar som GoblinRecorder spelat in. Parse = Warcraft Logs (healers på HPS, övriga på DPS); "
                           + "ILVL % = mot spelare med samma item level; ILVL = din, AVG.ILVL = gruppens snitt i den killen. "
                           + "Klicka på en rad i tabellen för att öppna din bästa i Warcraft Logs."
-                    values: (wowPage.d.trend || []).map(t => t.parse)
-                    barColors: (wowPage.d.trend || []).map(t => win.parseColor(t.parse))
+                    values: wowPage.trend.map(t => t.parse)
+                    barColors: wowPage.trend.map(t => win.parseColor(t.parse))
                     maxValue: 100
-                    tips: (wowPage.d.trend || []).map(t => t.name + (t.level ? " +" + t.level : " " + (t.difficulty || "")) + " · "
+                    tips: wowPage.trend.map(t => t.name + (t.level ? " +" + t.level : " " + (t.difficulty || "")) + " · "
                                                           + win.day(t.started) + " · parse " + t.parse + (t.ilvl ? " · ilvl " + t.ilvl : "")
                                                           + (t.avgIlvl ? " · avg.ilvl " + win.num(t.avgIlvl.toFixed(1)) : ""))
                 }
@@ -2391,14 +2428,26 @@ Window {
                 text: wowPage.d.missing + " kills/nycklar saknar siffror än – tjänsten hämtar loggen själv när den finns i Warcraft Logs."
             }
 
-            // RAID: one table per difficulty
-            Item { visible: !!wowPage.r; width: 1; height: 6 }
+            // RAID or MYTHIC+ – one at a time
+            Item { visible: wowPage.hasRaid || wowPage.hasKeys; width: 1; height: 6 }
             Row {
-                visible: !!wowPage.r
-                spacing: 16
-                SectionTitle { text: "RAID"; anchors.verticalCenter: parent.verticalCenter }
+                visible: wowPage.hasRaid || wowPage.hasKeys
+                spacing: 8
+                Choice {
+                    visible: wowPage.hasRaid
+                    text: "RAID"
+                    chosen: !wowPage.keys
+                    onPicked: win.wowSection = "raid"
+                }
+                Choice {
+                    visible: wowPage.hasKeys
+                    text: "MYTHIC+"
+                    chosen: wowPage.keys
+                    onPicked: win.wowSection = "mplus"
+                }
+                Item { visible: !wowPage.keys && !!wowPage.r; width: 16; height: 1 }
                 Repeater {
-                    model: wowPage.d.difficulties || []
+                    model: wowPage.keys ? [] : wowPage.d.difficulties || []
                     Choice {
                         required property string modelData
                         text: modelData
@@ -2408,7 +2457,7 @@ Window {
                 }
             }
             Column {
-                visible: !!wowPage.r
+                visible: !wowPage.keys && !!wowPage.r
                 width: parent.width
                 readonly property var cols: [width - 8 - 70 * 5 - 80 * 3 - 90 - 60, 70, 70, 70, 70, 70, 80, 90, 60, 80, 80]
                 TableRow {
@@ -2434,22 +2483,8 @@ Window {
             }
 
             // MYTHIC+: per dungeon
-            Item { visible: !!(wowPage.d.mplus && wowPage.d.mplus.runs); width: 1; height: 6 }
-            Row {
-                visible: !!(wowPage.d.mplus && wowPage.d.mplus.runs)
-                spacing: 16
-                SectionTitle { text: "MYTHIC+" }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: wowPage.d.mplus && wowPage.d.mplus.best !== null ? "bästa snitt " + win.num(wowPage.d.mplus.best)
-                                                                               + " · median snitt " + win.num(wowPage.d.mplus.median) : ""
-                    color: "#8B98AD"
-                    font.family: "IBM Plex Sans"
-                    font.pixelSize: 13
-                }
-            }
             Column {
-                visible: !!(wowPage.d.mplus && wowPage.d.mplus.runs)
+                visible: wowPage.keys
                 width: parent.width
                 readonly property var cols: [width - 8 - 100 * 2 - 80 * 4 - 90, 100, 100, 80, 80, 80, 80, 90]
                 TableRow {
@@ -2505,8 +2540,8 @@ Window {
                 SectionTitle { text: "INGA CS2-SIFFROR ÄN" }
                 Note {
                     width: parent.width
-                    text: "CS2 Stats sammanställs av dina lästa demos. Spela en Competitive/Premier/Wingman-match med CS2 inkopplat "
-                          + "och ladda ner demon i CS2 (Watch → Your Matches)."
+                    text: "CS2 Stats sammanställs av matcherna du spelar med CS2 inkopplat (Competitive/Premier/Wingman, inte deathmatch) – "
+                          + "kills, huvudskott och dödsfall direkt; ladda ner demon i CS2 (Watch → Your Matches) för ADR, KAST, entry, clutchar m.m."
                           + (cs2Page.d.waiting ? " " + cs2Page.d.waiting + " match(er) väntar på demon nu." : "")
                 }
             }
@@ -2527,7 +2562,9 @@ Window {
                     }
                     Text {
                         text: cs2Page.d.count + " matcher · " + cs2Page.d.wins + " vinster, " + cs2Page.d.losses + " förluster"
+                              + (cs2Page.d.demos < cs2Page.d.count ? " · " + cs2Page.d.demos + " med demo" : "")
                               + (cs2Page.d.waiting ? " · " + cs2Page.d.waiting + " väntar på demon" : "")
+                              + (cs2Page.d.compare ? " · pilarna: senaste " + cs2Page.d.compareTo + " mot " + cs2Page.d.compare + " före" : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13
@@ -2563,16 +2600,20 @@ Window {
                 spacing: 6
                 readonly property var a: cs2Page.d.avg || {}
                 readonly property var p: cs2Page.d.per || {}
-                StatTile { label: "K/D"; value: win.num(parent.a.kd); tip: "Kills per dödsfall, snitt per match." }
-                StatTile { label: "ADR"; value: win.num(parent.a.adr); tip: "Skada per runda, snitt." }
-                StatTile { label: "KAST"; value: parent.a.kast === null || parent.a.kast === undefined ? "–" : Math.round(parent.a.kast) + " %"; tip: "Rundor med kill, assist, överlevt eller trade." }
-                StatTile { label: "HS"; value: parent.a.hs === null || parent.a.hs === undefined ? "–" : Math.round(parent.a.hs) + " %"; tip: "Kills med huvudskott." }
-                StatTile { label: "TTD"; value: parent.a.ttd ? Math.round(parent.a.ttd) + " ms" : "–"; tip: "Time to damage (ungefärlig), snitt av matchernas median." }
-                StatTile { label: "SIKTE"; value: parent.a.cp ? win.num(parent.a.cp.toFixed(1)) + "°" : "–"; tip: "Crosshair placement (ungefärlig) – lägre är bättre." }
-                StatTile { label: "ENTRY / MATCH"; value: win.num(parent.p.entryWon) + "–" + win.num(parent.p.entryLost); tip: "Rundans första kill: vunna–förlorade per match." }
-                StatTile { label: "TRADES / MATCH"; value: win.num(parent.p.trades); tip: "Du hämnades en lagkamrat inom 5 s." }
-                StatTile { label: "CLUTCH / MATCH"; value: win.num(parent.p.clutchWon) + "/" + win.num(parent.p.clutches); tip: "1vX vunna av alla, per match." }
-                StatTile { label: "BLÄNDADE / MATCH"; value: win.num(parent.p.flashed); tip: "Fiender du bländat minst 1 s." }
+                readonly property var n: cs2Page.d.now || {} // the arrows
+                readonly property var b: cs2Page.d.before || {}
+                StatTile { label: "K/D"; value: win.num(parent.a.kd); now: parent.n.kd; before: parent.b.kd; tip: "Kills per dödsfall, snitt per match." }
+                StatTile { label: "KILLS / RUNDA"; value: win.num(parent.a.kpr); now: parent.n.kpr; before: parent.b.kpr; tip: "Kills per runda, snitt." }
+                StatTile { label: "DÖD / RUNDA"; value: win.num(parent.a.dpr); now: parent.n.dpr; before: parent.b.dpr; lowerBetter: true; tip: "Dödsfall per runda, snitt – lägre är bättre." }
+                StatTile { label: "HS"; value: parent.a.hs === null || parent.a.hs === undefined ? "–" : Math.round(parent.a.hs) + " %"; now: parent.n.hs; before: parent.b.hs; tip: "Kills med huvudskott." }
+                StatTile { label: "ADR"; value: win.num(parent.a.adr); now: parent.n.adr; before: parent.b.adr; tip: "Skada per runda, snitt (demon)." }
+                StatTile { label: "KAST"; value: parent.a.kast === null || parent.a.kast === undefined ? "–" : Math.round(parent.a.kast) + " %"; now: parent.n.kast; before: parent.b.kast; tip: "Rundor med kill, assist, överlevt eller trade (demon)." }
+                StatTile { label: "TTD"; value: parent.a.ttd ? Math.round(parent.a.ttd) + " ms" : "–"; now: parent.n.ttd; before: parent.b.ttd; lowerBetter: true; tip: "Time to damage (ungefärlig), snitt av matchernas median (demon) – lägre är bättre." }
+                StatTile { label: "SIKTE"; value: parent.a.cp ? win.num(parent.a.cp.toFixed(1)) + "°" : "–"; now: parent.n.cp; before: parent.b.cp; lowerBetter: true; tip: "Crosshair placement (ungefärlig, demon) – lägre är bättre." }
+                StatTile { label: "ENTRY / MATCH"; value: win.num(parent.p.entryWon) + "–" + win.num(parent.p.entryLost); now: parent.n.entryWon; before: parent.b.entryWon; tip: "Rundans första kill: vunna–förlorade per match (demon). Pilen: vunna." }
+                StatTile { label: "TRADES / MATCH"; value: win.num(parent.p.trades); now: parent.n.trades; before: parent.b.trades; tip: "Du hämnades en lagkamrat inom 5 s (demon)." }
+                StatTile { label: "CLUTCH / MATCH"; value: win.num(parent.p.clutchWon) + "/" + win.num(parent.p.clutches); now: parent.n.clutchWon; before: parent.b.clutchWon; tip: "1vX vunna av alla, per match (demon). Pilen: vunna." }
+                StatTile { label: "BLÄNDADE / MATCH"; value: win.num(parent.p.flashed); now: parent.n.flashed; before: parent.b.flashed; tip: "Fiender du bländat minst 1 s (demon)." }
             }
 
             Item { visible: cs2Page.ms.length > 1; width: 1; height: 6 }
@@ -2642,13 +2683,15 @@ Window {
                     TableRow {
                         required property var modelData
                         cols: parent.cols
-                        tip: "Visa matchen i Inspelningar"
+                        tip: modelData.path ? "Visa matchen i Inspelningar" : "Filmen är borttagen – siffrorna finns kvar"
                         cells: [modelData.name + " · " + modelData.mode + " · " + win.day(modelData.started), modelData.score,
-                                modelData.kills + "–" + modelData.deaths, win.num(modelData.adr), modelData.hs + " %",
+                                modelData.kills + "–" + modelData.deaths, win.num(modelData.adr),
+                                modelData.hs === null || modelData.hs === undefined ? null : modelData.hs + " %",
                                 modelData.ttd ? modelData.ttd + " ms" : null, modelData.cp ? win.num(modelData.cp) + "°" : null]
                         colors: [null, modelData.result === "win" ? "#3FB950" : modelData.result === "loss" ? "#E5534B" : null]
                         MouseArea {
                             anchors.fill: parent
+                            enabled: !!parent.modelData.path
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 win.tab = "videos";

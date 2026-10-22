@@ -1618,6 +1618,7 @@ def cs2_demo_apply(meta_path, dem, a, offset):
     data = json.loads(meta_path.read_text())
     data.update(markers=marks, demo="done", demoFile=str(dem), demoStats=a["stats"], demoRounds=a["perRound"])
     meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    cs2_history_add([data])
     cs2_drop_match_video(meta_path)
     won = sum(c["won"] for c in a["clutches"])
     text = f"Demon för {meta.get('name', 'matchen')} är läst"
@@ -2373,6 +2374,18 @@ def wcl_stats(wcl):
 
     dps, hps = per_second("dmg"), per_second("heal")
     pdps, phps = parses("rdps"), parses("rhps")
+    estimate = False
+    if not (pdps or phps) and (data("rdps") or data("rhps")):
+        # not ranked yet: against all parses instead, what the report page shows meanwhile (61 % on
+        # a +15 the rankings still had at 0 – 22 Oct); still unranked, so it is asked again
+        est = wcl_query(
+            "query($c:String,$f:[Int]){ reportData { report(code:$c) {"
+            " rdps: rankings(fightIDs:$f, playerMetric: dps, compare: Parses)"
+            " rhps: rankings(fightIDs:$f, playerMetric: hps, compare: Parses) } } }",
+            {"c": wcl["code"], "f": [int(wcl["fight"])]})["reportData"]["report"]
+        rep.update(est)
+        pdps, phps = parses("rdps"), parses("rhps")
+        estimate = bool(pdps or phps)
     deaths = {}
     for e in (data("deaths") or {}).get("entries") or []:
         deaths[e["name"]] = deaths.get(e["name"], 0) + 1
@@ -2389,7 +2402,7 @@ def wcl_stats(wcl):
                 "deaths": deaths.get(name, 0)})
     players.sort(key=lambda p: (ROLE_ORDER.get(p["role"], 3), -p["dps"]))
     return {"players": players, "deaths": sum(deaths.values()), "fetched": time.time(),
-            "ranked": bool(pdps or phps)}
+            "ranked": bool(pdps or phps) and not estimate, "estimate": estimate}
 
 
 def wcl_ilvl(wcl, player=""):
@@ -2620,28 +2633,92 @@ def wow_overview(folder, player="", days=0):
     }
 
 
+# Every finished match is kept here too, so CS2 Stats keeps it when the video and its card go
+# (removed by hand or above the folder's limit) – like the WoW history (22 Oct, the user's wish)
+CS2_HISTORY = WOW_HISTORY.with_name("cs2-history.json")
+CS2_TREND_KEYS = ("kd", "adr", "kast", "hs", "ttd", "cp", "kpr", "dpr")
+
+
+def cs2_history():
+    try:
+        return json.loads(CS2_HISTORY.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def cs2_game_stats(meta):
+    """Your numbers from the game's own messages (GSI) – kills, headshots, deaths, rounds – for a
+    match without a read demo: every finished match with rounds counts, not deathmatch."""
+    if meta.get("result") not in ("win", "loss", "tie") or not cs2_has_rounds(meta.get("mode")):
+        return None
+    marks = meta.get("markers") or []
+    kills = [m for m in marks if m.get("kind") == "kill"]
+    deaths = sum(m.get("kind") == "death" for m in marks)
+    rounds = sum(m.get("kind") == "round" for m in marks) or sum(map(int, re.findall(r"\d+", meta.get("score") or ""))) or 0
+    hs = sum("HS" in m.get("text", "") for m in kills)
+    return {"kills": len(kills), "deaths": deaths, "kd": round(len(kills) / max(deaths, 1), 2),
+            "hs": round(100 * hs / len(kills)) if kills else None,
+            "kpr": round(len(kills) / rounds, 2) if rounds else None,
+            "dpr": round(deaths / rounds, 2) if rounds else None, "fromGame": True}
+
+
+def cs2_history_add(metas):
+    """Finished matches into the history: the demo's numbers, else the game's (when the match is
+    saved, when the demo is read, and for older ones)."""
+    hist, changed = cs2_history(), False
+    for v in metas:
+        st = v.get("demoStats") or cs2_game_stats(v)
+        if not st:
+            continue
+        rounds = sum(map(int, re.findall(r"\d+", v.get("score") or "")))
+        if v.get("demoStats") and rounds:
+            st = dict(st, kpr=round(st["kills"] / rounds, 2), dpr=round(st["deaths"] / rounds, 2))
+        e = {k: v.get(k) for k in ("file", "name", "difficulty", "score", "result", "started")}
+        e["stats"] = st
+        key = str(int(v.get("started", 0)))
+        if hist.get(key) != e:
+            hist[key], changed = e, True
+    if changed:
+        CS2_HISTORY.parent.mkdir(parents=True, exist_ok=True)
+        tmp = CS2_HISTORY.with_suffix(".tmp")
+        tmp.write_text(json.dumps(hist, ensure_ascii=False))
+        tmp.replace(CS2_HISTORY)
+
+
 def cs2_overview(folder, count=10):
-    """The CS2 Stats page: your matches with a read demo – the average of the last `count` (0 = all),
-    each map, the guns in all of them, and the matches for the over-time charts."""
-    ms = sorted((v for v in video_files(folder) if v.get("kind") == "cs2" and v.get("demoStats")),
-                key=lambda v: v.get("started", 0))
-    waiting = sum(1 for v in video_files(folder) if v.get("kind") == "cs2" and v.get("demo") == "waiting")
+    """The CS2 Stats page: your finished matches (the demo's numbers, else the game's) – the
+    average of the last `count` (0 = all) and of as many before them (the arrows; with all: the
+    last 10 against the rest), each map, the guns, and the matches for the over-time charts."""
+    vids = [v for v in video_files(folder) if v.get("kind") == "cs2"]
+    cs2_history_add(vids)  # from before the history
+    hist = cs2_history()
+    for m in hist.values():  # the card in Inspelningar, while it is there
+        f = Path(folder) / (m.get("file") or "")
+        m["path"] = str(f) if m.get("file") and f.with_suffix(".json").is_file() else ""
+    ms = sorted(hist.values(), key=lambda v: v.get("started", 0))
+    waiting = sum(1 for v in vids if v.get("demo") == "waiting")
+    n = count or 10
     recent = ms[-count:] if count else ms
+    before = ms[-2 * n:-n] if len(ms) > n else []
+    after = ms[-n:] if not count else recent  # what the arrows compare with `before`
 
     def avg(key, of=recent):
-        xs = [m["demoStats"].get(key) for m in of if m["demoStats"].get(key) is not None]
+        xs = [m["stats"].get(key) for m in of if m["stats"].get(key) is not None]
         return round(sum(xs) / len(xs), 2) if xs else None
 
-    def per(key):
-        return round(sum(m["demoStats"].get(key, 0) for m in recent) / len(recent), 2) if recent else None
+    def per(key, of=recent):
+        xs = [m["stats"][key] for m in of if key in m["stats"]]
+        return round(sum(xs) / len(xs), 2) if xs else None
 
+    per_keys = ("kills", "deaths", "assists", "entryWon", "entryLost", "trades", "clutchWon",
+                "clutches", "flashed", "teamFlashed", "flashAssists", "heDmg", "fireDmg")
     maps = {}
     for m in ms:
         g = maps.setdefault(m.get("name", "?"), [])
         g.append(m)
     guns = {}
     for m in recent:
-        for w in m["demoStats"].get("weapons", []):
+        for w in m["stats"].get("weapons", []):
             g = guns.setdefault(w["name"], {"name": w["name"], "kills": 0, "hs": 0, "shots": 0, "hits": 0})
             for k in ("kills", "hs", "shots", "hits"):
                 g[k] += w.get(k) or 0
@@ -2650,19 +2727,22 @@ def cs2_overview(folder, count=10):
         g["hsp"] = round(100 * g["hs"] / g["kills"]) if g["kills"] else None
     return {
         "count": len(recent), "all": len(ms), "waiting": waiting,
+        "demos": sum(not m["stats"].get("fromGame") for m in recent),
         "wins": sum(m.get("result") == "win" for m in recent), "losses": sum(m.get("result") == "loss" for m in recent),
-        "avg": {k: avg(k) for k in ("kd", "adr", "kast", "hs", "ttd", "cp")},
-        "per": {k: per(k) for k in ("kills", "deaths", "assists", "entryWon", "entryLost", "trades", "clutchWon",
-                                     "clutches", "flashed", "teamFlashed", "flashAssists", "heDmg", "fireDmg")},
+        "avg": {k: avg(k) for k in CS2_TREND_KEYS},
+        "per": {k: per(k) for k in per_keys},
+        # the arrows: as many matches before (both sides only when there are some before)
+        "compare": len(before), "compareTo": len(after) if before else 0,
+        "now": {k: avg(k, after) for k in CS2_TREND_KEYS} | {k: per(k, after) for k in per_keys} if before else {},
+        "before": {k: avg(k, before) for k in CS2_TREND_KEYS} | {k: per(k, before) for k in per_keys},
         "maps": sorted(({"name": n, "matches": len(g), "wins": sum(m.get("result") == "win" for m in g),
                          "adr": avg("adr", g), "kd": avg("kd", g)} for n, g in maps.items()), key=lambda x: -x["matches"]),
         "weapons": sorted(guns.values(), key=lambda g: -g["kills"])[:10],
         "matches": [{"path": m["path"], "name": m.get("name", ""), "mode": m.get("difficulty", ""), "score": m.get("score", ""),
-                     "result": m.get("result", ""), "started": m.get("started", 0),
-                     **{k: m["demoStats"].get(k) for k in ("kd", "adr", "kast", "hs", "ttd", "cp", "kills", "deaths")}}
+                     "result": m.get("result", ""), "started": m.get("started", 0), "demo": not m["stats"].get("fromGame"),
+                     **{k: m["stats"].get(k) for k in ("kd", "adr", "kast", "hs", "ttd", "cp", "kills", "deaths")}}
                     for m in ms[-30:]],
     }
-
 
 
 def cs2_demo_process(dem, meta_path=None):

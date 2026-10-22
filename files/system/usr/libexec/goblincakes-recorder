@@ -576,6 +576,8 @@ class Service:
         }
         self.write_meta(meta, dest)
         R.wow_history_add(meta)  # WoW Stats: every pull and key, also when the video goes later
+        if cur["kind"] == "cs2":
+            R.cs2_history_add([meta])  # CS2 Stats: the same
         # A live-logged fight is on Warcraft Logs within seconds – look at once, not in 5 minutes
         self.wcl_next = min(self.wcl_next, time.time() + 3)
         R.make_thumb(dest, min(max(meta["fightStart"] + 20, 0), max(meta["duration"] - 2, 0)),
