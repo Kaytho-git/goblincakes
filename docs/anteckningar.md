@@ -198,3 +198,8 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
 
 ## goblin moonbyte / goblin moonlit (egna låtar i terminalen)
 22 okt, användarens önskan. Låtarna (användarens egna, utan artist-tagg) ligger i `files/system/usr/share/goblincakes/songs/` (~14 MB i imagen). `goblin moonbyte` / `goblin moonlit [pixel drift]` → `/usr/libexec/goblincakes-song <fil>`: ffmpeg avkodar hela låten till 48 kHz stereo i minnet, `pw-cat --raw` spelar den från en liten pipe (F_SETPIPE_SZ 16 KB) som matas efter klockan 0,15 s före, så staplarna följer det som hörs (antar 100 ms latens i pw-cat). Staplarna = goblin-graphs Spectrum (kopierad) och nivåer (översta 40 dB, autogain, fall 0,82), ritade med ▁–█ i 2 tecken breda staplar, klassfärgerna Death Knight → Warrior från vänster; rubrik och förlopp i accentfärgen (accent.py `current()`). Tangenter: mellanslag paus, ←/→ 10 s, q/Esc. Utan terminal spelas bara låten. Provat på riktigt i en pty (ljud + bild), synken bara bedömd på teorin.
+
+## GoblinRecorder: zonbyten och omstart mitt i en nyckel (22 okt)
+- +16 Murder Row avbröts efter 2,5 min: instansen har delen "Den of Indulgence" (ZONE_CHANGE med samma id 2813, eget namn). `event()` jämför nu `self.zone["id"]`, inte namnet.
+- Tjänsten omstartad mitt i nyckeln → `catch_up()` läser loggen (bara ZONE_CHANGE/CHALLENGE_MODE_-rader, ~0,1 s för 110 MB): zonen + en START utan END i samma zon-id → `self.resume`, inspelningen börjar på nästa live-rad. Provat mot avklippt kopia av riktiga loggen (mitt i nyckeln: börjar; efter nyckeln: inget).
+- `shutdown()` städar inte bort "ej kills" om WoW fortfarande kör (en omstart raderade de 2,5 min) – det görs när WoW stängs.

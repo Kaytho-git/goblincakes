@@ -113,6 +113,7 @@ class Service:
         self.zone = None  # {"id", "name", "difficulty", "kind"}
         self.zone_name = ""  # the last ZONE_CHANGE, also outside raids/dungeons (the arena's name)
         self.current = None  # the pull / key being recorded
+        self.resume = None  # a key already going when the service started (CHALLENGE_MODE_START's args)
         self.stop_at = 0  # wall time to stop OBS (after the end + postRoll)
         self.closing = []  # saved videos that late log lines may still add deaths to
         self.last_video = ""
@@ -218,6 +219,7 @@ class Service:
             self.path = newest
             self.fh = open(newest, "r", errors="replace")
             if newest.stat().st_ctime < time.time() - 60:
+                self.catch_up()
                 self.fh.seek(0, 2)  # an older file: only what comes from now on
             self.buf = ""
             log("following", newest.name)
@@ -235,8 +237,39 @@ class Service:
                 self.delays = (self.delays + [now - p[0]])[-2000:]
                 self.event(*p, now)
 
+    def catch_up(self):
+        """The service started while WoW runs (restarted, updated): the zone and a key that is
+        already going are read from the log, so the rest of the key is still recorded."""
+        zone = key = None
+        try:
+            with open(self.path, "rb") as f:
+                for raw in f:
+                    if b"ZONE_CHANGE" not in raw and b"CHALLENGE_MODE_" not in raw:
+                        continue
+                    p = R.parse_line(raw.decode("utf-8", "replace").rstrip("\r\n"))
+                    if not p:
+                        continue
+                    if p[1] == "ZONE_CHANGE":
+                        zone = p[2]
+                    elif p[1] == "CHALLENGE_MODE_START":
+                        key = p[2]
+                    elif p[1] == "CHALLENGE_MODE_END":
+                        key = None
+        except OSError:
+            return
+        if zone:
+            self.event(0, "ZONE_CHANGE", zone, 0)
+        a = R.split_args(key) if key else []
+        if len(a) > 1 and self.zone and a[1] == self.zone["id"]:
+            self.resume = key  # starts with the next live line
+            log("key already going:", a[0])
+
     def event(self, t, ev, rest, now):
         live = now - t < LIVE_LIMIT
+        if self.resume and live:
+            key, self.resume = self.resume, None
+            if not ev.startswith("CHALLENGE_MODE_") and not self.current:
+                self.event(t, "CHALLENGE_MODE_START", key, now)
         if rest.startswith("Player-") and ",0x511," in rest[:160]:
             m = ME.match(rest)
             if m and m.group(2) != self.me:
@@ -652,7 +685,8 @@ class Service:
         if self.current:
             self.finish(time.time(), "abandoned")
             self.stop_now()
-        self.tidy_up()
+        if not R.wow_running():  # only restarted while WoW runs: wipes are tidied when WoW closes
+            self.tidy_up()
         self.status()
         sys.exit(0)
 
