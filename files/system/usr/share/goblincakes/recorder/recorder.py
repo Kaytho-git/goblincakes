@@ -10,6 +10,7 @@ Settings: ~/.config/goblincakes/recorder.json. Status for the window:
 shows (boss, difficulty, kill/wipe, deaths as marks) and a .jpg thumbnail.
 """
 import base64
+import bisect
 import glob
 import hashlib
 import json
@@ -1234,8 +1235,11 @@ def cs2_demo_load(path):
         "hurts": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "attacker": _sid(r.get("attacker_steamid")),
                    "dmg": int(r.get("dmg_health") or 0), "health": int(r.get("health") or 0),
                    "weapon": str(r.get("weapon") or "")} for r in live_rows("player_hurt")],
-        "fires": [{"tick": r["tick"], "who": _sid(r.get("user_steamid")), "weapon": str(r.get("weapon") or "")}
-                  for r in live_rows("weapon_fire")],
+        # n = the bullet's place in the spray (0 = the first), speed = how fast you moved (units/s)
+        "fires": [{"tick": r["tick"], "who": _sid(r.get("user_steamid")), "weapon": str(r.get("weapon") or ""),
+                   "n": int(r.get("user_shots_fired") or 0),
+                   "speed": math.hypot(r.get("user_velocity_X") or 0.0, r.get("user_velocity_Y") or 0.0)}
+                  for r in live_rows("weapon_fire", player=["shots_fired", "velocity_X", "velocity_Y"])],
         "blinds": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "attacker": _sid(r.get("attacker_steamid")),
                     "time": float(r.get("blind_duration") or 0)} for r in live_rows("player_blind")],
     }
@@ -1431,6 +1435,18 @@ AIM_GAP = TICKRATE  # out of sight this long and back = a new encounter
 TTD_WINDOW = 2 * TICKRATE
 SMOKE_RADIUS = 144.0
 EYE, DUCK = 64.0, 18.0  # eye height standing, and how much lower crouched
+# Shots (22 Oct, the user's wish): only shots in a fight count – an enemy on your screen with free
+# sight up to FIGHT_SLACK before (without the map's geometry: one of your hits within a second)
+FIGHT_SLACK = TICKRATE // 2
+NO_SHOT_STATS = re.compile(NOT_GUNS.pattern + r"|nova|xm1014|mag7|sawedoff")  # shotguns: many pellets
+SPRAY_GUNS = {"ak47", "m4a1", "m4a1_silencer", "famas", "galilar", "aug", "sg556", "mac10", "mp9", "mp7",
+              "mp5sd", "ump45", "p90", "bizon", "negev", "m249", "cz75a"}
+SPRAY_FROM = 3  # the 4th bullet and on = the spray (the first ones go where you aim)
+# Counter-strafe: a gun is accurate below 34 % of its top speed (units/s; others 240)
+MAX_SPEED = {"ak47": 215, "m4a1": 225, "m4a1_silencer": 225, "famas": 220, "galilar": 215, "aug": 220,
+             "sg556": 210, "awp": 200, "ssg08": 230, "g3sg1": 215, "scar20": 215, "mp7": 220, "mp5sd": 235,
+             "ump45": 230, "p90": 230, "negev": 150, "m249": 195, "deagle": 230, "revolver": 180}
+STILL = 0.34
 
 
 def cs2_map_mesh(map_name):
@@ -1496,7 +1512,8 @@ def cs2_demo_aim(dem, raw, a, me):
     for h in raw["hurts"]:
         if h["attacker"] == me and h["victim"] != me:
             my_hits.setdefault(h["victim"], []).append(h["tick"])
-    seen_at, cp, ttd = {}, [], []
+    my_fires = sorted(f["tick"] for f in raw["fires"] if f["who"] == me and not NO_SHOT_STATS.search(f["weapon"]))
+    seen_at, cp, ttd, react, fight = {}, [], [], [], set()
 
     def tick_done(tick, rows):
         mine = rows.get(me)
@@ -1523,7 +1540,12 @@ def cs2_demo_aim(dem, raw, a, me):
                 hit = next((t for t in my_hits.get(sid, []) if tick <= t <= tick + TTD_WINDOW), None)
                 if hit is not None:
                     ttd.append((hit - tick) * 1000 / TICKRATE)
+                # reaction time: seen → your first shot
+                i = bisect.bisect_left(my_fires, tick)
+                if i < len(my_fires) and my_fires[i] <= tick + TTD_WINDOW:
+                    react.append((my_fires[i] - tick) * 1000 / TICKRATE)
             seen_at[sid] = tick
+            fight.add(tick)
 
     rows, cur = {}, None
     c = cols
@@ -1538,7 +1560,91 @@ def cs2_demo_aim(dem, raw, a, me):
     if cur is not None:
         tick_done(cur, rows)
     return {"ttd": round(statistics.median(ttd)) if ttd else None, "ttdCount": len(ttd),
-            "cp": round(statistics.median(cp), 1) if cp else None, "cpCount": len(cp)}
+            "cp": round(statistics.median(cp), 1) if cp else None, "cpCount": len(cp),
+            "reaction": round(statistics.median(react)) if react else None, "reactionCount": len(react),
+            **cs2_demo_shots(raw, me, fight)}
+
+
+def cs2_demo_shots(raw, me, fight=None):
+    """Your shots in fights: first-shot accuracy (the spray's first bullet hits), spray control
+    (the 4th bullet and on hits, rifles/SMGs), counter-strafe (the first bullet fired standing
+    still enough to be accurate). A hit = your player_hurt on the same tick with the same gun.
+    fight = ticks with an enemy in sight (cs2_demo_aim), else near one of your hits."""
+    def gun(w):
+        w = str(w or "").removeprefix("weapon_")
+        return SAME_GUN.get(w, w)
+
+    hits = {}  # tick → the guns that hit someone else then
+    for h in raw["hurts"]:
+        if h["attacker"] == me and h["victim"] != me:
+            hits.setdefault(h["tick"], []).append(gun(h["weapon"]))
+    hit_ticks = sorted(hits)
+
+    def in_fight(t):
+        if fight is not None:
+            return any(t - k in fight for k in range(FIGHT_SLACK + 1))
+        i = bisect.bisect_left(hit_ticks, t - TICKRATE)
+        return i < len(hit_ticks) and hit_ticks[i] <= t + TICKRATE
+
+    first = [0, 0]
+    spray = [0, 0]
+    still = 0
+    for f in sorted((f for f in raw["fires"] if f["who"] == me), key=lambda f: f["tick"]):
+        name = str(f["weapon"]).removeprefix("weapon_")
+        if NO_SHOT_STATS.search(name) or not in_fight(f["tick"]):
+            continue
+        g = gun(name)
+        hit = False
+        for t in (f["tick"], f["tick"] + 1):
+            if g in hits.get(t, []):
+                hits[t].remove(g)  # one bullet, one hit
+                hit = True
+                break
+        n = f.get("n") or 0
+        if n == 0:
+            first[0] += hit
+            first[1] += 1
+            still += f.get("speed", 0) <= STILL * MAX_SPEED.get(name, 240)
+        elif n >= SPRAY_FROM and name in SPRAY_GUNS:
+            spray[0] += hit
+            spray[1] += 1
+    return {"firstShot": round(100 * first[0] / first[1]) if first[1] >= 5 else None, "firstShots": first[1],
+            "spray": round(100 * spray[0] / spray[1]) if spray[1] >= 10 else None, "sprayShots": spray[1],
+            "strafe": round(100 * still / first[1]) if first[1] >= 5 else None}
+
+
+PLAYER_KEYS = ("kills", "deaths", "assists", "kd", "adr", "kast", "hs", "entryWon", "entryLost", "trades",
+               "clutchWon", "clutches", "ttd", "cp", "reaction", "firstShot", "spray", "strafe")
+
+
+def cs2_demo_players(dem, raw, me, my_stats):
+    """Everyone in the match with the same numbers as yours (22 Oct, the user's wish: shown under
+    the match in CS2 Stats; only yours go into the averages). team = "mine"/"theirs"; ~1 s each."""
+    first = raw["freeze"][0]["players"] if raw["freeze"] else {}
+    my_team = (first.get(me) or [0])[0]
+    out = []
+    for sid, name in raw["players"].items():
+        team = (first.get(sid) or [0])[0]
+        if team not in (2, 3):  # spectators, GOTV
+            continue
+        if sid == me:
+            st = my_stats
+        else:
+            try:
+                a = cs2_demo_analyse(raw, sid)
+                st = dict(a["stats"])
+                try:
+                    st.update(cs2_demo_aim(dem, raw, a, sid))
+                except Exception:  # noqa: BLE001
+                    pass
+                if "firstShot" not in st:
+                    st.update(cs2_demo_shots(raw, sid))
+            except Exception:  # noqa: BLE001 – one player's numbers; the others still count
+                continue
+        out.append({"name": name, "me": sid == me, "team": "mine" if team == my_team else "theirs",
+                    **{k: st.get(k) for k in PLAYER_KEYS}})
+    out.sort(key=lambda p: (p["team"] != "mine", -(p.get("adr") or 0), -(p.get("kills") or 0)))
+    return out
 
 
 def cs2_demo_fits(meta, a):
@@ -1618,7 +1724,8 @@ def cs2_demo_apply(meta_path, dem, a, offset):
             make_thumb(dest, min(max((cm[0]["t"] if cm else 1) - 0.5, 0), max(length - 0.5, 0)), dest.with_suffix(".jpg"))
             made.append(dest.name)
     data = json.loads(meta_path.read_text())
-    data.update(markers=marks, demo="done", demoFile=str(dem), demoStats=a["stats"], demoRounds=a["perRound"])
+    data.update(markers=marks, demo="done", demoFile=str(dem), demoStats=a["stats"], demoRounds=a["perRound"],
+                demoPlayers=a.get("players", []))
     meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
     cs2_history_add([data])
     cs2_drop_match_video(meta_path)
@@ -1683,6 +1790,9 @@ def cs2_demo_run(dem, meta_path=None):
             a["stats"].update(cs2_demo_aim(dem, raw, a, me))
         except Exception:  # noqa: BLE001 – the rest of the numbers still count
             pass
+        if "firstShot" not in a["stats"]:  # no map geometry: the shots near your hits
+            a["stats"].update(cs2_demo_shots(raw, me))
+        a["players"] = cs2_demo_players(dem, raw, me, a["stats"])
         return {"match": meta["file"], "text": cs2_demo_apply(meta["path"], dem, a, offset)}
     return {"error": why} if meta_path else {"match": None, "why": why}
 
@@ -2661,7 +2771,7 @@ def wow_overview(folder, player="", days=0):
 # Every finished match is kept here too, so CS2 Stats keeps it when the video and its card go
 # (removed by hand or above the folder's limit) – like the WoW history (22 Oct, the user's wish)
 CS2_HISTORY = WOW_HISTORY.with_name("cs2-history.json")
-CS2_TREND_KEYS = ("kd", "adr", "kast", "hs", "ttd", "cp", "kpr", "dpr")
+CS2_TREND_KEYS = ("kd", "adr", "kast", "hs", "ttd", "cp", "kpr", "dpr", "reaction", "firstShot", "spray", "strafe")
 
 
 def cs2_history():
@@ -2705,7 +2815,9 @@ def cs2_history_add(metas):
         aces = sum(m.get("kind") == "kill" and m.get("text", "").startswith("ACE") for m in v.get("markers") or [])
         st = dict(st, aces=aces or (st.get("multi") or {}).get("ACE", 0))
         e = {k: v.get(k) for k in ("file", "name", "difficulty", "score", "result", "started")}
-        e["stats"] = st
+        e["stats"] = st  # only yours – the averages
+        if v.get("demoPlayers"):
+            e["players"] = v["demoPlayers"]  # everyone, shown under the match
         key = str(int(v.get("started", 0)))
         if hist.get(key) != e:
             hist[key], changed = e, True
@@ -2777,7 +2889,9 @@ def cs2_overview(folder, count=10):
         "weapons": sorted(guns.values(), key=lambda g: -g["kills"])[:10],
         "matches": [{"path": m["path"], "name": m.get("name", ""), "mode": m.get("difficulty", ""), "score": m.get("score", ""),
                      "result": m.get("result", ""), "started": m.get("started", 0), "demo": not m["stats"].get("fromGame"),
-                     **{k: m["stats"].get(k) for k in ("kd", "adr", "kast", "hs", "ttd", "cp", "kills", "deaths")}}
+                     **{k: m["stats"].get(k) for k in ("kd", "adr", "kast", "hs", "ttd", "cp", "kills", "deaths")},
+                     "s": {k: v for k, v in m["stats"].items() if k != "weapons"},  # unfolded under the row
+                     "players": m.get("players") or []}
                     for m in ms[-30:]],
     }
 

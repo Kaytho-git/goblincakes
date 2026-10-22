@@ -146,6 +146,8 @@ Window {
         return left > 86400 ? Math.round(left / 86400) + " dagar" : Math.max(1, Math.round(left / 3600)) + " h";
     }
     function num(x) { return x === undefined || x === null ? "–" : String(x).replace(".", ","); }
+    function pct(x) { return x === undefined || x === null ? "–" : Math.round(x) + " %"; }
+    function ms(x) { return x === undefined || x === null ? "–" : Math.round(x) + " ms"; }
     // the matches with a read demo up to this one, the last 10 – how it goes over time
     function cs2Trend(v) {
         return videos.filter(o => o.kind === "cs2" && o.demoStats && o.started <= v.started)
@@ -544,7 +546,15 @@ Window {
                          + (ds.s.ttdCount || 0) + " gånger). Ungefärligt: väggar och smokes räknas, inte flashar."],
                         ["SIKTE", ds.s.cp === undefined || ds.s.cp === null ? "–" : win.num(ds.s.cp) + "°",
                          "Crosshair placement: hur långt från fiendens huvud siktet var när du kunde se honom (median av "
-                         + (ds.s.cpCount || 0) + " gånger) – lägre är bättre. Ungefärligt: väggar och smokes räknas, inte flashar."]]
+                         + (ds.s.cpCount || 0) + " gånger) – lägre är bättre. Ungefärligt: väggar och smokes räknas, inte flashar."],
+                        ["REAKTION", win.ms(ds.s.reaction), "Från att du kunde se fienden till ditt första skott (median av "
+                         + (ds.s.reactionCount || 0) + " gånger) – lägre är bättre."],
+                        ["1:A SKOTTET", win.pct(ds.s.firstShot), "Första kulan träffar – av " + (ds.s.firstShots || 0)
+                         + " första skott när en fiende syntes."],
+                        ["SPRAY", win.pct(ds.s.spray), "Spray control: kula 4 och framåt som träffar (gevär/k-pistar) – av "
+                         + (ds.s.sprayShots || 0) + " skott."],
+                        ["STRAFE", win.pct(ds.s.strafe), "Counter-strafe: första skottet avlossat så stilla att det var träffsäkert "
+                         + "(under 34 % av vapnets fart)."]]
                 Rectangle {
                     required property var modelData
                     width: 84
@@ -2261,6 +2271,7 @@ Window {
     property string wowDiff: ""
     property string wowSection: "" // "raid" or "mplus" – one at a time, less to scroll
     property int cs2Count: 10
+    property real cs2Open: 0 // the match unfolded in CS2 Stats (its start)
     readonly property var wowData: tab === "wowstats" ? (videos, JSON.parse(backend.wowOverview(wowPlayer, wowDays))) : ({})
     readonly property var cs2Data: tab === "cs2stats" ? (videos, JSON.parse(backend.cs2Overview(cs2Count))) : ({})
     readonly property string wowShownDiff: wowData.difficulties && wowData.difficulties.indexOf(wowDiff) >= 0
@@ -2638,6 +2649,10 @@ Window {
                 StatTile { label: "KAST"; value: parent.a.kast === null || parent.a.kast === undefined ? "–" : Math.round(parent.a.kast) + " %"; now: parent.n.kast; before: parent.b.kast; tip: "Rundor med kill, assist, överlevt eller trade (demon)." }
                 StatTile { label: "TTD"; value: parent.a.ttd ? Math.round(parent.a.ttd) + " ms" : "–"; now: parent.n.ttd; before: parent.b.ttd; lowerBetter: true; tip: "Time to damage (ungefärlig), snitt av matchernas median (demon) – lägre är bättre." }
                 StatTile { label: "SIKTE"; value: parent.a.cp ? win.num(parent.a.cp.toFixed(1)) + "°" : "–"; now: parent.n.cp; before: parent.b.cp; lowerBetter: true; tip: "Crosshair placement (ungefärlig, demon) – lägre är bättre." }
+                StatTile { label: "REAKTION"; value: win.ms(parent.a.reaction); now: parent.n.reaction; before: parent.b.reaction; lowerBetter: true; tip: "Från att du kunde se fienden till ditt första skott (demon) – lägre är bättre." }
+                StatTile { label: "1:A SKOTTET"; value: win.pct(parent.a.firstShot); now: parent.n.firstShot; before: parent.b.firstShot; tip: "Första kulan träffar när en fiende syns (demon)." }
+                StatTile { label: "SPRAY"; value: win.pct(parent.a.spray); now: parent.n.spray; before: parent.b.spray; tip: "Spray control: kula 4 och framåt som träffar, gevär och k-pistar (demon)." }
+                StatTile { label: "COUNTER-STRAFE"; value: win.pct(parent.a.strafe); now: parent.n.strafe; before: parent.b.strafe; tip: "Första skottet avlossat så stilla att det var träffsäkert, under 34 % av vapnets fart (demon)." }
                 StatTile { label: "ENTRY / MATCH"; value: win.num(parent.p.entryWon) + "–" + win.num(parent.p.entryLost); now: parent.n.entryWon; before: parent.b.entryWon; tip: "Rundans första kill: vunna–förlorade per match (demon). Pilen: vunna." }
                 StatTile { label: "TRADES / MATCH"; value: win.num(parent.p.trades); now: parent.n.trades; before: parent.b.trades; tip: "Du hämnades en lagkamrat inom 5 s (demon)." }
                 StatTile { label: "CLUTCH / MATCH"; value: win.num(parent.p.clutchWon) + "/" + win.num(parent.p.clutches); now: parent.n.clutchWon; before: parent.b.clutchWon; tip: "1vX vunna av alla, per match (demon). Pilen: vunna." }
@@ -2732,25 +2747,112 @@ Window {
                 TableRow { heading: true; cols: parent.cols; cells: ["MATCH", "RESULTAT", "K–D", "ADR", "HS %", "TTD", "SIKTE"] }
                 Repeater {
                     model: cs2Page.ms.slice().reverse()
-                    TableRow {
+                    Column {
+                        id: mrow
                         required property var modelData
-                        cols: parent.cols
-                        tip: modelData.path ? "Visa matchen i Inspelningar" : "Filmen är borttagen – siffrorna finns kvar"
-                        cells: [modelData.name + " · " + modelData.mode + " · " + win.day(modelData.started), modelData.score,
-                                modelData.kills + "–" + modelData.deaths, win.num(modelData.adr),
-                                modelData.hs === null || modelData.hs === undefined ? null : modelData.hs + " %",
-                                modelData.ttd ? modelData.ttd + " ms" : null, modelData.cp ? win.num(modelData.cp) + "°" : null]
-                        colors: [null, modelData.result === "win" ? "#3FB950" : modelData.result === "loss" ? "#E5534B" : null]
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: !!parent.modelData.path
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                win.tab = "videos";
-                                win.expanded = parent.modelData.path;
-                                const v = win.videos.find(x => x.path === parent.modelData.path);
-                                if (v)
-                                    win.selected = win.playable(v);
+                        readonly property var m: modelData
+                        readonly property bool open: win.cs2Open === m.started
+                        readonly property var s: m.s || {}
+                        readonly property var a: cs2Page.d.avg || {}
+                        width: parent.width
+                        TableRow {
+                            cols: parent.parent.cols
+                            tip: mrow.open ? "Fäll ihop" : "Visa matchens siffror"
+                            cells: [(mrow.open ? "▾ " : "▸ ") + mrow.m.name + " · " + mrow.m.mode + " · " + win.day(mrow.m.started), mrow.m.score,
+                                    mrow.m.kills + "–" + mrow.m.deaths, win.num(mrow.m.adr),
+                                    mrow.m.hs === null || mrow.m.hs === undefined ? null : mrow.m.hs + " %",
+                                    mrow.m.ttd ? mrow.m.ttd + " ms" : null, mrow.m.cp ? win.num(mrow.m.cp) + "°" : null]
+                            colors: [null, mrow.m.result === "win" ? "#3FB950" : mrow.m.result === "loss" ? "#E5534B" : null]
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: win.cs2Open = mrow.open ? 0 : mrow.m.started
+                            }
+                        }
+                        // the match's numbers; the arrows = against your average for the chosen matches
+                        Column {
+                            visible: mrow.open
+                            width: parent.width
+                            topPadding: 10
+                            bottomPadding: 14
+                            spacing: 6
+                            Flow {
+                                width: parent.width
+                                spacing: 6
+                                StatTile { label: "K/D"; value: win.num(mrow.s.kd); now: mrow.s.kd; before: mrow.a.kd; tip: "Snittet: " + win.num(mrow.a.kd) }
+                                StatTile { label: "KILLS / RUNDA"; value: win.num(mrow.s.kpr); now: mrow.s.kpr; before: mrow.a.kpr; tip: "Snittet: " + win.num(mrow.a.kpr) }
+                                StatTile { label: "DÖD / RUNDA"; value: win.num(mrow.s.dpr); now: mrow.s.dpr; before: mrow.a.dpr; lowerBetter: true; tip: "Snittet: " + win.num(mrow.a.dpr) }
+                                StatTile { label: "HS"; value: win.pct(mrow.s.hs); now: mrow.s.hs; before: mrow.a.hs; tip: "Snittet: " + win.pct(mrow.a.hs) }
+                                StatTile { label: "ADR"; value: win.num(mrow.s.adr); now: mrow.s.adr; before: mrow.a.adr; tip: "Snittet: " + win.num(mrow.a.adr) }
+                                StatTile { label: "KAST"; value: win.pct(mrow.s.kast); now: mrow.s.kast; before: mrow.a.kast; tip: "Snittet: " + win.pct(mrow.a.kast) }
+                                StatTile { label: "TTD"; value: win.ms(mrow.s.ttd); now: mrow.s.ttd; before: mrow.a.ttd; lowerBetter: true; tip: "Snittet: " + win.ms(mrow.a.ttd) }
+                                StatTile { label: "SIKTE"; value: mrow.s.cp ? win.num(mrow.s.cp) + "°" : "–"; now: mrow.s.cp; before: mrow.a.cp; lowerBetter: true; tip: "Snittet: " + win.num(mrow.a.cp) + "°" }
+                                StatTile { label: "REAKTION"; value: win.ms(mrow.s.reaction); now: mrow.s.reaction; before: mrow.a.reaction; lowerBetter: true; tip: "Snittet: " + win.ms(mrow.a.reaction) }
+                                StatTile { label: "1:A SKOTTET"; value: win.pct(mrow.s.firstShot); now: mrow.s.firstShot; before: mrow.a.firstShot; tip: "Snittet: " + win.pct(mrow.a.firstShot) }
+                                StatTile { label: "SPRAY"; value: win.pct(mrow.s.spray); now: mrow.s.spray; before: mrow.a.spray; tip: "Snittet: " + win.pct(mrow.a.spray) }
+                                StatTile { label: "COUNTER-STRAFE"; value: win.pct(mrow.s.strafe); now: mrow.s.strafe; before: mrow.a.strafe; tip: "Snittet: " + win.pct(mrow.a.strafe) }
+                                StatTile { label: "ENTRY"; value: mrow.s.entryWon === undefined ? "–" : mrow.s.entryWon + "–" + mrow.s.entryLost; tip: "Rundans första kill: vunna–förlorade" }
+                                StatTile { label: "TRADES"; value: win.num(mrow.s.trades); tip: "Du hämnades en lagkamrat inom 5 s" }
+                                StatTile {
+                                    label: "CLUTCH"
+                                    value: mrow.s.clutches === undefined ? "–" : mrow.s.clutchWon + "/" + mrow.s.clutches
+                                    tip: [1, 2, 3, 4, 5].filter(n => ((mrow.s.clutchVs || {})[String(n)] || [0, 0])[1])
+                                         .map(n => "1v" + n + ": " + mrow.s.clutchVs[String(n)][0] + "/" + mrow.s.clutchVs[String(n)][1]).join(" · ")
+                                         || "Inga clutchar"
+                                }
+                                StatTile { label: "ACE"; value: String(mrow.s.aces || 0); valueColor: mrow.s.aces ? "#E5CC80" : "#E6ECF5"; tip: "Alla fem i samma runda" }
+                            }
+                            // everyone in the match (the demo) – only your row counts in the averages above
+                            Repeater {
+                                model: (mrow.m.players || []).length ? [["mine", "DITT LAG"], ["theirs", "MOTSTÅNDARNA"]] : []
+                                Column {
+                                    id: teamCol
+                                    required property var modelData
+                                    width: mrow.width
+                                    topPadding: 6
+                                    readonly property var cols: [width - 8 - 80 - 64 * 9, 80, 64, 64, 64, 64, 64, 64, 64, 64, 64]
+                                    TableRow {
+                                        heading: true
+                                        cols: teamCol.cols
+                                        cells: [teamCol.modelData[1], "K–D–A", "ADR", "KAST", "HS", "TTD", "SIKTE", "REAKT.", "1:A", "SPRAY", "STRAFE"]
+                                    }
+                                    Repeater {
+                                        model: mrow.m.players.filter(p => p.team === teamCol.modelData[0])
+                                        TableRow {
+                                            required property var modelData
+                                            cols: teamCol.cols
+                                            tip: modelData.me ? "Du – bara dina siffror räknas i snitten" : ""
+                                            cells: [modelData.name, modelData.kills + "–" + modelData.deaths + "–" + modelData.assists,
+                                                    win.num(modelData.adr), win.pct(modelData.kast), win.pct(modelData.hs),
+                                                    win.ms(modelData.ttd), modelData.cp ? win.num(modelData.cp) + "°" : null,
+                                                    win.ms(modelData.reaction), win.pct(modelData.firstShot), win.pct(modelData.spray),
+                                                    win.pct(modelData.strafe)]
+                                            colors: [modelData.me ? accent.text : null]
+                                        }
+                                    }
+                                }
+                            }
+                            Row {
+                                spacing: 10
+                                FlatButton {
+                                    visible: !!mrow.m.path
+                                    text: "Visa i Inspelningar"
+                                    onClicked: {
+                                        win.tab = "videos";
+                                        win.expanded = mrow.m.path;
+                                        const v = win.videos.find(x => x.path === mrow.m.path);
+                                        if (v)
+                                            win.selected = win.playable(v);
+                                    }
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: (mrow.m.demo ? "" : "Ingen demo läst – bara spelets egna siffror. ")
+                                          + (mrow.m.path ? "" : "Filmen är borttagen – siffrorna finns kvar.")
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                }
                             }
                         }
                     }

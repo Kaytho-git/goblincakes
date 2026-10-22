@@ -21,6 +21,10 @@ GUIDE = """Ungefärliga riktvärden för en vanlig matchmaking-spelare (inte exa
 - Entry: ungefär lika många vunna som förlorade är normalt
 - TTD (time to damage, GOBLINCAKES egen uppskattning) ~500–650 ms, under 450 ms snabbt
 - Sikte (crosshair placement, grader från huvudet när fienden syntes, egen uppskattning) ~5–8°, under 4° bra
+- Reaktion (från att fienden syns till första skottet, egen uppskattning) ~400–500 ms, under 350 ms snabbt
+- Första skottet träffar (när en fiende syns, egen uppskattning) ~20–35 %, 40+ bra
+- Spray (kula 4 och framåt som träffar, gevär/k-pistar, egen uppskattning) ~15–25 %, 30+ bra
+- Counter-strafe (första skottet avlossat nästan stilla) ~60–75 %, 80+ bra
 - Träffsäkerhet med gevär (AK-47/M4) ~15–25 % (allt skjutande räknas, även spray)
 - Flash: några bländade fiender per match är bra; många bländade lagkamrater = kasta om"""
 
@@ -56,6 +60,8 @@ def match_text(v):
              f"Entry vunna–förlorade {s['entryWon']}–{s['entryLost']} · trades {s['trades']} · blev hämnad {s['traded']} gånger · "
              f"clutchar vunna {s['clutchWon']} av {s['clutches']} · " + " ".join(f"{k} {n}" for k, n in s["multi"].items() if n),
              f"TTD {_n(s.get('ttd'))} ms ({s.get('ttdCount', 0)} gånger) · sikte {_n(s.get('cp'), 1)}° ({s.get('cpCount', 0)} gånger)",
+             f"Reaktion {_n(s.get('reaction'))} ms · första skottet {_n(s.get('firstShot'))} % ({s.get('firstShots', 0)} skott) · "
+             f"spray {_n(s.get('spray'))} % ({s.get('sprayShots', 0)} skott) · counter-strafe {_n(s.get('strafe'))} %",
              "Vapen: " + "; ".join(f"{w['name']} {w['kills']} kills, {w['hs']} HS, träff {_n(w['acc'])} % av {w['shots']} skott"
                                    for w in s.get("weapons", [])),
              f"Granater: {t.get('flash', 0)} flash ({s.get('flashed', 0)} fiender och {s.get('teamFlashed', 0)} lagkamrater bländade, "
@@ -87,7 +93,8 @@ def average_text(ms):
     wins = sum(m.get("result") == "win" for m in ms)
     lines = [f"Snitt över de senaste {len(ms)} matcherna ({wins} vinster):",
              f"K/D {_n(avg('kd'), 2)} · ADR {_n(avg('adr'), 1)} · KAST {_n(avg('kast'))} % · HS {_n(avg('hs'))} % · "
-             f"TTD {_n(avg('ttd'))} ms · sikte {_n(avg('cp'), 1)}°",
+             f"TTD {_n(avg('ttd'))} ms · sikte {_n(avg('cp'), 1)}° · reaktion {_n(avg('reaction'))} ms · "
+             f"första skottet {_n(avg('firstShot'))} % · spray {_n(avg('spray'))} % · counter-strafe {_n(avg('strafe'))} %",
              f"Per match i snitt: entry vunna {per('entryWon')}, förlorade {per('entryLost')} · trades {per('trades')} · "
              f"clutchar vunna {per('clutchWon')} av {per('clutches')} · fiender bländade {per('flashed')} · "
              f"lagkamrater bländade {per('teamFlashed')}",
