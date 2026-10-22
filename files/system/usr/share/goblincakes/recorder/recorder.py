@@ -2450,7 +2450,7 @@ def wow_history_add(meta, stats=None):
         return
     hist = wow_history()
     key = f"{meta['player']}|{int(meta.get('started', 0))}"
-    e = hist.get(key) or {}
+    e = dict(hist.get(key) or {})  # a copy: compared with the saved one below
     e.update({k: meta.get(k) for k in ("player", "kind", "name", "difficulty", "level", "result", "started",
                                        "fight", "encounterId", "avgIlvl")})
     if meta.get("ilvl"):

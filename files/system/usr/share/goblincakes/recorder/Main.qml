@@ -2175,7 +2175,9 @@ Window {
         FastWheel { flick: wowPage }
         visible: win.tab === "wowstats"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
-        contentHeight: wowCol.height + 64
+        contentHeight: wowCol.height * zoom + 64
+        // a big window (full screen) makes everything bigger instead of a narrow strip to the left
+        readonly property real zoom: Math.max(1, Math.min(1.7, width / 1180))
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         readonly property var d: win.wowData
@@ -2186,7 +2188,9 @@ Window {
             id: wowCol
             x: 40
             y: 28
-            width: Math.min(1100, wowPage.width - 80)
+            transformOrigin: Item.TopLeft
+            scale: wowPage.zoom
+            width: Math.min(1100, (wowPage.width - 80) / wowPage.zoom)
             spacing: 14
 
             Column {
@@ -2409,7 +2413,9 @@ Window {
         FastWheel { flick: cs2Page }
         visible: win.tab === "cs2stats"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
-        contentHeight: cs2Col.height + 64
+        contentHeight: cs2Col.height * zoom + 64
+        // a big window (full screen) makes everything bigger instead of a narrow strip to the left
+        readonly property real zoom: Math.max(1, Math.min(1.7, width / 1180))
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         readonly property var d: win.cs2Data
@@ -2419,7 +2425,9 @@ Window {
             id: cs2Col
             x: 40
             y: 28
-            width: Math.min(1100, cs2Page.width - 80)
+            transformOrigin: Item.TopLeft
+            scale: cs2Page.zoom
+            width: Math.min(1100, (cs2Page.width - 80) / cs2Page.zoom)
             spacing: 14
 
             Column {
