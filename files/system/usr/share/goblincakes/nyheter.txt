@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-22  WoW Stats och CS2 Stats visar nuvarande säsong; när en ny säsong börjar får du en notis och de gamla hamnar under Arkiv
 2026-10-22  CS2 Stats: tryck på en match för att se dess siffror (med pil mot ditt snitt) och alla tio spelare i matchen – bara dina räknas i snitten
 2026-10-22  CS2: reaktionstid, första skottet, spray control och counter-strafe ur demon – i CS2 Stats, på matchkortet och för Kakan
 2026-10-22  WoW Stats: pilar upp/ner på parsen – per boss och dungeon (senaste mot förra) och på snitten (mot innan senaste kvällen)

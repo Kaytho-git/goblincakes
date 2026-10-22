@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 import urllib.error
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 HOME = Path.home()
@@ -2380,7 +2380,7 @@ def server_slug(realm):
     return re.sub(r"[^a-z0-9-]", "", realm.lower().replace(" ", "-"))
 
 
-REPORT_FIELDS = ("code startTime endTime fights { id encounterID name kill startTime endTime "
+REPORT_FIELDS = ("code startTime endTime zone { id name expansion { id name } } fights { id encounterID name kill startTime endTime "
                  "bossPercentage fightPercentage keystoneLevel difficulty averageItemLevel }")
 
 
@@ -2546,6 +2546,8 @@ def wcl_find(meta):
                 if not f.get("keystoneLevel") or overlap <= 0:
                     continue
                 score = -overlap
+            if f.get("keystoneLevel"):  # its report's zone tells the season ("Mythic+ Season 2")
+                wow_season_seen(rep.get("zone"), rep["startTime"], meta.get("player", "").split("-")[-1])
             if best_score is None or score < best_score:
                 best_score = score
                 best = {"code": rep["code"], "fight": f["id"], "kill": f.get("kill"),
@@ -2666,10 +2668,126 @@ def reports_read(code=None):
     return seen
 
 
-def wow_overview(folder, player="", days=0):
+# ---------------------------------------------------------- seasons
+# (22 Oct, the user's wish: WoW Stats and CS2 Stats show the current season; older ones are
+# archived but can still be chosen.) A pull/key/match belongs to the season it was played in (by
+# time). A new WoW season is seen in Warcraft Logs (a key's report says "Mythic+ Season 3" – no
+# extra calls), a new CS2 season in CS2's news on Steam ("Premier Season Six has begun", read once
+# a day by the service – the user's choice).
+SEASONS = WOW_HISTORY.with_name("seasons.json")
+WOW_SEASONS_START = [  # before Warcraft Logs told us: Midnight season 2 began on EU's reset 19 Aug 2026
+    {"key": "7-1", "name": "Midnight säsong 1", "start": 0, "told": True},
+    {"key": "7-2", "name": "Midnight säsong 2", "start": 1787112000, "told": True}]
+WOW_RESET = {"eu": (2, 4), "us": (1, 15), "kr": (3, 23), "tw": (3, 23)}  # weekday (Mon = 0), hour UTC
+CS2_NEWS = "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=730&count=100&maxlength=300&feeds=steam_community_announcements"
+CS2_NEWS_EVERY = 24 * 3600
+NUMBER_WORDS = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve "
+                                           "thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty".split())}
+
+
+def seasons():
+    try:
+        s = json.loads(SEASONS.read_text())
+    except (OSError, ValueError):
+        s = {}
+    s.setdefault("wow", [dict(x) for x in WOW_SEASONS_START])
+    s.setdefault("cs2", [])
+    return s
+
+
+def _save_seasons(s):
+    SEASONS.parent.mkdir(parents=True, exist_ok=True)
+    tmp = SEASONS.with_suffix(".tmp")
+    tmp.write_text(json.dumps(s, ensure_ascii=False))
+    tmp.replace(SEASONS)
+
+
+def _season_key(key):
+    return tuple(int(x) for x in str(key).split("-"))
+
+
+def last_reset(t, region="eu"):
+    """The weekly reset at or before time t (a season begins on one)."""
+    day, hour = WOW_RESET.get(region.lower(), WOW_RESET["eu"])
+    d = datetime.fromtimestamp(t, timezone.utc)
+    r = d.replace(hour=hour, minute=0, second=0, microsecond=0).timestamp() - (d.weekday() - day) % 7 * 86400
+    return r if r <= t else r - 7 * 86400
+
+
+def wow_season_seen(zone, start_ms, region="eu"):
+    """A Warcraft Logs report's zone: "Mythic+ Season N" of an expansion later than the newest
+    known season = a new season from the reset before that report. Returns it, or None."""
+    m = re.fullmatch(r"Mythic\+ Season (\d+)", (zone or {}).get("name") or "")
+    exp = ((zone or {}).get("expansion") or {})
+    if not m or not exp.get("id"):
+        return None
+    key = f"{exp['id']}-{m.group(1)}"
+    s = seasons()
+    if _season_key(key) <= max(_season_key(x["key"]) for x in s["wow"]):
+        return None
+    new = {"key": key, "name": f"{exp.get('name', '')} säsong {m.group(1)}".strip(),
+           "start": last_reset(start_ms / 1000, region)}
+    s["wow"].append(new)
+    _save_seasons(s)
+    return new
+
+
+def cs2_season_check(force=False):
+    """CS2's news on Steam: every "Premier Season N" start, once a day. Returns the new ones."""
+    s = seasons()
+    if not force and time.time() - s.get("cs2Checked", 0) < CS2_NEWS_EVERY:
+        return []
+    import urllib.request
+    with urllib.request.urlopen(CS2_NEWS, timeout=20) as r:
+        items = json.loads(r.read())["appnews"]["newsitems"]
+    found = {}
+    for n in items:
+        text = f"{n.get('title', '')}\n{n.get('contents', '')}"
+        for w in re.findall(r"Premier Season (\w+) (?:has begun|is here)", text, re.I) + \
+                re.findall(r"^Season (\d+)\b", n.get("title", ""), re.I):
+            num = int(w) if w.isdigit() else NUMBER_WORDS.get(w.lower())
+            if num:
+                found[num] = min(found.get(num, n["date"]), n["date"])
+    known = {x["key"] for x in s["cs2"]}
+    first = not s.get("cs2Checked")  # the first check fills in the seasons already begun – not news
+    new = []
+    for num, start in sorted(found.items()):
+        if str(num) not in known:
+            e = {"key": str(num), "name": f"Season {num}", "start": start, "told": first}
+            s["cs2"].append(e)
+            new.append(e)
+    s["cs2"].sort(key=lambda x: int(x["key"]))
+    s["cs2Checked"] = time.time()
+    _save_seasons(s)
+    return [e for e in new if not e.get("told")]
+
+
+def season_list(game, entries):
+    """The seasons to choose between on a Stats page: the current one first, then the archived
+    ones you played in (newest first). Each with its time span."""
+    ss = sorted(seasons()[game], key=lambda x: x["start"])
+    out = []
+    for i, x in enumerate(ss):
+        end = ss[i + 1]["start"] if i + 1 < len(ss) else None
+        n = sum(1 for e in entries if (e.get("started") or 0) >= x["start"] and (end is None or (e.get("started") or 0) < end))
+        if end is None or n:
+            out.append({"key": x["key"], "name": x["name"], "start": x["start"], "end": end, "count": n,
+                        "current": end is None})
+    return out[::-1]
+
+
+def in_season(entries, chosen):
+    if not chosen:
+        return entries
+    return [e for e in entries if (e.get("started") or 0) >= chosen["start"]
+            and (chosen["end"] is None or (e.get("started") or 0) < chosen["end"])]
+
+
+def wow_overview(folder, player="", days=0, season=""):
     """The WoW Stats page: per raid difficulty and boss your best and median parse, kills, wipes,
     fastest kill, best DPS/HPS and item level (like Warcraft Logs' character page), per dungeon your
-    best key and parses, and the parses and item level over time. days = only the last days."""
+    best key and parses, and the parses and item level over time. season = its key ("" = the
+    current one), days = only the last days of it."""
     for v in video_files(folder):  # videos from before the history (or fetched in the window)
         if v.get("kind") in ("raid", "mplus") and v.get("player"):
             wow_history_add(v)
@@ -2680,10 +2798,14 @@ def wow_overview(folder, player="", days=0):
             players.append(e["player"])
     player = player if player in players else (players[0] if players else "")
     since = time.time() - days * 86400 if days else 0
-    mine = sorted((e for e in entries if e.get("player") == player and (e.get("started") or 0) >= since),
+    own = [e for e in entries if e.get("player") == player]
+    seasons_ = season_list("wow", own)
+    chosen = next((x for x in seasons_ if x["key"] == season), seasons_[0])
+    mine = sorted((e for e in in_season(own, chosen) if (e.get("started") or 0) >= since),
                   key=lambda e: e.get("started") or 0)
     with_row = [e for e in mine if e.get("spec")]
-    last = with_row[-1] if with_row else {}
+    # class and spec: the season's latest, else the character's (a new season with nothing yet)
+    last = with_row[-1] if with_row else max((e for e in own if e.get("spec")), key=lambda e: e.get("started") or 0, default={})
 
     def amount(e):
         return e.get("hps") if e.get("role") == "healers" else e.get("dps")
@@ -2754,6 +2876,7 @@ def wow_overview(folder, player="", days=0):
     name, realm, region = (player.split("-")[0], *player.split("-", 1)[1].rsplit("-", 1)) if player.count("-") >= 2 else (player, "", "")
     return {
         "players": players, "player": player, "name": name, "realm": realm, "region": region,
+        "seasons": seasons_, "season": chosen["key"],
         "class": last.get("class", ""), "spec": last.get("spec", ""), "role": last.get("role", ""),
         "ilvl": next((e["ilvl"] for e in reversed(mine) if e.get("ilvl")), None),
         "wclUrl": f"{WCL}/character/{region.lower()}/{server_slug(realm)}/{name.lower()}" if region else "",
@@ -2828,17 +2951,20 @@ def cs2_history_add(metas):
         tmp.replace(CS2_HISTORY)
 
 
-def cs2_overview(folder, count=10):
-    """The CS2 Stats page: your finished matches (the demo's numbers, else the game's) – the
-    average of the last `count` (0 = all) and of as many before them (the arrows; with all: the
-    last 10 against the rest), each map, the guns, and the matches for the over-time charts."""
+def cs2_overview(folder, count=10, season=""):
+    """The CS2 Stats page: your finished matches (the demo's numbers, else the game's) in the
+    season (its key, "" = the current one) – the average of the last `count` (0 = all) and of as
+    many before them (the arrows; with all: the last 10 against the rest), each map, the guns, and
+    the matches for the over-time charts."""
     vids = [v for v in video_files(folder) if v.get("kind") == "cs2"]
     cs2_history_add(vids)  # from before the history
     hist = cs2_history()
     for m in hist.values():  # the card in Inspelningar, while it is there
         f = Path(folder) / (m.get("file") or "")
         m["path"] = str(f) if m.get("file") and f.with_suffix(".json").is_file() else ""
-    ms = sorted(hist.values(), key=lambda v: v.get("started", 0))
+    seasons_ = season_list("cs2", hist.values())
+    chosen = next((x for x in seasons_ if x["key"] == season), seasons_[0] if seasons_ else None)
+    ms = sorted(in_season(list(hist.values()), chosen), key=lambda v: v.get("started", 0))
     waiting = sum(1 for v in vids if v.get("demo") == "waiting")
     n = count or 10
     recent = ms[-count:] if count else ms
@@ -2875,6 +3001,7 @@ def cs2_overview(folder, count=10):
             clutch_vs[n][1] += tries
     return {
         "count": len(recent), "all": len(ms), "waiting": waiting,
+        "seasons": seasons_, "season": chosen["key"] if chosen else "",
         "demos": sum(not m["stats"].get("fromGame") for m in recent),
         "clutchVs": clutch_vs, "aces": sum(m["stats"].get("aces") or 0 for m in recent),
         "wins": sum(m.get("result") == "win" for m in recent), "losses": sum(m.get("result") == "loss" for m in recent),

@@ -809,6 +809,52 @@ Window {
 
     // A choice among a few (fps, codec, space): small square with a blue edge when chosen;
     // "sub" is the explanation, shown on hover
+    // The season on a Stats page: the current one, and Arkiv – the older seasons fold out under it
+    // (22 Oct, the user: a button per season would be too much once there are many)
+    component SeasonPicker: Column {
+        id: sp
+        property var seasons: []
+        property string shown: "" // the key on the page
+        property string what: ""
+        signal picked(string key) // "" = the current season
+        property bool open: false
+        readonly property var archived: seasons.filter(x => !x.current)
+        readonly property var archivedShown: archived.filter(x => x.key === shown)[0] || null
+        visible: seasons.length > 0
+        spacing: 8
+        Row {
+            spacing: 8
+            Choice {
+                text: sp.seasons.length ? sp.seasons[0].name : ""
+                sub: sp.seasons.length ? win.seasonSub(sp.seasons[0], sp.what) : ""
+                chosen: !sp.archivedShown
+                onPicked: { sp.open = false; sp.picked(""); }
+            }
+            Choice {
+                visible: sp.archived.length > 0
+                text: sp.archivedShown ? "Arkiv: " + sp.archivedShown.name : "Arkiv (" + sp.archived.length + ") " + (sp.open ? "▴" : "▾")
+                sub: "Tidigare säsonger"
+                chosen: !!sp.archivedShown || sp.open
+                onPicked: sp.open = !sp.open
+            }
+        }
+        Flow {
+            visible: sp.open
+            width: parent.width
+            spacing: 8
+            Repeater {
+                model: sp.open ? sp.archived : []
+                Choice {
+                    required property var modelData
+                    text: modelData.name
+                    sub: win.seasonSub(modelData, sp.what)
+                    chosen: sp.shown === modelData.key
+                    onPicked: { sp.open = false; sp.picked(modelData.key); }
+                }
+            }
+        }
+    }
+
     component Choice: Rectangle {
         id: ch
         property string text
@@ -2272,8 +2318,14 @@ Window {
     property string wowSection: "" // "raid" or "mplus" – one at a time, less to scroll
     property int cs2Count: 10
     property real cs2Open: 0 // the match unfolded in CS2 Stats (its start)
-    readonly property var wowData: tab === "wowstats" ? (videos, JSON.parse(backend.wowOverview(wowPlayer, wowDays))) : ({})
-    readonly property var cs2Data: tab === "cs2stats" ? (videos, JSON.parse(backend.cs2Overview(cs2Count))) : ({})
+    property string wowSeason: "" // "" = the current season, else an archived one's key
+    property string cs2Season: ""
+    readonly property var wowData: tab === "wowstats" ? (videos, JSON.parse(backend.wowOverview(wowPlayer, wowDays, wowSeason))) : ({})
+    readonly property var cs2Data: tab === "cs2stats" ? (videos, JSON.parse(backend.cs2Overview(cs2Count, cs2Season))) : ({})
+    function seasonSub(x, what) {
+        return (x.current ? "Nuvarande säsong" : "Arkiverad · " + day(x.start) + " – " + day(x.end))
+               + " · " + x.count + " " + what;
+    }
     readonly property string wowShownDiff: wowData.difficulties && wowData.difficulties.indexOf(wowDiff) >= 0
                                            ? wowDiff : (wowData.difficulties || [""])[0] || ""
 
@@ -2325,6 +2377,17 @@ Window {
                 }
             }
 
+            Column { // a new season with nothing played yet
+                visible: !!wowPage.d.player && !wowPage.hasRaid && !wowPage.hasKeys
+                width: parent.width
+                spacing: 10
+                SectionTitle { text: "INGET SPELAT I " + ((wowPage.d.seasons || [{}])[0].name || "").toUpperCase() + " ÄN" }
+                Note {
+                    width: parent.width
+                    text: "Ny säsong – det du spelat tidigare finns under Arkiv nedanför."
+                }
+            }
+
             // the character: name in its class colour, spec, item level
             Item {
                 visible: !!wowPage.d.player
@@ -2365,6 +2428,16 @@ Window {
                 }
             }
 
+            SeasonPicker {
+                objectName: "wowSeasons"
+                visible: !!wowPage.d.player && seasons.length > 0
+                width: parent.width
+                seasons: wowPage.d.seasons || []
+                shown: wowPage.d.season || ""
+                what: "pulls och nycklar"
+                onPicked: key => win.wowSeason = key
+            }
+
             Flow { // which character, which period
                 visible: !!wowPage.d.player
                 width: parent.width
@@ -2381,7 +2454,7 @@ Window {
                 }
                 Item { visible: (wowPage.d.players || []).length > 1; width: 16; height: 1 }
                 Repeater {
-                    model: [{ d: 0, t: "Allt" }, { d: 30, t: "30 dagar" }, { d: 7, t: "7 dagar" }]
+                    model: [{ d: 0, t: "Hela säsongen" }, { d: 30, t: "30 dagar" }, { d: 7, t: "7 dagar" }]
                     Choice {
                         required property var modelData
                         text: modelData.t
@@ -2576,10 +2649,10 @@ Window {
                 visible: !cs2Page.d.all
                 width: parent.width
                 spacing: 10
-                SectionTitle { text: "INGA CS2-SIFFROR ÄN" }
+                SectionTitle { text: (cs2Page.d.seasons || []).length > 1 ? "INGA MATCHER I " + cs2Page.d.seasons[0].name.toUpperCase() + " ÄN" : "INGA CS2-SIFFROR ÄN" }
                 Note {
                     width: parent.width
-                    text: "CS2 Stats sammanställs av matcherna du spelar med CS2 inkopplat (Competitive/Premier/Wingman, inte deathmatch) – "
+                    text: ((cs2Page.d.seasons || []).length > 1 ? "Ny säsong – de äldre säsongerna finns under Arkiv nedanför. " : "") + "CS2 Stats sammanställs av matcherna du spelar med CS2 inkopplat (Competitive/Premier/Wingman, inte deathmatch) – "
                           + "kills, huvudskott och dödsfall direkt; ladda ner demon i CS2 (Watch → Your Matches) för ADR, KAST, entry, clutchar m.m."
                           + (cs2Page.d.waiting ? " " + cs2Page.d.waiting + " match(er) väntar på demon nu." : "")
                 }
@@ -2618,12 +2691,20 @@ Window {
                 }
             }
 
+            SeasonPicker {
+                width: parent.width
+                seasons: cs2Page.d.seasons || []
+                shown: cs2Page.d.season || ""
+                what: "matcher"
+                onPicked: key => win.cs2Season = key
+            }
+
             Flow {
                 visible: !!cs2Page.d.all
                 width: parent.width
                 spacing: 8
                 Repeater {
-                    model: [{ n: 10, t: "Senaste 10" }, { n: 20, t: "Senaste 20" }, { n: 0, t: "Alla" }]
+                    model: [{ n: 10, t: "Senaste 10" }, { n: 20, t: "Senaste 20" }, { n: 0, t: "Hela säsongen" }]
                     Choice {
                         required property var modelData
                         text: modelData.t

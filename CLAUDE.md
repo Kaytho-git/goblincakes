@@ -76,7 +76,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Spelverktyg + gaming-optimering (reglage)
 - [x] Spelläge (automatiskt under spel: GameMode, uppdateringar väntar, Akonadi/Baloo/WoWUp vilar, OBS stängs efter spel; `gaming.py` = vad som är ett spel)
 - [x] goblin graph (ljudstaplar i klassfärger)
-- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI → 2K–ACE-klipp + alla kills, matchen tas bort; CS2-demon läses: egna siffror, vunna clutchar som klipp; WoW Stats/CS2 Stats sammanställt lokalt; spelikon på korten)
+- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI → 2K–ACE-klipp + alla kills, matchen tas bort; CS2-demon läses: egna siffror, vunna clutchar som klipp; WoW Stats/CS2 Stats sammanställt lokalt, per säsong med arkiv; spelikon på korten)
 - [x] Plasma 6.8-förberedelser
 - [x] Välj färg (blå + 13 klassfärger)
 - [x] Chrome/Brave/Chromium-tema, Firefox-tema

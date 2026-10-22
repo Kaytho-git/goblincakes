@@ -142,6 +142,7 @@ class Service:
         self.gs = {}  # what the last messages said: own team, kills this round, health, phases
         self.demo_next = time.time() + 20
         self.demo_busy = False
+        self.season_next = time.time() + 60
 
     @staticmethod
     def mtime(p):
@@ -802,6 +803,34 @@ class Service:
         finally:
             self.demo_busy = False
 
+    # ------------------------------------------------------------ seasons
+    def season_check(self):
+        """CS2's news once a day (a new Premier season), and a notice for every new season – WoW's
+        are seen in Warcraft Logs when a key is looked up. Not while recording."""
+        now = time.time()
+        if now < self.season_next or self.current:
+            return
+        self.season_next = now + 3600
+        threading.Thread(target=self.season_run, daemon=True).start()
+
+    def season_run(self):
+        try:
+            R.cs2_season_check()
+        except Exception as e:  # noqa: BLE001 – no network: tomorrow
+            log("CS2 seasons:", e)
+        s = R.seasons()
+        for game, title in (("wow", "WoW Stats"), ("cs2", "CS2 Stats")):
+            ss = sorted(s[game], key=lambda x: x["start"])
+            for i, x in enumerate(ss):
+                if x.get("told"):
+                    continue
+                x["told"] = True
+                if i == len(ss) - 1:
+                    old = f" – {ss[i - 1]['name']} finns kvar i arkivet" if i else ""
+                    notify(f"Ny säsong: {x['name']}", f"{title} visar nu {x['name']}{old}.")
+                    log("new season:", game, x["name"])
+        R._save_seasons(s)
+
     # ------------------------------------------------------------ main loop
     def tick(self):
         now = time.time()
@@ -864,6 +893,7 @@ class Service:
         self.closing = [m for m in self.closing if m["_until"] > now]
         self.wcl_check()
         self.demo_check()
+        self.season_check()
         if self.wow or self.cs2 or self.current or self.test_wait or R.obs_running():
             self.connect()
             if self.obs and not self.screen_ok and now - self.screen_check > 5:

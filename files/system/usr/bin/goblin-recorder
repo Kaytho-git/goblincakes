@@ -430,14 +430,14 @@ class Backend(QObject):
         threading.Thread(target=work, daemon=True).start()
 
     # ---------------------------------------------------------- WoW Stats / CS2 Stats
-    @Slot(str, int, result=str)
-    def wowOverview(self, player, days):
+    @Slot(str, int, str, result=str)
+    def wowOverview(self, player, days, season):
         """The WoW Stats page, put together from your own history (no Warcraft Logs calls)."""
-        return json.dumps(R.wow_overview(R.load_config()["folder"], player, days), ensure_ascii=False)
+        return json.dumps(R.wow_overview(R.load_config()["folder"], player, days, season), ensure_ascii=False)
 
-    @Slot(int, result=str)
-    def cs2Overview(self, count):
-        return json.dumps(R.cs2_overview(R.load_config()["folder"], count), ensure_ascii=False)
+    @Slot(int, str, result=str)
+    def cs2Overview(self, count, season):
+        return json.dumps(R.cs2_overview(R.load_config()["folder"], count, season), ensure_ascii=False)
 
     # ---------------------------------------------------------- CS2 demos (step 2)
     demoBusy = Signal(str)  # the match whose demo is being read, "" = done
