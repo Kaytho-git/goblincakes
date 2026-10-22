@@ -78,6 +78,7 @@ class Backend(QObject):
                          "stopped" if not R.obs_running() else
                          "connected" if R.ws_settings().get("server_enabled") else "no-ws")
         st["audioPlugin"] = R.audio_plugin_installed()
+        st["cs2Gsi"] = R.cs2_state()
         text = json.dumps(st, ensure_ascii=False)
         if text != self._status:
             self._status = text
@@ -136,6 +137,19 @@ class Backend(QObject):
         if subprocess.run(["systemctl", "--user", "start", "goblincakes-recorder.service"],
                           capture_output=True).returncode != 0:
             QProcess.startDetached(SERVICE, ["run"])
+
+    @Slot()
+    def cs2Connect(self):
+        """Valve's way (Game State Integration): our file in CS2's cfg folder – CS2 reads it at start."""
+        err = R.cs2_connect()
+        self.message.emit(err or "CS2 är inkopplat – starta om CS2 om det redan är igång.")
+        self.poll()
+
+    @Slot()
+    def cs2Disconnect(self):
+        err = R.cs2_disconnect()
+        self.message.emit(err or "CS2 är bortkopplat – filen i spelmappen är borttagen.")
+        self.poll()
 
     @Slot()
     def installAudioPlugin(self):
@@ -534,11 +548,15 @@ def tray_text(st):
             return f"Spelar in nyckeln: {cur.get('name', '')}"
         if cur.get("kind") == "arena":
             return f"Spelar in {cur.get('difficulty', '')} i {cur.get('name', '')}"
+        if cur.get("kind") == "cs2":
+            return f"Spelar in CS2: {cur.get('name', '')} ({cur.get('difficulty', '')}) {cur.get('score') or ''}".strip()
         return f"Spelar in {cur.get('name', '')} ({cur.get('difficulty', '')})"
     if st.get("error"):
         return "Fel: " + st["error"]
+    if st.get("cs2") and not st.get("wow"):
+        return "CS2 körs – spelar in när matchen startar" if st.get("obs") == "connected" else "CS2 körs – OBS är inte igång"
     if not st.get("wow"):
-        return "Igång – väntar på WoW"
+        return "Igång – väntar på WoW eller CS2"
     if not st.get("logging"):
         return "WoW körs men stridsloggen är av (/combatlog)"
     if st.get("obs") != "connected":

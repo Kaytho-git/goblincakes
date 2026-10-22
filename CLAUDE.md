@@ -20,7 +20,7 @@ Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prov
 - **Nyheter:** varje ändring användaren märker får en rad överst i `files/system/usr/share/goblincakes/nyheter.txt` (`ÅÅÅÅ-MM-DD`, två mellanslag, vanlig svenska, inte teknisk). `goblin update`/pilen/Config visar nya rader.
 - **CLAUDE.md:** bara en kort rad per ny funktion i Status nedan; detaljerna i `docs/anteckningar.md`.
 - Uppskatta storleken före stora byggen (veckokvoten); lätta delar kan gå till Kakan (Goblin AI) om inget spel kör.
-- Ändra aldrig filer i spelens installation (WoW m.fl.). Rör inte Archons lagring. Spotify-programmet ändras inte (ingen Spicetify).
+- Ändra aldrig filer i spelens installation (WoW m.fl.) – undantag: filer som speltillverkaren själv avsett, t.ex. CS2:s GSI-cfg. Rör inte Archons lagring. Spotify-programmet ändras inte (ingen Spicetify).
 - README: bara funktioner av allmänt intresse – inget om användarens dator, inga självklarheter.
 
 ## När användaren hälsar ("hej" o.d.) i en ny session
@@ -75,7 +75,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Spel från terminalen (`goblin play`, egna ord, `goblin play dock <spel>`)
 - [x] Spelverktyg + gaming-optimering (reglage)
 - [x] goblin graph (ljudstaplar i klassfärger)
-- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält)
+- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI – ej provat med riktig match)
 - [x] Plasma 6.8-förberedelser
 - [x] Välj färg (blå + 13 klassfärger)
 - [x] Chrome/Brave/Chromium-tema, Firefox-tema
@@ -86,7 +86,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 ## Att göra
 - [ ] **Lokal AI** – kvar: Ianseo-spåret mot riktiga Ianseo, Podman-övningsdatorn och läraren med riktiga Ollama.
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav).
-- [ ] **GoblinRecorder för CS2** (utrett: GSI + demo, bara egna spelarens statistik; beslut om cfg-filen i spelmappen).
+- [ ] **GoblinRecorder för CS2** – steg 1 (GSI, inspelning + markeringar) byggt 22 okt; kvar: prova med riktig match, steg 2 (demon, egen statistik).
 - [ ] **GOBLINCAKES-ljud** (inloggning, notiser, utloggning).
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 - [ ] **Privat schemaprogram** (inte i repot, se Claudes minne; väntar på PDF).

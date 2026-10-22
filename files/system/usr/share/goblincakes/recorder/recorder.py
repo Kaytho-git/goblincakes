@@ -64,6 +64,8 @@ DEFAULTS = {
     "maxGB": 100,  # oldest videos are removed above this
     "closeAction": "ask",  # the window's ✕: ask | tray = hide in the system tray | quit
     "keepWipes": False,  # False: only kills stay when WoW closes (and 2 wipes per raid boss meanwhile)
+    "cs2": True,  # Counter-Strike 2 matches, from the end of the warm-up to the end (needs the GSI file)
+    "cs2Modes": ["competitive", "scrimcomp2v2"],  # see CS2_MODES
 }
 
 CODECS = {"h264": "NVENC H.264", "hevc": "NVENC HEVC", "av1": "NVENC AV1", "x264": "x264"}
@@ -87,10 +89,12 @@ def only_wow(cfg):
     return cfg.get("capture") == "wow"
 
 
-def track_names(cfg):
-    return ["WoW"] if only_wow(cfg) else TRACK_NAMES
+def track_names(cfg, game="WoW"):
+    names = [game if n == "WoW" else n for n in TRACK_NAMES]
+    return [game] if only_wow(cfg) else names
 AUDIO_INPUTS = [
     {"name": "WoW-ljud", "target": "World of Warcraft", "tracks": [1, 2]},
+    {"name": "CS2-ljud", "target": "cs2", "tracks": [1, 2]},  # the program's name in PipeWire – not checked yet
     {"name": "Discord-ljud", "target": "Discord", "tracks": [1, 3]},
 ]
 
@@ -836,6 +840,129 @@ def wow_running():
                           capture_output=True).returncode == 0
 
 
+# ---------------------------------------------------------------- Counter-Strike 2
+# CS2 has no combat log; it sends its game state itself (Valve's Game State Integration):
+# a file gamestate_integration_*.cfg in the game's cfg folder – Valve's intended way, the
+# user's decision 22 Oct – makes CS2 POST JSON to us on every change. As a player you
+# only get your own data (after your death: the player you watch – compare the steamid).
+
+CS2_PORT = 37730
+CS2_CFG = "gamestate_integration_goblincakes.cfg"
+CS2_OLD_TEST = "gamestate_integration_goblincake.cfg"  # the probe of 17 Oct (port 3000)
+CS2_MODES = {"competitive": "Competitive", "scrimcomp2v2": "Wingman", "casual": "Casual",
+             "deathmatch": "Deathmatch"}  # GSI's map.mode → name; Premier is "competitive" too
+STEAM_ROOTS = [HOME / ".local/share/Steam", HOME / ".steam/steam",
+               HOME / ".var/app/com.valvesoftware.Steam/.local/share/Steam"]
+
+
+def cs2_cfg_dir():
+    """The game's cfg folder in whichever Steam library CS2 is in, or None."""
+    libraries = []
+    for root in STEAM_ROOTS:
+        libraries.append(root)
+        try:
+            text = (root / "steamapps/libraryfolders.vdf").read_text(errors="replace")
+        except OSError:
+            continue
+        libraries += [Path(p.replace("\\\\", "\\")) for p in re.findall(r'"path"\s+"([^"]+)"', text)]
+    for lib in libraries:
+        d = lib / "steamapps/common/Counter-Strike Global Offensive/game/csgo/cfg"
+        if d.is_dir():
+            return d
+    return None
+
+
+def cs2_token():
+    """CS2 sends this with every message – what else posts to the port is not listened to.
+    Made once and kept in recorder.json (read fresh: the window and the service share it)."""
+    cfg = load_config()
+    if not cfg.get("cs2Token"):
+        cfg["cs2Token"] = secrets.token_hex(16)
+        save_config(cfg)
+    return cfg["cs2Token"]
+
+
+def cs2_cfg_text(token):
+    return f'''"GOBLINCAKES GoblinRecorder"
+{{
+    "uri" "http://127.0.0.1:{CS2_PORT}"
+    "timeout" "5.0"
+    "buffer" "0"
+    "throttle" "0.1"
+    "heartbeat" "10.0"
+    "auth"
+    {{
+        "token" "{token}"
+    }}
+    "data"
+    {{
+        "provider" "1"
+        "map" "1"
+        "round" "1"
+        "player_id" "1"
+        "player_state" "1"
+        "player_match_stats" "1"
+    }}
+}}
+'''
+
+
+def cs2_state():
+    """nogame = CS2 not found, off = not connected, on = connected, old = our file but
+    another token (a new config) – connect again."""
+    d = cs2_cfg_dir()
+    if not d:
+        return "nogame"
+    try:
+        text = (d / CS2_CFG).read_text()
+    except OSError:
+        return "off"
+    return "on" if f'"token" "{cs2_token()}"' in text else "old"
+
+
+def cs2_connect():
+    """Puts our file in CS2's cfg folder (and takes away the probe's). An error text or ""."""
+    d = cs2_cfg_dir()
+    if not d:
+        return "Hittar inte Counter-Strike 2 i Steam-biblioteken."
+    try:
+        (d / CS2_CFG).write_text(cs2_cfg_text(cs2_token()))
+        old = d / CS2_OLD_TEST
+        if old.exists() and "GOBLINCAKES test" in old.read_text(errors="replace"):
+            old.unlink()
+    except OSError as e:
+        return f"Kunde inte skriva filen: {e}"
+    return ""
+
+
+def cs2_disconnect():
+    d = cs2_cfg_dir()
+    if d:
+        try:
+            (d / CS2_CFG).unlink(missing_ok=True)
+        except OSError as e:
+            return f"Kunde inte ta bort filen: {e}"
+    return ""
+
+
+def cs2_running():
+    if os.environ.get("GOBLINCAKES_RECORDER_CS2"):  # tests: pretend CS2 runs
+        return True
+    return subprocess.run(["pgrep", "-x", "cs2"], capture_output=True).returncode == 0
+
+
+def cs2_map_name(raw):
+    """de_mirage → Mirage, cs_office → Office, workshop/123/aim_map → aim_map."""
+    name = raw.rsplit("/", 1)[-1]
+    if re.match(r"^(de|cs|ar|dz|gd)_", name):
+        name = name.split("_", 1)[1].replace("_", " ").title()
+    return name
+
+
+def cs2_kill_text(n, headshot):
+    return ({1: "Kill", 5: "ACE"}.get(n) or f"{n}K") + (" · HS" if headshot else "")
+
+
 # ---------------------------------------------------------------- videos
 
 def safe_name(text):
@@ -886,7 +1013,7 @@ def set_meta(video_path, **fields):
 # straight up with the API (yt_upload below, 15 Oct).
 
 YT_RESULT = {"kill": "Kill", "wipe": "Wipe", "timed": "i tid", "depleted": "för sent",
-             "win": "vinst", "loss": "förlust", "done": "klar"}
+             "win": "vinst", "loss": "förlust", "done": "klar", "tie": "oavgjort"}
 SV_MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
 
 
@@ -906,6 +1033,9 @@ def youtube_text(meta, start=0.0, end=None):
         result += f" på {round(wcl['bossPercentage'])} %"
     if meta.get("kind") == "mplus":
         title = f"+{meta.get('level')} {meta.get('name', '')} – {result}"
+    elif meta.get("kind") == "cs2":
+        title = f"CS2 {meta.get('name', '')} {meta.get('difficulty', '')} – {result}" + (
+            f" {meta['score']}" if meta.get("score") else "")
     else:
         title = f"{meta.get('name', '')} {meta.get('difficulty', '')}".strip() + f" – {result}"
     title = re.sub(r"[<>]", "", title)[:100]
@@ -937,6 +1067,11 @@ def youtube_text(meta, start=0.0, end=None):
                 kept.append((t, text))
         if len(kept) >= 2:
             desc += [f"{yt_clock(t)} {text}" for t, text in kept] + [""]
+    if meta.get("kind") == "cs2":  # the multikills with times (not chapters – too close together)
+        best = [m for m in meta.get("markers", []) if m.get("kind") == "kill" and not m["text"].startswith("Kill")
+                and start <= m["t"] <= end]
+        if best:
+            desc += [f"{yt_clock(m['t'] - start)} {m['text']}" for m in best] + [""]
     deaths = [m for m in meta.get("markers", []) if m.get("kind") == "death" and start <= m["t"] <= end]
     if deaths:
         desc += [f"Dödsfall: {len(deaths)}", ""]
@@ -1255,6 +1390,7 @@ def remove_video(path):
 
 
 KEPT_RESULTS = ("kill", "timed", "win", "done")  # a raid kill, a key in time, an arena won / a Solo Shuffle
+# CS2 matches always stay (a lost match can have your ace); the oldest go above the folder's limit
 RAID_WIPES_KEPT = 2  # per boss and difficulty while you raid – the newest ones
 
 
@@ -1282,7 +1418,8 @@ def drop_old_tests(folder, video):
 
 def drop_non_kills(folder):
     """When WoW closes: everything that is not a kill (or a key in time) goes, unless kept."""
-    gone = [v for v in video_files(folder) if v.get("result") not in KEPT_RESULTS and not v.get("keep")]
+    gone = [v for v in video_files(folder) if v.get("result") not in KEPT_RESULTS and not v.get("keep")
+            and v.get("kind") != "cs2"]
     for v in gone:
         remove_video(v["path"])
     return [v["file"] for v in gone]

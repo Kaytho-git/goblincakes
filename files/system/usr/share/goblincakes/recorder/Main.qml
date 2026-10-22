@@ -113,7 +113,8 @@ Window {
     function resultText(v) {
         if (v.kind === "test")
             return "TEST · " + String(v.difficulty || "").toUpperCase();  // the quality it was made with
-        return ({ kill: "KILL", wipe: "WIPE", timed: "I TID", depleted: "FÖR SENT", win: "VINST", loss: "FÖRLUST", done: "KLAR" })[v.result] || "AVBRUTEN";
+        const r = ({ kill: "KILL", wipe: "WIPE", timed: "I TID", depleted: "FÖR SENT", win: "VINST", loss: "FÖRLUST", done: "KLAR", tie: "OAVGJORT" })[v.result] || "AVBRUTEN";
+        return v.kind === "cs2" && v.score ? r + " " + v.score : r;
     }
 
     function resultColor(v) {
@@ -158,7 +159,7 @@ Window {
     }
 
     function videoTitle(v) {
-        return v.kind === "mplus" ? "+" + v.level + " " + v.name : v.name;
+        return v.kind === "mplus" ? "+" + v.level + " " + v.name : v.kind === "cs2" ? "CS2 · " + v.name : v.name;
     }
 
     // One sentence about what is going on right now
@@ -177,16 +178,26 @@ Window {
         if (st.current)
             return "Spelar in " + (st.current.kind === "mplus" ? "nyckeln"
                 : st.current.kind === "arena" ? st.current.difficulty + " i " + st.current.name
+                : st.current.kind === "cs2" ? "CS2-matchen på " + st.current.name + (st.current.score ? " (" + st.current.score + ")" : "")
                 : st.current.name + " (" + st.current.difficulty + ")") + " …";
         if (st.waiting)
             return "Sparar filmen …";
+        if (st.cs2 && win.cfg.cs2 && st.cs2Gsi !== "on")
+            return "CS2 körs men är inte inkopplat – tryck Koppla in CS2 under Inställningar och starta om CS2.";
+        if (st.cs2 && win.cfg.cs2 && st.cs2Error)
+            return "CS2: " + st.cs2Error;
+        if (st.cs2 && win.cfg.cs2 && Date.now() / 1000 - (st.cs2Last || 0) > 30)
+            return "CS2 körs men skickar inget – starta om CS2 (filen läses när spelet startar).";
+        if (st.cs2 && win.cfg.cs2)
+            return st.cs2Map ? "CS2 på " + st.cs2Map + " – matchen spelas in när uppvärmningen är slut."
+                             : "CS2 körs – matchen spelas in när uppvärmningen är slut.";
         if (st.wow && !st.logging)
             return "WoW kör men skriver ingen stridslogg – skriv /combatlog i chatten.";
         if (st.wow && st.zone)
             return "I " + st.zone + " – väntar på nästa boss.";
         if (st.wow)
             return "WoW kör – inspelningen startar i raid, Mythic+ och arena.";
-        return "Väntar på WoW. Raidbossar, Mythic+-nycklar och arenamatcher spelas in av sig själva.";
+        return "Väntar på WoW eller CS2. Raidbossar, Mythic+-nycklar, arenamatcher och CS2-matcher spelas in av sig själva.";
     }
 
     Connections {
@@ -626,6 +637,12 @@ Window {
                     tone: !win.st.wow ? "#2A3852" : win.st.logging ? "#3FB950" : "#D29922"
                 }
                 StatusChip {
+                    visible: !!win.cfg.cs2
+                    label: "CS2"
+                    value: !win.st.cs2 ? "av" : Date.now() / 1000 - (win.st.cs2Last || 0) < 30 ? "kör" : "skickar inget"
+                    tone: !win.st.cs2 ? "#2A3852" : Date.now() / 1000 - (win.st.cs2Last || 0) < 30 ? "#3FB950" : "#D29922"
+                }
+                StatusChip {
                     label: "OBS"
                     value: ({ connected: "redo", stopped: "av", "no-ws": "behöver startas om", missing: "saknas", error: "svarar inte" })[win.st.obs] || "–"
                     tone: win.st.obs === "connected" ? "#3FB950" : win.st.obs === "stopped" ? "#2A3852" : "#D29922"
@@ -656,7 +673,7 @@ Window {
                     rightPadding: 6
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Starta OBS när WoW startar"
+                        text: "Starta OBS när spelet startar"
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13
@@ -666,7 +683,7 @@ Window {
                         on: !!win.cfg.autoStartObs
                         onToggled: win.set("autoStartObs", !win.cfg.autoStartObs)
                     }
-                    HoverTip { tip: "OBS startas dolt i systemfältet så fort WoW startar – redo till första pullen." }
+                    HoverTip { tip: "OBS startas dolt i systemfältet så fort WoW eller CS2 startar – redo till första pullen eller matchen." }
                 }
                 FlatButton {
                     primary: win.st.obs !== "connected"
@@ -735,10 +752,19 @@ Window {
         color: "#0B1018"
         Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom } width: 1; color: "#1E2A40" }
 
+        Flickable {
+            id: recordFlick
+            FastWheel { flick: recordFlick }
+            anchors { fill: parent; leftMargin: 1 }
+            contentHeight: recordColumn.height + 48
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
         Column {
-            x: 24
+            id: recordColumn
+            x: 23
             y: 24
-            width: parent.width - 48
+            width: recordPanel.width - 48
             spacing: 12
 
             SectionTitle { text: "SPELAS IN" }
@@ -799,9 +825,63 @@ Window {
                 name: "Behåll wipes"
                 key: "keepWipes"
                 tip: "Av: bara kills, nycklar i tid och vunna arenor blir kvar när du stänger WoW, och under raiden sparas bara "
-                     + "de två senaste wipes per boss. Spara för alltid skyddar en film."
+                     + "de två senaste wipes per boss. CS2-matcher blir alltid kvar. Spara för alltid skyddar en film."
+            }
+
+            Item { width: 1; height: 14 }
+            SectionTitle { text: "COUNTER-STRIKE 2" }
+            PanelSwitch {
+                name: "CS2-matcher"
+                key: "cs2"
+                tip: "Hela matchen, från att uppvärmningen är slut till sista rundan. Dina kills (2K–ACE), dödsfall, "
+                     + "rundor och bomben blir markeringar i filmen."
+            }
+            Flow {
+                width: parent.width
+                spacing: 6
+                opacity: win.cfg.cs2 ? 1 : 0.35
+                Repeater {
+                    model: [{ "id": "competitive", "name": "Premier", "sub": "Premier och Competitive (CS2 skickar samma läge för båda)." }, { "id": "scrimcomp2v2", "name": "Wingman" },
+                            { "id": "casual", "name": "Casual" }, { "id": "deathmatch", "name": "Deathmatch" }]
+                    Choice {
+                        required property var modelData
+                        readonly property var modes: win.cfg.cs2Modes || ["competitive", "scrimcomp2v2"]
+                        sub: modelData.sub || ""
+                        width: (recordPanel.width - 48 - 6) / 2
+                        enabledState: !!win.cfg.cs2
+                        text: (chosen ? "✓  " : "") + modelData.name
+                        chosen: modes.indexOf(modelData.id) >= 0
+                        onPicked: win.set("cs2Modes", chosen ? modes.filter(l => l !== modelData.id) : modes.concat([modelData.id]))
+                    }
+                }
+            }
+            Note {
+                width: parent.width
+                visible: !!win.cfg.cs2
+                text: win.st.cs2Gsi === "nogame" ? "Hittar inte CS2 i Steam-biblioteken."
+                    : win.st.cs2Gsi === "on" ? "✓ Inkopplat. CS2 skickar matchen till GoblinRecorder."
+                    : win.st.cs2Gsi === "old" ? "Filen i spelmappen är gammal – koppla in igen."
+                    : "Inte inkopplat. Knappen lägger Valves fil för spelläget (gamestate_integration) i CS2:s cfg-mapp."
+            }
+            Row {
+                visible: !!win.cfg.cs2 && win.st.cs2Gsi !== "nogame"
+                spacing: 8
+                FlatButton {
+                    primary: win.st.cs2Gsi !== "on"
+                    text: win.st.cs2Gsi === "on" ? "Koppla in igen" : "Koppla in CS2"
+                    onClicked: backend.cs2Connect()
+                    HoverTip { tip: "CS2 läser filen när spelet startar – starta om CS2 om det redan är igång." }
+                }
+                FlatButton {
+                    visible: win.st.cs2Gsi === "on" || win.st.cs2Gsi === "old"
+                    text: "Koppla bort"
+                    onClicked: backend.cs2Disconnect()
+                    HoverTip { tip: "Tar bort GoblinRecorders fil ur CS2:s cfg-mapp." }
+                }
             }
         }
+        }
+        FlatScrollBar { flick: recordFlick }
     }
 
 
@@ -828,7 +908,7 @@ Window {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 text: "Ha OBS igång och stridsloggen på (/combatlog i WoW). Varje raidboss blir en egen film, "
-                      + "en Mythic+-nyckel och en arenamatch en film från start till slut. De hamnar här."
+                      + "en Mythic+-nyckel, en arenamatch och en CS2-match en film från start till slut. De hamnar här."
             }
         }
 
@@ -916,7 +996,7 @@ Window {
                         font.pixelSize: 12
                     }
                     Text {
-                        text: win.clock(card.modelData.fight) + " strid · " + win.size(card.modelData.size)
+                        text: win.clock(card.modelData.fight) + (card.modelData.kind === "cs2" ? " match · " : " strid · ") + win.size(card.modelData.size)
                               + (card.modelData.keep ? " · sparad" : "") + (card.modelData.wcl ? (card.open ? " · WCL ▴" : " · WCL ▾") : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
@@ -1227,7 +1307,8 @@ Window {
                         anchors.verticalCenter: parent.verticalCenter
                         width: 3
                         height: 24
-                        color: modelData.kind === "death" ? "#E5534B" : "#8B98AD"
+                        color: modelData.kind === "death" ? "#E5534B"
+                             : modelData.kind === "kill" ? (modelData.text.startsWith("Kill") ? accent.color : "#E5CC80") : "#8B98AD"
                         MouseArea {
                             id: markArea
                             anchors.fill: parent
@@ -1346,6 +1427,12 @@ Window {
                             if (!v)
                                 return "";
                             const deaths = v.markers.filter(m => m.kind === "death");
+                            if (v.kind === "cs2") {
+                                const kills = v.markers.filter(m => m.kind === "kill");
+                                const multi = kills.filter(m => !m.text.startsWith("Kill")).length;
+                                return win.when(v.started) + " · " + win.resultText(v).toLowerCase() + " efter " + win.clock(v.fight)
+                                    + " · " + kills.length + " kills" + (multi ? " (guld = 2K–ACE)" : "") + " · " + deaths.length + " dödsfall";
+                            }
                             const pct = v.wcl && v.result === "wipe" && v.wcl.bossPercentage !== null && v.wcl.bossPercentage !== undefined
                                 ? " på " + Math.round(v.wcl.bossPercentage) + " %" : "";
                             return win.when(v.started) + " · " + win.resultText(v).toLowerCase() + pct + " efter " + win.clock(v.fight)

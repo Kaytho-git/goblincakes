@@ -8,7 +8,8 @@ goblincakes-recorder.service). The window is /usr/bin/goblin-recorder.
   goblincakes-recorder status     what the service sees right now (JSON)
 
 Raid: every boss pull becomes its own video. Mythic+: the whole key. Arena (also Solo
-Shuffle): the whole match. OBS starts recording on ENCOUNTER_START / CHALLENGE_MODE_START /
+Shuffle): the whole match. Counter-Strike 2: the match from the end of the warm-up to the end,
+from what CS2 sends itself (Game State Integration, recorder.cs2_*). OBS starts recording on ENCOUNTER_START / CHALLENGE_MODE_START /
 ARENA_MATCH_START and stops a few seconds after the end. WoW
 writes the combat log in chunks 10–60 s late, but flushes it at once on a boss pull/end
 (measured 11 Oct: 0.00 s) – so the start is on time. Deaths come later and are added
@@ -16,6 +17,7 @@ as marks to the video's .json afterwards.
 """
 import json
 import os
+import queue
 import re
 import signal
 import threading
@@ -24,6 +26,7 @@ import sys
 import time
 import traceback
 from datetime import datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 sys.path.insert(0, os.environ.get("GOBLINCAKES_RECORDER_SHARE", "/usr/share/goblincakes/recorder"))
@@ -31,7 +34,7 @@ import recorder as R  # noqa: E402
 
 LIVE_LIMIT = 30  # a start line older than this (seconds) is not recorded
 LATE_MARKS = 120  # seconds after a video ends that late log lines may still add marks
-MAX_LENGTH = {"raid": 45 * 60, "mplus": 3 * 3600, "arena": 45 * 60, "test": 5 * 60}
+MAX_LENGTH = {"raid": 45 * 60, "mplus": 3 * 3600, "arena": 45 * 60, "cs2": 3 * 3600, "test": 5 * 60}
 WCL_EVERY = 5 * 60  # look for Warcraft Logs fights this often …
 WCL_LIVE_EVERY = 30  # … and this often while a report is live logged (or just after a recording)
 WCL_LIVE_FOR = 20 * 60  # live = a live-logged report seen this recently
@@ -43,6 +46,22 @@ ME = re.compile(r'^(Player-[^,]+),"([^"]+)",0x511,')  # a line by your own chara
 
 def log(*a):
     print(datetime.now().strftime("%H:%M:%S"), *a, flush=True)
+
+
+class GSIHandler(BaseHTTPRequestHandler):
+    """CS2 posts the game state here; the main loop takes it from the queue."""
+    def do_POST(self):
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
+        except ValueError:
+            body = None
+        self.send_response(200)
+        self.end_headers()
+        if isinstance(body, dict) and (body.get("auth") or {}).get("token") == self.server.token:
+            self.server.inbox.put((time.time(), body))
+
+    def log_message(self, *a):
+        pass
 
 
 class Service:
@@ -78,6 +97,15 @@ class Service:
         self.screen_check = 0
         self.stall_check = 0  # last look for a frozen screen capture / OBS restart for it
         self.test_wait = 0  # when a test recording was asked for (waiting for OBS)
+        # Counter-Strike 2
+        self.cs2 = False
+        self.cs2_seen = 0  # last look for the cs2 process
+        self.cs2_server = None
+        self.cs2_inbox = queue.Queue()
+        self.cs2_last = 0  # when CS2 last sent something
+        self.cs2_error = ""
+        self.cs2_map = ""
+        self.gs = {}  # what the last messages said: own team, kills this round, health, phases
 
     @staticmethod
     def mtime(p):
@@ -244,6 +272,108 @@ class Service:
             if len(a) > 5 and a[4].startswith("Player-"):
                 self.marker(t, "death", a[5].split("-")[0])
 
+    # ------------------------------------------------------------ Counter-Strike 2
+    def cs2_listen(self):
+        """The HTTP server for CS2 while CS2 recording is on in the settings."""
+        if self.cfg.get("cs2") and not self.cs2_server:
+            try:
+                srv = HTTPServer(("127.0.0.1", R.CS2_PORT), GSIHandler)
+            except OSError as e:
+                if self.cs2_error != str(e):
+                    self.cs2_error = f"Port {R.CS2_PORT} är upptagen ({e})"
+                    log(self.cs2_error)
+                return
+            srv.token, srv.inbox = R.cs2_token(), self.cs2_inbox
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            self.cs2_server, self.cs2_error = srv, ""
+            log("listening for CS2 on port", R.CS2_PORT)
+        elif not self.cfg.get("cs2") and self.cs2_server:
+            self.cs2_server.shutdown()
+            self.cs2_server.server_close()
+            self.cs2_server = None
+        elif self.cs2_server:
+            self.cs2_server.token = self.cfg.get("cs2Token") or self.cs2_server.token
+        while True:
+            try:
+                t, body = self.cs2_inbox.get_nowait()
+            except queue.Empty:
+                break
+            self.cs2_last = t
+            self.cs2_event(t, body)
+
+    def cs2_event(self, t, b):
+        """One message from CS2. Kills, deaths and the team only count from your own player
+        (after your death CS2 sends the player you watch); rounds, the bomb and the score are
+        the same for everyone."""
+        gs = self.gs
+        me = (b.get("provider") or {}).get("steamid")
+        p = b.get("player") or {}
+        own = bool(me) and p.get("steamid") == me
+        m = b.get("map")
+        rnd = b.get("round") or {}
+        rec = self.current and self.current["kind"] == "cs2" and not self.stop_at
+        if not m:  # back in the main menu
+            self.cs2_map = ""
+            if rec:
+                self.finish(t, "abandoned")
+            self.gs = {}
+            return
+        self.cs2_map = m.get("name", "")
+        if own and p.get("team"):
+            gs["team"] = p["team"]
+            gs["playing"] = True
+        phase = m.get("phase")
+        if phase == "live" and not self.current or (phase == "live" and self.current
+                                                     and self.current["kind"] == "test"):
+            if (self.cfg.get("cs2") and gs.get("playing")
+                    and m.get("mode") in (self.cfg.get("cs2Modes") or [])):
+                if self.current:
+                    self.stop_now()
+                self.begin(t, t, {"kind": "cs2", "name": R.cs2_map_name(m.get("name", "")),
+                                  "difficulty": R.CS2_MODES.get(m.get("mode"), m.get("mode", "")),
+                                  "map": m.get("name", ""), "mode": m.get("mode", "")})
+                if self.current:
+                    self.current["player"] = p.get("name", "") if own else ""
+                    self.current["tracks"] = R.track_names(self.cfg, "CS2")
+                gs.update(kills=None, killhs=None, dead=False, round=None, bomb=None)
+            rec = self.current and self.current["kind"] == "cs2" and not self.stop_at
+        if not rec:
+            return
+        st = p.get("state") or {}
+        if own and st:
+            kills, hs = st.get("round_kills", 0), st.get("round_killhs", 0)
+            if gs.get("kills") is not None and kills > gs["kills"]:
+                for n in range(gs["kills"] + 1, kills + 1):
+                    self.marker(t, "kill", R.cs2_kill_text(n, hs > (gs.get("killhs") or 0)))
+            gs["kills"], gs["killhs"] = kills, hs
+            health = st.get("health")
+            if health == 0 and not gs.get("dead"):
+                self.marker(t, "death", "Du dog")
+            gs["dead"] = health == 0
+            if not self.current.get("player"):
+                self.current["player"] = p.get("name", "")
+        elif p.get("steamid") and not own and not gs.get("dead"):
+            # CS2 shows another player = you died (often no message with your own 0 health first)
+            self.marker(t, "death", "Du dog")
+            gs["dead"] = True
+        bomb = rnd.get("bomb")
+        if bomb != gs.get("bomb") and bomb in ("planted", "defused", "exploded"):
+            self.marker(t, "bomb", {"planted": "Bomben placerad", "defused": "Bomben desarmerad",
+                                    "exploded": "Bomben exploderade"}[bomb])
+        gs["bomb"] = bomb
+        # the last round's end only comes with the gameover (round phase "freezetime" then)
+        if (rnd.get("phase") == "over" or phase == "gameover") and gs.get("round") != m.get("round") \
+                and rnd.get("win_team"):
+            gs["round"] = m.get("round")
+            won = rnd["win_team"] == gs.get("team")
+            self.marker(t, "round", f"Runda {m.get('round')} {'vunnen' if won else 'förlorad'}")
+        ct = (m.get("team_ct") or {}).get("score", 0)
+        tt = (m.get("team_t") or {}).get("score", 0)
+        mine, theirs = (ct, tt) if gs.get("team") == "CT" else (tt, ct)
+        self.current["score"] = f"{mine}–{theirs}"
+        if phase == "gameover":
+            self.finish(t, "win" if mine > theirs else "loss" if mine < theirs else "tie")
+
     def marker(self, t, kind, text):
         m = {"t": t, "kind": kind, "text": text}
         if self.current and t >= self.current["wall"] - 5:
@@ -332,6 +462,10 @@ class Service:
         elif cur["kind"] == "arena":
             title = f"{cur['difficulty']} {cur['name']}"
             result = {"win": "VINST", "loss": "FÖRLUST", "done": "KLAR"}.get(cur["result"], "AVBRUTEN")
+        elif cur["kind"] == "cs2":
+            title = f"CS2 {cur['name']} {cur['difficulty']}"
+            result = {"win": "VINST", "loss": "FÖRLUST", "tie": "OAVGJORT"}.get(cur["result"], "AVBRUTEN")
+            result += " " + cur.get("score", "").replace("–", "-")
         else:
             title = f"+{cur['level']} {cur['name']}"
             result = {"timed": "I TID", "depleted": "FÖR SENT"}.get(cur["result"], "AVBRUTEN")
@@ -352,6 +486,8 @@ class Service:
                         for m in cur["markers"]],
             "codec": self.cfg["codec"], "fps": self.cfg["fps"], "tracks": cur.get("tracks", R.TRACK_NAMES),
             "player": cur.get("player", ""), "encounterId": cur.get("encounter"),
+            **({"score": cur.get("score", ""), "map": cur.get("map", ""), "mode": cur.get("mode", "")}
+               if cur["kind"] == "cs2" else {}),
             "_wall": wall, "_until": time.time() + LATE_MARKS,
         }
         self.write_meta(meta, dest)
@@ -513,6 +649,20 @@ class Service:
                 self.zone = None
                 self.tidy = True
             self.wow = running
+        if now - self.cs2_seen > 5:
+            self.cs2_seen = now
+            running = R.cs2_running()
+            if running and not self.cs2:
+                log("CS2 started")
+                if self.cfg["autoStartObs"] and self.cfg.get("cs2") and not R.obs_running():
+                    R.start_obs()
+            if not running and self.cs2:
+                log("CS2 stopped")
+                if self.current and self.current["kind"] == "cs2":
+                    self.finish(now, "abandoned")
+                self.gs, self.cs2_map = {}, ""
+            self.cs2 = running
+        self.cs2_listen()
         self.follow()
         self.check_recording()
         self.check_test()
@@ -521,7 +671,7 @@ class Service:
             self.tidy_up()
         self.closing = [m for m in self.closing if m["_until"] > now]
         self.wcl_check()
-        if self.wow or self.current or self.test_wait or R.obs_running():
+        if self.wow or self.cs2 or self.current or self.test_wait or R.obs_running():
             self.connect()
             if self.obs and not self.screen_ok and now - self.screen_check > 5:
                 self.screen_check = now
@@ -552,12 +702,14 @@ class Service:
             "obsError": self.obs_error,
             "zone": self.zone["name"] if self.zone else "",
             "recording": bool(self.current),
-            "current": {k: self.current[k] for k in ("kind", "name", "difficulty", "start")
+            "current": {k: self.current.get(k) for k in ("kind", "name", "difficulty", "start", "score")
                         } if self.current else None,
             "lastVideo": self.last_video, "error": self.error, "player": self.me,
             "screen": self.screen_ok,
             "testWaiting": bool(self.test_wait),
             "stopAt": self.stop_at if self.current else 0,
+            "cs2": self.cs2, "cs2Listening": bool(self.cs2_server), "cs2Error": self.cs2_error,
+            "cs2Last": self.cs2_last, "cs2Map": self.cs2_map,
         })
 
     def run(self):
@@ -568,7 +720,7 @@ class Service:
                 self.tick()
             except Exception:  # noqa: BLE001 – the service must keep going
                 log(traceback.format_exc())
-            time.sleep(0.25 if (self.wow or self.current or self.test_wait) else 2)
+            time.sleep(0.25 if (self.wow or self.cs2 or self.current or self.test_wait) else 2)
 
 
 def main():
