@@ -46,6 +46,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - **Emulatorer:** RetroDECK (Super Nintendo, Mega Drive, N64, PlayStation, GameCube, Switch med flera) och Steam ROM Manager, som lägger in spelen i Steam och TV-läget.
 - **Snabbare:** NTSYNC för Windows-spel och snabbare förberedelse av shaders i Steam.
 - **Flera skärmar:** den snabbaste skärmen blir huvudskärm, och spelen öppnas där.
+- **Spelläge** av sig självt när ett spel kör: GameMode, uppdateringar väntar tills du spelat klart och bakgrundstjänster som sökindexering vilar. OBS stängs när spelet är slut.
 - **Laptops** med två grafikkort: spel startar på det kraftfulla kortet, skrivbordet på det snåla.
 - **Äldre Nvidia-kort** (GTX 900- och 10-serien) får en egen variant med Nvidias legacy-drivrutin.
 
@@ -55,7 +56,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - Mapparna för `Logs` och `AddOns` – för alla WoW-versioner, var de än ligger – länkas till `~/Games/WoW`. WowUp och Raider.IO hittar WoW själva; `goblin wow` talar om vad du väljer i Archon.
 
 ### GoblinRecorder
-Spelar in WoW av sig själv med OBS – du behöver inte trycka på något:
+Spelar in WoW och Counter-Strike 2 av sig själv med OBS – du behöver inte trycka på något:
 - **Raid:** varje bossförsök blir en egen film, kill eller wipe, för de svårighetsgrader du väljer.
 - **Mythic+:** hela nyckeln från start till slut, från den nivå du väljer.
 - **Arena:** hela matchen (2v2, 3v3, Solo Shuffle, Skirmish) med vinst eller förlust.
@@ -63,14 +64,21 @@ Spelar in WoW av sig själv med OBS – du behöver inte trycka på något:
 - Tre ljudspår (allt, bara WoW, Discord med din röst), brusreducering och en spärr mot andning i mikrofonen, och rutor som döljer chatten eller annat i filmerna.
 - Inspelningen görs av grafikkortets egen videokrets (NVENC, eller VAAPI på AMD/Intel) – spelet märker inget. **Testa inspelningen** gör en 30-sekundersfilm så att du ser kvaliteten innan raiden.
 - **Till YouTube:** klipp ut en del av filmen och ladda upp den direkt – titel, beskrivning med Warcraft Logs-länk och kapitel för varje boss skrivs åt dig.
+- **Counter-Strike 2:** hela matchen spelas in via Valves Game State Integration och blir klipp – 2K till ACE och alla dina kills. När matchens demo laddats ner läses den: K/D, ADR, KAST, headshots, entries, trades, clutchar (vunna blir egna klipp), time to damage och siktets placering.
+- **WoW Stats och CS2 Stats:** din egen statistik sammanställd på datorn ur det som spelats in. WoW: bästa och median-parse per boss och svårighetsgrad, kills, wipes (även de som inte spelades in, ur stridsloggen), snabbaste kill, item level och raidens snitt, Mythic+-nycklar och parse över tid. CS2: snittet för de senaste matcherna, varje karta och vapen och utvecklingen match för match. **Goblin AI** ger tips om vad du ska träna på.
 - Ikon i systemfältet: röd prick när den spelar in.
 
 ![GoblinRecorder med inspelade raidbossar, en Mythic+-nyckel och en arenamatch](docs/goblinrecorder.png)
 
 ![GoblinRecorders inställningar: Warcraft Logs, kodare, bilder per sekund och vad som spelas in](docs/goblinrecorder-installningar.png)
 
+![WoW Stats – parse per boss, Mythic+-nycklar och parse över tid](docs/goblinrecorder-wowstats.png)
+
+![CS2 Stats – snittet för de senaste matcherna, utvecklingen match för match och kartorna](docs/goblinrecorder-cs2stats.png)
+
 ### Discord
 - Discords egen Linux-version (inte Flatpak), så att Discord ser vilket spel du spelar.
+- **I GOBLINCAKES-stil:** Discord kan få GOBLINCAKES färger och raka hörn (Vencord, val i Config) – läggs in igen av sig självt när Discord uppdateras.
 - Röstkanalen du är i syns i toppfältet. Okända kanaler: en notis frågar vad kanalen heter (eller `goblin discord namn Raid`).
 
 ### Bågskytte
@@ -81,12 +89,15 @@ Spelar in WoW av sig själv med OBS – du behöver inte trycka på något:
 ### Musik: GoblinAmp och Spotify
 - **GoblinAmp** – en liten spelare i Winamps anda: stor tid, rullande titel, staplar till musiken och knapparna du minns (Z X C V B). goblin graph kan visas inne i spelaren (**GRAF**), och spellistan (**PL**) dras högre i nederkanten.
   - **Egen musik:** Nu spelas, musikmappen och egna spellistor i Winamps format – dra in låtar och mappar från Dolphin, dra rader för att ändra ordningen, öppna gamla Winamp-listor.
-  - **Spotify:** dina listor, Gillade låtar och kön; sök i hela Spotify, skapa egna listor, lägg till låtar med högerklick och ändra ordningen genom att dra. Styr Spotify-appen, så ljudet och kvaliteten är som vanligt.
+  - **Spotify:** dina listor, Gillade låtar och kön; sök i hela Spotify, skapa egna listor, lägg till låtar med högerklick och ändra ordningen genom att dra. Artister visar alla album, populära låtar, singlar och liknande artister; ett helt album kan sparas som egen lista, och **♪ ALBUMET** öppnar albumet som spelas. Styr Spotify-appen, så ljudet och kvaliteten är som vanligt.
+  - **GENRER:** välj en genre och få det populäraste i den (Last.fm) och Spotifys egna låtar och artister – eller musik som liknar det som spelas nu.
+  - **Egen färg:** någon av klassfärgerna, eller samma som resten av GOBLINCAKES (högerklick på namnlisten).
 - **Spotify (GOBLINCAKES)** – Spotify i GOBLINCAKES-stil och din färg, utan förslag och sidopaneler. Ljudet kommer från Spotify-appen, som ligger gömd i systemfältet, så kvaliteten blir som vanligt.
 
 <p>
   <img src="docs/goblinamp-spotify.png" width="380" alt="GoblinAmp med staplar i klassfärger och en sökning i hela Spotify">
   <img src="docs/goblinamp-lokalt.png" width="380" alt="GoblinAmp med en egen spellista och goblin graphs våg">
+  <img src="docs/goblinamp-genrer.png" width="380" alt="GoblinAmps GENRER-flik: populärt i genren från Last.fm, Spotifys låtar och artister">
 </p>
 
 ### goblin graph
@@ -110,7 +121,7 @@ Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**), i en 
 - **Lokalt eller i molnet:** kör AI:n på din egen dator med Ollama (inget lämnar datorn; installeras med en knapp, förslag på modeller efter ditt grafikkort, stängs av medan du spelar) och/eller gratisnivåerna hos Gemini och OpenRouter – eller dina egna nycklar till Claude, OpenAI m.fl.
 - **Söker på nätet** själv när du frågar om något nytt (gratis Tavily-nyckel).
 - **Läser och skapar:** PDF:er, bilder och skärmbilder; ritar bilder (på datorn eller gratis via Cloudflare); sparar svar som PDF, Word eller bild.
-- **Hjälper med datorn och spelet:** hittar fel i systemloggarna och föreslår lösningar steg för steg, läser WoW-tilläggens felmeddelanden och analyserar dina Warcraft Logs (dödsfall, cooldowns, förmågor).
+- **Hjälper med datorn och spelet:** hittar fel i systemloggarna och föreslår lösningar steg för steg, läser WoW-tilläggens felmeddelanden och analyserar dina Warcraft Logs (dödsfall, cooldowns, förmågor) och dina CS2-matcher.
 - **Projekt** med egna instruktioner, filer och modeller, ett **minne**, avatar och namn. ♥ under ett bra svar lär den att göra likadant nästa gång, 👎 att undvika det.
 - **Egna knappar** ovanför rutan: ett tryck ger t.ex. det senaste om ditt lag (tabell och matcher hämtas direkt) eller sammanfattar en sida du länkar.
 - **Ger inte upp:** är en modell överbelastad tar den nästa modell eller tjänst, och den lokala AI:n sist. Svar kan kopieras med formateringen kvar.
