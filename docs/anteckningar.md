@@ -226,3 +226,24 @@ Användaren: "Lägg till chatgpts egna app, funkar det inte att skicka kommandon
 - **Uppdatering:** förrådets `baseurl` läses ur paketets `etc/yum.repos.d/*.repo` eller ur dess skript. `check`/`update` läser repomd → primary (gz/xz/zst/bz2), jämför med `rpm.labelCompare` och kontrollerar checksumman. Inkopplat i `goblin update` (delen `chatgpt`), i Config → Uppdatera och i `goblincakes-updates`. Hittas inget förråd uppdateras appen genom att installera igen.
 - **Goblin AI:** "Skicka till ChatGPT" i svarsraden och "Gör om i ChatGPT" på bildkort. Båda syns bara när appen är installerad. Frågan (eller "Skapa en bild: <beskrivning>") läggs i urklipp, appen startas och en notis säger "klistra in med Ctrl+V". Jag hittade inget sätt att ge appen en fråga utifrån.
 - **Provat:** allt med en låtsas-RPM (tar plus attrapp för `rpm` och `bsdtar`): install, status, open, update mot ett lokalt förråd med checksumma, och uninstall. Goblin AI-knapparna provades offscreen. **Inte provat:** OpenAIs riktiga paket, eftersom dess domäner inte nåddes härifrån. Kolla vid första riktiga installationen att programmet hittas (Exec → /opt/…) och att förrådet hittas.
+
+## Sign in with ChatGPT i Goblin AI (23 okt, ej byggt – fortsätt hemma)
+Användaren vill ha **"Anslut ChatGPT"** i Goblin AI, så att svaren går via deras ChatGPT-abonnemang (Plus/Pro) utan API-nyckel. ChatGPT föreslog det på mobilen. Molnsessionen kunde inte läsa developers.openai.com (proxyn nekade), dev.to eller yage.ai. Fortsätt därför på riktiga datorn och läs dokumentationen där innan något byggs:
+- https://developers.openai.com/siwc/token-sharing-open-source (översikt för open source)
+- https://developers.openai.com/siwc/token-sharing-open-source/sign-in (registrering och inloggning)
+- https://developers.openai.com/siwc/quickstart
+- Bakgrund: thenewstack.io/sign-in-with-chatgpt/, dev.to/hassann/sign-in-with-chatgpt-for-developers-…, yage.ai/share/chatgpt-subscription-oauth-en-20261013.html
+
+**Det sökningen sa (obekräftat, kontrollera mot dokumentationen):**
+- Det är officiellt. Open source-program **registrerar sig själva**, medan kommersiella partner har en begränsad provperiod. Det är inte samma sak som de inofficiella Codex-inloggningarna (openai-oauth), som fortfarande avråds.
+- Flödet: klienten registrerar en "user-defined agent" vid inloggningen. Ett **host identifier** måste sparas innan första inloggningen. Varje försök får nya state, nonce och PKCE. Svaret tas emot av en lokal lyssnare (127.0.0.1).
+- Identitetsbehörigheter (profile, email) och behörigheter för **plananvändning** begärs var för sig. Plananvändningen gäller **Responses API**. Behörigheten `chatgpt.tokens.use.direct` kommer från ChatGPT:s svar och är **inte bekräftad**.
+- Åtkomstnyckeln gäller 1 h och förnyelsenyckeln 30 dagar. Användaren sätter själv ett veckotak per app. Startade vid DevDay 29 sep 2026 (enligt dev.to; datumen skiljer sig mellan källorna).
+- Tidigare anteckning: bara text via Responses API. Bilder, sökning och verktyg går då fortfarande via andra tjänster eller ChatGPT-appen.
+
+**Tänkt bygge:**
+- En ny tjänst i PROVIDERS i `goblinai.py`, `paid` som Claude/OpenAI, och används bara när användaren är inloggad.
+- Inloggningen i en hjälpare med bara standardbiblioteket: `http.server` på 127.0.0.1 tar emot svaret, PKCE görs med `hashlib`/`secrets`.
+- Nycklarna sparas i `~/.config/goblincakes/` med rättigheten 600 (som `ai.env`) och förnyas automatiskt.
+- Knapparna "Anslut ChatGPT"/"Koppla från" i Goblin AI. Slut på veckotaket (429) = nästa tjänst.
+- Kakan (Ollama) är oförändrad. Prova på riktigt med användarens konto.
