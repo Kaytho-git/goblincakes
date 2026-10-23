@@ -12,6 +12,8 @@ chatgpt package from its repodata (checksum checked) and unpacks it the same way
   goblincakes-chatgpt check                prints the newer version (nothing = none or can't tell)
   goblincakes-chatgpt status               JSON {installed, version, desktop, repo}
   goblincakes-chatgpt open [text]          starts the app; with text: a new chat with the text written in
+  goblincakes-chatgpt image text [--out F] a new chat with the text, waits (10 min) for the picture the app
+                                           draws and copies it to F (default ~/Bilder/ChatGPT); prints the path
   goblincakes-chatgpt uninstall            removes the app (your ChatGPT settings stay)
 
 Lines that start with "@@ " are for GOBLINCAKES Config (status). Only the standard library.
@@ -426,6 +428,45 @@ def cmd_open(text=""):
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+# The app saves every picture it draws by itself (found 24 Oct): ~/.codex/generated_images/<chat>/exec-*.png
+GENERATED = HOME / ".codex/generated_images"
+IMAGE_WAIT = 600
+
+
+def newest_images(since):
+    return sorted((f for f in GENERATED.glob("*/*.png") if f.stat().st_mtime > since),
+                  key=lambda f: f.stat().st_mtime)
+
+
+def cmd_image(args):
+    out, folder = None, False
+    if "--out" in args:
+        i = args.index("--out")
+        if i + 1 < len(args):
+            out = Path(args[i + 1]).expanduser()
+            folder = args[i + 1].endswith("/") or out.is_dir()
+        args = args[:i] + args[i + 2:]
+    text = " ".join(args).strip()
+    if not text:
+        fail("Skriv vad bilden ska föreställa")
+    started = time.time()
+    cmd_open(text)
+    status("ChatGPT öppnas med texten ifylld – tryck Enter där. Väntar på bilden…")
+    while time.time() - started < IMAGE_WAIT:
+        found = newest_images(started)
+        if found:
+            pic = found[-1]
+            time.sleep(2)  # let the app finish writing it
+            if out is None or folder:
+                out = (out or HOME / "Bilder" / "ChatGPT") / time.strftime("chatgpt-%Y-%m-%d-%H%M%S.png")
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(pic, out)
+            print(out)
+            return
+        time.sleep(2)
+    fail("Ingen bild från ChatGPT på 10 minuter")
+
+
 def cmd_uninstall():
     state = load_state()
     if state.get("desktop"):
@@ -449,6 +490,8 @@ def main():
         cmd_status()
     elif cmd == "open":
         cmd_open(" ".join(args[1:]))
+    elif cmd == "image":
+        cmd_image(args[1:])
     elif cmd == "uninstall":
         cmd_uninstall()
     else:
