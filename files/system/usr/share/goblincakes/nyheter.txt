@@ -1,6 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
-2026-10-23  Toppfältet är inte längre genomskinligt: det får sin heltäckande bakgrund och den vita underkanten igen
+2026-10-23  Toppfältet är inte längre genomskinligt och har samma ram som dockan, fast tunnare – hel även under programmen
 2026-10-23  Goblin AI: knappen Rita i ChatGPT vid Skapa bild – skriv vad du vill ha, så öppnas en ny chatt i ChatGPT med det ifyllt
 2026-10-23  Goblin AI: Skicka till ChatGPT och Gör om i ChatGPT öppnar en ny chatt med texten redan ifylld – bara att trycka Enter
 2026-10-23  Goblin AI: chattlistan visar varje chatt på en rad igen, och ber du om en bild där Kakan ska kolla online hur något ser ut söker hon först. Bakgrundsbild/1080p blir liggande.

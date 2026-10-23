@@ -9,6 +9,6 @@ enabled=false
 enabled=false
 
 # Must stay on: without it Plasma reports every panel as "translucent" whatever
-# its setting, so the top bar never draws solid/ (white bottom line).
+# its setting, so the top bar never draws solid/ (its own 1 px frame).
 [AdaptiveTransparency]
 enabled=true

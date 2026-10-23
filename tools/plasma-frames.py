@@ -27,8 +27,9 @@ SUBTLE = "#1A2438"
 NONE = "none"
 
 
-def frame(prefix, y, border, fill, width=1, margin=6, border_opacity=1.0, fill_opacity=1.0):
-    """One square 9-piece frame (100×100) at row y, plus its margin hints."""
+def frame(prefix, y, border, fill, width=1, margin=6, border_opacity=1.0, fill_opacity=1.0, gap=0):
+    """One square 9-piece frame (100×100) at row y, plus its margin hints. gap = empty
+    pixel rows under the bottom border, in the panel's frame colour."""
     p = f"{prefix}-" if prefix else ""
     b, size = width, 100
     inner = size - 2 * b
@@ -45,7 +46,13 @@ def frame(prefix, y, border, fill, width=1, margin=6, border_opacity=1.0, fill_o
         "bottomright": (size - b, size - b, b, b),
     }
     for name, (x, yy, w, h) in pieces.items():
-        out.append(f'  <rect id="{p}{name}" x="{x}" y="{y + yy}" width="{w}" height="{h}"{paint(border, border_opacity)}/>')
+        rect = f'<rect x="{x}" y="{y + yy}" width="{w}" height="{h}"{paint(border, border_opacity)}/>'
+        if gap and name.startswith("bottom"):
+            # The gap is painted in the panel's frame colour, so the panel's line runs on
+            # under the button (QtSvg leaves a see-through rect out of the piece's size)
+            out.append(f'  <g id="{p}{name}">{rect}<rect x="{x}" y="{y + yy + h}" width="{w}" height="{gap}" fill="{PANEL_BORDER}"/></g>')
+        else:
+            out.append(f'  <rect id="{p}{name}"' + rect[5:])
     out.append(f'  <rect id="{p}center" x="{b}" y="{y + b}" width="{inner}" height="{inner}"{paint(fill, fill_opacity)}/>')
     # Inner padding
     out.append(f'  <rect id="{p}hint-top-margin" x="110" y="{y}" width="1" height="{margin}" fill="none"/>')
@@ -122,15 +129,20 @@ write(
 # running programs a dim tile, minimised ones only a frame.
 TASK_ACTIVE_OPACITY = 0.45
 TASK_ATTENTION = "#D9822B"
+TASKS = [
+    ("normal", SUBTLE, SUBTLE, 1, 2),
+    ("hover", PANEL_BORDER, PANEL_BORDER, 1, 2),
+    ("focus", ACCENT, ACCENT, 1, 2, 1.0, TASK_ACTIVE_OPACITY),
+    ("minimized", SUBTLE, NONE, 1, 2),
+    ("attention", TASK_ATTENTION, TASK_ATTENTION, 1, 2, 1.0, 0.35),
+]
 write(
     "widgets/tasks.svg",
     "Square GOBLINCAKES task buttons: active = dark blue, running = dim tile.",
-    [
-        ("normal", SUBTLE, SUBTLE, 1, 2),
-        ("hover", PANEL_BORDER, PANEL_BORDER, 1, 2),
-        ("focus", ACCENT, ACCENT, 1, 2, 1.0, TASK_ACTIVE_OPACITY),
-        ("minimized", SUBTLE, NONE, 1, 2),
-        ("attention", TASK_ATTENTION, TASK_ATTENTION, 1, 2, 1.0, 0.35),
+    TASKS + [
+        # The top bar (Plasma asks for "north-<state>" first there): the task buttons fill
+        # the bar's whole height, so they stop 1 px early to leave its bottom frame line whole.
+        ("north-" + name, *rest, *[1.0] * (6 - len(rest)), 1) for name, *rest in TASKS
     ],
 )
 
