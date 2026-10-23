@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Archon's tray icon in its own purple (its Windows icon) – the black Linux one can't be seen
+       on the dark top bar. Shown by /usr/libexec/goblincakes-archon-tray. -->
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#7B2CFF"/><stop offset="1" stop-color="#D21BFF"/></linearGradient></defs>
+  <path d="M16 4.2 L3.6 27.6 Q16 18.5 28.4 27.6 Z" fill="none" stroke="url(#g)" stroke-width="4.4" stroke-linejoin="round"/>
+</svg>

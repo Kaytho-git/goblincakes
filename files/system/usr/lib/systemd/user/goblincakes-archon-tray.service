@@ -1,0 +1,13 @@
+[Unit]
+Description=Archon's icon in the system tray in purple (the black one can't be seen on the top bar)
+After=graphical-session.target
+# Started with the desktop, not at login: before Plasma the session has no screen yet
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/libexec/goblincakes-archon-tray
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target

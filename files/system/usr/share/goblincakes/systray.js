@@ -37,6 +37,16 @@ function trim(target) {
     target.currentConfigGroup = ["General"];
     target.writeConfig("extraItems", shown);
     target.writeConfig("knownItems", known);
+    // Archon's own black icon goes behind the arrow: goblincakes-archon-tray shows a purple one
+    // (24 Oct). Plasma names Electron items "<Id>@<process>". (readConfig gives the list back
+    // as one comma-separated string; a first try on 24 Oct glued "obs" to a wrong name.)
+    var archon = "chrome_status_icon_1@archon";
+    var hidden = String(target.readConfig("hiddenItems") || "").split(",").map(function (item) {
+        return item === "obschrome_status_icon_1" ? "obs" : item;
+    }).filter(function (item) { return item && item !== "chrome_status_icon_1"; });
+    if (hidden.indexOf(archon) < 0)
+        hidden.push(archon);
+    target.writeConfig("hiddenItems", hidden);
     target.reloadConfig();
     trimmed++;
 }

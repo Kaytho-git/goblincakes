@@ -1,0 +1,163 @@
+#!/usr/bin/python3
+"""Archon's icon in the system tray, light enough to see on the dark top bar (24 Oct, the user's
+wish). On Linux Archon (Electron) shows its black macOS template picture, and only as pixels, so
+Plasma can't swap it. This shows our purple copy instead while Archon runs: left click = Archon's
+own "activate", right click = Archon's own menu (read from its dbusmenu, the click sent back).
+Archon's own item is hidden in the tray by systray.js (chrome_status_icon_1@archon). Archon's files
+and storage are not touched. Run by goblincakes-archon-tray.service.
+"""
+import json
+import os
+import subprocess
+import sys
+
+SESSION_VARS = ("WAYLAND_DISPLAY", "DISPLAY", "XDG_SESSION_TYPE", "QT_QPA_PLATFORM")
+
+
+def session_env():
+    """The desktop's variables, in case systemd started us before Plasma told it about them."""
+    try:
+        out = subprocess.run(["systemctl", "--user", "show-environment"], capture_output=True,
+                             text=True, timeout=5).stdout
+    except Exception:
+        return
+    for line in out.splitlines():
+        key, _, value = line.partition("=")
+        if key in SESSION_VARS and not os.environ.get(key):
+            os.environ[key] = value
+
+
+session_env()
+if not os.environ.get("WAYLAND_DISPLAY") and not os.environ.get("DISPLAY"):
+    sys.exit(1)  # no screen yet – the service tries again
+
+from PySide6.QtCore import QTimer                                     # noqa: E402
+from PySide6.QtGui import QCursor, QIcon                              # noqa: E402
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon    # noqa: E402
+
+PROCESS = "archon"
+SNI = "org.kde.StatusNotifierItem"
+MENU = "com.canonical.dbusmenu"
+POLL_MS = 4000
+HERE = os.path.dirname(os.path.realpath(__file__))
+# Next to /usr/libexec in the image, or in the repo (files/system/usr/…)
+ICON = os.path.join(HERE, "..", "share", "icons", "hicolor", "scalable", "apps",
+                    "goblincakes-archon-tray.svg")
+
+
+def busctl(*args):
+    """busctl --user --json=short …; None when it fails (Archon gone)."""
+    try:
+        out = subprocess.run(["busctl", "--user", "--json=short", *args], capture_output=True,
+                             text=True, timeout=3)
+    except Exception:
+        return None
+    if out.returncode != 0 or not out.stdout.strip():
+        return None
+    try:
+        return json.loads(out.stdout)
+    except ValueError:
+        return None
+
+
+def find_archon():
+    """(service, path) of Archon's tray item, or None."""
+    items = busctl("get-property", "org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher",
+                   "org.kde.StatusNotifierWatcher", "RegisteredStatusNotifierItems")
+    for item in (items or {}).get("data", []):
+        service, _, path = item.partition("/")
+        pid = busctl("call", "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                     "GetConnectionUnixProcessID", "s", service)
+        try:
+            with open(f"/proc/{pid['data'][0]}/comm") as f:
+                if f.read().strip() == PROCESS:
+                    return service, "/" + (path or "StatusNotifierItem")
+        except (OSError, TypeError, KeyError, IndexError):
+            continue
+    return None
+
+
+def entries(node):
+    """Archon's menu as [(id, label, enabled, separator)] – one level, like Archon's own."""
+    out = []
+    for child in node[2]:
+        cid, props = child["data"][0], child["data"][1]
+        get = lambda key, default: props.get(key, {}).get("data", default)   # noqa: E731
+        if not get("visible", True):
+            continue
+        out.append((cid, get("label", "").replace("_", ""), get("enabled", True),
+                    get("type", "") == "separator"))
+    return out
+
+
+class ArchonTray:
+    def __init__(self, app):
+        self.item = None
+        self.menu_path = None
+        # The file itself: fromTheme() shortens a missing name to "goblincakes" (the logo)
+        self.tray = QSystemTrayIcon(QIcon(ICON), app)
+        self.menu = QMenu()
+        self.menu.aboutToShow.connect(self.fill_menu)
+        self.tray.setContextMenu(self.menu)
+        self.tray.activated.connect(self.clicked)
+        self.timer = QTimer(interval=POLL_MS, timeout=self.poll)
+        self.timer.start()
+        self.poll()
+
+    def poll(self):
+        if self.item:
+            tip = busctl("get-property", *self.item, SNI, "ToolTip")
+            if tip is None:
+                self.item = None
+            else:
+                self.tray.setToolTip(tip["data"][2] or "Archon")
+        if not self.item:
+            self.item = find_archon()
+            if self.item:
+                menu = busctl("get-property", *self.item, SNI, "Menu")
+                self.menu_path = menu["data"] if menu else None
+                self.fill_menu()
+                return self.poll()
+        self.tray.setVisible(bool(self.item))
+
+    def fill_menu(self):
+        self.menu.clear()
+        if not self.item or not self.menu_path:
+            return
+        service = self.item[0]
+        busctl("call", service, self.menu_path, MENU, "AboutToShow", "i", "0")
+        layout = busctl("call", service, self.menu_path, MENU, "GetLayout", "iias", "--", "0", "-1", "0")
+        if not layout:
+            return
+        for cid, label, enabled, separator in entries(layout["data"][1]):
+            if separator:
+                self.menu.addSeparator()
+                continue
+            action = self.menu.addAction(label)
+            action.setEnabled(enabled)
+            action.triggered.connect(lambda _=False, cid=cid: busctl(
+                "call", service, self.menu_path, MENU, "Event", "isvu", "--",
+                str(cid), "clicked", "s", "", "0"))
+
+    def clicked(self, reason):
+        if not self.item:
+            return
+        if reason in (QSystemTrayIcon.ActivationReason.Trigger,
+                      QSystemTrayIcon.ActivationReason.DoubleClick):
+            pos = QCursor.pos()
+            busctl("call", *self.item, SNI, "Activate", "ii", str(pos.x()), str(pos.y()))
+        elif reason == QSystemTrayIcon.ActivationReason.MiddleClick:
+            busctl("call", *self.item, SNI, "SecondaryActivate", "ii", "0", "0")
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+    app.setApplicationName("goblincakes-archon-tray")
+    app.setDesktopFileName("appimage-archon")
+    _keep = ArchonTray(app)  # noqa: F841
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()
