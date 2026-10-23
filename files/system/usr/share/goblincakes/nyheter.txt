@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-23  Goblin AI: Skicka till ChatGPT och Gör om i ChatGPT öppnar en ny chatt med texten redan ifylld – bara att trycka Enter
 2026-10-23  Goblin AI: chattlistan visar varje chatt på en rad igen, och ber du om en bild där Kakan ska kolla online hur något ser ut söker hon först. Bakgrundsbild/1080p blir liggande.
 2026-10-23  ChatGPT finns i GOBLINCAKES Config (System): OpenAIs egen app, uppdateras med goblin update. I Goblin AI kan du skicka en fråga eller en bild vidare till ChatGPT – frågan kopieras, ChatGPT öppnas och du klistrar in med Ctrl+V
 2026-10-22  WoW Stats och CS2 Stats visar nuvarande säsong; när en ny säsong börjar får du en notis och de gamla hamnar under Arkiv

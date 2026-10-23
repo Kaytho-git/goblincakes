@@ -11,7 +11,7 @@ chatgpt package from its repodata (checksum checked) and unpacks it the same way
   goblincakes-chatgpt update               newer version from OpenAI's repository, if there is one
   goblincakes-chatgpt check                prints the newer version (nothing = none or can't tell)
   goblincakes-chatgpt status               JSON {installed, version, desktop, repo}
-  goblincakes-chatgpt open                 starts the app
+  goblincakes-chatgpt open [text]          starts the app; with text: a new chat with the text written in
   goblincakes-chatgpt uninstall            removes the app (your ChatGPT settings stay)
 
 Lines that start with "@@ " are for GOBLINCAKES Config (status). Only the standard library.
@@ -28,6 +28,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -408,11 +409,21 @@ def cmd_status():
                       "repo": state.get("repo", "")}))
 
 
-def cmd_open():
+# The app's own link for a new chat with the text in the box, not sent (found in the app 23 Oct, not
+# documented by OpenAI – tried: a new ChatGPT chat, the text written in)
+NEW_CHAT = "codex://threads/new?mode=chat&prompt="
+PROMPT_MAX = 30_000  # longer goes by the clipboard alone
+
+
+def cmd_open(text=""):
     state = load_state()
     if not state:
         sys.exit(1)
-    subprocess.Popen([str(LAUNCHER)], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    args = [NEW_CHAT + urllib.parse.quote(text, safe="")] if text and len(text) <= PROMPT_MAX else []
+    # Electron started from VS Code's terminal would run as plain Node and die without a word
+    env = {k: v for k, v in os.environ.items() if k != "ELECTRON_RUN_AS_NODE"}
+    subprocess.Popen([str(LAUNCHER), *args], start_new_session=True, env=env,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def cmd_uninstall():
@@ -437,7 +448,7 @@ def main():
     elif cmd == "status":
         cmd_status()
     elif cmd == "open":
-        cmd_open()
+        cmd_open(" ".join(args[1:]))
     elif cmd == "uninstall":
         cmd_uninstall()
     else:

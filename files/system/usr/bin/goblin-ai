@@ -1747,8 +1747,8 @@ class Backend(QObject):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
 
     # ── ChatGPT (OpenAI's own app, GOBLINCAKES Config → System, 23 Oct) ──
-    # The app takes no question from outside, so it goes by the clipboard: copied, the app
-    # opens, Ctrl+V in it. "Not a big deal if sending doesn't work" – the user's words.
+    # The app opens a new chat with the text already in the box (its codex:// link, see
+    # goblincakes-chatgpt open); the text is copied too, in case a later app version drops the link.
 
     @Property(bool, constant=True)
     def chatgpt(self):
@@ -1757,8 +1757,8 @@ class Backend(QObject):
 
     def _to_chatgpt(self, text):
         QGuiApplication.clipboard().setText(text)
-        if QProcess.startDetached("/usr/libexec/goblincakes-chatgpt", ["open"]):
-            self.notice.emit("Kopierat – klistra in i ChatGPT med Ctrl+V")
+        if QProcess.startDetached("/usr/libexec/goblincakes-chatgpt", ["open", text]):
+            self.notice.emit("Ny chatt i ChatGPT – tryck Enter där för att skicka")
         else:
             self.notice.emit("Kopierat – ChatGPT gick inte att starta")
 
