@@ -92,7 +92,7 @@ dock.height = Math.round(gridUnit * 3.2);
 dock.alignment = "center";
 dock.hiding = "autohide";
 // Translucent mode = always widgets/panel-background (thin frame all round);
-// our theme makes it solid #05070A anyway
+// our theme draws it 60 % opaque (translucent/widgets/panel-background, 24 Oct)
 try { dock.opacity = "translucent"; } catch (e) {}
 try { dock.lengthMode = "fit"; } catch (e) {}
 try { dock.floating = true; } catch (e) {}
