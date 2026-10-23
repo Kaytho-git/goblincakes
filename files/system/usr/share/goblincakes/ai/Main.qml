@@ -71,7 +71,10 @@ Window {
         if (pictureMode) {
             if (input.text.trim() === "")
                 return;
-            backend.createImage(input.text);
+            if (backend.canDraw)
+                backend.createImage(input.text);
+            else
+                backend.drawChatGPT(input.text); // only ChatGPT can draw here
             input.text = "";
             pictureMode = false;
             return;
@@ -81,6 +84,15 @@ Window {
         backend.send(input.text, attachment);
         input.text = "";
         attachment = "";
+    }
+
+    // Rita i ChatGPT (23 Oct, the user's wish): the description as a new chat in the ChatGPT app
+    function sendChatGPT() {
+        if (input.text.trim() === "")
+            return;
+        backend.drawChatGPT(input.text);
+        input.text = "";
+        pictureMode = false;
     }
 
     function reload() {
@@ -1797,7 +1809,8 @@ Window {
 
                             Text {
                                 visible: input.text === ""
-                                text: win.pictureMode ? "Beskriv bilden – t.ex. en goblin som skjuter pilbåge i solnedgången, målning (Enter ritar)"
+                                text: win.pictureMode ? "Beskriv bilden – t.ex. en goblin som skjuter pilbåge i solnedgången, målning (Enter "
+                                                      + (backend.canDraw ? "ritar)" : "öppnar ChatGPT)")
                                                       : (backend.aiName ? "Skriv till " + backend.aiName + "…" : "Skriv din fråga…") + "  (Enter skickar, Shift+Enter ny rad)"
                                 color: "#5C6880"
                                 font: input.font
@@ -1844,13 +1857,22 @@ Window {
                     }
                     FlatButton {
                         small: true
-                        visible: backend.canDraw
+                        visible: backend.canDraw || backend.chatgpt
                         primary: win.pictureMode
                         text: win.pictureMode ? "Fråga i stället" : "Skapa bild"
                         onClicked: { win.pictureMode = !win.pictureMode; input.forceActiveFocus(); }
                     }
                     FlatButton {
                         small: true
+                        visible: win.pictureMode && backend.chatgpt
+                        primary: !backend.canDraw
+                        text: "Rita i ChatGPT"
+                        enabledState: input.text.trim() !== ""
+                        onClicked: win.sendChatGPT()
+                    }
+                    FlatButton {
+                        small: true
+                        visible: !win.pictureMode || backend.canDraw
                         primary: true
                         text: win.pictureMode ? "Rita" : "Skicka"
                         enabledState: win.pictureMode ? input.text.trim() !== ""

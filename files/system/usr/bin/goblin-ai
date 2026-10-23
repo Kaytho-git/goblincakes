@@ -1780,6 +1780,12 @@ class Backend(QObject):
         self._to_chatgpt(f"Skapa en bild: {prompt}")
 
     @Slot(str)
+    def drawChatGPT(self, text):
+        """Rita i ChatGPT, by Rita when Skapa bild is on."""
+        if text.strip():
+            self._to_chatgpt(f"Skapa en bild: {text.strip()}")
+
+    @Slot(str)
     def copyImage(self, path):
         QGuiApplication.clipboard().setImage(QImage(path))
         self.notice.emit("Bilden är kopierad")
