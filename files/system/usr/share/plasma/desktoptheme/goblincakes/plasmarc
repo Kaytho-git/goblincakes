@@ -8,5 +8,7 @@ enabled=false
 [ContrastEffect]
 enabled=false
 
+# Must stay on: without it Plasma reports every panel as "translucent" whatever
+# its setting, so the top bar never draws solid/ (white bottom line).
 [AdaptiveTransparency]
-enabled=false
+enabled=true
