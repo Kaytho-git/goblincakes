@@ -27,9 +27,9 @@ SUBTLE = "#1A2438"
 NONE = "none"
 
 
-def frame(prefix, y, border, fill, width=1, margin=6, border_opacity=1.0, fill_opacity=1.0, gap=0):
-    """One square 9-piece frame (100×100) at row y, plus its margin hints. gap = empty
-    pixel rows under the bottom border, in the panel's frame colour."""
+def frame(prefix, y, border, fill, width=1, margin=6, border_opacity=1.0, fill_opacity=1.0, gaps=(0, 0)):
+    """One square 9-piece frame (100×100) at row y, plus its margin hints. gaps = pixel rows
+    (above, below) the frame, in the panel's frame colour."""
     p = f"{prefix}-" if prefix else ""
     b, size = width, 100
     inner = size - 2 * b
@@ -47,10 +47,12 @@ def frame(prefix, y, border, fill, width=1, margin=6, border_opacity=1.0, fill_o
     }
     for name, (x, yy, w, h) in pieces.items():
         rect = f'<rect x="{x}" y="{y + yy}" width="{w}" height="{h}"{paint(border, border_opacity)}/>'
-        if gap and name.startswith("bottom"):
+        gap = gaps[0] if name.startswith("top") else gaps[1] if name.startswith("bottom") else 0
+        if gap:
             # The gap is painted in the panel's frame colour, so the panel's line runs on
             # under the button (QtSvg leaves a see-through rect out of the piece's size)
-            out.append(f'  <g id="{p}{name}">{rect}<rect x="{x}" y="{y + yy + h}" width="{w}" height="{gap}" fill="{PANEL_BORDER}"/></g>')
+            gy = y + yy - gap if name.startswith("top") else y + yy + h
+            out.append(f'  <g id="{p}{name}">{rect}<rect x="{x}" y="{gy}" width="{w}" height="{gap}" fill="{PANEL_BORDER}"/></g>')
         else:
             out.append(f'  <rect id="{p}{name}"' + rect[5:])
     out.append(f'  <rect id="{p}center" x="{b}" y="{y + b}" width="{inner}" height="{inner}"{paint(fill, fill_opacity)}/>')
@@ -139,10 +141,13 @@ TASKS = [
 write(
     "widgets/tasks.svg",
     "Square GOBLINCAKES task buttons: active = dark blue, running = dim tile.",
+    # The task buttons fill the panel's whole height and would cover its 1 px frame line, so
+    # they stop 1 px short of it. Plasma asks for "north-<state>" first in the top bar (line at
+    # the bottom) and "south-<state>" in the dock (floating: line above and below).
     TASKS + [
-        # The top bar (Plasma asks for "north-<state>" first there): the task buttons fill
-        # the bar's whole height, so they stop 1 px early to leave its bottom frame line whole.
-        ("north-" + name, *rest, *[1.0] * (6 - len(rest)), 1) for name, *rest in TASKS
+        (edge + name, *rest, *[1.0] * (6 - len(rest)), gaps)
+        for edge, gaps in (("north-", (0, 1)), ("south-", (1, 1)))
+        for name, *rest in TASKS
     ],
 )
 

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="140" height="100" viewBox="0 0 140 100">
   <!-- Square GOBLINCAKES frame. Everything not defined in this theme falls back to Breeze.
-       Solid = the top bar (always opaque): the dock's frame colour, 1 px instead of 2.
+       Solid = the top bar (always opaque): the same 1 px frame as the dock.
        The dock is translucent, so it uses ../../widgets/panel-background.svg. -->
   <rect id="topleft" x="0" y="0" width="1" height="1" fill="#2A3852"/>
   <rect id="top" x="1" y="0" width="98" height="1" fill="#2A3852"/>
