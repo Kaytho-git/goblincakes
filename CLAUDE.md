@@ -83,6 +83,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Discord i GOBLINCAKES-stil (Vencord, eget val i Config; läggs in igen efter Discord-uppdateringar)
 - [x] Tiling med egna regler (Config → Fönster, layouter, Meta+Ctrl+1–9)
 - [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, sök/egna listor, spara album, GENRER med Last.fm, MPRIS, GRAF)
+- [x] ChatGPT-appen (OpenAIs RPM uppackad i hemmappen, `goblincakes-chatgpt`; Goblin AI → "Skicka till ChatGPT" via urklipp) – ej provad med riktiga paketet
 
 ## Att göra
 - [ ] **Lokal AI** – kvar: Ianseo-spåret mot riktiga Ianseo, Podman-övningsdatorn och läraren med riktiga Ollama.

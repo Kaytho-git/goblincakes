@@ -111,6 +111,7 @@ check() {
         battlenet) compgen -G "$HOME/Games/battlenet*/drive_c/Program Files*/Battle.net/Battle.net*.exe" >/dev/null ;;
         claude-code) [ -x "$HOME/.local/bin/claude" ] ;;
         vscode) [ -x "$HOME/.local/share/vscode/code" ] ;;
+        chatgpt) /usr/libexec/goblincakes-chatgpt status | grep -q '"installed": true' ;;
         discord) [ -x "$HOME/.local/share/discord-app/discord" ] ;;
         recorder) [ -e "$HOME/.config/goblincakes/recorder-on" ] && flatpak info com.obsproject.Studio >/dev/null 2>&1 ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
@@ -532,6 +533,16 @@ DESKTOP
     discord-launcher)
         # goblincakes-refresh.sh at login: a launcher from before 12 Oct gets the line too
         discord_launcher "$HOME/.local/share/discord-app/discord"
+        ;;
+
+    chatgpt)
+        # OpenAI's own ChatGPT app (their RPM, unpacked in the home folder – see the helper).
+        # goblin update runs chatgpt-update for new versions.
+        exec /usr/libexec/goblincakes-chatgpt install "$@"
+        ;;
+
+    chatgpt-update)
+        exec /usr/libexec/goblincakes-chatgpt update
         ;;
 
     claude-code)

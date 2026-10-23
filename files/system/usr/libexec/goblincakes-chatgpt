@@ -1,0 +1,450 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: OpenAI's own ChatGPT app for Linux (23 Oct, the user's wish – the official app, least
+fuss; preview since 11 Aug 2026, an RPM for Fedora 43/44). Like VS Code and Discord it lives in the
+home folder, not layered into the system: the RPM is unpacked to ~/.local/share/chatgpt-app (no
+rpm-ostree, no restart, the image doesn't grow). Updates come from OpenAI's own repository
+(openai-chatgpt), read from the package at the first install: goblin update fetches the newest
+chatgpt package from its repodata (checksum checked) and unpacks it the same way.
+
+  goblincakes-chatgpt install [file.rpm]   the RPM given, else the one on chatgpt.com/download, else
+                                           the page opens and the RPM is taken from Hämtade filer
+  goblincakes-chatgpt update               newer version from OpenAI's repository, if there is one
+  goblincakes-chatgpt check                prints the newer version (nothing = none or can't tell)
+  goblincakes-chatgpt status               JSON {installed, version, desktop, repo}
+  goblincakes-chatgpt open                 starts the app
+  goblincakes-chatgpt uninstall            removes the app (your ChatGPT settings stay)
+
+Lines that start with "@@ " are for GOBLINCAKES Config (status). Only the standard library.
+"""
+import gzip
+import hashlib
+import json
+import lzma
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+HOME = Path.home()
+DATA = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share")
+APP = DATA / "chatgpt-app"
+STATE = APP / ".goblincakes.json"
+APPS = DATA / "applications"
+ICONS = DATA / "icons"
+LAUNCHER = HOME / ".local/bin/chatgpt"
+PAGE = os.environ.get("GOBLINCAKES_CHATGPT_PAGE", "https://chatgpt.com/download")
+WAIT = 15 * 60  # seconds to wait for the RPM in Hämtade filer
+UA = "Mozilla/5.0 (X11; Linux x86_64) GOBLINCAKES"
+
+
+def status(text):
+    print(f"@@ {text}", flush=True)
+
+
+def fail(text):
+    status(text)
+    sys.exit(1)
+
+
+def load_state():
+    try:
+        return json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def fetch(url, timeout=60):
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
+
+
+def rpm_query(path, fmt):
+    return subprocess.run(["rpm", "-qp", "--nosignature", "--nodigest", "--qf", fmt, str(path)],
+                          capture_output=True, text=True).stdout
+
+
+def downloads_dir():
+    try:
+        d = subprocess.run(["xdg-user-dir", "DOWNLOAD"], capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        d = ""
+    return Path(d) if d and d != str(HOME) else HOME / "Hämtade filer"
+
+
+# ── Getting the RPM ──
+
+def from_page(tmp):
+    """The x86_64 RPM linked on chatgpt.com/download, if the page gives it to a plain request."""
+    try:
+        html = fetch(PAGE, 30).decode("utf-8", "replace")
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+    links = re.findall(r"https?://[^\s\"'<>]+?\.rpm\b[^\s\"'<>]*", html.replace("\\u002F", "/").replace("\\/", "/"))
+    links = [u for u in links if "aarch64" not in u and "arm64" not in u]
+    if not links:
+        return None
+    target = Path(tmp) / "chatgpt.x86_64.rpm"
+    status("Hämtar ChatGPT från OpenAI…")
+    try:
+        target.write_bytes(fetch(links[0], 600))
+    except (urllib.error.URLError, OSError):
+        return None
+    return target
+
+
+def from_downloads(started):
+    """Opens chatgpt.com/download and waits for a chatgpt*.rpm in Hämtade filer (newer than the start)."""
+    folder = downloads_dir()
+
+    def newest():
+        found = [p for p in folder.glob("*.rpm") if "chatgpt" in p.name.lower() and "aarch64" not in p.name
+                 and p.stat().st_mtime >= started - 5]
+        return max(found, key=lambda p: p.stat().st_mtime) if found else None
+    existing = [p for p in folder.glob("*.rpm") if "chatgpt" in p.name.lower() and "aarch64" not in p.name]
+    if existing:  # one already downloaded earlier
+        return max(existing, key=lambda p: p.stat().st_mtime)
+    status("Ladda ner Fedora-paketet (.rpm, x64) på sidan som öppnades – resten sker av sig själv")
+    subprocess.Popen(["xdg-open", PAGE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    end = time.time() + WAIT
+    while time.time() < end:
+        found = newest()
+        # A file still being written: Firefox/Chrome use .part/.crdownload next to it – wait until gone
+        if found and not list(folder.glob(found.name + ".*")) and time.time() - found.stat().st_mtime > 2:
+            return found
+        time.sleep(2)
+    fail("Inget ChatGPT-paket kom i Hämtade filer inom 15 minuter – försök igen")
+
+
+# ── Unpacking and the menu entry ──
+
+def menu_changed():
+    if shutil.which("update-desktop-database"):
+        subprocess.run(["update-desktop-database", str(APPS)], capture_output=True)
+
+
+def unpack(rpm, dest):
+    dest.mkdir(parents=True)
+    if shutil.which("bsdtar"):
+        ok = subprocess.run(["bsdtar", "-xf", str(rpm), "-C", str(dest)], capture_output=True).returncode == 0
+    else:
+        ok = False
+    if not ok:
+        p = subprocess.run(f"rpm2cpio {shlex_quote(rpm)} | cpio -idm --quiet --no-absolute-filenames",
+                           shell=True, cwd=dest, capture_output=True)
+        ok = p.returncode == 0
+    if not ok:
+        fail("Paketet gick inte att packa upp")
+
+
+def shlex_quote(path):
+    import shlex
+    return shlex.quote(str(path))
+
+
+def find_repo(rpm, root):
+    """OpenAI's repository (baseurl) – a .repo file in the package or written by its scripts."""
+    texts = [p.read_text(errors="replace") for p in (root / "etc/yum.repos.d").glob("*.repo")] \
+        if (root / "etc/yum.repos.d").is_dir() else []
+    texts.append(subprocess.run(["rpm", "-qp", "--scripts", "--nosignature", "--nodigest", str(rpm)],
+                                capture_output=True, text=True).stdout)
+    for text in texts:
+        m = re.search(r"^\s*baseurl\s*=\s*(\S+)", text, re.M)
+        if m:
+            return m.group(1).strip().rstrip("\\").strip("'\"")
+    return ""
+
+
+def find_desktop(root):
+    entries = sorted((root / "usr/share/applications").glob("*.desktop")) if (root / "usr/share/applications").is_dir() else []
+    entries.sort(key=lambda p: ("chatgpt" not in p.name.lower(), p.name))
+    return entries[0] if entries else None
+
+
+def resolve(root, path):
+    """An absolute path from the package, inside the unpacked root (symlinks followed inside it)."""
+    p = root / str(path).lstrip("/")
+    for _ in range(10):
+        if p.is_symlink():
+            target = os.readlink(p)
+            p = root / target.lstrip("/") if target.startswith("/") else p.parent / target
+        else:
+            break
+    return p
+
+
+def program(root, desktop):
+    """The program the menu entry starts, inside the unpacked root. A wrapper script in /usr/bin is
+    followed to the real program it starts (in /opt or /usr/lib)."""
+    exec_line = ""
+    if desktop:
+        m = re.search(r"^Exec=(.+)$", desktop.read_text(errors="replace"), re.M)
+        exec_line = m.group(1).strip() if m else ""
+    first = exec_line.split()[0].strip('"') if exec_line else ""
+    candidates = []
+    if first:
+        candidates.append(first if first.startswith("/") else f"/usr/bin/{first}")
+    candidates += ["/usr/bin/chatgpt", "/usr/bin/ChatGPT"]
+    for cand in candidates:
+        p = resolve(root, cand)
+        if not p.is_file():
+            continue
+        head = p.read_bytes()[:4096]
+        if head.startswith(b"#!"):  # a script: the absolute path it starts
+            text = p.read_text(errors="replace")
+            for m in re.finditer(r"(/(?:opt|usr/lib|usr/lib64|usr/share)/[^\s\"']+)", text):
+                q = resolve(root, m.group(1))
+                if q.is_file() and os.access(q, os.X_OK):
+                    return q
+        if os.access(p, os.X_OK):
+            return p
+    # Last resort: an executable called chatgpt somewhere in /opt
+    for p in sorted((root / "opt").rglob("*")) if (root / "opt").is_dir() else []:
+        if p.is_file() and p.name.lower() in ("chatgpt", "chat-gpt") and os.access(p, os.X_OK):
+            return p
+    return None
+
+
+def install_rpm(rpm):
+    name, version, arch = (rpm_query(rpm, "%{NAME}\t%{VERSION}-%{RELEASE}\t%{ARCH}").split("\t") + ["", "", ""])[:3]
+    if "chatgpt" not in name.lower():
+        fail(f"{Path(rpm).name} är inte ChatGPT-paketet")
+    if arch not in ("x86_64", "noarch"):
+        fail(f"Fel sorts paket ({arch}) – det ska vara x64 (x86_64)")
+    status(f"Packar upp ChatGPT {version}…")
+    DATA.mkdir(parents=True, exist_ok=True)
+    new = Path(tempfile.mkdtemp(prefix=".chatgpt-new-", dir=DATA))
+    shutil.rmtree(new)
+    unpack(rpm, new)
+    repo = find_repo(rpm, new) or load_state().get("repo", "")
+    desktop = find_desktop(new)
+    prog = program(new, desktop)
+    if prog is None:
+        shutil.rmtree(new, ignore_errors=True)
+        fail("Hittade inte programmet i paketet – OpenAI kan ha ändrat det")
+    rel = prog.relative_to(new)
+    old = APP.with_name(".chatgpt-old")
+    shutil.rmtree(old, ignore_errors=True)
+    if APP.exists():
+        APP.rename(old)
+    new.rename(APP)
+    shutil.rmtree(old, ignore_errors=True)
+    if desktop:
+        desktop = APP / desktop.relative_to(new)
+
+    # Icons (hicolor + pixmaps) into the home folder's icon theme
+    for src in [APP / "usr/share/icons", APP / "usr/share/pixmaps"]:
+        if src.is_dir():
+            dst = ICONS if src.name == "icons" else ICONS / "hicolor/256x256/apps"
+            for f in src.rglob("*"):
+                if f.is_file():
+                    target = dst / f.relative_to(src)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(f, target)
+    try:
+        os.utime(ICONS / "hicolor")
+    except OSError:
+        pass
+
+    # The launcher and the menu entry (the package's own name, so a dock icon keeps working)
+    LAUNCHER.parent.mkdir(parents=True, exist_ok=True)
+    LAUNCHER.write_text(f'#!/bin/sh\n# ChatGPT (OpenAI), unpacked by GOBLINCAKES – goblincakes-chatgpt\n'
+                        f'exec "{APP / rel}" "$@"\n')
+    LAUNCHER.chmod(0o755)
+    desktop_name = desktop.name if desktop else "chatgpt.desktop"
+    lines = desktop.read_text(errors="replace").splitlines() if desktop else [
+        "[Desktop Entry]", "Type=Application", "Name=ChatGPT", "Exec=chatgpt %U", "Icon=chatgpt",
+        "Categories=Office;Utility;"]
+    out = []
+    for line in lines:
+        if line.startswith("Exec="):
+            args = line[5:].split(None, 1)
+            line = f"Exec={LAUNCHER}" + (f" {args[1]}" if len(args) > 1 else "")
+        elif line.startswith("TryExec="):
+            continue
+        out.append(line)
+    if "X-GOBLINCAKES-App=chatgpt" not in out:
+        idx = out.index("[Desktop Entry]") + 1 if "[Desktop Entry]" in out else 0
+        out.insert(idx, "X-GOBLINCAKES-App=chatgpt")
+    APPS.mkdir(parents=True, exist_ok=True)
+    (APPS / desktop_name).write_text("\n".join(out) + "\n")
+    for f in APPS.glob("*.desktop"):  # an older entry from a renamed package
+        if f.name != desktop_name and "X-GOBLINCAKES-App=chatgpt" in f.read_text(errors="replace"):
+            f.unlink()
+    menu_changed()
+    STATE.write_text(json.dumps({"name": name, "version": version, "desktop": desktop_name,
+                                 "program": str(rel), "repo": repo}))
+    status(f"ChatGPT {version} finns nu i AppGrid" + ("" if repo else " (hittade inget förråd – uppdateras när du installerar igen)"))
+
+
+# ── Updates from OpenAI's repository ──
+
+def repo_url(base):
+    version = ""
+    try:
+        version = re.search(r'^VERSION_ID="?([^"\n]+)', Path("/etc/os-release").read_text(), re.M).group(1)
+    except (OSError, AttributeError):
+        pass
+    return base.replace("$basearch", "x86_64").replace("$releasever", version or "44").rstrip("/") + "/"
+
+
+def decompress(data, href):
+    if href.endswith(".gz"):
+        return gzip.decompress(data)
+    if href.endswith(".xz"):
+        return lzma.decompress(data)
+    if href.endswith(".zst"):
+        try:
+            from compression import zstd  # Python 3.14
+            return zstd.decompress(data)
+        except ImportError:
+            return subprocess.run(["zstd", "-dc"], input=data, capture_output=True, check=True).stdout
+    if href.endswith(".bz2"):
+        import bz2
+        return bz2.decompress(data)
+    return data
+
+
+def newest_in_repo(state):
+    """(version-release, url, sha256) of the newest package with the app's name, or None."""
+    base = state.get("repo")
+    if not base:
+        return None
+    url = repo_url(base)
+    ns = {"r": "http://linux.duke.edu/metadata/repo", "c": "http://linux.duke.edu/metadata/common"}
+    repomd = ET.fromstring(fetch(url + "repodata/repomd.xml", 30))
+    href = next((d.find("r:location", ns).get("href") for d in repomd.findall("r:data", ns) if d.get("type") == "primary"), None)
+    if not href:
+        return None
+    primary = ET.fromstring(decompress(fetch(url + href, 120), href))
+    best = None
+    for pkg in primary.findall("c:package", ns):
+        if pkg.findtext("c:name", namespaces=ns) != state.get("name", "chatgpt") \
+                or pkg.findtext("c:arch", namespaces=ns) not in ("x86_64", "noarch"):
+            continue
+        v = pkg.find("c:version", ns)
+        evr = (v.get("epoch") or "0", v.get("ver"), v.get("rel"))
+        checksum = pkg.find("c:checksum", ns)
+        found = (evr, url + pkg.find("c:location", ns).get("href"),
+                 (checksum.get("type"), checksum.text) if checksum is not None else None)
+        if best is None or compare(evr, best[0]) > 0:
+            best = found
+    return best
+
+
+def compare(a, b):
+    try:
+        import rpm
+        return rpm.labelCompare(a, b)
+    except ImportError:
+        key = lambda e: [int(x) if x.isdigit() else x for x in re.split(r"[.\-_+~]", "-".join(e))]
+        return (key(a) > key(b)) - (key(a) < key(b))
+
+
+def installed_evr(state):
+    ver, _, rel = state.get("version", "").partition("-")
+    return ("0", ver, rel)
+
+
+def cmd_check():
+    state = load_state()
+    if not state:
+        return
+    try:
+        best = newest_in_repo(state)
+    except (urllib.error.URLError, OSError, ValueError, ET.ParseError, subprocess.SubprocessError):
+        sys.exit(2)  # can't tell now
+    if best and compare(best[0], installed_evr(state)) > 0:
+        print(f"{best[0][1]}-{best[0][2]}")
+
+
+def cmd_update():
+    state = load_state()
+    if not state:
+        fail("ChatGPT är inte installerad")
+    status("Letar efter en nyare ChatGPT…")
+    try:
+        best = newest_in_repo(state)
+    except (urllib.error.URLError, OSError, ValueError, ET.ParseError, subprocess.SubprocessError) as e:
+        fail(f"Kunde inte nå OpenAIs förråd ({getattr(e, 'reason', e)})")
+    if not state.get("repo"):
+        status("Ingen uppdateringskälla känd – installera igen från GOBLINCAKES Config för nyare versioner")
+        return
+    if not best or compare(best[0], installed_evr(state)) <= 0:
+        status(f"ChatGPT {state.get('version', '')} är redan senaste")
+        return
+    version = f"{best[0][1]}-{best[0][2]}"
+    with tempfile.TemporaryDirectory() as tmp:
+        status(f"Hämtar ChatGPT {version}…")
+        path = Path(tmp) / "chatgpt.rpm"
+        path.write_bytes(fetch(best[1], 900))
+        if best[2] and best[2][0] in hashlib.algorithms_available:
+            if hashlib.new(best[2][0], path.read_bytes()).hexdigest() != best[2][1]:
+                fail("Paketet stämmer inte med förrådets kontrollsumma – försök igen senare")
+        install_rpm(path)
+
+
+def cmd_install(args):
+    started = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        rpm = Path(args[0]) if args else None
+        if rpm is None:
+            status("Letar efter ChatGPT hos OpenAI…")
+            rpm = from_page(tmp) or from_downloads(started)
+        install_rpm(rpm)
+
+
+def cmd_status():
+    state = load_state()
+    ok = bool(state) and (APP / state.get("program", "-")).is_file()
+    print(json.dumps({"installed": ok, "version": state.get("version", ""), "desktop": state.get("desktop", ""),
+                      "repo": state.get("repo", "")}))
+
+
+def cmd_open():
+    state = load_state()
+    if not state:
+        sys.exit(1)
+    subprocess.Popen([str(LAUNCHER)], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def cmd_uninstall():
+    state = load_state()
+    if state.get("desktop"):
+        (APPS / state["desktop"]).unlink(missing_ok=True)
+    LAUNCHER.unlink(missing_ok=True)
+    shutil.rmtree(APP, ignore_errors=True)
+    menu_changed()
+    status("ChatGPT är borttagen (inloggning och inställningar ligger kvar i ~/.config)")
+
+
+def main():
+    args = sys.argv[1:]
+    cmd = args[0] if args else "status"
+    if cmd == "install":
+        cmd_install(args[1:])
+    elif cmd == "update":
+        cmd_update()
+    elif cmd == "check":
+        cmd_check()
+    elif cmd == "status":
+        cmd_status()
+    elif cmd == "open":
+        cmd_open()
+    elif cmd == "uninstall":
+        cmd_uninstall()
+    else:
+        print(__doc__)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

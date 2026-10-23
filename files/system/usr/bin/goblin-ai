@@ -1741,6 +1741,39 @@ class Backend(QObject):
         if not QProcess.startDetached("dolphin", ["--select", path]):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
 
+    # ── ChatGPT (OpenAI's own app, GOBLINCAKES Config → System, 23 Oct) ──
+    # The app takes no question from outside, so it goes by the clipboard: copied, the app
+    # opens, Ctrl+V in it. "Not a big deal if sending doesn't work" – the user's words.
+
+    @Property(bool, constant=True)
+    def chatgpt(self):
+        return (Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share")
+                / "chatgpt-app/.goblincakes.json").is_file()
+
+    def _to_chatgpt(self, text):
+        QGuiApplication.clipboard().setText(text)
+        if QProcess.startDetached("/usr/libexec/goblincakes-chatgpt", ["open"]):
+            self.notice.emit("Kopierat – klistra in i ChatGPT med Ctrl+V")
+        else:
+            self.notice.emit("Kopierat – ChatGPT gick inte att starta")
+
+    @Slot(int)
+    def askChatGPT(self, index):
+        """Skicka till ChatGPT: the question this answer was to."""
+        question = next((m["text"] for m in reversed(self._display[:index])
+                         if m["role"] == "user" and m.get("text")), "")
+        if question:
+            self._to_chatgpt(question)
+
+    @Slot(int, int)
+    def imageChatGPT(self, index, seg):
+        """Gör om i ChatGPT: the picture's description as a request for a picture."""
+        try:
+            prompt = self._display[index]["segments"][seg]["prompt"]
+        except (IndexError, KeyError):
+            return
+        self._to_chatgpt(f"Skapa en bild: {prompt}")
+
     @Slot(str)
     def copyImage(self, path):
         QGuiApplication.clipboard().setImage(QImage(path))

@@ -212,7 +212,7 @@ Window {
             parts.push({ "part": "flatpak", "title": "Flatpak-program",
                          "detail": apps.length > 0 ? apps.join(", ") + (runtimes > 0 ? " + " + runtimes + " systemdelar" : "")
                                                    : runtimes + (runtimes === 1 ? " systemdel" : " systemdelar") + " för programmen" });
-        const groups = [["appimages", "AppImage-program"], ["vscode", "VS Code"], ["discord", "Discord"],
+        const groups = [["appimages", "AppImage-program"], ["vscode", "VS Code"], ["chatgpt", "ChatGPT"], ["discord", "Discord"],
                         ["proton", "GE-Proton"], ["firmware", "Firmware"]];
         for (const [id, title] of groups) {
             const names = other.filter(o => o.part === id).map(o => o.name);

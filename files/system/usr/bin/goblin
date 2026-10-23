@@ -145,6 +145,13 @@ update_vscode() {
     config_step vscode
 }
 
+update_chatgpt() {
+    # OpenAI's ChatGPT app in the home folder (GOBLINCAKES Config → System)
+    [ -e "${XDG_DATA_HOME:-$HOME/.local/share}/chatgpt-app/.goblincakes.json" ] || return 0
+    heading "ChatGPT"
+    config_step chatgpt-update
+}
+
 update_discord() {
     # Discord's own Linux build in the home folder (GOBLINCAKES Config → Spel och WoW)
     [ -x "$HOME/.local/share/discord-app/discord" ] || return 0
@@ -190,7 +197,7 @@ update_firmware() {
 }
 
 cmd_update() {
-    # --gui: lines for GOBLINCAKES Config. --only system,flatpak,appimages,vscode,discord,proton,ollama,firmware:
+    # --gui: lines for GOBLINCAKES Config. --only system,flatpak,appimages,vscode,chatgpt,discord,proton,ollama,firmware:
     # just those parts (Config → Uppdatera updates each part on its own, 11 Oct)
     local only=""
     while [ $# -gt 0 ]; do
@@ -209,6 +216,7 @@ cmd_update() {
     part flatpak && step "Flatpak-program" update_flatpaks
     part appimages && update_appimages
     part vscode && step "VS Code" update_vscode
+    part chatgpt && step "ChatGPT" update_chatgpt
     part discord && step "Discord" update_discord
     part proton && step "GE-Proton" update_proton
     part ollama && step "Lokal AI" update_ollama
@@ -253,7 +261,7 @@ cmd_update() {
 # Descriptions: best at most 79 characters (Ghostty's 100 columns minus 21: 2 + "goblin " + 11 + 1);
 # longer ones wrap at whole words under the description column
 COMMANDS=(
-    "update|Uppdatera allt – eller en del: goblin update --only flatpak (system, flatpak, appimages, vscode, discord, proton, firmware)"
+    "update|Uppdatera allt – eller en del: goblin update --only flatpak (system, flatpak, appimages, vscode, chatgpt, discord, proton, firmware)"
     "ai|Öppna Goblin AI-fönstret (eller tryck Meta+A)"
     "ai [fråga]|Fråga Goblin AI direkt här – föreslagna kommandon körs bara om du säger ja"
     "ai setup|Ställ in gratis AI-tjänster (Gemini, OpenRouter, Tavily-sökning)"

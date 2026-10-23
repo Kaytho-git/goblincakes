@@ -295,6 +295,17 @@ def other_updates(old):
         except (OSError, ValueError):
             keep("vscode")
 
+    # ChatGPT (OpenAI's app in the home folder): the newest package in OpenAI's repository
+    if (home / ".local/share/chatgpt-app/.goblincakes.json").exists():
+        try:
+            p = subprocess.run(["/usr/libexec/goblincakes-chatgpt", "check"], capture_output=True, text=True, timeout=180)
+            if p.returncode != 0:
+                raise OSError(p.returncode)
+            if p.stdout.strip():
+                found.append({"part": "chatgpt", "name": f"ChatGPT {p.stdout.strip()}"})
+        except (OSError, subprocess.SubprocessError):
+            keep("chatgpt")
+
     # Discord (its own Linux build in the home folder): the download link names the version
     if (home / ".local/share/discord-app/discord").exists():
         try:

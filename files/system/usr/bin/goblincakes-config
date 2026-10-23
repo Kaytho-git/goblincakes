@@ -109,6 +109,12 @@ def app_launcher(app):
         files, match = [LOCAL_APPS / "discord.desktop"], ["/discord-app/discord"]
     elif kind == "vscode":
         files, match = [LOCAL_APPS / "code.desktop"], ["/.local/share/vscode/"]
+    elif kind == "chatgpt":
+        try:  # the package's own .desktop name, kept by goblincakes-chatgpt
+            name = json.loads((Path.home() / ".local/share/chatgpt-app/.goblincakes.json").read_text())["desktop"]
+        except (OSError, ValueError, KeyError):
+            name = "chatgpt.desktop"
+        files, match = [LOCAL_APPS / name], ["/chatgpt-app/", "/.local/bin/chatgpt"]
     else:
         return None
     found = next((f for f in files if f.is_file()), None)
@@ -812,9 +818,9 @@ class Config(QObject):
     # ── Uppdatera: `goblin update --gui` ──────────────────────
 
     # The steps in goblin update's order (its @@step headings), for the progress bar
-    UPDATE_STEPS = ["System (GOBLINCAKES-imagen)", "Flatpak-program", "AppImage-program", "VS Code", "Discord", "GE-Proton", "Lokal AI", "Firmware"]
+    UPDATE_STEPS = ["System (GOBLINCAKES-imagen)", "Flatpak-program", "AppImage-program", "VS Code", "ChatGPT", "Discord", "GE-Proton", "Lokal AI", "Firmware"]
     # goblin update --only names, in the same order
-    UPDATE_PARTS = ["system", "flatpak", "appimages", "vscode", "discord", "proton", "ollama", "firmware"]
+    UPDATE_PARTS = ["system", "flatpak", "appimages", "vscode", "chatgpt", "discord", "proton", "ollama", "firmware"]
 
     @Property(bool, notify=updateBusyChanged)
     def updateBusy(self):

@@ -1324,6 +1324,7 @@ Window {
                                                 FlatButton { small: true; text: "Kopiera bilden"; onClicked: backend.copyImage(segItem.s.path) }
                                                 FlatButton { visible: !segItem.s.report; small: true; text: "Gör en till"; onClicked: backend.anotherImage(msgItem.index, segItem.index) }
                                                 FlatButton { visible: !segItem.s.report; small: true; text: "Använd som avatar"; onClicked: backend.setAvatar(segItem.s.path) }
+                                                FlatButton { visible: !segItem.s.report && backend.chatgpt; small: true; text: "Gör om i ChatGPT"; onClicked: backend.imageChatGPT(msgItem.index, segItem.index) }
                                             }
                                             Text {
                                                 visible: segItem.s.state === "error"
@@ -1534,6 +1535,20 @@ Window {
                                         savePdfDialog.selectedFile = backend.pdfName(msgItem.index);
                                         savePdfDialog.open();
                                     }
+                                }
+                            }
+                            Text {
+                                visible: backend.chatgpt
+                                text: "Skicka till ChatGPT"
+                                color: chatgptArea.containsMouse ? "#E6ECF5" : "#5C6880"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                MouseArea {
+                                    id: chatgptArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.askChatGPT(msgItem.index)
                                 }
                             }
                             Text {
