@@ -13,7 +13,8 @@ chatgpt package from its repodata (checksum checked) and unpacks it the same way
   goblincakes-chatgpt status               JSON {installed, version, desktop, repo}
   goblincakes-chatgpt open [text]          starts the app; with text: a new chat with the text written in
   goblincakes-chatgpt image text [--out F] a new Codex chat with the text, waits (10 min) for the picture the app
-                                           draws and copies it to F (default: the app's own copy in ~/Bilder); prints the path
+                                           draws, copies it to F (default: the app's own copy in ~/Bilder), prints the path and
+                                           closes the app
   goblincakes-chatgpt uninstall            removes the app (your ChatGPT settings stay)
 
 Lines that start with "@@ " are for GOBLINCAKES Config (status). Only the standard library.
@@ -445,6 +446,24 @@ def newest_images(since):
     return sorted((f for f in found if f.stat().st_mtime > since), key=lambda f: f.stat().st_mtime)
 
 
+def close_app():
+    """Quits the app (24 Oct, the user's wish: closed once the picture is here) – SIGTERM to its main
+    process (the one without --type=), the way Electron quits by itself. (/home is /var/home here.)"""
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            argv = (proc / "cmdline").read_bytes().split(b"\0")
+            exe = os.readlink(proc / "exe")
+        except OSError:
+            continue
+        if exe.startswith(str(APP.resolve())) and Path(exe).name == "ChatGPT" and not any(a.startswith(b"--type=") for a in argv):
+            try:
+                os.kill(int(proc.name), 15)
+            except OSError:
+                pass
+
+
 def cmd_image(args):
     out, folder = None, False
     if "--out" in args:
@@ -468,12 +487,14 @@ def cmd_image(args):
             pic = (saved or found)[-1]
             if out is None and saved:
                 print(pic)  # already in Bilder
+                close_app()
                 return
             if out is None or folder:
                 out = (out or PICTURES) / time.strftime("chatgpt-%Y-%m-%d-%H%M%S.png")
             out.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(pic, out)
             print(out)
+            close_app()
             return
         time.sleep(2)
     fail("Ingen bild från ChatGPT på 10 minuter")
