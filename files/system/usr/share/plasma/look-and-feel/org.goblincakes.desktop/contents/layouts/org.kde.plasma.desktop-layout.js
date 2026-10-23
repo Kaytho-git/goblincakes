@@ -84,12 +84,13 @@ power.currentConfigGroup = ["General"];
 power.writeConfig("show_lockScreen", false);
 power.writeConfig("show_requestLogoutScreen", true);
 
-// ---- Bottom dock: hides when a window covers it ----
+// ---- Bottom dock: hidden, comes up at the bottom edge or with Meta+Z (23 Oct, the user's
+// wish; Meta+Z = the goblincakes-windows KWin script, also over games) ----
 var dock = new Panel;
 dock.location = "bottom";
 dock.height = Math.round(gridUnit * 3.2);
 dock.alignment = "center";
-dock.hiding = "dodgewindows";
+dock.hiding = "autohide";
 // Translucent mode = always widgets/panel-background (thin frame all round);
 // our theme makes it solid #05070A anyway
 try { dock.opacity = "translucent"; } catch (e) {}

@@ -641,6 +641,64 @@ registerShortcut("GOBLINCAKES Tile Float", "GOBLINCAKES: fönstret ut ur rutorna
         }
     });
 
+// Meta+Z: the dock (auto-hidden since 23 Oct, the user's wish) comes up over everything, also
+// over a game in fullscreen. Plasma can't be told to show an auto-hidden panel, so the dock is
+// switched to "windows go below" (shown, no space reserved – nothing moves) and back. KWin always
+// keeps a panel under the active fullscreen window, so that window is put below meanwhile. The
+// dock goes away again 3 s after the mouse left it, or with Meta+Z once more.
+const DOCK_HIDING = 'panels().forEach(function (p) { if (p.location === "bottom") p.hiding = "%1"; });';
+let dockUp = null;
+
+function setDockHiding(mode) {
+    callDBus("org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell", "evaluateScript",
+        DOCK_HIDING.replace("%1", mode));
+}
+
+function theDock() {
+    const list = workspace.windowList();
+    for (let i = 0; i < list.length; i++) {
+        const p = list[i], s = p.dock && p.output.geometry, g = p.frameGeometry;
+        if (s && g.y + g.height >= s.y + s.height - 2 && g.y > s.y + 2)
+            return p;
+    }
+    return null;
+}
+
+function dockDown() {
+    if (!dockUp)
+        return;
+    dockUp.timer.stop();
+    if (dockUp.below)
+        dockUp.below.keepBelow = false;
+    dockUp = null;
+    setDockHiding("autohide");
+}
+
+registerShortcut("GOBLINCAKES Dock", "GOBLINCAKES: visa dockan (även över spel)", "Meta+Z", function () {
+    if (dockUp) {
+        dockDown();
+        return;
+    }
+    const active = workspace.activeWindow;
+    const below = active && active.fullScreen && !active.keepBelow ? active : null;
+    if (below)
+        below.keepBelow = true;
+    const timer = new QTimer();
+    timer.interval = 500;
+    let away = 0;
+    timer.timeout.connect(function () {
+        const dock = theDock(), pos = workspace.cursorPos;
+        const g = dock && dock.frameGeometry;
+        const over = g && pos.x >= g.x && pos.x < g.x + g.width && pos.y >= g.y - 8 && pos.y < g.y + g.height;
+        away = over ? 0 : away + 1;
+        if (away >= 6)
+            dockDown();
+    });
+    dockUp = { below: below, timer: timer };
+    setDockHiding("windowsgobelow");
+    timer.start();
+});
+
 const existing = workspace.windowList();
 for (let i = 0; i < existing.length; i++) {
     if (ordinaryWindow(existing[i]))

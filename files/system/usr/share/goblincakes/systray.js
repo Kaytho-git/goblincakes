@@ -64,6 +64,12 @@ panels().forEach(function (panel) {
     });
 });
 
+// The dock auto-hides (23 Oct, the user's wish): up at the bottom edge or with Meta+Z
+panels().forEach(function (panel) {
+    if (panel.location === "bottom")
+        panel.hiding = "autohide";
+});
+
 // Not ready yet: fail, so goblincakes-firstlogin tries again in a moment
 if (trimmed === 0) {
     throw new Error("system tray not ready");
