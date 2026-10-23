@@ -51,15 +51,15 @@ panels().forEach(function (panel) {
     });
 });
 
-// The top bar's open programs: only windows on its own screen (14 Oct, the user's choice).
-// From Plasma 6.8 Meta+1–9 goes to the first task manager showing all screens – so the dock
-// (Meta+1 = the terminal, Meta+2 = Firefox), not the top bar. Here too for existing panels.
+// The top bar's open programs: windows on every screen (23 Oct, the user's choice; 14 Oct it
+// was only its own screen). From Plasma 6.8 Meta+1–9 goes to the first task manager showing
+// all screens, which may now be the top bar instead of the dock. Here too for existing panels.
 panels().forEach(function (panel) {
     if (panel.location !== "top")
         return;
     panel.widgets("org.kde.plasma.icontasks").forEach(function (tasks) {
         tasks.currentConfigGroup = ["General"];
-        tasks.writeConfig("showOnlyCurrentScreen", true);
+        tasks.writeConfig("showOnlyCurrentScreen", false);
         tasks.reloadConfig();
     });
 });
