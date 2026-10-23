@@ -36,7 +36,7 @@ jobs:
             id: kffbncidpcaljkphgpmhlmbjjplajgli
             secret: CHROME_THEME_KEY
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Version
         id: v
@@ -55,7 +55,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           KEY: ${{ secrets[matrix.secret] }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.v.outputs.done != 'true'
         with:
           node-version: 22

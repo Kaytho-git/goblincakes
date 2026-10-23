@@ -59,7 +59,7 @@ jobs:
           sudo mount --bind /mnt/containers /var/lib/containers
           df -h / /mnt
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Bygg live-systemet
         run: |
@@ -116,7 +116,7 @@ jobs:
           sudo rm -rf "$out"
 
       - name: Spara listan för den här ISO:n
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: manifest-${{ matrix.id }}
           path: manifest/
@@ -127,7 +127,7 @@ jobs:
     needs: iso
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: manifest-*
           merge-multiple: true
