@@ -88,7 +88,6 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 ## Att göra
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav).
 - [ ] **GoblinRecorder för CS2** – byggt 22 okt: GSI (2K–ACE-klipp + alla kills, matchen tas bort), demon (egna siffror, TTD/första skottet/spray/counter-strafe, vunna clutchar som klipp), CS2 Stats (clutchar 1v1–1v4, ACE, pilar, utfällbar match med alla tio, per säsong med Arkiv). Deathmatch provat på riktigt. Kvar: efter nästa image en riktig Premier/Competitive till slut + nedladdad demo – stämmer siffrorna mot Leetify, blir klippen rätt?
-- [ ] **Sign in with ChatGPT i Goblin AI** – ej byggt; läs OpenAI:s SIWC-dokumentation på riktiga datorn först (anteckningarna).
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer (byggs bara på begäran – detaljer i anteckningarna)
