@@ -2171,7 +2171,9 @@ def draw_openai_style(pid, prompt, fmt, keys):
     p = provider(pid)
     key = keys[p["env"]]
     if pid == "openai":
-        model = image_model(p, key, [r"^gpt-image-\d+(\.\d+)?$", r"^gpt-image"], "gpt-image-1")
+        # The newest GPT Image (gpt-image-2 in Oct 2026; DALL·E 2/3 shut down 12 May 2026, gpt-image-1
+        # retired 23 Oct and 1.5/mini on 1 Dec 2026) – read from the model list, this if that fails
+        model = image_model(p, key, [r"^gpt-image-\d+(\.\d+)?$", r"^gpt-image"], "gpt-image-2")
         size = {"16:9": "1536x1024", "4:3": "1536x1024", "9:16": "1024x1536", "3:4": "1024x1536"}.get(fmt, "1024x1024")
         body = {"model": model, "prompt": prompt, "size": size, "n": 1}
     else:
