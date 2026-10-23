@@ -729,7 +729,7 @@ class Backend(QObject):
     def _save(self):
         DATA.mkdir(parents=True, exist_ok=True)
         first = next((m["text"] for m in self._display if m["role"] == "user" and m["text"]), "")
-        title = (first or next((m["file"] for m in self._display if m["file"]), "Samtal"))[:80]
+        title = " ".join((first or next((m["file"] for m in self._display if m["file"]), "Samtal")).split())[:80]
         data = {"id": self._id, "title": title, "updated": time.time(), "file": self._file,
                 "cwd": self._cwd, "project": self._project, "api": self._api[1:], "display": self._display}
         (DATA / f"{self._id}.json").write_text(json.dumps(data, ensure_ascii=False))
@@ -754,7 +754,8 @@ class Backend(QObject):
             try:
                 d = json.loads(f.read_text())
                 if d.get("project", "") == self._project:
-                    items.append({"id": d["id"], "title": d["title"]})
+                    # One line in the list (older chats were saved with line breaks)
+                    items.append({"id": d["id"], "title": " ".join(d["title"].split()) or "Samtal"})
             except (OSError, ValueError, KeyError):
                 continue
         return json.dumps(items)
@@ -1695,6 +1696,10 @@ class Backend(QObject):
         darker" afterwards works)."""
         text = text.strip()
         if not text:
+            return
+        if goblinai.LOOK_UP_FIRST.search(text) and not self._busy:
+            # "Kolla online hur den ser ut": the AI searches first and writes the description itself
+            self.send(f"Skapa en bild: {text}", "")
             return
         _, fmt = goblinai.image_request(text)
         fmt = next((f for w, f in goblinai.FORMAT_WORDS.items() if re.search(rf"\b{w}\b", text, re.I)), fmt)

@@ -1840,7 +1840,12 @@ IMAGE_HELPER = os.environ.get("GOBLINCAKES_IMAGE_HELPER", "/usr/libexec/goblinca
 IMAGE_FILE = CONFIG / "image.json"
 FORMATS = {"1:1": (1024, 1024), "16:9": (1280, 720), "9:16": (720, 1280), "4:3": (1152, 864), "3:4": (864, 1152)}
 FORMAT_WORDS = {"kvadrat": "1:1", "fyrkantig": "1:1", "square": "1:1", "liggande": "16:9", "bred": "16:9",
-                "landscape": "16:9", "stående": "9:16", "hög": "9:16", "portrait": "9:16"}
+                "landscape": "16:9", "stående": "9:16", "hög": "9:16", "portrait": "9:16",
+                "1080p": "16:9", "1440p": "16:9", "4k": "16:9", "bakgrundsbild": "16:9", "backgrundsbild": "16:9",
+                "skrivbordsbakgrund": "16:9", "wallpaper": "16:9", "mobilbakgrund": "9:16"}
+# The Skapa bild button sends these to the AI instead of straight to the picture: it looks it up first
+LOOK_UP_FIRST = re.compile(r"\b(kolla|sök|sok|leta|googla|titta)\b.{0,30}\b(online|på nätet|nätet|internet|upp)\b"
+                           r"|\b(referens\w*|original\w*|hur (den|det|han|hon|de) ser ut)\b", re.I)
 IMAGE_PAID = ("gemini", "openai", "xai")  # the cloud services that can draw, after Cloudflare
 
 IMAGE_PROMPT = """
@@ -1857,6 +1862,10 @@ A small green goblin baking blue cupcakes in a cozy cave, warm candle light, det
 Bilden skapas automatiskt av Goblin AI och visas under svaret – skriv aldrig att du inte kan skapa bilder.
 ```bild är bara för bilder med motiv. Sammanställningar, rapporter, analyser, tabeller och listor "som bild/png"
 görs ALDRIG med ```bild (bildmodellen kan inte skriva exakt text eller siffror) – använd ```rapport.
+Ber användaren dig kolla online/söka hur något ser ut (en logga, en figur, en plats, en produkt): sök först med
+```sök om du kan, och beskriv sedan utseendet noga i ```bild – färger, former, figurer, var allt sitter – för
+bildmodellen känner inte till namnet. Skriv inte "logo of X" och hoppas; beskriv vad den visar. 1080p, bakgrundsbild
+och skrivbordsbakgrund = Format: 16:9.
 Ska bilden ändras: skriv en ny, hel beskrivning (den förra bilden följer inte med). Ett block per bild.
 Vill användaren att du får en avatar/profilbild (en bild av dig själv): rita den med ```bild, Format: 1:1, ett tydligt
 porträtt eller en figur mitt i bilden mot en enkel bakgrund (den visas liten och beskärs till en fyrkant). Säg sedan

@@ -877,6 +877,7 @@ Window {
                         text: convItem.modelData.title
                         color: convItem.active ? "#E6ECF5" : "#B8C2D3"
                         elide: Text.ElideRight
+                        maximumLineCount: 1
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 14
                     }
