@@ -1256,6 +1256,9 @@ def chat(provider, key, model, messages):
         temperature = provider.get("temperature", 0.4)
         if temperature is not None:
             body["temperature"] = temperature
+        if provider.get("local"):
+            # an hour from each question – Ollama keeps a model's earlier time otherwise (10 min after a game)
+            body["keep_alive"] = "1h"
         if provider.get("local") and (getattr(QUICK, "on", False) or not needs_thinking(messages)):
             body["reasoning_effort"] = "none"
         if provider.get("local"):

@@ -620,7 +620,9 @@ def cmd_serve():
     state = {"proc": None, "quit": False, "paused": False}
 
     def warm_up():
-        """After a game: the everyday model into memory again, ready for the next question."""
+        """After a game: the everyday model into memory again, ready for the next question – for
+        10 minutes (the user's choice 24 Oct: loaded and unused = 37 W instead of 15); a question
+        gives it the hour again."""
         model = data.get("roles", {}).get("vardag")
         for _ in range(60):
             if running():
@@ -628,7 +630,7 @@ def cmd_serve():
             time.sleep(0.5)
         try:
             if model and state["proc"] and not state["paused"]:
-                api("/api/generate", {"model": model}, timeout=300)
+                api("/api/generate", {"model": model, "keep_alive": "10m"}, timeout=300)
         except (OSError, ValueError):
             pass  # a game started meanwhile, or the model is gone – the first question loads it
 

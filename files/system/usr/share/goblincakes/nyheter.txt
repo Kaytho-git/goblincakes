@@ -2,7 +2,7 @@
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
 2026-10-24  CS2 Stats räknar bara Premier, Competitive och Wingman på Valves servrar – matcher på privata servrar, casual och workshop-kartor hamnar under den nya knappen PRIVAT, och en match kan flyttas för hand
 2026-10-24  Kakan svarar rätt på frågor om din senaste boss, pull, nyckel eller CS2-match – hon hämtar från Warcraft Logs och WoW Stats i stället för att söka på nätet
-2026-10-24  Kakan svarar snabbare: hon ligger kvar redo i en timme (släpps direkt när ett spel startar och laddas in igen efteråt), tänker bara på svåra frågor, byter inte till kodmodellen för vanliga WoW-frågor och svarar kortare på enkla frågor
+2026-10-24  Kakan svarar snabbare: hon ligger kvar redo i en timme efter en fråga (10 minuter efter ett spel, släpps direkt när ett spel startar), tänker bara på svåra frågor, byter inte till kodmodellen för vanliga WoW-frågor och svarar kortare på enkla frågor
 2026-10-24  WowUp startar minimerat igen – vid inloggning och när det kommer tillbaka efter WoW (WowUp visade fönstret maximerat trots "Starta minimerad")
 2026-10-24  Spel som startas på fel skärm hamnar i helskärm igen när de flyttas till huvudskärmen (förut blev de bara maximerade under toppfältet)
 2026-10-24  Toppfältet visar batteriet i trådlösa möss, tangentbord och headset – grönt, orange under 50 % och rött vid 10 % – klicka för att dölja eller visa namnet
