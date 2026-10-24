@@ -112,7 +112,16 @@ Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade s
   7. **Påminnelser och bevakningar** – "säg till när …", "påminn mig 19:45"; Kakan vaknar själv (systemd-timer/egen tjänst); spelvakten: vänta eller molnet under spel.
   8. **MCP** – klient för färdiga verktyg (Home Assistant, webbläsare …) sist.
   9. **Röst med tryck-och-prata (24 okt, användarens beslut: egen punkt efter 1–8)** – se "Röst med tryck-och-prata" under Framtida idéer (Whisper/kb-whisper + Piper på CPU, enkla kommandon utan språkmodell, resten till Kakan).
-  **Tillägg för WoW-lagg-exemplet (förslag 24 okt, inte beslutat):** mätverktyg – fps/frametider (MangoHud-logg, som fps-testet 24 okt), GPU/CPU last, klockor, temperaturer (nvidia-smi, sensors), RAM/swap, disk-I/O, vilka processer som tar CPU, ping/paketförlust mot Blizzard; jämför med spelets inställningar och spelläget (gameguard-loggen). Utan dem kan Kakan bara läsa loggar, och 24 okt såg hon "loggen visar inte själva lagget".
+  **10–16 (24 okt, användarens beslut: "jag gillar alla förslag, spara dom"; ordning 10, 11, 14, 15 först):**
+  10. **Mätverktyg** (beslutat, se nedan).
+  11. **Kunskap om GOBLINCAKES** – söka i `docs/anteckningar.md`, CLAUDE.md och nyheter.txt (bara läsning) i stället för att gissa hur något funkar.
+  12. **Kända lösningar** – löst problem → problem/orsak/lösning sparas (eget minne, som minne.json), känns igen nästa gång.
+  13. **Kontroll efter uppdatering** – efter ny image: tjänster, toppfältet, Ollama, GoblinRecorder, Discord startar; säger till om något gått sönder.
+  14. **"Skicka till Claude"** – det hon inte löser blir en färdig felrapport (vad hände, mätt, lästa loggar, provat) som fil eller GitHub-ärende.
+  15. **Testa åt Claude** – kör en testlista Claude lämnar ("ej provat på riktiga datorn"-punkterna) och rapporterar tillbaka.
+  16. **Byggstatus** – säger till när build.yml gått igenom/misslyckats och varför (GitHub API utan inloggning, som goblincakes-update-poweroff).
+  **Regel (användarens beslut 24 okt): Kakan ändrar aldrig koden i repot** – bara användarens egna inställningar, och då med Tillåt. Systemet bygger användaren och Claude.
+  **Mätverktyg (punkt 10):** mätverktyg – fps/frametider (MangoHud-logg, som fps-testet 24 okt), GPU/CPU last, klockor, temperaturer (nvidia-smi, sensors), RAM/swap, disk-I/O, vilka processer som tar CPU, ping/paketförlust mot Blizzard; jämför med spelets inställningar och spelläget (gameguard-loggen). Utan dem kan Kakan bara läsa loggar, och 24 okt såg hon "loggen visar inte själva lagget".
 - [ ] **GOBLINCAKES-ljud:** egna korta ljud för inloggning, notiser och utloggning (t.ex. ett litet goblinfniss vid "See you next raid!").
 - [ ] **Engelsk version** (13 okt, användarens önskan): GOBLINCAKES egna texter finns idag bara på svenska (hårdkodade i Config, `goblin`-kommandona, GoblinRecorder, goblin graph, Goblin AI, Avinstallera, inloggning/låsskärm, notiser, nyheter, live-välkomstfönstret). KDE/Fedora/Flatpak följer redan användarens språk. Plan: översättningsfiler (t.ex. Qt `qsTr` + `.ts`/`.qm` för QML, gettext för Python/bash), engelska när `LANG` inte är svenska; live-ISO:n och Anaconda kan behålla svenska som standard. Uppskattat 2–3 långa sessioner.
 - [ ] **Privat schemaprogram** (inte i repot – detaljerna finns i Claudes minne, `private-schedule-app`): väntar på PDF:en med schemat (12 okt: ingen PDF än).
