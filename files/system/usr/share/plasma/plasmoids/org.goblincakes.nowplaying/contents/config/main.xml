@@ -8,5 +8,9 @@
     <entry name="discordServers" type="String">
       <default>{}</default>
     </entry>
+    <!-- The wireless mouse's (keyboard's …) name next to its battery; a click on it toggles -->
+    <entry name="deviceNames" type="Bool">
+      <default>true</default>
+    </entry>
   </group>
 </kcfg>

@@ -1,0 +1,58 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: the battery of wireless mice, keyboards and headsets, for "Spelas nu" in the top bar.
+
+    goblincakes-device-battery  one JSON line: [{"kind": "mouse"|"keyboard"|"headset"|…,
+                                "name", "percent", "charging"}, …]
+
+Read from UPower (`upower -d`), the same place Plasma's battery applet looks – Logitech's receivers
+(hidpp) and Bluetooth devices land there by themselves. The computer's own battery and the
+power cable are left out (power supply: yes). An empty list = nothing wireless with a battery.
+"""
+import json
+import re
+import subprocess
+
+# UPower's device types that are things in your hand or on your head
+KINDS = {"mouse", "keyboard", "headset", "headphones", "gaming-input", "touchpad",
+         "pen", "tablet", "speakers", "remote control"}
+# Devices that only know a level, not a percentage (some Logitech mice)
+LEVELS = {"full": 100, "high": 80, "normal": 55, "low": 20, "critical": 5}
+
+
+def main():
+    try:
+        dump = subprocess.run(["upower", "-d"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        dump = ""
+    devices = []
+    for block in dump.split("\nDevice: "):
+        lines = [line.strip() for line in block.splitlines()]
+        info = {}
+        kind = ""
+        for line in lines:
+            if ":" in line:
+                key, _, value = line.partition(":")
+                info[key.strip()] = value.strip()
+            elif line in KINDS:
+                kind = line
+        if not kind or info.get("power supply") != "no" or info.get("present", "yes") != "yes":
+            continue
+        percent = None
+        match = re.match(r"(\d+(?:[.,]\d+)?)%", info.get("percentage", ""))
+        if match and "ignored" not in info.get("percentage", ""):
+            percent = round(float(match.group(1).replace(",", ".")))
+        elif info.get("battery-level") in LEVELS:
+            percent = LEVELS[info["battery-level"]]
+        if percent is None:
+            continue
+        devices.append({
+            "kind": kind,
+            "name": info.get("model") or kind,
+            "percent": percent,
+            "charging": info.get("state") in ("charging", "fully-charged"),
+        })
+    print(json.dumps(devices, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

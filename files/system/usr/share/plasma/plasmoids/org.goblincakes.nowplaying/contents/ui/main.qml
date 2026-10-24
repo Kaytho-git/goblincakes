@@ -21,6 +21,9 @@
     the AI was still working): "Kakan tänker · din dator" / "ritar en bild · din dator 40 %" while a
     question or a picture is under way, with the seconds so far; click = the Goblin AI window.
     /usr/libexec/goblincakes-ai-activity reads the files goblinai.py writes, every second.
+    Battery (24 Oct, the user's wish – the Logitech mouse's charge was nowhere to be seen): each
+    wireless mouse/keyboard/headset with its name and %, red when low; click = name on/off (saved).
+    /usr/libexec/goblincakes-device-battery reads UPower every 30 s.
     Nothing to show = the widget takes no space.
 */
 import QtQuick
@@ -189,6 +192,17 @@ PlasmoidItem {
           + (ai.seconds >= 3 ? "  ·  " + ai.seconds + " s" : "")
     readonly property string aiCommand: "/usr/libexec/goblincakes-ai-activity"
 
+    // ---- Battery of wireless devices ----
+    property var devices: []          // [{kind, name, percent, charging}]
+    readonly property string batteryCommand: "/usr/libexec/goblincakes-device-battery"
+
+    function deviceIcon(kind) {
+        return { mouse: "input-mouse", keyboard: "input-keyboard", headset: "audio-headset",
+                 headphones: "audio-headphones", "gaming-input": "input-gaming",
+                 touchpad: "input-touchpad", pen: "input-tablet", tablet: "input-tablet",
+                 speakers: "audio-speakers", "remote control": "input-gaming" }[kind] || "battery";
+    }
+
     readonly property string voiceCommand: "/usr/libexec/goblincakes-discord-voice"
 
     P5Support.DataSource {
@@ -220,6 +234,12 @@ PlasmoidItem {
                     root.steam = JSON.parse(data["stdout"] || "{}");
                 } catch (e) {
                     root.steam = {};
+                }
+            } else if (source === root.batteryCommand) {
+                try {
+                    root.devices = JSON.parse(data["stdout"] || "[]");
+                } catch (e) {
+                    root.devices = [];
                 }
             }
             disconnectSource(source);
@@ -253,6 +273,15 @@ PlasmoidItem {
         repeat: true
         triggeredOnStart: true
         onTriggered: exec.connectSource(root.aiCommand)
+    }
+
+    // A battery changes slowly; a mouse switched on shows up within half a minute
+    Timer {
+        interval: 30000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: exec.connectSource(root.batteryCommand)
     }
 
     TaskManager.TasksModel {
@@ -290,6 +319,7 @@ PlasmoidItem {
     fullRepresentation: Item {
         id: full
         readonly property bool empty: !music.visible && !chat.visible && !steamPart.visible && !aiPart.visible
+                                      && !batteryPart.visible
 
         Layout.minimumWidth: row.implicitWidth
         Layout.preferredWidth: row.implicitWidth
@@ -530,6 +560,70 @@ PlasmoidItem {
                     anchors.margins: -Kirigami.Units.smallSpacing
                     cursorShape: Qt.PointingHandCursor
                     onClicked: exec.connectSource("setsid -f goblin-ai >/dev/null 2>&1 < /dev/null")
+                }
+            }
+
+            Rectangle {
+                visible: (music.visible || chat.visible || steamPart.visible || aiPart.visible) && batteryPart.visible
+                color: root.line
+                implicitWidth: 1
+                implicitHeight: Math.round(Kirigami.Units.gridUnit * 1.1)
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            // Wireless mouse/keyboard/headset battery: click = show or hide the names
+            Item {
+                id: batteryPart
+                visible: root.devices.length > 0
+                implicitWidth: batteryRow.implicitWidth
+                implicitHeight: batteryRow.implicitHeight
+                Layout.alignment: Qt.AlignVCenter
+
+                RowLayout {
+                    id: batteryRow
+                    anchors.fill: parent
+                    spacing: Kirigami.Units.gridUnit
+
+                    Repeater {
+                        model: root.devices
+                        delegate: RowLayout {
+                            required property var modelData
+                            readonly property bool low: modelData.percent <= 20 && !modelData.charging
+                            spacing: Math.round(Kirigami.Units.smallSpacing * 1.5)
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Kirigami.Icon {
+                                source: root.deviceIcon(modelData.kind)
+                                implicitWidth: Kirigami.Units.iconSizes.small
+                                implicitHeight: Kirigami.Units.iconSizes.small
+                                Layout.alignment: Qt.AlignVCenter
+                            }
+                            Text {
+                                text: (Plasmoid.configuration.deviceNames ? modelData.name + "  " : "")
+                                      + (modelData.charging ? "⚡" : "") + modelData.percent + " %"
+                                color: low ? Kirigami.Theme.negativeTextColor : root.muted
+                                font: Kirigami.Theme.defaultFont
+                                elide: Text.ElideRight
+                                Layout.maximumWidth: Kirigami.Units.gridUnit * 16
+                                Layout.alignment: Qt.AlignVCenter
+                            }
+                        }
+                    }
+                }
+
+                PlasmaCore.ToolTipArea {
+                    anchors.fill: parent
+                    mainText: "Batteri"
+                    subText: root.devices.map(d => d.name + ": " + d.percent + " %"
+                                              + (d.charging ? " (laddar)" : "")).join("\n")
+                             + "\nKlicka för att " + (Plasmoid.configuration.deviceNames ? "dölja" : "visa") + " namnet"
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -Kirigami.Units.smallSpacing
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Plasmoid.configuration.deviceNames = !Plasmoid.configuration.deviceNames
                 }
             }
         }

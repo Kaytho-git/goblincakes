@@ -65,7 +65,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Diskar: automontering, ägare, I/O-schemaläggare
 - [x] Spelpaket 2: MangoHud, goblin frames, NTSYNC, Xbox-kontroller, Battle.net/WoW-länkar, TV-läge, shaders, ljud
 - [x] Program för intressena (GPU Screen Recorder, Pika Backup, Ianseo i nätverket)
-- [x] Toppfältet: öppna program + Spelas nu (musik, Discord-röst, Steam-nedladdning/shaders, Goblin AI)
+- [x] Toppfältet: öppna program + Spelas nu (musik, Discord-röst, Steam-nedladdning/shaders, Goblin AI, trådlösa enheters batteri)
 - [x] Dolda Fedora-program + Avinstallera program
 - [x] Skärmar med olika Hz, program på vald skärm (`goblin screen`)
 - [ ] Notis om ny Fedora-version (kan inte testas förrän Fedora 45 i `latest`)
