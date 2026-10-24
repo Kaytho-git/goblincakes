@@ -1612,6 +1612,8 @@ def self_prompt():
         look = avatar_description()
         lines.append("- Du har en avatar – en bild av dig som visas bredvid varje svar du ger. "
                      + (f"Så här ser du ut på den: {look}" if look else "Du vet inte än hur den ser ut; säg det om någon frågar."))
+        lines.append("- Frågar någon hur du ser ut: svara kort, en eller två meningar om dig själv (hår, ansikte, kläder) – "
+                     "inte bakgrunden, ljuset eller bildutsnittet. De detaljerna är bara till när du ritar dig själv.")
         lines.append("- Ritar du dig själv, utgå från avataren. Ny avatar: knappen \"Använd som avatar\" under en bild, "
                      "eller AI-tjänster → Avatar.")
     else:
