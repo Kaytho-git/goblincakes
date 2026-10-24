@@ -1192,10 +1192,31 @@ Window {
             PanelSwitch {
                 name: "CS2-matcher"
                 key: "cs2"
-                tip: "Varje match (alla lägen), från att uppvärmningen är slut till sista rundan. Dina kills (2K–ACE), dödsfall, "
+                tip: "Varje match i de lägen du väljer, från att uppvärmningen är slut till sista rundan. Dina kills (2K–ACE), dödsfall, "
                      + "rundor och bomben blir markeringar i filmen. Efter matchen blir varje 2K–ACE ett eget klipp, plus ett med alla kills. "
                      + "Competitive/Premier/Wingman: när du laddat ner demon (Watch → Your Matches) läses den – dina siffror, "
                      + "vapen och vunna clutchar som klipp."
+            }
+            Flow { // the modes (back 24 Oct, the user's wish – rush was recorded unexpectedly and cost fps)
+                width: parent.width
+                spacing: 6
+                opacity: win.cfg.cs2 ? 1 : 0.35
+                Repeater {
+                    model: [{ "id": "competitive", "name": "Premier", "sub": "Premier och Competitive (CS2 skickar samma läge för båda)." },
+                            { "id": "scrimcomp2v2", "name": "Wingman" }, { "id": "casual", "name": "Casual" },
+                            { "id": "deathmatch", "name": "Deathmatch" },
+                            { "id": "other", "name": "Övriga", "sub": "Arms Race, rush och nya lägen." }]
+                    Choice {
+                        required property var modelData
+                        readonly property var modes: win.cfg.cs2Modes || ["competitive", "scrimcomp2v2"]
+                        sub: modelData.sub || ""
+                        width: (recordPanel.width - 48 - 6) / 2
+                        enabledState: !!win.cfg.cs2
+                        text: (chosen ? "✓  " : "") + modelData.name
+                        chosen: modes.indexOf(modelData.id) >= 0
+                        onPicked: win.set("cs2Modes", chosen ? modes.filter(l => l !== modelData.id) : modes.concat([modelData.id]))
+                    }
+                }
             }
             PanelSwitch {
                 name: "Behåll hela matchen"

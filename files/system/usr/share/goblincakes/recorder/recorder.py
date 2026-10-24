@@ -69,6 +69,7 @@ DEFAULTS = {
     "closeAction": "ask",  # the window's ✕: ask | tray = hide in the system tray | quit
     "keepWipes": False,  # False: only kills stay when WoW closes (and 2 wipes per raid boss meanwhile)
     "cs2": True,  # Counter-Strike 2 matches, from the end of the warm-up to the end (needs the GSI file)
+    "cs2Modes": ["competitive", "scrimcomp2v2"],  # see CS2_MODES; "other" = every mode not in it (rush, Arms Race …)
     "cs2KeepMatch": False,  # False: the whole match goes when its clips (2K–ACE, all kills) are made
 }
 
@@ -868,7 +869,7 @@ CS2_PORT = 37730
 CS2_CFG = "gamestate_integration_goblincakes.cfg"
 CS2_OLD_TEST = "gamestate_integration_goblincake.cfg"  # the probe of 17 Oct (port 3000)
 CS2_MODES = {"competitive": "Competitive", "scrimcomp2v2": "Wingman", "casual": "Casual",
-             "deathmatch": "Deathmatch"}  # GSI's map.mode → the name on the video (all modes are recorded)
+             "deathmatch": "Deathmatch"}  # GSI's map.mode → the name on the video; Premier is "competitive" too
 STEAM_ROOTS = [HOME / ".local/share/Steam", HOME / ".steam/steam",
                HOME / ".var/app/com.valvesoftware.Steam/.local/share/Steam"]
 
@@ -975,6 +976,12 @@ def cs2_map_name(raw):
     if re.match(r"^(de|cs|ar|dz|gd)_", name):
         name = name.split("_", 1)[1].replace("_", " ").title()
     return name
+
+
+def cs2_mode_on(cfg, mode):
+    """Is this mode chosen under Counter-Strike 2? Modes not in CS2_MODES count as "other"."""
+    modes = cfg.get("cs2Modes", DEFAULTS["cs2Modes"])
+    return (mode if mode in CS2_MODES else "other") in modes
 
 
 def cs2_has_rounds(mode):

@@ -415,7 +415,7 @@ class Service:
         phase = m.get("phase")
         if phase == "live" and not self.current or (phase == "live" and self.current
                                                      and self.current["kind"] == "test"):
-            if self.cfg.get("cs2") and gs.get("playing"):
+            if self.cfg.get("cs2") and gs.get("playing") and R.cs2_mode_on(self.cfg, m.get("mode")):
                 if self.current:
                     self.stop_now()
                 self.begin(t, t, {"kind": "cs2", "name": R.cs2_map_name(m.get("name", "")),
@@ -503,7 +503,7 @@ class Service:
         self.error = ""
         log("recording", info["kind"], info["name"], f"(log {now - t:.2f} s late)")
         if info["kind"] == "cs2":  # easy to forget it records – and recording costs some fps
-            notify("Spelar in CS2-matchen", "GoblinRecorder spelar in. Slå av under Inställningar → Counter-Strike 2.", 6)
+            notify("Spelar in CS2-matchen", "GoblinRecorder spelar in. Välj lägen eller slå av under Inställningar → Counter-Strike 2.", 6)
 
     def start_record(self, kind=None):
         """Starts OBS's recording; the time of the first frame, or None (error set)."""
