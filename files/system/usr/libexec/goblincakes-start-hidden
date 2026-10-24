@@ -1,0 +1,66 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: start a program without its window (24 Oct, the user: WowUp opened maximized).
+
+    goblincakes-start-hidden <window class> -- <command> [arguments]
+
+WowUp 2.24.1 shows its main window at once although it is started with --hidden and has
+"start minimized" on (its own log: "show: … visible=true maximized=true"). The command runs as
+usual (this process becomes it, so a systemd unit keeps it); a KWin script loaded for a minute
+minimizes the first new window with that class. With WowUp's "collapse to tray" a minimized
+window goes to the system tray. A window that was already open is left alone.
+Used by GOBLINCAKES Config's autostart entry for WowUp and by the game guard.
+"""
+import os
+import subprocess
+import sys
+import tempfile
+import time
+
+WAIT = 60  # s – the AppImage mounts first; WowUp's window came after ~6 s
+
+
+def kwin(*args):
+    return subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/Scripting",
+                           "org.kde.kwin.Scripting", *args],
+                          capture_output=True, text=True, timeout=3)
+
+
+def minimize_first(cls):
+    script = """
+var done = false;
+workspace.windowAdded.connect(function (w) {
+    if (done || !w.normalWindow || String(w.resourceClass).toLowerCase() !== %s)
+        return;
+    done = true;
+    w.minimized = true;
+});
+""" % repr(cls.lower())
+    name = f"goblincakes-hidden-{os.getpid()}"
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+        f.write(script)
+    try:
+        if kwin("loadScript", "ss", f.name, name).returncode == 0:
+            kwin("start")
+            time.sleep(WAIT)
+            kwin("unloadScript", "s", name)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    finally:
+        os.unlink(f.name)
+
+
+def main():
+    args = sys.argv[1:]
+    if len(args) < 3 or args[1] != "--":
+        sys.exit(__doc__.split("\n\n")[1])
+    cls, command = args[0], args[2:]
+    if os.fork() == 0:
+        # the child watches; the parent becomes the program (stays in the same unit)
+        os.setsid()
+        minimize_first(cls)
+        os._exit(0)
+    os.execvp(command[0], command)
+
+
+if __name__ == "__main__":
+    main()

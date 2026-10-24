@@ -88,6 +88,10 @@ FLATPAK_APPS = [Path.home() / ".local/share/flatpak/exports/share/applications",
 # Windows start-up entry passes, so the app knows it was started at login (15 Oct, the user:
 # both opened full size at every login).
 AUTOSTART_ARGS = {"discord": "--start-minimized", "wowup": "--hidden", "archon": "--run-on-startup"}
+# WowUp 2.24.1 shows its window maximized despite --hidden (24 Oct): goblincakes-start-hidden
+# minimizes its first window (the window class).
+HIDDEN = "/usr/libexec/goblincakes-start-hidden"
+AUTOSTART_HIDDEN = {"wowup": "wowupcf"}
 
 
 def app_launcher(app):
@@ -178,7 +182,10 @@ def set_app_autostart(app, on):
             # Discord's "--url -- %u": without the link, "--" would make the flag below a link
             command = re.sub(r"\s--url\s--$", "", command)
             extra = AUTOSTART_ARGS.get(app["id"])
-            line = f"Exec={command}{' ' + extra if extra else ''}"
+            command = f"{command}{' ' + extra if extra else ''}"
+            if app["id"] in AUTOSTART_HIDDEN:
+                command = f"{HIDDEN} {AUTOSTART_HIDDEN[app['id']]} -- {command}"
+            line = f"Exec={command}"
         out.append(line)
     out.append("X-GOBLINCAKES-Autostart=true")
     AUTOSTART.mkdir(parents=True, exist_ok=True)

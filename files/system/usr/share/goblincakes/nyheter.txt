@@ -1,6 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
-2026-10-24  WowUp kommer tillbaka dolt i systemfältet efter WoW, även när du själv öppnat det från menyn (förut kom det maximerat)
+2026-10-24  WowUp startar minimerat igen – vid inloggning och när det kommer tillbaka efter WoW (WowUp visade fönstret maximerat trots "Starta minimerad")
 2026-10-24  Spel som startas på fel skärm hamnar i helskärm igen när de flyttas till huvudskärmen (förut blev de bara maximerade under toppfältet)
 2026-10-24  Toppfältet visar batteriet i trådlösa möss, tangentbord och headset – grönt, orange under 50 % och rött vid 10 % – klicka för att dölja eller visa namnet
 2026-10-24  Dockan är lite genomskinlig, så bakgrundsbilden skymtar igenom

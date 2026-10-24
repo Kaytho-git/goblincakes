@@ -71,9 +71,13 @@ def cmdline(pid):
         return []
 
 
+HIDDEN = Path("/usr/libexec/goblincakes-start-hidden")
+
+
 def wowup_starter(pids):
     """How WoWUp is started again: its menu or autostart entry, always with --hidden (to the
-    tray – 24 Oct, the user: it came back maximized when it had been opened from the menu),
+    tray – 24 Oct, the user: it came back maximized when it had been opened from the menu;
+    goblincakes-start-hidden minimizes it, WowUp 2.24.1 shows it despite --hidden),
     else its autostart unit (Electron's main process moves to a scope of its own, its helpers
     stay in the unit)."""
     home = Path.home()
@@ -88,8 +92,11 @@ def wowup_starter(pids):
                 argv = [a for a in shlex.split(exec_line.group(1)) if not re.fullmatch(r"%[a-zA-Z]", a)]
                 if argv[0].startswith("/tmp/.mount_"):
                     continue  # WowUp's own entry into its old mount – gone
-                if "--hidden" not in argv:
-                    argv.append("--hidden")
+                if HIDDEN.name not in argv[0]:
+                    if "--hidden" not in argv:
+                        argv.append("--hidden")
+                    if HIDDEN.exists():  # WowUp shows its window despite --hidden
+                        argv = [str(HIDDEN), "wowupcf", "--", *argv]
                 return ("run", argv)
     for pid in pids:
         try:

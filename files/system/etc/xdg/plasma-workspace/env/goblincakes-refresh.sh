@@ -203,6 +203,12 @@ for _gc_f in "${XDG_CONFIG_HOME:-$HOME/.config}"/autostart/*.desktop; do
     esac
     grep -q '^X-GOBLINCAKES-Autostart=true' "$_gc_f" && ! grep -q -- "$_gc_arg" "$_gc_f" \
         && sed -i "s|^Exec=.*|& $_gc_arg|" "$_gc_f"
+    # WowUp 2.24.1 shows its window despite --hidden (24 Oct): started through the helper
+    case "$_gc_f" in
+        */appimage-wowup.desktop)
+            grep -q '^X-GOBLINCAKES-Autostart=true' "$_gc_f" && ! grep -q 'goblincakes-start-hidden' "$_gc_f" \
+                && sed -i 's|^Exec=|Exec=/usr/libexec/goblincakes-start-hidden wowupcf -- |' "$_gc_f" ;;
+    esac
 done
 
 # VS Code left the image on 11 Oct (now Microsoft's own build in the home folder, from
