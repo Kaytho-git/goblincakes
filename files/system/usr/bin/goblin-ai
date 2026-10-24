@@ -360,6 +360,8 @@ class Backend(QObject):
         self._failed.connect(self._on_failure)
         self._search_next = False  # "Sök på nätet": the next question is searched first
         self._pending_tools = []  # the tools the answer on its way used (for the ♥)
+        if AVATAR.exists() and not goblinai.avatar_description():  # an avatar from before 24 Oct: describe it once
+            threading.Thread(target=goblinai.describe_avatar, daemon=True).start()
         self._hearted.connect(self._on_hearted)
         self._statusText.connect(lambda text: self._set_busy(True, text))
         self._keyResult.connect(self._on_key_result)
@@ -1082,10 +1084,12 @@ class Backend(QObject):
             return
         self.avatarChanged.emit()
         self.notice.emit(f"{goblinai.ai_name() or 'Goblin AI'} har fått en ny avatar.")
+        threading.Thread(target=goblinai.describe_avatar, daemon=True).start()  # so the AI knows how it looks
 
     @Slot()
     def removeAvatar(self):
         AVATAR.unlink(missing_ok=True)
+        goblinai.AVATAR_TEXT.unlink(missing_ok=True)
         self.avatarChanged.emit()
 
     # ── Own buttons (20 Oct): a named instruction, asked by its own model in a new chat ──

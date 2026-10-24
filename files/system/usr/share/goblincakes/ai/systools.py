@@ -460,6 +460,14 @@ LOG_NOISE = re.compile(r"Content Security Policy|ResizeObserver loop|\[MessageQu
 LOG_GAP = 20  # seconds without a line worth showing
 
 
+def gap_text(seconds):
+    if seconds < 120:
+        return f"{seconds:.0f} s"
+    if seconds < 7200:
+        return f"{seconds / 60:.0f} min"
+    return f"{seconds / 3600:.0f} h"
+
+
 def program_log(name, since="", lines=90):
     """A program's or service's journal lines since the computer started (or since HH:MM), the user's and the
     system's: noise and repeats left out, long pauses shown – where a program hung."""
@@ -476,7 +484,7 @@ def program_log(name, since="", lines=90):
         return (f"Journalen har inget om \"{name}\" " + (f"sedan {since}" if since else "sedan start")
                 + f" (prova ett tjänstnamn – `tjänster {name}` – eller `filer {name}`).")
     entries.sort(key=lambda d: int(d.get("__REALTIME_TIMESTAMP", 0)))
-    rows, noise, last_msg, repeats, last_time = [], 0, None, 0, None
+    rows, noise, last_msg, repeats, last_time, last_day = [], 0, None, 0, None, None
     for d in entries:
         msg = text_of(d.get("MESSAGE")).splitlines()
         if not msg or LOG_NOISE.search(msg[0]):
@@ -493,7 +501,11 @@ def program_log(name, since="", lines=90):
             rows.append(f"  (samma rad {repeats} gånger till)")
             repeats = 0
         if last_time and stamp - last_time >= LOG_GAP:
-            rows.append(f"  … {stamp - last_time:.0f} s utan något …")
+            rows.append(f"  … {gap_text(stamp - last_time)} utan något …")
+        day = when(stamp).rsplit(" ", 1)[0]
+        if day != last_day:
+            rows.append(f"— {day} —")
+            last_day = day
         clock = time.strftime("%H:%M:%S", time.localtime(stamp))
         rows.append(f"{clock} {who}{' ' + level if level else ''}: {msg[0][:240]}")
         last_msg, last_time = same, stamp
@@ -595,9 +607,96 @@ def look(query):
         return f"Gick inte: {e}."
     return text if len(text) <= LIMIT else text[:LIMIT] + "\n… (kortat)"
 
+
+# Goblin AI looks first (24 Oct): a question about the computer that names a program gets that program's
+# journal before the AI answers – a small local model picked the wrong tool and guessed instead
+ALIASES = {"goblinrecorder": "goblincakes-recorder", "recorder": "goblincakes-recorder",
+           "goblinamp": "goblincakes-amp", "kakan": "goblincakes-ollama", "ollama": "goblincakes-ollama",
+           "spelläget": "goblincakes-gameguard", "spelvakten": "goblincakes-gameguard", "ianseo": "goblincakes-ianseo",
+           "toppfältet": "plasmashell", "dockan": "plasmashell", "skrivbordet": "plasmashell", "ljudet": "pipewire",
+           "fönstren": "kwin_wayland", "wow": "goblincakes-gameguard", "warcraft": "goblincakes-gameguard",
+           "spelet": "goblincakes-gameguard", "cs2": "goblincakes-gameguard", "uppdateringen": "goblincakes-updates", "uppdateringarna": "goblincakes-updates"}
+SKIP_WORDS = {"och", "att", "det", "som", "för", "med", "inte", "var", "den", "har", "kan", "hon", "han", "jag",
+              "när", "efter", "innan", "starta", "startar", "startade", "lång", "tid", "logg", "loggen", "fel",
+              "datorn", "varför", "vad", "hur", "idag", "förut", "nyss", "system", "systemet", "program", "programmet"}
+
+
+def program_names():
+    """{word in lowercase: name to read the journal with} from the desktop files and the services."""
+    names = {}
+    for folder in (Path("/usr/share/applications"), HOME / ".local/share/applications",
+                   Path("/var/lib/flatpak/exports/share/applications"), HOME / ".local/share/flatpak/exports/share/applications"):
+        for f in folder.glob("*.desktop"):
+            try:
+                text = f.read_text(errors="replace")
+            except OSError:
+                continue
+            exe = re.search(r"^Exec=(?:env \S+ )*(\S+)", text, re.M)
+            target = Path(exe.group(1)).name if exe else f.stem
+            if target == "flatpak":
+                target = f.stem
+            if target in ("xdg-open", "sh", "bash", "env", "gtk-launch", "kioclient", "kde-open"):
+                continue
+            for label in re.findall(r"^Name=(.+)$", text, re.M)[:1] + [f.stem.split(".")[-1]]:
+                for w in re.findall(r"[\wåäö+-]{3,}", label.lower()):
+                    if w not in SKIP_WORDS:
+                        names.setdefault(w, target)
+    for scope in (["--user"], []):
+        for line in run(["systemctl", *scope, "list-units", "--all", "--plain", "--no-legend", "--type=service"]).splitlines():
+            unit = line.split(None, 1)[0] if line.strip() else ""
+            base = unit.removesuffix(".service")
+            if base and "@" not in base:
+                names.setdefault(base.lower(), base)
+                for w in base.lower().split("-")[1:] if base.startswith("goblincakes-") else []:
+                    names.setdefault(w, base)
+    names.update(ALIASES)
+    return names
+
+
+def since_of(question):
+    """"runt 17", "kl 16.55", "17:00" → a time a few minutes before; "idag" → today; else ""."""
+    m = re.search(r"\b(?:kl\.?|klockan|runt|vid|strax före|strax efter|ca)?\s*(\d{1,2})(?:[:.](\d{2}))?\b(?=\s|$|[,.?!])",
+                  question)
+    if m and (m.group(2) or re.search(r"\b(?:kl\.?|klockan|runt|vid|ca)\s*" + m.group(1) + r"\b", question)):
+        hour, minute = int(m.group(1)), int(m.group(2) or 0)
+        if hour < 24 and minute < 60:
+            total = max(0, hour * 60 + minute - 5)
+            return f"{total // 60:02d}:{total % 60:02d}"
+    if re.search(r"\b(?:idag|i dag|imorse|i morse|i förmiddags|i eftermiddag)\b", question, re.I):
+        return "today"
+    if re.search(r"\b(?:igår|i går|igårkväll|inatt|i natt)\b", question, re.I):
+        return "yesterday"
+    return ""
+
+
+def gather(question):
+    """What Goblin AI reads by itself for a question about the computer: (text, [what was read])."""
+    names = program_names()
+    asked = [w for w in re.findall(r"[\wåäö+-]{3,}", question.lower()) if w not in SKIP_WORDS]
+    found = []
+    for w in asked:
+        target = names.get(w) or names.get(w.removesuffix("s")) or names.get(re.sub(r"(?:en|et|n)$", "", w))
+        if target and target not in found:
+            found.append(target)
+    if not found and not re.search(r"\b(?:datorn|systemet|krasch\w*|logg\w*|journal\w*|tjänst\w*)\b", question, re.I):
+        return "", []
+    since = since_of(question)
+    parts, read = [], []
+    for target in found[:2]:
+        parts.append(program_log(target, since))
+        read.append(f"logg {target}" + (f" från {since}" if since else ""))
+    if not found or re.search(r"krasch|kraschar|kraschade|fel\b|felet|errors?", question, re.I):
+        parts.append(system_errors(found[0] if found else ""))
+        read.append("systemfel " + (found[0] if found else ""))
+    text = "\n\n".join(parts)
+    return (text if len(text) <= LIMIT + 3000 else text[:LIMIT + 3000] + "\n… (kortat)"), read
+
 if __name__ == "__main__":
     import sys
-    if sys.argv[1:2] == ["leta"]:
+    if sys.argv[1:2] == ["samla"]:
+        text, read = gather(" ".join(sys.argv[2:]))
+        print(read, "\n", text)
+    elif sys.argv[1:2] == ["leta"]:
         print(look(" ".join(sys.argv[2:])))
     else:
         print(system_errors(" ".join(sys.argv[1:])))

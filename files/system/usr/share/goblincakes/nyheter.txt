@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-24  Kakan gissar inte längre om datorn: frågar du varför något strular läser hon programmets logg först, och står något inte i det hon läst säger hon att hon inte vet. Hon vet också vem hon är och hur hon ser ut på sin avatar
 2026-10-24  Goblin AI kan leta i datorn själv: hitta filer, läsa loggar och inställningar, se programmens logg och tjänsternas status. Hon läser bara, ändrar aldrig, och nycklar och lösenord visas inte.
 2026-10-24  CS2 Stats räknar bara Premier, Competitive och Wingman på Valves servrar – matcher på privata servrar, casual och workshop-kartor hamnar under den nya knappen PRIVAT, och en match kan flyttas för hand
 2026-10-24  Kakan svarar rätt på frågor om din senaste boss, pull, nyckel eller CS2-match – hon hämtar från Warcraft Logs och WoW Stats i stället för att söka på nätet

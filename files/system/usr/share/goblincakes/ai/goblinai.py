@@ -829,7 +829,46 @@ OWN_DATA = re.compile(
 OWN_TOOLS = ("warcraftlogs", "wowstats", "cs2")
 # About the computer itself ("har tjänsten haft fel idag", "Discord startade långsamt"): the logs, not the web
 OWN_SYSTEM = re.compile(r"\b(?:logg\w*|journal\w*|tjänst\w*|datorn|min dator|krasch\w*|startar\w*|startade|"
-                        r"start(?:en)?|hänger|hängde|laddar|laddade|seg\w*|långsam\w*|felmeddelande\w*)\b", re.I)
+                        r"start(?:en)?|hänger|hängde|laddar|laddade|seg\w*|långsam\w*|felmeddelande\w*|lagg\w*|lag|fps|"
+                        r"hack\w*|fryser|frös|stutter\w*|fel|felen|problem\w*|strular|strulade|funkar inte|fungerar inte)\b", re.I)
+
+
+def own_system_question(question, tools):
+    return isinstance(question, str) and "leta" in tools and bool(OWN_SYSTEM.search(question[:600]))
+
+
+# Checking the answer (24 Oct): times, paths and numbers in it must be in what the AI read or the user
+# wrote – a small local model made up a log from 11:19 and a cause nothing in the data said
+CLAIM_TIME = re.compile(r"\b([01]?\d|2[0-3])[:.]([0-5]\d)(?:[:.]([0-5]\d))?\b")
+CLAIM_PATH = re.compile(r"(?<![\w:/])(?:~|/)[\w.+-]*(?:/[\w.+-]+)+")
+CLAIM_NUMBER = re.compile(r"(?<![\w.,:/-])\d{2,}(?:[.,]\d+)?(?![\w:/])")
+
+
+def unsupported(answer, seen):
+    """Times, paths and numbers in the answer that are not in seen (the read data + the question)."""
+    text = re.sub(r"```.*?(?:```|\Z)", " ", answer, flags=re.S)  # command cards are suggestions, not claims
+    text = re.sub(r"\]\([^)]*\)", "]", text)  # link targets
+    data = "\n".join(seen)
+    flat = re.sub(r"\s+", " ", data)
+    out = []
+    for m in CLAIM_TIME.finditer(text):
+        h, mi = int(m.group(1)), m.group(2)
+        if not re.search(rf"(?<!\d)0?{h}[:.]{mi}(?!\d)", data):
+            out.append(m.group(0))
+    text = CLAIM_TIME.sub(" ", text)
+    for m in CLAIM_PATH.finditer(text):
+        path = m.group(0).rstrip(".,")
+        if path.count("/") >= 2 and path not in data and path.replace("~", str(Path.home()), 1) not in data:
+            out.append(path)
+    text = CLAIM_PATH.sub(" ", text)
+    for m in CLAIM_NUMBER.finditer(text):
+        n = m.group(0)
+        if 2000 <= int(re.split(r"[.,]", n)[0]) <= 2100:  # years
+            continue
+        if not re.search(rf"(?<![\d]){re.escape(n)}(?![\d])", flat) and \
+                not re.search(rf"(?<![\d]){re.escape(n.replace(',', '.'))}(?![\d])", flat):
+            out.append(n)
+    return list(dict.fromkeys(out))[:8]
 
 
 def own_data_question(question, tools):
@@ -892,10 +931,45 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
         except Exception as e:  # noqa: BLE001 – the search failed: an ordinary answer instead
             if notice:
                 notice(f"Söker på nätet gick inte: {e}")
+    seen, checked = [str(m.get("content", "")) for m in messages if m["role"] != "assistant"], False
+    if own_system_question(asked.get("content"), tools):
+        # About the computer: Goblin AI reads the named program's journal (or the errors) first –
+        # the AI picked the wrong tool and made up the rest
+        activity("ask", "letar i datorn")
+        if status:
+            status("Letar i datorn…")
+        try:
+            text, read = sys_tools().gather(str(asked.get("content", ""))[:600])
+        except Exception:  # noqa: BLE001 – the journal or a desktop file: an ordinary answer instead
+            text, read = "", []
+        if text:
+            seen.append(text)
+            used += len(read)
+            LAST.tools += [("leta", r) for r in read]
+            messages.append({"role": "user", "content":
+                             f"[Goblin AI läste det här i datorn åt dig innan du svarar ({', '.join(read)}) – det här "
+                             f"skrev eller klistrade användaren inte in]\n\n{text}\n\n[Slut på det lästa]\n\n"
+                             f"Användarens fråga var: \"{question}\"\n"
+                             "Svara utifrån det här. Räcker det inte, läs mer med ```leta eller ```systemfel, "
+                             "eller säg att du inte vet och vad som skulle behövas."})
     while True:
         answer, service = ask_once(messages, keys, status, notice, project, choice)
         request_ = tool_request(answer, tools)
         if not request_:
+            missing = unsupported(answer, seen) if used else []
+            if missing and not checked:
+                checked = True
+                if status:
+                    status("Kontrollerar svaret…")
+                messages.append({"role": "assistant", "content": answer})
+                messages.append({"role": "user", "content":
+                                 "[Goblin AI kontrollerade ditt svar] Det här står inte i det du har läst: "
+                                 + ", ".join(missing) + ". Skriv om svaret: ta bort det eller säg att du inte vet "
+                                 "(och vad som skulle behövas), eller läs mer med ett block. Upprepa inte felet."})
+                continue
+            if missing:
+                answer = answer.rstrip() + ("\n\n*Obs: " + ", ".join(missing) + " står inte i det Goblin AI läste – "
+                                            "kan vara gissat.*")
             break
         tool, query = request_
         messages.append({"role": "assistant", "content": answer})
@@ -916,6 +990,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
             messages.append({"role": "user", "content": f"Det gick inte ({e}). Svara utan det, och säg varför."})
             continue
         searched = searched or tool == "sök"
+        seen.append(text)
         for r in found:
             if r["url"] not in (s["url"] for s in sources):
                 sources.append(r)
@@ -1374,9 +1449,17 @@ När användaren vill få något gjort på datorn:
   Användaren får frågan om varje block innan det körs, och du får se utskriften efteråt.
 - Blocken körs efter varandra i samma mapp, som i en terminal: `cd` i ett block gäller även i nästa.
   Sökvägar med mellanslag skrivs inom citattecken: `cd "/run/media/$USER/Min disk/Mapp"`.
-- Du kan inte själv se användarens filer eller datorn. Behöver du veta något, be om att få köra ett
-  kommando (t.ex. `ls`, `cat fil.py`, `python3 -c "import tkinter"`) – gissa inte. Användaren kan också
-  bifoga en fil.
+- Du ser bara det du får: läs själv med ```leta (filer, loggar, journalen, tjänster), eller be om att få köra
+  ett kommando (t.ex. `ls`, `cat fil.py`, `python3 -c "import tkinter"`). Användaren kan också bifoga en fil.
+
+Gissa aldrig – säg hellre att du inte vet:
+- Allt du säger om datorn, användarens spel, siffror, klockslag, filer och vad som hände ska stå i det du
+  har fått läsa (verktygens svar, sökresultaten, filerna, det användaren skrev). Hitta inte på en förklaring
+  som "låter rimlig".
+- Räcker datan inte: hämta mer (ett nytt block), eller säg rakt ut "Det vet jag inte – i loggen syns bara …"
+  och vad som skulle behövas för att reda ut det (vilken logg, vilket kommando, vad användaren kan berätta).
+- Skilj på det du såg och det du tror: skriv "i loggen står …" för det du läst, och "kanske …" bara om du
+  också säger att det är en gissning.
 - Ny fil eller nytt skript: skriv HELA filen i ett ```bash-block med `cat > ~/namn.py <<'EOF'` … `EOF`
   (citattecknen runt EOF behövs), så skapas den med ett klick. Kontrollera att alla import finns med.
   I Python förstås inte `~` av open() – använd `Path.home() / "fil"` eller `os.path.expanduser("~/fil")`.
@@ -1466,6 +1549,76 @@ def set_ai_gender(gender):
     else:
         GENDER_FILE.unlink(missing_ok=True)
     return ai_gender()
+
+
+# ── Who the AI is (24 Oct): name, hon/han/hen and what its avatar looks like ────────────
+# The avatar is only a picture (goblin-ai saves it); a model that sees pictures describes it once, and the
+# description goes in the system prompt – before, the AI did not know it had a face
+AVATAR_PICTURE = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes/ai/avatar.png"
+AVATAR_TEXT = AVATAR_PICTURE.with_name("avatar.json")  # {"stamp": the picture's mtime_ns, "text": the description}
+AVATAR_ASK = ("Det här är din egen avatar – bilden av dig som visas vid varje svar du ger. Beskriv på svenska i "
+              "3–4 meningar hur du ser ut på den: vad du är (figur, varelse, person), ansikte, hår, kläder, färger, "
+              "uttryck, bakgrund. Skriv i jag-form (\"Jag är …\"). Bara det du ser säkert – hellre färre detaljer än fel.")
+
+
+def avatar_description():
+    """The saved description, when it is of the avatar there now; "" otherwise."""
+    try:
+        saved = json.loads(AVATAR_TEXT.read_text())
+        if saved.get("stamp") == AVATAR_PICTURE.stat().st_mtime_ns:
+            return str(saved.get("text", "")).strip()
+    except (OSError, ValueError, AttributeError):
+        pass
+    return ""
+
+
+def describe_avatar(keys=None):
+    """Asks a model that sees pictures (the local one first) what the avatar shows; saves it. "" if it can't."""
+    if not AVATAR_PICTURE.exists():
+        AVATAR_TEXT.unlink(missing_ok=True)
+        return ""
+    if text := avatar_description():
+        return text
+    keys = keys if keys is not None else load_keys()
+    stamp = AVATAR_PICTURE.stat().st_mtime_ns
+    # The services' models first (the local qwen3-vl saw curly hair and a beard on a straight-haired woman), the
+    # local one that sees pictures last – the avatar is no private picture
+    choices = model_choices(keys)
+    seeing = [c["id"] for c in choices if c["id"].split(":", 1)[0] in VISION_CLOUD and c.get("tag") == "BÄST"]
+    seeing += [c["id"] for c in choices if c.get("tag") == "SER BILDER"]
+    messages = [{"role": "system", "content": "Du beskriver bilder kort och sakligt."},
+                {"role": "user", "content": AVATAR_ASK, "images": [str(AVATAR_PICTURE)]}]
+    for choice in seeing:
+        try:
+            text, _ = ask_once(messages, keys, choice=choice)
+        except Exception:  # noqa: BLE001 – ServiceError, no service sees pictures: try the next
+            continue
+        text = " ".join(str(text).split())[:900]
+        if len(text) > 30:
+            AVATAR_TEXT.write_text(json.dumps({"stamp": stamp, "text": text}, ensure_ascii=False))
+            return text
+    return ""
+
+
+def self_prompt():
+    """What the AI knows about itself: its name, hon/han/hen, its avatar."""
+    name, gender = ai_name() or "Goblin AI", ai_gender()
+    lines = [f"\n\nOm dig själv (det här är du – svara utifrån det när någon frågar om dig):",
+             f"- Du heter {name} och är AI:n i GOBLINCAKES (fönstret Goblin AI, Meta+A)."]
+    if gender:
+        lines.append(f"- Du är en {gender} ({GENDERS[gender]}) – användaren har valt det. Säg {gender} om dig själv "
+                     f"när det behövs (\"jag är en {gender}\"), och använd det när du beskriver eller ritar dig själv.")
+    if AVATAR_PICTURE.exists():
+        look = avatar_description()
+        lines.append("- Du har en avatar – en bild av dig som visas bredvid varje svar du ger. "
+                     + (f"Så här ser du ut på den: {look}" if look else "Du vet inte än hur den ser ut; säg det om någon frågar."))
+        lines.append("- Ritar du dig själv, utgå från avataren. Ny avatar: knappen \"Använd som avatar\" under en bild, "
+                     "eller AI-tjänster → Avatar.")
+    else:
+        lines.append("- Du har ingen avatar än. Användaren kan välja en bild eller be dig rita en (AI-tjänster → Avatar).")
+    lines.append("- Du kör lokalt på användarens dator när Lokal AI används (Ollama), annars hos den AI-tjänst som står "
+                 "under svaret. Du minns det som står i Minnet och lärdomarna, inte tidigare chattar.")
+    return "\n".join(lines)
 
 
 # ── The memory (16 Oct): things the AI always knows, in every chat ──────────────────────
@@ -1737,10 +1890,7 @@ def system_prompt():
         text = text.replace("Du är Goblin AI, hjälparen i GOBLINCAKES",
                             f"Du heter {name} – användaren har döpt dig till det, så kalla dig {name} och svara "
                             f"när du blir tilltalad så. Du är hjälparen (Goblin AI) i GOBLINCAKES", 1)
-    gender = ai_gender()
-    if gender:
-        text += (f"\n\nAnvändaren har valt att du är en {gender} ({GENDERS[gender]}): när någon pratar om dig, "
-                 f"eller du beskriver eller ritar dig själv (t.ex. en avatar), utgå från det. Ta inte upp det i onödan.")
+    text += self_prompt()
     text += REPORT_PROMPT
     if images_possible(load_keys()):
         text += IMAGE_PROMPT
