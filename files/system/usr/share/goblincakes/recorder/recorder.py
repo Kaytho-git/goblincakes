@@ -51,6 +51,7 @@ WOW_LOGS = Path(os.environ.get("GOBLINCAKES_RECORDER_LOGS", HOME / "Games/WoW"))
 DEFAULTS = {
     "folder": str(HOME / "Videos/WoW"),
     "fps": 60,
+    "cs2Fps": 30,  # CS2's own (24 Oct, the user: 30 is enough for quick clips – and costs the game less)
     "codec": "h264",  # h264 | hevc | av1 (NVENC on the graphics card) | x264 (processor)
     "raid": True,
     "mplus": True,
@@ -738,9 +739,18 @@ MIC_KEYS_SETTINGS = {"presets": "gate", "detector": "RMS", "ratio": 10.0, "thres
                      "attack_time": 30, "release_time": 200, "output_gain": 0.0}
 
 
+def game_fps(cfg, game="wow"):
+    return int(cfg.get("cs2Fps", 30) if game == "cs2" else cfg["fps"])
+
+
 def audio_for_game(obs, cfg, game):
-    """Just before a recording starts: the tracks and Discord/your microphone the way they are
-    chosen for this game (OBS reads RecTracks when the recording starts – no restart)."""
+    """Just before a recording starts: fps, the tracks and Discord/your microphone the way they are
+    chosen for this game (OBS reads RecTracks when the recording starts – no restart; the fps
+    can change while nothing is recording)."""
+    video = obs.call("GetVideoSettings")
+    fps = game_fps(cfg, game)
+    if (video.get("fpsNumerator"), video.get("fpsDenominator")) != (fps, 1):
+        obs.call("SetVideoSettings", {"fpsNumerator": fps, "fpsDenominator": 1}, check=False)
     obs.call("SetProfileParameter", {"parameterCategory": "AdvOut", "parameterName": "RecTracks",
                                      "parameterValue": "1" if only_game(cfg, game) else "7"})
     set_audio(obs, cfg, game)

@@ -592,7 +592,8 @@ class Service:
             "fightStart": round(max(cur["start"] - wall, 0), 2),
             "markers": [{"t": round(max(m["t"] - wall, 0), 2), "kind": m["kind"], "text": m["text"]}
                         for m in cur["markers"]],
-            "codec": self.cfg["codec"], "fps": self.cfg["fps"], "tracks": cur.get("tracks", R.TRACK_NAMES),
+            "codec": self.cfg["codec"], "fps": R.game_fps(self.cfg, "cs2" if cur["kind"] == "cs2" else "wow"),
+            "tracks": cur.get("tracks", R.TRACK_NAMES),
             "player": cur.get("player", ""), "encounterId": cur.get("encounter"),
             **({"score": cur.get("score", ""), "map": cur.get("map", ""), "mode": cur.get("mode", ""),
                 "spawns": [round(max(t - wall, 0), 2) for t in cur.get("spawns", [])],

@@ -3138,16 +3138,31 @@ Window {
 
             Item { width: 1; height: 14 }
             SectionTitle { text: "BILDER PER SEKUND" }
-            Row {
-                spacing: 12
-                Repeater {
-                    model: [{ "fps": 60, "sub": "Mjukast – som du ser spelet" }, { "fps": 30, "sub": "Hälften så stora filer" }]
-                    Choice {
-                        required property var modelData
-                        text: modelData.fps + " fps"
-                        sub: modelData.sub
-                        chosen: win.cfg.fps === modelData.fps
-                        onPicked: win.set("fps", modelData.fps)
+            Repeater { // one choice per game (24 Oct, the user's wish: 30 is enough for CS2's clips)
+                model: [{ "key": "fps", "game": "WoW", "def": 60 }, { "key": "cs2Fps", "game": "CS2", "def": 30 }]
+                Row {
+                    id: fpsRow
+                    required property var modelData
+                    spacing: 12
+                    Text {
+                        width: 44
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: fpsRow.modelData.game
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.Medium
+                        font.pixelSize: 14
+                    }
+                    Repeater {
+                        model: [{ "fps": 60, "sub": "Mjukast – som du ser spelet" },
+                                { "fps": 30, "sub": "Hälften så stora filer, och spelet tappar mindre fps medan det spelas in" }]
+                        Choice {
+                            required property var modelData
+                            text: modelData.fps + " fps"
+                            sub: modelData.sub
+                            chosen: (win.cfg[fpsRow.modelData.key] || fpsRow.modelData.def) === modelData.fps
+                            onPicked: win.set(fpsRow.modelData.key, modelData.fps)
+                        }
                     }
                 }
             }

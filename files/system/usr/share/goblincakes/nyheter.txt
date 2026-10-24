@@ -1,3 +1,4 @@
+2026-10-24  GoblinRecorder: CS2 spelas in i 30 bilder per sekund – räcker för klippen och spelet tappar mindre fps. Går att ändra under Bilder per sekund
 2026-10-24  GoblinRecorder: välj för sig om CS2-filmerna ska ha Discord och din röst eller bara spelets ljud (Inställningar → Ljud)
 2026-10-24  GoblinRecorder: du väljer igen vilka CS2-lägen som spelas in (Premier, Wingman, Casual, Deathmatch, Övriga) – från början bara Premier och Wingman
 2026-10-24  GoblinRecorder visar en kort notis när en CS2-match börjar spelas in, även mitt i spelet
