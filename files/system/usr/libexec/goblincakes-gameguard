@@ -72,16 +72,10 @@ def cmdline(pid):
 
 
 def wowup_starter(pids):
-    """How WoWUp is started again: its autostart unit (Electron's main process moves to a
-    scope of its own, its helpers stay in the unit), else its menu or autostart entry."""
-    for pid in pids:
-        try:
-            cgroup = Path(f"/proc/{pid}/cgroup").read_text().strip()
-        except OSError:
-            continue
-        unit = re.search(r"/(app-[^/]+\.service)$", cgroup)
-        if unit:
-            return ("unit", unit.group(1))
+    """How WoWUp is started again: its menu or autostart entry, always with --hidden (to the
+    tray – 24 Oct, the user: it came back maximized when it had been opened from the menu),
+    else its autostart unit (Electron's main process moves to a scope of its own, its helpers
+    stay in the unit)."""
     home = Path.home()
     for folder in (CONFIG.parent / "autostart", home / ".local/share/applications"):
         for entry in sorted(folder.glob("*.desktop")):
@@ -92,7 +86,19 @@ def wowup_starter(pids):
             exec_line = re.search(r"^Exec=(.*)$", text, re.M)
             if exec_line and "wowup" in exec_line.group(1).lower():
                 argv = [a for a in shlex.split(exec_line.group(1)) if not re.fullmatch(r"%[a-zA-Z]", a)]
+                if argv[0].startswith("/tmp/.mount_"):
+                    continue  # WowUp's own entry into its old mount – gone
+                if "--hidden" not in argv:
+                    argv.append("--hidden")
                 return ("run", argv)
+    for pid in pids:
+        try:
+            cgroup = Path(f"/proc/{pid}/cgroup").read_text().strip()
+        except OSError:
+            continue
+        unit = re.search(r"/(app-[^/]+\.service)$", cgroup)
+        if unit:
+            return ("unit", unit.group(1))
     return None
 
 
