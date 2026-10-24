@@ -611,16 +611,38 @@ Så här hittar och lagar du felet:
 - Börja svaret med det som faktiskt är fel (eller att inget allvarligt syns), sedan det som är ofarligt.
 - Leta orsaken i tid: vad uppdaterades eller ändrades strax före den första kraschen? Samma fel med olika
   Proton-versioner pekar bort från Proton.
-- Behöver du veta mer: be om ett nytt ```systemfel med programmets namn, föreslå ett ofarligt
-  läskommando (```bash, t.ex. journalctl, systemctl status, ls, cat) eller fråga användaren vad som hände
-  (vad syntes, när, går det att göra om?). Du ser inget själv utöver det du får.
+- Behöver du veta mer: be om ett nytt ```systemfel med programmets namn, leta själv med ```leta (loggfiler,
+  inställningar, en tjänsts logg) eller fråga användaren vad som hände (vad syntes, när, går det att göra om?).
 - Lösning: ett steg i taget, det säkraste först, som ```bash-kort med en mening om vad det gör. Hellre
   goblin-kommandon, GOBLINCAKES inställningar, flatpak, systemctl --user eller rpm-ostree än att ändra
   filer i /etc. Aldrig ta bort användarens filer eller spelens filer. Kräver det sudo, säg varför.
 - Ska användaren göra något (starta om Steam, starta spelet, starta om datorn), säg det och vänta på svar.
 - Kolla efteråt med ```systemfel igen innan du säger att det är löst."""
 
-TOOL_LIMIT = 4  # tool uses per question
+LOOK_PROMPT = """
+
+Leta i datorn: behöver du se något på datorn själv – hitta en fil eller loggfil, läsa en inställning eller logg,
+se vad som ligger i en mapp, vilka filer som nämner något, en tjänsts logg eller status – svara med BARA ett
+kodblock märkt ```leta med en av raderna nedan (du får bara läsa, aldrig ändra; nycklar och lösenord visas inte):
+filer <namn eller *mönster*> [i <mapp>]   – hittar filer/mappar (hemmappen, /etc, /var/log, /usr/…, /tmp)
+läs <sökväg> [med <text>]               – slutet av en textfil, eller raderna med texten
+mapp <sökväg>                           – vad som ligger i en mapp
+sök <text> i <mapp>                     – vilka filer som innehåller texten
+logg <program eller tjänst> [från HH:MM] – journalen om det sedan start (eller från klockslaget)
+status <tjänst>                         – en tjänsts status
+tjänster [text]                         – vilka tjänster som körs
+T.ex.
+```leta
+logg discord från 16:55
+```
+De flesta program (Discord, Steam, GOBLINCAKES egna, tjänster) skriver i journalen – börja med `logg <namn>`
+(med `från <klockslag>` när användaren säger när det hände), `filer` först när du letar efter en viss fil.
+Journalen visar pauser ("… 89 s utan något …"): en lång paus när programmet hängde är svaret på varför det
+var långsamt – säg vad som stod precis före och efter pausen. Datum och klockslag står på varje rad; säg
+dem som de står. Leta själv i stället för att be användaren köra
+ls/cat/journalctl. Säg vad du hittade och var (sökvägen), och gissa inte innehåll du inte läst."""
+
+TOOL_LIMIT = 6  # tool uses per question
 
 
 def wow_tools():
@@ -706,6 +728,7 @@ def tools_for(keys, project, messages):
         tools["sök"] = ("Söker på nätet", SEARCH_PROMPT.format(limit=SEARCH_LIMIT), search)
     tools["sport"] = ("Hämtar lagets ställning", SPORT_PROMPT, lambda q: (sport_tools().sport_info(q), []))
     tools["systemfel"] = ("Läser datorns fel", SYSTEM_ERRORS_PROMPT, lambda q: (sys_tools().system_errors(q), []))
+    tools["leta"] = ("Letar i datorn", LOOK_PROMPT, lambda q: (sys_tools().look(q), []))
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
     except (OSError, ValueError):
@@ -737,7 +760,8 @@ TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel
               "sport": "sport", "lag": "sport",
               "wowstats": "wowstats", "wow-stats": "wowstats", "parses": "wowstats",
               "cs2": "cs2", "counterstrike": "cs2", "cs": "cs2",
-              "systemfel": "systemfel", "system-fel": "systemfel", "systemlogg": "systemfel"}
+              "systemfel": "systemfel", "system-fel": "systemfel", "systemlogg": "systemfel",
+              "leta": "leta", "hitta": "leta", "look": "leta"}
 
 
 def tool_request(text, tools):
@@ -803,10 +827,16 @@ OWN_DATA = re.compile(
     r"|\b(?:parse\w*|pull\w*|wip\w*|bossen|raiden|nyckeln|matchen)\b.{0,60}\b(?:jag|min|mitt|mina|vi|vår|vårt|våra)\b",
     re.I)
 OWN_TOOLS = ("warcraftlogs", "wowstats", "cs2")
+# About the computer itself ("har tjänsten haft fel idag", "Discord startade långsamt"): the logs, not the web
+OWN_SYSTEM = re.compile(r"\b(?:logg\w*|journal\w*|tjänst\w*|datorn|min dator|krasch\w*|startar\w*|startade|"
+                        r"start(?:en)?|hänger|hängde|laddar|laddade|seg\w*|långsam\w*|felmeddelande\w*)\b", re.I)
 
 
 def own_data_question(question, tools):
-    return isinstance(question, str) and any(t in tools for t in OWN_TOOLS) and bool(OWN_DATA.search(question[:600]))
+    if not isinstance(question, str):
+        return False
+    return (any(t in tools for t in OWN_TOOLS) and bool(OWN_DATA.search(question[:600]))
+            or "leta" in tools and bool(OWN_SYSTEM.search(question[:600])))
 
 
 def fresh_question(question):
@@ -1576,7 +1606,7 @@ def rewrite_message(kind, answer, last=True):
 
 
 TOOL_NAMES = {"sök": "sökte på nätet", "wowfel": "läste WoW-felen", "warcraftlogs": "hämtade pullen från Warcraft Logs",
-              "sport": "hämtade lagets ställning", "systemfel": "läste datorns fel"}
+              "sport": "hämtade lagets ställning", "systemfel": "läste datorns fel", "leta": "letade i datorn"}
 
 
 def load_lessons():
@@ -1653,6 +1683,7 @@ def words(text):
 
 TOOL_HINTS = {"warcraftlogs": r"logs?\b|pull|boss|wcl|wipe|kill", "wowfel": r"bugsack|lua|tillägg|addon|fel i wow",
               "sport": r"\blag\b|match|tabell|serie", "systemfel": r"krasch|fel|startar inte|journal",
+              "leta": r"logg|fil|mapp|hitta|leta|inställning",
               "sök": r"senaste|nyheter|patch|pris"}
 
 

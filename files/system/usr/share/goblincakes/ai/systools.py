@@ -299,6 +299,305 @@ def system_errors(query=""):
     return text if len(text) <= LIMIT else text[:LIMIT] + "\n… (kortat)"
 
 
+
+# ```leta (24 Oct): the AI looks around the computer itself – finds files, reads logs and settings, searches
+# for text, a program's journal and a service's status. Only reads, never runs anything the AI wrote: a fixed
+# set of commands, every path checked against SECRET first, so keys and passwords never reach the AI.
+SECRET = re.compile(
+    r"/\.ssh(?:/|$)|/\.gnupg(?:/|$)|/\.password-store|/keyrings?(?:/|$)|kwallet|/\.netrc$|/\.aws(?:/|$)|"
+    r"/\.docker/config\.json$|/\.git-credentials$|/\.pki(?:/|$)|\.(?:pem|key|p12|pfx|kdbx|enc)$|"
+    r"/goblincakes/(?:ai|ianseo)\.env$|/goblincakes/(?:wcl|spotify|youtube|lastfm|discord-\w+|chrome-nycklar)|"
+    r"cookies|login data|logins\.json|key[34]\.db|cert9\.db|web data|token|secret|passw|"
+    r"^/etc/(?:shadow|gshadow|sudoers)|^/proc/|^/sys/|^/dev/|^/run/user/\d+/(?:gnupg|keyring)",
+    re.I)
+FIND_PLACES = [HOME, Path("/etc"), Path("/var/log"), Path("/usr/share/goblincakes"), Path("/usr/lib/systemd"),
+               Path("/usr/libexec"), Path("/usr/bin"), Path("/tmp")]
+FIND_SKIP = ("/proc", "/sys", "/dev", "/run", str(HOME / ".cache"), str(HOME / ".local/share/Trash"),
+             str(HOME / ".ssh"), str(HOME / ".gnupg"), str(HOME / ".local/share/keyrings"))
+# A key inside an ordinary file (recorder.json's cs2Token, OBS's password): the value is hidden
+SECRET_VALUE = re.compile(r"((?:token|secret|passw\w*|api[_-]?key|\w*key|auth\w*|cookie|bearer)\w*[\"']?\s*[:=]\s*[\"']?)"
+                          r"([^\s\"',;}]{6,})", re.I)
+READ_LINES = 150
+READ_BYTES = 2_000_000  # bigger files: only the end is read
+
+
+def hide(line):
+    return SECRET_VALUE.sub(lambda m: m.group(1) + "***", line)
+
+
+class SearchError(Exception):
+    pass
+
+
+def path_of(text):
+    path = Path(text.strip().strip("\"'`")).expanduser()
+    if not path.is_absolute():
+        path = HOME / path
+    return path
+
+
+def allowed(path):
+    return not SECRET.search(str(path)) and not SECRET.search(str(path.resolve()))
+
+
+def find_files(pattern, where=None):
+    """Files and folders whose name contains pattern (or matches a * pattern), newest first."""
+    glob = pattern if any(c in pattern for c in "*?[") else f"*{pattern}*"
+    places = [where] if where else FIND_PLACES
+    hits = []
+    for place in places:
+        prune = []
+        for skip in FIND_SKIP:
+            prune += ["-path", skip, "-o"]
+        out = run(["find", str(place), "-xdev", "(", *prune[:-1], ")", "-prune", "-o", "-iname", glob,
+                   "-printf", "%T@\t%s\t%y\t%p\n"], 20)
+        for line in out.splitlines():
+            stamp, size, kind, path = (line.split("\t", 3) + ["", "", "", ""])[:4]
+            if path and allowed(Path(path)):
+                try:
+                    hits.append((float(stamp), int(size), kind, path))
+                except ValueError:
+                    continue
+    if not hits:
+        return f"Inga filer eller mappar med \"{pattern}\" i namnet" + (f" i {where}." if where else
+               " (letade i hemmappen, /etc, /var/log, /usr/share/goblincakes, /usr/lib/systemd, /usr/libexec, /usr/bin, /tmp).")
+    hits.sort(reverse=True)
+    out = [f"{len(hits)} träffar för \"{pattern}\" (nyast först):"]
+    for stamp, size, kind, path in hits[:40]:
+        out.append(f"- {path}{'/' if kind == 'd' else ''}  ({when(stamp)}" + ("" if kind == "d" else f", {size_text(size)}") + ")")
+    if len(hits) > 40:
+        out.append(f"- … och {len(hits) - 40} till (be om ett noggrannare namn eller en mapp)")
+    return "\n".join(out)
+
+
+def size_text(n):
+    for unit in ("B", "kB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+    return ""
+
+
+def list_folder(path):
+    if not path.is_dir():
+        raise SearchError(f"{path} är ingen mapp")
+    try:
+        items = sorted(path.iterdir(), key=lambda p: p.name.lower())
+    except OSError as e:
+        raise SearchError(f"kan inte läsa {path}: {e.strerror}") from e
+    out = [f"{path}/ ({len(items)} st):"]
+    for item in items[:80]:
+        if not allowed(item):
+            out.append(f"- {item.name}  (hemlig – läses inte)")
+            continue
+        try:
+            st = item.stat()
+        except OSError:
+            out.append(f"- {item.name}  (trasig länk)")
+            continue
+        out.append(f"- {item.name}{'/' if item.is_dir() else ''}  ({when(st.st_mtime)}"
+                   + ("" if item.is_dir() else f", {size_text(st.st_size)}") + ")")
+    if len(items) > 80:
+        out.append(f"- … och {len(items) - 80} till")
+    return "\n".join(out)
+
+
+def read_file(path, match=""):
+    """The end of a text file (or the lines with match, with the line numbers)."""
+    if path.is_dir():
+        return list_folder(path)
+    if not path.exists():
+        raise SearchError(f"{path} finns inte")
+    try:
+        size = path.stat().st_size
+        with path.open("rb") as f:
+            if size > READ_BYTES:
+                f.seek(size - READ_BYTES)
+            data = f.read(READ_BYTES)
+    except OSError as e:
+        raise SearchError(f"kan inte läsa {path}: {e.strerror}") from e
+    if b"\0" in data[:4096]:
+        raise SearchError(f"{path} är ingen textfil ({size_text(size)})")
+    lines = data.decode(errors="replace").splitlines()
+    first = 1 if size <= READ_BYTES else None
+    if match:
+        found = [(i, l) for i, l in enumerate(lines, 1) if match.lower() in l.lower()]
+        if not found:
+            return f"{path}: inga rader med \"{match}\" ({len(lines)} rader lästa)."
+        shown = found[-READ_LINES:]
+        return (f"{path}: {len(found)} rader med \"{match}\"" + (" (de senaste)" if len(found) > len(shown) else "") + ":\n"
+                + "\n".join((f"{i}: " if first else "") + hide(l[:300]) for i, l in shown))
+    shown = lines[-READ_LINES:]
+    head = f"{path} ({size_text(size)}, ändrad {when(path.stat().st_mtime)})"
+    if len(lines) > len(shown) or not first:
+        head += f" – de sista {len(shown)} raderna"
+    return head + ":\n" + "\n".join(hide(l[:300]) for l in shown)
+
+
+def grep_text(text, where):
+    if not where.is_dir():
+        return read_file(where, text)
+    out = run(["grep", "-rIinsF", "--max-count=3", "--exclude-dir=.git", "--exclude-dir=.cache",
+               "--exclude-dir=node_modules", "--exclude-dir=compatdata", "--exclude-dir=shadercache", "--", text,
+               str(where)], 25)
+    lines = [l for l in out.splitlines() if allowed(Path(l.split(":", 1)[0]))]
+    if not lines:
+        return f"Ingen fil i {where} innehåller \"{text}\"."
+    files = collections.OrderedDict()
+    for l in lines:
+        name, rest = l.split(":", 1)
+        files.setdefault(name, []).append(hide(rest[:240]))
+    result = [f"\"{text}\" finns i {len(files)} filer i {where}" + (" (de första 30)" if len(files) > 30 else "") + ":"]
+    for name, hits in list(files.items())[:30]:
+        result.append(f"- {name}")
+        result += [f"    {h}" for h in hits]
+    return "\n".join(result)
+
+
+# Lines that say nothing about what went wrong and drown the rest (Discord logs 10+ of them a second)
+LOG_NOISE = re.compile(r"Content Security Policy|ResizeObserver loop|\[MessageQueue\]|\[MessageActionCreators\]|"
+                       r"\[Routing/Utils\]|\[ChannelMessages\]|print_timing|memory_seq_rm|replace notification", re.I)
+LOG_GAP = 20  # seconds without a line worth showing
+
+
+def program_log(name, since="", lines=90):
+    """A program's or service's journal lines since the computer started (or since HH:MM), the user's and the
+    system's: noise and repeats left out, long pauses shown – where a program hung."""
+    seen, entries = set(), []
+    span = ["--since", since] if since else ["-b"]
+    for args in (["--user-unit", name], ["-u", name], ["-t", name], [f"_COMM={name[:15]}"],
+                 ["--user-unit", f"app-{name}*"], ["-t", name.capitalize()]):
+        for d in journal([*span, "-n", "3000", *args], 30):
+            key = d.get("__CURSOR")
+            if key not in seen:
+                seen.add(key)
+                entries.append(d)
+    if not entries:
+        return (f"Journalen har inget om \"{name}\" " + (f"sedan {since}" if since else "sedan start")
+                + f" (prova ett tjänstnamn – `tjänster {name}` – eller `filer {name}`).")
+    entries.sort(key=lambda d: int(d.get("__REALTIME_TIMESTAMP", 0)))
+    rows, noise, last_msg, repeats, last_time = [], 0, None, 0, None
+    for d in entries:
+        msg = text_of(d.get("MESSAGE")).splitlines()
+        if not msg or LOG_NOISE.search(msg[0]):
+            noise += 1
+            continue
+        stamp = int(d["__REALTIME_TIMESTAMP"]) / 1e6
+        who = text_of(d.get("SYSLOG_IDENTIFIER")) or text_of(d.get("_COMM"))
+        level = {"0": "FEL", "1": "FEL", "2": "FEL", "3": "FEL", "4": "varning"}.get(text_of(d.get("PRIORITY")), "")
+        same = re.sub(r"\d+", "#", msg[0])
+        if same == last_msg:
+            repeats += 1
+            continue
+        if repeats:
+            rows.append(f"  (samma rad {repeats} gånger till)")
+            repeats = 0
+        if last_time and stamp - last_time >= LOG_GAP:
+            rows.append(f"  … {stamp - last_time:.0f} s utan något …")
+        clock = time.strftime("%H:%M:%S", time.localtime(stamp))
+        rows.append(f"{clock} {who}{' ' + level if level else ''}: {msg[0][:240]}")
+        last_msg, last_time = same, stamp
+    if repeats:
+        rows.append(f"  (samma rad {repeats} gånger till)")
+    first = int(entries[0]["__REALTIME_TIMESTAMP"]) / 1e6
+    head = f"Journalen om \"{name}\" från {when(first)}"
+    if len(rows) > lines:  # the start, the end, and what matters in between: pauses and errors
+        keep = set(range(15)) | set(range(len(rows) - 25, len(rows)))
+        for i, row in enumerate(rows):
+            if " s utan något " in row:
+                keep |= set(range(i - 4, i + 4))
+            elif " FEL: " in row or " varning: " in row:
+                keep.add(i)
+        keep = sorted(i for i in keep if 0 <= i < len(rows))[:lines + 40]
+        picked, prev = [], -1
+        for i in keep:
+            if i > prev + 1:
+                picked.append(f"  ({i - prev - 1} rader överhoppade)")
+            picked.append(rows[i])
+            prev = i
+        head += " – början, slutet, pauserna och felen (be om `från <klockslag>` för allt vid en viss tid)"
+        rows = picked
+    if noise:
+        head += f" ({noise} brusrader utan betydelse bortplockade)"
+    return head + ":\n" + "\n".join(rows)
+
+
+def unit_status(name):
+    user = run(["systemctl", "--user", "status", "--no-pager", "-n", "15", name])
+    system = run(["systemctl", "status", "--no-pager", "-n", "15", name])
+    text = "\n\n".join(t.strip() for t in (user and "Användarens tjänst:\n" + user, system and "Systemets tjänst:\n" + system) if t)
+    return text or f"Ingen tjänst som heter \"{name}\" (lista med `tjänster`)."
+
+
+def unit_list(match=""):
+    out = []
+    for scope in (["--user"], []):
+        text = run(["systemctl", *scope, "list-units", "--no-pager", "--plain", "--no-legend", "--type=service,timer"])
+        rows = [l.split(None, 4) for l in text.splitlines() if l.strip()]
+        rows = [r for r in rows if len(r) >= 4 and (not match or match.lower() in " ".join(r).lower())]
+        out.append(("Användarens" if scope else "Systemets") + f" tjänster ({len(rows)}):")
+        out += [f"- {r[0]}: {r[2]}/{r[3]}" + (f" – {r[4][:80]}" if len(r) > 4 else "") for r in rows[:60]]
+    return "\n".join(out)
+
+
+SEARCH_HELP = """Så här letar du (en rad i blocket):
+filer <namn eller *mönster*> [i <mapp>]   – hittar filer/mappar
+läs <sökväg> [med <text>]               – slutet av en textfil, eller raderna med texten
+mapp <sökväg>                           – vad som ligger i en mapp
+sök <text> i <mapp>                     – vilka filer som innehåller texten
+logg <program eller tjänst> [från HH:MM] – journalen om det sedan start (eller från klockslaget)
+status <tjänst>                         – en tjänsts status
+tjänster [text]                         – vilka tjänster som körs"""
+
+
+def look(query):
+    """The text for the AI for one ```leta line."""
+    q = " ".join(query.split())
+    word, _, rest = q.partition(" ")
+    word = word.lower().rstrip(":")
+    try:
+        if word in ("filer", "fil", "hitta", "find"):
+            m = re.match(r"(.+?)\s+i\s+(/\S.*|~\S*)$", rest)
+            where = path_of(m.group(2)) if m else None
+            if where and not allowed(where):
+                raise SearchError(f"{where} är hemligt (nycklar/lösenord) och läses inte")
+            text = find_files((m.group(1) if m else rest).strip("\"'"), where)
+        elif word in ("läs", "las", "read", "cat", "visa"):
+            m = re.match(r"(.+?)\s+med\s+(.+)$", rest)
+            path = path_of(m.group(1) if m else rest)
+            if not allowed(path):
+                raise SearchError(f"{path} är hemligt (nycklar/lösenord) och läses inte")
+            text = read_file(path, m.group(2).strip("\"'") if m else "")
+        elif word in ("mapp", "ls", "lista"):
+            path = path_of(rest or "~")
+            if not allowed(path):
+                raise SearchError(f"{path} är hemligt (nycklar/lösenord) och läses inte")
+            text = list_folder(path)
+        elif word in ("sök", "sok", "grep"):
+            m = re.match(r"(.+?)\s+i\s+(\S.*)$", rest)
+            if not m:
+                raise SearchError("skriv sök <text> i <mapp eller fil>")
+            where = path_of(m.group(2))
+            if not allowed(where):
+                raise SearchError(f"{where} är hemligt (nycklar/lösenord) och läses inte")
+            text = grep_text(m.group(1).strip("\"'"), where)
+        elif word in ("logg", "log", "journal", "journalctl"):
+            m = re.match(r"(.+?)\s+(?:från|fran|since|efter)\s+(\d{1,2}[:.]\d{2})$", rest)
+            name, since = (m.group(1), m.group(2).replace(".", ":")) if m else (rest, "")
+            text = program_log(name.strip("\"'"), since) if name else "Skriv vilket program eller vilken tjänst."
+        elif word == "status":
+            text = unit_status(rest) if rest else unit_list()
+        elif word in ("tjänster", "tjanster", "services"):
+            text = unit_list(rest)
+        else:
+            return f"Förstod inte \"{q}\".\n\n{SEARCH_HELP}"
+    except SearchError as e:
+        return f"Gick inte: {e}."
+    return text if len(text) <= LIMIT else text[:LIMIT] + "\n… (kortat)"
+
 if __name__ == "__main__":
     import sys
-    print(system_errors(" ".join(sys.argv[1:])))
+    if sys.argv[1:2] == ["leta"]:
+        print(look(" ".join(sys.argv[2:])))
+    else:
+        print(system_errors(" ".join(sys.argv[1:])))
