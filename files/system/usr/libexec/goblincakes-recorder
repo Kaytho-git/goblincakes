@@ -510,11 +510,17 @@ class Service:
         if self.call("GetRecordStatus").get("outputActive"):
             self.error = "OBS spelar redan in (startat för hand) – GoblinRecorder hoppar över den här."
             return None
+        game = "cs2" if kind == "cs2" else "wow"
         if self.obs and self.cfg.get("overlays"):
             try:  # the boxes that are on for this game
-                R.overlays_for_game(self.obs, self.cfg, None if kind == "test" else "cs2" if kind == "cs2" else "wow")
+                R.overlays_for_game(self.obs, self.cfg, None if kind == "test" else game)
             except (R.OBSError, OSError) as e:
                 log("overlays:", e)
+        if self.obs:
+            try:  # Discord and your microphone as chosen for this game
+                R.audio_for_game(self.obs, self.cfg, game)
+            except (R.OBSError, OSError) as e:
+                log("audio:", e)
         self.call("StartRecord")
         for _ in range(20):  # OBS answers at once and starts the output a moment later
             if self.call("GetRecordStatus").get("outputActive"):

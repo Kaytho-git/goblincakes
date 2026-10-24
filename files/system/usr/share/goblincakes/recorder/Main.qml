@@ -21,6 +21,7 @@ Window {
     readonly property var enc: JSON.parse(backend.encoders)
     readonly property var videos: JSON.parse(backend.videos)
     property string tab: "videos" // videos | settings | wowstats | cs2stats
+    readonly property bool micOff: cfg.capture === "wow" && cfg.cs2Capture === "game" // no game records your voice
     // a big window (full screen): the settings bigger instead of small text spread out (22 Oct, the user)
     readonly property real zoom: Math.max(1, Math.min(1.7, width / 1320))
     property var selected: null
@@ -3206,17 +3207,33 @@ Window {
                 font.weight: Font.Medium
                 font.pixelSize: 15
             }
-            Row {
-                spacing: 12
-                Repeater {
-                    model: [{ "id": "all", "name": "Allt", "sub": "WoW, Discord och din röst – på tre ljudspår (Allt, WoW, Discord) som du väljer mellan under filmen." },
-                            { "id": "wow", "name": "Bara WoW", "sub": "Bara spelets ljud – Discord och din mikrofon spelas inte in. Gäller filmer som spelas in efter bytet." }]
-                    Choice {
-                        required property var modelData
-                        text: modelData.name
-                        sub: modelData.sub
-                        chosen: (win.cfg.capture || "all") === modelData.id
-                        onPicked: win.set("capture", modelData.id)
+            Repeater { // one choice per game (24 Oct, the user's wish – before only WoW's, CS2 followed it)
+                model: [{ "key": "capture", "game": "WoW", "only": "wow" }, { "key": "cs2Capture", "game": "CS2", "only": "game" }]
+                Row {
+                    id: captureRow
+                    required property var modelData
+                    spacing: 12
+                    Text {
+                        width: 44
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: captureRow.modelData.game
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.Medium
+                        font.pixelSize: 14
+                    }
+                    Repeater {
+                        model: [{ "id": "all", "name": "Allt", "sub": captureRow.modelData.game + ", Discord och din röst – på tre ljudspår (Allt, "
+                                                                   + captureRow.modelData.game + ", Discord) som du väljer mellan under filmen." },
+                                { "id": captureRow.modelData.only, "name": "Bara " + captureRow.modelData.game,
+                                  "sub": "Bara spelets ljud – Discord och din mikrofon spelas inte in. Gäller filmer som spelas in efter bytet." }]
+                        Choice {
+                            required property var modelData
+                            text: modelData.name
+                            sub: modelData.sub
+                            chosen: (win.cfg[captureRow.modelData.key] || "all") === modelData.id
+                            onPicked: win.set(captureRow.modelData.key, modelData.id)
+                        }
                     }
                 }
             }
@@ -3225,7 +3242,7 @@ Window {
                 spacing: 8
                 Text {
                     text: "Min mikrofon"
-                    opacity: win.cfg.capture === "wow" ? 0.35 : 1
+                    opacity: win.micOff ? 0.35 : 1
                     color: "#E6ECF5"
                     font.family: "IBM Plex Sans"
                     font.weight: Font.Medium
@@ -3233,7 +3250,7 @@ Window {
                 }
                 ToggleSwitch {
                     on: win.cfg.mic !== false
-                    enabledState: win.cfg.capture !== "wow"
+                    enabledState: !win.micOff
                     onToggled: win.set("mic", win.cfg.mic === false)
                 }
                 HoverTip { tip: "Din röst på spåren Allt och Discord – med brusreducering, så att tangentbordet hörs mindre." }
@@ -3263,7 +3280,7 @@ Window {
             Text {
                 topPadding: 8
                 text: "Andning och småljud i mikrofonen"
-                opacity: win.cfg.capture === "wow" ? 0.35 : 1
+                opacity: win.micOff ? 0.35 : 1
                 color: "#E6ECF5"
                 font.family: "IBM Plex Sans"
                 font.weight: Font.Medium
@@ -3271,7 +3288,7 @@ Window {
             }
             Row {
                 spacing: 12
-                opacity: win.cfg.mic !== false && win.cfg.capture !== "wow" ? 1 : 0.35
+                opacity: win.cfg.mic !== false && !win.micOff ? 1 : 0.35
                 Repeater {
                     model: [{ "id": "off", "name": "Släpp igenom", "sub": "Allt som mikrofonen hör kommer med (brusreduceringen tar fortfarande bort jämnt brus som fläktar)." },
                             { "id": "normal", "name": "Stäng mellan orden", "sub": "Mikrofonen stängs när du inte pratar – andning och små ljud kommer inte med." },
@@ -3279,7 +3296,7 @@ Window {
                             { "id": "keys", "name": "Stäng mot tangentbordet", "sub": "Som Stäng mellan orden, men lyssnar på hur länge ljudet håller i sig: tal släpps igenom, korta klick från tangentbordet och musen gör det inte." }]
                     Choice {
                         required property var modelData
-                        enabledState: win.cfg.mic !== false && win.cfg.capture !== "wow"
+                        enabledState: win.cfg.mic !== false && !win.micOff
                         text: modelData.name
                         sub: modelData.sub
                         chosen: (win.cfg.micGate || "normal") === modelData.id

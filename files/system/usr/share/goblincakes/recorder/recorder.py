@@ -60,6 +60,7 @@ DEFAULTS = {
     "autoStartObs": True,
     "mic": True,  # your microphone on tracks 1 and 3 (with noise suppression)
     "capture": "all",  # all = WoW, Discord and your microphone on three tracks | wow = only the game, one track
+    "cs2Capture": "all",  # the same for CS2: all | game
     "gameBoost": 12,
     "micGate": "normal",  # off | normal | strong | keys – after the noise suppression, see MIC_GATES
     "quality": "normal",  # best | high | normal | small – see QUALITY_MBIT/encoder_settings  # dB louder game sound – WoW plays quietly next to Discord
@@ -89,14 +90,14 @@ DUNGEON_DIFFICULTIES = {1: "Normal", 2: "Heroic", 8: "Mythic+", 23: "Mythic"}
 TRACK_NAMES = ["Allt", "WoW", "Discord"]
 
 
-def only_wow(cfg):
-    """Only the game's sound in the videos (Inställningar → Ljud → Filmen fångar)."""
-    return cfg.get("capture") == "wow"
+def only_game(cfg, game="wow"):
+    """Only the game's sound in the videos (Inställningar → Ljud → Filmen fångar, one choice per game)."""
+    return cfg.get("cs2Capture") == "game" if game == "cs2" else cfg.get("capture") == "wow"
 
 
 def track_names(cfg, game="WoW"):
     names = [game if n == "WoW" else n for n in TRACK_NAMES]
-    return [game] if only_wow(cfg) else names
+    return [game] if only_game(cfg, game.lower()) else names
 AUDIO_INPUTS = [
     {"name": "WoW-ljud", "target": "World of Warcraft", "tracks": [1, 2]},
     {"name": "CS2-ljud", "target": "cs2", "tracks": [1, 2]},  # the program's name in PipeWire (heard in a real match 22 Oct)
@@ -599,7 +600,7 @@ def apply_settings(obs, cfg):
         ("AdvOut", "RecFilePath", str(folder)),
         ("AdvOut", "RecFormat2", "hybrid_mp4"),  # MP4 that survives a crash
         ("AdvOut", "RecEncoder", encoder),
-        ("AdvOut", "RecTracks", "1" if only_wow(cfg) else "7"),  # track 1, or tracks 1–3
+        ("AdvOut", "RecTracks", "1" if only_game(cfg) else "7"),  # track 1, or tracks 1–3 (per game: audio_for_game)
         ("AdvOut", "RecUseRescale", "false"),
         ("AdvOut", "RecRB", "false"),
     ]
@@ -737,7 +738,15 @@ MIC_KEYS_SETTINGS = {"presets": "gate", "detector": "RMS", "ratio": 10.0, "thres
                      "attack_time": 30, "release_time": 200, "output_gain": 0.0}
 
 
-def set_audio(obs, cfg):
+def audio_for_game(obs, cfg, game):
+    """Just before a recording starts: the tracks and Discord/your microphone the way they are
+    chosen for this game (OBS reads RecTracks when the recording starts – no restart)."""
+    obs.call("SetProfileParameter", {"parameterCategory": "AdvOut", "parameterName": "RecTracks",
+                                     "parameterValue": "1" if only_game(cfg, game) else "7"})
+    set_audio(obs, cfg, game)
+
+
+def set_audio(obs, cfg, game="wow"):
     """Your microphone (the system's default one, with RNNoise noise suppression and a noise
     gate against breathing – or the expander against the keyboard) on tracks
     1 and 3, and the game sound boosted – a limiter keeps it from clipping. Works while
@@ -770,12 +779,12 @@ def set_audio(obs, cfg):
                                              "filterSettings": MIC_KEYS_SETTINGS}, check=False)
     obs.call("SetSourceFilterEnabled", {"sourceName": MIC, "filterName": MIC_KEYS,
                                         "filterEnabled": mode == "keys"}, check=False)
-    on = bool(cfg.get("mic", True)) and not only_wow(cfg)
+    on = bool(cfg.get("mic", True)) and not only_game(cfg, game)
     obs.call("SetInputAudioTracks", {"inputName": MIC, "inputAudioTracks":
              {str(t): on and t in (1, 3) for t in range(1, 7)}})
     if "Discord-ljud" in inputs:
         obs.call("SetInputAudioTracks", {"inputName": "Discord-ljud", "inputAudioTracks":
-                 {str(t): not only_wow(cfg) and t in (1, 3) for t in range(1, 7)}}, check=False)
+                 {str(t): not only_game(cfg, game) and t in (1, 3) for t in range(1, 7)}}, check=False)
     if "WoW-ljud" in inputs:
         boost = float(cfg.get("gameBoost", 12))
         obs.call("SetInputVolume", {"inputName": "WoW-ljud", "inputVolumeDb": boost})
