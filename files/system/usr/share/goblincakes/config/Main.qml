@@ -122,11 +122,18 @@ Window {
     }
 
     ListModel { id: progressModel }
+    // Uppdatera och stäng av (24 Oct): the helper's state, shown while it runs and an hour after
+    readonly property var poweroffState: backend.poweroff ? JSON.parse(backend.poweroff) : null
+    readonly property bool poweroffRunning: !!(poweroffState && poweroffState.running)
+    readonly property bool poweroffShown: !!poweroffState && (poweroffRunning
+        || (poweroffState.phase !== "done" && Date.now() / 1000 - poweroffState.since < 3600))
     ListModel { id: updateResults }
     ListModel { id: updateNews }
 
     // parts: "" = everything (Uppdatera allt), else goblin update --only (one row's Uppdatera)
     function startUpdate(parts) {
+        if (poweroffRunning)
+            return; // Uppdatera och stäng av runs goblin update itself
         updateResults.clear();
         updateNews.clear();
         updateFrac = 0;
@@ -3036,6 +3043,32 @@ Window {
                     + "<font color='#E6ECF5'>Tryck Kolla efter uppdateringar</font> för att se vad som är nytt – det kollas också av sig själv när du loggar in. Inget hämtas förrän du trycker Uppdatera på en del eller Uppdatera allt. Systemet kan fråga efter ditt lösenord."
             }
 
+            // Uppdatera och stäng av: what it does right now
+            Rectangle {
+                visible: win.poweroffShown
+                width: updCol.width
+                height: poweroffLabel.height + 28
+                color: "#0E1420"
+                border.width: 1
+                border.color: win.poweroffRunning ? accent.color : win.poweroffState && win.poweroffState.phase === "failed" ? accent.errorBright : "#1E2A40"
+                Text {
+                    id: poweroffLabel
+                    anchors { left: parent.left; right: parent.right; margins: 16; verticalCenter: parent.verticalCenter }
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.2
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 15
+                    textFormat: Text.StyledText
+                    text: !win.poweroffState ? "" : (win.poweroffRunning ? "<font color='#8B98AD'>UPPDATERA OCH STÄNG AV</font><br>" : "")
+                        + win.poweroffState.text
+                        + (win.poweroffRunning && win.poweroffState.phase !== "countdown"
+                           ? "<br><font color='#8B98AD'>Datorn stängs av när allt är klart – du kan stänga det här fönstret.</font>" : "")
+                        + (win.poweroffState.failed && win.poweroffState.failed.length
+                           ? "<br><font color='#8B98AD'>Gick inte att uppdatera: " + win.poweroffState.failed.join(", ") + "</font>" : "")
+                }
+            }
+
             // Result of "Kolla efter uppdateringar"
             Rectangle {
                 visible: win.updateState === "idle" && win.checkState !== ""
@@ -3092,6 +3125,7 @@ Window {
                     FlatButton {
                         id: partButton
                         anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                        visible: !win.poweroffRunning
                         text: "Uppdatera"
                         onClicked: win.startUpdate(part)
                     }
@@ -3321,7 +3355,18 @@ Window {
                 onClicked: backend.openRemover()
             }
             FlatButton {
-                visible: win.tab === "update" && win.updateState === "idle"
+                visible: win.tab === "update" && win.poweroffRunning
+                text: "Avbryt avstängningen"
+                onClicked: backend.cancelPoweroff()
+            }
+            FlatButton {
+                // Waits for a version being built, updates everything, turns the computer off (24 Oct, the user's wish)
+                visible: win.tab === "update" && win.updateState !== "running" && !win.poweroffRunning
+                text: "Uppdatera och stäng av"
+                onClicked: backend.startPoweroff()
+            }
+            FlatButton {
+                visible: win.tab === "update" && win.updateState === "idle" && !win.poweroffRunning
                 primary: !win.checkFound && !win.checkStaged
                 enabledState: win.checkState !== "checking"
                 text: win.checkState === "checking" ? "Kollar…" : "Kolla efter uppdateringar"
@@ -3329,7 +3374,7 @@ Window {
             }
             FlatButton {
                 // Only when there is something to update (a check found it), or again after a run
-                visible: win.tab === "update" && (win.updateState === "done" || (win.updateState === "idle" && win.checkFound))
+                visible: win.tab === "update" && !win.poweroffRunning && (win.updateState === "done" || (win.updateState === "idle" && win.checkFound))
                 primary: !(win.updateState === "done" && win.updateReboot)
                 text: win.updateState === "done" ? "Uppdatera igen" : "Uppdatera allt"
                 onClicked: win.startUpdate("")

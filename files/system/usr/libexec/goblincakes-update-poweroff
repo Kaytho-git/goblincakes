@@ -1,0 +1,266 @@
+#!/usr/bin/python3
+"""Uppdatera och stäng av (24 Oct, the user's wish: "if I wait for an update but it gets late").
+
+Config → Uppdatera → "Uppdatera och stäng av", or `goblin update --stäng-av`:
+1. a new GOBLINCAKES version being built on GitHub (build.yml, branch main) → wait for it,
+2. `goblin update --gui` (everything, like Config's Uppdatera alla),
+3. a game running → wait until it's closed,
+4. a notice with Avbryt, two minutes, then the computer is turned off.
+Never turns off when the build failed, the system part of the update failed or it took more
+than MAX_WAIT – a notice says so instead. Once only: nothing stays switched on.
+
+  goblincakes-update-poweroff start    begins in the background (detached – Config may close)
+  goblincakes-update-poweroff cancel   stops it (an update already running finishes first:
+                                       killing rpm-ostree mid-way broke it, 11 Oct)
+  goblincakes-update-poweroff status   the state as JSON
+
+Runs in the user's session: rpm-ostree upgrade and poweroff are allowed there without a
+password (polkit: active local session). Only the standard library.
+Tests: GOBLINCAKES_POWEROFF_DRY=1 (says instead of turning off), GOBLINCAKES_POWEROFF_GOBLIN
+(another goblin), GOBLINCAKES_POWEROFF_API (another GitHub address), GOBLINCAKES_POWEROFF_POLL,
+GOBLINCAKES_POWEROFF_COUNTDOWN (seconds).
+"""
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+from pathlib import Path
+
+REPO = "Kaytho-git/goblincakes"
+API = os.environ.get("GOBLINCAKES_POWEROFF_API",
+                     f"https://api.github.com/repos/{REPO}/actions/workflows/build.yml/runs?branch=main&per_page=5")
+GOBLIN = os.environ.get("GOBLINCAKES_POWEROFF_GOBLIN", "goblin")
+DRY = os.environ.get("GOBLINCAKES_POWEROFF_DRY") == "1"
+POLL = int(os.environ.get("GOBLINCAKES_POWEROFF_POLL", "120"))  # GitHub allows 60 questions an hour without login
+COUNTDOWN = int(os.environ.get("GOBLINCAKES_POWEROFF_COUNTDOWN", "120"))
+MAX_WAIT = 3 * 3600  # for the build; a build takes ~15 min
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
+STATE = STATE_DIR / "update-poweroff.json"
+CANCEL = STATE_DIR / "update-poweroff.cancel"
+LOG = STATE_DIR / "update-poweroff.log"
+BUSY = ("queued", "in_progress", "waiting", "pending", "requested")
+
+
+def log(*a):
+    print(time.strftime("%F %T"), *a, flush=True)
+
+
+def read_state():
+    try:
+        return json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def running(state=None):
+    """Is a run going on (its process still alive)?"""
+    state = state if state is not None else read_state()
+    pid = state.get("pid")
+    if not pid or state.get("phase") in ("done", "failed", "cancelled"):
+        return False
+    try:
+        return Path(f"/proc/{pid}/cmdline").read_bytes().find(b"update-poweroff") >= 0
+    except OSError:
+        return False
+
+
+def save(phase, text, **more):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    data = {"pid": os.getpid(), "phase": phase, "text": text, "since": int(time.time()), **more}
+    tmp = STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False))
+    tmp.replace(STATE)
+    log(phase, text)
+
+
+def notify(title, text, urgent=False):
+    cmd = ["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes", title, text]
+    if urgent:  # through Do Not Disturb (on while a screen is shared, e.g. OBS)
+        cmd[1:1] = ["-u", "critical"]
+    subprocess.run(cmd, capture_output=True)
+
+
+def cancelled():
+    return CANCEL.exists()
+
+
+def wait(seconds):
+    """Sleeps, but answers Avbryt within a couple of seconds. True = cancelled."""
+    end = time.time() + seconds
+    while time.time() < end:
+        if cancelled():
+            return True
+        time.sleep(min(2, max(0, end - time.time())))
+    return cancelled()
+
+
+def builds():
+    """The latest builds of main: [(status, conclusion, started)], None when GitHub can't be asked."""
+    try:
+        req = urllib.request.Request(API, headers={"Accept": "application/vnd.github+json",
+                                                   "User-Agent": "goblincakes-update-poweroff"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            runs = json.load(r).get("workflow_runs", [])
+    except (OSError, ValueError):
+        return None
+    return [(r.get("status"), r.get("conclusion"), r.get("run_started_at") or r.get("created_at") or "") for r in runs]
+
+
+def wait_for_build():
+    """'ok' (no build running, or it finished well), 'failed', 'timeout', 'cancelled'."""
+    start = time.time()
+    waited = False
+    misses = 0
+    while True:
+        runs = builds()
+        if runs is None:
+            misses += 1
+            if misses >= 3 and not waited:  # no internet to ask: the update itself will say
+                return "ok"
+        else:
+            misses = 0
+            if not any(s in BUSY for s, _, _ in runs):
+                if waited and runs and runs[0][1] != "success":
+                    return "failed"
+                return "ok"
+            waited = True
+            mins = int((time.time() - start) / 60)
+            save("build", "Väntar på att nya versionen byggs" + (f" ({mins} min)" if mins else "") + " …")
+        if time.time() - start > MAX_WAIT:
+            return "timeout"
+        if wait(POLL):
+            return "cancelled"
+
+
+def update():
+    """goblin update --gui, everything. (system ok, failed part names)."""
+    save("update", "Uppdaterar …")
+    system_ok, failed = True, []
+    proc = subprocess.Popen([GOBLIN, "update", "--gui"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, errors="replace")
+    for line in proc.stdout:
+        line = line.strip()
+        if line.startswith("@@step "):
+            save("update", f"Uppdaterar: {line[7:]} …")
+        elif line.startswith("@@result "):
+            name, _, result = line[9:].partition("|")
+            if result != "ok":
+                failed.append(name)
+                if name.lower().startswith("system"):
+                    system_ok = False
+    proc.wait()
+    return system_ok, failed
+
+
+def game_running():
+    for d in (Path(__file__).resolve().parents[1] / "share/goblincakes", Path("/usr/share/goblincakes")):
+        if (d / "gaming.py").exists():
+            sys.path.insert(0, str(d))
+            break
+    try:
+        import gaming
+        return gaming.find_game() is not None
+    except Exception:  # noqa: BLE001 – no rule to ask: don't hold the shutdown back
+        return False
+
+
+def countdown():
+    """The notice with Avbryt, then two minutes. True = turn off."""
+    save("countdown", "Datorn stängs av om 2 minuter", until=int(time.time()) + COUNTDOWN)
+    note = subprocess.Popen(["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes", "-u", "critical",
+                             "-p", "--wait", "--action=cancel=Avbryt", "Datorn stängs av om 2 minuter",
+                             "GOBLINCAKES är uppdaterad. Avbryt om du vill fortsätta använda datorn."],
+                            stdout=subprocess.PIPE, text=True)
+    nid = (note.stdout.readline() or "").strip()  # -p: the id first, then the action when one is picked
+    answer = []
+    threading.Thread(target=lambda: answer.append(note.stdout.readline().strip()), daemon=True).start()
+    end = time.time() + COUNTDOWN
+    while time.time() < end and not cancelled():
+        if answer and answer[0] == "cancel":
+            CANCEL.touch()
+        time.sleep(1)
+    if note.poll() is None and nid.isdigit():  # critical notices stay until closed
+        subprocess.run(["gdbus", "call", "--session", "--dest", "org.freedesktop.Notifications",
+                        "--object-path", "/org/freedesktop/Notifications",
+                        "--method", "org.freedesktop.Notifications.CloseNotification", nid], capture_output=True)
+    if note.poll() is None:
+        note.terminate()
+    return not cancelled()
+
+
+def run():
+    CANCEL.unlink(missing_ok=True)
+    result = wait_for_build()
+    if result == "cancelled":
+        return stop()
+    if result == "failed":
+        save("failed", "Bygget av nya versionen misslyckades – datorn stängs inte av.")
+        return notify("Datorn stängs inte av", "Bygget av den nya GOBLINCAKES-versionen misslyckades.", urgent=True)
+    if result == "timeout":
+        save("failed", "Bygget tog mer än 3 timmar – datorn stängs inte av.")
+        return notify("Datorn stängs inte av", "Bygget av den nya versionen blev inte klart på 3 timmar.", urgent=True)
+    system_ok, failed = update()
+    if not system_ok:
+        save("failed", "Systemet gick inte att uppdatera – datorn stängs inte av.")
+        return notify("Datorn stängs inte av", "Systemet gick inte att uppdatera. Kör goblin update i en terminal.",
+                      urgent=True)
+    if cancelled():
+        return stop("Avbrutet – uppdateringen gjordes klart, datorn stängs inte av.")
+    while game_running():
+        save("game", "Uppdaterad – väntar på att spelet stängs …", failed=failed)
+        if wait(30):
+            return stop("Avbrutet – datorn stängs inte av.")
+    if not countdown():
+        return stop("Avbrutet – datorn stängs inte av.")
+    save("done", "Stänger av …", failed=failed)
+    if DRY:
+        log("(prov) systemctl poweroff")
+    else:
+        subprocess.run(["systemctl", "poweroff"])
+
+
+def stop(text="Avbrutet."):
+    CANCEL.unlink(missing_ok=True)
+    save("cancelled", text)
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "start":
+        if running():
+            print("Redan igång.")
+            return 0
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        CANCEL.unlink(missing_ok=True)
+        with open(LOG, "a") as out:
+            p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "run"], stdin=subprocess.DEVNULL,
+                                 stdout=out, stderr=out, start_new_session=True)
+        STATE.write_text(json.dumps({"pid": p.pid, "phase": "start", "text": "Kollar om en ny version byggs …",
+                                     "since": int(time.time())}, ensure_ascii=False))
+        print("Startat – datorn stängs av när uppdateringen är klar.")
+        return 0
+    if cmd == "run":
+        run()
+        return 0
+    if cmd == "cancel":
+        if running():
+            STATE_DIR.mkdir(parents=True, exist_ok=True)
+            CANCEL.touch()
+            print("Avbryts.")
+        else:
+            print("Inget att avbryta.")
+        return 0
+    if cmd == "status":
+        state = read_state()
+        state["running"] = running(state)
+        print(json.dumps(state, ensure_ascii=False))
+        return 0
+    print("Använd: goblincakes-update-poweroff start|cancel|status", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

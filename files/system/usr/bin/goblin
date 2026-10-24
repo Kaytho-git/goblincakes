@@ -205,6 +205,10 @@ cmd_update() {
             --gui) GUI=1 ;;
             --only) shift; only=",${1:-},"; [ "$only" = ",," ] && { echo "goblin update --only: vilka delar?" >&2; return 2; } ;;
             --only=*) only=",${1#--only=}," ;;
+            # Waits for a version being built, updates everything, then turns the computer off (24 Oct)
+            --stäng-av|--poweroff) /usr/libexec/goblincakes-update-poweroff start
+                info "Följ eller avbryt i GOBLINCAKES Config → Uppdatera (eller goblin update --avbryt)."; return ;;
+            --avbryt) /usr/libexec/goblincakes-update-poweroff cancel; return ;;
         esac
         shift
     done
@@ -261,7 +265,7 @@ cmd_update() {
 # Descriptions: best at most 79 characters (Ghostty's 100 columns minus 21: 2 + "goblin " + 11 + 1);
 # longer ones wrap at whole words under the description column
 COMMANDS=(
-    "update|Uppdatera allt – eller en del: goblin update --only flatpak (system, flatpak, appimages, vscode, chatgpt, discord, proton, firmware)"
+    "update|Uppdatera allt – eller en del: goblin update --only flatpak (system, flatpak, appimages, vscode, chatgpt, discord, proton, firmware). goblin update --stäng-av: vänta på nya versionen, uppdatera, stäng av datorn"
     "ai|Öppna Goblin AI-fönstret (eller tryck Meta+A)"
     "ai [fråga]|Fråga Goblin AI direkt här – föreslagna kommandon körs bara om du säger ja"
     "ai setup|Ställ in gratis AI-tjänster (Gemini, OpenRouter, Tavily-sökning)"

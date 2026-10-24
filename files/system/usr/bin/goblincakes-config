@@ -15,7 +15,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QProcess, QSize, Qt, QUrl, Property, Signal, Slot
+from PySide6.QtCore import QObject, QProcess, QSize, Qt, QTimer, QUrl, Property, Signal, Slot
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
@@ -274,6 +274,7 @@ class Config(QObject):
     updateResult = Signal(str, bool, str)  # name, ok, summary
     updateNews = Signal(str)
     updateDone = Signal(bool, bool)  # all ok, restart needed
+    poweroffChanged = Signal()  # Uppdatera och stäng av: goblincakes-update-poweroff's state
 
     def __init__(self):
         super().__init__()
@@ -314,6 +315,11 @@ class Config(QObject):
         self._gpu = "{}"
         self._gpu_proc = None
         self._update_proc = None
+        self._poweroff = ""
+        self._poweroff_timer = QTimer(self)  # the helper runs on its own (this window may close): read its state
+        self._poweroff_timer.timeout.connect(self._read_poweroff)
+        self._poweroff_timer.start(2000)
+        self._read_poweroff()
         self._system_apps = "[]"  # filled when the tab FÖRINSTALLERAT opens
         self._autostart = "{}"
         self.refreshAutostart()
@@ -906,6 +912,45 @@ class Config(QObject):
         self.updateBusyChanged.emit()
         emit()
         proc.start("goblin", ["update", "--gui"] + (["--only", ",".join(wanted)] if wanted else []))
+
+    # ── Uppdatera och stäng av (goblincakes-update-poweroff, 24 Oct) ──
+
+    def _poweroff_helper(self):
+        here = Path(__file__).resolve().parents[1] / "libexec/goblincakes-update-poweroff"  # the repo's
+        return str(here if here.exists() else Path("/usr/libexec/goblincakes-update-poweroff"))
+
+    def _read_poweroff(self):
+        """The helper's state file + whether it still runs, as JSON for QML ("" = never used)."""
+        state_file = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes/update-poweroff.json"
+        try:
+            state = json.loads(state_file.read_text())
+        except (OSError, ValueError):
+            state = None
+        if state is not None:
+            pid = state.get("pid")
+            try:
+                alive = bool(pid) and b"update-poweroff" in Path(f"/proc/{pid}/cmdline").read_bytes()
+            except OSError:
+                alive = False
+            state["running"] = alive and state.get("phase") not in ("done", "failed", "cancelled")
+        text = json.dumps(state, ensure_ascii=False) if state is not None else ""
+        if text != self._poweroff:
+            self._poweroff = text
+            self.poweroffChanged.emit()
+
+    @Property(str, notify=poweroffChanged)
+    def poweroff(self):
+        return self._poweroff
+
+    @Slot()
+    def startPoweroff(self):
+        QProcess.startDetached(self._poweroff_helper(), ["start"])
+        QTimer.singleShot(500, self._read_poweroff)
+
+    @Slot()
+    def cancelPoweroff(self):
+        QProcess.startDetached(self._poweroff_helper(), ["cancel"])
+        QTimer.singleShot(3000, self._read_poweroff)
 
     @Slot()
     def enrollKey(self):

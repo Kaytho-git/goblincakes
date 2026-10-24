@@ -1,3 +1,4 @@
+2026-10-25  Uppdatera och stäng av: i Config → Uppdatera (eller goblin update --stäng-av) väntar GOBLINCAKES på en ny version som byggs, uppdaterar allt och stänger sedan av datorn – med två minuters varning och Avbryt
 2026-10-24  GoblinRecorder: egen kvalitet för CS2 (från början Hög) – WoW behåller sin
 2026-10-24  GoblinRecorder: CS2 spelas in i 30 bilder per sekund – räcker för klippen och spelet tappar mindre fps. Går att ändra under Bilder per sekund
 2026-10-24  GoblinRecorder: välj för sig om CS2-filmerna ska ha Discord och din röst eller bara spelets ljud (Inställningar → Ljud)
