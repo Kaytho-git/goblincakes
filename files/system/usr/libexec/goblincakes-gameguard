@@ -71,7 +71,7 @@ def cmdline(pid):
         return []
 
 
-HIDDEN = Path("/usr/libexec/goblincakes-start-hidden")
+HIDDEN = Path(os.environ.get("GOBLINCAKES_START_HIDDEN", "/usr/libexec/goblincakes-start-hidden"))
 
 
 def wowup_starter(pids):
