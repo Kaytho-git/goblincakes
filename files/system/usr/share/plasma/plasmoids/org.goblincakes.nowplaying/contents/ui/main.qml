@@ -605,7 +605,9 @@ PlasmoidItem {
                                 text: (Plasmoid.configuration.deviceNames ? modelData.name + "  " : "")
                                       + (modelData.charging ? "⚡" : "") + modelData.percent + " %"
                                 color: level
-                                font: Kirigami.Theme.defaultFont
+                                font.family: Kirigami.Theme.defaultFont.family
+                                font.pointSize: Kirigami.Theme.defaultFont.pointSize
+                                font.weight: Font.DemiBold // 600, like the clock (24 Oct, the user's choice)
                                 elide: Text.ElideRight
                                 Layout.maximumWidth: Kirigami.Units.gridUnit * 16
                                 Layout.alignment: Qt.AlignVCenter
