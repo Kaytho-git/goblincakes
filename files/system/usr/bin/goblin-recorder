@@ -435,9 +435,15 @@ class Backend(QObject):
         """The WoW Stats page, put together from your own history (no Warcraft Logs calls)."""
         return json.dumps(R.wow_overview(R.load_config()["folder"], player, days, season), ensure_ascii=False)
 
-    @Slot(int, str, result=str)
-    def cs2Overview(self, count, season):
-        return json.dumps(R.cs2_overview(R.load_config()["folder"], count, season), ensure_ascii=False)
+    @Slot(int, str, bool, result=str)
+    def cs2Overview(self, count, season, private):
+        return json.dumps(R.cs2_overview(R.load_config()["folder"], count, season, private), ensure_ascii=False)
+
+    @Slot(float, bool)
+    def cs2SetPrivate(self, started, private):
+        """A match moved by hand between CS2 Stats and PRIVAT."""
+        R.cs2_set_private(started, private)
+        self.refreshVideos()
 
     # ---------------------------------------------------------- CS2 demos (step 2)
     demoBusy = Signal(str)  # the match whose demo is being read, "" = done

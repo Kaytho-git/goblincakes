@@ -2320,8 +2320,9 @@ Window {
     property real cs2Open: 0 // the match unfolded in CS2 Stats (its start)
     property string wowSeason: "" // "" = the current season, else an archived one's key
     property string cs2Season: ""
+    property bool cs2Private: false // PRIVAT: friends' servers, casual, workshop – not in your real numbers
     readonly property var wowData: tab === "wowstats" ? (videos, JSON.parse(backend.wowOverview(wowPlayer, wowDays, wowSeason))) : ({})
-    readonly property var cs2Data: tab === "cs2stats" ? (videos, JSON.parse(backend.cs2Overview(cs2Count, cs2Season))) : ({})
+    readonly property var cs2Data: tab === "cs2stats" ? (videos, JSON.parse(backend.cs2Overview(cs2Count, cs2Season, cs2Private))) : ({})
     function seasonSub(x, what) {
         return (x.current ? "Nuvarande säsong" : "Arkiverad · " + day(x.start) + " – " + day(x.end))
                + " · " + x.count + " " + what;
@@ -2645,8 +2646,38 @@ Window {
             width: Math.min(1100, (cs2Page.width - 80) / cs2Page.zoom)
             spacing: 14
 
+            // your real numbers (Valve's servers) or PRIVAT – each with its own seasons
+            Row {
+                visible: !!cs2Page.d.other || win.cs2Private
+                spacing: 8
+                Choice {
+                    text: "CS2 STATS"
+                    sub: "Premier, Competitive och Wingman på Valves servrar – dina riktiga siffror"
+                    chosen: !win.cs2Private
+                    onPicked: { win.cs2Private = false; win.cs2Season = ""; win.cs2Open = 0; }
+                }
+                Choice {
+                    text: "PRIVAT" + (!win.cs2Private && cs2Page.d.other ? " (" + cs2Page.d.other + ")" : "")
+                    sub: "Privata servrar, casual och workshop-kartor – räknas inte in i CS2 Stats"
+                    chosen: win.cs2Private
+                    onPicked: { win.cs2Private = true; win.cs2Season = ""; win.cs2Open = 0; }
+                }
+            }
+
             Column {
-                visible: !cs2Page.d.all
+                visible: !cs2Page.d.all && win.cs2Private
+                width: parent.width
+                spacing: 10
+                SectionTitle { text: "INGA PRIVATA MATCHER" + ((cs2Page.d.seasons || []).length > 1 ? " I " + cs2Page.d.seasons[0].name.toUpperCase() : "") }
+                Note {
+                    width: parent.width
+                    text: "Här hamnar matcher på privata servrar (demon kommer från en annan server än Valves), casual och workshop-kartor. "
+                          + "En match som hamnat fel flyttas med knappen under matchen."
+                }
+            }
+
+            Column {
+                visible: !cs2Page.d.all && !win.cs2Private
                 width: parent.width
                 spacing: 10
                 SectionTitle { text: (cs2Page.d.seasons || []).length > 1 ? "INGA MATCHER I " + cs2Page.d.seasons[0].name.toUpperCase() + " ÄN" : "INGA CS2-SIFFROR ÄN" }
@@ -2666,7 +2697,7 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
                     Text {
-                        text: "COUNTER-STRIKE 2"
+                        text: win.cs2Private ? "COUNTER-STRIKE 2 · PRIVAT" : "COUNTER-STRIKE 2"
                         color: "#E6ECF5"
                         font.family: "Chakra Petch"
                         font.weight: Font.Bold
@@ -2684,6 +2715,7 @@ Window {
                 }
                 FlatButton {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    visible: !win.cs2Private
                     primary: true
                     text: "Fråga " + backend.aiName + " vad jag ska träna på"
                     onClicked: backend.askAi("Hur ser mina CS2-siffror ut över de senaste " + (win.cs2Count || 30)
@@ -2915,6 +2947,10 @@ Window {
                             }
                             Row {
                                 spacing: 10
+                                FlatButton {
+                                    text: win.cs2Private ? "Flytta till CS2 Stats" : "Flytta till Privat"
+                                    onClicked: { win.cs2Open = 0; backend.cs2SetPrivate(mrow.m.started, !win.cs2Private); }
+                                }
                                 FlatButton {
                                     visible: !!mrow.m.path
                                     text: "Visa i Inspelningar"

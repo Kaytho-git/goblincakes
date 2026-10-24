@@ -1223,8 +1223,9 @@ def cs2_demo_load(path):
             players[_sid(r["steamid"])] = str(r["name"])
     except Exception:  # noqa: BLE001
         pass
+    header = p.parse_header()
     return {
-        "map": p.parse_header().get("map_name", ""), "players": players, "start": start,
+        "map": header.get("map_name", ""), "server": str(header.get("server_name") or ""), "players": players, "start": start,
         "roundEnds": round_ends, "freeze": [{"tick": t, "players": at.get(t, {})} for t in freeze],
         "deaths": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "killer": _sid(r.get("attacker_steamid")),
                     "assister": _sid(r.get("assister_steamid")), "flash": bool(r.get("assistedflash")),
@@ -1725,7 +1726,7 @@ def cs2_demo_apply(meta_path, dem, a, offset):
             made.append(dest.name)
     data = json.loads(meta_path.read_text())
     data.update(markers=marks, demo="done", demoFile=str(dem), demoStats=a["stats"], demoRounds=a["perRound"],
-                demoPlayers=a.get("players", []))
+                demoPlayers=a.get("players", []), demoServer=a.get("server", ""))
     meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
     cs2_history_add([data])
     cs2_drop_match_video(meta_path)
@@ -1793,6 +1794,7 @@ def cs2_demo_run(dem, meta_path=None):
         if "firstShot" not in a["stats"]:  # no map geometry: the shots near your hits
             a["stats"].update(cs2_demo_shots(raw, me))
         a["players"] = cs2_demo_players(dem, raw, me, a["stats"])
+        a["server"] = raw.get("server", "")
         return {"match": meta["file"], "text": cs2_demo_apply(meta["path"], dem, a, offset)}
     return {"error": why} if meta_path else {"match": None, "why": why}
 
@@ -2937,11 +2939,16 @@ def cs2_history_add(metas):
         # aces: the game's own kill markers (every match), else the demo's
         aces = sum(m.get("kind") == "kill" and m.get("text", "").startswith("ACE") for m in v.get("markers") or [])
         st = dict(st, aces=aces or (st.get("multi") or {}).get("ACE", 0))
-        e = {k: v.get(k) for k in ("file", "name", "difficulty", "score", "result", "started")}
+        e = {k: v.get(k) for k in ("file", "name", "difficulty", "score", "result", "started", "map", "mode")}
         e["stats"] = st  # only yours – the averages
         if v.get("demoPlayers"):
             e["players"] = v["demoPlayers"]  # everyone, shown under the match
         key = str(int(v.get("started", 0)))
+        if v.get("demoServer") or v.get("demoFile"):
+            e["server"] = v.get("demoServer") or ""
+            e["demoDir"] = Path(v.get("demoFile") or "").parent.name
+        if (hist.get(key) or {}).get("manual") is not None:
+            e["manual"] = hist[key]["manual"]
         if hist.get(key) != e:
             hist[key], changed = e, True
     if changed:
@@ -2951,7 +2958,44 @@ def cs2_history_add(metas):
         tmp.replace(CS2_HISTORY)
 
 
-def cs2_overview(folder, count=10, season=""):
+# Your real numbers = Premier/Competitive/Wingman on Valve's servers (24 Oct, the user: Saturdays on
+# friends' private server – other maps, for fun, not always sober – gave a crooked picture). The rest
+# is under PRIVAT in CS2 Stats: a demo from another server, a workshop map, a mode without ranked games
+# (casual …). A match can be moved by hand (the match unfolded → Flytta till …).
+OFFICIAL_MODES = ("competitive", "scrimcomp2v2", "premier", "wingman")
+
+
+def cs2_private(e, hist=None):
+    manual = e.get("manual") if "manual" in e else \
+        ((hist if hist is not None else cs2_history()).get(str(int(e.get("started") or 0))) or {}).get("manual")
+    if manual is not None:
+        return bool(manual)
+    server = e.get("server") if "server" in e else e.get("demoServer")
+    demo_dir = e.get("demoDir") if "demoDir" in e else (Path(e["demoFile"]).parent.name if e.get("demoFile") else None)
+    if server:
+        return not re.match(r"valve\b", server, re.I)
+    if demo_dir is not None and demo_dir != "replays":  # your own `record` – Valve's come from Watch → Your Matches
+        return True
+    if "workshop" in (e.get("map") or "").lower():
+        return True
+    mode = (e.get("mode") or e.get("difficulty") or "").lower()
+    return mode not in OFFICIAL_MODES
+
+
+def cs2_set_private(started, private):
+    """Moved by hand to PRIVAT (True) or CS2 Stats (False)."""
+    hist = cs2_history()
+    key = str(int(started))
+    if key not in hist:
+        return False
+    hist[key]["manual"] = bool(private)
+    tmp = CS2_HISTORY.with_suffix(".tmp")
+    tmp.write_text(json.dumps(hist, ensure_ascii=False))
+    tmp.replace(CS2_HISTORY)
+    return True
+
+
+def cs2_overview(folder, count=10, season="", private=False):
     """The CS2 Stats page: your finished matches (the demo's numbers, else the game's) in the
     season (its key, "" = the current one) – the average of the last `count` (0 = all) and of as
     many before them (the arrows; with all: the last 10 against the rest), each map, the guns, and
@@ -2962,9 +3006,11 @@ def cs2_overview(folder, count=10, season=""):
     for m in hist.values():  # the card in Inspelningar, while it is there
         f = Path(folder) / (m.get("file") or "")
         m["path"] = str(f) if m.get("file") and f.with_suffix(".json").is_file() else ""
-    seasons_ = season_list("cs2", hist.values())
+    side = [m for m in hist.values() if cs2_private(m, hist) == private]
+    other = len(hist) - len(side)
+    seasons_ = season_list("cs2", side)
     chosen = next((x for x in seasons_ if x["key"] == season), seasons_[0] if seasons_ else None)
-    ms = sorted(in_season(list(hist.values()), chosen), key=lambda v: v.get("started", 0))
+    ms = sorted(in_season(side, chosen), key=lambda v: v.get("started", 0))
     waiting = sum(1 for v in vids if v.get("demo") == "waiting")
     n = count or 10
     recent = ms[-count:] if count else ms
@@ -3000,7 +3046,7 @@ def cs2_overview(folder, count=10, season=""):
             clutch_vs[n][0] += won
             clutch_vs[n][1] += tries
     return {
-        "count": len(recent), "all": len(ms), "waiting": waiting,
+        "count": len(recent), "all": len(ms), "waiting": waiting, "private": private, "other": other,
         "seasons": seasons_, "season": chosen["key"] if chosen else "",
         "demos": sum(not m["stats"].get("fromGame") for m in recent),
         "clutchVs": clutch_vs, "aces": sum(m["stats"].get("aces") or 0 for m in recent),

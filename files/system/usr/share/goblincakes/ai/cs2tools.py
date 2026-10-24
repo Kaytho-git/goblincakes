@@ -29,10 +29,13 @@ GUIDE = """Ungefärliga riktvärden för en vanlig matchmaking-spelare (inte exa
 - Flash: några bländade fiender per match är bra; många bländade lagkamrater = kasta om"""
 
 
-def matches():
-    """The CS2 matches with a read demo, oldest first."""
+def matches(private=False):
+    """The CS2 matches with a read demo, oldest first – Valve's servers, or with private the rest
+    (friends' servers, casual, workshop: CS2 Stats → PRIVAT)."""
     folder = R.load_config()["folder"]
-    out = [v for v in R.video_files(folder) if v.get("kind") == "cs2" and v.get("demoStats")]
+    hist = R.cs2_history()
+    out = [v for v in R.video_files(folder) if v.get("kind") == "cs2" and v.get("demoStats")
+           and R.cs2_private(v, hist) == private]
     return sorted(out, key=lambda v: v.get("started", 0))
 
 
@@ -110,12 +113,15 @@ def average_text(ms):
 
 def cs2_stats(query):
     """The text for the AI: `senaste`, `senaste 20` / `20`, or a map name (its latest match)."""
-    ms = matches()
+    q = (query or "").lower()
+    private = "privat" in q
+    ms = matches(private)
+    if not ms and private:
+        return "Inga privata CS2-matcher med läst demo än (CS2 Stats → PRIVAT)."
     if not ms:
         waiting = [v for v in R.video_files(R.load_config()["folder"]) if v.get("kind") == "cs2" and v.get("demo") == "waiting"]
         return ("Inga CS2-matcher med läst demo än." + (f" {len(waiting)} väntar på demon (ladda ner i CS2: Watch → Your Matches)."
                                                       if waiting else " GoblinRecorder läser demon efter en Competitive/Premier/Wingman-match."))
-    q = (query or "").lower()
     count = int(m.group(1)) if (m := re.search(r"(\d+)", q)) else DEFAULT_COUNT
     latest = ms[-1]
     for v in reversed(ms):  # a map named: its latest match

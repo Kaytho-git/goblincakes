@@ -660,6 +660,8 @@ eller en karta, t.ex. `Mirage`), t.ex.
 ```cs2
 senaste 10
 ```
+Siffrorna gäller matcher på Valves servrar (Premier/Competitive/Wingman). Frågar användaren om matcherna på
+privata servrar (kompisarnas server, casual, workshop), lägg till `privat`, t.ex. `privat senaste 10`.
 Du får då användarens egna siffror ur GoblinRecorders lästa demos: senaste matchen, snittet, match för match
 och ungefärliga riktvärden. Coacha utifrån dem:
 - Börja kort med hur senaste matchen gick jämfört med snittet (siffrorna som de står).

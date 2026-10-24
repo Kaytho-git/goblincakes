@@ -76,7 +76,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Spelverktyg + gaming-optimering (reglage)
 - [x] Spelläge (automatiskt under spel: GameMode, uppdateringar väntar, Akonadi/Baloo/WoWUp vilar, OBS stängs efter spel; `gaming.py` = vad som är ett spel)
 - [x] goblin graph (ljudstaplar i klassfärger)
-- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI → 2K–ACE-klipp + alla kills, matchen tas bort; CS2-demon läses: egna siffror, vunna clutchar som klipp; WoW Stats/CS2 Stats sammanställt lokalt, per säsong med arkiv; spelikon på korten)
+- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI → 2K–ACE-klipp + alla kills, matchen tas bort; CS2-demon läses: egna siffror, vunna clutchar som klipp; WoW Stats/CS2 Stats sammanställt lokalt, per säsong med arkiv; privata CS2-servrar under PRIVAT; spelikon på korten)
 - [x] Plasma 6.8-förberedelser
 - [x] Välj färg (blå + 13 klassfärger)
 - [x] Chrome/Brave/Chromium-tema, Firefox-tema
@@ -87,7 +87,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 
 ## Att göra
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav).
-- [ ] **GoblinRecorder för CS2** – byggt 22 okt: GSI (2K–ACE-klipp + alla kills, matchen tas bort), demon (egna siffror, TTD/första skottet/spray/counter-strafe, vunna clutchar som klipp), CS2 Stats (clutchar 1v1–1v4, ACE, pilar, utfällbar match med alla tio, per säsong med Arkiv). Deathmatch provat på riktigt. Kvar: efter nästa image en riktig Premier/Competitive till slut + nedladdad demo – stämmer siffrorna mot Leetify, blir klippen rätt?
+- [ ] **GoblinRecorder för CS2** – byggt 22 okt: GSI (2K–ACE-klipp + alla kills, matchen tas bort), demon (egna siffror, TTD/första skottet/spray/counter-strafe, vunna clutchar som klipp), CS2 Stats (clutchar 1v1–1v4, ACE, pilar, utfällbar match med alla tio, per säsong med Arkiv). Deathmatch provat på riktigt. Kvar: efter nästa image en riktig Premier/Competitive till slut + nedladdad demo – stämmer siffrorna mot Leetify, blir klippen rätt, börjar demons servernamn med "Valve" (annars hamnar den under PRIVAT)?
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer (byggs bara på begäran – detaljer i anteckningarna)
