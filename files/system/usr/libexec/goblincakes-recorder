@@ -56,11 +56,31 @@ def log(*a):
     print(datetime.now().strftime("%H:%M:%S"), *a, flush=True)
 
 
-def notify(title, text):
+def notify(title, text, through_dnd=0):
+    """through_dnd = seconds: shown although Plasma's Do Not Disturb is on (it is while OBS captures
+    the screen – screen sharing), then closed by us (Plasma never times out a critical notification)."""
+    if through_dnd:
+        threading.Thread(target=notify_urgent, args=(title, text, through_dnd), daemon=True).start()
+        return
     try:
         subprocess.Popen(["notify-send", "-a", "GoblinRecorder", "-i", "goblincakes-recorder", title, text],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError:
+        pass
+
+
+def notify_urgent(title, text, seconds):
+    try:
+        nid = subprocess.run(["notify-send", "-p", "-u", "critical", "-a", "GoblinRecorder", "-i",
+                              "goblincakes-recorder", title, text],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+        if nid.isdigit():
+            time.sleep(seconds)
+            subprocess.run(["gdbus", "call", "--session", "--dest", "org.freedesktop.Notifications",
+                            "--object-path", "/org/freedesktop/Notifications",
+                            "--method", "org.freedesktop.Notifications.CloseNotification", nid],
+                           capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
         pass
 
 
@@ -482,6 +502,8 @@ class Service:
         self.stop_at = 0
         self.error = ""
         log("recording", info["kind"], info["name"], f"(log {now - t:.2f} s late)")
+        if info["kind"] == "cs2":  # easy to forget it records – and recording costs some fps
+            notify("Spelar in CS2-matchen", "GoblinRecorder spelar in. Slå av under Inställningar → Counter-Strike 2.", 6)
 
     def start_record(self, kind=None):
         """Starts OBS's recording; the time of the first frame, or None (error set)."""

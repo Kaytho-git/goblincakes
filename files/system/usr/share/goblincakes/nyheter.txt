@@ -1,3 +1,4 @@
+2026-10-24  GoblinRecorder visar en kort notis när en CS2-match börjar spelas in, även mitt i spelet
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
 2026-10-24  goblin discord Raid namnger röstkanalen du sitter i (goblin discord namn Raid fungerar som förut), och hjälptexten är tydligare så att Goblin AI svarar rätt.
