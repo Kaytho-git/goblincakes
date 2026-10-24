@@ -129,8 +129,33 @@ LOCAL_MIN_TOKENS = 3000  # answer + thinking at least, even when the question is
 LOCAL_MAX_TOKENS = 8000  # and at most – with room for more, gemma4 thought for 28 000 tokens (13 min, 18 Oct)
 OLLAMA_FILE = CONFIG / "ollama.json"
 OLLAMA_HELPER = os.environ.get("GOBLINCAKES_OLLAMA_HELPER", "/usr/libexec/goblincakes-ollama")
-CODE_WORDS = re.compile(r"```|\b(kod|koden|skript|script|python|lua|php|javascript|bash|html|css|sql|"
-                        r"funktion|program(mera|met)?|bugg|felmeddelande|traceback|addon|tillägg)\b", re.I)
+# Real code only: the code model is a 20 s swap each way (24 Oct, measured) – "addon", "tillägg",
+# "program" and "felmeddelande" sent everyday WoW questions to it; the everyday model handles those
+CODE_WORDS = re.compile(r"```|\b(kod|koden|skript|script|python|php|javascript|bash|html|css|sql|"
+                        r"programmera|traceback)\b", re.I)
+# Thinking made a simple question 4× slower (24 Oct: 3.8 s against 0.9 s): the local AI thinks only for
+# code, pictures, a long question, these words or a tool's data to read through (not a web search)
+THINK_WORDS = re.compile(r"\b(varför|förklara|jämför|analysera|analys|planera|resonera|räkna ut|beräkna|"
+                         r"felsök\w*|hur fungerar|hur funkar|vad beror|why|explain|compare|analy[sz]e)\b", re.I)
+
+
+TOOL_TURNS = ("[Svar från verktyget", "[Goblin AI sökte", "Det gick inte (", "Inga fler sökningar")
+
+
+def typed_question(messages):
+    """What the user wrote – not the tool results ask() adds as user turns (a search result with "html"
+    in it chose the code model, 24 Oct)."""
+    return next((m["content"] for m in reversed(messages) if m["role"] == "user" and isinstance(m["content"], str)
+                 and not m["content"].startswith(TOOL_TURNS)), "")
+
+
+def needs_thinking(messages):
+    last = next((m for m in reversed(messages) if m["role"] == "user"), {})
+    text = last.get("content") if isinstance(last.get("content"), str) else ""
+    if text.startswith("[Svar från verktyget") and not text.startswith("[Svar från verktyget sök ") and len(text) > 2000:
+        return True  # a pull or stats to read through – not "BugSack hittade inga fel" (25 s of thinking)
+    typed = typed_question(messages)
+    return bool(has_images(messages) or len(typed) > 400 or CODE_WORDS.search(typed[:600]) or THINK_WORDS.search(typed[:600]))
 
 
 def local_settings():
@@ -232,8 +257,7 @@ def local_models(messages, project=None):
             raise ServiceError("ingen hämtad modell kan se bilder – hämta t.ex. qwen3-vl:8b under AI-tjänster → Lokal AI")
         first = [m for m in (roles.get("bild"), roles.get("vardag")) if m in seeing]
         return list(dict.fromkeys(first + seeing))
-    question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
-    want = [roles.get("kod")] if CODE_WORDS.search(question) else []
+    want = [roles.get("kod")] if CODE_WORDS.search(typed_question(messages)) else []
     if project and project.get("prefer") in roles:
         want.append(roles.get(project["prefer"]))
     want += [roles.get("vardag"), roles.get("kod"), roles.get("bild")]
@@ -1213,7 +1237,7 @@ def chat(provider, key, model, messages):
         temperature = provider.get("temperature", 0.4)
         if temperature is not None:
             body["temperature"] = temperature
-        if provider.get("local") and getattr(QUICK, "on", False):
+        if provider.get("local") and (getattr(QUICK, "on", False) or not needs_thinking(messages)):
             body["reasoning_effort"] = "none"
         if provider.get("local"):
             # Thinking models (gemma4) sometimes think in circles until the whole context is full and
@@ -1274,6 +1298,8 @@ def system_info():
 SYSTEM_PROMPT = """Du är Goblin AI, hjälparen i GOBLINCAKES – en personlig Linux-distribution.
 Du hjälper med allt: frågor, texter, översättningar, recept, idéer, spel och datorn.
 Svara på samma språk som användaren (oftast svenska), tydligt och vänligt. Användaren är inte expert.
+Svara kort på enkla frågor – en mening eller några räcker, utan hälsning och utan uträkning eller bakgrund
+som ingen bett om. Längre svar bara när frågan behöver det.
 Använd Markdown (rubriker, listor, **fetstil**, tabeller) när det gör svaret lättare att läsa.
 
 Om datorn:

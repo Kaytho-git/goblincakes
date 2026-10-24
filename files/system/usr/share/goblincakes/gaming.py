@@ -55,4 +55,15 @@ def find_game(procs=None):
 
 
 def game_running():
-    return find_game() is not None
+    """Same answer as find_game() is not None, from the names only: 7 ms instead of 23 (24 Oct) – the
+    local AI's watcher asks every second."""
+    for p in Path("/proc").iterdir():
+        if not p.name.isdigit():
+            continue
+        try:
+            comm = (p / "comm").read_text().strip()
+        except OSError:
+            continue
+        if GAME.match(comm) and comm.lower() not in NOT_GAMES:
+            return True
+    return False

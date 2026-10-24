@@ -30,6 +30,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -612,8 +613,24 @@ def cmd_serve():
     # 12 GB of graphics memory; a card without flash attention just gets the normal cache.
     env = dict(os.environ, OLLAMA_HOST=HOST, OLLAMA_MODELS=str(b / "models"),
                OLLAMA_CONTEXT_LENGTH=os.environ.get("OLLAMA_CONTEXT_LENGTH", "32768"),
-               OLLAMA_FLASH_ATTENTION="1", OLLAMA_KV_CACHE_TYPE="q8_0")
-    state = {"proc": None, "quit": False}
+               OLLAMA_FLASH_ATTENTION="1", OLLAMA_KV_CACHE_TYPE="q8_0",
+               # Loading a model took 13–36 s (24 Oct, measured) – Ollama's own 5 min made most questions
+               # wait for it. Kept for an hour: a game stops Ollama anyway, so it never holds memory then
+               OLLAMA_KEEP_ALIVE=os.environ.get("OLLAMA_KEEP_ALIVE", "1h"))
+    state = {"proc": None, "quit": False, "paused": False}
+
+    def warm_up():
+        """After a game: the everyday model into memory again, ready for the next question."""
+        model = data.get("roles", {}).get("vardag")
+        for _ in range(60):
+            if running():
+                break
+            time.sleep(0.5)
+        try:
+            if model and state["proc"] and not state["paused"]:
+                api("/api/generate", {"model": model}, timeout=300)
+        except (OSError, ValueError):
+            pass  # a game started meanwhile, or the model is gone – the first question loads it
 
     def end_child():
         proc = state["proc"]
@@ -637,13 +654,18 @@ def cmd_serve():
                     print("Ett spel kör – lokal AI stängs av tills spelet är stängt", flush=True)
                     end_child()
                 PAUSED.touch()
+                state["paused"] = True
             else:
                 PAUSED.unlink(missing_ok=True)
                 if not state["proc"]:
                     state["proc"] = subprocess.Popen([str(binary(data)), "serve"], env=env)
+                    if state["paused"]:
+                        state["paused"] = False
+                        threading.Thread(target=warm_up, daemon=True).start()
                 elif state["proc"].poll() is not None:
                     return state["proc"].returncode or 1  # Ollama itself stopped: systemd restarts the service
-            time.sleep(3)
+            # Every second (was 3): a starting game gets the graphics memory back sooner
+            time.sleep(1)
     finally:
         end_child()
         PAUSED.unlink(missing_ok=True)
