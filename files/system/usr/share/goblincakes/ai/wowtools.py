@@ -219,13 +219,24 @@ def candidate_reports(r):
     try:
         folder = r.load_config().get("folder")
         for v in r.video_files(folder) if folder else []:
-            player = player or v.get("player", "")
             code = (v.get("wcl") or {}).get("code")
+            if code:  # a WoW film – a CS2 film's player is the Steam name
+                player = player or v.get("player", "")
             if code and code not in codes:
                 codes.append(code)
     except Exception:  # noqa: BLE001 – the films are only a shortcut
         pass
-    user = (r.wcl_load().get("users") or {}).get(player) if player else None
+    try:  # WoW Stats' history keeps the links when the films are removed ("senaste" found nothing, 24 Oct)
+        runs = sorted((v for v in r.wow_history().values() if isinstance(v, dict) and v.get("url")),
+                      key=lambda v: -(v.get("started") or 0))
+        for v in runs:
+            player = player or v.get("player", "")
+            m = re.search(r"reports/([A-Za-z0-9]{16})", v["url"])
+            if m and m.group(1) not in codes:
+                codes.append(m.group(1))
+    except Exception:  # noqa: BLE001
+        pass
+    user =(r.wcl_load().get("users") or {}).get(player) if player else None
     if user:
         now = time.time() * 1000
         try:
@@ -700,6 +711,15 @@ def wow_stats(query):
              + (f", de senaste {days} dagarna" if days else ", allt inspelat"),
              "Parse = Warcraft Logs percentil (healers på HPS, andra på DPS); ilvl-parse = mot samma item level. "
              "Färger hos WCL: 25 grön, 50 blå, 75 lila, 95 orange, 99 rosa, 100 guld."]
+    # The newest of each, said outright: "senaste bossen" got the last line of the boss list (24 Oct)
+    runs = sorted((v for v in R.wow_history().values() if isinstance(v, dict) and v.get("parse") is not None
+                   and v.get("player", o["player"]) == o["player"]), key=lambda v: -(v.get("started") or 0))
+    for label, mplus in (("Senaste raidbossen", False), ("Senaste nyckeln", True)):
+        v = next((v for v in runs if (v.get("kind") == "mplus") == mplus), None)
+        if v:
+            what = f"{v['name']} +{v.get('level')}" if mplus else f"{v['name']} ({v.get('difficulty', '')})"
+            lines.append(f"{label}: {what}, {v.get('result', '')}, {time.strftime('%Y-%m-%d', time.localtime(v['started']))}"
+                         f" – parse {v['parse']}, ilvl-parse {_v(v.get('ilvlParse'))}")
     for d, r in o["raid"].items():
         lines.append(f"\nRAID {d}: bästa snitt {_v(r['best'])}, median snitt {_v(r['median'])}, {r['kills']} kills av {r['pulls']} pulls")
         for b in r["bosses"]:

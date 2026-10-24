@@ -575,6 +575,8 @@ Vill användaren ha alla bossar i en rapport/kväll, skriv `alla` (+ länken om 
 varje boss på en gång (killen, annars sista pullen). En ny länk = hämta igen, använd aldrig gammal data.
 Du får då pullens data: dödsfall, skadan raiden tog, cooldowns med tider (raid, lust, på andra, egna),
 interrupts, dispels och alla spelare med DPS/HPS.
+Gäller frågan bara användarens parse ("vilken parse fick jag på …?") – använd wowstats, inte warcraftlogs:
+WoW Stats har den riktiga parsen även för ej rankade nycklar (Warcraft Logs visar då samma siffra för alla).
 
 Frågar användaren om en viss förmåga, mekanik eller fiende ("vilka körde cooldowns på Venomous Heart?",
 "vem fick Stone Venom?", "vem gjorde skada på hjärtat?"), skriv `<boss> förmåga: <namn>`, t.ex.
@@ -791,6 +793,20 @@ FRESH_WORDS = re.compile(
     r"latest|news|today|tonight|current|price|weather)\b", re.I)
 
 
+# About the user's own raid, parses or matches: "senaste bossen" is in Warcraft Logs/WoW Stats/CS2 Stats,
+# not on the web – searching first gave a Genshin boss (24 Oct)
+OWN_DATA = re.compile(
+    r"\b(?:jag|min|mitt|mina|vi|vår|vårt|våra|guild\w*)\b.{0,60}\b(?:parse\w*|logg\w*|logs?|pull\w*|boss\w*|raid\w*|wipe\w*|"
+    r"wip\w*|kill\w*|dps|hps|nyckel\w*|keys?|m\+|mythic\w*|dungeon\w*|item level|ilvl|match\w*|clutch\w*|ace|premier|k/?d)\b"
+    r"|\b(?:parse\w*|pull\w*|wip\w*|bossen|raiden|nyckeln|matchen)\b.{0,60}\b(?:jag|min|mitt|mina|vi|vår|vårt|våra)\b",
+    re.I)
+OWN_TOOLS = ("warcraftlogs", "wowstats", "cs2")
+
+
+def own_data_question(question, tools):
+    return isinstance(question, str) and any(t in tools for t in OWN_TOOLS) and bool(OWN_DATA.search(question[:600]))
+
+
 def fresh_question(question):
     """The question is about something that may have changed: the words above, or this or last year."""
     if not isinstance(question, str):
@@ -824,7 +840,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
         messages[0]["content"] += "".join(t[1] for t in tools.values())
     sources, used, searched = [], 0, False
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:2000]
-    if "sök" in tools and (forced or fresh_question(asked.get("content"))):
+    own = own_data_question(asked.get("content"), tools)
+    if "sök" in tools and (forced or (fresh_question(asked.get("content")) and not own)):
         # Goblin AI searches first, with the question itself (Tavily takes plain questions)
         query = " ".join(str(asked.get("content", "")).split())[:300]
         activity("ask", "söker på nätet")
