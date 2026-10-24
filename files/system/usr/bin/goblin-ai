@@ -38,6 +38,7 @@ SOCKET_NAME = f"goblin-ai-{os.getuid()}"
 KEEP_CONVERSATIONS = 50
 PICTURES = DATA / "bilder"  # pictures in chats: screenshots and attached pictures (smaller copies)
 AVATAR = DATA / "avatar.png"  # the AI's avatar (AI-tjänster → Avatar, or "Använd som avatar" on a drawn picture)
+AVATAR_THINKING = DATA / "avatar-thinking.png"  # shown instead of the status text while the AI works (24 Oct)
 AVATAR_SIDE = 256
 PICTURE_SIDE = 1600  # longest side sent to the AI – enough to read text, fewer tokens for local models
 
@@ -1065,26 +1066,57 @@ class Backend(QObject):
         except OSError:
             return ""
 
-    @Slot(str)
-    def setAvatar(self, source):
-        """A picture (path or file:// URL – chosen or drawn in a chat) becomes the avatar: the middle
-        square, AVATAR_SIDE px, PNG."""
+    @Property(str, notify=avatarChanged)
+    def avatarThinking(self):
+        try:
+            return QUrl.fromLocalFile(str(AVATAR_THINKING)).toString() + f"?v={AVATAR_THINKING.stat().st_mtime_ns}"
+        except OSError:
+            return ""
+
+    def _save_avatar(self, source, target):
+        """The middle square of a picture (path or file:// URL), AVATAR_SIDE px, PNG → target. False if not."""
         path = QUrl(source).toLocalFile() if source.startswith("file:") else source
         image = QImage(path)
         if image.isNull():
             self.notice.emit("Bilden går inte att läsa.")
-            return
+            return False
         side = min(image.width(), image.height())
         image = image.copy((image.width() - side) // 2, (image.height() - side) // 2, side, side)
         if side > AVATAR_SIDE:
             image = image.scaled(AVATAR_SIDE, AVATAR_SIDE, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         DATA.mkdir(parents=True, exist_ok=True)
-        if not image.save(str(AVATAR), "PNG"):
+        if not image.save(str(target), "PNG"):
             self.notice.emit("Avataren gick inte att spara.")
-            return
+            return False
         self.avatarChanged.emit()
+        return True
+
+    @Slot(str)
+    def setAvatar(self, source):
+        """A picture (chosen or drawn in a chat) becomes the avatar."""
+        if not self._save_avatar(source, AVATAR):
+            return
         self.notice.emit(f"{goblinai.ai_name() or 'Goblin AI'} har fått en ny avatar.")
         threading.Thread(target=goblinai.describe_avatar, daemon=True).start()  # so the AI knows how it looks
+
+    @Slot(str)
+    def setAvatarThinking(self, source):
+        """A picture becomes the thinking avatar – shown while the AI works, instead of "tänker…"."""
+        if self._save_avatar(source, AVATAR_THINKING):
+            self.notice.emit(f"{goblinai.ai_name() or 'Goblin AI'} har fått en tänkande avatar.")
+
+    @Slot()
+    def removeAvatarThinking(self):
+        AVATAR_THINKING.unlink(missing_ok=True)
+        self.avatarChanged.emit()
+
+    @Slot(result=str)
+    def thinkingAvatarAsk(self):
+        """The question for "Rita den" at the thinking avatar: the same person as the avatar, thinking."""
+        look = goblinai.avatar_description()
+        return ("Rita en tänkande avatar åt dig själv – samma person som din vanliga avatar"
+                + (f" ({look})" if look else "") + ", men som tänker: blicken lite uppåt, handen mot hakan, "
+                "samma stil, bakgrund och bildutsnitt. Format: 1:1.")
 
     @Slot()
     def removeAvatar(self):

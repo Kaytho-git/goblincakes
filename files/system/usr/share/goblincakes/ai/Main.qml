@@ -273,6 +273,14 @@ Window {
     }
 
     FileDialog {
+        id: avatarThinkingDialog
+        title: "Välj en bild som tänkande avatar"
+        onVisibleChanged: backend.sharpText()
+        nameFilters: ["Bilder (*.png *.jpg *.jpeg *.webp *.gif *.bmp)"]
+        onAccepted: backend.setAvatarThinking(selectedFile.toString())
+    }
+
+    FileDialog {
         id: saveImageDialog
         title: "Spara bilden som"
         onVisibleChanged: backend.sharpText()
@@ -1027,12 +1035,47 @@ Window {
 
                 footer: Item {
                     width: messagesView.width
-                    height: backend.busy ? 48 : 0
+                    height: backend.busy ? (backend.avatarThinking !== "" ? 96 : 48) : 0
                     visible: backend.busy
+                    // The thinking avatar (24 Oct, the user's wish): the picture with the name instead of "tänker…"
                     Column {
+                        id: thinkingBox
+                        visible: backend.avatarThinking !== ""
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 64
+                        spacing: 6
+                        Rectangle {
+                            width: 64
+                            height: 64
+                            color: "#07090D"
+                            border.width: 1
+                            border.color: "#1E2A40"
+                            Image {
+                                anchors { fill: parent; margins: 1 }
+                                source: backend.avatarThinking
+                                sourceSize: Qt.size(128, 128)
+                                fillMode: Image.PreserveAspectCrop
+                                cache: false
+                                asynchronous: true
+                            }
+                        }
+                        Text {
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
+                            text: backend.aiName || "Goblin AI"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 12
+                        }
+                    }
+                    Column {
+                        x: thinkingBox.visible ? 80 : 0
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 8
                         Text {
+                            visible: !thinkingBox.visible
                             text: backend.status
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
@@ -1337,6 +1380,7 @@ Window {
                                                 FlatButton { small: true; text: "Kopiera bilden"; onClicked: backend.copyImage(segItem.s.path) }
                                                 FlatButton { visible: !segItem.s.report; small: true; text: "Gör en till"; onClicked: backend.anotherImage(msgItem.index, segItem.index) }
                                                 FlatButton { visible: !segItem.s.report; small: true; text: "Använd som avatar"; onClicked: backend.setAvatar(segItem.s.path) }
+                                                FlatButton { visible: !segItem.s.report; small: true; text: "Som tänkande avatar"; onClicked: backend.setAvatarThinking(segItem.s.path) }
                                                 FlatButton { visible: !segItem.s.report && backend.chatgpt; small: true; text: "Gör om i ChatGPT"; onClicked: backend.imageChatGPT(msgItem.index, segItem.index) }
                                             }
                                             Text {
@@ -3169,6 +3213,71 @@ Window {
                                 small: true
                                 text: "Ta bort"
                                 onClicked: backend.removeAvatar()
+                            }
+                        }
+
+                        // The thinking avatar (24 Oct): shown while the AI works, instead of "tänker…"
+                        Row {
+                            width: parent.width
+                            spacing: 16
+                            Rectangle {
+                                width: 72
+                                height: 72
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: "#1E2A40"
+                                Image {
+                                    visible: backend.avatarThinking !== ""
+                                    anchors { fill: parent; margins: 1 }
+                                    source: backend.avatarThinking
+                                    sourceSize: Qt.size(140, 140)
+                                    fillMode: Image.PreserveAspectCrop
+                                    cache: false
+                                }
+                                Text {
+                                    visible: backend.avatarThinking === ""
+                                    anchors.centerIn: parent
+                                    text: "?"
+                                    color: "#5C6880"
+                                    font.family: "Chakra Petch"
+                                    font.pixelSize: 28
+                                }
+                            }
+                            Column {
+                                width: parent.width - 88
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 10
+                                Text {
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    text: "Tänkande avatar – visas medan " + (backend.aiName || "Goblin AI")
+                                          + " arbetar, i stället för texten om vad " + (backend.aiName || "Goblin AI") + " gör."
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                }
+                                Row {
+                                    spacing: 10
+                                    FlatButton {
+                                        small: true
+                                        primary: true
+                                        text: "Rita den"
+                                        enabledState: !backend.busy
+                                        onClicked: {
+                                            if (!enabledState)
+                                                return;
+                                            backend.askNew(backend.thinkingAvatarAsk());
+                                            win.view = "chat";
+                                        }
+                                    }
+                                    FlatButton { small: true; text: "Välj bild…"; onClicked: avatarThinkingDialog.open() }
+                                    FlatButton {
+                                        visible: backend.avatarThinking !== ""
+                                        small: true
+                                        text: "Ta bort"
+                                        onClicked: backend.removeAvatarThinking()
+                                    }
+                                }
                             }
                         }
                     }
