@@ -211,6 +211,17 @@ function keepGame(window, screen) {
     };
     window.fullScreenChanged.connect(check);
     window.outputChanged.connect(check);
+    // WoW's "Fullscreen" (borderless, gxMaximize 1) came up maximized under the top panel
+    // (24 Oct) instead of fullscreen: a game without a frame that gets maximized both ways is
+    // put in fullscreen. A windowed game maximized by hand has a frame and is left alone.
+    const full = function () {
+        const frame = window.frameGeometry, client = window.clientGeometry || frame;
+        if (!window.fullScreen && window.maximizeMode === 3 && window.fullScreenable
+                && frame.width === client.width && frame.height === client.height)
+            window.fullScreen = true;
+    };
+    full();
+    window.maximizedChanged.connect(full);
 }
 
 function center(window) {
