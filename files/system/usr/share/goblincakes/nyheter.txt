@@ -1,5 +1,6 @@
 # GOBLINCAKES – nyheter, nyast först. En rad per ändring: ÅÅÅÅ-MM-DD, två mellanslag, texten.
 # goblin update visar raderna som är nya sedan versionen du körde; goblin nyheter visar de senaste.
+2026-10-24  goblin discord Raid namnger röstkanalen du sitter i (goblin discord namn Raid fungerar som förut), och hjälptexten är tydligare så att Goblin AI svarar rätt.
 2026-10-24  Goblin AI kan få en tänkande avatar (AI-tjänster → Avatar, eller "Som tänkande avatar" under en ritad bild) som visas medan hon arbetar, i stället för texten
 2026-10-24  Kakan gissar inte längre om datorn: frågar du varför något strular läser hon programmets logg först, och står något inte i det hon läst säger hon att hon inte vet. Hon vet också vem hon är och hur hon ser ut på sin avatar
 2026-10-24  Goblin AI kan leta i datorn själv: hitta filer, läsa loggar och inställningar, se programmens logg och tjänsternas status. Hon läser bara, ändrar aldrig, och nycklar och lösenord visas inte.
