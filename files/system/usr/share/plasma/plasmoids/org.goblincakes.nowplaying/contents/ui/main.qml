@@ -22,7 +22,7 @@
     question or a picture is under way, with the seconds so far; click = the Goblin AI window.
     /usr/libexec/goblincakes-ai-activity reads the files goblinai.py writes, every second.
     Battery (24 Oct, the user's wish – the Logitech mouse's charge was nowhere to be seen): each
-    wireless mouse/keyboard/headset with its name and %, red when low; click = name on/off (saved).
+    wireless mouse/keyboard/headset with its name and %, green/orange/red by charge; click = name on/off (saved).
     /usr/libexec/goblincakes-device-battery reads UPower every 30 s.
     Nothing to show = the widget takes no space.
 */
@@ -588,7 +588,10 @@ PlasmoidItem {
                         model: root.devices
                         delegate: RowLayout {
                             required property var modelData
-                            readonly property bool low: modelData.percent <= 20 && !modelData.charging
+                            // 24 Oct, the user's choice: green 50–100 %, orange 11–49 %, red at 10 % and below
+                            readonly property color level: modelData.percent <= 10 ? Kirigami.Theme.negativeTextColor
+                                : modelData.percent < 50 ? Kirigami.Theme.neutralTextColor
+                                : Kirigami.Theme.positiveTextColor
                             spacing: Math.round(Kirigami.Units.smallSpacing * 1.5)
                             Layout.alignment: Qt.AlignVCenter
 
@@ -601,7 +604,7 @@ PlasmoidItem {
                             Text {
                                 text: (Plasmoid.configuration.deviceNames ? modelData.name + "  " : "")
                                       + (modelData.charging ? "⚡" : "") + modelData.percent + " %"
-                                color: low ? Kirigami.Theme.negativeTextColor : root.muted
+                                color: level
                                 font: Kirigami.Theme.defaultFont
                                 elide: Text.ElideRight
                                 Layout.maximumWidth: Kirigami.Units.gridUnit * 16
