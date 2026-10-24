@@ -153,6 +153,7 @@ class Service:
         self.test_wait = 0  # when a test recording was asked for (waiting for OBS)
         # Counter-Strike 2
         self.cs2 = False
+        self.game = "wow"  # the game OBS is set up for (fps, quality) – the last one started
         self.cs2_seen = 0  # last look for the cs2 process
         self.cs2_server = None
         self.cs2_inbox = queue.Queue()
@@ -201,7 +202,7 @@ class Service:
             return False
         if not self.obs_ready:
             try:
-                done = R.setup_obs(self.obs, self.cfg)
+                done = R.setup_obs(self.obs, R.for_game(self.cfg, self.game))
                 if done:
                     log("OBS set up:", ", ".join(done))
                 self.obs_ready = True
@@ -211,6 +212,13 @@ class Service:
                 self.obs_error = f"Kunde inte ställa in OBS: {e}"
                 log(self.obs_error)
         return True
+
+    def set_game(self, game):
+        """OBS gets this game's fps and quality – a different quality restarts OBS (the match
+        starts after the warm-up, there is time). Waits until a recording is done, like a settings change."""
+        if game != self.game:
+            self.game = game
+            self.cfg_mtime = None  # the next tick applies the settings again
 
     def restart_obs(self):
         log("restarting OBS")
@@ -691,7 +699,7 @@ class Service:
             return  # OBS is starting, being set up or waits for the screen choice
         R.TEST_REQUEST.unlink(missing_ok=True)
         self.test_wait = 0
-        quality = R.QUALITY_NAMES.get(self.cfg.get("quality"), "Normal")
+        quality = R.QUALITY_NAMES.get(R.for_game(self.cfg, self.game).get("quality"), "Normal")
         self.begin(now, now, {"kind": "test", "name": "Testinspelning", "difficulty": quality})
         if self.current:
             self.current["result"] = "test"
@@ -869,9 +877,9 @@ class Service:
             self.cfg = R.load_config()
             if self.obs:
                 try:
-                    if R.apply_settings(self.obs, self.cfg) == "restart":
+                    if R.apply_settings(self.obs, R.for_game(self.cfg, self.game)) == "restart":
                         self.restart_obs()
-                    log("settings applied")
+                    log("settings applied", self.game)
                 except R.OBSError as e:
                     self.obs_error = str(e)
         if now - self.wow_seen > 5:
@@ -879,6 +887,7 @@ class Service:
             running = R.wow_running()
             if running and not self.wow:
                 log("WoW started")
+                self.set_game("wow")
                 self.obs_close_at = 0
                 if self.cfg["autoStartObs"] and not R.obs_running():
                     R.start_obs()
@@ -894,6 +903,7 @@ class Service:
             running = R.cs2_running()
             if running and not self.cs2:
                 log("CS2 started")
+                self.set_game("cs2")
                 waiting = R.cs2_waiting(self.cfg["folder"])
                 if waiting:  # the reminder: matches whose demo isn't downloaded yet
                     n = len(waiting)

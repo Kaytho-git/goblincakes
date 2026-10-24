@@ -51,7 +51,8 @@ WOW_LOGS = Path(os.environ.get("GOBLINCAKES_RECORDER_LOGS", HOME / "Games/WoW"))
 DEFAULTS = {
     "folder": str(HOME / "Videos/WoW"),
     "fps": 60,
-    "cs2Fps": 30,  # CS2's own (24 Oct, the user: 30 is enough for quick clips – and costs the game less)
+    "cs2Fps": 30,
+    "cs2Quality": "high",  # CS2's own quality (24 Oct, the user's wish)  # CS2's own (24 Oct, the user: 30 is enough for quick clips – and costs the game less)
     "codec": "h264",  # h264 | hevc | av1 (NVENC on the graphics card) | x264 (processor)
     "raid": True,
     "mplus": True,
@@ -741,6 +742,14 @@ MIC_KEYS_SETTINGS = {"presets": "gate", "detector": "RMS", "ratio": 10.0, "thres
 
 def game_fps(cfg, game="wow"):
     return int(cfg.get("cs2Fps", 30) if game == "cs2" else cfg["fps"])
+
+
+def for_game(cfg, game):
+    """The settings with this game's fps and quality in "fps"/"quality" – what OBS is set up with.
+    The quality lives in the encoder, which OBS builds when it starts: a change needs a restart."""
+    if game != "cs2":
+        return cfg
+    return dict(cfg, fps=game_fps(cfg, game), quality=cfg.get("cs2Quality", "high"))
 
 
 def audio_for_game(obs, cfg, game):

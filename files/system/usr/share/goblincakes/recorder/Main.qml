@@ -3169,27 +3169,43 @@ Window {
 
             Item { width: 1; height: 14 }
             SectionTitle { text: "KVALITET" }
-            Row {
-                spacing: 12
-                Repeater {
-                    model: [{ "id": "best", "name": "Bäst" }, { "id": "high", "name": "Hög" },
-                            { "id": "normal", "name": "Normal" }, { "id": "small", "name": "Liten" }]
-                    Choice {
-                        required property var modelData
-                        // MB per minute, as recorder.encoder_settings counts it (video + 1 or 3 audio tracks);
-                        // Bäst has no bitrate (measured 15 Oct: a raid minute at CQP 18 = 326 MB, Hög 199)
-                        readonly property real mb: ({ best: 0, high: 25, normal: 10, small: 5 })[modelData.id]
-                            * (win.cfg.codec === "h264" || win.cfg.codec === "x264" ? 1.5 : 1)
-                            * (win.cfg.fps <= 30 ? 0.7 : 1) * 7.5 + (win.cfg.capture === "wow" ? 1.2 : 3.6)
-                        text: modelData.name
-                        sub: modelData.id === "best"
-                             ? "Riktigt fin bild – grafikkortet ger varje bild så mycket som behövs, så storleken följer vad som händer: "
-                               + "ungefär 200–300 MB per minut, mest i stora raidstrider och M+-pulls. Håll koll på platsgränsen."
-                             : "≈ " + Math.round(mb / 5) * 5 + " MB per minut. "
-                             + ({ high: "Om du vill klippa ihop filmer i efterhand.", normal: "Räcker gott för WoW.",
-                                  small: "När disken är liten." })[modelData.id] + " En lugn stund blir mindre."
-                        chosen: (win.cfg.quality || "normal") === modelData.id
-                        onPicked: win.set("quality", modelData.id)
+            Repeater { // one choice per game (24 Oct, the user's wish – Hög is plenty for CS2's clips)
+                model: [{ "key": "quality", "game": "WoW", "def": "normal", "fps": win.cfg.fps, "only": win.cfg.capture === "wow" },
+                        { "key": "cs2Quality", "game": "CS2", "def": "high", "fps": win.cfg.cs2Fps || 30, "only": win.cfg.cs2Capture === "game" }]
+                Row {
+                    id: qualityRow
+                    required property var modelData
+                    spacing: 12
+                    Text {
+                        width: 44
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qualityRow.modelData.game
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.Medium
+                        font.pixelSize: 14
+                    }
+                    Repeater {
+                        model: [{ "id": "best", "name": "Bäst" }, { "id": "high", "name": "Hög" },
+                                { "id": "normal", "name": "Normal" }, { "id": "small", "name": "Liten" }]
+                        Choice {
+                            required property var modelData
+                            // MB per minute, as recorder.encoder_settings counts it (video + 1 or 3 audio tracks);
+                            // Bäst has no bitrate (measured 15 Oct: a raid minute at CQP 18 = 326 MB, Hög 199)
+                            readonly property real mb: ({ best: 0, high: 25, normal: 10, small: 5 })[modelData.id]
+                                * (win.cfg.codec === "h264" || win.cfg.codec === "x264" ? 1.5 : 1)
+                                * (qualityRow.modelData.fps <= 30 ? 0.7 : 1) * 7.5 + (qualityRow.modelData.only ? 1.2 : 3.6)
+                            text: modelData.name
+                            sub: modelData.id === "best"
+                                 ? "Riktigt fin bild – grafikkortet ger varje bild så mycket som behövs, så storleken följer vad som händer: "
+                                   + "ungefär 200–300 MB per minut, mest i stora raidstrider och M+-pulls. Håll koll på platsgränsen."
+                                 : "≈ " + Math.round(mb / 5) * 5 + " MB per minut. "
+                                 + ({ high: "Om du vill klippa ihop filmer i efterhand – och skarpa CS2-klipp.", normal: "Räcker gott för WoW.",
+                                      small: "När disken är liten." })[modelData.id] + " En lugn stund blir mindre."
+                                 + (qualityRow.modelData.game === "CS2" ? " OBS startar om när du byter mellan WoW och CS2 med olika kvalitet." : "")
+                            chosen: (win.cfg[qualityRow.modelData.key] || qualityRow.modelData.def) === modelData.id
+                            onPicked: win.set(qualityRow.modelData.key, modelData.id)
+                        }
                     }
                 }
             }
