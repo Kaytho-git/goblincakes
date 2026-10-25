@@ -1255,7 +1255,11 @@ Window {
                                     selectionColor: accent.color
                                     font.family: "IBM Plex Sans"
                                     font.pixelSize: 15
-                                    onLinkActivated: link => Qt.openUrlExternally(link)
+                                    // web → browser, folder → file manager, goblin-show: → the file selected in its folder
+                                    onLinkActivated: link => link.startsWith("goblin-show:")
+                                                     ? backend.showInFolder(decodeURIComponent(link.slice(12)))
+                                                     : Qt.openUrlExternally(link)
+                                    HoverHandler { cursorShape: mdText.hoveredLink ? Qt.PointingHandCursor : Qt.IBeamCursor }
                                 }
 
                                 Rectangle {

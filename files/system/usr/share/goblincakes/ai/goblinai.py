@@ -21,6 +21,7 @@ import threading
 import time
 from datetime import date
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -2223,13 +2224,47 @@ def code_blocks(text):
     return [b.strip() for b in re.findall(r"```(?:bash|sh|shell|console)\s*\n(.*?)```", text, re.S) if b.strip()]
 
 
+# Clickable links in the answers (25 Oct, the user's wish): web addresses open in the browser, folders in the file
+# manager, files are shown selected in their folder (goblin-show: → goblin-ai's showInFolder). Only paths that
+# exist become links – a made-up path stays plain text.
+LINK_URL = re.compile(r"(?<![(<\[\w/])https?://[^\s<>()`*]+[^\s<>()`*.,;:!?'\"]")
+LINK_PATH = re.compile(r"(`?)((?:~|/(?:home|var|etc|usr|run|tmp|opt|srv|mnt|media))(?:/[^\s`'\"<>()\[\]*|]+)*/?)\1")
+
+
+def linkify(text):
+    """Markdown text with bare web addresses and existing paths turned into links."""
+    out, pos = [], 0
+    # leave existing links, images and inline code with a link alone: only text between them is changed
+    for m in re.finditer(r"!?\[[^\]]*\]\([^)]*\)|<https?://[^>]+>", text):
+        out.append(_linkify_plain(text[pos:m.start()]))
+        out.append(m.group(0))
+        pos = m.end()
+    out.append(_linkify_plain(text[pos:]))
+    return "".join(out)
+
+
+def _linkify_plain(text):
+    text = LINK_URL.sub(lambda m: f"<{m.group(0)}>", text)
+
+    def path_link(m):
+        tick, shown = m.group(1), m.group(2)
+        full = Path(shown.rstrip(".,:;!?").replace("~", str(Path.home()), 1))
+        if shown.count("/") < (1 if shown.startswith("~") else 2) or not full.exists():
+            return m.group(0)
+        tail = shown[len(shown.rstrip(".,:;!?")):]
+        shown = shown.rstrip(".,:;!?")
+        target = full.as_uri() if full.is_dir() else "goblin-show:" + urllib.parse.quote(str(full))
+        return f"[{tick}{shown}{tick}]({target}){tail}"
+    return LINK_PATH.sub(path_link, text)
+
+
 def segments(text):
     """An answer split into parts for the window: text, command, file (a new version of a file) and code."""
     parts = []
     pos = 0
     for m in re.finditer(r"```([^\n`]*)\n(.*?)```", text, re.S):
         if m.start() > pos and text[pos:m.start()].strip():
-            parts.append({"type": "text", "text": text[pos:m.start()].strip()})
+            parts.append({"type": "text", "text": linkify(text[pos:m.start()].strip())})
         lang, code = m.group(1).strip(), m.group(2).rstrip("\n")
         if lang.lower() in ("bash", "sh", "shell", "console"):
             parts.append({"type": "command", "code": code, "danger": bool(DANGER.search(code)), "state": "new", "output": ""})
@@ -2256,7 +2291,7 @@ def segments(text):
             parts.append({"type": "code", "lang": lang, "code": code})
         pos = m.end()
     if text[pos:].strip():
-        parts.append({"type": "text", "text": text[pos:].strip()})
+        parts.append({"type": "text", "text": linkify(text[pos:].strip())})
     return parts
 
 

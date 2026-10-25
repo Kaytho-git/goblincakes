@@ -1778,6 +1778,17 @@ class Backend(QObject):
         QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     @Slot(str)
+    def showInFolder(self, path):
+        """A file link in an answer: the file selected in the user's own file manager (the freedesktop
+        FileManager1 interface – Dolphin and the others have it), else Dolphin, else the folder."""
+        uri = QUrl.fromLocalFile(path).toString()
+        if QProcess.execute("gdbus", ["call", "--session", "--dest", "org.freedesktop.FileManager1",
+                                      "--object-path", "/org/freedesktop/FileManager1",
+                                      "--method", "org.freedesktop.FileManager1.ShowItems", f"['{uri}']", ""]) == 0:
+            return
+        self.showImageInFolder(path)
+
+    @Slot(str)
     def showImageInFolder(self, path):
         if not QProcess.startDetached("dolphin", ["--select", path]):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
