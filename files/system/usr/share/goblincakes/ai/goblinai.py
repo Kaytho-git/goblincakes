@@ -1155,6 +1155,12 @@ def own_game_question(question, tools):
     return own_data_question(question, {k: v for k, v in tools.items() if k not in ("leta", "systemfel")})
 
 
+# Goblin AI's own reminders aren't the user: "Du har rätt, jag borde ha använt verktygen … Jag ber om ursäkt"
+# ended up in the answer (25 Oct)
+NUDGE_NOTE = (" (Det här skrev Goblin AI, inte användaren – svara användaren direkt på frågan; be inte om ursäkt "
+              "och nämn inte påminnelsen.)")
+
+
 # The AI says it will look but doesn't (and asks "vill du att jag ska leta upp det?") – sent back once
 PROMISE = re.compile(r"\b(?:låt mig|jag (?:ska |kan |får )?(?:kolla|kollar|kontrollera|kontrollerar|titta|tittar|leta|letar|"
                      r"läsa|läser)\b|vill du att jag (?:ska )?(?:kolla|kontrollera|titta|leta|läsa))", re.I)
@@ -1352,7 +1358,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             messages.append({"role": "user", "content":
                              "[Goblin AI] Du svarade utan att hämta något. Frågan gäller användarens egen data – använd "
                              f"ett verktyg ({', '.join(own)}) och svara utifrån det. Svar och data från tidigare i "
-                             f"samtalet räcker inte. Frågan var: \"{question}\""})
+                             f"samtalet räcker inte. Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
         if not request_ and not promised and PROMISE.search(answer[-400:]) and len(answer) < 600:
             # "Låt mig kontrollera ~/.config/goblincakes/recorder.json." – and then nothing (25 Oct, gemma4)
@@ -1360,7 +1366,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             messages.append({"role": "assistant", "content": answer})
             messages.append({"role": "user", "content":
                              "[Goblin AI] Du skrev att du ska kolla – gör det nu med ett verktyg i stället för att "
-                             f"fråga eller vänta. Frågan var: \"{question}\""})
+                             f"fråga eller vänta. Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
         if not request_:
             missing = unsupported(answer, seen) if used else []
@@ -1374,7 +1380,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                 messages.append({"role": "user", "content":
                                  "[Goblin AI kontrollerade ditt svar] Det här står inte i det du har läst: "
                                  + ", ".join(missing) + ". Skriv om svaret: ta bort det eller säg att du inte vet "
-                                 "(och vad som skulle behövas), eller läs mer med ett verktyg. Upprepa inte felet."})
+                                 "(och vad som skulle behövas), eller läs mer med ett verktyg. Upprepa inte felet." + NUDGE_NOTE})
                 continue
             if missing:
                 answer = answer.rstrip() + ("\n\n*Obs: " + ", ".join(missing) + " står inte i det Goblin AI läste – "
@@ -1393,7 +1399,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         if (tool, query) in LAST.tools:
             # The same thing again: gemma4 read amp.json three times in a row (25 Oct) – not run, and told so
             messages.append({"role": "user", "content": "[Goblin AI] Det har du redan hämtat – svaret står ovan. "
-                             "Använd det, hämta något annat, eller svara nu."})
+                             "Använd det, hämta något annat, eller svara nu." + NUDGE_NOTE})
             continue
         LAST.tools.append((tool, query))
         name, run = tools[tool]["name"], tools[tool]["run"]
@@ -2497,10 +2503,23 @@ def linkify(text):
     # leave existing links, images and inline code with a link alone: only text between them is changed
     for m in re.finditer(r"!?\[[^\]]*\]\([^)]*\)|<https?://[^>]+>", text):
         out.append(_linkify_plain(text[pos:m.start()]))
-        out.append(m.group(0))
+        out.append(path_target(m.group(0)))
         pos = m.end()
     out.append(_linkify_plain(text[pos:]))
     return "".join(out)
+
+
+def path_target(link):
+    """A link the AI wrote with a path as its target – [ducks.png](~/Bilder/ducks.png) couldn't be opened (25 Oct) –
+    pointed where a click works: a folder as file://, a file shown in its folder; anything else as it was."""
+    m = re.match(r"(\[[^\]]*\])\((?:file://)?(~?/[^)]*)\)$", link)
+    if not m:
+        return link
+    full = Path(urllib.parse.unquote(m.group(2)).replace("~", str(Path.home()), 1))
+    if not full.exists():
+        return m.group(1).strip("[]")  # a made-up path: plain text, not a dead link
+    target = full.as_uri() if full.is_dir() else "goblin-show:" + urllib.parse.quote(str(full))
+    return f"{m.group(1)}({target})"
 
 
 def _linkify_plain(text):
