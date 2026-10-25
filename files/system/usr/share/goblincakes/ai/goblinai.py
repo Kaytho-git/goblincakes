@@ -515,11 +515,15 @@ def pick_models(provider, key, refresh=False):
     if provider.get("models"):
         models = [m for m in provider["models"] if m in ids] or provider["models"][:1]
     elif provider["id"] == "openrouter":
+        # Only the :free chat models (25 Oct: a music model priced 0 – Lyria – was picked and hit the key's $0
+        # limit) – openrouter/free (OpenRouter picks a free one itself) last
         free = [m for m in data
-                if str(m.get("pricing", {}).get("prompt")) in ("0", "0.0")
+                if (m["id"].endswith(":free") or m["id"] == "openrouter/free")
+                and str(m.get("pricing", {}).get("prompt")) in ("0", "0.0")
                 and str(m.get("pricing", {}).get("completion")) in ("0", "0.0")
-                and "text" in str(m.get("architecture", {}).get("output_modalities", ["text"]))]
-        free.sort(key=lambda m: m.get("context_length") or 0, reverse=True)
+                and (m.get("architecture", {}).get("output_modalities") or ["text"]) == ["text"]
+                and not re.search(r"embed|rerank|safety|guard", m["id"])]
+        free.sort(key=lambda m: (m["id"] == "openrouter/free", -(m.get("context_length") or 0)))
         models = [m["id"] for m in free]
     else:
         for pattern in provider["prefer"]:
@@ -540,7 +544,19 @@ def pick_models(provider, key, refresh=False):
 
 EXHAUSTED = set()  # services out of free questions: not asked again while the program runs
 BUSY = {}  # model -> when it was overloaded: tried last for 10 minutes
-ROTATE_ERRORS = r"överbelastad|fel 404|nås inte|slut på gratisfrågor"  # worth trying the next model
+# worth trying the next model ("only available on agentic harnesses": an OpenRouter model closed to apps like ours)
+ROTATE_ERRORS = r"överbelastad|fel 404|nås inte|slut på gratisfrågor|only available on"
+
+
+def forget_model(provider, model):
+    """A model that will never answer us: out of the cached list (until the list is fetched again)."""
+    try:
+        cache = json.loads(MODELS_CACHE.read_text())
+        entry = cache[provider["id"]]
+        entry["models"] = [m for m in entry["models"] if m != model] or entry["models"]
+        MODELS_CACHE.write_text(json.dumps(cache))
+    except (OSError, ValueError, KeyError):
+        pass
 
 
 SEARCH_PROMPT = """
@@ -1182,6 +1198,8 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice="", 
                         except ServiceError as e:
                                 # Overloaded, or listed but closed to new users: the next model
                             # (Gemini's free questions are counted per model: 429 = the next model too)
+                            if "only available on" in str(e):
+                                forget_model(provider, model)
                             if re.search(ROTATE_ERRORS, str(e)) and "nås inte" not in str(e) and i + 1 < len(models):
                                 BUSY[model] = time.time()
                                 if status:
