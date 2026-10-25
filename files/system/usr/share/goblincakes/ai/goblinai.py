@@ -790,7 +790,10 @@ def tools_for(keys, project, messages):
                          "När du behöver se något i datorn själv: hitta en fil eller mapp (t.ex. var ett programs "
                          "inställningar ligger: `filer *recorder*`), läsa en fil, inställning eller logg, se vad som ligger i "
                          "en mapp, en tjänsts logg eller status. Bara läsning; nycklar och lösenord visas inte. Leta själv "
-                         "i stället för att säga att du inte vet eller be användaren köra ls/cat/journalctl.",
+                         "i stället för att säga att du inte vet eller be användaren köra ls/cat/journalctl. GOBLINCAKES "
+                         "egna program har sina inställningar i ~/.config/goblincakes/ (t.ex. recorder.json = GoblinRecorder, "
+                         "amp.json = GoblinAmp) – titta där först (`mapp ~/.config/goblincakes`). Hittar `filer` inget: "
+                         "sök igen på en kortare del av namnet (`*recorder*` i stället för `*goblinrecorders*`).",
                          "En av raderna:\n" + LOOK_LINES)
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
@@ -992,11 +995,33 @@ def unsupported(answer, seen):
     return list(dict.fromkeys(out))[:8]
 
 
+# "Vem dog på Ula'tek senast?" has no "jag/vi" – a boss from the user's own history, a death or wipe question,
+# or a team the sport tool knows is its data too (25 Oct: lore and a wrong score came from the search first)
+OWN_FIGHT = re.compile(r"\b(?:vem|vilka)\s+dog\b|\bdog\s+först\b|\bwip\w*|\bdödsfall\w*", re.I)
+
+
+def own_bosses():
+    try:
+        history = json.loads((Path.home() / ".local/share/goblincakes/wow-history.json").read_text())
+        return {str(e.get("name", "")).casefold() for e in history.values() if isinstance(e, dict) and e.get("name")}
+    except (OSError, ValueError, AttributeError):
+        return set()
+
+
 def own_data_question(question, tools):
     if not isinstance(question, str):
         return False
-    return (any(t in tools for t in OWN_TOOLS) and bool(OWN_DATA.search(question[:600]))
-            or "leta" in tools and bool(OWN_SYSTEM.search(question[:600])))
+    text = question[:600]
+    if any(t in tools for t in OWN_TOOLS) and (OWN_DATA.search(text) or OWN_FIGHT.search(text)
+                                               or any(b in text.casefold() for b in own_bosses() if len(b) >= 4)):
+        return True
+    if "sport" in tools:
+        try:
+            if sport_tools().find_teams(text):
+                return True
+        except Exception:  # noqa: BLE001 – ESPN's team list didn't come: as before
+            pass
+    return "leta" in tools and bool(OWN_SYSTEM.search(text))
 
 
 def fresh_question(question):
@@ -1626,11 +1651,15 @@ Om datorn:
   Föreslå aldrig `dnf install` direkt på systemet – det fungerar inte här.
 - Uppdatera allt: `goblin update`. Systeminfo: `goblin fast`. Installera program och spelinställningar:
   fönstret GOBLINCAKES Config (i AppGrid). Rollback: `rpm-ostree rollback`.
-- Spel: Steam finns i imagen (RPM, bibliotek i ~/.local/share/Steam); Lutris, Heroic och Discord är Flatpaks; GE-Proton finns via ProtonUp-Qt; GameMode finns (`gamemoderun %command%`).
+- Spel: Steam finns i imagen (RPM, bibliotek i ~/.local/share/Steam); Lutris och Heroic är Flatpaks; Discord är Discords egen
+  Linux-version i ~/.local/share/discord-app (inte Flatpak – uppdateras med `goblin update --only discord`); GE-Proton finns via ProtonUp-Qt; GameMode finns (`gamemoderun %command%`).
   MangoHud (FPS-mätare) slås på i GOBLINCAKES Config → Inställningar, ställs in i GOverlay. NTSYNC är påslaget.
   Battle.net/WoW installeras via GOBLINCAKES Config (Lutris); `goblin wow` länkar alla WoW-versioner: ~/Games/WoW/<Retail|Classic|Classic Era|Anniversary…>/Logs och AddOns, ~/Games/WoW/World of Warcraft (för Raider.IO/Archon), och lägger in dem i WowUp.
   TV-läge (Steam Big Picture i helskärm): `goblin tv` eller TV-läge i AppGrid; tillbaka via Steams strömmeny.
 - Terminal: Ghostty (Konsole med samma utseende går att välja i GOBLINCAKES Config → Program). Filhanterare: Dolphin.
+- GOBLINCAKES egna program (inga WoW-tillägg, inställningar i ~/.config/goblincakes/): GOBLINCAKES Config, GoblinRecorder
+  (spelar in WoW-raider/M+ och CS2-matcher med OBS, recorder.json; WoW Stats/CS2 Stats), GoblinAmp (musikspelare, amp.json),
+  goblin graph (ljudstaplar), Goblin AI (du själv), GOBLINCAKES USB (gör en USB-sticka att installera från).
 
 När användaren vill få något gjort på datorn:
 - Ge de kommandon som behövs i kodblock märkta ```bash – ett kommando eller en kort följd per block.
