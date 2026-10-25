@@ -2,7 +2,7 @@
 """GOBLINCAKES: what Goblin AI is busy with right now, for "Spelas nu" in the top bar.
 
     goblincakes-ai-activity     one JSON line: {"kind": "ask"|"image"|"", "name", "text",
-                                "local", "progress", "seconds"}
+                                "local", "progress", "seconds", "steps": [{text, state}]}
 
 goblinai.py writes one file per process and thread in $XDG_RUNTIME_DIR/goblincakes-ai/ while a
 question or a picture is under way (the window, Meta+§, goblin ai in the terminal, the tutor).
@@ -41,7 +41,7 @@ def main():
     except OSError:
         name = ""
     print(json.dumps({"kind": data.get("kind", "ask"), "name": name or "Goblin AI", "text": data.get("text", ""),
-                      "local": data.get("local", False), "progress": data.get("progress"),
+                      "local": data.get("local", False), "progress": data.get("progress"), "steps": data.get("steps", []),
                       "seconds": int(time.time() - data.get("started", time.time()))}, ensure_ascii=False))
 
 

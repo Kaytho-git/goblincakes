@@ -198,14 +198,17 @@ def _activity_file():
     return ACTIVITY_DIR / f"{os.getpid()}-{threading.get_ident()}.json"
 
 
-def activity(kind, text, local=False, progress=None):
+def activity(kind, text, local=None, progress=None, steps=None):
+    """What the top bar's "Spelas nu" shows; local and steps (the work loop's [{text, state}], 25 Oct: the
+    widget only said "tänker") stay as they were when not given."""
     path = _activity_file()
     try:
         old = json.loads(path.read_text())
     except (OSError, ValueError):
         old = {}
-    data = {"pid": os.getpid(), "kind": kind, "text": text, "local": bool(local),
-            "progress": progress, "started": old.get("started") or time.time()}
+    data = {"pid": os.getpid(), "kind": kind, "text": text,
+            "local": bool(old.get("local") if local is None else local), "progress": progress,
+            "steps": old.get("steps", []) if steps is None else steps, "started": old.get("started") or time.time()}
     try:
         ACTIVITY_DIR.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
@@ -213,6 +216,14 @@ def activity(kind, text, local=False, progress=None):
         tmp.replace(path)
     except OSError:
         pass
+
+
+def thinking_text(provider):
+    """"tänker · steg 3 · din dator" – which step the work loop is on, for the top bar."""
+    steps = getattr(LAST, "steps", None)
+    done = len(steps.items) if steps else 0
+    return "tänker" + (f" · steg {done + 1}" if done else "") + " · " + (
+        "din dator" if provider.get("local") else provider["name"])
 
 
 def activity_done():
@@ -754,12 +765,61 @@ def configured_wcl():
         return False
 
 
-def tool(name, prompt, guide, run, fn, desc, arg):
+def tool(name, prompt, guide, run, fn, desc, arg, fns=None):
     """One tool: name = what the window says while it runs, prompt + guide = how to ask with a code block and
     answer, run(query) -> (text, sources); fn, desc, arg = the same as a real tool call (OpenAI-style names
-    are a-z/0-9/_/-: "sök" is called "sok")."""
+    are a-z/0-9/_/-: "sök" is called "sok"). fns = several real tools with their own fields instead
+    (punkt 3, 25 Oct): [{fn, desc, props: {field: (description, required)}, line(args) -> the block's line}]."""
     return {"name": name, "prompt": prompt + guide, "guide": guide.strip(), "run": run,
-            "fn": fn, "desc": desc, "arg": arg}
+            "fn": fn, "desc": desc, "arg": arg, "fns": fns or []}
+
+
+def look_fn(fn, desc, props, line):
+    return {"fn": fn, "desc": desc, "props": props, "line": line}
+
+
+def look_arg(args, name):
+    value = args.get(name)
+    return "" if value is None else " ".join(str(value).split())
+
+
+# ```leta as real tools (punkt 3, 25 Oct): one field per thing instead of a line the model has to get right
+LOOK_FNS = [
+    look_fn("hitta_filer", "Hittar filer och mappar i datorn efter namn, nyast först (hemmappen, /etc, /var/log, "
+            "GOBLINCAKES filer och de inkopplade diskarna). T.ex. var ett programs inställningar eller loggfil ligger. "
+            "GOBLINCAKES egna program har sina inställningar i ~/.config/goblincakes/ (recorder.json = GoblinRecorder, "
+            "amp.json = GoblinAmp). Hittas inget: försök igen med en kortare del av namnet.",
+            {"namn": ("Namnet eller en del av det, eller ett mönster: `*recorder*`, `*.log`", True),
+             "mapp": ("Bara i den här mappen (valfritt), t.ex. `~/.config` eller `/run/media/jonas/Spel`", False)},
+            lambda a: f"filer {look_arg(a, 'namn')}" + (f" i {look_arg(a, 'mapp')}" if look_arg(a, "mapp") else "")),
+    look_fn("las_fil", "Läser en textfil i datorn (inställning, logg, skript): slutet av filen, raderna med en viss "
+            "text, eller från en viss rad. Bara läsning; nycklar och lösenord visas inte. Läs själv i stället för att "
+            "be användaren köra cat.",
+            {"sokvag": ("Hela sökvägen, t.ex. `~/.config/goblincakes/recorder.json`", True),
+             "text": ("Visa bara raderna med den här texten (valfritt)", False),
+             "fran_rad": ("Läs från den här raden (valfritt, t.ex. 1 för början av en lång fil)", False)},
+            lambda a: f"läs {look_arg(a, 'sokvag')}" + (f" från rad {look_arg(a, 'fran_rad')}"
+                                                         if look_arg(a, "fran_rad").isdigit() and look_arg(a, "fran_rad") != "0"
+                                                         else f" med {look_arg(a, 'text')}" if look_arg(a, "text") else "")),
+    look_fn("visa_mapp", "Visar vad som ligger i en mapp i datorn (namn, när de ändrades, storlek). Vilken mapp som "
+            "helst utom de hemliga, även de inkopplade diskarna (/run/media/jonas/…).",
+            {"sokvag": ("Mappen, t.ex. `~/.config/goblincakes` (tomt = hemmappen)", False)},
+            lambda a: f"mapp {look_arg(a, 'sokvag') or '~'}"),
+    look_fn("sok_i_filer", "Söker efter en text inuti filerna i en mapp (som grep): vilka filer som nämner något och "
+            "raderna där det står.",
+            {"text": ("Texten att leta efter", True),
+             "mapp": ("Mappen eller filen att söka i, t.ex. `~/.config`", True)},
+            lambda a: f"sök {look_arg(a, 'text')} i {look_arg(a, 'mapp') or '~'}"),
+    look_fn("logg", "Läser ett programs eller en tjänsts logg i journalen (Discord, Steam, GoblinRecorder, Kakan, "
+            "WoW/spelet, tjänster) sedan start, eller från ett klockslag. De flesta program skriver här, inte i filer "
+            "– börja med den när något strulat. Visar pauser när programmet hängde.",
+            {"program": ("Programmets eller tjänstens namn, t.ex. `discord`", True),
+             "fran": ("Klockslaget HH:MM när det hände (valfritt), t.ex. `16:55`", False)},
+            lambda a: f"logg {look_arg(a, 'program')}" + (f" från {look_arg(a, 'fran')}" if look_arg(a, "fran") else "")),
+    look_fn("tjanst", "Visar en tjänsts status (körs den, sedan när, senaste raderna), eller vilka tjänster som körs.",
+            {"namn": ("Tjänstens namn (tomt = alla tjänster som körs)", False)},
+            lambda a: f"status {look_arg(a, 'namn')}" if look_arg(a, "namn") else "tjänster"),
+]
 
 
 def tools_for(keys, project, messages):
@@ -795,7 +855,7 @@ def tools_for(keys, project, messages):
                          "egna program har sina inställningar i ~/.config/goblincakes/ (t.ex. recorder.json = GoblinRecorder, "
                          "amp.json = GoblinAmp) – titta där först (`mapp ~/.config/goblincakes`). Hittar `filer` inget: "
                          "sök igen på en kortare del av namnet (`*recorder*` i stället för `*goblinrecorders*`).",
-                         "En av raderna:\n" + LOOK_LINES)
+                         "En av raderna:\n" + LOOK_LINES, look_fns())
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
     except (OSError, ValueError):
@@ -858,21 +918,37 @@ Verktyg: du har verktyg som hämtar riktig data (nätet, datorns loggar och file
 CS2-siffror, lagens tabeller). Använd verktyget i stället för att gissa när frågan behöver data, ett i taget –
 du får svaret och kan sedan svara eller använda ett verktyg till. Frågor om användarens egen dator, WoW eller CS2
 besvaras med de verktygen, inte med en sökning på nätet – och säg inte "vet inte" förrän du har letat.
+En sökväg eller fil i frågan läser du med las_fil/visa_mapp. GOBLINCAKES egna program har sina inställningar
+i ~/.config/goblincakes/ (recorder.json = GoblinRecorder, amp.json = GoblinAmp) – läs filen i stället för att fråga.
 Använd inget verktyg för vanligt prat."""
+
+
+def look_fns():
+    """LOOK_FNS with the plugged-in disks by name ("Spel-disken" = /run/media/jonas/Spel)."""
+    disks = [str(d) for d in sys_tools().disks()]
+    if not disks:
+        return LOOK_FNS
+    said = " Diskarna: " + ", ".join(disks) + "."
+    return [{**f, "desc": f["desc"] + said} if f["fn"] in ("hitta_filer", "visa_mapp") else f for f in LOOK_FNS]
 
 
 def tool_schemas(tools):
     """The tools as OpenAI-style function definitions (Ollama and the OpenAI-style services take the same)."""
-    return [{"type": "function", "function": {
-        "name": t["fn"], "description": t["desc"],
-        "parameters": {"type": "object", "properties": {"fraga": {"type": "string", "description": t["arg"]}},
-                       "required": []}}} for t in tools.values()]
+    schemas = []
+    for t in tools.values():
+        for f in t["fns"] or [{"fn": t["fn"], "desc": t["desc"], "props": {"fraga": (t["arg"], False)}}]:
+            schemas.append({"type": "function", "function": {
+                "name": f["fn"], "description": f["desc"],
+                "parameters": {"type": "object",
+                               "properties": {k: {"type": "string", "description": d} for k, (d, _) in f["props"].items()},
+                               "required": [k for k, (_, need) in f["props"].items() if need]}}})
+    return schemas
 
 
 def tool_call_block(call, tools):
     """A tool call from the model as the code block it would have written: ```sport\nAnaheim Ducks\n```"""
     fn = (call.get("function") or {}).get("name", "")
-    word = next((w for w, t in tools.items() if t["fn"] == fn), None)
+    word = next((w for w, t in tools.items() if t["fn"] == fn or any(f["fn"] == fn for f in t["fns"])), None)
     if not word:
         return ""
     args = (call.get("function") or {}).get("arguments") or {}
@@ -881,6 +957,11 @@ def tool_call_block(call, tools):
             args = json.loads(args or "{}")
         except ValueError:
             args = {"fraga": args}
+    own = next((f for f in tools[word]["fns"] if f["fn"] == fn), None)
+    if own:  # a tool with its own fields → the code block's line (a model may still send the whole line in one)
+        args = args if isinstance(args, dict) else {}
+        line = own["line"](args) if any(look_arg(args, k) for k in own["props"]) else ""
+        return f"```{word}\n{line or look_arg(args, 'fraga') or own['line'](args)}\n```"
     query = args.get("fraga") if isinstance(args, dict) else ""
     if not isinstance(query, str):  # another name or several fields: their values
         query = " ".join(str(v) for v in args.values()) if isinstance(args, dict) else str(args)
@@ -889,12 +970,31 @@ def tool_call_block(call, tools):
     return f"```{word}\n{query}\n```"
 
 
+def written_call(body, tools):
+    """A tool call written as text in a code block – `las_fil(sokvag="~/x", fran_rad="1")` or `visa_mapp ~/.ssh`
+    (gemma4, 25 Oct) – as the (tool, query) it means, else None."""
+    m = re.match(r"\s*([a-z_]+)\s*(?:\((.*)\)|\s(.*))?\s*$", body, re.S)
+    if not m:
+        return None
+    for word, t in tools.items():
+        for f in t["fns"]:
+            if f["fn"] == m.group(1):
+                args = dict(re.findall(r"(\w+)\s*=\s*[\"']([^\"']*)[\"']", m.group(2) or ""))
+                if not args and (m.group(2) or m.group(3) or "").strip():
+                    args = {next(iter(f["props"])): (m.group(2) or m.group(3)).strip().strip("\"'")}
+                return word, " ".join(f["line"](args).split())
+    return None
+
+
 def tool_request(text, tools):
     """(tool, query) when the answer asks for a tool, else None."""
     for m in re.finditer(r"```([\w-]+)[ \t]*\n?(.*?)```", text, re.S):
         tool = TOOL_WORDS.get(m.group(1).lower())
         if tool in tools:
             return tool, " ".join(m.group(2).split())
+        written = written_call(m.group(2), tools)
+        if written:
+            return written
     return None
 
 
@@ -907,8 +1007,8 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     steps: a Steps – what is done is reported to it, and its stop ends the work (raises Stopped).
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
-    activity("ask", "tänker")
-    LAST.tools = []
+    LAST.tools, LAST.steps = [], None
+    activity("ask", "tänker", steps=[])
     messages = with_lessons(messages, project)
     try:
         if read_links(messages, keys, status):
@@ -963,7 +1063,8 @@ OWN_SYSTEM = re.compile(r"\b(?:logg\w*|journal\w*|tjänst\w*|datorn|min dator|kr
 
 
 def own_system_question(question, tools):
-    return isinstance(question, str) and "leta" in tools and bool(OWN_SYSTEM.search(question[:600]))
+    return isinstance(question, str) and "leta" in tools and bool(
+        OWN_SYSTEM.search(question[:600]) or sys_tools().named_paths(question[:600])[1])
 
 
 # Checking the answer (24 Oct): times, paths and numbers in it must be in what the AI read or the user
@@ -1054,6 +1155,11 @@ def own_game_question(question, tools):
     return own_data_question(question, {k: v for k, v in tools.items() if k not in ("leta", "systemfel")})
 
 
+# The AI says it will look but doesn't (and asks "vill du att jag ska leta upp det?") – sent back once
+PROMISE = re.compile(r"\b(?:låt mig|jag (?:ska |kan |får )?(?:kolla|kollar|kontrollera|kontrollerar|titta|tittar|leta|letar|"
+                     r"läsa|läser)\b|vill du att jag (?:ska )?(?:kolla|kontrollera|titta|leta|läsa))", re.I)
+
+
 # "Skriv ett peppmeddelande till min raidgrupp" is a text to write, not a question about the raids (25 Oct:
 # it was sent back to fetch wowstats)
 WRITE_SOMETHING = re.compile(r"^\W*(?:skriv|gör|hitta på|formulera|författa|dikta)\b.{0,80}?\b(?:pepp\w*|\w*meddelande\w*|"
@@ -1081,6 +1187,7 @@ def fresh_question(question):
     if not isinstance(question, str):
         return False
     text = question[:600]  # the typed question, not an attached file below it
+    text = sys_tools().PATH_IN_TEXT.sub("", text)  # /etc/os-release isn't news (25 Oct)
     year = date.today().year
     return bool(FRESH_WORDS.search(text) or re.search(rf"\b(?:{year - 1}|{year}|{year + 1})\b", text))
 
@@ -1109,6 +1216,8 @@ class Steps:
         self.done()
         self.items.append({"text": text, "state": "run", "t": time.time()})
         self._send()
+        LAST.steps = self
+        activity("ask", text[0].lower() + text[1:] if text else "arbetar", steps=self.brief())
 
     def done(self, state="ok", note=""):
         """The running step is finished: "ok", "fel" (note = why) or "stopp"."""
@@ -1121,6 +1230,10 @@ class Steps:
 
     def shown(self):
         return [{k: v for k, v in s.items() if k != "t"} for s in self.items]
+
+    def brief(self):
+        """The steps for the top bar: [{text, state}], the last 8."""
+        return [{"text": i["text"][:90], "state": i["state"]} for i in self.items[-8:]]
 
     def _send(self):
         if self.report:
@@ -1172,7 +1285,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             if notice:
                 notice(f"Söker på nätet gick inte: {e}")
     seen, checked = [str(m.get("content", "")) for m in messages if m["role"] != "assistant"], False
-    nudged = False
+    nudged = promised = False
     fight = own_fight(asked.get("content"), tools, messages)
     if fight:
         tool, query = fight
@@ -1210,7 +1323,9 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             text, read = sys_tools().gather(str(asked.get("content", ""))[:600])
         except Exception:  # noqa: BLE001 – the journal or a desktop file: an ordinary answer instead
             text, read = "", []
-        steps.done(note=", ".join(read) if text else "hittade inget")
+        if text and steps.items:  # what it read, in plain words: "Läser ~/.config/goblincakes/recorder.json"
+            steps.items[-1]["text"] = " · ".join(sys_tools().describe(r) for r in read)[:160]
+        steps.done(note="" if text else "hittade inget")
         if text:
             seen.append(text)
             used += len(read)
@@ -1238,6 +1353,14 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "[Goblin AI] Du svarade utan att hämta något. Frågan gäller användarens egen data – använd "
                              f"ett verktyg ({', '.join(own)}) och svara utifrån det. Svar och data från tidigare i "
                              f"samtalet räcker inte. Frågan var: \"{question}\""})
+            continue
+        if not request_ and not promised and PROMISE.search(answer[-400:]) and len(answer) < 600:
+            # "Låt mig kontrollera ~/.config/goblincakes/recorder.json." – and then nothing (25 Oct, gemma4)
+            promised = True
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] Du skrev att du ska kolla – gör det nu med ett verktyg i stället för att "
+                             f"fråga eller vänta. Frågan var: \"{question}\""})
             continue
         if not request_:
             missing = unsupported(answer, seen) if used else []
@@ -1267,12 +1390,17 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              + (" (ditt minne är nästan fullt)" if full else "") + " – svara nu med det du har."})
             continue
         used += 1
+        if (tool, query) in LAST.tools:
+            # The same thing again: gemma4 read amp.json three times in a row (25 Oct) – not run, and told so
+            messages.append({"role": "user", "content": "[Goblin AI] Det har du redan hämtat – svaret står ovan. "
+                             "Använd det, hämta något annat, eller svara nu."})
+            continue
         LAST.tools.append((tool, query))
         name, run = tools[tool]["name"], tools[tool]["run"]
-        activity("ask", name[0].lower() + name[1:])
         if status:
             status(f"{name}{': ' + query if query else ''}…")
-        steps.start(f"{name}{': ' + query[:80] if query else ''}")
+        # What she does, in plain words ("Läser recorder.json") – the chat and the top bar's tooltip (25 Oct)
+        steps.start(sys_tools().describe(query) if tool == "leta" else f"{name}{': ' + query[:80] if query else ''}")
         try:
             text, found = run(query)
             steps.done()
@@ -1364,7 +1492,7 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice="", 
                 models = sorted(models, key=lambda m: time.time() - BUSY.get(m, 0) < 600)
                 if fallback and provider is chosen[0]:
                     models = [m for m in models if m != chosen[1]] or models  # the picked one was just asked
-                activity("ask", "tänker · " + ("din dator" if provider.get("local") else provider["name"]), provider.get("local"))
+                activity("ask", thinking_text(provider), provider.get("local"))
                 if status:
                     status(f"Frågar {provider['name']}…")
                 try:
@@ -1529,7 +1657,7 @@ def ask_chosen(provider, model, messages, keys, status=None, tools=None):
     if has_images(messages) and not (local_sees(model) if provider.get("local") else provider["id"] in VISION_CLOUD):
         raise ServiceError(f"{name} kan inte se bilder – välj Automatiskt (din lokala bildmodell) "
                            "eller en modell som kan, vid Skicka.")
-    activity("ask", "tänker · " + ("din dator" if provider.get("local") else provider["name"]), provider.get("local"))
+    activity("ask", thinking_text(provider), provider.get("local"))
     if status:
         status(f"Frågar {name}…")
     try:
@@ -1856,7 +1984,7 @@ När användaren vill få något gjort på datorn:
   Användaren får frågan om varje block innan det körs, och du får se utskriften efteråt.
 - Blocken körs efter varandra i samma mapp, som i en terminal: `cd` i ett block gäller även i nästa.
   Sökvägar med mellanslag skrivs inom citattecken: `cd "/run/media/$USER/Min disk/Mapp"`.
-- Du ser bara det du får: läs själv med verktyget leta (filer, loggar, journalen, tjänster), eller be om att få köra
+- Du ser bara det du får: läs själv med verktygen för filer, mappar, loggar och tjänster, eller be om att få köra
   ett kommando (t.ex. `ls`, `cat fil.py`, `python3 -c "import tkinter"`). Användaren kan också bifoga en fil.
 
 Förstå hur användaren skriver: folk skriver som de pratar, kort och med stavfel ("bilder map" = mappen Bilder,

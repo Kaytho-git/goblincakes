@@ -1,3 +1,4 @@
+2026-10-25  Kakan kan läsa filer och mappar i hela datorn, även på de inkopplade diskarna – nycklar och lösenord visas fortfarande aldrig. Uppe i toppfältet syns vilket steg hon är på, och muspekaren visar vad hon har gjort.
 2026-10-25  Goblin AI: du ser vad Kakan gör steg för steg medan hon jobbar (söker, läser loggar, hämtar från Warcraft Logs), och stegen ligger kvar ovanför svaret. Stopp-knappen avbryter. Hon kan nu ta upp till tio steg för att lösa en sak
 2026-10-25  Goblin AI: länkar och mappar i svaren går att klicka på – webbadresser öppnas i webbläsaren, mappar i filhanteraren och filer visas i sin mapp
 2026-10-25  Goblin AI: Kakan väljer rätt verktyg oftare, förstår vardagligt språk och stavfel, och hämtar din egen strid från Warcraft Logs när du nämner en boss

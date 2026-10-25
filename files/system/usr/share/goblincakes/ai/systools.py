@@ -5,6 +5,7 @@ Only reads; fixes are suggested as command cards the user runs."""
 
 import collections
 import json
+import os
 import re
 import subprocess
 import time
@@ -49,10 +50,14 @@ KNOWN = {
 }
 
 
-def run(cmd, timeout=15):
+def run(cmd, timeout=15, partial=False):
+    """The output; on a timeout nothing, or what came so far (partial)."""
     try:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout
-    except (OSError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired as e:
+        out = (e.stdout or "") if partial else ""
+        return out.decode(errors="replace") if isinstance(out, bytes) else out
+    except OSError:
         return ""
 
 
@@ -306,12 +311,29 @@ def system_errors(query=""):
 SECRET = re.compile(
     r"/\.ssh(?:/|$)|/\.gnupg(?:/|$)|/\.password-store|/keyrings?(?:/|$)|kwallet|/\.netrc$|/\.aws(?:/|$)|"
     r"/\.docker/config\.json$|/\.git-credentials$|/\.pki(?:/|$)|\.(?:pem|key|p12|pfx|kdbx|enc)$|"
+    r"/id_(?:rsa|dsa|ecdsa|ed25519)(?:_sk)?$|"  # private keys outside ~/.ssh too (~/.ollama/id_ed25519)
     r"/goblincakes/(?:ai|ianseo)\.env$|/goblincakes/(?:wcl|spotify|youtube|lastfm|discord-\w+|chrome-nycklar)|"
     r"cookies|login data|logins\.json|key[34]\.db|cert9\.db|web data|token|secret|passw|"
     r"^/etc/(?:shadow|gshadow|sudoers)|^/proc/|^/sys/|^/dev/|^/run/user/\d+/(?:gnupg|keyring)",
     re.I)
 FIND_PLACES = [HOME, Path("/etc"), Path("/var/log"), Path("/usr/share/goblincakes"), Path("/usr/lib/systemd"),
                Path("/usr/libexec"), Path("/usr/bin"), Path("/tmp")]
+
+
+def disks():
+    """The plugged-in disks (/run/media/<user>/*, /mnt/*)."""
+    found = []
+    for root in (Path("/run/media") / HOME.name, Path("/mnt")):
+        try:
+            found += sorted(d for d in root.iterdir() if d.is_dir() and os.path.ismount(d))
+        except OSError:
+            continue
+    return found
+
+
+def find_places():
+    """FIND_PLACES + the plugged-in disks – punkt 3 (25 Oct): free paths."""
+    return FIND_PLACES + disks()
 FIND_SKIP = ("/proc", "/sys", "/dev", "/run", str(HOME / ".cache"), str(HOME / ".local/share/Trash"),
              str(HOME / ".ssh"), str(HOME / ".gnupg"), str(HOME / ".local/share/keyrings"))
 # A key inside an ordinary file (recorder.json's cs2Token, OBS's password): the value is hidden
@@ -330,7 +352,7 @@ class SearchError(Exception):
 
 
 def path_of(text):
-    path = Path(text.strip().strip("\"'`")).expanduser()
+    path = Path(os.path.expandvars(text.strip().strip("\"'`"))).expanduser()  # /run/media/$USER/… (25 Oct)
     if not path.is_absolute():
         path = HOME / path
     return path
@@ -342,31 +364,44 @@ def allowed(path):
 
 def find_files(pattern, where=None):
     """Files and folders whose name contains pattern (or matches a * pattern), newest first."""
+    if "/" in pattern.rstrip("/"):  # "~/.ssh/*": the folder part is where
+        where, pattern = path_of(pattern.rstrip("/").rsplit("/", 1)[0] or "/"), pattern.rstrip("/").rsplit("/", 1)[1]
+        if not allowed(where):
+            raise SearchError(f"{where} är hemligt (nycklar/lösenord) och läses inte")
     glob = pattern if any(c in pattern for c in "*?[") else f"*{pattern}*"
-    places = [where] if where else FIND_PLACES
-    hits = []
+    places = [where] if where else find_places()
+    secret = 0
+    hits, cut = [], False
     for place in places:
         prune = []
         for skip in FIND_SKIP:
             prune += ["-path", skip, "-o"]
         out = run(["find", str(place), "-xdev", "(", *prune[:-1], ")", "-prune", "-o", "-iname", glob,
-                   "-printf", "%T@\t%s\t%y\t%p\n"], 20)
+                   "-printf", "%T@\t%s\t%y\t%p\n"], 20, partial=True)
+        if out and not out.endswith("\n"):  # stopped after 20 s: the half line goes
+            out, cut = out.rsplit("\n", 1)[0], True
         for line in out.splitlines():
             stamp, size, kind, path = (line.split("\t", 3) + ["", "", "", ""])[:4]
-            if path and allowed(Path(path)):
+            if path and not allowed(Path(path)):
+                secret += 1
+            elif path:
                 try:
                     hits.append((float(stamp), int(size), kind, path))
                 except ValueError:
                     continue
+    if not hits and secret:
+        return f"{secret} träffar för \"{pattern}\", men alla är hemliga (nycklar/lösenord) och visas inte."
     if not hits:
         return f"Inga filer eller mappar med \"{pattern}\" i namnet" + (f" i {where}." if where else
-               " (letade i hemmappen, /etc, /var/log, /usr/share/goblincakes, /usr/lib/systemd, /usr/libexec, /usr/bin, /tmp).")
+               f" (letade i {', '.join(str(p).replace(str(HOME), '~') for p in places)}).")
     hits.sort(reverse=True)
-    out = [f"{len(hits)} träffar för \"{pattern}\" (nyast först):"]
+    out = [f"{len(hits)} träffar för \"{pattern}\" (nyast först" + (", letade inte klart – ange en mapp" if cut else "") + "):"]
     for stamp, size, kind, path in hits[:40]:
         out.append(f"- {path}{'/' if kind == 'd' else ''}  ({when(stamp)}" + ("" if kind == "d" else f", {size_text(size)}") + ")")
     if len(hits) > 40:
         out.append(f"- … och {len(hits) - 40} till (be om ett noggrannare namn eller en mapp)")
+    if secret:
+        out.append(f"- ({secret} hemliga visas inte)")
     return "\n".join(out)
 
 
@@ -402,8 +437,8 @@ def list_folder(path):
     return "\n".join(out)
 
 
-def read_file(path, match=""):
-    """The end of a text file (or the lines with match, with the line numbers)."""
+def read_file(path, match="", start=0):
+    """The end of a text file (or the lines with match, or READ_LINES lines from line start, with the line numbers)."""
     if path.is_dir():
         return list_folder(path)
     if not path.exists():
@@ -418,7 +453,15 @@ def read_file(path, match=""):
         raise SearchError(f"kan inte läsa {path}: {e.strerror}") from e
     if b"\0" in data[:4096]:
         raise SearchError(f"{path} är ingen textfil ({size_text(size)})")
-    lines = data.decode(errors="replace").splitlines()
+    text = data.decode(errors="replace")
+    if size <= READ_BYTES and text.count("\n") < 3 and text.lstrip()[:1] in "{[":
+        # amp.json is 4 kB on one line: only its first 300 characters were seen (25 Oct)
+        try:
+            text = json.dumps(json.loads(text), ensure_ascii=False, indent=1)
+        except ValueError:
+            pass
+    lines = text.splitlines()
+    cut = 300 if len(lines) > 20 else 3000
     first = 1 if size <= READ_BYTES else None
     if match:
         found = [(i, l) for i, l in enumerate(lines, 1) if match.lower() in l.lower()]
@@ -426,12 +469,19 @@ def read_file(path, match=""):
             return f"{path}: inga rader med \"{match}\" ({len(lines)} rader lästa)."
         shown = found[-READ_LINES:]
         return (f"{path}: {len(found)} rader med \"{match}\"" + (" (de senaste)" if len(found) > len(shown) else "") + ":\n"
-                + "\n".join((f"{i}: " if first else "") + hide(l[:300]) for i, l in shown))
-    shown = lines[-READ_LINES:]
+                + "\n".join((f"{i}: " if first else "") + hide(l[:cut]) for i, l in shown))
     head = f"{path} ({size_text(size)}, ändrad {when(path.stat().st_mtime)})"
+    if start and first:
+        shown = lines[start - 1:start - 1 + READ_LINES]
+        if not shown:
+            return f"{head}: bara {len(lines)} rader."
+        end = start + len(shown) - 1
+        return (f"{head} – rad {start}–{end} av {len(lines)}:\n"
+                + "\n".join(f"{i}: {hide(l[:cut])}" for i, l in enumerate(shown, start)))
+    shown = lines[-READ_LINES:]
     if len(lines) > len(shown) or not first:
         head += f" – de sista {len(shown)} raderna"
-    return head + ":\n" + "\n".join(hide(l[:300]) for l in shown)
+    return head + ":\n" + "\n".join(hide(l[:cut]) for l in shown)
 
 
 def grep_text(text, where):
@@ -535,6 +585,11 @@ def program_log(name, since="", lines=90):
 
 
 def unit_status(name):
+    if not run(["systemctl", "--user", "cat", name]) and not run(["systemctl", "cat", name]):
+        # "status ollama" said it didn't run – the service is goblincakes-ollama (25 Oct)
+        other = ALIASES.get(name.lower()) or f"goblincakes-{name}"
+        if run(["systemctl", "--user", "cat", other]) or run(["systemctl", "cat", other]):
+            name = other
     user = run(["systemctl", "--user", "status", "--no-pager", "-n", "15", name])
     system = run(["systemctl", "status", "--no-pager", "-n", "15", name])
     text = "\n\n".join(t.strip() for t in (user and "Användarens tjänst:\n" + user, system and "Systemets tjänst:\n" + system) if t)
@@ -554,12 +609,40 @@ def unit_list(match=""):
 
 SEARCH_HELP = """Så här letar du (en rad i blocket):
 filer <namn eller *mönster*> [i <mapp>]   – hittar filer/mappar
-läs <sökväg> [med <text>]               – slutet av en textfil, eller raderna med texten
+läs <sökväg> [med <text> | från rad <n>] – slutet av en textfil, raderna med texten, eller från en rad
 mapp <sökväg>                           – vad som ligger i en mapp
 sök <text> i <mapp>                     – vilka filer som innehåller texten
 logg <program eller tjänst> [från HH:MM] – journalen om det sedan start (eller från klockslaget)
 status <tjänst>                         – en tjänsts status
 tjänster [text]                         – vilka tjänster som körs"""
+
+
+def describe(query):
+    """A ```leta line in plain words, for the steps: "läs ~/x.json" → "Läser ~/x.json"."""
+    q = " ".join(query.split())
+    word, _, rest = q.partition(" ")
+    word = word.lower().rstrip(":")
+    m = re.match(r"(.+?)\s+(?:i|från|fran|med)\s+(.+)$", rest)
+    first, second = (m.group(1), m.group(2)) if m else (rest, "")
+    if word in ("filer", "fil", "hitta", "find"):
+        text = f"Letar efter filer som heter {first}" + (f" i {second}" if second else "")
+    elif word in ("läs", "las", "read", "cat", "visa"):
+        text = f"Läser {rest}"
+    elif word in ("mapp", "ls", "lista"):
+        text = f"Tittar i {rest or '~'}"
+    elif word in ("sök", "sok", "grep"):
+        text = f"Söker efter \"{first}\" i {second}" if second else f"Söker efter {rest}"
+    elif word in ("logg", "log", "journal", "journalctl"):
+        text = f"Läser loggen för {first}" + (f" från {second}" if second else "")
+    elif word == "status":
+        text = f"Kollar tjänsten {rest}" if rest else "Kollar tjänsterna"
+    elif word in ("tjänster", "tjanster", "services"):
+        text = "Kollar vilka tjänster som körs"
+    elif word == "systemfel":
+        text = "Läser datorns fel" + (f" för {rest}" if rest else "")
+    else:
+        text = f"Letar i datorn: {q}"
+    return text[:110]
 
 
 def look(query):
@@ -577,11 +660,12 @@ def look(query):
                 raise SearchError(f"{where} är hemligt (nycklar/lösenord) och läses inte")
             text = find_files((m.group(1) if m else rest).strip("\"'"), where)
         elif word in ("läs", "las", "read", "cat", "visa"):
-            m = re.match(r"(.+?)\s+med\s+(.+)$", rest)
-            path = path_of(m.group(1) if m else rest)
+            line = re.match(r"(.+?)\s+(?:från\s+|fran\s+)?rad\s+(\d+)$", rest)
+            m = None if line else re.match(r"(.+?)\s+med\s+(.+)$", rest)
+            path = path_of((line or m).group(1) if line or m else rest)
             if not allowed(path):
                 raise SearchError(f"{path} är hemligt (nycklar/lösenord) och läses inte")
-            text = read_file(path, m.group(2).strip("\"'") if m else "")
+            text = read_file(path, m.group(2).strip("\"'") if m else "", int(line.group(2)) if line else 0)
         elif word in ("mapp", "ls", "lista"):
             path = path_of(rest or "~")
             if not allowed(path):
@@ -671,8 +755,46 @@ def since_of(question):
     return ""
 
 
+PATH_IN_TEXT = re.compile(r"(?<![\w/])(?:~|\$HOME|/(?:home|var|etc|usr|run|tmp|opt|mnt|srv|boot))(?:/[^\s\"'`,;:()]*)?")
+
+
+# A GOBLINCAKES program's setting ("vilken codec spelar GoblinRecorder in med?"): its settings file – gemma4
+# said "låt mig kontrollera recorder.json" and didn't, twice (25 Oct)
+OWN_CONFIGS = [(r"goblin\s?recorder|\brecorder|inspelning\w*", "recorder.json"), (r"goblin\s?amp", "amp.json"),
+               (r"goblin\s?graph", "graph.json"), (r"mangohud|goblin frames", "mangohud-frames.conf"),
+               (r"tiling|\bruto\w*|layout\w*", "tile-layouts.json")]
+SETTING_WORDS = re.compile(r"inställ\w*|codec|kvalitet\w*|fps|bildfrekvens|upplösning\w*|sparar|spelar\s+in|mikrofon\w*|"
+                           r"ljud\w*|bitrate|format\w*|\bpå\b|\bav\b|aktiv\w*|påslag\w*", re.I)
+
+
+def named_paths(question):
+    """Paths written in the question (/etc/os-release, ~/.config/x) and disks named with "disk"
+    ("Spel-disken") – read before the AI answers (punkt 3, 25 Oct: gemma4 searched the web for /etc/os-release)."""
+    paths = [path_of(m.rstrip(".?!")) for m in PATH_IN_TEXT.findall(question) if m not in ("~", "/")]
+    if SETTING_WORDS.search(question):
+        paths += [HOME / ".config/goblincakes" / f for words, f in OWN_CONFIGS if re.search(words, question, re.I)]
+    # "Spel-disken": its folders – not for "a file called … on the disk" (the AI then answered from the listing)
+    if re.search(r"disk", question, re.I) and not re.search(r"\bheter\b|\bnamn\w*|\bfil(?:en|er|erna)?\b", question, re.I):
+        paths += [d for d in disks() if re.search(rf"\b{re.escape(d.name)}\b", question, re.I)]
+    parts, read = [], []
+    for path in list(dict.fromkeys(paths))[:2]:
+        if not path.exists():
+            continue
+        try:
+            if not allowed(path):
+                raise SearchError(f"{path} är hemligt (nycklar/lösenord) och läses inte")
+            parts.append(list_folder(path) if path.is_dir() else read_file(path))
+        except SearchError as e:
+            parts.append(f"Gick inte: {e}.")
+        read.append(("mapp " if path.is_dir() else "läs ") + str(path).replace(str(HOME), "~"))
+    return "\n\n".join(parts)[:LIMIT], read
+
+
 def gather(question):
     """What Goblin AI reads by itself for a question about the computer: (text, [what was read])."""
+    text, read = named_paths(question)
+    if read:
+        return text, read
     names = program_names()
     asked = [w for w in re.findall(r"[\wåäö+-]{3,}", question.lower()) if w not in SKIP_WORDS]
     found = []

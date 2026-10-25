@@ -185,12 +185,16 @@ PlasmoidItem {
     readonly property string steamCommand: "pgrep -x steam >/dev/null && /usr/libexec/goblincakes-steam-activity || echo '{}'"
 
     // ---- Goblin AI ----
-    property var ai: ({})             // {kind: "ask"|"image"|"", name, text, local, progress, seconds}
+    property var ai: ({})             // {kind: "ask"|"image"|"", name, text, local, progress, seconds, steps}
     readonly property string aiText: !ai.kind ? ""
         : ai.name + " " + ai.text
           + (ai.progress !== null && ai.progress !== undefined ? " " + ai.progress + " %" : "")
           + (ai.seconds >= 3 ? "  ·  " + ai.seconds + " s" : "")
     readonly property string aiCommand: "/usr/libexec/goblincakes-ai-activity"
+    // The work loop's steps (25 Oct, the user's wish – it only said "tänker"): one line each in the tooltip
+    readonly property string aiSteps: (ai.steps || []).map(function (s, i) {
+        return (s.state === "run" ? "▸ " : s.state === "ok" ? "✓ " : "✗ ") + s.text
+    }).join("\n")
 
     // ---- Battery of wireless devices ----
     property var devices: []          // [{kind, name, percent, charging}]
@@ -549,7 +553,7 @@ PlasmoidItem {
                 PlasmaCore.ToolTipArea {
                     anchors.fill: parent
                     mainText: root.ai.kind === "image" ? root.ai.name + " ritar en bild" : root.ai.name + " arbetar på ett svar"
-                    subText: (root.ai.local
+                    subText: (root.aiSteps ? root.aiSteps + "\n\n" : "") + (root.ai.local
                         ? "På din dator – grafikkortet arbetar, fläktarna kan låta en stund.\n"
                         : "I molnet – din dator väntar bara på svaret.\n")
                         + "Goblin AI-fönstret visas när svaret är klart. Klicka för att visa det nu."
