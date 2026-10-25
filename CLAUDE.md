@@ -35,6 +35,7 @@ Kör `git pull`, svara med vilket steg hen är på (första ej avbockade i Statu
 - **Två kopior:** låsskärm och utloggning finns både i look-and-feel-paketet och i `files/system/usr/share/goblincakes/plasma-shell/` – ändra båda. Chrome/Brave/Chromium-policyerna – ändra alla tre.
 - Plasma-temats SVG:er genereras av `tools/plasma-frames.py`; Plymouth-bilder av `tools/plymouth-render.js`; lärlägets kurser av `tools/learn-src/` (validera med `tools/learn-validate.py`).
 - KWin-skriptet `files/system/usr/share/kwin/scripts/goblincakes-windows/` sköter fönsterplacering (Config i mitten, spel/regler till skärm, rutor, webbappar, AppGrid, goblin graph/GoblinAmp-platser). `tile/apply.js` delar `fitTileToWindow` med det – ändra båda.
+- **Kakans karta** `files/system/usr/share/goblincakes/ai/karta.md`: ny eller ändrad del → uppdatera dess `##`-avsnitt (filer, hjälpprogram, tjänster, hur man kollar). Kakan läser även docs/ – skriv aldrig facit till hennes prov där.
 - Testa fönster offscreen och med attrapper; skriv i CLAUDE.md/anteckningar vad som är provat på riktigt och vad som inte är det.
 
 ## Design (källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt)
