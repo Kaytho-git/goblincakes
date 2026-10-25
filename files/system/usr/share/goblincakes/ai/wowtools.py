@@ -528,7 +528,7 @@ def wcl_all(r, query):
             parts.append("\n══════ " + f["name"] + " ══════\n" + pull_text(rep, f, "", data, stats, compact=True))
         parts.append("\nOBS: här finns inte skade-cooldowns eller vad som hände under en viss förmåga eller fiende. "
                      "Frågar användaren om en förmåga/mekanik/fiende (t.ex. vilka som körde cooldowns på något), be nu "
-                     "om den med ett nytt block `<boss> förmåga: <namn>` innan du svarar – gissa inte ur listorna ovan.")
+                     "om den igen (warcraftlogs `<boss> förmåga: <namn>`) innan du svarar – gissa inte ur listorna ovan.")
     except ToolError:
         raise
     except Exception as e:  # noqa: BLE001 – the API or the network

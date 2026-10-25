@@ -97,7 +97,7 @@ PROVIDERS = [
     },
 ]
 
-# Web search for every service: the AI asks for a search with a ```sök block, we search and answer it
+# Web search for every service: the AI asks for a search (a tool call or a ```sök block), we search and answer it
 SEARCH = {
     "id": "tavily", "name": "Tavily – sök på nätet", "env": "TAVILY_API_KEY",
     "url": "https://api.tavily.com",
@@ -557,12 +557,19 @@ Du får sedan sökresultaten och svarar användaren utifrån dem. Sök inte för
 SEARCH_LIMIT = 3
 
 
-# ── Tools the AI asks for with a code block (search, WoW errors, Warcraft Logs) ───────────
+# ── Tools (search, WoW errors, Warcraft Logs, …) ──────────────────────────────────────────
+# The AI asks for one as a real tool call where the service can (25 Oct, Kakan's plan step 1 – Ollama's and
+# the OpenAI-style services' "tools"), else with a code block (```sök …). A tool call is turned into the same
+# code block, so everything after it works the same way. *_PROMPT = how to ask with a block, *_GUIDE = how to
+# answer with the data (in the system prompt with blocks; with the tool's answer with a tool call).
 WOW_ERRORS_PROMPT = """
 
 WoW-fel: frågar användaren om fel i WoW eller ett tillägg (BugSack, Lua-fel, "ett tillägg strular"),
 svara med BARA ett kodblock märkt ```wowfel – tomt, eller med ett tilläggs namn att leta efter.
-Du får då felen som BugSack har sparat. Förklara vilket tillägg som orsakar felet (titta i stacken –
+Du får då felen som BugSack har sparat."""
+
+WOW_ERRORS_GUIDE = """
+Förklara vilket tillägg som orsakar felet (titta i stacken –
 Blizzard_-filer är sällan boven) och vad användaren kan göra: uppdatera tillägget (WowUp), stänga av det,
 eller rapportera felet till den som gjort tillägget. Föreslå aldrig att ändra WoW:s egna filer."""
 
@@ -583,8 +590,9 @@ Frågar användaren om en viss förmåga, mekanik eller fiende ("vilka körde co
 `Ula'tek förmåga: Venomous Heart` (+ länken om du har den). Då får du varje gång den kom: vem som
 fick den, skadan av den, skadan på fienden, vem som dog och alla cooldowns runt den – även
 skade-cooldowns. Står namnet fel får du förslag – be då igen med rätt namn. Behöver du både alla
-bossar och en förmåga: be om dem efter varandra, ett block i taget.
+bossar och en förmåga: be om dem efter varandra, ett block i taget."""
 
+WCL_GUIDE = """
 Regler för svaret (viktigt):
 - Använd bara det som står i datan. Hitta aldrig på mekaniker, förmågor, faser eller orsaker som
   inte står där – skriv hellre "det syns inte i datan".
@@ -601,8 +609,9 @@ Systemfel: frågar användaren om fel, krascher eller något som strular i dator
 "programmet startar inte", "något är fel efter uppdateringen", "kolla om allt är ok"), svara med BARA
 ett kodblock märkt ```systemfel – tomt för en översikt, eller med ett programs namn för detaljer
 (alla krascher med tider, början av stacken, journalens rader om det). Du får då vad datorn själv har
-loggat: krascher, journalens fel, misslyckade tjänster, GOBLINCAKES-versionen och vad som ändrats nyligen.
+loggat: krascher, journalens fel, misslyckade tjänster, GOBLINCAKES-versionen och vad som ändrats nyligen."""
 
+SYSTEM_ERRORS_GUIDE = """
 Så här hittar och lagar du felet:
 - Använd bara datan. Står det "känt:" vid ett program är det vad programmet ÄR – beskriv det med de orden,
   aldrig på annat sätt, och säg rakt ut när något är ofarligt (många krascher och journalrader är det).
@@ -611,32 +620,36 @@ Så här hittar och lagar du felet:
 - Börja svaret med det som faktiskt är fel (eller att inget allvarligt syns), sedan det som är ofarligt.
 - Leta orsaken i tid: vad uppdaterades eller ändrades strax före den första kraschen? Samma fel med olika
   Proton-versioner pekar bort från Proton.
-- Behöver du veta mer: be om ett nytt ```systemfel med programmets namn, leta själv med ```leta (loggfiler,
+- Behöver du veta mer: använd verktyget systemfel igen med programmets namn, leta själv med verktyget leta (loggfiler,
   inställningar, en tjänsts logg) eller fråga användaren vad som hände (vad syntes, när, går det att göra om?).
 - Lösning: ett steg i taget, det säkraste först, som ```bash-kort med en mening om vad det gör. Hellre
   goblin-kommandon, GOBLINCAKES inställningar, flatpak, systemctl --user eller rpm-ostree än att ändra
   filer i /etc. Aldrig ta bort användarens filer eller spelens filer. Kräver det sudo, säg varför.
 - Ska användaren göra något (starta om Steam, starta spelet, starta om datorn), säg det och vänta på svar.
-- Kolla efteråt med ```systemfel igen innan du säger att det är löst."""
+- Kolla efteråt med verktyget systemfel igen innan du säger att det är löst."""
 
-LOOK_PROMPT = """
-
-Leta i datorn: behöver du se något på datorn själv – hitta en fil eller loggfil, läsa en inställning eller logg,
-se vad som ligger i en mapp, vilka filer som nämner något, en tjänsts logg eller status – svara med BARA ett
-kodblock märkt ```leta med en av raderna nedan (du får bara läsa, aldrig ändra; nycklar och lösenord visas inte):
-filer <namn eller *mönster*> [i <mapp>]   – hittar filer/mappar (hemmappen, /etc, /var/log, /usr/…, /tmp)
+LOOK_LINES = """filer <namn eller *mönster*> [i <mapp>]   – hittar filer/mappar (hemmappen, /etc, /var/log, /usr/…, /tmp)
 läs <sökväg> [med <text>]               – slutet av en textfil, eller raderna med texten
 mapp <sökväg>                           – vad som ligger i en mapp
 sök <text> i <mapp>                     – vilka filer som innehåller texten
 logg <program eller tjänst> [från HH:MM] – journalen om det sedan start (eller från klockslaget)
 status <tjänst>                         – en tjänsts status
 tjänster [text]                         – vilka tjänster som körs
+De flesta program (Discord, Steam, GOBLINCAKES egna, tjänster) skriver i journalen – börja med `logg <namn>`
+(med `från <klockslag>` när användaren säger när det hände), `filer` först när du letar efter en viss fil."""
+
+LOOK_PROMPT = """
+
+Leta i datorn: behöver du se något på datorn själv – hitta en fil eller loggfil, läsa en inställning eller logg,
+se vad som ligger i en mapp, vilka filer som nämner något, en tjänsts logg eller status – svara med BARA ett
+kodblock märkt ```leta med en av raderna nedan (du får bara läsa, aldrig ändra; nycklar och lösenord visas inte):
+""" + LOOK_LINES + """
 T.ex.
 ```leta
 logg discord från 16:55
-```
-De flesta program (Discord, Steam, GOBLINCAKES egna, tjänster) skriver i journalen – börja med `logg <namn>`
-(med `från <klockslag>` när användaren säger när det hände), `filer` först när du letar efter en viss fil.
+```"""
+
+LOOK_GUIDE = """
 Journalen visar pauser ("… 89 s utan något …"): en lång paus när programmet hängde är svaret på varför det
 var långsamt – säg vad som stod precis före och efter pausen. Datum och klockslag står på varje rad; säg
 dem som de står. Leta själv i stället för att be användaren köra
@@ -664,8 +677,10 @@ MLS och de stora fotbollsligorna inklusive Allsvenskan), svara med BARA ett kodb
 namn, t.ex.
 ```sport
 Anaheim Ducks
-```
-Du får då exakta siffror från ESPN – använd dem i stället för att söka eller gissa, och räkna inte om placeringen."""
+```"""
+
+SPORT_GUIDE = """
+Du får exakta siffror från ESPN – använd dem i stället för att söka eller gissa, och räkna inte om placeringen."""
 
 
 def cs2_tools():
@@ -685,7 +700,10 @@ senaste 10
 Siffrorna gäller matcher på Valves servrar (Premier/Competitive/Wingman). Frågar användaren om matcherna på
 privata servrar (kompisarnas server, casual, workshop), lägg till `privat`, t.ex. `privat senaste 10`.
 Du får då användarens egna siffror ur GoblinRecorders lästa demos: senaste matchen, snittet, match för match
-och ungefärliga riktvärden. Coacha utifrån dem:
+och ungefärliga riktvärden."""
+
+CS2_GUIDE = """
+Coacha utifrån användarens CS2-siffror:
 - Börja kort med hur senaste matchen gick jämfört med snittet (siffrorna som de står).
 - Välj 2–3 saker att arbeta på – de som ligger längst från riktvärdena eller blivit sämre – och säg varför med siffran.
 - Ge för varje en konkret övning (t.ex. Aim Botz/deathmatch för träff och huvudskott, prefire-kartor och att
@@ -698,7 +716,10 @@ WOWSTATS_PROMPT = """
 WoW-statistik: frågar användaren om sina egna parses, bossar, dungeons, item level, hur hen ligger till eller vad
 hen ska förbättra i WoW (inte en viss pull – då warcraftlogs), svara med BARA ett kodblock märkt ```wowstats
 med `allt` eller en period (t.ex. `30 dagar`). Du får användarens parses per boss och svårighetsgrad, per dungeon
-och över tid, sammanställt av GoblinRecorders inspelningar. Peka ut de svagaste bossarna/dungeonsen (lägst median
+och över tid, sammanställt av GoblinRecorders inspelningar."""
+
+WOWSTATS_GUIDE = """
+Peka ut de svagaste bossarna/dungeonsen (lägst median
 och störst skillnad mellan bäst och median = ojämnt), säg vad som går bra, och föreslå konkret vad som kan hämtas
 med warcraftlogs-verktyget för en viss boss. Hitta inte på siffror."""
 
@@ -716,8 +737,16 @@ def configured_wcl():
         return False
 
 
+def tool(name, prompt, guide, run, fn, desc, arg):
+    """One tool: name = what the window says while it runs, prompt + guide = how to ask with a code block and
+    answer, run(query) -> (text, sources); fn, desc, arg = the same as a real tool call (OpenAI-style names
+    are a-z/0-9/_/-: "sök" is called "sok")."""
+    return {"name": name, "prompt": prompt + guide, "guide": guide.strip(), "run": run,
+            "fn": fn, "desc": desc, "arg": arg}
+
+
 def tools_for(keys, project, messages):
-    """The tools the AI may ask for now: {block word: (name, prompt, run(query) -> (text, sources))}."""
+    """The tools the AI may ask for now: {block word: tool(…)}."""
     tools = {}
     key = keys.get(SEARCH["env"])
     if key and not (project and project.get("search") is False) and not has_images(messages):
@@ -725,20 +754,52 @@ def tools_for(keys, project, messages):
             results = web_search(query, key)
             found = "\n\n".join(f"[{i}] {r['title']} – {r['url']}\n{r['content']}" for i, r in enumerate(results, 1))
             return found or "Inga träffar.", results
-        tools["sök"] = ("Söker på nätet", SEARCH_PROMPT.format(limit=SEARCH_LIMIT), search)
-    tools["sport"] = ("Hämtar lagets ställning", SPORT_PROMPT, lambda q: (sport_tools().sport_info(q), []))
-    tools["systemfel"] = ("Läser datorns fel", SYSTEM_ERRORS_PROMPT, lambda q: (sys_tools().system_errors(q), []))
-    tools["leta"] = ("Letar i datorn", LOOK_PROMPT, lambda q: (sys_tools().look(q), []))
+        tools["sök"] = tool("Söker på nätet", SEARCH_PROMPT.format(limit=SEARCH_LIMIT), "", search, "sok",
+                            "Söker på nätet. Bara när frågan gäller något som kan ha ändrats (nyheter, versioner, patchar, "
+                            "priser, öppettider, resultat, väder) eller när du är osäker på ett faktum – inte för allmän "
+                            f"kunskap, recept, texter eller Linux-kommandon. Högst {SEARCH_LIMIT} sökningar per fråga.",
+                            "En kort sökfråga, gärna på engelska om ämnet är internationellt")
+    tools["sport"] = tool("Hämtar lagets ställning", SPORT_PROMPT, SPORT_GUIDE, lambda q: (sport_tools().sport_info(q), []),
+                          "sport", "När användaren frågar om ett lags ställning, tabell, senaste eller nästa match (NHL, NBA, NFL, "
+                          "MLB, WNBA, MLS och de stora fotbollsligorna inklusive Allsvenskan) – exakta siffror från ESPN, "
+                          "i stället för att söka eller gissa.", "Lagets namn")
+    tools["systemfel"] = tool("Läser datorns fel", SYSTEM_ERRORS_PROMPT, SYSTEM_ERRORS_GUIDE,
+                              lambda q: (sys_tools().system_errors(q), []), "systemfel",
+                              "När användaren frågar om fel, krascher eller något som strular i datorn (\"Steam kraschar\", "
+                              "\"programmet startar inte\", \"något är fel efter uppdateringen\", \"kolla om allt är ok\"): "
+                              "vad datorn själv har loggat – krascher, journalens fel, misslyckade tjänster, "
+                              "GOBLINCAKES-versionen och vad som ändrats nyligen. Inte WoW-tilläggens fel (då wowfel).",
+                              "Tomt för en översikt, eller ett programs namn för detaljer")
+    tools["leta"] = tool("Letar i datorn", LOOK_PROMPT, LOOK_GUIDE, lambda q: (sys_tools().look(q), []), "leta",
+                         "När du behöver se något i datorn själv: hitta en fil eller mapp (t.ex. var ett programs "
+                         "inställningar ligger: `filer *recorder*`), läsa en fil, inställning eller logg, se vad som ligger i "
+                         "en mapp, en tjänsts logg eller status. Bara läsning; nycklar och lösenord visas inte. Leta själv "
+                         "i stället för att säga att du inte vet eller be användaren köra ls/cat/journalctl.",
+                         "En av raderna:\n" + LOOK_LINES)
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
     except (OSError, ValueError):
         cs2_on = False
     if (Path.home() / ".local/share/goblincakes/wow-history.json").exists() or configured_wcl():
-        tools["wowstats"] = ("Läser dina WoW-siffror", WOWSTATS_PROMPT, lambda q: (wow_tools().wow_stats(q), []))
+        tools["wowstats"] = tool("Läser dina WoW-siffror", WOWSTATS_PROMPT, WOWSTATS_GUIDE,
+                                 lambda q: (wow_tools().wow_stats(q), []), "wowstats",
+                                 "När användaren frågar om sina egna parses, bossar, kills, dungeons/nycklar, item level, "
+                                 "senaste raidboss eller parse, hur hen ligger till eller vad hen ska förbättra i WoW: parses "
+                                 "per boss och svårighetsgrad, per dungeon och över tid (GoblinRecorders inspelningar). "
+                                 "Inte vad som hände i en viss pull – dödsfall, cooldowns (då warcraftlogs).",
+                                 "`allt` eller en period, t.ex. `30 dagar`")
     if cs2_on:
-        tools["cs2"] = ("Läser dina CS2-siffror", CS2_PROMPT, lambda q: (cs2_tools().cs2_stats(q), []))
+        tools["cs2"] = tool("Läser dina CS2-siffror", CS2_PROMPT, CS2_GUIDE, lambda q: (cs2_tools().cs2_stats(q), []), "cs2",
+                            "När användaren frågar om sina CS2-matcher, sin statistik, sitt snitt eller vad hen ska träna "
+                            "på: egna siffror ur GoblinRecorders lästa demos (Valves servrar: Premier/Competitive/Wingman) – "
+                            "senaste matchen, snittet, match för match, riktvärden.",
+                            "`senaste`, antal matcher (`senaste 20`) eller en karta (`Mirage`); lägg till `privat` för "
+                            "matcher på privata servrar")
     if list(Path.home().glob("Games/WoW/*/AddOns")):
-        tools["wowfel"] = ("Läser WoW-felen", WOW_ERRORS_PROMPT, lambda q: (wow_tools().wow_errors(q), []))
+        tools["wowfel"] = tool("Läser WoW-felen", WOW_ERRORS_PROMPT, WOW_ERRORS_GUIDE, lambda q: (wow_tools().wow_errors(q), []),
+                               "wowfel", "När användaren frågar om fel i WoW eller ett WoW-tillägg/addon (BugSack, Lua-fel, \"ett "
+                               "tillägg strular\"): felen som BugSack har sparat.",
+                               "Tomt, eller ett tilläggs namn att leta efter")
     wcl = CONFIG / "wcl.json"
     try:
         configured = bool(json.loads(wcl.read_text()).get("clientId"))
@@ -751,7 +812,14 @@ def tools_for(keys, project, messages):
         def wcl(q):  # the user asked for every boss but the AI forgot to say so → all of them anyway
             forced = every and not re.search(r"\bpull\s*\d|förmåga|formaga|ability|mekanik", q, re.I)
             return wow_tools().wcl_pull(("alla " if forced else "") + q), []
-        tools["warcraftlogs"] = ("Hämtar pullen från Warcraft Logs", WCL_PROMPT, wcl)
+        tools["warcraftlogs"] = tool(
+            "Hämtar pullen från Warcraft Logs", WCL_PROMPT, WCL_GUIDE, wcl, "warcraftlogs",
+            "När användaren frågar vad som hände i en pull, wipe, kill eller raidkväll (\"varför wipade vi?\", \"vem "
+            "dog först?\", \"hur gick Kith'ix?\", en förmåga eller mekanik): dödsfall, skadan raiden tog, cooldowns med "
+            "tider, interrupts, dispels och alla spelare med DPS/HPS från Warcraft Logs. Inte användarens egen parse "
+            "eller senaste boss (då wowstats). En ny länk = hämta igen.",
+            "`senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, en länk till rapporten; `alla` (+ länken) = varje boss i "
+            "rapporten; en förmåga/mekanik/fiende: `<boss> förmåga: <namn>` (t.ex. `Ula'tek förmåga: Venomous Heart`)")
     return tools
 
 
@@ -762,6 +830,43 @@ TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel
               "cs2": "cs2", "counterstrike": "cs2", "cs": "cs2",
               "systemfel": "systemfel", "system-fel": "systemfel", "systemlogg": "systemfel",
               "leta": "leta", "hitta": "leta", "look": "leta"}
+
+# With real tool calls the system prompt only gets this – the tools describe themselves
+TOOLS_PROMPT = """
+
+Verktyg: du har verktyg som hämtar riktig data (nätet, datorns loggar och filer, användarens egna WoW- och
+CS2-siffror, lagens tabeller). Använd verktyget i stället för att gissa när frågan behöver data, ett i taget –
+du får svaret och kan sedan svara eller använda ett verktyg till. Frågor om användarens egen dator, WoW eller CS2
+besvaras med de verktygen, inte med en sökning på nätet – och säg inte "vet inte" förrän du har letat.
+Använd inget verktyg för vanligt prat."""
+
+
+def tool_schemas(tools):
+    """The tools as OpenAI-style function definitions (Ollama and the OpenAI-style services take the same)."""
+    return [{"type": "function", "function": {
+        "name": t["fn"], "description": t["desc"],
+        "parameters": {"type": "object", "properties": {"fraga": {"type": "string", "description": t["arg"]}},
+                       "required": []}}} for t in tools.values()]
+
+
+def tool_call_block(call, tools):
+    """A tool call from the model as the code block it would have written: ```sport\nAnaheim Ducks\n```"""
+    fn = (call.get("function") or {}).get("name", "")
+    word = next((w for w, t in tools.items() if t["fn"] == fn), None)
+    if not word:
+        return ""
+    args = (call.get("function") or {}).get("arguments") or {}
+    if isinstance(args, str):
+        try:
+            args = json.loads(args or "{}")
+        except ValueError:
+            args = {"fraga": args}
+    query = args.get("fraga") if isinstance(args, dict) else ""
+    if not isinstance(query, str):  # another name or several fields: their values
+        query = " ".join(str(v) for v in args.values()) if isinstance(args, dict) else str(args)
+    elif not query and isinstance(args, dict) and args:
+        query = " ".join(str(v) for v in args.values())
+    return f"```{word}\n{query}\n```"
 
 
 def tool_request(text, tools):
@@ -907,8 +1012,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
                                           else "inte här (projektet söker inte, eller en bild är med)"))
     if not tools:
         return ask_once(messages, keys, status, notice, project, choice)
-    if messages and messages[0]["role"] == "system":
-        messages[0]["content"] += "".join(t[1] for t in tools.values())
+    # chat() adds the tools: as real tool calls, or their code block prompts to the system prompt
     sources, used, searched = [], 0, False
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:2000]
     own = own_data_question(asked.get("content"), tools)
@@ -919,14 +1023,14 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
         if status:
             status("Söker på nätet…")
         try:
-            text, found = tools["sök"][2](query)
+            text, found = tools["sök"]["run"](query)
             sources.extend(found)
             searched, used = True, 1
             LAST.tools.append(("sök", query))
             messages.append({"role": "user", "content":
                              f"[Goblin AI sökte på nätet åt dig innan du svarar – det här skrev eller klistrade användaren "
                              f"inte in]\n\n{text}\n\n[Slut på sökresultaten]\n\nAnvändarens fråga var: \"{question}\"\n"
-                             "Svara på den utifrån resultaten (sök igen med ett ```sök-block om de inte räcker). "
+                             "Svara på den utifrån resultaten (sök igen om de inte räcker). "
                              "Sökresultaten kan vara fel eller gamla – säg till om det verkar så."})
         except Exception as e:  # noqa: BLE001 – the search failed: an ordinary answer instead
             if notice:
@@ -950,10 +1054,10 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
                              f"[Goblin AI läste det här i datorn åt dig innan du svarar ({', '.join(read)}) – det här "
                              f"skrev eller klistrade användaren inte in]\n\n{text}\n\n[Slut på det lästa]\n\n"
                              f"Användarens fråga var: \"{question}\"\n"
-                             "Svara utifrån det här. Räcker det inte, läs mer med ```leta eller ```systemfel, "
+                             "Svara utifrån det här. Räcker det inte, läs mer med verktyget leta eller systemfel, "
                              "eller säg att du inte vet och vad som skulle behövas."})
     while True:
-        answer, service = ask_once(messages, keys, status, notice, project, choice)
+        answer, service = ask_once(messages, keys, status, notice, project, choice, tools)
         request_ = tool_request(answer, tools)
         if not request_:
             missing = unsupported(answer, seen) if used else []
@@ -965,7 +1069,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
                 messages.append({"role": "user", "content":
                                  "[Goblin AI kontrollerade ditt svar] Det här står inte i det du har läst: "
                                  + ", ".join(missing) + ". Skriv om svaret: ta bort det eller säg att du inte vet "
-                                 "(och vad som skulle behövas), eller läs mer med ett block. Upprepa inte felet."})
+                                 "(och vad som skulle behövas), eller läs mer med ett verktyg. Upprepa inte felet."})
                 continue
             if missing:
                 answer = answer.rstrip() + ("\n\n*Obs: " + ", ".join(missing) + " står inte i det Goblin AI läste – "
@@ -978,7 +1082,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
             continue
         used += 1
         LAST.tools.append((tool, query))
-        name, _, run = tools[tool]
+        name, run = tools[tool]["name"], tools[tool]["run"]
         activity("ask", name[0].lower() + name[1:])
         if status:
             status(f"{name}{': ' + query if query else ''}…")
@@ -994,11 +1098,14 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
         for r in found:
             if r["url"] not in (s["url"] for s in sources):
                 sources.append(r)
+        # With a tool call the system prompt has no instructions for the data – they come with it
+        guide = tools[tool]["guide"] if getattr(LAST, "native", False) and tools[tool]["guide"] else ""
         messages.append({"role": "user", "content":
                          f"[Svar från verktyget {tool} som du själv bad om – det här skrev eller klistrade "
                          f"användaren inte in]\n\n{text}\n\n[Slut på verktygets svar]\n\n"
-                         f"Användarens fråga var: \"{question}\"\n"
-                         "Svara nu på den frågan utifrån det här (eller be om mer med ett nytt block)."})
+                         + (f"Så här svarar du med det:\n{guide}\n\n" if guide else "")
+                         + f"Användarens fråga var: \"{question}\"\n"
+                         "Svara nu på den frågan utifrån det här (eller använd ett verktyg till)."})
     if sources:
         answer = answer.rstrip() + "\n\n**Källor:** " + " · ".join(
             f"[{s['title'][:60].replace('[', '(').replace(']', ')')}]({s['url']})" for s in sources[:5])
@@ -1009,11 +1116,12 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
     return answer, service
 
 
-def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
+def ask_once(messages, keys, status=None, notice=None, project=None, choice="", tools=None):
     """Asks the services in order; returns (answer, "service · model").
 
     status(text): "asking X…"; notice(text): a service failed and the next is tried.
     choice: the user's own model – only that one is asked (no other service behind the user's back).
+    tools: tools_for(…) the AI may ask for (see chat).
     """
     chosen = chosen_provider(choice)
     if chosen and not chosen[0].get("local") and (project or {}).get("order") == "local-only":
@@ -1024,7 +1132,7 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
     fallback = None
     if chosen:
         try:
-            return ask_chosen(*chosen, messages, keys, status)
+            return ask_chosen(*chosen, messages, keys, status, tools)
         except ServiceError as e:
             # The picked model is overloaded (or out of free questions, or doesn't answer – 20 Oct, the
             # user's wish): its service's other models, then the other services, the local AI last.
@@ -1050,7 +1158,7 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
         except ServiceError as e:
             raise ServiceError(f"Lokal AI: {e}.\nBilder skickas bara till lokal AI när Automatiskt är valt – "
                                "vill du skicka bilden till molnet: välj en modell vid Skicka.") from None
-        return ask_chosen(LOCAL, models[0], messages, keys, status)
+        return ask_chosen(LOCAL, models[0], messages, keys, status, tools)
     errors = []
     for provider in fallback or providers_in_order(keys, (project or {}).get("order")):
         key = keys.get(provider["env"]) if provider["env"] else ""
@@ -1069,7 +1177,7 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice=""):
                 try:
                     for i, model in enumerate(models):
                         try:
-                            reply = chat(provider, key, model, messages)
+                            reply = chat(provider, key, model, messages, tools)
                             break
                         except ServiceError as e:
                                 # Overloaded, or listed but closed to new users: the next model
@@ -1212,7 +1320,7 @@ MODEL_INFO = {
 }
 
 
-def ask_chosen(provider, model, messages, keys, status=None):
+def ask_chosen(provider, model, messages, keys, status=None, tools=None):
     """One question to the model the user picked; a failure is an error (no other service is asked)."""
     name = f"{provider['name']} · {MODEL_NAMES.get(model, model)}"
     key = "" if provider.get("local") else keys.get(provider["env"])
@@ -1230,7 +1338,7 @@ def ask_chosen(provider, model, messages, keys, status=None):
     if status:
         status(f"Frågar {name}…")
     try:
-        text = chat(provider, key, model, messages)
+        text = chat(provider, key, model, messages, tools)
     except ServiceError as e:
         raise ServiceError(f"{name}: {e}\nVälj Automatiskt eller en annan modell vid Skicka.") from None
     if not text.strip():
@@ -1303,19 +1411,23 @@ def wire_messages(messages, anthropic=False):
     return out
 
 
-LOCAL_VISION = {}  # model -> sees pictures (Ollama's "capabilities")
+LOCAL_CAPS = {}  # model -> Ollama's "capabilities" (vision = sees pictures, tools = real tool calls)
 
 
-def local_sees(model):
-    if model not in LOCAL_VISION:
+def local_caps(model):
+    if model not in LOCAL_CAPS:
         try:
             req = urllib.request.Request("http://127.0.0.1:11434/api/show", data=json.dumps({"model": model}).encode(),
                                          headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=10) as r:
-                LOCAL_VISION[model] = "vision" in (json.loads(r.read()).get("capabilities") or [])
+                LOCAL_CAPS[model] = json.loads(r.read()).get("capabilities") or []
         except (urllib.error.URLError, OSError, ValueError):
-            return False
-    return LOCAL_VISION[model]
+            return []
+    return LOCAL_CAPS[model]
+
+
+def local_sees(model):
+    return "vision" in local_caps(model)
 
 
 def sees_images(choice=""):
@@ -1352,12 +1464,43 @@ def fit_local(messages):
     return system + kept
 
 
-def chat(provider, key, model, messages):
-    """One question to one model; returns the answer's text."""
-    if provider.get("local"):
-        messages = fit_local(messages)
+# Services whose API takes OpenAI-style "tools" (Perplexity doesn't; Claude's Messages API has its own – blocks)
+TOOL_SERVICES = {"openai", "deepseek", "xai", "mistral", "gemini", "openrouter"}
+
+
+def with_system(messages, extra):
+    """messages with extra added to the system prompt (a new list)."""
+    if not extra:
+        return messages
+    if messages and messages[0]["role"] == "system":
+        return [{**messages[0], "content": messages[0]["content"] + extra}] + list(messages[1:])
+    return [{"role": "system", "content": extra.strip()}] + list(messages)
+
+
+def native_tools(provider, model):
+    """Whether the model gets the tools as real tool calls (else as code block prompts)."""
+    return "tools" in local_caps(model) if provider.get("local") else provider["id"] in TOOL_SERVICES
+
+
+def chat(provider, key, model, messages, tools=None):
+    """One question to one model; returns the answer's text.
+
+    tools: tools_for(…) – sent as real tool calls where the service and model can (a call comes back as its
+    code block in the text, see tool_call_block), else their prompts go into the system prompt.
+    LAST.native says which it was (the tool's guide then comes with its answer)."""
+    LAST.native = False
+    blocks = "".join(t["prompt"] for t in (tools or {}).values())
+    asked = messages
+
+    def prepared(extra):  # the system prompt with the tools' part, cut to fit the local AI
+        full = with_system(asked, extra)
+        return fit_local(full) if provider.get("local") else full
     if provider["id"] != "anthropic":
+        native = bool(tools) and native_tools(provider, model)
+        messages = prepared(TOOLS_PROMPT if native else blocks)
         body = {"model": model, "messages": wire_messages(messages)}
+        if native:
+            body["tools"] = tool_schemas(tools)
         temperature = provider.get("temperature", 0.4)
         if temperature is not None:
             body["temperature"] = temperature
@@ -1371,14 +1514,40 @@ def chat(provider, key, model, messages):
             # give no answer (18 Oct: 12 000 tokens, 3 min) – a ceiling, then once more without thinking
             used = sum(len(m["content"]) if isinstance(m["content"], str) else 2000 for m in messages) // 3
             body["max_tokens"] = max(LOCAL_MIN_TOKENS, min(LOCAL_MAX_TOKENS, LOCAL_CONTEXT - used - 500))
+            if body.get("reasoning_effort") == "none":
+                # no thinking: an answer is far shorter – a stuck model (see below) is stopped after ~50 s, not 140
+                body["max_tokens"] = LOCAL_MIN_TOKENS
         # The facts are already fetched (a button): a short job – an overloaded server that keeps the
         # question for 50–90 s before saying so is left after 30 (20 Oct, Gemini)
         quick = getattr(QUICK, "on", False) and not provider.get("local")
-        reply = request(provider, key, "/chat/completions", body, **({"timeout": 30} if quick else {}))
+        try:
+            reply = request(provider, key, "/chat/completions", body, **({"timeout": 30} if quick else {}))
+        except ServiceError as e:
+            # The model doesn't take tools after all (an OpenRouter free model, an odd Gemini one): code blocks
+            if not native or not re.search(r"fel 4(?:00|04|22)", str(e)):
+                raise
+            native = False
+            body = {k: v for k, v in body.items() if k != "tools"}
+            body["messages"] = wire_messages(prepared(blocks))
+            reply = request(provider, key, "/chat/completions", body, **({"timeout": 30} if quick else {}))
+        LAST.native = native
         text = reply["choices"][0]["message"].get("content") or ""
         if provider.get("local") and reply["choices"][0].get("finish_reason") == "length":  # empty or cut off
-            reply = request(provider, key, "/chat/completions", {**body, "reasoning_effort": "none"})
+            if native and not text.strip() and not reply["choices"][0]["message"].get("tool_calls"):
+                # gemma4 sometimes writes a broken tool call to the ceiling and Ollama shows nothing (25 Oct,
+                # "vem dog först på Kith'ix", twice) – once more with the code blocks instead
+                native = LAST.native = False
+                body = {k: v for k, v in body.items() if k != "tools"}
+                body["messages"] = wire_messages(prepared(blocks))
+                reply = request(provider, key, "/chat/completions", {**body, "reasoning_effort": "none"})
+            elif body.get("reasoning_effort") != "none":
+                reply = request(provider, key, "/chat/completions", {**body, "reasoning_effort": "none"})
             text = reply["choices"][0]["message"].get("content") or ""
+        calls = reply["choices"][0]["message"].get("tool_calls") or []
+        if native and calls:  # the first call, as the code block _ask() looks for (one tool at a time)
+            block = tool_call_block(calls[0], tools)
+            if block:
+                text = (text.rstrip() + "\n\n" + block).strip()
         # Perplexity searches by itself: its sources go under the answer like ours
         links = [r.get("url") for r in reply.get("search_results") or [] if r.get("url")] or reply.get("citations") or []
         if links and text.strip():
@@ -1386,6 +1555,7 @@ def chat(provider, key, model, messages):
                 f"[{i}]({u})" for i, u in enumerate(links[:8], 1))
         return text
     # Claude's Messages API: the system prompt goes beside the messages, not among them
+    messages = prepared(blocks)
     system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
     turns = [m for m in wire_messages(messages, anthropic=True) if m["role"] in ("user", "assistant")]
     reply = request(provider, key, "/messages", {
@@ -1449,14 +1619,14 @@ När användaren vill få något gjort på datorn:
   Användaren får frågan om varje block innan det körs, och du får se utskriften efteråt.
 - Blocken körs efter varandra i samma mapp, som i en terminal: `cd` i ett block gäller även i nästa.
   Sökvägar med mellanslag skrivs inom citattecken: `cd "/run/media/$USER/Min disk/Mapp"`.
-- Du ser bara det du får: läs själv med ```leta (filer, loggar, journalen, tjänster), eller be om att få köra
+- Du ser bara det du får: läs själv med verktyget leta (filer, loggar, journalen, tjänster), eller be om att få köra
   ett kommando (t.ex. `ls`, `cat fil.py`, `python3 -c "import tkinter"`). Användaren kan också bifoga en fil.
 
 Gissa aldrig – säg hellre att du inte vet:
 - Allt du säger om datorn, användarens spel, siffror, klockslag, filer och vad som hände ska stå i det du
   har fått läsa (verktygens svar, sökresultaten, filerna, det användaren skrev). Hitta inte på en förklaring
   som "låter rimlig".
-- Räcker datan inte: hämta mer (ett nytt block), eller säg rakt ut "Det vet jag inte – i loggen syns bara …"
+- Räcker datan inte: hämta mer (ett verktyg till), eller säg rakt ut "Det vet jag inte – i loggen syns bara …"
   och vad som skulle behövas för att reda ut det (vilken logg, vilket kommando, vad användaren kan berätta).
 - Skilj på det du såg och det du tror: skriv "i loggen står …" för det du läst, och "kanske …" bara om du
   också säger att det är en gissning.
@@ -2094,7 +2264,7 @@ Bilden skapas automatiskt av Goblin AI och visas under svaret – skriv aldrig a
 ```bild är bara för bilder med motiv. Sammanställningar, rapporter, analyser, tabeller och listor "som bild/png"
 görs ALDRIG med ```bild (bildmodellen kan inte skriva exakt text eller siffror) – använd ```rapport.
 Ber användaren dig kolla online/söka hur något ser ut (en logga, en figur, en plats, en produkt): sök först med
-```sök om du kan, och beskriv sedan utseendet noga i ```bild – färger, former, figurer, var allt sitter – för
+sök om du kan, och beskriv sedan utseendet noga i ```bild – färger, former, figurer, var allt sitter – för
 bildmodellen känner inte till namnet. Skriv inte "logo of X" och hoppas; beskriv vad den visar. 1080p, bakgrundsbild
 och skrivbordsbakgrund = Format: 16:9.
 Ska bilden ändras: skriv en ny, hel beskrivning (den förra bilden följer inte med). Ett block per bild.
