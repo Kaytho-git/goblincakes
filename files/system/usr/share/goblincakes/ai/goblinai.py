@@ -1161,6 +1161,15 @@ NUDGE_NOTE = (" (Det här skrev Goblin AI, inte användaren – svara användare
               "och nämn inte påminnelsen.)")
 
 
+# Something on the computer has stopped working ("syns inte längre", "funkar inte", "har försvunnit") – the user
+# wants it found out, not general advice
+BROKEN = re.compile(r"\b(?:syns|visas|hörs|startar|fungerar|funkar|går|öppnas|laddar)\b.{0,40}\b(?:inte|ej|längre)\b"
+                    r"|\b(?:inte|ej)\b.{0,15}\b(?:syns|visas|hörs|startar|fungerar|funkar|öppnas)\b"
+                    r"|\b(?:slutat|försvunnit|försvann|borta|trasig\w*|sönder|buggar|bugg\w*)\b"
+                    r"|\b(?:kan du|kolla|fixa|laga|rätta)\b.{0,40}\b(?:varför|fel|problem)"
+                    r"|\b(?:fixa|laga)\b|\b(?:ger|får|blir|visar)\s+(?:ett\s+|massa\s+|en\s+)?(?:fel|error|bugg)\w*", re.I)
+
+
 # The AI says it will look but doesn't (and asks "vill du att jag ska leta upp det?") – sent back once
 PROMISE = re.compile(r"\b(?:låt mig|jag (?:ska |kan |får )?(?:kolla|kollar|kontrollera|kontrollerar|titta|tittar|leta|letar|"
                      r"läsa|läser)\b|vill du att jag (?:ska )?(?:kolla|kontrollera|titta|leta|läsa))", re.I)
@@ -1291,7 +1300,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             if notice:
                 notice(f"Söker på nätet gick inte: {e}")
     seen, checked = [str(m.get("content", "")) for m in messages if m["role"] != "assistant"], False
-    nudged = promised = False
+    nudged = promised = looked = False
     fight = own_fight(asked.get("content"), tools, messages)
     if fight:
         tool, query = fight
@@ -1359,6 +1368,19 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "[Goblin AI] Du svarade utan att hämta något. Frågan gäller användarens egen data – använd "
                              f"ett verktyg ({', '.join(own)}) och svara utifrån det. Svar och data från tidigare i "
                              f"samtalet räcker inte. Frågan var: \"{question}\"" + NUDGE_NOTE})
+            continue
+        if (not request_ and not used and not looked and not cmd_level().code_blocks_in(answer)
+                and BROKEN.search(question[:600]) and ("leta" in tools or "systemfel" in tools)):
+            # "musens batteri syns inte i toppfältet längre, kan du kolla?" got general KDE advice ("högerklicka på
+            # toppfältet …") without anything read (25 Oct) – once more: find out on the computer
+            looked = True
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] Du gav allmänna råd utan att undersöka något. Ta reda på det själv på datorn: "
+                             f"läs de filer, inställningar och loggar som hör till det som inte fungerar (verktygen "
+                             f"{', '.join(w for w in ('leta', 'systemfel', 'wowfel') if w in tools)}, eller ett läsande "
+                             "```bash-block) – sedan vad som är fel och hur det rättas. "
+                             f"Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
         if not request_ and not promised and PROMISE.search(answer[-400:]) and len(answer) < 600:
             # "Låt mig kontrollera ~/.config/goblincakes/recorder.json." – and then nothing (25 Oct, gemma4)
@@ -1984,6 +2006,13 @@ Om datorn:
 - GOBLINCAKES egna program (inga WoW-tillägg, inställningar i ~/.config/goblincakes/): GOBLINCAKES Config, GoblinRecorder
   (spelar in WoW-raider/M+ och CS2-matcher med OBS, recorder.json; WoW Stats/CS2 Stats), GoblinAmp (musikspelare, amp.json),
   goblin graph (ljudstaplar), Goblin AI (du själv), GOBLINCAKES USB (gör en USB-sticka att installera från).
+- Toppfältet (överst på skärmen) är GOBLINCAKES egna widget Spelas nu (org.goblincakes.nowplaying): öppna program,
+  musik, Discord-röst, Steams nedladdning, dina steg medan du arbetar och batteriet i trådlösa enheter (mus, headset,
+  handkontroll). Koden: /usr/share/plasma/plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml – finns en kopia
+  i ~/.local/share/plasma/plasmoids/org.goblincakes.nowplaying/ används den i stället. Widgeten kör GOBLINCAKES
+  hjälpprogram (/usr/libexec/goblincakes-*). En ändrad widget syns efter `systemctl --user restart plasma-plasmashell`.
+- GOBLINCAKES delar i systemet: /usr/libexec/goblincakes-* (hjälpprogram), /usr/share/goblincakes/, /usr/bin/goblin*,
+  användartjänster `systemctl --user list-units 'goblincakes*'`. Systemets filer under /usr går inte att ändra (atomiskt).
 
 När användaren vill få något gjort på datorn:
 - Ge de kommandon som behövs i kodblock märkta ```bash – ett kommando eller en kort följd per block.

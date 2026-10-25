@@ -73,6 +73,11 @@ DANGER = [
 DANGER = [(re.compile(p), why) for p, why in DANGER]
 
 
+def code_blocks_in(text):
+    """The ```bash blocks in an answer (a command card counts as looking into it)."""
+    return re.findall(r"```(?:bash|sh|shell|console)\s*\n(.*?)```", text, re.S)
+
+
 def danger_reason(code):
     """Why the block can't be undone, or ""."""
     for rx, why in DANGER:
