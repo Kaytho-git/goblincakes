@@ -1008,6 +1008,38 @@ def own_bosses():
         return set()
 
 
+PARSE_WORDS = re.compile(r"\b(?:parse\w*|median|ilvl|item level|sämst|bäst|förbättra|snitt\w*)\b", re.I)
+
+
+FOLLOW_UP = re.compile(r"\b(?:loggen|länk\w*|pullen|killen|striden|samma|där|den|dom|de)\b", re.I)
+
+
+def own_fight(question, tools, messages=None):
+    """(tool, query) Goblin AI fetches by itself for a question naming a boss from the user's history: the
+    pull from Warcraft Logs, or the parses (WoW Stats) – else None. gemma4 skipped the tool in follow-up
+    questions and made up deaths (25 Oct)."""
+    if not isinstance(question, str):
+        return None
+    low = question[:600].casefold()
+    bosses = [b for b in own_bosses() if len(b) >= 4]
+    boss = max((b for b in bosses if b in low), key=len, default="")
+    if not boss and messages and FOLLOW_UP.search(low):
+        # "ge mig länken till loggen" after a question about Ula'tek: the boss from the question before
+        # (25 Oct: the latest report – a Mythic+ – was linked instead)
+        earlier = [m["content"].casefold() for m in messages if m["role"] == "user" and isinstance(m["content"], str)
+                   and not m["content"].startswith(TOOL_TURNS + ("[Goblin AI",))][-3:-1]
+        boss = next((max((b for b in bosses if b in e), key=len) for e in reversed(earlier)
+                     if any(b in e for b in bosses)), "")
+    if not boss:
+        return None
+    if PARSE_WORDS.search(low) and "wowstats" in tools:
+        return "wowstats", "allt"
+    if "warcraftlogs" not in tools or re.search(r"förmåga|formaga|ability|mekanik|alla\s+boss", low):
+        return None  # an ability or every boss: the AI says what (see WCL_PROMPT)
+    pull = re.search(r"\b(?:pull|försök|forsok)\s*(\d+)", low)
+    return "warcraftlogs", boss + (f" pull {pull.group(1)}" if pull else "")
+
+
 def own_data_question(question, tools):
     if not isinstance(question, str):
         return False
@@ -1077,7 +1109,31 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
             if notice:
                 notice(f"Söker på nätet gick inte: {e}")
     seen, checked = [str(m.get("content", "")) for m in messages if m["role"] != "assistant"], False
-    if own_system_question(asked.get("content"), tools):
+    nudged = False
+    fight = own_fight(asked.get("content"), tools, messages)
+    if fight:
+        tool, query = fight
+        name = tools[tool]["name"]
+        activity("ask", name[0].lower() + name[1:])
+        if status:
+            status(f"{name}: {query}…")
+        try:
+            text, _ = tools[tool]["run"](query)
+        except Exception as e:  # noqa: BLE001 – Warcraft Logs didn't answer: the AI may try itself
+            text = ""
+            if notice:
+                notice(f"{name} gick inte: {e}")
+        if text:
+            seen.append(text)
+            used += 1
+            LAST.tools.append((tool, query))
+            messages.append({"role": "user", "content":
+                             f"[Goblin AI hämtade det här åt dig innan du svarar ({tool} {query}) – det här skrev eller "
+                             f"klistrade användaren inte in. Det är användarens egen strid; svar från tidigare i samtalet "
+                             f"gäller inte]\n\n{text}\n\n[Slut på datan]\n\nSå här svarar du med det:\n{tools[tool]['guide']}"
+                             f"\n\nAnvändarens fråga var: \"{question}\"\nSvara utifrån det här (behöver du en annan pull "
+                             "eller en förmåga: använd verktyget igen)."})
+    elif own_system_question(asked.get("content"), tools):
         # About the computer: Goblin AI reads the named program's journal (or the errors) first –
         # the AI picked the wrong tool and made up the rest
         activity("ask", "letar i datorn")
@@ -1100,6 +1156,17 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
     while True:
         answer, service = ask_once(messages, keys, status, notice, project, choice, tools)
         request_ = tool_request(answer, tools)
+        if not request_ and not used and not nudged and own_data_question(asked.get("content"), tools):
+            # About the user's own WoW/CS2/computer/team but no tool used: in a long chat gemma4 answered "enligt
+            # Warcraft Logs dog Kaytho" without reading anything (25 Oct) – once more, told to use one
+            nudged = True
+            own = [w for w in ("warcraftlogs", "wowstats", "cs2", "sport", "systemfel", "leta") if w in tools]
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] Du svarade utan att hämta något. Frågan gäller användarens egen data – använd "
+                             f"ett verktyg ({', '.join(own)}) och svara utifrån det. Svar och data från tidigare i "
+                             f"samtalet räcker inte. Frågan var: \"{question}\""})
+            continue
         if not request_:
             missing = unsupported(answer, seen) if used else []
             if missing and not checked:

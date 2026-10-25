@@ -261,6 +261,21 @@ def find_fight(r, query):
              if w not in ("senaste", "sista", "pull", "pullen", "wipe", "wipen", "kill", "på", "vi", "den", "fight",
                           "alla", "boss", "bossen")
              and not w.isdigit() and len(w) > 2]
+    if not m and words:
+        # A boss by name: your own latest fight against it (WoW Stats' history), not the newest report that has
+        # it – a raid you joined is in someone else's report, where the boss was killed again after you left
+        # (25 Oct: haren's report, fight 33, instead of the GOBLINCAKES kill)
+        try:
+            mine = sorted((v for v in r.wow_history().values() if isinstance(v, dict) and v.get("url")
+                           and any(w in str(v.get("name", "")).lower().replace("'", "") or w in str(v.get("name", "")).lower()
+                                   for w in words)), key=lambda v: -(v.get("started") or 0))
+        except Exception:  # noqa: BLE001 – the history is only a shortcut
+            mine = []
+        own = re.search(r"reports/([A-Za-z0-9]{16})(?:#.*?fight=(\d+))?", mine[0]["url"]) if mine else None
+        if own:
+            codes = [own.group(1)]
+            wanted = int(own.group(2)) if own.group(2) and not pull else None
+            player = player or mine[0].get("player", "")
     for code in codes:
         rep = r.wcl_query("query($c:String){ reportData { report(code:$c) { code title startTime zone { name }"
                           " fights(killType: Encounters) { id name kill bossPercentage fightPercentage startTime"
