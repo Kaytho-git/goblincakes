@@ -670,6 +670,7 @@ class Backend(QObject):
             part["log"] = cmdlevel.log(code, lvl, by, exit_code, out, plan, self._id)
             self._update(index)
             self.commandLogChanged.emit()
+            self._save()  # the card is done also in the saved chat (it stayed "new" there, 25 Oct)
             self._autorun(index)
             self._command_done(index)
 

@@ -6,6 +6,7 @@ CLAUDE.md, plus the news. Only reads."""
 
 import os
 import re
+import subprocess
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -38,6 +39,33 @@ def sections(text):
         title, _, body = part.partition("\n")
         m = re.search(r"^Ord:\s*(.*)$", body, re.M)
         out.append((title.strip(), m.group(1) if m else "", body.strip()))
+    return out
+
+
+CHECK_TIMEOUT = 10
+OWN_PATH = re.compile(r"(?:/usr/libexec/goblincakes-[\w.-]+|/usr/bin/goblin[\w.-]*|/usr/share/goblincakes/[\w./-]+)")
+
+
+def run_checks(body):
+    """The part's `Kontroll:` commands run now (only ones cmdlevel calls reading), with their output – and every
+    GOBLINCAKES path in it that doesn't exist marked (25 Oct: gemma4 skipped "compare the path in the widget's
+    code" and suggested a restart; a check that is always run doesn't get skipped)."""
+    import cmdlevel  # noqa: PLC0415 – next to this file
+    out = []
+    for cmd in re.findall(r"^Kontroll:\s*`(.+)`\s*$", body, re.M):
+        if cmdlevel.level(cmd)[0] != "read":
+            continue
+        try:
+            proc = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=CHECK_TIMEOUT)
+            text = (proc.stdout + proc.stderr).strip() or "(inget)"
+        except (OSError, subprocess.TimeoutExpired) as e:
+            text = f"(gick inte: {e})"
+        text = text.replace(str(Path.home()), "~")
+        missing = sorted({p.rstrip(".,:;\"'") for p in OWN_PATH.findall(text)
+                          if not Path(p.rstrip(".,:;\"'")).exists()})
+        if len(text) > 1500:
+            text = text[:1500] + "…"
+        out.append(f"$ {cmd}\n{text}" + "".join(f"\nFINNS INTE: {m}" for m in missing))
     return out
 
 
@@ -136,7 +164,11 @@ def lookup(query):
     out = ["Kartan över GOBLINCAKES (fakta om systemet – följ den):"]
     if not any(s > 0 for s, _ in ranked):
         out.append("Ingen del passade orden \"" + query + "\". Delarna: " + ", ".join(p[0] for p in parts) + ".")
-    out += [f"## {title}\n{body}" for title, _, body in best]
+    for n, (title, _, body) in enumerate(best):
+        out.append(f"## {title}\n" + re.sub(r"^Kontroll:.*\n?", "", body, flags=re.M).strip())
+        checks = run_checks(body) if n == 0 and any(s > 0 for s, _ in ranked) else []  # the best part only
+        if checks:
+            out.append(f"Kontrollerat nu ({title}):\n" + "\n\n".join(checks))
     repo = find_repo()
     if repo:
         pieces = repo_pieces(repo, query)

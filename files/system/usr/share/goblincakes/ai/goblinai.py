@@ -649,7 +649,10 @@ man kollar den."""
 KNOWLEDGE_GUIDE = """
 Följ kartan: kontrollera det delen bygger på i den ordning kartan säger (kör hjälpprogrammet, läs filen eller
 loggen), jämför med vad koden förväntar sig och rätta bara det som skiljer, i användarens egna filer. Gissa inte
-på delar kartan inte nämner."""
+på delar kartan inte nämner.
+Visar "Kontrollerat nu" redan felet (t.ex. FINNS INTE vid en sökväg, och raden med den i en fil): säg vad som är
+fel och ge rättningen direkt (ett ```bash-block med sed -i på just den raden, sedan det som behövs för att
+ändringen ska gälla). Läs inte om hela filen för att bekräfta – raden står redan där."""
 
 SYSTEM_ERRORS_PROMPT = """
 
@@ -1204,6 +1207,7 @@ BROKEN = re.compile(r"\b(?:syns|visas|hörs|startar|fungerar|funkar|går|öppnas
                     r"|\b(?:inte|ej)\b.{0,15}\b(?:syns|visas|hörs|startar|fungerar|funkar|öppnas)\b"
                     r"|\b(?:slutat|försvunnit|försvann|borta|trasig\w*|sönder|buggar|bugg\w*)\b"
                     r"|\b(?:kan du|kolla|fixa|laga|rätta)\b.{0,40}\b(?:varför|fel|problem)"
+                    r"|\b(?:fel(?:et)?|problemet)\b.{0,15}\bkvar\b|\bfortfarande\b.{0,25}\b(?:inte|fel|samma)\b"
                     r"|\b(?:fixa|laga)\b|\b(?:ger|får|blir|visar)\s+(?:ett\s+|massa\s+|en\s+)?(?:fel|error|bugg)\w*", re.I)
 
 

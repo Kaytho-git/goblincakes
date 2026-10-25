@@ -338,6 +338,17 @@ def _nmcli(args):
     return ""
 
 
+def _sed(args):
+    """Only `sed -n 'A,Bp' file` (print lines): sed can also write files (-i, w, e)."""
+    if any(a.startswith("-") and a not in ("-n", "--quiet", "--silent", "-E", "-r") for a in _opts(args)):
+        return "en flagga som kan ändra"
+    if not has_opt(args, "n", ("--quiet", "--silent")):
+        return "sed utan -n"
+    p = positional(args)
+    script_ok = re.compile(r"^(?:\d+|\$)(?:,(?:\d+|\$))?p$|^/[^/;]*/(?:,/[^/;]*/)?p$")
+    return "" if p and all(script_ok.match(part.strip()) for part in p[0].split(";")) else "ett sed-skript som kan ändra"
+
+
 def _git(args):
     if has_opt(args, "c", ("--exec-path", "--output", "--config-env")):
         return "en flagga som kan köra eller skriva"
@@ -400,6 +411,7 @@ READ = {
     "uniq": at_most(1),
     "xxd": at_most(1),
     "tree": deny("o"),
+    "sed": _sed,
     "iconv": deny("o", ("--output",)),
     "rg": deny("", ("--pre", "--pre-glob")),
     "find": lambda a: next((f"find {x}" for x in a if x in {"-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint",

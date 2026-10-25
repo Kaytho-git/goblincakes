@@ -2,7 +2,8 @@
 
 Hur GOBLINCAKES delar hänger ihop: vad varje del gör, vilka filer, hjälpprogram, tjänster och loggar den har,
 hur man kollar den och vanliga fel. Läses av verktyget `goblincakes`. En del per `##`, `Ord:` = vad man kan
-kalla delen. Håll varje del kort – detaljer står i koden.
+kalla delen. `Kontroll:` = ett kommando som bara läser – verktyget kör det och skickar med svaret (och säger
+till om en GOBLINCAKES-sökväg i svaret inte finns). Håll varje del kort – detaljer står i koden.
 
 ## Allmänt: så felsöker du GOBLINCAKES
 Ord: felsöka, fungerar inte, syns inte, trasig, slutat, system, atomiskt, rollback, logg, journal
@@ -18,6 +19,9 @@ Ord: felsöka, fungerar inte, syns inte, trasig, slutat, system, atomiskt, rollb
   sessionen. Plasmas widgetar och toppfält loggar under `plasma-plasmashell`.
 - Ordning: 1) vad ska delen göra, 2) kör/läs det den bygger på (hjälpprogram, fil, tjänst), 3) jämför med vad
   koden förväntar sig (sökvägar, namn), 4) rätta det som skiljer – bara i användarens egna filer.
+- En omstart är ingen förklaring: föreslå den först när du har hittat och rättat det som var fel.
+- Står det FINNS INTE vid en sökväg i kontrollen: den filen eller det programmet saknas – jämför stavningen
+  med de som finns (`ls`), det är oftast felet.
 - Tillbaka till förra systemet efter en dålig uppdatering: `rpm-ostree rollback` och starta om.
 
 ## Toppfältet: widgeten Spelas nu
@@ -35,6 +39,8 @@ Ord: toppfält, toppfältet, panel, widget, spelas nu, nowplaying, batteri, ladd
   kopian) och jämför exakt med programmets namn: `grep -n Command <main.qml>` och `ls /usr/libexec/goblincakes-*`.
   Är programmet rätt men inget syns, ligger felet i widgeten.
 - En ändrad widget läses in först efter `systemctl --user restart plasma-plasmashell` (toppfältet blinkar till).
+Kontroll: `/usr/libexec/goblincakes-device-battery`
+Kontroll: `grep -n 'Command:' /usr/share/plasma/plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml ~/.local/share/plasma/plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml`
 - Enheter utan batteri i UPower (många sladdade headset) syns inte – det är inget fel.
 
 ## Toppfältet: uppdateringspilen och uppdateringar
@@ -46,6 +52,7 @@ Ord: uppdatering, uppdatera, update, grön pil, pilen, goblin update, automatisk
 - Automatiska uppdateringar: reglage i Config → Uppdatera. Under spel väntar de (spelläget).
 - Uppdatera och stäng av: /usr/libexec/goblincakes-update-poweroff, logg ~/.local/state/goblincakes/update-poweroff.log.
 - Kolla: `rpm-ostree status` (vilken version, väntar en på omstart?), `journalctl --user -u goblincakes-updates`.
+Kontroll: `cat ~/.cache/goblincakes/updates.json`
 
 ## Dockan och AppGrid
 Ord: docka, dockan, aktivitetsfält, appgrid, programmeny, meta+z, ikoner nere
@@ -76,6 +83,7 @@ Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne
 - Tjänsten goblincakes-ollama (/usr/libexec/goblincakes-ollama serve), inställningar ~/.config/goblincakes/ollama.json.
 - Stängs medan ett spel kör (frigör grafikminnet) och startar igen efteråt.
 - Kolla: `systemctl --user status goblincakes-ollama`, `journalctl --user -u goblincakes-ollama -n 50`.
+Kontroll: `systemctl --user is-active goblincakes-ollama`
 
 ## GoblinRecorder
 Ord: goblinrecorder, recorder, inspelning, spela in, obs, film, raid, mythic, m+, nyckel, cs2 klipp, wow stats, cs2 stats
@@ -85,6 +93,8 @@ Ord: goblinrecorder, recorder, inspelning, spela in, obs, film, raid, mythic, m+
   ~/.config/goblincakes/recorder-on. Historik ~/.local/share/goblincakes/wow-history.json och cs2-history.json.
 - Kolla: `systemctl --user status goblincakes-recorder`, `journalctl --user -u goblincakes-recorder -n 80`
   (varför en inspelning inte startade står där). Kräver OBS (Flatpak).
+Kontroll: `systemctl --user is-active goblincakes-recorder`
+Kontroll: `journalctl --user -u goblincakes-recorder -n 15 --no-pager`
 
 ## GoblinAmp
 Ord: goblinamp, amp, musikspelare, winamp, spotify, spellista, låtar, mediatangenter
@@ -103,6 +113,7 @@ Ord: spelläge, gamemode, spel, prestanda, lagg, fps, wowup stängs, akonadi, ba
   GameMode, uppdateringar väntar, Akonadi/Baloo vilar, WoWUp stängs medan WoW kör. Allt återställs efter spelet.
 - Vad som räknas som spel: /usr/share/goblincakes/gaming.py. Reglage: Config → Inställningar → Spel.
 - Kolla: `goblincakes-gameguard status` (/usr/libexec/), `journalctl --user -u goblincakes-gameguard -n 50`.
+Kontroll: `/usr/libexec/goblincakes-gameguard status`
 
 ## goblin frames och MangoHud
 Ord: frames, fps, mangohud, 1% low, ryck, stutter, frametider
@@ -132,6 +143,7 @@ Ord: discord, röstkanal, vencord, discord-tema
   `goblin update --only discord`. Röstkanalen i toppfältet: /usr/libexec/goblincakes-discord-voice.
 - GOBLINCAKES-utseendet (Vencord) är ett eget val i Config; tjänsten goblincakes-vencord lägger in det igen efter
   Discord-uppdateringar (/usr/libexec/goblincakes-vencord status/ensure).
+Kontroll: `/usr/libexec/goblincakes-discord-voice`
 
 ## Ianseo
 Ord: ianseo, bågskytte, tävling, resultat, container
