@@ -477,6 +477,16 @@ READ = {
     "git": _git,
     "goblin": _goblin,
 }
+# GOBLINCAKES' own helpers that only read (the map tells the AI to run them by hand to see what they answer)
+LIBEXEC_READ = {
+    "goblincakes-device-battery": only(), "goblincakes-discord-voice": only(), "goblincakes-ai-activity": only(),
+    "goblincakes-gameguard": lambda a: "" if a == ["status"] else "gameguard ändrar",
+    "goblincakes-vencord": lambda a: "" if a == ["status"] else "vencord ändrar",
+    "goblincakes-ianseo": lambda a: "" if len(a) == 2 and a[0] in ("network", "internet") and a[1] in ("status", "url")
+    else "ianseo ändrar",
+    "goblincakes-gpu": lambda a: "" if a in (["status"], ["hw"]) else "gpu ändrar",
+}
+
 # Unquoted * ? [ are fine for these (a file name that starts with - can't make them write); others are a change
 GLOB_OK = {"ls", "cat", "head", "tail", "wc", "stat", "du", "grep", "egrep", "fgrep", "zgrep", "zcat", "xzcat",
            "md5sum", "sha1sum", "sha256sum", "sha512sum", "strings", "readlink", "realpath", "lsattr", "getfacl", "echo", "test", "["}
@@ -497,6 +507,8 @@ def read_reason(words, redirs):
     name, args = words[0]["t"], [w["t"] for w in words[1:]]
     if re.match(r"^[A-Za-z_]\w*=", name):
         return "sätter en variabel"
+    if name.startswith("/usr/libexec/goblincakes-") and name[len("/usr/libexec/"):] in LIBEXEC_READ:
+        return LIBEXEC_READ[name[len("/usr/libexec/"):]](args)
     if "/" in name:
         return f"kör {name}"
     if name not in READ:
@@ -724,6 +736,15 @@ def trash_restore(paths):
             cmds.append(f"mkdir -p {shlex.quote(str(done))} && mv -n -- {shlex.quote(str(trash / 'files' / info.stem))} "
                         f"{shlex.quote(str(path))} && mv -- {shlex.quote(str(info))} {shlex.quote(str(done))}/")
     return cmds
+
+
+def shorten(output, keep=6000):
+    """Long output for the AI: the end (usually what matters) – and how to read the part it didn't get (a 28 KB
+    `cat main.qml` hid the line that mattered, 25 Oct)."""
+    if len(output) <= keep:
+        return output
+    return (f"…(början utelämnad: utskriften var {len(output)} tecken, här är bara slutet. Läs en viss del med "
+            "`grep -n 'ord' fil` eller `sed -n '100,160p' fil` i stället för hela filen)…\n" + output[-keep:])
 
 
 # ── The log ─────────────────────────────────────────────────────────

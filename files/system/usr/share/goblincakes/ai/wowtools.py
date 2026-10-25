@@ -177,8 +177,14 @@ def wow_errors(query=""):
         current = " (senaste spelpasset)" if e.get("session") == session else ""
         ver = addon_version(game, addon) if m and not addon.startswith("Blizzard_") else ""
         stack = "\n".join(str(e.get("stack", "")).splitlines()[:6])
-        lines.append(f"### {addon}{' ' + ver if ver else ''} – {version}, {when}{current}, {e.get('counter', 1)} gånger\n"
-                     f"{message}\n" + (f"Stack:\n{stack}" if stack else ""))
+        folder = game / "Interface/AddOns" / addon
+        # The user's own add-on (a git folder, 25 Oct): fixed here, not "update it / tell its maker"
+        mine = (f"\nDitt eget tillägg (git-mapp): {folder} – rätta felet i filen själv (Interface/AddOns/… i felet = "
+                f"{game}/Interface/AddOns/…); `git -C \"{folder}\" diff` visar vad som ändrats sedan senaste commit."
+                if (folder / ".git").exists() else "")
+        old = "" if current else " – GAMMALT FEL (inte från senaste spelpasset; kan redan vara rättat)"
+        lines.append(f"### {addon}{' ' + ver if ver else ''} – {version}, {when}{current}{old}, {e.get('counter', 1)} gånger\n"
+                     f"{message}\n" + (f"Stack:\n{stack}" if stack else "") + mine)
         if len(lines) >= 8:
             break
     if not lines:

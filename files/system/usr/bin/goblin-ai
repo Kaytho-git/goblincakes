@@ -722,8 +722,7 @@ class Backend(QObject):
                 report.append(f"$ {s['code']}\n(användaren valde att inte köra det)")
             else:
                 out = s.get("output", "")
-                if len(out) > 6000:
-                    out = "…(början utelämnad)…\n" + out[-6000:]
+                out = goblinai.cmd_level().shorten(out)
                 report.append(f"$ {s['code']}\n{out}\n(avslutskod {s.get('code_result', '?')})")
         self._api.append({"role": "user", "content": "Så här gick det:\n\n" + "\n\n".join(report)
                           + f"\n\n(Mappen nu: {self._cwd})"

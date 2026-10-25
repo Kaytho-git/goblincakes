@@ -598,8 +598,15 @@ Du får då felen som BugSack har sparat."""
 
 WOW_ERRORS_GUIDE = """
 Förklara vilket tillägg som orsakar felet (titta i stacken –
-Blizzard_-filer är sällan boven) och vad användaren kan göra: uppdatera tillägget (WowUp), stänga av det,
-eller rapportera felet till den som gjort tillägget. Föreslå aldrig att ändra WoW:s egna filer."""
+Blizzard_-filer är sällan boven).
+- Står det "Ditt eget tillägg": rätta det själv. Läs raden i felet (`sed -n 'N-5,N+5p' fil`), jämför med
+  `git -C <mappen> diff`, rätta med ett ```bash-block (`sed -i`, användaren trycker Tillåt – filen säkerhetskopieras),
+  och be användaren skriva /reload i spelet och prova igen.
+- Andras tillägg: uppdatera det (WowUp), stäng av det eller rapportera felet till den som gjort det.
+- Står det GAMMALT FEL: säg när det var, och be användaren göra om det som inte fungerar i spelet och sedan
+  /reload, så att det nya felet sparas – gissa inte utifrån ett gammalt fel. Är det användarens eget tillägg:
+  kör samtidigt `git -C <mappen> diff` (läser bara) – en ny ändring kan vara orsaken även utan nytt fel.
+- Föreslå aldrig att ändra WoW:s egna filer. `goblin wow` uppdaterar inget (det länkar bara WoW-mapparna)."""
 
 WCL_PROMPT = """
 
@@ -630,6 +637,19 @@ Regler för svaret (viktigt):
 - Analysera: i vilken ordning och av vad folk dog (de första dödsfallen avgör oftast), skada från
   förmågor som går att undvika, om cooldowns kom i tid, och jämför med de andra pullsen.
 Var konkret och vänlig – häng inte ut någon. Användarens karaktär står i datan."""
+
+KNOWLEDGE_PROMPT = """
+
+Kunskap om GOBLINCAKES: gäller frågan en del av GOBLINCAKES (toppfältet, dockan, Config, goblin-kommandon,
+GoblinRecorder, GoblinAmp, Goblin AI, spelläget, uppdateringar, Ianseo, tillägg i WoW …) – och alltid när något
+där inte fungerar – svara FÖRST med BARA ett kodblock märkt ```goblincakes med delen eller orden (t.ex.
+`musens batteri i toppfältet`). Du får kartan: vad delen gör, filer, hjälpprogram, tjänster, loggar och hur
+man kollar den."""
+
+KNOWLEDGE_GUIDE = """
+Följ kartan: kontrollera det delen bygger på i den ordning kartan säger (kör hjälpprogrammet, läs filen eller
+loggen), jämför med vad koden förväntar sig och rätta bara det som skiljer, i användarens egna filer. Gissa inte
+på delar kartan inte nämner."""
 
 SYSTEM_ERRORS_PROMPT = """
 
@@ -752,6 +772,13 @@ och störst skillnad mellan bäst och median = ojämnt), säg vad som går bra, 
 med warcraftlogs-verktyget för en viss boss. Hitta inte på siffror."""
 
 
+def knowledge():
+    """The map of GOBLINCAKES (knowledge.py, point 11): the image's karta.md + the repo's notes when it is here."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import knowledge as k  # noqa: PLC0415
+    return k
+
+
 def sys_tools():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import systools  # noqa: PLC0415
@@ -840,6 +867,14 @@ def tools_for(keys, project, messages):
                           "sport", "När användaren frågar om ett lags ställning, tabell, senaste eller nästa match (NHL, NBA, NFL, "
                           "MLB, WNBA, MLS och de stora fotbollsligorna inklusive Allsvenskan) – exakta siffror från ESPN, "
                           "i stället för att söka eller gissa.", "Lagets namn")
+    tools["goblincakes"] = tool("Läser kartan över GOBLINCAKES", KNOWLEDGE_PROMPT, KNOWLEDGE_GUIDE,
+                                lambda q: (knowledge().lookup(q), []), "goblincakes",
+                                "Kartan över GOBLINCAKES: hur en del hänger ihop – vad den gör, dess filer, hjälpprogram, "
+                                "tjänster och loggar, hur man kollar den och vanliga fel. När användaren frågar om en del av "
+                                "GOBLINCAKES (toppfältet, dockan, Config, goblin-kommandon, GoblinRecorder, GoblinAmp, "
+                                "spelläget, uppdateringar, Ianseo, WoW-tillägg …) och ALLTID FÖRST när något där inte "
+                                "fungerar (\"musens batteri syns inte i toppfältet\", \"GoblinRecorder spelar inte in\") – "
+                                "innan du letar eller gissar.", "Delen eller orden, t.ex. `musens batteri i toppfältet`")
     tools["systemfel"] = tool("Läser datorns fel", SYSTEM_ERRORS_PROMPT, SYSTEM_ERRORS_GUIDE,
                               lambda q: (sys_tools().system_errors(q), []), "systemfel",
                               "När användaren frågar om fel, krascher eller något som strular i datorn (\"Steam kraschar\", "
@@ -909,7 +944,8 @@ TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel
               "wowstats": "wowstats", "wow-stats": "wowstats", "parses": "wowstats",
               "cs2": "cs2", "counterstrike": "cs2", "cs": "cs2",
               "systemfel": "systemfel", "system-fel": "systemfel", "systemlogg": "systemfel",
-              "leta": "leta", "hitta": "leta", "look": "leta"}
+              "leta": "leta", "hitta": "leta", "look": "leta",
+              "goblincakes": "goblincakes", "karta": "goblincakes", "kartan": "goblincakes"}
 
 # With real tool calls the system prompt only gets this – the tools describe themselves
 TOOLS_PROMPT = """
@@ -920,6 +956,7 @@ du får svaret och kan sedan svara eller använda ett verktyg till. Frågor om a
 besvaras med de verktygen, inte med en sökning på nätet – och säg inte "vet inte" förrän du har letat.
 En sökväg eller fil i frågan läser du med las_fil/visa_mapp. GOBLINCAKES egna program har sina inställningar
 i ~/.config/goblincakes/ (recorder.json = GoblinRecorder, amp.json = GoblinAmp) – läs filen i stället för att fråga.
+Gäller frågan en del av GOBLINCAKES som inte fungerar: läs kartan (goblincakes) först, följ sedan dess väg.
 Använd inget verktyg för vanligt prat."""
 
 
@@ -1199,8 +1236,8 @@ def own_data_question(question, tools):
 
 def fresh_question(question):
     """The question is about something that may have changed: the words above, or this or last year."""
-    if not isinstance(question, str):
-        return False
+    if not isinstance(question, str) or question.startswith("Så här gick det:"):
+        return False  # what the commands printed ("updated: sön 25 okt 2026") isn't a question (searched, 25 Oct)
     text = question[:600]  # the typed question, not an attached file below it
     text = sys_tools().PATH_IN_TEXT.sub("", text)  # /etc/os-release isn't news (25 Oct)
     year = date.today().year
@@ -1378,7 +1415,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             messages.append({"role": "user", "content":
                              "[Goblin AI] Du gav allmänna råd utan att undersöka något. Ta reda på det själv på datorn: "
                              f"läs de filer, inställningar och loggar som hör till det som inte fungerar (verktygen "
-                             f"{', '.join(w for w in ('leta', 'systemfel', 'wowfel') if w in tools)}, eller ett läsande "
+                             f"{', '.join(w for w in ('goblincakes', 'leta', 'systemfel', 'wowfel') if w in tools)} "
+                             "– kartan goblincakes först om det gäller GOBLINCAKES – eller ett läsande "
                              "```bash-block) – sedan vad som är fel och hur det rättas. "
                              f"Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
@@ -2428,7 +2466,8 @@ def words(text):
 TOOL_HINTS = {"warcraftlogs": r"logs?\b|pull|boss|wcl|wipe|kill", "wowfel": r"bugsack|lua|tillägg|addon|fel i wow",
               "sport": r"\blag\b|match|tabell|serie", "systemfel": r"krasch|fel|startar inte|journal",
               "leta": r"logg|fil|mapp|hitta|leta|inställning",
-              "sök": r"senaste|nyheter|patch|pris"}
+              "sök": r"senaste|nyheter|patch|pris",
+              "goblincakes": r"goblincakes|toppfält|widget|docka|config|recorder|goblinamp|spelläge|syns inte|fungerar inte"}
 
 
 def lessons_for(question, project=None):

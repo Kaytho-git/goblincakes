@@ -145,8 +145,7 @@ def run_blocks(blocks):
         if plan and plan["undo"]:
             muted("(går att ångra i Goblin AI → AI-tjänster → Körda kommandon)")
         # Long output: the AI gets the end, which is usually what matters
-        if len(output) > 6000:
-            output = "…(början utelämnad)…\n" + output[-6000:]
+        output = levels.shorten(output)
         results.append(f"$ {block}\n{output}(avslutskod {code})")
     return results
 
