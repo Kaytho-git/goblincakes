@@ -350,6 +350,8 @@ class Backend(QObject):
     searchNextChanged = Signal()
     lessonsChanged = Signal()
     _hearted = Signal(str, int, str)  # conversation id, message index, the saved lesson (JSON, "" = failed)
+    commandLogChanged = Signal()
+    _undone = Signal(str)  # log entry id
 
     def __init__(self):
         super().__init__()
@@ -391,6 +393,10 @@ class Backend(QObject):
         self._modelsLoaded.connect(self._on_models)
         self._shooting = False
         self._shotDone.connect(self._on_shot)
+        self._auto_count = 0  # reading commands run at once since the user last asked
+        self._blocked_told = False  # the AI was told about a stopped command for this question
+        self._undoing = set()
+        self._undone.connect(self._on_undone)
 
     # ── Conversation ──────────────────────────────────────────
 
@@ -506,6 +512,7 @@ class Backend(QObject):
                 shown["file"] = Path(path).name
         self._display.append(shown)
         self.messageAdded.emit(json.dumps(shown))
+        self._auto_count, self._blocked_told = 0, False
         question = {"role": "user", "content": content}
         if images:
             question["images"] = images
@@ -580,6 +587,8 @@ class Backend(QObject):
         self._start_images(len(self._display) - 1)
         self._quick_answered()
         self._daily_done()
+        self._autorun(len(self._display) - 1)
+        self._command_done(len(self._display) - 1)  # only stopped commands: the AI hears why at once
 
     def _on_failure(self, message):
         self._stop = None
@@ -601,19 +610,35 @@ class Backend(QObject):
 
     @Slot(int, int)
     def runCommand(self, index, seg):
+        """Tillåt / Kör on a command card."""
+        self._run_command(index, seg, auto=False)
+
+    def _run_command(self, index, seg, auto):
         part = self._display[index]["segments"][seg]
-        if part["state"] != "new" or self._busy:
+        if part["state"] != "new" or (self._busy and not auto):
             return
+        if any(s.get("state") == "running" for s in self._display[index]["segments"]):
+            return  # one at a time: they run in order, in the same folder
         code = part["code"]
+        cmdlevel = goblinai.cmd_level()
+        lvl = part.get("level") or cmdlevel.level(code)[0]  # cards saved before 25 Oct have no level
+        if lvl == "danger":
+            return
+        plan = cmdlevel.prepare(code, self._cwd) if lvl == "change" else None
+        by = "auto" if auto else "du"
         if "sudo" in code or "read " in code:
             # Needs a password or answers: run it in a terminal the user can type in
             script = (goblinai.command_script(code, self._cwd)
                       + "\necho\nread -rp 'Klart – tryck Enter för att stänga… ' _")
             QProcess.startDetached("/usr/libexec/goblincakes-terminal", ["run", "bash", "-c", script])
             part.update(state="done", output="Körs i ett terminalfönster (behöver ditt lösenord eller svar).")
+            part["log"] = cmdlevel.log(code, lvl, by, None, "(i ett terminalfönster)", plan, self._id)
             self._update(index)
+            self.commandLogChanged.emit()
             return self._command_done(index, ran_in_terminal=True)
         part["state"] = "running"
+        if auto:
+            part["auto"] = True
         self._update(index)
         proc = QProcess(self)
         proc.setProcessChannelMode(QProcess.MergedChannels)
@@ -623,19 +648,48 @@ class Backend(QObject):
         env.insert("GOBLIN_CWD_FILE", cwd_file)
         proc.setProcessEnvironment(env)
         self._procs[(index, seg)] = proc
+        timed_out = []
+        if auto:  # run at once: a reading command that hangs (ping, tail -f …) is stopped after a while
+            def too_long(proc=proc):
+                if proc.state() != QProcess.NotRunning:
+                    timed_out.append(True)
+                    proc.kill()
+            QTimer.singleShot(cmdlevel.AUTO_TIMEOUT * 1000, too_long)
 
         def finished(exit_code, _status, index=index, seg=seg):
             p = self._procs.pop((index, seg))
             self._cwd = goblinai.read_cwd(cwd_file, self._cwd)
             Path(cwd_file).unlink(missing_ok=True)
-            out = bytes(p.readAllStandardOutput()).decode(errors="replace")
+            out = bytes(p.readAllStandardOutput()).decode(errors="replace").strip()
+            if timed_out:
+                out += f"\n(stoppat efter {cmdlevel.AUTO_TIMEOUT} s)"
+            if plan and plan["trash"]:
+                plan["undo"] = cmdlevel.trash_restore(plan["trash"]) + plan["undo"]
             part = self._display[index]["segments"][seg]
             part.update(state="done", output=out.strip(), code_result=exit_code)
+            part["log"] = cmdlevel.log(code, lvl, by, exit_code, out, plan, self._id)
             self._update(index)
+            self.commandLogChanged.emit()
+            self._autorun(index)
             self._command_done(index)
 
         proc.finished.connect(finished)
         proc.start("bash", ["-c", goblinai.command_script(code, self._cwd)])
+
+    def _autorun(self, index):
+        """Reading commands (cmdlevel "read") run at once, in order: the next card that's waiting, if it only reads
+        and none before it is still running – up to STEP_LIMIT in a row per question (AI-tjänster can turn it off)."""
+        parts = self._display[index]["segments"]
+        if not goblinai.cmd_level().autorun() or any(s.get("state") == "running" for s in parts):
+            return
+        seg = next((k for k, s in enumerate(parts) if s["type"] == "command" and s["state"] == "new"), None)
+        if seg is None or parts[seg].get("level") != "read":
+            return
+        if self._auto_count >= goblinai.STEP_LIMIT:
+            parts[seg]["note"] = f"{goblinai.STEP_LIMIT} kommandon i rad – tryck Kör för att fortsätta"
+            return self._update(index)
+        self._auto_count += 1
+        self._run_command(index, seg, auto=True)
 
     @Slot(int, int)
     def skipCommand(self, index, seg):
@@ -643,18 +697,28 @@ class Backend(QObject):
         if part["state"] == "new":
             part["state"] = "skipped"
             self._update(index)
+            self._autorun(index)
             self._command_done(index)
 
     def _command_done(self, index, ran_in_terminal=False):
         """When every command card in the answer is run or skipped: tell the AI how it went."""
-        parts = [s for s in self._display[index]["segments"] if s["type"] == "command"]
+        segs = self._display[index]["segments"]
+        parts = [s for s in segs if s["type"] in ("command", "blocked")]
         if any(s["state"] in ("new", "running") for s in parts):
             return
-        if all(s["state"] == "skipped" for s in parts):
-            return
+        if all(s["state"] in ("skipped", "blocked") for s in parts):
+            # Only stopped (can't be undone) or skipped: the AI hears about the stopped ones once per question,
+            # so it can do it the safe way (gio trash) or say it's something for the user and Claude
+            if not any(s["state"] == "blocked" for s in parts) or self._blocked_told:
+                return
+            self._blocked_told = True
         report = []
         for s in parts:
-            if s["state"] == "skipped":
+            if s["state"] == "blocked":
+                report.append(f"$ {s['code']}\n(STOPPAT, kördes inte: {s.get('why', 'går inte att ångra')}. "
+                              "Gör det på ett sätt som går att ångra – ta bort med gio trash – eller säg att det är "
+                              "något för användaren och Claude.)")
+            elif s["state"] == "skipped":
                 report.append(f"$ {s['code']}\n(användaren valde att inte köra det)")
             else:
                 out = s.get("output", "")
@@ -665,6 +729,55 @@ class Backend(QObject):
                           + f"\n\n(Mappen nu: {self._cwd})"
                           + "\n\nFortsätt med nästa steg, eller säg kort att det är klart."})
         self._ask()
+
+    # ── The command log (AI-tjänster → Körda kommandon) and running reading commands at once ─────
+
+    @Property(str, notify=commandLogChanged)
+    def commandLog(self):
+        return json.dumps(goblinai.cmd_level().load_log())
+
+    @Property(bool, notify=commandLogChanged)
+    def autorun(self):
+        return goblinai.cmd_level().autorun()
+
+    @Slot(bool)
+    def setAutorun(self, on):
+        goblinai.cmd_level().set_autorun(on)
+        self.commandLogChanged.emit()
+
+    @Slot(str)
+    def undoCommand(self, entry_id):
+        """Ångra in the log: its undo commands run (the click is the Tillåt), and the log says it was undone."""
+        cmdlevel = goblinai.cmd_level()
+        entry = next((e for e in cmdlevel.load_log(10_000) if e.get("id") == entry_id), None)
+        if not entry or not entry.get("undo") or entry.get("undone") or entry_id in self._undoing:
+            return
+        self._undoing.add(entry_id)
+        self.commandLogChanged.emit()
+
+        def work():
+            try:
+                proc, _ = goblinai.run_in_folder(entry["undo"], str(Path.home()), capture_output=True, text=True,
+                                                 timeout=120)
+                out, code = ((proc.stdout or "") + (proc.stderr or "")).strip(), proc.returncode
+            except (OSError, subprocess.TimeoutExpired) as e:
+                out, code = f"Gick inte: {e}", -1
+            if code == 0:
+                cmdlevel.mark_undone(entry_id, out or "Klart.")
+            else:  # not marked as undone: the button stays, the log shows why
+                self.notice.emit(f"Ångra gick inte (fel {code}): {out[-300:]}")
+            cmdlevel.log(entry["undo"], "change", "ångra", code, out, None, entry.get("conv", ""))
+            self._undone.emit(entry_id)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_undone(self, entry_id):
+        self._undoing.discard(entry_id)
+        self.commandLogChanged.emit()
+
+    @Property(str, notify=commandLogChanged)
+    def undoing(self):
+        return json.dumps(sorted(self._undoing))
 
     # ── Screenshots (16 Oct): the button by Skicka, or the AI's card (Tillåt / Nej) ─────────
 

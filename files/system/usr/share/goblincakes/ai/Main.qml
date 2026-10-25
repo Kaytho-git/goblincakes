@@ -1350,7 +1350,7 @@ Window {
                                     height: segItem.s.type === "text" ? 0 : cardCol.height + 32
                                     color: "#0E1420"
                                     border.width: 1
-                                    border.color: segItem.s.type === "command" && segItem.s.danger ? accent.error
+                                    border.color: segItem.s.type === "blocked" ? accent.error
                                         : segItem.s.state === "running" ? accent.color : "#1E2A40"
 
                                     Column {
@@ -1361,18 +1361,21 @@ Window {
                                         spacing: 12
 
                                         Label {
-                                            text: segItem.s.type === "command" ? (segItem.s.danger ? "KOMMANDO – ÄNDRAR SYSTEMET, LÄS IGENOM" : "KOMMANDO")
+                                            // Three levels (25 Oct): reads = runs at once, changes = Tillåt, can't be undone = stopped
+                                            text: segItem.s.type === "command" ? (segItem.s.level === "read" ? "KOMMANDO – LÄSER" + (segItem.s.auto ? " · KÖRDES DIREKT" : "")
+                                                                                  : segItem.s.level === "change" ? "KOMMANDO – ÄNDRAR NÅGOT, BEHÖVER DITT OK" : "KOMMANDO")
+                                                : segItem.s.type === "blocked" ? "STOPPAT – GÅR INTE ATT ÅNGRA"
                                                 : segItem.s.type === "image" ? (segItem.s.report ? "RAPPORT" : "BILD")
                                                 : segItem.s.type === "shot" ? "SKÄRMBILD"
                                                 : segItem.s.type === "memory" ? "MINNE"
                                                 : segItem.s.type === "forget" ? "MINNE – GLÖMT"
                                                 : segItem.s.type === "file" ? "NY VERSION AV " + segItem.s.name.toUpperCase()
                                                 : (segItem.s.lang ? segItem.s.lang.toUpperCase() : "TEXT")
-                                            color: segItem.s.type === "command" && segItem.s.danger ? "#E8A0A4" : "#8B98AD"
+                                            color: segItem.s.type === "blocked" ? "#E8A0A4" : "#8B98AD"
                                         }
 
                                         CodeBox {
-                                            visible: ["image", "shot", "memory", "forget"].indexOf(segItem.s.type) < 0
+                                            visible: ["image", "shot", "memory", "forget", "blocked"].indexOf(segItem.s.type) < 0
                                             code: segItem.s.code || ""
                                             maxHeight: segItem.s.type === "file" ? 320 : 220
                                         }
@@ -1556,28 +1559,48 @@ Window {
                                             }
                                         }
 
-                                        // Command: run / skip, then the output
+                                        // Stopped: something that can't be undone – not shown as something to copy, only why
+                                        Text {
+                                            visible: segItem.s.type === "blocked"
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            text: (backend.aiName || "Goblin AI") + " föreslog något som " + (segItem.s.why || "inte går att ångra")
+                                                  + ". Det körs inte – sådant gör du och Claude."
+                                            color: "#E6ECF5"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 14
+                                        }
+
+                                        // Command: Tillåt / Nej (changes) or Kör / Hoppa över (reads, when not run at once), then the output
+                                        Text {
+                                            visible: segItem.s.type === "command" && segItem.s.state === "new" && !!segItem.s.note
+                                            text: segItem.s.note || ""
+                                            color: "#8B98AD"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 13
+                                        }
                                         Row {
                                             visible: segItem.s.type === "command" && segItem.s.state === "new"
                                             spacing: 10
                                             FlatButton {
                                                 primary: true
                                                 small: true
-                                                text: "Kör"
+                                                text: segItem.s.level === "change" ? "Tillåt" : "Kör"
                                                 enabledState: !backend.busy
                                                 onClicked: backend.runCommand(msgItem.index, segItem.index)
                                             }
                                             FlatButton {
                                                 small: true
-                                                text: "Hoppa över"
+                                                text: segItem.s.level === "change" ? "Nej" : "Hoppa över"
                                                 onClicked: backend.skipCommand(msgItem.index, segItem.index)
                                             }
                                         }
                                         Text {
                                             visible: segItem.s.type === "command" && segItem.s.state !== "new"
                                             text: segItem.s.state === "running" ? "Kör…"
-                                                : segItem.s.state === "skipped" ? "Hoppades över"
-                                                : "Klart" + (segItem.s.code_result !== undefined && segItem.s.code_result !== 0 ? " (fel " + segItem.s.code_result + ")" : "")
+                                                : segItem.s.state === "skipped" ? (segItem.s.level === "change" ? "Inte tillåtet" : "Hoppades över")
+                                                : "Klart" + (segItem.s.code_result !== undefined && segItem.s.code_result !== null && segItem.s.code_result !== 0 ? " (fel " + segItem.s.code_result + ")" : "")
+                                                  + (segItem.s.level === "change" ? "  ·  ångra under AI-tjänster → Körda kommandon" : "")
                                             color: "#8B98AD"
                                             font.family: "IBM Plex Sans"
                                             font.pixelSize: 13
@@ -3374,6 +3397,7 @@ Window {
                 // ── The memory (16 Oct): what the AI always knows ──
                 Rectangle {
                     id: memCard
+                    property bool open: false
                     width: settingsCol.width
                     height: memCol.height + 36
                     color: "#0E1420"
@@ -3387,87 +3411,99 @@ Window {
                         y: 18
                         width: parent.width - 40
                         spacing: 10
+                        // Folded by default (25 Oct, the user: AI-tjänster got long) – the title opens it
                         Text {
-                            text: "Minne"
+                            width: parent.width
+                            text: (memCard.open ? "▾  " : "▸  ") + "Minne" + (memCard.items.length ? "   (" + memCard.items.length + ")" : "")
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
                             font.pixelSize: 16
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: memCard.open = !memCard.open
+                            }
                         }
-                        Text {
+                        Column {
+                            visible: memCard.open
                             width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: "Saker " + (backend.aiName || "Goblin AI") + " alltid vet, i alla chattar. Säg \"kom ihåg att …\" eller \"glöm att …\" i en chatt, eller skriv här. "
-                                  + "Minnet skickas med varje fråga – även till tjänster på nätet när de används, så skriv inget hemligt."
-                            color: "#8B98AD"
-                            font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
-                        }
-                        Repeater {
-                            model: memCard.items
-                            Row {
-                                id: memRow
-                                required property var modelData
-                                required property int index
-                                width: memCol.width
-                                spacing: 10
-                                Text {
-                                    width: parent.width - 30
-                                    wrapMode: Text.WordWrap
-                                    text: "• " + memRow.modelData.text
-                                    color: "#E6ECF5"
-                                    font.family: "IBM Plex Sans"
-                                    font.pixelSize: 14
-                                }
-                                Text {
-                                    text: "×"
-                                    color: memX.containsMouse ? accent.errorBright : "#8B98AD"
-                                    font.pixelSize: 18
-                                    MouseArea {
-                                        id: memX
-                                        anchors.fill: parent
-                                        anchors.margins: -6
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: backend.removeMemory(memRow.index)
+                            spacing: 10
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: "Saker " + (backend.aiName || "Goblin AI") + " alltid vet, i alla chattar. Säg \"kom ihåg att …\" eller \"glöm att …\" i en chatt, eller skriv här. "
+                                      + "Minnet skickas med varje fråga – även till tjänster på nätet när de används, så skriv inget hemligt."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Repeater {
+                                model: memCard.items
+                                Row {
+                                    id: memRow
+                                    required property var modelData
+                                    required property int index
+                                    width: memCol.width
+                                    spacing: 10
+                                    Text {
+                                        width: parent.width - 30
+                                        wrapMode: Text.WordWrap
+                                        text: "• " + memRow.modelData.text
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 14
+                                    }
+                                    Text {
+                                        text: "×"
+                                        color: memX.containsMouse ? accent.errorBright : "#8B98AD"
+                                        font.pixelSize: 18
+                                        MouseArea {
+                                            id: memX
+                                            anchors.fill: parent
+                                            anchors.margins: -6
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: backend.removeMemory(memRow.index)
+                                        }
                                     }
                                 }
                             }
-                        }
-                        Row {
-                            spacing: 10
-                            Rectangle {
-                                width: Math.min(460, memCol.width - 110)
-                                height: 30
-                                color: "#07090D"
-                                border.width: 1
-                                border.color: memInput.activeFocus ? accent.color : "#1E2A40"
-                                TextInput {
-                                    id: memInput
-                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    clip: true
-                                    maximumLength: 300
-                                    color: "#E6ECF5"
-                                    font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
-                                    onAccepted: if (text.trim() !== "") { backend.addMemory(text); text = ""; }
-                                    Text {
-                                        visible: memInput.text === ""
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "T.ex. Spelar WoW som Kaytho på Stormscale (EU)"
-                                        color: "#5C6880"
+                            Row {
+                                spacing: 10
+                                Rectangle {
+                                    width: Math.min(460, memCol.width - 110)
+                                    height: 30
+                                    color: "#07090D"
+                                    border.width: 1
+                                    border.color: memInput.activeFocus ? accent.color : "#1E2A40"
+                                    TextInput {
+                                        id: memInput
+                                        anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        clip: true
+                                        maximumLength: 300
+                                        color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
                                         font.pixelSize: 13
+                                        onAccepted: if (text.trim() !== "") { backend.addMemory(text); text = ""; }
+                                        Text {
+                                            visible: memInput.text === ""
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "T.ex. Spelar WoW som Kaytho på Stormscale (EU)"
+                                            color: "#5C6880"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 13
+                                        }
                                     }
                                 }
-                            }
-                            FlatButton {
-                                small: true
-                                primary: true
-                                text: "Lägg till"
-                                enabledState: memInput.text.trim() !== ""
-                                onClicked: { backend.addMemory(memInput.text); memInput.text = ""; }
+                                FlatButton {
+                                    small: true
+                                    primary: true
+                                    text: "Lägg till"
+                                    enabledState: memInput.text.trim() !== ""
+                                    onClicked: { backend.addMemory(memInput.text); memInput.text = ""; }
+                                }
                             }
                         }
                     }
@@ -3476,6 +3512,7 @@ Window {
                 // ── The lessons (21 Oct): what the ♥ under good answers saved ──
                 Rectangle {
                     id: lessonCard
+                    property bool open: false
                     width: settingsCol.width
                     height: heartCol.height + 36
                     color: "#0E1420"
@@ -3489,79 +3526,91 @@ Window {
                         y: 18
                         width: parent.width - 40
                         spacing: 10
+                        // Folded by default (25 Oct, the user: AI-tjänster got long) – the title opens it
                         Text {
-                            text: "Lärdomar  ♥"
+                            width: parent.width
+                            text: (lessonCard.open ? "▾  " : "▸  ") + "Lärdomar  ♥" + (lessonCard.items.length ? "   (" + lessonCard.items.length + ")" : "")
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
                             font.pixelSize: 16
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: lessonCard.open = !lessonCard.open
+                            }
                         }
-                        Text {
+                        Column {
+                            visible: lessonCard.open
                             width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: "Tryck ♥ under ett bra svar, så skriver " + (backend.aiName || "Goblin AI") + " en kort lärdom om hur det gick till – 👎 under ett dåligt, så skrivs vad som ska undvikas. "
-                                  + "Vid en liknande fråga följer de 2–3 lärdomar som passar bäst med. Ett hjärta på ett svar som var fel lär in felet – "
-                                  + "ändra eller ta bort sådana här. Klicka på en lärdom för att ändra den." + (lessonCard.items.length ? "  (" + lessonCard.items.length + " av 100)" : "")
-                            color: "#8B98AD"
-                            font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
-                        }
-                        Text {
-                            visible: lessonCard.items.length === 0
-                            text: "Inga lärdomar än."
-                            color: "#5C6880"
-                            font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
-                        }
-                        Repeater {
-                            model: lessonCard.items
-                            Column {
-                                id: lessonRow
-                                required property var modelData
-                                width: heartCol.width
-                                spacing: 4
-                                Text {
-                                    width: parent.width - 30
-                                    elide: Text.ElideRight
-                                    text: (lessonRow.modelData.kind === "avoid" ? "👎 Undvik  ·  " : "♥  ·  ") + "Frågan: " + lessonRow.modelData.question + "  ·  " + lessonRow.modelData.added
-                                    color: "#5C6880"
-                                    font.family: "IBM Plex Sans"
-                                    font.pixelSize: 12
-                                }
-                                Row {
-                                    width: parent.width
-                                    spacing: 10
-                                    Rectangle {
-                                        width: parent.width - 30
-                                        height: lessonEdit.contentHeight + 12
-                                        color: lessonEdit.activeFocus ? "#07090D" : "transparent"
-                                        border.width: lessonEdit.activeFocus ? 1 : 0
-                                        border.color: accent.color
-                                        TextEdit {
-                                            id: lessonEdit
-                                            anchors { fill: parent; margins: 6 }
-                                            text: lessonRow.modelData.lesson
-                                            wrapMode: TextEdit.WordWrap
-                                            selectByMouse: true
-                                            color: "#E6ECF5"
-                                            font.family: "IBM Plex Sans"
-                                            font.pixelSize: 14
-                                            Keys.onReturnPressed: event => { focus = false; event.accepted = true; }
-                                            onActiveFocusChanged: if (!activeFocus && text.trim() !== "" && text !== lessonRow.modelData.lesson)
-                                                                      backend.editLesson(lessonRow.modelData.id, text)
-                                        }
-                                    }
+                            spacing: 10
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: "Tryck ♥ under ett bra svar, så skriver " + (backend.aiName || "Goblin AI") + " en kort lärdom om hur det gick till – 👎 under ett dåligt, så skrivs vad som ska undvikas. "
+                                      + "Vid en liknande fråga följer de 2–3 lärdomar som passar bäst med. Ett hjärta på ett svar som var fel lär in felet – "
+                                      + "ändra eller ta bort sådana här. Klicka på en lärdom för att ändra den." + (lessonCard.items.length ? "  (" + lessonCard.items.length + " av 100)" : "")
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Text {
+                                visible: lessonCard.items.length === 0
+                                text: "Inga lärdomar än."
+                                color: "#5C6880"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Repeater {
+                                model: lessonCard.items
+                                Column {
+                                    id: lessonRow
+                                    required property var modelData
+                                    width: heartCol.width
+                                    spacing: 4
                                     Text {
-                                        text: "×"
-                                        color: lessonX.containsMouse ? accent.errorBright : "#8B98AD"
-                                        font.pixelSize: 18
-                                        MouseArea {
-                                            id: lessonX
-                                            anchors.fill: parent
-                                            anchors.margins: -6
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: backend.removeLesson(lessonRow.modelData.id)
+                                        width: parent.width - 30
+                                        elide: Text.ElideRight
+                                        text: (lessonRow.modelData.kind === "avoid" ? "👎 Undvik  ·  " : "♥  ·  ") + "Frågan: " + lessonRow.modelData.question + "  ·  " + lessonRow.modelData.added
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                    Row {
+                                        width: parent.width
+                                        spacing: 10
+                                        Rectangle {
+                                            width: parent.width - 30
+                                            height: lessonEdit.contentHeight + 12
+                                            color: lessonEdit.activeFocus ? "#07090D" : "transparent"
+                                            border.width: lessonEdit.activeFocus ? 1 : 0
+                                            border.color: accent.color
+                                            TextEdit {
+                                                id: lessonEdit
+                                                anchors { fill: parent; margins: 6 }
+                                                text: lessonRow.modelData.lesson
+                                                wrapMode: TextEdit.WordWrap
+                                                selectByMouse: true
+                                                color: "#E6ECF5"
+                                                font.family: "IBM Plex Sans"
+                                                font.pixelSize: 14
+                                                Keys.onReturnPressed: event => { focus = false; event.accepted = true; }
+                                                onActiveFocusChanged: if (!activeFocus && text.trim() !== "" && text !== lessonRow.modelData.lesson)
+                                                                          backend.editLesson(lessonRow.modelData.id, text)
+                                            }
+                                        }
+                                        Text {
+                                            text: "×"
+                                            color: lessonX.containsMouse ? accent.errorBright : "#8B98AD"
+                                            font.pixelSize: 18
+                                            MouseArea {
+                                                id: lessonX
+                                                anchors.fill: parent
+                                                anchors.margins: -6
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: backend.removeLesson(lessonRow.modelData.id)
+                                            }
                                         }
                                     }
                                 }
@@ -3570,9 +3619,194 @@ Window {
                     }
                 }
 
+                // ── Körda kommandon (25 Oct): everything run from the chat, with Ångra; reading commands at once on/off ──
+                Rectangle {
+                    id: cmdLogCard
+                    property bool open: false
+                    width: settingsCol.width
+                    height: cmdLogCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    property var items: JSON.parse(backend.commandLog)
+                    property var undoing: JSON.parse(backend.undoing)
+                    property string asking: ""  // the entry whose Ångra waits for "Ångra nu"
+                    property int shown: 10
+
+                    Column {
+                        id: cmdLogCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 10
+                        // Folded by default (25 Oct, the user: AI-tjänster got long) – the title opens it
+                        Text {
+                            width: parent.width
+                            text: (cmdLogCard.open ? "▾  " : "▸  ") + "Körda kommandon" + (cmdLogCard.items.length ? "   (" + cmdLogCard.items.length + ")" : "")
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: cmdLogCard.open = !cmdLogCard.open
+                            }
+                        }
+                        Column {
+                            visible: cmdLogCard.open
+                            width: parent.width
+                            spacing: 10
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: "Kommandon som bara läser körs direkt. De som ändrar något körs först när du trycker Tillåt – före körningen sparas en kopia av filer som skrivs över "
+                                      + "och gamla värden, så att de går att ångra här. Sådant som inte går att ångra (radera för gott, formatera diskar, byta system …) körs aldrig."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Item {
+                                width: autorunRow.width
+                                height: autorunRow.height
+                                Row {
+                                    id: autorunRow
+                                    spacing: 10
+                                    Rectangle {
+                                        width: 18
+                                        height: 18
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        color: backend.autorun ? accent.color : "transparent"
+                                        border.width: 1
+                                        border.color: backend.autorun ? accent.color : "#5C6880"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            visible: backend.autorun
+                                            text: "✓"
+                                            color: accent.on
+                                            font.pixelSize: 13
+                                        }
+                                    }
+                                    Text {
+                                        text: "Kör kommandon som bara läser direkt (av = du trycker Kör på varje)"
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 14
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.setAutorun(!backend.autorun)
+                                }
+                            }
+                            Text {
+                                visible: cmdLogCard.items.length === 0
+                                text: "Inget kört än."
+                                color: "#5C6880"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Repeater {
+                                model: cmdLogCard.items.slice(0, cmdLogCard.shown)
+                                Column {
+                                    id: logRow
+                                    required property var modelData
+                                    readonly property var e: modelData
+                                    width: cmdLogCol.width
+                                    spacing: 4
+                                    Text {
+                                        width: parent.width
+                                        elide: Text.ElideRight
+                                        text: logRow.e.t + "  ·  " + (logRow.e.by === "auto" ? "körde direkt (läser)" : logRow.e.by === "ångra" ? "ångring" : "du tillät")
+                                              + "  ·  " + (logRow.e.exit === null || logRow.e.exit === undefined ? "i terminalen" : logRow.e.exit === 0 ? "klart" : "fel " + logRow.e.exit)
+                                              + (logRow.e.undone ? "  ·  ångrat " + logRow.e.undone : "")
+                                        color: logRow.e.exit && logRow.e.exit !== 0 ? "#E8A0A4" : "#5C6880"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        wrapMode: Text.WrapAnywhere
+                                        maximumLineCount: 3
+                                        elide: Text.ElideRight
+                                        text: logRow.e.code
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 13
+                                    }
+                                    Text {
+                                        visible: !!logRow.e.hint && !logRow.e.undone
+                                        width: parent.width
+                                        wrapMode: Text.WordWrap
+                                        text: "Ångra: " + (logRow.e.hint || "")
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                    // Ångra: shows what will run first, then "Ångra nu" runs it (that click is the Tillåt)
+                                    Text {
+                                        visible: cmdLogCard.asking === logRow.e.id
+                                        width: parent.width
+                                        wrapMode: Text.WrapAnywhere
+                                        text: logRow.e.undo || ""
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 12
+                                    }
+                                    Row {
+                                        visible: !!logRow.e.undo && !logRow.e.undone
+                                        spacing: 10
+                                        FlatButton {
+                                            small: true
+                                            primary: cmdLogCard.asking === logRow.e.id
+                                            text: cmdLogCard.undoing.indexOf(logRow.e.id) >= 0 ? "Ångrar…"
+                                                : cmdLogCard.asking === logRow.e.id ? "Ångra nu" : "Ångra"
+                                            enabledState: cmdLogCard.undoing.indexOf(logRow.e.id) < 0
+                                            onClicked: {
+                                                if (cmdLogCard.asking === logRow.e.id) {
+                                                    backend.undoCommand(logRow.e.id)
+                                                    cmdLogCard.asking = ""
+                                                } else {
+                                                    cmdLogCard.asking = logRow.e.id
+                                                }
+                                            }
+                                        }
+                                        FlatButton {
+                                            visible: cmdLogCard.asking === logRow.e.id
+                                            small: true
+                                            text: "Avbryt"
+                                            onClicked: cmdLogCard.asking = ""
+                                        }
+                                    }
+                                    Text {
+                                        visible: !!logRow.e.undone && !!logRow.e.undo_out
+                                        width: parent.width
+                                        wrapMode: Text.WordWrap
+                                        maximumLineCount: 3
+                                        elide: Text.ElideRight
+                                        text: logRow.e.undo_out || ""
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 12
+                                    }
+                                }
+                            }
+                            FlatButton {
+                                visible: cmdLogCard.items.length > cmdLogCard.shown
+                                small: true
+                                text: "Visa fler"
+                                onClicked: cmdLogCard.shown += 20
+                            }
+                        }
+                    }
+                }
+
                 // ── Own buttons (20 Oct): above the input, a new chat with the instruction and its model ──
                 Rectangle {
                     id: dailyCard
+                    property bool open: false
                     width: settingsCol.width
                     height: dailyCol.height + 36
                     color: "#0E1420"
@@ -3621,150 +3855,162 @@ Window {
                         y: 18
                         width: parent.width - 40
                         spacing: 10
+                        // Folded by default (25 Oct, the user: AI-tjänster got long) – the title opens it
                         Text {
-                            text: "Egna knappar"
+                            width: parent.width
+                            text: (dailyCard.open ? "▾  " : "▸  ") + "Egna knappar" + (dailyCard.items.length ? "   (" + dailyCard.items.length + ")" : "")
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
                             font.pixelSize: 16
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: dailyCard.open = !dailyCard.open
+                            }
                         }
-                        Text {
+                        Column {
+                            visible: dailyCard.open
                             width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: "Knapparna ligger ovanför rutan där du skriver. Ett tryck = en ny chatt där modellen du valt får instruktionen – "
-                                  + "t.ex. Ducks: \"Senaste om Anaheim Ducks: ställning, senaste och nästa match\". Skriv länkar i instruktionen så läses de sidorna när du trycker. Välj en modell som kan söka på nätet (en tjänst i molnet med Tavily-nyckel)."
-                            color: "#8B98AD"
-                            font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
-                        }
-                        Repeater {
-                            model: dailyCard.items
-                            Column {
-                                id: dailyRow
-                                required property var modelData
-                                required property int index
-                                width: dailyCol.width
-                                spacing: 6
-                                Row {
-                                    width: parent.width
-                                    spacing: 10
-                                    Text {
-                                        width: parent.width - modelChip.width - 40
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        wrapMode: Text.WordWrap
-                                        text: "<b>" + dailyRow.modelData.name + "</b>  " + dailyRow.modelData.text
-                                        textFormat: Text.StyledText
+                            spacing: 10
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: "Knapparna ligger ovanför rutan där du skriver. Ett tryck = en ny chatt där modellen du valt får instruktionen – "
+                                      + "t.ex. Ducks: \"Senaste om Anaheim Ducks: ställning, senaste och nästa match\". Skriv länkar i instruktionen så läses de sidorna när du trycker. Välj en modell som kan söka på nätet (en tjänst i molnet med Tavily-nyckel)."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Repeater {
+                                model: dailyCard.items
+                                Column {
+                                    id: dailyRow
+                                    required property var modelData
+                                    required property int index
+                                    width: dailyCol.width
+                                    spacing: 6
+                                    Row {
+                                        width: parent.width
+                                        spacing: 10
+                                        Text {
+                                            width: parent.width - modelChip.width - 40
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            wrapMode: Text.WordWrap
+                                            text: "<b>" + dailyRow.modelData.name + "</b>  " + dailyRow.modelData.text
+                                            textFormat: Text.StyledText
+                                            color: "#E6ECF5"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 14
+                                        }
+                                        FlatButton {
+                                            id: modelChip
+                                            small: true
+                                            text: win.modelName(dailyRow.modelData.model || "") + "  ▾"
+                                            onClicked: {
+                                                win.dailyPick = win.dailyPick === dailyRow.index ? -1 : dailyRow.index;
+                                                backend.refreshModels();
+                                            }
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "×"
+                                            color: dailyX.containsMouse ? accent.errorBright : "#8B98AD"
+                                            font.pixelSize: 18
+                                            MouseArea {
+                                                id: dailyX
+                                                anchors.fill: parent
+                                                anchors.margins: -6
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: { win.dailyPick = -1; backend.removeDaily(dailyRow.index); }
+                                            }
+                                        }
+                                    }
+                                    DailyModels { target: dailyRow.index }
+                                }
+                            }
+                            Row {
+                                spacing: 10
+                                Rectangle {
+                                    width: 150
+                                    height: 30
+                                    color: "#07090D"
+                                    border.width: 1
+                                    border.color: dailyName.activeFocus ? accent.color : "#1E2A40"
+                                    TextInput {
+                                        id: dailyName
+                                        anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        clip: true
+                                        maximumLength: 20
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 14
-                                    }
-                                    FlatButton {
-                                        id: modelChip
-                                        small: true
-                                        text: win.modelName(dailyRow.modelData.model || "") + "  ▾"
-                                        onClicked: {
-                                            win.dailyPick = win.dailyPick === dailyRow.index ? -1 : dailyRow.index;
-                                            backend.refreshModels();
-                                        }
-                                    }
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "×"
-                                        color: dailyX.containsMouse ? accent.errorBright : "#8B98AD"
-                                        font.pixelSize: 18
-                                        MouseArea {
-                                            id: dailyX
-                                            anchors.fill: parent
-                                            anchors.margins: -6
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: { win.dailyPick = -1; backend.removeDaily(dailyRow.index); }
+                                        font.pixelSize: 13
+                                        KeyNavigation.tab: dailyInput
+                                        Text {
+                                            visible: dailyName.text === ""
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "Namn, t.ex. Ducks"
+                                            color: "#5C6880"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 13
                                         }
                                     }
                                 }
-                                DailyModels { target: dailyRow.index }
-                            }
-                        }
-                        Row {
-                            spacing: 10
-                            Rectangle {
-                                width: 150
-                                height: 30
-                                color: "#07090D"
-                                border.width: 1
-                                border.color: dailyName.activeFocus ? accent.color : "#1E2A40"
-                                TextInput {
-                                    id: dailyName
-                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    clip: true
-                                    maximumLength: 20
-                                    color: "#E6ECF5"
-                                    font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
-                                    KeyNavigation.tab: dailyInput
-                                    Text {
-                                        visible: dailyName.text === ""
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "Namn, t.ex. Ducks"
-                                        color: "#5C6880"
+                                Rectangle {
+                                    width: Math.min(420, dailyCol.width - 420)
+                                    height: 30
+                                    color: "#07090D"
+                                    border.width: 1
+                                    border.color: dailyInput.activeFocus ? accent.color : "#1E2A40"
+                                    TextInput {
+                                        id: dailyInput
+                                        anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        clip: true
+                                        maximumLength: 300
+                                        color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
                                         font.pixelSize: 13
+                                        onAccepted: dailyAdd.clicked()
+                                        Text {
+                                            visible: dailyInput.text === ""
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "Instruktion, t.ex. Senaste om Anaheim Ducks"
+                                            color: "#5C6880"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 13
+                                        }
+                                    }
+                                }
+                                FlatButton {
+                                    small: true
+                                    text: win.modelName(win.dailyNewModel) + "  ▾"
+                                    onClicked: {
+                                        win.dailyPick = win.dailyPick === -2 ? -1 : -2;
+                                        backend.refreshModels();
+                                    }
+                                }
+                                FlatButton {
+                                    id: dailyAdd
+                                    small: true
+                                    primary: true
+                                    text: "Lägg till"
+                                    enabledState: dailyInput.text.trim() !== ""
+                                    onClicked: {
+                                        if (!enabledState)
+                                            return;
+                                        backend.addDaily(dailyName.text, dailyInput.text, win.dailyNewModel);
+                                        dailyName.text = "";
+                                        dailyInput.text = "";
+                                        win.dailyNewModel = "";
+                                        win.dailyPick = -1;
                                     }
                                 }
                             }
-                            Rectangle {
-                                width: Math.min(420, dailyCol.width - 420)
-                                height: 30
-                                color: "#07090D"
-                                border.width: 1
-                                border.color: dailyInput.activeFocus ? accent.color : "#1E2A40"
-                                TextInput {
-                                    id: dailyInput
-                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    clip: true
-                                    maximumLength: 300
-                                    color: "#E6ECF5"
-                                    font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
-                                    onAccepted: dailyAdd.clicked()
-                                    Text {
-                                        visible: dailyInput.text === ""
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "Instruktion, t.ex. Senaste om Anaheim Ducks"
-                                        color: "#5C6880"
-                                        font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
-                                    }
-                                }
-                            }
-                            FlatButton {
-                                small: true
-                                text: win.modelName(win.dailyNewModel) + "  ▾"
-                                onClicked: {
-                                    win.dailyPick = win.dailyPick === -2 ? -1 : -2;
-                                    backend.refreshModels();
-                                }
-                            }
-                            FlatButton {
-                                id: dailyAdd
-                                small: true
-                                primary: true
-                                text: "Lägg till"
-                                enabledState: dailyInput.text.trim() !== ""
-                                onClicked: {
-                                    if (!enabledState)
-                                        return;
-                                    backend.addDaily(dailyName.text, dailyInput.text, win.dailyNewModel);
-                                    dailyName.text = "";
-                                    dailyInput.text = "";
-                                    win.dailyNewModel = "";
-                                    win.dailyPick = -1;
-                                }
-                            }
+                            DailyModels { target: -2 }
                         }
-                        DailyModels { target: -2 }
                     }
                 }
 

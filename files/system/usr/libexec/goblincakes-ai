@@ -16,7 +16,7 @@ import sys
 import threading
 
 sys.path.insert(0, "/usr/share/goblincakes/ai")
-from goblinai import (SERVICES, DANGER, ServiceError, ask as ask_services, chosen_model, code_blocks,  # noqa: E402
+from goblinai import (SERVICES, ServiceError, cmd_level, ask as ask_services, chosen_model, code_blocks,  # noqa: E402
                       forget, has_keys, load_keys, remember, make_image, make_report, run_in_folder, save_keys, segments, system_prompt, test_key)
 
 MAX_ROUNDS = 8  # command → output → next step, per question
@@ -102,31 +102,52 @@ def ask(messages, keys):
 # ── Commands from the answer ───────────────────────────────────────
 
 def run_blocks(blocks):
-    """Asks for each block, runs the ones the user says yes to; returns what happened."""
+    """Runs the answer's blocks in three levels (cmdlevel.py): reading ones at once, changes after a yes,
+    ones that can't be undone never; returns what happened."""
     global cwd
+    levels = cmd_level()
     results = []
     for block in blocks:
         print()
-        warn = f" {RED}(ändrar systemet – läs igenom!){RESET}" if DANGER.search(block) else ""
-        print(f"{ACCENT}▌ Kör det här?{RESET}{warn}")
+        lvl, why = levels.level(block)
+        if lvl == "danger":
+            print(f"{RED}▌ Stoppat – {why}. Körs inte (sådant gör du och Claude).{RESET}")
+            results.append(f"$ {block}\n(STOPPAT, kördes inte: {why}. Gör det på ett sätt som går att ångra – "
+                           "ta bort med gio trash – eller säg att det är något för användaren och Claude.)")
+            continue
+        auto = lvl == "read" and levels.autorun()
+        print(f"{ACCENT}▌ {'Läser:' if auto else 'Kör det här?'}{RESET}"
+              + (f" {RED}(ändrar något){RESET}" if lvl == "change" else ""))
         for line in block.splitlines():
             print(f"  {FROST}{line}{RESET}")
+        if not auto:
+            try:
+                answer = input(f"{MUTED}[j/N] {RESET}").strip().lower()
+            except EOFError:
+                answer = ""
+            if answer not in ("j", "ja", "y", "yes"):
+                results.append(f"$ {block}\n(användaren valde att inte köra det)")
+                continue
+        plan = levels.prepare(block, cwd) if lvl == "change" else None
         try:
-            answer = input(f"{MUTED}[j/N] {RESET}").strip().lower()
-        except EOFError:
-            answer = ""
-        if answer not in ("j", "ja", "y", "yes"):
-            results.append(f"$ {block}\n(användaren valde att inte köra det)")
-            continue
-        proc, cwd = run_in_folder(block, cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                  stdin=sys.stdin, text=True)
-        output = proc.stdout or ""
+            proc, cwd = run_in_folder(block, cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                      stdin=subprocess.DEVNULL if auto else sys.stdin, text=True,
+                                      timeout=levels.AUTO_TIMEOUT if auto else None)
+            output, code = proc.stdout or "", proc.returncode
+        except subprocess.TimeoutExpired as e:
+            output = (e.output or "") if isinstance(e.output, str) else (e.output or b"").decode(errors="replace")
+            output, code = output + f"\n(stoppat efter {levels.AUTO_TIMEOUT} s)\n", -9
         print(output, end="" if output.endswith("\n") or not output else "\n")
-        muted(f"(klart, kod {proc.returncode})")
+        muted(f"(klart, kod {code})")
+        if plan and plan["trash"]:
+            plan["undo"] = levels.trash_restore(plan["trash"]) + plan["undo"]
+        levels.log(block, lvl, "auto" if auto else "du", code, output, plan)
+        if plan and plan["undo"]:
+            muted("(går att ångra i Goblin AI → AI-tjänster → Körda kommandon)")
         # Long output: the AI gets the end, which is usually what matters
         if len(output) > 6000:
             output = "…(början utelämnad)…\n" + output[-6000:]
-        results.append(f"$ {block}\n{output}(avslutskod {proc.returncode})")
+        results.append(f"$ {block}\n{output}(avslutskod {code})")
     return results
 
 

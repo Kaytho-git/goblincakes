@@ -1987,7 +1987,15 @@ Om datorn:
 
 När användaren vill få något gjort på datorn:
 - Ge de kommandon som behövs i kodblock märkta ```bash – ett kommando eller en kort följd per block.
-  Användaren får frågan om varje block innan det körs, och du får se utskriften efteråt.
+  Block som bara läser (ls, cat, grep, journalctl, systemctl status, flatpak list, rpm-ostree status, nvidia-smi,
+  sensors, ps …) körs direkt och du får se utskriften. Block som ändrar något körs först när användaren trycker
+  Tillåt (det sparas i en logg med hur det ångras). Lägg läsande och ändrande kommandon i olika block, läsande först.
+- Du hjälper till att fixa saker, aldrig att förstöra: inget får gå förlorat för gott.
+  Ta bort filer och mappar med `gio trash <sökväg>` (papperskorgen – går att ångra), aldrig rm, shred, unlink,
+  find -delete eller rsync --delete. Skriv aldrig kommandon som inte går att ångra: formatera eller partitionera
+  diskar (mkfs, dd, fdisk, wipefs …), rpm-ostree reset/rebase/cleanup/kargs, chmod/chown -R, curl … | bash,
+  git reset --hard/clean/push --force, tömma papperskorgen, ändra /etc/fstab, användare eller lösenord.
+  Sådana block stoppas och körs inte – behövs något sådant: säg att det är något för användaren och Claude.
 - Blocken körs efter varandra i samma mapp, som i en terminal: `cd` i ett block gäller även i nästa.
   Sökvägar med mellanslag skrivs inom citattecken: `cd "/run/media/$USER/Min disk/Mapp"`.
 - Du ser bara det du får: läs själv med verktygen för filer, mappar, loggar och tjänster, eller be om att få köra
@@ -2032,7 +2040,8 @@ kill -0 "$(cat ~/namn.pid)" && echo "Körs." || echo "Har stannat."; cat ~/namn.
   Testraden som skrevs till en datafil tas bort efteråt. Säg hur det stoppas: `kill "$(cat ~/namn.pid)"`.
   Använd aldrig `pkill -f` eller `pgrep -f` med skriptets namn – de träffar även blockets egen bash.
 - Ta ett steg i taget när du behöver se resultatet först. Skriv inga ```bash-block när inget ska köras.
-- Använd sudo bara när det verkligen behövs och säg varför. Var extra försiktig med kommandon som tar bort saker.
+- Använd sudo bara när det verkligen behövs och säg varför (det körs i ett terminalfönster där användaren skriver
+  sitt lösenord).
 - När uppgiften är klar: säg det kort, utan kodblock.
 
 När användaren har bifogat en fil och vill ha den ändrad (t.ex. rättad, översatt, omskriven):
@@ -2450,7 +2459,11 @@ def system_prompt():
     return text
 
 
-DANGER = re.compile(r"\brm\s+-[a-z]*r|\bmkfs|\bdd\s|\bwipefs|>\s*/dev/sd|\bchmod\s+-R\s+777\s+/|\bsudo\b", re.I)
+def cmd_level():
+    """The commands' three levels (cmdlevel.py, 25 Oct): read (run at once) / change (Tillåt) / danger (never run)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import cmdlevel  # noqa: PLC0415
+    return cmdlevel
 
 
 def run_in_folder(code, cwd, **kwargs):
@@ -2546,7 +2559,11 @@ def segments(text):
             parts.append({"type": "text", "text": linkify(text[pos:m.start()].strip())})
         lang, code = m.group(1).strip(), m.group(2).rstrip("\n")
         if lang.lower() in ("bash", "sh", "shell", "console"):
-            parts.append({"type": "command", "code": code, "danger": bool(DANGER.search(code)), "state": "new", "output": ""})
+            lvl, why = cmd_level().level(code)
+            if lvl == "danger":  # never run, and not shown as something to copy either – only why it stopped
+                parts.append({"type": "blocked", "code": code, "why": why, "state": "blocked"})
+            else:
+                parts.append({"type": "command", "code": code, "level": lvl, "why": why, "state": "new", "output": ""})
         elif lang.lower() in ("minne", "kom ihåg", "memory", "glöm", "glom", "forget"):
             items = [line.strip().lstrip("-•* ").strip() for line in code.splitlines() if line.strip()]
             if items:
