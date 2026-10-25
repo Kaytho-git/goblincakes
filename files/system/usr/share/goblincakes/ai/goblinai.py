@@ -672,7 +672,7 @@ var långsamt – säg vad som stod precis före och efter pausen. Datum och klo
 dem som de står. Leta själv i stället för att be användaren köra
 ls/cat/journalctl. Säg vad du hittade och var (sökvägen), och gissa inte innehåll du inte läst."""
 
-TOOL_LIMIT = 6  # tool uses per question
+STEP_LIMIT = 10  # tool uses per question (the work loop, 25 Oct; was 6) – and fewer when the local AI's memory fills up
 
 
 def wow_tools():
@@ -898,12 +898,13 @@ def tool_request(text, tools):
     return None
 
 
-def ask(messages, keys, status=None, notice=None, project=None, choice=""):
+def ask(messages, keys, status=None, notice=None, project=None, choice="", steps=None):
     """Asks the services; the AI may use tools in between (web search with a Tavily key, the errors
     BugSack saved, a pull from Warcraft Logs) – it answers with the tool's code block, gets the result
-    and answers again (at most TOOL_LIMIT times).
+    and answers again (at most STEP_LIMIT times).
 
     choice: a model picked by the user ("<service id>:<model>", see model_choices) – "" = automatic.
+    steps: a Steps – what is done is reported to it, and its stop ends the work (raises Stopped).
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
     activity("ask", "tänker")
@@ -916,7 +917,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice=""):
             QUICK.on = True
             answer, service = ask_once(messages, keys, status, notice, project, choice)
         else:
-            answer, service = _ask(messages, keys, status, notice, project, choice)
+            answer, service = _ask(messages, keys, status, notice, project, choice, steps)
     finally:
         QUICK.on = False
         activity_done()
@@ -1076,11 +1077,51 @@ def fresh_question(question):
 LAST = threading.local()  # .tools: [(tool, query)] the last ask() used in this thread (the ♥ remembers them)
 
 
+class Stopped(Exception):
+    """The user pressed STOPP: the question is left where it is."""
+
+
+class Steps:
+    """What the AI does for a question, step by step (the work loop, 25 Oct) – shown in the chat while it
+    works, like Claude Code, and kept with the answer. report(list) gets the whole list after each change;
+    stop is a threading.Event (the STOPP button), looked at between the steps."""
+
+    def __init__(self, report=None, stop=None):
+        self.items, self.report, self.stop = [], report, stop
+
+    def check(self):
+        if self.stop is not None and self.stop.is_set():
+            raise Stopped()
+
+    def start(self, text):
+        self.check()
+        self.done()
+        self.items.append({"text": text, "state": "run", "t": time.time()})
+        self._send()
+
+    def done(self, state="ok", note=""):
+        """The running step is finished: "ok", "fel" (note = why) or "stopp"."""
+        if self.items and self.items[-1]["state"] == "run":
+            step = self.items[-1]
+            step.update(state=state, secs=round(time.time() - step["t"], 1))
+            if note:
+                step["note"] = " ".join(str(note).split())[:160]
+            self._send()
+
+    def shown(self):
+        return [{k: v for k, v in s.items() if k != "t"} for s in self.items]
+
+    def _send(self):
+        if self.report:
+            self.report(self.shown())
+
+
 def last_tools():
     return list(getattr(LAST, "tools", []))
 
 
-def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
+def _ask(messages, keys, status=None, notice=None, project=None, choice="", steps=None):
+    steps = steps or Steps()
     messages = [dict(m) for m in messages]
     asked = next((m for m in reversed(messages) if m["role"] == "user"), {})
     forced = asked.pop("search", False)  # the "Sök på nätet" button
@@ -1103,8 +1144,10 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
         activity("ask", "söker på nätet")
         if status:
             status("Söker på nätet…")
+        steps.start(f"Söker på nätet: {query[:80]}")
         try:
             text, found = tools["sök"]["run"](query)
+            steps.done(note=f"{len(found)} träffar")
             sources.extend(found)
             searched, used = True, 1
             LAST.tools.append(("sök", query))
@@ -1114,6 +1157,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
                              "Svara på den utifrån resultaten (sök igen om de inte räcker). "
                              "Sökresultaten kan vara fel eller gamla – säg till om det verkar så."})
         except Exception as e:  # noqa: BLE001 – the search failed: an ordinary answer instead
+            steps.done("fel", e)
             if notice:
                 notice(f"Söker på nätet gick inte: {e}")
     seen, checked = [str(m.get("content", "")) for m in messages if m["role"] != "assistant"], False
@@ -1125,9 +1169,12 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
         activity("ask", name[0].lower() + name[1:])
         if status:
             status(f"{name}: {query}…")
+        steps.start(f"{name}: {query}")
         try:
             text, _ = tools[tool]["run"](query)
+            steps.done()
         except Exception as e:  # noqa: BLE001 – Warcraft Logs didn't answer: the AI may try itself
+            steps.done("fel", e)
             text = ""
             if notice:
                 notice(f"{name} gick inte: {e}")
@@ -1147,10 +1194,12 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
         activity("ask", "letar i datorn")
         if status:
             status("Letar i datorn…")
+        steps.start("Letar i datorn")
         try:
             text, read = sys_tools().gather(str(asked.get("content", ""))[:600])
         except Exception:  # noqa: BLE001 – the journal or a desktop file: an ordinary answer instead
             text, read = "", []
+        steps.done(note=", ".join(read) if text else "hittade inget")
         if text:
             seen.append(text)
             used += len(read)
@@ -1161,8 +1210,12 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
                              f"Användarens fråga var: \"{question}\"\n"
                              "Svara utifrån det här. Räcker det inte, läs mer med verktyget leta eller systemfel, "
                              "eller säg att du inte vet och vad som skulle behövas."})
+    # This question's part of the chat: when it would no longer fit the local AI's memory, no more tools
+    start = max(i for i, m in enumerate(messages) if m is asked) if asked in messages else len(messages) - 1
     while True:
+        steps.check()
         answer, service = ask_once(messages, keys, status, notice, project, choice, tools)
+        steps.check()
         request_ = tool_request(answer, tools)
         if not request_ and not used and not nudged and own_game_question(asked.get("content"), tools):
             # About the user's own WoW/CS2/computer/team but no tool used: in a long chat gemma4 answered "enligt
@@ -1181,6 +1234,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
                 checked = True
                 if status:
                     status("Kontrollerar svaret…")
+                steps.start("Kontrollerar svaret")
+                steps.done("fel", "stod inte i det lästa: " + ", ".join(missing))
                 messages.append({"role": "assistant", "content": answer})
                 messages.append({"role": "user", "content":
                                  "[Goblin AI kontrollerade ditt svar] Det här står inte i det du har läst: "
@@ -1193,8 +1248,12 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
             break
         tool, query = request_
         messages.append({"role": "assistant", "content": answer})
-        if used >= TOOL_LIMIT:
-            messages.append({"role": "user", "content": "Inga fler sökningar eller hämtningar – svara nu med det du har."})
+        full = tokens(messages[:1] + messages[start:]) > LOCAL_BUDGET_TOKENS * 0.8
+        if used >= STEP_LIMIT or full:
+            steps.start(f"Slutar hämta: {'minnet är nästan fullt' if full else f'högst {STEP_LIMIT} steg'}")
+            steps.done("gräns")
+            messages.append({"role": "user", "content": "Inga fler sökningar eller hämtningar"
+                             + (" (ditt minne är nästan fullt)" if full else "") + " – svara nu med det du har."})
             continue
         used += 1
         LAST.tools.append((tool, query))
@@ -1202,14 +1261,21 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
         activity("ask", name[0].lower() + name[1:])
         if status:
             status(f"{name}{': ' + query if query else ''}…")
+        steps.start(f"{name}{': ' + query[:80] if query else ''}")
         try:
             text, found = run(query)
+            steps.done()
         except Exception as e:  # noqa: BLE001 – ServiceError, wowtools.ToolError, the network
+            steps.done("fel", e)
             if notice:
                 notice(f"{name} gick inte: {e}")
             messages.append({"role": "user", "content": f"Det gick inte ({e}). Svara utan det, och säg varför."})
             continue
         searched = searched or tool == "sök"
+        # What doesn't fit the local AI's memory is cut off here – fit_local would drop this question's start
+        room = int((LOCAL_BUDGET_TOKENS - tokens(messages[:1] + messages[start:])) * CHARS["per_token"]) - 3000
+        if len(text) > max(room, 4000):
+            text = text[:max(room, 4000)] + "\n[… avkortat – resten får inte plats i minnet]"
         seen.append(text)
         for r in found:
             if r["url"] not in (s["url"] for s in sources):
@@ -1557,8 +1623,31 @@ def sees_images(choice=""):
     return local_settings()["installed"]
 
 
-LOCAL_BUDGET = 80_000  # characters (≈ 24 000 tokens) of a chat sent to the local AI (32 768 tokens, see goblincakes-ollama; 18 Oct: 16 384 was too little for a whole raid night + one ability)
+# Of the local AI's 32 768 tokens (see goblincakes-ollama; 18 Oct: 16 384 was too little for a whole raid night +
+# one ability): the chat gets what the answer (LOCAL_MIN_TOKENS) and the tools' descriptions (~1 500) leave
+LOCAL_BUDGET_TOKENS = LOCAL_CONTEXT - LOCAL_MIN_TOKENS - 2500
 PICTURE_CHARS = 5_000  # what a picture counts as
+# Characters per token – measured 25 Oct with gemma4: the system prompt 3.2, plain Swedish 3.7 (English 4.8,
+# Swedish is ~25 % more tokens); after each local answer it follows Ollama's own count (chat)
+CHARS = {"per_token": 3.2}
+
+
+def tokens(messages):
+    """About how many tokens the messages are for the local AI (a picture: PICTURE_CHARS)."""
+    chars = sum(len(m["content"]) if isinstance(m["content"], str) else 2000 for m in messages)
+    return int(chars / CHARS["per_token"])
+
+
+def count_tokens(sent, reply, tools=None):
+    """Ollama's usage of an answer → CHARS (the tools' descriptions are counted apart: ~3.7 characters/token)."""
+    prompt = (reply.get("usage") or {}).get("prompt_tokens") or 0
+    prompt -= len(json.dumps(tools, ensure_ascii=False)) / 3.7 if tools else 0
+    if any(not isinstance(m.get("content"), str) for m in sent):
+        return  # a picture: its tokens aren't characters
+    chars = sum(len(m["content"]) for m in sent)
+    if prompt > 500 and chars:
+        # smoothed, and within what makes sense (code and paths ~3, plain text ~4)
+        CHARS["per_token"] = min(4.5, max(2.5, 0.7 * CHARS["per_token"] + 0.3 * chars / prompt))
 
 
 def fit_local(messages):
@@ -1567,11 +1656,12 @@ def fit_local(messages):
     system = [m for m in messages if m["role"] == "system"]
     rest = [m for m in messages if m["role"] != "system"]
     used = sum(len(m["content"]) for m in system)
+    budget = LOCAL_BUDGET_TOKENS * CHARS["per_token"]
     active = active_images(messages)
     kept = []
     for m in reversed(rest):
         size = len(m["content"]) + (PICTURE_CHARS * len(m.get("images") or []) if messages.index(m) == active else 0)
-        if kept and used + size > LOCAL_BUDGET:
+        if kept and used + size > budget:
             break
         kept.insert(0, m)
         used += size
@@ -1630,7 +1720,7 @@ def chat(provider, key, model, messages, tools=None):
         if provider.get("local"):
             # Thinking models (gemma4) sometimes think in circles until the whole context is full and
             # give no answer (18 Oct: 12 000 tokens, 3 min) – a ceiling, then once more without thinking
-            used = sum(len(m["content"]) if isinstance(m["content"], str) else 2000 for m in messages) // 3
+            used = tokens(messages) + (len(json.dumps(body.get("tools", []), ensure_ascii=False)) // 4 if native else 0)
             body["max_tokens"] = max(LOCAL_MIN_TOKENS, min(LOCAL_MAX_TOKENS, LOCAL_CONTEXT - used - 500))
             if body.get("reasoning_effort") == "none":
                 # no thinking: an answer is far shorter – a stuck model (see below) is stopped after ~50 s, not 140
@@ -1649,6 +1739,8 @@ def chat(provider, key, model, messages, tools=None):
             body["messages"] = wire_messages(prepared(blocks))
             reply = request(provider, key, "/chat/completions", body, **({"timeout": 30} if quick else {}))
         LAST.native = native
+        if provider.get("local"):
+            count_tokens(body["messages"], reply, body.get("tools"))
         text = reply["choices"][0]["message"].get("content") or ""
         if provider.get("local") and reply["choices"][0].get("finish_reason") == "length":  # empty or cut off
             if native and not text.strip() and not reply["choices"][0]["message"].get("tool_calls"):

@@ -50,6 +50,49 @@ Window {
         }
     }
 
+    // What the AI did for a question, step by step (the work loop, 25 Oct): ✓ done, ✗ failed, ■ stopped,
+    // – a limit, a moving mark while it runs. Live in the footer while it works, foldable over the answer after.
+    component StepList: Column {
+        id: stepList
+        property var steps: []
+        spacing: 4
+        Repeater {
+            model: stepList.steps
+            Row {
+                id: stepRow
+                required property var modelData
+                spacing: 8
+                width: stepList.width
+                Text {
+                    width: 14
+                    text: ({ ok: "✓", fel: "✗", stopp: "■", "gräns": "–" })[stepRow.modelData.state] || "›"
+                    color: stepRow.modelData.state === "fel" || stepRow.modelData.state === "stopp" ? accent.errorBright
+                         : stepRow.modelData.state === "run" ? accent.text : "#8B98AD"
+                    font.family: "IBM Plex Mono"
+                    font.pixelSize: 13
+                    SequentialAnimation on opacity {
+                        running: stepRow.modelData.state === "run"
+                        loops: Animation.Infinite
+                        NumberAnimation { from: 1; to: 0.3; duration: 600 }
+                        NumberAnimation { from: 0.3; to: 1; duration: 600 }
+                    }
+                }
+                Text {
+                    width: stepList.width - 22
+                    text: stepRow.modelData.text
+                          + (stepRow.modelData.secs !== undefined ? "  ·  " + stepRow.modelData.secs.toLocaleString(Qt.locale("sv_SE"), "f", 1) + " s" : "")
+                          + (stepRow.modelData.note ? "  ·  " + stepRow.modelData.note : "")
+                    color: stepRow.modelData.state === "run" ? "#E6ECF5" : "#8B98AD"
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                }
+            }
+        }
+    }
+
     // The button's text: "Automatiskt" or the chosen model (the part after the service id)
     function modelName(choice) {
         if (!choice)
@@ -627,6 +670,7 @@ Window {
             id: btn
             property string text
             property bool primary: false
+            property bool danger: false  // STOPP
             property bool enabledState: true
             property bool small: false
             signal clicked()
@@ -634,7 +678,8 @@ Window {
             width: Math.max(small ? 70 : 120, label.implicitWidth + (small ? 24 : 40))
             height: small ? 30 : 40
             opacity: enabledState ? 1 : 0.4
-            color: primary ? (area.containsMouse && enabledState ? accent.hover : accent.color)
+            color: danger ? (area.containsMouse ? accent.errorBright : accent.error)
+                 : primary ? (area.containsMouse && enabledState ? accent.hover : accent.color)
                            : (area.containsMouse && enabledState ? "#1A2438" : "transparent")
             border.width: primary ? 0 : 1
             border.color: "#2A3852"
@@ -643,7 +688,7 @@ Window {
                 id: label
                 anchors.centerIn: parent
                 text: btn.text
-                color: btn.primary ? accent.on : "#E6ECF5"
+                color: btn.primary && !btn.danger ? accent.on : "#E6ECF5"
                 font.family: "IBM Plex Sans"
                 font.weight: Font.Medium
                 font.pixelSize: btn.small ? 13 : 14
@@ -1035,7 +1080,7 @@ Window {
 
                 footer: Item {
                     width: messagesView.width
-                    height: backend.busy ? (backend.avatarThinking !== "" ? 96 : 48) : 0
+                    height: backend.busy ? Math.max(backend.avatarThinking !== "" ? 96 : 48, workCol.height + 24) : 0
                     visible: backend.busy
                     // The thinking avatar (24 Oct, the user's wish): the picture with the name instead of "tänker…"
                     Column {
@@ -1071,9 +1116,16 @@ Window {
                         }
                     }
                     Column {
+                        id: workCol
                         x: thinkingBox.visible ? 80 : 0
+                        width: Math.min(860, messagesView.width) - x
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 8
+                        StepList {
+                            width: parent.width
+                            steps: JSON.parse(backend.steps)
+                            visible: steps.length > 0
+                        }
                         Text {
                             visible: !thinkingBox.visible
                             text: backend.status
@@ -1230,6 +1282,35 @@ Window {
                         x: avatarBox.visible ? 80 : 0
                         width: msgItem.maxWidth - x
                         spacing: 14
+
+                        // "▸ 4 steg · 12,3 s": what was done, folded out on a click
+                        Column {
+                            id: stepsBox
+                            property bool open: false
+                            readonly property var steps: msgItem.m.steps || []
+                            visible: steps.length > 0
+                            width: parent.width
+                            spacing: 6
+                            Text {
+                                text: (stepsBox.open ? "▾ " : "▸ ") + stepsBox.steps.length + " steg · "
+                                      + stepsBox.steps.reduce((a, s) => a + (s.secs || 0), 0).toLocaleString(Qt.locale("sv_SE"), "f", 1) + " s"
+                                color: stepsArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                                MouseArea {
+                                    id: stepsArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: stepsBox.open = !stepsBox.open
+                                }
+                            }
+                            StepList {
+                                visible: stepsBox.open
+                                width: parent.width
+                                steps: stepsBox.steps
+                            }
+                        }
 
                         Repeater {
                             model: msgItem.m.role === "assistant" ? msgItem.m.segments : []
@@ -1561,6 +1642,7 @@ Window {
                         }
 
                         Row {
+                            visible: !msgItem.m.stopped  // STOPP: nothing to copy, save or ♥
                             spacing: 14
                             Text {
                                 text: msgItem.m.service || ""
@@ -1922,10 +2004,12 @@ Window {
                         small: true
                         visible: !win.pictureMode || backend.canDraw
                         primary: true
-                        text: win.pictureMode ? "Rita" : "Skicka"
+                        // While the AI works: STOPP (the work loop, 25 Oct) – it stops after the step it is on
+                        danger: !win.pictureMode && backend.stoppable
+                        text: win.pictureMode ? "Rita" : backend.stoppable ? "Stopp" : "Skicka"
                         enabledState: win.pictureMode ? input.text.trim() !== ""
-                                                      : !backend.busy && (input.text.trim() !== "" || win.attachment !== "")
-                        onClicked: win.send()
+                                    : backend.stoppable || !backend.busy && (input.text.trim() !== "" || win.attachment !== "")
+                        onClicked: backend.stoppable && !win.pictureMode ? backend.stop() : win.send()
                     }
                 }
             }

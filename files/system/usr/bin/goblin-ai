@@ -330,6 +330,7 @@ class Backend(QObject):
     messageUpdated = Signal(int, str)  # index, JSON
     busyChanged = Signal()
     statusChanged = Signal()
+    stepsChanged = Signal()
     notice = Signal(str)
     conversationsChanged = Signal()
     keysChanged = Signal()
@@ -339,6 +340,7 @@ class Backend(QObject):
     _answered = Signal(str, str)  # answer, service
     _failed = Signal(str)
     _statusText = Signal(str)
+    _stepsText = Signal(str)  # the work loop's steps (JSON)
     _keyResult = Signal(str, str, bool, str)  # provider id, key, ok, message
     modelChanged = Signal()
     _modelsLoaded = Signal(str)
@@ -365,6 +367,9 @@ class Backend(QObject):
             threading.Thread(target=goblinai.describe_avatar, daemon=True).start()
         self._hearted.connect(self._on_hearted)
         self._statusText.connect(lambda text: self._set_busy(True, text))
+        self._steps = "[]"  # what the AI has done for the question it works on (goblinai.Steps)
+        self._stop = None  # the STOPP button's threading.Event for that question
+        self._stepsText.connect(self._set_steps)
         self._keyResult.connect(self._on_key_result)
         self._procs = {}
         self._local = "{}"
@@ -412,6 +417,39 @@ class Backend(QObject):
     @Property(str, notify=statusChanged)
     def status(self):
         return self._status
+
+    @Property(str, notify=stepsChanged)
+    def steps(self):
+        return self._steps
+
+    @Property(bool, notify=stepsChanged)
+    def stoppable(self):
+        """A question is being worked on (STOPP) – not a picture, a ♥ or the like."""
+        return self._stop is not None
+
+    def _set_steps(self, steps):
+        self._steps = steps
+        self.stepsChanged.emit()
+
+    @Slot()
+    def stop(self):
+        """STOPP (the work loop, 25 Oct): the AI stops after the step it is on – the window doesn't wait for it."""
+        if not self._busy or self._stop is None or self._stop.is_set():
+            return
+        self._stop.set()
+        steps = [{**s, "state": "stopp" if s["state"] == "run" else s["state"]} for s in json.loads(self._steps)]
+        steps.append({"text": "Stoppad av dig", "state": "stopp"})
+        self._stop = None
+        self._set_steps("[]")
+        self._api.append({"role": "assistant", "content": "(Användaren stoppade frågan innan jag svarade.)"})
+        shown = {"role": "assistant", "text": "", "segments": goblinai.segments("*Stoppad – inget svar.*"),
+                 "service": "", "file": "", "stopped": True, "steps": steps}
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        self._set_busy(False)
+        self._save()
+        self._quick_answered()
+        self._daily_done(failed=True)
 
     @Property(str, notify=conversationChanged)
     def conversationId(self):
@@ -494,21 +532,31 @@ class Backend(QObject):
         if goblinai.sees_images(self._model):
             prompt += goblinai.SHOT_PROMPT
         messages[0] = {"role": "system", "content": prompt}
+        stop = self._stop = threading.Event()
+        self._set_steps("[]")
+        steps = goblinai.Steps(report=lambda items: stop.is_set() or self._stepsText.emit(json.dumps(items)), stop=stop)
 
         def work():
             try:
                 answer, service = goblinai.ask(
                     messages, self._keys,
-                    status=self._statusText.emit,
+                    status=lambda text: stop.is_set() or self._statusText.emit(text),
                     notice=self.notice.emit,
                     project=project,
-                    choice=self._daily_model if self._daily_running else self._model)
+                    choice=self._daily_model if self._daily_running else self._model,
+                    steps=steps)
+                if stop.is_set():  # STOPP was pressed while the last answer was on its way
+                    return
                 self._pending_tools = goblinai.last_tools()
                 self._answered.emit(answer, service)
+            except goblinai.Stopped:
+                pass  # stop() has shown it already
             except goblinai.ServiceError as e:
-                self._failed.emit(str(e))
+                if not stop.is_set():
+                    self._failed.emit(str(e))
             except Exception as e:  # never leave the window hanging
-                self._failed.emit(f"Något gick fel: {e}")
+                if not stop.is_set():
+                    self._failed.emit(f"Något gick fel: {e}")
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -516,6 +564,10 @@ class Backend(QObject):
         self._api.append({"role": "assistant", "content": answer})
         shown = {"role": "assistant", "text": answer, "segments": goblinai.segments(answer),
                  "service": service, "file": "", "tools": self._pending_tools}
+        if self._steps != "[]":
+            shown["steps"] = json.loads(self._steps)
+        self._stop = None
+        self._set_steps("[]")
         self._pending_tools = []
         for seg in shown["segments"]:
             if seg["type"] == "file":
@@ -530,6 +582,8 @@ class Backend(QObject):
         self._daily_done()
 
     def _on_failure(self, message):
+        self._stop = None
+        self._set_steps("[]")
         shown = {"role": "error", "text": message, "segments": [], "service": "", "file": ""}
         self._display.append(shown)
         self.messageAdded.emit(json.dumps(shown))

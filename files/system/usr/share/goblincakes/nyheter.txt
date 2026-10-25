@@ -1,3 +1,4 @@
+2026-10-25  Goblin AI: du ser vad Kakan gör steg för steg medan hon jobbar (söker, läser loggar, hämtar från Warcraft Logs), och stegen ligger kvar ovanför svaret. Stopp-knappen avbryter. Hon kan nu ta upp till tio steg för att lösa en sak
 2026-10-25  Goblin AI: länkar och mappar i svaren går att klicka på – webbadresser öppnas i webbläsaren, mappar i filhanteraren och filer visas i sin mapp
 2026-10-25  Goblin AI: Kakan väljer rätt verktyg oftare, förstår vardagligt språk och stavfel, och hämtar din egen strid från Warcraft Logs när du nämner en boss
 2026-10-25  Uppdatera och stäng av: i Config → Uppdatera (eller goblin update --stäng-av) väntar GOBLINCAKES på en ny version som byggs, uppdaterar allt och stänger sedan av datorn – med två minuters varning och Avbryt
