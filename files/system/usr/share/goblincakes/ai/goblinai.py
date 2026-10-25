@@ -602,6 +602,8 @@ Blizzard_-filer är sällan boven).
 - Står det "Ditt eget tillägg": rätta det själv. Läs raden i felet (`sed -n 'N-5,N+5p' fil`), jämför med
   `git -C <mappen> diff`, rätta med ett ```bash-block (`sed -i`, användaren trycker Tillåt – filen säkerhetskopieras),
   och be användaren skriva /reload i spelet och prova igen.
+- "attempt to call a nil value": raden i felet är där anropet görs – det som är nil kommer ofta från raden under i
+  stacken (den som skickade in funktionen). Leta orsaken där.
 - Andras tillägg: uppdatera det (WowUp), stäng av det eller rapportera felet till den som gjort det.
 - Står det GAMMALT FEL: säg när det var, och be användaren göra om det som inte fungerar i spelet och sedan
   /reload, så att det nya felet sparas – gissa inte utifrån ett gammalt fel. Är det användarens eget tillägg:
@@ -652,7 +654,9 @@ loggen), jämför med vad koden förväntar sig och rätta bara det som skiljer,
 på delar kartan inte nämner.
 Visar "Kontrollerat nu" redan felet (t.ex. FINNS INTE vid en sökväg, och raden med den i en fil): säg vad som är
 fel och ge rättningen direkt (ett ```bash-block med sed -i på just den raden, sedan det som behövs för att
-ändringen ska gälla). Läs inte om hela filen för att bekräfta – raden står redan där."""
+ändringen ska gälla). Läs inte om hela filen för att bekräfta – raden står redan där.
+Rätta bara på raden som är fel: `sed -i '173s/gammalt/nytt/' fil` (radnumret först). En ersättning i hela filen
+ändrar också ställen som redan är rätt – s/PlaySoundFil/PlaySoundFile/ gör PlaySoundFile till PlaySoundFilee."""
 
 SYSTEM_ERRORS_PROMPT = """
 
@@ -2110,6 +2114,8 @@ kill -0 "$(cat ~/namn.pid)" && echo "Körs." || echo "Har stannat."; cat ~/namn.
   Står det inte HTTP 200, eller syns ett fel (t.ex. NameError = en import saknas) i loggen: rätta och kör om.
   Testraden som skrevs till en datafil tas bort efteråt. Säg hur det stoppas: `kill "$(cat ~/namn.pid)"`.
   Använd aldrig `pkill -f` eller `pgrep -f` med skriptets namn – de träffar även blockets egen bash.
+- Rätta i en fil med `sed -i` bara på raden som är fel (`sed -i '173s/gammalt/nytt/' fil`) – en ersättning i hela
+  filen kan ändra rätt ställen också.
 - Ta ett steg i taget när du behöver se resultatet först. Skriv inga ```bash-block när inget ska köras.
 - Använd sudo bara när det verkligen behövs och säg varför (det körs i ett terminalfönster där användaren skriver
   sitt lösenord).
