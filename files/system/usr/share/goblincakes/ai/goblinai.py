@@ -338,7 +338,11 @@ def request(provider, key, path, body=None, timeout=90):
             raise ServiceError("slut på krediter eller för många frågor just nu") from None
         reason = {401: "fel nyckel", 403: "nyckeln får inte användas", 429: "slut på gratisfrågor just nu"}.get(e.code, f"fel {e.code}")
         raise ServiceError(f"{reason} ({detail.strip()})" if e.code not in (401, 429) else reason) from None
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
+    except TimeoutError:
+        # Reached, but the answer was too slow (a bare TimeoutError – a connection that fails is a
+        # URLError): the service's next model may answer (25 Oct: gemini-3.7-flash timed out, 3.5 answered in 3 s)
+        raise ServiceError("svarar för långsamt") from None
+    except (urllib.error.URLError, OSError) as e:
         raise ServiceError(f"nås inte ({getattr(e, 'reason', e)})") from None
 
 
@@ -557,7 +561,7 @@ def pick_models(provider, key, refresh=False):
 EXHAUSTED = set()  # services out of free questions: not asked again while the program runs
 BUSY = {}  # model -> when it was overloaded: tried last for 10 minutes
 # worth trying the next model ("only available on agentic harnesses": an OpenRouter model closed to apps like ours)
-ROTATE_ERRORS = r"överbelastad|fel 404|nås inte|slut på gratisfrågor|only available on"
+ROTATE_ERRORS = r"överbelastad|fel 404|nås inte|för långsamt|tomt svar|slut på gratisfrågor|only available on"
 
 
 def forget_model(provider, model):
@@ -1525,6 +1529,15 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice="", 
             notice("Projektet får bara använda lokal AI – den valda modellen används inte här")
         chosen = None
     fallback = None
+    if chosen and chosen[0].get("local") and LOCAL_PAUSED.exists() and not has_images(messages):
+        # The picked local model rests while a game runs (25 Oct, the user's wish): the cloud services
+        # in their order instead – not with "Bara lokalt" (the project's or AI-tjänster's)
+        cloud = [p for p in providers_in_order(keys, (project or {}).get("order")) if not p.get("local")]
+        if cloud:
+            last = next((m for m in reversed(messages) if m["role"] == "user"), {})
+            if notice and last.get("content") == typed_question(messages):  # once, not after every tool step
+                notice(f"Lokal AI vilar medan spelet kör – frågar {cloud[0]['name']} i stället")
+            chosen, fallback = None, cloud
     if chosen:
         try:
             return ask_chosen(*chosen, messages, keys, status, tools)
@@ -1555,7 +1568,12 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice="", 
                                "vill du skicka bilden till molnet: välj en modell vid Skicka.") from None
         return ask_chosen(LOCAL, models[0], messages, keys, status, tools)
     errors = []
-    for provider in fallback or providers_in_order(keys, (project or {}).get("order")):
+    order = fallback or providers_in_order(keys, (project or {}).get("order"))
+    if LOCAL_PAUSED.exists() and LOCAL in order and len(order) > 1:
+        # Paused by a game: straight to the cloud, without "Lokal AI: avstängd – provar nästa" on every step
+        order = [p for p in order if p is not LOCAL]
+        errors.append("Lokal AI: avstängd medan ett spel kör")
+    for provider in order:
         key = keys.get(provider["env"]) if provider["env"] else ""
         if (not key and not provider.get("local")) or provider["id"] in EXHAUSTED:
             continue
@@ -1564,7 +1582,7 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice="", 
             for attempt in range(2):
                 models = local_models(messages, project) if provider.get("local") else pick_models(provider, key, refresh=attempt > 0)
                 models = sorted(models, key=lambda m: time.time() - BUSY.get(m, 0) < 600)
-                if fallback and provider is chosen[0]:
+                if fallback and chosen and provider is chosen[0]:
                     models = [m for m in models if m != chosen[1]] or models  # the picked one was just asked
                 activity("ask", thinking_text(provider), provider.get("local"))
                 if status:
@@ -1573,6 +1591,8 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice="", 
                     for i, model in enumerate(models):
                         try:
                             reply = chat(provider, key, model, messages, tools)
+                            if not reply.strip():
+                                raise ServiceError("tomt svar")  # the next model may answer (25 Oct, Gemini)
                             break
                         except ServiceError as e:
                                 # Overloaded, or listed but closed to new users: the next model
