@@ -565,6 +565,43 @@ def _words(line):
         return line.split()
 
 
+def _masked(text):
+    """The text with everything inside quotes replaced by x (same length): operators in `sed 's|a|b|'` or
+    `echo "a > b"` aren't pipes or redirections (the undo split at the | in s|…|…| and trashed "s", 25 Oct)."""
+    out, quote, i = [], None, 0
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            if ch == quote:
+                quote = None
+                out.append(ch)
+            elif ch == "\\" and quote == '"' and i + 1 < len(text):
+                out.append("xx")
+                i += 1
+            else:
+                out.append("x")
+        elif ch in "'\"":
+            quote = ch
+            out.append(ch)
+        elif ch == "\\" and i + 1 < len(text):
+            out.append("xx")
+            i += 1
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _split_unquoted(raw):
+    """A line split at ; && || | outside quotes."""
+    mask, parts, start = _masked(raw), [], 0
+    for m in re.finditer(r"&&|\|\||;|\|", mask):
+        parts.append(raw[start:m.start()].strip())
+        start = m.end()
+    parts.append(raw[start:].strip())
+    return parts
+
+
 def _lines(code):
     """The block's command lines (heredoc text left out), split at ; && || |, with sudo dropped."""
     out, skip_to = [], None
@@ -576,7 +613,7 @@ def _lines(code):
         m = re.search(r"<<-?\s*['\"]?(\w+)['\"]?", raw)
         if m:
             skip_to = m.group(1)
-        for part in re.split(r"\s*(?:&&|\|\||;|\|)\s*", raw):
+        for part in _split_unquoted(raw):
             part = re.sub(r"^\s*(?:sudo|pkexec)\s+(?:-\S+\s+)*", "", part).strip()
             if part and not part.startswith("#"):
                 out.append(part)
@@ -587,9 +624,11 @@ def write_targets(code, cwd):
     """Files the block writes over or into: redirections, tee, sed -i, cp/mv/install destinations."""
     targets = []
     for line in _lines(code):
-        for m in re.finditer(r"(?<![<&\d])(?:\d|&)?>>?\|?\s*(\"[^\"]+\"|'[^']+'|[^\s;&|<>()]+)", line):
-            if m.group(1) not in ("/dev/null",) and not m.group(1).startswith("&"):
-                targets.append(m.group(1))
+        mask = _masked(line)  # a > inside quotes isn't a redirection
+        for m in re.finditer(r"(?<![<&\d])(?:\d|&)?>>?\|?\s*(\"[^\"]+\"|'[^']+'|[^\s;&|<>()]+)", mask):
+            target = line[m.start(1):m.end(1)]
+            if target not in ("/dev/null",) and not target.startswith("&"):
+                targets.append(target)
         w = _words(re.sub(r"<<-?\s*\S+", "", line))
         if not w:
             continue
