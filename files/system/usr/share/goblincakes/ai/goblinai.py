@@ -922,6 +922,8 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         QUICK.on = False
         activity_done()
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+    # gemma4 wrote "~/ .config/goblincakes/recorder.json" (25 Oct) – a path with a space isn't a link
+    answer = re.sub(r"(?<![\w/])~/[ \t]+(?=\.?[\w-]+/)", "~/", answer)
     return no_unasked_report(answer, question), service
 
 
@@ -1047,7 +1049,15 @@ def own_fight(question, tools, messages=None):
 def own_game_question(question, tools):
     """About the user's own WoW, CS2 or team – data only a tool has (not the computer: its folders are in the
     system prompt, and the nudge made "vart hamnar grejer jag laddar ner" start with an apology)."""
+    if isinstance(question, str) and WRITE_SOMETHING.search(question[:600]):
+        return False
     return own_data_question(question, {k: v for k, v in tools.items() if k not in ("leta", "systemfel")})
+
+
+# "Skriv ett peppmeddelande till min raidgrupp" is a text to write, not a question about the raids (25 Oct:
+# it was sent back to fetch wowstats)
+WRITE_SOMETHING = re.compile(r"^\W*(?:skriv|gör|hitta på|formulera|författa|dikta)\b.{0,80}?\b(?:pepp\w*|\w*meddelande\w*|"
+                             r"dikt\w*|text\w*|inlägg\w*|hälsning\w*|tal|låt|vers\w*|skämt\w*|rim|limerick\w*)\b", re.I)
 
 
 def own_data_question(question, tools):
