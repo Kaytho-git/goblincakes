@@ -953,10 +953,11 @@ OWN_DATA = re.compile(
     r"|\b(?:parse\w*|pull\w*|wip\w*|bossen|raiden|nyckeln|matchen)\b.{0,60}\b(?:jag|min|mitt|mina|vi|vår|vårt|våra)\b",
     re.I)
 OWN_TOOLS = ("warcraftlogs", "wowstats", "cs2")
-# About the computer itself ("har tjänsten haft fel idag", "Discord startade långsamt"): the logs, not the web
+# About the computer itself ("har tjänsten haft fel idag", "Discord startade långsamt"): the logs, not the web –
+# also compounds ("systemfel idag" searched the web, 25 Oct)
 OWN_SYSTEM = re.compile(r"\b(?:logg\w*|journal\w*|tjänst\w*|datorn|min dator|krasch\w*|startar\w*|startade|"
                         r"start(?:en)?|hänger|hängde|laddar|laddade|seg\w*|långsam\w*|felmeddelande\w*|lagg\w*|lag|fps|"
-                        r"hack\w*|fryser|frös|stutter\w*|fel|felen|problem\w*|strular|strulade|funkar inte|fungerar inte)\b", re.I)
+                        r"hack\w*|fryser|frös|stutter\w*|(?!stav|skriv|tank|språk)\w*fel(?:en|et)?|problem\w*|strular|strulade|funkar inte|fungerar inte)\b", re.I)
 
 
 def own_system_question(question, tools):
