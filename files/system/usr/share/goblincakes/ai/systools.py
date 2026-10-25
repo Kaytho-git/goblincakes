@@ -565,6 +565,8 @@ tjänster [text]                         – vilka tjänster som körs"""
 def look(query):
     """The text for the AI for one ```leta line."""
     q = " ".join(query.split())
+    # A slip in the path: "~/ .config/goblincakes/" looked in the wrong place and found nothing (25 Oct)
+    q = re.sub(r"(?<=~/)\s+|(?<=/)\s+(?=\.)", "", q)
     word, _, rest = q.partition(" ")
     word = word.lower().rstrip(":")
     try:

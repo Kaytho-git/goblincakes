@@ -1012,7 +1012,8 @@ def own_bosses():
 PARSE_WORDS = re.compile(r"\b(?:parse\w*|median|ilvl|item level|sämst|bäst|förbättra|snitt\w*)\b", re.I)
 
 
-FOLLOW_UP = re.compile(r"\b(?:loggen|länk\w*|pullen|killen|striden|samma|där|den|dom|de)\b", re.I)
+# Only words about the fight itself – "länk" made "ge mig en länk till mina bilder map" fetch Ula'tek again (25 Oct)
+FOLLOW_UP = re.compile(r"\b(?:loggen|logg|pullen|killen|wipen|striden|bossen|raiden|samma pull)\b", re.I)
 
 
 def own_fight(question, tools, messages=None):
@@ -1039,6 +1040,12 @@ def own_fight(question, tools, messages=None):
         return None  # an ability or every boss: the AI says what (see WCL_PROMPT)
     pull = re.search(r"\b(?:pull|försök|forsok)\s*(\d+)", low)
     return "warcraftlogs", boss + (f" pull {pull.group(1)}" if pull else "")
+
+
+def own_game_question(question, tools):
+    """About the user's own WoW, CS2 or team – data only a tool has (not the computer: its folders are in the
+    system prompt, and the nudge made "vart hamnar grejer jag laddar ner" start with an apology)."""
+    return own_data_question(question, {k: v for k, v in tools.items() if k not in ("leta", "systemfel")})
 
 
 def own_data_question(question, tools):
@@ -1157,7 +1164,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice=""):
     while True:
         answer, service = ask_once(messages, keys, status, notice, project, choice, tools)
         request_ = tool_request(answer, tools)
-        if not request_ and not used and not nudged and own_data_question(asked.get("content"), tools):
+        if not request_ and not used and not nudged and own_game_question(asked.get("content"), tools):
             # About the user's own WoW/CS2/computer/team but no tool used: in a long chat gemma4 answered "enligt
             # Warcraft Logs dog Kaytho" without reading anything (25 Oct) – once more, told to use one
             nudged = True
@@ -1691,6 +1698,18 @@ def system_info():
         pass
     info.append(f"Kärna: {os.uname().release}")
     info.append(f"Dagens datum: {date.today().isoformat()}")
+    # The user's own folders by their real (Swedish) names: "mina bilder" = ~/Bilder (25 Oct)
+    folders = []
+    for kind, name in (("DESKTOP", "Skrivbordet"), ("DOWNLOAD", "Hämtade filer"), ("DOCUMENTS", "Dokument"),
+                       ("MUSIC", "Musik"), ("PICTURES", "Bilder"), ("VIDEOS", "Filmer")):
+        try:
+            folder = subprocess.run(["xdg-user-dir", kind], capture_output=True, text=True, timeout=5).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            folder = ""
+        if folder and folder != str(Path.home()) and Path(folder).is_dir():
+            folders.append(f"{name} {folder.replace(str(Path.home()), '~', 1)}")
+    if folders:
+        info.append("Användarens mappar: " + ", ".join(folders))
     try:
         status = json.loads(subprocess.run(["rpm-ostree", "status", "--json", "--booted"],
                                            capture_output=True, text=True, timeout=10).stdout)
@@ -1736,6 +1755,16 @@ När användaren vill få något gjort på datorn:
   Sökvägar med mellanslag skrivs inom citattecken: `cd "/run/media/$USER/Min disk/Mapp"`.
 - Du ser bara det du får: läs själv med verktyget leta (filer, loggar, journalen, tjänster), eller be om att få köra
   ett kommando (t.ex. `ls`, `cat fil.py`, `python3 -c "import tkinter"`). Användaren kan också bifoga en fil.
+
+Förstå hur användaren skriver: folk skriver som de pratar, kort och med stavfel ("bilder map" = mappen Bilder,
+"kolla wow felen" = fel i WoW-tilläggen). Tolka vad hen menar och gör det; fråga bara när det verkligen kan betyda
+olika saker. Frågar användaren igen om något du inte hittade eller fick fel på: gör ett nytt försök med verktygen
+på ett annat sätt (en annan mapp, en kortare del av namnet) – upprepa aldrig ditt gamla svar.
+
+Länkar: skriver du en hel sökväg (t.ex. ~/Bilder eller ~/.config/goblincakes/recorder.json) eller en webbadress
+blir den klickbar för användaren – mappar öppnas i filhanteraren, filer visas i sin mapp. Ber användaren om en länk
+till en mapp eller fil: skriv sökvägen (leta upp den först om du inte vet var den ligger). Säg aldrig att du inte
+kan ge länkar.
 
 Gissa aldrig – säg hellre att du inte vet:
 - Allt du säger om datorn, användarens spel, siffror, klockslag, filer och vad som hände ska stå i det du
