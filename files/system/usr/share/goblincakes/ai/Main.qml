@@ -746,12 +746,41 @@ Window {
             quickInput.text = "";
             quickNote.text = "";
             picking = false;
+            histIndex = -1;
             clip = {};
             wasActive = false;
             show();
             raise();
             requestActivate();
             quickInput.forceActiveFocus();
+        }
+        // ↑/↓: the same history as the window (one line here – a question of several lines comes as one)
+        property int histIndex: -1
+        property string histDraft: ""
+        function recall(step) {
+            const h = win.history;
+            if (!h.length)
+                return;
+            if (step < 0) {
+                if (histIndex < 0) {
+                    histDraft = quickInput.text;
+                    histIndex = h.length - 1;
+                } else if (histIndex > 0) {
+                    histIndex--;
+                }
+                quickInput.text = h[histIndex].replace(/\s*\n\s*/g, " ");
+            } else {
+                if (histIndex < 0)
+                    return;
+                histIndex++;
+                if (histIndex >= h.length) {
+                    histIndex = -1;
+                    quickInput.text = histDraft;
+                } else {
+                    quickInput.text = h[histIndex].replace(/\s*\n\s*/g, " ");
+                }
+            }
+            quickInput.cursorPosition = quickInput.text.length;
         }
         function dismiss() {
             hide();
@@ -766,6 +795,8 @@ Window {
                 quickNote.text = "Goblin AI svarar redan på något – vänta en stund.";
                 return;
             }
+            win.remember(text);
+            histIndex = -1;
             hide();
             if (win.visible)
                 win.view = "chat";
@@ -780,6 +811,7 @@ Window {
         }
         Component.onCompleted: if (startQuick) open()
 
+        // Like the window's input (26 Oct): the words above, ❯ and the blinking block, ↑/↓ = earlier questions
         Rectangle {
             id: quickBox
             width: parent.width
@@ -793,44 +825,74 @@ Window {
                 x: 18
                 y: 14
                 width: parent.width - 36
-                spacing: 8
-                Row {
+                spacing: 10
+
+                Item {
                     width: parent.width
-                    spacing: 14
-                    Image {
+                    height: quickModel.height
+                    TextAction {
+                        id: quickModel
+                        on: quick.picking
+                        text: win.modelName(backend.model).toLowerCase() + " ▾"
+                        onClicked: quick.togglePicking()
+                    }
+                    Text {
+                        id: quickHelp
+                        anchors { right: parent.right; left: quickModel.right; leftMargin: 22 }
+                        horizontalAlignment: Text.AlignRight
+                        elide: Text.ElideLeft
+                        text: quick.picking ? "↑↓ välj · enter använder · esc tillbaka"
+                                            : "enter frågar · ↑ tidigare · tab modell · esc stänger"
+                        color: "#5C6880"
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 12
+                    }
+                }
+
+                Rectangle { width: parent.width; height: 1; color: accent.color }
+
+                Item {
+                    width: parent.width
+                    height: quickInput.height
+                    Text {
+                        id: quickMark
                         anchors.verticalCenter: parent.verticalCenter
-                        source: logoUrl
-                        sourceSize.width: 30
-                        sourceSize.height: 30
+                        text: "❯"
+                        color: accent.text
+                        font: quickInput.font
                     }
                     TextInput {
                         id: quickInput
-                        width: parent.width - 44
-                        anchors.verticalCenter: parent.verticalCenter
+                        anchors { left: quickMark.right; leftMargin: 12; right: parent.right; verticalCenter: parent.verticalCenter }
                         clip: true
                         color: "#E6ECF5"
                         selectionColor: accent.color
-                        font.family: "IBM Plex Sans"
-                        font.pixelSize: 20
+                        selectedTextColor: accent.on
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 18
+                        cursorDelegate: BlockCaret { edit: quickInput }
                         Keys.onReturnPressed: quick.picking ? quick.pick(quick.pickIndex) : quick.ask()
                         Keys.onEnterPressed: quick.picking ? quick.pick(quick.pickIndex) : quick.ask()
                         Keys.onEscapePressed: quick.picking ? quick.picking = false : quick.dismiss()
                         Keys.onTabPressed: quick.togglePicking()
-                        Keys.onUpPressed: if (quick.picking) quick.pickIndex = Math.max(0, quick.pickIndex - 1)
-                        Keys.onDownPressed: if (quick.picking) quick.pickIndex = Math.min(quick.picks.length - 1, quick.pickIndex + 1)
+                        Keys.onUpPressed: quick.picking ? quick.pickIndex = Math.max(0, quick.pickIndex - 1) : quick.recall(-1)
+                        Keys.onDownPressed: quick.picking ? quick.pickIndex = Math.min(quick.picks.length - 1, quick.pickIndex + 1) : quick.recall(1)
                         Text {
                             visible: quickInput.text === ""
-                            text: "Fråga " + (backend.aiName || "Goblin AI") + " …"
+                            text: "fråga " + (backend.aiName || "Goblin AI").toLowerCase() + "…"
                             color: "#5C6880"
                             font: quickInput.font
                         }
                     }
                 }
+
+                Rectangle { width: parent.width; height: 1; color: accent.color }
+
                 Text {
                     id: quickNote
                     visible: text !== ""
                     color: accent.errorBright
-                    font.family: "IBM Plex Sans"
+                    font.family: "IBM Plex Mono"
                     font.pixelSize: 12
                 }
                 // What was copied: goes along with the question (× = not)
@@ -854,7 +916,7 @@ Window {
                         text: quick.clip.kind === "image" ? "📋  Bilden du kopierade följer med"
                               : "📋  Urklipp följer med: " + (quick.clip.text || "").replace(/\s+/g, " ")
                         color: "#8B98AD"
-                        font.family: "IBM Plex Sans"
+                        font.family: "IBM Plex Mono"
                         font.pixelSize: 13
                     }
                     Text {
@@ -931,36 +993,6 @@ Window {
                                     onClicked: quick.pick(qp.index)
                                 }
                             }
-                        }
-                    }
-                }
-                Item {
-                    width: parent.width
-                    height: quickHelp.height
-                    Text {
-                        id: quickHelp
-                        width: parent.width - quickModel.width - 12
-                        elide: Text.ElideRight
-                        text: quick.picking ? "↑/↓ väljer, Enter använder modellen  ·  Esc tillbaka"
-                                            : "Enter frågar – Goblin AI öppnas när svaret finns  ·  Tab byter modell  ·  Esc stänger"
-                        color: "#5C6880"
-                        font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
-                    }
-                    Text {
-                        id: quickModel
-                        anchors.right: parent.right
-                        text: win.modelName(backend.model) + "  ▾"
-                        color: quickModelArea.containsMouse ? "#E6ECF5" : "#8B98AD"
-                        font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
-                        MouseArea {
-                            id: quickModelArea
-                            anchors.fill: parent
-                            anchors.margins: -6
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: quick.togglePicking()
                         }
                     }
                 }
@@ -1050,6 +1082,34 @@ Window {
                 hoverEnabled: true
                 cursorShape: btn.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onClicked: if (btn.enabledState) btn.clicked()
+            }
+        }
+
+        // The inputs' cursor (26 Oct): a blinking block in the accent, the letter under it in accent.on – like a terminal
+        component BlockCaret: Rectangle {
+            id: caret
+            required property Item edit
+            property bool lit: true
+            width: caretMetrics.advanceWidth("M")
+            color: accent.color
+            visible: edit.activeFocus && lit
+            FontMetrics { id: caretMetrics; font: caret.edit.font }
+            Text {
+                text: caret.edit.text.length >= 0 ? caret.edit.getText(caret.edit.cursorPosition, caret.edit.cursorPosition + 1).trim() : ""
+                color: accent.on
+                font: caret.edit.font
+            }
+            Timer {
+                id: blink
+                interval: 530
+                repeat: true
+                running: caret.edit.activeFocus
+                onTriggered: caret.lit = !caret.lit
+            }
+            Connections {
+                target: caret.edit
+                function onCursorPositionChanged() { caret.lit = true; blink.restart(); }
+                function onTextChanged() { caret.lit = true; blink.restart(); }
             }
         }
 
@@ -2433,32 +2493,7 @@ Window {
                                         inputFlick.contentY = cursorRectangle.y + cursorRectangle.height - inputFlick.height;
                                 }
 
-                                // A blinking block in the accent, the letter under it in accent.on – like a terminal
-                                cursorDelegate: Rectangle {
-                                    id: caret
-                                    property bool lit: true
-                                    width: monoMetrics.advanceWidth("M")
-                                    color: accent.color
-                                    visible: input.activeFocus && lit
-                                    Text {
-                                        text: input.text.length >= 0 ? input.getText(input.cursorPosition, input.cursorPosition + 1).trim() : ""
-                                        color: accent.on
-                                        font: input.font
-                                    }
-                                    Timer {
-                                        id: blink
-                                        interval: 530
-                                        repeat: true
-                                        running: input.activeFocus
-                                        onTriggered: caret.lit = !caret.lit
-                                    }
-                                    Connections {
-                                        target: input
-                                        function onCursorPositionChanged() { caret.lit = true; blink.restart(); }
-                                        function onTextChanged() { caret.lit = true; blink.restart(); }
-                                    }
-                                }
-                                FontMetrics { id: monoMetrics; font: input.font }
+                                cursorDelegate: BlockCaret { edit: input }
 
                                 Text {
                                     visible: input.text === ""
