@@ -30,8 +30,8 @@ sys.path.insert(0, "/usr/share/goblincakes/ai")
 sys.path.insert(1, "/usr/share/goblincakes")
 from goblinai import (DAILY_PROMPT, FORMAT_WORDS, LOOK_UP_FIRST, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
                       ai_name, ask as ask_services, chosen_model, cmd_level, file_message, forget, has_keys,
-                      image_request, images_possible, is_image, last_tools, load_daily, load_keys, load_memory,
-                      make_image, make_report, model_choices, remember, run_in_folder, save_keys, segments,
+                      image_request, images_possible, is_image, last_tools, load_daily, load_keys, load_memory, load_projects,
+                      make_image, make_report, model_choices, project_prompt, remember, run_in_folder, save_keys, segments,
                       set_chosen_model, system_prompt, test_key)
 
 MAX_ROUNDS = 8  # command → output → next step, per question
@@ -153,6 +153,11 @@ def render_code(code, label="", indent="  "):
         print(f"{indent}{RULE}▌{RESET} {FROST}{line}{RESET}")
 
 
+def divider(label):
+    """─── label ─────: a new chat (/ny, /projekt), as long as the box at the top."""
+    print(f"\n{BORDER}───{RESET} {label} {BORDER}{'─' * max(3, min(width(), 72) - 5 - visible(label))}{RESET}")
+
+
 def user_line(text, mark="❯"):
     """The question as it stays in the terminal: "❯ the question", dim – like the window's chat."""
     lines = text.splitlines() or [""]
@@ -172,6 +177,7 @@ def welcome(chat):
     rows = [f"{RULE}▌{RESET} {ACCENT_BOLD}GOBLIN AI{RESET}",
             f"  {FROST}{name()}{RESET}{MUTED} · {model_name(chosen_model())}{RESET}",
             f"  {MUTED}{folder}{RESET}",
+            *([f"  {ACCENT}projekt{RESET} {FROST}{chat.project_data()['name']}{RESET}"] if chat.project_data() else []),
             "",
             f"  {FAINT}/ kommandon · /app öppnar fönstret · esc stoppar · ctrl+d slutar{RESET}"]
     print(f"{BORDER}┌{'─' * (w - 2)}┐{RESET}")
@@ -207,13 +213,17 @@ def model_name(choice):
 # ── The chat, saved like the window's ──────────────────────────────
 
 class Chat:
-    def __init__(self):
+    def __init__(self, project=""):
+        self.project = project  # the project's id ("" = outside the projects), kept by /ny like the window
         self.id = time.strftime("%Y%m%d-%H%M%S")
         self.api = [{"role": "system", "content": system_prompt()}]
         self.display = []
         self.file = None
         self.cwd = os.getcwd()  # where the next block runs: starts where goblin ai was started, follows `cd`
         self.search_next = False
+
+    def project_data(self):
+        return next((p for p in load_projects() if p["id"] == self.project), None) if self.project else None
 
     def save(self):
         if not self.display:
@@ -223,7 +233,7 @@ class Chat:
             first = next((m["text"] for m in self.display if m["role"] == "user" and m.get("text")), "")
             title = " ".join((first or "Samtal i terminalen").split())[:80]
             data = {"id": self.id, "title": title, "updated": time.time(), "file": self.file, "cwd": self.cwd,
-                    "project": "", "api": self.api[1:], "display": self.display, "terminal": True}
+                    "project": self.project, "api": self.api[1:], "display": self.display, "terminal": True}
             (DATA / f"{self.id}.json").write_text(json.dumps(data, ensure_ascii=False))
             loose = []
             for f in sorted(DATA.glob("2*.json"), reverse=True):
@@ -345,8 +355,10 @@ def wait_for(thread, working, stop):
 
 def ask_live(chat, keys, choice=""):
     """One answer from the services, the steps shown while it works. (answer, service) or None."""
+    project = chat.project_data()
     messages = list(chat.api)
-    messages[0] = {"role": "system", "content": system_prompt()}
+    # The project's instructions and fixed files, read now (changed files are seen at once)
+    messages[0] = {"role": "system", "content": system_prompt() + project_prompt(project)}
     stop = threading.Event()
     working = Working()
     steps = Steps(report=lambda items: stop.is_set() or working.set_steps(items), stop=stop)
@@ -356,7 +368,7 @@ def ask_live(chat, keys, choice=""):
         try:
             result["answer"] = ask_services(messages, keys, status=lambda t: stop.is_set() or working.set_status(t),
                                             notice=lambda t: stop.is_set() or working.say(t),
-                                            choice=choice or chosen_model(), steps=steps)
+                                            project=project, choice=choice or chosen_model(), steps=steps)
             result["tools"] = last_tools()
         except Stopped:
             pass
@@ -461,11 +473,11 @@ def run_command(chat, part, levels):
     return f"$ {code}\n{levels.shorten(output)}(avslutskod {exit_code})"
 
 
-def draw(part, keys):
+def draw(part, keys, project=None):
     """A ```bild or ```rapport block: drawn now, the file printed as a link."""
     if part.get("report"):
         try:
-            path = make_report(part["markdown"])
+            path = make_report(part["markdown"], project)
             part.update(state="done", path=path, service="Rapport gjord på datorn", error="")
             print(f"  {RULE}▌{RESET} {ACCENT_BOLD}Rapporten{RESET} {link(path, Path(path).as_uri())}")
         except Exception as e:  # noqa: BLE001
@@ -479,7 +491,8 @@ def draw(part, keys):
 
     def work():
         try:
-            result["done"] = make_image(part["prompt"], part.get("format", "1:1"), keys, status=working.set_status,
+            result["done"] = make_image(part["prompt"], part.get("format", "1:1"), keys, project=project,
+                                        status=working.set_status,
                                         notice=working.say, progress=lambda text, _f: working.set_status(text))
         except ServiceError as e:
             result["error"] = str(e)
@@ -542,7 +555,7 @@ def show_answer(chat, answer, service, keys):
         elif kind == "file":
             save_file(chat, part)
         elif kind == "image":
-            draw(part, keys)
+            draw(part, keys, chat.project_data())
         elif kind == "memory":
             part.update(state="saved", done=remember(part["items"]))
             for t in part["done"]:
@@ -629,7 +642,7 @@ def picture(chat, keys, text):
     chat.display.append({"role": "assistant", "text": block, "service": "", "file": "", "segments": [part]})
     print()
     print(f"{ACCENT}●{RESET} {BOLD}{FROST}{name()}{RESET}")
-    draw(part, keys)
+    draw(part, keys, chat.project_data())
     chat.save()
 
 
@@ -650,6 +663,7 @@ def commands(keys):
         {"name": "sök", "note": "sök på nätet – med en fråga söker den direkt", "args": True,
          "hidden": not keys.get(SEARCH["env"])},
         {"name": "bifoga", "note": "bifoga en fil – /bifoga <sökväg>", "args": True},
+        {"name": "projekt", "note": "gå in i ett projekt – utan namn: lämna projektet", "args": True},
         {"name": "minne", "note": f"vad {name()} kommer ihåg om dig"},
         {"name": "inställningar", "note": "AI-tjänster och nycklar", "aliases": ["settings", "setup"]},
         {"name": "hjälp", "note": "alla kommandon och tangenter", "aliases": ["help", "?"]},
@@ -664,6 +678,10 @@ def find_command(cmds, word):
 
 
 def command_args(cmd, typed, chat):
+    if cmd == "projekt":
+        return [{"arg": p["name"], "note": "valt nu" if p["id"] == chat.project else
+                 " · ".join(x for x in (p["instructions"].strip().split("\n")[0][:60], (f"{len(p['files'])} filer" if len(p["files"]) > 1 else "1 fil")
+                                        if p["files"] else "") if x)} for p in load_projects()]
     if cmd == "modell":
         items = [{"arg": "auto", "note": "Automatiskt – GOBLINCAKES väljer"}]
         return items + [{"arg": m["name"], "note": " · ".join(x for x in (m.get("group"), m.get("note")) if x)}
@@ -771,6 +789,39 @@ def list_models():
         print(f"  {mark} {FROST}{m['name']}{RESET}{tag} {MUTED}{m.get('note', '')}{RESET}")
 
 
+def choose_project(chat, arg):
+    """/projekt <namn>: a new chat in the project (its instructions, files and AI choice), like the window;
+    /projekt alone: out of the project, or the list when outside."""
+    projects = load_projects()
+    if not arg:
+        if chat.project:
+            chat.__init__()
+            divider(f"{MUTED}utanför projekten – nytt samtal{RESET}")
+            return
+        print(f"\n{ACCENT_BOLD}PROJEKT{RESET}  {MUTED}/projekt <namn> går in · /projekt lämnar{RESET}")
+        if not projects:
+            muted("  Inga projekt än. Skapa ett i fönstret: /app → PROJEKT → +.")
+        for p in projects:
+            first = p["instructions"].strip().split("\n")[0][:70]
+            print(f"  {ACCENT}•{RESET} {FROST}{p['name']}{RESET} {MUTED}{first}{RESET}")
+        return
+    w = plain(arg)
+    hit = (next((p for p in projects if plain(p["name"]) == w), None)
+           or next((p for p in projects if w in plain(p["name"])), None))
+    if not hit:
+        print(f"  {RED}Hittade inget projekt som heter {arg}.{RESET} {MUTED}/projekt visar dem.{RESET}")
+        return
+    chat.__init__(hit["id"])
+    divider(f"{ACCENT}projekt{RESET} {FROST}{hit['name']}{RESET} {MUTED}– nytt samtal{RESET}")
+    order = {"local-only": "bara lokal AI", "cloud-only": "bara molnet", "local-first": "lokal AI först",
+             "cloud-first": "molnet först"}.get(hit["order"])
+    facts = [(f"{len(hit['files'])} fasta filer" if len(hit["files"]) > 1 else "1 fast fil") if hit["files"] else "", order or "",
+             "ingen sökning på nätet" if not hit.get("search", True) else "",
+             f"filer sparas i {hit['folder']}" if hit["folder"] else ""]
+    if any(facts):
+        muted("  " + " · ".join(f for f in facts if f))
+
+
 def open_app(chat):
     """/app: the window, with this chat open (saved like its own)."""
     if not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")):
@@ -796,14 +847,14 @@ def run_slash(text, chat, keys, ui):
     if "button" in c:
         item = load_daily()[c["button"]]
         if chat.display:
-            chat.__init__()
+            chat.__init__(chat.project)
         send(chat, keys, item["text"], choice=item.get("model", ""), daily=True)
     elif n == "app":
         if open_app(chat):
             return "quit"
     elif n == "ny":
-        chat.__init__()
-        print(f"\n{BORDER}{'─' * 3}{RESET} {MUTED}nytt samtal{RESET} {BORDER}{'─' * max(3, min(width(), 72) - 17)}{RESET}")
+        chat.__init__(chat.project)
+        divider(f"{MUTED}nytt samtal{RESET}" + (f" {ACCENT}i {chat.project_data()['name']}{RESET}" if chat.project_data() else ""))
     elif n == "bild":
         if arg:
             picture(chat, keys, arg)
@@ -826,6 +877,8 @@ def run_slash(text, chat, keys, ui):
         else:
             ui.attachment = str(path.resolve())
             muted(f"  📎 {path.name} skickas med nästa fråga" + (" (som bild)" if is_image(str(path)) else ""))
+    elif n == "projekt":
+        choose_project(chat, arg)
     elif n == "minne":
         show_memory()
     elif n == "inställningar":
@@ -920,6 +973,9 @@ class Input:
             if self.picture:
                 left.append(("class:on", "skapa bild"))
             else:
+                project = self.chat.project_data()
+                if project:
+                    left += [("class:on", "projekt " + project["name"].lower()), ("", "   ")]
                 left.append(("class:word", model_name(chosen_model()) + " ▾"))
                 if self.chat.search_next:
                     left += [("", "   "), ("class:on", "sök på nätet ✓")]
@@ -970,8 +1026,8 @@ class Input:
             if state["search"]:
                 state["search"], state["closed"] = False, True
                 set_text(item["fill"])
-            elif run and not item.get("args"):
-                event.app.exit(result=item["fill"])
+            elif run and not item["fill"].endswith("/") and item["fill"] != "/bifoga":
+                event.app.exit(result=item["fill"])  # enter runs (a folder in /bifoga opens instead)
             else:
                 set_text(item["fill"] + ("" if item["fill"].endswith("/") else " " if item.get("args") else ""))
                 state["index"] = 0
