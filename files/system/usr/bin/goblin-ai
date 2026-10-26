@@ -40,6 +40,8 @@ PICTURES = DATA / "bilder"  # pictures in chats: screenshots and attached pictur
 AVATAR = DATA / "avatar.png"  # the AI's avatar (AI-tjänster → Avatar, or "Använd som avatar" on a drawn picture)
 AVATAR_THINKING = DATA / "avatar-thinking.png"  # shown instead of the status text while the AI works (24 Oct)
 AVATAR_SIDE = 256
+HISTORY = DATA / "historik.json"  # what was typed in the input, for ↑/↓ and Ctrl+R (26 Oct)
+HISTORY_MAX = 500
 PICTURE_SIDE = 1600  # longest side sent to the AI – enough to read text, fewer tokens for local models
 
 
@@ -962,6 +964,35 @@ class Backend(QObject):
             self._new_conversation()
             self.conversationChanged.emit()
         self.conversationsChanged.emit()
+
+    # ── The input's history (26 Oct, the user's wish: like a terminal) ──
+
+    @Slot(result=str)
+    def inputHistory(self):
+        """Everything typed, oldest first. The first time: the questions in the saved chats."""
+        try:
+            items = json.loads(HISTORY.read_text())
+        except (OSError, ValueError):
+            items = []
+            for f in sorted(DATA.glob("2*.json")) if DATA.exists() else []:
+                try:
+                    items += [m["text"] for m in json.loads(f.read_text())["display"]
+                              if m.get("role") == "user" and m.get("text")]
+                except (OSError, ValueError, KeyError, TypeError):
+                    continue
+        return json.dumps([t for t in items if isinstance(t, str)][-HISTORY_MAX:], ensure_ascii=False)
+
+    @Slot(str)
+    def addHistory(self, text):
+        text = text.strip()
+        if not text:
+            return
+        items = [t for t in json.loads(self.inputHistory()) if t != text] + [text]
+        try:
+            DATA.mkdir(parents=True, exist_ok=True)
+            HISTORY.write_text(json.dumps(items[-HISTORY_MAX:], ensure_ascii=False))
+        except OSError:
+            pass
 
     # ── The model to talk to (the button by Skicka) ───────────
 

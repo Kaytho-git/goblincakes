@@ -110,21 +110,26 @@ Window {
         return path.startsWith("file:") ? path : "file://" + path;
     }
 
-    function send() {
+    function send(override) {
+        const text = override !== undefined ? override : input.text;
         if (pictureMode) {
-            if (input.text.trim() === "")
+            if (text.trim() === "")
                 return;
+            if (override === undefined)
+                remember(text);
             if (backend.canDraw)
-                backend.createImage(input.text);
+                backend.createImage(text);
             else
-                backend.drawChatGPT(input.text); // only ChatGPT can draw here
+                backend.drawChatGPT(text); // only ChatGPT can draw here
             input.text = "";
             pictureMode = false;
             return;
         }
-        if (backend.busy || (input.text.trim() === "" && attachment === ""))
+        if (backend.busy || (text.trim() === "" && attachment === ""))
             return;
-        backend.send(input.text, attachment);
+        if (override === undefined)
+            remember(text);
+        backend.send(text, attachment);
         input.text = "";
         attachment = "";
     }
@@ -133,9 +138,352 @@ Window {
     function sendChatGPT() {
         if (input.text.trim() === "")
             return;
+        remember(input.text);
         backend.drawChatGPT(input.text);
         input.text = "";
         pictureMode = false;
+    }
+
+    // ── The input like a terminal (26 Oct, the user's wish: like Claude Code) ──
+    // ↑/↓ = what was typed before (on the first/last line), Ctrl+R = search in it, / = commands.
+
+    property var history: []          // oldest first, also from earlier sessions (backend.inputHistory)
+    property int historyIndex: -1     // -1 = the line being written
+    property string historyDraft: ""  // that line, back with ↓ after the newest
+    property bool historySearch: false
+    property int popupIndex: 0
+    property bool popupClosed: false  // Esc: the list stays closed until the text changes
+    property bool modelsAsked: false
+
+    function remember(text) {
+        text = text.trim();
+        historyIndex = -1;
+        if (text === "")
+            return;
+        history = history.filter(t => t !== text).concat([text]).slice(-500);
+        backend.addHistory(text);
+    }
+
+    function recall(step) {
+        if (step < 0) {
+            if (historyIndex < 0) {
+                historyDraft = input.text;
+                historyIndex = history.length - 1;
+            } else if (historyIndex > 0) {
+                historyIndex--;
+            } else {
+                return;
+            }
+            input.text = history[historyIndex];
+        } else {
+            historyIndex++;
+            if (historyIndex >= history.length) {
+                historyIndex = -1;
+                input.text = historyDraft;
+            } else {
+                input.text = history[historyIndex];
+            }
+        }
+        input.cursorPosition = input.text.length;
+        popupClosed = true;  // a remembered "/modell …" must not open the list
+    }
+
+    // å/ä/ö optional: /lar, /hjalp, /skarmbild, /sok and /installningar work too
+    function plain(t) {
+        return t.toLowerCase().replace(/[åä]/g, "a").replace(/ö/g, "o").replace(/é/g, "e");
+    }
+
+    readonly property var ownCommands: JSON.parse(backend.daily).map((d, i) => ({
+        name: d.name.toLowerCase().trim().split(/\s+/).join("-"), note: "egen knapp – " + d.text, button: i }))
+    readonly property var commands: [
+        { name: "ny", note: "nytt samtal", aliases: ["new", "clear"] },
+        { name: "bild", note: "skapa en bild – skriv vad den ska visa", args: true, hidden: !backend.canDraw && !backend.chatgpt },
+        { name: "modell", note: "byt modell – t.ex. /modell claude", args: true },
+        { name: "sök", note: "sök på nätet – med en fråga söker den direkt", args: true, hidden: !backend.canSearch },
+        { name: "bifoga", note: "bifoga en fil" },
+        { name: "skärmbild", note: "ta en skärmbild och bifoga den", args: true },
+        { name: "projekt", note: "byt projekt – utan namn: lämna projektet", args: true },
+        { name: "lär", note: "lärläget Lär dig koda, på eller av" },
+        { name: "minne", note: "vad Goblin AI kommer ihåg om dig" },
+        { name: "pdf", note: "spara senaste svaret som PDF" },
+        { name: "word", note: "spara senaste svaret som Word" },
+        { name: "inställningar", note: "AI-tjänster och inställningar", aliases: ["settings"] },
+        { name: "hjälp", note: "alla kommandon", aliases: ["help", "?"] }
+    ].filter(c => !c.hidden).concat(ownCommands)
+
+    function findCommand(word) {
+        const w = plain(word);
+        return commands.find(c => plain(c.name) === w || (c.aliases || []).indexOf(w) >= 0) || null;
+    }
+
+    function commandArgs(name) {
+        if (name === "modell")
+            return [{ arg: "auto", note: "Automatiskt – GOBLINCAKES väljer" }].concat(
+                JSON.parse(backend.modelChoices).filter(m => m.name !== "").map(m => ({ arg: m.name, note: m.group || m.note || "" })));
+        if (name === "projekt")
+            return win.projects.map(p => ({ arg: p.name, note: p.id === backend.currentProject ? "valt nu" : "" }));
+        if (name === "skärmbild")
+            return [{ arg: "skärm", note: "skärmen där muspekaren är" }, { arg: "båda", note: "båda skärmarna" },
+                    { arg: "område", note: "dra en ruta – Esc avbryter" }];
+        return [];
+    }
+
+    // The list above the input: commands, their choices, or (Ctrl+R) what was typed before
+    readonly property var popupItems: {
+        const t = input.text;
+        if (popupClosed || view !== "chat")
+            return [];
+        if (historySearch) {
+            const q = t.toLowerCase();
+            return history.slice().reverse().filter(h => h.toLowerCase().indexOf(q) >= 0).slice(0, 30)
+                .map(h => ({ fill: h, label: h.split("\n")[0], note: "" }));
+        }
+        if (!t.startsWith("/") || t.indexOf("\n") >= 0)
+            return [];
+        const space = t.indexOf(" ");
+        if (space < 0) {
+            const w = plain(t.slice(1));
+            return commands.filter(c => plain(c.name).startsWith(w))
+                .map(c => ({ fill: "/" + c.name, label: "/" + c.name, note: c.note, args: !!c.args }));
+        }
+        const c = findCommand(t.slice(1, space));
+        if (!c || !c.args)
+            return [];
+        const w = plain(t.slice(space + 1).trim());
+        const rank = a => { const p = plain(a.arg); return p === w ? 0 : p.startsWith(w) ? 1 : 2; };
+        return commandArgs(c.name).filter(a => plain(a.arg).indexOf(w) >= 0)
+            .sort((a, b) => rank(a) - rank(b))
+            .map(a => ({ fill: "/" + c.name + " " + a.arg, label: a.arg, note: a.note }));
+    }
+
+    function takePopup(item, run) {
+        if (historySearch) {
+            historySearch = false;
+            input.text = item.fill;
+            input.cursorPosition = input.text.length;
+            popupClosed = true;
+        } else if (run) {
+            runCommand(item.fill);
+        } else {
+            input.text = item.fill + (item.args ? " " : "");
+            input.cursorPosition = input.text.length;
+        }
+        input.forceActiveFocus();
+    }
+
+    function submit() {
+        if (input.text.trim().startsWith("/") && !pictureMode && runCommand(input.text))
+            return;
+        send();
+    }
+
+    // Keys in the input. Shift+Enter = a new line (not accepted: the TextEdit writes it).
+    function inputKey(event) {
+        const ctrl = event.modifiers & Qt.ControlModifier;
+        const enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter;
+        const items = popupItems;
+        const n = items.length;
+        if (event.key === Qt.Key_R && ctrl) {
+            if (!historySearch) {
+                historyDraft = input.text;
+                historySearch = true;
+                input.text = "";
+            } else if (n) {
+                popupIndex = Math.min(popupIndex + 1, n - 1);  // Ctrl+R again: one older
+            }
+            event.accepted = true;
+            return;
+        }
+        if (event.key === Qt.Key_Escape) {
+            if (historySearch) {
+                historySearch = false;
+                input.text = historyDraft;
+                input.cursorPosition = input.text.length;
+                popupClosed = true;
+            } else if (n) {
+                popupClosed = true;
+            } else if (modelMenu.visible || shotMenu.visible) {
+                modelMenu.visible = shotMenu.visible = false;
+            } else if (backend.stoppable) {
+                backend.stop();
+            }
+            event.accepted = true;
+            return;
+        }
+        if (n && !(event.modifiers & Qt.ShiftModifier)) {
+            const i = Math.min(popupIndex, n - 1);
+            if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
+                popupIndex = (i + (event.key === Qt.Key_Up ? n - 1 : 1)) % n;
+                event.accepted = true;
+                return;
+            }
+            if (event.key === Qt.Key_Tab || enter) {
+                takePopup(items[i], enter);
+                event.accepted = true;
+                return;
+            }
+        }
+        if (enter) {
+            if (event.modifiers & Qt.ShiftModifier)
+                return;
+            if (historySearch) {  // nothing matched: keep the words, out of the search
+                historySearch = false;
+                popupClosed = true;
+            } else {
+                submit();
+            }
+            event.accepted = true;
+            return;
+        }
+        if (historySearch || ctrl || !history.length)
+            return;
+        const caret = input.cursorRectangle;
+        if (event.key === Qt.Key_Up && caret.y < 1) {
+            recall(-1);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Down && historyIndex >= 0 && caret.y + caret.height >= input.contentHeight - 1) {
+            recall(1);
+            event.accepted = true;
+        }
+    }
+
+    // A /command: done here, nothing is sent. False = not a command (sent as a question).
+    function runCommand(text) {
+        const m = text.trim().match(/^\/(\S+)\s*([\s\S]*)$/);
+        const c = m ? findCommand(m[1]) : null;
+        if (!c)
+            return false;
+        const arg = m[2].trim();
+        remember(text);
+        input.text = "";
+        popupClosed = false;
+        if (c.button !== undefined) {
+            if (backend.busy)
+                toast.show("Vänta tills svaret är klart.");
+            else
+                backend.runButton(c.button);
+            return true;
+        }
+        switch (c.name) {
+        case "ny":
+            backend.newConversation();
+            view = backend.hasKeys ? "chat" : "settings";
+            break;
+        case "bild":
+            if (arg === "") {
+                pictureMode = !pictureMode;
+            } else {
+                pictureMode = true;
+                send(arg);
+            }
+            break;
+        case "modell": {
+            if (arg === "") {
+                modelMenu.visible = true;
+                backend.refreshModels();
+                break;
+            }
+            if (["auto", "automatiskt"].indexOf(plain(arg)) >= 0) {
+                backend.setModel("");
+                toast.show("Modell: Automatiskt");
+                break;
+            }
+            const w = plain(arg);
+            const items = JSON.parse(backend.modelChoices).filter(i => i.name !== "");
+            const hit = items.find(i => plain(i.name) === w || plain(i.id) === w)
+                     || items.find(i => plain(i.name).indexOf(w) >= 0 || plain(i.id).indexOf(w) >= 0);
+            if (hit) {
+                backend.setModel(hit.id);
+                toast.show("Modell: " + hit.name);
+            } else {
+                toast.show("Hittade ingen modell som heter " + arg + " – skriv /modell för listan.");
+            }
+            break;
+        }
+        case "sök":
+            if (arg !== "") {
+                backend.setSearchNext(true);
+                send(arg);
+            } else {
+                backend.setSearchNext(!backend.searchNext);
+                toast.show(backend.searchNext ? "Nästa fråga söker på nätet." : "Sök på nätet är av.");
+            }
+            break;
+        case "bifoga":
+            openDialog.open();
+            break;
+        case "skärmbild": {
+            const scope = { "skarm": "screen", "den": "screen", "bada": "all", "alla": "all", "omrade": "region", "valj": "region" }[plain(arg.split(/\s+/)[0])];
+            if (arg === "" || !scope)
+                shotMenu.visible = true;
+            else
+                backend.takeScreenshot(scope);
+            break;
+        }
+        case "projekt": {
+            if (arg === "") {
+                backend.selectProject("");
+                view = backend.hasKeys ? "chat" : "settings";
+                toast.show("Utanför projekten.");
+                break;
+            }
+            const w = plain(arg);
+            const hit = win.projects.find(p => plain(p.name) === w) || win.projects.find(p => plain(p.name).indexOf(w) >= 0);
+            if (hit) {
+                backend.selectProject(hit.id);
+                view = backend.hasKeys ? "chat" : "settings";
+            } else {
+                toast.show("Hittade inget projekt som heter " + arg + ".");
+            }
+            break;
+        }
+        case "lär":
+            if (view === "learn") {
+                view = "chat";
+            } else {
+                view = "learn";
+                learnSetup = !course;
+                if (course && !learnModuleId)
+                    openModule(course.current);
+            }
+            break;
+        case "minne":
+            view = "settings";
+            memCard.open = true;
+            Qt.callLater(() => settings.contentY = Math.max(0, Math.min(memCard.y, settings.contentHeight - settings.height)));
+            break;
+        case "pdf":
+        case "word":
+            saveLatest(c.name === "word");
+            break;
+        case "inställningar":
+            view = "settings";
+            break;
+        case "hjälp":
+            input.text = "/";  // the list shows every command
+            input.cursorPosition = 1;
+            break;
+        }
+        return true;
+    }
+
+    // /pdf and /word: the latest answer, like "Spara som…" under it
+    function saveLatest(word) {
+        let index = -1;
+        for (let i = chatModel.count - 1; i >= 0 && index < 0; i--) {
+            const m = JSON.parse(chatModel.get(i).msg);
+            if (m.role === "assistant" && !m.stopped)
+                index = i;
+        }
+        if (index < 0) {
+            toast.show("Det finns inget svar att spara än.");
+            return;
+        }
+        pendingPdf = index;
+        const name = backend.pdfName(index);
+        savePdfDialog.selectedNameFilter.index = word ? 1 : 0;
+        savePdfDialog.selectedFile = word ? name.replace(/\.pdf$/, ".docx") : name;
+        savePdfDialog.open();
     }
 
     function reload() {
@@ -146,7 +494,10 @@ Window {
 
     ListModel { id: chatModel }
 
-    Component.onCompleted: reload()
+    Component.onCompleted: {
+        reload();
+        history = JSON.parse(backend.inputHistory());
+    }
 
     property int dailyPick: -1          // the button whose model list is open (-2 = the new one)
     property string dailyNewModel: ""   // the model for the one being added
@@ -702,6 +1053,30 @@ Window {
             }
         }
 
+        // A button as a word (the input, 26 Oct): dim, white under the pointer, accent when on
+        component TextAction: Text {
+            id: act
+            property bool on: false
+            property bool danger: false
+            property bool enabledState: true
+            signal clicked()
+            color: danger ? accent.errorBright
+                 : on ? accent.text
+                 : actArea.containsMouse && enabledState ? "#E6ECF5" : "#8B98AD"
+            opacity: enabledState ? 1 : 0.4
+            font.family: "IBM Plex Mono"
+            font.pixelSize: 13
+            font.underline: actArea.containsMouse && enabledState
+            MouseArea {
+                id: actArea
+                anchors.fill: parent
+                anchors.margins: -4
+                hoverEnabled: true
+                cursorShape: act.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
+                onClicked: if (act.enabledState) act.clicked()
+            }
+        }
+
         component Label: Text {
             color: "#8B98AD"
             font.family: "Chakra Petch"
@@ -1163,21 +1538,23 @@ Window {
                     height: m.role === "user" ? userBox.height : m.role === "error" ? errorText.height
                             : Math.max(answer.height, avatarBox.visible ? avatarBox.height : 0)
 
-                    // The user's question: box to the right
-                    Rectangle {
+                    // The user's question: "❯ the question", dim, like a line typed in a terminal (26 Oct)
+                    Item {
                         id: userBox
                         visible: msgItem.m.role === "user"
-                        anchors.right: parent.right
-                        width: Math.min(userCol.implicitWidth + 32, msgItem.maxWidth * 0.75)
-                        height: userCol.height + 24
-                        color: "#12203A"
-                        border.width: 1
-                        border.color: "#1E2A40"
+                        width: msgItem.maxWidth
+                        height: userCol.height
+                        Text {
+                            id: userMark
+                            text: "❯"
+                            color: accent.text
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 15
+                        }
                         Column {
                             id: userCol
-                            x: 16
-                            y: 12
-                            width: parent.width - 32
+                            x: userMark.width + 10
+                            width: parent.width - x
                             spacing: 8
                             Text {
                                 visible: !!msgItem.m.picture
@@ -1189,20 +1566,20 @@ Window {
                                 font.letterSpacing: 2
                             }
                             TextEdit {
-                                width: Math.min(implicitWidth, msgItem.maxWidth * 0.75 - 32)
+                                width: Math.min(implicitWidth, userCol.width)
                                 visible: msgItem.m.text !== ""
                                 text: msgItem.m.text
                                 readOnly: true
                                 selectByMouse: true
                                 wrapMode: TextEdit.Wrap
-                                color: "#E6ECF5"
+                                color: "#B8C2D3"
                                 selectionColor: accent.color
-                                font.family: "IBM Plex Sans"
+                                font.family: "IBM Plex Mono"
                                 font.pixelSize: 15
                             }
                             Flow {
                                 visible: !!msgItem.m.images && msgItem.m.images.length > 0
-                                width: msgItem.maxWidth * 0.75 - 32
+                                width: userCol.width
                                 spacing: 8
                                 Repeater {
                                     model: msgItem.m.images || []
@@ -1210,7 +1587,7 @@ Window {
                                         required property string modelData
                                         source: win.fileUrl(modelData)
                                         sourceSize.width: 360
-                                        width: Math.min(360, msgItem.maxWidth * 0.75 - 32)
+                                        width: Math.min(360, userCol.width)
                                         fillMode: Image.PreserveAspectFit
                                         asynchronous: true
                                         MouseArea {
@@ -1225,7 +1602,7 @@ Window {
                                 visible: msgItem.m.file !== ""
                                 text: "📎  " + msgItem.m.file
                                 color: "#8B98AD"
-                                font.family: "IBM Plex Sans"
+                                font.family: "IBM Plex Mono"
                                 font.pixelSize: 13
                             }
                         }
@@ -1864,38 +2241,113 @@ Window {
             }
 
             // ── Own buttons (20 Oct): a saved instruction with its own model, AI-tjänster → Egna knappar ──
+            // As words like the rest of the input (26 Oct); also /<namn>
             Flow {
                 id: ownButtons
-                anchors { left: parent.left; right: parent.right; bottom: inputBar.top; leftMargin: 24; rightMargin: 24; bottomMargin: items.length ? 8 : 0 }
+                anchors { left: parent.left; right: parent.right; bottom: inputBar.top; leftMargin: 24; rightMargin: 24; bottomMargin: items.length ? 12 : 0 }
                 property var items: JSON.parse(backend.daily)
                 height: items.length ? implicitHeight : 0
-                spacing: 6
+                spacing: 22
                 Repeater {
                     model: ownButtons.items
-                    FlatButton {
+                    TextAction {
                         required property var modelData
                         required property int index
-                        small: true
-                        text: modelData.name
+                        text: "▸ " + modelData.name.toLowerCase()
                         enabledState: !backend.busy
-                        onClicked: if (enabledState) backend.runButton(index)
+                        onClicked: backend.runButton(index)
                     }
                 }
             }
 
-            // ── Input ──
-            Rectangle {
+            // ── Input, like a terminal (26 Oct, the user's wish: like Claude Code) ──
+            // The buttons are words above the line, ❯ and a blinking block, ↑/↓, Ctrl+R, /commands.
+            Item {
                 id: inputBar
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 24 }
-                height: inputCol.height + 24
-                color: "#0E1420"
-                border.width: 1
-                border.color: input.activeFocus || win.pictureMode ? accent.color : "#1E2A40"
+                height: inputCol.height
 
                 Column {
                     id: inputCol
-                    anchors { left: parent.left; right: buttons.left; leftMargin: 16; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                    spacing: 8
+                    width: parent.width
+                    spacing: 10
+
+                    Item {
+                        width: parent.width
+                        height: tools.height
+
+                        Row {
+                            id: tools
+                            spacing: 22
+                            TextAction {
+                                visible: !win.pictureMode && backend.canSearch
+                                on: backend.searchNext
+                                text: backend.searchNext ? "sök på nätet ✓" : "sök på nätet"
+                                onClicked: { backend.setSearchNext(!backend.searchNext); input.forceActiveFocus(); }
+                            }
+                            TextAction {
+                                id: modelButton
+                                visible: !win.pictureMode
+                                on: modelMenu.visible
+                                text: win.modelName(backend.model).toLowerCase() + " ▾"
+                                onClicked: {
+                                    modelMenu.visible = !modelMenu.visible;
+                                    if (modelMenu.visible)
+                                        backend.refreshModels();
+                                }
+                            }
+                            TextAction {
+                                id: shotButton
+                                visible: !win.pictureMode
+                                on: shotMenu.visible
+                                text: backend.shooting ? "tar bilden…" : "skärmbild ▾"
+                                enabledState: !backend.shooting
+                                onClicked: shotMenu.visible = !shotMenu.visible
+                            }
+                            TextAction {
+                                visible: !win.pictureMode
+                                text: "bifoga fil"
+                                onClicked: openDialog.open()
+                            }
+                            TextAction {
+                                visible: backend.canDraw || backend.chatgpt
+                                on: win.pictureMode
+                                text: win.pictureMode ? "fråga i stället" : "skapa bild"
+                                onClicked: { win.pictureMode = !win.pictureMode; input.forceActiveFocus(); }
+                            }
+                            TextAction {
+                                visible: win.pictureMode && backend.chatgpt && backend.canDraw
+                                text: "rita i chatgpt"
+                                enabledState: input.text.trim() !== ""
+                                onClicked: win.sendChatGPT()
+                            }
+                        }
+
+                        // Right: STOPP while the AI works (the work loop, 25 Oct – it stops after the step it is on), else the keys
+                        TextAction {
+                            anchors.right: parent.right
+                            visible: !win.pictureMode && backend.stoppable
+                            danger: true
+                            text: "■ stopp (esc)"
+                            onClicked: backend.stop()
+                        }
+                        Text {
+                            anchors.right: parent.right
+                            visible: win.pictureMode || !backend.stoppable
+                            text: win.historySearch ? "↑↓ välj · enter tar · ctrl+r äldre · esc avbryter"
+                                : win.pictureMode ? (backend.canDraw ? "enter ritar" : "enter öppnar chatgpt") + " · shift+enter ny rad"
+                                : "/ kommandon · ↑ tidigare · ctrl+r sök"
+                            color: "#5C6880"
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 12
+                        }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: 1
+                        color: input.activeFocus || win.pictureMode ? accent.color : "#1E2A40"
+                    }
 
                     Row {
                         visible: win.attachment !== ""
@@ -1917,7 +2369,7 @@ Window {
                                     + " – skickas som bild"
                                   : "📎  " + (win.attachment !== "" ? backend.fileName(win.attachment) : "")
                             color: "#E6ECF5"
-                            font.family: "IBM Plex Sans"
+                            font.family: "IBM Plex Mono"
                             font.pixelSize: 13
                         }
                         Text {
@@ -1934,105 +2386,162 @@ Window {
                         }
                     }
 
-                    Flickable {
-                        id: inputFlick
-                        FastWheel { flick: inputFlick }
+                    Item {
                         width: parent.width
-                        height: Math.min(Math.max(input.implicitHeight, 24), 160)
-                        contentHeight: input.implicitHeight
-                        clip: true
-                        boundsBehavior: Flickable.StopAtBounds
+                        height: inputFlick.height
 
-                        TextEdit {
-                            id: input
-                            width: parent.width
-                            focus: true
-                            wrapMode: TextEdit.Wrap
-                            color: "#E6ECF5"
-                            selectionColor: accent.color
-                            font.family: "IBM Plex Sans"
-                            font.pixelSize: 15
-                            Keys.onReturnPressed: event => {
-                                if (event.modifiers & Qt.ShiftModifier)
-                                    event.accepted = false;
-                                else
-                                    win.send();
-                            }
-                            Keys.onEnterPressed: win.send()
+                        Text {
+                            id: promptMark
+                            text: win.historySearch ? "sök ❯" : win.pictureMode ? "bild ❯" : "❯"
+                            color: accent.text
+                            font: input.font
+                        }
 
-                            Text {
-                                visible: input.text === ""
-                                text: win.pictureMode ? "Beskriv bilden – t.ex. en goblin som skjuter pilbåge i solnedgången, målning (Enter "
-                                                      + (backend.canDraw ? "ritar)" : "öppnar ChatGPT)")
-                                                      : (backend.aiName ? "Skriv till " + backend.aiName + "…" : "Skriv din fråga…") + "  (Enter skickar, Shift+Enter ny rad)"
-                                color: "#5C6880"
-                                font: input.font
+                        Flickable {
+                            id: inputFlick
+                            FastWheel { flick: inputFlick }
+                            anchors { left: promptMark.right; leftMargin: 10; right: parent.right }
+                            height: Math.min(Math.max(input.implicitHeight, 24), 160)
+                            contentHeight: input.implicitHeight
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            TextEdit {
+                                id: input
+                                width: parent.width
+                                focus: true
+                                wrapMode: TextEdit.Wrap
+                                color: "#E6ECF5"
+                                selectionColor: accent.color
+                                selectedTextColor: accent.on
+                                font.family: "IBM Plex Mono"
+                                font.pixelSize: 15
+                                Keys.onPressed: event => win.inputKey(event)
+                                onTextChanged: {
+                                    win.popupIndex = 0;
+                                    win.popupClosed = false;
+                                    if (!win.modelsAsked && text.startsWith("/modell ")) {
+                                        win.modelsAsked = true;
+                                        backend.refreshModels();
+                                    }
+                                }
+                                // The line follows the block when the text is longer than the box
+                                onCursorRectangleChanged: {
+                                    if (cursorRectangle.y < inputFlick.contentY)
+                                        inputFlick.contentY = cursorRectangle.y;
+                                    else if (cursorRectangle.y + cursorRectangle.height > inputFlick.contentY + inputFlick.height)
+                                        inputFlick.contentY = cursorRectangle.y + cursorRectangle.height - inputFlick.height;
+                                }
+
+                                // A blinking block in the accent, the letter under it in accent.on – like a terminal
+                                cursorDelegate: Rectangle {
+                                    id: caret
+                                    property bool lit: true
+                                    width: monoMetrics.advanceWidth("M")
+                                    color: accent.color
+                                    visible: input.activeFocus && lit
+                                    Text {
+                                        text: input.text.length >= 0 ? input.getText(input.cursorPosition, input.cursorPosition + 1).trim() : ""
+                                        color: accent.on
+                                        font: input.font
+                                    }
+                                    Timer {
+                                        id: blink
+                                        interval: 530
+                                        repeat: true
+                                        running: input.activeFocus
+                                        onTriggered: caret.lit = !caret.lit
+                                    }
+                                    Connections {
+                                        target: input
+                                        function onCursorPositionChanged() { caret.lit = true; blink.restart(); }
+                                        function onTextChanged() { caret.lit = true; blink.restart(); }
+                                    }
+                                }
+                                FontMetrics { id: monoMetrics; font: input.font }
+
+                                Text {
+                                    visible: input.text === ""
+                                    text: win.historySearch ? "sök i det du skrivit tidigare…"
+                                        : win.pictureMode ? "beskriv bilden – t.ex. en goblin som skjuter pilbåge i solnedgången, målning"
+                                        : backend.aiName ? "skriv till " + backend.aiName + "…" : "skriv din fråga…"
+                                    color: "#5C6880"
+                                    font: input.font
+                                }
                             }
                         }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: 1
+                        color: input.activeFocus || win.pictureMode ? accent.color : "#1E2A40"
                     }
                 }
+            }
 
-                Row {
-                    id: buttons
-                    anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                    spacing: 8
-                    FlatButton {
-                        small: true
-                        visible: !win.pictureMode && backend.canSearch
-                        primary: backend.searchNext
-                        text: backend.searchNext ? "Söker på nätet ✓" : "Sök på nätet"
-                        onClicked: { backend.setSearchNext(!backend.searchNext); input.forceActiveFocus(); }
-                    }
-                    FlatButton {
-                        id: modelButton
-                        small: true
-                        visible: !win.pictureMode
-                        text: win.modelName(backend.model) + "  ▾"
-                        onClicked: {
-                            modelMenu.visible = !modelMenu.visible;
-                            if (modelMenu.visible)
-                                backend.refreshModels();
+            // ── The list above the input: /commands, their choices, Ctrl+R ──
+            Rectangle {
+                id: cmdPopup
+                visible: win.popupItems.length > 0 && input.activeFocus
+                z: 20
+                width: Math.min(640, inputBar.width)
+                height: Math.min(win.popupItems.length * 30, 360) + 2
+                anchors { bottom: inputBar.top; bottomMargin: 6 }
+                x: inputBar.x
+                color: "#0B1018"
+                border.width: 1
+                border.color: "#2A3852"
+
+                ListView {
+                    id: cmdList
+                    FastWheel { flick: cmdList }
+                    anchors { fill: parent; margins: 1 }
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: win.popupItems
+                    currentIndex: Math.min(win.popupIndex, count - 1)
+                    onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+                    onModelChanged: Qt.callLater(() => positionViewAtIndex(Math.max(0, currentIndex), ListView.Contain))
+                    delegate: Rectangle {
+                        id: cmdRow
+                        required property var modelData
+                        required property int index
+                        readonly property bool chosen: index === cmdList.currentIndex
+                        width: cmdList.width
+                        height: 30
+                        color: chosen ? "#1A2438" : cmdArea.containsMouse ? "#121B2B" : "transparent"
+                        Rectangle {
+                            visible: cmdRow.chosen
+                            width: 3
+                            height: parent.height
+                            color: accent.color
                         }
-                    }
-                    FlatButton {
-                        id: shotButton
-                        small: true
-                        visible: !win.pictureMode
-                        text: backend.shooting ? "Tar bilden…" : "Skärmbild  ▾"
-                        enabledState: !backend.shooting
-                        onClicked: shotMenu.visible = !shotMenu.visible
-                    }
-                    FlatButton {
-                        small: true
-                        visible: !win.pictureMode
-                        text: "Bifoga fil"
-                        onClicked: openDialog.open()
-                    }
-                    FlatButton {
-                        small: true
-                        visible: backend.canDraw || backend.chatgpt
-                        primary: win.pictureMode
-                        text: win.pictureMode ? "Fråga i stället" : "Skapa bild"
-                        onClicked: { win.pictureMode = !win.pictureMode; input.forceActiveFocus(); }
-                    }
-                    FlatButton {
-                        small: true
-                        visible: win.pictureMode && backend.chatgpt
-                        primary: !backend.canDraw
-                        text: "Rita i ChatGPT"
-                        enabledState: input.text.trim() !== ""
-                        onClicked: win.sendChatGPT()
-                    }
-                    FlatButton {
-                        small: true
-                        visible: !win.pictureMode || backend.canDraw
-                        primary: true
-                        // While the AI works: STOPP (the work loop, 25 Oct) – it stops after the step it is on
-                        danger: !win.pictureMode && backend.stoppable
-                        text: win.pictureMode ? "Rita" : backend.stoppable ? "Stopp" : "Skicka"
-                        enabledState: win.pictureMode ? input.text.trim() !== ""
-                                    : backend.stoppable || !backend.busy && (input.text.trim() !== "" || win.attachment !== "")
-                        onClicked: backend.stoppable && !win.pictureMode ? backend.stop() : win.send()
+                        Text {
+                            id: cmdLabel
+                            anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                            width: cmdRow.modelData.note ? 200 : cmdRow.width - 28
+                            elide: Text.ElideRight
+                            text: cmdRow.modelData.label
+                            color: cmdRow.chosen ? accent.text : "#E6ECF5"
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 13
+                        }
+                        Text {
+                            anchors { left: cmdLabel.right; leftMargin: 12; right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                            elide: Text.ElideRight
+                            text: cmdRow.modelData.note
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
+                        }
+                        MouseArea {
+                            id: cmdArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: win.takePopup(cmdRow.modelData, true)
+                        }
                     }
                 }
             }
@@ -2050,7 +2559,7 @@ Window {
                 width: 240
                 height: shotMenuCol.height + 2
                 anchors { bottom: inputBar.top; bottomMargin: 6 }
-                x: Math.max(24, Math.min(inputBar.x + buttons.x + shotButton.x, chatArea.width - width - 24))
+                x: Math.max(24, Math.min(inputBar.x + shotButton.x, chatArea.width - width - 24))
                 color: "#0B1018"
                 border.width: 1
                 border.color: "#2A3852"
@@ -2117,7 +2626,7 @@ Window {
                 width: 380
                 height: Math.min(modelList.contentHeight + 2, chatArea.height - inputBar.height - 80)
                 anchors { bottom: inputBar.top; bottomMargin: 6 }
-                x: Math.max(24, Math.min(inputBar.x + buttons.x + modelButton.x, chatArea.width - width - 24))
+                x: Math.max(24, Math.min(inputBar.x + modelButton.x, chatArea.width - width - 24))
                 color: "#0B1018"
                 border.width: 1
                 border.color: "#2A3852"
