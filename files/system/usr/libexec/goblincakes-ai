@@ -1,218 +1,1146 @@
 #!/usr/bin/env python3
-"""goblin ai in the terminal (the window is /usr/bin/goblin-ai, opened by Meta+A or "goblin ai").
+"""goblin ai in the terminal – like Claude Code: a session in the terminal with Goblin AI's look
+(the window is /usr/bin/goblin-ai, opened by Meta+A, "goblin ai app" or /app here).
 
-    goblin ai <question>   one question (the answer may suggest commands)
-    goblin ai --chat       chat in the terminal until you write nothing or "hej då"
+    goblin ai              the session: ❯ input between accent lines, /commands, ↑/↓, Ctrl+R
+    goblin ai <question>   one question, then back to the shell
     goblin ai setup        pick services and paste their keys (free or paid)
 
-Commands the AI suggests are only run when you answer yes to each one, and
-their output is sent back so the AI can take the next step.
+Reading commands the answer suggests run at once, changing ones after a yes, ones that can't be
+undone never (cmdlevel.py); their output goes back so the AI can take the next step. The chats are
+saved like the window's (~/.local/share/goblincakes/ai/<id>.json), so /app opens this one there.
 """
 import getpass
+import json
 import os
 import re
+import select
+import shutil
 import subprocess
 import sys
+import termios
+import textwrap
 import threading
+import time
+import tty
+import urllib.parse
+from pathlib import Path
 
 sys.path.insert(0, "/usr/share/goblincakes/ai")
-from goblinai import (SERVICES, ServiceError, cmd_level, ask as ask_services, chosen_model, code_blocks,  # noqa: E402
-                      forget, has_keys, load_keys, remember, make_image, make_report, run_in_folder, save_keys, segments, system_prompt, test_key)
+sys.path.insert(1, "/usr/share/goblincakes")
+from goblinai import (DAILY_PROMPT, FORMAT_WORDS, LOOK_UP_FIRST, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
+                      ai_name, ask as ask_services, chosen_model, cmd_level, file_message, forget, has_keys,
+                      image_request, images_possible, is_image, last_tools, load_daily, load_keys, load_memory,
+                      make_image, make_report, model_choices, remember, run_in_folder, save_keys, segments,
+                      set_chosen_model, system_prompt, test_key)
 
 MAX_ROUNDS = 8  # command → output → next step, per question
-cwd = os.getcwd()  # where the next block runs: starts where goblin ai was started, follows `cd`
+DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes" / "ai"
+HISTORY = DATA / "historik.json"  # shared with the window's input: ↑/↓ and Ctrl+R (26 Oct)
+HISTORY_MAX = 500
+KEEP_CONVERSATIONS = 50  # as the window: the latest 50 outside projects
 
-# ── Look ───────────────────────────────────────────────────────────
+# ── Look: the window's colours (the chosen accent, Config → Utseende) ──────
 
 TTY = sys.stdout.isatty()
+try:
+    import accent as _accent
+    PALETTE = _accent.current()
+except Exception:  # noqa: BLE001 – an old or broken file must not stop goblin ai
+    PALETTE = {"color": "#2F6FED", "text": "#2F6FED", "dim": "#1B3A78", "on": "#E6ECF5", "errorBright": "#E5484D"}
+
+ACCENT_HEX, ACCENT_TEXT_HEX, DIM_HEX = PALETTE["color"], PALETTE["text"], PALETTE["dim"]
+FROST_HEX, MUTED_HEX, FAINT_HEX, BORDER_HEX = "#E6ECF5", "#8B98AD", "#5C6880", "#1E2A40"
+RED_HEX = PALETTE.get("errorBright", "#E5484D")
 
 
-def color(code):
-    return code if TTY else ""
+def fg(hexcolor, bold=False):
+    if not TTY:
+        return ""
+    r, g, b = (int(hexcolor[i:i + 2], 16) for i in (1, 3, 5))
+    return f"\033[{'1;' if bold else ''}38;2;{r};{g};{b}m"
 
 
-ACCENT = color("\033[1;38;2;47;111;237m")
-FROST = color("\033[38;2;230;236;245m")
-MUTED = color("\033[38;2;139;152;173m")
-RED = color("\033[1;38;2;220;70;76m")
-BOLD = color("\033[1m")
-RESET = color("\033[0m")
+ACCENT = fg(ACCENT_TEXT_HEX)
+ACCENT_BOLD = fg(ACCENT_TEXT_HEX, True)
+RULE = fg(ACCENT_HEX)
+FROST = fg(FROST_HEX)
+MUTED = fg(MUTED_HEX)
+FAINT = fg(FAINT_HEX)
+BORDER = fg(BORDER_HEX)
+RED = fg(RED_HEX, True)
+BOLD = "\033[1m" if TTY else ""
+UNDERLINE = "\033[4m" if TTY else ""
+RESET = "\033[0m" if TTY else ""
+ANSI = re.compile(r"\033\[[0-9;]*m|\033\]8;;[^\033]*\033\\")
+
+
+def width():
+    return max(40, min(shutil.get_terminal_size((100, 24)).columns, 200))
+
+
+def visible(text):
+    return len(ANSI.sub("", text))
 
 
 def muted(text):
     print(f"{MUTED}{text}{RESET}")
 
 
-def render(markdown):
-    """Prints the answer: headings, **bold**, `code` and code blocks in the GOBLINCAKES colors."""
-    in_code = False
-    for line in markdown.splitlines():
-        if line.strip().startswith("```"):
-            in_code = not in_code
-            continue
-        if in_code:
-            print(f"  {ACCENT}▌{RESET} {FROST}{line}{RESET}")
+def name():
+    return ai_name() or "Goblin AI"
+
+
+def link(text, target):
+    """A clickable link (OSC 8 – Ghostty and Konsole open it on Ctrl+click)."""
+    if target.startswith("goblin-show:"):  # the window's "show it in its folder": here the file itself
+        target = Path(urllib.parse.unquote(target[len("goblin-show:"):])).as_uri()
+    if not TTY:
+        return text if text == target else f"{text} ({target})"
+    return f"\033]8;;{target}\033\\{ACCENT}{UNDERLINE}{text}{RESET}\033]8;;\033\\"
+
+
+def inline(line):
+    """**bold**, `code` and links in a line of the answer."""
+    line = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", lambda m: link(m.group(1).strip("`"), m.group(2)), line)
+    line = re.sub(r"<(https?://[^>]+)>", lambda m: link(m.group(1), m.group(1)), line)
+    line = re.sub(r"\*\*(.+?)\*\*", lambda m: f"{BOLD}{FROST}{m.group(1)}{RESET}", line)
+    line = re.sub(r"(?<![`\w])`([^`]+)`", lambda m: f"{ACCENT}{m.group(1)}{RESET}", line)
+    return line
+
+
+def render_text(markdown, indent="  "):
+    """An answer's text: headings in the accent, lists with •, wrapped to the terminal."""
+    room = width() - len(indent) - 2
+    for raw in markdown.splitlines():
+        line = raw.rstrip()
+        if not line.strip():
+            print()
             continue
         heading = re.match(r"^#{1,6}\s+(.*)", line)
         if heading:
-            print(f"{ACCENT}{heading.group(1)}{RESET}")
+            print(f"{indent}{ACCENT_BOLD}{heading.group(1).strip('* ')}{RESET}")
             continue
-        line = re.sub(r"\*\*(.+?)\*\*", lambda m: f"{BOLD}{m.group(1)}{RESET}", line)
-        line = re.sub(r"`([^`]+)`", lambda m: f"{ACCENT}{m.group(1)}{RESET}", line)
-        print(line)
+        if re.match(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$", line):
+            print(f"{indent}{BORDER}{'─' * min(room, 60)}{RESET}")
+            continue
+        if line.lstrip().startswith("|"):  # a table: as it is (wrapping breaks it)
+            print(f"{indent}{inline(line)}")
+            continue
+        bullet = re.match(r"^(\s*)([-*+]|\d+[.)])\s+(.*)", line)
+        if bullet:
+            lead, mark, rest = bullet.groups()
+            mark = "•" if mark in "-*+" else mark
+            first = f"{lead}{mark} "
+            lines = textwrap.wrap(rest, max(20, room - len(first)), break_on_hyphens=False) or [""]
+            print(f"{indent}{first.replace('•', f'{ACCENT}•{RESET}')}{inline(lines[0])}")
+            for more in lines[1:]:
+                print(f"{indent}{' ' * len(first)}{inline(more)}")
+            continue
+        quote = re.match(r"^>\s?(.*)", line)
+        if quote:
+            for part in textwrap.wrap(quote.group(1), max(20, room - 2)) or [""]:
+                print(f"{indent}{BORDER}▌{RESET} {MUTED}{inline(part)}{RESET}")
+            continue
+        for part in textwrap.wrap(line, room, break_on_hyphens=False, drop_whitespace=True) or [""]:
+            print(f"{indent}{inline(part)}")
 
 
-class Spinner:
-    """"Frågar …" while waiting for an answer."""
+def render_code(code, label="", indent="  "):
+    if label:
+        print(f"{indent}{FAINT}{label}{RESET}")
+    for line in code.splitlines() or [""]:
+        print(f"{indent}{RULE}▌{RESET} {FROST}{line}{RESET}")
 
-    def __init__(self, text):
-        self.text, self.stop = text, threading.Event()
-        self.thread = threading.Thread(target=self.run, daemon=True)
 
-    def run(self):
-        frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-        i = 0
-        while not self.stop.wait(0.1):
-            print(f"\r{MUTED}{frames[i % len(frames)]} {self.text}{RESET}", end="", flush=True)
+def user_line(text, mark="❯"):
+    """The question as it stays in the terminal: "❯ the question", dim – like the window's chat."""
+    lines = text.splitlines() or [""]
+    print(f"{ACCENT}{mark}{RESET} {MUTED}{lines[0]}{RESET}")
+    for more in lines[1:]:
+        print(f"{' ' * (len(mark) + 1)}{MUTED}{more}{RESET}")
+
+
+def welcome(chat):
+    """The box at the top (raka hörn, like the rest of GOBLINCAKES)."""
+    w = min(width(), 72)
+    inner = w - 4
+    home = str(Path.home())
+    folder = chat.cwd.replace(home, "~", 1) if chat.cwd.startswith(home) else chat.cwd
+    if len(folder) > inner - 2:
+        folder = "…" + folder[-(inner - 3):]
+    rows = [f"{RULE}▌{RESET} {ACCENT_BOLD}GOBLIN AI{RESET}",
+            f"  {FROST}{name()}{RESET}{MUTED} · {model_name(chosen_model())}{RESET}",
+            f"  {MUTED}{folder}{RESET}",
+            "",
+            f"  {FAINT}/ kommandon · /app öppnar fönstret · esc stoppar · ctrl+d slutar{RESET}"]
+    print(f"{BORDER}┌{'─' * (w - 2)}┐{RESET}")
+    for row in rows:
+        pad = max(0, inner - visible(row))
+        print(f"{BORDER}│{RESET} {row}{' ' * pad} {BORDER}│{RESET}")
+    print(f"{BORDER}└{'─' * (w - 2)}┘{RESET}")
+
+
+# ── Models (the window's list: AI-tjänster's services and the local AI) ──
+
+MODELS = {"items": None}  # model_choices(), fetched in the background at start (the services' lists)
+
+
+def load_models(keys):
+    def work():
+        try:
+            MODELS["items"] = model_choices(keys)
+        except Exception:  # noqa: BLE001 – the list is only a help for /modell
+            MODELS["items"] = []
+    threading.Thread(target=work, daemon=True).start()
+
+
+def model_name(choice):
+    if not choice:
+        return "automatiskt"
+    for m in MODELS["items"] or []:
+        if m["id"] == choice and m["name"]:
+            return m["name"].lower()
+    return choice.partition(":")[2].lower() or choice
+
+
+# ── The chat, saved like the window's ──────────────────────────────
+
+class Chat:
+    def __init__(self):
+        self.id = time.strftime("%Y%m%d-%H%M%S")
+        self.api = [{"role": "system", "content": system_prompt()}]
+        self.display = []
+        self.file = None
+        self.cwd = os.getcwd()  # where the next block runs: starts where goblin ai was started, follows `cd`
+        self.search_next = False
+
+    def save(self):
+        if not self.display:
+            return
+        try:
+            DATA.mkdir(parents=True, exist_ok=True)
+            first = next((m["text"] for m in self.display if m["role"] == "user" and m.get("text")), "")
+            title = " ".join((first or "Samtal i terminalen").split())[:80]
+            data = {"id": self.id, "title": title, "updated": time.time(), "file": self.file, "cwd": self.cwd,
+                    "project": "", "api": self.api[1:], "display": self.display, "terminal": True}
+            (DATA / f"{self.id}.json").write_text(json.dumps(data, ensure_ascii=False))
+            loose = []
+            for f in sorted(DATA.glob("2*.json"), reverse=True):
+                try:
+                    if not json.loads(f.read_text()).get("project", ""):
+                        loose.append(f)
+                except (OSError, ValueError):
+                    continue
+            for old in loose[KEEP_CONVERSATIONS:]:
+                old.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def load_history():
+    try:
+        items = json.loads(HISTORY.read_text())
+    except (OSError, ValueError):
+        items = []
+    return [t for t in items if isinstance(t, str)][-HISTORY_MAX:]
+
+
+def add_history(text):
+    text = text.strip()
+    if not text:
+        return
+    items = [t for t in load_history() if t != text] + [text]
+    try:
+        DATA.mkdir(parents=True, exist_ok=True)
+        HISTORY.write_text(json.dumps(items[-HISTORY_MAX:], ensure_ascii=False))
+    except OSError:
+        pass
+
+
+# ── While the AI works: the steps, like the window's list, and esc = stopp ──
+
+class Working:
+    """"⠋ Tänker…" with what is done above it (✓ step · 2,1 s); esc or Ctrl+C stops after the step it is on."""
+    FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.status, self.steps, self.printed = "Tänker…", [], 0
+        self.started = time.time()
+
+    def set_status(self, text):
+        self.status = text
+
+    def set_steps(self, items):
+        self.steps = items
+
+    def say(self, text):
+        with self.lock:
+            self._clear()
+            print(f"  {MUTED}({text}){RESET}")
+
+    def _clear(self):
+        if TTY:
+            print("\r\033[K", end="")
+
+    def draw(self, i):
+        with self.lock:
+            done = [s for s in self.steps if s.get("state") != "run"]
+            for s in done[self.printed:]:
+                mark = {"ok": f"{ACCENT}✓", "fel": f"{RED}✗", "stopp": f"{RED}■"}.get(s.get("state"), f"{MUTED}·")
+                note = f" – {s['note']}" if s.get("note") else ""
+                secs = f" · {s['secs']:.1f} s".replace(".", ",") if s.get("secs") is not None else ""
+                self._clear()
+                print(f"  {mark}{RESET} {MUTED}{s['text']}{note}{FAINT}{secs}{RESET}")
+            self.printed = max(self.printed, len(done))
+            if not TTY:
+                return
+            running = next((s["text"] for s in reversed(self.steps) if s.get("state") == "run"), "")
+            text = running or self.status
+            secs = int(time.time() - self.started)
+            left = f"  {ACCENT}{self.FRAMES[i % len(self.FRAMES)]}{RESET} {MUTED}{text}{FAINT} · {secs} s{RESET}"
+            right = f"{RED}■ stopp (esc){RESET}"
+            room = width() - visible(right) - 1
+            if visible(left) > room:
+                left = left[:max(0, len(left) - (visible(left) - room) - 1)] + "…" + RESET
+            print(f"\r\033[K{left}{' ' * max(1, room - visible(left))}{right}", end="", flush=True)
+
+    def finish(self):
+        self.draw(0)
+        with self.lock:
+            self._clear()
+        sys.stdout.flush()
+
+
+def wait_for(thread, working, stop):
+    """Draws while the thread works; esc or Ctrl+C sets stop (the answer on its way is then ignored)."""
+    fd = sys.stdin.fileno() if sys.stdin.isatty() else None
+    old = termios.tcgetattr(fd) if fd is not None else None
+    i = 0
+    try:
+        if fd is not None:
+            tty.setcbreak(fd)
+        while thread.is_alive():
+            working.draw(i)
             i += 1
-
-    def __enter__(self):
-        if TTY:
-            self.thread.start()
-        return self
-
-    def __exit__(self, *exc):
-        self.stop.set()
-        if TTY:
-            self.thread.join()
-            print("\r\033[K", end="", flush=True)
-
-
-def ask(messages, keys):
-    with Spinner("Tänker…") as spinner:
-        def status(text):
-            spinner.text = text
-
-        def notice(text):
-            print(f"\r\033[K{MUTED}({text}){RESET}" if TTY else f"({text})")
-
-        return ask_services(messages, keys, status=status, notice=notice, choice=chosen_model())
+            if fd is None:
+                thread.join(0.1)
+                continue
+            ready, _, _ = select.select([fd], [], [], 0.1)
+            if ready:
+                data = os.read(fd, 64)
+                if data == b"\x1b" or data == b"\x03":  # esc alone (an arrow key is esc + [A …)
+                    stop.set()
+                    return False
+    except KeyboardInterrupt:
+        stop.set()
+        return False
+    finally:
+        working.finish()
+        if old is not None:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    return True
 
 
-# ── Commands from the answer ───────────────────────────────────────
+def ask_live(chat, keys, choice=""):
+    """One answer from the services, the steps shown while it works. (answer, service) or None."""
+    messages = list(chat.api)
+    messages[0] = {"role": "system", "content": system_prompt()}
+    stop = threading.Event()
+    working = Working()
+    steps = Steps(report=lambda items: stop.is_set() or working.set_steps(items), stop=stop)
+    result = {}
 
-def run_blocks(blocks):
-    """Runs the answer's blocks in three levels (cmdlevel.py): reading ones at once, changes after a yes,
-    ones that can't be undone never; returns what happened."""
-    global cwd
+    def work():
+        try:
+            result["answer"] = ask_services(messages, keys, status=lambda t: stop.is_set() or working.set_status(t),
+                                            notice=lambda t: stop.is_set() or working.say(t),
+                                            choice=choice or chosen_model(), steps=steps)
+            result["tools"] = last_tools()
+        except Stopped:
+            pass
+        except ServiceError as e:
+            result["error"] = str(e)
+        except Exception as e:  # noqa: BLE001 – never leave the terminal hanging
+            result["error"] = f"Något gick fel: {e}"
+
+    thread = threading.Thread(target=work, daemon=True)
+    thread.start()
+    if not wait_for(thread, working, stop):
+        print(f"  {RED}■{RESET} {MUTED}Stoppad – inget svar.{RESET}")
+        chat.api.append({"role": "assistant", "content": "(Användaren stoppade frågan innan jag svarade.)"})
+        chat.display.append({"role": "assistant", "text": "", "segments": segments("*Stoppad – inget svar.*"),
+                             "service": "", "file": ""})
+        return None
+    if "error" in result:
+        print(f"  {RED}{result['error']}{RESET}")
+        chat.display.append({"role": "error", "text": result["error"], "segments": [], "service": "", "file": ""})
+        if chat.api and chat.api[-1]["role"] == "user":  # ask again: the unanswered question isn't kept
+            chat.api.pop()
+        return None
+    if "answer" not in result:
+        return None
+    answer, service = result["answer"]
+    chat.tools = result.get("tools", [])
+    if working.steps:
+        chat.steps = [{k: v for k, v in s.items() if k != "t"} for s in working.steps]
+    return answer, service
+
+
+# ── The parts of an answer ─────────────────────────────────────────
+
+def ask_yes(question):
+    """j/ja = yes; one key in a terminal, Enter = no."""
+    print(f"  {question} {MUTED}[j/N]{RESET} ", end="", flush=True)
+    if not sys.stdin.isatty():
+        try:
+            answer = input().strip().lower()
+        except EOFError:
+            answer = ""
+        return answer in ("j", "ja", "y", "yes")
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        key = os.read(fd, 8).decode(errors="replace").lower()
+    except KeyboardInterrupt:
+        key = ""
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    yes = key in ("j", "y")
+    print(f"{ACCENT}ja{RESET}" if yes else f"{MUTED}nej{RESET}")
+    return yes
+
+
+def show_output(output, keep=14):
+    lines = output.rstrip("\n").splitlines()
+    if len(lines) > keep:
+        print(f"    {FAINT}… {len(lines) - keep} rader till ovanför{RESET}")
+        lines = lines[-keep:]
+    for line in lines:
+        print(f"    {MUTED}{line}{RESET}")
+
+
+def run_command(chat, part, levels):
+    """A command card: reading ones at once, changing ones after a yes, ones that can't be undone never.
+    Returns what the AI is told."""
+    code = part["code"]
+    if part["type"] == "blocked":
+        why = f"Stoppat – {part.get('why') or 'går inte att ångra'}. Körs inte (sådant gör du och Claude)."
+        for line in textwrap.wrap(why, width() - 6):
+            print(f"  {RED}▌ {line}{RESET}")
+        return (f"$ {code}\n(STOPPAT, kördes inte: {part.get('why', 'går inte att ångra')}. Gör det på ett sätt som går "
+                "att ångra – ta bort med gio trash – eller säg att det är något för användaren och Claude.)")
+    lvl = part.get("level", "change")
+    auto = lvl == "read" and levels.autorun()
+    head = "Läser" if auto else "Kör det här?"
+    print(f"  {RULE}▌{RESET} {ACCENT_BOLD}{head}{RESET}" + (f"  {RED}ändrar något{RESET}" if lvl == "change" else ""))
+    for line in code.splitlines():
+        print(f"  {RULE}▌{RESET} {FROST}{line}{RESET}")
+    if not auto and not ask_yes("Tillåt?"):
+        part["state"] = "skipped"
+        return f"$ {code}\n(användaren valde att inte köra det)"
+    plan = levels.prepare(code, chat.cwd) if lvl == "change" else None
+    try:
+        proc, chat.cwd = run_in_folder(code, chat.cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                       stdin=subprocess.DEVNULL if auto else sys.stdin, text=True,
+                                       timeout=levels.AUTO_TIMEOUT if auto else None)
+        output, exit_code = proc.stdout or "", proc.returncode
+    except subprocess.TimeoutExpired as e:
+        output = (e.output or "") if isinstance(e.output, str) else (e.output or b"").decode(errors="replace")
+        output, exit_code = output + f"\n(stoppat efter {levels.AUTO_TIMEOUT} s)\n", -9
+    show_output(output)
+    print(f"    {ACCENT if exit_code == 0 else RED}{'✓' if exit_code == 0 else '✗'}{RESET} {FAINT}kod {exit_code}{RESET}")
+    if plan and plan["trash"]:
+        plan["undo"] = levels.trash_restore(plan["trash"]) + plan["undo"]
+    levels.log(code, lvl, "auto" if auto else "du", exit_code, output, plan)
+    if plan and plan["undo"]:
+        muted("    (går att ångra i Goblin AI → AI-tjänster → Körda kommandon)")
+    part.update(state="done", output=output.strip(), code_result=exit_code)
+    return f"$ {code}\n{levels.shorten(output)}(avslutskod {exit_code})"
+
+
+def draw(part, keys):
+    """A ```bild or ```rapport block: drawn now, the file printed as a link."""
+    if part.get("report"):
+        try:
+            path = make_report(part["markdown"])
+            part.update(state="done", path=path, service="Rapport gjord på datorn", error="")
+            print(f"  {RULE}▌{RESET} {ACCENT_BOLD}Rapporten{RESET} {link(path, Path(path).as_uri())}")
+        except Exception as e:  # noqa: BLE001
+            part.update(state="error", error=f"Rapporten gick inte att göra: {e}")
+            print(f"  {RED}Ingen rapport:{RESET} {e}")
+        return
+    working = Working()
+    working.status = "Ritar bilden…"
+    stop = threading.Event()
+    result = {}
+
+    def work():
+        try:
+            result["done"] = make_image(part["prompt"], part.get("format", "1:1"), keys, status=working.set_status,
+                                        notice=working.say, progress=lambda text, _f: working.set_status(text))
+        except ServiceError as e:
+            result["error"] = str(e)
+        except Exception as e:  # noqa: BLE001
+            result["error"] = f"Något gick fel: {e}"
+
+    thread = threading.Thread(target=work, daemon=True)
+    thread.start()
+    if not wait_for(thread, working, stop):
+        part.update(state="error", error="Avbröts – tryck på Försök igen.")
+        print(f"  {RED}■{RESET} {MUTED}Bilden avbröts.{RESET}")
+        return
+    if "done" in result:
+        path, where = result["done"]
+        part.update(state="done", path=str(path), service=where, progress="", fraction=-1.0)
+        print(f"  {RULE}▌{RESET} {ACCENT_BOLD}Bilden{RESET} {link(str(path), Path(path).as_uri())}")
+        muted(f"    {where}")
+    else:
+        part.update(state="error", error=result.get("error", "Ingen bild."))
+        print(f"  {RED}Ingen bild:{RESET} {part['error']}")
+
+
+def save_file(chat, part):
+    """A ```fil:<namn> block: a new version of a file – saved in the folder after a yes (the old one as .bak)."""
+    target = Path(chat.file) if chat.file and Path(chat.file).name == part["name"] else Path(chat.cwd) / part["name"]
+    render_code(part["code"], f"ny version av {part['name']}")
+    if not ask_yes(f"Spara som {target}?" + (" (den gamla blir .bak)" if target.exists() else "")):
+        return
+    try:
+        if target.exists():
+            shutil.copy2(target, target.with_name(target.name + ".bak"))
+        target.write_text(part["code"] + "\n")
+        part.update(state="saved", savedTo=str(target))
+        print(f"    {ACCENT}✓{RESET} {FAINT}sparad{RESET}")
+    except OSError as e:
+        print(f"    {RED}Kunde inte spara:{RESET} {e}")
+
+
+def show_answer(chat, answer, service, keys):
+    """The answer part by part, as in the window; the commands run where they stand. Returns what they gave."""
+    shown = {"role": "assistant", "text": answer, "segments": segments(answer), "service": service, "file": "",
+             "tools": getattr(chat, "tools", [])}
+    if getattr(chat, "steps", None):
+        shown["steps"], chat.steps = chat.steps, None
+    chat.display.append(shown)
+    print()
+    print(f"{ACCENT}●{RESET} {BOLD}{FROST}{name()}{RESET}")
     levels = cmd_level()
     results = []
-    for block in blocks:
-        print()
-        lvl, why = levels.level(block)
-        if lvl == "danger":
-            print(f"{RED}▌ Stoppat – {why}. Körs inte (sådant gör du och Claude).{RESET}")
-            results.append(f"$ {block}\n(STOPPAT, kördes inte: {why}. Gör det på ett sätt som går att ångra – "
-                           "ta bort med gio trash – eller säg att det är något för användaren och Claude.)")
-            continue
-        auto = lvl == "read" and levels.autorun()
-        print(f"{ACCENT}▌ {'Läser:' if auto else 'Kör det här?'}{RESET}"
-              + (f" {RED}(ändrar något){RESET}" if lvl == "change" else ""))
-        for line in block.splitlines():
-            print(f"  {FROST}{line}{RESET}")
-        if not auto:
-            try:
-                answer = input(f"{MUTED}[j/N] {RESET}").strip().lower()
-            except EOFError:
-                answer = ""
-            if answer not in ("j", "ja", "y", "yes"):
-                results.append(f"$ {block}\n(användaren valde att inte köra det)")
-                continue
-        plan = levels.prepare(block, cwd) if lvl == "change" else None
-        try:
-            proc, cwd = run_in_folder(block, cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                      stdin=subprocess.DEVNULL if auto else sys.stdin, text=True,
-                                      timeout=levels.AUTO_TIMEOUT if auto else None)
-            output, code = proc.stdout or "", proc.returncode
-        except subprocess.TimeoutExpired as e:
-            output = (e.output or "") if isinstance(e.output, str) else (e.output or b"").decode(errors="replace")
-            output, code = output + f"\n(stoppat efter {levels.AUTO_TIMEOUT} s)\n", -9
-        print(output, end="" if output.endswith("\n") or not output else "\n")
-        muted(f"(klart, kod {code})")
-        if plan and plan["trash"]:
-            plan["undo"] = levels.trash_restore(plan["trash"]) + plan["undo"]
-        levels.log(block, lvl, "auto" if auto else "du", code, output, plan)
-        if plan and plan["undo"]:
-            muted("(går att ångra i Goblin AI → AI-tjänster → Körda kommandon)")
-        # Long output: the AI gets the end, which is usually what matters
-        output = levels.shorten(output)
-        results.append(f"$ {block}\n{output}(avslutskod {code})")
+    for i, part in enumerate(shown["segments"]):
+        kind = part["type"]
+        if i:
+            print()
+        if kind == "text":
+            render_text(part["text"])
+        elif kind in ("command", "blocked"):
+            results.append((part, run_command(chat, part, levels)))
+        elif kind == "code":
+            render_code(part["code"], part.get("lang", ""))
+        elif kind == "file":
+            save_file(chat, part)
+        elif kind == "image":
+            draw(part, keys)
+        elif kind == "memory":
+            part.update(state="saved", done=remember(part["items"]))
+            for t in part["done"]:
+                print(f"  {RULE}▌{RESET} {ACCENT_BOLD}Kommer ihåg{RESET} {FROST}{t}{RESET}")
+        elif kind == "forget":
+            part.update(state="saved", done=forget(part["items"]))
+            for t in part["done"]:
+                print(f"  {RULE}▌{RESET} {ACCENT_BOLD}Glömde{RESET} {FROST}{t}{RESET}")
+        elif kind == "shot":
+            part.update(state="error", error="Skärmbilder tas i fönstret.")
+            muted("  (Skärmbilder tas i fönstret – skriv /app så följer samtalet med.)")
+    print(f"\n  {FAINT}— {service}{RESET}")
+    chat.save()
     return results
 
 
-def draw_pictures(answer, keys):
-    """The answer's ```bild blocks: drawn now, the file is printed (the window shows them instead)."""
-    for part in segments(answer):
-        if part["type"] != "image":
-            continue
-        if part.get("report"):  # a ```rapport block: drawn here with Qt
-            try:
-                print(f"{ACCENT}▌ Rapporten:{RESET} {FROST}{make_report(part['markdown'])}{RESET}")
-            except Exception as e:  # noqa: BLE001
-                print(f"{RED}Ingen rapport:{RESET} {e}")
-            continue
-        with Spinner("Ritar bilden…") as spinner:
-            def status(text):
-                spinner.text = text
-
-            def notice(text):
-                print(f"\r\033[K{MUTED}({text}){RESET}" if TTY else f"({text})")
-            try:
-                path, where = make_image(part["prompt"], part["format"], keys, status=status, notice=notice,
-                                         progress=lambda text, _f: status(text))
-            except ServiceError as e:
-                path = None
-                error = str(e)
-        if path:
-            print(f"{ACCENT}▌ Bilden:{RESET} {FROST}{path}{RESET}")
-            muted(f"— {where}")
-        else:
-            print(f"{RED}Ingen bild:{RESET} {error}")
-
-
-def handle(question, messages, keys):
-    messages.append({"role": "user", "content": question})
-    for _ in range(MAX_ROUNDS):
-        answer, service = ask(messages, keys)
-        messages.append({"role": "assistant", "content": answer})
-        print()
-        render(answer.strip())
-        muted(f"\n— {service}")
-        for part in segments(answer):  # the memory: saved at once, like in the window
-            if part["type"] == "memory":
-                for t in remember(part["items"]):
-                    print(f"{ACCENT}▌ Kommer ihåg:{RESET} {t}")
-            elif part["type"] == "forget":
-                for t in forget(part["items"]):
-                    print(f"{ACCENT}▌ Glömde:{RESET} {t}")
-        draw_pictures(answer, keys)
-        blocks = code_blocks(answer)
-        if not blocks:
+def handle(chat, keys, shown, question, choice=""):
+    """A question: the answer, its commands, the next step – at most MAX_ROUNDS."""
+    chat.display.append(shown)
+    chat.api.append(question)
+    chat.save()
+    told_blocked = False
+    for round_ in range(MAX_ROUNDS):
+        if round_:
+            print()
+        got = ask_live(chat, keys, choice)
+        if got is None:
+            chat.save()
             return
-        results = run_blocks(blocks)
-        if all("(användaren valde att inte köra det)" in r for r in results):
+        answer, service = got
+        chat.api.append({"role": "assistant", "content": answer})
+        results = show_answer(chat, answer, service, keys)
+        if not results:
             return
-        messages.append({"role": "user", "content": "Så här gick det:\n\n" + "\n\n".join(results)
-                         + f"\n\n(Mappen nu: {cwd})"
+        states = [p["state"] for p, _ in results]
+        if all(s in ("skipped", "blocked") for s in states):
+            # Only skipped: done. Stopped ones: the AI hears why once per question (it can do it the safe way)
+            if "blocked" not in states or told_blocked:
+                return
+            told_blocked = True
+        chat.api.append({"role": "user", "content": "Så här gick det:\n\n" + "\n\n".join(r for _, r in results)
+                         + f"\n\n(Mappen nu: {chat.cwd})"
                          + "\n\nFortsätt med nästa steg, eller säg kort att det är klart."})
-    muted("(Slutar här efter många steg – fråga igen om du vill fortsätta.)")
+        chat.save()
+    muted("  (Slutar här efter många steg – fråga igen om du vill fortsätta.)")
+
+
+def send(chat, keys, text, attachment=None, choice="", daily=False):
+    content = text or "Titta på den här filen."
+    shown = {"role": "user", "text": text, "segments": [], "service": "", "file": ""}
+    question = {"role": "user", "content": content}
+    if attachment:
+        if is_image(attachment):
+            question["content"] = text or "Titta på bilden."
+            question["images"] = shown["images"] = [attachment]
+        else:
+            try:
+                question["content"] = file_message(attachment, content)
+            except (OSError, ValueError) as e:
+                print(f"  {RED}{e}{RESET}")
+                return
+            chat.file = attachment
+            shown["file"] = Path(attachment).name
+    if chat.search_next:
+        question["search"] = shown["searched"] = True
+        chat.search_next = False
+    if daily:  # an own button: the AI is told what it is (the chat shows only the wish)
+        question["content"] += DAILY_PROMPT
+        question["button"] = True
+    handle(chat, keys, shown, question, choice)
+
+
+def picture(chat, keys, text):
+    """/bild <text>: the words straight to the picture, like the window's Skapa bild (the AI sees it)."""
+    if LOOK_UP_FIRST.search(text):  # "kolla online hur den ser ut": the AI searches first and describes it
+        send(chat, keys, f"Skapa en bild: {text}")
+        return
+    _, fmt = image_request(text)
+    fmt = next((f for w, f in FORMAT_WORDS.items() if re.search(rf"\b{w}\b", text, re.I)), fmt)
+    chat.display.append({"role": "user", "text": text, "segments": [], "service": "", "file": "", "picture": True})
+    block = f"```bild\nFormat: {fmt}\n{text}\n```"
+    chat.api += [{"role": "user", "content": f"Skapa en bild: {text}"}, {"role": "assistant", "content": block}]
+    part = {"type": "image", "prompt": text, "format": fmt, "state": "new"}
+    chat.display.append({"role": "assistant", "text": block, "service": "", "file": "", "segments": [part]})
+    print()
+    print(f"{ACCENT}●{RESET} {BOLD}{FROST}{name()}{RESET}")
+    draw(part, keys)
+    chat.save()
+
+
+# ── /commands (like the window's, plus /app) ───────────────────────
+
+def plain(t):
+    return t.lower().replace("å", "a").replace("ä", "a").replace("ö", "o").replace("é", "e")
+
+
+def commands(keys):
+    own = [{"name": d["name"].lower().strip().replace(" ", "-"), "note": "egen knapp – " + d["text"], "button": i}
+           for i, d in enumerate(load_daily())]
+    items = [
+        {"name": "app", "note": "öppna Goblin AI-fönstret – samtalet följer med", "aliases": ["fönster", "fonster", "window"]},
+        {"name": "ny", "note": "nytt samtal", "aliases": ["new", "clear"]},
+        {"name": "bild", "note": "skapa en bild – skriv vad den ska visa", "args": True, "hidden": not images_possible(keys)},
+        {"name": "modell", "note": "byt modell – t.ex. /modell claude", "args": True},
+        {"name": "sök", "note": "sök på nätet – med en fråga söker den direkt", "args": True,
+         "hidden": not keys.get(SEARCH["env"])},
+        {"name": "bifoga", "note": "bifoga en fil – /bifoga <sökväg>", "args": True},
+        {"name": "minne", "note": f"vad {name()} kommer ihåg om dig"},
+        {"name": "inställningar", "note": "AI-tjänster och nycklar", "aliases": ["settings", "setup"]},
+        {"name": "hjälp", "note": "alla kommandon och tangenter", "aliases": ["help", "?"]},
+        {"name": "avsluta", "note": "tillbaka till terminalen (även ctrl+d)", "aliases": ["exit", "quit", "q"]},
+    ]
+    return [c for c in items if not c.get("hidden")] + own
+
+
+def find_command(cmds, word):
+    w = plain(word)
+    return next((c for c in cmds if plain(c["name"]) == w or w in c.get("aliases", [])), None)
+
+
+def command_args(cmd, typed, chat):
+    if cmd == "modell":
+        items = [{"arg": "auto", "note": "Automatiskt – GOBLINCAKES väljer"}]
+        return items + [{"arg": m["name"], "note": " · ".join(x for x in (m.get("group"), m.get("note")) if x)}
+                        for m in MODELS["items"] or [] if m["name"] and m["id"]]
+    if cmd == "bifoga":  # the files where it is typed – Tab goes into a folder
+        path = os.path.expanduser(typed) if typed else ""
+        base = path if path.endswith("/") or not path else os.path.dirname(path)
+        folder = Path(chat.cwd) / base if not os.path.isabs(base or ".") else Path(base)
+        try:
+            names = sorted(folder.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+        except OSError:
+            return []
+        start = typed[:len(typed) - len(os.path.basename(path))] if path and not path.endswith("/") else typed
+        return [{"arg": start + p.name + ("/" if p.is_dir() else ""), "note": "mapp" if p.is_dir() else "",
+                 "dir": p.is_dir()} for p in names if not p.name.startswith(".")][:200]
+    return []
+
+
+def popup_items(text, cmds, chat):
+    """The list under the input: commands, or the choices of the one written (modell, bifoga)."""
+    if not text.startswith("/") or "\n" in text:
+        return []
+    space = text.find(" ")
+    if space < 0:
+        w = plain(text[1:])
+        return [{"fill": "/" + c["name"], "label": "/" + c["name"], "note": c["note"], "args": bool(c.get("args"))}
+                for c in cmds if plain(c["name"]).startswith(w)]
+    c = find_command(cmds, text[1:space])
+    if not c or not c.get("args"):
+        return []
+    typed = text[space + 1:]
+    w = plain(typed.strip())
+    items = command_args(c["name"], typed, chat)
+    if c["name"] == "bifoga":
+        tail = plain(os.path.basename(typed))
+        return [{"fill": f"/bifoga {a['arg']}", "label": a["arg"], "note": a["note"], "args": a["dir"]}
+                for a in items if plain(os.path.basename(a["arg"].rstrip("/"))).startswith(tail)][:30]
+
+    def rank(a):
+        p = plain(a["arg"])
+        return 0 if p == w else 1 if p.startswith(w) else 2
+    return [{"fill": f"/{c['name']} {a['arg']}", "label": a["arg"], "note": a["note"]}
+            for a in sorted((a for a in items if w in plain(a["arg"])), key=rank)]
+
+
+def show_help(cmds):
+    print(f"\n{ACCENT_BOLD}KOMMANDON{RESET}")
+    for c in cmds:
+        print(f"  {ACCENT}/{c['name']:<16}{RESET}{MUTED}{c['note']}{RESET}")
+    print(f"\n{ACCENT_BOLD}TANGENTER{RESET}")
+    for k, v in (("enter", "skickar"), ("alt+enter · \\ enter", "ny rad"), ("↑ ↓", "det du skrivit förut"),
+                 ("ctrl+r", "sök bland det du skrivit förut"), ("tab", "fyller i kommandot"),
+                 ("esc", "stoppar svaret · stänger listan"), ("ctrl+c", "tömmer raden"), ("ctrl+d", "slutar")):
+        print(f"  {ACCENT}{k:<22}{RESET}{MUTED}{v}{RESET}")
+
+
+def show_memory():
+    items = load_memory()
+    print(f"\n{ACCENT_BOLD}{name().upper()} KOMMER IHÅG{RESET}")
+    if not items:
+        muted("  Inget än. Säg \"kom ihåg att …\" så sparas det.")
+    for t in items:
+        print(f"  {ACCENT}•{RESET} {t.get('text', t) if isinstance(t, dict) else t}")
+    muted("  (ändra eller ta bort i fönstret: /app → AI-tjänster → Minne)")
+
+
+def set_model(arg):
+    w = plain(arg.strip())
+    if w in ("", "auto", "automatiskt"):
+        set_chosen_model("")
+        print(f"  {ACCENT}✓{RESET} {MUTED}modell: automatiskt{RESET}")
+        return
+    if MODELS["items"] is None:
+        muted("  (hämtar listan med modeller…)")
+        while MODELS["items"] is None:
+            time.sleep(0.1)
+    items = [m for m in MODELS["items"] if m["id"]]
+    hit = (next((m for m in items if plain(m["name"]) == w or plain(m["id"]) == w), None)
+           or next((m for m in items if plain(m["name"]).startswith(w)), None)
+           or next((m for m in items if w in plain(m["name"]) or w in plain(m.get("group", ""))), None))
+    if not hit:
+        print(f"  {RED}Ingen modell som heter {arg.strip()}.{RESET} {MUTED}Skriv /modell och välj i listan.{RESET}")
+        return
+    set_chosen_model(hit["id"])
+    print(f"  {ACCENT}✓{RESET} {MUTED}modell: {hit['name']} ({hit.get('group', '')}){RESET}")
+
+
+def list_models():
+    if MODELS["items"] is None:
+        muted("  (hämtar listan med modeller…)")
+        while MODELS["items"] is None:
+            time.sleep(0.1)
+    now = chosen_model()
+    print(f"\n{ACCENT_BOLD}MODELLER{RESET}  {MUTED}/modell <namn> byter · /modell auto = automatiskt{RESET}")
+    group = None
+    for m in MODELS["items"]:
+        if not m["name"]:
+            continue
+        if m.get("group", "") != group:
+            group = m.get("group", "")
+            if group:
+                print(f"  {FAINT}{group.upper()}{RESET}")
+        mark = f"{ACCENT}●{RESET}" if m["id"] == now else " "
+        tag = f" {ACCENT}{m['tag']}{RESET}" if m.get("tag") else ""
+        print(f"  {mark} {FROST}{m['name']}{RESET}{tag} {MUTED}{m.get('note', '')}{RESET}")
+
+
+def open_app(chat):
+    """/app: the window, with this chat open (saved like its own)."""
+    if not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")):
+        print(f"  {RED}Fönstret kan bara öppnas på skrivbordet.{RESET}")
+        return False
+    chat.save()
+    args = ["goblin-ai"] + (["--open", chat.id] if chat.display else [])
+    subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+    muted("  Goblin AI-fönstret öppnas" + (" – samtalet fortsätter där." if chat.display else "."))
+    return True
+
+
+def run_slash(text, chat, keys, ui):
+    """A /command. Returns "quit", True (done) or False (not a command: sent as a question)."""
+    cmds = commands(keys)
+    word, _, arg = text.strip()[1:].partition(" ")
+    c = find_command(cmds, word)
+    if not c:
+        return False
+    arg = arg.strip()
+    n = c["name"]
+    if "button" in c:
+        item = load_daily()[c["button"]]
+        if chat.display:
+            chat.__init__()
+        send(chat, keys, item["text"], choice=item.get("model", ""), daily=True)
+    elif n == "app":
+        if open_app(chat):
+            return "quit"
+    elif n == "ny":
+        chat.__init__()
+        print(f"\n{BORDER}{'─' * 3}{RESET} {MUTED}nytt samtal{RESET} {BORDER}{'─' * max(3, min(width(), 72) - 17)}{RESET}")
+    elif n == "bild":
+        if arg:
+            picture(chat, keys, arg)
+        else:
+            ui.picture = True
+    elif n == "modell":
+        set_model(arg) if arg else list_models()
+    elif n == "sök":
+        if arg:
+            chat.search_next = True
+            send(chat, keys, arg)
+        else:
+            chat.search_next = not chat.search_next
+            muted("  Nästa fråga söks på nätet först." if chat.search_next else "  Ingen sökning först.")
+    elif n == "bifoga":
+        path = Path(os.path.expanduser(arg))
+        path = path if path.is_absolute() else Path(chat.cwd) / path
+        if not arg or not path.is_file():
+            print(f"  {RED}Hittar ingen fil{' ' + arg if arg else ''}.{RESET} {MUTED}/bifoga <sökväg> (tab fyller i){RESET}")
+        else:
+            ui.attachment = str(path.resolve())
+            muted(f"  📎 {path.name} skickas med nästa fråga" + (" (som bild)" if is_image(str(path)) else ""))
+    elif n == "minne":
+        show_memory()
+    elif n == "inställningar":
+        setup()
+        keys.clear()
+        keys.update(load_keys())
+        load_models(keys)
+    elif n == "hjälp":
+        show_help(cmds)
+    elif n == "avsluta":
+        return "quit"
+    return True
+
+
+# ── The input: ❯ between two accent lines, like the window (prompt_toolkit) ──
+
+class Input:
+    def __init__(self, chat, keys):
+        self.chat, self.keys = chat, keys
+        self.picture = False
+        self.attachment = None
+        self.history = load_history()
+
+    def read(self):
+        """What was written (str), or None to quit."""
+        try:
+            return self._read_pt()
+        except ImportError:  # without prompt_toolkit: a plain line, readline gives ↑/↓ and Ctrl+R
+            return self._read_plain()
+
+    def _read_plain(self):
+        try:
+            import readline  # noqa: F401, PLC0415
+        except ImportError:
+            pass
+        mark = "bild ❯" if self.picture else "❯"
+        try:
+            text = input(f"\n{ACCENT}{mark}{RESET} ")
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return None
+        return text
+
+    def _read_pt(self):
+        from prompt_toolkit.application import Application  # noqa: PLC0415
+        from prompt_toolkit.application.current import get_app  # noqa: PLC0415
+        from prompt_toolkit.buffer import Buffer  # noqa: PLC0415
+        from prompt_toolkit.document import Document  # noqa: PLC0415
+        from prompt_toolkit.filters import Condition  # noqa: PLC0415
+        from prompt_toolkit.key_binding import KeyBindings  # noqa: PLC0415
+        from prompt_toolkit.layout import ConditionalContainer, HSplit, Layout, VSplit, Window  # noqa: PLC0415
+        from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl  # noqa: PLC0415
+        from prompt_toolkit.layout.dimension import Dimension  # noqa: PLC0415
+        from prompt_toolkit.output.color_depth import ColorDepth  # noqa: PLC0415
+        from prompt_toolkit.styles import Style  # noqa: PLC0415
+        try:
+            from prompt_toolkit.cursor_shapes import CursorShape  # noqa: PLC0415
+            cursor = {"cursor": CursorShape.BLINKING_BLOCK}
+        except ImportError:
+            cursor = {}
+
+        state = {"index": 0, "closed": False, "search": False, "draft": "", "hist": len(self.history),
+                 "hist_draft": "", "quiet": False}
+        cmds = commands(self.keys)
+
+        def items():
+            if state["closed"]:
+                return []
+            text = buf.text
+            if state["search"]:
+                q = text.lower()
+                return [{"fill": h, "label": h.split("\n")[0], "note": ""}
+                        for h in reversed(self.history) if q in h.lower()][:30]
+            if self.picture:
+                return []
+            return popup_items(text, cmds, self.chat)
+
+        def changed(_):
+            if not state["quiet"]:
+                state["index"], state["closed"] = 0, False
+
+        buf = Buffer(multiline=True, on_text_changed=changed)
+
+        def set_text(text):
+            state["quiet"] = True
+            buf.document = Document(text, len(text))
+            state["quiet"] = False
+
+        def top_line():
+            cols = get_app().output.get_size().columns
+            left = []
+            if self.picture:
+                left.append(("class:on", "skapa bild"))
+            else:
+                left.append(("class:word", model_name(chosen_model()) + " ▾"))
+                if self.chat.search_next:
+                    left += [("", "   "), ("class:on", "sök på nätet ✓")]
+                if self.attachment:
+                    left += [("", "   "), ("class:on", "📎 " + Path(self.attachment).name)]
+            if state["search"]:
+                hint = "↑↓ välj · enter tar · ctrl+r äldre · esc avbryter"
+            elif items():
+                hint = "↑↓ välj · tab fyller i · enter kör · esc stänger"
+            elif self.picture:
+                hint = "enter ritar · esc tillbaka"
+            else:
+                hint = "/ kommandon · ↑ tidigare · ctrl+r sök"
+            used = sum(len(t) for _, t in left) + 1
+            if used + len(hint) + 2 > cols:
+                hint = ""
+            return left + [("", " " * max(1, cols - used - len(hint))), ("class:hint", hint)]
+
+        def mark():
+            return [("class:mark", ("sök ❯" if state["search"] else "bild ❯" if self.picture else "❯") + " ")]
+
+        def popup():
+            rows = items()
+            n = len(rows)
+            i = min(state["index"], n - 1)
+            top = max(0, min(i - 3, n - 8))
+            label_w = min(28, max((len(r["label"]) for r in rows[top:top + 8]), default=4) + 4)
+            out = []
+            for j, r in enumerate(rows[top:top + 8], start=top):
+                style = "class:sel" if j == i else "class:item"
+                label = r["label"] if len(r["label"]) < label_w else r["label"][:label_w - 2] + "…"
+                out += [(style, " " + label.ljust(label_w)), (style + " class:note" if j != i else style, r["note"][:90]),
+                        ("", "\n")]
+            if n > 8:
+                out.append(("class:hint", f" {i + 1} av {n}\n"))
+            return out[:-1] if out and out[-1] == ("", "\n") else out
+
+        def popup_height():
+            n = len(items())
+            return Dimension.exact(min(n, 8) + (1 if n > 8 else 0))
+
+        kb = KeyBindings()
+        has_items = Condition(lambda: bool(items()))
+
+        def take(event, run):
+            rows = items()
+            item = rows[min(state["index"], len(rows) - 1)]
+            if state["search"]:
+                state["search"], state["closed"] = False, True
+                set_text(item["fill"])
+            elif run and not item.get("args"):
+                event.app.exit(result=item["fill"])
+            else:
+                set_text(item["fill"] + ("" if item["fill"].endswith("/") else " " if item.get("args") else ""))
+                state["index"] = 0
+
+        @kb.add("enter", filter=has_items)
+        def _(event):
+            take(event, True)
+
+        @kb.add("tab", filter=has_items)
+        def _(event):
+            take(event, False)
+
+        @kb.add("enter", filter=~has_items)
+        def _(event):
+            text = buf.text
+            if state["search"]:  # nothing matched: keep the words, out of the search
+                state["search"] = False
+                return
+            if text.endswith("\\"):  # \ + enter = a new line (as in Claude Code)
+                set_text(text[:-1] + "\n")
+                return
+            if text.strip():
+                event.app.exit(result=text)
+
+        @kb.add("escape", "enter")
+        @kb.add("c-j")
+        def _(event):
+            buf.insert_text("\n")
+
+        @kb.add("up", filter=has_items)
+        def _(event):
+            n = len(items())
+            state["index"] = (min(state["index"], n - 1) - 1) % n
+
+        @kb.add("down", filter=has_items)
+        def _(event):
+            n = len(items())
+            state["index"] = (min(state["index"], n - 1) + 1) % n
+
+        @kb.add("up", filter=~has_items)
+        def _(event):
+            if buf.document.cursor_position_row > 0:
+                buf.cursor_up()
+            elif state["hist"] > 0:
+                if state["hist"] == len(self.history):
+                    state["hist_draft"] = buf.text
+                state["hist"] -= 1
+                set_text(self.history[state["hist"]])
+                state["closed"] = True
+
+        @kb.add("down", filter=~has_items)
+        def _(event):
+            if buf.document.cursor_position_row < buf.document.line_count - 1:
+                buf.cursor_down()
+            elif state["hist"] < len(self.history):
+                state["hist"] += 1
+                set_text(state["hist_draft"] if state["hist"] == len(self.history) else self.history[state["hist"]])
+                state["closed"] = True
+
+        @kb.add("c-r")
+        def _(event):
+            if not state["search"]:
+                state["draft"], state["search"], state["closed"] = buf.text, True, False
+                set_text("")
+                state["index"] = 0
+            else:
+                state["index"] = min(state["index"] + 1, max(0, len(items()) - 1))  # again: one older
+
+        @kb.add("escape", eager=True)
+        def _(event):
+            if state["search"]:
+                state["search"], state["closed"] = False, True
+                set_text(state["draft"])
+            elif items():
+                state["closed"] = True
+            elif self.picture:
+                self.picture = False
+
+        @kb.add("c-c")
+        def _(event):
+            if buf.text:
+                set_text("")
+                state["search"] = False
+            else:
+                event.app.exit(result=None)
+
+        @kb.add("c-d")
+        def _(event):
+            if not buf.text:
+                event.app.exit(result=None)
+            else:
+                buf.delete()
+
+        rule = Window(height=1, char="─", style="class:rule")
+        layout = Layout(HSplit([
+            Window(FormattedTextControl(top_line), height=1),
+            rule,
+            VSplit([Window(FormattedTextControl(mark), dont_extend_width=True),
+                    Window(BufferControl(buffer=buf), wrap_lines=True, height=Dimension(min=1, max=10),
+                           dont_extend_height=True)]),
+            Window(height=1, char="─", style="class:rule"),
+            ConditionalContainer(Window(FormattedTextControl(popup), height=popup_height), filter=has_items),
+        ]))
+        style = Style.from_dict({
+            "": f"fg:{FROST_HEX}", "rule": f"fg:{ACCENT_HEX}", "mark": f"fg:{ACCENT_TEXT_HEX} bold",
+            "word": f"fg:{MUTED_HEX}", "on": f"fg:{ACCENT_TEXT_HEX}", "hint": f"fg:{FAINT_HEX}",
+            "item": f"fg:{FROST_HEX}", "note": f"fg:{MUTED_HEX}", "sel": f"bg:{DIM_HEX} fg:{FROST_HEX}",
+        })
+        app = Application(layout=layout, key_bindings=kb, style=style, full_screen=False, erase_when_done=True,
+                          color_depth=ColorDepth.TRUE_COLOR, **cursor)
+        app.ttimeoutlen = 0.05  # esc at once (not waiting to see if it starts an alt+ key)
+        print()
+        if TTY:
+            print(f"\033]12;{ACCENT_HEX}\a", end="", flush=True)  # the block cursor in the accent, like the window
+        try:
+            text = app.run()
+        except (EOFError, KeyboardInterrupt):
+            text = None
+        finally:
+            if TTY:
+                print("\033]112\a", end="", flush=True)
+        return text
+
+
+def session(keys, first=None):
+    chat = Chat()
+    ui = Input(chat, keys)
+    load_models(keys)
+    welcome(chat)
+    while True:
+        if first is not None:
+            text, first = first, None
+        else:
+            text = ui.read()
+        if text is None or text.strip().lower() in ("hej då", "hejdå"):
+            muted("Hej då!")
+            return 0
+        text = text.strip()
+        if not text:
+            continue
+        add_history(text)
+        ui.history = load_history()
+        if ui.picture:
+            ui.picture = False
+            user_line(text, "bild ❯")
+            picture(chat, keys, text)
+            continue
+        if text.startswith("/"):
+            user_line(text)
+            try:
+                done = run_slash(text, chat, keys, ui)
+            except ServiceError as e:
+                print(f"  {RED}{e}{RESET}")
+                continue
+            if done == "quit":
+                return 0
+            if done:
+                continue
+        else:
+            user_line(text)
+        attachment, ui.attachment = ui.attachment, None
+        send(chat, keys, text, attachment)
 
 
 # ── setup ──────────────────────────────────────────────────────────
 
 def setup():
     keys = load_keys()
-    print(f"{ACCENT}▌ goblin ai – AI-tjänster{RESET}\n")
+    print(f"{RULE}▌{RESET} {ACCENT_BOLD}goblin ai – AI-tjänster{RESET}\n")
     print("Gemini och OpenRouter är gratis – en nyckel räcker, men fler gör att goblin ai kan byta")
     print("när en tjänst har slut på gratisfrågor. De märkta betald kostar per fråga och används")
     print("bara med en egen nyckel, då före gratistjänsterna. De används i den här ordningen.")
@@ -241,7 +1169,7 @@ def setup():
         except ServiceError as e:
             print(f"  {RED}Fungerade inte:{RESET} {e}\n")
     if has_keys(keys):
-        print(f"Klart. Prova: {ACCENT}goblin ai hur mycket diskutrymme har jag kvar?{RESET}")
+        print(f"Klart. Prova: {ACCENT}goblin ai{RESET} och fråga hur mycket diskutrymme du har kvar.")
     else:
         print("Ingen tjänst inställd. Kör goblin ai setup igen när du vill.")
 
@@ -253,26 +1181,19 @@ def main(args):
         setup()
         return 0
     if args[:1] == ["--chat"]:
-        args = []
+        args = args[1:]
     keys = load_keys()
     if not has_keys(keys):
         print(f"goblin ai behöver minst en AI-tjänst. Kör: {ACCENT}goblin ai setup{RESET}")
         return 1
-    messages = [{"role": "system", "content": system_prompt()}]
     try:
         if args:
-            handle(" ".join(args), messages, keys)
+            # One question, then back to the shell (the session: goblin ai without words)
+            chat = Chat()
+            user_line(" ".join(args))
+            send(chat, keys, " ".join(args))
             return 0
-        print(f"{ACCENT}▌ goblin ai{RESET} {MUTED}– skriv din fråga. Tom rad eller \"hej då\" avslutar.{RESET}")
-        while True:
-            try:
-                question = input(f"\n{ACCENT}›{RESET} ").strip()
-            except EOFError:
-                break
-            if not question or question.lower() in ("hej då", "hejdå", "exit", "quit", "q"):
-                break
-            handle(question, messages, keys)
-        return 0
+        return session(keys)
     except ServiceError as e:
         print(f"{RED}{e}{RESET}")
         return 1

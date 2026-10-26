@@ -22,6 +22,7 @@ modules:
         - sddm                  # login manager with the GOBLINCAKES theme
         - sddm-wayland-plasma   # runs the SDDM login screen on Wayland (KWin)
         - python3-pyside6       # GOBLINCAKES Config window (Qt for Python)
+        - python3-prompt-toolkit # goblin ai in the terminal: the input like Claude Code (❯ between lines, /commands)
         - fuse-libs             # lets AppImages run (WowUp, Raider.IO, Archon)
         - aurorae               # engine for the GOBLINCAKES window frames
         - kvantum               # engine for the GOBLINCAKES widget theme

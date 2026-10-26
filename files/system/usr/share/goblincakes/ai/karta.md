@@ -73,7 +73,9 @@ Ord: goblin, kommando, terminal, goblin help
 
 ## Goblin AI (du själv)
 Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, ångra
-- Fönstret /usr/bin/goblin-ai (Meta+A), koden i /usr/share/goblincakes/ai/ (goblinai.py m.fl.).
+- Fönstret /usr/bin/goblin-ai (Meta+A, goblin ai app), koden i /usr/share/goblincakes/ai/ (goblinai.py m.fl.).
+- I terminalen: goblin ai = /usr/libexec/goblincakes-ai (prompt_toolkit, python3-prompt-toolkit i imagen; utan den en
+  enkel rad). /app öppnar fönstret med samma samtal (goblin-ai --open <id>). Terminalens chattar sparas bland fönstrets.
 - Chattar, minne och lärdomar: ~/.local/share/goblincakes/ai/. Nycklar: ~/.config/goblincakes/ai.env – visa aldrig.
 - Körda kommandon och hur de ångras: ~/.local/state/goblincakes/ai/kommandon.jsonl, säkerhetskopior bredvid.
   Användaren ångrar under AI-tjänster → Körda kommandon.

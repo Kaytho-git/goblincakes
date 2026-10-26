@@ -266,8 +266,8 @@ cmd_update() {
 # longer ones wrap at whole words under the description column
 COMMANDS=(
     "update|Uppdatera allt – eller en del: goblin update --only flatpak (system, flatpak, appimages, vscode, chatgpt, discord, proton, firmware). goblin update --stäng-av: vänta på nya versionen, uppdatera, stäng av datorn"
-    "ai|Öppna Goblin AI-fönstret (eller tryck Meta+A)"
-    "ai [fråga]|Fråga Goblin AI direkt här – föreslagna kommandon körs bara om du säger ja"
+    "ai|Goblin AI här i terminalen – /app öppnar fönstret (eller tryck Meta+A)"
+    "ai [fråga]|En fråga direkt här – kommandon som ändrar något körs bara om du säger ja"
     "ai setup|Ställ in gratis AI-tjänster (Gemini, OpenRouter, Tavily-sökning)"
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
     "discord|Namnge röstkanalen du sitter i just nu (visas i toppfältet): goblin discord namn <kanalens namn>, t.ex. goblin discord namn Raid (goblin discord Raid går också); bara goblin discord = listan med namngivna kanaler"
@@ -657,8 +657,10 @@ HELP
         fi
         ;;
     ai) shift
-        # Without a question, on the desktop: the Goblin AI window (also Meta+A)
-        if [ $# -eq 0 ] && { [ -n "${WAYLAND_DISPLAY:-}" ] || [ -n "${DISPLAY:-}" ]; }; then
+        # Without a question: Goblin AI in the terminal, like Claude Code (26 Oct; /app opens the window).
+        # The window (also Meta+A): goblin ai app – or when nothing is a terminal (started from a menu)
+        if [ "${1:-}" = app ] || [ "${1:-}" = fönster ] || { [ $# -eq 0 ] && ! [ -t 0 ] && \
+                { [ -n "${WAYLAND_DISPLAY:-}" ] || [ -n "${DISPLAY:-}" ]; }; }; then
             (setsid goblin-ai >/dev/null 2>&1 &)
             exit 0
         fi

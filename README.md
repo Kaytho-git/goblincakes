@@ -116,7 +116,7 @@ Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+
 - **Uppdatera** – se vad som är nytt och uppdatera allt eller en del i taget (systemet, Flatpak-program, VS Code, Discord, WoW-tillägg, GE-Proton, firmware).
 
 ### Goblin AI
-Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**), i en snabbruta (**Meta+§**) eller i terminalen (`goblin ai`). Föreslagna kommandon körs bara när du säger ja, och AI:n kan ändra filer du bifogar.
+Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**), i en snabbruta (**Meta+§**) eller i terminalen (`goblin ai`, med samma utseende och /kommandon – `/app` tar samtalet till fönstret). Föreslagna kommandon körs bara när du säger ja, och AI:n kan ändra filer du bifogar.
 - **Lokalt eller i molnet:** kör AI:n på din egen dator med Ollama (inget lämnar datorn; installeras med en knapp, förslag på modeller efter ditt grafikkort, stängs av medan du spelar) och/eller gratisnivåerna hos Gemini och OpenRouter – eller dina egna nycklar till Claude, OpenAI m.fl.
 - **Söker på nätet** själv när du frågar om något nytt (gratis Tavily-nyckel).
 - **Läser och skapar:** PDF:er, bilder och skärmbilder; ritar bilder (på datorn eller gratis via Cloudflare); sparar svar som PDF, Word eller bild.
@@ -130,7 +130,7 @@ Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**), i en 
 | Kommando | Gör |
 |---|---|
 | `goblin update` | Uppdaterar allt: systemet, program, WoW-tillägg, GE-Proton och firmware – och visar vad som är nytt |
-| `goblin ai` | **Goblin AI** – fråga om datorn eller vad som helst (även **Meta+A**) |
+| `goblin ai` | **Goblin AI** i terminalen – fråga om datorn eller vad som helst (`/app` eller **Meta+A** = fönstret) |
 | `goblin play` | Dina spel – skriv spelets namn eller förkortning direkt i terminalen (t.ex. `wow`, `cs2`) så startas det via Steam; `goblin play dock cs2` fäster det i dockan |
 | `goblin amp` | **GoblinAmp** – musikspelaren (`goblin amp hjälp` visar hur Spotify-listorna kopplas in) |
 | `goblin färg` | Byter GOBLINCAKES färg (`goblin färg mage`) |
