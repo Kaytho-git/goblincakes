@@ -1523,7 +1523,7 @@ Window {
                         visible: !!(card.stats && card.stats.players)
                         topPadding: 4
                         Repeater {
-                            model: ["SPELARE", "PARSE", "ILVL", "DPS", "HPS", "DÖD"]
+                            model: ["SPELARE", "PARSE", card.modelData.kind === "mplus" ? "NIVÅ" : "ILVL", "DPS", "HPS", "DÖD"] // M+: Warcraft Logs' bracket = key level
                             Text {
                                 required property string modelData
                                 required property int index
@@ -1660,7 +1660,7 @@ Window {
                         wrapMode: Text.WordWrap
                         text: card.stats ? (card.stats.deaths ? card.stats.deaths + " dödsfall" : "Inga dödsfall")
                               + (card.stats.estimate ? " · parses mot alla körningar tills Warcraft Logs rankat nyckeln"
-                                 : card.stats.ranked ? " · ILVL = parse mot samma item level" : " · parses bara för kills och nycklar i tid (kan dröja en stund efter uppladdningen)")
+                                 : card.stats.ranked ? (card.modelData.kind === "mplus" ? " · NIVÅ = parse mot samma nyckelnivå" : " · ILVL = parse mot samma item level") : " · parses bara för kills och nycklar i tid (kan dröja en stund efter uppladdningen)")
                               + (win.statsBusy === card.modelData.path ? " · uppdaterar …" : "") : ""
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"

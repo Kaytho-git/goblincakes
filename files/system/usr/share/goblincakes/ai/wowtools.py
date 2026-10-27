@@ -730,7 +730,7 @@ def wow_stats(query):
     metric = "HPS" if o["role"] == "healers" else "DPS"
     lines = [f"{o['name']} – {o['spec']} {o['class']}, item level {o['ilvl'] or '?'}"
              + (f", de senaste {days} dagarna" if days else ", allt inspelat"),
-             "Parse = Warcraft Logs percentil (healers på HPS, andra på DPS); ilvl-parse = mot samma item level. "
+             "Parse = Warcraft Logs percentil (healers på HPS, andra på DPS); ilvl-parse = mot samma item level (i raid); nivå-parse = mot samma nyckelnivå (i Mythic+). "
              "Färger hos WCL: 25 grön, 50 blå, 75 lila, 95 orange, 99 rosa, 100 guld."]
     # The newest of each, said outright: "senaste bossen" got the last line of the boss list (24 Oct)
     runs = sorted((v for v in R.wow_history().values() if isinstance(v, dict) and v.get("parse") is not None
@@ -740,7 +740,7 @@ def wow_stats(query):
         if v:
             what = f"{v['name']} +{v.get('level')}" if mplus else f"{v['name']} ({v.get('difficulty', '')})"
             lines.append(f"{label}: {what}, {v.get('result', '')}, {time.strftime('%Y-%m-%d', time.localtime(v['started']))}"
-                         f" – parse {v['parse']}, ilvl-parse {_v(v.get('ilvlParse'))}")
+                         f" – parse {v['parse']}, {'nivå' if mplus else 'ilvl'}-parse {_v(v.get('ilvlParse'))}")
     for d, r in o["raid"].items():
         lines.append(f"\nRAID {d}: bästa snitt {_v(r['best'])}, median snitt {_v(r['median'])}, {r['kills']} kills av {r['pulls']} pulls")
         for b in r["bosses"]:
