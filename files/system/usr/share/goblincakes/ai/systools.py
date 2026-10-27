@@ -607,6 +607,57 @@ def unit_list(match=""):
     return "\n".join(out)
 
 
+# Installed programs (27 Oct): "vilken kalender har jag?" – she only knew the journal, not the menu
+APP_FOLDERS = ((Path("/usr/share/applications"), "i imagen"),
+               (Path("/var/lib/flatpak/exports/share/applications"), "Flatpak"),
+               (HOME / ".local/share/flatpak/exports/share/applications", "Flatpak"),
+               (HOME / ".local/share/applications", "i hemmappen"))
+APP_GROUPS = (("Game", "Spel"), ("AudioVideo", "Ljud och video"), ("Graphics", "Bild"), ("Network", "Internet"),
+              ("Office", "Kontor"), ("Development", "Utveckling"), ("Settings", "Inställningar"),
+              ("System", "System"), ("Utility", "Verktyg"))
+
+
+def desktop_field(text, key):
+    """Name[sv] before Name: the Swedish text when the file has one."""
+    m = re.search(rf"^{key}\[sv\]=(.+)$", text, re.M) or re.search(rf"^{key}=(.+)$", text, re.M)
+    return m.group(1).strip() if m else ""
+
+
+def installed_programs(match=""):
+    """The programs in the menu (image, Flatpak, own/web apps), or the ones whose name/kind/keywords match."""
+    apps = {}
+    for folder, source in APP_FOLDERS:
+        for f in sorted(folder.glob("*.desktop")):
+            try:
+                text = f.read_text(errors="replace").split("\n[Desktop Action", 1)[0]
+            except OSError:
+                continue
+            if re.search(r"^(NoDisplay|Hidden)=true", text, re.M) or not desktop_field(text, "Name"):
+                apps.pop(f.name, None)  # a hidden copy in the home folder hides the image's
+                continue
+            if f.name.startswith("goblincakes-webapp"):
+                source = "webbapp"
+            apps[f.name] = (desktop_field(text, "Name"), desktop_field(text, "GenericName"), f.stem, source,
+                            desktop_field(text, "Categories"),
+                            " ".join(re.findall(r"^(?:Keywords|GenericName|Name)(?:\[[\w@]+\])?=(.+)$", text, re.M)))
+    words = [w for w in match.lower().split() if w not in ("program", "programmet", "programmen", "app", "appar")]
+    if words:
+        rows = [a for a in apps.values() if all(w in f"{a[0]} {a[1]} {a[2]} {a[4]} {a[5]}".lower() for w in words)]
+        if not rows:  # "skärminspelning" is no keyword – the whole list lets her find OBS herself
+            return (f"Inget program har \"{match}\" i namn, sort eller nyckelord. Välj själv bland alla "
+                    f"(kolla namnen):\n" + installed_programs())
+        return f"Installerade program som matchar \"{match}\" ({len(rows)}):\n" + "\n".join(
+            f"- {name}" + (f" ({kind})" if kind and kind != name else "") + f" – {stem}, {source}"
+            for name, kind, stem, source, *_ in sorted(rows, key=lambda a: a[0].lower()))
+    groups = collections.defaultdict(list)
+    for name, _, _, source, cats, _ in apps.values():
+        group = next((sv for en, sv in APP_GROUPS if en in cats.split(";")), "Övrigt")
+        groups[group].append(name + (" (webbapp)" if source == "webbapp" else ""))
+    return f"Installerade program i menyn ({len(apps)}):\n" + "\n".join(
+        f"{g}: " + ", ".join(sorted(set(groups[g]), key=str.lower))
+        for g in [sv for _, sv in APP_GROUPS] + ["Övrigt"] if groups[g])
+
+
 SEARCH_HELP = """Så här letar du (en rad i blocket):
 filer <namn eller *mönster*> [i <mapp>]   – hittar filer/mappar
 läs <sökväg> [med <text> | från rad <n>] – slutet av en textfil, raderna med texten, eller från en rad
@@ -614,7 +665,8 @@ mapp <sökväg>                           – vad som ligger i en mapp
 sök <text> i <mapp>                     – vilka filer som innehåller texten
 logg <program eller tjänst> [från HH:MM] – journalen om det sedan start (eller från klockslaget)
 status <tjänst>                         – en tjänsts status
-tjänster [text]                         – vilka tjänster som körs"""
+tjänster [text]                         – vilka tjänster som körs
+program [text]                          – installerade program (t.ex. program kalender)"""
 
 
 def describe(query):
@@ -638,6 +690,8 @@ def describe(query):
         text = f"Kollar tjänsten {rest}" if rest else "Kollar tjänsterna"
     elif word in ("tjänster", "tjanster", "services"):
         text = "Kollar vilka tjänster som körs"
+    elif word in ("program", "appar"):
+        text = f"Kollar installerade program: {rest}" if rest else "Kollar installerade program"
     elif word == "systemfel":
         text = "Läser datorns fel" + (f" för {rest}" if rest else "")
     else:
@@ -687,6 +741,8 @@ def look(query):
             text = unit_status(rest) if rest else unit_list()
         elif word in ("tjänster", "tjanster", "services"):
             text = unit_list(rest)
+        elif word in ("program", "appar"):
+            text = installed_programs(rest.strip("\"'"))
         else:
             return f"Förstod inte \"{q}\".\n\n{SEARCH_HELP}"
     except SearchError as e:

@@ -854,6 +854,11 @@ LOOK_FNS = [
             {"program": ("Programmets eller tjänstens namn, t.ex. `discord`", True),
              "fran": ("Klockslaget HH:MM när det hände (valfritt), t.ex. `16:55`", False)},
             lambda a: f"logg {look_arg(a, 'program')}" + (f" från {look_arg(a, 'fran')}" if look_arg(a, "fran") else "")),
+    look_fn("program", "Visar vilka program som är installerade (menyn: imagen, Flatpak, webbappar), eller vilka "
+            "som passar ett ord – namn, sort eller nyckelord, t.ex. `kalender`, `webbläsare`, `musik`. När användaren "
+            "frågar vilket program hen har för något eller om ett program finns.",
+            {"text": ("Ett ord för sorten eller namnet (valfritt; tomt = alla)", False)},
+            lambda a: f"program {look_arg(a, 'text')}".strip()),
     look_fn("tjanst", "Visar en tjänsts status (körs den, sedan när, senaste raderna), eller vilka tjänster som körs.",
             {"namn": ("Tjänstens namn (tomt = alla tjänster som körs)", False)},
             lambda a: f"status {look_arg(a, 'namn')}" if look_arg(a, "namn") else "tjänster"),

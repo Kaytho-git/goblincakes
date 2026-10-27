@@ -1,3 +1,4 @@
+2026-10-27  Kakan vet vilka program du har på datorn – fråga t.ex. "vilken kalender har jag?" eller "har jag något för att spela in skärmen?"
 2026-10-27  GoblinRecorder: håll musen över parsen i en logg så ser du din plats och hur många av samma spec som har kört samma boss eller dungeon, som på Warcraft Logs
 2026-10-27  GoblinRecorder: på Mythic+-nycklar heter andra parse-siffran nu NIVÅ, för Warcraft Logs jämför den med andra på samma nyckelnivå, inte samma item level. Kakan vet också om skillnaden
 2026-10-26  goblin ai i terminalen kan gå in i dina projekt: skriv /projekt och välj, så gäller projektets instruktioner, filer och AI-val. /projekt igen lämnar projektet
