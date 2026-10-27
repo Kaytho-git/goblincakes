@@ -199,6 +199,14 @@ Window {
              : n >= 1000 ? (n / 1000).toFixed(1).replace(".", ",") + "k" : String(n);
     }
 
+    // "Elemental Shaman · plats ~1 234 av 5 678" – Warcraft Logs ranks against the same spec ("~" = its estimate)
+    function rankTip(p) {
+        if (!p.rankOf || p.rank === null || p.rank === undefined) return "";
+        const n = s => String(s).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+        return p.spec + " " + String(p["class"]).replace(/([a-z])([A-Z])/g, "$1 $2")
+             + " · plats " + n(p.rank) + " av " + n(p.rankOf);
+    }
+
     function roleGroups(players) {
         const out = [];
         for (const p of players) {
@@ -1620,6 +1628,10 @@ Window {
                                                     font.family: "IBM Plex Mono"
                                                     font.weight: Font.DemiBold
                                                     font.pixelSize: 13
+                                                    // the parse: the place among the same spec, as on Warcraft Logs' hover
+                                                    HoverTip {
+                                                        tip: index === 0 ? win.rankTip(prow.modelData) : ""
+                                                    }
                                                 }
                                             }
                                             Text {

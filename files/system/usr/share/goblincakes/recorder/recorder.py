@@ -2518,7 +2518,7 @@ def wcl_stats(wcl):
                     # rank = totalParses with 0 %: a key Warcraft Logs hasn't ranked yet (no team/affixes in the
                     # rankings either – 22 Oct); "~N" alone is its usual estimate with a real percent
                     if c.get("rankPercent") is not None and str(c.get("rank", "")).lstrip("~") != str(c.get("totalParses")):
-                        out[c["name"]] = (c["rankPercent"], c.get("bracketPercent"))
+                        out[c["name"]] = (c["rankPercent"], c.get("bracketPercent"), c.get("rank"), c.get("totalParses"))
         return out
 
     dps, hps = per_second("dmg"), per_second("heal")
@@ -2542,12 +2542,12 @@ def wcl_stats(wcl):
     for role, people in ((data("details") or {}).get("playerDetails") or {}).items():
         for p in people:
             name = p["name"]
-            parse, ilvl_parse = (phps if role == "healers" else pdps).get(name, (None, None))
+            parse, ilvl_parse, rank, of = (phps if role == "healers" else pdps).get(name, (None,) * 4)
             players.append({
                 "name": name, "class": p.get("type", ""), "role": role,
                 "spec": (p.get("specs") or [{}])[0].get("spec", ""),
                 "dps": round(dps.get(name, 0)), "hps": round(hps.get(name, 0)),
-                "parse": parse, "ilvlParse": ilvl_parse, "ilvl": p.get("maxItemLevel") or p.get("minItemLevel"),
+                "parse": parse, "ilvlParse": ilvl_parse, "rank": rank, "rankOf": of, "ilvl": p.get("maxItemLevel") or p.get("minItemLevel"),
                 "deaths": deaths.get(name, 0)})
     players.sort(key=lambda p: (ROLE_ORDER.get(p["role"], 3), -p["dps"]))
     return {"players": players, "deaths": sum(deaths.values()), "fetched": time.time(),
