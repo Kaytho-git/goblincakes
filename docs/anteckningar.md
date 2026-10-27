@@ -341,3 +341,11 @@ Användarens önskan: Kitty som tredje val bredvid Ghostty (standard) och Konsol
 - **Terminalvalet:** `files/system/usr/libexec/goblincakes-terminal` – lägg till `kitty` i `current`/`set` (kdeglobals `TerminalApplication`/`TerminalService`, `dock`-bytet, `run` = `kitty -e`). `goblincakes-config` tillåter bara `("ghostty", "konsole")` på två ställen (`_terminal` och `setTerminal`) + valet i `config/Main.qml`.
 - **Utseende:** `~/.config/kitty/kitty.conf` från `goblincakes-firstlogin` som Ghostty-temat (samma palett, IBM Plex Mono 10 pt, lätt genomskinlig, 100x28), accentfärgen via `goblincakes-accent`. KDE ritar ramen (server-side decorations).
 - **Kolla:** OSC 8-länkar (`goblincakes-ai`), fastfetch-loggan som bild (`goblincakes-fastfetch`), KWin-skriptets regler om de matchar terminalens fönsterklass.
+
+## Backup-plan: byta AI-verktyg (27 okt – bara reserv, används inte)
+Användaren vill fortsätta med Claude Code och har inga planer på att byta. Det här är en reservplan om det någon gång blir nödvändigt (t.ex. ändrade villkor efter Anthropics börsnotering).
+- **Redan oberoende:** koden ligger i GitHub-repot och på datorn, och byggen/ISO/USB-skaparen körs av GitHub Actions utan Claude. Projektets minne finns i `CLAUDE.md` + `docs/anteckningar.md` (vanlig text som vilken AI som helst kan läsa).
+- **Verktyg som arbetar i repot på samma sätt:** OpenAI Codex CLI (ingår i ChatGPT-abonnemanget, läser `AGENTS.md`), Gemini CLI (läser `GEMINI.md`), GitHub Copilot i VS Code, Aider (flera tjänster eller lokala modeller via Ollama – svagare på så här stort projekt). ChatGPT i webbläsaren räcker till frågor men inte till att arbeta i repot.
+- **Vid byte:** lägg `AGENTS.md` (och/eller `GEMINI.md`) i repots rot som symlänk till eller kopia av `CLAUDE.md`, så att reglerna (jobba i `main`, nyhetsraden, design, konventioner) gäller direkt. Be det nya verktyget läsa `CLAUDE.md` först och greppa anteckningarna precis som nu.
+- **Claude-specifikt som måste pekas om:** Kakans punkt 17 (Claude Haiku via abonnemanget) och "Skicka till Claude" i Goblin AI.
+- **Löpande:** skriv fortsatt ner beslut och vad som är provat i anteckningarna – ju mer som står där, desto mindre försvinner vid ett byte.

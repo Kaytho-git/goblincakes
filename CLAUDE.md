@@ -95,4 +95,4 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [ ] **GoblinAmp:** spellistan ska kunna kopplas loss från spelaren och dras vart man vill (eget fönster); GRAF-fönstret genomskinligt i stället för svart bakgrund.
 
 ## Framtida idéer (byggs bara på begäran – detaljer i anteckningarna)
-Kakan lär sig steg 2 (LoRA-finjustering), Goblin AI som vardags-AI (röst, Google-tjänster), Steam-DM i Spelas nu (väntar på freedesktop-notiser), GoblinRecorder fristående (Flatpak/AppImage), Ianseo-nedladdningssida på Simply med TOTP.
+Kakan lär sig steg 2 (LoRA-finjustering), Goblin AI som vardags-AI (röst, Google-tjänster), Steam-DM i Spelas nu (väntar på freedesktop-notiser), GoblinRecorder fristående (Flatpak/AppImage), Ianseo-nedladdningssida på Simply med TOTP, backup-plan om AI-verktyget måste bytas (bara reserv – grep "Backup-plan").
