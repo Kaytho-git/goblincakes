@@ -1,3 +1,4 @@
+2026-10-28  Discord startar vid inloggning även efter en Discord-uppdatering (autostart-raden pekade på en gammal version)
 2026-10-28  Två små staplar i toppfältet visar hur mycket av Claudes och ChatGPT/Codex kvoter du använt. Klicka för 5 timmar och vecka i procent, och när de nollställs
 2026-10-28  Claude kan lämna testlistor åt Goblin AI: skriv /testa så går hon igenom dem punkt för punkt, frågar dig om det hon inte kan se själv och sparar resultatet åt Claude
 2026-10-28  Kommer Goblin AI inte vidare? Tryck "Skicka till Claude" under svaret: Claude Code öppnas i en terminal med allt hon tagit reda på och löser problemet. "Fråga Claude" ger bara ett svar i chatten, utan att något ändras

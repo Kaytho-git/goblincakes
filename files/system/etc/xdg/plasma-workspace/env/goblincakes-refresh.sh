@@ -188,6 +188,12 @@ _gc_auto="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/discord.desktop"
 if [ -e /proc/driver/nvidia/version ] && [ -f "$_gc_auto" ] && ! grep -q 'ozone-platform' "$_gc_auto"; then
     sed -i '/^Exec=.*\/app-[0-9.]*\/Discord/s/$/ --ozone-platform=x11/' "$_gc_auto"
 fi
+# Discord's own file names the version folder, which is gone after the next Discord update
+# (28 Oct, the user: Discord didn't start at login, app-1.0.166 → 1.0.167) – the launcher
+# finds the newest version itself, so the entry points there instead
+if [ -x "$_gc_launcher" ] && [ -f "$_gc_auto" ] && grep -q '^Exec=.*/app-[0-9.]*/Discord' "$_gc_auto"; then
+    sed -i "/^Exec=/s|^Exec=[^ ]*/app-[0-9.]*/Discord|Exec=$_gc_launcher|; /^Icon=.*\\/app-[0-9.]*\\//s|^Icon=.*|Icon=${_gc_launcher%/*}/discord.png|" "$_gc_auto"
+fi
 
 # Autostart entries an AppImage wrote itself point into its temporary mount (/tmp/.mount_…),
 # which is gone at the next login – WowUp's "start with the system" did that (15 Oct). They never
