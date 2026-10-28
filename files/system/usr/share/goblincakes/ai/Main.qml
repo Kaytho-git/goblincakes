@@ -209,6 +209,7 @@ Window {
         { name: "projekt", note: "byt projekt – utan namn: lämna projektet", args: true },
         { name: "lär", note: "lärläget Lär dig koda, på eller av" },
         { name: "minne", note: "vad Goblin AI kommer ihåg om dig" },
+        { name: "claude", note: "skicka senaste svaret till Claude Code – /claude fråga = bara läsa, svaret kommer hit", args: true, hidden: !backend.claude },
         { name: "pdf", note: "spara senaste svaret som PDF" },
         { name: "word", note: "spara senaste svaret som Word" },
         { name: "inställningar", note: "AI-tjänster och inställningar", aliases: ["settings"] },
@@ -456,6 +457,14 @@ Window {
             memCard.open = true;
             Qt.callLater(() => settings.contentY = Math.max(0, Math.min(memCard.y, settings.contentHeight - settings.height)));
             break;
+        case "claude": {
+            const index = latestAnswer();
+            if (index < 0)
+                toast.show("Det finns inget svar att skicka än.");
+            else
+                backend.sendClaude(index, ["fraga", "las", "ask"].indexOf(plain(arg)) >= 0 ? "ask" : "fix");
+            break;
+        }
         case "pdf":
         case "word":
             saveLatest(c.name === "word");
@@ -472,13 +481,17 @@ Window {
     }
 
     // /pdf and /word: the latest answer, like "Spara som…" under it
-    function saveLatest(word) {
-        let index = -1;
-        for (let i = chatModel.count - 1; i >= 0 && index < 0; i--) {
+    function latestAnswer() {
+        for (let i = chatModel.count - 1; i >= 0; i--) {
             const m = JSON.parse(chatModel.get(i).msg);
             if (m.role === "assistant" && !m.stopped)
-                index = i;
+                return i;
         }
+        return -1;
+    }
+
+    function saveLatest(word) {
+        const index = latestAnswer();
         if (index < 0) {
             toast.show("Det finns inget svar att spara än.");
             return;
@@ -2146,8 +2159,9 @@ Window {
                             }
                         }
 
-                        Row {
+                        Flow {
                             visible: !msgItem.m.stopped  // STOPP: nothing to copy, save or ♥
+                            width: parent.width  // wraps when the window is narrow (Skicka till Claude made it long)
                             spacing: 14
                             Text {
                                 text: msgItem.m.service || ""
@@ -2197,6 +2211,36 @@ Window {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: backend.askChatGPT(msgItem.index)
+                                }
+                            }
+                            // Skicka till Claude (point 14, 28 Oct): the chat as a report → Claude Code in a terminal;
+                            // Fråga Claude = read-only, the answer comes back here. Both cost Claude quota.
+                            Text {
+                                visible: backend.claude
+                                text: "Skicka till Claude"
+                                color: claudeArea.containsMouse ? "#E6ECF5" : "#5C6880"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                MouseArea {
+                                    id: claudeArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.sendClaude(msgItem.index, "fix")
+                                }
+                            }
+                            Text {
+                                visible: backend.claude
+                                text: "Fråga Claude"
+                                color: claudeAskArea.containsMouse ? "#E6ECF5" : "#5C6880"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                MouseArea {
+                                    id: claudeAskArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.sendClaude(msgItem.index, "ask")
                                 }
                             }
                             Text {

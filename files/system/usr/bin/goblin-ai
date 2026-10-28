@@ -23,6 +23,7 @@ SHARE = Path(os.environ.get("GOBLIN_AI_SHARE", "/usr/share/goblincakes/ai"))
 sys.path.insert(0, str(SHARE))
 import goblinai  # noqa: E402
 import learn  # noqa: E402
+import toclaude  # noqa: E402
 
 from PySide6.QtCore import QMarginsF, QMimeData, QObject, QProcess, QProcessEnvironment, QSize, QTimer, QUrl, Property, Qt, Signal, Slot  # noqa: E402
 from PySide6.QtGui import (QDesktopServices, QFont, QFontDatabase, QGuiApplication, QIcon, QImage,  # noqa: E402
@@ -344,6 +345,7 @@ class Backend(QObject):
     # From worker threads to the GUI thread
     _answered = Signal(str, str)  # answer, service
     _failed = Signal(str)
+    _claudeDone = Signal(str, str, str, bool)  # conversation id, report path, answer or error, ok
     _statusText = Signal(str)
     _stepsText = Signal(str)  # the work loop's steps (JSON)
     _keyResult = Signal(str, str, bool, str)  # provider id, key, ok, message
@@ -368,11 +370,13 @@ class Backend(QObject):
         self._status = ""
         self._new_conversation()
         self._answered.connect(self._on_answer)
+        self._claudeDone.connect(self._on_claude)
         self._mcpDone.connect(self._on_mcp_done)
         self._failed.connect(self._on_failure)
         self._search_next = False  # "Sök på nätet": the next question is searched first
         self._pending_tools = []  # the tools the answer on its way used (for the ♥)
         self._pending_done = []  # …and what they gave, short (saved with the answer, the AI sees it next time)
+        self._pending_report_done = []  # …and longer, for Skicka till Claude
         if AVATAR.exists() and not goblinai.avatar_description():  # an avatar from before 24 Oct: describe it once
             threading.Thread(target=goblinai.describe_avatar, daemon=True).start()
         self._hearted.connect(self._on_hearted)
@@ -564,6 +568,7 @@ class Backend(QObject):
                     return
                 self._pending_tools = goblinai.last_tools()
                 self._pending_done = goblinai.last_done()
+                self._pending_report_done = goblinai.last_done_full(toclaude.TOOL_CHARS)
                 self._answered.emit(answer, service)
             except goblinai.Stopped:
                 pass  # stop() has shown it already
@@ -582,6 +587,9 @@ class Backend(QObject):
                  "service": service, "file": "", "tools": self._pending_tools}
         if self._steps != "[]":
             shown["steps"] = json.loads(self._steps)
+        if self._pending_report_done:  # for Skicka till Claude – the tools' answers, longer
+            shown["report_done"] = self._pending_report_done
+        self._pending_report_done = []
         self._stop = None
         self._set_steps("[]")
         self._pending_tools = []
@@ -2127,6 +2135,61 @@ class Backend(QObject):
         """Rita i ChatGPT, by Rita when Skapa bild is on."""
         if text.strip():
             self._to_chatgpt(f"Skapa en bild: {text.strip()}")
+
+    # ── Skicka till Claude (point 14 of Kakan's plan, 28 Oct; toclaude.py) ──
+    # "fix" = Claude Code in a terminal in the repo, the user sees it work; "ask" = read-only without a window,
+    # the answer comes back here. Both cost from the week's Claude quota – only ever on the user's click.
+
+    @Property(bool, constant=True)
+    def claude(self):
+        return toclaude.claude_path() is not None
+
+    @Slot(int, str)
+    def sendClaude(self, index, mode):
+        try:
+            markdown = toclaude.build(self._display, index, goblinai.system_info())
+            path = toclaude.save(markdown)
+        except (OSError, IndexError) as e:
+            self.notice.emit(f"Rapporten gick inte att spara: {e}")
+            return
+        import knowledge  # noqa: PLC0415 – finds the GOBLINCAKES repo, if there is one
+        repo = knowledge.find_repo()
+        if mode == "fix":
+            if toclaude.start_fix(path, repo):
+                self.notice.emit("Claude Code startar i en terminal med Kakans rapport")
+            else:
+                self.notice.emit(f"Claude Code gick inte att starta – rapporten: {path}")
+            return
+        self.notice.emit("Claude läser Kakans rapport (bara läsning, en stund)…")
+        conversation = self._id
+
+        def work():
+            try:
+                self._claudeDone.emit(conversation, str(path), toclaude.ask(path, repo), True)
+            except Exception as e:  # noqa: BLE001
+                self._claudeDone.emit(conversation, str(path), str(e), False)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_claude(self, conversation, path, text, ok):
+        try:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(f"\n## Claudes svar\n\n{text if ok else '(gick inte: ' + text + ')'}\n")
+        except OSError:
+            pass
+        if not ok:
+            self.notice.emit(f"Claude svarade inte: {text[:160]}")
+            return
+        if conversation != self._id:  # another chat is open now: the answer is in the report
+            self.notice.emit(f"Claude har svarat – svaret står sist i {Path(path).name}")
+            return
+        service = f"Claude {toclaude.MODEL.capitalize()} (läste Kakans rapport)"
+        shown = {"role": "assistant", "text": text, "segments": goblinai.segments(text), "service": service,
+                 "file": "", "tools": []}
+        self._api.append({"role": "assistant", "content": "[Claude Code svarade på din rapport:]\n\n" + text})
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        self._save()
 
     @Slot(str)
     def copyImage(self, path):

@@ -1,6 +1,6 @@
 """Kakan's own tools as an MCP server (point 8 part 3 of Kakan's plan, 28 Oct): Claude Code – and Claude Haiku in
 point 17 – can use WoW Stats, Warcraft Logs, BugSack's errors, CS2, the sport tables, the map of GOBLINCAKES, the
-computer's errors and the read-only file tools. Only tools that read: nothing on the desktop (music, windows,
+computer's errors, the read-only file tools and Kakan's own reports (rapporter, point 14 – toclaude.py). Only tools that read: nothing on the desktop (music, windows,
 reminders), no web search (Claude has its own) and not Kakan's own MCP servers.
 
     python3 kakan_mcp.py               the server (stdio, one JSON-RPC message per line)
@@ -26,7 +26,8 @@ INSTRUCTIONS = ("Verktyg från GOBLINCAKES lokala AI (Kakan) på användarens da
                 "wowfel = BugSacks fel, cs2 = egna CS2-siffror ur demos, lagg = lagmätningen kring användarens "
                 "Meta+Shift+L (\"laggar nu\") under spel, goblincakes = kartan över systemet (läs "
                 "den först när en del av GOBLINCAKES strular), systemfel = datorns loggade fel, hitta_filer/las_fil/"
-                "visa_mapp/sok_i_filer/logg/program/tjanst = läsa i datorn (nycklar och lösenord visas inte).")
+                "visa_mapp/sok_i_filer/logg/program/tjanst = läsa i datorn (nycklar och lösenord visas inte), "
+                "rapporter = det Kakan inte kunde lösa (Skicka till Claude i Goblin AI).")
 
 
 def goblinai():
@@ -38,7 +39,14 @@ def shared_tools():
     """{word: tool} – Kakan's tools that only read and need no local AI."""
     g = goblinai()
     tools = g.tools_for(g.load_keys(), {"search": False}, [])
-    return {w: t for w, t in tools.items() if w in SHARED}
+    tools = {w: t for w, t in tools.items() if w in SHARED}
+    import toclaude  # noqa: PLC0415
+    tools["rapporter"] = g.tool("Läser Kakans rapporter", "", "", lambda q: (toclaude.read(q), []), "rapporter",
+                                "Kakans rapporter till Claude: det hon inte kunde lösa själv – frågan, hennes svar och "
+                                "steg, vad verktygen visade och kommandona hon körde med utdata (Skicka till Claude i "
+                                "Goblin AI). Tomt = listan och den senaste i sin helhet.",
+                                "Tomt, eller rapportens namn (eller en del av det)")
+    return tools
 
 
 def mcp_list(tools):

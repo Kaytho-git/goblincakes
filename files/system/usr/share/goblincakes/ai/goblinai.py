@@ -1820,6 +1820,11 @@ def last_done():
     return out
 
 
+def last_done_full(chars=3000):
+    """The same as (tool, query, text) with more of each answer – for Skicka till Claude (toclaude.py)."""
+    return [(tool, query, str(text)[:chars]) for tool, query, text in getattr(LAST, "done", [])]
+
+
 def with_done(messages):
     """The saved tool lines of the latest answers, as a note of their own right after each answer – a user turn
     (so she sees what she did but doesn't copy the note into her answers), and not in the question itself (the
@@ -2731,6 +2736,8 @@ När användaren vill få något gjort på datorn:
   diskar (mkfs, dd, fdisk, wipefs …), rpm-ostree reset/rebase/cleanup/kargs, chmod/chown -R, curl … | bash,
   git reset --hard/clean/push --force, tömma papperskorgen, ändra /etc/fstab, användare eller lösenord.
   Sådana block stoppas och körs inte – behövs något sådant: säg att det är något för användaren och Claude.
+- Kommer du inte vidare (ett fel du inte hittar orsaken till, eller något som måste ändras i GOBLINCAKES):
+  säg det rakt ut och föreslå knappen "Skicka till Claude" under svaret – den tar med allt du tagit reda på.
 - Blocken körs efter varandra i samma mapp, som i en terminal: `cd` i ett block gäller även i nästa.
   Sökvägar med mellanslag skrivs inom citattecken: `cd "/run/media/$USER/Min disk/Mapp"`.
 - Du ser bara det du får: läs själv med verktygen för filer, mappar, loggar och tjänster, eller be om att få köra

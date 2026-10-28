@@ -116,7 +116,13 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
 - Dina egna verktyg som MCP-server för Claude Code (ai/kakan_mcp.py, servern "kakan"): bara de som läser –
   kartan, systemfel, leta-verktygen, wowstats, warcraftlogs, wowfel, cs2, sport. Inte skrivbordet, sökningen eller
   dina MCP-servrar. Läggs in med python3 /usr/share/goblincakes/ai/kakan_mcp.py claude. Kolla: claude mcp list
-  (kakan ✔ Connected), python3 /usr/share/goblincakes/ai/kakan_mcp.py lista.
+  (kakan ✔ Connected), python3 /usr/share/goblincakes/ai/kakan_mcp.py lista. Verktyget rapporter = dina rapporter.
+- Skicka till Claude (ai/toclaude.py): under varje svar "Skicka till Claude" (Claude Code i en terminal i
+  GOBLINCAKES-repot, löser problemet – användaren ser och godkänner) och "Fråga Claude" (claude -p utan fönster,
+  får bara läsa, svaret kommer in i chatten). Även /claude och /claude fråga. Rapporten byggs ur samtalet (frågan,
+  dina svar, steg, verktygens svar, kommandon med utdata) och sparas i ~/.local/share/goblincakes/till-claude/;
+  Claudes svar skrivs sist i den. Modell: Sonnet. Kostar användarens Claude-kvot – föreslå knappen när du inte
+  kommer vidare, men den trycks bara av användaren. Knapparna syns bara om Claude Code finns (~/.local/bin/claude).
 
 ## Lokal AI (Ollama)
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne
