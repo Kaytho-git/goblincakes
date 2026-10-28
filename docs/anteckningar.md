@@ -398,5 +398,5 @@ Användaren vill fortsätta med Claude Code och har inga planer på att byta. De
 - Claude: `GET https://api.anthropic.com/api/oauth/usage`, `Authorization: Bearer <accessToken>` + `anthropic-beta: oauth-2025-04-20` → `five_hour`/`seven_day` {utilization, resets_at ISO}. Token förnyas aldrig av oss (refresh roterar → Claude Code utloggad); utgången = felrad.
 - Codex: `GET https://chatgpt.com/backend-api/wham/usage`, Bearer access_token + `ChatGPT-Account-Id` → `rate_limit.primary_window/secondary_window` {used_percent, reset_at epoch}. Reserv: senaste `rate_limits` i `~/.codex/sessions/*/*/*/*.jsonl` (resets_at passerad → 0 %).
 - Misslyckas en läsning behålls förra värdena med `stale` (tid för senast lyckade).
-- Provat på riktigt 28 okt: båda läses färskt, reservloggen, felvägen (CODEX_HOME fel → stale); widgeten laddad som testkopia i toppfältet (staplarna syns). Ej provat: rutan vid klick, orange/röd, utgången Claude-inloggning.
+- Provat på riktigt 28 okt: båda läses färskt, reservloggen, felvägen (CODEX_HOME fel → stale); widgeten som testkopia i toppfältet: staplarna, hovringsrutan (båda tjänsterna) och rutan vid klick (5 h + vecka) provade av användaren. Ej provat: orange/röd, utgången Claude-inloggning.
 
