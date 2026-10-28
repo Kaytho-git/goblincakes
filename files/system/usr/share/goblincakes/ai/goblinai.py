@@ -1162,7 +1162,8 @@ DESK_FNS = [
 
 
 def tools_for(keys, project, messages):
-    """The tools the AI may ask for now: {block word: tool(…)}."""
+    """The tools the AI may ask for now: {block word: tool(…)}. A new tool that only reads → its word in SHARED in
+    kakan_mcp.py too (Claude Code and Haiku get it through the MCP server)."""
     tools = {}
     key = keys.get(SEARCH["env"])
     if key and not (project and project.get("search") is False) and not has_images(messages):
