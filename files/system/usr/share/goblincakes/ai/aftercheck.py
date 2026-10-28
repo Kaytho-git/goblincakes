@@ -199,9 +199,11 @@ def tell(update):
     n = len(lines)
     question = (f"Efter uppdateringen till GOBLINCAKES {update['to']} fungerar {n} sak{'er' if n > 1 else ''} inte som "
                 "före uppdateringen:\n" + "\n".join(f"- {line}" for line in lines) +
-                "\n\nKolla loggarna för var och en (systemfel, kartan, kända lösningar) och säg vad som hänt och hur "
-                "det rättas. Är det allvarligt (toppfältet borta, flera delar startar inte) och går inte att rätta: "
-                "föreslå att gå tillbaka till förra versionen med `rpm-ostree rollback` och en omstart.")
+                "\n\nLös det här – kolla loggarna för var och en (systemfel, kartan, kända lösningar), säg vad som "
+                "hänt och rätta det (starta om tjänsten, rätta en inställning i hemmappen …). Går en del inte att "
+                "rätta: föreslå Skicka till Claude för just den delen. Föreslå inte `rpm-ostree rollback` – bara "
+                "om användaren själv frågar, eller om datorn inte går att använda (inget skrivbord, inget nätverk) "
+                "och du redan försökt rätta det.")
     import reminders  # noqa: PLC0415
     reminders.notice(f"Efter uppdateringen: {n} sak{'er' if n > 1 else ''} gick sönder",
                      "\n".join(lines[:4]) + ("\n…" if n > 4 else ""), actions=[("ask", "Fråga Kakan")],

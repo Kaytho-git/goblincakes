@@ -63,8 +63,10 @@ Ord: efter uppdateringen, efterkontroll, gick sönder, slutade fungera, ny image
   ("Efter uppdateringen: N saker gick sönder", knappen Fråga Kakan). Allt bra = ingen notis.
 - Var trasigt redan före = inte uppdateringens fel. Kända ofarliga fel (systemd-remount-fs, nvidia-settings-load)
   räknas inte.
-- Allvarligt och går inte att rätta (toppfältet borta, flera delar startar inte): `rpm-ostree rollback` + omstart
-  = förra versionen (Tillåt).
+- Det som gått sönder rättas del för del (logg → orsak → rätta, t.ex. starta om tjänsten); det du inte kan rätta
+  går till Claude (Skicka till Claude). `rpm-ostree rollback` (förra versionen) är inte en lösning – bara om
+  användaren själv ber om det, eller om datorn inte går att använda (inget skrivbord, inget nätverk) och
+  rättningen redan misslyckats.
 - Kolla: `python3 /usr/share/goblincakes/ai/aftercheck.py` (senaste resultatet), verktyget systemfel med
   "efter uppdateringen". Köra om nu: ta bort filen och kör `aftercheck.py check`.
 
