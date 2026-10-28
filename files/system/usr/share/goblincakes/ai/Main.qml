@@ -1089,7 +1089,7 @@ Window {
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: "Liknar en äldre lärdom" + (simOld.modelData.added ? " (" + simOld.modelData.added + ")" : "") + ": "
-                              + (simOld.modelData.kind === "avoid" ? "👎 " : "♥ ") + simOld.modelData.lesson
+                              + (simOld.modelData.kind === "avoid" ? "👎 " : simOld.modelData.kind === "solution" ? "🔧 " : "♥ ") + simOld.modelData.lesson
                         color: "#E6ECF5"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13
@@ -1910,6 +1910,7 @@ Window {
                                                 : segItem.s.type === "image" ? (segItem.s.report ? "RAPPORT" : "BILD")
                                                 : segItem.s.type === "shot" ? "SKÄRMBILD"
                                                 : segItem.s.type === "memory" ? "MINNE"
+                                                : segItem.s.type === "solved" ? "KÄND LÖSNING"
                                                 : segItem.s.type === "forget" ? "MINNE – GLÖMT"
                                                 : segItem.s.type === "file" ? "NY VERSION AV " + segItem.s.name.toUpperCase()
                                                 : (segItem.s.lang ? segItem.s.lang.toUpperCase() : "TEXT")
@@ -1917,7 +1918,7 @@ Window {
                                         }
 
                                         CodeBox {
-                                            visible: ["image", "shot", "memory", "forget", "blocked"].indexOf(segItem.s.type) < 0
+                                            visible: ["image", "shot", "memory", "forget", "blocked", "solved"].indexOf(segItem.s.type) < 0
                                             code: segItem.s.code || ""
                                             maxHeight: segItem.s.type === "file" ? 320 : 220
                                         }
@@ -2055,6 +2056,35 @@ Window {
                                             small: true
                                             text: "Ångra"
                                             onClicked: backend.undoMemory(msgItem.index, segItem.index)
+                                        }
+
+                                        // A known solution (28 Oct, point 12): saved at once, can be undone; alike an older one → the choice
+                                        Text {
+                                            visible: segItem.s.type === "solved"
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            textFormat: Text.PlainText
+                                            text: segItem.s.state === "undone" ? "Ångrat."
+                                                  : segItem.s.state === "merged" ? "Den äldre lösningen behölls."
+                                                  : (segItem.s.action === "confirmed" ? "Bekräftade den kända lösningen – den har fungerat nu:\n"
+                                                     : segItem.s.confirmed === false ? "Sparad som känd lösning (ej bekräftad – Kakan frågar om den hjälpte när den används):\n"
+                                                     : "Sparad som känd lösning – känns igen nästa gång:\n")
+                                                    + "Tecken: " + (segItem.s.question || segItem.s.problem || "") + "\n" + (segItem.s.lesson || "")
+                                            color: "#C9D3E3"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 14
+                                        }
+                                        FlatButton {
+                                            visible: segItem.s.type === "solved" && segItem.s.state === "saved"
+                                            small: true
+                                            text: "Ångra"
+                                            onClicked: backend.undoMemory(msgItem.index, segItem.index)
+                                        }
+                                        SimilarBox {
+                                            width: parent.width
+                                            visible: segItem.s.type === "solved" && segItem.s.state === "saved" && (segItem.s.similar || []).length > 0
+                                            newId: segItem.s.id || ""
+                                            olds: segItem.s.type === "solved" ? (segItem.s.similar || []) : []
                                         }
 
                                         // The AI asks for a screenshot: nothing is taken until the user allows it
@@ -4218,7 +4248,7 @@ Window {
                         // Folded by default (25 Oct, the user: AI-tjänster got long) – the title opens it
                         Text {
                             width: parent.width
-                            text: (lessonCard.open ? "▾  " : "▸  ") + "Lärdomar  ♥" + (lessonCard.items.length ? "   (" + lessonCard.items.length + ")" : "")
+                            text: (lessonCard.open ? "▾  " : "▸  ") + "Lärdomar och lösningar  ♥ 🔧" + (lessonCard.items.length ? "   (" + lessonCard.items.length + ")" : "")
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
@@ -4238,7 +4268,8 @@ Window {
                                 wrapMode: Text.WordWrap
                                 text: "Tryck ♥ under ett bra svar, så skriver " + (backend.aiName || "Goblin AI") + " en kort lärdom om hur det gick till – 👎 under ett dåligt, så skrivs vad som ska undvikas. "
                                       + "Vid en liknande fråga följer de 2–3 lärdomar som passar bäst med. Ett hjärta på ett svar som var fel lär in felet – "
-                                      + "ändra eller ta bort sådana här. Klicka på en lärdom för att ändra den. Liknar en ny lärdom en äldre får du välja vilken som ska vara kvar."
+                                      + "ändra eller ta bort sådana här. Klicka på en lärdom för att ändra den. Liknar en ny lärdom en äldre får du välja vilken som ska vara kvar. "
+                                      + "🔧 = kända lösningar: problem som lösts (sparas när du sagt att det fungerar, eller av Claude) – de följer med när samma tecken kommer igen."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 13
@@ -4311,7 +4342,13 @@ Window {
                                                 Text {
                                                     width: parent.width - 30
                                                     elide: Text.ElideRight
-                                                    text: (lessonRow.modelData.kind === "avoid" ? "👎 Undvik  ·  " : "♥  ·  ") + "Frågan: " + lessonRow.modelData.question + "  ·  " + lessonRow.modelData.added
+                                                    text: (lessonRow.modelData.kind === "avoid" ? "👎 Undvik  ·  Frågan: "
+                                                       : lessonRow.modelData.kind === "solution"
+                                                         ? "🔧 Lösning" + (lessonRow.modelData.confirmed ? "" : " (ej bekräftad)")
+                                                           + (lessonRow.modelData.source === "claude" ? " från Claude" : lessonRow.modelData.source === "claude-fix" ? " från Claude Code" : "")
+                                                           + "  ·  Tecken: "
+                                                         : "♥  ·  Frågan: ") + lessonRow.modelData.question + "  ·  " + lessonRow.modelData.added
+                                                      + (lessonRow.modelData.used ? "  ·  använd " + lessonRow.modelData.used + " ggr" : "")
                                                     color: "#5C6880"
                                                     font.family: "IBM Plex Sans"
                                                     font.pixelSize: 12

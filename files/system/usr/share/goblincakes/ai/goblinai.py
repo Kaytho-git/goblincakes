@@ -3218,7 +3218,7 @@ def similar_candidates(question, answer="", exclude=()):
     said = words(str(answer)[:600])
     scored = []
     for n, item in enumerate(load_lessons()):
-        if item.get("id") in exclude:
+        if item.get("id") in exclude or item.get("kind") == "solution":
             continue
         theirs = words(item["question"] + " " + item["lesson"])
         score = 2 * len(asked & theirs) + len(said & theirs)
@@ -3265,10 +3265,14 @@ def resolve_similar(new_id, old_id, choice):
             if new is not None:
                 new["used"] = new.get("used", 0) + old.get("used", 0)
                 new["last_used"] = max(new.get("last_used", ""), old.get("last_used", ""))
+                if old.get("confirmed"):  # a known solution: one of them was found to work
+                    new["confirmed"] = True
             return [i for i in items if i is not old]
         if choice == "old" and new is not None:
             if old is not None:
                 old["used"] = old.get("used", 0) + new.get("used", 0)
+                if new.get("confirmed"):
+                    old["confirmed"] = True
             return [i for i in items if i is not new]
         if choice == "both":
             for a, b in ((new, old_id), (old, new_id)):
@@ -3311,9 +3315,9 @@ def set_lesson_category(lesson_id, category):
 
 
 def mark_used(found):
-    """The lessons that went with a question: one more use, used today (the ceiling moves the unused ones)."""
+    """The lessons that went with a question: one more use, and when (ties in the picking go to the latest)."""
     ids = {i.get("id") for i in found}
-    now = datetime.now().isoformat(timespec="seconds")  # with the time: lessons added the same day sort right
+    now = datetime.now().isoformat(timespec="seconds")
 
     def change(items):
         for i in items:
@@ -3371,7 +3375,7 @@ def find_similar(keys, choice=""):
     """Once for the lessons from before (28 Oct, the user's wish): the AI groups the ones about the same thing,
     per category, 25 at a time; the newer of each pair gets the older in "similar" – the user chooses in the
     list as under an answer. Pairs already called different things are left out. Returns how many pairs."""
-    items = load_lessons()
+    items = [i for i in load_lessons() if i.get("kind") != "solution"]  # solutions: by their words when saved
     pairs = []
     for c in CATEGORY_IDS:
         in_cat = [i for i in items if category_of(i) == c]
@@ -3407,6 +3411,117 @@ def find_similar(keys, choice=""):
     return len(pairs)
 
 
+# ── Known solutions (28 Oct, point 12 part 4): a solved problem as signs → cause → fix, kept with the lessons
+# (kind "solution"); the ones whose signs are like a new question go into the prompt with "check first".
+# In three ways: Kakan's ```löst after the user said it works, Claude Code's `solutions.py add` (Skicka till
+# Claude), Claude's ```löst at the end of a Fråga Claude answer (not confirmed until it is used and works) ──
+SOLUTIONS_PICK = 2
+SOLVED_WORDS = ("löst", "lost", "solved", "lösning", "losning")
+SOLUTION_SOURCES = {"kakan": "dig själv", "claude": "Claude", "claude-fix": "Claude Code"}
+SOLUTION_SAME = 0.3  # this share of the signs' and cause's words in common = maybe the same problem
+
+SOLVED_PROMPT = """
+
+Kända lösningar: när ett riktigt problem har lösts med din hjälp OCH användaren har sagt att det fungerar nu
+("det funkar", "nu syns den", "tack, löst"), skriv ett kodblock märkt ```löst med tre rader:
+Tecken: <vad användaren märkte, med hens egna ord>
+Orsak: <vad som var fel>
+Lösning: <vad som gjordes – kommandot, filen, inställningen>
+Bara när användaren har bekräftat att det är löst – inte för vanliga frågor och inte när du bara föreslagit
+något. Det sparas direkt, och nästa gång samma tecken kommer får du lösningen med. Säg kort att du sparade den."""
+
+
+def parse_solved(code):
+    """{"problem", "cause", "fix"} from a ```löst block's three lines (a line without its word = more of the one before)."""
+    found, key = {}, None
+    names = {"tecken": "problem", "problem": "problem", "symptom": "problem", "orsak": "cause", "fel": "cause",
+             "lösning": "fix", "losning": "fix", "åtgärd": "fix", "gjorde": "fix", "kategori": "category"}
+    for line in code.splitlines():
+        m = re.match(r"\s*[-*•]?\s*\**([\wåäöÅÄÖ]+)\**\s*:\s*(.*)", line)
+        if m and m.group(1).casefold() in names:
+            key = names[m.group(1).casefold()]
+            found[key] = m.group(2).strip()
+        elif key and line.strip():
+            found[key] += " " + line.strip()
+    if not found.get("problem") or not found.get("fix"):
+        return None
+    return {k: " ".join(found.get(k, "").split())[:LESSON_LENGTH] for k in ("problem", "cause", "fix", "category")}
+
+
+def solution_text(cause, fix):
+    return (f"Orsak: {cause} " if cause else "") + f"Lösning: {fix}"
+
+
+def _solution_words(item):
+    return words(item.get("question", "") + " " + item.get("lesson", "").split("Lösning:", 1)[0])
+
+
+def save_solution(problem, cause, fix, source="kakan", confirmed=True, category=""):
+    """Saves a known solution; returns (entry, "added" | "confirmed"). From Kakan (the user said it works): an
+    unconfirmed one about the same problem is confirmed instead of a second one. Others alike: "similar"."""
+    problem = " ".join(str(problem).split())[:LESSON_LENGTH]
+    text = solution_text(" ".join(str(cause).split()), " ".join(str(fix).split()))[:LESSON_LENGTH * 2]
+    now = datetime.now().isoformat(timespec="seconds")
+    entry = {"id": time.strftime("%Y%m%d-%H%M%S") + os.urandom(2).hex(), "kind": "solution", "question": problem,
+             "lesson": text, "tools": [], "service": "", "project": "", "added": date.today().isoformat(),
+             "added_at": now, "source": source, "confirmed": bool(confirmed),
+             "category": category if category in CATEGORY_IDS else guess_category(f"{problem} {text}")}
+    mine = _solution_words(entry)
+
+    def alike(item):
+        theirs = _solution_words(item)
+        return len(mine & theirs) / max(1, len(mine | theirs)) >= SOLUTION_SAME
+
+    with _LessonsLock():
+        items = load_lessons()
+        same = [i for i in items if i.get("kind") == "solution" and alike(i)]
+        if source == "kakan" and confirmed:
+            waiting = [i for i in same if not i.get("confirmed")]
+            if waiting:
+                waiting[-1].update(confirmed=True, last_used=now)
+                save_lessons(items)
+                return waiting[-1], "confirmed"
+        if same:
+            entry["similar"] = [i["id"] for i in same]
+        items.append(entry)
+        save_lessons(items)
+    return entry, "added"
+
+
+def unconfirm_solution(solution_id):
+    def change(items):
+        for i in items:
+            if i.get("id") == solution_id:
+                i["confirmed"] = False
+    _change_lessons(change)
+
+
+def shared_words(asked, theirs):
+    """How many of the asked words are in theirs, Swedish forms counted as one: the same first five letters
+    (startade/startar) or a word inside another (loggade → inloggning: "logg")."""
+    stems = {t[:5] for t in theirs}
+    count = 0
+    for a in asked:
+        root = a[:5] if len(a) >= 5 else a
+        if a in theirs or root in stems or (len(a) >= 5 and any(a[:4] in t for t in theirs if len(t) > len(a))):
+            count += 1
+    return count
+
+
+def solutions_for(question):
+    """The known solutions whose signs (and cause) are most like the question – at most SOLUTIONS_PICK."""
+    asked = words(question)
+    picked = []
+    for item in load_lessons():
+        if item.get("kind") != "solution":
+            continue
+        score = shared_words(asked, _solution_words(item))
+        if score >= 2:
+            picked.append((score, item.get("confirmed", False), item.get("last_used") or item.get("added_at", ""), item))
+    picked.sort(key=lambda p: p[:3], reverse=True)
+    return [p[3] for p in picked[:SOLUTIONS_PICK]]
+
+
 def words(text):
     return {w for w in re.findall(r"[\wåäö]{3,}", str(text).casefold()) if w not in STOP_WORDS}
 
@@ -3424,6 +3539,8 @@ def lessons_for(question, project=None):
     category = guess_category(question)
     picked = []
     for item in load_lessons():
+        if item.get("kind") == "solution":
+            continue
         score = len(asked & words(item["question"] + " " + item["lesson"]))
         if score and category != "ovrigt" and category_of(item) == category:
             score += 1
@@ -3453,11 +3570,13 @@ def with_lessons(messages, project=None):
     if not messages or messages[0]["role"] != "system":
         return messages
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
-    found = lessons_for(question if isinstance(question, str) else "", project)
-    if not found:
+    question = question if isinstance(question, str) else ""
+    found = lessons_for(question, project)
+    solved = solutions_for(question)
+    if not found and not solved:
         return messages
     try:
-        mark_used(found)
+        mark_used(found + solved)
     except OSError:
         pass
     good = [i for i in found if i.get("kind") != "avoid"]
@@ -3469,6 +3588,14 @@ def with_lessons(messages, project=None):
     if avoid:
         text += ("\n\nGör inte så här (användaren gav tumme ner på de här svaren – undvik samma misstag):\n"
                  + "\n".join(f"- Frågan \"{i['question'][:120]}\": {i['lesson']}" for i in avoid))
+    if solved:
+        text += ("\n\nKända lösningar – problem som lösts förut på den här datorn. Kolla FÖRST att tecknen verkligen "
+                 "stämmer (läs loggen, kör ett läsande kommando) innan du använder en; den kan vara gammal eller gälla "
+                 "något annat. Stämmer det inte: lös det som vanligt.\n"
+                 + "\n".join(f"- Tecken: {i['question'][:200]} → {i['lesson']}"
+                             + ("" if i.get("confirmed") else
+                                f" (från {SOLUTION_SOURCES.get(i.get('source'), 'Claude')}, ej bekräftad – fråga "
+                                "användaren efteråt om det hjälpte)") for i in solved))
     return [{**messages[0], "content": messages[0]["content"] + text}] + list(messages[1:])
 
 
@@ -3488,7 +3615,7 @@ def system_prompt():
                             f"Du heter {name} – användaren har döpt dig till det, så kalla dig {name} och svara "
                             f"när du blir tilltalad så. Du är hjälparen (Goblin AI) i GOBLINCAKES", 1)
     text += self_prompt()
-    text += REPORT_PROMPT
+    text += REPORT_PROMPT + SOLVED_PROMPT
     if images_possible(load_keys()):
         text += IMAGE_PROMPT
     return text
@@ -3605,6 +3732,10 @@ def segments(text):
             if items:
                 kind = "forget" if lang.lower() in ("glöm", "glom", "forget") else "memory"
                 parts.append({"type": kind, "items": items, "state": "new"})
+        elif lang.lower() in SOLVED_WORDS:
+            found = parse_solved(code)
+            if found:
+                parts.append({"type": "solved", **found, "state": "new"})
         elif lang.lower() in ("skärmbild", "skarmbild", "screenshot"):
             both = bool(re.search(r"båda|alla|both|all", code, re.I))
             parts.append({"type": "shot", "scope": "all" if both else "screen", "state": "new"})

@@ -1340,6 +1340,12 @@ class Backend(QObject):
         goblinai.resolve_similar(new_id, old_id, choice)
         gone = old_id if choice == "new" else new_id if choice == "old" else ""
         for i, m in enumerate(self._display):  # the open chat's marks follow
+            for part in m.get("segments") or []:
+                if part.get("type") == "solved" and part.get("id") == new_id:
+                    part["similar"] = [x for x in part.get("similar", []) if x.get("id") != old_id]
+                    if choice == "old":
+                        part["state"] = "merged"
+                    self._update(i)
             if m.get("heart") not in (new_id, old_id):
                 continue
             if m["heart"] == new_id:
@@ -1388,9 +1394,16 @@ class Backend(QObject):
 
     memoryChanged = Signal()
 
-    def _apply_memory(self, shown):
+    def _apply_memory(self, shown, source="kakan"):
         changed = False
         for part in shown["segments"]:
+            if part["type"] == "solved" and part["state"] == "new":
+                # A known solution (28 Oct): saved at once, Ångra under it; Claude's (Fråga Claude) unconfirmed
+                entry, action = goblinai.save_solution(part["problem"], part.get("cause", ""), part["fix"], source,
+                                                       confirmed=source == "kakan", category=part.get("category", ""))
+                part.update(state="saved", id=entry["id"], action=action, lesson=entry["lesson"],
+                            question=entry["question"], confirmed=entry["confirmed"], similar=_similar_items(entry))
+                self.lessonsChanged.emit()
             if part["type"] == "memory" and part["state"] == "new":
                 part.update(state="saved", done=goblinai.remember(part["items"]))
                 changed = True
@@ -1404,6 +1417,16 @@ class Backend(QObject):
     def undoMemory(self, index, seg):
         part = self._display[index]["segments"][seg]
         if part.get("state") != "saved":
+            return
+        if part["type"] == "solved":  # added = removed again; confirmed = unconfirmed again
+            if part.get("action") == "confirmed":
+                goblinai.unconfirm_solution(part["id"])
+            else:
+                goblinai.remove_lesson(part["id"])
+            part["state"] = "undone"
+            self._update(index)
+            self._save()
+            self.lessonsChanged.emit()
             return
         if part["type"] == "memory":
             items = goblinai.load_memory()
@@ -2283,6 +2306,7 @@ class Backend(QObject):
         service = f"Claude {toclaude.MODEL.capitalize()} (läste Kakans rapport)"
         shown = {"role": "assistant", "text": text, "segments": goblinai.segments(text), "service": service,
                  "file": "", "tools": []}
+        self._apply_memory(shown, source="claude")  # its ```löst = a known solution, not confirmed yet
         self._api.append({"role": "assistant", "content": "[Claude Code svarade på din rapport:]\n\n" + text})
         self._display.append(shown)
         self.messageAdded.emit(json.dumps(shown))

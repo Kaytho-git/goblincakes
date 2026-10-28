@@ -31,7 +31,8 @@ sys.path.insert(1, "/usr/share/goblincakes")
 from goblinai import (DAILY_PROMPT, after_commands, FORMAT_WORDS, LOOK_UP_FIRST, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
                       ai_name, ask as ask_services, chosen_model, cmd_level, file_message, forget, has_keys,
                       image_request, images_possible, is_image, last_done, last_tools, load_daily, load_keys, load_memory, load_projects,
-                      make_image, make_report, model_choices, project_prompt, remember, run_in_folder, save_keys, segments,
+                      make_image, make_report, model_choices, project_prompt, remember, run_in_folder, save_keys, save_solution,
+                      segments,
                       set_chosen_model, system_prompt, test_key)
 
 MAX_ROUNDS = 8  # command → output → next step, per question
@@ -562,6 +563,15 @@ def show_answer(chat, answer, service, keys):
             part.update(state="saved", done=remember(part["items"]))
             for t in part["done"]:
                 print(f"  {RULE}▌{RESET} {ACCENT_BOLD}Kommer ihåg{RESET} {FROST}{t}{RESET}")
+        elif kind == "solved":
+            entry, action = save_solution(part["problem"], part.get("cause", ""), part["fix"],
+                                                   category=part.get("category", ""))
+            part.update(state="saved", id=entry["id"], action=action, lesson=entry["lesson"], question=entry["question"],
+                        confirmed=True)
+            word = "Bekräftade känd lösning" if action == "confirmed" else "Sparad som känd lösning"
+            print(f"  {RULE}▌{RESET} {ACCENT_BOLD}{word}{RESET} {FROST}{entry['question']} → {entry['lesson']}{RESET}")
+            if entry.get("similar"):
+                muted("  (Liknar en äldre lösning – välj vilken som ska vara kvar i fönstret under Lärdomar.)")
         elif kind == "forget":
             part.update(state="saved", done=forget(part["items"]))
             for t in part["done"]:

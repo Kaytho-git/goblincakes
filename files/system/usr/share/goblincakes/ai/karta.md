@@ -84,12 +84,15 @@ Ord: goblin, kommando, terminal, goblin help
 - /usr/bin/goblin (bash): `goblin help` listar alla. Hjälpprogrammen ligger i /usr/libexec/goblincakes-*.
 
 ## Goblin AI (du själv)
-Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, ångra
+Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, körda kommandon, ångra
 - Fönstret /usr/bin/goblin-ai (Meta+A, goblin ai app), koden i /usr/share/goblincakes/ai/ (goblinai.py m.fl.).
 - I terminalen: goblin ai = /usr/libexec/goblincakes-ai (prompt_toolkit, python3-prompt-toolkit i imagen; utan den en
   enkel rad). /app öppnar fönstret med samma samtal (goblin-ai --open <id>). Terminalens chattar sparas bland fönstrets.
   /projekt <namn> går in i ett projekt (projects.json), /projekt lämnar.
 - Chattar, minne och lärdomar: ~/.local/share/goblincakes/ai/. Nycklar: ~/.config/goblincakes/ai.env – visa aldrig.
+- Lärdomar och kända lösningar (kind "solution") i ~/.local/share/goblincakes/ai/lardomar.json, i kategorier, inget tak.
+  Visas under AI-tjänster → Lärdomar och lösningar. Liknande (fältet similar) väljer användaren. Kända lösningar från
+  Claude Code: python3 /usr/share/goblincakes/ai/solutions.py list [ord].
 - Körda kommandon och hur de ångras: ~/.local/state/goblincakes/ai/kommandon.jsonl, säkerhetskopior bredvid.
   Användaren ångrar under AI-tjänster → Körda kommandon.
 - Styra skrivbordet (verktyget skrivbord, ai/desktop.py): musik (MPRIS via busctl: paus/spela/nästa/förra/vad) och

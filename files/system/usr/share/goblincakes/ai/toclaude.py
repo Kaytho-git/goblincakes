@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 FOLDER = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "goblincakes/till-claude"
+SOLUTIONS = Path(__file__).resolve().parent / "solutions.py"  # Claude Code saves what it fixed as a known solution
 OUTPUT_CHARS = 4000  # of each command's output in the report
 TOOL_CHARS = 3000    # of each tool's answer (kept with the answer as "report_done")
 KEEP = 12            # messages back from the one sent
@@ -115,14 +116,21 @@ def task(path, mode):
         return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem. Läs hennes rapport {path} och svara på "
                 "svenska, kort och utan jargong för en användare som inte är programmerare: vad är troligen fel, och "
                 "vad ska användaren göra? Du får bara läsa (filer och Kakans MCP-verktyg) – ändra inget. Behövs en "
-                "ändring i datorn eller i GOBLINCAKES kod: säg vad, så tar användaren det i Claude Code.")
+                "ändring i datorn eller i GOBLINCAKES kod: säg vad, så tar användaren det i Claude Code. Är du säker "
+                "på orsak och lösning: avsluta svaret med ett kodblock märkt ```löst med tre rader – \"Tecken: <vad "
+                "användaren märkte>\", \"Orsak: <vad som är fel>\", \"Lösning: <vad som ska göras>\" – då sparas det "
+                "som en känd lösning åt Kakan (ej bekräftad tills den fungerat). Är du osäker: inget sådant block.")
     return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem och skickade det till dig. Läs hennes rapport "
             f"{path}, ta reda på vad som är fel (Kakans MCP-verktyg finns) och lös det: är felet i GOBLINCAKES, rätta "
             "koden i repot enligt CLAUDE.md; är det bara på den här datorn, rätta det där. Är det något Kakan borde "
             "känna igen nästa gång och det gäller en del av GOBLINCAKES: skriv en kort rad (tecken på felet → vad "
             "som är fel → vad hon ska göra) i den delens ##-avsnitt i hennes karta, "
             "files/system/usr/share/goblincakes/ai/karta.md i repot – hon läser kartan (den nya raden efter nästa "
-            "image). Säg sedan kort vad det var och vilken rad du lade i kartan (eller att ingen behövdes).")
+            "image). Spara också lösningen som en känd lösning, så att Kakan känner igen den direkt på den här "
+            f"datorn: python3 {SOLUTIONS} add --tecken \"<vad användaren märkte, med hens ord>\" --orsak \"<vad som "
+            "var fel>\" --losning \"<vad som gjordes>\" (lägg till --bekraftad bara om du provat att det fungerar "
+            "nu). Säg sedan kort vad det var, vilken rad du lade i kartan (eller att ingen behövdes) och att "
+            "lösningen är sparad.")
 
 
 def start_fix(path, repo=None):

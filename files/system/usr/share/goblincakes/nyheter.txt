@@ -1,3 +1,4 @@
+2026-10-28  Kända lösningar: när ett problem lösts och du sagt att det fungerar sparar Goblin AI vad som var fel och vad som hjälpte – kommer samma fel igen kollar hon först om det stämmer och vet vad som ska göras. Claude sparar också det hen löser åt henne. Syns med 🔧 under Lärdomar
 2026-10-28  Liknar en ny lärdom en äldre visar Goblin AI båda – du väljer om den nya, den gamla eller båda ska vara kvar. "Hitta liknande" under Lärdomar går igenom de du redan har. Inget tak längre: lärdomar tas aldrig bort av sig själva
 2026-10-28  Goblin AI:s lärdomar sorteras i kategorier (GOBLINCAKES, Datorn, Spel, Skrivbordet, Nätet, Sättet att svara, Övrigt) – öppna bara den du vill se, och byt kategori om hon valt fel
 2026-10-28  Discord startar vid inloggning även efter en Discord-uppdatering (autostart-raden pekade på en gammal version)
