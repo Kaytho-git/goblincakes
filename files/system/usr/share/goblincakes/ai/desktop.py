@@ -272,6 +272,102 @@ def open_thing(what, conversation=""):
                  "Stäng programmet själv om du inte vill ha det.")
 
 
+def _spotify():
+    """GoblinAmp's Spotify client (the same sign-in, ~/.config/goblincakes/spotify.json)."""
+    here = Path(__file__).resolve().parent
+    sys.path.insert(0, str(here.parent / "amp"))
+    import spotifyweb  # noqa: PLC0415
+    return spotifyweb
+
+
+def _start_spotify_app():
+    helper = Path("/usr/libexec/goblincakes-spotify-app")  # as GoblinAmp: Spotify hidden in the system tray
+    if helper.exists():
+        subprocess.run([str(helper)], capture_output=True, timeout=10)
+    else:
+        subprocess.Popen(["flatpak", "run", "com.spotify.Client"], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _same(a, b):
+    return re.sub(r"\W+", " ", a).strip().casefold() == re.sub(r"\W+", " ", b).strip().casefold()
+
+
+def _best(items, title, artist):
+    """The found item that is it: the exact title by the artist first, not a live/remix/deluxe version
+    (unless asked for), else Spotify's own first."""
+    def names(i):
+        return [a.get("name", "") for a in i.get("artists") or []]
+    extra = re.compile(r"\b(?:live|remix|remaster\w*|deluxe|acoustic|demo|instrumental|edit)\b", re.I)
+    wanted_extra = bool(extra.search(title))
+    good = [i for i in items if i and (not artist or any(_same(n, artist) for n in names(i)))] or [i for i in items if i]
+    exact = [i for i in good if _same(i.get("name", ""), title)] if title else []
+    plain = [i for i in (exact or good) if wanted_extra or not extra.search(
+        i.get("name", "") + " " + (i.get("album") or {}).get("name", ""))]
+    found = (plain or exact or good or [None])[0]
+    return found, names(found) if found else []
+
+
+def play(kind, what, conversation=""):
+    """Plays a track, an album, an artist or a list on Spotify (the GoblinAmp window shows it) – `låt Lamb of God
+    - Memento Mori`, `album Lamb of God - Lamb of God`, `artist Lamb of God`, or just words (the best track).
+    28 Oct, the user's wish: "starta en låt i goblinamp, en specifik låt eller ett album"."""
+    kind = {"låt": "track", "låten": "track", "album": "album", "albumet": "album", "skivan": "album",
+            "artist": "artist", "artisten": "artist", "band": "artist", "bandet": "artist",
+            "lista": "playlist", "listan": "playlist", "spellista": "playlist", "spellistan": "playlist"}.get(kind, "")
+    what = what.strip().strip("\"'`")
+    if not what:
+        return "Säg vad som ska spelas: `låt <artist> - <titel>`, `album <artist> - <titel>` eller `artist <namn>`."
+    artist, _, title = what.partition(" - ") if " - " in what else ("", "", what)
+    artist, title = artist.strip(), title.strip()
+    sw = _spotify()
+    if not sw.load().get("refreshToken"):
+        return ("GoblinAmp är inte inloggat på Spotify – logga in i GoblinAmp först (⋯ → Logga in). "
+                "Egna musikfiler kan inte väljas härifrån än.")
+    client = sw.Client()
+    if kind == "artist" or (not kind and not title):
+        kind, artist, title = "artist", artist or title, ""
+    if not kind:
+        kind = "track"
+    field = {"track": "track", "album": "album", "playlist": ""}.get(kind, "")
+    if kind == "artist":
+        q = f'artist:"{artist}"'
+    elif field and artist:
+        q = f'{field}:"{title}" artist:"{artist}"'
+    else:
+        q = what
+    try:
+        page = client.get("/search", {"q": q, "type": kind, "limit": 10})
+        items = (page.get(kind + "s") or {}).get("items") or []
+        if not items and q != what:  # the fields found nothing (a typo, "feat.") – the words as they are
+            items = (client.get("/search", {"q": what, "type": kind, "limit": 10}).get(kind + "s") or {}).get("items") or []
+    except sw.SpotifyError as e:
+        return f"Spotify svarade inte: {e}"
+    if kind == "artist":
+        found = next((i for i in items if i and _same(i.get("name", ""), artist)), items[0] if items else None)
+        by = []
+    else:
+        found, by = _best(items, title, artist)
+    if not found:
+        return f"Hittar inget på Spotify för {what}. Fråga användaren om stavningen."
+    label = {"track": "låten", "album": "albumet", "artist": "artisten", "playlist": "listan"}[kind]
+    name = (", ".join(by) + " – " if by else "") + found.get("name", "")
+    body = {"uris": [found["uri"]]} if kind == "track" else {"context_uri": found["uri"]}
+    try:
+        lib = sw.Library(client)
+        device = lib.device(_start_spotify_app)
+        client.request("PUT", "/me/player/play", {"device_id": device}, body)
+    except sw.SpotifyError as e:
+        return f"Det gick inte att spela: {e}"
+    if not any(p["app"].lower() == "goblinamp" for p in players()) and not subprocess.run(
+            ["pgrep", "-f", "bin/goblin-amp"], capture_output=True).stdout:
+        subprocess.Popen(["gtk-launch", "goblin-amp"], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # "i GoblinAmp": the window too
+    cmdlevel.log(f"spela {label} {name} ({found['uri']})", "change", "kakan", 0, "", {"undo": [], "hint":
+                 "Byt låt själv i GoblinAmp eller Spotify."}, conversation)
+    return f"Spelar {label} {name} på Spotify (syns i GoblinAmp)."
+
+
 def act(line, conversation=""):
     """The tool's line: `musik <paus|spela|nästa|föregående|vad>`, `volym <tal|+10|-10|tyst|ljud> [i <program>]`,
     `öppna <program|webbadress|sökväg>`."""
@@ -283,8 +379,14 @@ def act(line, conversation=""):
         return volume(rest, conversation)
     if word in ("öppna", "oppna", "open", "starta", "start"):
         return open_thing(rest, conversation)
+    if word in ("spela", "play"):
+        kind, _, what = rest.strip().partition(" ")
+        if kind.lower() in ("låt", "låten", "album", "albumet", "skivan", "artist", "artisten", "band", "bandet",
+                            "lista", "listan", "spellista", "spellistan"):
+            return play(kind.lower(), what, conversation)
+        return play("", rest, conversation)
     return ("Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud [i goblinamp|spotify], "
-            "öppna <program|webbadress|sökväg>.")
+            "öppna <program|webbadress|sökväg>, spela låt|album|artist <artist> - <titel>.")
 
 
 if __name__ == "__main__":  # trying it out: python3 desktop.py musik vad
