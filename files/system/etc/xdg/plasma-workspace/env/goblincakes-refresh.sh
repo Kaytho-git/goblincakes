@@ -246,9 +246,9 @@ if [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/accent" ]; then
 fi
 
 # Steam switches (goblin frames, MangoHud, the powerful graphics card) also in Steam's own
-# "start at login" entry – Steam writes it again from its menu entry when that is switched
-if ls "${XDG_CONFIG_HOME:-$HOME/.config}"/goblincakes/steam-* >/dev/null 2>&1 \
-    && [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/steam.desktop" ]; then
+# "start at login" entry – Steam writes it again from its menu entry when that is switched –
+# and Steam starts quietly in the system tray from there (-silent, 28 Oct)
+if [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/steam.desktop" ]; then
     /usr/libexec/goblincakes-tweak apply steam-desktop >/dev/null 2>&1 || :
 fi
 
