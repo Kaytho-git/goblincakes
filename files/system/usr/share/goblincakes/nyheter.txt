@@ -1,3 +1,4 @@
+2026-10-28  Goblin AI läser för långa texter i delar: en stor logg, en hel raidkväll eller en lång webbsida läses bit för bit, och hon antecknar det som hör till frågan i stället för att resten klipps bort. Långa samtal sammanfattas i stället för att de äldsta meddelandena glöms bort
 2026-10-28  Byggstatus: misslyckas ett GOBLINCAKES-bygge på GitHub säger Goblin AI till och kan förklara varför (hon läser byggloggen). "Säg till när bygget är klart" fungerar också, och Claude lämnar den bevakningen till henne efter en push
 2026-10-28  Kontroll efter uppdatering: några minuter efter första inloggningen med en ny version kollar Goblin AI att allt startade (tjänsterna, toppfältet, lokala AI:n). Har något som fungerade före gått sönder får du en notis med knappen Fråga Kakan – fungerar allt kommer ingen notis
 2026-10-28  Discord-utseendet slutade läggas in igen efter Discords egna uppdateringar (bevakningen stängdes av när Discord startade) – rättat

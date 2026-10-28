@@ -144,6 +144,11 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   (sidor som byggs med JavaScript blir då nästan tomma). En länk i frågan läses först; "läs patch notes …" läser
   sökningens bästa träff. Adresser i datorn/hemnätverket läses inte. Svaret får Källor (länkar) och Hämtat från
   (filer, loggar, egna siffror).
+- Stora texter i delar (goblinai.py, read_in_parts): ett verktygssvar större än ditt minne läses i delar om ~20 000
+  tecken – varje del med tomt minne ("vad här hjälper frågan?") → korta anteckningar, ditt svar ur anteckningarna
+  (stegen "Läser i delar: del n av m"). Högst 10 delar: början, slutet och de med frågans ord. ~10 s per del.
+  Långa samtal (with_summary): de äldsta meddelandena sammanfattas en gång ("Tidigare i samtalet, sammanfattat: …"),
+  bara när lokala AI:n svarar; sammanfattningen återanvänds tills fönstret stängs.
 - Ärlighet (goblinai.py): faktafrågor utan något hämtat får "Ur minnet – inget hämtat eller kontrollerat" (FROM_MEMORY);
   "jag har läst/kollat …" utan verktyg skickas tillbaka en gång, sedan en Obs-rad (READ_CLAIM); "kan du …?" får
   listan över verktygen hon har just nu + det hon inte kan (abilities, CANNOT).
