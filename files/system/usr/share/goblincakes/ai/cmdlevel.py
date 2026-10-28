@@ -789,11 +789,15 @@ def trash_restore(paths):
     return cmds
 
 
-def shorten(output, keep=6000):
+def shorten(output, keep=6000, code=""):
     """Long output for the AI: the end (usually what matters) – and how to read the part it didn't get (a 28 KB
-    `cat main.qml` hid the line that mattered, 25 Oct)."""
+    `cat main.qml` hid the line that mattered, 25 Oct). An MCP tool's answer (mcp.py kör) keeps its start instead:
+    a page from the browser has its top there – with only the end the local model never saw the newest posts and
+    opened the page again and again (28 Oct)."""
     if len(output) <= keep:
         return output
+    if re.search(r"/mcp\.py'? '?kör'? ", code):
+        return output[:keep] + "\n…(resten utelämnad)"
     return (f"…(början utelämnad: utskriften var {len(output)} tecken, här är bara slutet. Läs en viss del med "
             "`grep -n 'ord' fil` eller `sed -n '100,160p' fil` i stället för hela filen)…\n" + output[-keep:])
 

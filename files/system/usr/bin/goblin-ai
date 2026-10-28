@@ -732,11 +732,11 @@ class Backend(QObject):
                 report.append(f"$ {s['code']}\n(användaren valde att inte köra det)")
             else:
                 out = s.get("output", "")
-                out = goblinai.cmd_level().shorten(out)
+                out = goblinai.cmd_level().shorten(out, code=s['code'])
                 report.append(f"$ {s['code']}\n{out}\n(avslutskod {s.get('code_result', '?')})")
         self._api.append({"role": "user", "content": "Så här gick det:\n\n" + "\n\n".join(report)
                           + f"\n\n(Mappen nu: {self._cwd})"
-                          + "\n\nFortsätt med nästa steg, eller säg kort att det är klart."})
+                          + goblinai.after_commands(self._api)})
         self._ask()
 
     # ── The command log (AI-tjänster → Körda kommandon) and running reading commands at once ─────

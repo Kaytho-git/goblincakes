@@ -575,6 +575,9 @@ def run_line(name, line):
         raise McpError(f"fälten är inte JSON: {rest[:100]}") from e
     if not isinstance(args, dict):
         raise McpError("fälten ska vara ett JSON-objekt")
+    # The page shows "[ref=e17]" – the local model copied all of it as the click's target (28 Oct)
+    args = {k: (m.group(1) if isinstance(v, str) and (m := re.fullmatch(r"\[?ref=(\w+)\]?", v.strip())) else v)
+            for k, v in args.items()}
     known = {t["name"]: t for t in on_tools(name)}
     if tool not in known:
         raise McpError(f"{tool} finns inte (eller är avstängt) hos {name}: " + ", ".join(known) if known

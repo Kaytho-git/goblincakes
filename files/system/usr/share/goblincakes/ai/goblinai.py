@@ -378,6 +378,16 @@ def links_in(text):
     return list(dict.fromkeys(u.rstrip(".,;:!?") for u in LINK_RE.findall(text)))[:LINKS_MAX]
 
 
+def after_commands(messages):
+    """The end of the "Så här gick det:" message: the user's question again – with only "Fortsätt …" after a long
+    page from the browser, the local model repeated the page instead of answering (28 Oct)."""
+    question = next((m["content"] for m in reversed(messages) if m["role"] == "user" and isinstance(m.get("content"), str)
+                     and not m["content"].startswith("Så här gick det:")), "")
+    asked = f"Användarens fråga var: \"{question.split(chr(10) + chr(10) + '(')[0][:400].strip()}\"\n" if question else ""
+    return ("\n\n" + asked + "Svara på den utifrån resultatet ovan med egna ord – upprepa inte utdata eller sidan. "
+            "Behövs ett steg till, gör det; är det klart, säg kort vad som hände.")
+
+
 def read_links(messages, keys, status=None):
     """A button's question ("button" set by goblin-ai) gets, once, the pages of its links and the facts
     of the sports teams it names (ESPN). True when something was added."""
@@ -1760,7 +1770,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                          f"[Goblin AI] Frågan gäller {to_mcp['mcp']} – använd verktyget {to_mcp['word']} (dess "
                          f"funktioner {to_mcp['word']}__…) först, inte sökning på nätet eller datorns loggar. "
                          f"{to_mcp.get('about') or ''}".strip()})
-    typed = links_in(str(asked.get("content", ""))[:600]) if "sida" in tools else []  # the typed question, not a file below it
+    typed = links_in(str(asked.get("content", ""))[:600]) if "sida" in tools and not report else []  # the typed question, not a file below it
     for url in typed[:2]:
         # A link in the question (punkt 6): the page is read first – a small model searched for it instead
         activity("ask", "läser webbsidan")
