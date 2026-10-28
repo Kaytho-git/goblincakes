@@ -52,7 +52,7 @@ PlasmoidItem {
         return d.toLocaleString(Qt.locale("sv_SE"), "ddd d MMM HH:mm");
     }
     // "om 3 h 20 min", "om 6 d 14 h"
-    function left(epoch) {
+    function timeLeft(epoch) {
         const m = Math.max(0, Math.round((epoch - now) / 60));
         if (m < 60)
             return "om " + m + " min";
@@ -253,7 +253,7 @@ PlasmoidItem {
                             Text {
                                 visible: win.modelData.resets > 0
                                 text: win.modelData.resets <= root.now ? "Nollställd"
-                                    : "Nollställs " + root.when(win.modelData.resets) + " (" + root.left(win.modelData.resets) + ")"
+                                    : "Nollställs " + root.when(win.modelData.resets) + " (" + root.timeLeft(win.modelData.resets) + ")"
                                 color: root.muted
                                 font: Kirigami.Theme.smallFont
                                 Layout.leftMargin: Kirigami.Units.gridUnit * 3 + Kirigami.Units.smallSpacing

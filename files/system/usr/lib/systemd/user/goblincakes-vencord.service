@@ -1,6 +1,10 @@
 [Unit]
 Description=GOBLINCAKES: Vencord and the GOBLINCAKES look in Discord (only when switched on in Config)
 ConditionPathExists=%h/.config/goblincakes/vencord-on
+# The path unit watches all of ~/.config/discord, and Discord writes there all the time (Cookies, DIPS-wal):
+# 7 starts in a second when Discord started hit systemd's 5-in-10-s limit and stopped the watch (28 Oct).
+# ensure is cheap when Discord already has Vencord.
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
