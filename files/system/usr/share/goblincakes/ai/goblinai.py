@@ -3883,6 +3883,8 @@ if kpackagetool6 -t Plasma/Applet -u . >/dev/null 2>&1 || kpackagetool6 -t Plasm
 t=$(date +%T); timeout 8 plasmawindowed "$id" >/dev/null 2>&1; sleep 2
 journalctl --user -t plasmawindowed --since "$t" -o cat | grep -iE "error|qml|not ready|not a type" || echo "Inga fel."
 ```
+  Kopiera blocket som det står – skriv inte ett eget. Den installerade kopian rör du aldrig (inget rm): blocket
+  uppdaterar den. Ska en widget bort helt: `kpackagetool6 -t Plasma/Applet -r <id>`.
   Står det ett fel (fil:rad: vad som är fel) eller MISSLYCKADES: rätta just det och kör blocket igen. Klar först när
   BÅDE "Installerad" och "Inga fel." står i samma utskrift. Sedan finns den i widgetmenyn (högerklick på skrivbordet
   → Lägg till widgetar)."""
