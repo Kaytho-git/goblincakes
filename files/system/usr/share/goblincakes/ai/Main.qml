@@ -4237,6 +4237,11 @@ Window {
                     property var categories: JSON.parse(backend.lessonCategories)
                     property string openCat: ""  // the category shown (28 Oct: one at a time, the list grows fast)
                     property string choosing: ""  // the lesson whose category choice is open
+                    // The clicked category's row stays where it was when the open one above it closes (28 Oct,
+                    // the user: the window jumped far down)
+                    property string keepCat: ""
+                    property real keepY: 0
+                    Timer { id: keepTimer; interval: 400; onTriggered: lessonCard.keepCat = "" }
                     function inCat(c) { return items.filter(i => i.category === c); }
 
                     Column {
@@ -4310,6 +4315,10 @@ Window {
                                     required property var modelData
                                     width: heartCol.width
                                     spacing: 10
+                                    onYChanged: if (lessonCard.keepCat === modelData.id) {
+                                        settings.contentY = Math.max(0, settings.contentY + y - lessonCard.keepY);
+                                        lessonCard.keepY = y;
+                                    }
                                     Text {
                                         text: (lessonCard.openCat === catRow.modelData.id ? "▾  " : "▸  ") + catRow.modelData.name
                                               + "   (" + lessonCard.inCat(catRow.modelData.id).length + ")"
@@ -4324,7 +4333,12 @@ Window {
                                             anchors.margins: -4
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
-                                            onClicked: lessonCard.openCat = lessonCard.openCat === catRow.modelData.id ? "" : catRow.modelData.id
+                                            onClicked: {
+                                                lessonCard.keepCat = catRow.modelData.id;
+                                                lessonCard.keepY = catRow.y;
+                                                keepTimer.restart();
+                                                lessonCard.openCat = lessonCard.openCat === catRow.modelData.id ? "" : catRow.modelData.id;
+                                            }
                                         }
                                     }
                                     Column {
