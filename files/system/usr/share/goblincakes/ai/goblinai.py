@@ -11,6 +11,7 @@ tier; Gemini's own Google search needs a paid plan). Keys:
 import base64
 import getpass
 import json
+import math
 import os
 import re
 import shlex
@@ -2606,6 +2607,10 @@ def fit_local(messages):
 # each part asked alone with an empty memory ("what here helps answer the question?" → short notes), the answer
 # comes from the notes. Before, the end was cut off. A part ~6 000 tokens: ~10–20 s each with gemma4.
 PART_CHARS, PARTS_MAX, NOTE_CHARS = 20_000, 10, 2_000
+# The question is Swedish, the logs English: what a word is called in them (for picking the parts)
+LOG_WORDS = {"krasch": ("crash", "abnormal", "segfault", "sigsegv", "core dump", "anom_abend"),
+             "fel": ("error", "fail"), "frys": ("hang", "timeout", "not responding"),
+             "stäng": ("exit", "terminat", "stopped"), "start": ("start",), "varn": ("warn",)}
 PART_PROMPT = """Det här är del {n} av {total} av en lång text (från {source}). Hela texten får inte plats i ditt minne,
 så den läses en del i taget. Användarens fråga är: "{question}"
 
@@ -2657,8 +2662,12 @@ def read_in_parts(text, room, question, source, keys, project=None, choice="", s
     cut = len(parts) > PARTS_MAX
     if cut:
         # Too many: the start, the end (a log's newest) and the parts with the question's words – not just the first
+        # A word in every part ("discord" in a Discord log) says nothing – rare words weigh more (28 Oct)
         words = {w.casefold() for w in re.findall(r"[\wåäö'-]{4,}", question)}
-        hits = lambda i: sum(parts[i].casefold().count(w) for w in words)  # noqa: E731
+        words |= {e for w in words for stem, more in LOG_WORDS.items() if w.startswith(stem) for e in more}
+        low = [p.casefold() for p in parts]
+        weight = {w: math.log(len(parts) / n) for w in words if (n := sum(w in p for p in low))}
+        hits = lambda i: sum(v for w, v in weight.items() if w in low[i])  # noqa: E731
         middle = sorted(range(1, len(parts) - 1), key=lambda i: (hits(i), i), reverse=True)[:PARTS_MAX - 2]
         parts = [parts[i] for i in sorted([0, len(parts) - 1] + middle)]
     notes = []

@@ -530,14 +530,25 @@ def gap_text(seconds):
     return f"{seconds / 3600:.0f} h"
 
 
-def program_log(name, since="", lines=90):
-    """A program's or service's journal lines since the computer started (or since HH:MM), the user's and the
-    system's: noise and repeats left out, long pauses shown – where a program hung."""
-    seen, entries = set(), []
+# "hela journalen", "allt i loggen", "mellan 22 och 23" (point 21, 28 Oct): the whole log – Goblin AI reads it in parts
+# instead of the start, the end and the errors. Up to WHOLE_ENTRIES lines (an evening with Discord: ~100k).
+WHOLE_WORDS = re.compile(r"\bhela\b|\ballt\b|\bvarenda\b|\bmellan\s+(?:kl\.?\s*)?\d", re.I)
+WHOLE_ENTRIES, WHOLE_CHARS = 40_000, 400_000
+
+
+def span_args(since="", until=""):
     span = ["--since", since] if since else ["-b"]
+    return span + (["--until", until] if until else [])
+
+
+def program_log(name, since="", lines=90, until="", whole=False):
+    """A program's or service's journal lines since the computer started (or since HH:MM), the user's and the
+    system's: noise and repeats left out, long pauses shown – where a program hung. whole: every line (no picking)."""
+    seen, entries = set(), []
+    span = span_args(since, until)
     for args in (["--user-unit", name], ["-u", name], ["-t", name], [f"_COMM={name[:15]}"],
                  ["--user-unit", f"app-{name}*"], ["-t", name.capitalize()]):
-        for d in journal([*span, "-n", "3000", *args], 30):
+        for d in journal([*span, "-n", str(WHOLE_ENTRIES if whole else 3000), *args], 60 if whole else 30):
             key = d.get("__CURSOR")
             if key not in seen:
                 seen.add(key)
@@ -546,6 +557,34 @@ def program_log(name, since="", lines=90):
         return (f"Journalen har inget om \"{name}\" " + (f"sedan {since}" if since else "sedan start")
                 + f" (prova ett tjänstnamn – `tjänster {name}` – eller `filer {name}`).")
     entries.sort(key=lambda d: int(d.get("__REALTIME_TIMESTAMP", 0)))
+    rows, noise = log_rows(entries)
+    first = int(entries[0]["__REALTIME_TIMESTAMP"]) / 1e6
+    head = f"Journalen om \"{name}\" från {when(first)}"
+    if whole:
+        return whole_text(head, rows, noise)
+    return picked_text(head, rows, noise, lines)
+
+
+def whole_log(since="", until=""):
+    """The whole journal (the system's and the user's) for a time – every program; read in parts by Goblin AI."""
+    entries = journal([*span_args(since, until), "-n", str(WHOLE_ENTRIES)], 90)
+    if not entries:
+        return "Journalen har inget " + (f"från {since}" if since else "sedan start") + (f" till {until}" if until else "") + "."
+    entries.sort(key=lambda d: int(d.get("__REALTIME_TIMESTAMP", 0)))
+    rows, noise = log_rows(entries)
+    first, last = (int(entries[i]["__REALTIME_TIMESTAMP"]) / 1e6 for i in (0, -1))
+    return whole_text(f"Hela journalen från {when(first)} till {when(last)}", rows, noise)
+
+
+def whole_text(head, rows, noise):
+    text = "\n".join(rows)
+    if len(text) > WHOLE_CHARS:  # the newest part – a log's end is where it went wrong
+        text = "(början av perioden överhoppad – för lång)\n" + text[-WHOLE_CHARS:].split("\n", 1)[-1]
+    return head + (f" ({noise} brusrader utan betydelse bortplockade)" if noise else "") + ":\n" + text
+
+
+def log_rows(entries):
+    """The lines to show of sorted journal entries, and how many were noise."""
     rows, noise, last_msg, repeats, last_time, last_day = [], 0, None, 0, None, None
     for d in entries:
         msg = text_of(d.get("MESSAGE")).splitlines()
@@ -573,8 +612,10 @@ def program_log(name, since="", lines=90):
         last_msg, last_time = same, stamp
     if repeats:
         rows.append(f"  (samma rad {repeats} gånger till)")
-    first = int(entries[0]["__REALTIME_TIMESTAMP"]) / 1e6
-    head = f"Journalen om \"{name}\" från {when(first)}"
+    return rows, noise
+
+
+def picked_text(head, rows, noise, lines):
     if len(rows) > lines:  # the start, the end, and what matters in between: pauses and errors
         keep = set(range(15)) | set(range(len(rows) - 25, len(rows)))
         for i, row in enumerate(rows):
@@ -681,7 +722,8 @@ filer <namn eller *mönster*> [i <mapp>]   – hittar filer/mappar
 läs <sökväg> [med <text> | från rad <n>] – slutet av en textfil, raderna med texten, eller från en rad
 mapp <sökväg>                           – vad som ligger i en mapp
 sök <text> i <mapp>                     – vilka filer som innehåller texten
-logg <program eller tjänst> [från HH:MM] – journalen om det sedan start (eller från klockslaget)
+logg <program eller tjänst> [från HH:MM] [till HH:MM] – journalen om det sedan start (eller från klockslaget)
+logg [program] hela [från HH:MM] [till HH:MM] – varenda rad (hela journalen utan program) – lång, läses i delar
 status <tjänst>                         – en tjänsts status
 tjänster [text]                         – vilka tjänster som körs
 program [text]                          – installerade program (t.ex. program kalender)"""
@@ -752,9 +794,17 @@ def look(query):
                 raise SearchError(f"{where} är hemligt (nycklar/lösenord) och läses inte")
             text = grep_text(m.group(1).strip("\"'"), where)
         elif word in ("logg", "log", "journal", "journalctl"):
-            m = re.match(r"(.+?)\s+(?:från|fran|since|efter)\s+(\d{1,2}[:.]\d{2})$", rest)
+            until = re.search(r"\s+(?:till|until)\s+(\d{1,2}[:.]\d{2})$", rest)
+            rest = rest[:until.start()] if until else rest
+            until = until.group(1).replace(".", ":") if until else ""
+            m = re.match(r"(.*?)\s*(?:från|fran|since|efter)\s+(\d{1,2}[:.]\d{2})$", rest)
             name, since = (m.group(1), m.group(2).replace(".", ":")) if m else (rest, "")
-            text = program_log(name.strip("\"'"), since) if name else "Skriv vilket program eller vilken tjänst."
+            name = name.strip("\"'")
+            whole = bool(re.search(r"(?:^|\s)hela$|^hela(?:\s|$)", name))
+            name = re.sub(r"(?:^|\s)hela$|^hela(?:\s|$)", "", name).strip()
+            if whole:
+                return program_log(name, since, until=until, whole=True) if name else whole_log(since, until)
+            text = program_log(name, since, until=until) if name else "Skriv vilket program eller vilken tjänst."
         elif word == "status":
             text = unit_status(rest) if rest else unit_list()
         elif word in ("tjänster", "tjanster", "services"):
@@ -829,6 +879,26 @@ def since_of(question):
     return ""
 
 
+def span_of(question):
+    """(since, until) for journalctl: "igår kväll" → yesterday 18:00 to midnight, "ikväll" → today 18:00, "inatt" → 22–07, "mellan 22 och 23",
+    else (since_of, "")."""
+    m = re.search(r"\bmellan\s+(?:kl\.?\s*)?(\d{1,2})(?:[:.](\d{2}))?\s+och\s+(\d{1,2})(?:[:.](\d{2}))?", question)
+    day = "yesterday" if re.search(r"\b(?:igår|i går)", question, re.I) else "today"
+    if m:
+        a, b = (f"{int(h):02d}:{int(mi or 0):02d}" for h, mi in ((m.group(1), m.group(2)), (m.group(3), m.group(4))))
+        date = time.strftime("%Y-%m-%d", time.localtime(time.time() - (86400 if day == "yesterday" else 0)))
+        return f"{date} {a}", f"{date} {b}"
+    yday = time.strftime("%Y-%m-%d", time.localtime(time.time() - 86400))
+    if re.search(r"\b(?:igår|i går)\s*kväll|\bigårkväll", question, re.I):
+        return f"{yday} 18:00", "today"
+    if re.search(r"\b(?:ikväll|i kväll)\b", question, re.I):
+        return time.strftime("%Y-%m-%d 18:00"), ""
+    if re.search(r"\b(?:inatt|i natt)\b", question, re.I):
+        return f"{yday} 22:00", time.strftime("%Y-%m-%d 07:00")
+    since = since_of(question)
+    return since, ("today" if since == "yesterday" else "")
+
+
 PATH_IN_TEXT = re.compile(r"(?<![\w/])(?:~|\$HOME|/(?:home|var|etc|usr|run|tmp|opt|mnt|srv|boot))(?:/[^\s\"'`,;:()]*)?")
 
 
@@ -878,15 +948,21 @@ def gather(question):
             found.append(target)
     if not found and not re.search(r"\b(?:datorn|systemet|krasch\w*|logg\w*|journal\w*|tjänst\w*)\b", question, re.I):
         return "", []
-    since = since_of(question)
+    since, until = span_of(question)
+    whole = bool(WHOLE_WORDS.search(question))
     parts, read = [], []
+    if whole and not found:
+        parts.append(whole_log(since, until))
+        read.append("logg hela" + (f" från {since}" if since else "") + (f" till {until}" if until else ""))
     for target in found[:2]:
-        parts.append(program_log(target, since))
-        read.append(f"logg {target}" + (f" från {since}" if since else ""))
+        parts.append(program_log(target, since, until=until, whole=whole))
+        read.append(f"logg {target}" + (" hela" if whole else "") + (f" från {since}" if since else ""))
     if not found or re.search(r"krasch|kraschar|kraschade|fel\b|felet|errors?", question, re.I):
         parts.append(system_errors(found[0] if found else ""))
         read.append("systemfel " + (found[0] if found else ""))
     text = "\n\n".join(parts)
+    if whole:  # Goblin AI reads it in parts (goblinai.read_in_parts)
+        return text, read
     return (text if len(text) <= LIMIT + 3000 else text[:LIMIT + 3000] + "\n… (kortat)"), read
 
 if __name__ == "__main__":
