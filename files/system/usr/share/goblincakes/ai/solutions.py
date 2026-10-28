@@ -4,7 +4,8 @@ Claude: what it fixed is known to Kakan at once, without a new image. The soluti
 (goblinai.save_solution, kind "solution").
 
   solutions.py add --tecken "…" --orsak "…" --losning "…" [--kategori datorn] [--bekraftad]
-  solutions.py list [ord]
+  solutions.py list [ord]                  (= read(): what Kakan's MCP tool `losningar` gives Claude Code)
+  solutions.py list lärdomar [kategori]
 """
 import argparse
 import sys
@@ -12,6 +13,48 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import goblinai  # noqa: E402
+
+
+def _line(i):
+    mark = {"solution": "🔧", "avoid": "👎"}.get(i.get("kind"), "♥")
+    extra = "" if i.get("kind") != "solution" or i.get("confirmed") else ", ej bekräftad"
+    used = f", använd {i['used']} ggr" if i.get("used") else ""
+    word = "Tecken" if i.get("kind") == "solution" else "Frågan"
+    return f"- {mark} [{goblinai.category_of(i)}{extra}{used}, {i.get('added', '')}] {word}: {i['question']} → {i['lesson']}"
+
+
+def read(query=""):
+    """Empty: every known solution and how many lessons per category; "lärdomar [kategori]": the lessons;
+    other words: the solutions (and lessons) about that – the ones Kakan would get first."""
+    items = goblinai.load_lessons()
+    solutions = [i for i in items if i.get("kind") == "solution"]
+    lessons = [i for i in items if i.get("kind") != "solution"]
+    names = dict(goblinai.CATEGORIES)
+    query = " ".join(str(query).split())
+    words = query.casefold().split()
+    if not words:
+        counts = ", ".join(f"{names[c]} {n}" for c, _ in goblinai.CATEGORIES
+                           if (n := sum(1 for i in lessons if goblinai.category_of(i) == c)))
+        out = [f"Kakans kända lösningar ({len(solutions)}) – problem som lösts på den här datorn:"]
+        out += [_line(i) for i in solutions] or ["(inga ännu)"]
+        out += ["", f"Lärdomar ({len(lessons)}): {counts or 'inga'}. Läs dem med \"lärdomar\" eller "
+                    "\"lärdomar <kategori>\" (" + ", ".join(c for c, _ in goblinai.CATEGORIES) + ")."]
+        return "\n".join(out)
+    if words[0] in ("lärdomar", "lardomar", "lessons"):
+        wanted = {"nätet": "natet", "övrigt": "ovrigt"}.get(words[1], words[1]) if len(words) > 1 else ""
+        found = [i for i in lessons if not wanted or goblinai.category_of(i) == wanted]
+        head = f"Kakans lärdomar{' i ' + names.get(wanted, wanted) if wanted else ''} ({len(found)}), nyast sist:"
+        return "\n".join([head] + [_line(i) for i in found]) if found else head + " inga."
+    best = goblinai.solutions_for(query)
+    text_hits = [i for i in items if i not in best and query.casefold() in (i["question"] + " " + i["lesson"]).casefold()]
+    if not best and not text_hits:
+        return f"Inget om \"{query}\" bland Kakans {len(solutions)} kända lösningar och {len(lessons)} lärdomar."
+    out = []
+    if best:
+        out += ["Kända lösningar som Kakan skulle få med till den frågan:"] + [_line(i) for i in best]
+    if text_hits:
+        out += ["Där orden står:"] + [_line(i) for i in text_hits[:30]]
+    return "\n".join(out)
 
 
 def main():
@@ -35,14 +78,7 @@ def main():
         if entry.get("similar"):
             print(f"Liknar {len(entry['similar'])} äldre – användaren väljer i Goblin AI (Lärdomar).")
         return 0
-    query = " ".join(args.ord).casefold()
-    found = [i for i in goblinai.load_lessons() if i.get("kind") == "solution"
-             and (not query or query in (i["question"] + " " + i["lesson"]).casefold())]
-    for i in found:
-        print(f"- [{goblinai.category_of(i)}{'' if i.get('confirmed') else ', ej bekräftad'}] "
-              f"{i['question']} → {i['lesson']}")
-    if not found:
-        print("Inga kända lösningar" + (f" med \"{query}\"." if query else " ännu."))
+    print(read(" ".join(args.ord)))
     return 0
 
 

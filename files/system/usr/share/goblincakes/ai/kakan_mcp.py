@@ -1,6 +1,7 @@
 """Kakan's own tools as an MCP server (point 8 part 3 of Kakan's plan, 28 Oct): Claude Code – and Claude Haiku in
 point 17 – can use WoW Stats, Warcraft Logs, BugSack's errors, CS2, the sport tables, the map of GOBLINCAKES, the
-computer's errors, the read-only file tools and Kakan's own reports (rapporter, point 14 – toclaude.py). Only tools that read: nothing on the desktop (music, windows,
+computer's errors, the read-only file tools, Kakan's own reports (rapporter, point 14 – toclaude.py) and her
+known solutions and lessons (losningar, point 12 – solutions.py). Only tools that read: nothing on the desktop (music, windows,
 reminders), no web search (Claude has its own) and not Kakan's own MCP servers.
 
     python3 kakan_mcp.py               the server (stdio, one JSON-RPC message per line)
@@ -27,7 +28,8 @@ INSTRUCTIONS = ("Verktyg från GOBLINCAKES lokala AI (Kakan) på användarens da
                 "Meta+Shift+L (\"laggar nu\") under spel, goblincakes = kartan över systemet (läs "
                 "den först när en del av GOBLINCAKES strular), systemfel = datorns loggade fel, hitta_filer/las_fil/"
                 "visa_mapp/sok_i_filer/logg/program/tjanst = läsa i datorn (nycklar och lösenord visas inte), "
-                "rapporter = det Kakan inte kunde lösa (Skicka till Claude i Goblin AI).")
+                "rapporter = det Kakan inte kunde lösa (Skicka till Claude i Goblin AI), losningar = hennes kända "
+                "lösningar (problem som lösts på datorn) och lärdomar.")
 
 
 def goblinai():
@@ -46,6 +48,13 @@ def shared_tools():
                                 "steg, vad verktygen visade och kommandona hon körde med utdata (Skicka till Claude i "
                                 "Goblin AI). Tomt = listan och den senaste i sin helhet.",
                                 "Tomt, eller rapportens namn (eller en del av det)")
+    import solutions  # noqa: PLC0415
+    tools["losningar"] = g.tool("Läser Kakans kända lösningar", "", "", lambda q: (solutions.read(q), []), "losningar",
+                                "Kakans kända lösningar – problem som lösts på den här datorn (tecken → orsak → "
+                                "lösning, från Kakan eller Claude, bekräftade eller inte) – och hennes lärdomar per "
+                                "kategori. Kolla här först när ett fel kan ha hänt förut. Tomt = alla lösningar + "
+                                "antal lärdomar; \"lärdomar [kategori]\" = lärdomarna; annars ord ur felet.",
+                                "Tomt, \"lärdomar [kategori]\", eller ord ur felet (t.ex. discord startar inte)")
     return tools
 
 
