@@ -84,6 +84,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
   volym (wpctl = datorns, högst 100 %; "i GoblinAmp/Spotify" = spelarens MPRIS-Volume) körs direkt utan Tillåt (användarens val) och loggas som "kakan" med ångring.
   Öppna (program ur menyn via gtk-launch, webbsida/fil/mapp via xdg-open; spel efter 8 s) också direkt.
   Spela låt/album/artist: Spotifys Web API med GoblinAmp:s inloggning (~/.config/goblincakes/spotify.json).
+  Notis (notify-send) och urklipp (wl-copy/wl-paste; gamla urklippet sparas för ångra, lösenord visas inte).
   Kolla spelarna: busctl --user list | grep mpris. Volymen: wpctl get-volume @DEFAULT_AUDIO_SINK@.
 
 ## Lokal AI (Ollama)

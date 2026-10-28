@@ -8,6 +8,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -368,6 +369,55 @@ def play(kind, what, conversation=""):
     return f"Spelar {label} {name} på Spotify (syns i GoblinAmp)."
 
 
+CLIP_SHOWN = 4000  # characters of the clipboard the AI gets
+# One word of 8–100 characters with letters and digits/signs and no spaces = a password or key: not shown
+SECRET_LIKE = re.compile(r"^(?!https?://|www\.|~?/)(?=.*[A-Za-z])(?=.*[\d\W_])\S{8,100}$")
+
+
+def notify(text, conversation=""):
+    """A notice now, from Goblin AI (at a time = point 7, reminders)."""
+    text = " ".join(text.split())[:300]
+    if not text:
+        return "Säg vad notisen ska säga."
+    title, _, body = text.partition(": ") if ": " in text[:60] else ("Goblin AI", "", text)
+    code = " ".join(shlex.quote(c) for c in ["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", title, body])
+    return _done(code, [], f"Visade notisen: {text}", conversation, "En notis går inte att ta tillbaka – stäng den.")
+
+
+def clipboard_text():
+    try:
+        out = subprocess.run(["wl-paste", "--no-newline", "--type", "text"], capture_output=True, timeout=3)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.decode(errors="replace") if out.returncode == 0 else ""
+
+
+def clipboard(what, conversation=""):
+    """`vad` = what is on the clipboard (passwords and keys not shown); anything else = put that text there –
+    the old clipboard is kept first, so Ångra puts it back."""
+    if what.strip().lower() in ("", "vad", "visa", "läs"):
+        now = clipboard_text()
+        if now is None:
+            return "Kommer inte åt urklippet."
+        if not now.strip():
+            return "Urklippet är tomt (eller har en bild, som inte visas här)."
+        if SECRET_LIKE.match(now.strip()):
+            return "Urklippet har något som ser ut som ett lösenord eller en nyckel – det visas inte."
+        shown = "\n".join(_sys().hide(line) for line in now[:CLIP_SHOWN].splitlines())
+        return f"I urklippet ({len(now)} tecken):\n{shown}" + ("\n[… avkortat]" if len(now) > CLIP_SHOWN else "")
+    text = what.strip().strip("`")
+    old = clipboard_text() or ""
+    cmdlevel.BACKUPS.mkdir(parents=True, exist_ok=True)
+    backup = cmdlevel.BACKUPS / f"urklipp-{time.time():.0f}.txt"
+    backup.write_text(old)
+    backup.chmod(0o600)
+    # wl-copy stays in the background holding the clipboard – without its output, or nothing would end
+    code = "printf %s " + shlex.quote(text) + " | wl-copy >/dev/null 2>&1"
+    undo = [f"wl-copy < {shlex.quote(str(backup))} >/dev/null 2>&1" if old else "wl-copy --clear"]
+    short = text if len(text) <= 80 else text[:77] + "…"
+    return _done(code, undo, f"Lade \"{short}\" i urklippet – klistra in med Ctrl+V.", conversation)
+
+
 def act(line, conversation=""):
     """The tool's line: `musik <paus|spela|nästa|föregående|vad>`, `volym <tal|+10|-10|tyst|ljud> [i <program>]`,
     `öppna <program|webbadress|sökväg>`."""
@@ -379,6 +429,10 @@ def act(line, conversation=""):
         return volume(rest, conversation)
     if word in ("öppna", "oppna", "open", "starta", "start"):
         return open_thing(rest, conversation)
+    if word in ("notis", "notify"):
+        return notify(rest, conversation)
+    if word in ("urklipp", "urklippet", "clipboard"):
+        return clipboard(rest, conversation)
     if word in ("spela", "play"):
         kind, _, what = rest.strip().partition(" ")
         if kind.lower() in ("låt", "låten", "album", "albumet", "skivan", "artist", "artisten", "band", "bandet",
@@ -386,7 +440,8 @@ def act(line, conversation=""):
             return play(kind.lower(), what, conversation)
         return play("", rest, conversation)
     return ("Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud [i goblinamp|spotify], "
-            "öppna <program|webbadress|sökväg>, spela låt|album|artist <artist> - <titel>.")
+            "öppna <program|webbadress|sökväg>, spela låt|album|artist <artist> - <titel>, notis <text>, "
+            "urklipp <text|vad>.")
 
 
 if __name__ == "__main__":  # trying it out: python3 desktop.py musik vad

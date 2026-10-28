@@ -718,7 +718,10 @@ DESK_LINES = """musik <paus|spela|nästa|föregående|vad>   – musiken (Goblin
 volym <40|+10|-10|tyst|ljud|vad>         – datorns volym (högtalare/hörlurar) i procent, högst 100
 volym <40|+10|-10|vad> i <program>        – volymen i en musikspelare (GoblinAmp, Spotify), inte datorns
 öppna <program|webbadress|sökväg>         – starta ett program ur menyn, öppna en webbsida, fil eller mapp
-spela <låt|album|artist> <artist> - <titel> – spela en låt, ett album eller en artist (Spotify, syns i GoblinAmp)"""
+spela <låt|album|artist> <artist> - <titel> – spela en låt, ett album eller en artist (Spotify, syns i GoblinAmp)
+notis <text>                              – visa en notis nu ("Rubrik: text" ger en rubrik)
+urklipp <text>                            – lägg texten i urklippet (det gamla går att få tillbaka)
+urklipp vad                               – vad som ligger i urklippet"""
 
 DESK_PROMPT = """
 
@@ -920,6 +923,15 @@ DESK_FNS = [
             lambda a: f"spela {look_arg(a, 'typ') or 'låt'} " + (
                 f"{look_arg(a, 'artist')} - {look_arg(a, 'titel')}" if look_arg(a, "artist") and look_arg(a, "titel")
                 else look_arg(a, "artist") or look_arg(a, "titel"))),
+    look_fn("notis", "Visar en notis på skärmen nu, från Goblin AI (inte vid en viss tid). \"Rubrik: text\" ger "
+            "notisen en rubrik.",
+            {"text": ("Vad notisen säger, t.ex. `Pizzan: ta ut den ur ugnen`", True)},
+            lambda a: f"notis {look_arg(a, 'text')}"),
+    look_fn("urklipp", "Lägger en text i urklippet så att användaren kan klistra in den (Ctrl+V) – en länk, ett "
+            "kommando, ett svar. Det gamla urklippet sparas (Ångra). Utan text: visar vad som ligger i urklippet "
+            "(lösenord och nycklar visas inte).",
+            {"text": ("Texten som ska in i urklippet (tomt = visa vad som ligger där)", False)},
+            lambda a: f"urklipp {look_arg(a, 'text') or 'vad'}"),
 ]
 
 
@@ -968,7 +980,7 @@ def tools_for(keys, project, messages):
     tools["skrivbord"] = tool("Styr skrivbordet", DESK_PROMPT, DESK_GUIDE, lambda q: (desktop().act(q), []), "skrivbord",
                               "Gör det användaren ber om på skrivbordet, direkt (loggas och kan ångras): pausa/spela "
                               "musiken, nästa/förra låten, vad som spelas, volymen, öppna program/webbsidor/filer, "
-                              "spela en viss låt/album/artist.",
+                              "spela en viss låt/album/artist, visa en notis, lägga text i urklippet.",
                               "En av raderna:\n" + DESK_LINES, DESK_FNS)
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
@@ -1300,7 +1312,7 @@ WRITE_SOMETHING = re.compile(r"^\W*(?:skriv|gör|hitta på|formulera|författa|d
 
 
 DESK_ASK = re.compile(r"\b(?:pausa|volym\w*|ljudet|musiken|nästa låt|förra låt\w*|vad spelas|vilken låt (?:är det|spelas)"
-                      r"|spela|öppna|starta)\b", re.I)
+                      r"|spela|öppna|starta|urklipp\w*|notis\w*)\b", re.I)
 
 
 # "Jag har ändrat volymen …", "Pausade Spotify" – an answer saying something was done on the desktop
@@ -1308,7 +1320,9 @@ DONE_CLAIM = re.compile(r"\b(?:ändra[dt]e?|sänk[a-z]*|höj[a-z]*|öka[dt]e?|mi
                         r"|start(?:a[dt]e?)|bytt|bytte|hoppa[dt]e?|stängt|stängde|satt|satte)\b"
                         r".{0,60}\b(?:volym\w*|ljud\w*|musik\w*|låt\w*|spotify|goblinamp|\d+\s*%)"
                         r"|\b(?:har |jag )(?:öppnat|startat)\b|^(?:öppnade|startade)\b"
-                        r"|\bspelar (?:nu )?(?:låten|albumet|artisten|listan)\b", re.I | re.M)
+                        r"|\bspelar (?:nu )?(?:låten|albumet|artisten|listan)\b"
+                        r"|\b(?:lade|lagt|kopierade|kopierat)\b.{0,80}\burklipp|\b(?:visade|skickade|skickat)\b.{0,20}\bnotis",
+                        re.I | re.M)
 
 
 def own_data_question(question, tools):
