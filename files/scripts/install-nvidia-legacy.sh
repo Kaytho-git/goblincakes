@@ -48,6 +48,12 @@ fi
 echo "Legacy Nvidia driver from akmods-nvidia-lts:$found"
 cat "$work/kmods/nvidia-vars" || true
 
+# The base image's mesa can be older than Fedora's (26.2.3 against 26.2.5, 28 Oct – the old one is
+# no longer in the repos): the installer's 32-bit mesa then clashes with it and the build stops.
+# The 64-bit mesa is brought to Fedora's version first, so both are the same.
+mapfile -t mesa < <(rpm -qa 'mesa-*' --qf '%{NAME}\n' | sort -u)
+[ ${#mesa[@]} -eq 0 ] || dnf5 -y upgrade --refresh "${mesa[@]}"
+
 # Universal Blue's installer (the Kinoite flavour: supergfxctl for laptops with two cards)
 IMAGE_NAME=kinoite AKMODNV_PATH="$work" bash "$work/ublue-os/nvidia-install.sh"
 
