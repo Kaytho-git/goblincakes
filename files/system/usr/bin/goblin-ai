@@ -794,6 +794,10 @@ class Backend(QObject):
         if token.strip():
             self._mcp_work(lambda: goblinai.mcp().add_github(token))
 
+    @Slot()
+    def addPlaywright(self):
+        self._mcp_work(lambda: goblinai.mcp().add_playwright())
+
     @Slot(str)
     def addMcpText(self, text):
         if text.strip():

@@ -4398,6 +4398,7 @@ Window {
                     property bool open: false
                     property var items: JSON.parse(backend.mcpServers)
                     readonly property bool hasGithub: items.some(function (x) { return x.server === "github"; })
+                    readonly property bool hasBrowser: items.some(function (x) { return x.server === "webblasare"; })
                     width: settingsCol.width
                     height: mcpCol.height + 36
                     color: "#0E1420"
@@ -4605,6 +4606,23 @@ Window {
                                     enabledState: githubInput.text !== "" && !backend.mcpBusy
                                     onClicked: { backend.addGithub(githubInput.text); githubInput.text = ""; }
                                 }
+                            }
+                            Text {
+                                visible: !mcpCard.hasBrowser
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: "Webbläsaren (Microsofts Playwright-server): en egen webbläsare i en container, utan dina inloggningar – Kakan kan öppna sidor, klicka och fylla i. Öppna och läsa går direkt, klicka och skriva kräver Tillåt. Hämtar ca 1 GB första gången."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            FlatButton {
+                                visible: !mcpCard.hasBrowser
+                                small: true
+                                primary: true
+                                text: backend.mcpBusy ? "Hämtar …" : "Lägg till webbläsaren"
+                                enabledState: !backend.mcpBusy
+                                onClicked: backend.addPlaywright()
                             }
                             Text {
                                 width: parent.width

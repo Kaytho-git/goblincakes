@@ -1,3 +1,4 @@
+2026-10-28  Kakan kan använda en egen webbläsare: lägg till den under AI-tjänster → MCP-servrar, så kan hon öppna sidor, klicka och fylla i åt dig (klick och text kräver Tillåt)
 2026-10-28  Kakan kan använda färdiga verktyg utifrån (MCP-servrar): lägg till GitHub med en token, eller klistra in en server ur dess beskrivning under AI-tjänster → MCP-servrar – den går att använda direkt
 2026-10-28  Kakan påminner och håller koll: "påminn mig 19:45 att ta ut tvätten", "säg till när Steam är klar", "säg till när WoW är stängt" eller "kolla vädret imorgon kl 7 och säg till" – påminnelser syns även mitt i ett spel, resten väntar tills spelet är slut
 2026-10-28  Kakan är ärligare: svar hon bara tar ur minnet märks "Ur minnet", påstår hon att hon läst något hon inte läst får hon rätta sig, och på "kan du …?" svarar hon utifrån vad hon faktiskt kan

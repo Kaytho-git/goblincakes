@@ -109,6 +109,10 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
   5 min eller när ett spel startar. Läsande verktyg direkt, andra = Tillåt-kort. Verktygslistan cachas i
   ~/.local/state/goblincakes/ai/mcp-verktyg.json. Kolla: python3 /usr/share/goblincakes/ai/mcp.py lista;
   podman ps (servrar som kör). Användaren lägger till/stänger av under AI-tjänster → MCP-servrar.
+  Webbläsaren (webblasare, mcr.microsoft.com/playwright/mcp): egen Chromium utan skärm och utan användarens
+  inloggningar; öppna/läsa direkt, klicka/skriva = Tillåt. Tillåt-körningen (mcp.py kör) går via socketen
+  $GOBLIN_MCP_SOCKET (/run/user/<uid>/goblincakes-mcp-<pid>.sock) till samma webbläsare. Sidor med
+  Cloudflare-skydd (t.ex. wowhead.com) svarar 403 – läs dem med las_sida i stället.
 
 ## Lokal AI (Ollama)
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne

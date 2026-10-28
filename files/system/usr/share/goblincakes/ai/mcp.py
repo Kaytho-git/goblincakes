@@ -4,11 +4,13 @@ podman container (stdio, the user's choice 28 Oct – no Node/uv on the computer
     python3 mcp.py lista                         the servers and their tools
     python3 mcp.py kör <server> <tool> '<json>'  one call (the Tillåt card for tools that change something)
     python3 mcp.py github <token>                adds GitHub's official server (read only)
+    python3 mcp.py webbläsare                    adds Microsoft's Playwright server (a browser in a container)
 
 The servers are in ~/.config/goblincakes/mcp.json in the same form as Claude Code's and Claude Desktop's
 (mcpServers: {name: {command, args, env} | {url, headers}}) so a server's README line can be copied in, plus our
 own fields: "av" (off), "verktyg" (the tools that are on – the local AI's memory can't take all of them), "om" (a
-line for the model, e.g. the user's account). Secrets live in mcp.env (0600) and are used as ${NAME} in env and
+line for the model, e.g. the user's account), "direkt" (tools that run without Tillåt although the server doesn't
+mark them read-only). Secrets live in mcp.env (0600) and are used as ${NAME} in env and
 headers. Tools the server marks read-only run at once, the rest become a Tillåt card. The tool lists are cached
 (listing them would start every container on every question); a server starts on its first call and stops after
 IDLE seconds or when a game starts. Only the standard library."""
@@ -57,6 +59,24 @@ GITHUB = {
     "verktyg": ["actions_list", "get_job_logs", "list_commits", "get_commit", "get_file_contents", "list_issues",
                 "issue_read", "get_latest_release"],
 }
+
+# Microsoft's official Playwright server (del 2, 28 Oct): a headless Chromium in its own container – no logins, no
+# files from the computer. A page Kakan opens stays open between calls until the server stops (IDLE).
+PLAYWRIGHT = {
+    "command": "podman",
+    "args": ["run", "-i", "--rm", "--init", "--pull=missing", "mcr.microsoft.com/playwright/mcp"],
+    "namn": "Webbläsaren",
+    "ord": ["playwright", "webbläsare", "klicka", "klickar"],
+    # Opening and looking at pages at once; clicking, typing and keys can send something (Tillåt)
+    "sidan": "browser_snapshot",  # the tool that shows the page, called after the ones that only link it
+    "direkt": ["browser_navigate", "browser_navigate_back", "browser_tabs"],
+    "verktyg": ["browser_navigate", "browser_navigate_back", "browser_snapshot", "browser_find", "browser_wait_for",
+                "browser_click", "browser_type", "browser_press_key", "browser_select_option", "browser_tabs"],
+    "om": "En egen webbläsare i en container, utan användarens inloggningar. Öppna sidan med browser_navigate; svaret "
+          "visar sidans innehåll med ref-nummer (ref=e12) som browser_click/browser_type tar i fältet target. Använd den när en "
+          "sida måste klickas på eller fyllas i – bara läsa en sida går fortare med las_sida.",
+}
+PRESETS = {"github": GITHUB, "webblasare": PLAYWRIGHT}
 
 
 class McpError(Exception):
@@ -382,6 +402,12 @@ def all_tools(name, refresh=False):
     return tools
 
 
+def _direct(tools, server):
+    """Tools in "direkt" count as read-only (run without Tillåt)."""
+    direct = set(server.get("direkt") or [])
+    return [{**t, "readonly": t["readonly"] or t["name"] in direct} for t in tools]
+
+
 def on_tools(name, server=None):
     """The tools that are on: "verktyg" in mcp.json, else all of them."""
     server = server or load_config().get(name) or {}
@@ -390,7 +416,7 @@ def on_tools(name, server=None):
     tools = cached.get("tools") if cached.get("sig") == signature(server) else None
     if tools is None:
         return []
-    return [t for t in tools if wanted is None or t["name"] in wanted]
+    return [t for t in _direct(tools, server) if wanted is None or t["name"] in wanted]
 
 
 RETRY = 600  # seconds before a server that failed to list its tools is tried again
@@ -418,7 +444,7 @@ def for_kakan():
         if tools:
             out.append({"server": name, "word": word_for(name), "title": server.get("namn") or name,
                         "about": str(server.get("om") or ""), "tools": tools,
-                        "words": [str(w).lower() for w in [name, server.get("namn") or name, *(server.get("ord") or (GITHUB["ord"] if name == "github" else []))]]})
+                        "words": [str(w).lower() for w in [name, server.get("namn") or name, *(server.get("ord") or (PRESETS.get(name) or {}).get("ord") or [])]]})
     return out
 
 
@@ -452,7 +478,86 @@ def result_text(result):
 
 
 def call(name, tool, args):
-    return result_text(client(name).request("tools/call", {"name": tool, "arguments": args or {}}))
+    text = result_text(client(name).request("tools/call", {"name": tool, "arguments": args or {}}))
+    page = (load_config().get(name) or {}).get("sidan")
+    if page and tool != page and SNAPSHOT_FILE.search(text):
+        # After navigate/click Playwright puts the page in a file inside the container – fetched here so the local
+        # model doesn't need one more step to see it
+        seen = result_text(client(name).request("tools/call", {"name": page, "arguments": {}}))
+        text = SNAPSHOT_FILE.sub("", text).rstrip() + "\n### Snapshot" + seen.split("### Snapshot", 1)[-1]
+        text = text[:ANSWER_MAX] + ("\n[… avkortat]" if len(text) > ANSWER_MAX else "")
+    return text
+
+
+SNAPSHOT_FILE = re.compile(r"### Snapshot\n- \[Snapshot\]\([^)]*\)\n?")
+
+
+RELAY_ENV = "GOBLIN_MCP_SOCKET"
+_RELAY = []
+
+
+def _relay():
+    """The Tillåt card runs `mcp.py kör …` as a program of its own – that started a second server, and for the
+    browser a new, empty one without the page Kakan had open. So the program Kakan runs in listens on a socket (in
+    $XDG_RUNTIME_DIR, only the user can open it) and the card's call is passed on to its servers; the commands it
+    runs inherit GOBLIN_MCP_SOCKET."""
+    if _RELAY:
+        return
+    import socket  # noqa: PLC0415
+    path = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / f"goblincakes-mcp-{os.getpid()}.sock"
+    try:
+        path.unlink(missing_ok=True)
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        old = os.umask(0o177)
+        try:
+            sock.bind(str(path))
+        finally:
+            os.umask(old)
+        sock.listen(4)
+    except OSError:
+        return
+    _RELAY.append(path)
+    os.environ[RELAY_ENV] = str(path)
+    atexit.register(lambda: path.unlink(missing_ok=True))
+
+    def serve(conn):
+        with conn:
+            try:
+                ask = json.loads(conn.makefile("rb").readline())
+                answer = {"text": call(ask["server"], ask["tool"], ask.get("args") or {})}
+            except McpError as e:
+                answer = {"error": str(e)}
+            except (ValueError, KeyError, TypeError) as e:
+                answer = {"error": f"felaktig fråga: {e}"}
+            try:
+                conn.sendall(json.dumps(answer, ensure_ascii=False).encode() + b"\n")
+            except OSError:
+                pass
+
+    def loop():
+        while True:
+            conn, _ = sock.accept()
+            threading.Thread(target=serve, args=(conn,), daemon=True).start()
+    threading.Thread(target=loop, daemon=True).start()
+
+
+def call_shared(name, tool, args):
+    """`mcp.py kör`: through the program Kakan runs in when there is one (same server, same open page), else here."""
+    path = os.environ.get(RELAY_ENV)
+    if not path:
+        return call(name, tool, args)
+    import socket  # noqa: PLC0415
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(CALL_TIMEOUT + START_TIMEOUT)
+            sock.connect(path)
+            sock.sendall(json.dumps({"server": name, "tool": tool, "args": args}, ensure_ascii=False).encode() + b"\n")
+            answer = json.loads(sock.makefile("rb").readline())
+    except (OSError, ValueError):
+        return call(name, tool, args)  # the window was closed: a server of our own
+    if answer.get("error"):
+        raise McpError(answer["error"])
+    return answer.get("text", "")
 
 
 def line_for(tool, args):
@@ -462,6 +567,7 @@ def line_for(tool, args):
 
 def run_line(name, line):
     """Kakan's call: read-only tools at once, the rest as a Tillåt card (python3 mcp.py kör …)."""
+    _relay()
     tool, _, rest = line.strip().partition(" ")
     try:
         args = json.loads(rest) if rest.strip() else {}
@@ -496,6 +602,15 @@ def add_github(token):
         servers["github"]["om"] = f"Användarens GitHub-konto: {me}; GOBLINCAKES-repot: Kaytho-git/goblincakes."
         save_config(servers)
     return tools
+
+
+def add_playwright():
+    """Microsoft's Playwright server (the image is ~1 GB, fetched on the first start)."""
+    servers = load_config()
+    servers["webblasare"] = {**PLAYWRIGHT, **{k: v for k, v in servers.get("webblasare", {}).items()
+                                              if k in ("verktyg", "av")}}
+    save_config(servers)
+    return all_tools("webblasare", refresh=True)
 
 
 def add_from_text(text):
@@ -574,7 +689,8 @@ def overview():
                     "where": server.get("url") or " ".join([server.get("command", ""), *map(str, server.get("args") or [])])[:120],
                     "when": got.get("when", "") if fresh else "",
                     "tools": [{"name": t["name"], "description": t["description"][:160], "readonly": t["readonly"],
-                               "on": wanted is None or t["name"] in wanted} for t in (got.get("tools") or [] if fresh else [])]})
+                               "on": wanted is None or t["name"] in wanted}
+                              for t in _direct(got.get("tools") or [] if fresh else [], server)]})
     return out
 
 
@@ -582,7 +698,7 @@ def main(argv):
     if argv[:1] in (["kör"], ["kor"]) and len(argv) >= 3:
         try:
             args = json.loads(argv[3]) if len(argv) > 3 else {}
-            print(call(argv[1], argv[2], args))
+            print(call_shared(argv[1], argv[2], args))
         except (McpError, ValueError) as e:
             print(f"Det gick inte: {e}", file=sys.stderr)
             return 1
@@ -590,6 +706,13 @@ def main(argv):
     if argv[:1] == ["github"] and len(argv) == 2:
         try:
             print(f"GitHub tillagd: {len(add_github(argv[1]))} verktyg.")
+        except McpError as e:
+            print(f"Det gick inte: {e}", file=sys.stderr)
+            return 1
+        return 0
+    if argv[:1] in (["webbläsare"], ["webblasare"]):
+        try:
+            print(f"Webbläsaren tillagd: {len(add_playwright())} verktyg.")
         except McpError as e:
             print(f"Det gick inte: {e}", file=sys.stderr)
             return 1
