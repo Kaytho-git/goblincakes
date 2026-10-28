@@ -118,8 +118,11 @@ def task(path, mode):
                 "ändring i datorn eller i GOBLINCAKES kod: säg vad, så tar användaren det i Claude Code.")
     return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem och skickade det till dig. Läs hennes rapport "
             f"{path}, ta reda på vad som är fel (Kakans MCP-verktyg finns) och lös det: är felet i GOBLINCAKES, rätta "
-            "koden i repot enligt CLAUDE.md; är det bara på den här datorn, rätta det där. Säg sedan kort vad det var "
-            "– och om det är något Kakan borde känna igen nästa gång.")
+            "koden i repot enligt CLAUDE.md; är det bara på den här datorn, rätta det där. Är det något Kakan borde "
+            "känna igen nästa gång och det gäller en del av GOBLINCAKES: skriv en kort rad (tecken på felet → vad "
+            "som är fel → vad hon ska göra) i den delens ##-avsnitt i hennes karta, "
+            "files/system/usr/share/goblincakes/ai/karta.md i repot – hon läser kartan (den nya raden efter nästa "
+            "image). Säg sedan kort vad det var och vilken rad du lade i kartan (eller att ingen behövdes).")
 
 
 def start_fix(path, repo=None):

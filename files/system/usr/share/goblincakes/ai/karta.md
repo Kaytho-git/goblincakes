@@ -222,6 +222,10 @@ Ord: discord, röstkanal, vencord, discord-tema
   `goblin update --only discord`. Röstkanalen i toppfältet: /usr/libexec/goblincakes-discord-voice.
 - GOBLINCAKES-utseendet (Vencord) är ett eget val i Config; tjänsten goblincakes-vencord lägger in det igen efter
   Discord-uppdateringar (/usr/libexec/goblincakes-vencord status/ensure).
+- Startar inte vid inloggning efter en Discord-uppdatering, och ~/.config/autostart/discord.desktop pekar på
+  …/app-<version>/Discord → Discord har skrivit sin egen sökväg; inloggningen (goblincakes-refresh.sh) byter den mot
+  startskriptet ~/.local/share/discord-app/discord. Byt inte versionsnumret för hand: kolla att startskriptet finns
+  och be användaren logga ut och in.
 Kontroll: `/usr/libexec/goblincakes-discord-voice`
 
 ## Ianseo

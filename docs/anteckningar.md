@@ -373,6 +373,7 @@ Användaren vill fortsätta med Claude Code och har inga planer på att byta. De
 - **Modell**: Sonnet (användaren 28 okt – Opus onödigt, Haiku tappar bort sig över flera delar). Kostar Claude-kvot → bara på användarens tryck, aldrig automatiskt. Inget GitHub-ärende (publikt repo, loggar/namn).
 - **MCP**: verktyget `rapporter` i `kakan_mcp.py` (tomt = listan + senaste, annars namn/del av namn).
 - Provat: rapport ur påhittat samtal, backend med attrapper (fix/ask, svaret i chatten och i filen), fönstret offscreen, `claude -p` med flaggorna (svarade "ok"). Ej provat: riktiga knappen i fönstret, terminalen som öppnas.
+- **Kartrad i stället för bara text (28 okt):** fix-uppdraget (`task(path, "fix")`) ber Claude skriva en rad (tecken → fel → vad Kakan ska göra) i rätt `##`-avsnitt i repots `ai/karta.md` när felet gäller GOBLINCAKES – användaren läste "borde känna igen" som att Kakan fick veta det. Ersätts/kompletteras av punkt 12 (kända lösningar). Första raden: Discord-autostart (f46bc14).
 
 ## Testa åt Claude (punkt 15, 28 okt)
 `ai/testlist.py` (formatet i docstringen) + `startTest`/`_test_*` i `goblin-ai`, `/testa` i Main.qml. Claude skriver listor i `~/.local/share/goblincakes/testlistor/`; `/testa` = nyaste (efter ändringstid), `/testa <del av namn>`, `/testa stopp` (resten = EJ TESTAD, listan ligger kvar).
