@@ -422,8 +422,9 @@ Window {
             property real shown: win.st.volume >= 0 ? win.st.volume : 0
             Text {
                 anchors { right: parent.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                text: "VOL"
-                color: "#5C6880"
+                // The percent while the mouse is on the slider (28 Oct, the user's wish)
+                text: volArea.containsMouse || volArea.pressed ? Math.round(volume.shown * 100) + " %" : "VOL"
+                color: volArea.containsMouse || volArea.pressed ? accent.text : "#5C6880"
                 font.family: "Chakra Petch"
                 font.weight: Font.DemiBold
                 font.pixelSize: 9
