@@ -258,7 +258,11 @@ Ord: discord, röstkanal, vencord, discord-tema
 - Discords egen Linux-version i ~/.local/share/discord-app (inte Flatpak), uppdateras med
   `goblin update --only discord`. Röstkanalen i toppfältet: /usr/libexec/goblincakes-discord-voice.
 - GOBLINCAKES-utseendet (Vencord) är ett eget val i Config; tjänsten goblincakes-vencord lägger in det igen efter
-  Discord-uppdateringar (/usr/libexec/goblincakes-vencord status/ensure).
+  Discord-uppdateringar (/usr/libexec/goblincakes-vencord status/ensure). Bevakaren goblincakes-vencord.path
+  vaknar när Discords uppdaterare skriver ~/.config/discord/installer.db (och tjänsten körs vid inloggning).
+- Krasch i Discord under skärmdelning/stream (trådarna Voice/VideoEncoderQue/DiscordNvReadTh, signal 5) = Discords
+  egen videokodning på Nvidia – inte Vencord. Prova: streama hela skärmen i stället för ett fönster, eller stäng av
+  H.264-hårdvaruacceleration i Discord (Röst och video → Avancerat).
 - Startar inte vid inloggning efter en Discord-uppdatering, och ~/.config/autostart/discord.desktop pekar på
   …/app-<version>/Discord → Discord har skrivit sin egen sökväg; inloggningen (goblincakes-refresh.sh) byter den mot
   startskriptet ~/.local/share/discord-app/discord. Byt inte versionsnumret för hand: kolla att startskriptet finns

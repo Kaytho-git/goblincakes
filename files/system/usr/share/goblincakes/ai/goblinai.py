@@ -373,6 +373,20 @@ LINK_RE = re.compile(r"https?://[^\s<>\"')\]]+")
 LINKS_MAX, LINK_CHARS = 5, 12000
 
 
+# The quick box (Meta+§) sends what was copied along: "<question>\n\nUrklipp:\n```…```" (goblin-ai quickSend)
+CLIP_MARK = "\n\nUrklipp:\n```"
+ABOUT_CLIP = re.compile(r"\b(det här|detta|den här|denna|länken|länk|sidan|artikeln|urklipp\w*|kopiera\w*|läs|"
+                        r"sammanfatta|förklara|översätt)\b", re.I)
+
+
+def asked_text(content):
+    """The question with the copied text only when it is about it – a wowhead link left in the clipboard was read and
+    listed as a source under an answer about GTA 6 (28 Oct)."""
+    content = content if isinstance(content, str) else ""
+    question, mark, clip = content.partition(CLIP_MARK)
+    return content if not mark or not question.strip() or ABOUT_CLIP.search(question) else question
+
+
 def links_in(text):
     """The links in a text (a comma or full stop after one is not part of it), at most LINKS_MAX."""
     return list(dict.fromkeys(u.rstrip(".,;:!?") for u in LINK_RE.findall(text)))[:LINKS_MAX]
@@ -1906,7 +1920,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                          f"[Goblin AI] Frågan gäller {to_mcp['mcp']} – använd verktyget {to_mcp['word']} (dess "
                          f"funktioner {to_mcp['word']}__…) först, inte sökning på nätet eller datorns loggar. "
                          f"{to_mcp.get('about') or ''}".strip()})
-    typed = links_in(str(asked.get("content", ""))[:600]) if "sida" in tools and not report else []  # the typed question, not a file below it
+    typed = links_in(asked_text(asked.get("content"))[:600]) if "sida" in tools and not report else []  # the typed question, not a file below it
     for url in typed[:2]:
         # A link in the question (punkt 6): the page is read first – a small model searched for it instead
         activity("ask", "läser webbsidan")
@@ -1930,7 +1944,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     chat_only = bool(NOT_FACT.search(str(asked.get("content", ""))[:600]))  # "hur mår du idag?" searched the web
     if "sök" in tools and not typed and (forced or (fresh_question(asked.get("content")) and not own and not chat_only)):
         # Goblin AI searches first, with the question itself (Tavily takes plain questions)
-        query = " ".join(str(asked.get("content", "")).split())[:300]
+        query = " ".join(asked_text(asked.get("content")).split())[:300]
         activity("ask", "söker på nätet")
         if status:
             status("Söker på nätet…")

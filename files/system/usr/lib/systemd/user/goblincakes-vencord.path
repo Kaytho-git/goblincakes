@@ -4,8 +4,10 @@ ConditionKernelCommandLine=!rd.live.image
 ConditionPathExists=%h/.config/goblincakes/vencord-on
 
 [Path]
-# A new host version is a new app-<version> folder here (Discord's own updater)
-PathChanged=%h/.config/discord
+# A new host version is a new app-<version> folder in ~/.config/discord (Discord's own updater), and the updater
+# writes its installer.db then. Not the whole folder: Discord writes there all the time (Cookies, DIPS-wal) – ~1
+# start a minute (28 Oct). installer.db was untouched for 6 min with Discord running; a symlink can't be watched.
+PathChanged=%h/.config/discord/installer.db
 Unit=goblincakes-vencord.service
 
 [Install]
