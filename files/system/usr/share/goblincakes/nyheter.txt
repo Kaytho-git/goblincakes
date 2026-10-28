@@ -1,3 +1,4 @@
+2026-10-28  Goblin AI: sidopanelen är dold så att chatten får mer plats – för musen mot vänsterkanten så kommer den fram, eller fäst den öppen med »
 2026-10-28  Steam startar tyst i systemfältet när du loggar in, i stället för att öppna sitt fönster
 2026-10-28  Säg "stäng Steam helt" eller "avsluta GoblinAmp" till Kakan så avslutas programmet på riktigt, även om det bara ligger i systemfältet (du trycker Tillåt först)
 2026-10-28  Säg "starta WoW" till Kakan så startar spelet – och hon kan köra goblin-kommandon åt dig (det som ändrar något får ett Tillåt-kort)

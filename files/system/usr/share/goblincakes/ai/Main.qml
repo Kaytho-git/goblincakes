@@ -17,6 +17,10 @@ Window {
     onClosing: Qt.quit()
 
     property string view: backend.hasKeys ? "chat" : "settings"
+    // The sidebar (28 Oct, the user's wish): hidden by default, the mouse at the left edge slides it out over
+    // the chat; the pin keeps it open (and gives it its own room again)
+    property bool sideOpen: backend.sidePinned
+    readonly property int sideSpace: backend.sidePinned ? sidebar.width : 0
     property string attachment: ""
     property var pendingSave: null // {index, seg} while the "save as" dialog is open
     property string pendingImage: "" // the picture being saved with "Spara som…"
@@ -1180,11 +1184,52 @@ Window {
 
         // ── Sidebar ──────────────────────────────────────────────
 
+        // Hidden: a thin strip at the left edge; the mouse there opens the sidebar
+        Rectangle {
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+            width: 3
+            z: 20
+            visible: !win.sideOpen
+            color: edgeHover.hovered ? accent.color : "#1E2A40"
+            HoverHandler { id: edgeHover; margin: 4; onHoveredChanged: if (hovered) win.sideOpen = true }
+        }
+
         Rectangle {
             id: sidebar
-            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+            anchors { top: parent.top; bottom: parent.bottom }
+            x: win.sideOpen ? 0 : -width - 1
+            z: 19
             width: 264
             color: "#0B1018"
+            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+
+            // Out of the sidebar (not pinned): it slides away after a moment
+            HoverHandler { id: sideHover }
+            Timer {
+                interval: 450
+                running: win.sideOpen && !backend.sidePinned && !sideHover.hovered
+                onTriggered: win.sideOpen = false
+            }
+
+            // The pin: keep it open (»|) or let it hide at the edge (|«)
+            Text {
+                anchors { right: parent.right; rightMargin: 14; top: parent.top; topMargin: 30 }
+                z: 2
+                text: backend.sidePinned ? "«" : "»"
+                color: pinArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 20
+                MouseArea {
+                    id: pinArea
+                    anchors { fill: parent; margins: -8 }
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        backend.setSidePinned(!backend.sidePinned);
+                        win.sideOpen = backend.sidePinned;
+                    }
+                }
+            }
 
             Rectangle {
                 anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
@@ -1435,7 +1480,7 @@ Window {
         Item {
             id: chatArea
             visible: win.view === "chat"
-            anchors { left: sidebar.right; right: parent.right; top: parent.top; bottom: parent.bottom }
+            anchors { left: parent.left; leftMargin: win.sideSpace; right: parent.right; top: parent.top; bottom: parent.bottom }
 
             // The teacher's chats (project "Lärläge"): back to the lesson
             FlatButton {
@@ -2823,7 +2868,7 @@ Window {
         Item {
             id: learnView
             visible: win.view === "learn"
-            anchors { left: sidebar.right; right: parent.right; top: parent.top; bottom: parent.bottom }
+            anchors { left: parent.left; leftMargin: win.sideSpace; right: parent.right; top: parent.top; bottom: parent.bottom }
 
             // ── Choosing: goal, tracks, own goal, level, the teacher ──
             Flickable {
@@ -3357,7 +3402,7 @@ Window {
             id: projectView
             FastWheel { flick: projectView }
             visible: win.view === "project" && !!win.project
-            anchors { left: sidebar.right; right: parent.right; top: parent.top; bottom: parent.bottom }
+            anchors { left: parent.left; leftMargin: win.sideSpace; right: parent.right; top: parent.top; bottom: parent.bottom }
             contentHeight: projCol.height + 80
             clip: true
             boundsBehavior: Flickable.StopAtBounds
@@ -3625,7 +3670,7 @@ Window {
             id: settings
             FastWheel { flick: settings }
             visible: win.view === "settings"
-            anchors { left: sidebar.right; right: parent.right; top: parent.top; bottom: parent.bottom }
+            anchors { left: parent.left; leftMargin: win.sideSpace; right: parent.right; top: parent.top; bottom: parent.bottom }
             contentHeight: settingsCol.height + 80
             clip: true
             boundsBehavior: Flickable.StopAtBounds

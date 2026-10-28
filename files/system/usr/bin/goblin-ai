@@ -40,6 +40,7 @@ PICTURES = DATA / "bilder"  # pictures in chats: screenshots and attached pictur
 AVATAR = DATA / "avatar.png"  # the AI's avatar (AI-tjänster → Avatar, or "Använd som avatar" on a drawn picture)
 AVATAR_THINKING = DATA / "avatar-thinking.png"  # shown instead of the status text while the AI works (24 Oct)
 AVATAR_SIDE = 256
+SIDE_PINNED = DATA / "sidopanel-fast"  # the sidebar kept open (28 Oct; default: hidden, the left edge opens it)
 HISTORY = DATA / "historik.json"  # what was typed in the input, for ↑/↓ and Ctrl+R (26 Oct)
 HISTORY_MAX = 500
 PICTURE_SIDE = 1600  # longest side sent to the AI – enough to read text, fewer tokens for local models
@@ -353,6 +354,7 @@ class Backend(QObject):
     lessonsChanged = Signal()
     _hearted = Signal(str, int, str)  # conversation id, message index, the saved lesson (JSON, "" = failed)
     commandLogChanged = Signal()
+    sidePinnedChanged = Signal()
     _undone = Signal(str)  # log entry id
 
     def __init__(self):
@@ -748,6 +750,22 @@ class Backend(QObject):
     def setAutorun(self, on):
         goblinai.cmd_level().set_autorun(on)
         self.commandLogChanged.emit()
+
+    @Property(bool, notify=sidePinnedChanged)
+    def sidePinned(self):
+        return SIDE_PINNED.exists()
+
+    @Slot(bool)
+    def setSidePinned(self, on):
+        try:
+            if on:
+                SIDE_PINNED.parent.mkdir(parents=True, exist_ok=True)
+                SIDE_PINNED.write_text("")
+            else:
+                SIDE_PINNED.unlink(missing_ok=True)
+        except OSError:
+            pass
+        self.sidePinnedChanged.emit()
 
     @Slot(str)
     def undoCommand(self, entry_id):
