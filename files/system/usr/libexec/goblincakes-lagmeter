@@ -6,6 +6,8 @@ Kakan can measure afterwards is backwards.
     goblincakes-lagmeter start          starts measuring (the user service goblincakes-lagmeter)
     goblincakes-lagmeter stop           stops it
     goblincakes-lagmeter mark [text]    "laggar nu" with the time (Meta+L) – starts measuring if it wasn't
+    goblincakes-lagmeter fönster på|av  the live graphs when measuring starts (on by default)
+    goblincakes-lagmeter window         the graphs' window itself (PySide6 + lagmeter/Main.qml)
     goblincakes-lagmeter status         measuring or not, and the newest session
     goblincakes-lagmeter rapport [N]    what differed around each mark (N = the N:th newest; `lista`) –
                                         Kakan's and Claude's tool `lagg`
@@ -610,6 +612,127 @@ def report(query=""):
     return "\n".join(out)
 
 
+# ── The window: live graphs while it measures (28 Oct, the user's wish) ──
+
+WINDOW_OFF = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes/lagmeter-window-off"
+QML = Path(os.environ.get("GOBLINCAKES_SHARE") or Path(__file__).resolve().parents[1] / "share/goblincakes") / \
+    "lagmeter/Main.qml"
+SHOWN = 125  # seconds of rows handed to the graphs
+
+
+def open_window():
+    """The graphs come up when measuring starts (not with `goblincakes-lagmeter fönster av`)."""
+    if WINDOW_OFF.exists() or not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")):
+        return
+    subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "window"], start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def window():
+    own_scale = "QT_SCALE_FACTOR" not in os.environ
+    if own_scale:
+        os.environ["QT_SCALE_FACTOR"] = "0.8"
+    from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot  # noqa: PLC0415
+    from PySide6.QtGui import QGuiApplication, QIcon  # noqa: PLC0415
+    from PySide6.QtNetwork import QLocalServer, QLocalSocket  # noqa: PLC0415
+    from PySide6.QtQml import QQmlApplicationEngine  # noqa: PLC0415
+    app = QGuiApplication(sys.argv[:1])
+    if own_scale:
+        del os.environ["QT_SCALE_FACTOR"]
+    app.setApplicationName("goblincakes-lagmeter")
+    app.setApplicationDisplayName("Lagmätning")
+    app.setDesktopFileName("goblincakes-lagmeter")
+    app.setWindowIcon(QIcon.fromTheme("goblincakes"))
+    name = f"goblincakes-lagmeter-{os.getuid()}"
+    probe = QLocalSocket()
+    probe.connectToServer(name)
+    if probe.waitForConnected(300):  # one window: the open one comes forward
+        probe.disconnectFromServer()
+        return 0
+    QLocalServer.removeServer(name)
+    server = QLocalServer()
+    server.listen(name)
+
+    class Meter(QObject):
+        dataChanged = Signal()
+        raiseWindow = Signal()
+
+        def __init__(self):
+            super().__init__()
+            self._data, self.path, self.offset = "{}", None, 0
+            self.rows, self.marks, self.info, self.stopped_at = [], [], {}, None
+            self.timer = QTimer(self, interval=1000, timeout=self.tick)
+            self.timer.start()
+            self.tick()
+
+        def tick(self):
+            files = sessions()
+            if files and files[-1] != self.path:
+                self.path, self.offset, self.rows, self.marks, self.info = files[-1], 0, [], [], {}
+            if self.path:
+                try:
+                    with self.path.open() as f:
+                        f.seek(self.offset)
+                        new = f.read()
+                except OSError:
+                    new = ""
+                end = new.rfind("\n") + 1
+                self.offset += len(new[:end].encode())
+                for line in new[:end].splitlines():
+                    try:
+                        d = json.loads(line)
+                    except ValueError:
+                        continue
+                    if "mark" in d:
+                        self.marks.append(d["t"])
+                    elif "cpu" in d or "ping" in d:
+                        self.rows.append(d)
+                    else:
+                        self.info.update(d)
+                self.rows = [r for r in self.rows if r["t"] >= time.time() - SHOWN]
+            running = active()
+            # Closes by itself a minute after the measuring stopped
+            self.stopped_at = None if running else (self.stopped_at or time.time())
+            if self.stopped_at and time.time() - self.stopped_at > 60:
+                app.quit()
+            start = self.info.get("start", "")
+            self._data = json.dumps({"rows": self.rows, "marks": self.marks, "running": running,
+                                     "game": self.info.get("game"), "server": self.info.get("server"),
+                                     "started": start[11:16] if start else ""})
+            self.dataChanged.emit()
+
+        @Property(str, notify=dataChanged)
+        def data(self):
+            return self._data
+
+        @Slot()
+        def mark(self):
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "mark"])
+
+        @Slot()
+        def stop(self):
+            subprocess.Popen(["systemctl", "--user", "stop", UNIT])
+
+    meter = Meter()
+    server.newConnection.connect(lambda: (server.nextPendingConnection(), meter.raiseWindow.emit()))
+    engine = QQmlApplicationEngine()
+    engine.rootContext().setContextProperty("meter", meter)
+    accent_dir = QML.parent.parent
+    sys.path.insert(0, str(accent_dir))
+    try:
+        import accent  # noqa: PLC0415
+        accent.install(engine)
+    except Exception:  # noqa: BLE001 – an old or broken file must not stop the window
+        engine.rootContext().setContextProperty("accent", {
+            "color": "#2F6FED", "hover": "#4A82F0", "on": "#E6ECF5", "text": "#2F6FED",
+            "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
+    engine.load(QUrl.fromLocalFile(str(QML)))
+    if not engine.rootObjects():
+        return 1
+    signal.signal(signal.SIGTERM, lambda *_: app.quit())
+    return app.exec()
+
+
 # ── Commands ──
 
 def active():
@@ -629,9 +752,20 @@ def main(argv):
     cmd = argv[1] if len(argv) > 1 else "status"
     if cmd == "run":
         run()
+    elif cmd == "window":
+        return window()
+    elif cmd in ("fönster", "window-setting"):
+        on = (argv[2:3] or ["på"])[0] in ("på", "on")
+        WINDOW_OFF.parent.mkdir(parents=True, exist_ok=True)
+        if on:
+            WINDOW_OFF.unlink(missing_ok=True)
+        else:
+            WINDOW_OFF.touch()
+        print("Graferna visas när mätningen startar." if on else "Graferna visas inte (fönster på = tillbaka).")
     elif cmd == "start":
         if not active():
             subprocess.run(["systemctl", "--user", "start", UNIT])
+        open_window()
         print("Mätningen går.")
     elif cmd == "stop":
         subprocess.run(["systemctl", "--user", "stop", UNIT])
@@ -643,6 +777,7 @@ def main(argv):
             f.write(f"{time.time():.1f} {text}\n")
         if started:
             subprocess.run(["systemctl", "--user", "start", UNIT])
+            open_window()
         notify("Laggar nu – noterat " + datetime.now().strftime("%H:%M:%S"),
                "Mätningen startade nu" if started else "Mätningen går")
     elif cmd == "status":

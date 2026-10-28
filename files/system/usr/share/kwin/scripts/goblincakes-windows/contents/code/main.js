@@ -341,6 +341,26 @@ function ampAdded(window) {
     });
 }
 
+// The lag meter's graphs (goblincakes-lagmeter window, 28 Oct): top right on a screen the game isn't
+// on, kept above there – never over the game. With one screen it is left where KWin puts it.
+const LAGMETER = "goblincakes-lagmeter";
+
+function lagmeterAdded(window) {
+    window.skipTaskbar = true;
+    window.skipSwitcher = true;  // Alt+Tab in the game stays the game's
+    window.skipPager = true;
+    const game = workspace.windowList().find(function (w) { return w !== window && isGame(w); });
+    const busy = game ? game.output : mainScreen(window);
+    const free = workspace.screenOrder.filter(function (s) { return s !== busy; });
+    if (!free.length)
+        return;
+    const area = workspace.clientArea(KWin.MaximizeArea, free[0], workspace.currentDesktop);
+    const geo = window.frameGeometry;
+    window.frameGeometry = { x: area.x + area.width - geo.width - 24, y: area.y + 24,
+                             width: geo.width, height: geo.height };
+    window.keepAbove = true;
+}
+
 // AppGrid (12 Oct, the user: with AppGrid open, the system tray and the dock couldn't be
 // clicked – the click went back to the game): AppGrid opens a see-through window over the
 // whole screen with the grid in the middle, above the panels, and a click on it closes
@@ -491,6 +511,10 @@ function added(window) {
         return;
     if (window.resourceClass === AMP) {
         ampAdded(window);
+        return;
+    }
+    if (window.resourceClass === LAGMETER) {
+        lagmeterAdded(window);
         return;
     }
     const tiled = window.normalWindow && !window.transient && !isGame(window) ? ruleTile(window) : null;

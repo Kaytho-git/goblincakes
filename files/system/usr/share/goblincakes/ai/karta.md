@@ -180,6 +180,10 @@ Ord: lagg, laggar, ping, laggknappen, meta+shift+l, lagmätning, hackar, nätet,
   RAM/swap, PSI, disk, nät, vilka program som tar processorn. Stannar 15 s efter spelet, efter 15 min utan spel
   eller 6 h. Filerna: ~/.local/state/goblincakes/lagmeter/*.jsonl (20 sparas).
 - Frametider/fps kommer från MangoHud (Spelmätning, se goblin frames) – bara om det var på när spelet startade.
+- Fönstret Lagmätning (`goblincakes-lagmeter window`, QML /usr/share/goblincakes/lagmeter/Main.qml) öppnas när
+  mätningen startar: levande grafer (ping, processor, grafikkort, disk) för de senaste 2 minuterna, röd linje vid
+  laggar nu. KWin-skriptet goblincakes-windows lägger det uppe till höger på skärmen där spelet inte är. Stängs en
+  minut efter mätningen. Av/på: `goblincakes-lagmeter fönster av|på` (flagga ~/.config/goblincakes/lagmeter-window-off).
 - Kolla: `goblincakes-lagmeter status`, `goblincakes-lagmeter rapport` (= verktyget lagg),
   `journalctl --user -u goblincakes-lagmeter`.
 Kontroll: `/usr/libexec/goblincakes-lagmeter status`

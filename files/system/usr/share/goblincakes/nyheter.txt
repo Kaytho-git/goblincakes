@@ -1,4 +1,4 @@
-2026-10-28  Laggar spelet? Tryck Meta+Shift+L. Datorn noterar tiden och mäter ping, processor, grafikkort och disk – fråga sedan Goblin AI varför det laggade.
+2026-10-28  Laggar spelet? Tryck Meta+Shift+L. Datorn noterar tiden och mäter ping, processor, grafikkort och disk – levande grafer visas på skärmen där spelet inte är. Fråga sedan Goblin AI varför det laggade.
 2026-10-28  Claude Code kan använda Kakans verktyg (dina WoW-siffror, Warcraft Logs, BugSack-fel, CS2, kartan över GOBLINCAKES): kör python3 /usr/share/goblincakes/ai/kakan_mcp.py claude en gång
 2026-10-28  Kakan kan använda en egen webbläsare: lägg till den under AI-tjänster → MCP-servrar, så kan hon öppna sidor, klicka och fylla i åt dig (klick och text kräver Tillåt)
 2026-10-28  Kakan kan använda färdiga verktyg utifrån (MCP-servrar): lägg till GitHub med en token, eller klistra in en server ur dess beskrivning under AI-tjänster → MCP-servrar – den går att använda direkt
