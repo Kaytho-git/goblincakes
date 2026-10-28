@@ -91,6 +91,10 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
   Kalendern: händelser skrivs i Merkuros fil (~/.config/akonadi_ical_resource_0rc → Path), Akonadi läser in dem själv;
   påminnelserna visas av kalendarac (pgrep kalendarac).
   Kolla spelarna: busctl --user list | grep mpris. Volymen: wpctl get-volume @DEFAULT_AUDIO_SINK@.
+- Läsa hela webbsidor (verktyget sida, read_page i goblinai.py): Tavilys extract med nyckel, annars sidans HTML
+  (sidor som byggs med JavaScript blir då nästan tomma). En länk i frågan läses först; "läs patch notes …" läser
+  sökningens bästa träff. Adresser i datorn/hemnätverket läses inte. Svaret får Källor (länkar) och Hämtat från
+  (filer, loggar, egna siffror).
 
 ## Lokal AI (Ollama)
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne

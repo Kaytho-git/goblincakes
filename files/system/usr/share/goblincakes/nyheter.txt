@@ -1,3 +1,4 @@
+2026-10-28  Kakan läser hela webbsidor – klistra in en länk eller be henne läsa patch notes eller en guide – och skriver alltid var hon hämtat uppgifterna ifrån, med länkar
 2026-10-28  Kakan sköter kalendern – "lägg in WoW Forever 4 nov 23:59, påminn mig 3 timmar innan", "påminn mig ikväll 19:45 att ringa mamma" eller "vad har jag i kalendern?"
 2026-10-28  Goblin AI: dölj sidopanelen med « så får chatten mer plats – för musen mot vänsterkanten så kommer den fram, och » fäster den igen
 2026-10-28  Steam startar tyst i systemfältet när du loggar in, i stället för att öppna sitt fönster
