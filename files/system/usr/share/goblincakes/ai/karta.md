@@ -149,7 +149,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   (stegen "Läser i delar: del n av m"). Högst 10 delar: början, slutet och de med frågans ord. ~10 s per del.
   Loggverktyget kortar annars loggen (början, slutet, felen); "hela"/"allt"/"mellan 22 och 23" i frågan, eller
   ```leta logg [program] hela [från HH:MM] [till HH:MM], ger varenda rad. "before-quit" före ett fel i Discord =
-  Discord stängdes (t.ex. inför en uppdatering) – ingen krasch.
+  Discord stängdes – ingen krasch, även om ljud-/delprocesser då "kraschar" och KDE visar en krasch. Kolla vad som
+  stängde den: "System is rebooting"/"The system will reboot now" (datorn startades om, t.ex. efter en uppdatering)
+  eller en ny app-<version>-mapp (Discords egen uppdatering). journalctl --list-boots visar omstarterna.
   Långa samtal (with_summary): de äldsta meddelandena sammanfattas en gång ("Tidigare i samtalet, sammanfattat: …"),
   bara när lokala AI:n svarar; sammanfattningen återanvänds tills fönstret stängs.
 - Ärlighet (goblinai.py): faktafrågor utan något hämtat får "Ur minnet – inget hämtat eller kontrollerat" (FROM_MEMORY);
