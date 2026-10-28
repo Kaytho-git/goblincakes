@@ -798,7 +798,13 @@ fönster lista                             – vilka fönster som är öppna och
 spel <namn|lista>                         – starta ett spel (wow, cs2 …) om 8 sekunder, eller visa spelen
 goblin <kommando>                         – ett goblin-kommando (läsande körs direkt, andra får ett Tillåt-kort)
 kalender visa [dagar]                     – vad som står i kalendern (Merkuro) de närmaste dagarna
-kalender lägg <när> ; <titel> ; <påminnelse> – en händelse, t.ex. `kalender lägg 4 nov 23:59 ; WoW Forever ; 3 h`"""
+kalender lägg <när> ; <titel> ; <påminnelse> – en händelse, t.ex. `kalender lägg 4 nov 23:59 ; WoW Forever ; 3 h`
+påminn <när> ; <text>                     – en påminnelse (notis med ljud), t.ex. `påminn 19:45 ; ta ut tvätten`, `påminn om 20 min ; pizzan`
+bevaka <vad> [; text]                     – säg till när: `steam` (nedladdning/shaders klar), `uppdatering` (klar),
+                                            `nedladdning` (i webbläsaren klar), `stängt <program>`, `startat <program>`,
+                                            `sida <adress> [ord]` (sidan ändras / ordet dyker upp)
+fråga <när> ; <frågan>                    – du tar själv reda på något vid den tiden, svaret kommer som notis
+påminnelser [bort <nr|alla>]              – vilka påminnelser/bevakningar som väntar, eller ta bort en"""
 
 DESK_PROMPT = """
 
@@ -1037,12 +1043,37 @@ DESK_FNS = [
             {"dagar": ("Hur många dagar framåt (tomt = 14)", False)},
             lambda a: f"kalender visa {look_arg(a, 'dagar')}".strip()),
     look_fn("kalender_lagg", "Lägger in en händelse i användarens kalender (Merkuro) med påminnelse, direkt: \"WoW "
-            "Forever 4 nov 23:59, påminnelse 3 h innan\". Även \"påminn mig 19:45 att …\" (då påminnelse `vid start`).",
+            "Forever 4 nov 23:59, påminnelse 3 h innan\". Bara när användaren säger kalendern eller en händelse/bokning – "
+            "\"påminn mig 19:45 att …\" = verktyget paminn.",
             {"titel": ("Vad det är, t.ex. `WoW Forever`", True),
              "nar": ("Datum och tid: `2026-11-04 23:59`, `4 nov 23:59`, `imorgon 19:00`, `fredag 20` (bara datum = hela "
                      "dagen)", True),
              "paminnelse": ("Hur långt innan: `3 h`, `30 min`, `1 dag`, `vid start` (tomt = ingen påminnelse)", False)},
             lambda a: f"kalender lägg {look_arg(a, 'nar')} ; {look_arg(a, 'titel')} ; {look_arg(a, 'paminnelse')}"),
+    look_fn("paminn", "Påminner användaren vid en tid, direkt: en notis med ljud som syns även mitt i ett spel "
+            "(\"påminn mig 19:45 att ta ut tvätten\", \"säg till om 20 min att pizzan är klar\", \"väck mig imorgon 8\").",
+            {"nar": ("När: `19:45`, `om 20 min`, `om en timme`, `imorgon 8:00`, `fredag 18` (bara klockslag = idag, eller "
+                     "imorgon om det har passerat)", True),
+             "text": ("Vad påminnelsen ska säga, t.ex. `Ta ut tvätten`", True)},
+            lambda a: f"påminn {look_arg(a, 'nar')} ; {look_arg(a, 'text')}"),
+    look_fn("bevaka", "Säger till när något händer på datorn (\"säg till när …\"), direkt – kollas var 15:e sekund, "
+            "under ett spel väntar notisen tills spelet är stängt: Steam är klar med nedladdningen/shaders, "
+            "uppdateringen är klar, nedladdningen i webbläsaren är klar, ett program/spel stängs eller startar, en "
+            "webbsida ändras eller ett ord dyker upp på den (tittar var tionde minut).",
+            {"vad": ("`steam`, `uppdatering`, `nedladdning`, `stängt <program>`, `startat <program>` (program = `wow`, "
+                     "`cs2`, `spelet` = vilket spel som helst, `discord` …) eller `sida <adress> [ord]`", True),
+             "text": ("Något att säga i notisen, t.ex. `dags att starta WoW` (valfritt)", False)},
+            lambda a: f"bevaka {look_arg(a, 'vad')}" + (f" ; {look_arg(a, 'text')}" if look_arg(a, "text") else "")),
+    look_fn("fraga_senare", "Du tar själv reda på något vid en senare tid och svarar med en notis (svaret sparas som "
+            "ett samtal): \"kolla vädret kl 7 imorgon och säg till\", \"ikväll 18: hur gick Ducks match?\". Väntar om ett "
+            "spel kör. Inte för vanliga påminnelser (då paminn).",
+            {"nar": ("När: `imorgon 7`, `18:00`, `om 2 h`", True),
+             "fraga": ("Frågan du ska svara på då, fullständig, t.ex. `Hur blir vädret i Malmö idag?`", True)},
+            lambda a: f"fråga {look_arg(a, 'nar')} ; {look_arg(a, 'fraga')}"),
+    look_fn("paminnelser", "Visar vilka påminnelser, bevakningar och senare frågor som väntar – eller tar bort en "
+            "(numret i listan, ett ord ur den, eller `alla`).",
+            {"bort": ("Vad som ska tas bort: `2`, `tvätten`, `alla` (tomt = bara visa)", False)},
+            lambda a: "påminnelser" + (f" bort {look_arg(a, 'bort')}" if look_arg(a, "bort") else "")),
 ]
 
 
@@ -1105,7 +1136,9 @@ def tools_for(keys, project, messages):
                               "Gör det användaren ber om på skrivbordet, direkt (loggas och kan ångras): pausa/spela "
                               "musiken, nästa/förra låten, vad som spelas, volymen, öppna program/webbsidor/filer, "
                               "spela en viss låt/album/artist, visa en notis, lägga text i urklippet, flytta/ändra fönster, "
-                              "starta spel, köra goblin-kommandon, kalendern (visa, lägga in med påminnelse).",
+                              "starta spel, köra goblin-kommandon, kalendern (visa, lägga in med påminnelse), påminnelser vid en tid, "
+                              "säga till när något händer (Steam/uppdatering/nedladdning klar, program stängs, sida ändras), "
+                              "ta reda på något senare och svara med en notis.",
                               "En av raderna:\n" + DESK_LINES, DESK_FNS)
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
@@ -1163,7 +1196,8 @@ TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel
               "leta": "leta", "hitta": "leta", "look": "leta",
               "goblincakes": "goblincakes", "karta": "goblincakes", "kartan": "goblincakes",
               "sida": "sida", "webbsida": "sida", "page": "sida", "las_sida": "sida",
-              "skrivbord": "skrivbord", "desktop": "skrivbord", "musik": "skrivbord", "volym": "skrivbord"}
+              "skrivbord": "skrivbord", "desktop": "skrivbord", "musik": "skrivbord", "volym": "skrivbord",
+              "påminn": "skrivbord", "bevaka": "skrivbord"}
 
 # With real tool calls the system prompt only gets this – the tools describe themselves
 TOOLS_PROMPT = """
@@ -1447,7 +1481,7 @@ WRITE_SOMETHING = re.compile(r"^\W*(?:skriv|gör|hitta på|formulera|författa|d
 
 DESK_ASK = re.compile(r"\b(?:pausa|volym\w*|ljudet|musiken|nästa låt|förra låt\w*|vad spelas|vilken låt (?:är det|spelas)"
                       r"|spela|öppna|starta|urklipp\w*|notis\w*|fönstr\w*|fönster|flytta|maximera|minimera|fullskärm\w*|helskärm\w*"
-                      r"|goblin (?:update|nyheter|screen|tile|play|frames|färg|help|fast)|kalender\w*|påminn\w*)\b", re.I)
+                      r"|goblin (?:update|nyheter|screen|tile|play|frames|färg|help|fast)|kalender\w*|påminn\w*|bevaka\w*|säg till (?:när|om|kl)|väck mig)\b", re.I)
 
 
 # "Jag har ändrat volymen …", "Pausade Spotify" – an answer saying something was done on the desktop
@@ -1459,6 +1493,7 @@ DONE_CLAIM = re.compile(r"\b(?:ändra[dt]e?|sänk[a-z]*|höj[a-z]*|öka[dt]e?|mi
                         r"|\b(?:lade|lagt|kopierade|kopierat)\b.{0,80}\burklipp|\b(?:visade|skickade|skickat)\b.{0,20}\bnotis"
                         r"|\b(?:flyttade|flyttat|maximerade|maximerat|minimerade|minimerat)\b|\bnu i (?:fullskärm|helskärm)"
                         r"|\b(?:lade in|lagt in|bokade|bokat)\b.{0,80}\b(?:kalender\w*|påminnelse)"
+                        r"|\b(?:påminner dig|säger till (?:när|om)|tittar på \S+ var)\b"
                         r"|\b(?:satte|satt|gjorde|gjort|ställde|ställt|tog|tagit)\b.{0,60}\b(?:fönstr\w*|skärm\w*|läge"
                         r"|fullskärm|helskärm|vanlig\w*|normal\w*|goblin ai|goblinamp|discord)\b",
                         re.I | re.M)
@@ -1550,10 +1585,10 @@ def local_sources():
             else:
                 name = sys_tools().describe(query)
                 name = name[:1].lower() + name[1:]
-        elif tool == "skrivbord" and re.match(r"(?:kalender visa|musik vad|urklipp vad|volym\s*$|fönster lista|spel lista|goblin )",
+        elif tool == "skrivbord" and re.match(r"(?:kalender visa|musik vad|urklipp vad|volym\s*$|fönster lista|spel lista|goblin |påminnelser\s*$)",
                                               query.strip()):
             name = {"kalender": "kalendern", "musik": "spelaren (MPRIS)", "urklipp": "urklippet", "volym": "volymen",
-                    "fönster": "öppna fönster", "spel": "spelen", "goblin": "`goblin " + query.split(" ", 1)[-1] + "`"
+                    "fönster": "öppna fönster", "spel": "spelen", "påminnelser": "påminnelserna", "goblin": "`goblin " + query.split(" ", 1)[-1] + "`"
                     }[query.split()[0]]
         else:
             name = SOURCE_NAMES.get(tool, "")

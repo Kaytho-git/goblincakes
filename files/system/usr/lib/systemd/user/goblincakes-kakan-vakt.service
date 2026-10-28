@@ -1,0 +1,11 @@
+[Unit]
+Description=GOBLINCAKES Kakans påminnelser och bevakningar (Goblin AI: "påminn mig 19:45", "säg till när …")
+ConditionKernelCommandLine=!rd.live.image
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/share/goblincakes/ai/reminders.py run
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

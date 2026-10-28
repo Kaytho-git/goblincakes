@@ -375,7 +375,7 @@ SECRET_LIKE = re.compile(r"^(?!https?://|www\.|~?/)(?=.*[A-Za-z])(?=.*[\d\W_])\S
 
 
 def notify(text, conversation=""):
-    """A notice now, from Goblin AI (at a time = point 7, reminders)."""
+    """A notice now, from Goblin AI (at a time = reminders.py)."""
     text = " ".join(text.split())[:300]
     if not text:
         return "Säg vad notisen ska säga."
@@ -981,6 +981,12 @@ def act(line, conversation=""):
         return open_thing(rest, conversation)
     if word in ("kalender", "kalendern", "calendar"):
         return calendar(rest, conversation)
+    if word in ("påminn", "paminn", "påminnelse", "remind", "bevaka", "watch", "fråga", "fraga",
+                "påminnelser", "paminnelser", "bevakningar"):
+        import reminders  # noqa: PLC0415 – point 7 (28 Oct)
+        word = {"paminn": "påminn", "påminnelse": "påminn", "remind": "påminn", "watch": "bevaka",
+                "fraga": "fråga"}.get(word, word)
+        return reminders.act(word, rest, conversation)
     if word in ("spel", "game"):
         return start_game(rest, conversation)
     if word == "goblin":
@@ -1000,7 +1006,9 @@ def act(line, conversation=""):
     return ("Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud [i goblinamp|spotify], "
             "öppna <program|webbadress|sökväg>, spela låt|album|artist <artist> - <titel>, notis <text>, "
             "urklipp <text|vad>, fönster <program> [skärm 2] [fram|maximera|fullskärm|minimera|normal], "
-            "spel <namn|lista>, goblin <kommando>, kalender visa [dagar], kalender lägg <när> ; <titel> ; <påminnelse>.")
+            "spel <namn|lista>, goblin <kommando>, kalender visa [dagar], kalender lägg <när> ; <titel> ; <påminnelse>, "
+            "påminn <när> ; <text>, bevaka <steam|uppdatering|nedladdning|stängt X|startat X|sida X> [; text], "
+            "fråga <när> ; <frågan>, påminnelser [bort <nr>].")
 
 
 if __name__ == "__main__":  # trying it out: python3 desktop.py musik vad

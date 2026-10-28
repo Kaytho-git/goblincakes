@@ -163,6 +163,7 @@ modules:
         - goblincakes-vencord.service     # the same at login
         - goblincakes-gameguard.service   # Spelläge: GameMode, updates wait, Akonadi/Baloo/WoWUp rest during games (switch in Config)
         - goblincakes-archon-tray.service # Archon's tray icon in purple (the black one can't be seen) – only shows while Archon runs
+        - goblincakes-kakan-vakt.service  # Kakan's reminders and watches ("påminn mig 19:45", "säg till när …") – light: one small file every 15 s
 
   # GOBLINCAKES name in About this System and the boot menu
   - type: os-release
