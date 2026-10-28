@@ -591,6 +591,80 @@ def window(words, conversation="", allow_close=False):
     return f"{after['caption']}: nu {_looks(st)} (var {_looks(before['state'])}).{note}"
 
 
+# ── Games and the goblin commands ─────────────────────────────────────────────
+
+GAMES = "/usr/libexec/goblincakes-games"
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def _squash(text):
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def _games_module():
+    """goblin play's own code (/usr/libexec/goblincakes-games): Steam's games and the user's words."""
+    import importlib.machinery  # noqa: PLC0415
+    import importlib.util  # noqa: PLC0415
+    loader = importlib.machinery.SourceFileLoader("goblincakes_games", GAMES)
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(module)
+    return module
+
+
+def start_game(name, conversation=""):
+    """A game by the user's own word (wow, cs2) or its name, through goblin play, after GAME_DELAY seconds."""
+    try:
+        gm = _games_module()
+        all_games = gm.games()
+    except Exception as e:  # noqa: BLE001 – no Steam, or goblin play missing
+        return f"Kommer inte åt Steams spel: {e}"
+    if _squash(name) in ("", "lista", "alla", "vilka"):
+        own = gm.read_aliases()
+        return "Spelen (ord du kan säga):\n" + "\n".join(
+            f"- {n}: " + ", ".join(gm.words(n) + [w for w, g in own.items() if g == gid]) for n, gid in all_games)
+    name = {"worldofwarcraft": "wow", "warcraft": "wow", "counterstrike": "cs2", "cs": "cs2"}.get(_squash(name), name)
+    hits = gm.find(name, all_games) or [(n, g) for n, g in all_games if _squash(name) in _squash(n)]
+    if not hits:
+        app, _ = find_app(name)  # Battle.net, Lutris and other games in the menu
+        if app and is_game(app):
+            return open_thing(name, conversation)
+        return f"Hittar inget spel som heter {name}. Spelen: " + ", ".join(n for n, _ in all_games) + "."
+    if len(hits) > 1:
+        return f"Flera spel passar {name}: " + ", ".join(n for n, _ in hits) + ". Fråga vilket."
+    game, gameid = hits[0]
+    return _done(_detached(["xdg-open", f"steam://rungameid/{gameid}"], GAME_DELAY), [],
+                 f"{game} startar om {GAME_DELAY} sekunder. Medan ett spel kör vilar den lokala AI:n.",
+                 conversation, "Avsluta spelet själv.")
+
+
+def goblin(args, conversation=""):
+    """A goblin command: the ones that only read run at once (nyheter, screen, tile layouts, frames …), window
+    layouts too (`tile open <layout>` – moving windows needs no Tillåt); others become a Tillåt card."""
+    args = args.strip()
+    if args.startswith("goblin "):
+        args = args[7:]
+    words = args.split()
+    if not words:
+        return "Säg vilket goblin-kommando, t.ex. `goblin nyheter` (alla: `goblin help`)."
+    if words[0] in ("play", "spel", "games") and len(words) == 2:
+        return start_game(words[1], conversation)
+    code = "goblin " + args
+    layout = words[:2] == ["tile", "open"]
+    if cmdlevel.level(code)[0] != "read" and not layout:
+        return ("Det här ändrar något och kräver Tillåt. Svara med kodblocket så får användaren ett Tillåt-kort:\n"
+                f"```bash\n{code}\n```")
+    try:
+        proc = subprocess.run(["goblin", *words], capture_output=True, text=True, timeout=60,
+                              env={**__import__("os").environ, "NO_COLOR": "1", "TERM": "dumb"})
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"Det gick inte: {e}"
+    out = ANSI.sub("", proc.stdout + proc.stderr).strip()
+    if layout:
+        cmdlevel.log(code, "change", "kakan", proc.returncode, out, {"undo": [], "hint": "Flytta fönstren själv."},
+                     conversation)
+    return (out[-6000:] or "(skrev inget)") + ("" if proc.returncode == 0 else f"\n(slutade med fel {proc.returncode})")
+
+
 def act(line, conversation=""):
     """The tool's line: `musik <paus|spela|nästa|föregående|vad>`, `volym <tal|+10|-10|tyst|ljud> [i <program>]`,
     `öppna <program|webbadress|sökväg>`."""
@@ -602,6 +676,10 @@ def act(line, conversation=""):
         return volume(rest, conversation)
     if word in ("öppna", "oppna", "open", "starta", "start"):
         return open_thing(rest, conversation)
+    if word in ("spel", "game"):
+        return start_game(rest, conversation)
+    if word == "goblin":
+        return goblin(rest, conversation)
     if word in ("fönster", "fonster", "window"):
         return window(rest, conversation)
     if word in ("notis", "notify"):
@@ -616,7 +694,8 @@ def act(line, conversation=""):
         return play("", rest, conversation)
     return ("Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud [i goblinamp|spotify], "
             "öppna <program|webbadress|sökväg>, spela låt|album|artist <artist> - <titel>, notis <text>, "
-            "urklipp <text|vad>, fönster <program> [skärm 2] [fram|maximera|fullskärm|minimera|normal].")
+            "urklipp <text|vad>, fönster <program> [skärm 2] [fram|maximera|fullskärm|minimera|normal], "
+            "spel <namn|lista>, goblin <kommando>.")
 
 
 if __name__ == "__main__":  # trying it out: python3 desktop.py musik vad

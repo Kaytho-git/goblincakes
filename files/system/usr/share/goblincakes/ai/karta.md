@@ -87,6 +87,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
   Notis (notify-send) och urklipp (wl-copy/wl-paste; gamla urklippet sparas för ångra, lösenord visas inte).
   Fönster: KWin-skriptet ai/windows.js via org.kde.kwin.Scripting (flytta, fram, maximera, fullskärm, minimera;
   "andra skärmen" = den programmet inte ligger på; stänga = Tillåt-kort).
+  Spel (goblin plays ord, startar efter 8 s) och goblin-kommandon (läsande direkt, andra = Tillåt-kort).
   Kolla spelarna: busctl --user list | grep mpris. Volymen: wpctl get-volume @DEFAULT_AUDIO_SINK@.
 
 ## Lokal AI (Ollama)

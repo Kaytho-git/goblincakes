@@ -724,7 +724,9 @@ urklipp <text>                            – lägg texten i urklippet (det gaml
 urklipp vad                               – vad som ligger i urklippet
 fönster <program> [skärm <1|2|andra|vänster|höger>] [fram|maximera|fullskärm|minimera|normal] – flytta/ändra ett
                                             fönster, flera saker på en gång (fönster goblin ai skärm andra fullskärm)
-fönster lista                             – vilka fönster som är öppna och var"""
+fönster lista                             – vilka fönster som är öppna och var
+spel <namn|lista>                         – starta ett spel (wow, cs2 …) om 8 sekunder, eller visa spelen
+goblin <kommando>                         – ett goblin-kommando (läsande körs direkt, andra får ett Tillåt-kort)"""
 
 DESK_PROMPT = """
 
@@ -948,6 +950,16 @@ DESK_FNS = [
             lambda a: "fönster " + (" ".join(x for x in (look_arg(a, "program"),
                                                           f"skärm {look_arg(a, 'skarm')}" if look_arg(a, "skarm") else "",
                                                           look_arg(a, "gora")) if x) or "lista")),
+    look_fn("starta_spel", "Startar ett spel åt användaren, direkt: WoW, CS2 … (användarens egna ord från goblin play "
+            "fungerar). Spelet startar efter 8 sekunder; medan det kör vilar den lokala AI:n – säg det. Tomt = vilka "
+            "spel som finns.",
+            {"namn": ("Spelet: `wow`, `cs2`, eller namnet (tomt = lista spelen)", False)},
+            lambda a: f"spel {look_arg(a, 'namn') or 'lista'}"),
+    look_fn("goblin", "Kör ett goblin-kommando (GOBLINCAKES egna, se `goblin help`): de som bara visar något körs "
+            "direkt (nyheter, screen, tile layouts, frames …) och `tile open <layout>` (fönsterlayouter); de som "
+            "ändrar något (update, färg, dock reset …) blir ett Tillåt-kort åt användaren.",
+            {"kommando": ("Kommandot utan `goblin`, t.ex. `nyheter 5`, `screen`, `tile open raid`, `update`", True)},
+            lambda a: f"goblin {look_arg(a, 'kommando')}"),
 ]
 
 
@@ -996,7 +1008,8 @@ def tools_for(keys, project, messages):
     tools["skrivbord"] = tool("Styr skrivbordet", DESK_PROMPT, DESK_GUIDE, lambda q: (desktop().act(q), []), "skrivbord",
                               "Gör det användaren ber om på skrivbordet, direkt (loggas och kan ångras): pausa/spela "
                               "musiken, nästa/förra låten, vad som spelas, volymen, öppna program/webbsidor/filer, "
-                              "spela en viss låt/album/artist, visa en notis, lägga text i urklippet, flytta/ändra fönster.",
+                              "spela en viss låt/album/artist, visa en notis, lägga text i urklippet, flytta/ändra fönster, "
+                              "starta spel, köra goblin-kommandon.",
                               "En av raderna:\n" + DESK_LINES, DESK_FNS)
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
@@ -1166,6 +1179,12 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     finally:
         QUICK.on = False
         activity_done()
+    # A tool that needs Tillåt (closing a window, goblin update) answers with a ```bash card – gemma4 said "Jag
+    # startar uppdateringen nu" without it (28 Oct), so no card came. The card is added here when it is missing.
+    for card in dict.fromkeys(c for _, _, text in getattr(LAST, "done", [])
+                              for c in re.findall(r"```bash\n.*?\n```", str(text), re.S)):
+        if card.split("\n")[1] not in answer:
+            answer = answer.rstrip() + "\n\nDet här körs först när du trycker Tillåt:\n" + card
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
     # gemma4 wrote "~/ .config/goblincakes/recorder.json" (25 Oct) – a path with a space isn't a link
     answer = re.sub(r"(?<![\w/])~/[ \t]+(?=\.?[\w-]+/)", "~/", answer)
@@ -1328,7 +1347,8 @@ WRITE_SOMETHING = re.compile(r"^\W*(?:skriv|gör|hitta på|formulera|författa|d
 
 
 DESK_ASK = re.compile(r"\b(?:pausa|volym\w*|ljudet|musiken|nästa låt|förra låt\w*|vad spelas|vilken låt (?:är det|spelas)"
-                      r"|spela|öppna|starta|urklipp\w*|notis\w*|fönstr\w*|fönster|flytta|maximera|minimera|fullskärm\w*|helskärm\w*)\b", re.I)
+                      r"|spela|öppna|starta|urklipp\w*|notis\w*|fönstr\w*|fönster|flytta|maximera|minimera|fullskärm\w*|helskärm\w*"
+                      r"|goblin (?:update|nyheter|screen|tile|play|frames|färg|help|fast))\b", re.I)
 
 
 # "Jag har ändrat volymen …", "Pausade Spotify" – an answer saying something was done on the desktop
