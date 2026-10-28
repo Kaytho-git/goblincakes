@@ -35,11 +35,14 @@ DATA = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "
 STORE = DATA / "vakt.json"
 LOOK = 15  # seconds between looks
 PAGE_LOOK = 600  # a web page is fetched every 10 min
+BUILD_LOOK = 120  # a build on GitHub (60 questions an hour without a key, 3 per look)
+BUILD_GIVE_UP = 3 * 3600  # no build for the commit by then: said so
 SNOOZE = 10  # minutes for "Om 10 min"
 STEAM = "/usr/libexec/goblincakes-steam-activity"
 PARTIAL = re.compile(r"\.(?:part|crdownload|download|partial|opdownload)$", re.I)  # Firefox, Chrome, Safari-likes, Opera
 WATCH_NAMES = {"steam": "Steam är klar", "uppdatering": "uppdateringen är klar", "nedladdning": "nedladdningen är klar",
-               "stängt": "{arg} är stängt", "startat": "{arg} har startat", "sida": "sidan {arg} ändras"}
+               "stängt": "{arg} är stängt", "startat": "{arg} har startat", "sida": "sidan {arg} ändras",
+               "bygge": "bygget på GitHub är klart ({arg})"}
 
 
 # ── The store (the service and Goblin AI both write: one at a time) ─────────────
@@ -264,7 +267,8 @@ def watch(rest, conversation=""):
     kind = {"steam": "steam", "uppdatering": "uppdatering", "uppdateringen": "uppdatering", "update": "uppdatering",
             "nedladdning": "nedladdning", "nedladdningen": "nedladdning", "download": "nedladdning",
             "stängt": "stängt", "stängd": "stängt", "stängs": "stängt", "slut": "stängt", "startat": "startat",
-            "startar": "startat", "igång": "startat", "sida": "sida", "sidan": "sida", "webbsida": "sida"}.get(word.lower())
+            "startar": "startat", "igång": "startat", "sida": "sida", "sidan": "sida", "webbsida": "sida",
+            "bygge": "bygge", "bygget": "bygge", "build": "bygge", "github": "bygge"}.get(word.lower())
     item = _new(kind or "", note=note)
     if kind == "steam":
         busy = steam_busy()
@@ -305,9 +309,22 @@ def watch(rest, conversation=""):
         item.update(arg=url, word=look_for.strip(), hash=digest, looked=time.time())
         said = (f"Tittar på {url} var tionde minut och säger till när \"{look_for.strip()}\" dyker upp."
                 if look_for.strip() else f"Tittar på {url} var tionde minut och säger till när sidan ändras.")
+    elif kind == "bygge":
+        # Point 16 (28 Oct, the user: "du skickar en uppgift till Kakan att hon håller koll på bygget"): Claude Code
+        # runs `reminders.py bevaka bygge <commit>` after a push instead of waiting; also Kakan's own
+        import buildstatus  # noqa: PLC0415
+        try:
+            sha = buildstatus.commit(arg)
+        except (OSError, ValueError) as e:
+            return f"GitHub gick inte att fråga: {e}"
+        if not sha:
+            return f"Hittar ingen commit {arg} på GitHub (är den pushad?)."
+        item.update(arg=sha[:7], sha=sha, looked=0)
+        said = f"Säger till när GOBLINCAKES-bygget för commit {sha[:7]} är klart – lyckat eller inte."
     else:
         return ("Det kan jag inte bevaka. Det går: `bevaka steam`, `bevaka uppdatering`, `bevaka nedladdning`, "
-                "`bevaka stängt <program>`, `bevaka startat <program>`, `bevaka sida <adress> [ord]`.")
+                "`bevaka stängt <program>`, `bevaka startat <program>`, `bevaka sida <adress> [ord]`, "
+                "`bevaka bygge [commit]`.")
     _add(item)
     _log(f"bevakning: {what.strip()}", said, item["id"], conversation)
     return said + (" Under ett spel väntar notisen tills spelet är stängt." if kind != "startat" else "")
@@ -419,6 +436,9 @@ def fire(item, late=False):
         subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "ask", json.dumps(item)],
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          start_new_session=True)
+    elif item["kind"] == "bygge":
+        import buildstatus  # noqa: PLC0415
+        buildstatus.tell_watched(item, notice)
     else:
         what = WATCH_NAMES[item["kind"]].format(arg=item.get("arg", ""))
         if item["kind"] == "sida":
@@ -453,6 +473,19 @@ def due(item, gaming_now, now):
         return not running(item["arg"]), {}
     if kind == "startat":
         return running(item["arg"]), {}
+    if kind == "bygge":
+        if now - item.get("looked", 0) < BUILD_LOOK:
+            return False, {}
+        import buildstatus  # noqa: PLC0415
+        try:
+            state, sha = buildstatus.build_state(item["sha"])
+        except Exception:  # noqa: BLE001 – offline for a while: try again next time
+            return False, {"looked": now}
+        if state == "none":
+            return now - item["made"] > BUILD_GIVE_UP, {"looked": now}
+        if sha != item["sha"]:  # cancelled by a newer push (same concurrency group): that build has this one too
+            return False, {"looked": now, "sha": sha, "arg": sha[:7]}
+        return state == "done", {"looked": now}
     if kind == "sida":
         if now - item.get("looked", 0) < PAGE_LOOK:
             return False, {}
@@ -473,19 +506,34 @@ def after_update():
         print(f"efterkontrollen: {e}", file=sys.stderr)
 
 
+def builds():
+    """Point 16: a failed GOBLINCAKES build on GitHub → a notice (buildstatus.py), only where the repo is."""
+    try:
+        import buildstatus  # noqa: PLC0415
+        if buildstatus.builder():
+            buildstatus.check()
+    except Exception as e:  # noqa: BLE001 – offline, GitHub's limit: next time
+        print(f"byggstatus: {e}", file=sys.stderr)
+
+
 def run():
     import aftercheck  # noqa: PLC0415
+    import buildstatus  # noqa: PLC0415
     import gaming  # noqa: PLC0415
     started = time.time()
     checked = False
+    built = 0.0
     while True:
         now = time.time()
-        if not checked and now - started >= aftercheck.WAIT and not gaming.game_running():
+        gaming_now = gaming.game_running()
+        if not checked and now - started >= aftercheck.WAIT and not gaming_now:
             checked = True  # mid-game the game guard has stopped Ollama: waits until the game is closed
             threading.Thread(target=after_update, daemon=True).start()
+        if now - built >= buildstatus.LOOK and not gaming_now:  # mid-game: told after the game
+            built = now
+            threading.Thread(target=builds, daemon=True).start()
         items = load()
         if items:
-            gaming_now = gaming.game_running()
             gone, changed = [], {}
             for item in items:
                 try:

@@ -54,6 +54,19 @@ Ord: uppdatering, uppdatera, update, grön pil, pilen, goblin update, automatisk
 - Kolla: `rpm-ostree status` (vilken version, väntar en på omstart?), `journalctl --user -u goblincakes-updates`.
 Kontroll: `cat ~/.cache/goblincakes/updates.json`
 
+## Byggstatus (GOBLINCAKES byggen på GitHub)
+Ord: bygget, bygge, build, github actions, misslyckades bygget, byggloggen, ny image byggd
+- Verktyget byggstatus (ai/buildstatus.py): de senaste byggena av build.yml (imagen) och build-iso.yml (ISO:n), det
+  senaste misslyckade med variant, steg och orsaken ur byggloggen (loggen kräver GitHub-nyckeln från GitHub-servern i
+  Goblin AI, ~/.config/goblincakes/mcp.env; utan den bara steget).
+- Vakt-tjänsten tittar var 10:e minut (bara på en dator med repot, inte under spel) och ger en notis när ett bygge
+  misslyckats – inget när det lyckas.
+- "Säg till när bygget är klart": `bevaka bygge [commit]` – säger till både lyckat och misslyckat. Avbryts bygget av
+  ett nyare (samma kö) följs det nyare. Claude lämnar också sådana bevakningar efter en push.
+- Felet sitter oftast hos Fedora/Universal Blue (paket som krockar, en server nere) eller i GOBLINCAKES recept/skript
+  – du ändrar aldrig koden i repot: förklara och föreslå Skicka till Claude.
+- Kolla: `python3 /usr/share/goblincakes/ai/buildstatus.py`, ~/.local/state/goblincakes/byggstatus.json.
+
 ## Kontroll efter uppdatering
 Ord: efter uppdateringen, efterkontroll, gick sönder, slutade fungera, ny image, startar inte efter uppdatering, rollback
 - En gång per start, 3 min efter inloggningen (när inget spel kör), tittar vakt-tjänsten (goblincakes-kakan-vakt,

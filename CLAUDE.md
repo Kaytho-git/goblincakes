@@ -17,6 +17,7 @@ Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prov
 - **Kör alltid `git pull` innan du ändrar något.**
 - **Jobba direkt i `main`** – inga grenar/PR, även om sessionen föreslår annat.
 - **Pusha först när ≥ 5 commits väntar** (`git rev-list --count origin/main..HEAD`) eller när användaren ber om det. Före push `git pull --rebase`. Säg i svaret hur många commits som väntar.
+- **Efter push: vänta inte på bygget** – lämna det till Kakan: `python3 files/system/usr/share/goblincakes/ai/reminders.py bevaka bygge <hash>` (notis när det är klart, lyckat eller inte; orsaken: `buildstatus.py`).
 - **Nyheter:** varje ändring användaren märker får en rad överst i `files/system/usr/share/goblincakes/nyheter.txt` (`ÅÅÅÅ-MM-DD`, två mellanslag, vanlig svenska, inte teknisk). `goblin update`/pilen/Config visar nya rader.
 - **CLAUDE.md:** bara en kort rad per ny funktion i Status nedan; detaljerna i `docs/anteckningar.md`.
 - Uppskatta storleken före stora byggen (veckokvoten); lätta delar kan gå till Kakan (Goblin AI) om inget spel kör.

@@ -830,7 +830,8 @@ kalender lägg <när> ; <titel> ; <påminnelse> – en händelse, t.ex. `kalende
 påminn <när> ; <text>                     – en påminnelse (notis med ljud), t.ex. `påminn 19:45 ; ta ut tvätten`, `påminn om 20 min ; pizzan`
 bevaka <vad> [; text]                     – säg till när: `steam` (nedladdning/shaders klar), `uppdatering` (klar),
                                             `nedladdning` (i webbläsaren klar), `stängt <program>`, `startat <program>`,
-                                            `sida <adress> [ord]` (sidan ändras / ordet dyker upp)
+                                            `sida <adress> [ord]` (sidan ändras / ordet dyker upp),
+                                            `bygge [commit]` (GOBLINCAKES-bygget på GitHub klart, lyckat eller inte)
 fråga <när> ; <frågan>                    – du tar själv reda på något vid den tiden, svaret kommer som notis
 påminnelser [bort <nr|alla>]              – vilka påminnelser/bevakningar som väntar, eller ta bort en"""
 
@@ -946,6 +947,12 @@ def lag_report(query):
     except (OSError, subprocess.TimeoutExpired) as e:
         return f"Lagmätaren gick inte att läsa: {e}"
     return r.stdout.strip() or r.stderr.strip() or "(tomt)"
+
+
+def build_status():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import buildstatus  # noqa: PLC0415
+    return buildstatus
 
 
 def mcp():
@@ -1174,9 +1181,10 @@ DESK_FNS = [
     look_fn("bevaka", "Säger till när något händer på datorn (\"säg till när …\"), direkt – kollas var 15:e sekund, "
             "under ett spel väntar notisen tills spelet är stängt: Steam är klar med nedladdningen/shaders, "
             "uppdateringen är klar, nedladdningen i webbläsaren är klar, ett program/spel stängs eller startar, en "
-            "webbsida ändras eller ett ord dyker upp på den (tittar var tionde minut).",
+            "webbsida ändras eller ett ord dyker upp på den (tittar var tionde minut), GOBLINCAKES-bygget på GitHub är "
+            "klart (`bygge`, senaste commiten, eller `bygge <commit>`).",
             {"vad": ("`steam`, `uppdatering`, `nedladdning`, `stängt <program>`, `startat <program>` (program = `wow`, "
-                     "`cs2`, `spelet` = vilket spel som helst, `discord` …) eller `sida <adress> [ord]`", True),
+                     "`cs2`, `spelet` = vilket spel som helst, `discord` …), `sida <adress> [ord]` eller `bygge [commit]`", True),
              "text": ("Något att säga i notisen, t.ex. `dags att starta WoW` (valfritt)", False)},
             lambda a: f"bevaka {look_arg(a, 'vad')}" + (f" ; {look_arg(a, 'text')}" if look_arg(a, "text") else "")),
     look_fn("fraga_senare", "Du tar själv reda på något vid en senare tid och svarar med en notis (svaret sparas som "
@@ -1247,6 +1255,12 @@ def tools_for(keys, project, messages):
                          "de vanliga sekunderna – ping till spelets server och routern, processor, grafikkort, minne, "
                          "disk, program som tog processorn, MangoHuds frametider. Före systemfel när det gäller lagg.",
                          "Tomt = senaste mätningen, `2` = näst senaste, `lista` = alla")
+    tools["byggstatus"] = tool("Läser byggstatus på GitHub", "", "", lambda q: (build_status().report(q), []),
+                               "byggstatus",
+                               "GOBLINCAKES egna byggen på GitHub (build.yml = imagen, build-iso.yml = ISO:n): de "
+                               "senaste – lyckades, misslyckades, pågår – och för ett misslyckat vilken variant, vilket "
+                               "steg och orsaken ur byggloggen. När användaren frågar om bygget (\"gick bygget igenom?\", "
+                               "\"varför misslyckades bygget?\"), före GitHub-servern.", "Tomt")
     tools["leta"] = tool("Letar i datorn", LOOK_PROMPT, LOOK_GUIDE, lambda q: (sys_tools().look(q), []), "leta",
                          "När du behöver se något i datorn själv: hitta en fil eller mapp (t.ex. var ett programs "
                          "inställningar ligger: `filer *recorder*`), läsa en fil, inställning eller logg, se vad som ligger i "
@@ -1327,7 +1341,8 @@ TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel
               "sida": "sida", "webbsida": "sida", "page": "sida", "las_sida": "sida",
               "skrivbord": "skrivbord", "desktop": "skrivbord", "musik": "skrivbord", "volym": "skrivbord",
               "påminn": "skrivbord", "bevaka": "skrivbord",
-              "lagg": "lagg", "laggmätning": "lagg", "lagmätning": "lagg"}
+              "lagg": "lagg", "laggmätning": "lagg", "lagmätning": "lagg",
+              "byggstatus": "byggstatus", "bygget": "byggstatus"}
 
 # With real tool calls the system prompt only gets this – the tools describe themselves
 TOOLS_PROMPT = """
@@ -1721,13 +1736,15 @@ def fresh_question(question):
     return bool(FRESH_WORDS.search(text) or re.search(rf"\b(?:{year - 1}|{year}|{year + 1})\b", text))
 
 
+BUILD_WORDS = re.compile(r"\bbygge(?:t|n|na)?\b|\bbuild(?:et|en|s)?\b|byggstatus|byggloggen", re.I)
+
 # Where every answer's facts come from (28 Oct, the user: "länkar och källor på allt hon hämtar information
 # ifrån"): web pages under Källor (links), the rest – files, logs, own stats – under Hämtat från
 SOURCES_MAX = 10
 SOURCE_NAMES = {"sport": "ESPN (lagens tabeller)", "wowstats": "dina WoW-siffror (WoW Stats)",
                 "cs2": "dina CS2-demos (CS2 Stats)", "goblincakes": "kartan över GOBLINCAKES",
                 "systemfel": "datorns loggar och krascher", "wowfel": "BugSacks sparade fel",
-                "lagg": "lagmätningen (Meta+Shift+L)"}
+                "lagg": "lagmätningen (Meta+Shift+L)", "byggstatus": "GitHub (byggen och byggloggen)"}
 
 
 def local_sources():
@@ -1872,6 +1889,11 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     # A question about an MCP server ("gick senaste bygget igenom?" = GitHub): its tools first – not the web search
     # ("senaste") or the computer's logs ("bygget"), which answered about the wrong thing (28 Oct)
     to_mcp = None if report else mcp().asked_for(asked.get("content"), [{"word": w, **t} for w, t in tools.items() if t.get("mcp")])
+    if not report and "byggstatus" in tools and BUILD_WORDS.search(str(asked.get("content", ""))[:600]):
+        # GOBLINCAKES's own build (point 16): byggstatus reads the build log too – the GitHub server can't
+        to_mcp, own = None, True
+        messages.append({"role": "user", "content": "[Goblin AI] Frågan gäller GOBLINCAKES bygge – använd verktyget "
+                         "byggstatus först (det läser också byggloggen)."})
     if to_mcp:
         own = True
         messages.append({"role": "user", "content":
@@ -3071,7 +3093,7 @@ CATEGORY_WORDS = [  # (category, words in the question/lesson) – the guess whe
 ]
 CATEGORY_TOOLS = {"warcraftlogs": "spel", "wowfel": "spel", "wowstats": "spel", "cs2": "spel", "lagg": "spel",
                   "goblincakes": "goblincakes", "systemfel": "datorn", "leta": "datorn", "skrivbord": "skrivbordet",
-                  "sök": "natet", "sport": "natet"}
+                  "sök": "natet", "sport": "natet", "byggstatus": "goblincakes"}
 
 
 def guess_category(text, tools=()):

@@ -1007,7 +1007,7 @@ def act(line, conversation=""):
             "öppna <program|webbadress|sökväg>, spela låt|album|artist <artist> - <titel>, notis <text>, "
             "urklipp <text|vad>, fönster <program> [skärm 2] [fram|maximera|fullskärm|minimera|normal], "
             "spel <namn|lista>, goblin <kommando>, kalender visa [dagar], kalender lägg <när> ; <titel> ; <påminnelse>, "
-            "påminn <när> ; <text>, bevaka <steam|uppdatering|nedladdning|stängt X|startat X|sida X> [; text], "
+            "påminn <när> ; <text>, bevaka <steam|uppdatering|nedladdning|stängt X|startat X|sida X|bygge [commit]> [; text], "
             "fråga <när> ; <frågan>, påminnelser [bort <nr>].")
 
 
