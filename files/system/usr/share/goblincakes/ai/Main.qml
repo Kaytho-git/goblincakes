@@ -4156,6 +4156,10 @@ Window {
                     border.width: 1
                     border.color: "#1E2A40"
                     property var items: JSON.parse(backend.lessons)
+                    property var categories: JSON.parse(backend.lessonCategories)
+                    property string openCat: ""  // the category shown (28 Oct: one at a time, the list grows fast)
+                    property string choosing: ""  // the lesson whose category choice is open
+                    function inCat(c) { return items.filter(i => i.category === c); }
 
                     Column {
                         id: heartCol
@@ -4198,55 +4202,137 @@ Window {
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 13
                             }
+                            // One row per category with lessons – only the opened one shows them
                             Repeater {
-                                model: lessonCard.items
+                                model: lessonCard.categories.filter(c => lessonCard.inCat(c.id).length > 0)
                                 Column {
-                                    id: lessonRow
+                                    id: catRow
                                     required property var modelData
                                     width: heartCol.width
-                                    spacing: 4
+                                    spacing: 10
                                     Text {
-                                        width: parent.width - 30
-                                        elide: Text.ElideRight
-                                        text: (lessonRow.modelData.kind === "avoid" ? "👎 Undvik  ·  " : "♥  ·  ") + "Frågan: " + lessonRow.modelData.question + "  ·  " + lessonRow.modelData.added
-                                        color: "#5C6880"
+                                        text: (lessonCard.openCat === catRow.modelData.id ? "▾  " : "▸  ") + catRow.modelData.name
+                                              + "   (" + lessonCard.inCat(catRow.modelData.id).length + ")"
+                                        color: catHead.containsMouse ? accent.text : "#E6ECF5"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 12
+                                        font.weight: Font.DemiBold
+                                        font.pixelSize: 14
+                                        MouseArea {
+                                            id: catHead
+                                            anchors.fill: parent
+                                            anchors.margins: -4
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: lessonCard.openCat = lessonCard.openCat === catRow.modelData.id ? "" : catRow.modelData.id
+                                        }
                                     }
-                                    Row {
+                                    Column {
+                                        visible: lessonCard.openCat === catRow.modelData.id
                                         width: parent.width
                                         spacing: 10
-                                        Rectangle {
-                                            width: parent.width - 30
-                                            height: lessonEdit.contentHeight + 12
-                                            color: lessonEdit.activeFocus ? "#07090D" : "transparent"
-                                            border.width: lessonEdit.activeFocus ? 1 : 0
-                                            border.color: accent.color
-                                            TextEdit {
-                                                id: lessonEdit
-                                                anchors { fill: parent; margins: 6 }
-                                                text: lessonRow.modelData.lesson
-                                                wrapMode: TextEdit.WordWrap
-                                                selectByMouse: true
-                                                color: "#E6ECF5"
-                                                font.family: "IBM Plex Sans"
-                                                font.pixelSize: 14
-                                                Keys.onReturnPressed: event => { focus = false; event.accepted = true; }
-                                                onActiveFocusChanged: if (!activeFocus && text.trim() !== "" && text !== lessonRow.modelData.lesson)
-                                                                          backend.editLesson(lessonRow.modelData.id, text)
-                                            }
-                                        }
-                                        Text {
-                                            text: "×"
-                                            color: lessonX.containsMouse ? accent.errorBright : "#8B98AD"
-                                            font.pixelSize: 18
-                                            MouseArea {
-                                                id: lessonX
-                                                anchors.fill: parent
-                                                anchors.margins: -6
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: backend.removeLesson(lessonRow.modelData.id)
+                                        leftPadding: 16
+                                        Repeater {
+                                            model: lessonCard.inCat(catRow.modelData.id)
+                                            Column {
+                                                id: lessonRow
+                                                required property var modelData
+                                                width: heartCol.width - 16
+                                                spacing: 4
+                                                Text {
+                                                    width: parent.width - 30
+                                                    elide: Text.ElideRight
+                                                    text: (lessonRow.modelData.kind === "avoid" ? "👎 Undvik  ·  " : "♥  ·  ") + "Frågan: " + lessonRow.modelData.question + "  ·  " + lessonRow.modelData.added
+                                                    color: "#5C6880"
+                                                    font.family: "IBM Plex Sans"
+                                                    font.pixelSize: 12
+                                                }
+                                                // Byt kategori: the choices open under the line
+                                                Text {
+                                                    text: lessonCard.choosing === lessonRow.modelData.id ? "▾ Byt kategori" : "▸ Byt kategori"
+                                                    color: catSwitch.containsMouse ? accent.text : "#5C6880"
+                                                    font.family: "IBM Plex Sans"
+                                                    font.pixelSize: 12
+                                                    MouseArea {
+                                                        id: catSwitch
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: lessonCard.choosing = lessonCard.choosing === lessonRow.modelData.id ? "" : lessonRow.modelData.id
+                                                    }
+                                                }
+                                                Flow {
+                                                    visible: lessonCard.choosing === lessonRow.modelData.id
+                                                    width: parent.width - 30
+                                                    spacing: 6
+                                                    Repeater {
+                                                        model: lessonCard.categories
+                                                        Rectangle {
+                                                            id: catChoice
+                                                            required property var modelData
+                                                            property bool current: modelData.id === lessonRow.modelData.category
+                                                            width: catChoiceText.implicitWidth + 16
+                                                            height: 24
+                                                            color: current ? accent.color : (catChoiceArea.containsMouse ? "#12203A" : "transparent")
+                                                            border.width: 1
+                                                            border.color: current ? accent.color : "#1E2A40"
+                                                            Text {
+                                                                id: catChoiceText
+                                                                anchors.centerIn: parent
+                                                                text: catChoice.modelData.name
+                                                                color: catChoice.current ? accent.on : "#E6ECF5"
+                                                                font.family: "IBM Plex Sans"
+                                                                font.pixelSize: 12
+                                                            }
+                                                            MouseArea {
+                                                                id: catChoiceArea
+                                                                anchors.fill: parent
+                                                                hoverEnabled: true
+                                                                cursorShape: Qt.PointingHandCursor
+                                                                onClicked: {
+                                                                    lessonCard.choosing = "";
+                                                                    backend.setLessonCategory(lessonRow.modelData.id, catChoice.modelData.id);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                Row {
+                                                    width: parent.width
+                                                    spacing: 10
+                                                    Rectangle {
+                                                        width: parent.width - 30
+                                                        height: lessonEdit.contentHeight + 12
+                                                        color: lessonEdit.activeFocus ? "#07090D" : "transparent"
+                                                        border.width: lessonEdit.activeFocus ? 1 : 0
+                                                        border.color: accent.color
+                                                        TextEdit {
+                                                            id: lessonEdit
+                                                            anchors { fill: parent; margins: 6 }
+                                                            text: lessonRow.modelData.lesson
+                                                            wrapMode: TextEdit.WordWrap
+                                                            selectByMouse: true
+                                                            color: "#E6ECF5"
+                                                            font.family: "IBM Plex Sans"
+                                                            font.pixelSize: 14
+                                                            Keys.onReturnPressed: event => { focus = false; event.accepted = true; }
+                                                            onActiveFocusChanged: if (!activeFocus && text.trim() !== "" && text !== lessonRow.modelData.lesson)
+                                                                                      backend.editLesson(lessonRow.modelData.id, text)
+                                                        }
+                                                    }
+                                                    Text {
+                                                        text: "×"
+                                                        color: lessonX.containsMouse ? accent.errorBright : "#8B98AD"
+                                                        font.pixelSize: 18
+                                                        MouseArea {
+                                                            id: lessonX
+                                                            anchors.fill: parent
+                                                            anchors.margins: -6
+                                                            hoverEnabled: true
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            onClicked: backend.removeLesson(lessonRow.modelData.id)
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }

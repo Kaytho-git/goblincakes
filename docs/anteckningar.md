@@ -400,3 +400,10 @@ Användaren vill fortsätta med Claude Code och har inga planer på att byta. De
 - Misslyckas en läsning behålls förra värdena med `stale` (tid för senast lyckade).
 - Provat på riktigt 28 okt: båda läses färskt, reservloggen, felvägen (CODEX_HOME fel → stale); widgeten som testkopia i toppfältet: staplarna, hovringsrutan (båda tjänsterna) och rutan vid klick (5 h + vecka) provade av användaren. Ej provat: orange/röd, utgången Claude-inloggning.
 
+
+## Lärdomar i kategorier (punkt 12 del 1, 28 okt)
+Hela planen för punkt 12 (kategorier, tak per kategori + arkiv, kända lösningar, MCP) i `kakan-steg.txt` (lokal). Användarens beslut: koden letar och plockar (inget verktyg för Kakan); kända lösningar sparas direkt med Ångra (en Tillåt-knapp ger falsk trygghet).
+- `goblinai.py`: `CATEGORIES` (goblincakes, datorn, spel, skrivbordet, natet, svar = "Sättet att svara", ovrigt). `make_lesson` ber om en sista rad "Kategori: <ord>" (`CATEGORY_ASK`, `split_category`) och returnerar nu `(lärdom, kategori)`; saknas den → `guess_category` (ordlistan `CATEGORY_WORDS` i ordning, sedan verktyget via `CATEGORY_TOOLS`). `add_lesson(..., category)`, `set_lesson_category`, `category_of` (gamla utan kategori = gissningen). `lessons_for`: +1 när lärdomen delar minst ett ord och har frågans gissade kategori.
+- `sort_lessons(keys, choice)`: engångssortering av lärdomar utan kategori, 20 per anrop ("<nr>: <kategori>"), startas av goblin-ai i en tråd när fönstret öppnas (inte under spel); skriver bara in i lärdomar som fortfarande saknar kategori.
+- Fönstret: AI-tjänster → Lärdomar = en rad per kategori med antal (`openCat`, bara en öppen), "▸ Byt kategori" under varje lärdom (`choosing`, knappar per kategori) → `backend.setLessonCategory`.
+- Provat: sorteringen med gemma4 på en kopia av användarens 38 (38 s, rimligt – "länk till mina bilder" hamnade under Nätet → datorn före natet i gissningen), `make_lesson` med gemma4 (skrivbordet, svar), fönstret offscreen (listan, öppen kategori, kategoriknapparna). Ej provat: i riktiga fönstret (engångssorteringen körs första gången Goblin AI öppnas från repot/nya imagen).

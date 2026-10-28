@@ -3024,7 +3024,7 @@ def forget(texts):
 
 # ── ♥ on a good answer (18 Oct, the user's idea; step 1 built 21 Oct): what worked is saved as a short
 # lesson the AI writes itself, and the 2–3 lessons most like a new question go into its system prompt ──
-LESSONS_FILE = MEMORY_FILE.parent / "lardomar.json"  # [{"id", "kind" good|avoid, "question", "lesson", "tools", "service", "project", "added"}]
+LESSONS_FILE = MEMORY_FILE.parent / "lardomar.json"  # [{"id", "kind" good|avoid, "question", "lesson", "tools", "service", "project", "added", "category"}]
 LESSONS_MAX = 100
 LESSONS_PICK = 3
 LESSON_LENGTH = 300
@@ -3044,6 +3044,58 @@ Frågan: {question}
 Verktyg du använde: {tools}
 Ditt svar (början):
 {answer}"""
+
+# The lessons' categories (28 Oct, point 12 part 1): the AI picks one when it writes the lesson; the list in
+# AI-tjänster shows one row per category, and a lesson in the question's category weighs more when picking
+CATEGORIES = [("goblincakes", "GOBLINCAKES"), ("datorn", "Datorn"), ("spel", "Spel"), ("skrivbordet", "Skrivbordet"),
+              ("natet", "Nätet"), ("svar", "Sättet att svara"), ("ovrigt", "Övrigt")]
+CATEGORY_IDS = {c for c, _ in CATEGORIES}
+CATEGORY_ASK = """
+
+Skriv sist, på en egen rad, vilken kategori lärdomen hör till: "Kategori: <ett ord>", där ordet är ett av
+goblincakes (GOBLINCAKES egna delar: toppfältet, Config, GoblinRecorder, GoblinAmp, Goblin AI, uppdateringar),
+datorn (program, installera, filer, diskar, fel i systemet), spel (WoW, CS2, Steam, spelens prestanda),
+skrivbordet (musik, volym, fönster, påminnelser), natet (sökningar, nyheter, sport, väder, webbsidor – inte filer på datorn),
+svar (hur du ska svara: ton, längd, kolla upp innan du svarar) eller ovrigt."""
+CATEGORY_WORDS = [  # (category, words in the question/lesson) – the guess when the AI gives none; in this order
+    ("spel", r"\bwow\b|warcraft|\bcs2?\b|counter.?strike|steam|raid|mythic|\bm\+|\bboss|pull|parse|\bspel|proton|bugsack|addon|tillägg"),
+    ("goblincakes", r"goblin|toppfält|config|docka|spelas nu|kvot|widget|recorder|nyheter\.txt"),
+    ("skrivbordet", r"musik|volym|ljud|låt|album|spotify|pausa|fönster|påminn|säg till|bevaka|kalender|urklipp"),
+    ("datorn", r"installera|program|flatpak|\bfil|mapp|\bmap\b|dator|disk|krasch|startar inte|journal|systemd|tjänst|kommando|terminal"),
+    ("natet", r"nyheter|väder|sök|pris|tabell|match|\blag\b|webb|sida|länk|patch notes"),
+    ("svar", r"kortare|längre|ton\b|svara|kolla upp|gissa|sant\b|källa"),
+]
+CATEGORY_TOOLS = {"warcraftlogs": "spel", "wowfel": "spel", "wowstats": "spel", "cs2": "spel", "lagg": "spel",
+                  "goblincakes": "goblincakes", "systemfel": "datorn", "leta": "datorn", "skrivbord": "skrivbordet",
+                  "sök": "natet", "sport": "natet"}
+
+
+def guess_category(text, tools=()):
+    """A category from the words (and the tools used) – for lessons the AI gave none, and for a new question."""
+    for c, pattern in CATEGORY_WORDS:
+        if re.search(pattern, str(text), re.I):
+            return c
+    for t in tools:
+        if t in CATEGORY_TOOLS:
+            return CATEGORY_TOOLS[t]
+    return "ovrigt"
+
+
+def category_of(item):
+    c = item.get("category")
+    return c if c in CATEGORY_IDS else guess_category(item.get("question", "") + " " + item.get("lesson", ""),
+                                                      item.get("tools", []))
+
+
+def split_category(text):
+    """(the lesson, its category or "") from the AI's answer with its "Kategori: …" line."""
+    found = re.search(r"\n?\s*\**kategori\**\s*:\s*\**\s*([\wåäöÅÄÖ ]+)\**\s*$", text.strip(), re.I)
+    if not found:
+        return text, ""
+    word = found.group(1).strip().casefold()
+    word = {"nätet": "natet", "övrigt": "ovrigt", "sättet att svara": "svar"}.get(word, word)
+    return text[:found.start()], word if word in CATEGORY_IDS else ""
+
 
 # The quick buttons under an answer (21 Oct): what each asks the AI to do with that answer
 REWRITES = {
@@ -3087,14 +3139,16 @@ def tools_text(tools):
 
 
 def make_lesson(question, answer, tools, keys, project=None, choice="", kind="good", reason=""):
-    """The AI's own short lesson from an answer the user liked – or, kind "avoid", disliked (👎, with the
-    user's reason if given); a plain one when no service answers."""
+    """(lesson, category): the AI's own short lesson from an answer the user liked – or, kind "avoid", disliked
+    (👎, with the user's reason if given); a plain one when no service answers. The category is the AI's own
+    pick, else guessed from the words."""
     if kind == "avoid":
         why = f"Användaren skrev vad som var fel: \"{' '.join(str(reason).split())[:400]}\". " if reason.strip() else ""
         prompt = AVOID_PROMPT.format(reason=why, question=str(question)[:1500], tools=tools_text(tools),
                                      answer=str(answer)[:2500])
     else:
         prompt = LESSON_PROMPT.format(question=str(question)[:1500], tools=tools_text(tools), answer=str(answer)[:2500])
+    prompt += CATEGORY_ASK
     QUICK.on = True  # a sentence – no long thinking
     try:
         text, _ = ask_once([{"role": "system", "content": "Du skriver korta lärdomar på svenska."},
@@ -3103,21 +3157,24 @@ def make_lesson(question, answer, tools, keys, project=None, choice="", kind="go
         text = ""
     finally:
         QUICK.on = False
-    text = " ".join(re.sub(r"```.*?```", "", text, flags=re.S).split()).strip(" \"'")
+    text, category = split_category(re.sub(r"```.*?```", "", text, flags=re.S))
+    text = " ".join(text.split()).strip(" \"'")
+    category = category or guess_category(f"{question} {text}", [t for t, _ in tools])
     if not text and kind == "avoid":
         text = (f"Användaren tyckte inte om svaret: {' '.join(reason.split())}"[:LESSON_LENGTH] if reason.strip() else
                 "Svaret var inte bra – hämta data i stället för att gissa, och håll dig till det som frågades.")
     if not text:
         text = ("Svarade utan verktyg, kort och rakt på sak." if not tools else
                 f"{tools_text(tools)[0].upper()}{tools_text(tools)[1:]} och svarade utifrån det.")
-    return text[:LESSON_LENGTH]
+    return text[:LESSON_LENGTH], category
 
 
-def add_lesson(question, lesson, tools, service="", project=None, kind="good"):
+def add_lesson(question, lesson, tools, service="", project=None, kind="good", category=""):
     items = load_lessons()
     entry = {"id": time.strftime("%Y%m%d-%H%M%S") + os.urandom(2).hex(), "kind": kind, "question": " ".join(str(question).split())[:400],
              "lesson": lesson, "tools": [t for t, _ in tools], "service": service,
-             "project": (project or {}).get("id", ""), "added": date.today().isoformat()}
+             "project": (project or {}).get("id", ""), "added": date.today().isoformat(),
+             "category": category if category in CATEGORY_IDS else guess_category(f"{question} {lesson}", [t for t, _ in tools])}
     items.append(entry)
     save_lessons(items)
     return entry
@@ -3137,6 +3194,53 @@ def edit_lesson(lesson_id, text):
     save_lessons(items)
 
 
+def set_lesson_category(lesson_id, category):
+    if category not in CATEGORY_IDS:
+        return
+    items = load_lessons()
+    for i in items:
+        if i.get("id") == lesson_id:
+            i["category"] = category
+    save_lessons(items)
+
+
+SORT_PROMPT = """Här är lärdomar du har skrivit, en per rad med nummer. Sortera dem i kategorier. Svara med en rad per
+lärdom: "<nummer>: <kategori>" och inget annat. Kategorierna:""" + CATEGORY_ASK.split("ett av", 1)[1].rstrip(".") + "."
+
+
+def sort_lessons(keys, choice=""):
+    """Once (28 Oct): the lessons saved before the categories get one from the AI, 20 at a time
+    (the guess from the words when it doesn't answer). Returns how many were sorted."""
+    items = load_lessons()
+    todo = [i for i in items if i.get("category") not in CATEGORY_IDS]
+    for start in range(0, len(todo), 20):
+        part = todo[start:start + 20]
+        lines = "\n".join(f"{n}. Frågan \"{i['question'][:120]}\": {i['lesson']}" for n, i in enumerate(part, 1))
+        QUICK.on = True
+        try:
+            text, _ = ask_once([{"role": "system", "content": "Du sorterar lärdomar i kategorier."},
+                                {"role": "user", "content": SORT_PROMPT + "\n\n" + lines}], keys, choice=choice)
+        except ServiceError:
+            text = ""
+        finally:
+            QUICK.on = False
+        picked = {}
+        for n, word in re.findall(r"(\d+)\s*[.:)]\s*\**\s*([\wåäö]+)", text.casefold()):
+            word = {"nätet": "natet", "övrigt": "ovrigt"}.get(word, word)
+            if word in CATEGORY_IDS:
+                picked[int(n)] = word
+        for n, i in enumerate(part, 1):
+            i["category"] = picked.get(n) or category_of(i)
+    if todo:  # read again: a ♥ may have come in meanwhile
+        done = {i["id"]: i["category"] for i in todo}
+        fresh = load_lessons()
+        for i in fresh:
+            if i.get("id") in done and i.get("category") not in CATEGORY_IDS:
+                i["category"] = done[i["id"]]
+        save_lessons(fresh)
+    return len(todo)
+
+
 def words(text):
     return {w for w in re.findall(r"[\wåäö]{3,}", str(text).casefold()) if w not in STOP_WORDS}
 
@@ -3151,9 +3255,12 @@ TOOL_HINTS = {"warcraftlogs": r"logs?\b|pull|boss|wcl|wipe|kill", "wowfel": r"bu
 def lessons_for(question, project=None):
     """The lessons most like the question: shared words, the same project, a tool the question hints at."""
     asked = words(question)
+    category = guess_category(question)
     picked = []
     for item in load_lessons():
         score = len(asked & words(item["question"] + " " + item["lesson"]))
+        if score and category != "ovrigt" and category_of(item) == category:
+            score += 1
         if project and item.get("project") == project.get("id"):
             score += 2
         score += sum(2 for t in item.get("tools", []) if t in TOOL_HINTS and re.search(TOOL_HINTS[t], str(question), re.I))

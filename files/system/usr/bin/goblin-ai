@@ -359,6 +359,7 @@ class Backend(QObject):
     searchNextChanged = Signal()
     lessonsChanged = Signal()
     _hearted = Signal(str, int, str)  # conversation id, message index, the saved lesson (JSON, "" = failed)
+    _sorted = Signal()  # the old lessons got their categories
     commandLogChanged = Signal()
     sidePinnedChanged = Signal()
     _undone = Signal(str)  # log entry id
@@ -384,6 +385,9 @@ class Backend(QObject):
         if AVATAR.exists() and not goblinai.avatar_description():  # an avatar from before 24 Oct: describe it once
             threading.Thread(target=goblinai.describe_avatar, daemon=True).start()
         self._hearted.connect(self._on_hearted)
+        self._sorted.connect(self.lessonsChanged)
+        if any(i.get("category") not in goblinai.CATEGORY_IDS for i in goblinai.load_lessons()):
+            threading.Thread(target=self._sort_lessons, daemon=True).start()  # lessons from before the categories
         self._statusText.connect(lambda text: self._set_busy(True, text))
         self._steps = "[]"  # what the AI has done for the question it works on (goblinai.Steps)
         self._stop = None  # the STOPP button's threading.Event for that question
@@ -1210,8 +1214,8 @@ class Backend(QObject):
 
         def work():
             try:
-                lesson = goblinai.make_lesson(question, m["text"], tools, keys, project, choice, kind, reason)
-                entry = goblinai.add_lesson(question, lesson, tools, m.get("service", ""), project, kind)
+                lesson, category = goblinai.make_lesson(question, m["text"], tools, keys, project, choice, kind, reason)
+                entry = goblinai.add_lesson(question, lesson, tools, m.get("service", ""), project, kind, category)
                 self._hearted.emit(cid, index, json.dumps(entry, ensure_ascii=False))
             except Exception:  # noqa: BLE001 – never leave the mark spinning
                 self._hearted.emit(cid, index, "")
@@ -1277,7 +1281,31 @@ class Backend(QObject):
 
     @Property(str, notify=lessonsChanged)
     def lessons(self):
-        return json.dumps(list(reversed(goblinai.load_lessons())), ensure_ascii=False)
+        items = [{**i, "category": goblinai.category_of(i)} for i in reversed(goblinai.load_lessons())]
+        return json.dumps(items, ensure_ascii=False)
+
+    @Property(str, constant=True)
+    def lessonCategories(self):
+        return json.dumps([{"id": c, "name": n} for c, n in goblinai.CATEGORIES], ensure_ascii=False)
+
+    @Slot(str, str)
+    def setLessonCategory(self, lesson_id, category):
+        goblinai.set_lesson_category(lesson_id, category)
+        self.lessonsChanged.emit()
+
+    def _sort_lessons(self):
+        """Once: the AI sorts the lessons saved before the categories (not during a game – the local AI rests)."""
+        try:
+            import gaming  # noqa: PLC0415
+            if gaming.game_running():
+                return
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            if goblinai.sort_lessons(dict(self._keys), goblinai.chosen_model()):
+                self._sorted.emit()
+        except Exception:  # noqa: BLE001 – the guess from the words is shown meanwhile
+            pass
 
     @Slot(str)
     def removeLesson(self, lesson_id):
