@@ -464,11 +464,25 @@ def due(item, gaming_now, now):
     return True, {}  # unknown kind (a newer version's): out of the way
 
 
+def after_update():
+    """Point 13: the check after an update, once per boot (aftercheck.py), in its own thread – it reads the journal."""
+    try:
+        import aftercheck  # noqa: PLC0415
+        aftercheck.check()
+    except Exception as e:  # noqa: BLE001 – never stops the reminders
+        print(f"efterkontrollen: {e}", file=sys.stderr)
+
+
 def run():
+    import aftercheck  # noqa: PLC0415
     import gaming  # noqa: PLC0415
     started = time.time()
+    checked = False
     while True:
         now = time.time()
+        if not checked and now - started >= aftercheck.WAIT and not gaming.game_running():
+            checked = True  # mid-game the game guard has stopped Ollama: waits until the game is closed
+            threading.Thread(target=after_update, daemon=True).start()
         items = load()
         if items:
             gaming_now = gaming.game_running()

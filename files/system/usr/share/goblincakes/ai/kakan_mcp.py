@@ -26,7 +26,7 @@ INSTRUCTIONS = ("Verktyg från GOBLINCAKES lokala AI (Kakan) på användarens da
                 "warcraftlogs = vad som hände i en pull/raidkväll, wowstats = användarens egna parses över tid, "
                 "wowfel = BugSacks fel, cs2 = egna CS2-siffror ur demos, lagg = lagmätningen kring användarens "
                 "Meta+Shift+L (\"laggar nu\") under spel, goblincakes = kartan över systemet (läs "
-                "den först när en del av GOBLINCAKES strular), systemfel = datorns loggade fel, hitta_filer/las_fil/"
+                "den först när en del av GOBLINCAKES strular), systemfel = datorns loggade fel (och vad kontrollen efter senaste uppdateringen hittade), hitta_filer/las_fil/"
                 "visa_mapp/sok_i_filer/logg/program/tjanst = läsa i datorn (nycklar och lösenord visas inte), "
                 "rapporter = det Kakan inte kunde lösa (Skicka till Claude i Goblin AI), losningar = hennes kända "
                 "lösningar (problem som lösts på datorn) och lärdomar.")

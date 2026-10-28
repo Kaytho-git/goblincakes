@@ -293,11 +293,23 @@ def details(match):
     return "\n".join(out)
 
 
+def after_update():
+    """Point 13: what the check after the latest update found (aftercheck.py)."""
+    try:
+        import aftercheck  # noqa: PLC0415
+        return aftercheck.report()
+    except Exception as e:  # noqa: BLE001
+        return f"Kontroll efter uppdatering: gick inte att läsa ({e})"
+
+
 def system_errors(query=""):
     """The text for the AI: an overview, or details when a program is named."""
     query = " ".join(query.split()).lower()
     if query in ("", "alla", "översikt", "oversikt", "allt"):
-        parts = [system_state(), overview_crashes(crashes()), failed_units(), overview_journal(), recent_changes()]
+        parts = [system_state(), after_update(), overview_crashes(crashes()), failed_units(), overview_journal(),
+                 recent_changes()]
+    elif re.search(r"uppdater|efterkontroll|ny image|ny version", query):
+        parts = [system_state(), after_update(), failed_units(), recent_changes()]
     else:
         parts = [system_state(), details(query), recent_changes()]
     text = "\n\n".join(parts)

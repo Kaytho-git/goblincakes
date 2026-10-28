@@ -1237,8 +1237,10 @@ def tools_for(keys, project, messages):
                               "När användaren frågar om fel, krascher eller något som strular i datorn (\"Steam kraschar\", "
                               "\"programmet startar inte\", \"något är fel efter uppdateringen\", \"kolla om allt är ok\"): "
                               "vad datorn själv har loggat – krascher, journalens fel, misslyckade tjänster, "
-                              "GOBLINCAKES-versionen och vad som ändrats nyligen. Inte WoW-tilläggens fel (då wowfel).",
-                              "Tomt för en översikt, eller ett programs namn för detaljer")
+                              "GOBLINCAKES-versionen, vad som ändrats nyligen och vad kontrollen efter senaste "
+                              "uppdateringen hittade (vad som gick sönder med den nya versionen). Inte WoW-tilläggens "
+                              "fel (då wowfel).",
+                              "Tomt för en översikt, `efter uppdateringen`, eller ett programs namn för detaljer")
     tools["lagg"] = tool("Läser lagmätningen", LAG_PROMPT, LAG_GUIDE, lambda q: (lag_report(q), []), "lagg",
                          "När användaren frågar varför spelet laggade, ryckte eller hackade, om pingen, eller vad "
                          "lagmätningen visar: vad datorn och nätet gjorde kring varje Meta+Shift+L (\"laggar nu\") mot "
