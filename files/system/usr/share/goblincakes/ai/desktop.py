@@ -757,6 +757,217 @@ def goblin(args, conversation=""):
     return (out[-6000:] or "(skrev inget)") + ("" if proc.returncode == 0 else f"\n(slutade med fel {proc.returncode})")
 
 
+# ── The calendar (Merkuro: Akonadi's "Personlig kalender" = an iCal file) ─────────
+
+# Written straight into the file: Akonadi's file watcher reads it in by itself (and writes it back in its own
+# form). Not its synchronize call – that wrote its old copy over the new event (28 Oct).
+CAL_RESOURCE = "akonadi_ical_resource_0"
+WEEKDAYS = ["måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag", "söndag"]
+MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
+
+
+def cal_file():
+    """The calendar file Merkuro shows (akonadi_ical_resource_0rc's Path)."""
+    import os  # noqa: PLC0415
+    rc = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / f"{CAL_RESOURCE}rc"
+    try:
+        m = re.search(r"^Path(?:\[\$e\])?=(.+)$", rc.read_text(), re.M)
+    except OSError:
+        m = None
+    path = os.path.expandvars(m.group(1).strip()) if m else "~/.local/share/apps/korganizer/std.ics"
+    return Path(path).expanduser()
+
+
+def parse_when(text):
+    """(datetime, all_day) from `2026-11-04 23:59`, `4 nov 23:59`, `imorgon 19:00`, `fredag 20`, `idag kl 18.30`,
+    a date alone = the whole day; or (None, False)."""
+    import datetime as dt  # noqa: PLC0415
+    text = text.lower().replace("kl.", " ").replace(" kl ", " ").strip()
+    today = dt.date.today()
+    day = None
+    m = re.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", text)
+    if m:
+        day = dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        text = text.replace(m.group(0), " ")
+    if day is None:
+        m = re.search(r"\b(\d{1,2})\s*(?:e\s+|:e\s+)?(" + "|".join(MONTHS) + r")\w*\b", text)
+        if m:
+            day = dt.date(today.year, MONTHS.index(m.group(2)) + 1, int(m.group(1)))
+            if day < today:
+                day = day.replace(year=today.year + 1)
+            text = text.replace(m.group(0), " ")
+    if day is None:
+        m = re.search(r"\b(\d{1,2})/(\d{1,2})\b", text)  # 4/11 = 4 Nov
+        if m:
+            day = dt.date(today.year, int(m.group(2)), int(m.group(1)))
+            if day < today:
+                day = day.replace(year=today.year + 1)
+            text = text.replace(m.group(0), " ")
+    if day is None:
+        if re.search(r"\bi\s*övermorgon\b|\bövermorgon\b", text):
+            day = today + dt.timedelta(days=2)
+        elif re.search(r"\bi\s*morgon\b|\bimorgon\b", text):
+            day = today + dt.timedelta(days=1)
+        elif re.search(r"\bi\s*dag\b|\bidag\b|\bikväll\b|\bi kväll\b", text):
+            day = today
+        else:
+            for n, name in enumerate(WEEKDAYS):
+                if re.search(rf"\b{name}", text):
+                    ahead = (n - today.weekday()) % 7 or 7
+                    day = today + dt.timedelta(days=ahead)
+                    break
+    if day is None:
+        return None, False
+    m = re.search(r"\b([01]?\d|2[0-3])(?:[:.]([0-5]\d))?\b", text)
+    if not m:
+        return dt.datetime.combine(day, dt.time()), True
+    return dt.datetime.combine(day, dt.time(int(m.group(1)), int(m.group(2) or 0))), False
+
+
+def parse_before(text):
+    """Minutes before from `3 h`, `30 min`, `1 dag`, `2 timmar`, `en timme`; None = no reminder."""
+    text = text.lower().replace("en ", "1 ").replace("ett ", "1 ").replace("halvtimme", "30 min").strip()
+    if not text or text in ("ingen", "nej", "-"):
+        return None
+    if re.fullmatch(r"(?:vid start|när det börjar|0)", text):
+        return 0
+    m = re.match(r"(\d+(?:[.,]\d+)?)\s*(m|min\w*|h|t\w*|d\w*|v\w*)?", text)
+    if not m:
+        return None
+    n = float(m.group(1).replace(",", "."))
+    unit = (m.group(2) or "min")[0]
+    return round(n * {"m": 1, "h": 60, "t": 60, "d": 1440, "v": 10080}[unit])
+
+
+def _ics_text(value):
+    return value.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+
+def _fmt_when(when, all_day):
+    day = f"{WEEKDAYS[when.weekday()]} {when.day} {MONTHS[when.month - 1]} {when.year}"
+    return day if all_day else f"{day} kl {when:%H:%M}"
+
+
+def _fmt_before(minutes):
+    if minutes == 0:
+        return "när det börjar"
+    if minutes % 1440 == 0:
+        return f"{minutes // 1440} dag{'ar' if minutes // 1440 > 1 else ''} innan"
+    if minutes % 60 == 0:
+        return f"{minutes // 60} h innan"
+    return f"{minutes} min innan"
+
+
+def cal_add(title, when_text, before_text="", minutes=60, conversation=""):
+    """An event in Merkuro's calendar, with a reminder – at once, logged, Ångra takes it away again
+    (27 Oct, the user: "hon ska ju kunna göra det jag ber om" – the calendar needs no Tillåt)."""
+    import datetime as dt  # noqa: PLC0415
+    import uuid  # noqa: PLC0415
+    title = " ".join(title.split())[:200]
+    if not title:
+        return "Säg vad händelsen heter."
+    when, all_day = parse_when(when_text)
+    if when is None:
+        return (f"Förstår inte när \"{when_text}\" är. Säg ett datum och en tid, t.ex. `2026-11-04 23:59`, "
+                "`4 nov 23:59` eller `imorgon 19:00`.")
+    before = parse_before(before_text)
+    path = cal_file()
+    try:
+        text = path.read_text()
+    except OSError:
+        return f"Hittar inte kalendern ({path}) – öppna Merkuro en gång så skapas den."
+    if "END:VCALENDAR" not in text:
+        return "Kalenderfilen ser konstig ut – inget ändrat."
+    uid = f"goblin-ai-{uuid.uuid4()}"
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    if all_day:
+        times = [f"DTSTART;VALUE=DATE:{when:%Y%m%d}", f"DTEND;VALUE=DATE:{when + dt.timedelta(days=1):%Y%m%d}"]
+    else:
+        start = when.astimezone(dt.timezone.utc)  # local time → UTC (no VTIMEZONE needed)
+        times = [f"DTSTART:{start:%Y%m%dT%H%M%SZ}", f"DTEND:{start + dt.timedelta(minutes=minutes):%Y%m%dT%H%M%SZ}"]
+    event = ["BEGIN:VEVENT", f"UID:{uid}", f"DTSTAMP:{stamp}", f"CREATED:{stamp}", *times,
+             f"SUMMARY:{_ics_text(title)}", "X-GOBLINCAKES-By:Goblin AI"]
+    if before is not None:
+        event += ["BEGIN:VALARM", "ACTION:DISPLAY", f"DESCRIPTION:{_ics_text(title)}",
+                  f"TRIGGER;RELATED=START:-PT{before}M", "END:VALARM"]
+    event.append("END:VEVENT")
+    new = text.replace("END:VCALENDAR", "\r\n".join(event) + "\r\nEND:VCALENDAR") if "\r\n" in text else \
+        text.replace("END:VCALENDAR", "\n".join(event) + "\nEND:VCALENDAR")
+    tmp = path.with_suffix(".goblin-ai.tmp")
+    tmp.write_text(new)
+    tmp.replace(path)
+    me = Path(__file__).resolve()
+    said = (f"Lade in \"{title}\" {_fmt_when(when, all_day)}"
+            + (f", påminnelse {_fmt_before(before)}" if before is not None else ", utan påminnelse") + " i kalendern (Merkuro).")
+    cmdlevel.log(f"kalender: {title} – {_fmt_when(when, all_day)}", "change", "kakan", 0, said,
+                 {"undo": [f"{shlex.quote(sys.executable)} {shlex.quote(str(me))} --cal-remove {uid}"], "hint": ""},
+                 conversation)
+    return said
+
+
+def cal_remove(uid):
+    """Ångra: the event with this UID out of the file again."""
+    path = cal_file()
+    text = path.read_text()
+    nl = "\r\n" if "\r\n" in text else "\n"
+    blocks = re.split(r"(?=BEGIN:VEVENT)", text)
+    kept = [b if f"UID:{uid}" not in b else re.sub(r"BEGIN:VEVENT.*?END:VEVENT" + re.escape(nl), "", b, flags=re.S)
+            for b in blocks]
+    tmp = path.with_suffix(".goblin-ai.tmp")
+    tmp.write_text("".join(kept))
+    tmp.replace(path)
+    return "Händelsen är borttagen ur kalendern."
+
+
+def _unfold(text):
+    return re.sub(r"\r?\n[ \t]", "", text)
+
+
+def cal_list(days_text=""):
+    """What is in the calendar the coming days (14 if nothing is said) – read from the file."""
+    import datetime as dt  # noqa: PLC0415
+    m = re.search(r"\d+", days_text or "")
+    days = int(m.group(0)) if m else 14
+    try:
+        text = _unfold(cal_file().read_text())
+    except OSError:
+        return "Hittar ingen kalender."
+    now = dt.datetime.now().astimezone()
+    end = now + dt.timedelta(days=days)
+    found = []
+    for block in re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", text, re.S):
+        title = (re.search(r"^SUMMARY[^:]*:(.*)$", block, re.M) or [None, ""])[1].replace("\\,", ",").replace("\\;", ";")
+        start = re.search(r"^DTSTART([^:]*):(\d{8})(?:T(\d{6})(Z?))?", block, re.M)
+        if not start:
+            continue
+        d = dt.datetime.strptime(start.group(2) + (start.group(3) or "000000"), "%Y%m%d%H%M%S")
+        all_day = start.group(3) is None
+        d = d.replace(tzinfo=dt.timezone.utc).astimezone() if start.group(4) else d.astimezone()
+        if "RRULE" in block:
+            title += " (upprepas)"
+        if now - dt.timedelta(days=1) <= d <= end or "RRULE" in block:
+            alarm = re.search(r"TRIGGER[^:]*:-?P(?:T)?(\d+)([MHDW])", block)
+            note = ""
+            if alarm:
+                mins = int(alarm.group(1)) * {"M": 1, "H": 60, "D": 1440, "W": 10080}[alarm.group(2)]
+                note = f" – påminnelse {_fmt_before(mins)}"
+            found.append((d, f"- {_fmt_when(d, all_day)}: {title}{note}"))
+    if not found:
+        return f"Inget i kalendern de närmaste {days} dagarna."
+    return f"I kalendern de närmaste {days} dagarna:\n" + "\n".join(line for _, line in sorted(found))
+
+
+def calendar(rest, conversation=""):
+    """`kalender visa [dagar]` or `kalender lägg <när> ; <titel> ; <påminnelse>`."""
+    word, _, args = rest.strip().partition(" ")
+    if word.lower() in ("lägg", "lagg", "ny", "add", "boka"):
+        parts = [x.strip() for x in args.split(";")]
+        if len(parts) < 2:
+            return "Skriv: kalender lägg <när> ; <titel> ; <påminnelse> (t.ex. `kalender lägg 4 nov 23:59 ; WoW Forever ; 3 h`)."
+        return cal_add(parts[1], parts[0], parts[2] if len(parts) > 2 else "", conversation=conversation)
+    return cal_list(args if word.lower() in ("visa", "vad", "lista") else rest)
+
+
 def act(line, conversation=""):
     """The tool's line: `musik <paus|spela|nästa|föregående|vad>`, `volym <tal|+10|-10|tyst|ljud> [i <program>]`,
     `öppna <program|webbadress|sökväg>`."""
@@ -768,6 +979,8 @@ def act(line, conversation=""):
         return volume(rest, conversation)
     if word in ("öppna", "oppna", "open", "starta", "start"):
         return open_thing(rest, conversation)
+    if word in ("kalender", "kalendern", "calendar"):
+        return calendar(rest, conversation)
     if word in ("spel", "game"):
         return start_game(rest, conversation)
     if word == "goblin":
@@ -787,12 +1000,14 @@ def act(line, conversation=""):
     return ("Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud [i goblinamp|spotify], "
             "öppna <program|webbadress|sökväg>, spela låt|album|artist <artist> - <titel>, notis <text>, "
             "urklipp <text|vad>, fönster <program> [skärm 2] [fram|maximera|fullskärm|minimera|normal], "
-            "spel <namn|lista>, goblin <kommando>.")
+            "spel <namn|lista>, goblin <kommando>, kalender visa [dagar], kalender lägg <när> ; <titel> ; <påminnelse>.")
 
 
 if __name__ == "__main__":  # trying it out: python3 desktop.py musik vad
     if sys.argv[1:2] == ["--kwin"]:  # _kwin's own process
         print(json.dumps(_kwin_here(json.loads(sys.stdin.read())) or {}))
+    elif sys.argv[1:2] == ["--cal-remove"]:  # Ångra for a calendar event
+        print(cal_remove(sys.argv[2]))
     elif sys.argv[1:2] == ["--restore"]:  # Ångra for a window
         data = json.loads(sys.argv[2])
         got = _kwin({"mode": "restore", "id": data["id"], "before": data["before"]})

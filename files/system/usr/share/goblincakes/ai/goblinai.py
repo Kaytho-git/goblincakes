@@ -726,7 +726,9 @@ fönster <program> [skärm <1|2|andra|vänster|höger>] [fram|maximera|fullskär
                                             fönster, flera saker på en gång (fönster goblin ai skärm andra fullskärm)
 fönster lista                             – vilka fönster som är öppna och var
 spel <namn|lista>                         – starta ett spel (wow, cs2 …) om 8 sekunder, eller visa spelen
-goblin <kommando>                         – ett goblin-kommando (läsande körs direkt, andra får ett Tillåt-kort)"""
+goblin <kommando>                         – ett goblin-kommando (läsande körs direkt, andra får ett Tillåt-kort)
+kalender visa [dagar]                     – vad som står i kalendern (Merkuro) de närmaste dagarna
+kalender lägg <när> ; <titel> ; <påminnelse> – en händelse, t.ex. `kalender lägg 4 nov 23:59 ; WoW Forever ; 3 h`"""
 
 DESK_PROMPT = """
 
@@ -961,6 +963,16 @@ DESK_FNS = [
             "ändrar något (update, färg, dock reset …) blir ett Tillåt-kort åt användaren.",
             {"kommando": ("Kommandot utan `goblin`, t.ex. `nyheter 5`, `screen`, `tile open raid`, `update`", True)},
             lambda a: f"goblin {look_arg(a, 'kommando')}"),
+    look_fn("kalender_visa", "Visar vad som står i användarens kalender (Merkuro) de närmaste dagarna, med påminnelser.",
+            {"dagar": ("Hur många dagar framåt (tomt = 14)", False)},
+            lambda a: f"kalender visa {look_arg(a, 'dagar')}".strip()),
+    look_fn("kalender_lagg", "Lägger in en händelse i användarens kalender (Merkuro) med påminnelse, direkt: \"WoW "
+            "Forever 4 nov 23:59, påminnelse 3 h innan\". Även \"påminn mig 19:45 att …\" (då påminnelse `vid start`).",
+            {"titel": ("Vad det är, t.ex. `WoW Forever`", True),
+             "nar": ("Datum och tid: `2026-11-04 23:59`, `4 nov 23:59`, `imorgon 19:00`, `fredag 20` (bara datum = hela "
+                     "dagen)", True),
+             "paminnelse": ("Hur långt innan: `3 h`, `30 min`, `1 dag`, `vid start` (tomt = ingen påminnelse)", False)},
+            lambda a: f"kalender lägg {look_arg(a, 'nar')} ; {look_arg(a, 'titel')} ; {look_arg(a, 'paminnelse')}"),
 ]
 
 
@@ -1010,7 +1022,7 @@ def tools_for(keys, project, messages):
                               "Gör det användaren ber om på skrivbordet, direkt (loggas och kan ångras): pausa/spela "
                               "musiken, nästa/förra låten, vad som spelas, volymen, öppna program/webbsidor/filer, "
                               "spela en viss låt/album/artist, visa en notis, lägga text i urklippet, flytta/ändra fönster, "
-                              "starta spel, köra goblin-kommandon.",
+                              "starta spel, köra goblin-kommandon, kalendern (visa, lägga in med påminnelse).",
                               "En av raderna:\n" + DESK_LINES, DESK_FNS)
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
@@ -1349,7 +1361,7 @@ WRITE_SOMETHING = re.compile(r"^\W*(?:skriv|gör|hitta på|formulera|författa|d
 
 DESK_ASK = re.compile(r"\b(?:pausa|volym\w*|ljudet|musiken|nästa låt|förra låt\w*|vad spelas|vilken låt (?:är det|spelas)"
                       r"|spela|öppna|starta|urklipp\w*|notis\w*|fönstr\w*|fönster|flytta|maximera|minimera|fullskärm\w*|helskärm\w*"
-                      r"|goblin (?:update|nyheter|screen|tile|play|frames|färg|help|fast))\b", re.I)
+                      r"|goblin (?:update|nyheter|screen|tile|play|frames|färg|help|fast)|kalender\w*|påminn\w*)\b", re.I)
 
 
 # "Jag har ändrat volymen …", "Pausade Spotify" – an answer saying something was done on the desktop
@@ -1360,6 +1372,7 @@ DONE_CLAIM = re.compile(r"\b(?:ändra[dt]e?|sänk[a-z]*|höj[a-z]*|öka[dt]e?|mi
                         r"|\bspelar (?:nu )?(?:låten|albumet|artisten|listan)\b"
                         r"|\b(?:lade|lagt|kopierade|kopierat)\b.{0,80}\burklipp|\b(?:visade|skickade|skickat)\b.{0,20}\bnotis"
                         r"|\b(?:flyttade|flyttat|maximerade|maximerat|minimerade|minimerat)\b|\bnu i (?:fullskärm|helskärm)"
+                        r"|\b(?:lade in|lagt in|bokade|bokat)\b.{0,80}\b(?:kalender\w*|påminnelse)"
                         r"|\b(?:satte|satt|gjorde|gjort|ställde|ställt|tog|tagit)\b.{0,60}\b(?:fönstr\w*|skärm\w*|läge"
                         r"|fullskärm|helskärm|vanlig\w*|normal\w*|goblin ai|goblinamp|discord)\b",
                         re.I | re.M)

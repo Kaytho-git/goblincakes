@@ -88,6 +88,8 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
   Fönster: KWin-skriptet ai/windows.js via org.kde.kwin.Scripting (flytta, fram, maximera, fullskärm, minimera;
   "andra skärmen" = den programmet inte ligger på; stänga = Tillåt-kort).
   Spel (goblin plays ord, startar efter 8 s) och goblin-kommandon (läsande direkt, andra = Tillåt-kort).
+  Kalendern: händelser skrivs i Merkuros fil (~/.config/akonadi_ical_resource_0rc → Path), Akonadi läser in dem själv;
+  påminnelserna visas av kalendarac (pgrep kalendarac).
   Kolla spelarna: busctl --user list | grep mpris. Volymen: wpctl get-volume @DEFAULT_AUDIO_SINK@.
 
 ## Lokal AI (Ollama)
