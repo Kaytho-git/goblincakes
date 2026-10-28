@@ -23,6 +23,7 @@ SHARE = Path(os.environ.get("GOBLIN_AI_SHARE", "/usr/share/goblincakes/ai"))
 sys.path.insert(0, str(SHARE))
 import goblinai  # noqa: E402
 import learn  # noqa: E402
+import testlist  # noqa: E402
 import toclaude  # noqa: E402
 
 from PySide6.QtCore import QMarginsF, QMimeData, QObject, QProcess, QProcessEnvironment, QSize, QTimer, QUrl, Property, Qt, Signal, Slot  # noqa: E402
@@ -346,6 +347,7 @@ class Backend(QObject):
     _answered = Signal(str, str)  # answer, service
     _failed = Signal(str)
     _claudeDone = Signal(str, str, str, bool)  # conversation id, report path, answer or error, ok
+    _testJudged = Signal(str, str)  # verdict, why (Kakan's judgement of a test point)
     _statusText = Signal(str)
     _stepsText = Signal(str)  # the work loop's steps (JSON)
     _keyResult = Signal(str, str, bool, str)  # provider id, key, ok, message
@@ -371,6 +373,8 @@ class Backend(QObject):
         self._new_conversation()
         self._answered.connect(self._on_answer)
         self._claudeDone.connect(self._on_claude)
+        self._testJudged.connect(self._test_judged)
+        self._test = None  # the test list being run (Testa åt Claude)
         self._mcpDone.connect(self._on_mcp_done)
         self._failed.connect(self._on_failure)
         self._search_next = False  # "Sök på nätet": the next question is searched first
@@ -485,6 +489,8 @@ class Backend(QObject):
         text = text.strip()
         if self._busy or not (text or attachment):
             return
+        if text and self._test and self._test.get("waiting") == "ask":  # the answer to a test point's question
+            return self._test_answer(text)
         content = text or "Titta på den här filen."
         shown = {"role": "user", "text": text, "segments": [], "service": "", "file": ""}
         images = []
@@ -720,6 +726,8 @@ class Backend(QObject):
 
     def _command_done(self, index, ran_in_terminal=False):
         """When every command card in the answer is run or skipped: tell the AI how it went."""
+        if self._display[index].get("test"):  # a test point: the test list goes on, the AI isn't asked
+            return self._test_command_done(index)
         segs = self._display[index]["segments"]
         parts = [s for s in segs if s["type"] in ("command", "blocked")]
         if any(s["state"] in ("new", "running") for s in parts):
@@ -2189,6 +2197,134 @@ class Backend(QObject):
         self._api.append({"role": "assistant", "content": "[Claude Code svarade på din rapport:]\n\n" + text})
         self._display.append(shown)
         self.messageAdded.emit(json.dumps(shown))
+        self._save()
+
+    # ── Testa åt Claude (point 15 of Kakan's plan, 28 Oct; testlist.py) ──
+    # Each point is a message of its own with the usual command card (reading = at once, changing = Tillåt);
+    # a "fråga" is answered in the chat. The result goes to Claude's report folder.
+
+    @Slot(str)
+    def startTest(self, name):
+        if name.strip().lower() in ("stopp", "stop", "avbryt"):
+            if self._test:
+                self._test_finish(stopped=True)
+            else:
+                self.notice.emit("Ingen testlista körs.")
+            return
+        if self._test:
+            return self.notice.emit("En testlista körs redan – /testa stopp avbryter den.")
+        path = testlist.find(name)
+        if not path:
+            return self.notice.emit("Ingen testlista hittades – Claude lägger dem i " +
+                                    str(testlist.FOLDER).replace(str(Path.home()), "~"))
+        try:
+            data = testlist.load(path)
+        except OSError as e:
+            return self.notice.emit(f"Testlistan gick inte att läsa: {e}")
+        if not data["items"]:
+            return self.notice.emit(f"{path.name} har inga punkter (\"- \" först på raden).")
+        self._test = {"path": path, "data": data, "i": 0, "results": [], "index": -1, "waiting": ""}
+        self._test_post(f"**Testlista från Claude: {data['title']}** – {len(data['items'])} punkter. Läsande "
+                        "kommandon körs direkt, ändrande väntar på Tillåt. /testa stopp avbryter.")
+        self._test_next()
+
+    def _test_post(self, text, segments=None, test=False):
+        shown = {"role": "assistant", "text": text, "segments": [{"type": "text", "text": text}] + (segments or []),
+                 "service": "Testa åt Claude", "file": "", "tools": []}
+        if test:
+            shown["test"] = True
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        self._save()
+        return len(self._display) - 1
+
+    def _test_next(self):
+        t = self._test
+        if t["i"] >= len(t["data"]["items"]):
+            return self._test_finish()
+        item = t["data"]["items"][t["i"]]
+        head = f"**{t['i'] + 1}/{len(t['data']['items'])} – {item['title']}**"
+        if item["run"]:
+            code = goblinai.cmd_level().tidy(item["run"])
+            lvl, why = goblinai.cmd_level().level(code)
+            card = ({"type": "blocked", "code": code, "why": why, "state": "blocked"} if lvl == "danger" else
+                    {"type": "command", "code": code, "level": lvl, "why": why, "state": "new", "output": ""})
+            text = head + (f"\nVäntat: {item['expect']}" if item["expect"] else "")
+            t.update(index=self._test_post(text, [card], test=True), waiting="cmd")
+            if lvl == "danger":
+                return self._test_command_done(t["index"])
+            self._auto_count = 0
+            self._autorun(t["index"])
+        elif item["ask"]:
+            t.update(index=self._test_post(f"{head}\n{item['ask']}\n\nSvara **ja**, **nej** eller **hoppa** – "
+                                           "eller skriv vad du ser."), waiting="ask")
+        else:
+            self._test_record("OKLART", "punkten har varken kör: eller fråga:")
+
+    def _test_record(self, verdict, note="", **more):
+        t = self._test
+        t["results"].append({"item": t["data"]["items"][t["i"]], "verdict": verdict, "note": note, **more})
+        t["i"] += 1
+        t["waiting"] = ""
+        self._test_next()
+
+    def _test_answer(self, text):
+        shown = {"role": "user", "text": text, "segments": [], "service": "", "file": ""}
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        verdict, note = testlist.from_answer(text)
+        self._test_record(verdict, note, answer=text)
+
+    def _test_command_done(self, index):
+        t = self._test
+        if not t or index != t["index"] or t["waiting"] != "cmd":
+            return
+        card = next(s for s in self._display[index]["segments"] if s["type"] in ("command", "blocked"))
+        if card["state"] in ("new", "running"):
+            return
+        item = t["data"]["items"][t["i"]]
+        t.update(output=card.get("output", ""), exit=card.get("code_result"), waiting="judge")
+        if card["state"] in ("skipped", "blocked") or not item["expect"] \
+                or "(i ett terminalfönster)" in card.get("output", ""):
+            verdict, note = testlist.from_exit(card["state"], card.get("code_result"), card.get("output", ""))
+            return self._test_judged(verdict, note)
+        self._set_busy(True, "Bedömer testpunkten…")
+        messages = testlist.judge_messages(item, card["code"], card.get("code_result"), card.get("output", ""))
+
+        def work():
+            try:
+                answer, _ = goblinai.ask_once(messages, self._keys, choice=self._model)
+                self._testJudged.emit(*testlist.verdict_of(answer))
+            except Exception as e:  # noqa: BLE001 – no judgement: Claude reads the output itself
+                self._testJudged.emit("OKLART", f"kunde inte bedömas ({e})")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _test_judged(self, verdict, note):
+        t = self._test
+        if not t or t["waiting"] != "judge":
+            return
+        self._set_busy(False)
+        m = self._display[t["index"]]
+        line = f"\n\n**{verdict}**" + (f" – {note}" if note else "")
+        m["text"] += line
+        m["segments"].append({"type": "text", "text": line.strip()})
+        self._update(t["index"])
+        self._test_record(verdict, note, output=t.get("output", ""), exit=t.get("exit"))
+
+    def _test_finish(self, stopped=False):
+        t, self._test = self._test, None
+        self._set_busy(False)
+        for item in t["data"]["items"][len(t["results"]):]:
+            t["results"].append({"item": item, "verdict": "EJ TESTAD", "note": ""})
+        try:
+            path, markdown = testlist.save_result(t["data"], t["results"], t["path"], stopped)
+        except OSError as e:
+            return self.notice.emit(f"Resultatet gick inte att spara: {e}")
+        table = markdown.split("\n## ", 1)[0].split("\n", 1)[1].strip()
+        self._test_post(f"**Testlistan är {'stoppad' if stopped else 'klar'}.** {table}\n\nSparat åt Claude: "
+                        f"`{str(path).replace(str(Path.home()), '~')}` – säg åt Claude att läsa Kakans rapporter.")
+        self._api.append({"role": "assistant", "content": f"[Du körde Claudes testlista {t['data']['title']}:]\n{table}"})
         self._save()
 
     @Slot(str)

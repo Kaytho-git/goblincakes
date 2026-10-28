@@ -210,6 +210,7 @@ Window {
         { name: "lär", note: "lärläget Lär dig koda, på eller av" },
         { name: "minne", note: "vad Goblin AI kommer ihåg om dig" },
         { name: "claude", note: "skicka senaste svaret till Claude Code – /claude fråga = bara läsa, svaret kommer hit", args: true, hidden: !backend.claude },
+        { name: "testa", note: "kör Claudes testlista – /testa <namn>, /testa stopp", args: true },
         { name: "pdf", note: "spara senaste svaret som PDF" },
         { name: "word", note: "spara senaste svaret som Word" },
         { name: "inställningar", note: "AI-tjänster och inställningar", aliases: ["settings"] },
@@ -465,6 +466,9 @@ Window {
                 backend.sendClaude(index, ["fraga", "las", "ask"].indexOf(plain(arg)) >= 0 ? "ask" : "fix");
             break;
         }
+        case "testa":
+            backend.startTest(arg);
+            break;
         case "pdf":
         case "word":
             saveLatest(c.name === "word");

@@ -1,3 +1,4 @@
+2026-10-28  Claude kan lämna testlistor åt Goblin AI: skriv /testa så går hon igenom dem punkt för punkt, frågar dig om det hon inte kan se själv och sparar resultatet åt Claude
 2026-10-28  Kommer Goblin AI inte vidare? Tryck "Skicka till Claude" under svaret: Claude Code öppnas i en terminal med allt hon tagit reda på och löser problemet. "Fråga Claude" ger bara ett svar i chatten, utan att något ändras
 2026-10-28  Goblin AI installerar program rätt: hon kollar programmets namn på Flathub först, och installationen frågar inte längre om "system eller user" mitt i
 2026-10-28  Laggar spelet? Tryck Meta+Shift+L. Datorn noterar tiden och mäter ping, processor, grafikkort och disk – levande grafer visas på skärmen där spelet inte är. Fråga sedan Goblin AI varför det laggade.

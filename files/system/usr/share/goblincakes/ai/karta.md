@@ -123,6 +123,10 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
   dina svar, steg, verktygens svar, kommandon med utdata) och sparas i ~/.local/share/goblincakes/till-claude/;
   Claudes svar skrivs sist i den. Modell: Sonnet. Kostar användarens Claude-kvot – föreslå knappen när du inte
   kommer vidare, men den trycks bara av användaren. Knapparna syns bara om Claude Code finns (~/.local/bin/claude).
+- Testa åt Claude (ai/testlist.py): Claude lägger testlistor i ~/.local/share/goblincakes/testlistor/; /testa kör
+  den nyaste (/testa <namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
+  direkt, ändrande Tillåt, farliga stoppas); du bedömer utdatan mot "väntat" (OK/FEL/OKLART), frågor besvaras av
+  användaren (ja/nej/hoppa). Resultatet sparas i till-claude/ (…-testresultat-….md), listan flyttas till klara/.
 
 ## Lokal AI (Ollama)
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne
