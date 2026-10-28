@@ -104,6 +104,12 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
   "jag har läst/kollat …" utan verktyg skickas tillbaka en gång, sedan en Obs-rad (READ_CLAIM); "kan du …?" får
   listan över verktygen hon har just nu + det hon inte kan (abilities, CANNOT).
 
+- MCP-servrar (färdiga verktyg utifrån, ai/mcp.py): ~/.config/goblincakes/mcp.json (mcpServers, samma form som Claude
+  Code), nycklar i mcp.env (visa aldrig). Program körs i podman-containrar, startar vid första anropet, stängs efter
+  5 min eller när ett spel startar. Läsande verktyg direkt, andra = Tillåt-kort. Verktygslistan cachas i
+  ~/.local/state/goblincakes/ai/mcp-verktyg.json. Kolla: python3 /usr/share/goblincakes/ai/mcp.py lista;
+  podman ps (servrar som kör). Användaren lägger till/stänger av under AI-tjänster → MCP-servrar.
+
 ## Lokal AI (Ollama)
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne
 - Tjänsten goblincakes-ollama (/usr/libexec/goblincakes-ollama serve), inställningar ~/.config/goblincakes/ollama.json.

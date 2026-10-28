@@ -4392,6 +4392,269 @@ Window {
                     }
                 }
 
+                // ── MCP-servrar (punkt 8, 28 Oct): ready-made tools from outside, in podman containers ──
+                Rectangle {
+                    id: mcpCard
+                    property bool open: false
+                    property var items: JSON.parse(backend.mcpServers)
+                    readonly property bool hasGithub: items.some(function (x) { return x.server === "github"; })
+                    width: settingsCol.width
+                    height: mcpCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+
+                    Column {
+                        id: mcpCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 10
+                        Text {
+                            width: parent.width
+                            text: (mcpCard.open ? "▾  " : "▸  ") + "MCP-servrar" + (mcpCard.items.length ? "   (" + mcpCard.items.length + ")" : "")
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: mcpCard.open = !mcpCard.open
+                            }
+                        }
+                        Column {
+                            visible: mcpCard.open
+                            width: parent.width
+                            spacing: 10
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: "Färdiga verktyg utifrån som " + (backend.aiName || "Goblin AI") + " kan använda. Servrarna körs i podman-containrar, startar när de behövs och stängs efter 5 minuter eller när ett spel startar. "
+                                      + "Verktyg som bara läser körs direkt, de som ändrar något ger ett Tillåt-kort. Slå bara på de verktyg du behöver – varje verktyg tar plats i den lokala AI:ns minne."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Text {
+                                visible: backend.mcpBusy
+                                text: "Startar servern och hämtar verktygen …"
+                                color: accent.text
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Repeater {
+                                model: mcpCard.items
+                                Column {
+                                    id: mcpRow
+                                    required property var modelData
+                                    readonly property var s: modelData
+                                    width: mcpCol.width
+                                    spacing: 6
+                                    Row {
+                                        spacing: 10
+                                        Item {
+                                            width: mcpOnRow.width
+                                            height: 30
+                                            Row {
+                                                id: mcpOnRow
+                                                spacing: 10
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                Rectangle {
+                                                    width: 18
+                                                    height: 18
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    color: !mcpRow.s.off ? accent.color : "transparent"
+                                                    border.width: 1
+                                                    border.color: !mcpRow.s.off ? accent.color : "#5C6880"
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        visible: !mcpRow.s.off
+                                                        text: "✓"
+                                                        color: accent.on
+                                                        font.pixelSize: 13
+                                                    }
+                                                }
+                                                Text {
+                                                    text: mcpRow.s.title
+                                                    color: "#E6ECF5"
+                                                    font.family: "IBM Plex Sans"
+                                                    font.weight: Font.DemiBold
+                                                    font.pixelSize: 14
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                }
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: backend.setMcpOff(mcpRow.s.server, !mcpRow.s.off)
+                                            }
+                                        }
+                                        FlatButton {
+                                            small: true
+                                            text: "Uppdatera"
+                                            enabledState: !backend.mcpBusy
+                                            onClicked: backend.refreshMcp(mcpRow.s.server)
+                                        }
+                                        FlatButton {
+                                            small: true
+                                            text: "Ta bort"
+                                            onClicked: backend.removeMcp(mcpRow.s.server)
+                                        }
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        elide: Text.ElideRight
+                                        text: mcpRow.s.where + (mcpRow.s.when ? "  ·  verktygen hämtade " + mcpRow.s.when : mcpRow.s.error ? "  ·  gick inte: " + mcpRow.s.error : "  ·  verktygen hämtas vid nästa fråga")
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 12
+                                    }
+                                    Repeater {
+                                        model: mcpRow.s.tools
+                                        Item {
+                                            id: mcpTool
+                                            required property var modelData
+                                            width: mcpRow.width
+                                            height: mcpToolRow.height
+                                            Row {
+                                                id: mcpToolRow
+                                                x: 28
+                                                spacing: 10
+                                                width: parent.width - 28
+                                                Rectangle {
+                                                    width: 16
+                                                    height: 16
+                                                    y: 2
+                                                    color: mcpTool.modelData.on ? accent.color : "transparent"
+                                                    border.width: 1
+                                                    border.color: mcpTool.modelData.on ? accent.color : "#5C6880"
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        visible: mcpTool.modelData.on
+                                                        text: "✓"
+                                                        color: accent.on
+                                                        font.pixelSize: 11
+                                                    }
+                                                }
+                                                Text {
+                                                    width: parent.width - 26
+                                                    elide: Text.ElideRight
+                                                    text: mcpTool.modelData.name + (mcpTool.modelData.readonly ? "" : "  (Tillåt)") + "  –  " + mcpTool.modelData.description
+                                                    color: mcpTool.modelData.on ? "#E6ECF5" : "#8B98AD"
+                                                    font.family: "IBM Plex Sans"
+                                                    font.pixelSize: 13
+                                                }
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: backend.setMcpTool(mcpRow.s.server, mcpTool.modelData.name, !mcpTool.modelData.on)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Text {
+                                visible: !mcpCard.hasGithub
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: "GitHub (GitHubs officiella server, bara läsning): byggen, commits, filer och issues i dina repon. Skapa en token med bara läsrätt (Fine-grained: Contents, Issues, Actions, Metadata – Read-only) och klistra in den."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Row {
+                                visible: !mcpCard.hasGithub
+                                spacing: 10
+                                FlatButton {
+                                    small: true
+                                    text: "Skapa token"
+                                    onClicked: Qt.openUrlExternally("https://github.com/settings/personal-access-tokens/new")
+                                }
+                                Rectangle {
+                                    width: 300
+                                    height: 30
+                                    color: "#07090D"
+                                    border.width: 1
+                                    border.color: githubInput.activeFocus ? accent.color : "#1E2A40"
+                                    TextInput {
+                                        id: githubInput
+                                        anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        echoMode: TextInput.Password
+                                        clip: true
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 13
+                                        onAccepted: { backend.addGithub(text); text = ""; }
+                                        Text {
+                                            visible: githubInput.text === ""
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "Klistra in GitHub-token här"
+                                            color: "#5C6880"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 13
+                                        }
+                                    }
+                                }
+                                FlatButton {
+                                    small: true
+                                    primary: true
+                                    text: "Lägg till GitHub"
+                                    enabledState: githubInput.text !== "" && !backend.mcpBusy
+                                    onClicked: { backend.addGithub(githubInput.text); githubInput.text = ""; }
+                                }
+                            }
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: "Annan server: klistra in raden ur serverns README (\"namn\": {\"command\": \"docker\", …} – docker blir podman) och tryck Lägg till, eller skriv in den i mcp.json. Den går att använda direkt. Ta bara servrar från kända avsändare."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Rectangle {
+                                width: parent.width
+                                height: Math.max(60, mcpPaste.contentHeight + 16)
+                                color: "#07090D"
+                                border.width: 1
+                                border.color: mcpPaste.activeFocus ? accent.color : "#1E2A40"
+                                TextEdit {
+                                    id: mcpPaste
+                                    anchors { fill: parent; margins: 8 }
+                                    wrapMode: TextEdit.WrapAnywhere
+                                    color: "#E6ECF5"
+                                    selectByMouse: true
+                                    font.family: "IBM Plex Mono"
+                                    font.pixelSize: 12
+                                    Text {
+                                        visible: mcpPaste.text === ""
+                                        text: "\"namn\": { \"command\": \"podman\", \"args\": [\"run\", \"-i\", \"--rm\", \"…\"] }"
+                                        color: "#5C6880"
+                                        font: mcpPaste.font
+                                    }
+                                }
+                            }
+                            Row {
+                                spacing: 10
+                                FlatButton {
+                                    small: true
+                                    primary: true
+                                    text: "Lägg till"
+                                    enabledState: mcpPaste.text.trim() !== "" && !backend.mcpBusy
+                                    onClicked: { backend.addMcpText(mcpPaste.text); mcpPaste.text = ""; }
+                                }
+                                FlatButton {
+                                    small: true
+                                    text: "Öppna mcp.json"
+                                    onClicked: backend.openMcpFile()
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // ── Own buttons (20 Oct): above the input, a new chat with the instruction and its model ──
                 Rectangle {
                     id: dailyCard

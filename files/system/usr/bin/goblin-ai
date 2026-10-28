@@ -368,6 +368,7 @@ class Backend(QObject):
         self._status = ""
         self._new_conversation()
         self._answered.connect(self._on_answer)
+        self._mcpDone.connect(self._on_mcp_done)
         self._failed.connect(self._on_failure)
         self._search_next = False  # "Sök på nätet": the next question is searched first
         self._pending_tools = []  # the tools the answer on its way used (for the ♥)
@@ -752,6 +753,77 @@ class Backend(QObject):
     def setAutorun(self, on):
         goblinai.cmd_level().set_autorun(on)
         self.commandLogChanged.emit()
+
+    # ── MCP servers (AI-tjänster → MCP-servrar, punkt 8 28 Oct): ready-made tools from outside ─────
+
+    mcpChanged = Signal()
+    _mcpDone = Signal(str)  # "" = ok, else why not
+
+    @Property(str, notify=mcpChanged)
+    def mcpServers(self):
+        try:
+            return json.dumps(goblinai.mcp().overview())
+        except Exception:  # noqa: BLE001 – a broken mcp.json: an empty list, the file can be fixed by hand
+            return "[]"
+
+    @Property(bool, notify=mcpChanged)
+    def mcpBusy(self):
+        return getattr(self, "_mcp_busy", False)
+
+    def _mcp_work(self, job):
+        """Starting a container may pull its image first (~50 MB for GitHub) – not in the window's thread."""
+        self._mcp_busy = True
+        self.mcpChanged.emit()
+
+        def work():
+            try:
+                job()
+                self._mcpDone.emit("")
+            except Exception as e:  # noqa: BLE001 – McpError, OSError
+                self._mcpDone.emit(str(e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_mcp_done(self, why):
+        self._mcp_busy = False
+        if why:
+            self.notice.emit(f"MCP-servern gick inte: {why}")
+        self.mcpChanged.emit()
+
+    @Slot(str)
+    def addGithub(self, token):
+        if token.strip():
+            self._mcp_work(lambda: goblinai.mcp().add_github(token))
+
+    @Slot(str)
+    def addMcpText(self, text):
+        if text.strip():
+            self._mcp_work(lambda: goblinai.mcp().add_from_text(text))
+
+    @Slot(str)
+    def refreshMcp(self, server):
+        self._mcp_work(lambda: goblinai.mcp().all_tools(server, refresh=True))
+
+    @Slot(str, str, bool)
+    def setMcpTool(self, server, tool, on):
+        goblinai.mcp().set_tool(server, tool, on)
+        self.mcpChanged.emit()
+
+    @Slot(str, bool)
+    def setMcpOff(self, server, off):
+        goblinai.mcp().set_off(server, off)
+        self.mcpChanged.emit()
+
+    @Slot(str)
+    def removeMcp(self, server):
+        goblinai.mcp().remove(server)
+        self.mcpChanged.emit()
+
+    @Slot()
+    def openMcpFile(self):
+        m = goblinai.mcp()
+        if not m.CONFIG_FILE.exists():
+            m.save_config(m.load_config())
+        subprocess.Popen(["xdg-open", str(m.CONFIG_FILE)], start_new_session=True)
 
     @Property(bool, notify=sidePinnedChanged)
     def sidePinned(self):

@@ -907,6 +907,38 @@ def sys_tools():
     return systools
 
 
+def mcp():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import mcp as m  # noqa: PLC0415
+    return m
+
+
+def mcp_tools(tools):
+    """The MCP servers that are on (punkt 8, 28 Oct) as tools: one per server, one real tool per server tool
+    (`mcp_github__list_commits`), the code block's line = `list_commits {json}` (see mcp.run_line)."""
+    m = mcp()
+    for s in m.for_kakan():
+        word = s["word"] if s["word"] not in tools else s["word"] + "_mcp"
+        fns = [{"fn": (word + "__" + re.sub(r"[^a-zA-Z0-9_-]", "_", t["name"]))[:64],
+                "desc": (t["description"][:m.DESC_MAX] + ("" if t["readonly"] else " (Ändrar något: användaren får ett "
+                                                                                  "Tillåt-kort.)")).strip(),
+                "props": {k: (str(v.get("description") or k), k in (t["schema"].get("required") or []))
+                          for k, v in (t["schema"].get("properties") or {}).items()},
+                "schema": t["schema"],
+                "line": (lambda a, n=t["name"]: m.line_for(n, {k: v for k, v in a.items() if v not in ("", None)}))}
+               for t in s["tools"]]
+        about = (" " + s["about"]) if s["about"] else ""
+        lines = "\n".join(f"{t['name']} {{…}} – {t['description'][:120]}" for t in s["tools"])
+        tools[word] = tool(f"Hämtar från {s['title']}",
+                           f"\n\n{s['title']} (MCP-server):{about} Svara med BARA ett kodblock märkt ```{word} med "
+                           f"verktygets namn och fälten som JSON, t.ex.\n```{word}\n{s['tools'][0]['name']} {{}}\n```\n"
+                           f"Verktygen:\n{lines}", "",
+                           lambda q, n=s["server"]: (m.run_line(n, q), []), word,
+                           f"{s['title']} (MCP-server).{about}", "Verktygets namn och fälten som JSON", fns)
+        tools[word]["mcp"] = s["title"]
+    return tools
+
+
 def configured_wcl():
     try:
         return bool(json.loads((CONFIG / "wcl.json").read_text()).get("clientId"))
@@ -1184,6 +1216,11 @@ def tools_for(keys, project, messages):
             "eller senaste boss (då wowstats). En ny länk = hämta igen.",
             "`senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, en länk till rapporten; `alla` (+ länken) = varje boss i "
             "rapporten; en förmåga/mekanik/fiende: `<boss> förmåga: <namn>` (t.ex. `Ula'tek förmåga: Venomous Heart`)")
+    if not has_images(messages):
+        try:
+            mcp_tools(tools)
+        except Exception as e:  # noqa: BLE001 – a broken mcp.json must not stop the questions
+            print(f"goblin ai: MCP-servrarna gick inte att läsa: {e}", file=sys.stderr)
     return tools
 
 
@@ -1226,6 +1263,11 @@ def tool_schemas(tools):
     schemas = []
     for t in tools.values():
         for f in t["fns"] or [{"fn": t["fn"], "desc": t["desc"], "props": {"fraga": (t["arg"], False)}}]:
+            if f.get("schema"):  # an MCP server's own (slimmed) schema
+                schemas.append({"type": "function", "function": {"name": f["fn"], "description": f["desc"],
+                                                                 "parameters": {"type": "object", "properties": {},
+                                                                                **f["schema"]}}})
+                continue
             schemas.append({"type": "function", "function": {
                 "name": f["fn"], "description": f["desc"],
                 "parameters": {"type": "object",
@@ -1247,6 +1289,8 @@ def tool_call_block(call, tools):
         except ValueError:
             args = {"fraga": args}
     own = next((f for f in tools[word]["fns"] if f["fn"] == fn), None)
+    if own and own.get("schema"):  # MCP: the fields as they are (numbers, lists), not as a line of words
+        return f"```{word}\n{own['line'](args if isinstance(args, dict) else {})}\n```"
     if own:  # a tool with its own fields → the code block's line (a model may still send the whole line in one)
         args = args if isinstance(args, dict) else {}
         line = own["line"](args) if any(look_arg(args, k) for k in own["props"]) else ""
@@ -1278,7 +1322,7 @@ def written_call(body, tools):
 def tool_request(text, tools):
     """(tool, query) when the answer asks for a tool, else None."""
     for m in re.finditer(r"```([\w-]+)[ \t]*\n?(.*?)```", text, re.S):
-        tool = TOOL_WORDS.get(m.group(1).lower())
+        tool = TOOL_WORDS.get(m.group(1).lower()) or (m.group(1) if tools.get(m.group(1), {}).get("mcp") else None)
         if tool in tools:
             return tool, " ".join(m.group(2).split())
         written = written_call(m.group(2), tools)
@@ -1590,9 +1634,11 @@ def local_sources():
             name = {"kalender": "kalendern", "musik": "spelaren (MPRIS)", "urklipp": "urklippet", "volym": "volymen",
                     "fönster": "öppna fönster", "spel": "spelen", "påminnelser": "påminnelserna", "goblin": "`goblin " + query.split(" ", 1)[-1] + "`"
                     }[query.split()[0]]
+        elif tool.startswith("mcp_"):
+            name = f"{getattr(LAST, 'mcp_names', {}).get(tool) or tool[4:]} (MCP)"
         else:
             name = SOURCE_NAMES.get(tool, "")
-        if name and not str(text).startswith("gick inte") and name not in out:
+        if name and not str(text).startswith(("gick inte", "Det här verktyget ändrar")) and name not in out:
             out.append(name)
     return out
 
@@ -1689,6 +1735,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     if asked.pop("rewrite", False):  # a quick button under an answer: only the text again – no tools
         return ask_once(messages, keys, status, notice, project, choice)
     tools = tools_for(keys, project, messages)
+    LAST.mcp_names = {w: t["mcp"] for w, t in tools.items() if t.get("mcp")}
     LAST.tools = []
     if forced and "sök" not in tools and notice:
         notice("Sökningen gick inte: " + ("ingen Tavily-nyckel (AI-tjänster → Tavily)" if not keys.get(SEARCH["env"])
