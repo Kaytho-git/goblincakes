@@ -81,7 +81,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
 - Körda kommandon och hur de ångras: ~/.local/state/goblincakes/ai/kommandon.jsonl, säkerhetskopior bredvid.
   Användaren ångrar under AI-tjänster → Körda kommandon.
 - Styra skrivbordet (verktyget skrivbord, ai/desktop.py): musik (MPRIS via busctl: paus/spela/nästa/förra/vad) och
-  volym (wpctl, högst 100 %) körs direkt utan Tillåt (användarens val) och loggas som "kakan" med ångring.
+  volym (wpctl = datorns, högst 100 %; "i GoblinAmp/Spotify" = spelarens MPRIS-Volume) körs direkt utan Tillåt (användarens val) och loggas som "kakan" med ångring.
   Kolla spelarna: busctl --user list | grep mpris. Volymen: wpctl get-volume @DEFAULT_AUDIO_SINK@.
 
 ## Lokal AI (Ollama)

@@ -113,42 +113,90 @@ def volume_now():
     return (round(float(m.group(1)) * 100) if m else None), "MUTED" in out
 
 
+def _level(what, now):
+    """The new level 0–100 from `40` / `+10` / `-10`, or None."""
+    m = re.fullmatch(r"([+-]?)\s*(\d{1,3})", what)
+    if not m:
+        return None
+    level = int(m.group(2))
+    level = now + level if m.group(1) == "+" else now - level if m.group(1) == "-" else level
+    return max(0, min(100, level))  # never louder than 100 % (hearing, the headset)
+
+
+def find_player(name):
+    """The MPRIS player a program name means: GoblinAmp = its own player, or the one it controls (Spotify);
+    musiken = the one playing."""
+    found = players()
+    name = name.lower().strip()
+    if not found:
+        return None
+    if name in ("goblinamp", "goblin amp", "musiken", "musik", "musikspelaren", "spelaren", "låten"):
+        return next((p for p in found if p["app"].lower() == "goblinamp"), found[0])
+    return next((p for p in found if name.replace(" ", "") in p["app"].lower()), None)
+
+
+def player_volume(name, what, conversation=""):
+    """The volume in a music player (GoblinAmp's slider = the player's MPRIS Volume), not the computer's."""
+    p = find_player(name)
+    if p is None:
+        return f"Hittar ingen spelare som heter {name} (igång: " + (
+            ", ".join(_app_name(q) for q in players()) or "ingen") + "). Starta den först."
+    got = (_busctl("get-property", p["name"], "/org/mpris/MediaPlayer2", PLAYER, "Volume") or {}).get("data")
+    if not isinstance(got, (int, float)):
+        return f"{_app_name(p)} låter inte ändra sin volym."
+    now = round(got * 100)
+    if what in ("", "vad", "nu", "hur"):
+        return f"Volymen i {_app_name(p)} är {now} %."
+    level = 0 if re.match(r"tyst|av|mute|stäng", what) else _level(what, now)
+    if level is None:
+        return "Okänt: säg ett tal (40), +10, -10 eller tyst."
+    if level == now:
+        return f"Volymen i {_app_name(p)} är redan {now} %."
+    set_to = lambda v: (f"busctl --user set-property {p['name']} /org/mpris/MediaPlayer2 {PLAYER} "  # noqa: E731
+                        f"Volume d {v / 100:.2f}")
+    return _done(set_to(level), [set_to(now)], f"Volymen i {_app_name(p)} {now} % → {level} %.", conversation)
+
+
 def volume(what, conversation=""):
-    """`40` / `+10` / `-10` / `tyst` / `ljud` / `` (= how loud now) – the computer's sound (speakers/headset)."""
+    """`40` / `+10` / `-10` / `tyst` / `ljud` / `` (= how loud now) – the computer's sound (speakers/headset);
+    `… i <program>` = that music player's own volume (28 Oct: "öka till 80 % i GoblinAmp" turned the headset down)."""
     what = what.lower().replace("%", "").replace("procent", "").strip()
+    what, _, program = (" " + what).partition(" i ")
+    if not program and what.split(" ")[-1:] and not re.fullmatch(r"[+-]?\d+|tyst|av|ljud|på|vad|nu|hur|", what.split(" ")[-1]):
+        what, _, program = what.rpartition(" ")  # `80 goblinamp`
+    what, program = what.strip(), program.strip()
+    if program:
+        return player_volume(program, what, conversation)
     now, muted = volume_now()
     if now is None:
         return "Hittar ingen ljudutgång."
     if what in ("", "vad", "nu", "hur"):
-        return f"Volymen är {now} %" + (" (ljudet avstängt)." if muted else ".")
+        return f"Datorns volym är {now} %" + (" (ljudet avstängt)." if muted else ".")
     back = f"wpctl set-volume {SINK} {now / 100:.2f}"
     if re.match(r"tyst|av|mute|stäng", what):
-        return _done(f"wpctl set-mute {SINK} 1", [f"wpctl set-mute {SINK} 0"], "Stängde av ljudet.", conversation)
+        return _done(f"wpctl set-mute {SINK} 1", [f"wpctl set-mute {SINK} 0"], "Stängde av datorns ljud.", conversation)
     if re.match(r"ljud|på|unmute", what):
         return _done(f"wpctl set-mute {SINK} 0", [f"wpctl set-mute {SINK} 1"], f"Ljudet på igen ({now} %).",
                      conversation)
-    m = re.fullmatch(r"([+-]?)\s*(\d{1,3})", what)
-    if not m:
+    level = _level(what, now)
+    if level is None:
         return "Okänt: säg ett tal (40), +10, -10, tyst eller ljud."
-    level = int(m.group(2))
-    level = now + level if m.group(1) == "+" else now - level if m.group(1) == "-" else level
-    level = max(0, min(100, level))  # never louder than 100 % (hearing, the headset)
     if level == now and not muted:
-        return f"Volymen är redan {now} %."
+        return f"Datorns volym är redan {now} %."
     code = f"wpctl set-volume {SINK} {level / 100:.2f}" + (f"\nwpctl set-mute {SINK} 0" if muted else "")
     return _done(code, [back] + ([f"wpctl set-mute {SINK} 1"] if muted else []),
-                 f"Volymen {now} % → {level} %.", conversation)
+                 f"Datorns volym {now} % → {level} %.", conversation)
 
 
 def act(line, conversation=""):
-    """The tool's line: `musik <paus|spela|nästa|föregående|vad>`, `volym <tal|+10|-10|tyst|ljud>`."""
+    """The tool's line: `musik <paus|spela|nästa|föregående|vad>`, `volym <tal|+10|-10|tyst|ljud> [i <program>]`."""
     word, _, rest = line.strip().partition(" ")
     word = word.lower()
     if word in ("musik", "music", "låt"):
         return music(rest, conversation)
     if word in ("volym", "volume", "ljud"):
         return volume(rest, conversation)
-    return "Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud."
+    return "Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud [i goblinamp|spotify]."
 
 
 if __name__ == "__main__":  # trying it out: python3 desktop.py musik vad

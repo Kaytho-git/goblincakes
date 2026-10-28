@@ -715,7 +715,8 @@ dem som de står. Leta själv i stället för att be användaren köra
 ls/cat/journalctl. Säg vad du hittade och var (sökvägen), och gissa inte innehåll du inte läst."""
 
 DESK_LINES = """musik <paus|spela|nästa|föregående|vad>   – musiken (GoblinAmp, Spotify …): pausa, spela, byt låt, vad spelas
-volym <40|+10|-10|tyst|ljud|vad>         – datorns volym i procent (högst 100), stäng av/på ljudet"""
+volym <40|+10|-10|tyst|ljud|vad>         – datorns volym (högtalare/hörlurar) i procent, högst 100
+volym <40|+10|-10|vad> i <program>        – volymen i en musikspelare (GoblinAmp, Spotify), inte datorns"""
 
 DESK_PROMPT = """
 
@@ -894,10 +895,13 @@ DESK_FNS = [
             "sök på nätet). Gör det direkt när användaren ber om det.",
             {"gora": ("`paus`, `spela`, `nästa`, `föregående` eller `vad`", True)},
             lambda a: f"musik {look_arg(a, 'gora')}"),
-    look_fn("volym", "Ändrar datorns volym (högtalare/headset) i procent, högst 100, eller stänger av/på ljudet. "
-            "Tomt = hur hög volymen är nu.",
-            {"niva": ("`40` (procent), `+10`, `-10`, `tyst`, `ljud` (på igen) eller tomt", False)},
-            lambda a: f"volym {look_arg(a, 'niva')}".strip()),
+    look_fn("volym", "Ändrar volymen i procent (högst 100). Nämner användaren ett program (\"i GoblinAmp\", "
+            "\"Spotify\", \"musiken\"): fyll i program – då ändras bara den spelarens volym. Utan program: hela "
+            "datorns volym (högtalare/hörlurar), eller stäng av/på ljudet. Tomt = hur hög volymen är nu.",
+            {"niva": ("`40` (procent), `+10`, `-10`, `tyst`, `ljud` (på igen) eller tomt", False),
+             "program": ("Musikspelaren, t.ex. `goblinamp` eller `spotify` (tomt = datorns volym)", False)},
+            lambda a: f"volym {look_arg(a, 'niva')}".strip() + (f" i {look_arg(a, 'program')}"
+                                                              if look_arg(a, "program") else "")),
 ]
 
 
