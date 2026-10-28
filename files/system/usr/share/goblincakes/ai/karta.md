@@ -80,6 +80,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
 - Chattar, minne och lärdomar: ~/.local/share/goblincakes/ai/. Nycklar: ~/.config/goblincakes/ai.env – visa aldrig.
 - Körda kommandon och hur de ångras: ~/.local/state/goblincakes/ai/kommandon.jsonl, säkerhetskopior bredvid.
   Användaren ångrar under AI-tjänster → Körda kommandon.
+- Styra skrivbordet (verktyget skrivbord, ai/desktop.py): musik (MPRIS via busctl: paus/spela/nästa/förra/vad) och
+  volym (wpctl, högst 100 %) körs direkt utan Tillåt (användarens val) och loggas som "kakan" med ångring.
+  Kolla spelarna: busctl --user list | grep mpris. Volymen: wpctl get-volume @DEFAULT_AUDIO_SINK@.
 
 ## Lokal AI (Ollama)
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne

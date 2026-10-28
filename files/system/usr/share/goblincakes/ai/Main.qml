@@ -4263,7 +4263,7 @@ Window {
                                     Text {
                                         width: parent.width
                                         elide: Text.ElideRight
-                                        text: logRow.e.t + "  ·  " + (logRow.e.by === "auto" ? "körde direkt (läser)" : logRow.e.by === "ångra" ? "ångring" : "du tillät")
+                                        text: logRow.e.t + "  ·  " + (logRow.e.by === "auto" ? "körde direkt (läser)" : logRow.e.by === "kakan" ? (backend.aiName || "Goblin AI") + " gjorde direkt" : logRow.e.by === "ångra" ? "ångring" : "du tillät")
                                               + "  ·  " + (logRow.e.exit === null || logRow.e.exit === undefined ? "i terminalen" : logRow.e.exit === 0 ? "klart" : "fel " + logRow.e.exit)
                                               + (logRow.e.undone ? "  ·  ångrat " + logRow.e.undone : "")
                                         color: logRow.e.exit && logRow.e.exit !== 0 ? "#E8A0A4" : "#5C6880"

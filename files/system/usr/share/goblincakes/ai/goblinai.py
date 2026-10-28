@@ -714,6 +714,22 @@ var långsamt – säg vad som stod precis före och efter pausen. Datum och klo
 dem som de står. Leta själv i stället för att be användaren köra
 ls/cat/journalctl. Säg vad du hittade och var (sökvägen), och gissa inte innehåll du inte läst."""
 
+DESK_LINES = """musik <paus|spela|nästa|föregående|vad>   – musiken (GoblinAmp, Spotify …): pausa, spela, byt låt, vad spelas
+volym <40|+10|-10|tyst|ljud|vad>         – datorns volym i procent (högst 100), stäng av/på ljudet"""
+
+DESK_PROMPT = """
+
+Styra skrivbordet: ber användaren dig göra något på datorn (pausa musiken, nästa låt, sänka volymen) – gör det
+direkt med BARA ett kodblock märkt ```skrivbord med en av raderna nedan (det loggas och kan ångras):
+""" + DESK_LINES + """
+T.ex.
+```skrivbord
+musik paus
+```"""
+
+DESK_GUIDE = """
+Säg kort vad du gjorde ("Pausade Spotify."). Gick det inte: säg varför, gissa inte."""
+
 STEP_LIMIT = 10  # tool uses per question (the work loop, 25 Oct; was 6) – and fewer when the local AI's memory fills up
 
 
@@ -788,6 +804,12 @@ def knowledge():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import knowledge as k  # noqa: PLC0415
     return k
+
+
+def desktop():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import desktop  # noqa: PLC0415
+    return desktop
 
 
 def sys_tools():
@@ -865,6 +887,20 @@ LOOK_FNS = [
 ]
 
 
+# ```skrivbord as real tools (punkt 5, 28 Oct)
+DESK_FNS = [
+    look_fn("musik", "Styr musiken som spelas (GoblinAmp, Spotify, webbläsaren): pausa, spela igen, nästa eller "
+            "förra låten, eller visa vad som spelas på datorn (\"vad spelas?\", \"vilken låt är det?\" = `vad`, inte "
+            "sök på nätet). Gör det direkt när användaren ber om det.",
+            {"gora": ("`paus`, `spela`, `nästa`, `föregående` eller `vad`", True)},
+            lambda a: f"musik {look_arg(a, 'gora')}"),
+    look_fn("volym", "Ändrar datorns volym (högtalare/headset) i procent, högst 100, eller stänger av/på ljudet. "
+            "Tomt = hur hög volymen är nu.",
+            {"niva": ("`40` (procent), `+10`, `-10`, `tyst`, `ljud` (på igen) eller tomt", False)},
+            lambda a: f"volym {look_arg(a, 'niva')}".strip()),
+]
+
+
 def tools_for(keys, project, messages):
     """The tools the AI may ask for now: {block word: tool(…)}."""
     tools = {}
@@ -907,6 +943,10 @@ def tools_for(keys, project, messages):
                          "amp.json = GoblinAmp) – titta där först (`mapp ~/.config/goblincakes`). Hittar `filer` inget: "
                          "sök igen på en kortare del av namnet (`*recorder*` i stället för `*goblinrecorders*`).",
                          "En av raderna:\n" + LOOK_LINES, look_fns())
+    tools["skrivbord"] = tool("Styr skrivbordet", DESK_PROMPT, DESK_GUIDE, lambda q: (desktop().act(q), []), "skrivbord",
+                              "Gör det användaren ber om på skrivbordet, direkt (loggas och kan ångras): pausa/spela "
+                              "musiken, nästa/förra låten, vad som spelas, datorns volym.",
+                              "En av raderna:\n" + DESK_LINES, DESK_FNS)
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
     except (OSError, ValueError):
@@ -961,7 +1001,8 @@ TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel
               "cs2": "cs2", "counterstrike": "cs2", "cs": "cs2",
               "systemfel": "systemfel", "system-fel": "systemfel", "systemlogg": "systemfel",
               "leta": "leta", "hitta": "leta", "look": "leta",
-              "goblincakes": "goblincakes", "karta": "goblincakes", "kartan": "goblincakes"}
+              "goblincakes": "goblincakes", "karta": "goblincakes", "kartan": "goblincakes",
+              "skrivbord": "skrivbord", "desktop": "skrivbord", "musik": "skrivbord", "volym": "skrivbord"}
 
 # With real tool calls the system prompt only gets this – the tools describe themselves
 TOOLS_PROMPT = """
@@ -1235,6 +1276,10 @@ WRITE_SOMETHING = re.compile(r"^\W*(?:skriv|gör|hitta på|formulera|författa|d
                              r"dikt\w*|text\w*|inlägg\w*|hälsning\w*|tal|låt|vers\w*|skämt\w*|rim|limerick\w*)\b", re.I)
 
 
+DESK_ASK = re.compile(r"\b(?:pausa|volym\w*|ljudet|musiken|nästa låt|förra låt\w*|vad spelas|vilken låt (?:är det|spelas)"
+                      r"|spela (?:musik|igen))", re.I)
+
+
 def own_data_question(question, tools):
     if not isinstance(question, str):
         return False
@@ -1248,6 +1293,8 @@ def own_data_question(question, tools):
                 return True
         except Exception:  # noqa: BLE001 – ESPN's team list didn't come: as before
             pass
+    if "skrivbord" in tools and DESK_ASK.search(text):
+        return True  # "vad spelas just nu?" = the music here, not the charts (28 Oct)
     return "leta" in tools and bool(OWN_SYSTEM.search(text))
 
 
@@ -2423,7 +2470,8 @@ def rewrite_message(kind, answer, last=True):
 
 
 TOOL_NAMES = {"sök": "sökte på nätet", "wowfel": "läste WoW-felen", "warcraftlogs": "hämtade pullen från Warcraft Logs",
-              "sport": "hämtade lagets ställning", "systemfel": "läste datorns fel", "leta": "letade i datorn"}
+              "sport": "hämtade lagets ställning", "systemfel": "läste datorns fel", "leta": "letade i datorn",
+              "skrivbord": "styrde skrivbordet"}
 
 
 def load_lessons():
