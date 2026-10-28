@@ -2034,7 +2034,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             break
         tool, query = request_
         messages.append({"role": "assistant", "content": answer})
-        full = tokens(messages[:1] + messages[start:]) > LOCAL_BUDGET_TOKENS * 0.8
+        full = tokens(messages[:1] + messages[start:]) > local_budget() * 0.8
         if used >= STEP_LIMIT or full:
             steps.start(f"Slutar hämta: {'minnet är nästan fullt' if full else f'högst {STEP_LIMIT} steg'}")
             steps.done("gräns")
@@ -2066,7 +2066,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             continue
         searched = searched or tool == "sök"
         # What doesn't fit the local AI's memory is cut off here – fit_local would drop this question's start
-        room = int((LOCAL_BUDGET_TOKENS - tokens(messages[:1] + messages[start:])) * CHARS["per_token"]) - 3000
+        room = int((local_budget() - tokens(messages[:1] + messages[start:])) * CHARS["per_token"]) - 3000
         if len(text) > max(room, 4000):
             text = text[:max(room, 4000)] + "\n[… avkortat – resten får inte plats i minnet]"
         seen.append(text)
@@ -2445,8 +2445,16 @@ def sees_images(choice=""):
 
 
 # Of the local AI's 32 768 tokens (see goblincakes-ollama; 18 Oct: 16 384 was too little for a whole raid night +
-# one ability): the chat gets what the answer (LOCAL_MIN_TOKENS) and the tools' descriptions (~1 500) leave
-LOCAL_BUDGET_TOKENS = LOCAL_CONTEXT - LOCAL_MIN_TOKENS - 2500
+# one ability): the chat gets what the answer (LOCAL_MIN_TOKENS) and the tools' descriptions leave. Their size is
+# measured in chat() – guessed as ~1 500 tokens, they were ~9 500 with the MCP servers (28 Oct), and Ollama cuts an
+# overfull prompt from the start = the instructions, without saying so
+TOOLS_SIZE = {"tokens": 1500}
+
+
+def local_budget():
+    return LOCAL_CONTEXT - LOCAL_MIN_TOKENS - 1000 - TOOLS_SIZE["tokens"]
+
+
 PICTURE_CHARS = 5_000  # what a picture counts as
 # Characters per token – measured 25 Oct with gemma4: the system prompt 3.2, plain Swedish 3.7 (English 4.8,
 # Swedish is ~25 % more tokens); after each local answer it follows Ollama's own count (chat)
@@ -2477,7 +2485,7 @@ def fit_local(messages):
     system = [m for m in messages if m["role"] == "system"]
     rest = [m for m in messages if m["role"] != "system"]
     used = sum(len(m["content"]) for m in system)
-    budget = LOCAL_BUDGET_TOKENS * CHARS["per_token"]
+    budget = local_budget() * CHARS["per_token"]
     active = active_images(messages)
     kept = []
     for m in reversed(rest):
@@ -2526,10 +2534,13 @@ def chat(provider, key, model, messages, tools=None):
         return fit_local(full) if provider.get("local") else full
     if provider["id"] != "anthropic":
         native = bool(tools) and native_tools(provider, model)
+        schemas = tool_schemas(tools) if native else []
+        if provider.get("local"):  # the code block prompts (not native) are in the system prompt and counted there
+            TOOLS_SIZE["tokens"] = int(len(json.dumps(schemas, ensure_ascii=False)) / 3.7)
         messages = prepared(TOOLS_PROMPT if native else blocks)
         body = {"model": model, "messages": wire_messages(messages)}
         if native:
-            body["tools"] = tool_schemas(tools)
+            body["tools"] = schemas
         temperature = provider.get("temperature", 0.4)
         if temperature is not None:
             body["temperature"] = temperature
