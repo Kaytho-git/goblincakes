@@ -3875,14 +3875,14 @@ PlasmoidItem {
 - Canvas: `ctx.rotate()` tar radianer (grader * Math.PI / 180), och `requestPaint()` behövs när något ändras.
 - Installera OCH prova med exakt det här blocket – efter varje ändring, byt bara mappen på första raden. Det installerar
   första gången och uppdaterar sedan, visar widgeten i ett fönster i 8 s och läser felen (plasmawindowed skriver dem i
-  journalen, inte i terminalen; utan timeout fastnar blocket):
+  journalen eller i sin egen utskrift – blocket läser båda; utan timeout fastnar blocket):
 ```bash
 cd ~/kakan-prov/MAPPEN || exit 1
 id=$(python3 -c "import json; print(json.load(open('metadata.json'))['KPlugin']['Id'])")
 if kpackagetool6 -t Plasma/Applet -u . >/dev/null 2>&1 || kpackagetool6 -t Plasma/Applet -i .; then echo "Installerad: $id"; else echo "INSTALLATIONEN MISSLYCKADES"; exit 1; fi
 pkill -x plasmawindowed; sleep 1
-t=$(date +%T); timeout 8 plasmawindowed "$id" >/dev/null 2>&1; kod=$?; sleep 2
-fel=$(journalctl --user -t plasmawindowed --since "$t" -o cat | grep -iE "error|qml|not ready|not a type")
+t=$(date +%T); logg=$(mktemp); timeout 8 plasmawindowed "$id" >"$logg" 2>&1; kod=$?; sleep 2
+fel=$({ cat "$logg"; journalctl --user -t plasmawindowed --since "$t" -o cat; } | grep -iE "error|qml|not ready|not a type" | sort -u)
 if [ -n "$fel" ]; then echo "$fel"; elif [ "$kod" -ne 124 ]; then echo "PROVET STARTADE INTE (kod $kod)"; else echo "Inga fel."; fi
 ```
   Kopiera blocket som det står – skriv inte ett eget. Den installerade kopian rör du aldrig (inget rm): blocket
