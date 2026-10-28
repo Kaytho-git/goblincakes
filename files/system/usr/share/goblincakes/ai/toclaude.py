@@ -51,7 +51,13 @@ def _title(text):
 def build(display, index, info=""):
     """The report for the answer at display[index], with the messages before it (the last KEEP) – Markdown."""
     chat = display[max(0, index - KEEP + 1):index + 1]
-    question = next((m.get("text", "") for m in reversed(display[:index + 1]) if m.get("role") == "user"), "")
+    # The user's own question – not an answer to a test point (it was "ja", 28 Oct); a test run without one is
+    # named after its first message (the list's title)
+    question = next((m.get("text", "") for m in reversed(display[:index + 1])
+                     if m.get("role") == "user" and not m.get("test")), "")
+    if not question:
+        first = next((m for m in chat if m.get("service") == "Testa åt Claude"), display[index])
+        question = re.sub(r"[*]", "", (first.get("text") or "").split("\n", 1)[0]).split(" – ")[0]
     out = [f"# Kakans rapport: {_title(question)}",
            f"{datetime.now():%Y-%m-%d %H:%M} – från Goblin AI (Skicka till Claude). Kakan kunde inte lösa det här "
            "själv; allt nedan är hämtat ur samtalet, inget är skrivet i efterhand.",

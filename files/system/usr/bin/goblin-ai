@@ -2269,7 +2269,7 @@ class Backend(QObject):
         self._test_next()
 
     def _test_answer(self, text):
-        shown = {"role": "user", "text": text, "segments": [], "service": "", "file": ""}
+        shown = {"role": "user", "text": text, "segments": [], "service": "", "file": "", "test": True}
         self._display.append(shown)
         self.messageAdded.emit(json.dumps(shown))
         verdict, note = testlist.from_answer(text)
