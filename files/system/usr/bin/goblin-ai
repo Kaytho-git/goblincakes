@@ -367,6 +367,7 @@ class Backend(QObject):
         self._failed.connect(self._on_failure)
         self._search_next = False  # "Sök på nätet": the next question is searched first
         self._pending_tools = []  # the tools the answer on its way used (for the ♥)
+        self._pending_done = []  # …and what they gave, short (saved with the answer, the AI sees it next time)
         if AVATAR.exists() and not goblinai.avatar_description():  # an avatar from before 24 Oct: describe it once
             threading.Thread(target=goblinai.describe_avatar, daemon=True).start()
         self._hearted.connect(self._on_hearted)
@@ -557,6 +558,7 @@ class Backend(QObject):
                 if stop.is_set():  # STOPP was pressed while the last answer was on its way
                     return
                 self._pending_tools = goblinai.last_tools()
+                self._pending_done = goblinai.last_done()
                 self._answered.emit(answer, service)
             except goblinai.Stopped:
                 pass  # stop() has shown it already
@@ -570,7 +572,7 @@ class Backend(QObject):
         threading.Thread(target=work, daemon=True).start()
 
     def _on_answer(self, answer, service):
-        self._api.append({"role": "assistant", "content": answer})
+        self._api.append({"role": "assistant", "content": answer, **({"done": self._pending_done} if self._pending_done else {})})
         shown = {"role": "assistant", "text": answer, "segments": goblinai.segments(answer),
                  "service": service, "file": "", "tools": self._pending_tools}
         if self._steps != "[]":

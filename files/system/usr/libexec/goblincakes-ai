@@ -30,7 +30,7 @@ sys.path.insert(0, "/usr/share/goblincakes/ai")
 sys.path.insert(1, "/usr/share/goblincakes")
 from goblinai import (DAILY_PROMPT, FORMAT_WORDS, LOOK_UP_FIRST, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
                       ai_name, ask as ask_services, chosen_model, cmd_level, file_message, forget, has_keys,
-                      image_request, images_possible, is_image, last_tools, load_daily, load_keys, load_memory, load_projects,
+                      image_request, images_possible, is_image, last_done, last_tools, load_daily, load_keys, load_memory, load_projects,
                       make_image, make_report, model_choices, project_prompt, remember, run_in_folder, save_keys, segments,
                       set_chosen_model, system_prompt, test_key)
 
@@ -370,6 +370,7 @@ def ask_live(chat, keys, choice=""):
                                             notice=lambda t: stop.is_set() or working.say(t),
                                             project=project, choice=choice or chosen_model(), steps=steps)
             result["tools"] = last_tools()
+            result["done"] = last_done()
         except Stopped:
             pass
         except ServiceError as e:
@@ -395,6 +396,7 @@ def ask_live(chat, keys, choice=""):
         return None
     answer, service = result["answer"]
     chat.tools = result.get("tools", [])
+    chat.done = result.get("done", [])
     if working.steps:
         chat.steps = [{k: v for k, v in s.items() if k != "t"} for s in working.steps]
     return answer, service
@@ -586,7 +588,7 @@ def handle(chat, keys, shown, question, choice=""):
             chat.save()
             return
         answer, service = got
-        chat.api.append({"role": "assistant", "content": answer})
+        chat.api.append({"role": "assistant", "content": answer, **({"done": chat.done} if chat.done else {})})
         results = show_answer(chat, answer, service, keys)
         if not results:
             return

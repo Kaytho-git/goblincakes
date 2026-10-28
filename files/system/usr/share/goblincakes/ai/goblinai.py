@@ -1105,9 +1105,9 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     steps: a Steps – what is done is reported to it, and its stop ends the work (raises Stopped).
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
-    LAST.tools, LAST.steps = [], None
+    LAST.tools, LAST.steps, LAST.done = [], None, []
     activity("ask", "tänker", steps=[])
-    messages = with_lessons(messages, project)
+    messages = with_lessons(with_done(messages), project)
     try:
         if read_links(messages, keys, status):
             # The pages are there: one plain answer – no searching on top, no long thinking (a button
@@ -1366,6 +1366,38 @@ class Steps:
             self.report(self.shown())
 
 
+DONE_KEEP = 8  # answers back whose tool lines she still sees
+DONE_CHARS = 220  # of each tool's result
+
+
+def last_done():
+    """What the last ask() did with its tools, short – saved with the answer as "done" (28 Oct, the user: she
+    can't follow a chat that gets shorter each time – "75" after "sänk till 50" – she only saw her own answers,
+    not that a tool had run, so she copied them)."""
+    out = []
+    for tool, query, text in getattr(LAST, "done", []):
+        text = " ".join(str(text).split())
+        out.append(f"{tool}: {query}" + (f" → {text[:DONE_CHARS]}" + ("…" if len(text) > DONE_CHARS else "")
+                                         if text else ""))
+    return out
+
+
+def with_done(messages):
+    """The saved tool lines of the latest answers, as a note of their own right after each answer – a user turn
+    (so she sees what she did but doesn't copy the note into her answers), and not in the question itself (the
+    word rules read the question). A new list."""
+    keep = {id(m) for m in [m for m in messages if m["role"] == "assistant" and m.get("done")][-DONE_KEEP:]}
+    out = []
+    for m in messages:
+        out.append(m)
+        if id(m) in keep:
+            out.append({"role": "user", "content":
+                        "[Goblin AI: så här använde du verktygen till svaret ovan – det har redan körts, gör om det "
+                        "bara om användaren ber om det. Det här skrev inte användaren]\n"
+                        + "\n".join("- " + d for d in m["done"])})
+    return out
+
+
 def last_tools():
     return list(getattr(LAST, "tools", []))
 
@@ -1401,6 +1433,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             sources.extend(found)
             searched, used = True, 1
             LAST.tools.append(("sök", query))
+            LAST.done.append(("sök", query, f"{len(found)} träffar"))
             messages.append({"role": "user", "content":
                              f"[Goblin AI sökte på nätet åt dig innan du svarar – det här skrev eller klistrade användaren "
                              f"inte in]\n\n{text}\n\n[Slut på sökresultaten]\n\nAnvändarens fråga var: \"{question}\"\n"
@@ -1432,6 +1465,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             seen.append(text)
             used += 1
             LAST.tools.append((tool, query))
+            LAST.done.append((tool, query, text))
             messages.append({"role": "user", "content":
                              f"[Goblin AI hämtade det här åt dig innan du svarar ({tool} {query}) – det här skrev eller "
                              f"klistrade användaren inte in. Det är användarens egen strid; svar från tidigare i samtalet "
@@ -1456,6 +1490,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             seen.append(text)
             used += len(read)
             LAST.tools += [("leta", r) for r in read]
+            LAST.done += [("leta", r, "") for r in read]
             messages.append({"role": "user", "content":
                              f"[Goblin AI läste det här i datorn åt dig innan du svarar ({', '.join(read)}) – det här "
                              f"skrev eller klistrade användaren inte in]\n\n{text}\n\n[Slut på det lästa]\n\n"
@@ -1556,8 +1591,10 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         try:
             text, found = run(query)
             steps.done()
+            LAST.done.append((tool, query, "" if tool in ("sök", "leta") else text))
         except Exception as e:  # noqa: BLE001 – ServiceError, wowtools.ToolError, the network
             steps.done("fel", e)
+            LAST.done.append((tool, query, f"gick inte: {e}"))
             if notice:
                 notice(f"{name} gick inte: {e}")
             messages.append({"role": "user", "content": f"Det gick inte ({e}). Svara utan det, och säg varför."})

@@ -1,3 +1,4 @@
+2026-10-28  Kakan minns vad hon gjorde tidigare i samtalet, så korta svar som "75" eller "lite till" fungerar
 2026-10-28  GoblinAmp: håll musen över volymreglaget så ser du volymen i procent
 2026-10-28  Kakan kan styra musiken och volymen åt dig – säg t.ex. "pausa musiken", "nästa låt" eller "sänk volymen till 40". Det syns under AI-tjänster → Körda kommandon och går att ångra
 2026-10-27  Kakan vet vilka program du har på datorn – fråga t.ex. "vilken kalender har jag?" eller "har jag något för att spela in skärmen?"
