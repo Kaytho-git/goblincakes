@@ -1751,7 +1751,7 @@ def local_sources():
             name = f"{getattr(LAST, 'mcp_names', {}).get(tool) or tool[4:]} (MCP)"
         else:
             name = SOURCE_NAMES.get(tool, "")
-        if name and not str(text).startswith(("gick inte", "Det här verktyget ändrar")) and name not in out:
+        if name and not str(text).startswith(("gick inte", "Det här verktyget ändrar", "Det här ändrar något")) and name not in out:
             out.append(name)
     return out
 
@@ -2698,6 +2698,7 @@ Om datorn:
 - GOBLINCAKES är en atomisk, oföränderlig Fedora Kinoite-image (KDE Plasma 6, Wayland; Nvidia-drivrutiner via GOBLINCAKES Config → Grafik)
   byggd med BlueBuild. Systemfilerna i /usr är skrivskyddade; /etc och /var går att ändra.
 - Program installeras som Flatpak (Flathub, gärna `flatpak install --user`), som AppImage i ~/AppImages,
+  (programmets id skrivs aldrig ur minnet: kör `flatpak search <namn>` först – det läser och körs direkt),
   i en Distrobox-container, eller sist i hand som lager med `rpm-ostree install` (kräver omstart).
   Föreslå aldrig `dnf install` direkt på systemet – det fungerar inte här.
 - Uppdatera allt: `goblin update`. Systeminfo: `goblin fast`. Installera program och spelinställningar:
@@ -3297,6 +3298,7 @@ def segments(text):
             parts.append({"type": "text", "text": linkify(text[pos:m.start()].strip())})
         lang, code = m.group(1).strip(), m.group(2).rstrip("\n")
         if lang.lower() in ("bash", "sh", "shell", "console"):
+            code = cmd_level().tidy(code)
             lvl, why = cmd_level().level(code)
             if lvl == "danger":  # never run, and not shown as something to copy either – only why it stopped
                 parts.append({"type": "blocked", "code": code, "why": why, "state": "blocked"})

@@ -650,6 +650,69 @@ def write_targets(code, cwd):
     return paths
 
 
+# ── Flatpak on a card: never a question in the middle, never an app id from memory (28 Oct) ──────────────
+# The card's command runs without a terminal: `flatpak install flathub …` asked "system or user?" (flathub is in
+# both), got no answer and stopped. And the AI wrote org.kde.tuxpaint (it's org.tuxpaint.Tuxpaint) from memory.
+
+FLATPAK_CHANGE = ("install", "uninstall", "remove", "update", "upgrade")
+_flatpak_known = {}
+
+
+def _flatpak(*args, timeout=15):
+    try:
+        return subprocess.run(["flatpak", *args], capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def flatpak_app(app):
+    """The app id as Flathub knows it: app itself, the one id a search on its last part finds
+    (org.kde.tuxpaint → org.tuxpaint.Tuxpaint), or app unchanged when it can't be told."""
+    if app in _flatpak_known:
+        return _flatpak_known[app]
+    found = app
+    r = _flatpak("remote-info", "--user", "flathub", app)
+    if r is not None and r.returncode != 0:
+        token = app.rsplit(".", 1)[-1].lower()
+        s = _flatpak("search", "--columns=application", token)
+        ids = [line.strip() for line in (s.stdout if s else "").splitlines() if "." in line]
+        hits = [i for i in dict.fromkeys(ids) if i.rsplit(".", 1)[-1].lower() == token]
+        if len(hits) == 1:
+            found = hits[0]
+    _flatpak_known[app] = found
+    return found
+
+
+def tidy(code):
+    """A command block made ready for a card: flatpak install/uninstall/update get the installation (--user, as
+    GOBLINCAKES Config installs; uninstall/update: where the app is) and --noninteractive --assumeyes, and an
+    install's app ids are checked against Flathub. Lines with pipes, variables or several commands are left."""
+    out = []
+    for line in code.split("\n"):
+        w = _words(line)
+        sub = next((a for a in w[1:] if not a.startswith("-")), "") if w[:1] == ["flatpak"] else ""
+        if sub not in FLATPAK_CHANGE or re.search(r"[;&|`$<>(){}]", line):
+            out.append(line)
+            continue
+        i = w.index(sub)
+        opts, args = [a for a in w[1:] if a.startswith("-")], [a for a in w[i + 1:] if not a.startswith("-")]
+        if sub == "install":
+            args = [flatpak_app(a) if a.count(".") >= 2 else a for a in args]
+        if not any(o in ("--user", "--system") or o.startswith("--installation") for o in opts):
+            apps = [a for a in args if a.count(".") >= 2]
+            if sub == "install":
+                opts.insert(0, "--user")
+            elif apps:  # without apps (flatpak update) both installations, as before
+                r = _flatpak("info", "--user", apps[0], timeout=5)
+                opts.insert(0, "--user" if r is not None and r.returncode == 0 else "--system")
+        for o in ("--noninteractive", "--assumeyes"):
+            if o not in opts and not (o == "--assumeyes" and "-y" in opts):
+                opts.append(o)
+        indent = line[:len(line) - len(line.lstrip())]
+        out.append(indent + shlex.join(["flatpak", sub, *opts, *args]))
+    return "\n".join(out)
+
+
 def _read(cmd):
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
