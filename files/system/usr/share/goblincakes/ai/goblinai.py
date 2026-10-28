@@ -1284,6 +1284,12 @@ DESK_ASK = re.compile(r"\b(?:pausa|volym\w*|ljudet|musiken|nästa låt|förra l�
                       r"|spela (?:musik|igen))", re.I)
 
 
+# "Jag har ändrat volymen …", "Pausade Spotify" – an answer saying something was done on the desktop
+DONE_CLAIM = re.compile(r"\b(?:ändra[dt]e?|sänk[a-z]*|höj[a-z]*|öka[dt]e?|minska[dt]e?|pausa[dt]e?|stoppa[dt]e?"
+                        r"|start(?:a[dt]e?)|bytt|bytte|hoppa[dt]e?|stängt|stängde|satt|satte)\b"
+                        r".{0,60}\b(?:volym\w*|ljud\w*|musik\w*|låt\w*|spotify|goblinamp|\d+\s*%)", re.I)
+
+
 def own_data_question(question, tools):
     if not isinstance(question, str):
         return False
@@ -1405,7 +1411,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             if notice:
                 notice(f"Söker på nätet gick inte: {e}")
     seen, checked = [str(m.get("content", "")) for m in messages if m["role"] != "assistant"], False
-    nudged = promised = looked = False
+    nudged = promised = looked = acted = False
     fight = own_fight(asked.get("content"), tools, messages)
     if fight:
         tool, query = fight
@@ -1486,6 +1492,18 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              f"{', '.join(w for w in ('goblincakes', 'leta', 'systemfel', 'wowfel') if w in tools)} "
                              "– kartan goblincakes först om det gäller GOBLINCAKES – eller ett läsande "
                              "```bash-block) – sedan vad som är fel och hur det rättas. "
+                             f"Frågan var: \"{question}\"" + NUDGE_NOTE})
+            continue
+        if (not request_ and not acted and "skrivbord" in tools and len(answer) < 500 and DONE_CLAIM.search(answer)
+                and not any(t == "skrivbord" for t, _ in LAST.tools)):
+            # "75" after "sänk till 50": gemma4 answered "Jag har ändrat volymen i Spotify till 75 %" without the tool
+            # (28 Oct) – the chat only holds her earlier answers, so she copied them. Once more: do it for real.
+            acted = True
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] Inget har gjorts – du använde inte verktyget skrivbord, så det du skrev är "
+                             "inte sant. Gör det nu med verktyget. Ett kort svar (\"75\", \"lite till\", \"nästa\") "
+                             "fortsätter det ni just gjorde: samma sak och samma program som förra gången. "
                              f"Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
         if not request_ and not promised and PROMISE.search(answer[-400:]) and len(answer) < 600:
