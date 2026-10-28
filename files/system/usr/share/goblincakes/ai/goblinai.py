@@ -923,20 +923,60 @@ def mcp():
     return m
 
 
-def mcp_tools(tools):
+def mcp_in_use(server, messages):
+    """The question is about the server (its words) or the chat is already using it (its tools in the last few
+    messages, "Hämtat från: … (MCP)", the Tillåt card's `mcp.py kör <server>`)."""
+    m = mcp()
+    typed = next((x.get("content") for x in reversed(messages or []) if x.get("role") == "user"
+                  and isinstance(x.get("content"), str) and not x["content"].startswith("Så här gick det:")), "")
+    if m.asked_for(typed, [server]):
+        return True
+    recent = " ".join(str(x.get("content", ""))[:20000] for x in (messages or [])[-6:])
+    return (server["word"] in recent or f"{server['title']} (MCP)" in recent
+            or bool(re.search(rf"\bkör'? {re.escape(server['server'])} ", recent)))
+
+
+def mcp_short(word, s, m):
+    """A server not in use as ONE function: the tool's name + its fields. The servers' full schemas were half of
+    what the model reads before each answer (17 of 35 kB, ~20 s before the first word, 28 Oct)."""
+    names = [t["name"] for t in s["tools"]]
+    listed = ", ".join(f"{t['name']}({', '.join(t['schema'].get('required') or [])})" for t in s["tools"])
+    about = (" " + s["about"]) if s["about"] else ""
+    return [{"fn": word, "desc": f"{s['title']} (MCP-server).{about} Verktygen (obligatoriska fält): {listed}"[:1200],
+             "props": {"verktyg": ("Verktygets namn", True), "falt": ("Fälten som JSON-objekt", False)},
+             "schema": {"properties": {"verktyg": {"type": "string", "enum": names},
+                                       "falt": {"type": "object", "description": "Verktygets fält, t.ex. {\"url\": \"…\"}"}},
+                        "required": ["verktyg"]},
+             "line": lambda a: m.line_for(str(a.get("verktyg") or ""), _fields(a.get("falt")))}]
+
+
+def _fields(value):
+    if isinstance(value, str):
+        try:
+            value = json.loads(value or "{}")
+        except ValueError:
+            return {}
+    return value if isinstance(value, dict) else {}
+
+
+def mcp_tools(tools, messages=None):
     """The MCP servers that are on (punkt 8, 28 Oct) as tools: one per server, one real tool per server tool
-    (`mcp_github__list_commits`), the code block's line = `list_commits {json}` (see mcp.run_line)."""
+    (`mcp_github__list_commits`), the code block's line = `list_commits {json}` (see mcp.run_line). A server the
+    question isn't about gets one short function instead (mcp_short)."""
     m = mcp()
     for s in m.for_kakan():
         word = s["word"] if s["word"] not in tools else s["word"] + "_mcp"
-        fns = [{"fn": (word + "__" + re.sub(r"[^a-zA-Z0-9_-]", "_", t["name"]))[:64],
-                "desc": (t["description"][:m.DESC_MAX] + ("" if t["readonly"] else " (Ändrar något: användaren får ett "
-                                                                                  "Tillåt-kort.)")).strip(),
-                "props": {k: (str(v.get("description") or k), k in (t["schema"].get("required") or []))
-                          for k, v in (t["schema"].get("properties") or {}).items()},
-                "schema": t["schema"],
-                "line": (lambda a, n=t["name"]: m.line_for(n, {k: v for k, v in a.items() if v not in ("", None)}))}
-               for t in s["tools"]]
+        if not mcp_in_use({**s, "word": word}, messages):
+            fns = mcp_short(word, s, m)
+        else:
+            fns = [{"fn": (word + "__" + re.sub(r"[^a-zA-Z0-9_-]", "_", t["name"]))[:64],
+                    "desc": (t["description"][:m.DESC_MAX] + ("" if t["readonly"] else " (Ändrar något: användaren får ett "
+                                                                                      "Tillåt-kort.)")).strip(),
+                    "props": {k: (str(v.get("description") or k), k in (t["schema"].get("required") or []))
+                              for k, v in (t["schema"].get("properties") or {}).items()},
+                    "schema": t["schema"],
+                    "line": (lambda a, n=t["name"]: m.line_for(n, {k: v for k, v in a.items() if v not in ("", None)}))}
+                   for t in s["tools"]]
         about = (" " + s["about"]) if s["about"] else ""
         lines = "\n".join(f"{t['name']} {{…}} – {t['description'][:120]}" for t in s["tools"])
         tools[word] = tool(f"Hämtar från {s['title']}",
@@ -1230,7 +1270,7 @@ def tools_for(keys, project, messages):
             "rapporten; en förmåga/mekanik/fiende: `<boss> förmåga: <namn>` (t.ex. `Ula'tek förmåga: Venomous Heart`)")
     if not has_images(messages):
         try:
-            mcp_tools(tools)
+            mcp_tools(tools, messages)
         except Exception as e:  # noqa: BLE001 – a broken mcp.json must not stop the questions
             print(f"goblin ai: MCP-servrarna gick inte att läsa: {e}", file=sys.stderr)
     return tools
@@ -1340,7 +1380,28 @@ def tool_request(text, tools):
         written = written_call(m.group(2), tools)
         if written:
             return written
-    return None
+    return json_call(text, tools)
+
+
+JSON_CALL = re.compile(r'\{\s*"name"\s*:\s*"[\w-]+"\s*,\s*"(?:arguments|parameters)"\s*:')
+
+
+def json_call(text, tools):
+    """A tool call written as JSON text instead of a real call – `{"name": "mcp_github__get_latest_release",
+    "arguments": {…}}` was the whole answer (gemma4, 28 Oct) – as (tool, query), else None."""
+    m = JSON_CALL.search(text)
+    if not m:
+        return None
+    try:
+        call, _ = json.JSONDecoder().raw_decode(text[m.start():])
+    except ValueError:
+        return None
+    block = tool_call_block({"function": {"name": call.get("name"),
+                                          "arguments": call.get("arguments") or call.get("parameters") or {}}}, tools)
+    if not block:
+        return None
+    word, _, body = block[3:].partition("\n")
+    return word, " ".join(body.rsplit("\n```", 1)[0].split())
 
 
 def ask(messages, keys, status=None, notice=None, project=None, choice="", steps=None):
