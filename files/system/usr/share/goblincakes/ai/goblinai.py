@@ -722,7 +722,7 @@ spela <låt|album|artist> <artist> - <titel> – spela en låt, ett album eller 
 notis <text>                              – visa en notis nu ("Rubrik: text" ger en rubrik)
 urklipp <text>                            – lägg texten i urklippet (det gamla går att få tillbaka)
 urklipp vad                               – vad som ligger i urklippet
-fönster <program> [skärm <1|2|andra|vänster|höger>] [fram|maximera|fullskärm|minimera|normal] – flytta/ändra ett
+fönster <program> [skärm <1|2|andra|vänster|höger>] [fram|maximera|fullskärm|minimera|normal|stäng|avsluta] – ett
                                             fönster, flera saker på en gång (fönster goblin ai skärm andra fullskärm)
 fönster lista                             – vilka fönster som är öppna och var
 spel <namn|lista>                         – starta ett spel (wow, cs2 …) om 8 sekunder, eller visa spelen
@@ -941,11 +941,12 @@ DESK_FNS = [
             "minimera, tillbaka till vanligt – flera på en gång (\"flytta goblin ai till andra skärmen och gör den "
             "fullskärm\" = program `goblin ai`, skarm `andra`, gora `fullskärm`). Utan program: vilka fönster som är "
             "öppna. \"Den\"/\"det\" = fönstret ni just pratade om. Tillbaka till vanligt = gora `normal`. Stänga ett "
-            "fönster: gora `stäng` – då får användaren ett Tillåt-kort.",
+            "fönster: gora `stäng` (som ✕); \"stäng X helt\"/\"avsluta X\" = gora `avsluta` (hela programmet, även om "
+            "det bara ligger i systemfältet, t.ex. Steam) – båda ger användaren ett Tillåt-kort.",
             {"program": ("Programmet fönstret tillhör, t.ex. `goblin ai`, `discord`, `wow` (tomt = lista fönstren)", False),
              "skarm": ("Skärmen: `andra` när användaren säger \"andra skärmen\"/\"den andra\" (= alltid den skärm "
                        "programmet INTE ligger på), annars `1`, `2`, `vänster`, `höger` (tomt = samma)", False),
-             "gora": ("Ett eller flera: `fram`, `maximera`, `fullskärm`, `minimera`, `normal`, `stäng` (tomt = bara "
+             "gora": ("Ett eller flera: `fram`, `maximera`, `fullskärm`, `minimera`, `normal`, `stäng`, `avsluta` (tomt = bara "
                       "flytta/ta fram)", False)},
             lambda a: "fönster " + (" ".join(x for x in (look_arg(a, "program"),
                                                           f"skärm {look_arg(a, 'skarm')}" if look_arg(a, "skarm") else "",

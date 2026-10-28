@@ -41,6 +41,7 @@ function state(w) {
 
 function describe(w) {
     return {"id": String(w.internalId), "caption": w.caption, "app": w.resourceClass, "desktop": w.desktopFileName,
+            "pid": w.pid,
             "state": state(w), "active": workspace.activeWindow === w};
 }
 

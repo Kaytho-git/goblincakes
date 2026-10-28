@@ -1393,11 +1393,15 @@ class Amp(QObject):
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def message(self, data):
-        """From a second start: b"raise", or JSON {"graph": words} / {"files": paths}."""
+        """From a second start: b"raise", or JSON {"graph": words} / {"files": paths} / {"quit": true}
+        (Goblin AI's "stäng GoblinAmp helt", 28 Oct – the same as ✕ → Stäng helt)."""
         try:
             msg = json.loads(data)
         except ValueError:
             msg = {}
+        if isinstance(msg, dict) and msg.get("quit"):
+            self.quitAll()
+            return
         if isinstance(msg, dict) and "graph" in msg:
             self.graph.apply_args([a for a in msg["graph"] if a != "--quit"])
             self.showGraph(True)

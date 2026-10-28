@@ -423,7 +423,8 @@ def clipboard(what, conversation=""):
 WIN_ACTIONS = {"fram": "fram", "fokus": "fram", "visa": "fram", "maximera": "maximera", "max": "maximera",
                "maximerad": "maximera", "stor": "maximera", "fullskärm": "fullskärm", "helskärm": "fullskärm",
                "fullscreen": "fullskärm", "minimera": "minimera", "göm": "minimera", "dölj": "minimera",
-               "normal": "normal", "vanlig": "normal", "återställ": "normal", "stäng": "stäng", "close": "stäng"}
+               "normal": "normal", "vanlig": "normal", "återställ": "normal", "stäng": "stäng", "close": "stäng",
+               "avsluta": "avsluta", "helt": "avsluta", "quit": "avsluta", "döda": "avsluta"}
 FILLER = {"till", "på", "den", "det", "och", "gör", "flytta", "skärmen", "skärm", "fönstret", "i", "in", "som"}
 
 
@@ -516,6 +517,89 @@ def _kwin_here(payload, timeout=4000):
         bus.unregisterService(service)
 
 
+AMP_SOCKET = Path("/tmp") / f"goblin-amp-{__import__('os').getuid()}"  # GoblinAmp's QLocalServer
+
+
+# Programs with their own way to end for good (they hide in the system tray on ✕): name → (process, command)
+QUIT_WAYS = {"steam": ("steam", ["steam", "-shutdown"]),
+             "spotify": ("spotify", ["busctl", "--user", "call", "org.mpris.MediaPlayer2.spotify",
+                                     "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2", "Quit"]),
+             "discord": ("Discord", None)}
+
+
+def _pids(process):
+    try:
+        out = subprocess.run(["pgrep", "-x", process], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [int(x) for x in out.split()]
+
+
+def _gone(pids, wait=6.0):
+    end = time.time() + wait
+    while time.time() < end:
+        if not any(Path(f"/proc/{p}").exists() for p in pids):
+            return True
+        time.sleep(0.3)
+    return False
+
+
+def quit_program(win):
+    """The program for good, also when it only lies in the system tray (28 Oct, the user: "stäng GoblinAmp helt
+    eller Steam helt, så ska det stängas helt"): GoblinAmp through its own Stäng helt (with the Spotify app), Steam
+    with steam -shutdown, Spotify with MPRIS Quit, others with TERM to the process (programs end as when the
+    computer shuts down); KILL never."""
+    import os  # noqa: PLC0415
+    import signal  # noqa: PLC0415
+    import socket  # noqa: PLC0415
+    key = _squash(win.get("desktop") or win.get("app") or win.get("caption") or "")
+    title = win.get("caption") or key
+    if "goblinai" in key:
+        return "Goblin AI avslutar inte sig själv – stäng fönstret med ✕."
+    if "goblinamp" in key:
+        pids = _pids("goblin-amp") or [int(x) for x in subprocess.run(
+            ["pgrep", "-f", "bin/goblin-amp$"], capture_output=True, text=True).stdout.split()]
+        if not pids:
+            return "GoblinAmp är inte igång."
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+                sock.settimeout(2)
+                sock.connect(str(AMP_SOCKET))
+                sock.sendall(json.dumps({"quit": True}).encode())
+        except OSError:
+            pass
+        if _gone(pids, 4):
+            return "Avslutade GoblinAmp helt (och Spotify-appen)."
+        title = "GoblinAmp"  # an older GoblinAmp without {"quit"}: TERM below
+    else:
+        pids = []
+    for word, (process, command) in QUIT_WAYS.items():
+        if word in key:
+            pids = _pids(process)
+            if not pids:
+                return f"{word.capitalize()} är inte igång."
+            if command:
+                subprocess.Popen(command, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if _gone(pids, 15):
+                    return f"Avslutade {word.capitalize()} helt."
+            title = word.capitalize()
+            break
+    if not pids:
+        pid = int(win.get("pid") or 0)
+        pids = [pid] if pid else _pids(win.get("app") or "") or _pids(key)
+    pids = [p for p in pids if p != os.getpid() and Path(f"/proc/{p}").exists()]
+    if not pids:
+        return f"Hittar inget program som heter {title} – det är kanske redan avslutat."
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    if _gone(pids, 6):
+        return f"Avslutade {title} helt."
+    return f"Bad {title} avsluta – det svarar inte än (kanske frågar det om att spara)."
+
+
 def _screen_no(connector):
     return next((f"skärm {n}" for n, c, _ in screens() if c == connector), connector)
 
@@ -555,15 +639,21 @@ def window(words, conversation="", allow_close=False):
         i += 1
     if not name:
         return "Säg vilket program fönstret tillhör, t.ex. `fönster goblin ai skärm 2 fullskärm`."
-    if "stäng" in actions and not allow_close:
+    if "avsluta" in actions:  # "stäng helt": the program for good, not only its window (28 Oct, the user)
+        actions = [a for a in actions if a != "stäng"] + (["stäng"] if "stäng" not in actions else [])
+    closing = "avsluta" if "avsluta" in actions else "stäng" if "stäng" in actions else ""
+    if closing and not allow_close:
         me = Path(__file__).resolve()
-        return ("Att stänga ett fönster kräver Tillåt (osparat kan försvinna). Svara med det här kodblocket så får "
-                f"användaren ett Tillåt-kort:\n```bash\npython3 {me} fönster {' '.join(name)} stäng\n```")
+        what = ("Att avsluta ett program helt" if closing == "avsluta" else "Att stänga ett fönster")
+        return (f"{what} kräver Tillåt (osparat kan försvinna). Svara med det här kodblocket så får användaren ett "
+                f"Tillåt-kort:\n```bash\npython3 {me} fönster {' '.join(name)} {closing}\n```")
     if not actions and not screen_word:
         actions = ["fram"]
     got = _kwin({"mode": "find", "match": " ".join(name)})
     if got is None:
         return "Får inget svar från KWin (fönsterhanteraren)."
+    if not got.get("before") and closing == "avsluta" and allow_close:
+        return quit_program({"caption": " ".join(name), "desktop": " ".join(name)})  # in the tray only (Steam)
     if not got.get("before"):
         return (f"Hittar inget fönster för {' '.join(name)}. Öppna fönster: " + ", ".join(got.get("windows") or [])
                 + ". (Starta programmet med öppna först.)")
@@ -572,9 +662,11 @@ def window(words, conversation="", allow_close=False):
     if screen_word and not target:
         return f"Vet inte vilken skärm \"{screen_word}\" är. Skärmarna: " + ", ".join(
             f"skärm {n} ({c})" for n, c, _ in screens()) + "."
-    if "stäng" in actions:  # only here from the Tillåt card (its run is logged as the card)
+    if closing == "avsluta":  # only here from the Tillåt card
+        return quit_program(before)
+    if closing:  # only here from the Tillåt card (its run is logged as the card) – the same as ✕
         _kwin({"mode": "close", "id": before["id"]})
-        return f"Stängde {before['caption']}."
+        return f"Stängde {before['caption']} (som ✕ – program med ikon i systemfältet kan ligga kvar där)."
     got = _kwin({"mode": "do", "match": " ".join(name), "actions": actions, "screen": target})
     if not got or not got.get("after"):
         return "KWin svarade inte – fönstret är kanske stängt."
@@ -705,7 +797,7 @@ if __name__ == "__main__":  # trying it out: python3 desktop.py musik vad
         data = json.loads(sys.argv[2])
         got = _kwin({"mode": "restore", "id": data["id"], "before": data["before"]})
         print("Fönstret är tillbaka." if got and got.get("after") else "Fönstret finns inte längre.")
-    elif sys.argv[1:2] in (["fönster"], ["fonster"]) and sys.argv[-1] == "stäng":  # the Tillåt card: allowed
+    elif sys.argv[1:2] in (["fönster"], ["fonster"]) and sys.argv[-1] in ("stäng", "avsluta"):  # the Tillåt card
         print(window(" ".join(sys.argv[2:]), allow_close=True))
     else:
         print(act(" ".join(sys.argv[1:])))
