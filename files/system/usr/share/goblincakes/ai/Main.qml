@@ -1070,6 +1070,49 @@ Window {
             }
         }
 
+        // Two lessons maybe about the same thing (28 Oct, the user's idea): the AI found them, the user chooses –
+        // the new one, the old one, or both (different things). Under a ♥/👎 answer and in Lärdomar.
+        component SimilarBox: Column {
+            id: simBox
+            property string newId
+            property var olds: []
+            spacing: 8
+            visible: olds.length > 0
+            Repeater {
+                model: simBox.olds
+                Column {
+                    id: simOld
+                    required property var modelData
+                    width: simBox.width
+                    spacing: 6
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: "Liknar en äldre lärdom" + (simOld.modelData.added ? " (" + simOld.modelData.added + ")" : "") + ": "
+                              + (simOld.modelData.kind === "avoid" ? "👎 " : "♥ ") + simOld.modelData.lesson
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                    Text {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: "Frågan då: " + simOld.modelData.question
+                        color: "#5C6880"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
+                    Flow {
+                        width: parent.width
+                        spacing: 8
+                        FlatButton { small: true; text: "Behåll nya"; onClicked: backend.resolveSimilar(simBox.newId, simOld.modelData.id, "new") }
+                        FlatButton { small: true; text: "Behåll gamla"; onClicked: backend.resolveSimilar(simBox.newId, simOld.modelData.id, "old") }
+                        FlatButton { small: true; text: "Behåll båda – olika saker"; onClicked: backend.resolveSimilar(simBox.newId, simOld.modelData.id, "both") }
+                    }
+                }
+            }
+        }
+
         component FlatButton: Rectangle {
             id: btn
             property string text
@@ -2388,6 +2431,11 @@ Window {
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 12
+                        }
+                        SimilarBox {
+                            width: parent.width
+                            newId: msgItem.m.heart || ""
+                            olds: msgItem.m.similar || []
                         }
                     }
                 }
@@ -4190,10 +4238,31 @@ Window {
                                 wrapMode: Text.WordWrap
                                 text: "Tryck ♥ under ett bra svar, så skriver " + (backend.aiName || "Goblin AI") + " en kort lärdom om hur det gick till – 👎 under ett dåligt, så skrivs vad som ska undvikas. "
                                       + "Vid en liknande fråga följer de 2–3 lärdomar som passar bäst med. Ett hjärta på ett svar som var fel lär in felet – "
-                                      + "ändra eller ta bort sådana här. Klicka på en lärdom för att ändra den." + (lessonCard.items.length ? "  (" + lessonCard.items.length + " av 100)" : "")
+                                      + "ändra eller ta bort sådana här. Klicka på en lärdom för att ändra den. Liknar en ny lärdom en äldre får du välja vilken som ska vara kvar."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 13
+                            }
+                            Row {
+                                visible: lessonCard.items.length > 1
+                                spacing: 12
+                                FlatButton {
+                                    small: true
+                                    text: backend.similarBusy ? "Letar…" : "Hitta liknande"
+                                    enabledState: !backend.similarBusy
+                                    onClicked: if (!backend.similarBusy) backend.findSimilar()
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: {
+                                        const n = lessonCard.items.filter(i => i.similarItems.length > 0).length;
+                                        return n ? n + " lärdomar liknar en äldre – välj under dem (▸ öppna kategorin)"
+                                                 : "går igenom alla och visar lärdomar som kanske är samma sak";
+                                    }
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                }
                             }
                             Text {
                                 visible: lessonCard.items.length === 0
@@ -4213,6 +4282,7 @@ Window {
                                     Text {
                                         text: (lessonCard.openCat === catRow.modelData.id ? "▾  " : "▸  ") + catRow.modelData.name
                                               + "   (" + lessonCard.inCat(catRow.modelData.id).length + ")"
+                                              + (lessonCard.inCat(catRow.modelData.id).some(i => i.similarItems.length > 0) ? "   · att välja" : "")
                                         color: catHead.containsMouse ? accent.text : "#E6ECF5"
                                         font.family: "IBM Plex Sans"
                                         font.weight: Font.DemiBold
@@ -4332,6 +4402,11 @@ Window {
                                                             onClicked: backend.removeLesson(lessonRow.modelData.id)
                                                         }
                                                     }
+                                                }
+                                                SimilarBox {
+                                                    width: parent.width - 30
+                                                    newId: lessonRow.modelData.id
+                                                    olds: lessonRow.modelData.similarItems
                                                 }
                                             }
                                         }

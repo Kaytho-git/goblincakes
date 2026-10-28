@@ -19,7 +19,7 @@ import sys
 import tempfile
 import threading
 import time
-from datetime import date
+from datetime import date, datetime
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -3024,8 +3024,10 @@ def forget(texts):
 
 # ── ♥ on a good answer (18 Oct, the user's idea; step 1 built 21 Oct): what worked is saved as a short
 # lesson the AI writes itself, and the 2–3 lessons most like a new question go into its system prompt ──
-LESSONS_FILE = MEMORY_FILE.parent / "lardomar.json"  # [{"id", "kind" good|avoid, "question", "lesson", "tools", "service", "project", "added", "category"}]
-LESSONS_MAX = 100
+LESSONS_FILE = MEMORY_FILE.parent / "lardomar.json"  # [{"id", "kind" good|avoid, "question", "lesson", "tools", "service", "project", "added", "category", "used", "last_used"}]
+# No ceiling (28 Oct, point 12 part 2, the user's decision – before it 100, and the oldest went without a word):
+# only 2–3 go into a prompt however many there are; the same thing twice is the user's to settle (`similar`)
+SIMILAR_MAX = 5  # older lessons shown to the AI when it writes a new one, to tell if one is about the same thing
 LESSONS_PICK = 3
 LESSON_LENGTH = 300
 STOP_WORDS = set("""och att det som en ett är för på med till av den har inte jag du vi ni de om kan vad hur var när
@@ -3089,12 +3091,13 @@ def category_of(item):
 
 def split_category(text):
     """(the lesson, its category or "") from the AI's answer with its "Kategori: …" line."""
-    found = re.search(r"\n?\s*\**kategori\**\s*:\s*\**\s*([\wåäöÅÄÖ ]+)\**\s*$", text.strip(), re.I)
+    found = list(re.finditer(r"^[ \t*]*kategori\**[ \t]*:[ \t]*\**[ \t]*([\wåäöÅÄÖ ]+?)[ \t*]*$", text, re.I | re.M))
     if not found:
         return text, ""
-    word = found.group(1).strip().casefold()
+    hit = found[-1]
+    word = hit.group(1).strip().casefold()
     word = {"nätet": "natet", "övrigt": "ovrigt", "sättet att svara": "svar"}.get(word, word)
-    return text[:found.start()], word if word in CATEGORY_IDS else ""
+    return text[:hit.start()] + text[hit.end():], word if word in CATEGORY_IDS else ""
 
 
 # The quick buttons under an answer (21 Oct): what each asks the AI to do with that answer
@@ -3129,9 +3132,26 @@ def load_lessons():
         return []
 
 
+class _LessonsLock:
+    """Read, change and write the lessons without losing another's write: the window, goblin ai in the
+    terminal and Kakan's watcher may all save at once (every question now marks its lessons used)."""
+
+    def __enter__(self):
+        import fcntl  # noqa: PLC0415
+        LESSONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        self._fd = open(LESSONS_FILE.with_name("lardomar.lock"), "w")  # noqa: SIM115
+        fcntl.flock(self._fd, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        self._fd.close()  # the lock goes with it
+
+
 def save_lessons(items):
     LESSONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    LESSONS_FILE.write_text(json.dumps(items[-LESSONS_MAX:], ensure_ascii=False, indent=1))
+    tmp = LESSONS_FILE.with_name(LESSONS_FILE.name + ".tmp")
+    tmp.write_text(json.dumps(items, ensure_ascii=False, indent=1))
+    tmp.replace(LESSONS_FILE)
 
 
 def tools_text(tools):
@@ -3139,9 +3159,9 @@ def tools_text(tools):
 
 
 def make_lesson(question, answer, tools, keys, project=None, choice="", kind="good", reason=""):
-    """(lesson, category): the AI's own short lesson from an answer the user liked – or, kind "avoid", disliked
-    (👎, with the user's reason if given); a plain one when no service answers. The category is the AI's own
-    pick, else guessed from the words."""
+    """(lesson, category, similar ids): the AI's own short lesson from an answer the user liked – or, kind
+    "avoid", disliked (👎, with the user's reason if given); a plain one when no service answers. The category
+    is the AI's own pick, else guessed from the words; similar = older lessons it says are about the same thing."""
     if kind == "avoid":
         why = f"Användaren skrev vad som var fel: \"{' '.join(str(reason).split())[:400]}\". " if reason.strip() else ""
         prompt = AVOID_PROMPT.format(reason=why, question=str(question)[:1500], tools=tools_text(tools),
@@ -3149,6 +3169,9 @@ def make_lesson(question, answer, tools, keys, project=None, choice="", kind="go
     else:
         prompt = LESSON_PROMPT.format(question=str(question)[:1500], tools=tools_text(tools), answer=str(answer)[:2500])
     prompt += CATEGORY_ASK
+    found = similar_candidates(question, answer)
+    if found:
+        prompt += similar_ask(found)
     QUICK.on = True  # a sentence – no long thinking
     try:
         text, _ = ask_once([{"role": "system", "content": "Du skriver korta lärdomar på svenska."},
@@ -3157,7 +3180,8 @@ def make_lesson(question, answer, tools, keys, project=None, choice="", kind="go
         text = ""
     finally:
         QUICK.on = False
-    text, category = split_category(re.sub(r"```.*?```", "", text, flags=re.S))
+    text, same = split_similar(re.sub(r"```.*?```", "", text, flags=re.S), found)
+    text, category = split_category(text)
     text = " ".join(text.split()).strip(" \"'")
     category = category or guess_category(f"{question} {text}", [t for t, _ in tools])
     if not text and kind == "avoid":
@@ -3166,42 +3190,138 @@ def make_lesson(question, answer, tools, keys, project=None, choice="", kind="go
     if not text:
         text = ("Svarade utan verktyg, kort och rakt på sak." if not tools else
                 f"{tools_text(tools)[0].upper()}{tools_text(tools)[1:]} och svarade utifrån det.")
-    return text[:LESSON_LENGTH], category
+    return text[:LESSON_LENGTH], category, same
 
 
-def add_lesson(question, lesson, tools, service="", project=None, kind="good", category=""):
-    items = load_lessons()
+def add_lesson(question, lesson, tools, service="", project=None, kind="good", category="", similar=()):
+    """Saves a lesson. similar: older lessons the AI found to be about the same thing – kept until the user
+    chooses (`resolve_similar`)."""
     entry = {"id": time.strftime("%Y%m%d-%H%M%S") + os.urandom(2).hex(), "kind": kind, "question": " ".join(str(question).split())[:400],
              "lesson": lesson, "tools": [t for t, _ in tools], "service": service,
              "project": (project or {}).get("id", ""), "added": date.today().isoformat(),
+             "added_at": datetime.now().isoformat(timespec="seconds"),
              "category": category if category in CATEGORY_IDS else guess_category(f"{question} {lesson}", [t for t, _ in tools])}
-    items.append(entry)
-    save_lessons(items)
+    with _LessonsLock():
+        items = load_lessons()
+        known = {i.get("id") for i in items}
+        if similar:
+            entry["similar"] = [i for i in similar if i in known]
+        items.append(entry)
+        save_lessons(items)
     return entry
 
 
+def similar_candidates(question, answer="", exclude=()):
+    """Older lessons that may be about the same thing as a new one: any shared word with the question
+    (or the answer's start), most shared first – the AI tells which really are (it knows other words for it)."""
+    asked = words(question)
+    said = words(str(answer)[:600])
+    scored = []
+    for n, item in enumerate(load_lessons()):
+        if item.get("id") in exclude:
+            continue
+        theirs = words(item["question"] + " " + item["lesson"])
+        score = 2 * len(asked & theirs) + len(said & theirs)
+        if score:
+            scored.append((score, n, item))
+    scored.sort(key=lambda p: (p[0], p[1]), reverse=True)
+    return [p[2] for p in scored[:SIMILAR_MAX]]
+
+
+SIMILAR_ASK = """
+
+Äldre lärdomar som kanske handlar om samma sak:
+{lines}
+Handlar någon av dem om samma sak som din nya lärdom (samma slags fråga och samma sätt att göra – eller
+tvärtom, så att de säger emot varandra)? Skriv i så fall sist en rad "Samma som: <nummer>" (flera med komma),
+annars "Samma som: ingen". Andra ord för samma sak räknas (Tux Paint = ritprogram åt barnen)."""
+
+
+def similar_ask(found):
+    lines = "\n".join(f"{n}. {'(undvik) ' if i.get('kind') == 'avoid' else ''}Frågan \"{i['question'][:120]}\": "
+                      f"{i['lesson']}" for n, i in enumerate(found, 1))
+    return SIMILAR_ASK.format(lines=lines)
+
+
+def split_similar(text, found):
+    """(the text without the line, ids of the lessons the AI named as the same)."""
+    hits = list(re.finditer(r"^[^\n]*samma som\**[ \t]*:([^\n]*)$", text, re.I | re.M))
+    if not hits:
+        return text, []
+    hit = hits[-1]
+    numbers = {int(n) for n in re.findall(r"\d+", hit.group(1))}
+    return text[:hit.start()] + text[hit.end():], [i["id"] for n, i in enumerate(found, 1) if n in numbers]
+
+
+def resolve_similar(new_id, old_id, choice):
+    """The user's choice for two lessons about the same thing: "new" keeps the new one (the old one's uses
+    go along), "old" the old one, "both" = different things (not asked again)."""
+    def change(items):
+        new = next((i for i in items if i.get("id") == new_id), None)
+        old = next((i for i in items if i.get("id") == old_id), None)
+        if new is not None:
+            new["similar"] = [x for x in new.get("similar", []) if x != old_id]
+        if choice == "new" and old is not None:
+            if new is not None:
+                new["used"] = new.get("used", 0) + old.get("used", 0)
+                new["last_used"] = max(new.get("last_used", ""), old.get("last_used", ""))
+            return [i for i in items if i is not old]
+        if choice == "old" and new is not None:
+            if old is not None:
+                old["used"] = old.get("used", 0) + new.get("used", 0)
+            return [i for i in items if i is not new]
+        if choice == "both":
+            for a, b in ((new, old_id), (old, new_id)):
+                if a is not None and b not in a.get("distinct", []):
+                    a["distinct"] = a.get("distinct", []) + [b]
+        return items
+    _change_lessons(change)
+
+
+def _change_lessons(change):
+    with _LessonsLock():
+        items = load_lessons()
+        items = change(items) or items
+        save_lessons(items)
+
+
 def remove_lesson(lesson_id):
-    items = load_lessons()
-    save_lessons([i for i in items if i.get("id") != lesson_id])
+    _change_lessons(lambda items: [i for i in items if i.get("id") != lesson_id])
 
 
 def edit_lesson(lesson_id, text):
     text = " ".join(str(text).split())[:LESSON_LENGTH]
-    items = load_lessons()
-    for i in items:
-        if i.get("id") == lesson_id and text:
-            i["lesson"] = text
-    save_lessons(items)
+
+    def change(items):
+        for i in items:
+            if i.get("id") == lesson_id and text:
+                i["lesson"] = text
+    _change_lessons(change)
 
 
 def set_lesson_category(lesson_id, category):
     if category not in CATEGORY_IDS:
         return
-    items = load_lessons()
-    for i in items:
-        if i.get("id") == lesson_id:
-            i["category"] = category
-    save_lessons(items)
+
+    def change(items):
+        for i in items:
+            if i.get("id") == lesson_id:
+                i["category"] = category
+    _change_lessons(change)
+
+
+def mark_used(found):
+    """The lessons that went with a question: one more use, used today (the ceiling moves the unused ones)."""
+    ids = {i.get("id") for i in found}
+    now = datetime.now().isoformat(timespec="seconds")  # with the time: lessons added the same day sort right
+
+    def change(items):
+        for i in items:
+            if i.get("id") in ids:
+                i["used"] = i.get("used", 0) + 1
+                i["last_used"] = now
+    if ids:
+        _change_lessons(change)
 
 
 SORT_PROMPT = """Här är lärdomar du har skrivit, en per rad med nummer. Sortera dem i kategorier. Svara med en rad per
@@ -3233,12 +3353,58 @@ def sort_lessons(keys, choice=""):
             i["category"] = picked.get(n) or category_of(i)
     if todo:  # read again: a ♥ may have come in meanwhile
         done = {i["id"]: i["category"] for i in todo}
-        fresh = load_lessons()
-        for i in fresh:
-            if i.get("id") in done and i.get("category") not in CATEGORY_IDS:
-                i["category"] = done[i["id"]]
-        save_lessons(fresh)
+
+        def change(fresh):
+            for i in fresh:
+                if i.get("id") in done and i.get("category") not in CATEGORY_IDS:
+                    i["category"] = done[i["id"]]
+        _change_lessons(change)
     return len(todo)
+
+
+FIND_PROMPT = """Här är lärdomar du har skrivit, en per rad med nummer. Vilka handlar om samma sak – samma slags
+fråga och samma sätt att göra, eller tvärtom så att de säger emot varandra? Andra ord för samma sak räknas.
+Svara med en rad per grupp, numren med komma (t.ex. "3, 7"), och inget annat. Inga grupper: svara "ingen"."""
+
+
+def find_similar(keys, choice=""):
+    """Once for the lessons from before (28 Oct, the user's wish): the AI groups the ones about the same thing,
+    per category, 25 at a time; the newer of each pair gets the older in "similar" – the user chooses in the
+    list as under an answer. Pairs already called different things are left out. Returns how many pairs."""
+    items = load_lessons()
+    pairs = []
+    for c in CATEGORY_IDS:
+        in_cat = [i for i in items if category_of(i) == c]
+        for start in range(0, len(in_cat), 25):
+            part = in_cat[start:start + 25]
+            if len(part) < 2:
+                continue
+            lines = "\n".join(f"{n}. {'(undvik) ' if i.get('kind') == 'avoid' else ''}Frågan \"{i['question'][:120]}\": "
+                              f"{i['lesson']}" for n, i in enumerate(part, 1))
+            QUICK.on = True
+            try:
+                text, _ = ask_once([{"role": "system", "content": "Du hittar lärdomar som handlar om samma sak."},
+                                    {"role": "user", "content": FIND_PROMPT + "\n\n" + lines}], keys, choice=choice)
+            except ServiceError:
+                text = ""
+            finally:
+                QUICK.on = False
+            for line in text.splitlines():
+                group = sorted({int(n) for n in re.findall(r"\d+", line) if 1 <= int(n) <= len(part)})
+                for x in range(len(group)):
+                    for y in range(x + 1, len(group)):
+                        pairs.append((part[group[y] - 1]["id"], part[group[x] - 1]["id"]))  # (newer, older)
+
+    def change(fresh):
+        by_id = {i.get("id"): i for i in fresh}
+        for new_id, old_id in pairs:
+            new = by_id.get(new_id)
+            if new is not None and old_id in by_id and old_id not in new.get("distinct", []) \
+                    and old_id not in new.get("similar", []):
+                new["similar"] = new.get("similar", []) + [old_id]
+    if pairs:
+        _change_lessons(change)
+    return len(pairs)
 
 
 def words(text):
@@ -3265,9 +3431,21 @@ def lessons_for(question, project=None):
             score += 2
         score += sum(2 for t in item.get("tools", []) if t in TOOL_HINTS and re.search(TOOL_HINTS[t], str(question), re.I))
         if score >= 2:
-            picked.append((score, item["added"], item))
+            if item.get("used", 0) >= 3:  # no ceiling (28 Oct): what keeps helping weighs a little more
+                score += 1
+            picked.append((score, item.get("last_used") or item.get("added_at") or item.get("added", ""), item))
     picked.sort(key=lambda p: (p[0], p[1]), reverse=True)
-    return [p[2] for p in picked[:LESSONS_PICK]]
+    chosen = []
+    def alike(a, b):
+        return len(a & b) / max(1, len(a | b))
+    for _, _, item in picked:  # not two saying nearly the same (or from the same question) – the next best gets the place
+        mine, asked_then = words(item["lesson"]), words(item["question"])
+        if any(alike(mine, words(c["lesson"])) >= 0.5 or alike(asked_then, words(c["question"])) >= 0.7 for c in chosen):
+            continue
+        chosen.append(item)
+        if len(chosen) == LESSONS_PICK:
+            break
+    return chosen
 
 
 def with_lessons(messages, project=None):
@@ -3278,6 +3456,10 @@ def with_lessons(messages, project=None):
     found = lessons_for(question if isinstance(question, str) else "", project)
     if not found:
         return messages
+    try:
+        mark_used(found)
+    except OSError:
+        pass
     good = [i for i in found if i.get("kind") != "avoid"]
     avoid = [i for i in found if i.get("kind") == "avoid"]
     text = ""

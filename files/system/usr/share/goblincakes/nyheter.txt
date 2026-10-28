@@ -1,3 +1,4 @@
+2026-10-28  Liknar en ny lärdom en äldre visar Goblin AI båda – du väljer om den nya, den gamla eller båda ska vara kvar. "Hitta liknande" under Lärdomar går igenom de du redan har. Inget tak längre: lärdomar tas aldrig bort av sig själva
 2026-10-28  Goblin AI:s lärdomar sorteras i kategorier (GOBLINCAKES, Datorn, Spel, Skrivbordet, Nätet, Sättet att svara, Övrigt) – öppna bara den du vill se, och byt kategori om hon valt fel
 2026-10-28  Discord startar vid inloggning även efter en Discord-uppdatering (autostart-raden pekade på en gammal version)
 2026-10-28  Två små staplar i toppfältet visar hur mycket av Claudes och ChatGPT/Codex kvoter du använt. Klicka för 5 timmar och vecka i procent, och när de nollställs

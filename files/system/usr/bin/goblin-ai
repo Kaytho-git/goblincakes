@@ -329,6 +329,15 @@ def season_logo():
         return default
 
 
+
+def _similar_items(entry, lessons=None):
+    """The older lessons a lesson may be the same as (its "similar" ids), for the choice under it."""
+    ids = entry.get("similar") or []
+    if not ids:
+        return []
+    by_id = {i.get("id"): i for i in (lessons if lessons is not None else goblinai.load_lessons())}
+    return [{k: by_id[x].get(k, "") for k in ("id", "lesson", "question", "kind", "added")} for x in ids if x in by_id]
+
 class Backend(QObject):
     """Talks to Main.qml. Display messages: {role, text, segments, service, file}."""
 
@@ -360,6 +369,8 @@ class Backend(QObject):
     lessonsChanged = Signal()
     _hearted = Signal(str, int, str)  # conversation id, message index, the saved lesson (JSON, "" = failed)
     _sorted = Signal()  # the old lessons got their categories
+    _found = Signal(int)  # Hitta liknande: how many pairs
+    similarBusyChanged = Signal()
     commandLogChanged = Signal()
     sidePinnedChanged = Signal()
     _undone = Signal(str)  # log entry id
@@ -386,6 +397,8 @@ class Backend(QObject):
             threading.Thread(target=goblinai.describe_avatar, daemon=True).start()
         self._hearted.connect(self._on_hearted)
         self._sorted.connect(self.lessonsChanged)
+        self._similar_busy = False
+        self._found.connect(self._on_found)
         if any(i.get("category") not in goblinai.CATEGORY_IDS for i in goblinai.load_lessons()):
             threading.Thread(target=self._sort_lessons, daemon=True).start()  # lessons from before the categories
         self._statusText.connect(lambda text: self._set_busy(True, text))
@@ -1186,7 +1199,7 @@ class Backend(QObject):
             return
         if m.get("heart") and m["heart"] != "busy":
             goblinai.remove_lesson(m["heart"])
-        for key in ("heart", "lesson", "thumb"):
+        for key in ("heart", "lesson", "thumb", "similar"):
             m.pop(key, None)
         self._update(index)
         self._save()
@@ -1214,8 +1227,9 @@ class Backend(QObject):
 
         def work():
             try:
-                lesson, category = goblinai.make_lesson(question, m["text"], tools, keys, project, choice, kind, reason)
-                entry = goblinai.add_lesson(question, lesson, tools, m.get("service", ""), project, kind, category)
+                lesson, category, same = goblinai.make_lesson(question, m["text"], tools, keys, project, choice, kind,
+                                                              reason)
+                entry = goblinai.add_lesson(question, lesson, tools, m.get("service", ""), project, kind, category, same)
                 self._hearted.emit(cid, index, json.dumps(entry, ensure_ascii=False))
             except Exception:  # noqa: BLE001 – never leave the mark spinning
                 self._hearted.emit(cid, index, "")
@@ -1262,7 +1276,7 @@ class Backend(QObject):
         m = self._display[index]
         if entry:
             e = json.loads(entry)
-            m.update(heart=e["id"], lesson=e["lesson"])
+            m.update(heart=e["id"], lesson=e["lesson"], similar=_similar_items(e))
         else:
             m.pop("heart", None)
             self.notice.emit("Tummen kunde inte sparas" if m.pop("thumb", None) else "Hjärtat kunde inte sparas")
@@ -1274,14 +1288,16 @@ class Backend(QObject):
         path = DATA / f"{cid}.json"
         try:
             data = json.loads(path.read_text())
-            data["display"][index].update(heart=entry["id"], lesson=entry["lesson"])
+            data["display"][index].update(heart=entry["id"], lesson=entry["lesson"], similar=_similar_items(entry))
             path.write_text(json.dumps(data, ensure_ascii=False))
         except (OSError, ValueError, IndexError, KeyError):
             pass
 
     @Property(str, notify=lessonsChanged)
     def lessons(self):
-        items = [{**i, "category": goblinai.category_of(i)} for i in reversed(goblinai.load_lessons())]
+        found = goblinai.load_lessons()
+        items = [{**i, "category": goblinai.category_of(i), "similarItems": _similar_items(i, found)}
+                 for i in reversed(found)]
         return json.dumps(items, ensure_ascii=False)
 
     @Property(str, constant=True)
@@ -1312,11 +1328,56 @@ class Backend(QObject):
         goblinai.remove_lesson(lesson_id)
         for i, m in enumerate(self._display):  # the open chat's ♥ goes out too
             if m.get("heart") == lesson_id:
-                for key in ("heart", "lesson", "thumb"):
+                for key in ("heart", "lesson", "thumb", "similar"):
                     m.pop(key, None)
                 self._update(i)
                 self._save()
         self.lessonsChanged.emit()
+
+    @Slot(str, str, str)
+    def resolveSimilar(self, new_id, old_id, choice):
+        """Two lessons about the same thing (28 Oct): "new" / "old" keeps that one, "both" = different things."""
+        goblinai.resolve_similar(new_id, old_id, choice)
+        gone = old_id if choice == "new" else new_id if choice == "old" else ""
+        for i, m in enumerate(self._display):  # the open chat's marks follow
+            if m.get("heart") not in (new_id, old_id):
+                continue
+            if m["heart"] == new_id:
+                m["similar"] = [x for x in m.get("similar", []) if x.get("id") != old_id]
+            if m["heart"] == gone:
+                for key in ("heart", "lesson", "thumb", "similar"):
+                    m.pop(key, None)
+            self._update(i)
+        self._save()
+        self.lessonsChanged.emit()
+
+    @Property(bool, notify=similarBusyChanged)
+    def similarBusy(self):
+        return self._similar_busy
+
+    @Slot()
+    def findSimilar(self):
+        """Hitta liknande: the AI goes through the saved lessons once; the pairs show in the list."""
+        if self._similar_busy:
+            return
+        self._similar_busy = True
+        self.similarBusyChanged.emit()
+        keys = dict(self._keys)
+
+        def work():
+            try:
+                n = goblinai.find_similar(keys, goblinai.chosen_model())
+            except Exception:  # noqa: BLE001
+                n = -1
+            self._found.emit(n)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_found(self, n):
+        self._similar_busy = False
+        self.similarBusyChanged.emit()
+        self.lessonsChanged.emit()
+        self.notice.emit("Kunde inte gå igenom lärdomarna" if n < 0 else "Inga liknande lärdomar hittades" if n == 0
+                         else f"{n} par som kanske är samma – välj under Lärdomar")
 
     @Slot(str, str)
     def editLesson(self, lesson_id, text):
