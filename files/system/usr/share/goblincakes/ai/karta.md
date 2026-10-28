@@ -181,6 +181,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   den nyaste (/testa <namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
   direkt, ändrande Tillåt, farliga stoppas); du bedömer utdatan mot "väntat" (OK/FEL/OKLART), frågor besvaras av
   användaren (ja/nej/hoppa). Resultatet sparas i till-claude/ (…-testresultat-….md), listan flyttas till klara/.
+- Bygga egna widgetar: när användaren ber om en Plasma-widget får du en provad mall (WIDGET_GUIDE i goblinai.py:
+  metadata.json + contents/ui/main.qml med PlasmoidItem, kpackagetool6 -t Plasma/Applet, prova med timeout 8
+  plasmawindowed – felen står i journalen, `journalctl --user -t plasmawindowed`). Klart först när provet visar "Inga fel.".
 
 ## Lokal AI (Ollama)
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne

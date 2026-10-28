@@ -1494,7 +1494,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     except Stopped:
         activity_done()
         raise
-    messages = with_lessons(with_done(messages), project)
+    messages = with_guides(with_lessons(with_done(messages), project))
     try:
         if read_links(messages, keys, status):
             # The pages are there: one plain answer – no searching on top, no long thinking (a button
@@ -3012,7 +3012,15 @@ kill -0 "$(cat ~/namn.pid)" && echo "Körs." || echo "Har stannat."; cat ~/namn.
 - Ta ett steg i taget när du behöver se resultatet först. Skriv inga ```bash-block när inget ska köras.
 - Använd sudo bara när det verkligen behövs och säg varför (det körs i ett terminalfönster där användaren skriver
   sitt lösenord).
-- När uppgiften är klar: säg det kort, utan kodblock.
+- Säg aldrig att något är klart, fungerar, är provat eller verifierat i samma svar som kommandona – de har inte körts
+  än och du har inte sett resultatet. Skriv kommandona och sluta där; utskriften kommer i nästa meddelande ("Så här
+  gick det"). Skriv inte "om det lyckades …" – vänta och se.
+- Ger ett kommando fel: läs felmeddelandet och rätta just det som står där (fil, rad, vad som saknas), och prova igen.
+  Gissa inte på orsaker som inte står i felet ("rättigheter", "miljön", "låst av systemet").
+- Ska något provas: prova det på riktigt med ett kommando som visar resultatet. Program som öppnar ett fönster
+  startas med `timeout 8` framför, annars fastnar blocket tills fönstret stängs. Har du inte kunnat prova: säg rakt
+  ut att det inte är provat – aldrig "verifierat".
+- När uppgiften är klar (och du har sett att den fungerar): säg det kort, utan kodblock.
 
 När användaren har bifogat en fil och vill ha den ändrad (t.ex. rättad, översatt, omskriven):
 - Ge HELA den nya versionen i ett kodblock märkt ```fil:FILNAMN (samma filnamn), så kan den sparas med en knapp.
@@ -3823,6 +3831,70 @@ def with_lessons(messages, project=None):
                                 f" (från {SOLUTION_SOURCES.get(i.get('source'), 'Claude')}, ej bekräftad – fråga "
                                 "användaren efteråt om det hjälpte)") for i in solved))
     return [{**messages[0], "content": messages[0]["content"] + text}] + list(messages[1:])
+
+
+# Build guides (punkt 19, 29 Oct): the local model wrote a clock widget in Plasma 5's format (metadata.desktop,
+# Item, import QtQuick.Timer) and called it tested – even after a hint. A tried template, only when it's asked for.
+WIDGET_GUIDE = """
+
+Bygga en egen Plasma 6-widget (provad mall – följ den, Plasma 5:s format fungerar inte):
+- Mappen: `<mapp>/metadata.json` och `<mapp>/contents/ui/main.qml`. Ingen metadata.desktop (Plasma 5).
+- metadata.json:
+```json
+{
+    "KPlugin": {
+        "Id": "org.kakan.namn",
+        "Name": "Namnet",
+        "Description": "Vad den gör",
+        "Icon": "clock",
+        "Authors": [{ "Name": "Kakan" }],
+        "Version": "1.0",
+        "License": "GPL-2.0+",
+        "Category": "Date and Time"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
+```
+- main.qml börjar så här (roten är PlasmoidItem, inte Item; Timer finns i QtQuick – det finns ingen `import QtQuick.Timer`;
+  använder du Layout.* behövs `import QtQuick.Layouts`):
+```qml
+import QtQuick
+import org.kde.plasma.plasmoid
+
+PlasmoidItem {
+    id: root
+    preferredRepresentation: fullRepresentation
+    fullRepresentation: Item {
+        implicitWidth: 200
+        implicitHeight: 200
+        // innehållet här
+    }
+}
+```
+- Canvas: `ctx.rotate()` tar radianer (grader * Math.PI / 180), och `requestPaint()` behövs när något ändras.
+- Installera första gången: `kpackagetool6 -t Plasma/Applet -i <mapp>`; efter en ändring: `-u <mapp>` (typen heter
+  Plasma/Applet, inte Plasma/Widget).
+- Prova så här (i samma block som installationen; fönstret visas i 8 s – utan timeout fastnar blocket). plasmawindowed
+  skriver sina fel i journalen, inte i terminalen:
+```bash
+t=$(date +%T); timeout 8 plasmawindowed org.kakan.namn >/dev/null 2>&1; journalctl --user -t plasmawindowed --since "$t" -o cat | grep -iE "error|qml|not ready" || echo "Inga fel."
+```
+  Står det ett fel: det säger fil, rad och vad som är fel – rätta just det och prova igen. Klar först vid "Inga fel.".
+  Sedan finns den i widgetmenyn (högerklick på skrivbordet → Lägg till widgetar)."""
+
+GUIDES = [(re.compile(r"\b(plasmoid\w*|kpackagetool6?|plasmawindowed|widgetmeny\w*)\b|\b(gör|göra|skapa|bygg\w*|ny|nytt|"
+                      r"egen|eget|rätta|installera)\b[^.?!\n]{0,50}widget", re.I), WIDGET_GUIDE)]
+
+
+def with_guides(messages):
+    """messages with the build guides the user's own words ask for (any of their messages, not command output)."""
+    if not messages or messages[0]["role"] != "system":
+        return messages
+    said = "\n".join(m["content"] for m in messages if m["role"] == "user" and isinstance(m.get("content"), str)
+                     and not m["content"].startswith("Så här gick det:"))
+    text = "".join(guide for pattern, guide in GUIDES if pattern.search(said))
+    return with_system(messages, text)
 
 
 def memory_prompt():
