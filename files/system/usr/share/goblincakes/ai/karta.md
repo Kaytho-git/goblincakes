@@ -113,6 +113,10 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
   inloggningar; öppna/läsa direkt, klicka/skriva = Tillåt. Tillåt-körningen (mcp.py kör) går via socketen
   $GOBLIN_MCP_SOCKET (/run/user/<uid>/goblincakes-mcp-<pid>.sock) till samma webbläsare. Sidor med
   Cloudflare-skydd (t.ex. wowhead.com) svarar 403 – läs dem med las_sida i stället.
+- Dina egna verktyg som MCP-server för Claude Code (ai/kakan_mcp.py, servern "kakan"): bara de som läser –
+  kartan, systemfel, leta-verktygen, wowstats, warcraftlogs, wowfel, cs2, sport. Inte skrivbordet, sökningen eller
+  dina MCP-servrar. Läggs in med python3 /usr/share/goblincakes/ai/kakan_mcp.py claude. Kolla: claude mcp list
+  (kakan ✔ Connected), python3 /usr/share/goblincakes/ai/kakan_mcp.py lista.
 
 ## Lokal AI (Ollama)
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne
