@@ -936,6 +936,8 @@ def mcp_tools(tools):
                            lambda q, n=s["server"]: (m.run_line(n, q), []), word,
                            f"{s['title']} (MCP-server).{about}", "Verktygets namn och fälten som JSON", fns)
         tools[word]["mcp"] = s["title"]
+        tools[word]["words"] = s["words"]
+        tools[word]["about"] = s["about"]
     return tools
 
 
@@ -1746,6 +1748,15 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     sources, used, searched = [], 0, False
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:2000]
     own = own_data_question(asked.get("content"), tools)
+    # A question about an MCP server ("gick senaste bygget igenom?" = GitHub): its tools first – not the web search
+    # ("senaste") or the computer's logs ("bygget"), which answered about the wrong thing (28 Oct)
+    to_mcp = mcp().asked_for(asked.get("content"), [{"word": w, **t} for w, t in tools.items() if t.get("mcp")])
+    if to_mcp:
+        own = True
+        messages.append({"role": "user", "content":
+                         f"[Goblin AI] Frågan gäller {to_mcp['mcp']} – använd verktyget {to_mcp['word']} (dess "
+                         f"funktioner {to_mcp['word']}__…) först, inte sökning på nätet eller datorns loggar. "
+                         f"{to_mcp.get('about') or ''}".strip()})
     typed = links_in(str(asked.get("content", ""))[:600]) if "sida" in tools else []  # the typed question, not a file below it
     for url in typed[:2]:
         # A link in the question (punkt 6): the page is read first – a small model searched for it instead
@@ -1834,7 +1845,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              f"gäller inte]\n\n{text}\n\n[Slut på datan]\n\nSå här svarar du med det:\n{tools[tool]['guide']}"
                              f"\n\nAnvändarens fråga var: \"{question}\"\nSvara utifrån det här (behöver du en annan pull "
                              "eller en förmåga: använd verktyget igen)."})
-    elif own_system_question(asked.get("content"), tools):
+    elif not to_mcp and own_system_question(asked.get("content"), tools):
         # About the computer: Goblin AI reads the named program's journal (or the errors) first –
         # the AI picked the wrong tool and made up the rest
         activity("ask", "letar i datorn")

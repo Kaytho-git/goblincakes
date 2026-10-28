@@ -49,6 +49,10 @@ GITHUB = {
              "-e", "GITHUB_TOOLSETS=context,repos,issues,actions", "ghcr.io/github/github-mcp-server", "stdio"],
     "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"},
     "namn": "GitHub",
+    # Questions with these words go to the server first – "gick senaste bygget igenom?" searched the web for
+    # "goblincakes" and read the computer's update log instead (28 Oct)
+    "ord": ["github", "bygget", "bygge", "byggen", "byggena", "commit", "commits", "issue", "issues",
+            "repot", "repo", "workflow", "actions", "release", "pull request", "build"],
     # ~700 tokens each before slimming – a few, the rest can be turned on under AI-tjänster
     "verktyg": ["actions_list", "get_job_logs", "list_commits", "get_commit", "get_file_contents", "list_issues",
                 "issue_read", "get_latest_release"],
@@ -413,8 +417,19 @@ def for_kakan():
         tools = on_tools(name, server)
         if tools:
             out.append({"server": name, "word": word_for(name), "title": server.get("namn") or name,
-                        "about": str(server.get("om") or ""), "tools": tools})
+                        "about": str(server.get("om") or ""), "tools": tools,
+                        "words": [str(w).lower() for w in [name, server.get("namn") or name, *(server.get("ord") or (GITHUB["ord"] if name == "github" else []))]]})
     return out
+
+
+def asked_for(question, servers):
+    """The server a question is about (its name or one of its words, `ord` in mcp.json, also with a Swedish ending:
+    "commitsen", "repots"), else None."""
+    text = str(question or "")[:600].lower()
+    for s in servers:
+        if any(re.search(rf"(?<!\w){re.escape(w)}(?:en|et|n|t|s|ar|arna|er|erna|na)?(?!\w)", text) for w in s.get("words") or [] if w):
+            return s
+    return None
 
 
 def result_text(result):
