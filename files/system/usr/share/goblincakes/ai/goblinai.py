@@ -721,7 +721,10 @@ volym <40|+10|-10|vad> i <program>        – volymen i en musikspelare (GoblinA
 spela <låt|album|artist> <artist> - <titel> – spela en låt, ett album eller en artist (Spotify, syns i GoblinAmp)
 notis <text>                              – visa en notis nu ("Rubrik: text" ger en rubrik)
 urklipp <text>                            – lägg texten i urklippet (det gamla går att få tillbaka)
-urklipp vad                               – vad som ligger i urklippet"""
+urklipp vad                               – vad som ligger i urklippet
+fönster <program> [skärm <1|2|andra|vänster|höger>] [fram|maximera|fullskärm|minimera|normal] – flytta/ändra ett
+                                            fönster, flera saker på en gång (fönster goblin ai skärm andra fullskärm)
+fönster lista                             – vilka fönster som är öppna och var"""
 
 DESK_PROMPT = """
 
@@ -932,6 +935,19 @@ DESK_FNS = [
             "(lösenord och nycklar visas inte).",
             {"text": ("Texten som ska in i urklippet (tomt = visa vad som ligger där)", False)},
             lambda a: f"urklipp {look_arg(a, 'text') or 'vad'}"),
+    look_fn("fonster", "Flyttar eller ändrar ett öppet fönster, direkt: till en annan skärm, fram, maximera, fullskärm, "
+            "minimera, tillbaka till vanligt – flera på en gång (\"flytta goblin ai till andra skärmen och gör den "
+            "fullskärm\" = program `goblin ai`, skarm `andra`, gora `fullskärm`). Utan program: vilka fönster som är "
+            "öppna. \"Den\"/\"det\" = fönstret ni just pratade om. Tillbaka till vanligt = gora `normal`. Stänga ett "
+            "fönster: gora `stäng` – då får användaren ett Tillåt-kort.",
+            {"program": ("Programmet fönstret tillhör, t.ex. `goblin ai`, `discord`, `wow` (tomt = lista fönstren)", False),
+             "skarm": ("Skärmen: `andra` när användaren säger \"andra skärmen\"/\"den andra\" (= alltid den skärm "
+                       "programmet INTE ligger på), annars `1`, `2`, `vänster`, `höger` (tomt = samma)", False),
+             "gora": ("Ett eller flera: `fram`, `maximera`, `fullskärm`, `minimera`, `normal`, `stäng` (tomt = bara "
+                      "flytta/ta fram)", False)},
+            lambda a: "fönster " + (" ".join(x for x in (look_arg(a, "program"),
+                                                          f"skärm {look_arg(a, 'skarm')}" if look_arg(a, "skarm") else "",
+                                                          look_arg(a, "gora")) if x) or "lista")),
 ]
 
 
@@ -980,7 +996,7 @@ def tools_for(keys, project, messages):
     tools["skrivbord"] = tool("Styr skrivbordet", DESK_PROMPT, DESK_GUIDE, lambda q: (desktop().act(q), []), "skrivbord",
                               "Gör det användaren ber om på skrivbordet, direkt (loggas och kan ångras): pausa/spela "
                               "musiken, nästa/förra låten, vad som spelas, volymen, öppna program/webbsidor/filer, "
-                              "spela en viss låt/album/artist, visa en notis, lägga text i urklippet.",
+                              "spela en viss låt/album/artist, visa en notis, lägga text i urklippet, flytta/ändra fönster.",
                               "En av raderna:\n" + DESK_LINES, DESK_FNS)
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
@@ -1312,7 +1328,7 @@ WRITE_SOMETHING = re.compile(r"^\W*(?:skriv|gör|hitta på|formulera|författa|d
 
 
 DESK_ASK = re.compile(r"\b(?:pausa|volym\w*|ljudet|musiken|nästa låt|förra låt\w*|vad spelas|vilken låt (?:är det|spelas)"
-                      r"|spela|öppna|starta|urklipp\w*|notis\w*)\b", re.I)
+                      r"|spela|öppna|starta|urklipp\w*|notis\w*|fönstr\w*|fönster|flytta|maximera|minimera|fullskärm\w*|helskärm\w*)\b", re.I)
 
 
 # "Jag har ändrat volymen …", "Pausade Spotify" – an answer saying something was done on the desktop
@@ -1321,7 +1337,10 @@ DONE_CLAIM = re.compile(r"\b(?:ändra[dt]e?|sänk[a-z]*|höj[a-z]*|öka[dt]e?|mi
                         r".{0,60}\b(?:volym\w*|ljud\w*|musik\w*|låt\w*|spotify|goblinamp|\d+\s*%)"
                         r"|\b(?:har |jag )(?:öppnat|startat)\b|^(?:öppnade|startade)\b"
                         r"|\bspelar (?:nu )?(?:låten|albumet|artisten|listan)\b"
-                        r"|\b(?:lade|lagt|kopierade|kopierat)\b.{0,80}\burklipp|\b(?:visade|skickade|skickat)\b.{0,20}\bnotis",
+                        r"|\b(?:lade|lagt|kopierade|kopierat)\b.{0,80}\burklipp|\b(?:visade|skickade|skickat)\b.{0,20}\bnotis"
+                        r"|\b(?:flyttade|flyttat|maximerade|maximerat|minimerade|minimerat)\b|\bnu i (?:fullskärm|helskärm)"
+                        r"|\b(?:satte|satt|gjorde|gjort|ställde|ställt|tog|tagit)\b.{0,60}\b(?:fönstr\w*|skärm\w*|läge"
+                        r"|fullskärm|helskärm|vanlig\w*|normal\w*|goblin ai|goblinamp|discord)\b",
                         re.I | re.M)
 
 

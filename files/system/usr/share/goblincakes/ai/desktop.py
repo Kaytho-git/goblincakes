@@ -418,6 +418,179 @@ def clipboard(what, conversation=""):
     return _done(code, undo, f"Lade \"{short}\" i urklippet – klistra in med Ctrl+V.", conversation)
 
 
+# ── Windows (KWin, a script loaded for a moment – windows.js) ─────────────────
+
+WIN_ACTIONS = {"fram": "fram", "fokus": "fram", "visa": "fram", "maximera": "maximera", "max": "maximera",
+               "maximerad": "maximera", "stor": "maximera", "fullskärm": "fullskärm", "helskärm": "fullskärm",
+               "fullscreen": "fullskärm", "minimera": "minimera", "göm": "minimera", "dölj": "minimera",
+               "normal": "normal", "vanlig": "normal", "återställ": "normal", "stäng": "stäng", "close": "stäng"}
+FILLER = {"till", "på", "den", "det", "och", "gör", "flytta", "skärmen", "skärm", "fönstret", "i", "in", "som"}
+
+
+def screens():
+    """[(number, connector, x)] – 1 = the main screen, then as in Systeminställningar (like goblin screen)."""
+    try:
+        outs = json.loads(subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True,
+                                         timeout=5).stdout).get("outputs") or []
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+    outs = sorted((o for o in outs if o.get("enabled")), key=lambda o: o.get("priority") or 99)
+    return [(i, o["name"], (o.get("pos") or {}).get("x", 0)) for i, o in enumerate(outs, 1)]
+
+
+def screen_meant(word, now=""):
+    """The connector a word means: 1/2/ett/två/första, vänster/höger, huvud, andra/annan (= the other one)."""
+    found = screens()
+    word = word.lower().strip()
+    if not found or not word:
+        return ""
+    numbers = {"1": 1, "ett": 1, "en": 1, "ettan": 1, "första": 1, "huvud": 1, "huvudskärmen": 1,
+               "2": 2, "två": 2, "tvåan": 2, "3": 3, "tre": 3, "trean": 3, "tredje": 3}
+    if word in ("andra", "annan", "other", "nästa", "motsatta"):
+        # The user, 28 Oct: "den andra skärmen" is always the screen the program is NOT on (with more than two:
+        # the first other one in goblin screen's order)
+        return next((c for _, c, _ in found if c != now), "")
+    if word in numbers:
+        return next((c for n, c, _ in found if n == numbers[word]), "")
+    by_x = sorted(found, key=lambda f: f[2])
+    if word.startswith("vänst"):
+        return by_x[0][1]
+    if word.startswith("hög"):
+        return by_x[-1][1]
+    return next((c for _, c, _ in found if c.lower() == word), "")
+
+
+def _kwin(payload, timeout=4000):
+    """Runs windows.js with the payload in a process of its own (Qt's D-Bus wants its own event loop);
+    the script's report, or None."""
+    try:
+        out = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--kwin"], input=json.dumps(payload),
+                             capture_output=True, text=True, timeout=timeout / 1000 + 5)
+        return json.loads(out.stdout) if out.stdout.strip() else None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def _kwin_here(payload, timeout=4000):
+    from PySide6.QtCore import ClassInfo, QCoreApplication, QEventLoop, QObject, QTimer, Slot  # noqa: PLC0415
+    from PySide6.QtDBus import QDBusConnection  # noqa: PLC0415
+    import os  # noqa: PLC0415
+    app = QCoreApplication.instance() or QCoreApplication([])  # noqa: F841 – the event loop needs it
+    service = f"org.goblincakes.win.p{os.getpid()}"
+    result, loop = {}, QEventLoop()
+
+    @ClassInfo({"D-Bus Interface": "org.goblincakes.win"})
+    class Receiver(QObject):
+        @Slot(str)
+        def report(self, text):
+            try:
+                result["data"] = json.loads(text)
+            except ValueError:
+                pass
+            loop.quit()
+
+    receiver = Receiver()
+    bus = QDBusConnection.sessionBus()
+    if not bus.registerService(service):
+        return None
+    bus.registerObject("/win", receiver, QDBusConnection.ExportAllSlots)
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp")
+    script = runtime / f"goblincakes-win-{os.getpid()}.js"
+    script.write_text((Path(__file__).resolve().parent / "windows.js").read_text()
+                      .replace("__DATA__", json.dumps(dict(payload, service=service))))
+    name = f"goblincakes-win-{os.getpid()}"
+
+    def kwin(*args):
+        return subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting",
+                               *args], capture_output=True, text=True)
+    try:
+        if kwin("loadScript", "ss", str(script), name).returncode != 0:
+            return None
+        kwin("start")
+        QTimer.singleShot(timeout, loop.quit)
+        loop.exec(QEventLoop.AllEvents)
+        return result.get("data")
+    finally:
+        kwin("unloadScript", "s", name)
+        script.unlink(missing_ok=True)
+        bus.unregisterService(service)
+
+
+def _screen_no(connector):
+    return next((f"skärm {n}" for n, c, _ in screens() if c == connector), connector)
+
+
+def _looks(state):
+    return ("i fullskärm" if state.get("full") else "minimerat" if state.get("min") else
+            "maximerat" if state.get("max") else "vanligt") + " på " + _screen_no(state.get("screen", ""))
+
+
+def window(words, conversation="", allow_close=False):
+    """`lista`, or `<program> [skärm <1|2|andra|vänster|höger>] [fram|maximera|fullskärm|minimera|normal|stäng]…`
+    – several at once ("goblin ai skärm 2 fullskärm"). Closing only with Tillåt (a command card)."""
+    text = words.strip().lower()
+    if text in ("", "lista", "alla", "vilka"):
+        got = _kwin({"mode": "list"})
+        if got is None:
+            return "Får inget svar från KWin (fönsterhanteraren)."
+        return "Öppna fönster (överst först):\n" + "\n".join(
+            f"- {w['caption']} ({w['desktop'] or w['app']}) – {_looks(w['state'])}" + (" – aktivt" if w["active"] else "")
+            for w in got.get("windows") or [])
+    tokens = re.findall(r"[\wåäö.+-]+", text)
+    actions, screen_word, name = [], "", []
+    i = 0
+    while i < len(tokens):
+        t = tokens[i]
+        if t in WIN_ACTIONS:
+            actions.append(WIN_ACTIONS[t])
+        elif t in ("skärm", "skärmen") and i + 1 < len(tokens) and not screen_word:
+            screen_word = tokens[i + 1]
+            i += 1
+        elif re.fullmatch(r"(?:vänstr|högr|andr|först|huvud)\w*", t) and i + 1 < len(tokens) and \
+                tokens[i + 1].startswith("skärm"):
+            screen_word = t
+            i += 1
+        elif t not in FILLER:
+            name.append(t)
+        i += 1
+    if not name:
+        return "Säg vilket program fönstret tillhör, t.ex. `fönster goblin ai skärm 2 fullskärm`."
+    if "stäng" in actions and not allow_close:
+        me = Path(__file__).resolve()
+        return ("Att stänga ett fönster kräver Tillåt (osparat kan försvinna). Svara med det här kodblocket så får "
+                f"användaren ett Tillåt-kort:\n```bash\npython3 {me} fönster {' '.join(name)} stäng\n```")
+    if not actions and not screen_word:
+        actions = ["fram"]
+    got = _kwin({"mode": "find", "match": " ".join(name)})
+    if got is None:
+        return "Får inget svar från KWin (fönsterhanteraren)."
+    if not got.get("before"):
+        return (f"Hittar inget fönster för {' '.join(name)}. Öppna fönster: " + ", ".join(got.get("windows") or [])
+                + ". (Starta programmet med öppna först.)")
+    before = got["before"]
+    target = screen_meant(screen_word, before["state"]["screen"]) if screen_word else ""
+    if screen_word and not target:
+        return f"Vet inte vilken skärm \"{screen_word}\" är. Skärmarna: " + ", ".join(
+            f"skärm {n} ({c})" for n, c, _ in screens()) + "."
+    if "stäng" in actions:  # only here from the Tillåt card (its run is logged as the card)
+        _kwin({"mode": "close", "id": before["id"]})
+        return f"Stängde {before['caption']}."
+    got = _kwin({"mode": "do", "match": " ".join(name), "actions": actions, "screen": target})
+    if not got or not got.get("after"):
+        return "KWin svarade inte – fönstret är kanske stängt."
+    me = Path(__file__).resolve()
+    undo = [f"{shlex.quote(sys.executable)} {shlex.quote(str(me))} --restore "
+            + shlex.quote(json.dumps({"id": before["id"], "before": before["state"]}))]
+    cmdlevel.log(f"fönster {' '.join(name)}: {' '.join(actions)}" + (f" → {_screen_no(target)}" if target else ""),
+                 "change", "kakan", 0, "", {"undo": undo, "hint": ""}, conversation)
+    time.sleep(0.3)  # KWin finishes full screen/the move after the script – what it looks like now
+    after = (_kwin({"mode": "find", "match": " ".join(name)}) or {}).get("before") or got["after"]
+    st = after["state"]
+    note = (" Programmet går inte att maximera (fast storlek)." if "maximera" in actions and not st.get("max") else
+            " Programmet går inte att visa i fullskärm." if "fullskärm" in actions and not st.get("full") else "")
+    return f"{after['caption']}: nu {_looks(st)} (var {_looks(before['state'])}).{note}"
+
+
 def act(line, conversation=""):
     """The tool's line: `musik <paus|spela|nästa|föregående|vad>`, `volym <tal|+10|-10|tyst|ljud> [i <program>]`,
     `öppna <program|webbadress|sökväg>`."""
@@ -429,6 +602,8 @@ def act(line, conversation=""):
         return volume(rest, conversation)
     if word in ("öppna", "oppna", "open", "starta", "start"):
         return open_thing(rest, conversation)
+    if word in ("fönster", "fonster", "window"):
+        return window(rest, conversation)
     if word in ("notis", "notify"):
         return notify(rest, conversation)
     if word in ("urklipp", "urklippet", "clipboard"):
@@ -441,8 +616,17 @@ def act(line, conversation=""):
         return play("", rest, conversation)
     return ("Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud [i goblinamp|spotify], "
             "öppna <program|webbadress|sökväg>, spela låt|album|artist <artist> - <titel>, notis <text>, "
-            "urklipp <text|vad>.")
+            "urklipp <text|vad>, fönster <program> [skärm 2] [fram|maximera|fullskärm|minimera|normal].")
 
 
 if __name__ == "__main__":  # trying it out: python3 desktop.py musik vad
-    print(act(" ".join(sys.argv[1:])))
+    if sys.argv[1:2] == ["--kwin"]:  # _kwin's own process
+        print(json.dumps(_kwin_here(json.loads(sys.stdin.read())) or {}))
+    elif sys.argv[1:2] == ["--restore"]:  # Ångra for a window
+        data = json.loads(sys.argv[2])
+        got = _kwin({"mode": "restore", "id": data["id"], "before": data["before"]})
+        print("Fönstret är tillbaka." if got and got.get("after") else "Fönstret finns inte längre.")
+    elif sys.argv[1:2] in (["fönster"], ["fonster"]) and sys.argv[-1] == "stäng":  # the Tillåt card: allowed
+        print(window(" ".join(sys.argv[2:]), allow_close=True))
+    else:
+        print(act(" ".join(sys.argv[1:])))

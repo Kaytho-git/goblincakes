@@ -1,3 +1,4 @@
+2026-10-28  Kakan flyttar fönster åt dig – "flytta Goblin AI till andra skärmen och gör den fullskärm". Den andra skärmen är alltid den som programmet inte ligger på
 2026-10-28  Kakan kan visa en notis och lägga text i urklippet åt dig – "lägg länken i urklippet", "vad har jag i urklippet?"
 2026-10-28  Be Kakan spela musik – "spela Lamb of God - Memento Mori" eller "starta albumet Lamb of God - Lamb of God". Det spelas på Spotify och syns i GoblinAmp
 2026-10-28  Be Kakan öppna saker åt dig – "öppna Discord", "öppna kalendern", "öppna youtube.com" eller "öppna mappen Bilder"

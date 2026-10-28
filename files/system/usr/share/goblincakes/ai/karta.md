@@ -85,6 +85,8 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
   Öppna (program ur menyn via gtk-launch, webbsida/fil/mapp via xdg-open; spel efter 8 s) också direkt.
   Spela låt/album/artist: Spotifys Web API med GoblinAmp:s inloggning (~/.config/goblincakes/spotify.json).
   Notis (notify-send) och urklipp (wl-copy/wl-paste; gamla urklippet sparas för ångra, lösenord visas inte).
+  Fönster: KWin-skriptet ai/windows.js via org.kde.kwin.Scripting (flytta, fram, maximera, fullskärm, minimera;
+  "andra skärmen" = den programmet inte ligger på; stänga = Tillåt-kort).
   Kolla spelarna: busctl --user list | grep mpris. Volymen: wpctl get-volume @DEFAULT_AUDIO_SINK@.
 
 ## Lokal AI (Ollama)
