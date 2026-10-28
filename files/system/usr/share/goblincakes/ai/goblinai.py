@@ -1264,6 +1264,8 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     """
     LAST.tools, LAST.steps, LAST.done = [], None, []
     activity("ask", "tänker", steps=[])
+    messages = [{**m, "content": m["content"].replace("\n\n" + FROM_MEMORY, "")}
+                if m["role"] == "assistant" and isinstance(m.get("content"), str) else m for m in messages]
     messages = with_lessons(with_done(messages), project)
     try:
         if read_links(messages, keys, status):
@@ -1462,6 +1464,42 @@ DONE_CLAIM = re.compile(r"\b(?:ändra[dt]e?|sänk[a-z]*|höj[a-z]*|öka[dt]e?|mi
                         re.I | re.M)
 
 
+# "Jag har läst sidan …", "enligt patch notes …" – an answer saying something was read or checked. Said without a tool
+# she lied (27 Oct: she said she had read pages when she only had the search's excerpts)
+READ_CLAIM = re.compile(r"\b(?:jag har|har jag|jag|nu) (?:nu )?(?:läst|läste|kollat|kollade|sökt|sökte|letat|letade|tittat|"
+                        r"tittade|testat|testade|kontrollerat|kontrollerade|hämtat|hämtade|gått igenom|gick igenom|undersökt|"
+                        r"undersökte)\b|\benligt (?:sidan|artikeln|guiden|patch ?notes|källan|källorna|sökningen|"
+                        r"sökresultaten|loggen|loggarna|filen|warcraft logs|wcl)\b|\bi (?:sökresultaten|loggen|loggarna) "
+                        r"(?:står|ser jag)\b", re.I)
+
+# "Kan du läsa hela sidor?" – what she can do comes from the tools she has now, not from a guess (28 Oct)
+ABILITY_ASK = re.compile(r"\b(?:kan|klarar|förmår) du\b|\bhar du (?:möjlighet|tillgång|förmåga)|\bvad (?:kan|klarar) du\b"
+                         r"|\bcan you\b|\bare you able\b", re.I)
+CANNOT = ("se skärmen (bara bilder användaren bifogar), höra eller prata, minnas andra chattar (bara det som står i "
+          "minnet), göra något vid en viss tid (bara påminnelser i kalendern), logga in på sidor eller läsa sidor som "
+          "kräver inloggning, ändra något i datorn utan att användaren trycker Tillåt (utom det skrivbord gör direkt), "
+          "ändra GOBLINCAKES kod")
+
+# A question about facts answered without anything fetched gets "Ur minnet" (28 Oct, the user: everyone isn't
+# as critical – an answer without sources must show it). Not chat, texts or questions about herself.
+FACT_QUESTION = re.compile(r"\?\s*$|^\W*(?:vad|vem|vilk\w+|när|var|varför|hur|finns|stämmer|är det|kan man|who|what|"
+                           r"when|where|why|how|which|is it|does)\b", re.I)
+NOT_FACT = re.compile(r"\b(?:mår du|heter du|tycker du|gillar du|vem är du|känner du dig|tack|hej|hallå|tjena)\b", re.I)
+FROM_MEMORY = "*Ur minnet – inget hämtat eller kontrollerat.*"
+
+
+def abilities(tools):
+    """What she can do now, one line per tool (its description's first sentence), and what she can't."""
+    lines = []
+    for word, t in tools.items():
+        for f in t["fns"] or [{"fn": t["fn"], "desc": t["desc"]}]:
+            lines.append(f"- {f['fn']}: " + re.split(r"(?<=[.!?])\s", f["desc"], maxsplit=1)[0])
+    return ("[Goblin AI: det här kan du göra just nu – dina verktyg, hela listan:]\n" + "\n".join(lines)
+            + f"\n\nDu kan INTE: {CANNOT}. Allt som inte står ovan kan du inte göra själv – säg det ärligt, och "
+            "säg inte att du kan något bara för att det låter rimligt. Är frågan en begäran (\"kan du öppna X?\"): "
+            "gör det med verktyget i stället för att beskriva." + NUDGE_NOTE)
+
+
 def own_data_question(question, tools):
     if not isinstance(question, str):
         return False
@@ -1647,7 +1685,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                          f"[Goblin AI läste länken i frågan åt dig innan du svarar – det här skrev eller klistrade "
                          f"användaren inte in]\n\n{text}\n\n[Slut på sidan]\n\nSå här svarar du med det:\n{PAGE_GUIDE.strip()}\n\n"
                          f"Användarens fråga var: \"{question}\""})
-    if "sök" in tools and not typed and (forced or (fresh_question(asked.get("content")) and not own)):
+    chat_only = bool(NOT_FACT.search(str(asked.get("content", ""))[:600]))  # "hur mår du idag?" searched the web
+    if "sök" in tools and not typed and (forced or (fresh_question(asked.get("content")) and not own and not chat_only)):
         # Goblin AI searches first, with the question itself (Tavily takes plain questions)
         query = " ".join(str(asked.get("content", "")).split())[:300]
         activity("ask", "söker på nätet")
@@ -1685,7 +1724,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             if notice:
                 notice(f"Söker på nätet gick inte: {e}")
     seen, checked = [str(m.get("content", "")) for m in messages if m["role"] != "assistant"], False
-    nudged = promised = looked = acted = False
+    nudged = promised = looked = acted = claimed = False
     fight = own_fight(asked.get("content"), tools, messages)
     if fight:
         tool, query = fight
@@ -1738,6 +1777,9 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              f"Användarens fråga var: \"{question}\"\n"
                              "Svara utifrån det här. Räcker det inte, läs mer med verktyget leta eller systemfel, "
                              "eller säg att du inte vet och vad som skulle behövas."})
+    able = ABILITY_ASK.search(str(asked.get("content", ""))[:600])
+    if able:
+        messages.append({"role": "user", "content": abilities(tools)})
     # This question's part of the chat: when it would no longer fit the local AI's memory, no more tools
     start = max(i for i, m in enumerate(messages) if m is asked) if asked in messages else len(messages) - 1
     while True:
@@ -1782,6 +1824,21 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "fortsätter det ni just gjorde: samma sak och samma program som förra gången. "
                              f"Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
+        if not request_ and not used and READ_CLAIM.search(re.sub(r"```.*?(?:```|\Z)", " ", answer, flags=re.S)):
+            if not claimed:
+                # Says she read or checked something, but no tool ran for this question – once more: do it or say so
+                claimed = True
+                steps.start("Kontrollerar svaret")
+                steps.done("fel", "påstod att hon läst/kollat utan att ha gjort det")
+                messages.append({"role": "assistant", "content": answer})
+                messages.append({"role": "user", "content":
+                                 "[Goblin AI] Du har inte läst, sökt eller kollat något för den här frågan – inget verktyg "
+                                 "har körts, så det du skrev är inte sant. Gör det nu med ett verktyg, eller svara utan att "
+                                 "påstå att du läst eller kollat (säg då att svaret är ur minnet). Kommer det från ett "
+                                 f"tidigare svar i samtalet: säg det. Frågan var: \"{question}\"" + NUDGE_NOTE})
+                continue
+            answer = answer.rstrip() + ("\n\n*Obs: svaret säger att något lästs eller kollats, men inget hämtades för "
+                                        "den här frågan.*")
         if not request_ and not promised and PROMISE.search(answer[-400:]) and len(answer) < 600:
             # "Låt mig kontrollera ~/.config/goblincakes/recorder.json." – and then nothing (25 Oct, gemma4)
             promised = True
@@ -1867,6 +1924,11 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     local = local_sources()
     if local:
         answer = answer.rstrip() + ("\n\n" if not sources else "\n") + "**Hämtat från:** " + " · ".join(local)
+    typed_q = str(asked.get("content", ""))[:600]
+    if (not used and not sources and not local and not able and FACT_QUESTION.search(typed_q.strip())
+            and not NOT_FACT.search(typed_q) and not WRITE_SOMETHING.search(typed_q)
+            and not cmd_level().code_blocks_in(answer) and "*Obs:" not in answer):
+        answer = answer.rstrip() + "\n\n" + FROM_MEMORY
     if searched:
         service += " · sökte på nätet"
     elif used:

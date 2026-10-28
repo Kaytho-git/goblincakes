@@ -95,6 +95,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, körda kommandon, å
   (sidor som byggs med JavaScript blir då nästan tomma). En länk i frågan läses först; "läs patch notes …" läser
   sökningens bästa träff. Adresser i datorn/hemnätverket läses inte. Svaret får Källor (länkar) och Hämtat från
   (filer, loggar, egna siffror).
+- Ärlighet (goblinai.py): faktafrågor utan något hämtat får "Ur minnet – inget hämtat eller kontrollerat" (FROM_MEMORY);
+  "jag har läst/kollat …" utan verktyg skickas tillbaka en gång, sedan en Obs-rad (READ_CLAIM); "kan du …?" får
+  listan över verktygen hon har just nu + det hon inte kan (abilities, CANNOT).
 
 ## Lokal AI (Ollama)
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne
