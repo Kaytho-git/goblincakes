@@ -5,6 +5,7 @@ with how it is undone (by "kakan")."""
 
 import json
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -56,13 +57,14 @@ def _run(code):
     return proc.returncode, (proc.stdout + proc.stderr).strip()
 
 
-def _done(code, undo, said, conversation=""):
-    """Runs code, logs it with its undo and returns what the AI gets back."""
+def _done(code, undo, said, conversation="", hint=""):
+    """Runs code, logs it with its undo (or a hint when there is none) and returns what the AI gets back."""
     try:
         exit_code, out = _run(code)
     except (OSError, subprocess.SubprocessError) as e:
         exit_code, out = 1, str(e)
-    cmdlevel.log(code, "change", "kakan", exit_code, out, {"undo": undo, "hint": ""} if undo else None, conversation)
+    cmdlevel.log(code, "change", "kakan", exit_code, out, {"undo": undo, "hint": hint} if undo or hint else None,
+                 conversation)
     return said if exit_code == 0 else f"Det gick inte: {out or 'fel ' + str(exit_code)}"
 
 
@@ -188,15 +190,101 @@ def volume(what, conversation=""):
                  f"Datorns volym {now} % → {level} %.", conversation)
 
 
+GAME_DELAY = 8  # seconds before a game starts: the game guard stops the local AI, so she answers first (28 Oct)
+NOT_OPENED = re.compile(r"\.(?:desktop|sh|bash|py|appimage|exe|bat|run|bin)$", re.I)  # would run something
+
+
+def _sys():
+    import systools  # noqa: PLC0415
+    return systools
+
+
+def _detached(cmd, delay=0):
+    """A shell line that starts cmd on its own (setsid, no output kept), after delay seconds."""
+    inner = " ".join(shlex.quote(c) for c in cmd)
+    if delay:
+        inner = f"sleep {delay}; {inner}"
+        return f"setsid -f sh -c {shlex.quote(inner)} >/dev/null 2>&1"
+    return f"setsid -f {inner} >/dev/null 2>&1"
+
+
+def is_game(app):
+    _, _, stem, _, cats, _, _, exe = app
+    return stem.startswith("goblincakes-game-") or "Game" in cats.split(";") and "steam://rungameid" in exe
+
+
+def find_app(name):
+    """(app, others): the menu program a name means – the whole name first, then the start of it, then a word
+    in it, then its kind/keywords ("kalender" → Merkuro kalender). others = more that fit as well."""
+    want = name.lower().strip()
+    menu = _sys().menu_apps()
+    if re.fullmatch(r"(?:min |mina )?(?:webbläsar\w*|browser|internet)", want):  # the main browser (Config)
+        try:
+            main = subprocess.run(["xdg-settings", "get", "default-web-browser"], capture_output=True, text=True,
+                                  timeout=5).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            main = ""
+        if main in menu:
+            return menu[main], []
+    apps = [a for a in menu.values() if "goblin ai" not in a[0].lower()]
+    for test in (lambda a: a[0].lower() == want or a[2].lower() == want,
+                 lambda a: a[0].lower().startswith(want),
+                 lambda a: re.search(rf"\b{re.escape(want)}", a[0].lower()),
+                 lambda a: all(w in f"{a[1]} {a[2]} {a[5]}".lower() for w in want.split())):
+        hits = sorted((a for a in apps if test(a)), key=lambda a: (a[3] == "webbapp", len(a[0])))
+        if hits:
+            return hits[0], hits[1:]
+    return None, []
+
+
+def open_thing(what, conversation=""):
+    """A program from the menu, a web page or a file/folder – started on its own, nothing waits for it.
+    Games start after GAME_DELAY seconds (the game guard stops the local AI when a game runs)."""
+    what = what.strip().strip("\"'`")
+    if not what:
+        return "Säg vad som ska öppnas: ett program, en webbsida eller en fil/mapp."
+    if re.match(r"https?://", what, re.I) or re.fullmatch(r"(?:www\.)?[\w-]+(?:\.[\w-]+)*\.[a-z]{2,}(?:/\S*)?", what, re.I):
+        url = what if re.match(r"https?://", what, re.I) else "https://" + what
+        return _done(_detached(["xdg-open", url]), [], f"Öppnade {url} i webbläsaren.", conversation,
+                     "Stäng fliken själv om du inte vill ha den.")
+    if what.startswith(("/", "~", "$HOME")):
+        path = _sys().path_of(what)
+        if not path.exists():
+            return f"{path} finns inte. Leta med verktyget leta (hitta_filer) först."
+        if not _sys().allowed(path):
+            return "Den platsen är hemlig (nycklar/lösenord) – den öppnas inte."
+        if path.is_file() and (NOT_OPENED.search(path.name) or path.stat().st_mode & 0o111):
+            return f"{path.name} är ett program eller skript – det öppnas inte härifrån (då körs det)."
+        kind = "mappen" if path.is_dir() else "filen"
+        return _done(_detached(["xdg-open", str(path)]), [], f"Öppnade {kind} {path}.", conversation,
+                     "Stäng fönstret själv om du inte vill ha det.")
+    app, others = find_app(what)
+    if app is None:
+        return (f"Hittar inget program som heter {what}. Kolla namnen med verktyget program "
+                "(eller säg en webbadress eller sökväg).")
+    name, stem = app[0], app[2]
+    also = (" (det finns också: " + ", ".join(o[0] for o in others[:4]) + ")") if others else ""
+    if is_game(app):
+        return _done(_detached(["gtk-launch", stem], GAME_DELAY), [],
+                     f"{name} startar om {GAME_DELAY} sekunder.{also} Medan ett spel kör vilar den lokala AI:n.",
+                     conversation, "Avsluta spelet själv.")
+    return _done(_detached(["gtk-launch", stem]), [], f"Startade {name}.{also}", conversation,
+                 "Stäng programmet själv om du inte vill ha det.")
+
+
 def act(line, conversation=""):
-    """The tool's line: `musik <paus|spela|nästa|föregående|vad>`, `volym <tal|+10|-10|tyst|ljud> [i <program>]`."""
+    """The tool's line: `musik <paus|spela|nästa|föregående|vad>`, `volym <tal|+10|-10|tyst|ljud> [i <program>]`,
+    `öppna <program|webbadress|sökväg>`."""
     word, _, rest = line.strip().partition(" ")
     word = word.lower()
     if word in ("musik", "music", "låt"):
         return music(rest, conversation)
     if word in ("volym", "volume", "ljud"):
         return volume(rest, conversation)
-    return "Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud [i goblinamp|spotify]."
+    if word in ("öppna", "oppna", "open", "starta", "start"):
+        return open_thing(rest, conversation)
+    return ("Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud [i goblinamp|spotify], "
+            "öppna <program|webbadress|sökväg>.")
 
 
 if __name__ == "__main__":  # trying it out: python3 desktop.py musik vad

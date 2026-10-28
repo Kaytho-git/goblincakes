@@ -716,11 +716,12 @@ ls/cat/journalctl. Säg vad du hittade och var (sökvägen), och gissa inte inne
 
 DESK_LINES = """musik <paus|spela|nästa|föregående|vad>   – musiken (GoblinAmp, Spotify …): pausa, spela, byt låt, vad spelas
 volym <40|+10|-10|tyst|ljud|vad>         – datorns volym (högtalare/hörlurar) i procent, högst 100
-volym <40|+10|-10|vad> i <program>        – volymen i en musikspelare (GoblinAmp, Spotify), inte datorns"""
+volym <40|+10|-10|vad> i <program>        – volymen i en musikspelare (GoblinAmp, Spotify), inte datorns
+öppna <program|webbadress|sökväg>         – starta ett program ur menyn, öppna en webbsida, fil eller mapp"""
 
 DESK_PROMPT = """
 
-Styra skrivbordet: ber användaren dig göra något på datorn (pausa musiken, nästa låt, sänka volymen) – gör det
+Styra skrivbordet: ber användaren dig göra något på datorn (pausa musiken, sänka volymen, öppna Discord) – gör det
 direkt med BARA ett kodblock märkt ```skrivbord med en av raderna nedan (det loggas och kan ångras):
 """ + DESK_LINES + """
 T.ex.
@@ -902,6 +903,13 @@ DESK_FNS = [
              "program": ("Musikspelaren, t.ex. `goblinamp` eller `spotify` (tomt = datorns volym)", False)},
             lambda a: f"volym {look_arg(a, 'niva')}".strip() + (f" i {look_arg(a, 'program')}"
                                                               if look_arg(a, "program") else "")),
+    look_fn("oppna", "Öppnar något åt användaren, direkt: startar ett program ur menyn (Discord, Steam, GoblinAmp, "
+            "kalendern, webbläsaren …), öppnar en webbsida i huvudwebbläsaren, eller en fil/mapp i sitt program. "
+            "Spel startar efter några sekunder (då vilar den lokala AI:n). Vet du inte vad programmet heter: kolla "
+            "med verktyget program först. Skript och program-filer öppnas inte.",
+            {"vad": ("Programmets namn (`discord`, `kalender`), en webbadress (`https://…`, `youtube.com`) eller en "
+                     "sökväg (`~/Bilder`)", True)},
+            lambda a: f"öppna {look_arg(a, 'vad')}"),
 ]
 
 
@@ -949,7 +957,7 @@ def tools_for(keys, project, messages):
                          "En av raderna:\n" + LOOK_LINES, look_fns())
     tools["skrivbord"] = tool("Styr skrivbordet", DESK_PROMPT, DESK_GUIDE, lambda q: (desktop().act(q), []), "skrivbord",
                               "Gör det användaren ber om på skrivbordet, direkt (loggas och kan ångras): pausa/spela "
-                              "musiken, nästa/förra låten, vad som spelas, datorns volym.",
+                              "musiken, nästa/förra låten, vad som spelas, volymen, öppna program/webbsidor/filer.",
                               "En av raderna:\n" + DESK_LINES, DESK_FNS)
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
@@ -1281,13 +1289,14 @@ WRITE_SOMETHING = re.compile(r"^\W*(?:skriv|gör|hitta på|formulera|författa|d
 
 
 DESK_ASK = re.compile(r"\b(?:pausa|volym\w*|ljudet|musiken|nästa låt|förra låt\w*|vad spelas|vilken låt (?:är det|spelas)"
-                      r"|spela (?:musik|igen))", re.I)
+                      r"|spela (?:musik|igen)|öppna|starta)\b", re.I)
 
 
 # "Jag har ändrat volymen …", "Pausade Spotify" – an answer saying something was done on the desktop
 DONE_CLAIM = re.compile(r"\b(?:ändra[dt]e?|sänk[a-z]*|höj[a-z]*|öka[dt]e?|minska[dt]e?|pausa[dt]e?|stoppa[dt]e?"
                         r"|start(?:a[dt]e?)|bytt|bytte|hoppa[dt]e?|stängt|stängde|satt|satte)\b"
-                        r".{0,60}\b(?:volym\w*|ljud\w*|musik\w*|låt\w*|spotify|goblinamp|\d+\s*%)", re.I)
+                        r".{0,60}\b(?:volym\w*|ljud\w*|musik\w*|låt\w*|spotify|goblinamp|\d+\s*%)"
+                        r"|\b(?:har |jag )(?:öppnat|startat)\b|^(?:öppnade|startade)\b", re.I | re.M)
 
 
 def own_data_question(question, tools):

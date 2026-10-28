@@ -623,8 +623,8 @@ def desktop_field(text, key):
     return m.group(1).strip() if m else ""
 
 
-def installed_programs(match=""):
-    """The programs in the menu (image, Flatpak, own/web apps), or the ones whose name/kind/keywords match."""
+def menu_apps():
+    """{file name: (name, kind, stem, source, categories, words, path, Exec)} – the programs in the menu."""
     apps = {}
     for folder, source in APP_FOLDERS:
         for f in sorted(folder.glob("*.desktop")):
@@ -635,11 +635,17 @@ def installed_programs(match=""):
             if re.search(r"^(NoDisplay|Hidden)=true", text, re.M) or not desktop_field(text, "Name"):
                 apps.pop(f.name, None)  # a hidden copy in the home folder hides the image's
                 continue
-            if f.name.startswith("goblincakes-webapp"):
-                source = "webbapp"
-            apps[f.name] = (desktop_field(text, "Name"), desktop_field(text, "GenericName"), f.stem, source,
+            apps[f.name] = (desktop_field(text, "Name"), desktop_field(text, "GenericName"), f.stem,
+                            "webbapp" if f.name.startswith("goblincakes-webapp") else source,
                             desktop_field(text, "Categories"),
-                            " ".join(re.findall(r"^(?:Keywords|GenericName|Name)(?:\[[\w@]+\])?=(.+)$", text, re.M)))
+                            " ".join(re.findall(r"^(?:Keywords|GenericName|Name)(?:\[[\w@]+\])?=(.+)$", text, re.M)),
+                            f, desktop_field(text, "Exec"))
+    return apps
+
+
+def installed_programs(match=""):
+    """The programs in the menu (image, Flatpak, own/web apps), or the ones whose name/kind/keywords match."""
+    apps = menu_apps()
     words = [w for w in match.lower().split() if w not in ("program", "programmet", "programmen", "app", "appar")]
     if words:
         rows = [a for a in apps.values() if all(w in f"{a[0]} {a[1]} {a[2]} {a[4]} {a[5]}".lower() for w in words)]
@@ -650,7 +656,7 @@ def installed_programs(match=""):
             f"- {name}" + (f" ({kind})" if kind and kind != name else "") + f" – {stem}, {source}"
             for name, kind, stem, source, *_ in sorted(rows, key=lambda a: a[0].lower()))
     groups = collections.defaultdict(list)
-    for name, _, _, source, cats, _ in apps.values():
+    for name, _, _, source, cats, *_ in apps.values():
         group = next((sv for en, sv in APP_GROUPS if en in cats.split(";")), "Övrigt")
         groups[group].append(name + (" (webbapp)" if source == "webbapp" else ""))
     return f"Installerade program i menyn ({len(apps)}):\n" + "\n".join(
