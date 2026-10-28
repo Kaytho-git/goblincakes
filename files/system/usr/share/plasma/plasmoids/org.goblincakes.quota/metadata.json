@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "GOBLINCAKES"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "How much of the Claude and ChatGPT/Codex limits is used (5 hours and week)",
+        "Description[sv]": "Hur mycket av Claudes och ChatGPT/Codex kvoter som är använt (5 h och vecka)",
+        "Icon": "speedometer",
+        "Id": "org.goblincakes.quota",
+        "License": "GPL-3.0-or-later",
+        "Name": "GOBLINCAKES Quota",
+        "Name[sv]": "GOBLINCAKES Kvot"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

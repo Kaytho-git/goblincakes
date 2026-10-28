@@ -54,6 +54,18 @@ Ord: uppdatering, uppdatera, update, grön pil, pilen, goblin update, automatisk
 - Kolla: `rpm-ostree status` (vilken version, väntar en på omstart?), `journalctl --user -u goblincakes-updates`.
 Kontroll: `cat ~/.cache/goblincakes/updates.json`
 
+## Toppfältet: kvot-widgeten (Claude och ChatGPT/Codex)
+Ord: kvot, kvoten, gräns, användning, usage, limit, 5 h, veckokvot, Claude, Codex, ChatGPT, staplar
+- Två staplar bredvid uppdateringspilen: vänster = Claude, höger = ChatGPT/Codex, hur mycket av 5-timmarsgränsen som är använt
+  (orange från 75 %, röd från 90 %). Klick = ruta med 5 h och vecka i % och när de nollställs.
+  Widget: /usr/share/plasma/plasmoids/org.goblincakes.quota. Den kör /usr/libexec/goblincakes-quota var 5:e minut,
+  som sparar ~/.cache/goblincakes/quota.json.
+- Claude läses med Claude Codes inloggning (~/.claude/.credentials.json), samma som /usage. "Inloggningen har gått ut" =
+  starta Claude Code en gång (den förnyar inloggningen, widgeten gör det inte).
+- Codex läses med ~/.codex/auth.json; går det inte används Codex senaste sessionslogg (~/.codex/sessions/).
+- Inofficiella vägar: ändrar Anthropic/OpenAI dem står det "Kunde inte läsas" och senast lästa värden visas.
+Kontroll: `/usr/libexec/goblincakes-quota` (skriver svaret, inga nycklar)
+
 ## Dockan och AppGrid
 Ord: docka, dockan, aktivitetsfält, appgrid, programmeny, meta+z, ikoner nere
 - Dockan längst ner döljs av sig själv; Meta+Z tar fram den (även över spel). AppGrid = programmenyn.

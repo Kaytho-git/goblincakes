@@ -1,0 +1,171 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: how much of the Claude and ChatGPT/Codex subscriptions' limits is used, for the
+quota widget in the top bar (org.goblincakes.quota).
+
+    goblincakes-quota           fetch now, print one JSON line and save it in ~/.cache/goblincakes/quota.json
+    goblincakes-quota --cached  only print the saved file (nothing fetched)
+
+{"updated": epoch, "services": [{"id": "claude"|"codex", "name", "plan", "error", "source",
+ "stale", "windows": [{"label": "5 h"|"Vecka", "percent", "resets": epoch}]}]}
+
+Both use unofficial ways that the official programs themselves use, so they may change: then the
+service gets an "error" ("kunde inte läsas …") and the last good values are kept with "stale".
+- Claude: the login Claude Code keeps in ~/.claude/.credentials.json, the same request as /usage.
+  The token is never refreshed here (that would log Claude Code out) – expired = start Claude Code.
+- Codex: the login in ~/.codex/auth.json, the same request as Codex's /status. If that fails, the
+  newest session log's rate_limits (~/.codex/sessions/**/*.jsonl), source "log"; a window whose
+  reset time has passed since then shows 0 %.
+Tokens are only sent to the services they belong to and never printed.
+"""
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+
+HOME = Path.home()
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", HOME / ".cache")) / "goblincakes" / "quota.json"
+CLAUDE_CREDENTIALS = HOME / ".claude" / ".credentials.json"
+CODEX_HOME = Path(os.environ.get("CODEX_HOME", HOME / ".codex"))
+TIMEOUT = 10
+
+
+def get_json(url, headers):
+    request = urllib.request.Request(url, headers={**headers, "User-Agent": "goblincakes-quota"})
+    with urllib.request.urlopen(request, timeout=TIMEOUT) as answer:
+        return json.loads(answer.read().decode())
+
+
+def window(label, percent, resets):
+    return {"label": label, "percent": round(float(percent or 0)), "resets": int(resets or 0)}
+
+
+def http_error(error):
+    if isinstance(error, urllib.error.HTTPError) and error.code in (401, 403):
+        return "inloggningen godtogs inte"
+    if isinstance(error, (urllib.error.URLError, TimeoutError, OSError)):
+        return "inget svar (nätverket?)"
+    return "svaret gick inte att läsa"
+
+
+def claude():
+    service = {"id": "claude", "name": "Claude", "plan": "", "error": "", "source": "live", "windows": []}
+    try:
+        login = json.loads(CLAUDE_CREDENTIALS.read_text())["claudeAiOauth"]
+    except (OSError, ValueError, KeyError):
+        service["error"] = "inte inloggad i Claude Code"
+        return service
+    service["plan"] = (login.get("subscriptionType") or "").capitalize()
+    if login.get("expiresAt", 0) / 1000 < time.time():
+        service["error"] = "inloggningen har gått ut – starta Claude Code"
+        return service
+    try:
+        data = get_json("https://api.anthropic.com/api/oauth/usage",
+                        {"Authorization": "Bearer " + login["accessToken"],
+                         "anthropic-beta": "oauth-2025-04-20"})
+        for label, key in (("5 h", "five_hour"), ("Vecka", "seven_day")):
+            part = data.get(key)
+            if part:
+                resets = datetime.fromisoformat(part["resets_at"]).timestamp() if part.get("resets_at") else 0
+                service["windows"].append(window(label, part.get("utilization"), resets))
+        if not service["windows"]:
+            service["error"] = "svaret gick inte att läsa"
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as error:
+        service["error"] = http_error(error)
+    return service
+
+
+def codex_log():
+    """The newest rate_limits in Codex's session logs: (windows, plan, when) or None."""
+    logs = sorted((CODEX_HOME / "sessions").glob("*/*/*/*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in logs[:5]:
+        try:
+            lines = path.read_text(errors="replace").splitlines()
+        except OSError:
+            continue
+        for line in reversed(lines):
+            if '"rate_limits"' not in line:
+                continue
+            try:
+                entry = json.loads(line)
+                limits = entry["payload"]["rate_limits"]
+            except (ValueError, KeyError, TypeError):
+                continue
+            if not limits or not limits.get("primary"):
+                continue
+            windows = []
+            for label, key in (("5 h", "primary"), ("Vecka", "secondary")):
+                part = limits.get(key)
+                if part:
+                    resets = part.get("resets_at") or 0
+                    # Reset since the log was written: nothing used in that window as far as we know
+                    windows.append(window(label, 0 if resets and resets < time.time() else part.get("used_percent"), resets))
+            return windows, limits.get("plan_type") or "", path.stat().st_mtime
+    return None
+
+
+def codex():
+    service = {"id": "codex", "name": "ChatGPT/Codex", "plan": "", "error": "", "source": "live", "windows": []}
+    try:
+        tokens = json.loads((CODEX_HOME / "auth.json").read_text())["tokens"]
+        data = get_json("https://chatgpt.com/backend-api/wham/usage",
+                        {"Authorization": "Bearer " + tokens["access_token"],
+                         "ChatGPT-Account-Id": tokens.get("account_id") or ""})
+        service["plan"] = (data.get("plan_type") or "").capitalize()
+        limits = data["rate_limit"]
+        for label, key in (("5 h", "primary_window"), ("Vecka", "secondary_window")):
+            part = limits.get(key)
+            if part:
+                service["windows"].append(window(label, part.get("used_percent"), part.get("reset_at")))
+        if service["windows"]:
+            return service
+        service["error"] = "svaret gick inte att läsa"
+    except FileNotFoundError:
+        service["error"] = "inte inloggad i Codex"
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as error:
+        service["error"] = http_error(error)
+    found = codex_log()
+    if found:
+        service["windows"], plan, when = found
+        service["plan"] = service["plan"] or plan.capitalize()
+        service["source"] = "log"
+        service["logTime"] = int(when)
+        service["error"] = ""
+    return service
+
+
+def load_cache():
+    try:
+        return json.loads(CACHE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def main():
+    if "--cached" in sys.argv:
+        print(json.dumps(load_cache(), ensure_ascii=False))
+        return
+    old = {s.get("id"): s for s in load_cache().get("services", [])}
+    services = []
+    for service in (claude(), codex()):
+        # Could not be read this time: keep the last good values, marked as old
+        previous = old.get(service["id"])
+        if service["error"] and not service["windows"] and previous and previous.get("windows"):
+            service["windows"] = previous["windows"]
+            service["stale"] = previous.get("stale") or previous.get("updated") or 0
+        else:
+            service["updated"] = int(time.time())
+        services.append(service)
+    result = {"updated": int(time.time()), "services": services}
+    CACHE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = CACHE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(result, ensure_ascii=False))
+    tmp.replace(CACHE)
+    print(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

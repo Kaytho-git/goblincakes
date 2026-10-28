@@ -85,11 +85,11 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Discord i GOBLINCAKES-stil (Vencord, eget val i Config; läggs in igen efter Discord-uppdateringar)
 - [x] Tiling med egna regler (Config → Fönster, layouter, Meta+Ctrl+1–9)
 - [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, sök/egna listor, spara album, GENRER med Last.fm, MPRIS, GRAF)
+- [x] Kvot-widget i toppfältet (Claude + ChatGPT/Codex, 5 h + vecka, `goblincakes-quota`)
 - [x] ChatGPT-appen (OpenAIs RPM uppackad i hemmappen, `goblincakes-chatgpt`; Goblin AI → "Skicka till ChatGPT" via urklipp) – ej provad med riktiga paketet
 
 ## Att göra
 - [ ] **Kakan självgående – nästa veckas plan, punkt 1–8** (tool calling, arbetsloop, filer, kommandon i tre nivåer, skrivbordet, webbsidor, påminnelser, MCP, 9 = röst med tryck-och-prata, 10–16 = mätverktyg, kunskap om GOBLINCAKES, kända lösningar, kontroll efter uppdatering, "Skicka till Claude", testa åt Claude, byggstatus; 17 = Claude Haiku via abonnemanget med Kakans verktyg, sist; 18 = defensiva sidan i WoW-analyserna (defensiver, undvikbar skada, CC – som carried.io); 21 = stora texter i delar + sammanfattning av långa samtal (före 20); 20 = uppdrag (ett slutmål, hennes funktioner i steg – slutprovet, sist); steg 0 = modellprov; Kakan ändrar aldrig koden i repot; + förslag mätverktyg för lagg). Detaljer: grep "veckans plan" i anteckningarna.
-- [ ] **Kvot-widget (direkt efter Kakans punkt 15)**: ikon i toppfältet, klick → Claude och ChatGPT/Codex, 5 h + vecka i % och när de nollställs (Claude: inloggningen i ~/.claude, som /usage; Codex: ~/.codex – sessionsloggarnas rate_limits eller färskt med samma inloggning). Inofficiella vägar → "kunde inte läsas" om de ändras.
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav).
 - [ ] **GoblinRecorder för CS2** – byggt 22 okt: GSI (2K–ACE-klipp + alla kills, matchen tas bort), demon (egna siffror, TTD/första skottet/spray/counter-strafe, vunna clutchar som klipp), CS2 Stats (clutchar 1v1–1v4, ACE, pilar, utfällbar match med alla tio, per säsong med Arkiv). Deathmatch provat på riktigt. Kvar: efter nästa image en riktig Premier/Competitive till slut + nedladdad demo – stämmer siffrorna mot Leetify, blir klippen rätt, börjar demons servernamn med "Valve" (annars hamnar den under PRIVAT)?
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
