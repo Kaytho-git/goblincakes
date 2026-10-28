@@ -3880,14 +3880,17 @@ PlasmoidItem {
 cd ~/kakan-prov/MAPPEN || exit 1
 id=$(python3 -c "import json; print(json.load(open('metadata.json'))['KPlugin']['Id'])")
 if kpackagetool6 -t Plasma/Applet -u . >/dev/null 2>&1 || kpackagetool6 -t Plasma/Applet -i .; then echo "Installerad: $id"; else echo "INSTALLATIONEN MISSLYCKADES"; exit 1; fi
-t=$(date +%T); timeout 8 plasmawindowed "$id" >/dev/null 2>&1; sleep 2
-journalctl --user -t plasmawindowed --since "$t" -o cat | grep -iE "error|qml|not ready|not a type" || echo "Inga fel."
+pkill -x plasmawindowed; sleep 1
+t=$(date +%T); timeout 8 plasmawindowed "$id" >/dev/null 2>&1; kod=$?; sleep 2
+fel=$(journalctl --user -t plasmawindowed --since "$t" -o cat | grep -iE "error|qml|not ready|not a type")
+if [ -n "$fel" ]; then echo "$fel"; elif [ "$kod" -ne 124 ]; then echo "PROVET STARTADE INTE (kod $kod)"; else echo "Inga fel."; fi
 ```
   Kopiera blocket som det står – skriv inte ett eget. Den installerade kopian rör du aldrig (inget rm): blocket
   uppdaterar den. Ska en widget bort helt: `kpackagetool6 -t Plasma/Applet -r <id>`.
-  Står det ett fel (fil:rad: vad som är fel) eller MISSLYCKADES: rätta just det och kör blocket igen. Klar först när
-  BÅDE "Installerad" och "Inga fel." står i samma utskrift. Sedan finns den i widgetmenyn (högerklick på skrivbordet
-  → Lägg till widgetar)."""
+  Står det ett fel (fil:rad: vad som är fel), MISSLYCKADES eller STARTADE INTE: rätta just det och kör blocket igen.
+  Klar först när BÅDE "Installerad" och "Inga fel." står i samma utskrift. Sedan finns den i widgetmenyn (högerklick
+  på skrivbordet → Lägg till widgetar). Ligger en äldre version redan på skrivbordet visar den den gamla koden tills
+  skrivbordet startats om – säg det till användaren (ta bort den och lägg till den igen, eller logga ut och in)."""
 
 GUIDES = [(re.compile(r"\b(plasmoid\w*|kpackagetool6?|plasmawindowed|widgetmeny\w*)\b|\b(gör|göra|skapa|bygg\w*|ny|nytt|"
                       r"egen|eget|rätta|installera)\b[^.?!\n]{0,50}widget", re.I), WIDGET_GUIDE)]
