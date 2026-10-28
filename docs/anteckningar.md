@@ -380,6 +380,7 @@ Användaren vill fortsätta med Claude Code och har inga planer på att byta. De
 - Bedömning: utan `väntat` avgör avslutskoden; med `väntat` ett eget litet anrop (`judge_messages`, inga verktyg, `ask_once` med fönstrets modell) → första raden OK/FEL/OKLART (`verdict_of`, annars OKLART). Prov: gemma4 rätt 2/2 (FEL när tjänsten låg i ~/.config i stället för /usr/lib, 0,6–3,8 s).
 - `fråga:` besvaras i chatten (`send` fångar svaret när `waiting == "ask"`): ja → OK, nej → FEL, hoppa → HOPPADES ÖVER, annat = OKLART + texten.
 - Resultat: `till-claude/ÅÅÅÅ-MM-DD-HHMM-testresultat-<lista>.md` (tabell + varje punkt med rå utdata), listan → `testlistor/klara/`. Sammanfattningen läggs i `_api` så Kakan vet om den.
+- Gotcha: `till-claude/` skapas först när den första rapporten/resultatet sparas – en testpunkt får inte kräva att mappen redan finns (punkt 2 i punkt-14-15 gav falskt FEL 2026-10-28). Skriv "ls ... || echo saknas = ok" eller testa via MCP-verktyget `rapporter`.
 - Provat: attrapper (5 punkter: OK via bedömning, FEL på avslutskod, ändrande hoppad, fråga, farlig), riktig bedömning med gemma4, fönstret offscreen. Ej provat: i riktiga fönstret.
 
 ## Kakans MCP-servrar (punkt 8, 28 okt)
