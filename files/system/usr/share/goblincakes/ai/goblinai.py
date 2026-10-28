@@ -767,6 +767,24 @@ Så här hittar och lagar du felet:
 - Ska användaren göra något (starta om Steam, starta spelet, starta om datorn), säg det och vänta på svar.
 - Kolla efteråt med verktyget systemfel igen innan du säger att det är löst."""
 
+LAG_PROMPT = """
+
+Lagg: frågar användaren varför spelet laggade/ryckte/hackade eller vad lagmätningen visar, svara med BARA ett
+kodblock märkt ```lagg – tomt för den senaste mätningen, ett nummer för en äldre (2 = näst senaste) eller `lista`.
+Du får då vad datorn och nätet gjorde kring varje gång användaren tryckte Meta+Shift+L ("laggar nu"): ping till
+spelets server och routern, processorn, grafikkortet, minnet, disken och vilka program som tog processorn – mot
+de vanliga sekunderna i samma mätning."""
+
+LAG_GUIDE = """
+Så här tolkar du lagmätningen:
+- Börja med raden "Tecken:" och raderna märkta AVVIKER – det är det enda som skilde lagget från det vanliga.
+  Säg rakt ut när inget avviker: då syns orsaken inte i datorn eller nätet (spelet självt, servern).
+- Routern normal men spelets server hög/tappar = internet eller servern, inte datorn. Routern hög = hemmanätet.
+- Ett annat program som tog processorn/disken under lagget: säg vilket. Gissa inte vad ett okänt program är.
+- Inga frametider = Spelmätning var av; föreslå att slå på den (Config → Inställningar → Spel) till nästa gång.
+- Mätningen startar först vid Meta+Shift+L eller `goblincakes-lagmeter start` – den mäter aldrig bakåt.
+- Ett steg i taget, det säkraste först; kolla med en ny mätning efteråt att det blev bättre."""
+
 LOOK_LINES = """filer <namn eller *mönster*> [i <mapp>]   – hittar filer/mappar (hemmappen, /etc, /var/log, /usr/…, /tmp)
 läs <sökväg> [med <text>]               – slutet av en textfil, eller raderna med texten
 mapp <sökväg>                           – vad som ligger i en mapp
@@ -915,6 +933,19 @@ def sys_tools():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import systools  # noqa: PLC0415
     return systools
+
+
+LAG_HELPER = Path(__file__).resolve().parents[3] / "libexec/goblincakes-lagmeter"  # repo or /usr
+
+
+def lag_report(query):
+    """The lag meter's report (goblincakes-lagmeter rapport) – point 10 of Kakan's plan."""
+    try:
+        r = subprocess.run([sys.executable, str(LAG_HELPER), "rapport", query.strip()], capture_output=True,
+                           text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return f"Lagmätaren gick inte att läsa: {e}"
+    return r.stdout.strip() or r.stderr.strip() or "(tomt)"
 
 
 def mcp():
@@ -1208,6 +1239,12 @@ def tools_for(keys, project, messages):
                               "vad datorn själv har loggat – krascher, journalens fel, misslyckade tjänster, "
                               "GOBLINCAKES-versionen och vad som ändrats nyligen. Inte WoW-tilläggens fel (då wowfel).",
                               "Tomt för en översikt, eller ett programs namn för detaljer")
+    tools["lagg"] = tool("Läser lagmätningen", LAG_PROMPT, LAG_GUIDE, lambda q: (lag_report(q), []), "lagg",
+                         "När användaren frågar varför spelet laggade, ryckte eller hackade, om pingen, eller vad "
+                         "lagmätningen visar: vad datorn och nätet gjorde kring varje Meta+Shift+L (\"laggar nu\") mot "
+                         "de vanliga sekunderna – ping till spelets server och routern, processor, grafikkort, minne, "
+                         "disk, program som tog processorn, MangoHuds frametider. Före systemfel när det gäller lagg.",
+                         "Tomt = senaste mätningen, `2` = näst senaste, `lista` = alla")
     tools["leta"] = tool("Letar i datorn", LOOK_PROMPT, LOOK_GUIDE, lambda q: (sys_tools().look(q), []), "leta",
                          "När du behöver se något i datorn själv: hitta en fil eller mapp (t.ex. var ett programs "
                          "inställningar ligger: `filer *recorder*`), läsa en fil, inställning eller logg, se vad som ligger i "
@@ -1287,7 +1324,8 @@ TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel
               "goblincakes": "goblincakes", "karta": "goblincakes", "kartan": "goblincakes",
               "sida": "sida", "webbsida": "sida", "page": "sida", "las_sida": "sida",
               "skrivbord": "skrivbord", "desktop": "skrivbord", "musik": "skrivbord", "volym": "skrivbord",
-              "påminn": "skrivbord", "bevaka": "skrivbord"}
+              "påminn": "skrivbord", "bevaka": "skrivbord",
+              "lagg": "lagg", "laggmätning": "lagg", "lagmätning": "lagg"}
 
 # With real tool calls the system prompt only gets this – the tools describe themselves
 TOOLS_PROMPT = """
@@ -1686,7 +1724,8 @@ def fresh_question(question):
 SOURCES_MAX = 10
 SOURCE_NAMES = {"sport": "ESPN (lagens tabeller)", "wowstats": "dina WoW-siffror (WoW Stats)",
                 "cs2": "dina CS2-demos (CS2 Stats)", "goblincakes": "kartan över GOBLINCAKES",
-                "systemfel": "datorns loggar och krascher", "wowfel": "BugSacks sparade fel"}
+                "systemfel": "datorns loggar och krascher", "wowfel": "BugSacks sparade fel",
+                "lagg": "lagmätningen (Meta+Shift+L)"}
 
 
 def local_sources():
@@ -1959,7 +1998,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             # About the user's own WoW/CS2/computer/team but no tool used: in a long chat gemma4 answered "enligt
             # Warcraft Logs dog Kaytho" without reading anything (25 Oct) – once more, told to use one
             nudged = True
-            own = [w for w in ("warcraftlogs", "wowstats", "cs2", "sport", "systemfel", "leta") if w in tools]
+            own = [w for w in ("warcraftlogs", "wowstats", "cs2", "sport", "lagg", "systemfel", "leta") if w in tools]
             messages.append({"role": "assistant", "content": answer})
             messages.append({"role": "user", "content":
                              "[Goblin AI] Du svarade utan att hämta något. Frågan gäller användarens egen data – använd "

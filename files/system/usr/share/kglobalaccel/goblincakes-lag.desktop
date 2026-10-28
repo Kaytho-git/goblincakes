@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Meta+Shift+L = "laggar nu": the lag meter notes the time and starts measuring if it wasn't
+# (goblincakes-lagmeter). Meta+L locks the screen in Plasma. Can be changed in System Settings → Shortcuts.
+Type=Application
+Name=Laggar nu (lagmätaren)
+Exec=/usr/libexec/goblincakes-lagmeter mark
+Icon=goblincakes
+OnlyShowIn=KDE;
+X-KDE-Shortcuts=Meta+Shift+L

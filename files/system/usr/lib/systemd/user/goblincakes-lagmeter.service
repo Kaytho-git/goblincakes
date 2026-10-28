@@ -1,0 +1,9 @@
+[Unit]
+Description=GOBLINCAKES lagmätare (ping, CPU, GPU, disk while a game lags – started by Meta+L or goblincakes-lagmeter start)
+ConditionKernelCommandLine=!rd.live.image
+
+[Service]
+ExecStart=/usr/libexec/goblincakes-lagmeter run
+# Measuring must never take from the game
+Nice=10
+IOSchedulingClass=idle

@@ -171,6 +171,19 @@ Ord: wow, world of warcraft, battle.net, tillägg, addon, addons, bugsack, lua-f
 - Ändra aldrig spelets egna filer – bara tilläggens filer och inställningar.
 - WoWUp uppdaterar tilläggen; Archons ikon i systemfältet: tjänsten goblincakes-archon-tray.
 
+## Lagmätaren
+Ord: lagg, laggar, ping, laggknappen, meta+shift+l, lagmätning, hackar, nätet, paketförlust
+- Meta+Shift+L = "laggar nu": noterar klockslaget och startar mätningen om den inte går
+  (/usr/libexec/goblincakes-lagmeter mark, kortkommandot i /usr/share/kglobalaccel/goblincakes-lag.desktop).
+- Tjänsten goblincakes-lagmeter (startas bara av Meta+Shift+L eller `goblincakes-lagmeter start`) mäter en rad
+  per sekund: ping till spelets server och routern, processor, grafikkort (klocka, temp, varför det bromsar),
+  RAM/swap, PSI, disk, nät, vilka program som tar processorn. Stannar 15 s efter spelet, efter 15 min utan spel
+  eller 6 h. Filerna: ~/.local/state/goblincakes/lagmeter/*.jsonl (20 sparas).
+- Frametider/fps kommer från MangoHud (Spelmätning, se goblin frames) – bara om det var på när spelet startade.
+- Kolla: `goblincakes-lagmeter status`, `goblincakes-lagmeter rapport` (= verktyget lagg),
+  `journalctl --user -u goblincakes-lagmeter`.
+Kontroll: `/usr/libexec/goblincakes-lagmeter status`
+
 ## Steam och spel
 Ord: steam, proton, spel startar inte, goblin play, tv-läge, big picture, lutris, heroic
 - Steam finns i systemet. `goblin play <namn>` startar Steam-spel från terminalen (/usr/libexec/goblincakes-games),

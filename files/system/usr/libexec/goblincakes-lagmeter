@@ -1,0 +1,666 @@
+#!/usr/bin/python3
+"""GOBLINCAKES lagmätare (point 10 of Kakan's plan, 28 Oct): what the computer and the network did
+second by second while a game lags – the user's words: "lagget är nu", closing the game so that
+Kakan can measure afterwards is backwards.
+
+    goblincakes-lagmeter start          starts measuring (the user service goblincakes-lagmeter)
+    goblincakes-lagmeter stop           stops it
+    goblincakes-lagmeter mark [text]    "laggar nu" with the time (Meta+L) – starts measuring if it wasn't
+    goblincakes-lagmeter status         measuring or not, and the newest session
+    goblincakes-lagmeter rapport [N]    what differed around each mark (N = the N:th newest; `lista`) –
+                                        Kakan's and Claude's tool `lagg`
+    goblincakes-lagmeter list           the saved sessions
+    goblincakes-lagmeter run            the service itself (one line per second)
+
+Inactive until started – nothing runs and nothing is measured before that (the user's decision 28 Oct).
+Stops by itself 15 s after the game it measured is closed, after 15 min without a game, or after 6 h.
+MangoHud's frame times (Spelmätning, goblincakes-frames) are not measured here: this takes what
+MangoHud doesn't – ping to the game's server and to the router, the processes that take the CPU,
+pressure (PSI), disk and network, the GPU's clocks and why it slows down.
+One JSON line per second in ~/.local/state/goblincakes/lagmeter/. Only the standard library.
+"""
+import json
+import os
+import re
+import signal
+import socket
+import subprocess
+import sys
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(os.environ.get("GOBLINCAKES_SHARE") or
+                            Path(__file__).resolve().parents[1] / "share/goblincakes")))
+from gaming import find_game  # noqa: E402 – one rule for what a game is
+
+HOME = Path.home()
+STATE = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / "goblincakes"
+LOGS = STATE / "lagmeter"
+RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+MARKS = RUNTIME / "goblincakes-lagmeter-marks"  # mark → the running service, read every second
+UNIT = "goblincakes-lagmeter.service"
+KEEP = 20                   # sessions kept
+AFTER_GAME = 15             # seconds after the game closed
+NO_GAME = 15 * 60           # seconds without any game
+MAX_TIME = 6 * 3600
+FALLBACK_HOST = "eu.actual.battle.net"  # Blizzard's EU login when the game's own server isn't found
+LOCAL_NET = re.compile(r"^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|fe80:|\[::1\]|\[fe80:)")
+NVIDIA_FIELDS = ("utilization.gpu,clocks.gr,clocks.mem,temperature.gpu,power.draw,memory.used,"
+                 "clocks_throttle_reasons.active")
+
+
+def read(path, default=""):
+    try:
+        return Path(path).read_text()
+    except OSError:
+        return default
+
+
+# ── Pinging in the background (one ping process per host, read line by line) ──
+
+class Pinger:
+    """`ping -O` once a second; take() → (newest time in ms or None, answers missing since last take)."""
+
+    def __init__(self, host):
+        self.host, self.rtt, self.lost, self.proc = host, None, 0, None
+        self.lock = threading.Lock()
+        try:
+            self.proc = subprocess.Popen(["ping", "-n", "-O", "-i", "1", "-W", "1", host], stdout=subprocess.PIPE,
+                                         stderr=subprocess.DEVNULL, text=True)
+        except OSError:
+            return
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self):
+        for line in self.proc.stdout:
+            m = re.search(r"time=([\d.]+)", line)
+            with self.lock:
+                if m:
+                    self.rtt = float(m.group(1))
+                elif "no answer yet" in line:
+                    self.lost += 1
+
+    def take(self):
+        with self.lock:
+            rtt, lost, self.rtt, self.lost = self.rtt, self.lost, None, 0
+        return rtt, lost
+
+    def stop(self):
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+
+
+def router():
+    for line in read("/proc/net/route").splitlines()[1:]:
+        f = line.split()
+        if len(f) > 2 and f[1] == "00000000":
+            return f[0], socket.inet_ntoa(int(f[2], 16).to_bytes(4, "little"))
+    return None, None
+
+
+def game_server(tree):
+    """The game's own server: the remote address its processes talk to (not the local net, not
+    port 443 when there is something else) – WoW's realm, CS2's server. None when not found."""
+    found = []
+    for proto in ("-tnpH", "-unpH"):
+        try:
+            out = subprocess.run(["ss", proto, "state", "established"], capture_output=True, text=True,
+                                 timeout=5).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        for line in out.splitlines():
+            pids = {int(p) for p in re.findall(r"pid=(\d+)", line)}
+            f = line.split()
+            if not pids & tree or len(f) < 4:
+                continue
+            host, _, port = f[3].rpartition(":")
+            host = host.strip("[]")
+            if host and not LOCAL_NET.match(host):
+                found.append((port == "443", host))
+    return sorted(found)[0][1] if found else None
+
+
+# ── One look at the computer ──
+
+class Meter:
+    def __init__(self):
+        self.prev = {}
+        self.nvidia = None
+        self.gpu_line = None
+        if subprocess.run(["sh", "-c", "command -v nvidia-smi"], capture_output=True).returncode == 0:
+            # One nvidia-smi for the whole session (starting it every second costs ~40 ms of CPU)
+            try:
+                self.nvidia = subprocess.Popen(["nvidia-smi", f"--query-gpu={NVIDIA_FIELDS}",
+                                                "--format=csv,noheader,nounits", "-lms", "1000"],
+                                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                threading.Thread(target=self._read_nvidia, daemon=True).start()
+            except OSError:
+                self.nvidia = None
+        self.cpu_temp = self._hwmon(("k10temp", "coretemp", "zenpower"), "temp1_input")
+        self.amd = next((d for d in Path("/sys/class/drm").glob("card*/device") if (d / "gpu_busy_percent").exists()),
+                        None)
+        self.iface, _ = router()
+
+    def _hwmon(self, names, field):
+        for d in Path("/sys/class/hwmon").glob("hwmon*"):
+            if read(d / "name").strip() in names and (d / field).exists():
+                return d / field
+        return None
+
+    def _read_nvidia(self):
+        for line in self.nvidia.stdout:
+            self.gpu_line = line
+
+    def delta(self, key, value):
+        old = self.prev.get(key)
+        self.prev[key] = value
+        return None if old is None else value - old
+
+    def cpu(self, out):
+        busy_max, total = 0.0, None
+        for line in read("/proc/stat").splitlines():
+            if not line.startswith("cpu"):
+                break
+            f = line.split()
+            v = [int(x) for x in f[1:9]]
+            idle, all_ = v[3] + v[4], sum(v)
+            d_idle, d_all = self.delta(f[0] + "i", idle), self.delta(f[0] + "a", all_)
+            if not d_all:
+                continue
+            pct = 100.0 * (d_all - d_idle) / d_all
+            if f[0] == "cpu":
+                total = pct
+            else:
+                busy_max = max(busy_max, pct)
+        if total is not None:
+            out["cpu"], out["cpu_max"] = round(total), round(busy_max)
+        mhz = [int(read(p, "0") or 0) // 1000 for p in Path("/sys/devices/system/cpu").glob("cpu*/cpufreq/scaling_cur_freq")]
+        if mhz:
+            out["mhz"], out["mhz_min"] = max(mhz), min(mhz)
+        if self.cpu_temp:
+            out["cpu_temp"] = round(int(read(self.cpu_temp, "0") or 0) / 1000)
+
+    def gpu(self, out):
+        if self.gpu_line:
+            f = [x.strip() for x in self.gpu_line.split(",")]
+            try:
+                out["gpu"], out["gpu_mhz"], out["vram_mhz"], out["gpu_temp"] = (int(f[0]), int(f[1]), int(f[2]),
+                                                                                 int(f[3]))
+                out["gpu_w"], out["vram_mb"], out["gpu_why"] = round(float(f[4])), int(f[5]), int(f[6], 16)
+            except (IndexError, ValueError):
+                pass
+        elif self.amd:
+            out["gpu"] = int(read(self.amd / "gpu_busy_percent", "0") or 0)
+            for hw in (self.amd / "hwmon").glob("hwmon*"):
+                if (hw / "temp1_input").exists():
+                    out["gpu_temp"] = round(int(read(hw / "temp1_input", "0") or 0) / 1000)
+                if (hw / "freq1_input").exists():
+                    out["gpu_mhz"] = int(read(hw / "freq1_input", "0") or 0) // 1_000_000
+
+    def memory(self, out):
+        info = {}
+        for line in read("/proc/meminfo").splitlines():
+            k, _, v = line.partition(":")
+            info[k] = int(v.split()[0]) if v.split() else 0
+        out["ram_free_mb"] = info.get("MemAvailable", 0) // 1024
+        out["swap_mb"] = (info.get("SwapTotal", 0) - info.get("SwapFree", 0)) // 1024
+        for kind in ("cpu", "memory", "io"):
+            m = re.search(r"some avg10=([\d.]+)", read(f"/proc/pressure/{kind}"))
+            if m:
+                out["psi_" + kind] = float(m.group(1))
+
+    def disk_net(self, out, secs):
+        rd = wr = 0
+        for line in read("/proc/diskstats").splitlines():
+            f = line.split()
+            if len(f) > 9 and Path(f"/sys/block/{f[2]}").exists() and not f[2].startswith(("loop", "zram", "ram")):
+                rd, wr = rd + int(f[5]), wr + int(f[9])
+        for key, value in (("disk_read_mb", rd), ("disk_write_mb", wr)):
+            d = self.delta(key, value)
+            if d is not None:
+                out[key] = round(d * 512 / 1e6 / secs, 1)
+        for line in read("/proc/net/dev").splitlines()[2:]:
+            name, _, rest = line.partition(":")
+            if name.strip() == self.iface:
+                f = rest.split()
+                for key, value in (("net_in_kb", int(f[0])), ("net_out_kb", int(f[8]))):
+                    d = self.delta(key, value)
+                    if d is not None:
+                        out[key] = round(d / 1000 / secs)
+
+    def scan(self):
+        """One pass over /proc: gaming.processes()'s list (pid, comm, rss kB, parent) + CPU ticks per pid."""
+        procs, self.ticks = [], {}
+        for p in os.scandir("/proc"):
+            if not p.name.isdigit():
+                continue
+            try:
+                with open(f"/proc/{p.name}/stat") as f:
+                    stat = f.read()
+            except OSError:
+                continue
+            cut = stat.rfind(")")
+            rest = stat[cut + 2:].split()
+            pid = int(p.name)
+            procs.append((pid, stat[stat.find("(") + 1:cut], int(rest[21]) * 4, int(rest[1])))
+            self.ticks[pid] = int(rest[11]) + int(rest[12])
+        self.names = {p[0]: p[1] for p in procs}
+        return procs
+
+    def top(self, out, secs, game):
+        """The three processes that took the most CPU this second (100 = one core), and the game's own."""
+        hz = os.sysconf("SC_CLK_TCK")
+        now, old = self.ticks, self.prev.get("procs", {})
+        self.prev["procs"] = now
+        if not old:
+            return
+        use = sorted(((now[pid] - old[pid]) / hz / secs * 100, pid) for pid in now if pid in old)
+        out["top"] = [[self.names[pid], round(pct)] for pct, pid in reversed(use[-3:]) if pct >= 5]
+        if game in now and game in old:
+            out["game_cpu"] = round((now[game] - old[game]) / hz / secs * 100)
+
+    def stop(self):
+        if self.nvidia and self.nvidia.poll() is None:
+            self.nvidia.terminate()
+
+
+# ── The service ──
+
+def cleanup():
+    files = sorted(LOGS.glob("*.jsonl"))
+    for old in files[:-KEEP]:
+        old.unlink(missing_ok=True)
+
+
+def run():
+    LOGS.mkdir(parents=True, exist_ok=True)
+    cleanup()
+    stopping = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stopping.set())
+    signal.signal(signal.SIGINT, lambda *_: stopping.set())
+    start = time.time()
+    path = LOGS / (datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".jsonl")
+    meter = Meter()
+    iface, gateway = router()
+    home = Pinger(gateway) if gateway else None
+    server, server_host, server_looked = None, None, 0.0
+    game_pid, game_name, game_gone, no_game_since = None, None, None, start
+    last = time.monotonic()
+    with path.open("w") as log:
+        log.write(json.dumps({"start": datetime.now().isoformat(timespec="seconds"), "router": gateway,
+                              "iface": iface}) + "\n")
+        while not stopping.is_set():
+            stopping.wait(1.0 - (time.monotonic() - last) % 1.0)
+            now_m = time.monotonic()
+            secs, last = max(now_m - last, 0.1), now_m
+            procs = meter.scan()
+            pid = find_game(procs)
+            if pid:
+                name = meter.names.get(pid, "")
+                if pid != game_pid:
+                    game_pid, game_name, server_looked = pid, name, 0.0
+                    log.write(json.dumps({"t": round(time.time(), 1), "game": name}) + "\n")
+                game_gone, no_game_since = None, None
+            else:
+                if game_pid and game_gone is None:
+                    game_gone = time.time()
+                    log.write(json.dumps({"t": round(time.time(), 1), "game_closed": game_name}) + "\n")
+                game_pid = None
+                no_game_since = no_game_since or time.time()
+            # The game's server: looked for again every 30 s (WoW changes server between zones/instances)
+            if time.time() - server_looked > 30:
+                server_looked = time.time()
+                tree = set()
+                if game_pid:
+                    kids = {}
+                    for p, _, _, parent in procs:
+                        kids.setdefault(parent, []).append(p)
+                    todo = [game_pid]
+                    while todo:
+                        p = todo.pop()
+                        if p not in tree:
+                            tree.add(p)
+                            todo += kids.get(p, [])
+                host = game_server(tree) or FALLBACK_HOST
+                if host != server_host:
+                    if server:
+                        server.stop()
+                    server, server_host = Pinger(host), host
+                    log.write(json.dumps({"t": round(time.time(), 1), "server": host,
+                                          "own": host != FALLBACK_HOST}) + "\n")
+            row = {"t": round(time.time(), 1)}
+            meter.cpu(row)
+            meter.gpu(row)
+            meter.memory(row)
+            meter.disk_net(row, secs)
+            meter.top(row, secs, game_pid)
+            for key, pinger in (("ping", server), ("ping_home", home)):
+                if pinger:
+                    rtt, lost = pinger.take()
+                    if rtt is not None:
+                        row[key] = round(rtt, 1)
+                    if lost:
+                        row[key + "_lost"] = lost
+            try:
+                marks = MARKS.read_text()
+                MARKS.unlink()
+            except OSError:
+                marks = ""
+            for line in marks.splitlines():
+                when, _, text = line.partition(" ")
+                if float(when) < start - 10:  # left over from a session that died
+                    continue
+                log.write(json.dumps({"t": float(when), "mark": text or "laggar nu"}) + "\n")
+            log.write(json.dumps(row) + "\n")
+            log.flush()
+            now = time.time()
+            if ((game_gone and now - game_gone > AFTER_GAME) or (no_game_since and now - no_game_since > NO_GAME)
+                    or now - start > MAX_TIME):
+                break
+        log.write(json.dumps({"t": round(time.time(), 1), "end": datetime.now().isoformat(timespec="seconds")}) + "\n")
+    for p in (server, home, meter):
+        if p:
+            p.stop()
+
+
+# ── The report (goblincakes-lagmeter rapport; Kakan's and Claude's tool `lagg`) ──
+
+BEFORE, AFTER = 30, 15  # seconds around a mark that count as "the lag"
+MARGIN = 15             # seconds beside them that are neither lag nor normal
+# key, words, unit, higher is worse, smallest difference that counts
+FIELDS = [
+    ("ping", "ping till spelets server", "ms", True, 20), ("ping_home", "ping till routern", "ms", True, 10),
+    ("cpu", "processorn totalt", "%", True, 20), ("cpu_max", "mest belastade kärnan", "%", True, 25),
+    ("game_cpu", "spelets processortid", "% av en kärna", True, 80), ("mhz", "processorns högsta klocka", "MHz", False, 500),
+    ("cpu_temp", "processorns temperatur", "°C", True, 8), ("gpu", "grafikkortets last", "%", True, 25),
+    ("gpu_mhz", "grafikkortets klocka", "MHz", False, 300), ("gpu_temp", "grafikkortets temperatur", "°C", True, 8),
+    ("gpu_w", "grafikkortets effekt", "W", True, 50), ("vram_mb", "VRAM använt", "MB", True, 1000),
+    ("ram_free_mb", "ledigt RAM", "MB", False, 2000), ("swap_mb", "swap använt", "MB", True, 300),
+    ("psi_cpu", "väntan på processorn (PSI)", "%", True, 10), ("psi_memory", "väntan på minnet (PSI)", "%", True, 5),
+    ("psi_io", "väntan på disken (PSI)", "%", True, 15), ("disk_read_mb", "disken läser", "MB/s", True, 50),
+    ("disk_write_mb", "disken skriver", "MB/s", True, 50), ("net_in_kb", "nätet in", "kB/s", True, 1000),
+    ("net_out_kb", "nätet ut", "kB/s", True, 500),
+]
+GPU_WHY = {0x8: "hårdvaran bromsar", 0x20: "för varmt (drivrutinen)", 0x40: "för varmt (hårdvaran)",
+           0x80: "strömbroms"}
+
+
+def load(path):
+    rows, marks, events = [], [], []
+    for line in read(path).splitlines():
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if "mark" in d:
+            marks.append(d)
+        elif "cpu" in d or "ping" in d or "ping_home" in d:
+            rows.append(d)
+        else:
+            events.append(d)
+    return rows, marks, events
+
+
+def median(vals):
+    vals = sorted(vals)
+    return vals[len(vals) // 2] if vals else None
+
+
+def clock(t):
+    return datetime.fromtimestamp(t).strftime("%H:%M:%S")
+
+
+def number(v):
+    return f"{v:.1f}" if isinstance(v, float) and v < 10 else f"{round(v)}"
+
+
+def compare(lag, normal):
+    """Lines for every field: normal vs the lag's seconds; the ones that differ are marked."""
+    lines, odd = [], []
+    for key, words, unit, worse_up, least in FIELDS:
+        now = [r[key] for r in lag if key in r]
+        before = [r[key] for r in normal if key in r]
+        if not now:
+            continue
+        norm, peak = median(before), (max(now) if worse_up else min(now))
+        text = f"- {words}: " + (f"normalt {number(norm)}, " if norm is not None else "") + \
+            f"här {number(median(now))} ({'högst' if worse_up else 'lägst'} {number(peak)}) {unit}"
+        if norm is not None and (peak - norm if worse_up else norm - peak) >= least and \
+                (peak > norm * 1.3 if worse_up else peak < norm * 0.8):
+            text += "  ← AVVIKER"
+            odd.append(key)
+        lines.append(text)
+    for key, words in (("ping_lost", "spelets server"), ("ping_home_lost", "routern")):
+        lost = sum(r.get(key, 0) for r in lag)
+        if lost:
+            lines.append(f"- {lost} ping utan svar från {words}  ← AVVIKER")
+            odd.append(key)
+    return lines, odd
+
+
+def hogs(lag, normal, game):
+    """Processes that took much CPU during the lag, compared with the normal seconds."""
+    def share(rows):
+        use = {}
+        for r in rows:
+            for name, pct in r.get("top", []):
+                use[name] = use.get(name, 0) + pct
+        return {n: v / max(len(rows), 1) for n, v in use.items()}
+    now, before = share(lag), share(normal)
+    out = []
+    for name, pct in sorted(now.items(), key=lambda x: -x[1])[:5]:
+        if pct >= 10:
+            was = before.get(name, 0)
+            out.append(f"{name} {round(pct)} %" + (f" (normalt {round(was)} %)" if normal else "") +
+                       (" = spelet" if game and name.lower() == game.lower() else ""))
+    return out
+
+
+def gpu_why(rows):
+    seen = set()
+    for r in rows:
+        seen |= {w for bit, w in GPU_WHY.items() if r.get("gpu_why", 0) & bit}
+    return sorted(seen)
+
+
+def signs(odd, why, hog_lines, game):
+    """Plain conclusions from what differs – what the numbers point at, not a diagnosis."""
+    out = []
+    if {"ping_home", "ping_home_lost"} & set(odd):
+        out.append("Pingen till routern steg/tappade svar: hemmanätet (wifi, kabeln, routern) – inte spelets server.")
+    elif {"ping", "ping_lost"} & set(odd):
+        out.append("Pingen till spelets server steg/tappade svar medan routern var normal: internet eller servern, "
+                   "inte datorn.")
+    if why:
+        out.append("Grafikkortet bromsade: " + ", ".join(why) + ".")
+    if {"psi_io", "disk_read_mb", "disk_write_mb"} & set(odd):
+        out.append("Disken var upptagen (väntan/läsning/skrivning) – något läste eller skrev mycket samtidigt.")
+    if {"swap_mb", "psi_memory", "ram_free_mb"} & set(odd):
+        out.append("Minnet tog slut/swap användes – ett annat program tog RAM.")
+    if "cpu_max" in odd or "psi_cpu" in odd:
+        out.append("Processorn var fullt upptagen på någon kärna.")
+    if {"mhz", "gpu_mhz"} & set(odd):
+        out.append("Klockan sjönk (strömsparläge eller värme).")
+    others = [h for h in hog_lines if "= spelet" not in h and "AVVIKER" not in h]
+    if others and ({"cpu", "cpu_max", "psi_cpu"} & set(odd)):
+        out.append("Andra program som tog processorn: " + ", ".join(others[:3]) + ".")
+    return out or ["Inget i datorns eller nätets siffror avviker – lagget syns inte här (kolla frametiderna; "
+                   "kan vara spelet självt eller servern)."]
+
+
+def frames_module():
+    import importlib.util  # noqa: PLC0415
+    from importlib.machinery import SourceFileLoader  # noqa: PLC0415
+    loader = SourceFileLoader("goblincakes_frames", str(Path(__file__).with_name("goblincakes-frames")))
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(module)
+    return module
+
+
+def mangohud(a, b):
+    """MangoHud's frame times (Spelmätning) for the seconds a–b: lines, or a note that there are none."""
+    try:
+        frames = frames_module()
+    except (OSError, ImportError, SyntaxError):
+        return ["- (goblincakes-frames saknas)"]
+    for path in frames.sessions():
+        m = re.match(r"(.+)_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})\.csv$", path.name)
+        try:
+            start = datetime.strptime(f"{m.group(2)} {m.group(3)}", "%Y-%m-%d %H-%M-%S").timestamp()
+        except (AttributeError, ValueError):
+            continue
+        if not (start <= b and path.stat().st_mtime >= a):
+            continue
+        s = frames.Session(path)
+        here = [(start + t, ft) for t, ft in zip(s.t, s.ft) if a <= start + t <= b]
+        if not here:
+            continue
+        ft = [f for _, f in here]
+        bad = [(t, ms) for t, ms, _, _ in s.events if a <= start + t <= b]
+        mins = max(s.duration() / 60, 1)
+        lines = [f"- fps här {s.avg_fps(ft):.0f} (1 % low {s.low(0.01, ft):.0f}), hela passet {s.avg_fps():.0f} "
+                 f"(1 % low {s.low(0.01):.0f})",
+                 f"- längsta bildrutan här {max(ft):.0f} ms; ryck här {len(bad)}, normalt {len(s.events) / mins:.1f} "
+                 "per minut"]
+        if bad:
+            lines.append("- ryck: " + ", ".join(f"{clock(start + t)} {ms:.0f} ms" for t, ms in bad[-6:]))
+        return lines
+    return ["- Inga frametider: Spelmätning (MangoHud) var inte på när spelet startade – slå på den i Config → "
+            "Inställningar → Spel för fps och ryck."]
+
+
+def gameguard(a, b):
+    try:
+        out = subprocess.run(["journalctl", "--user", "-u", "goblincakes-gameguard", "-o", "short", "--no-pager",
+                              "--since", f"@{int(a)}", "--until", f"@{int(b)}"], capture_output=True, text=True,
+                             timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    own = re.compile(r"^\S+ \d+ (\d\d:\d\d:\d\d) \S+ goblincakes-gameguard\[\d+\]: ")
+    return [own.sub(r"\1 ", l) for l in out.splitlines() if own.match(l)][-8:]
+
+
+def report(query=""):
+    query = query.strip().lower()
+    files = sessions()
+    if query in ("lista", "list"):
+        return "\n".join(f"{i}. {p.stem}" for i, p in enumerate(reversed(files), 1)) or "Inga mätningar sparade."
+    if not files:
+        return ("Ingen lagmätning finns. Den startar med Meta+Shift+L (\"laggar nu\") eller "
+                "`goblincakes-lagmeter start` – och mäter från då, inte bakåt.")
+    n = int(query) if query.isdigit() else 1
+    path = files[-min(max(n, 1), len(files))]
+    rows, marks, events = load(path)
+    if not rows:
+        return f"Mätningen {path.stem} har inga sekunder än."
+    game = next((e["game"] for e in events if "game" in e), None)
+    servers = [e["server"] + ("" if e.get("own") else " (Blizzards inloggning – spelets egen server hittades inte)")
+               for e in events if "server" in e]
+    running = path == files[-1] and active()
+    out = [f"Lagmätning {path.stem.replace('_', ' ')}: {clock(rows[0]['t'])}–{clock(rows[-1]['t'])}"
+           + (" (pågår)" if running else "") + f", {len(rows)} s, spel: {game or 'inget'}",
+           "Ping mot: " + (", ".join(dict.fromkeys(servers)) or "–") + "; routern " +
+           str(next((e.get("router") for e in events if "router" in e), "–"))]
+    if marks:
+        lag_t = [(m["t"] - BEFORE, m["t"] + AFTER) for m in marks]
+        normal = [r for r in rows if not any(a - MARGIN <= r["t"] <= b + MARGIN for a, b in lag_t)]
+        if len(normal) < 30:
+            out.append("(Få vanliga sekunder att jämföra med – mätningen startade nyss. Fråga igen om en stund, så "
+                       "finns sekunder efter lagget att jämföra med.)")
+        for m, (a, b) in zip(marks[-5:], lag_t[-5:]):
+            lag = [r for r in rows if a <= r["t"] <= b]
+            out.append(f"\n## Laggmarkering {clock(m['t'])}" + (f" ({m['mark']})" if m["mark"] != "laggar nu" else "") +
+                       f" – sekunderna {clock(a)}–{clock(b)} mot resten av mätningen")
+            if not lag:
+                out.append("- inga mätta sekunder här (mätningen startade vid markeringen)")
+                continue
+            lines, odd = compare(lag, normal)
+            hog = hogs(lag, normal, game)
+            why = gpu_why(lag)
+            out.append("Tecken: " + " ".join(signs(odd, why, hog, game)))
+            out += lines
+            if hog:
+                out.append("- mest processor: " + "; ".join(hog))
+            out.append("Frametider (MangoHud):")
+            out += mangohud(a, b)
+            guard = gameguard(a - 300, b)
+            if guard:
+                out.append("Spelläget (sista raderna):")
+                out += ["  " + g for g in guard]
+    else:
+        out.append("\nIngen laggmarkering (Meta+Shift+L) – hela mätningen:")
+        lines, _ = compare(rows, [])
+        out += lines
+        worst = sorted((r for r in rows if "ping" in r), key=lambda r: -r["ping"])[:5]
+        if worst:
+            out.append("- högst ping: " + ", ".join(f"{clock(r['t'])} {number(r['ping'])} ms" for r in worst))
+        lost = [r for r in rows if r.get("ping_lost") or r.get("ping_home_lost")]
+        if lost:
+            out.append("- ping utan svar: " + ", ".join(clock(r["t"]) for r in lost[:10]))
+        why = gpu_why(rows)
+        if why:
+            out.append("- grafikkortet bromsade: " + ", ".join(why))
+        hog = hogs(rows, [], game)
+        if hog:
+            out.append("- mest processor: " + "; ".join(hog))
+    if len(files) > 1:
+        out.append(f"\n(Äldre mätningar: {len(files) - 1} st – `lista`, eller ett nummer: 2 = näst senaste.)")
+    return "\n".join(out)
+
+
+# ── Commands ──
+
+def active():
+    return subprocess.run(["systemctl", "--user", "is-active", "--quiet", UNIT]).returncode == 0
+
+
+def notify(title, body):
+    subprocess.Popen(["notify-send", "-a", "GOBLINCAKES", "-i", "goblincakes", "-t", "3000", title, body],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def sessions():
+    return sorted(LOGS.glob("*.jsonl")) if LOGS.is_dir() else []
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else "status"
+    if cmd == "run":
+        run()
+    elif cmd == "start":
+        if not active():
+            subprocess.run(["systemctl", "--user", "start", UNIT])
+        print("Mätningen går.")
+    elif cmd == "stop":
+        subprocess.run(["systemctl", "--user", "stop", UNIT])
+        print("Mätningen stoppad.")
+    elif cmd == "mark":
+        text = " ".join(argv[2:]).strip()
+        started = not active()
+        with MARKS.open("a") as f:
+            f.write(f"{time.time():.1f} {text}\n")
+        if started:
+            subprocess.run(["systemctl", "--user", "start", UNIT])
+        notify("Laggar nu – noterat " + datetime.now().strftime("%H:%M:%S"),
+               "Mätningen startade nu" if started else "Mätningen går")
+    elif cmd == "status":
+        print("Mätningen går." if active() else "Mätningen är inte igång.")
+        if sessions():
+            print("Senaste:", sessions()[-1])
+    elif cmd in ("rapport", "report"):
+        print(report(" ".join(argv[2:])))
+    elif cmd == "list":
+        for p in sessions():
+            lines = read(p).splitlines()
+            marks = sum('"mark"' in l for l in lines)
+            print(f"{p.stem}  {max(len(lines) - 2, 0)} s" + (f"  {marks} laggmarkering(ar)" if marks else ""))
+    else:
+        print(__doc__.strip())
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
