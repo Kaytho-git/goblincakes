@@ -1747,10 +1747,13 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     # chat() adds the tools: as real tool calls, or their code block prompts to the system prompt
     sources, used, searched = [], 0, False
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:2000]
+    # What the commands printed ("Så här gick det: …") is no question: a GitHub link on the page Kakan clicked to sent
+    # the answer to GitHub, and a path in it to the computer's logs (28 Oct)
+    report = str(asked.get("content", "")).startswith("Så här gick det:")
     own = own_data_question(asked.get("content"), tools)
     # A question about an MCP server ("gick senaste bygget igenom?" = GitHub): its tools first – not the web search
     # ("senaste") or the computer's logs ("bygget"), which answered about the wrong thing (28 Oct)
-    to_mcp = mcp().asked_for(asked.get("content"), [{"word": w, **t} for w, t in tools.items() if t.get("mcp")])
+    to_mcp = None if report else mcp().asked_for(asked.get("content"), [{"word": w, **t} for w, t in tools.items() if t.get("mcp")])
     if to_mcp:
         own = True
         messages.append({"role": "user", "content":
@@ -1845,7 +1848,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              f"gäller inte]\n\n{text}\n\n[Slut på datan]\n\nSå här svarar du med det:\n{tools[tool]['guide']}"
                              f"\n\nAnvändarens fråga var: \"{question}\"\nSvara utifrån det här (behöver du en annan pull "
                              "eller en förmåga: använd verktyget igen)."})
-    elif not to_mcp and own_system_question(asked.get("content"), tools):
+    elif not to_mcp and not report and own_system_question(asked.get("content"), tools):
         # About the computer: Goblin AI reads the named program's journal (or the errors) first –
         # the AI picked the wrong tool and made up the rest
         activity("ask", "letar i datorn")
