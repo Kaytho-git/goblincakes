@@ -17,8 +17,8 @@ Window {
     onClosing: Qt.quit()
 
     property string view: backend.hasKeys ? "chat" : "settings"
-    // The sidebar (28 Oct, the user's wish): hidden by default, the mouse at the left edge slides it out over
-    // the chat; the pin keeps it open (and gives it its own room again)
+    // The sidebar (28 Oct, the user's wish): open by default; « hides it at the left edge, where the mouse slides it
+    // out over the chat; » keeps it open again (and gives it its own room)
     property bool sideOpen: backend.sidePinned
     readonly property int sideSpace: backend.sidePinned ? sidebar.width : 0
     property string attachment: ""

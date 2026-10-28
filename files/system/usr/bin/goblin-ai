@@ -40,7 +40,9 @@ PICTURES = DATA / "bilder"  # pictures in chats: screenshots and attached pictur
 AVATAR = DATA / "avatar.png"  # the AI's avatar (AI-tjänster → Avatar, or "Använd som avatar" on a drawn picture)
 AVATAR_THINKING = DATA / "avatar-thinking.png"  # shown instead of the status text while the AI works (24 Oct)
 AVATAR_SIDE = 256
-SIDE_PINNED = DATA / "sidopanel-fast"  # the sidebar kept open (28 Oct; default: hidden, the left edge opens it)
+# The sidebar hidden at the left edge (28 Oct). Open by default – the user: "så får användaren leta själv och hitta
+# att dom kan dölja den"
+SIDE_HIDDEN = DATA / "sidopanel-dold"
 HISTORY = DATA / "historik.json"  # what was typed in the input, for ↑/↓ and Ctrl+R (26 Oct)
 HISTORY_MAX = 500
 PICTURE_SIDE = 1600  # longest side sent to the AI – enough to read text, fewer tokens for local models
@@ -753,16 +755,16 @@ class Backend(QObject):
 
     @Property(bool, notify=sidePinnedChanged)
     def sidePinned(self):
-        return SIDE_PINNED.exists()
+        return not SIDE_HIDDEN.exists()
 
     @Slot(bool)
     def setSidePinned(self, on):
         try:
             if on:
-                SIDE_PINNED.parent.mkdir(parents=True, exist_ok=True)
-                SIDE_PINNED.write_text("")
+                SIDE_HIDDEN.unlink(missing_ok=True)
             else:
-                SIDE_PINNED.unlink(missing_ok=True)
+                SIDE_HIDDEN.parent.mkdir(parents=True, exist_ok=True)
+                SIDE_HIDDEN.write_text("")
         except OSError:
             pass
         self.sidePinnedChanged.emit()
