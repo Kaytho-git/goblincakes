@@ -3873,15 +3873,19 @@ PlasmoidItem {
 }
 ```
 - Canvas: `ctx.rotate()` tar radianer (grader * Math.PI / 180), och `requestPaint()` behövs när något ändras.
-- Installera första gången: `kpackagetool6 -t Plasma/Applet -i <mapp>`; efter en ändring: `-u <mapp>` (typen heter
-  Plasma/Applet, inte Plasma/Widget).
-- Prova så här (i samma block som installationen; fönstret visas i 8 s – utan timeout fastnar blocket). plasmawindowed
-  skriver sina fel i journalen, inte i terminalen:
+- Installera OCH prova med exakt det här blocket – efter varje ändring, byt bara mappen på första raden. Det installerar
+  första gången och uppdaterar sedan, visar widgeten i ett fönster i 8 s och läser felen (plasmawindowed skriver dem i
+  journalen, inte i terminalen; utan timeout fastnar blocket):
 ```bash
-t=$(date +%T); timeout 8 plasmawindowed org.kakan.namn >/dev/null 2>&1; journalctl --user -t plasmawindowed --since "$t" -o cat | grep -iE "error|qml|not ready" || echo "Inga fel."
+cd ~/kakan-prov/MAPPEN || exit 1
+id=$(python3 -c "import json; print(json.load(open('metadata.json'))['KPlugin']['Id'])")
+if kpackagetool6 -t Plasma/Applet -u . >/dev/null 2>&1 || kpackagetool6 -t Plasma/Applet -i .; then echo "Installerad: $id"; else echo "INSTALLATIONEN MISSLYCKADES"; exit 1; fi
+t=$(date +%T); timeout 8 plasmawindowed "$id" >/dev/null 2>&1; sleep 2
+journalctl --user -t plasmawindowed --since "$t" -o cat | grep -iE "error|qml|not ready|not a type" || echo "Inga fel."
 ```
-  Står det ett fel: det säger fil, rad och vad som är fel – rätta just det och prova igen. Klar först vid "Inga fel.".
-  Sedan finns den i widgetmenyn (högerklick på skrivbordet → Lägg till widgetar)."""
+  Står det ett fel (fil:rad: vad som är fel) eller MISSLYCKADES: rätta just det och kör blocket igen. Klar först när
+  BÅDE "Installerad" och "Inga fel." står i samma utskrift. Sedan finns den i widgetmenyn (högerklick på skrivbordet
+  → Lägg till widgetar)."""
 
 GUIDES = [(re.compile(r"\b(plasmoid\w*|kpackagetool6?|plasmawindowed|widgetmeny\w*)\b|\b(gör|göra|skapa|bygg\w*|ny|nytt|"
                       r"egen|eget|rätta|installera)\b[^.?!\n]{0,50}widget", re.I), WIDGET_GUIDE)]
