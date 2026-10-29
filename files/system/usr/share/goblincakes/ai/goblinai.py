@@ -2032,7 +2032,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         if len(text) <= room:
             return text
         return read_in_parts(text, room, question, source, keys, project, choice, steps, status)
-    nudged = promised = looked = acted = claimed = False
+    nudged = promised = looked = acted = claimed = repaired = False
     fight = own_fight(asked.get("content"), tools, messages)
     if fight:
         tool, query = fight
@@ -2154,6 +2154,15 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             messages.append({"role": "user", "content":
                              "[Goblin AI] Du skrev att du ska kolla – gör det nu med ett verktyg i stället för att "
                              f"fråga eller vänta. Frågan var: \"{question}\"" + NUDGE_NOTE})
+            continue
+        why = "" if request_ or repaired else repair_nudge(
+            answer, messages, tools, any(t in ("sök", "sida") for t, _ in LAST.tools))
+        if why:
+            repaired = True
+            steps.start("Kontrollerar svaret")
+            steps.done("fel", why.split(".")[0].lower())
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content": f"[Goblin AI] {why} Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
         if not request_:
             missing = unsupported(answer, seen) if used else []
@@ -3020,6 +3029,11 @@ Länkar: skriver du en hel sökväg (t.ex. ~/Bilder eller ~/.config/goblincakes/
 blir den klickbar för användaren – mappar öppnas i filhanteraren, filer visas i sin mapp. Ber användaren om en länk
 till en mapp eller fil: skriv sökvägen (leta upp den först om du inte vet var den ligger). Säg aldrig att du inte
 kan ge länkar.
+
+Gör exakt det användaren ber om – inte något annat som liknar det. "Ta reda på varför" = säg orsaken och var du
+såg den; ändra inget annat än det som rättar just det. Kan du inte göra det användaren ber om (verktyget saknas,
+du hittar inte svaret, det går inte att prova härifrån): säg rakt ut "Det kan jag inte" och varför – gör inte
+något annat i stället.
 
 Gissa aldrig – säg hellre att du inte vet:
 - Allt du säger om datorn, användarens spel, siffror, klockslag, filer och vad som hände ska stå i det du
@@ -3960,21 +3974,62 @@ Reparera kod som inte fungerar (ett tillägg, en widget, ett skript) – arbeta 
    Hittar du ingen skillnad: säg det och vad du skulle behöva veta – hitta aldrig på en orsak som låter rimlig.
 5. Rätta bara det som skilde (`sed -i` på raden, `mv` för ett namn) – skriv inte om hela filen.
 6. Kan det inte provas härifrån (ett WoW-tillägg provas bara i spelet): säg vad användaren ska titta efter, och
-   säg aldrig att det är löst förrän användaren har provat."""
+   säg aldrig att det är löst förrän användaren har provat.
+Hittar du inte orsaken efter att ha sökt och jämfört: säg "Det kan jag inte hitta" och vad du har kollat."""
+
+# "syns inte", "fungerar inte" … about code: both must be in what the user said
+REPAIR_WHEN = (re.compile(BROKEN.pattern + r"|\b(?:visar|händer|syns|ritar)\s+(?:ingenting|inget|inte något)\b", re.I),
+               re.compile(r"(?:tillägg|addon|add-on|widget|plasmoid|skript|script)\w*|\bkod(?:en)?\b"
+                          r"|\.(?:lua|toc|qml|py|sh|js)\b|~/", re.I))
 
 GUIDES = [(re.compile(r"\b(plasmoid\w*|kpackagetool6?|plasmawindowed|widgetmeny\w*)\b|\b(gör|göra|skapa|bygg\w*|ny|nytt|"
                       r"egen|eget|rätta|installera)\b[^.?!\n]{0,50}widget", re.I), WIDGET_GUIDE),
-          # "syns inte", "fungerar inte" … about code: both must be in what the user said
-          ((re.compile(BROKEN.pattern + r"|\b(?:visar|händer|syns|ritar)\s+(?:ingenting|inget|inte något)\b", re.I), re.compile(r"(?:tillägg|addon|add-on|widget|plasmoid|skript|script)\w*|\bkod(?:en)?\b"
-                               r"|\.(?:lua|toc|qml|py|sh|js)\b|~/", re.I)), REPAIR_GUIDE)]
+          (REPAIR_WHEN, REPAIR_GUIDE)]
+
+# An error message somewhere in the chat (the user's words or a command's output) – then the repair goes by it
+ERROR_SEEN = re.compile(r"\b(?:error|exception|traceback|nil value|is not a type|not installed|syntax ?error|"
+                        r"undefined|cannot|misslyckades)\b|\w\.\w+:\d+:", re.I)
+# A ```bash block that changes files (not one that only reads them)
+CHANGES_FILES = re.compile(r"(?:^|[;&|]\s*)(?:sed\s+-i|mv|cp|rm|tee|truncate)\b|(?<![<>&\d])>(?!&)\s*[~/\w]", re.M)
+
+
+def user_said(messages):
+    """What the user wrote in the chat (any of their messages, not command output)."""
+    return "\n".join(m["content"] for m in messages if m["role"] == "user" and isinstance(m.get("content"), str)
+                     and not m["content"].startswith("Så här gick det:"))
+
+
+def repair_nudge(answer, messages, tools, searched):
+    """Repairing code (REPAIR_GUIDE): the reason to send the answer back once, or "" (29 Oct – told to search and
+    to change only the faulty line, gemma4 still guessed from memory and wrote whole files anew).
+    searched: a web search or page was read in this question."""
+    if not all(p.search(user_said(messages)) for p in REPAIR_WHEN):
+        return ""
+    blocks = cmd_level().code_blocks_in(answer)
+    for block in blocks:
+        for path in re.findall(r"\bcat\s*>\s*([~\w./-]+)\s*<<", block):
+            if Path(os.path.expanduser(path)).is_file():
+                return (f"Du skriver om hela {path} fast den redan finns. Rätta bara raderna som är fel "
+                        "(`sed -i 'Ns/gammalt/nytt/' fil`, `mv` för ett namn) – resten av filen ska stå kvar som den är.")
+    if not any(CHANGES_FILES.search(b) for b in blocks) or searched:
+        return ""
+    if not ("sök" in tools or "sida" in tools):
+        return ""
+    chat = "\n".join(str(m.get("content", "")) for m in messages if m["role"] in ("user", "assistant"))
+    if "**Källor:**" in chat or ERROR_SEEN.search("\n".join(str(m.get("content", "")) for m in messages
+                                                             if m["role"] == "user")):
+        return ""
+    return ("Du ändrar filer utan att ha tagit reda på hur det ska vara. Det finns inget felmeddelande – sök först "
+            "(verktyget sök, sedan las_sida på den bästa träffen), jämför filerna med det du läser och säg "
+            "\"enligt <källan> ska X vara Y – här står Z\". Hittar du det inte: säg \"Det kan jag inte hitta\" och "
+            "vad du har kollat – ändra inget på en gissning.")
 
 
 def with_guides(messages):
     """messages with the build guides the user's own words ask for (any of their messages, not command output)."""
     if not messages or messages[0]["role"] != "system":
         return messages
-    said = "\n".join(m["content"] for m in messages if m["role"] == "user" and isinstance(m.get("content"), str)
-                     and not m["content"].startswith("Så här gick det:"))
+    said = user_said(messages)
     text = "".join(guide for patterns, guide in GUIDES
                    if all(p.search(said) for p in (patterns if isinstance(patterns, tuple) else (patterns,))))
     return with_system(messages, text)
