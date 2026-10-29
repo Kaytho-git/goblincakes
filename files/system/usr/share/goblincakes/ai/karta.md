@@ -207,6 +207,10 @@ Ord: goblinrecorder, recorder, inspelning, spela in, obs, film, raid, mythic, m+
   ~/.config/goblincakes/recorder-on. Historik ~/.local/share/goblincakes/wow-history.json och cs2-history.json.
 - Kolla: `systemctl --user status goblincakes-recorder`, `journalctl --user -u goblincakes-recorder -n 80`
   (varför en inspelning inte startade står där). Kräver OBS (Flatpak).
+- OBS frågar vilken skärm (KDE-rutan) fast den är vald: hände första starten efter inloggning (portalen skrev
+  "target not found" i journalen). Tjänsten startar då om OBS en gång själv. Kommer rutan ändå: välj skärmen. Tryck
+  aldrig Reload på källan Skärm (då glöms valet). Valet: `flatpak permissions screencast`, OBS logg
+  ~/.var/app/com.obsproject.Studio/config/obs-studio/logs/ ("Asking for monitor" utan "source selected").
 Kontroll: `systemctl --user is-active goblincakes-recorder`
 Kontroll: `journalctl --user -u goblincakes-recorder -n 15 --no-pager`
 

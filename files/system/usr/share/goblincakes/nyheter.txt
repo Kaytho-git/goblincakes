@@ -1,3 +1,4 @@
+2026-10-29  GoblinRecorder: frågar KDE vilken skärm OBS ska spela in fast du redan valt, startar GoblinRecorder om OBS en gång så att valet används.
 2026-10-29  Kakan kan nu snabbt säga vad ett bygge på GitHub har med sig – fråga "vad har bygget med sig?"
 2026-10-29  Skärmarna kan vridas till stående: Meta+vänsterpil vrider skärm 2, Meta+högerpil skärm 1 och Meta+uppåtpil lägger alla tillbaka. Samma i terminalen med goblin screen rotate. Vrids de åt fel håll: goblin screen rotate håll vänster.
 2026-10-29  Goblin AI kan WoW:s egna funktioner för spelet just nu. Ber du henne skriva eller laga ett WoW-tillägg slår hon upp funktionerna i stället för att gissa, och efter varje ändring kontrolleras tillägget mot spelet. Hon ändrar bara dina egna tillägg – andras läser och förklarar hon.

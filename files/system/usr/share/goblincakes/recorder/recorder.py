@@ -263,6 +263,28 @@ def screen_stalled():
     return False
 
 
+def screen_asking():
+    """Does KDE ask which screen to record although a choice is saved? Seen 29 Oct, twice, at
+    OBS's first start after a login: the portal's stream said "target not found" and the
+    choice box came up; the next start picked the screen by itself in 10 ms. The newest log's
+    name when it has asked for > 4 s without "source selected", else ""."""
+    logs = sorted((OBS_CONFIG / "logs").glob("*.txt"), key=lambda p: p.stat().st_mtime)
+    if not logs or not screen_chosen():
+        return ""
+    try:
+        lines = logs[-1].read_text(errors="replace").splitlines()
+    except OSError:
+        return ""
+    asked = next((line for line in reversed(lines) if "[pipewire] Asking for" in line
+                  or "[pipewire] source selected" in line), "")
+    m = re.match(r"^(\d\d):(\d\d):(\d\d)", asked)
+    if not m or "Asking for" not in asked:
+        return ""
+    t = time.localtime()
+    age = (t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec - (int(m[1]) * 3600 + int(m[2]) * 60 + int(m[3]))) % 86400
+    return logs[-1].name if age > 4 else ""
+
+
 def pick_screen(obs):
     """Open KDE's screen choice for OBS (the source's Select button)."""
     obs.call("PressInputPropertiesButton", {"inputName": "Skärm", "propertyName": "Reload"}, check=False)

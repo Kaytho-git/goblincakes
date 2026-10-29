@@ -146,6 +146,8 @@ class Service:
         self.screen_ok = None  # KDE told OBS which screen to record?
         self.screen_check = 0
         self.stall_check = 0  # last look for a frozen screen capture / OBS restart for it
+        self.ask_check = 0
+        self.ask_retried = ""  # the OBS log already started again for KDE's screen question
         # OBS that we started with WoW/CS2 is closed a minute after the game (22 Oct, the user's
         # wish: it drew ~7 % of a CPU core and ~370 MB between games). One the user opened stays.
         self.obs_ours = False
@@ -946,6 +948,18 @@ class Service:
                     self.stall_check = now + 55  # OBS needs a moment to start again
                     log("screen capture frozen (screens were away) – restarting OBS")
                     self.restart_obs()
+            # KDE asks which screen although the choice is saved (the first start after a
+            # login, 29 Oct): once more per OBS start – the second start picks it by itself
+            if not self.current and now - self.ask_check > 2:
+                self.ask_check = now
+                asking = R.screen_asking()
+                if asking and asking != self.ask_retried:
+                    self.ask_retried = asking
+                    log("KDE asks for the screen although it is chosen – starting OBS again")
+                    if self.obs:
+                        self.restart_obs()
+                    else:
+                        R.restart_obs()
         elif self.obs:
             self.obs.close()
             self.obs = None
