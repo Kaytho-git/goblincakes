@@ -182,11 +182,17 @@ PlasmoidItem {
 
         readonly property var geo: layout(pointer, amount)
 
-        HoverHandler {
-            id: hover
-            onPointChanged: {
-                if (hovered)
-                    dock.pointer = Math.min(Math.max((point.position.x - dock.restLeft) / dock.restStep, 0), dock.count);
+        // Only the frame reacts to the pointer – the panel around it can be taller
+        Item {
+            y: dock.frameTop
+            width: dock.width
+            height: dock.thickness
+            HoverHandler {
+                id: hover
+                onPointChanged: {
+                    if (hovered)
+                        dock.pointer = Math.min(Math.max((point.position.x - dock.restLeft) / dock.restStep, 0), dock.count);
+                }
             }
         }
 
@@ -269,8 +275,9 @@ PlasmoidItem {
                 PlasmaCore.ToolTipArea {
                     id: tip
                     x: 0
+                    y: dock.frameTop
                     width: parent.width
-                    height: dock.height
+                    height: dock.thickness
                     mainText: task.model.AppName || task.model.display || ""
                     subText: task.windows > 1 ? task.windows + " fönster"
                             : task.windows === 1 && task.model.display !== task.model.AppName ? (task.model.display ?? "") : ""
@@ -319,7 +326,9 @@ PlasmoidItem {
 
         // Drop an app from the AppGrid/menu → pinned where it was dropped
         DropArea {
-            anchors.fill: parent
+            y: dock.frameTop
+            width: parent.width
+            height: dock.thickness
             onEntered: drag => drag.accepted = drag.hasUrls
             onDropped: drop => {
                 const target = Math.min(Math.max(Math.floor((drop.x - dock.restLeft) / dock.restStep + 0.5), 0), dock.count);
