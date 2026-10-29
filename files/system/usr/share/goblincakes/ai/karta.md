@@ -345,6 +345,18 @@ Ord: webbläsare, chrome, firefox, brave, webapp, webbapp
 Ord: ljud, pipewire, latens, mikrofon, headset, högtalare
 - PipeWire med låg latens: /usr/share/goblincakes/pipewire/. Kolla: `wpctl status`, `pactl list sinks short`.
 
+## Tangentbord: dubbla tryck
+Ord: tangentbord, dubbla tryck, två tryck, studsar, studsande tangenter, key chatter, tangentupprepning, press and hold
+- Fråga först VAR det händer. Bara i WoW (spells med charges/utan GCD går iväg två gånger): nästan alltid WoW:s
+  "Press and Hold Casting" (CVar `ActionButtonUseKeyHeldSpell 1` i WTF/Config.wtf eller WTF/Account/*/config-cache.wtf –
+  läs med grep, ändra aldrig). Lösning: i spelet Options → Gameplay → Combat → kryssa ur Press and Hold Casting.
+- Överallt (även i text): kolla tangentupprepningen i ~/.config/kcminputrc, gruppen [Keyboard] (`KeyRepeat=`,
+  `RepeatDelay=`). Mycket kort RepeatDelay ger dubbla tecken.
+- Säg inte "studsande tangent" (kontaktstuds) innan det är provat: be användaren köra i terminalen
+  `sudo timeout 20 libinput debug-events --show-keycodes` och trycka lugnt på tangenten. Ett tryck = en `pressed` +
+  en `released`; två `pressed` på ett tryck = tangenten studsar. Då: Systeminställningar → Hjälpmedel →
+  Tangentbordsfilter → Studsande tangenter → Aktivera (fördröjning ~30–50 ms), eller rengör/byt switchen.
+
 ## Laptop
 Ord: laptop, bärbar, batteri laptop, dubbla grafikkort
 - /usr/libexec/goblincakes-laptop körs vid inloggning (gör inget på stationära).
