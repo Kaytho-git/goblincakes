@@ -74,9 +74,12 @@ PlasmoidItem {
         Plasmoid.configuration.launchers = list;
     }
 
-    // wasActive: the panel takes focus on the press, so the app is already inactive when the
-    // click arrives; treat it as active if it lost focus a moment ago
+    // The app that was active last (the panel taking focus doesn't change it). wasActive: the panel
+    // takes focus on the press, and a window raised from the dock often never gets focus back,
+    // so "active" = the last app that was active and is showing – one click minimises it
+    property string lastActiveKey: ""
     function activate(task, wasActive) {
+        if (!task.isLauncher && !task.isStartup) lastActiveKey = task.key;
         const idx = tasksModel.makeModelIndex(task.index);
         if (task.isStartup) return;
         if (task.isLauncher) {
@@ -227,8 +230,8 @@ PlasmoidItem {
                 readonly property bool isLauncher: model.IsLauncher === true
                 readonly property bool isStartup: model.IsStartup === true
                 readonly property bool active: model.IsActive === true
-                property double inactiveSince: 0
-                onActiveChanged: if (!active) inactiveSince = Date.now()
+                readonly property string key: String(model.LauncherUrlWithoutIcon ?? model.AppId ?? task.index)
+                onActiveChanged: if (active) root.lastActiveKey = key
                 readonly property int windows: isLauncher || isStartup ? 0 : Math.max(1, model.ChildCount ?? 0)
                 readonly property real size: shown ? dock.geo.size[place] : 0
 
@@ -321,7 +324,7 @@ PlasmoidItem {
                                 menu.visualParent = icon;
                                 menu.openRelative();
                             } else {
-                                root.activate(task, Date.now() - task.inactiveSince < 1000);
+                                root.activate(task, task.key === root.lastActiveKey && !task.model.IsMinimized);
                             }
                         }
                     }
