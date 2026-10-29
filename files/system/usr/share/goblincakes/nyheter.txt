@@ -1,3 +1,4 @@
+2026-10-29  GoblinRecorder: i Mythic+ visar PARSE nu samma siffra som Warcraft Logs (mot samma nyckelnivå). Den andra kolumnen heter ALLA och är mot alla nivåer. Dina gamla nycklar är rättade.
 2026-10-29  GoblinRecorder: frågar KDE vilken skärm OBS ska spela in fast du redan valt, startar GoblinRecorder om OBS en gång så att valet används.
 2026-10-29  Kakan kan nu snabbt säga vad ett bygge på GitHub har med sig – fråga "vad har bygget med sig?"
 2026-10-29  Skärmarna kan vridas till stående: Meta+vänsterpil vrider skärm 2, Meta+högerpil skärm 1 och Meta+uppåtpil lägger alla tillbaka. Samma i terminalen med goblin screen rotate. Vrids de åt fel håll: goblin screen rotate håll vänster.

@@ -2571,7 +2571,12 @@ def wcl_stats(wcl):
                     # rank = totalParses with 0 %: a key Warcraft Logs hasn't ranked yet (no team/affixes in the
                     # rankings either – 22 Oct); "~N" alone is its usual estimate with a real percent
                     if c.get("rankPercent") is not None and str(c.get("rank", "")).lstrip("~") != str(c.get("totalParses")):
-                        out[c["name"]] = (c["rankPercent"], c.get("bracketPercent"), c.get("rank"), c.get("totalParses"))
+                        if fight.get("difficulty") == MPLUS_DIFFICULTY:
+                            # M+: the report page's parse is against the same key level (bracket) – 64 against
+                            # all levels was 0 at +13 on the page (29 Oct); the other number = all levels
+                            out[c["name"]] = (c.get("bracketPercent"), c["rankPercent"], None, None)
+                        else:
+                            out[c["name"]] = (c["rankPercent"], c.get("bracketPercent"), c.get("rank"), c.get("totalParses"))
         return out
 
     dps, hps = per_second("dmg"), per_second("heal")
@@ -2604,7 +2609,36 @@ def wcl_stats(wcl):
                 "deaths": deaths.get(name, 0)})
     players.sort(key=lambda p: (ROLE_ORDER.get(p["role"], 3), -p["dps"]))
     return {"players": players, "deaths": sum(deaths.values()), "fetched": time.time(),
-            "ranked": bool(pdps or phps) and not estimate, "estimate": estimate}
+            "ranked": bool(pdps or phps) and not estimate, "estimate": estimate, "keyLevel": True}
+
+
+MPLUS_DIFFICULTY = 10  # Warcraft Logs' difficulty for Mythic+ in rankings
+
+
+def mplus_key_level_fix(folder):
+    """At each service start: keys fetched the old way (before 29 Oct, or by an older service until the
+    image has this) have the parse against all key levels and the key level's in the second column –
+    turned round so they show what Warcraft Logs shows (videos' .json and the history). Fixed and new
+    ones are marked keyLevel, so nothing is turned twice."""
+    for path in Path(folder).glob("*.json"):
+        try:
+            meta = json.loads(path.read_text())
+        except (OSError, ValueError):
+            continue
+        st = meta.get("wclStats")
+        if meta.get("kind") != "mplus" or not st or st.get("keyLevel"):
+            continue
+        for p in st.get("players", []):
+            p["parse"], p["ilvlParse"], p["rank"], p["rankOf"] = p.get("ilvlParse"), p.get("parse"), None, None
+        st["keyLevel"] = True
+        set_meta(path, wclStats=st)
+    hist, changed = wow_history(), False
+    for e in hist.values():
+        if isinstance(e, dict) and e.get("kind") == "mplus" and e.get("parse") is not None and not e.get("keyLevel"):
+            e["parse"], e["ilvlParse"], e["keyLevel"] = e.get("ilvlParse"), e.get("parse"), True
+            changed = True
+    if changed:
+        _save_history(hist)
 
 
 def wcl_ilvl(wcl, player=""):
@@ -2685,6 +2719,8 @@ def wow_history_add(meta, stats=None):
     row = next((p for p in (stats or {}).get("players", []) if p.get("name") == me), None)
     if row:
         e.update({k: row.get(k) for k in ("class", "spec", "role", "dps", "hps", "parse", "ilvlParse", "deaths")})
+        if meta.get("kind") == "mplus" and stats.get("keyLevel"):
+            e["keyLevel"] = True
         e["ilvl"] = row.get("ilvl") or e.get("ilvl")
     if hist.get(key) == e:
         return

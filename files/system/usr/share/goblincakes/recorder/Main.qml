@@ -1531,7 +1531,7 @@ Window {
                         visible: !!(card.stats && card.stats.players)
                         topPadding: 4
                         Repeater {
-                            model: ["SPELARE", "PARSE", card.modelData.kind === "mplus" ? "NIVÅ" : "ILVL", "DPS", "HPS", "DÖD"] // M+: Warcraft Logs' bracket = key level
+                            model: ["SPELARE", "PARSE", card.modelData.kind === "mplus" ? "ALLA" : "ILVL", "DPS", "HPS", "DÖD"] // M+: Warcraft Logs' bracket = key level
                             Text {
                                 required property string modelData
                                 required property int index
@@ -1672,7 +1672,7 @@ Window {
                         wrapMode: Text.WordWrap
                         text: card.stats ? (card.stats.deaths ? card.stats.deaths + " dödsfall" : "Inga dödsfall")
                               + (card.stats.estimate ? " · parses mot alla körningar tills Warcraft Logs rankat nyckeln"
-                                 : card.stats.ranked ? (card.modelData.kind === "mplus" ? " · NIVÅ = parse mot samma nyckelnivå" : " · ILVL = parse mot samma item level") : " · parses bara för kills och nycklar i tid (kan dröja en stund efter uppladdningen)")
+                                 : card.stats.ranked ? (card.modelData.kind === "mplus" ? " · PARSE = mot samma nyckelnivå (som Warcraft Logs), ALLA = mot alla nivåer" : " · ILVL = parse mot samma item level") : " · parses bara för kills och nycklar i tid (kan dröja en stund efter uppladdningen)")
                               + (win.statsBusy === card.modelData.path ? " · uppdaterar …" : "") : ""
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
@@ -2547,7 +2547,7 @@ Window {
                     barHeight: 34 // the same height as the tiles beside it
                     maxWidth: wowCol.width - (6 * 112 + 5 * 6) - 28
                     info: "Bara pulls och nycklar som GoblinRecorder spelat in. Parse = Warcraft Logs (healers på HPS, övriga på DPS); "
-                          + "ILVL % = mot spelare med samma item level; ILVL = din, AVG.ILVL = gruppens snitt i den killen. "
+                          + "ILVL % = mot spelare med samma item level; i Mythic+ är parsen mot samma nyckelnivå (som Warcraft Logs) och ALLA % mot alla nivåer; ILVL = din, AVG.ILVL = gruppens snitt i den killen. "
                           + "Klicka på en rad i tabellen för att öppna din bästa i Warcraft Logs."
                     values: wowPage.trend.map(t => t.parse)
                     barColors: wowPage.trend.map(t => win.parseColor(t.parse))

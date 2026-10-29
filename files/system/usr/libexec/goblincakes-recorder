@@ -147,6 +147,7 @@ class Service:
         self.screen_check = 0
         self.stall_check = 0  # last look for a frozen screen capture / OBS restart for it
         self.ask_check = 0
+        self.key_level_fixed = False  # mplus_key_level_fix once per start (keyLevel marks the fixed ones)
         self.ask_retried = ""  # the OBS log already started again for KDE's screen question
         # OBS that we started with WoW/CS2 is closed a minute after the game (22 Oct, the user's
         # wish: it drew ~7 % of a CPU core and ~370 MB between games). One the user opened stays.
@@ -736,6 +737,12 @@ class Service:
     def wcl_check(self):
         """Videos from the last day without a Warcraft Logs link: ask again (the upload
         comes some minutes after the fight). Runs beside the main loop."""
+        if not self.key_level_fixed:
+            self.key_level_fixed = True
+            try:
+                R.mplus_key_level_fix(self.cfg["folder"])
+            except (OSError, ValueError) as e:
+                log("M+ parse fix:", e)
         if self.wcl_busy or time.time() < self.wcl_next or not R.wcl_configured():
             return
         live = time.time() - R.wcl_live_seen < WCL_LIVE_FOR
