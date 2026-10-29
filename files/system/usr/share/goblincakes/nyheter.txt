@@ -1,3 +1,4 @@
+2026-10-29  Dockan kikar upp en kort stund med upplyst ram när den är redo efter inloggningen. Den kunde förut bara klickas på första ikonen en stund efter inloggning – rättat.
 2026-10-29  Klickar du på ett program i dockan som har flera fönster öppna kommer listan över fönstren i samma ruta som namnet när du håller musen över ikonen.
 2026-10-29  Dockans storlek och våg ställs in i GOBLINCAKES Config → Inställningar → Dockan (under Färg). Ändrar du storleken följer panelen med.
 2026-10-29  Ny docka: bara dina fästa program (öppna program syns i toppfältet), ikonerna växer i en våg under musen, öppna program får en markering i din färg och flera fönster av samma program ger en lista att välja från. Dina fästa program följer med.

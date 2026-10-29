@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="140" height="100" viewBox="0 0 140 100">
   <!-- Used by the dock (translucent mode). Invisible since 29 Oct: the GOBLINCAKES dock widget
        draws its own background and accent frame, just around the icons. The elements stay
-       (fully transparent) so Plasma doesn't fall back to Breeze's panel.
+       (fully transparent) so Plasma doesn't fall back to Breeze's panel; the mask-* elements
+       below give the area that takes the mouse.
        Everything not defined in this theme falls back to Breeze. -->
   <rect id="topleft" x="0" y="0" width="1" height="1" fill="#2A3852" fill-opacity="0"/>
   <rect id="top" x="1" y="0" width="98" height="1" fill="#2A3852" fill-opacity="0"/>
@@ -12,6 +13,20 @@
   <rect id="bottom" x="1" y="99" width="98" height="1" fill="#2A3852" fill-opacity="0"/>
   <rect id="bottomright" x="99" y="99" width="1" height="1" fill="#2A3852" fill-opacity="0"/>
   <rect id="center" x="1" y="1" width="98" height="98" fill="#0B1018" fill-opacity="0"/>
+
+  <!-- The panel's input/blur area. Plasma works out where the panel takes the mouse from the
+       background's own pixels: fully see-through gave an area only as wide as the dock was at the
+       start of the login (only the first icon answered, the rest made the dock hide – 29 Oct).
+       mask-* elements are used for that instead and never drawn. -->
+  <rect id="mask-topleft" x="0" y="0" width="1" height="1" fill="#000000"/>
+  <rect id="mask-top" x="1" y="0" width="98" height="1" fill="#000000"/>
+  <rect id="mask-topright" x="99" y="0" width="1" height="1" fill="#000000"/>
+  <rect id="mask-left" x="0" y="1" width="1" height="98" fill="#000000"/>
+  <rect id="mask-right" x="99" y="1" width="1" height="98" fill="#000000"/>
+  <rect id="mask-bottomleft" x="0" y="99" width="1" height="1" fill="#000000"/>
+  <rect id="mask-bottom" x="1" y="99" width="98" height="1" fill="#000000"/>
+  <rect id="mask-bottomright" x="99" y="99" width="1" height="1" fill="#000000"/>
+  <rect id="mask-center" x="1" y="1" width="98" height="98" fill="#000000"/>
 
   <!-- Inner padding -->
   <rect id="hint-top-margin" x="110" y="0" width="1" height="4" fill="none"/>

@@ -44,6 +44,22 @@ PlasmoidItem {
     readonly property real zoomRange: Math.max(0.5, Plasmoid.configuration.zoomRange)
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
+
+    // Ready after login (29 Oct, the user's wish – it took a few seconds before the dock answered):
+    // once the pinned apps are in, the dock peeks up for 1.5 s with its frame lit. "Needs
+    // attention" is what makes Plasma show an auto-hidden panel. Once per Plasma start.
+    property bool peeking: false
+    Plasmoid.status: peeking ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.ActiveStatus
+    Timer {
+        id: readyWait
+        interval: 800  // let the icons load first
+        onTriggered: { root.peeking = true; peekEnd.start(); }
+    }
+    Timer {
+        id: peekEnd
+        interval: 1500
+        onTriggered: root.peeking = false
+    }
     preferredRepresentation: fullRepresentation
     toolTipMainText: ""
     toolTipSubText: ""
@@ -97,6 +113,9 @@ PlasmoidItem {
         id: dock
 
         readonly property int count: tasksModel.launcherList.length
+        property bool peeked: false
+        onCountChanged: if (count > 0 && !peeked) { peeked = true; readyWait.start(); }
+        Component.onCompleted: if (count > 0 && !peeked) { peeked = true; readyWait.start(); }
         // The frame stays put while the wave runs; the gaps shrink as the icons grow
         // Sizes: all from the panel's thickness. The frame is the whole height; the biggest icon
         // reaches 1 px inside the frame (1 px border + 1 px air top and bottom).
@@ -202,6 +221,13 @@ PlasmoidItem {
             border.color: root.accent
             border.width: 1
             visible: dock.count > 0
+            // Lit while peeking up after login: the accent shines through, then fades back
+            Rectangle {
+                anchors.fill: parent
+                color: root.accent
+                opacity: root.peeking ? 0.35 : 0
+                Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.OutCubic } }
+            }
         }
 
         Repeater {
