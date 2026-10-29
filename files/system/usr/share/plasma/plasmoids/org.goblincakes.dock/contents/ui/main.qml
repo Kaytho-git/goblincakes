@@ -9,16 +9,15 @@
     - The wave (like macOS, the user's wish): the icon under the pointer grows the most, its
       neighbours less, out to `zoomRange` icons each way (cosine falloff). The icons stay inside
       the frame (the user's wish): the frame is the panel's whole height, icons rest centred and
-      the biggest reaches 1 px inside it. Two styles to try (`style`): 0 = the frame widens with
-      the wave (the point under the pointer stays still), 1 = "luftig" – the frame stays put and
-      the wide gaps at rest shrink (down to 1 px) as icons grow.
+      the biggest reaches 1 px inside it. The frame stays put while the wave runs: the gaps
+      at rest (down to 1 px) leave room for the growth.
     - Size: everything comes from the panel's thickness – biggest icon = thickness − 4,
       icon at rest = that / zoom, so dragging the panel's edge (or Config later) resizes the
       dock and the icons follow.
     - Click: launcher → start; one window → show / minimise; several → bring them all up, or
       the next one if one is already active. Middle click = new window. Right click = menu
       (new window, close, unpin). Drag an icon = move it; drop an app (.desktop) = pin it there.
-    - The widget's width is fixed (style 0: the row + room for the widest wave), so the panel
+    - The widget's width is fixed (the frame), so the panel
       doesn't resize while the pointer moves.
     Not yet: previews on hover, Meta+1–9 (still icontasks'), vertical panels.
 */
@@ -105,9 +104,7 @@ PlasmoidItem {
         id: dock
 
         readonly property int count: tasksModel.launcherList.length
-        // Two styles to try (29 Oct, the user picks one, the other goes): 0 = the frame widens
-        // with the wave, 1 = "luftig" – the frame stays put, wide gaps at rest shrink as icons grow
-        readonly property bool airy: Plasmoid.configuration.style === 1
+        // The frame stays put while the wave runs: the gaps at rest leave room for the growth
         // Sizes: all from the panel's thickness. The frame is the whole height; the biggest icon
         // reaches 1 px inside the frame (1 px border + 1 px air top and bottom).
         readonly property real thickness: Math.max(16, height)
@@ -132,21 +129,11 @@ PlasmoidItem {
         readonly property real frameWidth: count * base + (count + 1) * airyGap + 2
 
         // Rest layout: slot i starts at restLeft + i × restStep (used for the pointer and drags)
-        readonly property real restStep: airy ? base + airyGap : base + spacing
+        readonly property real restStep: base + airyGap
         readonly property real rowWidth: count * restStep
-        // Frame widens: the wave's widest reach on one side (once per size/setting) → fixed width
-        readonly property real reserve: {
-            if (airy) return 0;
-            let most = 0;
-            for (let t = 0; t <= count; t += 0.05) {
-                const g = layout(t, 1);
-                most = Math.max(most, -g.frameL - pad + spacing / 2, g.frameR - rowWidth - pad + spacing / 2);
-            }
-            return Math.ceil(most);
-        }
-        readonly property real totalWidth: airy ? frameWidth : rowWidth + 2 * reserve + 2 * pad
-        readonly property real rowLeft: (width - (airy ? frameWidth : rowWidth)) / 2
-        readonly property real restLeft: airy ? rowLeft + 1 + airyGap / 2 : rowLeft
+        readonly property real totalWidth: frameWidth
+        readonly property real rowLeft: (width - frameWidth) / 2
+        readonly property real restLeft: rowLeft + 1 + airyGap / 2
 
         Layout.minimumWidth: totalWidth
         Layout.preferredWidth: totalWidth
@@ -182,32 +169,17 @@ PlasmoidItem {
         // x[i]/width[i] = slot i (icon + gap, the icon gap/2 in); frameL/frameR = the frame's edges.
         function layout(t, a) {
             const xs = [], sizes = [], widths = [];
-            let total = 0;
             for (let i = 0; i < count; i++) sizes.push(base * scale(i, t, a));
-            if (airy) {
-                // The frame stays put: what the icons don't use is shared out as equal gaps
-                const used = sizes.reduce((sum, v) => sum + v, 0);
-                const gap = Math.max(1, (frameWidth - 2 - used) / (count + 1));
-                let x = 1 + gap / 2;
-                for (let i = 0; i < count; i++) {
-                    xs.push(x);
-                    widths.push(sizes[i] + gap);
-                    x += sizes[i] + gap;
-                }
-                return { x: xs, size: sizes, width: widths, gap: gap, frameL: 0, frameR: frameWidth };
-            }
+            // The frame stays put: what the icons don't use is shared out as equal gaps
+            const used = sizes.reduce((sum, v) => sum + v, 0);
+            const gap = Math.max(1, (frameWidth - 2 - used) / (count + 1));
+            let x = 1 + gap / 2;
             for (let i = 0; i < count; i++) {
-                widths.push(sizes[i] + spacing);
-                xs.push(total);
-                total += sizes[i] + spacing;
+                xs.push(x);
+                widths.push(sizes[i] + gap);
+                x += sizes[i] + gap;
             }
-            // Keep the point under the pointer still: zoomed position of t = unzoomed position of t
-            const k = Math.min(Math.max(Math.floor(t), 0), Math.max(count - 1, 0));
-            const at = count === 0 ? 0 : xs[k] + (t - k) * widths[k];
-            const shift = t * restStep - at;
-            for (let i = 0; i < count; i++) xs[i] += shift;
-            return { x: xs, size: sizes, width: widths, gap: spacing,
-                     frameL: shift + spacing / 2 - pad, frameR: shift + total - spacing / 2 + pad };
+            return { x: xs, size: sizes, width: widths, gap: gap, frameL: 0, frameR: frameWidth };
         }
 
         readonly property var geo: layout(pointer, amount)
