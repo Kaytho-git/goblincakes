@@ -2048,7 +2048,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "[Goblin AI tog reda på det här åt dig innan du svarar – det här skrev eller klistrade "
                              f"användaren inte in]\n\n{text}\n\n[Slut på det Goblin AI tog reda på]\n\n"
                              f"Användarens fråga var: \"{question}\"\n{REPAIR_COMPARE}"})
-    nudged = promised = looked = acted = claimed = False
+    nudged = promised = looked = acted = claimed = judged = False
     repaired = set()  # the repair checks already sent back (repair_nudge)
     fight = own_fight(asked.get("content"), tools, messages)
     if fight:
@@ -2180,6 +2180,21 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             steps.done("fel", why.split(".")[0].lower())
             messages.append({"role": "assistant", "content": answer})
             messages.append({"role": "user", "content": f"[Goblin AI] {why} Frågan var: \"{question}\"" + NUDGE_NOTE})
+            continue
+        if (not request_ and not judged and (used or LAST.tools) and not report
+                and (BROKEN.search(typed_text[:600]) or "search" in repaired or searched and REPAIR_ASK.search(typed_text))
+                and not VERDICT.search(answer) and not only_reading(answer)):
+            # Something broke and she looked: the summary and whether she can fix it – else Skicka till Claude
+            # (29 Oct, the user: "stora saker ska hon kolla på, sammanfatta och avgöra om hon kan det eller inte")
+            judged = True
+            steps.start("Kontrollerar svaret")
+            steps.done("fel", "saknar sammanfattning och om hon kan laga det")
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] Börja svaret med de tre raderna: **Vad som är fel:**, **Vad jag har kollat:** "
+                             "(bara det du faktiskt läste) och **Kan jag laga det:** Ja eller Nej – Nej om det är stort, "
+                             "måste ändras i GOBLINCAKES eller du är osäker; säg då att användaren kan trycka "
+                             f"\"Skicka till Claude\". Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
         if not request_:
             missing = unsupported(answer, seen) if used else []
@@ -3032,6 +3047,12 @@ När användaren vill få något gjort på datorn:
   Sådana block stoppas och körs inte – behövs något sådant: säg att det är något för användaren och Claude.
 - Kommer du inte vidare (ett fel du inte hittar orsaken till, eller något som måste ändras i GOBLINCAKES):
   säg det rakt ut och föreslå knappen "Skicka till Claude" under svaret – den tar med allt du tagit reda på.
+- När något har gått sönder eller inte fungerar och du har tagit reda på det: svara alltid med de här tre raderna
+  först (kommandon efter dem):
+  **Vad som är fel:** en mening – eller "Vet inte än".
+  **Vad jag har kollat:** filerna, loggarna och sidorna du faktiskt läste.
+  **Kan jag laga det:** Ja (och hur – kommandona följer) eller Nej (och varför – då: tryck "Skicka till Claude",
+  allt du tagit reda på följer med). Stora fel, ändringar i GOBLINCAKES eller osäkert = Nej.
 - Blocken körs efter varandra i samma mapp, som i en terminal: `cd` i ett block gäller även i nästa.
   Sökvägar med mellanslag skrivs inom citattecken: `cd "/run/media/$USER/Min disk/Mapp"`.
 - Du ser bara det du får: läs själv med verktygen för filer, mappar, loggar och tjänster, eller be om att få köra
@@ -4009,6 +4030,15 @@ ERROR_SEEN = re.compile(r"\b(?:error|exception|traceback|nil value|is not a type
                         r"undefined|cannot|misslyckades)\b|\w\.\w+:\d+:", re.I)
 # A ```bash block that changes files (not one that only reads them)
 CHANGES_FILES = re.compile(r"(?:^|[;&|]\s*)(?:sed\s+-i|mv|cp|rm|tee|truncate)\b|(?<![<>&\d])>(?!&)\s*[~/\w]", re.M)
+
+
+VERDICT = re.compile(r"kan jag laga det\W{0,8}(?:ja|nej)\b", re.I)
+
+
+def only_reading(answer):
+    """The answer's ```bash blocks only look (ls, cat …): she is still finding out – no summary asked for yet."""
+    blocks = cmd_level().code_blocks_in(answer)
+    return bool(blocks) and not any(CHANGES_FILES.search(b) for b in blocks)
 
 
 def user_said(messages):
