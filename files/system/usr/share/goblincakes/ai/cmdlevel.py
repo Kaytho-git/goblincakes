@@ -531,11 +531,36 @@ def read_reason(words, redirs):
     return rule(args) if rule else ""
 
 
+def foreign_addon(code):
+    """A WoW add-on in the block that isn't the user's own (point 22, the user's decision 29 Oct: only their own are
+    changed – BigWigs, EllesmereUI … are only read and explained), or ""."""
+    import sys  # noqa: PLC0415
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import wowapi  # noqa: PLC0415
+    # a path in quotes may have spaces ("…/Program Files (x86)/World of Warcraft/_retail_/Interface/AddOns/…")
+    for m in re.finditer(r"([\"'])((?:~|/)[^\"']*?/AddOns/[^/\"']+)|(?:^|[\s=])((?:~|/)[^\s\"';&|]*?/AddOns/[^/\s\"';&|)]+)",
+                         code, re.M):
+        path = m.group(2) or m.group(3)
+        if not wowapi.own_addon(path):
+            return path.rsplit("/", 1)[-1]
+    return ""
+
+
 def level(code):
     """("read" | "change" | "danger", why) for a ```bash block."""
     why = danger_reason(code)
     if why:
         return "danger", why
+    result = _level(code)
+    if result[0] != "read" and "AddOns/" in code:
+        name = foreign_addon(code)
+        if name:
+            return "danger", (f"ändrar i {name}, som är någon annans WoW-tillägg – bara användarens egna får ändras. "
+                              "Förklara felet och föreslå att uppdatera tillägget (WowUp) eller säga till den som gjort det")
+    return result
+
+
+def _level(code):
     try:
         commands = split_commands(code)
     except Unsure as e:

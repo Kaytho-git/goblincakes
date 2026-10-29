@@ -740,8 +740,9 @@ WOW_ERRORS_GUIDE = """
 Förklara vilket tillägg som orsakar felet (titta i stacken –
 Blizzard_-filer är sällan boven).
 - Står det "Ditt eget tillägg": rätta det själv. Läs raden i felet (`sed -n 'N-5,N+5p' fil`), jämför med
-  `git -C <mappen> diff`, rätta med ett ```bash-block (`sed -i`, användaren trycker Tillåt – filen säkerhetskopieras),
-  och be användaren skriva /reload i spelet och prova igen.
+  `git -C <mappen> diff`, slå upp funktionen i felet med wowapi (finns den, vad den tar), rätta med ett ```bash-block
+  (`sed -i`, användaren trycker Tillåt – filen säkerhetskopieras), och be användaren skriva /reload i spelet och prova
+  igen. Committa aldrig – användaren ser ändringen med `git diff` och sparar den själv.
 - "attempt to call a nil value": raden i felet är där anropet görs – det som är nil kommer ofta från raden under i
   stacken (den som skickade in funktionen). Leta orsaken där.
 - Andras tillägg: uppdatera det (WowUp), stäng av det eller rapportera felet till den som gjort det.
@@ -749,6 +750,19 @@ Blizzard_-filer är sällan boven).
   /reload, så att det nya felet sparas – gissa inte utifrån ett gammalt fel. Är det användarens eget tillägg:
   kör samtidigt `git -C <mappen> diff` (läser bara) – en ny ändring kan vara orsaken även utan nytt fel.
 - Föreslå aldrig att ändra WoW:s egna filer. `goblin wow` uppdaterar inget (det länkar bara WoW-mapparna)."""
+
+WOWAPI_PROMPT = """
+
+WoW:s API: skriver eller rättar du ett WoW-tillägg (Lua, .toc), eller frågar användaren hur en WoW-funktion,
+händelse eller ram fungerar – slå upp den i stället för att skriva ur minnet (du kan Lua, men inte WoW:s
+funktioner). Svara med BARA ett kodblock märkt ```wowapi med namnet (`C_Item.GetItemInfo`,
+`PLAYER_EQUIPMENT_CHANGED`, `Frame`, eller ett ord som `ItemLevel`), eller `kolla <tilläggets mapp>`."""
+
+WOWAPI_GUIDE = """
+Använd bara funktioner, händelser och metoder som står i svaret. Står det "finns inte": ta det som föreslås eller
+slå upp ett annat ord – hitta aldrig på ett namn. `kolla <mapp>` läser tilläggets .toc och .lua mot spelet: rätta
+raderna under FEL (`sed -i` på raden, `mv` för ett filnamn) – under KANSKE kan det vara rätt, säg hellre vad du
+ser än ändrar. Ett WoW-tillägg provas bara i spelet (/reload) – säg aldrig att det fungerar förrän användaren provat."""
 
 WCL_PROMPT = """
 
@@ -911,6 +925,13 @@ def wow_tools():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import wowtools  # noqa: PLC0415
     return wowtools
+
+
+def wow_api():
+    """WoW's API (wowapi.py, point 22): looking up functions and checking an add-on against the game."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import wowapi  # noqa: PLC0415
+    return wowapi
 
 
 def sport_tools():
@@ -1354,6 +1375,14 @@ def tools_for(keys, project, messages):
                             "`senaste`, antal matcher (`senaste 20`) eller en karta (`Mirage`); lägg till `privat` för "
                             "matcher på privata servrar")
     if list(Path.home().glob("Games/WoW/*/AddOns")):
+        tools["wowapi"] = tool("Slår upp i WoW:s API", WOWAPI_PROMPT, WOWAPI_GUIDE, lambda q: (wow_api().lookup(q), []),
+                               "wowapi", "WoW:s egna funktioner, händelser och ramar för spelet just nu (spelets lista + "
+                               "Blizzards dokumentation): slå upp en funktion (argument, vad den ger tillbaka), en "
+                               "händelse, en ramtyps metoder – innan du skriver eller rättar Lua i ett WoW-tillägg. "
+                               "`kolla <mapp>` jämför ett tilläggs .toc och .lua med spelet (påhittade funktioner, fel "
+                               ".toc-namn, saknad Interface-rad, /kommandon som aldrig når funktionen).",
+                               "Ett namn (`C_Item.GetItemInfo`, `BAG_UPDATE`, `Frame`), ett ord (`ItemLevel`) eller "
+                               "`kolla ~/sökväg/till/tillägget`")
         tools["wowfel"] = tool("Läser WoW-felen", WOW_ERRORS_PROMPT, WOW_ERRORS_GUIDE, lambda q: (wow_tools().wow_errors(q), []),
                                "wowfel", "När användaren frågar om fel i WoW eller ett WoW-tillägg/addon (BugSack, Lua-fel, \"ett "
                                "tillägg strular\"): felen som BugSack har sparat.",
@@ -1387,6 +1416,7 @@ def tools_for(keys, project, messages):
 
 
 TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel", "wow-fel": "wowfel",
+              "wowapi": "wowapi", "wow-api": "wowapi",
               "bugsack": "wowfel", "warcraftlogs": "warcraftlogs", "wcl": "warcraftlogs",
               "sport": "sport", "lag": "sport",
               "wowstats": "wowstats", "wow-stats": "wowstats", "parses": "wowstats",
@@ -1807,7 +1837,8 @@ SOURCES_MAX = 10
 SOURCE_NAMES = {"sport": "ESPN (lagens tabeller)", "wowstats": "dina WoW-siffror (WoW Stats)",
                 "cs2": "dina CS2-demos (CS2 Stats)", "goblincakes": "kartan över GOBLINCAKES",
                 "systemfel": "datorns loggar och krascher", "wowfel": "BugSacks sparade fel",
-                "lagg": "lagmätningen (Meta+Shift+L)", "byggstatus": "GitHub (byggen och byggloggen)"}
+                "lagg": "lagmätningen (Meta+Shift+L)", "byggstatus": "GitHub (byggen och byggloggen)",
+                "wowapi": "WoW:s API (spelets lista och Blizzards dokumentation)"}
 
 
 def local_sources():
@@ -1948,6 +1979,17 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     # What the commands printed ("Så här gick det: …") is no question: a GitHub link on the page Kakan clicked to sent
     # the answer to GitHub, and a path in it to the computer's logs (28 Oct)
     report = str(asked.get("content", "")).startswith("Så här gick det:")
+    checked_addon = addon_check(messages) if report and "wowapi" in tools else ""
+    if checked_addon:
+        steps.start("Kontrollerar tillägget mot WoW")
+        steps.done(note="fel kvar" if "\nFEL:\n" in checked_addon else "inga fel")
+        LAST.tools.append(("wowapi", "kolla"))
+        LAST.done.append(("wowapi", "kolla", ""))
+        messages.append({"role": "user", "content":
+                         "[Goblin AI kontrollerade tillägget mot WoW efter ändringen – det här skrev användaren inte]\n\n"
+                         f"{checked_addon}\n\n[Slut på kontrollen]\n\nStår det något under FEL: rätta just de raderna "
+                         "(slå upp rätt namn med wowapi först) – det är inte klart. Inga fel: säg vad användaren ska "
+                         "prova i spelet (/reload) – kontrollen ser bara namn, inte om tillägget gör rätt."})
     own = own_data_question(asked.get("content"), tools)
     # A question about an MCP server ("gick senaste bygget igenom?" = GitHub): its tools first – not the web search
     # ("senaste") or the computer's logs ("bygget"), which answered about the wrong thing (28 Oct)
@@ -3398,7 +3440,7 @@ CATEGORY_WORDS = [  # (category, words in the question/lesson) – the guess whe
     ("natet", r"nyheter|väder|sök|pris|tabell|match|\blag\b|webb|sida|länk|patch notes"),
     ("svar", r"kortare|längre|ton\b|svara|kolla upp|gissa|sant\b|källa"),
 ]
-CATEGORY_TOOLS = {"warcraftlogs": "spel", "wowfel": "spel", "wowstats": "spel", "cs2": "spel", "lagg": "spel",
+CATEGORY_TOOLS = {"warcraftlogs": "spel", "wowfel": "spel", "wowapi": "spel", "wowstats": "spel", "cs2": "spel", "lagg": "spel",
                   "goblincakes": "goblincakes", "systemfel": "datorn", "leta": "datorn", "skrivbord": "skrivbordet",
                   "sök": "natet", "sport": "natet", "byggstatus": "goblincakes"}
 
@@ -3450,7 +3492,7 @@ def rewrite_message(kind, answer, last=True):
     return label, content
 
 
-TOOL_NAMES = {"sök": "sökte på nätet", "wowfel": "läste WoW-felen", "warcraftlogs": "hämtade pullen från Warcraft Logs",
+TOOL_NAMES = {"sök": "sökte på nätet", "wowfel": "läste WoW-felen", "wowapi": "slog upp i WoW:s API", "warcraftlogs": "hämtade pullen från Warcraft Logs",
               "sport": "hämtade lagets ställning", "systemfel": "läste datorns fel", "leta": "letade i datorn",
               "skrivbord": "styrde skrivbordet"}
 
@@ -3858,6 +3900,7 @@ def words(text):
 
 
 TOOL_HINTS = {"warcraftlogs": r"logs?\b|pull|boss|wcl|wipe|kill", "wowfel": r"bugsack|lua|tillägg|addon|fel i wow",
+              "wowapi": r"\.lua\b|\.toc\b|tillägg|addon|wow-?funktion|api",
               "sport": r"\blag\b|match|tabell|serie", "systemfel": r"krasch|fel|startar inte|journal",
               "leta": r"logg|fil|mapp|hitta|leta|inställning",
               "sök": r"senaste|nyheter|patch|pris",
@@ -4012,6 +4055,8 @@ Reparera kod som inte fungerar (ett tillägg, en widget, ett skript) – arbeta 
 4. Säg vad du jämförde: "Enligt <källan> ska X vara Y – här står Z." Varje skillnad är ett fel; det kan vara flera.
    Hittar du ingen skillnad: säg det och vad du skulle behöva veta – hitta aldrig på en orsak som låter rimlig.
 5. Rätta bara det som skilde (`sed -i` på raden, `mv` för ett namn) – skriv inte om hela filen.
+   Ett WoW-tillägg: slå upp varje WoW-funktion du ändrar till med wowapi – Goblin AI kontrollerar dessutom
+   tillägget mot spelet efter varje ändring och säger vad som fortfarande är fel.
 6. Kan det inte provas härifrån (ett WoW-tillägg provas bara i spelet): säg vad användaren ska titta efter, och
    säg aldrig att det är löst förrän användaren har provat.
 Hittar du inte orsaken efter att ha sökt och jämfört: säg "Det kan jag inte hitta" och vad du har kollat."""
@@ -4084,6 +4129,30 @@ QUERY_PROMPT = ("Skriv EN sökfråga på engelska (högst 10 ord) som hittar hur
                 "Bara sökfrågan, inget annat – inga citattecken, ingen förklaring.")
 
 
+def addon_check(messages):
+    """After commands that changed a WoW add-on's .lua/.toc (point 22): the add-on checked against the game – or "".
+    gemma4 wrote CreateFrame("ScrollingFrame") and GetItemName() from memory and said it was done (29 Oct)."""
+    report = messages[-1].get("content", "") if messages and messages[-1]["role"] == "user" else ""
+    said = next((m["content"] for m in reversed(messages[:-1]) if m["role"] == "assistant"), "")
+    if not str(report).startswith("Så här gick det:") or not isinstance(said, str):
+        return ""
+    m = re.search(r"\(Mappen nu: (.+?)\)", report)
+    cwd = Path(m.group(1)) if m else Path.home()
+    folders = []
+    for block in cmd_level().code_blocks_in(said):
+        for target in cmd_level().write_targets(block, cwd):
+            folder = wow_api().addon_folder(target)
+            if folder and folder not in folders:
+                folders.append(folder)
+    out = []
+    for folder in folders[:2]:
+        try:
+            out.append(wow_api().check(folder))
+        except Exception as e:  # noqa: BLE001 – no API to check against: said so, the answer goes on
+            out.append(f"Kontrollen av {folder} gick inte: {e}")
+    return "\n\n".join(out)
+
+
 def investigate(question, tools, keys, notice, project, choice, steps, status=None):
     """Repairing without an error message (REPAIR_WHEN): the named files, then a search the AI only words and the
     best hit read whole – laid before her before she answers. Returns (text, sources); ("", []) when nothing came."""
@@ -4101,6 +4170,17 @@ def investigate(question, tools, keys, notice, project, choice, steps, status=No
     if parts:
         steps.start("Läser filerna")
         steps.done(note=f"{len(parts)} delar")
+    for path in list(dict.fromkeys(m.rstrip(".") for m in re.findall(r"~/[\w./-]+", question)))[:2] if "wowapi" in tools else []:
+        p = Path(os.path.expanduser(path))
+        if p.is_dir() and any(p.glob("*.toc")) or p.suffix.lower() in (".lua", ".toc"):
+            steps.start("Kontrollerar tillägget mot WoW")
+            try:
+                parts.append("## Kontroll mot WoW (spelets egna funktioner)\n" + wow_api().check(p))
+                LAST.tools.append(("wowapi", f"kolla {path}"))
+                LAST.done.append(("wowapi", f"kolla {path}", ""))
+                steps.done()
+            except Exception as e:  # noqa: BLE001 – the files and the search are there anyway
+                steps.done("fel", e)
     steps.start("Skriver sökfrågan")
     QUICK.on = True
     try:

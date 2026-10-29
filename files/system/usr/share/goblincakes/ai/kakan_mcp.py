@@ -20,7 +20,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 PROTOCOL = "2025-06-18"
-SHARED = ("goblincakes", "systemfel", "leta", "wowstats", "warcraftlogs", "wowfel", "cs2", "sport", "lagg", "byggstatus")
+SHARED = ("goblincakes", "systemfel", "leta", "wowstats", "warcraftlogs", "wowfel", "wowapi", "cs2", "sport", "lagg", "byggstatus")
 ANSWER_MAX = 60000  # characters – Claude reads more than the local AI; a raid night from WCL fits
 INSTRUCTIONS = ("Verktyg från GOBLINCAKES lokala AI (Kakan) på användarens dator. Svaren är på svenska. "
                 "warcraftlogs = vad som hände i en pull/raidkväll, wowstats = användarens egna parses över tid, "

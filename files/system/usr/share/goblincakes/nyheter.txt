@@ -1,3 +1,4 @@
+2026-10-29  Goblin AI kan WoW:s egna funktioner för spelet just nu. Ber du henne skriva eller laga ett WoW-tillägg slår hon upp funktionerna i stället för att gissa, och efter varje ändring kontrolleras tillägget mot spelet. Hon ändrar bara dina egna tillägg – andras läser och förklarar hon.
 2026-10-29  Dockan kikar upp en kort stund med upplyst ram när den är redo efter inloggningen. Den kunde förut bara klickas på första ikonen en stund efter inloggning – rättat.
 2026-10-29  Klickar du på ett program i dockan som har flera fönster öppna kommer listan över fönstren i samma ruta som namnet när du håller musen över ikonen.
 2026-10-29  Dockans storlek och våg ställs in i GOBLINCAKES Config → Inställningar → Dockan (under Färg). Ändrar du storleken följer panelen med.

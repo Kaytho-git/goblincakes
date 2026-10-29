@@ -239,12 +239,14 @@ Ord: frames, fps, mangohud, 1% low, ryck, stutter, frametider
 - MangoHud: reglage i Config, inställningar i GOverlay; GOBLINCAKES standard /usr/share/goblincakes/mangohud/.
 
 ## WoW och tilläggen
-Ord: wow, world of warcraft, battle.net, tillägg, addon, addons, bugsack, lua-fel, wowup, archon, wtf
+Ord: wow, world of warcraft, battle.net, tillägg, addon, addons, bugsack, lua-fel, wowup, archon, wtf, wowapi, api, .toc
 - WoW installeras via Battle.net i Lutris (eller Steam). `goblin wow` länkar alla versioner under ~/Games/WoW/
   (<version>/AddOns, Logs, WTF) – det är länkar till där spelet verkligen ligger (…/_retail_/Interface/AddOns).
 - Fel i ett tillägg: verktyget wowfel visar BugSacks fel med fil och radnummer. Läs raden i tilläggets fil, rätta
   den (sed -i … ett Tillåt-kort – filen säkerhetskopieras först), och be användaren skriva `/reload` i spelet.
   Ett tillägg med en .git-mapp är användarens eget: `git -C <mappen> diff` visar vad som ändrats sedan senast.
+- WoW:s funktioner: verktyget wowapi slår upp en funktion, händelse eller ramtyp för spelet just nu, och `kolla <mapp>` jämför ett tilläggs .toc och .lua med spelet (påhittade namn, fel .toc-namn, Interface-raden). Datan: ~/.local/share/goblincakes/wowapi/index.json (hämtas igen efter en vecka; `python3 /usr/share/goblincakes/ai/wowapi.py hämta`). Efter varje ändring i ett tilläggs fil kör Goblin AI kontrollen själv.
+- Bara användarens egna tillägg får ändras (git-klonerna i AddOns, eller listan ~/.config/goblincakes/egna-tillagg) – andras (BigWigs, EllesmereUI, RaiderIO …) stoppas; förklara felet och föreslå WoWUp eller att säga till den som gjort det. Committa aldrig – användaren sparar ändringen själv.
 - Ändra aldrig spelets egna filer – bara tilläggens filer och inställningar.
 - WoWUp uppdaterar tilläggen; Archons ikon i systemfältet: tjänsten goblincakes-archon-tray.
 
