@@ -4294,10 +4294,11 @@ def investigate(question, tools, keys, notice, project, choice, steps, status=No
                 steps.done()
             except Exception as e:  # noqa: BLE001 – the files and the search are there anyway
                 steps.done("fel", e)
-    if any(p.startswith("## Kontroll mot WoW") and "\nFEL:\n" in p for p in parts):
-        # The check found the faults: it is what to follow – the search and a whole web page only filled her memory
-        # ("Slutar hämta: minnet är nästan fullt" in the 4th round of the gear repair, 30 Oct)
-        steps.start("Söker inte på nätet – kontrollen visar felen")
+    if any(p.startswith("## Kontroll mot WoW") for p in parts):
+        # A WoW add-on: the check against the game's API is what to follow, not the web (the user 30 Oct: "varför söker
+        # hon när hon har api?") – the search and a whole page only filled her memory ("Slutar hämta: minnet är nästan
+        # fullt" in the 4th round of the gear repair). She can still look a function up with wowapi, or search herself.
+        steps.start("Söker inte på nätet – kontrollen mot WoW:s API räcker")
         steps.done()
         return "## Filerna\n" + "\n\n".join(parts), []
     steps.start("Skriver sökfrågan")
