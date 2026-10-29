@@ -4,6 +4,9 @@
     goblincakes-screen                         installed programs, the screens and the rules
     goblincakes-screen add <program> [screen] <N>   e.g. add discord screen 2
     goblincakes-screen remove <program>
+    goblincakes-screen rotate <N>              screen N stands up (portrait); Meta+Left = 2, Meta+Right = 1
+    goblincakes-screen rotate normal           all screens lie down again (Meta+Up)
+    goblincakes-screen rotate håll vänster|höger   which way "stands up" turns (default höger)
 
 Screen 1 is the main screen, the rest follow the order in System Settings → Display (the
 same order KWin calls screenOrder). The rules are kept in kwinrc [Script-goblincakes-windows]
@@ -11,6 +14,8 @@ screenRules ("discord=2;org.mozilla.firefox|firefox=1" – a program's window
 names joined by |: its desktop id and StartupWMClass, Wayland and XWayland differ) and applied by the KWin script
 goblincakes-windows when a window of the program opens – it can be moved afterwards.
 KDE's own window rules number screens in another order, hence our own.
+Rotation (the user's wish, 29 Oct) goes through kscreen-doctor; the direction is kept in
+~/.config/goblincakes/screen-portrait ("left" or "right").
 """
 import configparser
 import importlib.machinery
@@ -92,6 +97,44 @@ def screens():
     return result
 
 
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config")
+PORTRAIT = CONFIG_HOME / "goblincakes/screen-portrait"
+SIDES = {"vänster": "left", "vanster": "left", "left": "left", "höger": "right", "hoger": "right",
+         "right": "right"}
+
+
+def portrait_side():
+    try:
+        side = PORTRAIT.read_text().strip()
+    except OSError:
+        side = ""
+    return side if side in ("left", "right") else "right"
+
+
+def cmd_rotate(args):
+    scr = screens()
+    word_ = args[0].lower() if args else ""
+    if word_ in ("håll", "hall", "side", "direction") and len(args) > 1 and args[1].lower() in SIDES:
+        PORTRAIT.parent.mkdir(parents=True, exist_ok=True)
+        PORTRAIT.write_text(SIDES[args[1].lower()] + "\n")
+        print(f"Stående vrids nu åt {'vänster' if SIDES[args[1].lower()] == 'left' else 'höger'}.")
+        return 0
+    if word_ in ("normal", "liggande", "alla", "all", "none"):
+        targets, rot = scr, "none"
+    elif word_.isdigit() and 1 <= int(word_) <= len(scr):
+        targets, rot = [scr[int(word_) - 1]], portrait_side()
+    else:
+        print("Skriv goblin screen rotate <skärm> (stående), goblin screen rotate normal"
+              " eller goblin screen rotate håll vänster|höger", file=sys.stderr)
+        return 2
+    if not targets:
+        print("Hittade inga skärmar.", file=sys.stderr)
+        return 1
+    res = subprocess.run(["kscreen-doctor"] + [f"output.{name}.rotation.{rot}" for _, name, _ in targets],
+                         capture_output=True, text=True)
+    return res.returncode
+
+
 def read_rules():
     out = subprocess.run(["kreadconfig6", "--file", "kwinrc", "--group", GROUP, "--key", KEY],
                          capture_output=True, text=True).stdout.strip()
@@ -149,6 +192,8 @@ def cmd_list():
         print(f"  {FROST}{w:<{width}}{RESET}{MUTED}{name}{RESET}")
     print(f"\n{MUTED}Spel går också: ordet från goblin play, namnet eller .exe (goblin screen add wow screen 1){RESET}")
     print(f"{MUTED}Lägg till: goblin screen add discord screen 2   Ta bort: goblin screen remove discord{RESET}")
+    print(f"{MUTED}Stående: goblin screen rotate 2 (Meta+←/→), alla liggande: goblin screen rotate normal (Meta+↑);"
+          f" åt andra hållet: goblin screen rotate håll vänster{RESET}")
     return 0
 
 
@@ -255,6 +300,8 @@ def main(argv):
         return cmd_add(argv[1:])
     if cmd in ("remove", "rm", "del"):
         return cmd_remove(argv[1:])
+    if cmd in ("rotate", "rotera", "vrid"):
+        return cmd_rotate(argv[1:])
     print(__doc__, file=sys.stderr)
     return 2
 

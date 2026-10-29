@@ -1,0 +1,26 @@
+[Desktop Entry]
+# Screen rotation (the user's wish, 29 Oct): Meta+Left stands screen 2 up, Meta+Right screen 1,
+# Meta+Up lays all screens down again (goblincakes-screen rotate). KWin's quick tile keys are
+# moved away from them in goblincakes-refresh.sh. Can be changed in System Settings → Shortcuts.
+Type=Application
+Name=GOBLINCAKES skärmrotation
+Exec=/usr/libexec/goblincakes-screen rotate normal
+Icon=goblincakes
+NoDisplay=true
+OnlyShowIn=KDE;
+Actions=screen2;screen1;normal;
+
+[Desktop Action screen2]
+Name=Skärm 2 stående
+Exec=/usr/libexec/goblincakes-screen rotate 2
+X-KDE-Shortcuts=Meta+Left
+
+[Desktop Action screen1]
+Name=Skärm 1 stående
+Exec=/usr/libexec/goblincakes-screen rotate 1
+X-KDE-Shortcuts=Meta+Right
+
+[Desktop Action normal]
+Name=Alla skärmar liggande
+Exec=/usr/libexec/goblincakes-screen rotate normal
+X-KDE-Shortcuts=Meta+Up

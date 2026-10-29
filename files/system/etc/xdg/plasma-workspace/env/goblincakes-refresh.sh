@@ -39,6 +39,19 @@ if [ ! -e "$_gc_flag" ]; then
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
+# Meta+Left/Right/Up rotate the screens (goblincakes-rotate.desktop, the user's choice 29 Oct):
+# take them away from KWin's quick tile left/right/top (once; changing it back sticks)
+_gc_flag="$_gc_state/meta-arrows-rotate"
+if [ ! -e "$_gc_flag" ]; then
+    for _gc_now in "Left:Window Quick Tile Left:Fönster snabbt sida vid sida till vänster" \
+                   "Right:Window Quick Tile Right:Fönster snabbt sida vid sida till höger" \
+                   "Up:Window Quick Tile Top:Fönster snabbt sida vid sida längst upp"; do
+        kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "$(echo "$_gc_now" | cut -d: -f2)" \
+            "none,Meta+$(echo "$_gc_now" | cut -d: -f1),$(echo "$_gc_now" | cut -d: -f3)"
+    done
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
 # The Meta key opens the app launcher (AppGrid) again, Plasma's own default (10 Oct, the user's
 # choice: on a real computer the dock comes up when the pointer touches the bottom middle, so
 # "Meta shows the dock" (7–10 Oct) wasn't needed). Those versions moved the launcher to
