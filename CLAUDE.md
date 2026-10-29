@@ -87,6 +87,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Tiling med egna regler (Config → Fönster, layouter, Meta+Ctrl+1–9)
 - [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, sök/egna listor, spara album, GENRER med Last.fm, MPRIS, GRAF; spellistan kan lossas till eget fönster, genomskinlig GRAF, omslag vid hovring)
 - [x] Kvot-widget i toppfältet (Claude + ChatGPT/Codex, 5 h + vecka, `goblincakes-quota`)
+- [x] Egen docka `org.goblincakes.dock` (bara fästa, våg, accent; ersatte icontasks 29 okt)
 - [x] ChatGPT-appen (OpenAIs RPM uppackad i hemmappen, `goblincakes-chatgpt`; Goblin AI → "Skicka till ChatGPT" via urklipp) – ej provad med riktiga paketet
 
 ## Att göra
@@ -94,7 +95,6 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav).
 - [ ] **GoblinRecorder för CS2** – byggt 22 okt: GSI (2K–ACE-klipp + alla kills, matchen tas bort), demon (egna siffror, TTD/första skottet/spray/counter-strafe, vunna clutchar som klipp), CS2 Stats (clutchar 1v1–1v4, ACE, pilar, utfällbar match med alla tio, per säsong med Arkiv). Deathmatch provat på riktigt. Kvar: efter nästa image en riktig Premier/Competitive till slut + nedladdad demo – stämmer siffrorna mot Leetify, blir klippen rätt, börjar demons servernamn med "Valve" (annars hamnar den under PRIVAT)?
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
-- [ ] **Egen dock-widget:** dockan bara launcher (fästa program + öppen-markering i accent), öppna program bara i toppfältet; våg vid hovring, storlek = panelens höjd. Widgeten `org.goblincakes.dock` byggd 29 okt (offscreen), inte inkopplad – kvar: prova bredvid gamla dockan (stegen överst i `docs/testlistor/egen-docka.md`), välja stil A/B, sedan bytet. Detaljer: grep "Egen dock-widget" i anteckningarna.
 
 ## Framtida idéer (byggs bara på begäran – detaljer i anteckningarna)
 Kakan lär sig steg 2 (LoRA-finjustering), Goblin AI som vardags-AI (röst, Google-tjänster), Steam-DM i Spelas nu (väntar på freedesktop-notiser), GoblinRecorder fristående (Flatpak/AppImage), Ianseo-nedladdningssida på Simply med TOTP, backup-plan om AI-verktyget måste bytas (bara reserv – grep "Backup-plan").

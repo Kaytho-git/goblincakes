@@ -129,6 +129,38 @@ EOF
     mkdir -p "$_gc_state" && touch "$_gc_flag"
 fi
 
+# The GOBLINCAKES dock (29 Oct, the user's choice) instead of Plasma's task manager in the
+# bottom panel: same "launchers" key, so only the plugin name changes and the pinned apps stay.
+# Once, before Plasma reads the file. Only when the widget is in the image (a test copy in the
+# home folder would go away again).
+_gc_flag="$_gc_state/goblincakes-dock"
+if [ ! -e "$_gc_flag" ] && [ -d /usr/share/plasma/plasmoids/org.goblincakes.dock ]; then
+    [ -f "$_gc_applets" ] && python3 - "$_gc_applets" <<'EOF' >/dev/null 2>&1
+import re, sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+def body(head):
+    m = re.search(r"^\[" + re.escape(head) + r"\]\n((?:[^\[\n][^\n]*\n|\n)*)", text, re.M)
+    return m.group(1) if m else ""
+for cid in re.findall(r"^\[Containments\]\[(\d+)\]\n", text, re.M):
+    panel = body(f"Containments][{cid}")
+    if "plugin=org.kde.panel\n" not in panel or "location=4\n" not in panel:
+        continue  # only the bottom panel (the dock), never the top bar
+    applets = re.findall(rf"^\[Containments\]\[{cid}\]\[Applets\]\[(\d+)\]\n", text, re.M)
+    plugins = {a: body(f"Containments][{cid}][Applets][{a}") for a in applets}
+    if any("plugin=org.goblincakes.dock\n" in p for p in plugins.values()):
+        continue
+    for a, p in plugins.items():
+        if "plugin=org.kde.plasma.icontasks\n" in p:
+            head = f"[Containments][{cid}][Applets][{a}]\n"
+            start = text.index(head) + len(head)
+            text = text[:start] + text[start:].replace("plugin=org.kde.plasma.icontasks\n",
+                                                       "plugin=org.goblincakes.dock\n", 1)
+open(path, "w", encoding="utf-8").write(text)
+EOF
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
 # Middle-click autoscroll as on Windows (11 Oct, the user's choice) in the Chromium-based
 # Flatpaks – Chromium has it switched off on Linux. Firefox gets it from
 # /usr/share/goblincakes/firefox. Once per browser, when it is installed; a browser

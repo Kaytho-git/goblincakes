@@ -99,9 +99,8 @@ try { dock.opacity = "translucent"; } catch (e) {}
 try { dock.lengthMode = "fit"; } catch (e) {}
 try { dock.floating = true; } catch (e) {}
 
-var tasks = dock.addWidget("org.kde.plasma.icontasks");
+// The GOBLINCAKES dock (29 Oct): only pinned apps (open ones are in the top bar), the wave on hover
+var tasks = dock.addWidget("org.goblincakes.dock");
 tasks.currentConfigGroup = ["General"];
 // Only these two, in this order: the terminal (Ghostty), Firefox. Users pin the rest themselves.
 tasks.writeConfig("launchers", ["applications:com.mitchellh.ghostty.desktop", "applications:org.mozilla.firefox.desktop"]);
-tasks.writeConfig("showToolTips", true);
-tasks.writeConfig("highlightWindows", true);

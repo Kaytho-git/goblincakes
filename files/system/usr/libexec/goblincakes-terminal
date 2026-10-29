@@ -36,7 +36,7 @@ desktop_of() {
 dock() { # to
     busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s '
         panels().forEach(function (p) { if (p.location !== "bottom") return;
-            p.widgets().forEach(function (w) { if (w.type !== "org.kde.plasma.icontasks") return;
+            p.widgets().forEach(function (w) { if (w.type !== "org.goblincakes.dock" && w.type !== "org.kde.plasma.icontasks") return;
                 w.currentConfigGroup = ["General"];
                 var l = w.readConfig("launchers");
                 if (typeof l === "string") l = l ? l.split(",") : [];

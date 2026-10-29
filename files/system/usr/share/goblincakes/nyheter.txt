@@ -1,3 +1,4 @@
+2026-10-29  Ny docka: bara dina fästa program (öppna program syns i toppfältet), ikonerna växer i en våg under musen, öppna program får en markering i din färg och flera fönster av samma program ger en lista att välja från. Dina fästa program följer med.
 2026-10-29  När något har gått sönder börjar Goblin AI svaret med vad som är fel, vad hon har kollat och om hon kan laga det. Kan hon inte, säger hon det och du kan trycka "Skicka till Claude".
 2026-10-29  GoblinAmp visar albumets omslag när du håller muspekaren över ett album eller en lista från Spotify.
 2026-10-29  Grafen i GoblinAmp (GRAF) är genomskinlig – skrivbordet syns bakom staplarna, som i goblin graphs eget fönster.

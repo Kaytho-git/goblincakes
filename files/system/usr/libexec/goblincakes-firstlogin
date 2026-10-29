@@ -112,7 +112,7 @@ if [ -n "$pinned" ]; then
     for _ in 1 2 3 4 5 6 7 8 9 10; do
         out=$(plasma_js 'var done = false;
             panels().forEach(function (p) { if (p.location !== "bottom") return;
-                p.widgets().forEach(function (w) { if (w.type !== "org.kde.plasma.icontasks") return;
+                p.widgets().forEach(function (w) { if (w.type !== "org.goblincakes.dock" && w.type !== "org.kde.plasma.icontasks") return;
                     w.currentConfigGroup = ["General"]; w.writeConfig("launchers", '"$pinned"'); done = true; }); });
             if (done) print("done");' 2>/dev/null)
         case $out in *done*) break ;; esac
