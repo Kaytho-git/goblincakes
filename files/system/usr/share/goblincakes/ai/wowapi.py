@@ -532,6 +532,7 @@ def check(target):
     lua = [(f, f.read_text(errors="replace")) for f in files if f.suffix.lower() == ".lua" and f.stat().st_size < 1_500_000]
     code_all = "\n".join(re.sub(r"--\[\[.*?\]\]|--[^\n]*", "", t, flags=re.S) for _, t in lua)
     own = _defined_names(code_all) | {next(x for x in m if x) for m in DEFINES.findall(code_all)}
+    own |= set(re.findall(r"[\w\]]\.(\w+)\s*=(?!=)", code_all))  # editBox.RefreshPlaceholder = refreshPlaceholder (gear-planner)
     slash = set(re.findall(r"\bSLASH_(\w+)\s*=", code_all))  # WoW looks up "SLASH_" .. key .. 1, 2, … (SlashCommandsRegistry.lua)
     # Code for several game versions (SimpleQuestRemover: `if IS_RETAIL then … else <Classic's functions>`): which
     # branch runs can't be read here – a missing function is then a "kanske"
