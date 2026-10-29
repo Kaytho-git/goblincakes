@@ -1548,6 +1548,124 @@ Window {
                 }
             }
 
+            // The dock (org.goblincakes.dock): size, the wave – the same as right click →
+            // Konfigurera on the dock, through goblincakes-dock get/set (the panel's height follows the size)
+            Rectangle {
+                id: dockRow
+                readonly property var d: backend.dock ? JSON.parse(backend.dock) : null
+                visible: d !== null
+                width: tweakRows.width
+                height: dockCol.height + 40
+                color: "#0E1420"
+                border.width: 1
+                border.color: "#1E2A40"
+
+                // A value with − and +: shown with a comma, sent as a number
+                component Stepper: Row {
+                    id: st
+                    property string label
+                    property real value
+                    property real step: 0.1
+                    property real from
+                    property real to
+                    property string unit: ""
+                    property string key
+                    property bool enabledState: true
+                    spacing: 10
+                    opacity: enabledState ? 1 : 0.35
+                    Text {
+                        width: 130
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: st.label
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                    }
+                    SmallButton {
+                        text: "−"
+                        enabledState: st.enabledState && st.value > st.from + 0.001
+                        onClicked: backend.setDock(st.key, String(Math.max(st.from, st.value - st.step)))
+                    }
+                    Text {
+                        width: 100
+                        anchors.verticalCenter: parent.verticalCenter
+                        horizontalAlignment: Text.AlignHCenter
+                        text: st.value.toFixed(1).replace(".", ",") + st.unit
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 14
+                    }
+                    SmallButton {
+                        text: "+"
+                        enabledState: st.enabledState && st.value < st.to - 0.001
+                        onClicked: backend.setDock(st.key, String(Math.min(st.to, st.value + st.step)))
+                    }
+                }
+
+                Column {
+                    id: dockCol
+                    anchors { left: parent.left; leftMargin: 22; right: parent.right; rightMargin: 22; top: parent.top; topMargin: 20 }
+                    spacing: 14
+                    Column {
+                        width: parent.width
+                        spacing: 5
+                        Text {
+                            text: "Dockan"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            width: parent.width
+                            text: "Hur stor dockan är och hur ikonerna växer under musen. Storlek 1,0 = 48 pixlar hög."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                            wrapMode: Text.WordWrap
+                            lineHeight: 1.15
+                        }
+                    }
+                    Stepper {
+                        label: "Storlek"
+                        key: "scale"
+                        value: dockRow.d ? dockRow.d.scale : 1
+                        from: 0.5; to: 2.0
+                    }
+                    Row {
+                        spacing: 10
+                        Text {
+                            width: 130
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Våg"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 14
+                        }
+                        ToggleSwitch {
+                            on: dockRow.d ? dockRow.d.zoom : true
+                            onToggled: backend.setDock("zoom", on ? "false" : "true")
+                        }
+                    }
+                    Stepper {
+                        label: "Förstoring"
+                        key: "zoomFactor"
+                        value: dockRow.d ? dockRow.d.zoomFactor : 1.4
+                        from: 1.0; to: 1.5
+                        unit: "×"
+                        enabledState: dockRow.d ? dockRow.d.zoom : true
+                    }
+                    Stepper {
+                        label: "Vågens bredd"
+                        key: "zoomRange"
+                        value: dockRow.d ? dockRow.d.zoomRange : 2.5
+                        from: 1.5; to: 4.0; step: 0.5
+                        unit: " ikoner"
+                        enabledState: dockRow.d ? dockRow.d.zoom : true
+                    }
+                }
+            }
+
             // The whole GOBLINCAKES look back (goblincakes-firstlogin --reset = `goblin dock reset`).
             // Other themes are fine – this is only the way back. Asks once before doing anything.
             Rectangle {

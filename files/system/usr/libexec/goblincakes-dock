@@ -1,15 +1,50 @@
 #!/usr/bin/env bash
 # GOBLINCAKES: the dock at the bottom of the screen (`goblin dock`).
-#   goblincakes-dock pin <id>   pin an app (desktop file name)
-#   goblincakes-dock reset      put the GOBLINCAKES desktop layout back (dock included)
+#   goblincakes-dock pin <id>         pin an app (desktop file name)
+#   goblincakes-dock get              the dock's settings as JSON (Config → Inställningar → Dockan)
+#   goblincakes-dock set <key> <val>  scale (0,5–2,0; the panel's height follows), zoom (true/false),
+#                                     zoomFactor (1,0–1,5), zoomRange (1,5–4,0)
+#   goblincakes-dock reset            put the GOBLINCAKES desktop layout back (dock included)
 set -uo pipefail
 
 plasma_js() { busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$1" >/dev/null; }
+# The script's print() output (busctl's JSON: {"type":"s","data":["…"]})
+plasma_out() {
+    busctl --user --json=short call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$1" \
+        | python3 -c 'import json, sys; print(json.load(sys.stdin)["data"][0], end="")'
+}
+# The GOBLINCAKES dock widget(s) in the bottom panel; the script body runs with `w` and `p`
+each_dock() {
+    printf '%s' 'panels().forEach(function (p) { if (p.location !== "bottom") return;
+        p.widgets("org.goblincakes.dock").forEach(function (w) { w.currentConfigGroup = ["General"]; '"$1"' }); });'
+}
 
 case ${1:-} in
     pin)
         id=${2:?desktop file}
         plasma_js "$(sed "s|%LAUNCHER%|applications:$id|" /usr/share/goblincakes/dock-add.js)" ;;
+    get)
+        # Defaults as in the widget's main.xml
+        out=$(plasma_out "var r = null; $(each_dock 'r = { scale: Number(w.readConfig("scale", 1.0)),
+            zoom: String(w.readConfig("zoom", true)) !== "false", zoomFactor: Number(w.readConfig("zoomFactor", 1.4)),
+            zoomRange: Number(w.readConfig("zoomRange", 2.5)), height: p.height };') print(JSON.stringify(r));") || exit 1
+        [ "$out" = null ] && { echo "Ingen GOBLINCAKES-docka i den nedre panelen." >&2; exit 1; }
+        echo "$out" ;;
+    set)
+        key=${2:?key}; val=${3:?value}
+        val=${val/,/.}
+        case $key in
+            scale)      js=$(python3 -c 'import sys; print(min(2.0, max(0.5, round(float(sys.argv[1]), 1))))' "$val") || exit 2
+                        # The frame is 48 px × the size; the panel needs room for it + its 4 px margins
+                        js="w.writeConfig(\"scale\", $js); p.height = Math.round(48 * $js) + 8;" ;;
+            zoom)       case $val in true|på|1) js='w.writeConfig("zoom", true);' ;; *) js='w.writeConfig("zoom", false);' ;; esac ;;
+            zoomFactor) js=$(python3 -c 'import sys; print(min(1.5, max(1.0, round(float(sys.argv[1]), 1))))' "$val") || exit 2
+                        js="w.writeConfig(\"zoomFactor\", $js);" ;;
+            zoomRange)  js=$(python3 -c 'import sys; print(min(4.0, max(1.5, round(float(sys.argv[1]) * 2) / 2)))' "$val") || exit 2
+                        js="w.writeConfig(\"zoomRange\", $js);" ;;
+            *) echo "Okänd inställning: $key (scale, zoom, zoomFactor, zoomRange)" >&2; exit 2 ;;
+        esac
+        plasma_js "$(each_dock "$js w.reloadConfig();")" ;;
     reset)
         # The whole GOBLINCAKES look (also the button in Config → Inställningar)
         echo "Tema, färger, typsnitt, terminalen, toppfältet och dockan blir som från början."
@@ -20,5 +55,5 @@ case ${1:-} in
         fi
         sh /usr/libexec/goblincakes-firstlogin --reset
         echo "GOBLINCAKES-utseendet är återställt. Logga ut och in igen så att alla program får det." ;;
-    *) echo "Använd: goblin dock reset" >&2; exit 2 ;;
+    *) echo "Använd: goblin dock reset | get | set <scale|zoom|zoomFactor|zoomRange> <värde>" >&2; exit 2 ;;
 esac

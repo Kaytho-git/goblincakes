@@ -73,6 +73,7 @@ def removable(app):
     return kind != "flatpak-or-rpm" or run("flatpak", ["info", args[0]])[0] == 0
 ACCENT = os.environ.get("GOBLINCAKES_CONFIG_ACCENT", "/usr/libexec/goblincakes-accent")
 TILE = os.environ.get("GOBLINCAKES_CONFIG_TILE", "/usr/libexec/goblincakes-tile")
+DOCK = os.environ.get("GOBLINCAKES_CONFIG_DOCK", "/usr/libexec/goblincakes-dock")
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
 DONE_FILE = STATE / "config-done"
 OLD_DONE_FILE = STATE / "setup-done"  # from when the window was called GOBLINCAKES Setup
@@ -270,6 +271,7 @@ class Config(QObject):
     mainBrowserChanged = Signal()
     terminalChanged = Signal()
     accentsChanged = Signal()  # Utseende: the colours, which one is chosen, busy
+    dockChanged = Signal()     # Utseende: the dock's size and wave (goblincakes-dock get)
     tilesLoaded = Signal(str)   # Fönster: goblincakes-tile json ("" = failed)
     tilesCaptured = Signal(str)  # Fönster: KDE's tiles now, {"screens": {connector: tree}}
     tileDone = Signal(str)      # Fönster: a layout was used – the message
@@ -489,6 +491,22 @@ class Config(QObject):
         proc.finished.connect(done)
         proc.errorOccurred.connect(lambda error: done() if error == QProcess.FailedToStart else None)
         proc.start(ACCENT, ["set", accent_id])
+
+    # ── Utseende: the dock (goblincakes-dock get/set) ──────────
+
+    @Property(str, notify=dockChanged)
+    def dock(self):
+        """{"scale", "zoom", "zoomFactor", "zoomRange"} – "" when there is no GOBLINCAKES dock."""
+        if not hasattr(self, "_dock"):
+            code, out = run(DOCK, ["get"])
+            self._dock = out.strip() if code == 0 else ""
+        return self._dock
+
+    @Slot(str, str)
+    def setDock(self, key, value):
+        run(DOCK, ["set", key, value])
+        del self._dock
+        self.dockChanged.emit()
 
     # ── Fönster: window layouts (goblincakes-tile) ─────────────
 
