@@ -108,7 +108,9 @@ PlasmoidItem {
         // Sizes: all from the panel's thickness. The frame is the whole height; the biggest icon
         // reaches 1 px inside the frame (1 px border + 1 px air top and bottom).
         // Size at scale 1 = the old dock (48 px); Config's scale multiplies it, up to the panel's height
-        readonly property real thickness: Math.max(16, Math.min(height, 48 * Math.max(0.5, Plasmoid.configuration.scale)))
+        // A saved "nan" (from the broken Storlek box) counts as 1
+        readonly property real userScale: isFinite(Plasmoid.configuration.scale) ? Math.max(0.5, Plasmoid.configuration.scale) : 1
+        readonly property real thickness: Math.max(16, Math.min(height, 48 * userScale))
         readonly property real frameTop: (height - thickness) / 2
         readonly property real maxSize: thickness - 4
         readonly property real base: Math.max(8, Math.floor(maxSize / root.zoomMax))
