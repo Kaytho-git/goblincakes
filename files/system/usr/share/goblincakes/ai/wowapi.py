@@ -25,6 +25,8 @@ import time
 import urllib.request
 from pathlib import Path
 
+HERE = Path(__file__).resolve().parent
+
 HOME = Path.home()
 DATA = HOME / ".local/share/goblincakes/wowapi"
 INDEX = DATA / "index.json"
@@ -527,6 +529,27 @@ def lua_error(path):
     return int(m.group(1)), m.group(2).strip()[:200]
 
 
+LUA_LIBS = {"math", "string", "table", "coroutine", "bit", "os", "io", "debug", "_G", "_VERSION", "arg", "self", "_ENV",
+            "require", "module", "load", "loadstring", "dofile", "getfenv", "setfenv", "collectgarbage", "newproxy", "gcinfo"}
+
+
+def lua_globals(path):
+    """[(read?, line, name)] – every global the file reads or writes, by LuaJIT's compiler (wowapi-globals.lua);
+    [] without LuaJIT or when the file doesn't load."""
+    try:
+        r = subprocess.run(["luajit", str(HERE / "wowapi-globals.lua"), str(path)], capture_output=True, text=True,
+                           timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    out = []
+    for row in r.stdout.splitlines() if r.returncode == 0 else []:
+        kind, _, rest = row.partition(" ")
+        line, _, name = rest.partition(" ")
+        if line.isdigit() and name:
+            out.append((kind == "G", int(line), name))
+    return out
+
+
 def _call_args(line, end):
     """The arguments of the call whose "(" is just before `end` – a list of texts, or None when it can't be told."""
     depth, start = 0, end
@@ -611,6 +634,20 @@ def check(target):
             others = _installed_definitions()
         return others
 
+    # A lowercase global that is read but never given a value anywhere (here, WoW, other add-ons) = a local that
+    # went missing: nil at that line ("ilvl" after gemma4's sed replaced its line, 30 Oct). Capitalised names
+    # are left alone – frames from XML/CreateFrame(…, "Name") and other add-ons' tables are globals by design.
+    used = {f: lua_globals(f) for f, _ in lua}
+    written = {n for rows in used.values() for read, _, n in rows if not read}
+    for f, rows in used.items():
+        for read, n, name in rows:
+            if (read and name[:1].islower() and name not in LUA_LIBS and name not in written and name not in known_calls
+                    and name not in own and name not in installed()[0] and not _guarded(name, code_all)):
+                # all lowercase (ilvl) = surely a lost local; hash_ChatTypeInfoList is Blizzard's own (FrameXML)
+                once(("nil", name), sure if re.fullmatch(r"[a-z][a-z0-9_]*", name) else maybe,
+                     f"{f.relative_to(folder)} rad {n}: {name} används men får aldrig något värde "
+                     f"(ingen `local {name} = …` före, och den sätts ingenstans) – den är nil där och tillägget kraschar "
+                     "när raden körs. Saknas en rad? Jämför med hur filen såg ut före ändringen.")
     for f, _ in lua:
         err = lua_error(f)
         if err:

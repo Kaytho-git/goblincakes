@@ -2228,6 +2228,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             answer, messages, tools, any(t in ("sök", "sida") for t, _ in LAST.tools), repaired) or ("", "")
         if not why and not request_ and "lookup" not in repaired and "wowapi" in tools:
             kind, why = "lookup", lookup_nudge(answer, LAST.tools)
+        if not why and not request_ and "shift" not in repaired:
+            kind, why = "shift", line_shift_nudge(answer)
         if why:
             repaired.add(kind)
             steps.start("Kontrollerar svaret")
@@ -4158,6 +4160,28 @@ def lookup_nudge(answer, looked):
     return ("Du lägger in " + ", ".join(missing[:5]) + " i tillägget utan att ha slagit upp " + ("den" if len(missing) == 1
             else "dem") + " i den här frågan. Slå upp varje med verktyget wowapi (vad den vill ha och vad den ger "
             "tillbaka) och skriv raden efter det – ett namn som finns kan ändå ta och ge tillbaka helt andra saker.")
+
+
+SED_LINE = re.compile(r"""\bsed\s+(?:-\w*i\w*|--in-place)\s+(['"])(\d+)(?:,(\d+|\$))?([dsciar])(.*?)\1\s+(\S+)""", re.S)
+
+
+def line_shift_nudge(answer):
+    """Line-numbered seds after one that deletes or adds lines further up the same file: the numbers below have moved.
+    gemma4's `sed -i '12d'` then `sed -i '39c …'` replaced the old line 40 (`local ilvl = …`) – 30 Oct. The reason to
+    send the answer back once, or ""."""
+    changed = {}  # file → [(line, what)]
+    for block in cmd_level().code_blocks_in(answer):
+        for _, start, end, cmd, rest, target in SED_LINE.findall(block):
+            n = int(start)
+            moved = [(m, w) for m, w in changed.get(target, []) if m < n]
+            if moved:
+                m, w = moved[0]
+                return (f"`{w}` {'tar bort' if w.endswith('d') else 'lägger till'} rader på rad {m} – alla rader under "
+                        f"flyttas, så `{start}{cmd}` på rad {n} träffar en annan rad än du läste. Gör ändringarna nerifrån "
+                        "och upp (högst radnummer först) i samma svar, eller räkna om numren.")
+            if cmd in "dia" or cmd == "c" and end:
+                changed.setdefault(target, []).append((n, f"{start}{',' + end if end else ''}{cmd}"))
+    return ""
 
 
 def addon_check(messages):
