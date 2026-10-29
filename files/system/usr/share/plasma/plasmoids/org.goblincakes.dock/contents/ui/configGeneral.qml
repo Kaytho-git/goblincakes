@@ -15,18 +15,20 @@ KCM.SimpleKCM {
     property alias cfg_zoomRange: range.value
 
     Kirigami.FormLayout {
-        // 1,0 = like the old dock; − and + in steps of 0,1
+        // 1,0 = like the old dock; − and + in steps of 0,1 (the value is tenths; note the Slider
+        // below has id `factor`, so that name can't be used in here)
         QQC2.SpinBox {
             id: scaleBox
             Kirigami.FormData.label: "Storlek:"
-            readonly property int decimals: 1
-            readonly property real factor: 10
-            value: Math.round(cfg_scale * factor)
+            value: Math.round((isNaN(cfg_scale) ? 1 : cfg_scale) * 10)
             from: 5; to: 20; stepSize: 1
             editable: true
-            textFromValue: (v, locale) => Number(v / factor).toLocaleString(locale, 'f', decimals)
-            valueFromText: (text, locale) => Math.round(Number.fromLocaleString(locale, text) * factor)
-            onValueModified: cfg_scale = value / factor
+            textFromValue: v => (v / 10).toFixed(1).replace(".", ",")
+            valueFromText: text => {
+                const n = parseFloat(String(text).replace(",", "."));
+                return isNaN(n) ? value : Math.round(n * 10);
+            }
+            onValueModified: cfg_scale = value / 10
         }
         QQC2.CheckBox {
             id: zoom
