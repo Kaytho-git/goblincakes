@@ -19,7 +19,9 @@ Where it goes (all in the home folder, the standard blue = the copies are remove
   - window frames: Death Knight only – the red close button turns orange (~/.local/share/aurorae)
   - Firefox: a marked block in userChrome.css of every profile (the signed theme stays)
   - Discord: the Vencord theme, only when switched on (goblincakes-vencord theme)
-  - Kitty (when it is installed): ~/.config/kitty/goblincakes-accent.conf, reloaded live
+  - the terminals: the cursor (and Kitty's tabs) – Kitty ~/.config/kitty/goblincakes-accent.conf
+    (reloaded live), Ghostty ~/.config/ghostty/themes/GoblinCakes (a copy of the theme, read when
+    Ghostty starts), Konsole ~/.local/share/konsole/GoblinCakes.profile (new windows)
   - the login screen: /var/lib/goblincakes/sddm-theme.conf through pkexec (no password)
   - GOBLINCAKES' own windows: ~/.config/goblincakes/accent.json, followed live
 """
@@ -308,6 +310,55 @@ def apply_kitty(pal):
         run(["pkill", "-USR1", "-x", "kitty"])
 
 
+# ── Ghostty and Konsole (29 Oct, the user's wish: the terminals follow the colour too) ──
+
+GHOSTTY_MARK = "# GOBLINCAKES accent – written by goblincakes-accent"
+
+
+def apply_ghostty(pal):
+    """A theme of the same name in Ghostty's own themes folder goes before the system's one.
+    Standard blue = the copy goes. A running Ghostty reads it at its next start."""
+    target = CONFIG_HOME / "ghostty/themes/GoblinCakes"
+    try:
+        own = target.read_text()
+    except OSError:
+        own = None
+    if own is not None and not own.startswith(GHOSTTY_MARK):
+        return   # the user's own theme by that name: left alone
+    if pal["id"] == "standard":
+        if own is not None:
+            target.unlink(missing_ok=True)
+        return
+    try:
+        text = sys_path("/usr/share/ghostty/themes/GoblinCakes").read_text()
+    except OSError:
+        return
+    for key, value in (("cursor-color", pal["color"]), ("cursor-text", pal["on"]),
+                       ("selection-background", pal["dim"])):
+        text = re.sub(rf"^{key} = .*$", f"{key} = {value}", text, flags=re.M)
+    write_if_changed(target, GHOSTTY_MARK + "\n" + text)
+
+
+def apply_konsole(pal):
+    """The cursor colour in the GoblinCakes profile. Konsole saves an edited profile in
+    ~/.local/share/konsole under the same name – then only that one key is changed."""
+    target = DATA_HOME / "konsole/GoblinCakes.profile"
+    r, g, b = A.rgb(pal["color"])
+    tr, tg, tb = A.rgb(pal["on"])
+    try:
+        text = target.read_text()
+    except OSError:
+        if pal["id"] == "standard":
+            return
+        try:
+            text = sys_path("/usr/share/konsole/GoblinCakes.profile").read_text()
+        except OSError:
+            return
+    text = set_in_section(text, "Cursor Options", "CustomCursorColor", f"{r},{g},{b}")
+    text = set_in_section(text, "Cursor Options", "CustomCursorTextColor", f"{tr},{tg},{tb}")
+    write_if_changed(target, text)
+
+
 # ── The login screen ──────────────────────────────────────────────
 
 def apply_sddm(pal):
@@ -351,6 +402,8 @@ def apply_files(pal):
     apply_firefox(pal)
     apply_discord()
     apply_kitty(pal)
+    apply_ghostty(pal)
+    apply_konsole(pal)
     STAMP.parent.mkdir(parents=True, exist_ok=True)
     STAMP.write_text(files_stamp(pal) + "\n")
     return frames
