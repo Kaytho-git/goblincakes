@@ -307,6 +307,44 @@ class ServiceError(Exception):
     pass
 
 
+def stoppable_post(req, timeout, stop):
+    """The local AI's question, cut off when STOPP is pressed: Ollama goes on writing for as long as the
+    connection is open (29 Oct: a stopped qwen held the graphics card 10 min, gemma's question waited
+    behind it) – closing the socket ends it. Raises Stopped, or HTTPError like urlopen."""
+    import http.client
+    import io
+    import socket
+    url = urllib.parse.urlsplit(req.full_url)
+    conn = http.client.HTTPConnection(url.hostname, url.port, timeout=timeout)
+    finished = threading.Event()
+
+    def watch():
+        while not finished.wait(0.3):
+            if stop.is_set():
+                try:
+                    conn.sock and conn.sock.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                return
+    threading.Thread(target=watch, daemon=True).start()
+    try:
+        conn.request(req.get_method(), url.path, body=req.data, headers=dict(req.header_items()))
+        resp = conn.getresponse()
+        data = resp.read()
+    except (OSError, http.client.HTTPException) as e:
+        if stop.is_set():
+            raise Stopped() from None
+        raise e if isinstance(e, OSError) else OSError(str(e)) from None
+    finally:
+        finished.set()
+        conn.close()
+    if stop.is_set():
+        raise Stopped()
+    if resp.status >= 400:
+        raise urllib.error.HTTPError(req.full_url, resp.status, resp.reason, resp.headers, io.BytesIO(data))
+    return data
+
+
 def request(provider, key, path, body=None, timeout=90):
     headers = {"Content-Type": "application/json", "User-Agent": "goblincakes-ai"}
     if provider.get("local"):
@@ -328,7 +366,10 @@ def request(provider, key, path, body=None, timeout=90):
         data=json.dumps(body).encode() if body is not None else None,
         headers=headers,
     )
+    stop = getattr(LAST, "stop", None)
     try:
+        if provider.get("local") and stop is not None:
+            return json.loads(stoppable_post(req, timeout, stop).decode())
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
@@ -1485,6 +1526,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
     LAST.tools, LAST.steps, LAST.done = [], None, []
+    LAST.stop = steps.stop if steps else None  # request() closes the local AI's connection on STOPP
     activity("ask", "tänker", steps=[])
     messages = [{**m, "content": m["content"].replace("\n\n" + FROM_MEMORY, "")}
                 if m["role"] == "assistant" and isinstance(m.get("content"), str) else m for m in messages]

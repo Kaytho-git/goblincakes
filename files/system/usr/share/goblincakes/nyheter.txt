@@ -1,3 +1,4 @@
+2026-10-29  STOPP i Goblin AI stoppar den lokala AI:n direkt – förut fortsatte den i bakgrunden i upp till tio minuter, och nästa fråga fick vänta.
 2026-10-29  Goblin AI skapar filerna själv när hon bygger något, i stället för att ge dig kod att kopiera.
 2026-10-29  GoblinRecorder: Warcraft Logs-länken i YouTube-beskrivningen blir kort (is.gd), så YouTube inte klipper den.
 2026-10-29  Goblin AI säger inte längre att något är klart eller provat innan hon har sett att det fungerar, och hon läser felmeddelandet i stället för att gissa. Ber du henne bygga en skrivbordswidget följer hon en provad mall för Plasma 6 och provar widgeten innan hon säger klart
