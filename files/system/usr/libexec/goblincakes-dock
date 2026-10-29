@@ -24,10 +24,11 @@ case ${1:-} in
         id=${2:?desktop file}
         plasma_js "$(sed "s|%LAUNCHER%|applications:$id|" /usr/share/goblincakes/dock-add.js)" ;;
     get)
-        # Defaults as in the widget's main.xml
-        out=$(plasma_out "var r = null; $(each_dock 'r = { scale: Number(w.readConfig("scale", 1.0)),
-            zoom: String(w.readConfig("zoom", true)) !== "false", zoomFactor: Number(w.readConfig("zoomFactor", 1.4)),
-            zoomRange: Number(w.readConfig("zoomRange", 2.5)), height: p.height };') print(JSON.stringify(r));") || exit 1
+        # Defaults as in the widget's main.xml. Read as text: readConfig converts to the default's
+        # type, and 1.0 is a whole number in JavaScript (scale=1.1 came back as 1)
+        out=$(plasma_out "var r = null; $(each_dock 'r = { scale: parseFloat(w.readConfig("scale", "1")),
+            zoom: String(w.readConfig("zoom", true)) !== "false", zoomFactor: parseFloat(w.readConfig("zoomFactor", "1.4")),
+            zoomRange: parseFloat(w.readConfig("zoomRange", "2.5")), height: p.height };') print(JSON.stringify(r));") || exit 1
         [ "$out" = null ] && { echo "Ingen GOBLINCAKES-docka i den nedre panelen." >&2; exit 1; }
         echo "$out" ;;
     set)
