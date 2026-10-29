@@ -493,7 +493,14 @@ def read_file(path, match="", start=0):
     shown = lines[-READ_LINES:]
     if len(lines) > len(shown) or not first:
         head += f" – de sista {len(shown)} raderna"
+    if first and path.suffix.lower() in CODE_FILES:
+        # Code with its line numbers: gemma4 guessed them for `sed -i 'N…'` and changed the wrong lines (30 Oct)
+        return (head + " (radnummer först – \"12: \" hör inte till raden):\n"
+                + "\n".join(f"{i}: {hide(l[:cut])}" for i, l in enumerate(shown, len(lines) - len(shown) + 1)))
     return head + ":\n" + "\n".join(hide(l[:cut]) for l in shown)
+
+
+CODE_FILES = {".lua", ".toc", ".xml", ".py", ".sh", ".js", ".qml", ".css", ".html", ".desktop", ".service", ".conf", ".ini"}
 
 
 def grep_text(text, where):

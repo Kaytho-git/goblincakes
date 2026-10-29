@@ -4196,7 +4196,11 @@ def addon_check(messages):
     cwd = Path(m.group(1)) if m else Path.home()
     folders = []
     for block in cmd_level().code_blocks_in(said):
-        for target in cmd_level().write_targets(block, cwd):
+        # Paths to add-on files as written too: a sed over several lines (`'46,53c\ …\` with code) gave
+        # write_targets the code's words as the file, and the check never ran (30 Oct)
+        named = [Path(os.path.expanduser(p)) if p.startswith("~") else Path(p) if p.startswith("/") else cwd / p
+                 for p in re.findall(r"(?<![\w])((?:~|/)?[\w./-]+\.(?:lua|toc|xml))\b", block)]
+        for target in cmd_level().write_targets(block, cwd) + named:
             folder = wow_api().addon_folder(target)
             if folder and folder not in folders:
                 folders.append(folder)
@@ -4266,6 +4270,10 @@ def on_topic(found, *texts):
     return [f for f in found if shared(f) >= need]
 
 
+CODE_SUFFIXES = {".lua", ".toc", ".xml", ".py", ".sh", ".js", ".qml", ".json", ".css", ".html", ".conf", ".ini", ".md",
+                 ".txt", ".desktop", ".service"}
+
+
 def investigate(question, tools, keys, notice, project, choice, steps, status=None):
     """Repairing without an error message (REPAIR_WHEN): the named files, then a search the AI only words and the
     best hit read whole – laid before her before she answers. Returns (text, sources); ("", []) when nothing came."""
@@ -4277,9 +4285,16 @@ def investigate(question, tools, keys, notice, project, choice, steps, status=No
             parts.append(f"Mappen {path} ({p.name}): " + ", ".join(f.name for f in sorted(p.iterdir())) or "tom")
         for f in files:
             try:
-                parts.append(f"--- {f} ---\n" + f.read_text(errors="replace")[:6000])
+                text = f.read_text(errors="replace")[:6000]
             except OSError:
-                pass
+                continue
+            if f.suffix.lower() in CODE_SUFFIXES:
+                # Numbered: gemma4 guessed the numbers for `sed -i 'Nc …'` and replaced lines 46–53 when the loop was
+                # on 34–42 (30 Oct). "12: " is only the number – not part of the line.
+                text = "\n".join(f"{n}: {row}" for n, row in enumerate(text.splitlines(), 1))
+                parts.append(f"--- {f} (radnummer först – \"12: \" hör inte till raden) ---\n" + text)
+            else:
+                parts.append(f"--- {f} ---\n" + text)
     if parts:
         steps.start("Läser filerna")
         steps.done(note=f"{len(parts)} delar")
