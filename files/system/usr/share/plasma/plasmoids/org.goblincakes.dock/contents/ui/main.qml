@@ -184,12 +184,13 @@ PlasmoidItem {
 
         // Only the frame reacts to the pointer – the panel around it can be taller. The handler sits
         // on the whole dock (a sibling item under the icons would never get the hover) and
-        // checks the height itself.
+        // checks the frame's rectangle itself (the widget can be wider and taller than the frame).
         property bool inFrame: false
         HoverHandler {
             id: hover
             onPointChanged: {
-                dock.inFrame = point.position.y >= dock.frameTop && point.position.y <= dock.frameTop + dock.thickness;
+                dock.inFrame = point.position.y >= dock.frameTop && point.position.y <= dock.frameTop + dock.thickness
+                               && point.position.x >= dock.rowLeft && point.position.x <= dock.rowLeft + dock.frameWidth;
                 if (hovered && dock.inFrame)
                     dock.pointer = Math.min(Math.max((point.position.x - dock.restLeft) / dock.restStep, 0), dock.count);
             }
