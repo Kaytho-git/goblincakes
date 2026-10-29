@@ -9,6 +9,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
 
 KCM.SimpleKCM {
+    property alias cfg_style: style.currentIndex
     property alias cfg_zoom: zoom.checked
     property alias cfg_zoomFactor: factor.value
     property alias cfg_zoomRange: range.value
@@ -18,6 +19,12 @@ KCM.SimpleKCM {
             id: zoom
             Kirigami.FormData.label: "Våg:"
             text: "Ikonerna växer under pekaren"
+        }
+        QQC2.ComboBox {
+            id: style
+            Kirigami.FormData.label: "Ramen:"
+            enabled: zoom.checked
+            model: ["Växer med vågen", "Står still (luftig)"]
         }
         RowLayout {
             Kirigami.FormData.label: "Förstoring:"

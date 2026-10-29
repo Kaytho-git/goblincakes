@@ -7,17 +7,19 @@
     - TasksModel with launchInPlace: an open pinned app takes its launcher's place, so every
       pinned app is one row; rows whose launcher position is -1 (not pinned) are hidden.
     - The wave (like macOS, the user's wish): the icon under the pointer grows the most, its
-      neighbours less, out to `zoomRange` icons each way (cosine falloff). The icons grow away
-      from the panel's edge; the dock's drawn background keeps its height and widens with them.
-      The panel is thicker than the drawn dock – the strip above is transparent room for the
-      grown icons (the panel window would clip them otherwise).
-    - Size: everything comes from the panel's thickness – base icon = thickness / (zoom + 0.24),
-      so dragging the panel's edge (or Config later) resizes the dock and the icons follow.
+      neighbours less, out to `zoomRange` icons each way (cosine falloff). The icons stay inside
+      the frame (the user's wish): the frame is the panel's whole height, icons rest centred and
+      the biggest reaches 1 px inside it. Two styles to try (`style`): 0 = the frame widens with
+      the wave (the point under the pointer stays still), 1 = "luftig" – the frame stays put and
+      the wide gaps at rest shrink (down to 1 px) as icons grow.
+    - Size: everything comes from the panel's thickness – biggest icon = thickness − 4,
+      icon at rest = that / zoom, so dragging the panel's edge (or Config later) resizes the
+      dock and the icons follow.
     - Click: launcher → start; one window → show / minimise; several → bring them all up, or
       the next one if one is already active. Middle click = new window. Right click = menu
       (new window, close, unpin). Drag an icon = move it; drop an app (.desktop) = pin it there.
-    - The widget's width is fixed (the row + room for the widest wave), so the panel doesn't
-      resize while the pointer moves.
+    - The widget's width is fixed (style 0: the row + room for the widest wave), so the panel
+      doesn't resize while the pointer moves.
     Not yet: previews on hover, Meta+1–9 (still icontasks'), vertical panels.
 */
 import QtQuick
@@ -36,7 +38,7 @@ PlasmoidItem {
     readonly property color night: "#0B1018"
 
     readonly property bool editMode: Plasmoid.containment.corona?.editMode ?? false
-    readonly property bool growDown: Plasmoid.location === PlasmaCore.Types.TopEdge
+    readonly property bool atTop: Plasmoid.location === PlasmaCore.Types.TopEdge
     readonly property real zoomMax: Plasmoid.configuration.zoom ? Math.max(1, Plasmoid.configuration.zoomFactor) : 1
     readonly property real zoomRange: Math.max(0.5, Plasmoid.configuration.zoomRange)
 
@@ -101,26 +103,48 @@ PlasmoidItem {
         id: dock
 
         readonly property int count: tasksModel.launcherList.length
-        // Sizes: all from the panel's thickness
+        // Two styles to try (29 Oct, the user picks one, the other goes): 0 = the frame widens
+        // with the wave, 1 = "luftig" – the frame stays put, wide gaps at rest shrink as icons grow
+        readonly property bool airy: Plasmoid.configuration.style === 1
+        // Sizes: all from the panel's thickness. The frame is the whole height; the biggest icon
+        // reaches 1 px inside the frame (1 px border + 1 px air top and bottom).
         readonly property real thickness: Math.max(16, height)
-        readonly property real base: Math.max(8, Math.floor(thickness / (root.zoomMax + 0.24)))
+        readonly property real maxSize: thickness - 4
+        readonly property real base: Math.max(8, Math.floor(maxSize / root.zoomMax))
         readonly property real spacing: Math.round(base * 0.12)
         readonly property real pad: Math.round(base * 0.12)
-        readonly property real step: base + spacing
-        readonly property real bandHeight: base + 2 * pad
 
-        // The wave's widest reach on one side (computed once per size/setting) → fixed width
-        readonly property real reserve: {
+        // The most the icons grow together (any pointer position), in px
+        readonly property real growth: {
             let most = 0;
             for (let t = 0; t <= count; t += 0.05) {
-                const g = layout(t, 1);
-                most = Math.max(most, g.left, g.right);
+                let sum = 0;
+                for (let i = 0; i < count; i++) sum += base * (scale(i, t, 1) - 1);
+                most = Math.max(most, sum);
             }
             return Math.ceil(most);
         }
-        readonly property real rowWidth: count * step
-        readonly property real totalWidth: rowWidth + 2 * reserve + 2 * pad
-        readonly property real rowLeft: (width - rowWidth) / 2
+        // Airy: the gap at rest that leaves room for all of that growth with gaps down to 1 px
+        // (+ 1 px inside the border at each end, so the end icons keep 1 px air to the frame)
+        readonly property real airyGap: Math.max(spacing, Math.ceil(growth / (count + 1)) + 1)
+        readonly property real frameWidth: count * base + (count + 1) * airyGap + 2
+
+        // Rest layout: slot i starts at restLeft + i × restStep (used for the pointer and drags)
+        readonly property real restStep: airy ? base + airyGap : base + spacing
+        readonly property real rowWidth: count * restStep
+        // Frame widens: the wave's widest reach on one side (once per size/setting) → fixed width
+        readonly property real reserve: {
+            if (airy) return 0;
+            let most = 0;
+            for (let t = 0; t <= count; t += 0.05) {
+                const g = layout(t, 1);
+                most = Math.max(most, -g.frameL - pad + spacing / 2, g.frameR - rowWidth - pad + spacing / 2);
+            }
+            return Math.ceil(most);
+        }
+        readonly property real totalWidth: airy ? frameWidth : rowWidth + 2 * reserve + 2 * pad
+        readonly property real rowLeft: (width - (airy ? frameWidth : rowWidth)) / 2
+        readonly property real restLeft: airy ? rowLeft + 1 + airyGap / 2 : rowLeft
 
         Layout.minimumWidth: totalWidth
         Layout.preferredWidth: totalWidth
@@ -130,7 +154,6 @@ PlasmoidItem {
         // Where the pointer is along the row, in icons (0 … count); kept when it leaves so the
         // wave sinks where it was
         property real pointer: 0
-        property bool engaged: false
         // Dragging an icon: shown at dragTo while held, moved for real on release (a launcher
         // reorder can recreate the rows, which would drop the held one mid-drag)
         property int dragFrom: -1
@@ -143,32 +166,46 @@ PlasmoidItem {
             if (dragFrom > dragTo && slot >= dragTo && slot < dragFrom) return slot + 1;
             return slot;
         }
-        property real amount: engaged && !dragging && !root.editMode && root.zoomMax > 1 ? 1 : 0
+        property real amount: hover.hovered && !dragging && !root.editMode && root.zoomMax > 1 ? 1 : 0
         Behavior on amount { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
         function falloff(d) {
             return d >= root.zoomRange ? 0 : (Math.cos(Math.PI * d / root.zoomRange) + 1) / 2;
         }
+        function scale(i, t, a) {
+            return 1 + (root.zoomMax - 1) * a * falloff(Math.abs(i + 0.5 - t));
+        }
 
-        // Sizes and places for pointer position t (icons) at wave strength a.
-        // x[i] = left edge of slot i (slot = icon + spacing), relative to the row's own left;
-        // left/right = how far the grown row reaches past the unzoomed row on each side.
+        // Sizes and places for pointer position t (icons) at wave strength a, relative to rowLeft.
+        // x[i]/width[i] = slot i (icon + gap, the icon gap/2 in); frameL/frameR = the frame's edges.
         function layout(t, a) {
             const xs = [], sizes = [], widths = [];
             let total = 0;
+            for (let i = 0; i < count; i++) sizes.push(base * scale(i, t, a));
+            if (airy) {
+                // The frame stays put: what the icons don't use is shared out as equal gaps
+                const used = sizes.reduce((sum, v) => sum + v, 0);
+                const gap = Math.max(1, (frameWidth - 2 - used) / (count + 1));
+                let x = 1 + gap / 2;
+                for (let i = 0; i < count; i++) {
+                    xs.push(x);
+                    widths.push(sizes[i] + gap);
+                    x += sizes[i] + gap;
+                }
+                return { x: xs, size: sizes, width: widths, gap: gap, frameL: 0, frameR: frameWidth };
+            }
             for (let i = 0; i < count; i++) {
-                const s = 1 + (root.zoomMax - 1) * a * falloff(Math.abs(i + 0.5 - t));
-                sizes.push(base * s);
-                widths.push(base * s + spacing);
+                widths.push(sizes[i] + spacing);
                 xs.push(total);
-                total += base * s + spacing;
+                total += sizes[i] + spacing;
             }
             // Keep the point under the pointer still: zoomed position of t = unzoomed position of t
             const k = Math.min(Math.max(Math.floor(t), 0), Math.max(count - 1, 0));
             const at = count === 0 ? 0 : xs[k] + (t - k) * widths[k];
-            const shift = t * step - at;
+            const shift = t * restStep - at;
             for (let i = 0; i < count; i++) xs[i] += shift;
-            return { x: xs, size: sizes, width: widths, left: -shift, right: total + shift - count * step };
+            return { x: xs, size: sizes, width: widths, gap: spacing,
+                     frameL: shift + spacing / 2 - pad, frameR: shift + total - spacing / 2 + pad };
         }
 
         readonly property var geo: layout(pointer, amount)
@@ -176,24 +213,17 @@ PlasmoidItem {
         HoverHandler {
             id: hover
             onPointChanged: {
-                if (!hovered) return;
-                const p = point.position;
-                dock.pointer = Math.min(Math.max((p.x - dock.rowLeft) / dock.step, 0), dock.count);
-                // Starts in the drawn band, then stays on over the grown icons above it
-                const inBand = root.growDown ? p.y <= dock.bandHeight : p.y >= dock.height - dock.bandHeight;
-                if (inBand) dock.engaged = true;
+                if (hovered)
+                    dock.pointer = Math.min(Math.max((point.position.x - dock.restLeft) / dock.restStep, 0), dock.count);
             }
-            onHoveredChanged: if (!hovered) dock.engaged = false
         }
 
-        // The dock's own background + frame in the accent colour (the panel's own is hidden)
+        // The dock's own background + frame in the accent colour, the panel's whole height
+        // (the panel's own background is hidden)
         Rectangle {
-            readonly property real first: dock.count ? dock.geo.x[0] : 0
-            readonly property real last: dock.count ? dock.geo.x[dock.count - 1] + dock.geo.width[dock.count - 1] : 0
-            x: dock.rowLeft + first - dock.pad + dock.spacing / 2
-            width: last - first - dock.spacing + 2 * dock.pad
-            y: root.growDown ? 0 : dock.height - dock.bandHeight
-            height: dock.bandHeight
+            x: dock.rowLeft + dock.geo.frameL
+            width: dock.geo.frameR - dock.geo.frameL
+            height: dock.height
             color: Qt.rgba(root.night.r, root.night.g, root.night.b, 0.6)
             border.color: root.accent
             border.width: 1
@@ -227,8 +257,8 @@ PlasmoidItem {
                     id: icon
                     width: task.size
                     height: task.size
-                    x: dock.spacing / 2
-                    y: root.growDown ? dock.pad : dock.height - dock.pad - task.size
+                    x: dock.geo.gap / 2
+                    y: (dock.height - task.size) / 2
                     source: task.model.decoration
                     active: mouse.containsMouse
                     SequentialAnimation on opacity {
@@ -241,10 +271,12 @@ PlasmoidItem {
                 }
 
                 // Open marker: one square per window (at most 3), the active app's first one wide
+                // (drawn over the icon, so a grown icon doesn't hide it)
                 Row {
+                    z: 1
                     spacing: Math.max(2, Math.round(dock.pad * 0.3))
                     anchors.horizontalCenter: icon.horizontalCenter
-                    y: root.growDown ? Math.round(dock.pad * 0.25) : dock.height - height - Math.round(dock.pad * 0.25)
+                    y: root.atTop ? 3 : dock.height - height - 3
                     Repeater {
                         model: Math.min(task.windows, 3)
                         Rectangle {
@@ -261,9 +293,8 @@ PlasmoidItem {
                 PlasmaCore.ToolTipArea {
                     id: tip
                     x: 0
-                    y: root.growDown ? 0 : icon.y
                     width: parent.width
-                    height: root.growDown ? icon.y + icon.height : dock.height - icon.y
+                    height: dock.height
                     mainText: task.model.AppName || task.model.display || ""
                     subText: task.windows > 1 ? task.windows + " fönster"
                             : task.windows === 1 && task.model.display !== task.model.AppName ? (task.model.display ?? "") : ""
@@ -284,7 +315,7 @@ PlasmoidItem {
                             if (!moved) dock.dragFrom = task.slot;
                             moved = true;
                             const px = mapToItem(dock, mouse.x, mouse.y).x;
-                            dock.dragTo = Math.min(Math.max(Math.floor((px - dock.rowLeft) / dock.step), 0), dock.count - 1);
+                            dock.dragTo = Math.min(Math.max(Math.floor((px - dock.restLeft) / dock.restStep), 0), dock.count - 1);
                         }
                         onReleased: {
                             if (!dock.dragging) return;
@@ -315,7 +346,7 @@ PlasmoidItem {
             anchors.fill: parent
             onEntered: drag => drag.accepted = drag.hasUrls
             onDropped: drop => {
-                const target = Math.min(Math.max(Math.floor((drop.x - dock.rowLeft) / dock.step + 0.5), 0), dock.count);
+                const target = Math.min(Math.max(Math.floor((drop.x - dock.restLeft) / dock.restStep + 0.5), 0), dock.count);
                 for (const url of drop.urls) {
                     if (!String(url).endsWith(".desktop")) continue;
                     if (tasksModel.launcherPosition(url) >= 0) continue;
@@ -330,7 +361,7 @@ PlasmoidItem {
             id: menu
             property var task: null
             readonly property bool opened: status === PlasmaExtras.Menu.Open
-            placement: root.growDown ? PlasmaExtras.Menu.BottomPosedLeftAlignedPopup
+            placement: root.atTop ? PlasmaExtras.Menu.BottomPosedLeftAlignedPopup
                                      : PlasmaExtras.Menu.TopPosedLeftAlignedPopup
 
             PlasmaExtras.MenuItem {

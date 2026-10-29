@@ -18,6 +18,8 @@
 - Högerklick
   fråga: Högerklicka på en ikon – finns Nytt fönster, Stäng och Lossa från dockan, och fungerar Lossa?
 - Storlek
-  fråga: Redigera panelen och dra i dess kant så den blir högre/lägre. Följer ikonerna med?
+  fråga: Redigera panelen och dra i dess kant så den blir högre/lägre (prova runt 70 px). Följer ikonerna med, och håller de sig inom ramen även när de växer?
+- Välj stil
+  fråga: Högerklicka på dockan → Konfigurera → Ramen: prova "Växer med vågen" och "Står still (luftig)". Vilken gillar du? (Den andra tas bort.)
 - Program som inte är fästa
   fråga: Öppna ett program som inte är fäst (t.ex. Inställningar). Syns det INTE i den nya dockan?
