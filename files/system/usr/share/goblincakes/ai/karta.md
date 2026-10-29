@@ -208,6 +208,9 @@ Ord: goblinamp, amp, musikspelare, winamp, spotify, spellista, låtar, mediatang
 - /usr/bin/goblin-amp (kod /usr/share/goblincakes/amp/), inställningar ~/.config/goblincakes/amp.json och
   spotify.json, Last.fm lastfm.json. Spotify-appen startas dold av /usr/libexec/goblincakes-spotify-app.
 - `goblin amp hjälp` visar hur Spotify-listorna ställs in.
+- Spellistan kan sitta under spelaren eller i ett eget fönster (LOSSA i spellistan, FÄST i fönstrets namnlist):
+  amp.json `plDetached`, storleken `plWindow`; platsen sparar KWin-skriptet i kwinrc [Script-goblincakes-windows]
+  ampPlPlace (fönstret heter "GoblinAmp – spellista").
 
 ## goblin graph
 Ord: graph, ljudgraf, staplar, visualisering

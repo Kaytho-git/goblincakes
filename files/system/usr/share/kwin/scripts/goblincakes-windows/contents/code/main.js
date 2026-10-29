@@ -322,22 +322,40 @@ function graphAdded(window) {
 // when the script tells it (D-Bus org.goblincakes.amp placed) after a move; like goblin graph.
 const AMP = "goblin-amp";
 
+// The playlist's own window (29 Oct, LOSSA in the playlist): told apart by its title, kwinrc
+// ampPlPlace, placed("pl=x,y"); the first time right under GoblinAmp (or beside it when that
+// doesn't fit).
+const AMP_PLAYLIST = "GoblinAmp – spellista";
+
 function ampAdded(window) {
-    const xy = String(readConfig("ampPlace", "")).split(",").map(Number);
+    const playlist = String(window.caption) === AMP_PLAYLIST;
+    const xy = String(readConfig(playlist ? "ampPlPlace" : "ampPlace", "")).split(",").map(Number);
     const geo = window.frameGeometry;
-    if (xy.length === 2 && !isNaN(xy[0]) && !isNaN(xy[1])) {
-        const onScreen = workspace.screens.some(function (s) {
+    const fits = function (x, y) {
+        return workspace.screens.some(function (s) {
             const g = s.geometry;
-            return xy[0] + geo.width / 2 >= g.x && xy[0] + geo.width / 2 < g.x + g.width
-                && xy[1] + geo.height / 2 >= g.y && xy[1] + geo.height / 2 < g.y + g.height;
+            return x + geo.width / 2 >= g.x && x + geo.width / 2 < g.x + g.width
+                && y + geo.height / 2 >= g.y && y + geo.height / 2 < g.y + g.height;
         });
-        if (onScreen)
-            window.frameGeometry = { x: xy[0], y: xy[1], width: geo.width, height: geo.height };
+    };
+    if (xy.length === 2 && !isNaN(xy[0]) && !isNaN(xy[1]) && fits(xy[0], xy[1])) {
+        window.frameGeometry = { x: xy[0], y: xy[1], width: geo.width, height: geo.height };
+    } else if (playlist) {
+        const player = workspace.windowList().filter(function (w) {
+            return w.resourceClass === AMP && String(w.caption) !== AMP_PLAYLIST;
+        })[0];
+        if (player) {
+            const p = player.frameGeometry;
+            const area = workspace.clientArea(KWin.MaximizeArea, player.output, workspace.currentDesktop);
+            const below = p.y + p.height + geo.height <= area.y + area.height;
+            const x = below ? p.x : (p.x + p.width + geo.width <= area.x + area.width ? p.x + p.width : p.x - geo.width);
+            window.frameGeometry = { x: x, y: below ? p.y + p.height : p.y, width: geo.width, height: geo.height };
+        }
     }
     window.interactiveMoveResizeFinished.connect(function () {
         const g = window.frameGeometry;
         callDBus("org.goblincakes.amp", "/amp", "org.goblincakes.amp", "placed",
-                 Math.round(g.x) + "," + Math.round(g.y));
+                 (playlist ? "pl=" : "") + Math.round(g.x) + "," + Math.round(g.y));
     });
 }
 

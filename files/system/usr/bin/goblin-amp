@@ -49,6 +49,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuick import QQuickWindow, QSGRendererInterface
 
 HERE = Path(__file__).resolve()
 # Next to this file first: run from the repo, the repo's own parts (not the image's older ones)
@@ -182,16 +183,20 @@ class Watcher(threading.Thread):
 
 @ClassInfo({"D-Bus Interface": "org.goblincakes.amp"})
 class PlaceBus(QObject):
-    """KWin's goblincakes-windows script calls placed("x,y") after the window was moved."""
+    """KWin's goblincakes-windows script calls placed("x,y") after the window was moved, and
+    placed("pl=x,y") after the playlist's own window was (kwinrc ampPlPlace)."""
 
     @Slot(str)
     def placed(self, xy):
+        key = "ampPlace"
+        if xy.startswith("pl="):
+            key, xy = "ampPlPlace", xy[3:]
         try:
             x, y = (int(v) for v in xy.split(","))
         except ValueError:
             return
         subprocess.run(["kwriteconfig6", "--file", "kwinrc", "--group", "Script-goblincakes-windows",
-                        "--key", "ampPlace", f"{x},{y}"], capture_output=True)
+                        "--key", key, f"{x},{y}"], capture_output=True)
         QDBusInterface("org.kde.KWin", "/KWin", "org.kde.KWin").call("reconfigure")
 
 
@@ -470,6 +475,7 @@ class Amp(QObject):
     levelsChanged = Signal()
     raiseWindow = Signal()
     plChanged = Signal()
+    plDetachedChanged = Signal()
     _plDone = Signal(str)   # a playlist job finished in its thread: the new state as JSON
     localChanged = Signal()
     localRowsChanged = Signal()
@@ -1125,6 +1131,34 @@ class Amp(QObject):
     @Property(int, constant=True)
     def savedPlHeight(self):
         return int(self.settings.get("plHeight") or 330)
+
+    # ── The playlist in its own window (29 Oct, the user's wish: "kopplas loss och dras vart man vill") ──
+
+    @Property(bool, notify=plDetachedChanged)
+    def plDetached(self):
+        return bool(self.settings.get("plDetached"))
+
+    @Slot(bool)
+    def setPlDetached(self, on):
+        if on == self.plDetached:
+            return
+        self.settings["plDetached"] = on
+        self._save_settings()
+        self.plDetachedChanged.emit()
+
+    @Property("QVariantList", constant=True)
+    def savedPlSize(self):
+        """The playlist window's width and height (its place is KWin's: kwinrc ampPlPlace)."""
+        size = self.settings.get("plWindow") or []
+        try:
+            return [max(300, int(size[0])), max(200, int(size[1]))]
+        except (IndexError, TypeError, ValueError):
+            return [380, 452]
+
+    @Slot(int, int)
+    def setPlSize(self, width, height):
+        self.settings["plWindow"] = [width, height]
+        self._save_settings()
 
     @Slot(int)
     def setPlHeight(self, height):
@@ -1816,8 +1850,11 @@ def main():
         print(__doc__)
         return 0
     # Drawn by the CPU: a small window that mostly lies in the tray – the GPU's driver alone took
-    # ~45 MB (Nvidia) that it never gives back; Canvas paints with the CPU either way (22 Oct)
-    os.environ.setdefault("QT_QUICK_BACKEND", "software")
+    # ~45 MB (Nvidia) that it never gives back; Canvas paints with the CPU either way (22 Oct).
+    # Chosen inside the program, not with QT_QUICK_BACKEND: that one followed goblin graph's own
+    # window (EGET FÖNSTER) and drew it on black instead of see-through (29 Oct, the user's fault)
+    if "QT_QUICK_BACKEND" not in os.environ:
+        QQuickWindow.setGraphicsApi(QSGRendererInterface.GraphicsApi.Software)
     app = QApplication(sys.argv[:1])   # Widgets for the system tray's menu
     app.setApplicationName("goblin-amp")
     app.setApplicationDisplayName("GoblinAmp")
