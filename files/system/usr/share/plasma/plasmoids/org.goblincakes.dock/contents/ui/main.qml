@@ -14,8 +14,7 @@
     - Size: everything comes from the panel's thickness – biggest icon = thickness − 4,
       icon at rest = that / zoom, so dragging the panel's edge (or Config later) resizes the
       dock and the icons follow.
-    - Click: launcher → start; one window → show / minimise; several → bring them all up, or
-      the next one if one is already active. Middle click = new window. Right click = menu
+    - Click: launcher → start; one window → show / minimise; several → a list of the windows to pick from. Middle click = new window. Right click = menu
       (new window, close, unpin). Drag an icon = move it; drop an app (.desktop) = pin it there.
     - The widget's width is fixed (the frame), so the panel
       doesn't resize while the pointer moves.
@@ -86,20 +85,8 @@ PlasmoidItem {
             tasksModel.requestActivate(idx); // starts it
             return;
         }
-        const kids = task.model.ChildCount ?? 0;
-        if (kids > 1) {
-            let active = -1;
-            for (let i = 0; i < kids; i++) {
-                if (tasksModel.data(tasksModel.makeModelIndex(task.index, i), TaskManager.AbstractTasksModel.IsActive))
-                    active = i;
-            }
-            if (active >= 0) {
-                tasksModel.requestActivate(tasksModel.makeModelIndex(task.index, (active + 1) % kids));
-            } else {
-                for (let i = kids - 1; i >= 0; i--)
-                    tasksModel.requestActivate(tasksModel.makeModelIndex(task.index, i));
-            }
-        } else if (task.active || wasActive || task.model.IsMinimized) {
+        // (several windows: the dock shows a list instead, see showWindows)
+        if (task.active || wasActive || task.model.IsMinimized) {
             tasksModel.requestToggleMinimized(idx);
         } else {
             tasksModel.requestActivate(idx);
@@ -324,7 +311,8 @@ PlasmoidItem {
                                 menu.visualParent = icon;
                                 menu.openRelative();
                             } else {
-                                root.activate(task, task.key === root.lastActiveKey && !task.model.IsMinimized);
+                                if (task.windows > 1) dock.showWindows(task, icon);
+                                else root.activate(task, task.key === root.lastActiveKey && !task.model.IsMinimized);
                             }
                         }
                     }
@@ -348,6 +336,31 @@ PlasmoidItem {
                 }
                 drop.accept();
             }
+        }
+
+        // Several windows of one app: a list of them to choose from
+        PlasmaExtras.Menu {
+            id: winMenu
+            placement: menu.placement
+        }
+        function showWindows(task, parentItem) {
+            root.lastActiveKey = task.key;
+            winMenu.clearMenuItems();
+            const kids = task.model.ChildCount ?? 0;
+            for (let i = 0; i < kids; i++) {
+                const child = tasksModel.makeModelIndex(task.index, i);
+                const item = Qt.createQmlObject("import org.kde.plasma.extras as PlasmaExtras; PlasmaExtras.MenuItem {}", winMenu);
+                item.text = tasksModel.data(child, Qt.DisplayRole) || "";
+                item.icon = tasksModel.data(child, Qt.DecorationRole);
+                item.clicked.connect(() => {
+                    if (tasksModel.data(child, TaskManager.AbstractTasksModel.IsMinimized))
+                        tasksModel.requestToggleMinimized(child);
+                    tasksModel.requestActivate(child);
+                });
+                winMenu.addMenuItem(item);
+            }
+            winMenu.visualParent = parentItem;
+            winMenu.openRelative();
         }
 
         PlasmaExtras.Menu {
