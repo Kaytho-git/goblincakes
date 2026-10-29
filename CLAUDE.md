@@ -56,11 +56,11 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 ## Status (detaljer: grep i docs/anteckningar.md)
 **Testas på riktig installation, inte i VM:en.**
 - [x] Steg 1: bas-recept (paket, Flatpaks, udev, tjänster)
-- [x] Ghostty som standardterminal (VM-wrapper för OpenGL); Konsole och Kitty valbara (Kitty i hemmappen)
+- [x] Ghostty som standardterminal (VM-wrapper för OpenGL); Konsole och Kitty valbara (Kitty i hemmappen); alla tre följer accentfärgen
 - [x] Steg 3: KDE-utseende + varumärke (tema, ramar, paneler, splash, Plymouth, inloggning/SDDM-tema, låsskärm, utloggning)
 - [x] AppGrid med raka hörn (byggsteget `appgrid-square`), halva storleken
 - [x] `goblin update` + grön/färgad uppdateringsmarkering i toppfältet, Config → Uppdatera
-- [x] Steg 4: GOBLINCAKES Config (Program, Förinstallerat, Inställningar, Fönster, Grafik, Uppdatera; webbappar, huvudwebbläsare, starta vid inloggning)
+- [x] Steg 4: GOBLINCAKES Config (Program, Förinstallerat, Inställningar, Fönster, Grafik, Uppdatera; webbappar, huvudwebbläsare, starta vid inloggning; avinstallera genom att kryssa ur)
 - [x] Steg 5: Ianseo i container (+ systemfältsikon, nätverk, internet)
 - [x] Goblin AI (fönster, Meta+A, Meta+§, terminal; lokal AI, bilder, projekt, lärläge, verktyg: sök/WCL/wowfel/sport/systemfel/cs2/wowstats, minne, ♥/👎-lärdomar, avatar, egna knappar, Spara som PDF/Word; inmatning i terminalstil: ↑/↓, Ctrl+R, /kommandon; `goblin ai` = samma i terminalen som Claude Code, /app = fönstret)
 - [x] Laptop och dubbla grafikkort (ej testat – kräver laptop)
@@ -85,7 +85,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Chrome/Brave/Chromium-tema, Firefox-tema
 - [x] Discord i GOBLINCAKES-stil (Vencord, eget val i Config; läggs in igen efter Discord-uppdateringar)
 - [x] Tiling med egna regler (Config → Fönster, layouter, Meta+Ctrl+1–9)
-- [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, sök/egna listor, spara album, GENRER med Last.fm, MPRIS, GRAF; spellistan kan lossas till eget fönster)
+- [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, sök/egna listor, spara album, GENRER med Last.fm, MPRIS, GRAF; spellistan kan lossas till eget fönster, genomskinlig GRAF, omslag vid hovring)
 - [x] Kvot-widget i toppfältet (Claude + ChatGPT/Codex, 5 h + vecka, `goblincakes-quota`)
 - [x] ChatGPT-appen (OpenAIs RPM uppackad i hemmappen, `goblincakes-chatgpt`; Goblin AI → "Skicka till ChatGPT" via urklipp) – ej provad med riktiga paketet
 

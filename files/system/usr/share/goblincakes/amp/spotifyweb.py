@@ -247,7 +247,7 @@ def list_entry(p, me):
             "count": total, "snapshot": p.get("snapshot_id", ""),
             "mine": owner == me or bool(p.get("collaborative")), "own": owner == me,
             "owner": (p.get("owner") or {}).get("display_name") or owner,
-            "fromAlbum": _album_in(p.get("description") or "")}
+            "fromAlbum": _album_in(p.get("description") or ""), "image": _cover(p)}
 
 
 def _album_in(description):
@@ -273,6 +273,15 @@ def artist_row(item):
 
 def _artists(item):
     return ", ".join(a.get("name", "") for a in item.get("artists") or [] if a)
+
+
+def _cover(item):
+    """The album's (or list's) cover for the hover in GoblinAmp: the smallest picture that is at
+    least 200 px (Spotify gives 640/300/64), else the first one; "" = none."""
+    images = [i for i in item.get("images") or [] if i and i.get("url")]
+    big = [i for i in images if (i.get("width") or 0) >= 200]
+    pick = min(big, key=lambda i: i["width"]) if big else (images[0] if images else None)
+    return pick["url"] if pick else ""
 
 
 class Library:
@@ -415,12 +424,14 @@ class Library:
         for item in (page.get("albums") or {}).get("items") or []:
             if item:
                 rows.append({"kind": "album", "uri": item.get("uri", ""), "title": item.get("name", ""),
-                             "artist": _artists(item), "count": item.get("total_tracks", 0), "seconds": 0})
+                             "artist": _artists(item), "count": item.get("total_tracks", 0), "seconds": 0,
+                             "image": _cover(item)})
         for item in (page.get("playlists") or {}).get("items") or []:
             if item:   # Spotify gives null for lists it hides
                 rows.append({"kind": "playlist", "uri": item.get("uri", ""), "title": item.get("name", ""),
                              "artist": (item.get("owner") or {}).get("display_name", ""),
-                             "count": (item.get("items") or item.get("tracks") or {}).get("total", 0), "seconds": 0})
+                             "count": (item.get("items") or item.get("tracks") or {}).get("total", 0), "seconds": 0,
+                             "image": _cover(item)})
         if tracks.get("next"):
             rows.append({"kind": "more", "offset": offset + SEARCH_LIMIT, "uri": "", "title": "", "artist": "", "seconds": 0})
         return rows
@@ -511,7 +522,7 @@ class Library:
             seen.add(name)
             (singles if single else albums).append(
                 {"kind": "album", "uri": i.get("uri", ""), "title": i.get("name", ""), "artist": _artists(i),
-                 "count": i.get("total_tracks", 0), "seconds": 0})
+                 "count": i.get("total_tracks", 0), "seconds": 0, "image": _cover(i)})
         return albums, singles
 
     def artist_tracks(self, artist):
@@ -539,7 +550,7 @@ class Library:
         if not album or not album.get("uri"):
             return None
         return {"kind": "album", "uri": album["uri"], "title": album.get("name", ""), "artist": _artists(album),
-                "count": album.get("total_tracks", 0), "seconds": 0}
+                "count": album.get("total_tracks", 0), "seconds": 0, "image": _cover(album)}
 
     @staticmethod
     def album_entry(row):

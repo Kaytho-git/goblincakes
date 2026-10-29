@@ -44,7 +44,7 @@ from pathlib import Path
 
 from PySide6.QtCore import ClassInfo, Property, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtDBus import QDBusConnection, QDBusInterface
-from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
+from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon, QSurfaceFormat
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
@@ -1851,8 +1851,11 @@ def main():
         return 0
     # Drawn by the CPU: a small window that mostly lies in the tray – the GPU's driver alone took
     # ~45 MB (Nvidia) that it never gives back; Canvas paints with the CPU either way (22 Oct).
-    # Chosen inside the program, not with QT_QUICK_BACKEND: that one followed goblin graph's own
-    # window (EGET FÖNSTER) and drew it on black instead of see-through (29 Oct, the user's fault)
+    # Chosen inside the program, so programs GoblinAmp starts don't inherit QT_QUICK_BACKEND.
+    # An alpha channel: GRAF under the player is see-through (29 Oct, the user's wish)
+    fmt = QSurfaceFormat.defaultFormat()
+    fmt.setAlphaBufferSize(8)
+    QSurfaceFormat.setDefaultFormat(fmt)
     if "QT_QUICK_BACKEND" not in os.environ:
         QQuickWindow.setGraphicsApi(QSGRendererInterface.GraphicsApi.Software)
     app = QApplication(sys.argv[:1])   # Widgets for the system tray's menu

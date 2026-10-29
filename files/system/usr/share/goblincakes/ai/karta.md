@@ -108,6 +108,9 @@ Ord: config, inställningar, goblincakes config, program, förinstallerat, föns
 - Reglagen i Inställningar körs av /usr/libexec/goblincakes-tweak (status/set per reglage); installationer i
   Program av /usr/libexec/goblincakes-config-install.
 
+- Avinstallera: kryssa ur ett installerat program under Program → knappen Avinstallera = `goblincakes-config-install
+  uninstall <kind> <args>` (Flatpak från user/system, AppImage, webbapp, Discord, VS Code, ChatGPT, gamescope).
+  Inte Battle.net, Ianseo, GoblinRecorder, Claude Code eller program som ingår i systemet (RPM). Data/inställningar ligger kvar.
 ## goblin-kommandot
 Ord: goblin, kommando, terminal, goblin help
 - /usr/bin/goblin (bash): `goblin help` listar alla. Hjälpprogrammen ligger i /usr/libexec/goblincakes-*.
@@ -211,6 +214,8 @@ Ord: goblinamp, amp, musikspelare, winamp, spotify, spellista, låtar, mediatang
 - Spellistan kan sitta under spelaren eller i ett eget fönster (LOSSA i spellistan, FÄST i fönstrets namnlist):
   amp.json `plDetached`, storleken `plWindow`; platsen sparar KWin-skriptet i kwinrc [Script-goblincakes-windows]
   ampPlPlace (fönstret heter "GoblinAmp – spellista").
+- GRAF under spelaren är genomskinlig (fönstret har alfakanal; spelaren och spellistan egna bakgrunder). Omslag vid
+  hovring = Spotifys bild-URL (`image` på album- och listrader, spotifyweb.py `_cover`).
 
 ## goblin graph
 Ord: graph, ljudgraf, staplar, visualisering
@@ -323,6 +328,9 @@ Ord: terminal, ghostty, konsole, kitty, terminalval
   `goblin update --only kitty`. Utseendet ~/.config/kitty/kitty.conf (include /usr/share/goblincakes/kitty/GoblinCakes.conf
   + goblincakes-accent.conf = accentfärgen från goblincakes-accent). `goblincakes-terminal kitty-config --reset` = ny
   kitty.conf (den gamla som .bak). Kolla: `goblincakes-terminal status`, `~/.local/bin/kitty --version`.
+- Accentfärgen i terminalerna (goblincakes-accent): Ghostty ~/.config/ghostty/themes/GoblinCakes (kopia av temat med
+  markörfärgen, borta vid blå; läses när Ghostty startar), Konsole ~/.local/share/konsole/GoblinCakes.profile
+  (CustomCursorColor), Kitty goblincakes-accent.conf.
 
 ## Webbläsare och webbappar
 Ord: webbläsare, chrome, firefox, brave, webapp, webbapp

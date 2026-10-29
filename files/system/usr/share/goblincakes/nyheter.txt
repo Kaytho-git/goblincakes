@@ -1,5 +1,8 @@
+2026-10-29  GoblinAmp visar albumets omslag när du håller muspekaren över ett album eller en lista från Spotify.
+2026-10-29  Grafen i GoblinAmp (GRAF) är genomskinlig – skrivbordet syns bakom staplarna, som i goblin graphs eget fönster.
+2026-10-29  Avinstallera i GOBLINCAKES Config: ta bort krysset på ett installerat program under Program och tryck Avinstallera. Inställningarna sparas om du installerar det igen.
+2026-10-29  Terminalerna följer GOBLINCAKES färg: markören i Ghostty, Konsole och Kitty får den färg du valt (Ghostty efter att den startats om).
 2026-10-29  GoblinAmps spellista kan kopplas loss till ett eget fönster som du ställer var du vill – tryck LOSSA i spellistan, och FÄST för att sätta tillbaka den.
-2026-10-29  goblin graph i eget fönster (EGET FÖNSTER i GoblinAmps graf) är genomskinligt igen i stället för svart.
 2026-10-29  Kitty går att välja som terminal i GOBLINCAKES Config → Program, bredvid Ghostty och Konsole. Den hämtas när du väljer den, har GOBLINCAKES färger och uppdateras med goblin update.
 2026-10-29  När du ber Goblin AI laga något som inte fungerar och det inte finns något felmeddelande, läser hon filerna och söker hur det ska vara innan hon svarar. Vet hon inte säger hon "Det kan jag inte" rakt ut.
 2026-10-29  Goblin AI gör exakt det du ber om – och säger "Det kan jag inte" när hon inte kan, i stället för att göra något annat. När hon lagar kod får hon inte ändra på en gissning eller skriva om hela filer.

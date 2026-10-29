@@ -46,7 +46,15 @@ Window {
         }
     }
     visible: true
-    color: "#07090D"
+    // See-through: only GRAF is (29 Oct, the user's wish – like goblin graph's own window);
+    // the player has its own background below, the playlist its own
+    color: "transparent"
+    Rectangle {
+        z: -1
+        width: parent.width
+        height: win.shade ? 22 : 152
+        color: "#07090D"
+    }
 
     property bool shade: false          // rolled up to the title line (double-click on it)
     property bool remaining: false      // the time counts down (click on the time)
@@ -578,7 +586,13 @@ Window {
         y: 152
         width: parent.width - 2
         height: win.graphHeight
-        Rectangle { anchors.fill: parent; color: "#05070A" }
+        // see-through; a faint backdrop only while the pointer is over it (like goblin graph)
+        Rectangle {
+            anchors.fill: parent
+            color: "#05070A"
+            opacity: graphHover.hovered ? 0.55 : 0
+            Behavior on opacity { NumberAnimation { duration: 150 } }
+        }
         Rectangle { width: parent.width; height: 1; color: "#1E2A40" }
         Loader {
             anchors { fill: parent; topMargin: 1 }
@@ -1508,9 +1522,17 @@ Window {
                         id: rowArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        // an album's (or list's) cover while hovered, like Spotify (coverTip)
+                        onContainsMouseChanged: {
+                            if (containsMouse && rowItem.r.image && plPanel.dragRow < 0)
+                                coverTip.show(rowItem.r.image, rowItem.mapToItem(plArea, 0, 0).y, rowItem.height);
+                            else if (!containsMouse && coverTip.url === rowItem.r.image)
+                                coverTip.hide();
+                        }
+                        Component.onDestruction: if (containsMouse) coverTip.hide()
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                         property real pressY: 0
-                        onPressed: mouse => pressY = mouse.y
+                        onPressed: mouse => { pressY = mouse.y; coverTip.hide(); }
                         // own lists: drag a row to move it (not while filtered)
                         onPositionChanged: mouse => {
                             if (!pressed || !rowItem.isTrack || !plPanel.editable || plPanel.filter || win.pl.busy)
@@ -1746,6 +1768,37 @@ Window {
                 font.pixelSize: 12
                 font.weight: Font.Medium
                 wrapMode: Text.Wrap
+            }
+        }
+
+        // The hovered album's cover (29 Oct, the user's wish – Spotify shows it): at the right
+        // side, next to the row, after a short wait so it doesn't flicker past while scrolling
+        Rectangle {
+            id: coverTip
+            property string url: ""
+            property string wanted: ""
+            property real rowY: 0
+            property real rowH: 0
+            function show(u, y, h) { wanted = u; rowY = y; rowH = h; coverWait.restart(); }
+            function hide() { coverWait.stop(); wanted = ""; url = ""; }
+            Timer { id: coverWait; interval: 350; onTriggered: coverTip.url = coverTip.wanted }
+            visible: url !== "" && coverImg.status === Image.Ready
+            z: 20
+            width: 162; height: 162
+            x: plArea.width - width - 12
+            // below the row if it fits, else above it
+            y: rowY + rowH + 4 + height <= plArea.height - 6 ? rowY + rowH + 4 : Math.max(30, rowY - height - 4)
+            color: "#05070A"
+            border.width: 1
+            border.color: accent.color
+            Image {
+                id: coverImg
+                anchors { fill: parent; margins: 1 }
+                source: coverTip.url
+                sourceSize: Qt.size(320, 320)
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: true
             }
         }
 
