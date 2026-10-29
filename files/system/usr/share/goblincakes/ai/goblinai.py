@@ -4230,7 +4230,15 @@ def on_topic(found, *texts):
     words = {w for t in texts for w in re.findall(r"[a-zåäö0-9]{3,}", str(t).lower()) if w not in GENERIC_WORDS}
     if not words:
         return found
-    return [f for f in found if words & set(re.findall(r"[a-zåäö0-9]{3,}", (f.get("title", "") + " " + f.get("url", "")).lower()))]
+    # With several words two must be there: "wow" alone gave the WOW crypto token and "The Wow Company" (30 Oct);
+    # a word counts with its endings (addon – AddOns)
+    need = 2 if len(words) >= 3 else 1
+
+    def shared(f):
+        have = set(re.findall(r"[a-zåäö0-9]{3,}", (f.get("title", "") + " " + f.get("url", "")).lower()))
+        return sum(1 for w in words if any(h == w or len(w) >= 4 and (h.startswith(w) or w.startswith(h) and len(h) >= 4)
+                                           for h in have))
+    return [f for f in found if shared(f) >= need]
 
 
 def investigate(question, tools, keys, notice, project, choice, steps, status=None):

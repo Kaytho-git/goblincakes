@@ -614,8 +614,13 @@ def check(target):
     for f, _ in lua:
         err = lua_error(f)
         if err:
+            # The lines up to it, numbered: gemma4 read the file but couldn't find "line 14" – the bare
+            # `content.scrollFrame` her own sed left was on line 12 (30 Oct)
+            rows = _.splitlines()
+            near = "\n".join(f"    {i}: {rows[i - 1]}" for i in range(max(1, err[0] - 3), min(len(rows), err[0]) + 1))
             once(("lua", str(f)), sure, f"{f.relative_to(folder)} rad {err[0]}: Lua-fel – {err[1]}. WoW laddar inte filen "
-                 "alls (inget i den körs). Felet sitter på raden eller strax före – läs raderna runt den.")
+                 "alls (inget i den körs). Lua märker felet först på den raden – det sitter oftast på en rad strax före "
+                 f"(en rad som inte är en hel sats, en parentes/end som saknas). Raderna:\n{near}")
     for f, text in lua:
         rel = f.relative_to(folder)
         other = flavors or bool(other_game.search(str(rel)))  # EllesmereUIQoL_ForeverStats.lua: WoW Forever's functions
