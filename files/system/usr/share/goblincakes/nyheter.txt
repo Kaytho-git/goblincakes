@@ -1,3 +1,5 @@
+2026-10-30  Goblin AI: när hon lagar ett WoW-tillägg ser kontrollen nu även trasig Lua-kod (som gör att WoW inte laddar filen alls) och fel användning av spelets funktioner. Hon får veta när en ändring inte blev av, måste slå upp en funktion innan hon byter till den, och sökträffar som inte handlar om saken visas inte som källor.
+2026-10-30  Goblin AI: ♥ och 👎 under svaren hoppar inte längre fram och tillbaka när musen är över dem – förklaringen visas i en liten ruta ovanför.
 2026-10-29  GoblinRecorder: i Mythic+ visar PARSE nu samma siffra som Warcraft Logs (mot samma nyckelnivå). Den andra kolumnen heter ALLA och är mot alla nivåer. Dina gamla nycklar är rättade.
 2026-10-29  GoblinRecorder: frågar KDE vilken skärm OBS ska spela in fast du redan valt, startar GoblinRecorder om OBS en gång så att valet används.
 2026-10-29  Kakan kan nu snabbt säga vad ett bygge på GitHub har med sig – fråga "vad har bygget med sig?"

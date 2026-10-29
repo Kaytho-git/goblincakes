@@ -18,6 +18,7 @@ import difflib
 import io
 import json
 import re
+import subprocess
 import sys
 import tarfile
 import time
@@ -512,6 +513,52 @@ def _exists_any_case(folder, path):
     return True
 
 
+def lua_error(path):
+    """(line, message) when WoW couldn't load the file at all, else None. LuaJIT reads Lua 5.1 as WoW does
+    (in the image); gemma4's sed left a bare `content.scrollFrame` on a line and the check said nothing (30 Oct).
+    LuaJIT's "invalid escape sequence" is left out: WoW takes a backslash before any letter (MRT – the only kind among 2876 installed files)."""
+    try:
+        r = subprocess.run(["luajit", "-b", str(path), "/dev/null"], capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = re.search(r":(\d+): (.+)", r.stderr) if r.returncode else None
+    if not m or "invalid escape sequence" in m.group(2):
+        return None
+    return int(m.group(1)), m.group(2).strip()[:200]
+
+
+def _call_args(line, end):
+    """The arguments of the call whose "(" is just before `end` – a list of texts, or None when it can't be told."""
+    depth, start = 0, end
+    for i in range(end, len(line)):
+        c = line[i]
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if depth == 0:
+                inner = line[start:i]
+                if "..." in inner or "function" in inner:
+                    return None
+                parts, d, cur = [], 0, ""
+                for ch in inner:
+                    if ch in "([{":
+                        d += 1
+                    elif ch in ")]}":
+                        d -= 1
+                    if ch == "," and d == 0:
+                        parts.append(cur)
+                        cur = ""
+                    else:
+                        cur += ch
+                parts.append(cur)
+                return [x.strip() for x in parts if x.strip()], i
+            depth -= 1
+    return None
+
+
+SIMPLE = {"number", "bool", "boolean", "string", "cstring", "luaIndex", "fileID", "BigUInteger", "WOWGUID", "time_t"}
+
+
 def check(target):
     """An add-on's folder (or one of its files) against WoW's API: plain text, sure faults first."""
     data = index()
@@ -564,6 +611,11 @@ def check(target):
             others = _installed_definitions()
         return others
 
+    for f, _ in lua:
+        err = lua_error(f)
+        if err:
+            once(("lua", str(f)), sure, f"{f.relative_to(folder)} rad {err[0]}: Lua-fel – {err[1]}. WoW laddar inte filen "
+                 "alls (inget i den körs). Felet sitter på raden eller strax före – läs raderna runt den.")
     for f, text in lua:
         rel = f.relative_to(folder)
         other = flavors or bool(other_game.search(str(rel)))  # EllesmereUIQoL_ForeverStats.lua: WoW Forever's functions
@@ -609,8 +661,10 @@ def check(target):
                 if name in installed()[0] or _guarded(name, code) or any(name.lower().startswith(d) for d in deps):
                     continue
                 if name.lower() in short:
-                    once(("call", name), sure_, f"{rel} rad {n}: {name}() finns inte som vanlig "
-                         f"funktion – den heter {' / '.join(short[name.lower()])}. Slå upp den med wowapi för argumenten.{note}")
+                    once(("call", name), sure_, f"{rel} rad {n}: {name}() finns inte som vanlig funktion. En ANNAN "
+                         f"funktion med samma namn finns: {' / '.join(short[name.lower()])} – den kan ta och ge tillbaka "
+                         "helt andra saker. Slå upp den med wowapi och se vad den vill ha och ger tillbaka innan du byter; "
+                         f"passar den inte, slå upp vad som gör det tillägget behöver.{note}")
                 elif name.startswith("_"):  # _G._EQT_SetSuppressed(): another add-on's, behind its own check
                     once(("call", name), maybe, f"{rel} rad {n}: {name}() finns inte i WoW eller i tillägget – kanske ett "
                          "annat tilläggs funktion (fungerar bara när det är installerat).")
@@ -619,6 +673,28 @@ def check(target):
                     once(("call", name), sure_, f"{rel} rad {n}: {name}() finns inte i WoW eller i tillägget"
                          + (f" – menade du {', '.join(near)}?" if near else " – påhittad? Slå upp vad som ska användas med wowapi.")
                          + note)
+            for m in NS_CALL.finditer(line):
+                full, doc = f"{m.group(1)}.{m.group(2)}", data["functions"].get(f"{m.group(1)}.{m.group(2)}")
+                got = _call_args(line, m.end()) if doc else None
+                if not got:
+                    continue
+                args, close = got
+                need = [a for a in doc["args"] if not re.search(r"\?$|\?\s*=|=", a)]
+                if len(args) < len(need):
+                    once(("args", full), sure_, f"{rel} rad {n}: {full}() vill ha {', '.join(doc['args'])} – här får den "
+                         f"{len(args)} (\"{', '.join(args) or 'inget'}\"). Slå upp den med wowapi.")
+                for arg, want in zip(args, doc["args"]):
+                    kind = want.split(":")[-1].strip().rstrip("?")
+                    if kind.endswith("Location") and re.fullmatch(r"(?i)\d+|[\w.]*(?:_id|id)", arg):
+                        once(("loc", full), maybe, f"{rel} rad {n}: {full}() vill ha en {kind} – inte ett id/nummer "
+                             f"(\"{arg}\"). En {kind} skapas med t.ex. {kind}:CreateFromEquipmentSlot(plats); "
+                             "slå upp med wowapi.")
+                after = line[close + 1:].lstrip()
+                first = (doc["returns"] or [""])[0].split(":")[-1].strip().rstrip("?")
+                if after[:1] in (".", "[") and not after.startswith("..") and first in SIMPLE:
+                    once(("ret", full), sure_, f"{rel} rad {n}: {full}() ger tillbaka {', '.join(doc['returns'])} – inte "
+                         f"en tabell, så {after[:20].split()[0]} efter anropet kraschar. Ta värdet direkt: "
+                         f"local a, b = {full}(…).")
             for ns, fn in NS_CALL.findall(line):
                 full = f"{ns}.{fn}"
                 if full in known_ns or ns in own or ("ns", full) in reported or _guarded(full, code) or _guarded(ns, code):

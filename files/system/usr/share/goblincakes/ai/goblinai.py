@@ -1982,6 +1982,14 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     # the answer to GitHub, and a path in it to the computer's logs (28 Oct)
     report = str(asked.get("content", "")).startswith("Så här gick det:")
     checked_addon = addon_check(messages) if report and "wowapi" in tools else ""
+    noops = sed_noops(messages) if report else []
+    if noops:
+        steps.start("Kollar att ändringarna blev av")
+        steps.done(note=f"{len(noops)} ändrade inget")
+        messages.append({"role": "user", "content":
+                         "[Goblin AI kollade att ändringarna blev av – det här skrev användaren inte]\n\n" + "\n".join(noops)
+                         + "\n\nsed säger OK även när den inte hittar texten. Läs raden som den ser ut nu och rätta just "
+                         "den – det är inte klart."})
     if checked_addon:
         steps.start("Kontrollerar tillägget mot WoW")
         steps.done(note="fel kvar" if "\nFEL:\n" in checked_addon else "inga fel")
@@ -2218,6 +2226,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             continue
         kind, why = ("", "") if request_ else repair_nudge(
             answer, messages, tools, any(t in ("sök", "sida") for t, _ in LAST.tools), repaired) or ("", "")
+        if not why and not request_ and "lookup" not in repaired and "wowapi" in tools:
+            kind, why = "lookup", lookup_nudge(answer, LAST.tools)
         if why:
             repaired.add(kind)
             steps.start("Kontrollerar svaret")
@@ -4131,6 +4141,25 @@ QUERY_PROMPT = ("Skriv EN sökfråga på engelska (högst 10 ord) som hittar hur
                 "Bara sökfrågan, inget annat – inga citattecken, ingen förklaring.")
 
 
+def lookup_nudge(answer, looked):
+    """Commands that put a C_X.Y call into a WoW add-on's .lua without a wowapi lookup of it in this question: the
+    reason to send the answer back once, or "". gemma4 swapped GetItemLevel() for C_Item.GetDetailedItemLevelInfo(…)
+    .itemLevel because the check said the name – it returns numbers, not a table (30 Oct). looked: LAST.tools."""
+    seen = " ".join(q for t, q in looked if t == "wowapi")
+    missing = []
+    for block in cmd_level().code_blocks_in(answer):
+        if not CHANGES_FILES.search(block) or not re.search(r"\.lua\b", block):
+            continue
+        for name in dict.fromkeys(re.findall(r"\b(C_\w+\.\w+)\s*\(", block)):
+            if name not in seen and name not in missing:
+                missing.append(name)
+    if not missing:
+        return ""
+    return ("Du lägger in " + ", ".join(missing[:5]) + " i tillägget utan att ha slagit upp " + ("den" if len(missing) == 1
+            else "dem") + " i den här frågan. Slå upp varje med verktyget wowapi (vad den vill ha och vad den ger "
+            "tillbaka) och skriv raden efter det – ett namn som finns kan ändå ta och ge tillbaka helt andra saker.")
+
+
 def addon_check(messages):
     """After commands that changed a WoW add-on's .lua/.toc (point 22): the add-on checked against the game – or "".
     gemma4 wrote CreateFrame("ScrollingFrame") and GetItemName() from memory and said it was done (29 Oct)."""
@@ -4153,6 +4182,55 @@ def addon_check(messages):
         except Exception as e:  # noqa: BLE001 – no API to check against: said so, the answer goes on
             out.append(f"Kontrollen av {folder} gick inte: {e}")
     return "\n\n".join(out)
+
+
+SED_SUB = re.compile(r"""\bsed\s+(?:-\w*i\w*|--in-place)\s+(['"])(\d+)?s([/|#,:@])(.*?)(?<!\\)\3(.*?)(?<!\\)\3\w*\1\s+(\S+)""")
+
+
+def sed_noops(messages):
+    """`sed -i 'Ns/a/b/' file` that changed nothing (the text wasn't on the line): sed still exits 0, so nobody
+    saw it – gemma4's line 35 stayed as it was and she said done (30 Oct). Seen afterwards: the replacement isn't on
+    the line (or in the file without a line number). Lines for the AI, or []."""
+    report = messages[-1].get("content", "") if messages and messages[-1]["role"] == "user" else ""
+    said = next((m["content"] for m in reversed(messages[:-1]) if m["role"] == "assistant"), "")
+    if not str(report).startswith("Så här gick det:") or not isinstance(said, str):
+        return []
+    m = re.search(r"\(Mappen nu: (.+?)\)", report)
+    cwd = Path(m.group(1)) if m else Path.home()
+    out = []
+    for block in cmd_level().code_blocks_in(said):
+        for q, line, _, pattern, new, target in SED_SUB.findall(block):
+            new_text = re.sub(r"\\(.)", r"\1", new)
+            if not new_text or "&" in new or re.search(r"\\\d", new):
+                continue  # deleting, or the match itself put back: can't be told afterwards
+            path = Path(os.path.expanduser(target.strip("'\""))) if target.startswith(("~", "/", "'~", '"~')) else cwd / target
+            try:
+                lines = path.read_text(errors="replace").splitlines()
+            except OSError:
+                continue
+            where = lines[int(line) - 1] if line and int(line) <= len(lines) else None if line else "\n".join(lines)
+            if where is None or new_text not in where:
+                out.append(f"- `sed … '{line}s/{pattern[:60]}/…/' {target}` ändrade INGENTING – "
+                           + (f"texten finns inte på rad {line}. Raden ser ut så här nu: {where!r}" if where is not None
+                              else f"filen har bara {len(lines)} rader") if line else
+                           f"- `sed … 's/{pattern[:60]}/…/' {target}` ändrade INGENTING – texten finns inte i filen.")
+    return out[:10]
+
+
+# Words every troubleshooting search has – a hit sharing only these is about something else
+GENERIC_WORDS = set("""how what why when where which with without from that this does doesnt dont cant wont into your
+fix fixed fixing error errors issue issues problem problems working work works broken fail failed failing solve solved
+guide help code codes not the and for are was can get got make made use using show shows showing you its
+att och som det den har inte kan med för hur var jag min mitt""".split())
+
+
+def on_topic(found, *texts):
+    """The search hits that share a real word with the query/question (≥ 3 letters – "wow" –, not GENERIC_WORDS). The search
+    for gemma4's broken add-on gave Disney Plus' error codes and IRS' math errors as sources (30 Oct)."""
+    words = {w for t in texts for w in re.findall(r"[a-zåäö0-9]{3,}", str(t).lower()) if w not in GENERIC_WORDS}
+    if not words:
+        return found
+    return [f for f in found if words & set(re.findall(r"[a-zåäö0-9]{3,}", (f.get("title", "") + " " + f.get("url", "")).lower()))]
 
 
 def investigate(question, tools, keys, notice, project, choice, steps, status=None):
@@ -4206,6 +4284,7 @@ def investigate(question, tools, keys, notice, project, choice, steps, status=No
     except Exception as e:  # noqa: BLE001 – the search failed: the files alone
         steps.done("fel", e)
         text, found = "", []
+    found = on_topic(found, query, question)
     LAST.tools.append(("sök", query))
     LAST.done.append(("sök", query, f"{len(found)} träffar"))
     if found and "sida" in tools:

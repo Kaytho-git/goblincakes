@@ -33,6 +33,29 @@ Window {
         "Hur mycket diskutrymme har jag kvar?"
     ]
 
+    // What a small mark under an answer does (♥, 👎): floats above it, outside the row's layout – a text that grew
+    // on hover made the wrapping row jump away from the mouse and back (30 Oct)
+    component HoverHint: Rectangle {
+        property bool shown
+        property alias text: hintText.text
+        visible: shown
+        z: 10
+        x: 0
+        y: -height - 4
+        width: hintText.implicitWidth + 16
+        height: 24
+        color: "#0B1018"
+        border.width: 1
+        border.color: "#1E2A40"
+        Text {
+            id: hintText
+            anchors.centerIn: parent
+            color: "#E6ECF5"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 12
+        }
+    }
+
     // Which model is best in its group (BÄST, BÄST TILL KOD, SNABBAST …), see goblinai.model_choices
     component ModelTag: Rectangle {
         property string tag
@@ -1975,8 +1998,8 @@ Window {
                                             }
                                             Image {
                                                 id: picture
-                                                visible: segItem.s.state === "done"
-                                                source: segItem.s.state === "done" ? "file://" + encodeURI(segItem.s.path) : ""
+                                                visible: segItem.s.state === "done" && !!segItem.s.path
+                                                source: visible ? "file://" + encodeURI(segItem.s.path) : ""
                                                 sourceSize.width: 1120
                                                 asynchronous: true
                                                 fillMode: Image.PreserveAspectFit
@@ -2338,13 +2361,17 @@ Window {
                                 id: heartText
                                 visible: !msgItem.m.thumb
                                 property string state_: msgItem.m.heart || ""
-                                text: state_ === "busy" ? "♥ Sparar…"
-                                      : state_ !== "" ? (heartArea.containsMouse ? "♥ Ångra" : "♥ Sparat")
-                                      : heartArea.containsMouse ? "♥ Bra svar – gör likadant nästa gång" : "♥"
+                                // The text keeps its width on hover: the row wraps (Flow), and a longer text jumped to
+                                // the next line, away from the mouse, and back – flickering (30 Oct). The hint floats above.
+                                text: state_ === "busy" ? "♥ Sparar…" : state_ !== "" ? "♥ Sparat" : "♥"
                                 color: state_ !== "" && state_ !== "busy" ? accent.errorBright
                                        : heartArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 12
+                                HoverHint {
+                                    shown: heartArea.containsMouse && heartText.state_ !== "busy"
+                                    text: heartText.state_ !== "" ? "Ångra" : "Bra svar – gör likadant nästa gång"
+                                }
                                 MouseArea {
                                     id: heartArea
                                     anchors.fill: parent
@@ -2358,13 +2385,15 @@ Window {
                             Text {
                                 visible: !msgItem.m.heart || !!msgItem.m.thumb
                                 property string state_: msgItem.m.thumb ? msgItem.m.heart || "" : ""
-                                text: state_ === "busy" ? "👎 Sparar…"
-                                      : state_ !== "" ? (thumbArea.containsMouse ? "👎 Ångra" : "👎 Sparat")
-                                      : thumbArea.containsMouse ? "👎 Dåligt svar – gör inte så här igen" : "👎"
+                                text: state_ === "busy" ? "👎 Sparar…" : state_ !== "" ? "👎 Sparat" : "👎"
                                 color: state_ !== "" && state_ !== "busy" ? "#F0883E"
                                        : thumbArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 12
+                                HoverHint {
+                                    shown: thumbArea.containsMouse && parent.state_ !== "busy"
+                                    text: parent.state_ !== "" ? "Ångra" : "Dåligt svar – gör inte så här igen"
+                                }
                                 MouseArea {
                                     id: thumbArea
                                     anchors.fill: parent
