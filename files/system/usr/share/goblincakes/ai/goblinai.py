@@ -2225,7 +2225,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              f"fråga eller vänta. Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
         kind, why = ("", "") if request_ else repair_nudge(
-            answer, messages, tools, any(t in ("sök", "sida") for t, _ in LAST.tools), repaired) or ("", "")
+            answer, messages, tools, any(t in ("sök", "sida") or t == "wowapi" and q.startswith("kolla")  # the check = found out
+                                         for t, q in LAST.tools), repaired) or ("", "")
         if not why and not request_ and "lookup" not in repaired and "wowapi" in tools:
             kind, why = "lookup", lookup_nudge(answer, LAST.tools)
         if not why and not request_ and "shift" not in repaired:
@@ -4293,6 +4294,12 @@ def investigate(question, tools, keys, notice, project, choice, steps, status=No
                 steps.done()
             except Exception as e:  # noqa: BLE001 – the files and the search are there anyway
                 steps.done("fel", e)
+    if any(p.startswith("## Kontroll mot WoW") and "\nFEL:\n" in p for p in parts):
+        # The check found the faults: it is what to follow – the search and a whole web page only filled her memory
+        # ("Slutar hämta: minnet är nästan fullt" in the 4th round of the gear repair, 30 Oct)
+        steps.start("Söker inte på nätet – kontrollen visar felen")
+        steps.done()
+        return "## Filerna\n" + "\n\n".join(parts), []
     steps.start("Skriver sökfrågan")
     QUICK.on = True
     try:
