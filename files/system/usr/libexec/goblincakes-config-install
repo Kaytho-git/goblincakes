@@ -4,6 +4,8 @@
 #
 #   goblincakes-config-install <step> [args…]     install
 #   goblincakes-config-install check <kind> [args…]  exit 0 if already installed
+#   goblincakes-config-install uninstall <kind> [args…]  remove it again (same kind/args as check;
+#                                                  exit 3 = can't be removed here)
 #
 # Lines starting with "@@ " are shown in the window as the current status.
 set -euo pipefail
@@ -121,10 +123,67 @@ check() {
     esac
 }
 
+# Config → Program: an installed app's tick taken away (29 Oct, the user's wish – EasyEffects).
+# Settings and data stay (~/.var/app, ~/.config/discord …), so installing again brings them back.
+# Battle.net (the games live in its Wine prefix), Ianseo (the competitions), GoblinRecorder
+# (the recordings) and Claude Code are not removed here.
+uninstall() {
+    local kind=$1; shift
+    local apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications" where
+    case $kind in
+        flatpak|flatpak-or-rpm)
+            if where=$(flatpak list --app --columns=application,installation 2>/dev/null \
+                    | awk -v id="$1" '$1 == id { print $2; exit }') && [ -n "$where" ]; then
+                status "Avinstallerar $1…"
+                # system = installed for all users: Plasma asks for the password
+                flatpak uninstall "--$where" --noninteractive --assumeyes "$1"
+                flatpak uninstall --"$where" --unused --noninteractive --assumeyes >/dev/null 2>&1 || true
+            elif [ "$kind" = flatpak-or-rpm ] && rpm -q "$2" >/dev/null 2>&1; then
+                status "Ingår i systemet – dölj det under Förinstallerat i stället"
+                return 3
+            fi ;;
+        appimage)
+            local id
+            id=appimage-$(echo "$1" | tr '[:upper:] ' '[:lower:]-')
+            status "Tar bort $1…"
+            rm -f "$appimage_dir/$1.AppImage" "$appimage_dir/.$1.release" "$apps/$id.desktop" \
+                  "$HOME/.local/share/icons/hicolor/512x512/apps/$id.png" ;;
+        webapp)
+            rm -f "$apps/goblincakes-webapp-$1.desktop" \
+                  "$HOME/.local/share/icons/hicolor/256x256/apps/goblincakes-webapp-$1.png" ;;
+        discord)
+            status "Tar bort Discord…"
+            pkill -x Discord 2>/dev/null || true
+            rm -rf "$HOME/.local/share/discord-app"
+            rm -f "$HOME/.local/bin/discord" "$apps/discord.desktop" \
+                  "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/discord.desktop" ;;
+        vscode)
+            status "Tar bort VS Code…"
+            rm -rf "$HOME/.local/share/vscode"
+            rm -f "$HOME/.local/bin/code" "$apps/code.desktop" "$apps/code-url-handler.desktop" ;;
+        chatgpt)
+            /usr/libexec/goblincakes-chatgpt uninstall ;;
+        gamescope-flatpak)
+            status "Avinstallerar gamescope för Lutris/Heroic…"
+            flatpak list --user --runtime --columns=ref 2>/dev/null | grep '^org\.freedesktop\.Platform\.VulkanLayer\.gamescope/' \
+                | while read -r ref; do flatpak uninstall --user --noninteractive --assumeyes "$ref"; done ;;
+        *)
+            status "Kan inte avinstalleras här"
+            return 3 ;;
+    esac
+    update-desktop-database -q "$apps" >/dev/null 2>&1 || true
+    kbuildsycoca6 >/dev/null 2>&1 || true
+    status "Avinstallerad"
+}
+
 step=${1:?step}; shift
 case $step in
     check)
         check "$@"
+        ;;
+
+    uninstall)
+        uninstall "$@"
         ;;
 
     flatpak)

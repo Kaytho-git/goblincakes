@@ -27,6 +27,9 @@ Window {
     readonly property var catalog: JSON.parse(backend.catalog)
     property var chosen: ({})
     property int chosenCount: 0
+    // Installed apps whose tick was taken away: uninstalled with the button (29 Oct)
+    property var removing: ({})
+    property int removeCount: 0
     property string page: "choose" // choose → install → done
     property int failedCount: 0
     property string tab: startTab // apps | system | tweaks | graphics | update
@@ -94,6 +97,16 @@ Window {
         chosenCount = Object.keys(c).length;
     }
 
+    function toggleRemove(id) {
+        const r = Object.assign({}, removing);
+        if (r[id])
+            delete r[id];
+        else
+            r[id] = true;
+        removing = r;
+        removeCount = Object.keys(r).length;
+    }
+
     function appName(id) {
         for (const a of catalog.apps)
             if (a.id === id)
@@ -103,7 +116,7 @@ Window {
 
     function startInstall() {
         page = "install";
-        backend.install(JSON.stringify(Object.keys(chosen)));
+        backend.install(JSON.stringify(Object.keys(chosen)), JSON.stringify(Object.keys(removing)));
     }
 
     function finish() {
@@ -116,6 +129,8 @@ Window {
         progressModel.clear();
         chosen = {};
         chosenCount = 0;
+        removing = {};
+        removeCount = 0;
         failedCount = 0;
         backend.refreshCatalog();
         page = "choose";
@@ -603,7 +618,7 @@ Window {
                         : win.tab === "windows" ? "FÖNSTER"
                         : win.tab === "tweaks" ? "INSTÄLLNINGAR"
                         : win.page === "choose" ? "VÄLJ DINA PROGRAM"
-                        : win.page === "install" ? "INSTALLERAR…" : "KLART"
+                        : win.page === "install" ? (win.chosenCount === 0 ? "AVINSTALLERAR…" : "INSTALLERAR…") : "KLART"
                     color: "#E6ECF5"
                     font.family: "Chakra Petch"
                     font.weight: Font.Bold
@@ -627,8 +642,9 @@ Window {
                         ? "Kryssa i det du vill ha. Allt går att lägga till senare – sök på GOBLINCAKES Config i AppGrid."
                         : win.page === "install"
                         ? "Du kan använda datorn under tiden. Stäng inte fönstret."
-                        : win.failedCount === 0 ? "Allt är installerat. Programmen finns i AppGrid."
-                        : win.failedCount + " program gick inte att installera – tryck Tillbaka för att försöka igen."
+                        : win.failedCount === 0 ? (win.chosenCount === 0 ? "Klart – programmen är avinstallerade."
+                                                   : "Allt är installerat. Programmen finns i AppGrid.")
+                        : win.failedCount + " program gick inte – tryck Tillbaka för att försöka igen."
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 15
@@ -961,6 +977,8 @@ Window {
                                 required property var modelData
                                 readonly property bool installed: modelData.installed
                                 readonly property bool checked: !!win.chosen[modelData.id]
+                                readonly property bool removable: !!modelData.removable
+                                readonly property bool removing: !!win.removing[modelData.id]
                                 readonly property bool browser: !!modelData.browser
                                 // Installed and has something to start: "Starta vid inloggning"
                                 readonly property bool canAutostart: installed && win.autostart[modelData.id] !== undefined
@@ -970,11 +988,13 @@ Window {
 
                                 width: (sections.width - 16 * (section.columns - 1)) / section.columns
                                 height: 112 + 48 * ((browser ? 1 : 0) + (canAutostart ? 1 : 0) + (canFullscreen ? 1 : 0))
-                                color: cardArea.containsMouse && !installed ? "#111A2A" : "#0E1420"
+                                color: cardArea.containsMouse && (!installed || removable) ? "#111A2A" : "#0E1420"
                                 border.width: 1
-                                border.color: checked ? accent.color : cardArea.containsMouse && !installed ? "#2A3852" : "#1E2A40"
-                                // Stays bright when installed if a switch is still in use
-                                opacity: installed && !browser && !canAutostart && !canFullscreen ? 0.55 : 1
+                                border.color: removing ? accent.error : checked ? accent.color
+                                    : cardArea.containsMouse && (!installed || removable) ? "#2A3852" : "#1E2A40"
+                                // Stays bright when installed if a switch is still in use (or it is hovered/being removed)
+                                opacity: installed && !removing && !(removable && cardArea.containsMouse)
+                                         && !browser && !canAutostart && !canFullscreen ? 0.55 : 1
 
                                 Monogram {
                                     id: mono
@@ -1001,8 +1021,10 @@ Window {
                                     }
                                     Text {
                                         width: parent.width
-                                        text: card.installed ? "Redan installerad" : card.modelData.desc
-                                        color: "#8B98AD"
+                                        text: card.removing ? "Avinstalleras när du trycker på knappen nere till höger. Inställningarna sparas."
+                                            : card.installed && card.removable ? "Installerad – ta bort krysset för att avinstallera"
+                                            : card.installed ? "Redan installerad" : card.modelData.desc
+                                        color: card.removing ? accent.errorBright : "#8B98AD"
                                         font.family: "IBM Plex Sans"
                                         font.pixelSize: 13
                                         wrapMode: Text.WordWrap
@@ -1015,15 +1037,20 @@ Window {
                                 CheckSquare {
                                     id: check
                                     anchors { right: parent.right; rightMargin: 18; top: parent.top; topMargin: 20 }
-                                    checked: card.checked || card.installed
+                                    checked: card.checked || (card.installed && !card.removing)
                                 }
 
                                 MouseArea {
                                     id: cardArea
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    cursorShape: card.installed ? Qt.ArrowCursor : Qt.PointingHandCursor
-                                    onClicked: if (!card.installed) win.toggle(card.modelData.id)
+                                    cursorShape: card.installed && !card.removable ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (!card.installed)
+                                            win.toggle(card.modelData.id);
+                                        else if (card.removable)
+                                            win.toggleRemove(card.modelData.id);
+                                    }
                                 }
 
                                 // Switches at the bottom of the card, each on its own row
@@ -3315,7 +3342,9 @@ Window {
                 : win.tab === "graphics" ? "Bytet frågar efter ditt lösenord."
                 : win.tab === "windows" ? "Sparas av sig själv. Använd = rutorna och fönstren på plats nu."
                 : win.tab === "tweaks" ? "Ändringar gäller direkt. Systeminställningar frågar efter ditt lösenord."
-                : win.chosenCount === 0 ? "Inget valt" : win.chosenCount === 1 ? "1 program valt" : win.chosenCount + " program valda"
+                : win.chosenCount === 0 && win.removeCount === 0 ? "Inget valt"
+                : [win.chosenCount === 0 ? "" : win.chosenCount === 1 ? "1 program valt" : win.chosenCount + " program valda",
+                   win.removeCount === 0 ? "" : win.removeCount + " avinstalleras"].filter(t => t).join(" · ")
             color: "#8B98AD"
             font.family: "IBM Plex Sans"
             font.pixelSize: 15
@@ -3333,8 +3362,8 @@ Window {
             FlatButton {
                 visible: win.tab === "apps" && win.page === "choose"
                 primary: true
-                enabledState: win.chosenCount > 0
-                text: "Installera"
+                enabledState: win.chosenCount > 0 || win.removeCount > 0
+                text: win.removeCount === 0 ? "Installera" : win.chosenCount === 0 ? "Avinstallera" : "Verkställ"
                 onClicked: win.startInstall()
             }
             FlatButton {

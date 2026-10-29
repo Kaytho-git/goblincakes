@@ -60,6 +60,17 @@ GPU = os.environ.get("GOBLINCAKES_CONFIG_GPU", "/usr/libexec/goblincakes-gpu")
 BROWSER = os.environ.get("GOBLINCAKES_CONFIG_BROWSER", "/usr/libexec/goblincakes-browser")
 TERMINAL = os.environ.get("GOBLINCAKES_CONFIG_TERMINAL", "/usr/libexec/goblincakes-terminal")
 TERMINALS = ("ghostty", "konsole", "kitty")
+# Installed apps whose tick can be taken away = uninstalled (goblincakes-config-install uninstall).
+# Not Battle.net (the games are in its prefix), Ianseo, GoblinRecorder or Claude Code.
+REMOVABLE = ("flatpak", "flatpak-or-rpm", "appimage", "webapp", "discord", "vscode", "chatgpt", "gamescope-flatpak")
+
+
+def removable(app):
+    kind, *args = app["check"]
+    if not app.get("installed") or kind not in REMOVABLE:
+        return False
+    # In the system image (Fedora's RPM), not a Flatpak: hidden under Förinstallerat instead
+    return kind != "flatpak-or-rpm" or run("flatpak", ["info", args[0]])[0] == 0
 ACCENT = os.environ.get("GOBLINCAKES_CONFIG_ACCENT", "/usr/libexec/goblincakes-accent")
 TILE = os.environ.get("GOBLINCAKES_CONFIG_TILE", "/usr/libexec/goblincakes-tile")
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
@@ -283,6 +294,7 @@ class Config(QObject):
         self._apps = {a["id"]: a for a in catalog["apps"]}
         for app in catalog["apps"]:
             app["installed"] = run(HELPER, ["check", *app["check"]])[0] == 0
+            app["removable"] = removable(app)
         self._catalog_data = catalog
         self._catalog = json.dumps(catalog)
         self._version = self._read_version()
@@ -312,6 +324,7 @@ class Config(QObject):
         self._queue = []  # [(app id, [step args])]
         self._current = None
         self._failed = set()
+        self._removing = set()  # app ids being uninstalled (ticks taken away in Program)
         self._proc = None
         self._last_message = {}  # app id → latest status line
         self._tweak_procs = {}
@@ -677,9 +690,24 @@ class Config(QObject):
         return " · ".join(parts)
 
     @Slot(str)
-    def install(self, ids_json):
-        """Installs the chosen apps one step at a time, in catalog order."""
+    @Slot(str, str)
+    def install(self, ids_json, remove_json="[]"):
+        """Uninstalls the unticked installed apps, then installs the chosen ones one step at a
+        time, in catalog order."""
         chosen = set(json.loads(ids_json))
+        self._removing = {i for i in json.loads(remove_json or "[]")
+                          if i in self._apps and self._apps[i].get("removable")}
+        for app_id in self._removing:
+            app = self._apps[app_id]
+            if app_id == self._main_browser:   # not the main browser any more: Firefox again
+                self.setMainBrowser("")
+            if app_launcher(app):
+                try:
+                    set_app_autostart(app, False)
+                except OSError:
+                    pass
+            self.progress.emit(app_id, "waiting", "Väntar på att avinstalleras")
+            self._queue.append((app_id, ["uninstall", *app["check"]]))
         # Apps that others need come first, and are added if missing
         needed = {n for i in chosen for n in self._apps[i].get("requires", [])}
         chosen |= {n for n in needed if not self._apps[n]["installed"]}
@@ -720,8 +748,10 @@ class Config(QObject):
                 self._main_browser = ""
                 self.mainBrowserChanged.emit()
         if app_id and app_id not in self._failed:
-            self._apps[app_id]["installed"] = True
-            self.progress.emit(app_id, "done", self._last_message.get(app_id, "Installerad"))
+            removed = app_id in self._removing
+            self._apps[app_id]["installed"] = not removed
+            self._apps[app_id]["removable"] = removable(self._apps[app_id])
+            self.progress.emit(app_id, "done", self._last_message.get(app_id, "Avinstallerad" if removed else "Installerad"))
 
     def _read(self):
         for line in bytes(self._proc.readAllStandardOutput()).decode(errors="replace").splitlines():
@@ -733,8 +763,9 @@ class Config(QObject):
     def _step_finished(self, code, exit_status):
         if exit_status != QProcess.NormalExit or code != 0:
             self._failed.add(self._current)
+            fallback = "försök igen" if self._current in self._removing else "kolla nätverket och försök igen"
             self.progress.emit(self._current, "failed",
-                               "Misslyckades – " + self._last_message.get(self._current, "kolla nätverket och försök igen"))
+                               "Misslyckades – " + self._last_message.get(self._current, fallback))
         self._next()
 
     # ── Optimisations ─────────────────────────────────────────
