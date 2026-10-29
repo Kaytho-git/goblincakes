@@ -2,11 +2,11 @@
 # Screen rotation (the user's wish, 29 Oct): Meta+Left stands screen 2 up, Meta+Right screen 1,
 # Meta+Up lays all screens down again (goblincakes-screen rotate). KWin's quick tile keys are
 # moved away from them in goblincakes-refresh.sh. Can be changed in System Settings → Shortcuts.
+# No NoDisplay=true: kglobalacceld skips such files (the keys never worked, 29 Oct).
 Type=Application
 Name=GOBLINCAKES skärmrotation
 Exec=/usr/libexec/goblincakes-screen rotate normal
 Icon=goblincakes
-NoDisplay=true
 OnlyShowIn=KDE;
 Actions=screen2;screen1;normal;
 

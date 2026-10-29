@@ -2,11 +2,11 @@
 # GOBLINCAKES' window layouts (Config → Fönster): Meta+Ctrl+1–9 uses layout 1–9
 # (goblincakes-tile layout N). kglobalacceld reads this at session start; the keys can be
 # changed in System Settings → Shortcuts. A number without a layout does nothing.
+# No NoDisplay=true: kglobalacceld skips such files (the keys never worked, 29 Oct).
 Type=Application
 Name=GOBLINCAKES fönsterlayouter
 Exec=/usr/libexec/goblincakes-tile layouts
 Icon=goblincakes
-NoDisplay=true
 OnlyShowIn=KDE;
 Actions=layout1;layout2;layout3;layout4;layout5;layout6;layout7;layout8;layout9;
 
