@@ -13,9 +13,13 @@
     <entry name="zoom" type="Bool">
       <default>true</default>
     </entry>
+    <!-- The dock's size: 1 = like the old dock (48 px), more/less scales frame and icons -->
+    <entry name="scale" type="Double">
+      <default>1.0</default>
+    </entry>
     <!-- How big the icon under the pointer gets, × its normal size -->
     <entry name="zoomFactor" type="Double">
-      <default>1.3</default>
+      <default>1.4</default>
     </entry>
     <!-- How far the wave reaches, in icons each way -->
     <entry name="zoomRange" type="Double">

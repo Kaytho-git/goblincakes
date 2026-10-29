@@ -8,9 +8,9 @@
       pinned app is one row; rows whose launcher position is -1 (not pinned) are hidden.
     - The wave (like macOS, the user's wish): the icon under the pointer grows the most, its
       neighbours less, out to `zoomRange` icons each way (cosine falloff). The icons stay inside
-      the frame (the user's wish): the frame is the panel's whole height, icons rest centred and
+      the frame (the user's wish): the frame is `thickness` high (48 px × the scale setting, at most the panel's height), icons rest centred and
       the biggest reaches 1 px inside it. The frame stays put while the wave runs: the gaps
-      at rest (down to 1 px) leave room for the growth.
+      at rest (about a quarter of the icon) absorb the growth; a wave that won't fit is toned down.
     - Size: everything comes from the panel's thickness – biggest icon = thickness − 4,
       icon at rest = that / zoom, so dragging the panel's edge (or Config later) resizes the
       dock and the icons follow.
@@ -104,28 +104,19 @@ PlasmoidItem {
         id: dock
 
         readonly property int count: tasksModel.launcherList.length
-        // The frame stays put while the wave runs: the gaps at rest leave room for the growth
+        // The frame stays put while the wave runs; the gaps shrink as the icons grow
         // Sizes: all from the panel's thickness. The frame is the whole height; the biggest icon
         // reaches 1 px inside the frame (1 px border + 1 px air top and bottom).
-        readonly property real thickness: Math.max(16, height)
+        // Size at scale 1 = the old dock (48 px); Config's scale multiplies it, up to the panel's height
+        readonly property real thickness: Math.max(16, Math.min(height, 48 * Math.max(0.5, Plasmoid.configuration.scale)))
+        readonly property real frameTop: (height - thickness) / 2
         readonly property real maxSize: thickness - 4
         readonly property real base: Math.max(8, Math.floor(maxSize / root.zoomMax))
         readonly property real spacing: Math.round(base * 0.12)
         readonly property real pad: Math.round(base * 0.12)
 
-        // The most the icons grow together (any pointer position), in px
-        readonly property real growth: {
-            let most = 0;
-            for (let t = 0; t <= count; t += 0.05) {
-                let sum = 0;
-                for (let i = 0; i < count; i++) sum += base * (scale(i, t, 1) - 1);
-                most = Math.max(most, sum);
-            }
-            return Math.ceil(most);
-        }
-        // Airy: the gap at rest that leaves room for all of that growth with gaps down to 1 px
-        // (+ 1 px inside the border at each end, so the end icons keep 1 px air to the frame)
-        readonly property real airyGap: Math.max(spacing, Math.ceil(growth / (count + 1)) + 1)
+        // Gap at rest like the old dock (about a quarter of the icon); the frame is the row at rest
+        readonly property real airyGap: Math.max(2, Math.round(base * 0.25))
         readonly property real frameWidth: count * base + (count + 1) * airyGap + 2
 
         // Rest layout: slot i starts at restLeft + i × restStep (used for the pointer and drags)
@@ -171,6 +162,13 @@ PlasmoidItem {
             const xs = [], sizes = [], widths = [];
             for (let i = 0; i < count; i++) sizes.push(base * scale(i, t, a));
             // The frame stays put: what the icons don't use is shared out as equal gaps
+            // If the grown icons don't fit with 1 px gaps, the wave is toned down to fit
+            const room = frameWidth - 2 - (count + 1) - count * base;
+            const extra = sizes.reduce((sum, v) => sum + v - base, 0);
+            if (extra > room) {
+                const k = Math.max(0, room) / extra;
+                for (let i = 0; i < count; i++) sizes[i] = base + (sizes[i] - base) * k;
+            }
             const used = sizes.reduce((sum, v) => sum + v, 0);
             const gap = Math.max(1, (frameWidth - 2 - used) / (count + 1));
             let x = 1 + gap / 2;
@@ -192,12 +190,13 @@ PlasmoidItem {
             }
         }
 
-        // The dock's own background + frame in the accent colour, the panel's whole height
+        // The dock's own background + frame in the accent colour (height = thickness, centred in the panel)
         // (the panel's own background is hidden)
         Rectangle {
             x: dock.rowLeft + dock.geo.frameL
+            y: dock.frameTop
             width: dock.geo.frameR - dock.geo.frameL
-            height: dock.height
+            height: dock.thickness
             color: Qt.rgba(root.night.r, root.night.g, root.night.b, 0.6)
             border.color: root.accent
             border.width: 1
@@ -237,6 +236,7 @@ PlasmoidItem {
                     y: (dock.height - task.size) / 2
                     source: task.model.decoration
                     active: mouse.containsMouse
+                    roundToIconSize: false
                     SequentialAnimation on opacity {
                         running: task.isStartup
                         loops: Animation.Infinite
@@ -252,7 +252,7 @@ PlasmoidItem {
                     z: 1
                     spacing: Math.max(2, Math.round(dock.pad * 0.3))
                     anchors.horizontalCenter: icon.horizontalCenter
-                    y: root.atTop ? 3 : dock.height - height - 3
+                    y: root.atTop ? dock.frameTop + 3 : dock.frameTop + dock.thickness - height - 3
                     Repeater {
                         model: Math.min(task.windows, 3)
                         Rectangle {

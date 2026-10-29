@@ -9,11 +9,25 @@ import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
 
 KCM.SimpleKCM {
+    property real cfg_scale: 1.0
     property alias cfg_zoom: zoom.checked
     property alias cfg_zoomFactor: factor.value
     property alias cfg_zoomRange: range.value
 
     Kirigami.FormLayout {
+        // 1,0 = like the old dock; − and + in steps of 0,1
+        QQC2.SpinBox {
+            id: scaleBox
+            Kirigami.FormData.label: "Storlek:"
+            readonly property int decimals: 1
+            readonly property real factor: 10
+            value: Math.round(cfg_scale * factor)
+            from: 5; to: 20; stepSize: 1
+            editable: true
+            textFromValue: (v, locale) => Number(v / factor).toLocaleString(locale, 'f', decimals)
+            valueFromText: (text, locale) => Math.round(Number.fromLocaleString(locale, text) * factor)
+            onValueModified: cfg_scale = value / factor
+        }
         QQC2.CheckBox {
             id: zoom
             Kirigami.FormData.label: "Våg:"
@@ -40,7 +54,7 @@ KCM.SimpleKCM {
         QQC2.Label {
             Layout.maximumWidth: Kirigami.Units.gridUnit * 20
             wrapMode: Text.WordWrap
-            text: "Storleken = panelens höjd: dra i panelens kant i redigeringsläget, ikonerna följer med."
+            text: "Storlek 1,0 = som gamla dockan. Panelen måste vara minst så hög som dockan blir (48 px × storleken), annars begränsas den."
         }
     }
 }
