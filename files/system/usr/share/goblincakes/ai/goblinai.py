@@ -1335,9 +1335,11 @@ def tools_for(keys, project, messages):
     tools["byggstatus"] = tool("Läser byggstatus på GitHub", "", "", lambda q: (build_status().report(q), []),
                                "byggstatus",
                                "GOBLINCAKES egna byggen på GitHub (build.yml = imagen, build-iso.yml = ISO:n): de "
-                               "senaste – lyckades, misslyckades, pågår – och för ett misslyckat vilken variant, vilket "
-                               "steg och orsaken ur byggloggen. När användaren frågar om bygget (\"gick bygget igenom?\", "
-                               "\"varför misslyckades bygget?\"), före GitHub-servern.", "Tomt")
+                               "senaste – lyckades, misslyckades, pågår – vilka commits det senaste har med sig "
+                               "(sedan förra lyckade), och för ett misslyckat vilken variant, vilket steg och orsaken "
+                               "ur byggloggen. När användaren frågar om bygget (\"gick bygget igenom?\", "
+                               "\"varför misslyckades bygget?\", \"vad har bygget med sig?\"), före GitHub-servern.",
+                               "Tomt, eller ett byggets commit-id för vad just det bygget har med sig")
     tools["leta"] = tool("Letar i datorn", LOOK_PROMPT, LOOK_GUIDE, lambda q: (sys_tools().look(q), []), "leta",
                          "När du behöver se något i datorn själv: hitta en fil eller mapp (t.ex. var ett programs "
                          "inställningar ligger: `filer *recorder*`), läsa en fil, inställning eller logg, se vad som ligger i "

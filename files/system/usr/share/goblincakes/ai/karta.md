@@ -55,10 +55,12 @@ Ord: uppdatering, uppdatera, update, grön pil, pilen, goblin update, automatisk
 Kontroll: `cat ~/.cache/goblincakes/updates.json`
 
 ## Byggstatus (GOBLINCAKES byggen på GitHub)
-Ord: bygget, bygge, build, github actions, misslyckades bygget, byggloggen, ny image byggd
+Ord: bygget, bygge, build, github actions, misslyckades bygget, byggloggen, ny image byggd, vad har bygget med sig
 - Verktyget byggstatus (ai/buildstatus.py): de senaste byggena av build.yml (imagen) och build-iso.yml (ISO:n), det
   senaste misslyckade med variant, steg och orsaken ur byggloggen (loggen kräver GitHub-nyckeln från GitHub-servern i
   Goblin AI, ~/.config/goblincakes/mcp.env; utan den bara steget).
+- "Vad har bygget med sig?": byggstatus visar commitsen i det senaste bygget sedan förra lyckade (en fråga till
+  GitHub). Ett äldre bygge: ge dess commit-id (`byggstatus dac736b`). Leta inte commit för commit med GitHub-servern.
 - Vakt-tjänsten tittar var 10:e minut (bara på en dator med repot, inte under spel) och ger en notis när ett bygge
   misslyckats – inget när det lyckas.
 - "Säg till när bygget är klart": `bevaka bygge [commit]` – säger till både lyckat och misslyckat. Avbryts bygget av

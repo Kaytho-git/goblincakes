@@ -3,7 +3,7 @@ which failed and why. Kakan's watch service (reminders.py) looks every 10 minute
 has failed (the user's rule 28 Oct: no notice when all is fine), only on a computer with the repo (the one who
 builds GOBLINCAKES), and not mid-game – it is told after the game.
 
-    python3 buildstatus.py          the latest builds and why a failed one failed (the tool byggstatus)
+    python3 buildstatus.py          the latest builds, what the newest brings, why a failed one failed (byggstatus)
     python3 buildstatus.py check    look now, notice for a new failure
 
 Without login GitHub shows which variant and step failed; the reason (the build log's lines before the error) needs
@@ -137,9 +137,34 @@ def describe(fails):
     return out
 
 
+def included(run, older):
+    """The commits a build brings that the last successful build before it didn't have (the compare between their
+    commits; cancelled builds in between are carried along) – [(short id, title)], newest first."""
+    base = next((r for r in older if r.get("conclusion") == "success"), None)
+    if not base or base.get("head_sha") == run.get("head_sha"):
+        return []
+    data = get(f"/compare/{base['head_sha']}...{run['head_sha']}")
+    return [(c["sha"][:7], c["commit"]["message"].splitlines()[0][:100]) for c in reversed(data.get("commits", []))]
+
+
+def describe_included(run, older, limit):
+    try:
+        commits = included(run, older)
+    except (OSError, ValueError) as e:
+        return [f"  (vad bygget har med sig gick inte att läsa: {e})"]
+    if not commits:
+        return []
+    out = [f"  Har med sig {len(commits)} commit{'s' if len(commits) > 1 else ''} sedan förra lyckade bygget:"]
+    out += [f"    {sha} {title}" for sha, title in commits[:limit]]
+    if len(commits) > limit:
+        out.append(f"    … och {len(commits) - limit} äldre")
+    return out
+
+
 def report(query=""):
     """The text for the AI: the latest builds, and why the newest failed one failed."""
     out = []
+    asked = re.findall(r"\b[0-9a-f]{7,40}\b", query.lower())  # "vad har bygget dac736b med sig?"
     try:
         for workflow, title in WORKFLOWS.items():
             items = runs(workflow, 20)
@@ -155,6 +180,9 @@ def report(query=""):
                 state = RESULT.get(r.get("conclusion") or "", "pågår" if r.get("status") != "completed" else "?")
                 out.append(f"- {when(r.get('created_at', ''))}, commit {r.get('head_sha', '')[:7]} "
                            f"\"{r.get('display_title', '')[:70]}\" ({r.get('event')}): {state}")
+                if (r is shown[0] or any(r.get("head_sha", "").startswith(a) for a in asked)) \
+                        and r.get("conclusion") != "cancelled":  # what the newest build brings, one question
+                    out += describe_included(r, items[items.index(r) + 1:], 30 if workflow == "build.yml" else 15)
                 if r is failed:  # only the newest failure: the log is big
                     out += describe(failure(r))
                     if items[0].get("conclusion") == "success" and items[0] is not failed:
