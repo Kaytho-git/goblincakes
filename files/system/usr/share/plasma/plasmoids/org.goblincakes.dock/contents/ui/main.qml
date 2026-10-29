@@ -146,7 +146,7 @@ PlasmoidItem {
             if (dragFrom > dragTo && slot >= dragTo && slot < dragFrom) return slot + 1;
             return slot;
         }
-        property real amount: hover.hovered && !dragging && !root.editMode && root.zoomMax > 1 ? 1 : 0
+        property real amount: hover.hovered && inFrame && !dragging && !root.editMode && root.zoomMax > 1 ? 1 : 0
         Behavior on amount { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
         function falloff(d) {
@@ -182,17 +182,16 @@ PlasmoidItem {
 
         readonly property var geo: layout(pointer, amount)
 
-        // Only the frame reacts to the pointer – the panel around it can be taller
-        Item {
-            y: dock.frameTop
-            width: dock.width
-            height: dock.thickness
-            HoverHandler {
-                id: hover
-                onPointChanged: {
-                    if (hovered)
-                        dock.pointer = Math.min(Math.max((point.position.x - dock.restLeft) / dock.restStep, 0), dock.count);
-                }
+        // Only the frame reacts to the pointer – the panel around it can be taller. The handler sits
+        // on the whole dock (a sibling item under the icons would never get the hover) and
+        // checks the height itself.
+        property bool inFrame: false
+        HoverHandler {
+            id: hover
+            onPointChanged: {
+                dock.inFrame = point.position.y >= dock.frameTop && point.position.y <= dock.frameTop + dock.thickness;
+                if (hovered && dock.inFrame)
+                    dock.pointer = Math.min(Math.max((point.position.x - dock.restLeft) / dock.restStep, 0), dock.count);
             }
         }
 
