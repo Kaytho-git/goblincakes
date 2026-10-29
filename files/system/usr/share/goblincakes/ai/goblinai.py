@@ -2989,6 +2989,8 @@ Gissa aldrig – säg hellre att du inte vet:
   också säger att det är en gissning.
 - Ny fil eller nytt skript: skriv HELA filen i ett ```bash-block med `cat > ~/namn.py <<'EOF'` … `EOF`
   (citattecknen runt EOF behövs), så skapas den med ett klick. Kontrollera att alla import finns med.
+  Bara ```bash-block körs: ett ```json-, ```qml- eller ```python-block skapar ingen fil. Be aldrig användaren
+  skapa eller kopiera en fil – skapa den själv.
   I Python förstås inte `~` av open() – använd `Path.home() / "fil"` eller `os.path.expanduser("~/fil")`.
 - Varje block körs i en egen bash som avslutas när blocket är klart – då dör allt som startats med bara `&`.
   Program som ska fortsätta köra (servrar, lyssnare, övervakning) startas fristående med logg, och provas
@@ -3839,8 +3841,12 @@ WIDGET_GUIDE = """
 
 Bygga en egen Plasma 6-widget (provad mall – följ den, Plasma 5:s format fungerar inte):
 - Mappen: `<mapp>/metadata.json` och `<mapp>/contents/ui/main.qml`. Ingen metadata.desktop (Plasma 5).
+- Skapa filerna själv med ```bash-blocken nedan (byt MAPPEN och innehållet) – ge dem aldrig som ```json- eller
+  ```qml-block för användaren att kopiera.
 - metadata.json:
-```json
+```bash
+mkdir -p ~/kakan-prov/MAPPEN/contents/ui
+cat > ~/kakan-prov/MAPPEN/metadata.json <<'EOF'
 {
     "KPlugin": {
         "Id": "org.kakan.namn",
@@ -3855,10 +3861,12 @@ Bygga en egen Plasma 6-widget (provad mall – följ den, Plasma 5:s format fung
     "KPackageStructure": "Plasma/Applet",
     "X-Plasma-API-Minimum-Version": "6.0"
 }
+EOF
 ```
 - main.qml börjar så här (roten är PlasmoidItem, inte Item; Timer finns i QtQuick – det finns ingen `import QtQuick.Timer`;
   använder du Layout.* behövs `import QtQuick.Layouts`):
-```qml
+```bash
+cat > ~/kakan-prov/MAPPEN/contents/ui/main.qml <<'EOF'
 import QtQuick
 import org.kde.plasma.plasmoid
 
@@ -3871,8 +3879,10 @@ PlasmoidItem {
         // innehållet här
     }
 }
+EOF
 ```
-- Canvas: `ctx.rotate()` tar radianer (grader * Math.PI / 180), och `requestPaint()` behövs när något ändras.
+- Canvas: rita med `var ctx = getContext("2d")` i onPaint (`context` är tomt innan dess – då ritas inget och inget fel
+  syns), `ctx.rotate()` tar radianer (grader * Math.PI / 180), och `requestPaint()` behövs när något ändras.
 - Installera OCH prova med exakt det här blocket – efter varje ändring, byt bara mappen på första raden. Det installerar
   första gången och uppdaterar sedan, visar widgeten i ett fönster i 8 s och läser felen (plasmawindowed skriver dem i
   journalen eller i sin egen utskrift – blocket läser båda; utan timeout fastnar blocket):
