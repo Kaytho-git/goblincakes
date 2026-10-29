@@ -72,7 +72,9 @@ PlasmoidItem {
         Plasmoid.configuration.launchers = list;
     }
 
-    function activate(task) {
+    // wasActive: the panel takes focus on the press, so the app is already inactive when the
+    // click arrives; treat it as active if it lost focus a moment ago
+    function activate(task, wasActive) {
         const idx = tasksModel.makeModelIndex(task.index);
         if (task.isStartup) return;
         if (task.isLauncher) {
@@ -92,7 +94,7 @@ PlasmoidItem {
                 for (let i = kids - 1; i >= 0; i--)
                     tasksModel.requestActivate(tasksModel.makeModelIndex(task.index, i));
             }
-        } else if (task.active) {
+        } else if (task.active || wasActive || task.model.IsMinimized) {
             tasksModel.requestToggleMinimized(idx);
         } else {
             tasksModel.requestActivate(idx);
@@ -243,6 +245,8 @@ PlasmoidItem {
                 readonly property bool isLauncher: model.IsLauncher === true
                 readonly property bool isStartup: model.IsStartup === true
                 readonly property bool active: model.IsActive === true
+                property double inactiveSince: 0
+                onActiveChanged: if (!active) inactiveSince = Date.now()
                 readonly property int windows: isLauncher || isStartup ? 0 : Math.max(1, model.ChildCount ?? 0)
                 readonly property real size: shown ? dock.geo.size[place] : 0
 
@@ -333,7 +337,7 @@ PlasmoidItem {
                                 menu.visualParent = icon;
                                 menu.openRelative();
                             } else {
-                                root.activate(task);
+                                root.activate(task, Date.now() - task.inactiveSince < 1000);
                             }
                         }
                     }

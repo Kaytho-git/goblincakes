@@ -101,6 +101,7 @@ Ord: docka, dockan, aktivitetsfält, appgrid, programmeny, meta+z, ikoner nere
 - Hjälpprogram: /usr/libexec/goblincakes-dock (`goblin dock`). Meta+Z sköts av KWin-skriptet goblincakes-windows.
 - `goblin dock reset` återställer hela GOBLINCAKES-utseendet (tema, typsnitt, toppfält, docka).
 - Ny egen docka på gång (inte inkopplad än): widgeten `org.goblincakes.dock` (/usr/share/plasma/plasmoids/org.goblincakes.dock) – bara fästa program, ikonerna växer i en våg under musen, storleken = panelens höjd. Ikonerna håller sig inom ramen. Inställningar: högerklick → Konfigurera (våg på/av, ramen växer med vågen eller står still/luftig, förstoring, vågens bredd). Fästa program: `launchers` i ~/.config/plasma-org.kde.plasma.desktop-appletsrc under widgeten.
+- Klick på en ikon i nya dockan gör inget/fel (t.ex. öppet program minimeras inte) → panelen tar fokus vid trycket, så programmet är redan inaktivt när klicket kommer (`task.active` falskt) → `activate(task, wasActive)` i main.qml räknar programmet som aktivt om det tappade fokus <1 s sen; kolla med `console.warn` i `activate` + `journalctl --user _COMM=plasmashell`.
 
 ## GOBLINCAKES Config
 Ord: config, inställningar, goblincakes config, program, förinstallerat, fönster, grafik, uppdatera, reglage
