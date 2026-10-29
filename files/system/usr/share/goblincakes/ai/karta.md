@@ -100,6 +100,7 @@ Ord: docka, dockan, aktivitetsfält, appgrid, programmeny, meta+z, ikoner nere
 - Dockan längst ner döljs av sig själv; Meta+Z tar fram den (även över spel). AppGrid = programmenyn.
 - Hjälpprogram: /usr/libexec/goblincakes-dock (`goblin dock`). Meta+Z sköts av KWin-skriptet goblincakes-windows.
 - `goblin dock reset` återställer hela GOBLINCAKES-utseendet (tema, typsnitt, toppfält, docka).
+- Ny egen docka på gång (inte inkopplad än): widgeten `org.goblincakes.dock` (/usr/share/plasma/plasmoids/org.goblincakes.dock) – bara fästa program, ikonerna växer i en våg under musen, storleken = panelens höjd. Inställningar: högerklick → Konfigurera (våg på/av, förstoring, vågens bredd). Fästa program: `launchers` i ~/.config/plasma-org.kde.plasma.desktop-appletsrc under widgeten.
 
 ## GOBLINCAKES Config
 Ord: config, inställningar, goblincakes config, program, förinstallerat, fönster, grafik, uppdatera, reglage

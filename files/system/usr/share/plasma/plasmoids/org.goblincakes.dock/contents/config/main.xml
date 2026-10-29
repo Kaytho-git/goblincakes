@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="General">
+    <!-- The pinned apps, in order; same key and form as icontasks ("applications:<id>.desktop"),
+         so dock-add.js and a move from the old dock can write it the same way -->
+    <entry name="launchers" type="StringList">
+      <default>applications:com.mitchellh.ghostty.desktop,applications:org.mozilla.firefox.desktop</default>
+    </entry>
+    <!-- The wave under the pointer (like macOS) -->
+    <entry name="zoom" type="Bool">
+      <default>true</default>
+    </entry>
+    <!-- How big the icon under the pointer gets, × its normal size -->
+    <entry name="zoomFactor" type="Double">
+      <default>1.6</default>
+    </entry>
+    <!-- How far the wave reaches, in icons each way -->
+    <entry name="zoomRange" type="Double">
+      <default>2.5</default>
+    </entry>
+  </group>
+</kcfg>

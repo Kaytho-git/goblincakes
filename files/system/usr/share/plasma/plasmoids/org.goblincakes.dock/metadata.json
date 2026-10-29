@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "GOBLINCAKES"
+            }
+        ],
+        "Category": "Windows and Tasks",
+        "Description": "The dock: pinned apps only, with an open marker; the icons grow in a wave under the pointer",
+        "Description[sv]": "Dockan: bara fästa program, med öppen-markering; ikonerna växer i en våg under pekaren",
+        "Icon": "preferences-system-windows",
+        "Id": "org.goblincakes.dock",
+        "License": "GPL-3.0-or-later",
+        "Name": "GOBLINCAKES Dock",
+        "Name[sv]": "GOBLINCAKES Docka"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
