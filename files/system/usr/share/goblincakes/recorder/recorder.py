@@ -1908,6 +1908,37 @@ def yt_clock(sec):
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
+SHORT_URLS = CACHE_DIR / "short-urls.json"  # long → is.gd link, so a video always gets the same one
+
+
+def short_url(url):
+    """YouTube shows only the start of a long link in the description ("…/reports/Y83qH...",
+    29 Oct) – is.gd makes it short enough to show whole. No answer: the long link."""
+    try:
+        known = json.loads(SHORT_URLS.read_text())
+    except (OSError, ValueError):
+        known = {}
+    if url in known:
+        return known[url]
+    import urllib.parse
+    import urllib.request
+    try:
+        with urllib.request.urlopen("https://is.gd/create.php?format=simple&url="
+                                    + urllib.parse.quote(url, safe=""), timeout=5) as r:
+            short = r.read().decode().strip()
+    except (OSError, ValueError):
+        return url
+    if not re.fullmatch(r"https://is\.gd/\w+", short):
+        return url
+    known[url] = short
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        SHORT_URLS.write_text(json.dumps(known, indent=1))
+    except OSError:
+        pass
+    return short
+
+
 def youtube_text(meta, start=0.0, end=None):
     """Title and description for YouTube. Mythic+: the bosses as chapters (YouTube makes
     chapters of the time stamps: the first at 0:00, at least three, 10 s apart)."""
@@ -1935,7 +1966,7 @@ def youtube_text(meta, start=0.0, end=None):
     desc = [title, " · ".join(line), ""]
     if wcl.get("url"):
         # YouTube makes "#fight" a hashtag and cuts the link there – Warcraft Logs takes ?fight= too
-        desc += [f"Warcraft Logs: {wcl['url'].replace('#', '?', 1)}", ""]
+        desc += [f"Warcraft Logs: {short_url(wcl['url'].replace('#', '?', 1))}", ""]
 
     if meta.get("kind") == "mplus":
         chapters, last = [(0, "Start")], 0
