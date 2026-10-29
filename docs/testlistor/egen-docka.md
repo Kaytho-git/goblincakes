@@ -1,9 +1,24 @@
-# Egen docka (widgeten org.goblincakes.dock) – efter nästa image
-- Widgeten finns i imagen
-  kör: ls /usr/share/plasma/plasmoids/org.goblincakes.dock/contents/ui/main.qml
-  väntat: filen finns
+# Egen docka (widgeten org.goblincakes.dock)
+
+Så här provar du (rader utan "- " först läses inte av /testa):
+  1. I Claude Code på datorn, skriv: "Gör steg 1–3 i docs/testlistor/egen-docka.md".
+     Claude kör då (i repomappen):
+       git pull
+       mkdir -p ~/.local/share/plasma/plasmoids ~/.local/share/goblincakes/testlistor
+       cp -r files/system/usr/share/plasma/plasmoids/org.goblincakes.dock ~/.local/share/plasma/plasmoids/
+       cp docs/testlistor/egen-docka.md ~/.local/share/goblincakes/testlistor/
+  2. Starta om skrivbordet (fönstren stängs inte):  systemctl --user restart plasma-plasmashell
+  3. Ingen ny image behövs – kopian i hemmappen används direkt.
+  4. Öppna Goblin AI och skriv /testa egen-docka. Kakan går igenom punkterna nedan och frågar dig.
+  5. Efteråt: ta bort kopian när widgeten finns i imagen, annars används den gamla kopian i stället:
+       rm -r ~/.local/share/plasma/plasmoids/org.goblincakes.dock
+     Den nya dockan ligger kvar bredvid den gamla tills vi byter – högerklick → Ta bort tar bort den.
+
+- Widgeten finns (kopian i hemmappen eller i imagen)
+  kör: ls ~/.local/share/plasma/plasmoids/org.goblincakes.dock/contents/ui/main.qml /usr/share/plasma/plasmoids/org.goblincakes.dock/contents/ui/main.qml 2>&1
+  väntat: minst en av filerna finns
 - Lägg till widgeten
-  fråga: Högerklicka på skrivbordet → Lägg till eller hantera paneler → Lägg till panel → Tom panel, flytta den till nederkanten, högerklicka → Lägg till widgetar → sök "GOBLINCAKES Docka" och dra in den. Syns Ghostty och Firefox?
+  fråga: Ta fram dockan (Meta+Z), högerklicka på den → Lägg till widgetar → sök "GOBLINCAKES Docka" och dra in den bredvid de gamla ikonerna. Högerklicka på dockan → Redigera panel och dra panelens höjd till ungefär 70 px. Syns Ghostty och Firefox i en ram i accentfärgen?
 - Fel i loggen
   kör: journalctl --user -b -o cat _COMM=plasmashell | grep -i "goblincakes.dock" | tail -20
   väntat: inga rader med "Error" eller "TypeError"
