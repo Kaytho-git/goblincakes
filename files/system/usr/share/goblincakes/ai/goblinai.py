@@ -2032,6 +2032,22 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         if len(text) <= room:
             return text
         return read_in_parts(text, room, question, source, keys, project, choice, steps, status)
+    typed_text = asked_text(asked.get("content"))
+    if (not report and not searched and "sök" in tools and REPAIR_ASK.search(typed_text)
+            and all(p.search(user_said(messages)) for p in REPAIR_WHEN)
+            and not ERROR_SEEN.search("\n".join(str(m.get("content", "")) for m in messages if m["role"] == "user"))):
+        # Repairing without an error message: Goblin AI finds out first – asked to search, gemma4 guessed instead,
+        # and told so she gave up without looking (29 Oct). She only writes the search words (a small job).
+        found_text, found = investigate(typed_text, tools, keys, notice, project, choice, steps, status)
+        if found_text:
+            sources.extend(found)
+            searched, used = True, used + 1
+            text = fitted(found_text, "filerna och sökningen")
+            seen.append(text)
+            messages.append({"role": "user", "content":
+                             "[Goblin AI tog reda på det här åt dig innan du svarar – det här skrev eller klistrade "
+                             f"användaren inte in]\n\n{text}\n\n[Slut på det Goblin AI tog reda på]\n\n"
+                             f"Användarens fråga var: \"{question}\"\n{REPAIR_COMPARE}"})
     nudged = promised = looked = acted = claimed = False
     repaired = set()  # the repair checks already sent back (repair_nudge)
     fight = own_fight(asked.get("content"), tools, messages)
@@ -3033,8 +3049,9 @@ kan ge länkar.
 
 Gör exakt det användaren ber om – inte något annat som liknar det. "Ta reda på varför" = säg orsaken och var du
 såg den; ändra inget annat än det som rättar just det. Kan du inte göra det användaren ber om (verktyget saknas,
-du hittar inte svaret, det går inte att prova härifrån): säg rakt ut "Det kan jag inte" och varför – gör inte
-något annat i stället.
+du hittar inte svaret, det går inte att prova härifrån): börja svaret med "Det kan jag inte" – sedan kort vad du
+har kollat och vad du skulle behöva. Linda inte in det i "kanske", "troligen" och förslag, och gör inte något annat
+i stället.
 
 Gissa aldrig – säg hellre att du inte vet:
 - Allt du säger om datorn, användarens spel, siffror, klockslag, filer och vad som hände ska stå i det du
@@ -4025,6 +4042,74 @@ def repair_nudge(answer, messages, tools, searched, sent=()):
             "(verktyget sök, sedan las_sida på den bästa träffen), jämför filerna med det du läser och säg "
             "\"enligt <källan> ska X vara Y – här står Z\". Hittar du det inte: säg \"Det kan jag inte hitta\" och "
             "vad du har kollat – ändra inget på en gissning.")
+
+
+REPAIR_COMPARE = ("Jämför filerna ovan med det källorna säger, rad för rad (mappens och filernas namn, huvudet, varje "
+                  "inställningsrad). För varje skillnad: \"Enligt <källan> ska X vara Y – här står Z.\", och rätta just den "
+                  "raden (`sed -i`, `mv`). Står svaret inte i källorna: börja svaret med \"Det kan jag inte hitta\" och säg "
+                  "vad som saknas – gissa inte.")
+# In a repair chat, a message that asks for finding out or fixing again ("det står fortfarande …, ta reda på varför")
+REPAIR_ASK = re.compile(r"\b(?:varför|ta reda på|rätta|laga|fixa|fortfarande|felet|inte)\b", re.I)
+QUERY_PROMPT = ("Skriv EN sökfråga på engelska (högst 10 ord) som hittar hur det ska vara när det här inte fungerar. "
+                "Bara sökfrågan, inget annat – inga citattecken, ingen förklaring.")
+
+
+def investigate(question, tools, keys, notice, project, choice, steps, status=None):
+    """Repairing without an error message (REPAIR_WHEN): the named files, then a search the AI only words and the
+    best hit read whole – laid before her before she answers. Returns (text, sources); ("", []) when nothing came."""
+    parts = []
+    for path in list(dict.fromkeys(m.rstrip(".") for m in re.findall(r"~/[\w./-]+", question)))[:2]:
+        p = Path(os.path.expanduser(path))
+        files = sorted(f for f in p.iterdir() if f.is_file())[:6] if p.is_dir() else [p] if p.is_file() else []
+        if p.is_dir():
+            parts.append(f"Mappen {path} ({p.name}): " + ", ".join(f.name for f in sorted(p.iterdir())) or "tom")
+        for f in files:
+            try:
+                parts.append(f"--- {f} ---\n" + f.read_text(errors="replace")[:6000])
+            except OSError:
+                pass
+    if parts:
+        steps.start("Läser filerna")
+        steps.done(note=f"{len(parts)} delar")
+    steps.start("Skriver sökfrågan")
+    QUICK.on = True
+    try:
+        words, _ = ask_once([{"role": "system", "content": QUERY_PROMPT},
+                             {"role": "user", "content": question + ("\n\n" + "\n\n".join(parts)[:3000] if parts else "")}],
+                            keys, None, notice, project, choice)
+        query = " ".join(words.strip().strip("`\"'").splitlines()[0].split())[:120] if words.strip() else ""
+        steps.done()
+    except (ServiceError, IndexError) as e:
+        query = ""
+        steps.done("fel", e)
+    finally:
+        QUICK.on = False
+    query = query or " ".join(question.split())[:200]
+    if status:
+        status("Söker på nätet…")
+    steps.start(f"Söker på nätet: {query[:80]}")
+    try:
+        text, found = tools["sök"]["run"](query)
+        steps.done(note=f"{len(found)} träffar")
+    except Exception as e:  # noqa: BLE001 – the search failed: the files alone
+        steps.done("fel", e)
+        text, found = "", []
+    LAST.tools.append(("sök", query))
+    LAST.done.append(("sök", query, f"{len(found)} träffar"))
+    if found and "sida" in tools:
+        steps.start(f"Läser webbsidan: {found[0]['url'][:80]}")
+        try:
+            page, _ = read_page(found[0]["url"], keys.get(SEARCH["env"]))
+            text += "\n\n[Hela sidan för träff 1, läst åt dig:]\n" + page
+            LAST.tools.append(("sida", found[0]["url"]))
+            LAST.done.append(("sida", found[0]["url"], ""))
+            steps.done()
+        except Exception as e:  # noqa: BLE001 – the excerpts are there anyway
+            steps.done("fel", e)
+    if not parts and not text:
+        return "", []
+    return ("## Filerna\n" + "\n\n".join(parts) if parts else "") + (
+        f"\n\n## Sökningen: {query}\n{text}" if text else ""), found
 
 
 def with_guides(messages):

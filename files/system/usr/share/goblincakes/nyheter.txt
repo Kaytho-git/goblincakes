@@ -1,3 +1,4 @@
+2026-10-29  När du ber Goblin AI laga något som inte fungerar och det inte finns något felmeddelande, läser hon filerna och söker hur det ska vara innan hon svarar. Vet hon inte säger hon "Det kan jag inte" rakt ut.
 2026-10-29  Goblin AI gör exakt det du ber om – och säger "Det kan jag inte" när hon inte kan, i stället för att göra något annat. När hon lagar kod får hon inte ändra på en gissning eller skriva om hela filer.
 2026-10-29  Goblin AI felsöker kod som inte fungerar steg för steg: läser filerna, söker hur det ska vara när inget felmeddelande finns och jämför – i stället för att gissa.
 2026-10-29  STOPP i Goblin AI stoppar den lokala AI:n direkt – förut fortsatte den i bakgrunden i upp till tio minuter, och nästa fråga fick vänta.
