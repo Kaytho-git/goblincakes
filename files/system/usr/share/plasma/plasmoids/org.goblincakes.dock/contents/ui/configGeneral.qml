@@ -40,7 +40,7 @@ KCM.SimpleKCM {
             enabled: zoom.checked
             QQC2.Slider {
                 id: factor
-                from: 1.1; to: 2.0; stepSize: 0.1
+                from: 1.0; to: 1.5; stepSize: 0.1
             }
             QQC2.Label { text: factor.value.toFixed(1) + "×" }
         }

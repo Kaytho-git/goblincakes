@@ -38,7 +38,10 @@ PlasmoidItem {
 
     readonly property bool editMode: Plasmoid.containment.corona?.editMode ?? false
     readonly property bool atTop: Plasmoid.location === PlasmaCore.Types.TopEdge
-    readonly property real zoomMax: Plasmoid.configuration.zoom ? Math.max(1, Plasmoid.configuration.zoomFactor) : 1
+    // The most an icon can grow inside the frame (rest size = frame − 4 over this, so the dock's
+    // size never depends on the setting): Förstoring goes from 1.0 to this
+    readonly property real zoomCap: 1.5
+    readonly property real zoomMax: Plasmoid.configuration.zoom && isFinite(Plasmoid.configuration.zoomFactor) ? Math.min(zoomCap, Math.max(1, Plasmoid.configuration.zoomFactor)) : 1
     readonly property real zoomRange: Math.max(0.5, Plasmoid.configuration.zoomRange)
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
@@ -113,7 +116,7 @@ PlasmoidItem {
         readonly property real thickness: Math.max(16, Math.min(height, 48 * userScale))
         readonly property real frameTop: (height - thickness) / 2
         readonly property real maxSize: thickness - 4
-        readonly property real base: Math.max(8, Math.floor(maxSize / root.zoomMax))
+        readonly property real base: Math.max(8, Math.floor(maxSize / root.zoomCap))
         readonly property real spacing: Math.round(base * 0.12)
         readonly property real pad: Math.round(base * 0.12)
 
