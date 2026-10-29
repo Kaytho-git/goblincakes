@@ -2032,7 +2032,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         if len(text) <= room:
             return text
         return read_in_parts(text, room, question, source, keys, project, choice, steps, status)
-    nudged = promised = looked = acted = claimed = repaired = False
+    nudged = promised = looked = acted = claimed = False
+    repaired = set()  # the repair checks already sent back (repair_nudge)
     fight = own_fight(asked.get("content"), tools, messages)
     if fight:
         tool, query = fight
@@ -2155,10 +2156,10 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "[Goblin AI] Du skrev att du ska kolla – gör det nu med ett verktyg i stället för att "
                              f"fråga eller vänta. Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
-        why = "" if request_ or repaired else repair_nudge(
-            answer, messages, tools, any(t in ("sök", "sida") for t, _ in LAST.tools))
+        kind, why = ("", "") if request_ else repair_nudge(
+            answer, messages, tools, any(t in ("sök", "sida") for t, _ in LAST.tools), repaired) or ("", "")
         if why:
-            repaired = True
+            repaired.add(kind)
             steps.start("Kontrollerar svaret")
             steps.done("fel", why.split(".")[0].lower())
             messages.append({"role": "assistant", "content": answer})
@@ -3999,19 +4000,20 @@ def user_said(messages):
                      and not m["content"].startswith("Så här gick det:"))
 
 
-def repair_nudge(answer, messages, tools, searched):
+def repair_nudge(answer, messages, tools, searched, sent=()):
     """Repairing code (REPAIR_GUIDE): the reason to send the answer back once, or "" (29 Oct – told to search and
     to change only the faulty line, gemma4 still guessed from memory and wrote whole files anew).
-    searched: a web search or page was read in this question."""
+    searched: a web search or page was read in this question. sent: the checks already sent back ("rewrite",
+    "search") – each sends back once, not one for both (29 Oct: the rewrite took the only one, then a guess went by)."""
     if not all(p.search(user_said(messages)) for p in REPAIR_WHEN):
         return ""
     blocks = cmd_level().code_blocks_in(answer)
-    for block in blocks:
+    for block in blocks if "rewrite" not in sent else []:
         for path in re.findall(r"\bcat\s*>\s*([~\w./-]+)\s*<<", block):
             if Path(os.path.expanduser(path)).is_file():
-                return (f"Du skriver om hela {path} fast den redan finns. Rätta bara raderna som är fel "
+                return "rewrite", (f"Du skriver om hela {path} fast den redan finns. Rätta bara raderna som är fel "
                         "(`sed -i 'Ns/gammalt/nytt/' fil`, `mv` för ett namn) – resten av filen ska stå kvar som den är.")
-    if not any(CHANGES_FILES.search(b) for b in blocks) or searched:
+    if "search" in sent or not any(CHANGES_FILES.search(b) for b in blocks) or searched:
         return ""
     if not ("sök" in tools or "sida" in tools):
         return ""
@@ -4019,7 +4021,7 @@ def repair_nudge(answer, messages, tools, searched):
     if "**Källor:**" in chat or ERROR_SEEN.search("\n".join(str(m.get("content", "")) for m in messages
                                                              if m["role"] == "user")):
         return ""
-    return ("Du ändrar filer utan att ha tagit reda på hur det ska vara. Det finns inget felmeddelande – sök först "
+    return "search", ("Du ändrar filer utan att ha tagit reda på hur det ska vara. Det finns inget felmeddelande – sök först "
             "(verktyget sök, sedan las_sida på den bästa träffen), jämför filerna med det du läser och säg "
             "\"enligt <källan> ska X vara Y – här står Z\". Hittar du det inte: säg \"Det kan jag inte hitta\" och "
             "vad du har kollat – ändra inget på en gissning.")
