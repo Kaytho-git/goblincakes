@@ -1,39 +1,75 @@
 #!/usr/bin/env bash
-# GOBLINCAKES: which terminal the user wants – Ghostty (standard) or Konsole.
+# GOBLINCAKES: which terminal the user wants – Ghostty (standard), Konsole or Kitty.
 # Chosen in GOBLINCAKES Config (Program, at the first start); per user.
-#   goblincakes-terminal status              ghostty | konsole
-#   goblincakes-terminal set ghostty|konsole KDE's terminal, AppGrid, the dock
+#   goblincakes-terminal status              ghostty | konsole | kitty
+#   goblincakes-terminal set ghostty|konsole|kitty  KDE's terminal, AppGrid, the dock
+#                                            (kitty: fetched into the home folder first if missing)
 #   goblincakes-terminal apply               the dock again after a layout reset (goblincakes-firstlogin)
 #   goblincakes-terminal run <command…>      runs a command in the chosen terminal
-# Konsole gets the GOBLINCAKES look from /usr/share/konsole (GoblinCakes.profile).
+#   goblincakes-terminal kitty-config [--reset]  ~/.config/kitty/kitty.conf with the GOBLINCAKES look
+#                                            (only if there is none; --reset keeps the old one as .bak)
+# Konsole gets the GOBLINCAKES look from /usr/share/konsole (GoblinCakes.profile), Kitty from
+# /usr/share/goblincakes/kitty (included by kitty.conf) + the accent colour (goblincakes-accent).
 set -uo pipefail
 
-CHOICE="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/terminal"
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+CHOICE="$CONFIG/goblincakes/terminal"
 GHOSTTY=com.mitchellh.ghostty.desktop
 KONSOLE=org.kde.konsole.desktop
+KITTY=kitty.desktop
+KITTY_BIN="$HOME/.local/kitty.app/bin/kitty"
+KITTY_CONF="$CONFIG/kitty/kitty.conf"
 
 current() {
-    if [ "$(cat "$CHOICE" 2>/dev/null)" = konsole ] && command -v konsole >/dev/null; then
-        echo konsole
-    else
-        echo ghostty
-    fi
+    case $(cat "$CHOICE" 2>/dev/null) in
+        konsole) command -v konsole >/dev/null && { echo konsole; return; } ;;
+        kitty) [ -x "$KITTY_BIN" ] && { echo kitty; return; } ;;
+    esac
+    echo ghostty
 }
 
-# The dock's terminal: swap the other one's pin for this one (other pins untouched)
-dock() { # from to
+desktop_of() {
+    case $1 in konsole) echo "$KONSOLE" ;; kitty) echo "$KITTY" ;; *) echo "$GHOSTTY" ;; esac
+}
+
+# The dock's terminal: swap whichever terminal is pinned for this one (other pins untouched)
+dock() { # to
     busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s '
         panels().forEach(function (p) { if (p.location !== "bottom") return;
             p.widgets().forEach(function (w) { if (w.type !== "org.kde.plasma.icontasks") return;
                 w.currentConfigGroup = ["General"];
                 var l = w.readConfig("launchers");
                 if (typeof l === "string") l = l ? l.split(",") : [];
-                var to = "applications:'"$2"'", out = [], changed = false;
+                var to = "applications:'"$1"'", out = [], changed = false;
+                var terminals = ["applications:'"$GHOSTTY"'", "applications:'"$KONSOLE"'", "applications:'"$KITTY"'"];
                 l.forEach(function (x) {
-                    if (x === "applications:'"$1"'") { x = to; changed = true; }
+                    if (terminals.indexOf(x) >= 0 && x !== to) { x = to; changed = true; }
                     if (out.indexOf(x) < 0) out.push(x);
                 });
                 if (changed) w.writeConfig("launchers", out); }); });' >/dev/null 2>&1 || true
+}
+
+kitty_config() {
+    if [ -e "$KITTY_CONF" ]; then
+        [ "${1:-}" = --reset ] || return 0
+        mv -f "$KITTY_CONF" "$KITTY_CONF.bak"
+    fi
+    mkdir -p "$(dirname "$KITTY_CONF")"
+    cat > "$KITTY_CONF" <<'EOF'
+# GOBLINCAKES defaults – change anything you like (below the include lines wins)
+include /usr/share/goblincakes/kitty/GoblinCakes.conf
+# The accent colour from GOBLINCAKES Config (written by goblincakes-accent)
+include goblincakes-accent.conf
+font_family IBM Plex Mono
+font_size 10
+background_opacity 0.9
+background_blur 1
+window_padding_width 8
+remember_window_size no
+initial_window_width 100c
+initial_window_height 28c
+EOF
+    /usr/libexec/goblincakes-accent kitty >/dev/null 2>&1 || true
 }
 
 set_terminal() {
@@ -44,26 +80,40 @@ set_terminal() {
             echo konsole > "$CHOICE"
             kwriteconfig6 --file kdeglobals --group General --key TerminalApplication konsole
             kwriteconfig6 --file kdeglobals --group General --key TerminalService "$KONSOLE"
-            /usr/libexec/goblincakes-apps set org.kde.konsole show >/dev/null 2>&1 || true
-            dock "$GHOSTTY" "$KONSOLE" ;;
+            /usr/libexec/goblincakes-apps set org.kde.konsole show >/dev/null 2>&1 || true ;;
+        kitty)
+            if [ ! -x "$KITTY_BIN" ]; then
+                /usr/libexec/goblincakes-config-install kitty || exit 1
+            fi
+            kitty_config
+            mkdir -p "$(dirname "$CHOICE")"
+            echo kitty > "$CHOICE"
+            kwriteconfig6 --file kdeglobals --group General --key TerminalApplication "$KITTY_BIN"
+            kwriteconfig6 --file kdeglobals --group General --key TerminalService "$KITTY"
+            /usr/libexec/goblincakes-apps set org.kde.konsole hide >/dev/null 2>&1 || true ;;
         ghostty)
             rm -f "$CHOICE"
             # Back to the system's value (/etc/xdg/kdeglobals = Ghostty)
             kwriteconfig6 --file kdeglobals --group General --key TerminalApplication --delete
             kwriteconfig6 --file kdeglobals --group General --key TerminalService --delete
-            /usr/libexec/goblincakes-apps set org.kde.konsole hide >/dev/null 2>&1 || true
-            dock "$KONSOLE" "$GHOSTTY" ;;
-        *) echo "Använd: goblincakes-terminal set ghostty|konsole" >&2; exit 2 ;;
+            /usr/libexec/goblincakes-apps set org.kde.konsole hide >/dev/null 2>&1 || true ;;
+        *) echo "Använd: goblincakes-terminal set ghostty|konsole|kitty" >&2; exit 2 ;;
     esac
+    dock "$(desktop_of "$1")"
     echo "Terminal: $1"
 }
 
 case ${1:-status} in
     status) current ;;
     set) set_terminal "${2:-}" ;;
-    apply) [ "$(current)" = konsole ] && dock "$GHOSTTY" "$KONSOLE"; exit 0 ;;
+    apply) [ "$(current)" != ghostty ] && dock "$(desktop_of "$(current)")"; exit 0 ;;
+    kitty-config) kitty_config "${2:-}" ;;
     run)
         shift
-        exec "$(current)" -e "$@" ;;
-    *) echo "Använd: goblincakes-terminal status | set ghostty|konsole | apply | run <kommando…>" >&2; exit 2 ;;
+        case $(current) in
+            # Kitty takes the command straight after its own options (no -e)
+            kitty) exec "$KITTY_BIN" "$@" ;;
+            *) exec "$(current)" -e "$@" ;;
+        esac ;;
+    *) echo "Använd: goblincakes-terminal status | set ghostty|konsole|kitty | apply | run <kommando…>" >&2; exit 2 ;;
 esac

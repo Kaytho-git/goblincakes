@@ -93,7 +93,7 @@ def name():
 
 
 def link(text, target):
-    """A clickable link (OSC 8 – Ghostty and Konsole open it on Ctrl+click)."""
+    """A clickable link (OSC 8 – Ghostty and Konsole open it on Ctrl+click, Kitty on a click)."""
     if target.startswith("goblin-show:"):  # the window's "show it in its folder": here the file itself
         target = Path(urllib.parse.unquote(target[len("goblin-show:"):])).as_uri()
     if not TTY:

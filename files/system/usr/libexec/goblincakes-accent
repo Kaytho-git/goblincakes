@@ -8,6 +8,7 @@
     goblincakes-accent apply           apply the chosen colour again (after a new layout)
     goblincakes-accent refresh         at login: remake the theme copies when GOBLINCAKES changed
     goblincakes-accent gtk             remake the GTK theme copy (after Config/goblin update copied it)
+    goblincakes-accent kitty           write Kitty's accent file (goblincakes-terminal, at its install)
 
 Where it goes (all in the home folder, the standard blue = the copies are removed):
   - Plasma and KDE programs: kdeglobals [General] AccentColor + plasma-apply-colorscheme
@@ -18,6 +19,7 @@ Where it goes (all in the home folder, the standard blue = the copies are remove
   - window frames: Death Knight only – the red close button turns orange (~/.local/share/aurorae)
   - Firefox: a marked block in userChrome.css of every profile (the signed theme stays)
   - Discord: the Vencord theme, only when switched on (goblincakes-vencord theme)
+  - Kitty (when it is installed): ~/.config/kitty/goblincakes-accent.conf, reloaded live
   - the login screen: /var/lib/goblincakes/sddm-theme.conf through pkexec (no password)
   - GOBLINCAKES' own windows: ~/.config/goblincakes/accent.json, followed live
 """
@@ -287,6 +289,25 @@ def apply_discord():
     run([str(sys_path("/usr/libexec/goblincakes-vencord")), "theme"])
 
 
+# ── Kitty ─────────────────────────────────────────────────────────
+
+def apply_kitty(pal):
+    """The file kitty.conf includes (goblincakes-terminal kitty-config). Always written while
+    Kitty is installed – the standard blue too – so the include never points at nothing.
+    SIGUSR1 makes running Kitty windows read their config again."""
+    if not (HOME / ".local/kitty.app/bin/kitty").exists():
+        return
+    lines = ["# Written by goblincakes-accent – the accent colour from GOBLINCAKES Config",
+             f"cursor {pal['color']}",
+             f"active_tab_background {pal['color']}",
+             f"active_tab_foreground {pal['on']}",
+             f"active_border_color {pal['color']}"]
+    if pal["id"] != "standard":
+        lines.append(f"url_color {pal['text']}")
+    if write_if_changed(CONFIG_HOME / "kitty/goblincakes-accent.conf", "\n".join(lines) + "\n"):
+        run(["pkill", "-USR1", "-x", "kitty"])
+
+
 # ── The login screen ──────────────────────────────────────────────
 
 def apply_sddm(pal):
@@ -329,6 +350,7 @@ def apply_files(pal):
     frames = apply_aurorae(pal)
     apply_firefox(pal)
     apply_discord()
+    apply_kitty(pal)
     STAMP.parent.mkdir(parents=True, exist_ok=True)
     STAMP.write_text(files_stamp(pal) + "\n")
     return frames
@@ -377,6 +399,8 @@ def main():
             apply_files(pal)
     elif cmd == "gtk":
         apply_gtk(A.palette())
+    elif cmd == "kitty":
+        apply_kitty(A.palette())
     else:
         print(__doc__.strip(), file=sys.stderr)
         return 2

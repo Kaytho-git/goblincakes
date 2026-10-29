@@ -59,6 +59,7 @@ TWEAK = os.environ.get("GOBLINCAKES_CONFIG_TWEAK", "/usr/libexec/goblincakes-twe
 GPU = os.environ.get("GOBLINCAKES_CONFIG_GPU", "/usr/libexec/goblincakes-gpu")
 BROWSER = os.environ.get("GOBLINCAKES_CONFIG_BROWSER", "/usr/libexec/goblincakes-browser")
 TERMINAL = os.environ.get("GOBLINCAKES_CONFIG_TERMINAL", "/usr/libexec/goblincakes-terminal")
+TERMINALS = ("ghostty", "konsole", "kitty")
 ACCENT = os.environ.get("GOBLINCAKES_CONFIG_ACCENT", "/usr/libexec/goblincakes-accent")
 TILE = os.environ.get("GOBLINCAKES_CONFIG_TILE", "/usr/libexec/goblincakes-tile")
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
@@ -292,7 +293,9 @@ class Config(QObject):
                                    if code == 0 and a.get("browser") == out and a["installed"]), "")
         self._pending_browser = ""  # chosen but not installed yet: set after its installation
         code, out = run(TERMINAL, ["status"])
-        self._terminal = out if code == 0 and out in ("ghostty", "konsole") else "ghostty"
+        self._terminal = out if code == 0 and out in TERMINALS else "ghostty"
+        self._terminal_status = ""  # Kitty being fetched: "Hämtar Kitty …", or what went wrong
+        self._terminal_proc = None
         self._webapps = "[]"
         self._webapp_proc = None
         self.refreshWebapps()
@@ -382,20 +385,59 @@ class Config(QObject):
             self._pending_browser = app_id  # set by the install queue once it's installed
         self.mainBrowserChanged.emit()
 
-    # ── Terminal: Ghostty (standard) or Konsole, chosen at the first start ──
+    # ── Terminal: Ghostty (standard), Konsole or Kitty, chosen at the first start ──
 
     @Property(str, notify=terminalChanged)
     def terminal(self):
         return self._terminal
 
+    @Property(str, notify=terminalChanged)
+    def terminalStatus(self):
+        return self._terminal_status
+
+    @Property(bool, notify=terminalChanged)
+    def terminalBusy(self):
+        return self._terminal_proc is not None
+
     @Slot(str)
     def setTerminal(self, name):
-        if name == self._terminal or name not in ("ghostty", "konsole"):
+        if name == self._terminal or name not in TERMINALS or self._terminal_proc:
             return
+        before = self._terminal
         self._terminal = name
+        self._terminal_status = ""
         self.terminalChanged.emit()
-        # In the background: changes the dock through plasmashell
-        QProcess.startDetached(TERMINAL, ["set", name])
+        if name != "kitty":
+            # In the background: changes the dock through plasmashell
+            QProcess.startDetached(TERMINAL, ["set", name])
+            return
+        # Kitty is fetched into the home folder the first time (~30 MB): show how it goes,
+        # and go back to the terminal from before if it fails
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._terminal_proc = proc
+        self._terminal_status = "Förbereder Kitty…"
+        self.terminalChanged.emit()
+
+        def read():
+            for text in bytes(proc.readAllStandardOutput()).decode(errors="replace").splitlines():
+                if text.startswith("@@ "):
+                    self._terminal_status = text[3:].strip()
+                    self.terminalChanged.emit()
+
+        def finished(code, exit_status):
+            read()
+            self._terminal_proc = None
+            if code == 0 and exit_status == QProcess.NormalExit:
+                self._terminal_status = ""
+            else:
+                self._terminal = before
+                if not self._terminal_status or self._terminal_status.startswith(("Förbereder", "Hämtar", "Packar", "Letar")):
+                    self._terminal_status = "Kitty kunde inte hämtas – försök igen"
+            self.terminalChanged.emit()
+        proc.readyReadStandardOutput.connect(read)
+        proc.finished.connect(finished)
+        proc.start(TERMINAL, ["set", name])
 
     # ── Utseende: the accent colour (goblincakes-accent) ──────
 
@@ -831,9 +873,9 @@ class Config(QObject):
     # ── Uppdatera: `goblin update --gui` ──────────────────────
 
     # The steps in goblin update's order (its @@step headings), for the progress bar
-    UPDATE_STEPS = ["System (GOBLINCAKES-imagen)", "Flatpak-program", "AppImage-program", "VS Code", "ChatGPT", "Discord", "GE-Proton", "Lokal AI", "Firmware"]
+    UPDATE_STEPS = ["System (GOBLINCAKES-imagen)", "Flatpak-program", "AppImage-program", "VS Code", "ChatGPT", "Discord", "Kitty", "GE-Proton", "Lokal AI", "Firmware"]
     # goblin update --only names, in the same order
-    UPDATE_PARTS = ["system", "flatpak", "appimages", "vscode", "chatgpt", "discord", "proton", "ollama", "firmware"]
+    UPDATE_PARTS = ["system", "flatpak", "appimages", "vscode", "chatgpt", "discord", "kitty", "proton", "ollama", "firmware"]
 
     @Property(bool, notify=updateBusyChanged)
     def updateBusy(self):

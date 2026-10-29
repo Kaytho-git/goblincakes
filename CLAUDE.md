@@ -56,7 +56,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 ## Status (detaljer: grep i docs/anteckningar.md)
 **Testas på riktig installation, inte i VM:en.**
 - [x] Steg 1: bas-recept (paket, Flatpaks, udev, tjänster)
-- [x] Ghostty som standardterminal (VM-wrapper för OpenGL)
+- [x] Ghostty som standardterminal (VM-wrapper för OpenGL); Konsole och Kitty valbara (Kitty i hemmappen)
 - [x] Steg 3: KDE-utseende + varumärke (tema, ramar, paneler, splash, Plymouth, inloggning/SDDM-tema, låsskärm, utloggning)
 - [x] AppGrid med raka hörn (byggsteget `appgrid-square`), halva storleken
 - [x] `goblin update` + grön/färgad uppdateringsmarkering i toppfältet, Config → Uppdatera
@@ -94,7 +94,6 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav).
 - [ ] **GoblinRecorder för CS2** – byggt 22 okt: GSI (2K–ACE-klipp + alla kills, matchen tas bort), demon (egna siffror, TTD/första skottet/spray/counter-strafe, vunna clutchar som klipp), CS2 Stats (clutchar 1v1–1v4, ACE, pilar, utfällbar match med alla tio, per säsong med Arkiv). Deathmatch provat på riktigt. Kvar: efter nästa image en riktig Premier/Competitive till slut + nedladdad demo – stämmer siffrorna mot Leetify, blir klippen rätt, börjar demons servernamn med "Valve" (annars hamnar den under PRIVAT)?
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
-- [ ] **Kitty som tredje terminalval** (bredvid Ghostty/Konsole; officiella versionen i hemmappen, inte i imagen). Detaljer: grep "Kitty som terminalval" i anteckningarna.
 - [ ] **Egen dock-widget (efter Kakans plan):** dockan bara launcher (fästa program + öppen-markering i accent), öppna program bara i toppfältet. Detaljer: grep "Egen dock-widget" i anteckningarna.
 - [ ] **GoblinAmp:** spellistan ska kunna kopplas loss från spelaren och dras vart man vill (eget fönster); GRAF-fönstret genomskinligt i stället för svart bakgrund.
 

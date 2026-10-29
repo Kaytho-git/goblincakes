@@ -220,7 +220,7 @@ Window {
                          "detail": apps.length > 0 ? apps.join(", ") + (runtimes > 0 ? " + " + runtimes + " systemdelar" : "")
                                                    : runtimes + (runtimes === 1 ? " systemdel" : " systemdelar") + " för programmen" });
         const groups = [["appimages", "AppImage-program"], ["vscode", "VS Code"], ["chatgpt", "ChatGPT"], ["discord", "Discord"],
-                        ["proton", "GE-Proton"], ["firmware", "Firmware"]];
+                        ["kitty", "Kitty"], ["proton", "GE-Proton"], ["firmware", "Firmware"]];
         for (const [id, title] of groups) {
             const names = other.filter(o => o.part === id).map(o => o.name);
             if (names.length > 0)
@@ -713,7 +713,7 @@ Window {
             width: chooser.width - 96
             spacing: 12
 
-            // ── Terminal: Ghostty (standard) or Konsole, same GOBLINCAKES look ──
+            // ── Terminal: Ghostty (standard), Konsole or Kitty, same GOBLINCAKES look ──
             Column {
                 width: sections.width
                 spacing: 14
@@ -729,7 +729,7 @@ Window {
                 }
                 Text {
                     width: parent.width
-                    text: "Vilken terminal vill du använda? Båda har GOBLINCAKES färger och typsnitt. Den du väljer ligger i dockan och öppnas när GOBLINCAKES behöver en terminal. Du kan byta här när du vill."
+                    text: "Vilken terminal vill du använda? Alla tre har GOBLINCAKES färger och typsnitt. Den du väljer ligger i dockan och öppnas när GOBLINCAKES behöver en terminal. Du kan byta här när du vill."
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 13
@@ -741,14 +741,15 @@ Window {
                     Repeater {
                         model: [
                             {id: "ghostty", name: "Ghostty", desc: "Snabb och enkel. GOBLINCAKES standard."},
-                            {id: "konsole", name: "Konsole", desc: "KDE:s egen terminal, med flikar, delad vy och inställningar i menyerna."}
+                            {id: "konsole", name: "Konsole", desc: "KDE:s egen terminal, med flikar, delad vy och inställningar i menyerna."},
+                            {id: "kitty", name: "Kitty", desc: "Snabb, med flikar och delade fönster. Hämtas när du väljer den."}
                         ]
                         Rectangle {
                             id: termCard
                             required property var modelData
                             readonly property bool chosen: backend.terminal === modelData.id
-                            width: Math.min(420, (sections.width - 16) / 2)
-                            height: 92
+                            width: Math.min(420, (sections.width - 32) / 3)
+                            height: 104
                             color: termArea.containsMouse && !chosen ? "#111A2A" : "#0E1420"
                             border.width: 1
                             border.color: chosen ? accent.color : termArea.containsMouse ? "#2A3852" : "#1E2A40"
@@ -779,7 +780,7 @@ Window {
                                     font.family: "IBM Plex Sans"
                                     font.pixelSize: 13
                                     wrapMode: Text.WordWrap
-                                    maximumLineCount: 2
+                                    maximumLineCount: 3
                                     elide: Text.ElideRight
                                 }
                             }
@@ -792,11 +793,21 @@ Window {
                                 id: termArea
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                cursorShape: termCard.chosen ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                cursorShape: termCard.chosen || backend.terminalBusy ? Qt.ArrowCursor : Qt.PointingHandCursor
                                 onClicked: backend.setTerminal(termCard.modelData.id)
                             }
                         }
                     }
+                }
+                // Kitty being fetched (or why it failed)
+                Text {
+                    visible: backend.terminalStatus !== ""
+                    width: parent.width
+                    text: backend.terminalStatus
+                    color: backend.terminalBusy ? accent.text : "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
                 }
             }
 

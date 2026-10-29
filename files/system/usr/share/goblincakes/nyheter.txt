@@ -1,3 +1,4 @@
+2026-10-29  Kitty går att välja som terminal i GOBLINCAKES Config → Program, bredvid Ghostty och Konsole. Den hämtas när du väljer den, har GOBLINCAKES färger och uppdateras med goblin update.
 2026-10-29  När du ber Goblin AI laga något som inte fungerar och det inte finns något felmeddelande, läser hon filerna och söker hur det ska vara innan hon svarar. Vet hon inte säger hon "Det kan jag inte" rakt ut.
 2026-10-29  Goblin AI gör exakt det du ber om – och säger "Det kan jag inte" när hon inte kan, i stället för att göra något annat. När hon lagar kod får hon inte ändra på en gissning eller skriva om hela filer.
 2026-10-29  Goblin AI felsöker kod som inte fungerar steg för steg: läser filerna, söker hur det ska vara när inget felmeddelande finns och jämför – i stället för att gissa.

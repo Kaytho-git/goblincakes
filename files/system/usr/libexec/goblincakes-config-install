@@ -113,6 +113,7 @@ check() {
         vscode) [ -x "$HOME/.local/share/vscode/code" ] ;;
         chatgpt) /usr/libexec/goblincakes-chatgpt status | grep -q '"installed": true' ;;
         discord) [ -x "$HOME/.local/share/discord-app/discord" ] ;;
+        kitty) [ -x "$HOME/.local/kitty.app/bin/kitty" ] ;;
         recorder) [ -e "$HOME/.config/goblincakes/recorder-on" ] && flatpak info com.obsproject.Studio >/dev/null 2>&1 ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;
@@ -533,6 +534,56 @@ DESKTOP
     discord-launcher)
         # goblincakes-refresh.sh at login: a launcher from before 12 Oct gets the line too
         discord_launcher "$HOME/.local/share/discord-app/discord"
+        ;;
+
+    kitty)
+        # Kitty as the third terminal (29 Oct, the user's wish – next to Ghostty and Konsole).
+        # Kitty's own ready-made build from its GitHub releases, unpacked to ~/.local/kitty.app
+        # (where Kitty's installer puts it): no root, the image doesn't grow. goblin update runs
+        # this step again for new versions. Chosen with goblincakes-terminal set kitty.
+        dir="$HOME/.local/kitty.app"
+        apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+        case $(uname -m) in
+            x86_64) arch=x86_64 ;;
+            aarch64) arch=arm64 ;;
+            *) status "Kitty finns inte för den här datorn"; exit 1 ;;
+        esac
+        status "Letar efter senaste Kitty…"
+        release=$(github_latest kovidgoyal/kitty 2>/dev/null) || { status "Kunde inte nå GitHub"; exit 1; }
+        read -r name url < <(echo "$release" | json_asset "^kitty-[0-9.]+-$arch\\.txz$") || true
+        version=$(echo "${name:-}" | sed -n 's/^kitty-\([0-9.]*\)-.*/\1/p')
+        [ -n "$version" ] && [ -n "${url:-}" ] || { status "Hittade ingen Kitty för Linux i senaste versionen"; exit 1; }
+        if [ -x "$dir/bin/kitty" ] && [ "$(cat "$dir/.goblincakes-version" 2>/dev/null)" = "$version" ]; then
+            status "Kitty $version finns redan"
+        else
+            tmp=$(mktemp -d)
+            trap 'rm -rf "$tmp"' EXIT
+            status "Hämtar Kitty $version…"
+            curl -fL --progress-bar -o "$tmp/kitty.txz" "$url"
+            status "Packar upp Kitty $version…"
+            mkdir -p "$tmp/new"
+            tar -xJf "$tmp/kitty.txz" -C "$tmp/new"
+            [ -x "$tmp/new/bin/kitty" ] || { status "Kittys nedladdning ser annorlunda ut än väntat"; exit 1; }
+            echo "$version" >"$tmp/new/.goblincakes-version"
+            mkdir -p "$(dirname "$dir")"
+            [ -e "$dir" ] && mv "$dir" "$tmp/old"
+            mv "$tmp/new" "$dir"
+        fi
+        mkdir -p "$apps" "$HOME/.local/bin"
+        ln -sfn "$dir/bin/kitty" "$HOME/.local/bin/kitty"
+        ln -sfn "$dir/bin/kitten" "$HOME/.local/bin/kitten"
+        # Kitty's own menu entries, pointed at the home folder (as Kitty's docs say)
+        for f in kitty.desktop kitty-open.desktop; do
+            [ -f "$dir/share/applications/$f" ] || continue
+            sed -e "s|^Icon=kitty$|Icon=$dir/share/icons/hicolor/256x256/apps/kitty.png|" \
+                -e "s|^Exec=kitty|Exec=$dir/bin/kitty|" -e "s|^TryExec=kitty$|TryExec=$dir/bin/kitty|" \
+                "$dir/share/applications/$f" >"$apps/$f"
+        done
+        # GOBLINCAKES look the first time (kitty.conf of one's own is left alone)
+        /usr/libexec/goblincakes-terminal kitty-config >/dev/null 2>&1 || true
+        update-desktop-database -q "$apps" >/dev/null 2>&1 || true
+        kbuildsycoca6 >/dev/null 2>&1 || true
+        status "Kitty $version klar"
         ;;
 
     chatgpt)

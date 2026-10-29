@@ -308,6 +308,19 @@ Ord: utseende, tema, färg, accent, accentfärg, låsskärm, inloggning, sddm, i
   goblincakes-sddm-accent). Utseendet läggs på vid första inloggningen av /usr/libexec/goblincakes-firstlogin.
 - `goblin dock reset` återställer allt utseende.
 
+## Terminalen (Ghostty, Konsole, Kitty)
+Ord: terminal, ghostty, konsole, kitty, terminalval
+- Valet i Config → Program → Terminal: /usr/libexec/goblincakes-terminal (`status`, `set ghostty|konsole|kitty`,
+  `run <kommando>`); valet i ~/.config/goblincakes/terminal (ingen fil = Ghostty). Sätter kdeglobals
+  TerminalApplication/TerminalService och byter terminalen i dockan.
+- Ghostty i imagen, utseendet ~/.config/ghostty/config.ghostty (temat /usr/share/ghostty/themes/GoblinCakes).
+  Konsole i imagen, profilen /usr/share/konsole/GoblinCakes.profile.
+- Kitty: Kittys egen version i ~/.local/kitty.app (hämtas från GitHub när man väljer den, version i
+  .goblincakes-version), ~/.local/bin/kitty, menyposten ~/.local/share/applications/kitty.desktop. Uppdateras med
+  `goblin update --only kitty`. Utseendet ~/.config/kitty/kitty.conf (include /usr/share/goblincakes/kitty/GoblinCakes.conf
+  + goblincakes-accent.conf = accentfärgen från goblincakes-accent). `goblincakes-terminal kitty-config --reset` = ny
+  kitty.conf (den gamla som .bak). Kolla: `goblincakes-terminal status`, `~/.local/bin/kitty --version`.
+
 ## Webbläsare och webbappar
 Ord: webbläsare, chrome, firefox, brave, webapp, webbapp
 - Huvudwebbläsaren: Config → Program (/usr/libexec/goblincakes-browser). Webbappar får ikon av

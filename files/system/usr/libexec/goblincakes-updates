@@ -9,7 +9,7 @@
 # Flatpak: programs with updates, user and system installations, plus how many runtimes and
 # extensions (e.g. Nvidia's driver part for Flatpak games, which must follow the system's driver).
 # The rest (11 Oct, the user's wish – each can be updated on its own in Config → Uppdatera):
-# VS Code and Discord in the home folder, AppImages from Config (WowUp, Raider.IO, Archon),
+# VS Code, Discord and Kitty in the home folder, AppImages from Config (WowUp, Raider.IO, Archon),
 # GE-Proton when it's used, and firmware (fwupd) – "other": [{part, name}].
 # What a new version brings (10 Oct, the user's wish – shown by the arrow and in Config): the
 # lines of nyheter.txt that the new image has and this one doesn't, read from GitHub at the
@@ -319,6 +319,16 @@ def other_updates(old):
             keep("discord")
 
     gh = {"Accept": "application/vnd.github+json"}
+    # Kitty (its own build in the home folder, the third terminal): the newest release's tag
+    if (home / ".local/kitty.app/bin/kitty").exists():
+        try:
+            data, _ = latest_json("https://api.github.com/repos/kovidgoyal/kitty/releases/latest", gh)
+            new = data.get("tag_name", "").lstrip("v")
+            if new and new != read(home / ".local/kitty.app/.goblincakes-version"):
+                found.append({"part": "kitty", "name": f"Kitty {new}"})
+        except (OSError, ValueError):
+            keep("kitty")
+
     # AppImages from Config: the download link of the newest release vs the one installed
     try:
         steps = [s for app in json.loads(CATALOG.read_text())["apps"] for s in app["steps"]

@@ -84,6 +84,8 @@ if [ "$RESET" = 1 ]; then
     for f in "$CONFIG/ghostty/config.ghostty" "$CONFIG/ghostty/config"; do
         [ -e "$f" ] && mv -f "$f" "$f.bak"
     done
+    # Kitty (if installed): the same, kitty.conf kept as .bak
+    [ -x "$HOME/.local/kitty.app/bin/kitty" ] && /usr/libexec/goblincakes-terminal kitty-config --reset
 fi
 
 case $mode in
@@ -146,7 +148,7 @@ window-height = 28
 EOF
 fi
 
-# Konsole chosen as the terminal (Config): the new dock gets it instead of Ghostty
+# Konsole or Kitty chosen as the terminal (Config): the new dock gets it instead of Ghostty
 ( sleep 10; /usr/libexec/goblincakes-terminal apply ) >/dev/null 2>&1 &
 
 mkdir -p "$(dirname "$MARK")"
