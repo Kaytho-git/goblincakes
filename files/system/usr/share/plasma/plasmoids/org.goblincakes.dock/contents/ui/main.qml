@@ -277,6 +277,12 @@ PlasmoidItem {
                     subText: task.windows > 1 ? task.windows + " fönster"
                             : task.windows === 1 && task.model.display !== task.model.AppName ? (task.model.display ?? "") : ""
                     active: !dock.dragging && !menu.opened
+                    // Several windows: the click puts the list of them in this same tooltip (same box and
+                    // place as the name on hover); back to the plain name when it closes
+                    property bool listing: false
+                    mainItem: listing ? windowList : null
+                    interactive: listing
+                    onToolTipVisibleChanged: shown => { if (!shown) listing = false; }
 
                     MouseArea {
                         id: mouse
@@ -311,7 +317,7 @@ PlasmoidItem {
                                 menu.visualParent = icon;
                                 menu.openRelative();
                             } else {
-                                if (task.windows > 1) dock.showWindows(task, icon);
+                                if (task.windows > 1) dock.showWindows(task, tip);
                                 else root.activate(task, task.key === root.lastActiveKey && !task.model.IsMinimized);
                             }
                         }
@@ -338,29 +344,76 @@ PlasmoidItem {
             }
         }
 
-        // Several windows of one app: a list of them to choose from
-        PlasmaExtras.Menu {
-            id: winMenu
-            placement: menu.placement
-        }
-        function showWindows(task, parentItem) {
+        // Several windows of one app: a list of them to choose from, in the hover tooltip's box
+        function showWindows(task, tip) {
             root.lastActiveKey = task.key;
-            winMenu.clearMenuItems();
-            const kids = task.model.ChildCount ?? 0;
-            for (let i = 0; i < kids; i++) {
-                const child = tasksModel.makeModelIndex(task.index, i);
-                const item = Qt.createQmlObject("import org.kde.plasma.extras as PlasmaExtras; PlasmaExtras.MenuItem {}", winMenu);
-                item.text = tasksModel.data(child, Qt.DisplayRole) || "";
-                item.icon = tasksModel.data(child, Qt.DecorationRole);
-                item.clicked.connect(() => {
-                    if (tasksModel.data(child, TaskManager.AbstractTasksModel.IsMinimized))
-                        tasksModel.requestToggleMinimized(child);
-                    tasksModel.requestActivate(child);
-                });
-                winMenu.addMenuItem(item);
+            tip.hideImmediately();
+            // Via null: the rows are made again, so the titles are the windows' current ones
+            // (tasksModel.data() isn't a binding that updates – a tab switched since showed the old title)
+            windowList.task = null;
+            windowList.task = task;
+            windowList.tip = tip;
+            tip.listing = true;
+            tip.showToolTip();
+        }
+        // One list, lent to the tooltip of the icon that was clicked (as Plasma's own task manager
+        // shares one tooltip delegate) – an item made per click had no QML context in the tooltip
+        Item {
+            visible: false
+            ColumnLayout {
+                id: windowList
+                property var task: null
+                property var tip: null
+                spacing: 2
+                Kirigami.Heading {
+                    level: 3
+                    text: windowList.task ? (windowList.task.model.AppName || windowList.task.model.display || "") : ""
+                    Layout.bottomMargin: Kirigami.Units.smallSpacing
+                }
+                Repeater {
+                    model: windowList.task ? (windowList.task.model.ChildCount ?? 0) : 0
+                    delegate: Rectangle {
+                        id: row
+                        required property int index
+                        readonly property var child: tasksModel.makeModelIndex(windowList.task.index, index)
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+                        implicitWidth: rowLine.implicitWidth + 2 * Kirigami.Units.smallSpacing
+                        implicitHeight: rowLine.implicitHeight + 2 * Kirigami.Units.smallSpacing
+                        color: rowMouse.containsMouse ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.25) : "transparent"
+                        border.width: rowMouse.containsMouse ? 1 : 0
+                        border.color: root.accent
+                        RowLayout {
+                            id: rowLine
+                            anchors { fill: parent; margins: Kirigami.Units.smallSpacing }
+                            spacing: Kirigami.Units.smallSpacing
+                            Kirigami.Icon {
+                                source: tasksModel.data(row.child, Qt.DecorationRole)
+                                implicitWidth: Kirigami.Units.iconSizes.small
+                                implicitHeight: Kirigami.Units.iconSizes.small
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: tasksModel.data(row.child, Qt.DisplayRole) || ""
+                                elide: Text.ElideRight
+                                color: Kirigami.Theme.textColor
+                                font: Kirigami.Theme.defaultFont
+                            }
+                        }
+                        MouseArea {
+                            id: rowMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: {
+                                if (tasksModel.data(row.child, TaskManager.AbstractTasksModel.IsMinimized))
+                                    tasksModel.requestToggleMinimized(row.child);
+                                tasksModel.requestActivate(row.child);
+                                windowList.tip.hideImmediately();
+                            }
+                        }
+                    }
+                }
             }
-            winMenu.visualParent = parentItem;
-            winMenu.openRelative();
         }
 
         PlasmaExtras.Menu {
