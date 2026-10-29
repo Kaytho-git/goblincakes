@@ -3944,8 +3944,29 @@ if [ -n "$fel" ]; then echo "$fel"; elif [ "$kod" -ne 124 ]; then echo "PROVET S
   på skrivbordet → Lägg till widgetar). Ligger en äldre version redan på skrivbordet visar den den gamla koden tills
   skrivbordet startats om – säg det till användaren (ta bort den och lägg till den igen, eller logga ut och in)."""
 
+# Repairing (29 Oct): asked why the WoW add-on didn't show in the list at all, gemma4 named a harmless line as the
+# cause with full confidence, left "## InterfaceTool" as it was and never searched – a silent fault gets a guess
+REPAIR_GUIDE = """
+
+Reparera kod som inte fungerar (ett tillägg, en widget, ett skript) – arbeta så här, i den här ordningen:
+1. Läs först: `ls -la` på mappen och `cat` på varje fil. Säg ingenting om orsaken innan du har läst dem.
+2. Finns ett felmeddelande (fil:rad, "attempt to call a nil value", "is not a type"): gå efter det och rätta just
+   den raden.
+3. Inget felmeddelande ("syns inte", "händer inget", "visar ingenting"): GISSA INTE. Sök först på hur det ska vara
+   (på engelska, t.ex. `wow addon not listed in addon list`, `plasma 6 widget not showing`), läs den bästa träffen
+   (las_sida), och jämför sedan dina filer punkt för punkt med det du läste: mappens och filernas namn, filens
+   första rader (huvudet), varje inställningsrad, namnen på funktionerna.
+4. Säg vad du jämförde: "Enligt <källan> ska X vara Y – här står Z." Varje skillnad är ett fel; det kan vara flera.
+   Hittar du ingen skillnad: säg det och vad du skulle behöva veta – hitta aldrig på en orsak som låter rimlig.
+5. Rätta bara det som skilde (`sed -i` på raden, `mv` för ett namn) – skriv inte om hela filen.
+6. Kan det inte provas härifrån (ett WoW-tillägg provas bara i spelet): säg vad användaren ska titta efter, och
+   säg aldrig att det är löst förrän användaren har provat."""
+
 GUIDES = [(re.compile(r"\b(plasmoid\w*|kpackagetool6?|plasmawindowed|widgetmeny\w*)\b|\b(gör|göra|skapa|bygg\w*|ny|nytt|"
-                      r"egen|eget|rätta|installera)\b[^.?!\n]{0,50}widget", re.I), WIDGET_GUIDE)]
+                      r"egen|eget|rätta|installera)\b[^.?!\n]{0,50}widget", re.I), WIDGET_GUIDE),
+          # "syns inte", "fungerar inte" … about code: both must be in what the user said
+          ((re.compile(BROKEN.pattern + r"|\b(?:visar|händer|syns|ritar)\s+(?:ingenting|inget|inte något)\b", re.I), re.compile(r"(?:tillägg|addon|add-on|widget|plasmoid|skript|script)\w*|\bkod(?:en)?\b"
+                               r"|\.(?:lua|toc|qml|py|sh|js)\b|~/", re.I)), REPAIR_GUIDE)]
 
 
 def with_guides(messages):
@@ -3954,7 +3975,8 @@ def with_guides(messages):
         return messages
     said = "\n".join(m["content"] for m in messages if m["role"] == "user" and isinstance(m.get("content"), str)
                      and not m["content"].startswith("Så här gick det:"))
-    text = "".join(guide for pattern, guide in GUIDES if pattern.search(said))
+    text = "".join(guide for patterns, guide in GUIDES
+                   if all(p.search(said) for p in (patterns if isinstance(patterns, tuple) else (patterns,))))
     return with_system(messages, text)
 
 
