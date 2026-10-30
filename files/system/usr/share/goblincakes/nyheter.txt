@@ -1,3 +1,4 @@
+2026-10-30  Goblin AI: förslagen på startsidan går att trycka på igen – frågan skickas direkt så att du kan prova (för "Rätta stavningen i en fil" väljer du först filen).
 2026-10-30  Goblin AI visar under namnet vilken version som körs och när den byggdes.
 2026-10-30  Goblin AI: Kakan tänker inte längre i varje steg när hon kör kommandon – att flytta ett tillägg tog 9 minuter, nu bör det gå på någon minut. Vill du att hon tänker efter ordentligt, skriv "varför" eller "felsök" i frågan.
 2026-10-30  Goblin AI: när ett WoW-tillägg ligger i fel mapp ser Kakan själv vilka WoW-versioner du har – bara en: hon flyttar dit, flera: hon frågar Retail eller Classic.

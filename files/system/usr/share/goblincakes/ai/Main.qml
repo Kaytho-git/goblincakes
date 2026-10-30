@@ -1598,8 +1598,9 @@ Window {
                 onClicked: { win.view = "learn"; win.learnSetup = false; win.reloadModule(); }
             }
 
-            // Empty: welcome + examples
+            // Empty: welcome + examples – above the (empty) chat list, which took the clicks (30 Oct)
             Column {
+                z: 2
                 visible: chatModel.count === 0 && !backend.busy
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: -60
@@ -1644,7 +1645,16 @@ Window {
                             required property string modelData
                             small: true
                             text: modelData
-                            onClicked: { input.text = modelData; input.forceActiveFocus(); }
+                            // A try at once (the user: "tryck på dom för att testa funktionen"); the file one picks the file first
+                            onClicked: {
+                                if (modelData.indexOf("fil") >= 0) {
+                                    input.text = modelData;
+                                    input.forceActiveFocus();
+                                    openDialog.open();
+                                } else {
+                                    win.send(modelData);
+                                }
+                            }
                         }
                     }
                 }
