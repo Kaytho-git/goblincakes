@@ -868,7 +868,7 @@ Lagg: frågar användaren varför spelet laggade/ryckte/hackade eller vad lagmä
 kodblock märkt ```lagg – tomt för den senaste mätningen, ett nummer för en äldre (2 = näst senaste) eller `lista`.
 Du får då vad datorn och nätet gjorde kring varje gång användaren tryckte Meta+Shift+L ("laggar nu"): ping till
 spelets server och routern, processorn, grafikkortet, minnet, disken och vilka program som tog processorn – mot
-de vanliga sekunderna i samma mätning."""
+de vanliga sekunderna i samma mätning – och spelets egna grafikinställningar (WoW, CS2)."""
 
 LAG_GUIDE = """
 Så här tolkar du lagmätningen:
@@ -878,6 +878,9 @@ Så här tolkar du lagmätningen:
 - Ett annat program som tog processorn/disken under lagget: säg vilket. Gissa inte vad ett okänt program är.
 - Inga frametider = Spelmätning var av; föreslå att slå på den (Config → Inställningar → Spel) till nästa gång.
 - Mätningen startar först vid Meta+Shift+L eller `goblincakes-lagmeter start` – den mäter aldrig bakåt.
+- "Spelets inställningar" är lästa ur spelets egen fil (WoW:s Config.wtf, CS2:s cs2_video.txt); raden
+  "Inställningarna mot mätningen" säger vad de betyder bredvid siffrorna. Föreslå ändringen i spelets meny
+  (WoW: Esc → Options → Graphics; CS2: Settings → Video) – ändra ALDRIG spelets filer själv, inte ens med Tillåt.
 - Ett steg i taget, det säkraste först; kolla med en ny mätning efteråt att det blev bättre."""
 
 LOOK_LINES = """filer <namn eller *mönster*> [i <mapp>]   – hittar filer/mappar (hemmappen, /etc, /var/log, /usr/…, /tmp)

@@ -9,8 +9,9 @@ Kakan can measure afterwards is backwards.
     goblincakes-lagmeter fönster på|av  the live graphs when measuring starts (on by default)
     goblincakes-lagmeter window         the graphs' window itself (PySide6 + lagmeter/Main.qml)
     goblincakes-lagmeter status         measuring or not, and the newest session
-    goblincakes-lagmeter rapport [N]    what differed around each mark (N = the N:th newest; `lista`) –
-                                        Kakan's and Claude's tool `lagg`
+    goblincakes-lagmeter rapport [N]    what differed around each mark (N = the N:th newest; `lista`) and the
+                                        game's own settings (WoW's Config.wtf, CS2's cs2_video.txt – only read)
+                                        – Kakan's and Claude's tool `lagg`
     goblincakes-lagmeter list           the saved sessions
     goblincakes-lagmeter run            the service itself (one line per second)
 
@@ -55,7 +56,7 @@ NVIDIA_FIELDS = ("utilization.gpu,clocks.gr,clocks.mem,temperature.gpu,power.dra
 
 def read(path, default=""):
     try:
-        return Path(path).read_text()
+        return Path(path).read_text(errors="replace")
     except OSError:
         return default
 
@@ -544,6 +545,131 @@ def gameguard(a, b):
     return [own.sub(r"\1 ", l) for l in out.splitlines() if own.match(l)][-8:]
 
 
+# ── The game's own settings (30 Oct, punkt 10's last part): only read, never changed – what the numbers are held up
+# against ("processorn var full och fps-taket är av") ──
+
+WOW_ROOT = HOME / "Games/WoW"  # goblincakes-wow-links: <Version>/AddOns → the real <_retail_>/Interface/AddOns
+WOW_EXE = {"wow.exe": ("_retail_", "_xptr_"), "wowclassic.exe": ("_classic_", "_classic_era_", "_anniversary_"),
+           "wowt.exe": ("_ptr_",), "wowb.exe": ("_beta_",)}
+WOW_KEYS = [("graphicsQuality", "grafikläge (1–10)"), ("RAIDsettingsEnabled", "egna raidinställningar"),
+            ("RAIDgraphicsQuality", "grafikläge i raid"), ("renderScale", "renderskala"), ("gxApi", "grafik-API"),
+            ("gxMaximize", "helskärm utan ram"), ("gxWindow", "fönster"), ("gxFullscreenResolution", "upplösning"),
+            ("gxWindowedResolution", "upplösning i fönster"), ("vsync", "vsync"), ("useMaxFPS", "fps-tak på"),
+            ("maxFPS", "fps-tak"), ("useMaxFPSBk", "fps-tak i bakgrunden på"), ("maxFPSBk", "fps-tak i bakgrunden"),
+            ("LowLatencyMode", "låg latens"), ("graphicsViewDistance", "siktavstånd"),
+            ("graphicsSpellDensity", "besvärjelsetäthet"), ("graphicsGroundClutter", "markdetaljer"),
+            ("graphicsShadowQuality", "skuggor"), ("graphicsSSAO", "SSAO"), ("graphicsComputeEffects", "beräknade effekter"),
+            ("graphicsParticleDensity", "partiklar"), ("graphicsLiquidDetail", "vatten"),
+            ("graphicsTextureResolution", "texturer")]
+STEAM_ROOTS = [HOME / ".local/share/Steam", HOME / ".steam/steam",
+               HOME / ".var/app/com.valvesoftware.Steam/.local/share/Steam"]
+CS2_KEYS = [("setting.defaultres", "bredd"), ("setting.defaultresheight", "höjd"), ("setting.fullscreen", "helskärm"),
+            ("setting.mat_vsync", "vsync"), ("setting.r_low_latency", "låg latens (Reflex)"),
+            ("setting.msaa_samples", "kantutjämning (MSAA)"), ("setting.shaderquality", "shaderkvalitet"),
+            ("setting.videocfg_shadow_quality", "skuggor"), ("setting.videocfg_dynamic_shadows", "dynamiska skuggor"),
+            ("setting.videocfg_texture_detail", "texturer"), ("setting.videocfg_particle_detail", "partiklar"),
+            ("setting.videocfg_ao_detail", "ambient occlusion"), ("setting.videocfg_hdr_detail", "HDR"),
+            ("setting.videocfg_fsr_detail", "FSR (uppskalning)")]
+
+
+def wow_config(game):
+    """WoW's WTF/Config.wtf for the running version: (path, {cvar: value}) or (None, {})."""
+    wanted = WOW_EXE.get((game or "").lower(), ())
+    found = []
+    for addons in sorted(WOW_ROOT.glob("*/AddOns")):
+        try:
+            found.append(addons.resolve().parents[1])
+        except (OSError, IndexError):
+            continue
+    folder = next((f for f in found if f.name in wanted), found[0] if len(found) == 1 else None)
+    path = folder / "WTF/Config.wtf" if folder else None
+    text = read(path) if path else ""
+    return (path, {m.group(1): m.group(2) for m in re.finditer(r'^SET (\w+) "([^"]*)"', text, re.M)}) if text \
+        else (None, {})
+
+
+def cs2_config():
+    """CS2's video settings (userdata/<id>/730/local/cfg/cs2_video.txt, the newest) + fps_max from the convars or an
+    autoexec: (path, {key: value}) or (None, {})."""
+    videos = [p for root in STEAM_ROOTS for p in root.glob("userdata/*/730/local/cfg/cs2_video.txt")]
+    if not videos:
+        return None, {}
+    path = max(videos, key=lambda p: p.stat().st_mtime)
+    out = dict(re.findall(r'"(setting\.\w+)"\s+"([^"]*)"', read(path)))
+    for f in [*path.parent.glob("cs2_user_convars*.vcfg"),
+              *(r / "steamapps/common/Counter-Strike Global Offensive/game/csgo/cfg/autoexec.cfg" for r in STEAM_ROOTS)]:
+        m = re.search(r'^\s*"?fps_max"?\s+"?(\d+)', read(f), re.M)
+        if m:
+            out["fps_max"] = m.group(1)
+            break
+    return path, out
+
+
+def number_of(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def game_settings(game, rows):
+    """The game's settings as lines + what they mean beside the measured seconds (rows: the laggy ones when marked,
+    else all). [] when the game isn't WoW or CS2, or its file isn't found."""
+    name = (game or "").lower()
+    gpu = median([r["gpu"] for r in rows if "gpu" in r])
+    cpu_max = median([r["cpu_max"] for r in rows if "cpu_max" in r])
+    tips = []
+    if name.startswith("wow"):
+        path, cfg = wow_config(game)
+        if not path:
+            return ["Spelets inställningar: WoW:s WTF/Config.wtf hittades inte (WoW-mappen letas via "
+                    "~/Games/WoW/<version>/AddOns – `goblin wow` länkar dem)."]
+        low = {k.lower(): v for k, v in cfg.items()}
+        lines = [f"- {label}: {low[k.lower()]}" for k, label in WOW_KEYS if k.lower() in low]
+        raid = low.get("raidsettingsenabled") == "1"  # its own quality in raids – which one was used isn't known
+        quality = number_of(low.get("graphicsquality"))
+        raid_q = number_of(low.get("raidgraphicsquality")) if raid else None
+        if raid_q is not None and (quality is None or raid_q > quality):
+            quality = raid_q
+        scale = number_of(low.get("renderscale"))
+        if (low.get("usemaxfps") == "0" or low.get("maxfps") == "0") and low.get("vsync") != "1":  # vsync = Hz-tak
+            tips.append("Inget fps-tak (maxFPS): grafikkortet ritar så fort det kan hela tiden – värme och sjunkande "
+                        "klocka. Ett tak strax under skärmens Hz ger jämnare bildrutor.")
+        if gpu is not None and gpu >= 95 and ((quality or 0) >= 8 or (scale or 1) > 1):
+            shown = low.get("graphicsquality", "standard") + (f" (i raid {low['raidgraphicsquality']})" if raid else "")
+            tips.append(f"Grafikkortet var fullt ({gpu:.0f} %) med "
+                        + (f"grafikläge {shown}" if (quality or 0) >= 8 else "")
+                        + (" och " if (quality or 0) >= 8 and (scale or 1) > 1 else "")
+                        + (f"renderskala {scale:g}" if (scale or 1) > 1 else "") + " – sänk det"
+                        + (" (raidinställningen gäller i raid)" if raid else "") + ".")
+        if cpu_max is not None and cpu_max >= 95:
+            tips.append("Processorn var full på en kärna: i WoW belastar siktavstånd, besvärjelsetäthet och "
+                        "markdetaljer processorn mest (grafikläget mindre).")
+        if low.get("vsync") == "1":
+            tips.append("Vsync är på: när fps faller under skärmens Hz kan det rycka och ge fördröjning.")
+    elif name == "cs2" or name.startswith("cs2"):
+        path, cfg = cs2_config()
+        if not path:
+            return ["Spelets inställningar: CS2:s cs2_video.txt hittades inte (Steam/userdata/<id>/730/local/cfg)."]
+        lines = [f"- {label}: {cfg[k]}" for k, label in CS2_KEYS if k in cfg]
+        if "fps_max" in cfg:
+            lines.append(f"- fps_max: {cfg['fps_max']}")
+        if cfg.get("fps_max") == "0" and cfg.get("setting.mat_vsync") != "1":
+            tips.append("fps_max 0 = inget fps-tak: grafikkortet går fullt hela tiden.")
+        if gpu is not None and gpu >= 95 and (number_of(cfg.get("setting.msaa_samples")) or 0) >= 4:
+            tips.append(f"Grafikkortet var fullt ({gpu:.0f} %) med MSAA {cfg['setting.msaa_samples']}x – sänk "
+                        "kantutjämningen först.")
+        if cfg.get("setting.mat_vsync") == "1":
+            tips.append("Vsync är på: ger fördröjning i CS2 (de flesta spelar utan).")
+    else:
+        return []
+    out = [f"\nSpelets inställningar (bara lästa, {path}):"] + (lines or ["- (inga av de vanliga inställningarna i "
+                                                                          "filen – spelets standard)"])
+    if tips:
+        out.append("Inställningarna mot mätningen: " + " ".join(tips))
+    return out
+
+
 def report(query=""):
     query = query.strip().lower()
     files = sessions()
@@ -607,6 +733,9 @@ def report(query=""):
         hog = hogs(rows, [], game)
         if hog:
             out.append("- mest processor: " + "; ".join(hog))
+    if marks:
+        laggy = [r for r in rows if any(m["t"] - BEFORE <= r["t"] <= m["t"] + AFTER for m in marks)]
+    out += game_settings(game, laggy if marks and laggy else rows)
     if len(files) > 1:
         out.append(f"\n(Äldre mätningar: {len(files) - 1} st – `lista`, eller ett nummer: 2 = näst senaste.)")
     return "\n".join(out)

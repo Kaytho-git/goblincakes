@@ -556,6 +556,10 @@ def level(code):
         # `mv gear …/_retail_/AddOns/` (no Interface/): mv renamed the add-on into a new folder in WoW's install (30 Oct)
         return "danger", ("fel mapp: WoW:s tillägg ligger i …/_retail_/Interface/AddOns (Interface/ saknas) – mv "
                           "döper om mappen när målet inte finns. Ta sökvägen under \"Var tillägget ska ligga\"")
+    if result[0] != "read" and re.search(r"Config\.wtf|cs2_video\.txt|cs2_user_convars|cs2_machine_convars", code, re.I):
+        # The game's own settings (the lag report reads them, 30 Oct): changed in the game's menu, never by Kakan
+        return "danger", ("ändrar spelets egna inställningsfil – det görs i spelets meny (WoW: Esc → Options → "
+                          "Graphics, CS2: Settings → Video). Säg vad användaren ska ändra där")
     if result[0] != "read" and "AddOns/" in code:
         name = foreign_addon(code)
         if name:

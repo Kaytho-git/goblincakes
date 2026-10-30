@@ -285,6 +285,11 @@ Ord: lagg, laggar, ping, laggknappen, meta+shift+l, lagmätning, hackar, nätet,
   mätningen startar: levande grafer (ping, processor, grafikkort, disk) för de senaste 2 minuterna, röd linje vid
   laggar nu. KWin-skriptet goblincakes-windows lägger det uppe till höger på skärmen där spelet inte är. Stängs en
   minut efter mätningen. Av/på: `goblincakes-lagmeter fönster av|på` (flagga ~/.config/goblincakes/lagmeter-window-off).
+- Spelets egna inställningar (30 okt) står sist i rapporten, bara lästa: WoW = <versionsmappen>/WTF/Config.wtf
+  (hittas via ~/Games/WoW/<version>/AddOns; grafikläge, raidläge, renderskala, fps-tak, vsync, grafik-API,
+  siktavstånd …), CS2 = Steam/userdata/<id>/730/local/cfg/cs2_video.txt + fps_max ur cs2_user_convars/autoexec.cfg.
+  "Inställningarna mot mätningen" = vad de betyder bredvid siffrorna (fullt grafikkort + högt grafikläge, inget
+  fps-tak, vsync). Föreslå ändringar i spelets meny – filerna ändras aldrig (ändrande kommandon på dem stoppas).
 - Kolla: `goblincakes-lagmeter status`, `goblincakes-lagmeter rapport` (= verktyget lagg),
   `journalctl --user -u goblincakes-lagmeter`.
 Kontroll: `/usr/libexec/goblincakes-lagmeter status`

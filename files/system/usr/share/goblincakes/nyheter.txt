@@ -1,3 +1,4 @@
+2026-10-30  Lagmätaren: rapporten visar nu också spelets grafikinställningar (WoW och CS2) och vad de betyder bredvid mätningen – t.ex. fullt grafikkort med högt grafikläge eller inget fps-tak. Kakan föreslår ändringar i spelets meny men rör aldrig spelets filer.
 2026-10-30  Goblin AI: under Kakans svar står nu ett kvitto – vad hon läste, körde och ändrade. Säger hon att något är klart men kortet väntar på Tillåt, ett kommando gav fel eller hon inte kollade efteråt, så står det där – och hon får själv veta det och kollar eller rättar innan hon säger klart igen.
 2026-10-30  Goblin AI: ber du Kakan uppdatera och sedan stänga av datorn använder hon nu Uppdatera och stäng av (samma som i Config) i stället för att bara lova det. Hon fastnar inte heller längre i "Slutar hämta: minnet är nästan fullt" om och om igen.
 2026-10-30  Spelas nu: musen syns kvar i toppfältet när den laddar med sladden – med en blixt och hur många procent den har.
