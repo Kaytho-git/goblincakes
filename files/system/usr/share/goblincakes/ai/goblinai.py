@@ -2231,6 +2231,10 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             kind, why = "lookup", lookup_nudge(answer, LAST.tools)
         if not why and not request_ and "shift" not in repaired:
             kind, why = "shift", line_shift_nudge(answer)
+        if not why and not request_ and "newline" not in repaired:
+            kind, why = "newline", sed_newline_nudge(answer)
+        if not why and not request_ and "repeat" not in repaired:
+            kind, why = "repeat", repeat_nudge(answer, messages)
         if why:
             repaired.add(kind)
             steps.start("Kontrollerar svaret")
@@ -4182,6 +4186,33 @@ def line_shift_nudge(answer):
                         "och upp (högst radnummer först) i samma svar, eller räkna om numren.")
             if cmd in "dia" or cmd == "c" and end:
                 changed.setdefault(target, []).append((n, f"{start}{',' + end if end else ''}{cmd}"))
+    return ""
+
+
+def sed_newline_nudge(answer):
+    """A sed whose new text has `\\n` inside a quoted string (Lua's "\\n"): sed makes it a real line break, the string is
+    cut in two and the file no longer loads – gemma4 ran `sed -i '48c\\ …table.concat(gear_data, "\\n"))'` three times,
+    one more broken line each time (30 Oct). The reason to send the answer back once, or ""."""
+    for block in cmd_level().code_blocks_in(answer):
+        for m in re.finditer(r"\bsed\s+(?:-\w*i\w*|--in-place)\s+(['\"])(.*?)\1\s+\S+", block, re.S):
+            body = m.group(2)
+            if re.search(r"^\d*(?:,\d+)?[cia]\\", body) or re.match(r"^\d*(?:,\d+)?s(.)", body):
+                if re.search(r"[\"'][^\"'\n]*(?<!\\)\\n[^\"'\n]*[\"']", body):
+                    return ("I sed blir `\\n` en riktig radbrytning – texten \"\\n\" i koden delas på två rader och filen "
+                            "går sönder (det är därför samma rad blir fel igen). Skriv `\\\\n` i sed-kommandot för att få "
+                            "\\n i filen. Ta också bort de trasiga raderna som förra kommandona lämnade – läs filen först.")
+    return ""
+
+
+def repeat_nudge(answer, messages):
+    """The same command block as one already run in this chat: it gives the same result (gemma4's 48c three times,
+    30 Oct). The reason to send the answer back once, or ""."""
+    before = {b.strip() for m in messages if m["role"] == "assistant" and isinstance(m.get("content"), str)
+              for b in cmd_level().code_blocks_in(m["content"])}
+    for block in cmd_level().code_blocks_in(answer):
+        if CHANGES_FILES.search(block) and block.strip() in before:
+            return ("Det här kommandot har redan körts i samtalet – det ger samma resultat igen. Läs filen som den ser ut "
+                    "nu (med radnumren) och ändra något annat, eller säg \"Det kan jag inte\" och vad som är fel.")
     return ""
 
 
