@@ -4430,11 +4430,44 @@ CODE_SUFFIXES = {".lua", ".toc", ".xml", ".py", ".sh", ".js", ".qml", ".json", "
                  ".txt", ".desktop", ".service"}
 
 
+ADDON_ASK = re.compile(r"tillägg|addon|add-on|(?:^|\s)/[a-z]\w+", re.I)
+
+
+def named_addons(question):
+    """Installed WoW add-ons the question names without a path – "gear tillägget … syns inte när jag skriver /gear"
+    went to a Minecraft search (30 Oct): a folder in ~/Games/WoW/*/AddOns with the name as a word, or whose
+    SLASH_ line has the /command. As ~/ paths, at most two."""
+    if not ADDON_ASK.search(question):
+        return []
+    words = {w.lower() for w in re.findall(r"[\w!-]{3,}", question)}
+    slashes = set(re.findall(r"(?:^|\s)(/[a-z]\w+)", question.lower()))
+    found = []
+    for folder in sorted(Path.home().glob("Games/WoW/*/AddOns/*")):
+        if not folder.is_dir():
+            continue
+        hit = folder.name.lower() in words
+        if not hit and slashes:
+            for f in list(folder.glob("*.lua"))[:20]:
+                try:
+                    lines = re.findall(r"SLASH_\w+\s*=\s*[\"']([^\"']+)", f.read_text(errors="replace")[:200_000])
+                except OSError:
+                    continue
+                if slashes & {x.lower() for x in lines}:
+                    hit = True
+                    break
+        if hit:
+            found.append("~/" + str(folder.relative_to(Path.home())))
+    return found[:2]
+
+
 def investigate(question, tools, keys, notice, project, choice, steps, status=None):
     """Repairing without an error message (REPAIR_WHEN): the named files, then a search the AI only words and the
     best hit read whole – laid before her before she answers. Returns (text, sources); ("", []) when nothing came."""
     parts = []
-    for path in list(dict.fromkeys(m.rstrip(".") for m in re.findall(r"~/[\w./-]+", question)))[:2]:
+    named = list(dict.fromkeys(m.rstrip(".") for m in re.findall(r"~/[\w./-]+", question)))[:2]
+    if not named and "wowapi" in tools:
+        named = named_addons(question)
+    for path in named:
         p = Path(os.path.expanduser(path))
         files = sorted(f for f in p.iterdir() if f.is_file())[:6] if p.is_dir() else [p] if p.is_file() else []
         if p.is_dir():
@@ -4454,14 +4487,15 @@ def investigate(question, tools, keys, notice, project, choice, steps, status=No
     if parts:
         steps.start("Läser filerna")
         steps.done(note=f"{len(parts)} delar")
-    for path in list(dict.fromkeys(m.rstrip(".") for m in re.findall(r"~/[\w./-]+", question)))[:2] if "wowapi" in tools else []:
+    for path in named if "wowapi" in tools else []:
         p = Path(os.path.expanduser(path))
         if p.is_dir() and any(p.glob("*.toc")) or p.suffix.lower() in (".lua", ".toc"):
             steps.start("Kontrollerar tillägget mot WoW")
             try:
                 parts.append("## Kontroll mot WoW (spelets egna funktioner)\n" + wow_api().check(p))
-                parts.append("## Var tillägget ska ligga\n" + wow_tools().versions_text(
-                    next(iter(sorted(p.glob("*.toc"))), p).stem if p.is_dir() else p.parent.name))
+                if "AddOns" not in p.parts:  # already installed: no "move it there" to follow
+                    parts.append("## Var tillägget ska ligga\n" + wow_tools().versions_text(
+                        next(iter(sorted(p.glob("*.toc"))), p).stem if p.is_dir() else p.parent.name))
                 LAST.tools.append(("wowapi", f"kolla {path}"))
                 LAST.done.append(("wowapi", f"kolla {path}", ""))
                 steps.done()
