@@ -530,6 +530,42 @@ def lua_error(path):
     return int(m.group(1)), m.group(2).strip()[:200]
 
 
+LUA_OPENERS = re.compile(r"\b(function|if|for|while|repeat)\b|(?<![\w.])do\b|\b(end|until)\b")
+
+
+def block_hint(text):
+    """Where the blocks stop adding up, by the indentation: an `end` that closes an opener with another indent –
+    gemma4 deleted `if slot_info … then` and left its end (30 Oct), Lua only said "'<eof>' expected near 'end'"
+    20 lines further down. A line for the AI, or ""."""
+    stack = []
+    for n, raw in enumerate(text.splitlines(), 1):
+        line = re.sub(r"--.*$", "", re.sub(r"(\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*')", '""', raw))
+        indent = len(raw) - len(raw.lstrip())
+        opens = ends = 0
+        for m in LUA_OPENERS.finditer(line):
+            word = m.group(1) or ("do" if m.group(0) == "do" else "")
+            if m.group(2):
+                ends += 1
+            elif word in ("function", "if", "repeat") or word == "do" and not re.search(r"\b(for|while)\b", line):
+                opens += 1
+            elif word in ("for", "while"):
+                opens += 1
+        for _ in range(opens - ends):
+            stack.append((n, indent, raw.strip()[:60]))
+        for _ in range(ends - opens):
+            if not stack:
+                return f"rad {n}: en `end` för mycket – inget block är öppet här (den är dubbel, eller raden som öppnade blocket har försvunnit)."
+            line_no, ind, what = stack.pop()
+            if ind != indent:
+                return (f"rad {n}: `end` med indraget {indent} stänger \"{what}\" på rad {line_no} som har indraget {ind} – "
+                        f"troligen saknas en rad som öppnade ett block (if … then / for … do) mellan rad {line_no} och {n}, "
+                        "eller så är en end dubbel. Lägg tillbaka raden eller ta bort en end – inte en parentes.")
+    if stack:
+        line_no, _, what = stack[-1]
+        return f"\"{what}\" på rad {line_no} stängs aldrig – en `end` saknas."
+    return ""
+
+
 LUA_LIBS = {"math", "string", "table", "coroutine", "bit", "os", "io", "debug", "_G", "_VERSION", "arg", "self", "_ENV",
             "require", "module", "load", "loadstring", "dofile", "getfenv", "setfenv", "collectgarbage", "newproxy", "gcinfo"}
 
@@ -659,9 +695,16 @@ def check(target):
             # `content.scrollFrame` her own sed left was on line 12 (30 Oct)
             rows = _.splitlines()
             near = "\n".join(f"    {i}: {rows[i - 1]}" for i in range(max(1, err[0] - 3), min(len(rows), err[0]) + 1))
+            hint = block_hint(_) if re.search(r"'end' expected|'<eof>' expected|near 'end'", err[1]) else ""
+            at = int(re.match(r"rad (\d+)", hint).group(1)) if re.match(r"rad \d+", hint) else 0
+            if at:  # the lines where the blocks stop adding up, not the end of the file
+                near = "\n".join(f"    {i}: {rows[i - 1]}" for i in range(max(1, at - 14), min(len(rows), at + 1) + 1))
             once(("lua", str(f)), sure, f"{f.relative_to(folder)} rad {err[0]}: Lua-fel – {err[1]}. WoW laddar inte filen "
-                 "alls (inget i den körs). Lua märker felet först på den raden – det sitter oftast på en rad strax före "
-                 f"(en rad som inte är en hel sats, en parentes/end som saknas). Raderna:\n{near}")
+                 "alls (inget i den körs). "
+                 + (f"Blocken går inte ihop: {hint}" if hint else
+                    "Lua märker felet först på den raden – det sitter oftast på en rad strax före "
+                    "(en rad som inte är en hel sats, en parentes/end som saknas).")
+                 + f" Raderna:\n{near}")
     for f, text in lua:
         rel = f.relative_to(folder)
         other = flavors or bool(other_game.search(str(rel)))  # EllesmereUIQoL_ForeverStats.lua: WoW Forever's functions

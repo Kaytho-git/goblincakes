@@ -2371,6 +2371,11 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             kind, why = "newline", sed_newline_nudge(answer)
         if not why and not request_ and "repeat" not in repaired:
             kind, why = "repeat", repeat_nudge(answer, messages)
+        elif not why and not request_ and repeat_nudge(answer, messages):
+            # Sent back once and the same block again: the same no-op sed five times, one Tillåt each (30 Oct) –
+            # the card stays, but the user is told it won't help
+            answer = answer.rstrip() + ("\n\n*Obs: samma ändring har redan körts i samtalet utan att hjälpa – tryck inte "
+                                        "Tillåt igen. Kakan kommer inte vidare: tryck **Skicka till Claude**.*")
         if why:
             repaired.add(kind)
             steps.start("Kontrollerar svaret")
@@ -4420,6 +4425,11 @@ def sed_noops(messages):
     for block in cmd_level().code_blocks_in(said):
         for q, line, _, pattern, new, target in SED_SUB.findall(block):
             new_text = re.sub(r"\\(.)", r"\1", new)
+            if new_text and new_text == re.sub(r"\\(.)", r"\1", pattern):
+                # the "fix" is the same text as before (gemma4's line 49, five times, 30 Oct)
+                out.append(f"- `sed … '{line}s/…/…/' {target}` ändrade INGENTING – den nya texten är exakt samma som den "
+                           "gamla. Raden är redan så; felet sitter någon annanstans.")
+                continue
             if not new_text or "&" in new or re.search(r"\\\d", new):
                 continue  # deleting, or the match itself put back: can't be told afterwards
             path = Path(os.path.expanduser(target.strip("'\""))) if target.startswith(("~", "/", "'~", '"~')) else cwd / target
