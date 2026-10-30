@@ -227,7 +227,6 @@ Window {
         { name: "bild", note: "skapa en bild – skriv vad den ska visa", args: true, hidden: !backend.canDraw && !backend.chatgpt },
         { name: "modell", note: "byt modell – t.ex. /modell claude", args: true },
         { name: "sök", note: "sök på nätet – med en fråga söker den direkt", args: true, hidden: !backend.canSearch },
-        { name: "wiki", note: "fråga uppslagsverket – bara Wikipedia används (snabbare)", args: true },
         { name: "bifoga", note: "bifoga en fil" },
         { name: "skärmbild", note: "ta en skärmbild och bifoga den", args: true },
         { name: "projekt", note: "byt projekt – utan namn: lämna projektet", args: true },
@@ -239,7 +238,10 @@ Window {
         { name: "word", note: "spara senaste svaret som Word" },
         { name: "inställningar", note: "AI-tjänster och inställningar", aliases: ["settings"] },
         { name: "hjälp", note: "alla kommandon", aliases: ["help", "?"] }
-    ].filter(c => !c.hidden).concat(ownCommands)
+    ].filter(c => !c.hidden).concat(onlyCommands).concat(ownCommands)
+    // /wiki, /wcl … <fråga>: only those tools for the question (goblinai.ONLY_COMMANDS)
+    readonly property var onlyCommands: JSON.parse(backend.onlyCommands).map(c => ({
+        name: c.name, note: c.note + " (snabbare)", args: true, only: true }))
 
     function findCommand(word) {
         const w = plain(word);
@@ -394,6 +396,15 @@ Window {
                 backend.runButton(c.button);
             return true;
         }
+        if (c.only) {
+            if (arg === "")
+                toast.show("Skriv frågan efter /" + c.name + ", t.ex. /wiki när grundades Metallica?");
+            else if (backend.busy)
+                toast.show("Vänta tills svaret är klart.");
+            else
+                backend.sendOnly(c.name, arg);
+            return true;
+        }
         switch (c.name) {
         case "ny":
             backend.newConversation();
@@ -438,12 +449,6 @@ Window {
                 backend.setSearchNext(!backend.searchNext);
                 toast.show(backend.searchNext ? "Nästa fråga söker på nätet." : "Sök på nätet är av.");
             }
-            break;
-        case "wiki":
-            if (arg !== "")
-                backend.sendOnly("wiki", arg);
-            else
-                toast.show("Skriv frågan efter /wiki, t.ex. /wiki när grundades Metallica?");
             break;
         case "bifoga":
             openDialog.open();

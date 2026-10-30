@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, "/usr/share/goblincakes/ai")
 sys.path.insert(1, "/usr/share/goblincakes")
-from goblinai import (DAILY_PROMPT, after_commands, FORMAT_WORDS, LOOK_UP_FIRST, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
+from goblinai import (DAILY_PROMPT, after_commands, FORMAT_WORDS, LOOK_UP_FIRST, ONLY_COMMANDS, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
                       ai_name, ask as ask_services, chosen_model, cmd_level, file_message, forget, has_keys,
                       image_request, images_possible, is_image, last_done, last_tools, load_daily, load_keys, load_memory, load_projects,
                       make_image, make_report, model_choices, project_prompt, remember, run_in_folder, save_keys, save_solution,
@@ -678,7 +678,6 @@ def commands(keys):
         {"name": "modell", "note": "byt modell – t.ex. /modell claude", "args": True},
         {"name": "sök", "note": "sök på nätet – med en fråga söker den direkt", "args": True,
          "hidden": not keys.get(SEARCH["env"])},
-        {"name": "wiki", "note": "fråga uppslagsverket – bara Wikipedia används (snabbare)", "args": True},
         {"name": "bifoga", "note": "bifoga en fil – /bifoga <sökväg>", "args": True},
         {"name": "projekt", "note": "gå in i ett projekt – utan namn: lämna projektet", "args": True},
         {"name": "minne", "note": f"vad {name()} kommer ihåg om dig"},
@@ -686,7 +685,8 @@ def commands(keys):
         {"name": "hjälp", "note": "alla kommandon och tangenter", "aliases": ["help", "?"]},
         {"name": "avsluta", "note": "tillbaka till terminalen (även ctrl+d)", "aliases": ["exit", "quit", "q"]},
     ]
-    return [c for c in items if not c.get("hidden")] + own
+    only = [{"name": k, "note": v[1] + " (snabbare)", "args": True} for k, v in ONLY_COMMANDS.items()]
+    return [c for c in items if not c.get("hidden")] + only + own
 
 
 def find_command(cmds, word):
@@ -886,12 +886,12 @@ def run_slash(text, chat, keys, ui):
         else:
             chat.search_next = not chat.search_next
             muted("  Nästa fråga söks på nätet först." if chat.search_next else "  Ingen sökning först.")
-    elif n == "wiki":
+    elif n in ONLY_COMMANDS:
         if arg:
-            chat.only_next = ["wiki"]
+            chat.only_next = list(ONLY_COMMANDS[n][0])
             send(chat, keys, arg)
         else:
-            muted("  Skriv frågan efter /wiki, t.ex. /wiki när grundades Metallica?")
+            muted(f"  Skriv frågan efter /{n}, t.ex. /wiki när grundades Metallica?")
     elif n == "bifoga":
         path = Path(os.path.expanduser(arg))
         path = path if path.is_absolute() else Path(chat.cwd) / path

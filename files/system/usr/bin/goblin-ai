@@ -1183,10 +1183,14 @@ class Backend(QObject):
         self.searchNextChanged.emit()
 
     @Slot(str, str)
-    def sendOnly(self, tool, text):
-        """/wiki <fråga>: the question with only that tool (30 Oct, the user's wish)."""
-        self._only_next = [tool]
+    def sendOnly(self, command, text):
+        """/wiki, /wcl … <fråga>: the question with only that command's tools (goblinai.ONLY_COMMANDS, 30 Oct)."""
+        self._only_next = list(goblinai.ONLY_COMMANDS.get(command, ([command], ""))[0])
         self.send(text, "")
+
+    @Property(str, constant=True)
+    def onlyCommands(self):
+        return json.dumps([{"name": k, "note": v[1]} for k, v in goblinai.ONLY_COMMANDS.items()], ensure_ascii=False)
 
     @Property(bool, notify=keysChanged)
     def canSearch(self):

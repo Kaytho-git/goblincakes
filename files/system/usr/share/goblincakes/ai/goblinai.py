@@ -1441,16 +1441,31 @@ def tools_for(keys, project, messages):
             "`senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, en länk till rapporten; `alla` (+ länken) = varje boss i "
             "rapporten; en förmåga/mekanik/fiende: `<boss> förmåga: <namn>` (t.ex. `Ula'tek förmåga: Venomous Heart`)")
     only = only_tools(messages)
-    if only:
+    if only and not any(k.startswith("mcp_") for k in only):
         # /wiki <fråga> (the user 30 Oct): only that tool on the menu – the 36 tools' descriptions were ~7400 tokens
-        # she read at every step
-        return {k: v for k, v in tools.items() if k in only}
+        # she read at every step. None of them here (no CS2, no WoW): the usual menu.
+        return {k: v for k, v in tools.items() if k in only} or tools
     if not has_images(messages):
         try:
             mcp_tools(tools, messages)
         except Exception as e:  # noqa: BLE001 – a broken mcp.json must not stop the questions
             print(f"goblin ai: MCP-servrarna gick inte att läsa: {e}", file=sys.stderr)
+    if only:  # /github: the MCP server's tools are there now
+        return {k: v for k, v in tools.items() if k in only} or tools
     return tools
+
+
+# /<kommando> <fråga> = the question with only these tools (30 Oct, the user: "används inget / så jobbar den som vanligt,
+# används /wiki så jobbar den bara med wiki"). Shared by the window and the terminal.
+ONLY_COMMANDS = {
+    "wiki": (["wiki"], "fråga uppslagsverket – bara Wikipedia"),
+    "wcl": (["warcraftlogs", "wowstats"], "bara Warcraft Logs och dina WoW-siffror"),
+    "wow": (["wowfel", "wowapi", "wowstats", "warcraftlogs", "leta"], "bara WoW: felen, API:t, siffrorna, loggarna, filerna"),
+    "cs2": (["cs2"], "bara dina CS2-siffror"),
+    "sport": (["sport"], "bara lagens ställning och matcher"),
+    "github": (["mcp_github", "byggstatus"], "bara GitHub och byggena"),
+    "datorn": (["systemfel", "leta", "lagg", "goblincakes"], "bara datorns fel, filerna, lagmätningen och kartan"),
+}
 
 
 def only_tools(messages):
@@ -2279,6 +2294,12 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                                          for t, q in LAST.tools), repaired) or ("", "")
         if not why and not request_ and "lookup" not in repaired and "wowapi" in tools:
             kind, why = "lookup", lookup_nudge(answer, LAST.tools)
+        only = only_tools(messages)
+        if not why and not request_ and only and not used and not LAST.tools and "only" not in repaired:
+            # /wiki: she answered "Opeth … Pale Communion (2016)" from memory, wrong, with wiki the only tool (30 Oct)
+            names = [n for n in only if n in tools]
+            kind, why = "only", (f"Användaren bad dig använda {' / '.join(names) or only[0]} för den här frågan "
+                                 f"(/-kommandot) – svara inte ur minnet. Slå upp det med verktyget nu.")
         if not why and not request_ and "shift" not in repaired:
             kind, why = "shift", line_shift_nudge(answer)
         if not why and not request_ and "newline" not in repaired:
