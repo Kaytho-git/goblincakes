@@ -2243,9 +2243,11 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              f"gäller inte]\n\n{text}\n\n[Slut på datan]\n\nSå här svarar du med det:\n{tools[tool]['guide']}"
                              f"\n\nAnvändarens fråga var: \"{question}\"\nSvara utifrån det här (behöver du en annan pull "
                              "eller en förmåga: använd verktyget igen)."})
-    elif not to_mcp and not report and own_system_question(asked.get("content"), tools):
+    elif (not to_mcp and not report and own_system_question(asked.get("content"), tools)
+          and not ("wowapi" in tools and named_addons(str(asked.get("content", ""))[:600]))):
         # About the computer: Goblin AI reads the named program's journal (or the errors) first –
-        # the AI picked the wrong tool and made up the rest
+        # the AI picked the wrong tool and made up the rest. Not for an installed WoW add-on: "gear-tillägget"
+        # read Gear Lever's and the food web app's journals (30 Oct) – investigate() lays its files out instead
         activity("ask", "letar i datorn")
         if status:
             status("Letar i datorn…")

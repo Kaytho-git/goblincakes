@@ -835,7 +835,12 @@ ALIASES = {"goblinrecorder": "goblincakes-recorder", "recorder": "goblincakes-re
            "spelet": "goblincakes-gameguard", "cs2": "goblincakes-gameguard", "uppdateringen": "goblincakes-updates", "uppdateringarna": "goblincakes-updates"}
 SKIP_WORDS = {"och", "att", "det", "som", "för", "med", "inte", "var", "den", "har", "kan", "hon", "han", "jag",
               "när", "efter", "innan", "starta", "startar", "startade", "lång", "tid", "logg", "loggen", "fel",
-              "datorn", "varför", "vad", "hur", "idag", "förut", "nyss", "system", "systemet", "program", "programmet"}
+              "datorn", "varför", "vad", "hur", "idag", "förut", "nyss", "system", "systemet", "program", "programmet",
+              # everyday words in a program's name: "ska" in a question read "Vad ska vi äta?"'s journal (30 Oct)
+              "ska", "vill", "kommer", "blir", "går", "min", "mitt", "mina", "din", "ditt", "vår", "sig", "dig", "mig",
+              "oss", "nu", "när", "där", "här", "upp", "ner", "inne", "ute", "alla", "allt", "bara", "också", "eller",
+              "men", "från", "till", "över", "under", "utan", "mer", "mycket", "ingen", "inget", "något", "några",
+              "visa", "visar", "syns", "står", "laga", "fixa", "the", "and", "for", "you", "with", "your"}
 
 
 def program_names():
