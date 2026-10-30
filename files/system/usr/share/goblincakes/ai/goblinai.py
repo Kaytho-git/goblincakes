@@ -4319,7 +4319,11 @@ def sed_newline_nudge(answer):
 def repeat_nudge(answer, messages):
     """The same command block as one already run in this chat: it gives the same result (gemma4's 48c three times,
     30 Oct). The reason to send the answer back once, or ""."""
-    before = {b.strip() for m in messages if m["role"] == "assistant" and isinstance(m.get("content"), str)
+    # Only answers whose blocks really ran ("Så här gick det:" after them) – an answer sent back unrun (no summary)
+    # counted too, so the same cp again was "already run", and she said "after the copying" when nothing ran (30 Oct)
+    before = {b.strip() for m, after in zip(messages, messages[1:])
+              if m["role"] == "assistant" and isinstance(m.get("content"), str)
+              and after["role"] == "user" and str(after.get("content", "")).startswith("Så här gick det:")
               for b in cmd_level().code_blocks_in(m["content"])}
     for block in cmd_level().code_blocks_in(answer):
         if CHANGES_FILES.search(block) and block.strip() in before:
