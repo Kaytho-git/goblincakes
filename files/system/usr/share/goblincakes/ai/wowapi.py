@@ -800,13 +800,36 @@ def addon_folder(path):
 
 # ── The user's own add-ons ───────────────────────────────────────────────────────
 
+def toc_authors(folder):
+    """The ## Author names in an add-on folder's .toc files (lower case)."""
+    found = set()
+    for toc in Path(folder).glob("*.toc"):
+        try:
+            found |= {m.strip().lower() for m in re.findall(r"^##\s*Author:\s*(.+)$", toc.read_text(errors="replace"), re.M | re.I)}
+        except OSError:
+            continue
+    return found
+
+
+def own_authors():
+    """The user's author name(s): ## Author in their git clones (not Kakan) – the user 30 Oct: "Kaytho" in all their
+    add-ons makes them easy to find, also a copy without git (one installed from CurseForge with WowUp)."""
+    names = set()
+    for d in ADDONS.glob("*"):
+        if (d / ".git").exists():
+            names |= toc_authors(d)
+    return names - {"kakan", ""}
+
+
 def own_addons():
-    """The add-on folders that are the user's own: the list in OWN_LIST, else the git clones in AddOns."""
+    """The add-on folders that are the user's own: the list in OWN_LIST, else the git clones in AddOns and the
+    add-ons with the user's ## Author."""
     try:
         return {l.split("=")[0].strip() for l in OWN_LIST.read_text().splitlines() if l.strip() and not l.startswith("#")}
     except OSError:
         pass
-    return {d.name for d in ADDONS.glob("*") if (d / ".git").exists()}
+    authors = own_authors()
+    return {d.name for d in ADDONS.glob("*") if (d / ".git").exists() or toc_authors(d) & authors}
 
 
 def addon_maker(folder):
@@ -817,13 +840,10 @@ def addon_maker(folder):
         return None
     if folder.name in own_addons() or (folder / ".git").exists():
         return "user"
-    for toc in folder.glob("*.toc"):
-        try:
-            if re.search(r"^##\s*Author:\s*Kakan\b", toc.read_text(errors="replace"), re.M | re.I):
-                return "kakan"
-        except OSError:
-            continue
-    return "other"
+    authors = toc_authors(folder)
+    if "kakan" in authors:
+        return "kakan"
+    return "user" if authors & own_authors() else "other"
 
 
 def own_addon(path):
