@@ -1525,7 +1525,9 @@ Window {
                         onContainsMouseChanged: {
                             if (containsMouse && rowItem.r.image && plPanel.dragRow < 0)
                                 coverTip.show(rowItem.r.image, rowItem.mapToItem(plArea, 0, 0).y, rowItem.height);
-                            else if (!containsMouse && coverTip.url === rowItem.r.image)
+                            // only its own cover: moving straight to the next row, its "entered" can come
+                            // first – comparing with the shown url closed the next row's cover too (30 Oct)
+                            else if (!containsMouse && coverTip.wanted === rowItem.r.image)
                                 coverTip.hide();
                         }
                         Component.onDestruction: if (containsMouse) coverTip.hide()
