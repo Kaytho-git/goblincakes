@@ -146,6 +146,10 @@ TOOL_TURNS = ("[Svar från verktyget", "[Goblin AI sökte", "Det gick inte (", "
 # Goblin AI's own turns too: the files it read and "Så här gick det:" were taken as a long question – gemma4
 # thought in every step, twice 8000 tokens (2 min each) moving a folder (30 Oct, 9 min in all)
 OWN_TURNS = TOOL_TURNS + ("[Goblin AI", "Så här gick det:")
+# Goblin AI's own turns in the saved chat: what the commands printed, and the klart-kontroll sent back (punkt 23) –
+# never the user's question
+RECEIPT_TURN = "[Goblin AI – klart-kontrollen]"
+REPORT_TURNS = ("Så här gick det:", RECEIPT_TURN)
 
 
 def typed_question(messages):
@@ -445,7 +449,7 @@ def after_commands(messages):
     """The end of the "Så här gick det:" message: the user's question again – with only "Fortsätt …" after a long
     page from the browser, the local model repeated the page instead of answering (28 Oct)."""
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user" and isinstance(m.get("content"), str)
-                     and not m["content"].startswith("Så här gick det:")), "")
+                     and not m["content"].startswith(REPORT_TURNS)), "")
     asked = f"Användarens fråga var: \"{question.split(chr(10) + chr(10) + '(')[0][:400].strip()}\"\n" if question else ""
     return ("\n\n" + asked + "Svara på den utifrån resultatet ovan med egna ord – upprepa inte utdata eller sidan. "
             "Behövs ett steg till, gör det; är det klart, säg kort vad som hände.")
@@ -1145,7 +1149,7 @@ def mcp_in_use(server, messages):
     messages, "Hämtat från: … (MCP)", the Tillåt card's `mcp.py kör <server>`)."""
     m = mcp()
     typed = next((x.get("content") for x in reversed(messages or []) if x.get("role") == "user"
-                  and isinstance(x.get("content"), str) and not x["content"].startswith("Så här gick det:")), "")
+                  and isinstance(x.get("content"), str) and not x["content"].startswith(REPORT_TURNS)), "")
     if m.asked_for(typed, [server]):
         return True
     recent = " ".join(str(x.get("content", ""))[:20000] for x in (messages or [])[-6:])
@@ -1994,7 +1998,7 @@ def own_data_question(question, tools):
 
 def fresh_question(question):
     """The question is about something that may have changed: the words above, or this or last year."""
-    if not isinstance(question, str) or question.startswith("Så här gick det:"):
+    if not isinstance(question, str) or question.startswith(REPORT_TURNS):
         return False  # what the commands printed ("updated: sön 25 okt 2026") isn't a question (searched, 25 Oct)
     text = question[:600]  # the typed question, not an attached file below it
     text = sys_tools().PATH_IN_TEXT.sub("", text)  # /etc/os-release isn't news (25 Oct)
@@ -2204,26 +2208,26 @@ def receipt(display, index):
         if display[index].get("segments") else display[index].get("text", "")
     text = re.sub(r"```.*?(?:```|\Z)", " ", text, flags=re.S)
     fixed, done = _says(FIXED_SAY, text), _says(DONE_SAY, text)
-    verdict, state = "", ""
+    verdict, state, kind = "", "", ""
     if fixed or done:
         last_change = max((i for i, e in enumerate(events) if e in ("change", "self")), default=-1)
         last_fail = max((i for i, e in enumerate(events) if e == "fail"), default=-1)
         if "wait" in events:
-            verdict, state = "Inte klart än – det som ska göras väntar på att du trycker Tillåt.", "no"
+            verdict, state, kind = "Inte klart än – det som ska göras väntar på att du trycker Tillåt.", "no", "wait"
         elif last_fail > last_change and not any(e in ("read", "change", "self") for e in events[last_fail + 1:]):
-            verdict, state = "Säger att det är klart, men det senaste kommandot gav fel.", "no"
+            verdict, state, kind = "Säger att det är klart, men det senaste kommandot gav fel.", "no", "fail"
         elif fixed and last_change < 0 and "unseen" not in events:
             what = ("det som skulle ändra något kördes inte" if "skip" in events
                     else "inget har ändrats för den här frågan")
-            verdict, state = f"Säger att det är fixat, men {what}.", "no"
+            verdict, state, kind = f"Säger att det är fixat, men {what}.", "no", "skipped" if "skip" in events else "nothing"
         elif events[last_change:last_change + 1] == ["change"] and "read" not in events[last_change + 1:]:
-            verdict, state = "Ändrat – men inte kontrollerat efteråt att det blev rätt.", "warn"
+            verdict, state, kind = "Ändrat – men inte kontrollerat efteråt att det blev rätt.", "warn", "unchecked"
         elif events[last_change:last_change + 1] == ["self"]:
-            verdict, state = "Klart – gjort, och verktyget svarade att det gick.", "ok"
+            verdict, state, kind = "Klart – gjort, och verktyget svarade att det gick.", "ok", "self"
         elif last_change >= 0:
-            verdict, state = "Klart – ändrat och kontrollerat efteråt.", "ok"
+            verdict, state, kind = "Klart – ändrat och kontrollerat efteråt.", "ok", "ok"
         elif "unseen" in events:
-            verdict, state = "Kördes i terminalen – kolla där att det gick bra.", "warn"
+            verdict, state, kind = "Kördes i terminalen – kolla där att det gick bra.", "warn", "terminal"
     if not items and not verdict:
         return None
     parts = [f"läste {count['read']}" if count["read"] else "",
@@ -2231,7 +2235,34 @@ def receipt(display, index):
              f"ändrade {count['changed']}" if count["changed"] else "",
              f"väntar {count['wait']}" if count["wait"] else ""]
     line = " · ".join(p for p in parts if p) or "inget gjort"
-    return {"line": line, "items": items[-20:], "verdict": verdict, "state": state}
+    return {"line": line, "items": items[-20:], "verdict": verdict, "state": state, "kind": kind}
+
+
+# The klart-kontroll back to her, once per question (30 Oct, the user: "hon ska få tillbaka inte kontrollerat och rätta
+# själv"). Not "väntar på Tillåt" – that is the user's to do – nor what ran in a terminal she can't see.
+RECEIPT_BACK = {
+    "unchecked": "Du sa att det är klart, men du har inte kontrollerat ändringen efteråt. Kontrollera den nu med ett "
+                 "läsande steg (läs filen med cat/grep, kör programmet eller testet, wowapi kolla för ett tillägg) och "
+                 "säg sedan vad du såg. Är något fel: rätta det.",
+    "fail": "Du sa att det är klart, men det senaste kommandot gav fel (se avslutskoden ovan). Läs felmeddelandet och "
+            "rätta just det, eller säg ärligt att det inte är klart och varför.",
+    "nothing": "Du sa att det är fixat, men inget har ändrats för den här frågan – inget kommando har körts. Gör "
+               "ändringen nu (ett ```bash-block eller byt_text, användaren trycker Tillåt), eller säg att det inte är gjort.",
+    "skipped": "Du sa att det är fixat, men ändringen kördes inte (användaren valde bort den eller den stoppades). Säg "
+               "det som det är – det är inte gjort – och fråga om användaren vill göra det på ett annat sätt.",
+}
+
+
+def receipt_back(r, messages):
+    """The message to her when the klart-kontroll caught something she can fix herself, else "" – with the user's
+    question again (as after_commands)."""
+    text = RECEIPT_BACK.get((r or {}).get("kind", ""))
+    if not text:
+        return ""
+    question = next((m["content"] for m in reversed(messages) if m["role"] == "user" and isinstance(m.get("content"), str)
+                     and not m["content"].startswith(REPORT_TURNS)), "")
+    asked = f" Användarens fråga var: \"{question.split(chr(10) + chr(10) + '(')[0][:400].strip()}\"" if question else ""
+    return f"{RECEIPT_TURN} {text}{asked}" + NUDGE_NOTE
 
 
 def receipt_text(r):
@@ -2282,7 +2313,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:2000]
     # What the commands printed ("Så här gick det: …") is no question: a GitHub link on the page Kakan clicked to sent
     # the answer to GitHub, and a path in it to the computer's logs (28 Oct)
-    report = str(asked.get("content", "")).startswith("Så här gick det:")
+    report = str(asked.get("content", "")).startswith(REPORT_TURNS)
     checked_addon = addon_check(messages) if report and "wowapi" in tools else ""
     noops = sed_noops(messages) if report else []
     if noops:
@@ -4493,7 +4524,7 @@ def only_reading(answer):
 def user_said(messages):
     """What the user wrote in the chat (any of their messages, not command output)."""
     return "\n".join(m["content"] for m in messages if m["role"] == "user" and isinstance(m.get("content"), str)
-                     and not m["content"].startswith("Så här gick det:"))
+                     and not m["content"].startswith(REPORT_TURNS))
 
 
 def repair_nudge(answer, messages, tools, searched, sent=()):

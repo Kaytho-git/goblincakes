@@ -24,6 +24,8 @@ Så här provar du (rader utan "- " först läses inte av /testa):
   fråga: Tryck Tillåt på kortet. Flyttar kvittot till hennes nästa svar, och står det "körde 1 · ändrade 1" där?
 - Kontrollerat efteråt
   fråga: Läser hon filen efteråt (ett läsande kommando som cat) och säger klart – står det "✓ Klart – ändrat och kontrollerat efteråt" i accentfärgen? Säger hon klart utan att läsa: står det "! Ändrat – men inte kontrollerat efteråt"?
+- Hon rättar sig själv
+  fråga: Säger hon klart utan att läsa filen: skriver hon direkt ett nytt svar där hon kollar filen (cat) och sedan säger vad hon såg – och står det då "✓ Klart – ändrat och kontrollerat efteråt" under det svaret?
 - Provfilen bort
   kör: gio trash ~/kvitto-prov.txt 2>&1; ls ~/kvitto-prov.txt 2>&1
   väntat: No such file

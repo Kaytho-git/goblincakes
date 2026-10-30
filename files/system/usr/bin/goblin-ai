@@ -429,6 +429,7 @@ class Backend(QObject):
         self._shotDone.connect(self._on_shot)
         self._auto_count = 0  # reading commands run at once since the user last asked
         self._blocked_told = False  # the AI was told about a stopped command for this question
+        self._receipt_told = False  # the AI got the klart-kontroll back for this question (once)
         self._undoing = set()
         self._undone.connect(self._on_undone)
 
@@ -548,7 +549,7 @@ class Backend(QObject):
                 shown["file"] = Path(path).name
         self._display.append(shown)
         self.messageAdded.emit(json.dumps(shown))
-        self._auto_count, self._blocked_told = 0, False
+        self._auto_count, self._blocked_told, self._receipt_told = 0, False, False
         question = {"role": "user", "content": content}
         if images:
             question["images"] = images
@@ -635,6 +636,21 @@ class Backend(QObject):
         self._daily_done()
         self._autorun(len(self._display) - 1)
         self._command_done(len(self._display) - 1)  # only stopped commands: the AI hears why at once
+        self._receipt_back(len(self._display) - 1)
+
+    def _receipt_back(self, index):
+        """She said klart but the klart-kontroll caught something she can fix (not looked at, failed, nothing done):
+        she hears it once per question and goes on by herself – only when no card of the answer is still waiting."""
+        if self._receipt_told or self._busy or self._display[index].get("test"):
+            return
+        if any(s.get("type") == "command" and s.get("state") in ("new", "running")
+               for s in self._display[index].get("segments") or []):
+            return
+        back = goblinai.receipt_back(self._display[index].get("receipt"), self._api)
+        if back:
+            self._receipt_told = True
+            self._api.append({"role": "user", "content": back})
+            self._ask()
 
     def _on_failure(self, message):
         self._stop = None

@@ -29,7 +29,7 @@ from pathlib import Path
 sys.path.insert(0, "/usr/share/goblincakes/ai")
 sys.path.insert(1, "/usr/share/goblincakes")
 from goblinai import (DAILY_PROMPT, after_commands, reported_code, FORMAT_WORDS, LOOK_UP_FIRST, ONLY_COMMANDS, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
-                      ai_name, ask as ask_services, receipt, chosen_model, cmd_level, file_message, forget, has_keys,
+                      ai_name, ask as ask_services, receipt, receipt_back, chosen_model, cmd_level, file_message, forget, has_keys,
                       image_request, images_possible, is_image, last_done, last_tools, load_daily, load_keys, load_memory, load_projects,
                       make_image, make_report, model_choices, project_prompt, remember, run_in_folder, save_keys, save_solution,
                       segments,
@@ -586,16 +586,18 @@ def show_answer(chat, answer, service, keys):
 
 
 def show_receipt(chat):
-    """The receipt + klart-kontroll (punkt 23) when the question is done: what was read, run and changed."""
+    """The receipt + klart-kontroll (punkt 23) when the question is done: what was read, run and changed. Returns the
+    message for her when the check caught something she can fix herself (receipt_back), else ""."""
     r = receipt(chat.display, len(chat.display) - 1)
     if not r:
-        return
+        return ""
     chat.display[-1]["receipt"] = r
     chat.save()
     print(f"  {FAINT}Kvitto: {r['line']}{RESET}")
     if r["verdict"]:
         mark = {"ok": "✓", "warn": "!", "no": "✗"}[r["state"]]
         print(f"  {ACCENT if r['state'] == 'ok' else RED if r['state'] == 'no' else FROST}{mark} {r['verdict']}{RESET}")
+    return receipt_back(r, chat.api)
 
 
 def handle(chat, keys, shown, question, choice=""):
@@ -603,7 +605,7 @@ def handle(chat, keys, shown, question, choice=""):
     chat.display.append(shown)
     chat.api.append(question)
     chat.save()
-    told_blocked = False
+    told_blocked = told_receipt = False
     for round_ in range(MAX_ROUNDS):
         if round_:
             print()
@@ -614,13 +616,19 @@ def handle(chat, keys, shown, question, choice=""):
         answer, service = got
         chat.api.append({"role": "assistant", "content": answer, **({"done": chat.done} if chat.done else {})})
         results = show_answer(chat, answer, service, keys)
-        if not results:
-            return show_receipt(chat)
         states = [p["state"] for p, _ in results]
+        if not results or (all(s in ("skipped", "blocked") for s in states)
+                           and ("blocked" not in states or told_blocked)):
+            # Done (only skipped ones too): the receipt – and once per question, what the klart-kontroll caught
+            # goes back to her so she can fix it herself. Stopped ones: she hears why once (the safe way)
+            back = show_receipt(chat)
+            if not back or told_receipt:
+                return
+            told_receipt = True
+            chat.api.append({"role": "user", "content": back})
+            chat.save()
+            continue
         if all(s in ("skipped", "blocked") for s in states):
-            # Only skipped: done. Stopped ones: the AI hears why once per question (it can do it the safe way)
-            if "blocked" not in states or told_blocked:
-                return show_receipt(chat)
             told_blocked = True
         chat.api.append({"role": "user", "content": "Så här gick det:\n\n" + "\n\n".join(r for _, r in results)
                          + f"\n\n(Mappen nu: {chat.cwd})"

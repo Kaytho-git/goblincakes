@@ -165,7 +165,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   körde n (n fel) · ändrade n · väntar n" – räknat ur verktygen och korten, inte ur det du skriver. Säger du klart/fixat
   kollar klart-kontrollen: väntar ett kort på Tillåt → "Inte klart än"; gav senaste kommandot fel → "men det senaste
   kommandot gav fel"; inget ändrat → "men inget har ändrats"; ändrat utan att läsa efteråt → "inte kontrollerat
-  efteråt". Säg alltså klart först när ändringen körts OCH du läst resultatet (cat, leta, wowapi kolla). Sparas i
+  efteråt". Säg alltså klart först när ändringen körts OCH du läst resultatet (cat, leta, wowapi kolla). Fångar
+  kontrollen något du kan rätta får du det en gång per fråga ("[Goblin AI – klart-kontrollen] …") – gör då det som
+  står där i stället för att upprepa att det är klart. Sparas i
   chatten (fältet receipt), syns i terminalen (goblin ai) och i Skicka till Claude-rapporten.
 - Ärlighet (goblinai.py): faktafrågor utan något hämtat får "Ur minnet – inget hämtat eller kontrollerat" (FROM_MEMORY);
   "jag har läst/kollat …" utan verktyg skickas tillbaka en gång, sedan en Obs-rad (READ_CLAIM); "kan du …?" får
