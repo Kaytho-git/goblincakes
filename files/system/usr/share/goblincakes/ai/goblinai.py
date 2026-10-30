@@ -143,13 +143,16 @@ THINK_WORDS = re.compile(r"\b(varför|förklara|jämför|analysera|analys|planer
 
 
 TOOL_TURNS = ("[Svar från verktyget", "[Goblin AI sökte", "Det gick inte (", "Inga fler sökningar")
+# Goblin AI's own turns too: the files it read and "Så här gick det:" were taken as a long question – gemma4
+# thought in every step, twice 8000 tokens (2 min each) moving a folder (30 Oct, 9 min in all)
+OWN_TURNS = TOOL_TURNS + ("[Goblin AI", "Så här gick det:")
 
 
 def typed_question(messages):
     """What the user wrote – not the tool results ask() adds as user turns (a search result with "html"
     in it chose the code model, 24 Oct)."""
     return next((m["content"] for m in reversed(messages) if m["role"] == "user" and isinstance(m["content"], str)
-                 and not m["content"].startswith(TOOL_TURNS)), "")
+                 and not m["content"].startswith(OWN_TURNS)), "")
 
 
 def needs_thinking(messages):
