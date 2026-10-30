@@ -170,6 +170,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   delen, delarnas namn och länken; `<ämne> ; <del eller ord>` = en del eller styckena som nämner ordet. Kolla:
   python3 /usr/share/goblincakes/ai/wikitools.py "Gustav Vasa ; skidor". `/wiki <fråga>` i Goblin AI (fönster och terminal) = bara wiki-verktyget för den frågan – snabbare, menyn med alla verktyg läses inte. Likadant /wcl, /wow, /cs2, /sport, /github, /datorn (ONLY_COMMANDS i goblinai.py); svar utan verktyget skickas tillbaka.
 
+- Ändra en fil som finns: verktyget byt_text (ai/bytatext.py) – den gamla texten exakt (några hela rader, inga
+  radnummer) mot den nya; finns texten inte, eller flera gånger, visar det närmaste raderna. Ger ett Tillåt-kort
+  `python3 …/bytatext.py FIL <<'KAKAN_SLUT'` med GAMMALT/NYTT. sed som skriver in rader (c\, i\, a\, \n) skickas tillbaka.
 - MCP-servrar (färdiga verktyg utifrån, ai/mcp.py): ~/.config/goblincakes/mcp.json (mcpServers, samma form som Claude
   Code), nycklar i mcp.env (visa aldrig). Program körs i podman-containrar, startar vid första anropet, stängs efter
   5 min eller när ett spel startar. Läsande verktyg direkt, andra = Tillåt-kort. Verktygslistan cachas i
@@ -254,7 +257,7 @@ Ord: wow, world of warcraft, battle.net, tillägg, addon, addons, bugsack, lua-f
 - WoW installeras via Battle.net i Lutris (eller Steam). `goblin wow` länkar alla versioner under ~/Games/WoW/
   (<version>/AddOns, Logs, WTF) – det är länkar till där spelet verkligen ligger (…/_retail_/Interface/AddOns).
 - Fel i ett tillägg: verktyget wowfel visar BugSacks fel med fil och radnummer. Läs raden i tilläggets fil, rätta
-  den (sed -i … ett Tillåt-kort – filen säkerhetskopieras först), och be användaren skriva `/reload` i spelet.
+  den med verktyget byt_text (ett Tillåt-kort – filen säkerhetskopieras först), och be användaren skriva `/reload` i spelet.
   Ett tillägg med en .git-mapp är användarens eget: `git -C <mappen> diff` visar vad som ändrats sedan senast.
 - WoW:s funktioner: verktyget wowapi slår upp en funktion, händelse eller ramtyp för spelet just nu, och `kolla <mapp>` jämför ett tilläggs .toc och .lua med spelet (påhittade namn, fel .toc-namn, Interface-raden). Datan: ~/.local/share/goblincakes/wowapi/index.json (hämtas igen efter en vecka; `python3 /usr/share/goblincakes/ai/wowapi.py hämta`). Efter varje ändring i ett tilläggs fil kör Goblin AI kontrollen själv. Kontrollen läser också Lua-koden med `luajit` (samma Lua som WoW): "Lua-fel" = WoW laddar inte filen alls. Den ser även fel antal argument till C_-funktioner och `.fält` på en funktion som ger tillbaka tal. Och variabler som används men aldrig får ett värde (en `local` som försvann). Den ser inte om tillägget gör rätt sak – det provas i spelet (/reload). En `sed` som inte hittade texten säger ändå OK – Goblin AI säger till efteråt.
 - Bara användarens egna tillägg får ändras (git-klonerna i AddOns, eller listan ~/.config/goblincakes/egna-tillagg) – andras (BigWigs, EllesmereUI, RaiderIO …) stoppas; förklara felet och föreslå WoWUp eller att säga till den som gjort det. Committa aldrig – användaren sparar ändringen själv.

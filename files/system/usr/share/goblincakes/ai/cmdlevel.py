@@ -668,6 +668,8 @@ def write_targets(code, cwd):
             targets.append(files[-1])
         elif w[0] in ("cp", "mv", "install", "ln") and len(files) >= 2:
             targets.append(files[-1])
+        elif w[0].startswith("python3") and len(files) == 2 and files[0].endswith("/bytatext.py"):
+            targets.append(files[1])  # Kakan's byt_text card (30 Oct)
     seen, paths = set(), []
     for t in targets:
         p = _expand(t, cwd)

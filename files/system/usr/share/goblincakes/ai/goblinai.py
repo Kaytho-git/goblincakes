@@ -747,8 +747,8 @@ WOW_ERRORS_GUIDE = """
 Förklara vilket tillägg som orsakar felet (titta i stacken –
 Blizzard_-filer är sällan boven).
 - Står det "Ditt eget tillägg": rätta det själv. Läs raden i felet (`sed -n 'N-5,N+5p' fil`), jämför med
-  `git -C <mappen> diff`, slå upp funktionen i felet med wowapi (finns den, vad den tar), rätta med ett ```bash-block
-  (`sed -i`, användaren trycker Tillåt – filen säkerhetskopieras), och be användaren PROVA_I_SPELET. Committa aldrig – användaren ser ändringen med `git diff` och sparar den själv.
+  `git -C <mappen> diff`, slå upp funktionen i felet med wowapi (finns den, vad den tar), rätta med verktyget
+  byt_text (gammal text → ny, användaren trycker Tillåt – filen säkerhetskopieras), och be användaren PROVA_I_SPELET. Committa aldrig – användaren ser ändringen med `git diff` och sparar den själv.
 - "attempt to call a nil value": raden i felet är där anropet görs – det som är nil kommer ofta från raden under i
   stacken (den som skickade in funktionen). Leta orsaken där.
 - Andras tillägg: uppdatera det (WowUp), stäng av det eller rapportera felet till den som gjort det.
@@ -829,10 +829,9 @@ Följ kartan: kontrollera det delen bygger på i den ordning kartan säger (kör
 loggen), jämför med vad koden förväntar sig och rätta bara det som skiljer, i användarens egna filer. Gissa inte
 på delar kartan inte nämner.
 Visar "Kontrollerat nu" redan felet (t.ex. FINNS INTE vid en sökväg, och raden med den i en fil): säg vad som är
-fel och ge rättningen direkt (ett ```bash-block med sed -i på just den raden, sedan det som behövs för att
+fel och ge rättningen direkt (verktyget byt_text på just de raderna, sedan det som behövs för att
 ändringen ska gälla). Läs inte om hela filen för att bekräfta – raden står redan där.
-Rätta bara på raden som är fel: `sed -i '173s/gammalt/nytt/' fil` (radnumret först). En ersättning i hela filen
-ändrar också ställen som redan är rätt – s/PlaySoundFil/PlaySoundFile/ gör PlaySoundFile till PlaySoundFilee."""
+Rätta bara raderna som är fel: byt_text med raderna exakt som de står (gammal) och som de ska stå (ny)."""
 
 SYSTEM_ERRORS_PROMPT = """
 
@@ -939,6 +938,52 @@ musik paus
 
 DESK_GUIDE = """
 Säg kort vad du gjorde ("Pausade Spotify."). Gick det inte: säg varför, gissa inte."""
+
+BYT_PROMPT = """
+Ändra en fil som redan finns (byta, lägga till eller ta bort rader) med ett ```byt-block – inte med sed:
+```byt
+fil: ~/sökväg/fil.lua
+<<<<<<< GAMMALT
+raderna som står där nu, exakt som i filen (utan radnummer)
+=======
+raderna som ska stå där i stället
+>>>>>>> NYTT
+```
+Lägga till: ta med raden före i båda delarna. Ta bort: lämna den nya delen tom."""
+
+BYT_GUIDE = """
+Ändringen görs först när användaren trycker Tillåt: ta med ```bash-kortet som verktyget gav, oförändrat, och säg i
+en mening vad det ändrar. Säger verktyget att texten inte finns: kopiera raderna exakt som de står och försök igen."""
+
+
+def byt_run(query):
+    """The byt tool (30 Oct): the change checked against the file now, then the Tillåt card that makes it – gemma4's
+    `sed -i '10,12c\\…\\n…'` left `\\n` as text in gear's code and she mended her own broken lines for six rounds."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import bytatext  # noqa: PLC0415
+    query = query.strip()
+    try:
+        args = json.loads(query) if query.startswith("{") else None
+    except ValueError:
+        args = None
+    if isinstance(args, dict):
+        path, old, new = (str(args.get(k) or "") for k in ("fil", "gammal", "ny"))
+    else:
+        first, _, rest = query.partition("\n")
+        path = re.sub(r"^\s*(?:fil|file)\s*:\s*", "", first).strip().strip("\"'`")
+        try:
+            old, new = bytatext.parse(rest)
+        except bytatext.Miss as e:
+            return f"Inget kort gjort: {e}", []
+    if not path:
+        return "Inget kort gjort: filens hela sökväg saknas.", []
+    full = Path(os.path.expanduser(path))
+    why = bytatext.check(full, old, new)
+    if why:
+        return f"Inget kort gjort: {why}", []
+    return ("Kortet är klart – ändringen görs när användaren trycker Tillåt. Ta med det här kodblocket oförändrat i "
+            f"svaret:\n```bash\n{bytatext.card(full, old, new)}\n```"), []
+
 
 STEP_LIMIT = 10  # tool uses per question (the work loop, 25 Oct; was 6) – and fewer when the local AI's memory fills up
 
@@ -1412,6 +1457,17 @@ def tools_for(keys, project, messages):
                               "säga till när något händer (Steam/uppdatering/nedladdning klar, program stängs, sida ändras), "
                               "ta reda på något senare och svara med en notis.",
                               "En av raderna:\n" + DESK_LINES, DESK_FNS)
+    tools["byt"] = tool("Byter text i en fil", BYT_PROMPT, BYT_GUIDE, byt_run, "byt_text",
+                        "", "", [look_fn(
+                            "byt_text", "Ändrar en fil som redan finns: byter den gamla texten (några hela rader, exakt "
+                            "som de står i filen – utan radnummer) mot den nya. Lägga till rader: ta med raden före i "
+                            "både gammal och ny. Ta bort: ny tom. Användaren får ett Tillåt-kort. Använd det i stället "
+                            "för sed när du lagar en fil (ett WoW-tillägg, ett skript, en inställning).",
+                            {"fil": ("Filens hela sökväg, t.ex. `~/kakan-prov/gear/GearDisplay.lua`", True),
+                             "gammal": ("Raderna som står där nu, exakt som i filen (flera rader går bra)", True),
+                             "ny": ("Raderna som ska stå där i stället (tomt = ta bort)", False)},
+                            lambda a: json.dumps({k: str(a.get(k) or "") for k in ("fil", "gammal", "ny")},
+                                                 ensure_ascii=False))])
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
     except (OSError, ValueError):
@@ -1519,7 +1575,8 @@ TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel
               "skrivbord": "skrivbord", "desktop": "skrivbord", "musik": "skrivbord", "volym": "skrivbord",
               "påminn": "skrivbord", "bevaka": "skrivbord",
               "lagg": "lagg", "laggmätning": "lagg", "lagmätning": "lagg",
-              "byggstatus": "byggstatus", "bygget": "byggstatus"}
+              "byggstatus": "byggstatus", "bygget": "byggstatus",
+              "byt": "byt", "byt_text": "byt", "bytatext": "byt"}
 
 # With real tool calls the system prompt only gets this – the tools describe themselves
 TOOLS_PROMPT = """
@@ -1613,6 +1670,8 @@ def tool_request(text, tools):
     """(tool, query) when the answer asks for a tool, else None."""
     for m in re.finditer(r"```([\w-]+)[ \t]*\n?(.*?)```", text, re.S):
         tool = TOOL_WORDS.get(m.group(1).lower()) or (m.group(1) if tools.get(m.group(1), {}).get("mcp") else None)
+        if tool == "byt" and tool in tools:  # the old/new text exactly, spaces and line breaks too
+            return tool, m.group(2).strip("\n")
         if tool in tools:
             return tool, " ".join(m.group(2).split())
         written = written_call(m.group(2), tools)
@@ -1639,7 +1698,8 @@ def json_call(text, tools):
     if not block:
         return None
     word, _, body = block[3:].partition("\n")
-    return word, " ".join(body.rsplit("\n```", 1)[0].split())
+    body = body.rsplit("\n```", 1)[0]
+    return word, body.strip() if word == "byt" else " ".join(body.split())
 
 
 def ask(messages, keys, status=None, notice=None, project=None, choice="", steps=None):
@@ -1676,8 +1736,12 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         activity_done()
     # A tool that needs Tillåt (closing a window, goblin update) answers with a ```bash card – gemma4 said "Jag
     # startar uppdateringen nu" without it (28 Oct), so no card came. The card is added here when it is missing.
-    for card in dict.fromkeys(c for _, _, text in getattr(LAST, "done", [])
-                              for c in re.findall(r"```bash\n.*?\n```", str(text), re.S)):
+    cards = list(dict.fromkeys(c for _, _, text in getattr(LAST, "done", [])
+                               for c in re.findall(r"```bash\n.*?\n```", str(text), re.S)))
+    if any("bytatext.py" in c for c in cards):
+        # byt_text's card as the tool made it – a copy she typed again could differ from the checked text
+        answer = re.sub(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", "", answer, flags=re.S)
+    for card in cards:
         if card.split("\n")[1] not in answer:
             answer = answer.rstrip() + "\n\nDet här körs först när du trycker Tillåt:\n" + card
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
@@ -3314,8 +3378,8 @@ kill -0 "$(cat ~/namn.pid)" && echo "Körs." || echo "Har stannat."; cat ~/namn.
   Står det inte HTTP 200, eller syns ett fel (t.ex. NameError = en import saknas) i loggen: rätta och kör om.
   Testraden som skrevs till en datafil tas bort efteråt. Säg hur det stoppas: `kill "$(cat ~/namn.pid)"`.
   Använd aldrig `pkill -f` eller `pgrep -f` med skriptets namn – de träffar även blockets egen bash.
-- Rätta i en fil med `sed -i` bara på raden som är fel (`sed -i '173s/gammalt/nytt/' fil`) – en ersättning i hela
-  filen kan ändra rätt ställen också.
+- Rätta i en fil som finns med verktyget byt_text (raderna som är fel exakt som de står → som de ska stå), inte
+  med sed – sed med radnummer och \\n förstör filen lätt.
 - Ta ett steg i taget när du behöver se resultatet först. Skriv inga ```bash-block när inget ska köras.
 - Använd sudo bara när det verkligen behövs och säg varför (det körs i ett terminalfönster där användaren skriver
   sitt lösenord).
@@ -4223,7 +4287,7 @@ Reparera kod som inte fungerar (ett tillägg, en widget, ett skript) – arbeta 
    första rader (huvudet), varje inställningsrad, namnen på funktionerna.
 4. Säg vad du jämförde: "Enligt <källan> ska X vara Y – här står Z." Varje skillnad är ett fel; det kan vara flera.
    Hittar du ingen skillnad: säg det och vad du skulle behöva veta – hitta aldrig på en orsak som låter rimlig.
-5. Rätta bara det som skilde (`sed -i` på raden, `mv` för ett namn) – skriv inte om hela filen.
+5. Rätta bara det som skilde (byt_text på raderna, `mv` för ett namn) – skriv inte om hela filen.
    Ett WoW-tillägg: slå upp varje WoW-funktion du ändrar till med wowapi – Goblin AI kontrollerar dessutom
    tillägget mot spelet efter varje ändring och säger vad som fortfarande är fel.
 6. Kan det inte provas härifrån (ett WoW-tillägg provas bara i spelet): säg vad användaren ska titta efter, och
@@ -4246,7 +4310,7 @@ GUIDES = [(re.compile(r"\b(plasmoid\w*|kpackagetool6?|plasmawindowed|widgetmeny\
 ERROR_SEEN = re.compile(r"\b(?:error|exception|traceback|nil value|is not a type|not installed|syntax ?error|"
                         r"undefined|cannot|misslyckades)\b|\w\.\w+:\d+:", re.I)
 # A ```bash block that changes files (not one that only reads them)
-CHANGES_FILES = re.compile(r"(?:^|[;&|]\s*)(?:sed\s+-i|mv|cp|rm|tee|truncate)\b|(?<![<>&\d])>(?!&)\s*[~/\w]", re.M)
+CHANGES_FILES = re.compile(r"(?:^|[;&|]\s*)(?:sed\s+-i|mv|cp|rm|tee|truncate)\b|\bbytatext\.py\b|(?<![<>&\d])>(?!&)\s*[~/\w]", re.M)
 
 
 VERDICT = re.compile(r"kan jag laga det\W{0,8}(?:ja|nej)\b", re.I)
@@ -4277,13 +4341,13 @@ def repair_nudge(answer, messages, tools, searched, sent=()):
         for m in re.finditer(r"```(lua|xml|toc|python|qml|js|[\w+-]+:[^\n`]+)\n(.*?)```", answer, re.S):
             if m.group(2).count("\n") >= 8:
                 return "unsaved", ("Ett kodblock i svaret ändrar ingen fil – Goblin AI sparar det inte, och ingenting är "
-                        "lagat. Ändra bara raderna som är fel med `sed -i` i ett ```bash-block (användaren trycker Tillåt), "
+                        "lagat. Ändra bara raderna som är fel med verktyget byt_text (användaren trycker Tillåt), "
                         "skriv inte hela filen.")
     for block in blocks if "rewrite" not in sent else []:
         for path in re.findall(r"\bcat\s*>\s*([~\w./-]+)\s*<<", block):
             if Path(os.path.expanduser(path)).is_file():
                 return "rewrite", (f"Du skriver om hela {path} fast den redan finns. Rätta bara raderna som är fel "
-                        "(`sed -i 'Ns/gammalt/nytt/' fil`, `mv` för ett namn) – resten av filen ska stå kvar som den är.")
+                        "(verktyget byt_text, `mv` för ett namn) – resten av filen ska stå kvar som den är.")
     if "search" in sent or not any(CHANGES_FILES.search(b) for b in blocks) or searched:
         return ""
     if not ("sök" in tools or "sida" in tools):
@@ -4350,17 +4414,18 @@ def line_shift_nudge(answer):
 
 
 def sed_newline_nudge(answer):
-    """A sed whose new text has `\\n` inside a quoted string (Lua's "\\n"): sed makes it a real line break, the string is
-    cut in two and the file no longer loads – gemma4 ran `sed -i '48c\\ …table.concat(gear_data, "\\n"))'` three times,
-    one more broken line each time (30 Oct). The reason to send the answer back once, or ""."""
+    """A sed that writes code: `c\\`/`i\\`/`a\\` (new lines) or `\\n` in the new text. gemma4 ran `sed -i '48c\\ …
+    table.concat(gear_data, "\\n"))'` three times, one more broken line each time; told to write `\\\\n` she used it
+    between statements too and left `\\n` as text in the code, six rounds (30 Oct). Now byt_text does it. The reason
+    to send the answer back once, or ""."""
     for block in cmd_level().code_blocks_in(answer):
         for m in re.finditer(r"\bsed\s+(?:-\w*i\w*|--in-place)\s+(['\"])(.*?)\1\s+\S+", block, re.S):
             body = m.group(2)
-            if re.search(r"^\d*(?:,\d+)?[cia]\\", body) or re.match(r"^\d*(?:,\d+)?s(.)", body):
-                if re.search(r"[\"'][^\"'\n]*(?<!\\)\\n[^\"'\n]*[\"']", body):
-                    return ("I sed blir `\\n` en riktig radbrytning – texten \"\\n\" i koden delas på två rader och filen "
-                            "går sönder (det är därför samma rad blir fel igen). Skriv `\\\\n` i sed-kommandot för att få "
-                            "\\n i filen. Ta också bort de trasiga raderna som förra kommandona lämnade – läs filen först.")
+            if re.search(r"^\d*(?:,\d+)?[cia]\\", body) or re.match(r"^\d*(?:,\d+)?s(.)", body) and "\\n" in body:
+                return ("sed som skriver in rader (`c\\`, `i\\`, `a\\` eller `\\n`) förstör koden lätt – `\\n` blir "
+                        "ibland en radbrytning och ibland text, och radnumren flyttas mellan kommandona. Använd verktyget "
+                        "byt_text i stället: raderna exakt som de står nu (gammal) och som de ska stå (ny). Läs filen "
+                        "först och ta också bort de trasiga rader som tidigare kommandon lämnat.")
     return ""
 
 
