@@ -1449,6 +1449,9 @@ Window {
                 height: parent.height - y - 30
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
+                // rows (and their covers, fetched by each row) made ahead of the scrolling too – a cover was
+                // still slow now and then for rows that just scrolled in (30 Oct)
+                cacheBuffer: 1200
                 model: plPanel.shown
                 FastWheel { flick: plView }
                 delegate: Rectangle {
@@ -1777,7 +1780,7 @@ Window {
             property real rowH: 0
             function show(u, y, h) { wanted = u; rowY = y; rowH = h; coverWait.restart(); }
             function hide() { coverWait.stop(); wanted = ""; url = ""; }
-            Timer { id: coverWait; interval: 350; onTriggered: coverTip.url = coverTip.wanted }
+            Timer { id: coverWait; interval: 250; onTriggered: coverTip.url = coverTip.wanted }
             visible: url !== "" && coverImg.status === Image.Ready
             z: 20
             width: 162; height: 162
@@ -1790,7 +1793,7 @@ Window {
             Image {
                 id: coverImg
                 anchors { fill: parent; margins: 1 }
-                source: coverTip.url
+                source: coverTip.wanted  // loading starts with the hover, shown after the wait
                 sourceSize: Qt.size(320, 320)
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
