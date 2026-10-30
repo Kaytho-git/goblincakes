@@ -4447,6 +4447,8 @@ def investigate(question, tools, keys, notice, project, choice, steps, status=No
             steps.start("Kontrollerar tillägget mot WoW")
             try:
                 parts.append("## Kontroll mot WoW (spelets egna funktioner)\n" + wow_api().check(p))
+                parts.append("## Var tillägget ska ligga\n" + wow_tools().versions_text(
+                    next(iter(sorted(p.glob("*.toc"))), p).stem if p.is_dir() else p.parent.name))
                 LAST.tools.append(("wowapi", f"kolla {path}"))
                 LAST.done.append(("wowapi", f"kolla {path}", ""))
                 steps.done()

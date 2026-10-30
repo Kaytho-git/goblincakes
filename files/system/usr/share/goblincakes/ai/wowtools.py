@@ -129,6 +129,24 @@ def wow_versions():
     return out
 
 
+def versions_text(addon):
+    """Where an add-on goes: the computer's WoW versions and their AddOns folders – one = there, several = ask
+    which (gemma4 asked the user to run `goblin wow` and paste it, 30 Oct)."""
+    found = wow_versions()
+    if not found:
+        return ("Inga WoW-versioner hittades (~/Games/WoW/<version>/AddOns saknas) – är WoW installerat? "
+                "Då länkar `goblin wow` mapparna; kör det själv i ett kodblock.")
+    rows = [f"- {v}: {game / 'Interface/AddOns'}" + (" (en mapp med samma namn finns redan där – skriv inte över den, fråga användaren)"
+                                                     if (game / "Interface/AddOns" / addon).exists() else "")
+            for v, game in found.items()]
+    rule = ("Bara en version: flytta/kopiera tillägget dit själv, fråga inte vilken."
+            if len(found) == 1 else
+            "Flera versioner: fråga användaren vilken (t.ex. \"Retail eller Classic?\") innan du flyttar något.")
+    return ("WoW-versioner på datorn (tilläggen ska ligga i versionens Interface/AddOns/<mappnamn>, mappnamnet = "
+            ".toc-filens namn):\n" + "\n".join(rows) + "\n" + rule
+            + " Be aldrig användaren köra `goblin wow` och klistra in – du ser versionerna här.")
+
+
 def addon_version(game, addon):
     toc = next(iter(sorted((game / "Interface/AddOns" / addon).glob("*.toc"))), None)
     if not toc:
