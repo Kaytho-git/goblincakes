@@ -1471,6 +1471,29 @@ class Backend(QObject):
             goblinai.save_memory(items)
             self.memoryChanged.emit()
 
+    # ── Which code the window runs: the image's version, or the repo's last commit (30 Oct, the user: "uppdateras
+    # länken till repo versionen?" – a window started before a fix kept the old code) ──
+
+    @Property(str, constant=True)
+    def version(self):
+        try:
+            git = subprocess.run(["git", "-C", str(SHARE), "log", "-1", "--format=%h · %ad", "--date=format:%Y-%m-%d %H:%M"],
+                                 capture_output=True, text=True, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            git = None
+        if git and git.returncode == 0 and git.stdout.strip():
+            return "Repo " + git.stdout.strip()
+        try:
+            version = Path("/usr/share/goblincakes/version").read_text().strip()
+        except OSError:
+            return ""
+        try:  # the image's files are all dated 1970 – the build time is the deployment's
+            booted = json.loads(subprocess.run(["rpm-ostree", "status", "--booted", "--json"], capture_output=True,
+                                               text=True, timeout=5).stdout)["deployments"][0]
+            return f"Version {version} · {time.strftime('%Y-%m-%d %H:%M', time.localtime(booted['timestamp']))}"
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError, IndexError):
+            return f"Version {version}"
+
     # ── The AI's own name (AI-tjänster → Namn) ────────────────
 
     nameChanged = Signal()

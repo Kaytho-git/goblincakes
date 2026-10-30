@@ -1342,14 +1342,25 @@ Window {
                     sourceSize.width: 36
                     sourceSize.height: 36
                 }
-                Text {
+                Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "GOBLIN AI"
-                    color: "#E6ECF5"
-                    font.family: "Chakra Petch"
-                    font.weight: Font.Bold
-                    font.pixelSize: 20
-                    font.letterSpacing: 3
+                    spacing: 2
+                    Text {
+                        text: "GOBLIN AI"
+                        color: "#E6ECF5"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.Bold
+                        font.pixelSize: 20
+                        font.letterSpacing: 3
+                    }
+                    // Which code runs: "Version 2026.10.30 · 2026-10-30" or "Repo 52e71cd · 2026-10-30 10:49"
+                    Text {
+                        visible: text !== ""
+                        text: backend.version
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 10
+                    }
                 }
             }
 
