@@ -1,3 +1,4 @@
+2026-10-30  Spelas nu: musen syns kvar i toppfältet när den laddar med sladden – med en blixt och hur många procent den har.
 2026-10-30  Goblin AI: när Kakan lagar en fil byter hon nu de gamla raderna mot nya med ett eget verktyg i stället för sed – Tillåt-kortet visar GAMMALT och NYTT, och hon kan inte längre förstöra filen när hon ändrar flera rader.
 2026-10-30  Goblin AI: förslagen på startsidan går att trycka på igen – frågan skickas direkt så att du kan prova (för "Rätta stavningen i en fil" väljer du först filen).
 2026-10-30  Goblin AI visar under namnet vilken version som körs och när den byggdes.

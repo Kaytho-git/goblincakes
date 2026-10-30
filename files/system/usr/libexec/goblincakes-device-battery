@@ -7,16 +7,70 @@
 Read from UPower (`upower -d`), the same place Plasma's battery applet looks – Logitech's receivers
 (hidpp) and Bluetooth devices land there by themselves. The computer's own battery and the
 power cable are left out (power supply: yes). An empty list = nothing wireless with a battery.
+
+A Logitech mouse charging on its cable is a plain USB device: the kernel shows no battery for it then and it
+vanished from the top bar (30 Oct, G502 X PLUS). Then the mouse itself is asked over HID++ (hidraw, readable
+without root): the Unified Battery feature 0x1004 gives percent and charging.
 """
 import json
+import os
 import re
+import select
 import subprocess
+import time
+from pathlib import Path
 
 # UPower's device types that are things in your hand or on your head
 KINDS = {"mouse", "keyboard", "headset", "headphones", "gaming-input", "touchpad",
          "pen", "tablet", "speakers", "remote control"}
 # Devices that only know a level, not a percentage (some Logitech mice)
 LEVELS = {"full": 100, "high": 80, "normal": 55, "low": 20, "critical": 5}
+
+
+def _hidpp(fd, feature, function, params=b""):
+    """One HID++ 2.0 long request to a device on its own cable (index 0xFF) – the answer, or None."""
+    try:
+        os.write(fd, (bytes([0x11, 0xFF, feature, (function << 4) | 0x0A]) + params).ljust(20, b"\0"))
+    except OSError:  # the mouse's other interfaces don't take HID++
+        return None
+    end = time.monotonic() + 0.5
+    while time.monotonic() < end:
+        if not select.select([fd], [], [], 0.1)[0]:
+            continue
+        got = os.read(fd, 64)
+        if len(got) >= 7 and got[0] == 0x11 and got[1] == 0xFF and got[2] in (feature, 0x8F) and got[3] & 0x0F == 0x0A:
+            return None if got[2] == 0x8F else got
+    return None
+
+
+def wired_logitech():
+    """Logitech mice/keyboards on their cable: [{kind, name, percent, charging}] read over HID++."""
+    found = []
+    for raw in sorted(Path("/sys/class/hidraw").glob("hidraw*")):
+        try:
+            uevent = (raw / "device/uevent").read_text()
+        except OSError:
+            continue
+        if ":0000046D:" not in uevent.upper() or "HID_NAME=" not in uevent:
+            continue
+        name = re.search(r"HID_NAME=(.*)", uevent).group(1).strip()
+        if any(d["name"] == name for d in found):
+            continue
+        try:
+            fd = os.open(f"/dev/{raw.name}", os.O_RDWR | os.O_NONBLOCK)
+        except OSError:
+            continue
+        try:
+            index = _hidpp(fd, 0x00, 0, (0x1004).to_bytes(2, "big"))  # where Unified Battery is
+            status = _hidpp(fd, index[4], 1) if index and index[4] else None
+        finally:
+            os.close(fd)
+        if status:
+            # state of charge, level, charging status (1/2 = charging, 3 = full), external power
+            found.append({"kind": "keyboard" if "keyboard" in name.lower() else "mouse",
+                          "name": re.sub(r"^Logitech\s+", "", name), "percent": status[4],
+                          "charging": status[6] in (1, 2, 3)})
+    return found
 
 
 def main():
@@ -51,6 +105,8 @@ def main():
             "percent": percent,
             "charging": info.get("state") in ("charging", "fully-charged"),
         })
+    if not any(d["kind"] in ("mouse", "keyboard") for d in devices):
+        devices += wired_logitech()
     print(json.dumps(devices, ensure_ascii=False))
 
 
