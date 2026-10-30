@@ -46,15 +46,8 @@ Window {
         }
     }
     visible: true
-    // See-through: only GRAF is (29 Oct, the user's wish – like goblin graph's own window);
-    // the player has its own background below, the playlist its own
-    color: "transparent"
-    Rectangle {
-        z: -1
-        width: parent.width
-        height: win.shade ? 22 : 152
-        color: "#07090D"
-    }
+    // Not see-through any more: GRAF without a background (29 Oct) didn't look good, the user 30 Oct
+    color: "#07090D"
 
     property bool shade: false          // rolled up to the title line (double-click on it)
     property bool remaining: false      // the time counts down (click on the time)
@@ -586,13 +579,7 @@ Window {
         y: 152
         width: parent.width - 2
         height: win.graphHeight
-        // see-through; a faint backdrop only while the pointer is over it (like goblin graph)
-        Rectangle {
-            anchors.fill: parent
-            color: "#05070A"
-            opacity: graphHover.hovered ? 0.55 : 0
-            Behavior on opacity { NumberAnimation { duration: 150 } }
-        }
+        Rectangle { anchors.fill: parent; color: "#05070A" }
         Rectangle { width: parent.width; height: 1; color: "#1E2A40" }
         Loader {
             anchors { fill: parent; topMargin: 1 }
@@ -1477,6 +1464,15 @@ Window {
                     height: 18
                     readonly property bool plain: kind === "head"   // a heading in a genre view: not clickable
                     color: dragged ? accent.dim : rowArea.containsMouse && kind !== "more" && !plain ? "#16203A" : current ? "#12203A" : "transparent"
+                    // The cover fetched while the row is shown (same size as coverTip's, so its cache has it): on
+                    // hover it was fetched only after the wait and was seldom there the first time (30 Oct)
+                    Image {
+                        visible: false
+                        source: rowItem.r.image || ""
+                        sourceSize: Qt.size(320, 320)
+                        asynchronous: true
+                        cache: true
+                    }
                     Text {
                         x: 4
                         width: parent.width - 60

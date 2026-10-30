@@ -973,6 +973,11 @@ läsa vidare. Står det inte där: säg det, eller slå upp en av artikelns dela
 ordet flera betydelser: fråga vilken, eller ta den som passar frågan."""
 
 
+WIKI_TOPICS_PROMPT = ("Skriv vad som ska slås upp på Wikipedia för att svara på frågan: ett uppslag per rad, högst 3, "
+                      "bara ämnet – t.ex. `Opeth`, eller ämne ; del/ord: `Gustav Vasa ; skidor`, `Opeth ; diskografi`. "
+                      "Inget annat – ingen förklaring, inga citattecken.")
+
+
 def wiki_tools():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import wikitools  # noqa: PLC0415
@@ -2101,6 +2106,40 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                          f"[Goblin AI läste länken i frågan åt dig innan du svarar – det här skrev eller klistrade "
                          f"användaren inte in]\n\n{text}\n\n[Slut på sidan]\n\nSå här svarar du med det:\n{PAGE_GUIDE.strip()}\n\n"
                          f"Användarens fråga var: \"{question}\""})
+    if only_tools(messages) == ["wiki"] and "wiki" in tools and not LAST.tools:
+        # /wiki: Goblin AI looks it up before she answers – asked once more she still answered from memory, with a
+        # made-up album ("Amber Harvest", 30 Oct). She only words what to look up.
+        steps.start("Skriver vad som ska slås upp")
+        QUICK.on = True
+        try:
+            words, _ = ask_once([{"role": "system", "content": WIKI_TOPICS_PROMPT}, {"role": "user", "content": question}],
+                                keys, None, notice, project, choice)
+            steps.done()
+        except (ServiceError, IndexError) as e:
+            words = ""
+            steps.done("fel", e)
+        finally:
+            QUICK.on = False
+        topics = [t.strip(" -•*`\"'") for t in words.splitlines() if t.strip(" -•*`\"'")][:3] or [question[:120]]
+        found_text = []
+        for topic in topics:
+            steps.start(f"Slår upp på Wikipedia: {topic[:80]}")
+            try:
+                text, found = tools["wiki"]["run"](topic)
+                steps.done()
+            except Exception as e:  # noqa: BLE001 – told, the others go on
+                text, found = f"Uppslaget {topic} gick inte: {e}", []
+                steps.done("fel", e)
+            found_text.append(text)
+            sources.extend(found)
+            LAST.tools.append(("wiki", topic))
+            LAST.done.append(("wiki", topic, text))
+        used = len(topics)
+        messages.append({"role": "user", "content":
+                         "[Goblin AI slog upp på Wikipedia åt dig innan du svarar (användaren skrev /wiki) – det här "
+                         "skrev användaren inte in]\n\n" + "\n\n---\n\n".join(found_text) + "\n\n[Slut på uppslagen]\n\n"
+                         f"Så här svarar du med det:\n{WIKI_GUIDE.strip()} Står svaret inte här: slå upp en del av "
+                         f"artikeln med ```wiki, eller säg att det inte står där.\n\nAnvändarens fråga var: \"{question}\""})
     chat_only = bool(NOT_FACT.search(str(asked.get("content", ""))[:600]))  # "hur mår du idag?" searched the web
     if "sök" in tools and not typed and (forced or (fresh_question(asked.get("content")) and not own and not chat_only)):
         # Goblin AI searches first, with the question itself (Tavily takes plain questions)
@@ -2397,6 +2436,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                           " ".join(str(t) for _, _, t in getattr(LAST, "done", []))):
         if url not in (s["url"] for s in sources):
             sources.append({"title": "Warcraft Logs", "url": url, "content": ""})
+    sources = list({s["url"]: s for s in reversed(sources)}.values())[::-1]  # the same page once (two wiki parts)
     if sources:
         answer = answer.rstrip() + "\n\n**Källor:** " + " · ".join(
             f"[{s['title'][:60].replace('[', '(').replace(']', ')')}]({s['url']})" for s in sources[:SOURCES_MAX])
