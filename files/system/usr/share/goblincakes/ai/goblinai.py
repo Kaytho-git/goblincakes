@@ -15,6 +15,7 @@ import math
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -1582,6 +1583,11 @@ def written_call(body, tools):
                 if not args and (m.group(2) or m.group(3) or "").strip():
                     args = {next(iter(f["props"])): (m.group(2) or m.group(3)).strip().strip("\"'")}
                 return word, " ".join(f["line"](args).split())
+    # A tool's name as a shell command – ```bash\nwowfel\n``` (gemma4, 30 Oct: "wowfel: kommandot finns inte"):
+    # the tool, when no program has that name
+    word = TOOL_WORDS.get(m.group(1)) or next((w for w, t in tools.items() if m.group(1) in (w, t["fn"])), None)
+    if word in tools and not m.group(2) and "\n" not in body.strip() and not shutil.which(m.group(1)):
+        return word, " ".join((m.group(3) or "").split()).strip("\"'")
     return None
 
 
