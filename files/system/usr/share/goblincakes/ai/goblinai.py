@@ -1440,12 +1440,30 @@ def tools_for(keys, project, messages):
             "eller senaste boss (då wowstats). En ny länk = hämta igen.",
             "`senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, en länk till rapporten; `alla` (+ länken) = varje boss i "
             "rapporten; en förmåga/mekanik/fiende: `<boss> förmåga: <namn>` (t.ex. `Ula'tek förmåga: Venomous Heart`)")
+    only = only_tools(messages)
+    if only:
+        # /wiki <fråga> (the user 30 Oct): only that tool on the menu – the 36 tools' descriptions were ~7400 tokens
+        # she read at every step
+        return {k: v for k, v in tools.items() if k in only}
     if not has_images(messages):
         try:
             mcp_tools(tools, messages)
         except Exception as e:  # noqa: BLE001 – a broken mcp.json must not stop the questions
             print(f"goblin ai: MCP-servrarna gick inte att läsa: {e}", file=sys.stderr)
     return tools
+
+
+def only_tools(messages):
+    """The tools the user's latest own question was limited to (its "only", set by /wiki), or []."""
+    for m in reversed(messages):
+        if m["role"] != "user":
+            continue
+        if m.get("only"):
+            return list(m["only"])
+        text = m.get("content") if isinstance(m.get("content"), str) else ""
+        if not text.startswith(("[", "Så här gick det:", "Inga fler ")):
+            return []  # the user's own question without a limit
+    return []
 
 
 TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel", "wow-fel": "wowfel",

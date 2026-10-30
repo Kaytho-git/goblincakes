@@ -227,6 +227,7 @@ Window {
         { name: "bild", note: "skapa en bild – skriv vad den ska visa", args: true, hidden: !backend.canDraw && !backend.chatgpt },
         { name: "modell", note: "byt modell – t.ex. /modell claude", args: true },
         { name: "sök", note: "sök på nätet – med en fråga söker den direkt", args: true, hidden: !backend.canSearch },
+        { name: "wiki", note: "fråga uppslagsverket – bara Wikipedia används (snabbare)", args: true },
         { name: "bifoga", note: "bifoga en fil" },
         { name: "skärmbild", note: "ta en skärmbild och bifoga den", args: true },
         { name: "projekt", note: "byt projekt – utan namn: lämna projektet", args: true },
@@ -437,6 +438,12 @@ Window {
                 backend.setSearchNext(!backend.searchNext);
                 toast.show(backend.searchNext ? "Nästa fråga söker på nätet." : "Sök på nätet är av.");
             }
+            break;
+        case "wiki":
+            if (arg !== "")
+                backend.sendOnly("wiki", arg);
+            else
+                toast.show("Skriv frågan efter /wiki, t.ex. /wiki när grundades Metallica?");
             break;
         case "bifoga":
             openDialog.open();

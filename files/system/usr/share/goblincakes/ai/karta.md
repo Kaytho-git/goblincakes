@@ -168,7 +168,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
 - Uppslagsverket (verktyget wiki, ai/wikitools.py): Wikipedia på svenska (engelska när svenska saknar det eller en
   del bara finns där) och Wiktionary (`ord: <ord>`) via deras öppna API – inget konto. Ger artikelns början, första
   delen, delarnas namn och länken; `<ämne> ; <del eller ord>` = en del eller styckena som nämner ordet. Kolla:
-  python3 /usr/share/goblincakes/ai/wikitools.py "Gustav Vasa ; skidor".
+  python3 /usr/share/goblincakes/ai/wikitools.py "Gustav Vasa ; skidor". `/wiki <fråga>` i Goblin AI (fönster och terminal) = bara wiki-verktyget för den frågan – snabbare, menyn med alla verktyg läses inte.
 
 - MCP-servrar (färdiga verktyg utifrån, ai/mcp.py): ~/.config/goblincakes/mcp.json (mcpServers, samma form som Claude
   Code), nycklar i mcp.env (visa aldrig). Program körs i podman-containrar, startar vid första anropet, stängs efter

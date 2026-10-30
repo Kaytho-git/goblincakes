@@ -222,6 +222,7 @@ class Chat:
         self.file = None
         self.cwd = os.getcwd()  # where the next block runs: starts where goblin ai was started, follows `cd`
         self.search_next = False
+        self.only_next = []  # /wiki: the next question gets only these tools
 
     def project_data(self):
         return next((p for p in load_projects() if p["id"] == self.project), None) if self.project else None
@@ -631,6 +632,9 @@ def send(chat, keys, text, attachment=None, choice="", daily=False):
                 return
             chat.file = attachment
             shown["file"] = Path(attachment).name
+    if chat.only_next:  # /wiki
+        question["only"] = shown["only"] = chat.only_next
+        chat.only_next = []
     if chat.search_next:
         question["search"] = shown["searched"] = True
         chat.search_next = False
@@ -674,6 +678,7 @@ def commands(keys):
         {"name": "modell", "note": "byt modell – t.ex. /modell claude", "args": True},
         {"name": "sök", "note": "sök på nätet – med en fråga söker den direkt", "args": True,
          "hidden": not keys.get(SEARCH["env"])},
+        {"name": "wiki", "note": "fråga uppslagsverket – bara Wikipedia används (snabbare)", "args": True},
         {"name": "bifoga", "note": "bifoga en fil – /bifoga <sökväg>", "args": True},
         {"name": "projekt", "note": "gå in i ett projekt – utan namn: lämna projektet", "args": True},
         {"name": "minne", "note": f"vad {name()} kommer ihåg om dig"},
@@ -881,6 +886,12 @@ def run_slash(text, chat, keys, ui):
         else:
             chat.search_next = not chat.search_next
             muted("  Nästa fråga söks på nätet först." if chat.search_next else "  Ingen sökning först.")
+    elif n == "wiki":
+        if arg:
+            chat.only_next = ["wiki"]
+            send(chat, keys, arg)
+        else:
+            muted("  Skriv frågan efter /wiki, t.ex. /wiki när grundades Metallica?")
     elif n == "bifoga":
         path = Path(os.path.expanduser(arg))
         path = path if path.is_absolute() else Path(chat.cwd) / path

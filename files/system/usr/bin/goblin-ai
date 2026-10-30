@@ -390,6 +390,7 @@ class Backend(QObject):
         self._mcpDone.connect(self._on_mcp_done)
         self._failed.connect(self._on_failure)
         self._search_next = False  # "Sök på nätet": the next question is searched first
+        self._only_next = []  # /wiki: the next question gets only these tools
         self._pending_tools = []  # the tools the answer on its way used (for the ♥)
         self._pending_done = []  # …and what they gave, short (saved with the answer, the AI sees it next time)
         self._pending_report_done = []  # …and longer, for Skicka till Claude
@@ -551,6 +552,10 @@ class Backend(QObject):
         question = {"role": "user", "content": content}
         if images:
             question["images"] = images
+        if self._only_next:  # /wiki: only that tool for this question
+            question["only"] = self._only_next
+            shown["only"] = self._only_next
+            self._only_next = []
         if self._search_next:
             question["search"] = True
             shown["searched"] = True
@@ -1176,6 +1181,12 @@ class Backend(QObject):
     def setSearchNext(self, on):
         self._search_next = bool(on)
         self.searchNextChanged.emit()
+
+    @Slot(str, str)
+    def sendOnly(self, tool, text):
+        """/wiki <fråga>: the question with only that tool (30 Oct, the user's wish)."""
+        self._only_next = [tool]
+        self.send(text, "")
 
     @Property(bool, notify=keysChanged)
     def canSearch(self):
