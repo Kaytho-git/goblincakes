@@ -11,7 +11,8 @@ GetItemName, GetItemLevel and CreateFrame("ScrollingFrame") from memory, and "##
 - check(folder): an add-on's .toc and .lua: the .toc's name and lines, the interface number, functions, frame types,
   methods and events that don't exist, slash commands that never reach their function. Calls the code guards
   (`if GetContainerItemLink then …`) are left alone – a fallback for older game versions, not a fault.
-- own_addon(path): whether one of the user's own add-ons (their git clones, or ~/.config/goblincakes/egna-tillagg) –
+- own_addon(path): whether one of the user's own add-ons (their git clones, or ~/.config/goblincakes/egna-tillagg), one
+  Kakan made (## Author: Kakan) or a new folder –
   Goblin AI changes only those (cmdlevel's lock); everybody else's are only read and explained.
 """
 import difflib
@@ -808,6 +809,23 @@ def own_addons():
     return {d.name for d in ADDONS.glob("*") if (d / ".git").exists()}
 
 
+def addon_maker(folder):
+    """Who made an add-on folder: "user" (their own – git clone or OWN_LIST), "kakan" (## Author: Kakan in a .toc and
+    no git), "other" (everyone else) – or None when the folder isn't there (a new add-on: nobody's yet)."""
+    folder = Path(str(folder)).expanduser()
+    if not folder.is_dir():
+        return None
+    if folder.name in own_addons() or (folder / ".git").exists():
+        return "user"
+    for toc in folder.glob("*.toc"):
+        try:
+            if re.search(r"^##\s*Author:\s*Kakan\b", toc.read_text(errors="replace"), re.M | re.I):
+                return "kakan"
+        except OSError:
+            continue
+    return "other"
+
+
 def own_addon(path):
     """Whether a path in WoW's AddOns belongs to one of the user's own add-ons (a link into one counts:
     CooldownVoice_Hunter → CooldownVoice/Modules/…). Paths outside AddOns are not add-ons: True."""
@@ -817,6 +835,9 @@ def own_addon(path):
     i = parts.index("AddOns")
     mine = own_addons()
     if parts[i + 1] in mine:
+        return True
+    # The user 30 Oct: one Kakan made herself she may overwrite; a folder that isn't there yet is a new add-on
+    if addon_maker(Path(*parts[:i + 2])) in ("kakan", None):
         return True
     try:
         real = str(Path(*parts[:i + 2]).resolve())

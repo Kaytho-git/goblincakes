@@ -136,8 +136,12 @@ def versions_text(addon):
     if not found:
         return ("Inga WoW-versioner hittades (~/Games/WoW/<version>/AddOns saknas) – är WoW installerat? "
                 "Då länkar `goblin wow` mapparna; kör det själv i ett kodblock.")
-    rows = [f"- {v}: {game / 'Interface/AddOns'}" + (" (en mapp med samma namn finns redan där – skriv inte över den, fråga användaren)"
-                                                     if (game / "Interface/AddOns" / addon).exists() else "")
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import wowapi  # noqa: PLC0415
+    there = {"kakan": " (en mapp med samma namn finns redan – gjord av dig, Kakan (## Author: Kakan): du får skriva över den)",
+             "user": " (en mapp med samma namn finns redan – användarens eget tillägg: skriv inte över, fråga användaren)",
+             "other": " (en mapp med samma namn finns redan – någon annans tillägg: skriv inte över, fråga användaren)"}
+    rows = [f"- {v}: {game / 'Interface/AddOns'}" + there.get(wowapi.addon_maker(game / "Interface/AddOns" / addon), "")
             for v, game in found.items()]
     rule = ("Bara en version: flytta/kopiera tillägget dit själv, fråga inte vilken."
             if len(found) == 1 else
