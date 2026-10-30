@@ -165,6 +165,11 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   "jag har läst/kollat …" utan verktyg skickas tillbaka en gång, sedan en Obs-rad (READ_CLAIM); "kan du …?" får
   listan över verktygen hon har just nu + det hon inte kan (abilities, CANNOT).
 
+- Uppslagsverket (verktyget wiki, ai/wikitools.py): Wikipedia på svenska (engelska när svenska saknar det eller en
+  del bara finns där) och Wiktionary (`ord: <ord>`) via deras öppna API – inget konto. Ger artikelns början, första
+  delen, delarnas namn och länken; `<ämne> ; <del eller ord>` = en del eller styckena som nämner ordet. Kolla:
+  python3 /usr/share/goblincakes/ai/wikitools.py "Gustav Vasa ; skidor".
+
 - MCP-servrar (färdiga verktyg utifrån, ai/mcp.py): ~/.config/goblincakes/mcp.json (mcpServers, samma form som Claude
   Code), nycklar i mcp.env (visa aldrig). Program körs i podman-containrar, startar vid första anropet, stängs efter
   5 min eller när ett spel startar. Läsande verktyg direkt, andra = Tillåt-kort. Verktygslistan cachas i

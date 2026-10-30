@@ -953,6 +953,29 @@ SPORT_GUIDE = """
 Du får exakta siffror från ESPN – använd dem i stället för att söka eller gissa, och räkna inte om placeringen."""
 
 
+WIKI_PROMPT = """
+
+Wikipedia/uppslagsverk: frågar användaren om fakta – en person, en plats, en händelse, ett djur, ett begrepp ("vem
+var Gustav Vasa?", "vad är en recurvebåge?") – eller vad ett ord betyder, svara med BARA ett kodblock märkt ```wiki
+med ämnet, t.ex.
+```wiki
+Gustav Vasa
+```
+En del av artikeln, eller vad den säger om något ("vad står det om Gustav Vasa och skidor?"): `Gustav Vasa ; skidor`.
+Engelska Wikipedia: `en: Recurve bow`. Ett ords betydelse: `ord: kanelbulle`."""
+
+WIKI_GUIDE = """
+Svara med det som står i artikeln, med egna ord och kort, och ge länken till hela artikeln så att användaren kan
+läsa vidare. Står det inte där: säg det, eller slå upp en av artikelns delar – lägg inte till fakta ur minnet. Har
+ordet flera betydelser: fråga vilken, eller ta den som passar frågan."""
+
+
+def wiki_tools():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import wikitools  # noqa: PLC0415
+    return wikitools
+
+
 def cs2_tools():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import cs2tools  # noqa: PLC0415
@@ -1309,6 +1332,11 @@ def tools_for(keys, project, messages):
                           "sport", "När användaren frågar om ett lags ställning, tabell, senaste eller nästa match (NHL, NBA, NFL, "
                           "MLB, WNBA, MLS och de stora fotbollsligorna inklusive Allsvenskan) – exakta siffror från ESPN, "
                           "i stället för att söka eller gissa.", "Lagets namn")
+    tools["wiki"] = tool("Slår upp på Wikipedia", WIKI_PROMPT, WIKI_GUIDE, lambda q: wiki_tools().lookup(q), "wiki",
+                         "Uppslagsverket: Wikipedia på svenska (engelska när svenska saknar det) och Wiktionary för ord – "
+                         "när användaren frågar om fakta (en person, plats, händelse, ett djur, ett begrepp, historia) "
+                         "eller vad ett ord betyder. Före nätsökningen för sådant; ger artikelns början och dess delar.",
+                         "Ämnet (`Gustav Vasa`), en del (`Gustav Vasa ; Barndom`), `en: <ämne>` eller `ord: <ord>`")
     tools["goblincakes"] = tool("Läser kartan över GOBLINCAKES", KNOWLEDGE_PROMPT, KNOWLEDGE_GUIDE,
                                 lambda q: (knowledge().lookup(q), []), "goblincakes",
                                 "Kartan över GOBLINCAKES: hur en del hänger ihop – vad den gör, dess filer, hjälpprogram, "
@@ -1419,6 +1447,7 @@ def tools_for(keys, project, messages):
 
 TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel", "wow-fel": "wowfel",
               "wowapi": "wowapi", "wow-api": "wowapi",
+              "wiki": "wiki", "wikipedia": "wiki", "wiktionary": "wiki", "uppslagsverk": "wiki",
               "bugsack": "wowfel", "warcraftlogs": "warcraftlogs", "wcl": "warcraftlogs",
               "sport": "sport", "lag": "sport",
               "wowstats": "wowstats", "wow-stats": "wowstats", "parses": "wowstats",
@@ -3461,7 +3490,7 @@ CATEGORY_WORDS = [  # (category, words in the question/lesson) – the guess whe
 ]
 CATEGORY_TOOLS = {"warcraftlogs": "spel", "wowfel": "spel", "wowapi": "spel", "wowstats": "spel", "cs2": "spel", "lagg": "spel",
                   "goblincakes": "goblincakes", "systemfel": "datorn", "leta": "datorn", "skrivbord": "skrivbordet",
-                  "sök": "natet", "sport": "natet", "byggstatus": "goblincakes"}
+                  "sök": "natet", "sport": "natet", "wiki": "natet", "byggstatus": "goblincakes"}
 
 
 def guess_category(text, tools=()):
@@ -3511,7 +3540,7 @@ def rewrite_message(kind, answer, last=True):
     return label, content
 
 
-TOOL_NAMES = {"sök": "sökte på nätet", "wowfel": "läste WoW-felen", "wowapi": "slog upp i WoW:s API", "warcraftlogs": "hämtade pullen från Warcraft Logs",
+TOOL_NAMES = {"sök": "sökte på nätet", "wiki": "slog upp på Wikipedia", "wowfel": "läste WoW-felen", "wowapi": "slog upp i WoW:s API", "warcraftlogs": "hämtade pullen från Warcraft Logs",
               "sport": "hämtade lagets ställning", "systemfel": "läste datorns fel", "leta": "letade i datorn",
               "skrivbord": "styrde skrivbordet"}
 
@@ -3920,7 +3949,8 @@ def words(text):
 
 TOOL_HINTS = {"warcraftlogs": r"logs?\b|pull|boss|wcl|wipe|kill", "wowfel": r"bugsack|lua|tillägg|addon|fel i wow",
               "wowapi": r"\.lua\b|\.toc\b|tillägg|addon|wow-?funktion|api",
-              "sport": r"\blag\b|match|tabell|serie", "systemfel": r"krasch|fel|startar inte|journal",
+              "sport": r"\blag\b|match|tabell|serie", "wiki": r"vem var|vad är|wikipedia|historia|betyder|uppslag",
+              "systemfel": r"krasch|fel|startar inte|journal",
               "leta": r"logg|fil|mapp|hitta|leta|inställning",
               "sök": r"senaste|nyheter|patch|pris",
               "goblincakes": r"goblincakes|toppfält|widget|docka|config|recorder|goblinamp|spelläge|syns inte|fungerar inte"}
