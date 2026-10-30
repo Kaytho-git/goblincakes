@@ -57,9 +57,15 @@ function find(words) {
         let score = 0;
         if (ids.indexOf(want) >= 0)
             score = 4;
-        else if (ids.some(function (n) { return n && (n.indexOf(want) >= 0 || want.indexOf(n) >= 0 && n.length > 3); }))
-            score = 3;
-        else if (title.indexOf(want) >= 0)
+        else {
+            // Part of the name: the closest one – "wow" brought WowUp up instead of the game (30 Oct); the
+            // shorter the name around the words, the better (wow.exe before wowup-cf)
+            ids.forEach(function (n) {
+                if (n && (n.indexOf(want) >= 0 || want.indexOf(n) >= 0 && n.length > 3))
+                    score = Math.max(score, 3 + Math.min(want.length, n.length) / Math.max(want.length, n.length) * 0.9);
+            });
+        }
+        if (score === 0 && title.indexOf(want) >= 0)
             score = 2;
         if (score > bestScore) {   // ties: the topmost (first) one stays
             best = w;

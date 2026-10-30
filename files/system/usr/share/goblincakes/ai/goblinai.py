@@ -2403,6 +2403,13 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             messages.append({"role": "user", "content": "Inga fler sökningar eller hämtningar"
                              + (" (ditt minne är nästan fullt)" if full else "") + " – svara nu med det du har."})
             continue
+        if (tool == "skrivbord" and all(p.search(user_said(messages)) for p in REPAIR_WHEN)
+                and not DESK_ASKED.search(user_said(messages))):
+            # Repairing, nothing asked of the desktop: after fixing gear she brought "wow" to the front – it was
+            # WowUp (30 Oct). Not run, and told so.
+            messages.append({"role": "user", "content": "[Goblin AI] Användaren bad inte om något på skrivbordet – "
+                             "rör inte fönster eller program när du lagar något. Svara nu med vad du har gjort." + NUDGE_NOTE})
+            continue
         used += 1
         if (tool, query) in LAST.tools:
             # The same thing again: gemma4 read amp.json three times in a row (25 Oct) – not run, and told so
@@ -4202,6 +4209,9 @@ Reparera kod som inte fungerar (ett tillägg, en widget, ett skript) – arbeta 
 Hittar du inte orsaken efter att ha sökt och jämfört: säg "Det kan jag inte hitta" och vad du har kollat."""
 
 # "syns inte", "fungerar inte" … about code: both must be in what the user said
+# The user's own words that ask for something on the desktop (windows, programs, music, reminders …)
+DESK_ASKED = re.compile(r"fönster|öppna|starta|skärm|maximera|minimera|påminn|notis|urklipp|musik|låt\b|volym|"
+                        r"spela upp|pausa|kalender", re.I)
 REPAIR_WHEN = (re.compile(BROKEN.pattern + r"|\b(?:visar|händer|syns|ritar)\s+(?:ingenting|inget|inte något)\b", re.I),
                re.compile(r"(?:tillägg|addon|add-on|widget|plasmoid|skript|script)\w*|\bkod(?:en)?\b"
                           r"|\.(?:lua|toc|qml|py|sh|js)\b|~/", re.I))
