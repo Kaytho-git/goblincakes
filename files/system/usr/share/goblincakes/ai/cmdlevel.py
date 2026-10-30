@@ -552,6 +552,10 @@ def level(code):
     if why:
         return "danger", why
     result = _level(code)
+    if result[0] != "read" and re.search(r"/_[a-z]+_/AddOns\b", code, re.I):
+        # `mv gear …/_retail_/AddOns/` (no Interface/): mv renamed the add-on into a new folder in WoW's install (30 Oct)
+        return "danger", ("fel mapp: WoW:s tillägg ligger i …/_retail_/Interface/AddOns (Interface/ saknas) – mv "
+                          "döper om mappen när målet inte finns. Ta sökvägen under \"Var tillägget ska ligga\"")
     if result[0] != "read" and "AddOns/" in code:
         name = foreign_addon(code)
         if name:

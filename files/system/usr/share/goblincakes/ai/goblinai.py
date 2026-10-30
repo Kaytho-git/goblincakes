@@ -765,7 +765,7 @@ WOWAPI_GUIDE = """
 Använd bara funktioner, händelser och metoder som står i svaret. Står det "finns inte": ta det som föreslås eller
 slå upp ett annat ord – hitta aldrig på ett namn. `kolla <mapp>` läser tilläggets .toc och .lua mot spelet: rätta
 raderna under FEL (`sed -i` på raden, `mv` för ett filnamn) – under KANSKE kan det vara rätt, säg hellre vad du
-ser än ändrar. Ett WoW-tillägg provas bara i spelet (/reload) – säg aldrig att det fungerar förrän användaren provat."""
+ser än ändrar. Gör du ett nytt tillägg: skriv `## Author: Kakan` i .toc – då vet Goblin AI att det är ditt (bara dina egna och användarens får skrivas över). Ett WoW-tillägg provas bara i spelet (/reload) – säg aldrig att det fungerar förrän användaren provat."""
 
 WCL_PROMPT = """
 
