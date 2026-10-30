@@ -50,7 +50,7 @@ Ord: uppdatering, uppdatera, update, grön pil, pilen, goblin update, automatisk
   /usr/libexec/goblincakes-updates check skriver (tjänsten/timern goblincakes-updates, vid inloggning och var 4:e timme).
 - `goblin update` uppdaterar allt (systemet, Flatpaks, AppImages, Discord, Proton, firmware); `--only <del>` en del.
 - Automatiska uppdateringar: reglage i Config → Uppdatera. Under spel väntar de (spelläget).
-- Uppdatera och stäng av: /usr/libexec/goblincakes-update-poweroff, logg ~/.local/state/goblincakes/update-poweroff.log.
+- Uppdatera och stäng av ("uppdatera när bygget är klart och stäng sen av datorn"): `goblin update --stäng-av` (Tillåt-kort; = Config → Uppdatera och stäng av) – väntar på bygget som pågår, uppdaterar, väntar på spel, stänger av efter två minuter med Avbryt; aldrig om något misslyckas. En bevakning gör inte detta (bara en notis). Avbryt: `goblin update --avbryt`. Läge: /usr/libexec/goblincakes-update-poweroff status, logg ~/.local/state/goblincakes/update-poweroff.log.
 - Kolla: `rpm-ostree status` (vilken version, väntar en på omstart?), `journalctl --user -u goblincakes-updates`.
 Kontroll: `cat ~/.cache/goblincakes/updates.json`
 

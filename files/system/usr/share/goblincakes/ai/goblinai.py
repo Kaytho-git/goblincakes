@@ -988,6 +988,10 @@ def byt_run(query):
             "användaren trycker Tillåt. Fler ändringar i samma svar: en byt_text för var och en."), []
 
 
+# "uppdatera sen stäng av datorn", "stäng av datorn när uppdateringen är klar" (29 Oct)
+UPDATE_OFF = re.compile(r"(?:uppdater|update|bygge).{0,120}(?:st[äa]ng\w*\s+av|shut\s*down|power\s*off)"
+                        r"|st[äa]ng\w*\s+av.{0,120}(?:uppdater|update|bygge)", re.I | re.S)
+
 STEP_LIMIT = 10  # tool uses per question (the work loop, 25 Oct; was 6) – and fewer when the local AI's memory fills up
 
 
@@ -1677,6 +1681,11 @@ def tool_request(text, tools):
             return tool, m.group(2).strip("\n")
         if tool in tools:
             return tool, " ".join(m.group(2).split())
+        first = (m.group(2).split() or [""])[0]
+        if m.group(1).lower() in ("bash", "sh", "shell") and shutil.which(first):
+            # `goblin update --stäng-av` on a card is the command: "goblin" is also a tool's name, so the card
+            # became the tool, which asked for the card – round and round until the memory was full (30 Oct)
+            continue
         written = written_call(m.group(2), tools)
         if written:
             return written
@@ -2296,7 +2305,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "[Goblin AI tog reda på det här åt dig innan du svarar – det här skrev eller klistrade "
                              f"användaren inte in]\n\n{text}\n\n[Slut på det Goblin AI tog reda på]\n\n"
                              f"Användarens fråga var: \"{question}\"\n{REPAIR_COMPARE}"})
-    nudged = promised = looked = acted = claimed = judged = False
+    nudged = promised = looked = acted = claimed = judged = offed = stopped_fetching = False
     repaired = set()  # the repair checks already sent back (repair_nudge)
     fight = own_fight(asked.get("content"), tools, messages)
     if fight:
@@ -2399,6 +2408,21 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "fortsätter det ni just gjorde: samma sak och samma program som förra gången. "
                              f"Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
+        if (not request_ and not offed and UPDATE_OFF.search(question[:600]) and "--stäng-av" not in answer
+                and not any("--stäng-av" in str(text) for _, _, text in getattr(LAST, "done", []))):
+            # "När nästa bygge är klart och nerladdat, kan du uppdatera sen stänga av datorn?" – she set a watch (a
+            # notice only) and said "Jag kommer att uppdatera och stänga av datorn"; nothing did (29 Oct). The
+            # feature exists: Config → Uppdatera och stäng av = `goblin update --stäng-av`.
+            offed = True
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] En bevakning ger bara en notis – den uppdaterar inte och stänger inte av. "
+                             "Det finns en färdig funktion för just det: `goblin update --stäng-av` (väntar på bygget som "
+                             "pågår, uppdaterar allt, väntar tills spel är stängda, stänger av efter två minuter med Avbryt "
+                             "i en notis; stänger aldrig av om något misslyckas). Svara med det i ett ```bash-block "
+                             "(användaren trycker Tillåt) och säg kort vad som händer. Avbryta: `goblin update --avbryt`. "
+                             f"Frågan var: \"{question}\"" + NUDGE_NOTE})
+            continue
         if not request_ and not used and READ_CLAIM.search(re.sub(r"```.*?(?:```|\Z)", " ", answer, flags=re.S)):
             if not claimed:
                 # Says she read or checked something, but no tool ran for this question – once more: do it or say so
@@ -2487,7 +2511,16 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         tool, query = request_
         messages.append({"role": "assistant", "content": answer})
         full = tokens(messages[:1] + messages[start:]) > local_budget() * 0.8
+        if (used >= STEP_LIMIT or full) and stopped_fetching:
+            # Told to stop and asking again: the answer as it is, without the request – "Slutar hämta: minnet är
+            # nästan fullt" came again and again, each round adding more (30 Oct)
+            messages.pop()
+            answer = re.sub(r"```[\w-]*[ \t]*\n?.*?```", "", answer, flags=re.S).strip() or (
+                "Jag kom inte vidare – minnet tog slut innan jag hann klart. Börja ett nytt samtal, eller tryck "
+                "**Skicka till Claude**.")
+            break
         if used >= STEP_LIMIT or full:
+            stopped_fetching = True
             steps.start(f"Slutar hämta: {'minnet är nästan fullt' if full else f'högst {STEP_LIMIT} steg'}")
             steps.done("gräns")
             messages.append({"role": "user", "content": "Inga fler sökningar eller hämtningar"

@@ -1,3 +1,4 @@
+2026-10-30  Goblin AI: ber du Kakan uppdatera och sedan stänga av datorn använder hon nu Uppdatera och stäng av (samma som i Config) i stället för att bara lova det. Hon fastnar inte heller längre i "Slutar hämta: minnet är nästan fullt" om och om igen.
 2026-10-30  Spelas nu: musen syns kvar i toppfältet när den laddar med sladden – med en blixt och hur många procent den har.
 2026-10-30  Goblin AI: när Kakan lagar en fil byter hon nu de gamla raderna mot nya med ett eget verktyg i stället för sed – Tillåt-kortet visar GAMMALT och NYTT, och hon kan inte längre förstöra filen när hon ändrar flera rader.
 2026-10-30  Goblin AI: förslagen på startsidan går att trycka på igen – frågan skickas direkt så att du kan prova (för "Rätta stavningen i en fil" väljer du först filen).
