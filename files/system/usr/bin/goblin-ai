@@ -771,7 +771,7 @@ class Backend(QObject):
             else:
                 out = s.get("output", "")
                 out = goblinai.cmd_level().shorten(out, code=s['code'])
-                report.append(f"$ {s['code']}\n{out}\n(avslutskod {s.get('code_result', '?')})")
+                report.append(f"$ {goblinai.reported_code(s['code'])}\n{out}\n(avslutskod {s.get('code_result', '?')})")
         self._api.append({"role": "user", "content": "Så här gick det:\n\n" + "\n\n".join(report)
                           + f"\n\n(Mappen nu: {self._cwd})"
                           + goblinai.after_commands(self._api)})

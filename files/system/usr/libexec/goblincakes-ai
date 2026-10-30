@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, "/usr/share/goblincakes/ai")
 sys.path.insert(1, "/usr/share/goblincakes")
-from goblinai import (DAILY_PROMPT, after_commands, FORMAT_WORDS, LOOK_UP_FIRST, ONLY_COMMANDS, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
+from goblinai import (DAILY_PROMPT, after_commands, reported_code, FORMAT_WORDS, LOOK_UP_FIRST, ONLY_COMMANDS, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
                       ai_name, ask as ask_services, chosen_model, cmd_level, file_message, forget, has_keys,
                       image_request, images_possible, is_image, last_done, last_tools, load_daily, load_keys, load_memory, load_projects,
                       make_image, make_report, model_choices, project_prompt, remember, run_in_folder, save_keys, save_solution,
@@ -474,7 +474,7 @@ def run_command(chat, part, levels):
     if plan and plan["undo"]:
         muted("    (går att ångra i Goblin AI → AI-tjänster → Körda kommandon)")
     part.update(state="done", output=output.strip(), code_result=exit_code)
-    return f"$ {code}\n{levels.shorten(output, code=code)}(avslutskod {exit_code})"
+    return f"$ {reported_code(code)}\n{levels.shorten(output, code=code)}(avslutskod {exit_code})"
 
 
 def draw(part, keys, project=None):

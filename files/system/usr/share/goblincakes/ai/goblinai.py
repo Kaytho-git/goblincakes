@@ -952,8 +952,8 @@ raderna som ska stå där i stället
 Lägga till: ta med raden före i båda delarna. Ta bort: lämna den nya delen tom."""
 
 BYT_GUIDE = """
-Ändringen görs först när användaren trycker Tillåt: ta med ```bash-kortet som verktyget gav, oförändrat, och säg i
-en mening vad det ändrar. Säger verktyget att texten inte finns: kopiera raderna exakt som de står och försök igen."""
+Ändringen görs först när användaren trycker Tillåt – kortet läggs under svaret av sig självt (skriv det inte).
+Säg i en mening vad det ändrar. Säger verktyget att texten inte finns: kopiera raderna exakt som de står och försök igen."""
 
 
 def byt_run(query):
@@ -981,8 +981,11 @@ def byt_run(query):
     why = bytatext.check(full, old, new)
     if why:
         return f"Inget kort gjort: {why}", []
-    return ("Kortet är klart – ändringen görs när användaren trycker Tillåt. Ta med det här kodblocket oförändrat i "
-            f"svaret:\n```bash\n{bytatext.card(full, old, new)}\n```"), []
+    # The card goes under her answer by itself (ask()) – not back to her: three copies a change (the result, her
+    # answer, "Så här gick det:") filled the local AI's memory in one question (30 Oct)
+    LAST.cards = getattr(LAST, "cards", []) + [f"```bash\n{bytatext.card(full, old, new)}\n```"]
+    return (f"Kortet för {full.name} är klart och läggs under ditt svar – skriv det inte själv. Ändringen görs när "
+            "användaren trycker Tillåt. Fler ändringar i samma svar: en byt_text för var och en."), []
 
 
 STEP_LIMIT = 10  # tool uses per question (the work loop, 25 Oct; was 6) – and fewer when the local AI's memory fills up
@@ -1711,7 +1714,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     steps: a Steps – what is done is reported to it, and its stop ends the work (raises Stopped).
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
-    LAST.tools, LAST.steps, LAST.done = [], None, []
+    LAST.tools, LAST.steps, LAST.done, LAST.cards = [], None, [], []
     LAST.stop = steps.stop if steps else None  # request() closes the local AI's connection on STOPP
     activity("ask", "tänker", steps=[])
     messages = [{**m, "content": m["content"].replace("\n\n" + FROM_MEMORY, "")}
@@ -1736,8 +1739,9 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         activity_done()
     # A tool that needs Tillåt (closing a window, goblin update) answers with a ```bash card – gemma4 said "Jag
     # startar uppdateringen nu" without it (28 Oct), so no card came. The card is added here when it is missing.
-    cards = list(dict.fromkeys(c for _, _, text in getattr(LAST, "done", [])
-                               for c in re.findall(r"```bash\n.*?\n```", str(text), re.S)))
+    cards = list(dict.fromkeys([c for _, _, text in getattr(LAST, "done", [])
+                                for c in re.findall(r"```bash\n.*?\n```", str(text), re.S)]
+                               + getattr(LAST, "cards", [])))
     if any("bytatext.py" in c for c in cards):
         # byt_text's card as the tool made it – a copy she typed again could differ from the checked text
         answer = re.sub(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", "", answer, flags=re.S)
@@ -4411,6 +4415,13 @@ def line_shift_nudge(answer):
             if cmd in "dia" or cmd == "c" and end:
                 changed.setdefault(target, []).append((n, f"{start}{',' + end if end else ''}{cmd}"))
     return ""
+
+
+def reported_code(code):
+    """A command as "Så här gick det:" repeats it: a byt_text card as one line (its old and new text are in the answer
+    before it already, and bytatext.py prints the new lines)."""
+    m = re.match(r"python3 \S*bytatext\.py (.+?) <<'KAKAN_SLUT'\n", code)
+    return f"byt_text {m.group(1)}" if m else code
 
 
 def sed_newline_nudge(answer):
