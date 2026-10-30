@@ -154,8 +154,11 @@ def typed_question(messages):
 def needs_thinking(messages):
     last = next((m for m in reversed(messages) if m["role"] == "user"), {})
     text = last.get("content") if isinstance(last.get("content"), str) else ""
-    if text.startswith("[Svar från verktyget") and not text.startswith("[Svar från verktyget sök ") and len(text) > 2000:
-        return True  # a pull or stats to read through – not "BugSack hittade inga fel" (25 s of thinking)
+    if (text.startswith("[Svar från verktyget") and not re.match(r"\[Svar från verktyget (?:sök|wiki|sport) ", text)
+            and len(text) > 2000):
+        # a pull or stats to read through – not "BugSack hittade inga fel" (25 s of thinking), and not an article to
+        # retell: after a wiki answer gemma4 thought 8000 tokens (2 min) before "Metallica grundades 1981" (30 Oct)
+        return True
     typed = typed_question(messages)
     return bool(has_images(messages) or len(typed) > 400 or CODE_WORDS.search(typed[:600]) or THINK_WORDS.search(typed[:600]))
 
