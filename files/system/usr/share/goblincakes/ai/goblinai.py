@@ -748,15 +748,30 @@ Förklara vilket tillägg som orsakar felet (titta i stacken –
 Blizzard_-filer är sällan boven).
 - Står det "Ditt eget tillägg": rätta det själv. Läs raden i felet (`sed -n 'N-5,N+5p' fil`), jämför med
   `git -C <mappen> diff`, slå upp funktionen i felet med wowapi (finns den, vad den tar), rätta med ett ```bash-block
-  (`sed -i`, användaren trycker Tillåt – filen säkerhetskopieras), och be användaren skriva /reload i spelet och prova
-  igen. Committa aldrig – användaren ser ändringen med `git diff` och sparar den själv.
+  (`sed -i`, användaren trycker Tillåt – filen säkerhetskopieras), och be användaren PROVA_I_SPELET. Committa aldrig – användaren ser ändringen med `git diff` och sparar den själv.
 - "attempt to call a nil value": raden i felet är där anropet görs – det som är nil kommer ofta från raden under i
   stacken (den som skickade in funktionen). Leta orsaken där.
 - Andras tillägg: uppdatera det (WowUp), stäng av det eller rapportera felet till den som gjort det.
-- Står det GAMMALT FEL: säg när det var, och be användaren göra om det som inte fungerar i spelet och sedan
-  /reload, så att det nya felet sparas – gissa inte utifrån ett gammalt fel. Är det användarens eget tillägg:
+- Står det GAMMALT FEL: säg när det var, och be användaren göra om det som inte fungerar i spelet (PROVA_I_SPELET),
+  så att det nya felet sparas – gissa inte utifrån ett gammalt fel. Är det användarens eget tillägg:
   kör samtidigt `git -C <mappen> diff` (läser bara) – en ny ändring kan vara orsaken även utan nytt fel.
 - Föreslå aldrig att ändra WoW:s egna filer. `goblin wow` uppdaterar inget (det länkar bara WoW-mapparna)."""
+
+def wow_try():
+    """How the user tries an add-on change: /reload only with a game running – the local AI is stopped while one
+    runs (spelvakten), so "skriv /reload" asked for something that can't be done (the user, 30 Oct)."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        import gaming  # noqa: PLC0415
+        running = gaming.game_running()
+    except Exception:  # noqa: BLE001 – unknown: the wording that fits both
+        running = None
+    if running:
+        return "skriva /reload i spelet och prova"
+    if running is False:
+        return "starta WoW och prova – ändringen laddas när spelet startar, be inte om /reload (spelet är inte igång)"
+    return "starta WoW och prova (är spelet redan igång: /reload)"
+
 
 WOWAPI_PROMPT = """
 
@@ -769,7 +784,7 @@ WOWAPI_GUIDE = """
 Använd bara funktioner, händelser och metoder som står i svaret. Står det "finns inte": ta det som föreslås eller
 slå upp ett annat ord – hitta aldrig på ett namn. `kolla <mapp>` läser tilläggets .toc och .lua mot spelet: rätta
 raderna under FEL (`sed -i` på raden, `mv` för ett filnamn) – under KANSKE kan det vara rätt, säg hellre vad du
-ser än ändrar. Gör du ett nytt tillägg: skriv `## Author: Kakan` i .toc – då vet Goblin AI att det är ditt (bara dina egna och användarens får skrivas över). Ett WoW-tillägg provas bara i spelet (/reload) – säg aldrig att det fungerar förrän användaren provat."""
+ser än ändrar. Gör du ett nytt tillägg: skriv `## Author: Kakan` i .toc – då vet Goblin AI att det är ditt (bara dina egna och användarens får skrivas över). Ett WoW-tillägg provas bara i spelet (PROVA_I_SPELET) – säg aldrig att det fungerar förrän användaren provat."""
 
 WCL_PROMPT = """
 
@@ -1417,7 +1432,7 @@ def tools_for(keys, project, messages):
                             "`senaste`, antal matcher (`senaste 20`) eller en karta (`Mirage`); lägg till `privat` för "
                             "matcher på privata servrar")
     if list(Path.home().glob("Games/WoW/*/AddOns")):
-        tools["wowapi"] = tool("Slår upp i WoW:s API", WOWAPI_PROMPT, WOWAPI_GUIDE, lambda q: (wow_api().lookup(q), []),
+        tools["wowapi"] = tool("Slår upp i WoW:s API", WOWAPI_PROMPT, WOWAPI_GUIDE.replace("PROVA_I_SPELET", wow_try()), lambda q: (wow_api().lookup(q), []),
                                "wowapi", "WoW:s egna funktioner, händelser och ramar för spelet just nu (spelets lista + "
                                "Blizzards dokumentation): slå upp en funktion (argument, vad den ger tillbaka), en "
                                "händelse, en ramtyps metoder – innan du skriver eller rättar Lua i ett WoW-tillägg. "
@@ -1425,7 +1440,7 @@ def tools_for(keys, project, messages):
                                ".toc-namn, saknad Interface-rad, /kommandon som aldrig når funktionen).",
                                "Ett namn (`C_Item.GetItemInfo`, `BAG_UPDATE`, `Frame`), ett ord (`ItemLevel`) eller "
                                "`kolla ~/sökväg/till/tillägget`")
-        tools["wowfel"] = tool("Läser WoW-felen", WOW_ERRORS_PROMPT, WOW_ERRORS_GUIDE, lambda q: (wow_tools().wow_errors(q), []),
+        tools["wowfel"] = tool("Läser WoW-felen", WOW_ERRORS_PROMPT, WOW_ERRORS_GUIDE.replace("PROVA_I_SPELET", wow_try()), lambda q: (wow_tools().wow_errors(q), []),
                                "wowfel", "När användaren frågar om fel i WoW eller ett WoW-tillägg/addon (BugSack, Lua-fel, \"ett "
                                "tillägg strular\"): felen som BugSack har sparat.",
                                "Tomt, eller ett tilläggs namn att leta efter")
@@ -2078,7 +2093,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                          "[Goblin AI kontrollerade tillägget mot WoW efter ändringen – det här skrev användaren inte]\n\n"
                          f"{checked_addon}\n\n[Slut på kontrollen]\n\nStår det något under FEL: rätta just de raderna "
                          "(slå upp rätt namn med wowapi först) – det är inte klart. Inga fel: säg vad användaren ska "
-                         "prova i spelet (/reload) – kontrollen ser bara namn, inte om tillägget gör rätt."})
+                         f"prova i spelet ({wow_try()}) – kontrollen ser bara namn, inte om tillägget gör rätt."})
     own = own_data_question(asked.get("content"), tools)
     # A question about an MCP server ("gick senaste bygget igenom?" = GitHub): its tools first – not the web search
     # ("senaste") or the computer's logs ("bygget"), which answered about the wrong thing (28 Oct)
