@@ -4267,6 +4267,13 @@ def repair_nudge(answer, messages, tools, searched, sent=()):
     if not all(p.search(user_said(messages)) for p in REPAIR_WHEN):
         return ""
     blocks = cmd_level().code_blocks_in(answer)
+    if "unsaved" not in sent and not any(CHANGES_FILES.search(b) for b in blocks):
+        # The whole file as a ```lua:GearDisplay.lua block, then "Starta nu WoW" – nothing was saved (30 Oct)
+        for m in re.finditer(r"```(lua|xml|toc|python|qml|js|[\w+-]+:[^\n`]+)\n(.*?)```", answer, re.S):
+            if m.group(2).count("\n") >= 8:
+                return "unsaved", ("Ett kodblock i svaret ändrar ingen fil – Goblin AI sparar det inte, och ingenting är "
+                        "lagat. Ändra bara raderna som är fel med `sed -i` i ett ```bash-block (användaren trycker Tillåt), "
+                        "skriv inte hela filen.")
     for block in blocks if "rewrite" not in sent else []:
         for path in re.findall(r"\bcat\s*>\s*([~\w./-]+)\s*<<", block):
             if Path(os.path.expanduser(path)).is_file():

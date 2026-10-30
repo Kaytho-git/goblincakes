@@ -643,7 +643,10 @@ def check(target):
     for f, rows in used.items():
         for read, n, name in rows:
             if (read and name[:1].islower() and name not in LUA_LIBS and name not in written and name not in known_calls
-                    and name not in own and name not in installed()[0] and not _guarded(name, code_all)):
+                    and name not in own and name not in installed()[0]
+                    # `if slot_info and …` with slot_info never set (gemma4's half-run sed, 30 Oct): always nil, the
+                    # block never runs – a guard only excuses names that can come from somewhere else
+                    and not (_guarded(name, code_all) and not re.fullmatch(r"[a-z][a-z0-9_]*", name))):
                 # all lowercase (ilvl) = surely a lost local; hash_ChatTypeInfoList is Blizzard's own (FrameXML)
                 once(("nil", name), sure if re.fullmatch(r"[a-z][a-z0-9_]*", name) else maybe,
                      f"{f.relative_to(folder)} rad {n}: {name} används men får aldrig något värde "
