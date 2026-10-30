@@ -97,6 +97,10 @@ def build(display, index, info=""):
                     out += ["", f"`$ {s.get('code', '')}` – {state}"]
                     if s.get("output"):
                         out.append(_fence(_cut(s["output"], OUTPUT_CHARS)))
+            r = m.get("receipt")
+            if r:  # punkt 23: counted from the tools and cards, not from her words
+                out += ["", f"**Kvitto:** {r.get('line', '')}"
+                        + (f" – klart-kontrollen: {r['verdict']}" if r.get("verdict") else "")]
     return "\n".join(out).strip() + "\n"
 
 

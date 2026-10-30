@@ -2111,6 +2111,137 @@ def last_done_full(chars=3000):
     return [(tool, query, str(text)[:chars]) for tool, query, text in getattr(LAST, "done", [])]
 
 
+# The receipt under the answer + the klart-kontroll (punkt 23, 30 Oct): what was really done for the question –
+# read, run, changed, waiting – counted from the chat itself (tools and command cards), not from what she says.
+# She said "fixat" with the card still waiting, after a command that failed, or without looking afterwards.
+RECEIPT_READ = {"sök": "sökte på nätet", "sida": "läste sidan", "sport": "hämtade lagets ställning",
+                "wiki": "slog upp på Wikipedia", "goblincakes": "läste kartan över GOBLINCAKES",
+                "systemfel": "läste datorns fel", "lagg": "läste lagmätningen", "byggstatus": "läste byggstatus",
+                "leta": "letade i datorn", "wowstats": "läste WoW-siffrorna", "cs2": "läste CS2-siffrorna",
+                "wowapi": "slog upp i WoW:s API", "wowfel": "läste WoW-felen",
+                "warcraftlogs": "hämtade från Warcraft Logs"}
+RECEIPT_DID = {"skrivbord": "skrivbordet"}  # does something itself – its answer says how it went
+RECEIPT_NONE = {"byt"}  # only makes a card – the card is counted
+# "Fixat", "nu fungerar det", "jag har ändrat …" – says something is done (FIXED) or just "klart" (DONE)
+FIXED_SAY = re.compile(r"\b(?:fixat|fixade|löst|löste|lagat|lagade|rättat|rättade|åtgärdat|åtgärdade"
+                       r"|(?:har|är)(?: nu)? (?:ändrat|ändrad|installerat|installerad|uppdaterat|uppdaterad|tagit bort"
+                       r"|borttagen|borttaget|lagt till|bytt|flyttat|sparat|skapat|kopierat)"
+                       r"|(?:fungerar|funkar|går) (?:nu|igen)|nu (?:fungerar|funkar|går) det|ska (?:nu )?fungera)\b", re.I)
+DONE_SAY = re.compile(r"\b(?:klart|klar|färdigt|färdig|gjort|done)\b", re.I)
+NOT_YET = re.compile(r"\b(?:inte|ej|aldrig|när|om|tills|innan|sen|sedan|efter att|förrän|kan|kunde|skulle|borde)\b"
+                     r"[^.!?\n]{0,25}$", re.I)
+
+
+def _says(pattern, text):
+    """A match not after "inte", "när", "om" … in the same sentence (future, maybe or not)."""
+    return any(not NOT_YET.search(text[max(0, m.start() - 40):m.start()]) for m in pattern.finditer(text))
+
+
+def _chain(display, index):
+    """The answers to one question: back from index to the user's message (the answers after commands follow on)."""
+    start = index
+    while start > 0 and display[start - 1].get("role") == "assistant" and not display[start - 1].get("stopped"):
+        start -= 1
+    return display[start:index + 1]
+
+
+def receipt(display, index):
+    """The receipt for the answer at index (the latest of its question): {"line", "items", "verdict", "state"}, or None
+    when nothing was read, run or changed and nothing is claimed. items = [{"text", "ok"}] in the order it happened;
+    state = "ok" (done and looked at afterwards), "warn" (changed, not looked at), "no" (not done) or ""."""
+    items, events = [], []  # events: (kind, ok) – kind "read", "change", "fail", "wait", "skip"
+    count = {"read": 0, "ran": 0, "fail": 0, "changed": 0, "wait": 0}
+    for m in _chain(display, index):
+        for tool, query in m.get("tools") or []:
+            if tool in RECEIPT_NONE:
+                continue
+            if tool in RECEIPT_DID:
+                items.append({"text": f"{RECEIPT_DID[tool]}: {query}", "ok": True})
+                events.append("self")
+                count["changed"] += 1
+                continue
+            name = RECEIPT_READ.get(tool) or ("hämtade från " + tool.split("_")[0] if tool.startswith("mcp")
+                                             else f"använde {tool}")
+            items.append({"text": f"{name}: {query}" if query else name, "ok": True})
+            events.append("read")
+            count["read"] += 1
+        for s in m.get("segments") or []:
+            if s.get("type") == "file" and s.get("state") in ("saved", "merged"):
+                items.append({"text": f"sparade {s.get('name', 'filen')}", "ok": True})
+                events.append("self")
+                count["changed"] += 1
+            if s.get("type") not in ("command", "blocked"):
+                continue
+            code = reported_code(s.get("code", "")).strip().split("\n")[0][:90]
+            state, change = s.get("state"), s.get("level") != "read"
+            if s.get("type") == "blocked" or state == "blocked":
+                items.append({"text": f"stoppat: {code}", "ok": False})
+                events.append("skip")
+            elif state == "skipped":
+                items.append({"text": f"kördes inte (du valde bort det): {code}", "ok": False})
+                events.append("skip" if change else "read-skip")
+            elif state in ("new", "running"):
+                items.append({"text": ("körs nu: " if state == "running" else "väntar på Tillåt: ") + code, "ok": False})
+                events.append("wait")
+                count["wait"] += 1
+            elif state == "undone":
+                items.append({"text": f"ångrat: {code}", "ok": False})
+                events.append("skip")
+            elif state == "done":
+                count["ran"] += 1
+                ok = s.get("code_result") in (0, None) and "Körs i ett terminalfönster" not in s.get("output", "")
+                if s.get("code_result") not in (0, None):
+                    count["fail"] += 1
+                    items.append({"text": f"fel (avslutskod {s.get('code_result')}): {code}", "ok": False})
+                    events.append("fail")
+                    continue
+                items.append({"text": ("ändrade: " if change else "körde: ") + code
+                              + ("" if ok else " (i terminalen – resultatet syns inte här)"), "ok": True})
+                if change:
+                    count["changed"] += 1
+                events.append(("change" if change else "read") if ok else "unseen")
+    text = "\n".join(s.get("text", "") for s in display[index].get("segments") or [] if s.get("type") == "text") \
+        if display[index].get("segments") else display[index].get("text", "")
+    text = re.sub(r"```.*?(?:```|\Z)", " ", text, flags=re.S)
+    fixed, done = _says(FIXED_SAY, text), _says(DONE_SAY, text)
+    verdict, state = "", ""
+    if fixed or done:
+        last_change = max((i for i, e in enumerate(events) if e in ("change", "self")), default=-1)
+        last_fail = max((i for i, e in enumerate(events) if e == "fail"), default=-1)
+        if "wait" in events:
+            verdict, state = "Inte klart än – det som ska göras väntar på att du trycker Tillåt.", "no"
+        elif last_fail > last_change and not any(e in ("read", "change", "self") for e in events[last_fail + 1:]):
+            verdict, state = "Säger att det är klart, men det senaste kommandot gav fel.", "no"
+        elif fixed and last_change < 0 and "unseen" not in events:
+            what = ("det som skulle ändra något kördes inte" if "skip" in events
+                    else "inget har ändrats för den här frågan")
+            verdict, state = f"Säger att det är fixat, men {what}.", "no"
+        elif events[last_change:last_change + 1] == ["change"] and "read" not in events[last_change + 1:]:
+            verdict, state = "Ändrat – men inte kontrollerat efteråt att det blev rätt.", "warn"
+        elif events[last_change:last_change + 1] == ["self"]:
+            verdict, state = "Klart – gjort, och verktyget svarade att det gick.", "ok"
+        elif last_change >= 0:
+            verdict, state = "Klart – ändrat och kontrollerat efteråt.", "ok"
+        elif "unseen" in events:
+            verdict, state = "Kördes i terminalen – kolla där att det gick bra.", "warn"
+    if not items and not verdict:
+        return None
+    parts = [f"läste {count['read']}" if count["read"] else "",
+             f"körde {count['ran']}" + (f" ({count['fail']} fel)" if count["fail"] else "") if count["ran"] else "",
+             f"ändrade {count['changed']}" if count["changed"] else "",
+             f"väntar {count['wait']}" if count["wait"] else ""]
+    line = " · ".join(p for p in parts if p) or "inget gjort"
+    return {"line": line, "items": items[-20:], "verdict": verdict, "state": state}
+
+
+def receipt_text(r):
+    """The receipt as text – for the terminal and Skicka till Claude."""
+    if not r:
+        return ""
+    mark = {"ok": "✓", "warn": "!", "no": "✗"}.get(r["state"], "")
+    return f"Kvitto: {r['line']}" + (f"\n{mark} {r['verdict']}" if r["verdict"] else "")
+
+
 def with_done(messages):
     """The saved tool lines of the latest answers, as a note of their own right after each answer – a user turn
     (so she sees what she did but doesn't copy the note into her answers), and not in the question itself (the

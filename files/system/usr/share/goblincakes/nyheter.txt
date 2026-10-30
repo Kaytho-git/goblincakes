@@ -1,3 +1,4 @@
+2026-10-30  Goblin AI: under Kakans svar står nu ett kvitto – vad hon läste, körde och ändrade. Säger hon att något är klart men kortet väntar på Tillåt, ett kommando gav fel eller hon inte kollade efteråt, så står det där.
 2026-10-30  Goblin AI: ber du Kakan uppdatera och sedan stänga av datorn använder hon nu Uppdatera och stäng av (samma som i Config) i stället för att bara lova det. Hon fastnar inte heller längre i "Slutar hämta: minnet är nästan fullt" om och om igen.
 2026-10-30  Spelas nu: musen syns kvar i toppfältet när den laddar med sladden – med en blixt och hur många procent den har.
 2026-10-30  Goblin AI: när Kakan lagar en fil byter hon nu de gamla raderna mot nya med ett eget verktyg i stället för sed – Tillåt-kortet visar GAMMALT och NYTT, och hon kan inte längre förstöra filen när hon ändrar flera rader.

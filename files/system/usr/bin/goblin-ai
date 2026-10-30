@@ -626,6 +626,7 @@ class Backend(QObject):
                 seg["canOverwrite"] = bool(self._file) and Path(self._file).name == seg["name"]
         self._apply_memory(shown)
         self._display.append(shown)
+        self._receipt(len(self._display) - 1)
         self.messageAdded.emit(json.dumps(shown))
         self._set_busy(False)
         self._save()
@@ -649,7 +650,34 @@ class Backend(QObject):
         self._daily_done(failed=True)
 
     def _update(self, index):
+        # A card that ran, was skipped or undone changes the receipt of its question's latest answer
+        last = index
+        while last + 1 < len(self._display) and self._display[last + 1].get("role") == "assistant":
+            last += 1
+        changed = self._display[index].get("role") == "assistant" and self._receipt(last)
         self.messageUpdated.emit(index, json.dumps(self._display[index]))
+        if changed and last != index:
+            self.messageUpdated.emit(last, json.dumps(self._display[last]))
+
+    def _receipt(self, index):
+        """The receipt + klart-kontroll (punkt 23) under the latest answer to a question, and only there – the earlier
+        answers to it lose theirs (the latest one counts them all). True when it changed."""
+        shown = self._display[index]
+        if shown.get("role") != "assistant" or shown.get("stopped"):
+            return False
+        first = index
+        while first > 0 and self._display[first - 1].get("role") == "assistant" and not self._display[first - 1].get("stopped"):
+            first -= 1
+            if self._display[first].pop("receipt", None) is not None:
+                self.messageUpdated.emit(first, json.dumps(self._display[first]))
+        new = goblinai.receipt(self._display, index)
+        if new == shown.get("receipt"):
+            return False
+        if new:
+            shown["receipt"] = new
+        else:
+            shown.pop("receipt", None)
+        return True
 
     # ── Commands ──────────────────────────────────────────────
 

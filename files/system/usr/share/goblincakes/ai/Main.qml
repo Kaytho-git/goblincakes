@@ -2292,6 +2292,72 @@ Window {
                             }
                         }
 
+                        // The receipt + klart-kontroll (punkt 23, 30 Oct): what was really read, run and changed for the
+                        // question (counted from the tools and cards, not from her words), and whether "klart" holds
+                        Column {
+                            id: receiptBox
+                            property bool open: false
+                            readonly property var r: msgItem.m.receipt || null
+                            visible: !!r
+                            width: parent.width
+                            spacing: 6
+                            Rectangle {
+                                width: parent.width
+                                height: 1
+                                color: "#1E2A40"
+                            }
+                            Text {
+                                text: receiptBox.r ? (receiptBox.open ? "▾ " : "▸ ") + "Kvitto: " + receiptBox.r.line : ""
+                                color: receiptArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                MouseArea {
+                                    id: receiptArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: receiptBox.open = !receiptBox.open
+                                }
+                            }
+                            Repeater {
+                                model: receiptBox.open && receiptBox.r ? receiptBox.r.items : []
+                                Row {
+                                    id: receiptRow
+                                    required property var modelData
+                                    spacing: 8
+                                    width: receiptBox.width
+                                    Text {
+                                        width: 14
+                                        text: receiptRow.modelData.ok ? "✓" : "✗"
+                                        color: receiptRow.modelData.ok ? "#8B98AD" : accent.errorBright
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 12
+                                    }
+                                    Text {
+                                        width: receiptBox.width - 22
+                                        text: receiptRow.modelData.text
+                                        color: "#8B98AD"
+                                        wrapMode: Text.Wrap
+                                        maximumLineCount: 2
+                                        elide: Text.ElideRight
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                }
+                            }
+                            Text {
+                                visible: !!(receiptBox.r && receiptBox.r.verdict)
+                                width: parent.width
+                                wrapMode: Text.Wrap
+                                text: receiptBox.r ? ({ ok: "✓ ", warn: "! ", no: "✗ " })[receiptBox.r.state] + receiptBox.r.verdict : ""
+                                color: !receiptBox.r ? "#8B98AD" : receiptBox.r.state === "ok" ? accent.text
+                                       : receiptBox.r.state === "no" ? accent.errorBright : "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 12
+                            }
+                        }
+
                         Flow {
                             visible: !msgItem.m.stopped  // STOPP: nothing to copy, save or ♥
                             width: parent.width  // wraps when the window is narrow (Skicka till Claude made it long)

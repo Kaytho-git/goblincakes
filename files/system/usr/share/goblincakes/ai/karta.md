@@ -161,6 +161,12 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   eller en ny app-<version>-mapp (Discords egen uppdatering). journalctl --list-boots visar omstarterna.
   Långa samtal (with_summary): de äldsta meddelandena sammanfattas en gång ("Tidigare i samtalet, sammanfattat: …"),
   bara när lokala AI:n svarar; sammanfattningen återanvänds tills fönstret stängs.
+- Kvittot under svaret (punkt 23, goblinai.receipt): under det senaste svaret till en fråga står "Kvitto: läste n ·
+  körde n (n fel) · ändrade n · väntar n" – räknat ur verktygen och korten, inte ur det du skriver. Säger du klart/fixat
+  kollar klart-kontrollen: väntar ett kort på Tillåt → "Inte klart än"; gav senaste kommandot fel → "men det senaste
+  kommandot gav fel"; inget ändrat → "men inget har ändrats"; ändrat utan att läsa efteråt → "inte kontrollerat
+  efteråt". Säg alltså klart först när ändringen körts OCH du läst resultatet (cat, leta, wowapi kolla). Sparas i
+  chatten (fältet receipt), syns i terminalen (goblin ai) och i Skicka till Claude-rapporten.
 - Ärlighet (goblinai.py): faktafrågor utan något hämtat får "Ur minnet – inget hämtat eller kontrollerat" (FROM_MEMORY);
   "jag har läst/kollat …" utan verktyg skickas tillbaka en gång, sedan en Obs-rad (READ_CLAIM); "kan du …?" får
   listan över verktygen hon har just nu + det hon inte kan (abilities, CANNOT).
