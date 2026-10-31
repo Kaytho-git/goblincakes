@@ -451,9 +451,19 @@ def run_command(chat, part, levels):
     lvl = part.get("level", "change")
     auto = lvl == "read" and levels.autorun()
     head = "Läser" if auto else "Kör det här?"
-    print(f"  {RULE}▌{RESET} {ACCENT_BOLD}{head}{RESET}" + (f"  {RED}ändrar något{RESET}" if lvl == "change" else ""))
-    for line in code.splitlines():
-        print(f"  {RULE}▌{RESET} {FROST}{line}{RESET}")
+    num = f"{FAINT}{part['num']} av {part['total']}{RESET}  " if part.get("total") else ""
+    print(f"  {RULE}▌{RESET} {num}{ACCENT_BOLD}{head}{RESET}" + (f"  {RED}ändrar något{RESET}" if lvl == "change" else ""))
+    # What it does in plain Swedish first (31 Oct), the code dimmed under it – byt_text as before/after
+    for line in (part.get("explain") or "").splitlines():
+        for row in textwrap.wrap(line, width() - 6) or [""]:
+            print(f"  {RULE}▌{RESET} {FROST}{row}{RESET}")
+    if part.get("diff"):
+        for kind, line in part["diff"]:
+            colour = RED if kind == "-" else ACCENT if kind == "+" else FAINT
+            print(f"  {RULE}▌{RESET} {colour}{kind} {line}{RESET}")
+    else:
+        for line in code.splitlines():
+            print(f"  {RULE}▌{RESET} {FAINT if part.get('explain') else FROST}{line}{RESET}")
     if not auto and not ask_yes("Tillåt?"):
         part["state"] = "skipped"
         return f"$ {code}\n(användaren valde att inte köra det)"

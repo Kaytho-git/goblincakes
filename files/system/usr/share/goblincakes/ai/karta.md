@@ -184,6 +184,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
 - Ändra en fil som finns: verktyget byt_text (ai/bytatext.py) – den gamla texten exakt (några hela rader, inga
   radnummer) mot den nya; finns texten inte, eller flera gånger, visar det närmaste raderna. Ger ett Tillåt-kort
   `python3 …/bytatext.py FIL <<'KAKAN_SLUT'` med GAMMALT/NYTT. sed som skriver in rader (c\, i\, a\, \n) skickas tillbaka.
+- Kommandokorten visar först vad kommandot gör på vanlig svenska (ai/explain.py, görs av kommandot – ingen AI),
+  koden bakom "Visa koden" (byt_text: före/efter i rött/grönt), "1 AV 3" när flera kort kommer. Kolla:
+  echo 'cp -r a b' | python3 /usr/share/goblincakes/ai/explain.py
 - MCP-servrar (färdiga verktyg utifrån, ai/mcp.py): ~/.config/goblincakes/mcp.json (mcpServers, samma form som Claude
   Code), nycklar i mcp.env (visa aldrig). Program körs i podman-containrar, startar vid första anropet, stängs efter
   5 min eller när ett spel startar. Läsande verktyg direkt, andra = Tillåt-kort. Verktygslistan cachas i

@@ -5005,7 +5005,8 @@ def segments(text):
             if lvl == "danger":  # never run, and not shown as something to copy either – only why it stopped
                 parts.append({"type": "blocked", "code": code, "why": why, "state": "blocked"})
             else:
-                parts.append({"type": "command", "code": code, "level": lvl, "why": why, "state": "new", "output": ""})
+                parts.append({"type": "command", "code": code, "level": lvl, "why": why, "state": "new", "output": "",
+                              **card_info(code, lvl, why)})
         elif lang.lower() in ("minne", "kom ihåg", "memory", "glöm", "glom", "forget"):
             items = [line.strip().lstrip("-•* ").strip() for line in code.splitlines() if line.strip()]
             if items:
@@ -5034,7 +5035,21 @@ def segments(text):
         pos = m.end()
     if text[pos:].strip():
         parts.append({"type": "text", "text": linkify(text[pos:].strip())})
+    cards = [p for p in parts if p["type"] == "command"]
+    if len(cards) > 1:  # several at once: "1 AV 3" on each (the user's choice 31 Oct – Tillåt one at a time)
+        for n, p in enumerate(cards, 1):
+            p["num"], p["total"] = n, len(cards)
     return parts
+
+
+def card_info(code, lvl, why):
+    """The card's plain Swedish line (and before/after for byt_text) – an error here never stops the answer."""
+    try:
+        cmd_level()  # the folder on sys.path
+        import explain  # noqa: PLC0415
+        return explain.card_info(code, lvl, why)
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def file_message(path, question, limit=200_000):

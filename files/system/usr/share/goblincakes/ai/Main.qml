@@ -1918,6 +1918,7 @@ Window {
                                 required property var modelData
                                 required property int index
                                 readonly property var s: modelData
+                                property bool showCode: false  // command cards: the plain text first, the code behind "Visa koden" (31 Oct)
                                 width: answer.width
                                 height: s.type === "text" ? mdText.height : card.height
 
@@ -1960,7 +1961,8 @@ Window {
 
                                         Label {
                                             // Three levels (25 Oct): reads = runs at once, changes = Tillåt, can't be undone = stopped
-                                            text: segItem.s.type === "command" ? (segItem.s.level === "read" ? "KOMMANDO – LÄSER" + (segItem.s.auto ? " · KÖRDES DIREKT" : "")
+                                            text: (segItem.s.total ? segItem.s.num + " AV " + segItem.s.total + "  ·  " : "")
+                                                + (segItem.s.type === "command" ? (segItem.s.level === "read" ? "KOMMANDO – LÄSER" + (segItem.s.auto ? " · KÖRDES DIREKT" : "")
                                                                                   : segItem.s.level === "change" ? "KOMMANDO – ÄNDRAR NÅGOT, BEHÖVER DITT OK" : "KOMMANDO")
                                                 : segItem.s.type === "blocked" ? "STOPPAT – GÅR INTE ATT ÅNGRA"
                                                 : segItem.s.type === "image" ? (segItem.s.report ? "RAPPORT" : "BILD")
@@ -1969,12 +1971,83 @@ Window {
                                                 : segItem.s.type === "solved" ? "KÄND LÖSNING"
                                                 : segItem.s.type === "forget" ? "MINNE – GLÖMT"
                                                 : segItem.s.type === "file" ? "NY VERSION AV " + segItem.s.name.toUpperCase()
-                                                : (segItem.s.lang ? segItem.s.lang.toUpperCase() : "TEXT")
+                                                : (segItem.s.lang ? segItem.s.lang.toUpperCase() : "TEXT"))
                                             color: segItem.s.type === "blocked" ? "#E8A0A4" : "#8B98AD"
+                                        }
+
+                                        // What the command does in plain Swedish (explain.py); the code only when asked for
+                                        Text {
+                                            visible: segItem.s.type === "command" && !!segItem.s.explain
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            textFormat: Text.PlainText
+                                            text: segItem.s.explain || ""
+                                            color: "#E6ECF5"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 15
+                                            lineHeight: 1.15
+                                        }
+                                        FlatButton {
+                                            visible: segItem.s.type === "command" && !!segItem.s.explain && segItem.s.state !== "new"
+                                            small: true
+                                            text: segItem.showCode ? "Dölj koden" : (segItem.s.diff ? "Visa ändringen" : "Visa koden")
+                                            onClicked: segItem.showCode = !segItem.showCode
+                                        }
+                                        // byt_text: before/after – red goes, green comes, grey stays
+                                        Rectangle {
+                                            visible: segItem.s.type === "command" && !!segItem.s.diff && segItem.showCode
+                                            width: parent.width
+                                            height: Math.min(diffCol.implicitHeight + 24, 320)
+                                            color: "#07090D"
+                                            border.width: 1
+                                            border.color: "#1A2438"
+                                            clip: true
+                                            Flickable {
+                                                id: diffFlick
+                                                FastWheel { flick: diffFlick }
+                                                anchors.fill: parent
+                                                anchors.margins: 12
+                                                contentHeight: diffCol.implicitHeight
+                                                boundsBehavior: Flickable.StopAtBounds
+                                                Column {
+                                                    id: diffCol
+                                                    width: parent.width
+                                                    spacing: 0
+                                                    Text {
+                                                        text: segItem.s.diffFile || ""
+                                                        color: "#8B98AD"
+                                                        font.family: "IBM Plex Sans"
+                                                        font.pixelSize: 12
+                                                        bottomPadding: 6
+                                                    }
+                                                    Repeater {
+                                                        model: segItem.showCode ? (segItem.s.diff || []) : []
+                                                        Rectangle {
+                                                            required property var modelData
+                                                            width: diffCol.width
+                                                            height: diffLine.implicitHeight + 2
+                                                            color: modelData[0] === "-" ? "#2A1418" : modelData[0] === "+" ? "#12261A" : "transparent"
+                                                            Text {
+                                                                id: diffLine
+                                                                x: 6
+                                                                y: 1
+                                                                width: parent.width - 12
+                                                                wrapMode: Text.WrapAnywhere
+                                                                textFormat: Text.PlainText
+                                                                text: (modelData[0] === " " ? "  " : modelData[0] + " ") + modelData[1]
+                                                                color: modelData[0] === "-" ? "#E8A0A4" : modelData[0] === "+" ? "#A6E3B8" : "#8B98AD"
+                                                                font.family: "IBM Plex Mono"
+                                                                font.pixelSize: 13
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
 
                                         CodeBox {
                                             visible: ["image", "shot", "memory", "forget", "blocked", "solved"].indexOf(segItem.s.type) < 0
+                                                     && (segItem.s.type !== "command" || !segItem.s.explain || (segItem.showCode && !segItem.s.diff))
                                             code: segItem.s.code || ""
                                             maxHeight: segItem.s.type === "file" ? 320 : 220
                                         }
@@ -2221,6 +2294,12 @@ Window {
                                                 small: true
                                                 text: segItem.s.level === "change" ? "Nej" : "Hoppa över"
                                                 onClicked: backend.skipCommand(msgItem.index, segItem.index)
+                                            }
+                                            FlatButton {
+                                                visible: !!segItem.s.explain
+                                                small: true
+                                                text: segItem.showCode ? "Dölj koden" : (segItem.s.diff ? "Visa ändringen" : "Visa koden")
+                                                onClicked: segItem.showCode = !segItem.showCode
                                             }
                                         }
                                         Text {
