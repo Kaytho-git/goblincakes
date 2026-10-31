@@ -55,7 +55,7 @@ GITHUB = {
     # "goblincakes" and read the computer's update log instead (28 Oct)
     "ord": ["github", "bygget", "bygge", "byggen", "byggena", "commit", "commits", "issue", "issues",
             "repot", "repo", "workflow", "actions", "release", "pull request", "build"],
-    # ~700 tokens each before slimming – a few, the rest can be turned on under AI-tjänster
+    # ~700 tokens each before slimming – a few, the rest can be turned on under Inställningar
     "verktyg": ["actions_list", "get_job_logs", "list_commits", "get_commit", "get_file_contents", "list_issues",
                 "issue_read", "get_latest_release"],
 }
@@ -139,7 +139,7 @@ def expand(value, secrets):
             return secrets[name]
         if name in os.environ:
             return os.environ[name]
-        raise McpError(f"nyckeln {name} saknas (AI-tjänster → MCP-servrar)")
+        raise McpError(f"nyckeln {name} saknas (Inställningar → MCP-servrar)")
     return re.sub(r"\$\{(\w+)\}", one, str(value))
 
 

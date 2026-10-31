@@ -1,3 +1,5 @@
+2026-11-01  Goblin AI har fått nytt utseende: rutor för Kakan, projekt, kommandon och modeller (med hur mycket av Claude- och ChatGPT-kvoten som är kvar), och flikarna Svar, Chattar, Lär dig koda och Inställningar. På en stående skärm hamnar rutorna överst.
+2026-11-01  Goblin AI: lägg till dina egna projektmappar under Projekt – ett klick öppnar mappen i VS Code eller startar Claude Code i terminalen där.
 2026-10-31  GoblinRecorder: CS2-demos på workshop-kartor (t.ex. Cobblestone på egen server) får nu också TTD och sikte – kartans väggar tas fram ur kartfilen första gången.
 2026-10-31  GoblinRecorder: CS2-demos läses igen (de gick inte att läsa alls), och egna demos från en egen server (record) räknar nu dina kills och din skada.
 2026-10-31  Goblin AI: kvittot under svaret visar nu också var Kakan körde fast på vägen, inte bara vad hon gjorde

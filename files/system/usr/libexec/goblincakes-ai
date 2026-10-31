@@ -482,7 +482,7 @@ def run_command(chat, part, levels):
         plan["undo"] = levels.trash_restore(plan["trash"]) + plan["undo"]
     levels.log(code, lvl, "auto" if auto else "du", exit_code, output, plan)
     if plan and plan["undo"]:
-        muted("    (går att ångra i Goblin AI → AI-tjänster → Körda kommandon)")
+        muted("    (går att ångra i Goblin AI → Inställningar → Körda kommandon)")
     part.update(state="done", output=output.strip(), code_result=exit_code)
     return f"$ {reported_code(code)}\n{levels.shorten(output, code=code)}(avslutskod {exit_code})"
 
@@ -793,7 +793,7 @@ def show_memory():
         muted("  Inget än. Säg \"kom ihåg att …\" så sparas det.")
     for t in items:
         print(f"  {ACCENT}•{RESET} {t.get('text', t) if isinstance(t, dict) else t}")
-    muted("  (ändra eller ta bort i fönstret: /app → AI-tjänster → Minne)")
+    muted("  (ändra eller ta bort i fönstret: /app → Inställningar → Minne)")
 
 
 def set_model(arg):

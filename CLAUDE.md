@@ -89,6 +89,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Kvot-widget i toppfältet (Claude + ChatGPT/Codex, 5 h + vecka, `goblincakes-quota`)
 - [x] Egen docka `org.goblincakes.dock` (bara fästa, våg, accent; ersatte icontasks 29 okt)
 - [x] ChatGPT-appen (OpenAIs RPM uppackad i hemmappen, `goblincakes-chatgpt`; Goblin AI → "Skicka till ChatGPT" via urklipp) – ej provad med riktiga paketet
+- [x] Goblin AI ny layout (rutor Kakan/Projekt/Kommandon/Modeller, flikar, stående skärm; MAPPAR → VS Code eller Claude Code i terminalen) – provad offscreen, ej på riktigt
 
 ## Att göra
 - [ ] **Kakan självgående – nästa veckas plan, punkt 1–8** (tool calling, arbetsloop, filer, kommandon i tre nivåer, skrivbordet, webbsidor, påminnelser, MCP, 9 = röst med tryck-och-prata, 10–16 = mätverktyg, kunskap om GOBLINCAKES, kända lösningar, kontroll efter uppdatering, "Skicka till Claude", testa åt Claude, byggstatus; 17 = Claude Haiku via abonnemanget med Kakans verktyg, sist; 22 = WoW-API lokalt (wowapi + kontroll av hennes .lua), 23 = kvitto under svaren + klart-kontroll (byggt); 18 = defensiva sidan i WoW-analyserna (defensiver, undvikbar skada, CC – som carried.io); 21 = stora texter i delar + sammanfattning av långa samtal (före 20); 20 = uppdrag (ett slutmål, hennes funktioner i steg – slutprovet, sist); steg 0 = modellprov; Kakan ändrar aldrig koden i repot; + förslag mätverktyg för lagg). Detaljer: grep "veckans plan" i anteckningarna.

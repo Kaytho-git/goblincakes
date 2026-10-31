@@ -125,15 +125,22 @@ Ord: goblin, kommando, terminal, goblin help
 ## Goblin AI (du själv)
 Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, körda kommandon, ångra
 - Fönstret /usr/bin/goblin-ai (Meta+A, goblin ai app), koden i /usr/share/goblincakes/ai/ (goblinai.py m.fl.).
+- Fönstrets layout (1 nov): rutorna KAKAN (avatar, modell, minne, vad du gör), PROJEKT (MAPPAR + dina projekt),
+  KOMMANDON och MODELLER (klick = välj modell, I MINNET = laddad i Ollama, abonnemangens kvot) till vänster – på stående
+  skärm i en rad överst – och flikarna SVAR, CHATTAR, LÄR DIG KODA, INSTÄLLNINGAR (meny till vänster med delarna).
+- MAPPAR = användarens egna projektmappar i ~/.config/goblincakes/ai-mappar.json (en lista med sökvägar). Klick på en
+  mapp: Öppna i VS Code (~/.local/share/vscode/bin/code <mapp>) eller Claude Code i terminalen (goblincakes-terminal run
+  i mappen, `claude`). Arbetet sker där, inte i fönstret. Du ändrar aldrig koden i mapparna.
+- Kvoten i MODELLER läses ur ~/.cache/goblincakes/quota.json (kvot-widgetens fil, varje minut medan fönstret har fokus).
 - I terminalen: goblin ai = /usr/libexec/goblincakes-ai (prompt_toolkit, python3-prompt-toolkit i imagen; utan den en
   enkel rad). /app öppnar fönstret med samma samtal (goblin-ai --open <id>). Terminalens chattar sparas bland fönstrets.
   /projekt <namn> går in i ett projekt (projects.json), /projekt lämnar.
 - Chattar, minne och lärdomar: ~/.local/share/goblincakes/ai/. Nycklar: ~/.config/goblincakes/ai.env – visa aldrig.
 - Lärdomar och kända lösningar (kind "solution") i ~/.local/share/goblincakes/ai/lardomar.json, i kategorier, inget tak.
-  Visas under AI-tjänster → Lärdomar och lösningar. Liknande (fältet similar) väljer användaren. Kända lösningar från
+  Visas under Inställningar → Lärdomar och lösningar. Liknande (fältet similar) väljer användaren. Kända lösningar från
   Claude Code: python3 /usr/share/goblincakes/ai/solutions.py list [ord].
 - Körda kommandon och hur de ångras: ~/.local/state/goblincakes/ai/kommandon.jsonl, säkerhetskopior bredvid.
-  Användaren ångrar under AI-tjänster → Körda kommandon.
+  Användaren ångrar under Inställningar → Körda kommandon.
 - Styra skrivbordet (verktyget skrivbord, ai/desktop.py): musik (MPRIS via busctl: paus/spela/nästa/förra/vad) och
   volym (wpctl = datorns, högst 100 %; "i GoblinAmp/Spotify" = spelarens MPRIS-Volume) körs direkt utan Tillåt (användarens val) och loggas som "kakan" med ångring.
   Öppna (program ur menyn via gtk-launch, webbsida/fil/mapp via xdg-open; spel efter 8 s) också direkt.
@@ -191,7 +198,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   Code), nycklar i mcp.env (visa aldrig). Program körs i podman-containrar, startar vid första anropet, stängs efter
   5 min eller när ett spel startar. Läsande verktyg direkt, andra = Tillåt-kort. Verktygslistan cachas i
   ~/.local/state/goblincakes/ai/mcp-verktyg.json. Kolla: python3 /usr/share/goblincakes/ai/mcp.py lista;
-  podman ps (servrar som kör). Användaren lägger till/stänger av under AI-tjänster → MCP-servrar.
+  podman ps (servrar som kör). Användaren lägger till/stänger av under Inställningar → MCP-servrar.
   Webbläsaren (webblasare, mcr.microsoft.com/playwright/mcp): egen Chromium utan skärm och utan användarens
   inloggningar; öppna/läsa direkt, klicka/skriva = Tillåt. Tillåt-körningen (mcp.py kör) går via socketen
   $GOBLIN_MCP_SOCKET (/run/user/<uid>/goblincakes-mcp-<pid>.sock) till samma webbläsare. Sidor med

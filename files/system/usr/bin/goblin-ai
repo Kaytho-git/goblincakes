@@ -39,7 +39,7 @@ DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "go
 SOCKET_NAME = f"goblin-ai-{os.getuid()}"
 KEEP_CONVERSATIONS = 50
 PICTURES = DATA / "bilder"  # pictures in chats: screenshots and attached pictures (smaller copies)
-AVATAR = DATA / "avatar.png"  # the AI's avatar (AI-tjänster → Avatar, or "Använd som avatar" on a drawn picture)
+AVATAR = DATA / "avatar.png"  # the AI's avatar (Inställningar → Avatar, or "Använd som avatar" on a drawn picture)
 AVATAR_THINKING = DATA / "avatar-thinking.png"  # shown instead of the status text while the AI works (24 Oct)
 AVATAR_SIDE = 256
 # The sidebar hidden at the left edge (28 Oct). Open by default – the user: "så får användaren leta själv och hitta
@@ -48,6 +48,23 @@ SIDE_HIDDEN = DATA / "sidopanel-dold"
 HISTORY = DATA / "historik.json"  # what was typed in the input, for ↑/↓ and Ctrl+R (26 Oct)
 HISTORY_MAX = 500
 PICTURE_SIDE = 1600  # longest side sent to the AI – enough to read text, fewer tokens for local models
+
+
+# Own project folders (PROJEKT → MAPPAR, 1 Nov): opened in VS Code or Claude Code in the terminal
+FOLDERS = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "goblincakes" / "ai-mappar.json"
+QUOTA_CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "goblincakes" / "quota.json"
+
+
+def _load_folders():
+    try:
+        return [str(p) for p in json.loads(FOLDERS.read_text()) if isinstance(p, str)]
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+def _save_folders(folders):
+    FOLDERS.parent.mkdir(parents=True, exist_ok=True)
+    FOLDERS.write_text(json.dumps(folders, ensure_ascii=False, indent=1))
 
 
 CLIP_STATE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "goblincakes" / "ai-clip"
@@ -382,6 +399,7 @@ class Backend(QObject):
         self._projects = goblinai.load_projects()
         self._busy = False
         self._status = ""
+        self._quota = "{}"  # quota.json (refreshQuota)
         self._new_conversation()
         self._answered.connect(self._on_answer)
         self._claudeDone.connect(self._on_claude)
@@ -511,7 +529,7 @@ class Backend(QObject):
         if text and self._test and self._test.get("waiting") == "ask":  # the answer to a test point's question
             return self._test_answer(text)
         content = text or "Titta på den här filen."
-        shown = {"role": "user", "text": text, "segments": [], "service": "", "file": ""}
+        shown = {"role": "user", "text": text, "segments": [], "service": "", "file": "", "time": time.strftime("%H:%M")}
         images = []
         if attachment:
             path = QUrl(attachment).toLocalFile() if attachment.startswith("file:") else attachment
@@ -613,7 +631,7 @@ class Backend(QObject):
     def _on_answer(self, answer, service):
         self._api.append({"role": "assistant", "content": answer, **({"done": self._pending_done} if self._pending_done else {})})
         shown = {"role": "assistant", "text": answer, "segments": goblinai.segments(answer),
-                 "service": service, "file": "", "tools": self._pending_tools}
+                 "service": service, "file": "", "tools": self._pending_tools, "time": time.strftime("%H:%M")}
         if self._steps != "[]":
             shown["steps"] = json.loads(self._steps)
         if self._pending_report_done:  # for Skicka till Claude – the tools' answers, longer
@@ -821,7 +839,7 @@ class Backend(QObject):
                           + goblinai.after_commands(self._api)})
         self._ask()
 
-    # ── The command log (AI-tjänster → Körda kommandon) and running reading commands at once ─────
+    # ── The command log (Inställningar → Körda kommandon) and running reading commands at once ─────
 
     @Property(str, notify=commandLogChanged)
     def commandLog(self):
@@ -836,7 +854,7 @@ class Backend(QObject):
         goblinai.cmd_level().set_autorun(on)
         self.commandLogChanged.emit()
 
-    # ── MCP servers (AI-tjänster → MCP-servrar, punkt 8 28 Oct): ready-made tools from outside ─────
+    # ── MCP servers (Inställningar → MCP-servrar, punkt 8 28 Oct): ready-made tools from outside ─────
 
     mcpChanged = Signal()
     _mcpDone = Signal(str)  # "" = ok, else why not
@@ -1107,7 +1125,8 @@ class Backend(QObject):
                 d = json.loads(f.read_text())
                 if d.get("project", "") == self._project:
                     # One line in the list (older chats were saved with line breaks)
-                    items.append({"id": d["id"], "title": " ".join(d["title"].split()) or "Samtal"})
+                    items.append({"id": d["id"], "title": " ".join(d["title"].split()) or "Samtal",
+                                  "time": int(f.stat().st_mtime)})  # last change, for CHATTAR's I dag/I går
             except (OSError, ValueError, KeyError):
                 continue
         return json.dumps(items)
@@ -1538,7 +1557,7 @@ class Backend(QObject):
         except (OSError, subprocess.SubprocessError, ValueError, KeyError, IndexError):
             return f"Version {version}"
 
-    # ── The AI's own name (AI-tjänster → Namn) ────────────────
+    # ── The AI's own name (Inställningar → Namn) ────────────────
 
     nameChanged = Signal()
 
@@ -1750,6 +1769,74 @@ class Backend(QObject):
         goblinai.save_keys(self._keys)
         self.keysChanged.emit()
 
+
+    # ── Mappar (1 Nov, the user's wish): own project folders in PROJEKT, opened in VS Code or ─
+    # Claude Code in the terminal – the work happens there, not in this window (it would lose too much)
+
+    foldersChanged = Signal()
+
+    @Property(str, notify=foldersChanged)
+    def folders(self):
+        return json.dumps([{"path": p, "name": Path(p).name or p, "exists": Path(p).is_dir()}
+                           for p in _load_folders()], ensure_ascii=False)
+
+    @Slot(str)
+    def addFolder(self, url):
+        path = QUrl(url).toLocalFile() if url.startswith("file:") else url
+        path = str(Path(path).expanduser()).rstrip("/") or "/"
+        folders = _load_folders()
+        if path and Path(path).is_dir() and path not in folders:
+            folders.append(path)
+            _save_folders(folders)
+            self.foldersChanged.emit()
+
+    @Slot(str)
+    def removeFolder(self, path):
+        _save_folders([p for p in _load_folders() if p != path])
+        self.foldersChanged.emit()
+
+    @Slot(str, str, result=str)
+    def openFolder(self, path, how):
+        """how = "code" (VS Code) or "terminal" (Claude Code in the chosen terminal). "" = started, else why not."""
+        if not Path(path).is_dir():
+            return "Mappen finns inte längre"
+        if how == "code":
+            code = next((c for c in (str(Path.home() / ".local/share/vscode/bin/code"), shutil.which("code") or "")
+                         if c and Path(c).is_file()), None)
+            if not code:
+                return "VS Code finns inte – installera det i GOBLINCAKES Config → Program"
+            cmd = [code, path]
+        else:
+            claude = toclaude.claude_path()
+            quoted = "'" + path.replace("'", "'\\''") + "'"
+            script = (f"cd {quoted} && " + (f"'{claude}'" if claude else
+                      "echo 'Claude Code finns inte – installera det i GOBLINCAKES Config → Program'") + "; exec bash")
+            cmd = ["/usr/libexec/goblincakes-terminal", "run", "bash", "-c", script]
+        try:
+            subprocess.Popen(cmd, cwd=path, start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as e:
+            return f"Kunde inte starta: {e}"
+        return ""
+
+    # ── The subscriptions' quota (MODELLER): what the top bar's widget saved (goblincakes-quota) ──
+
+    quotaChanged = Signal()
+
+    @Property(str, notify=quotaChanged)
+    def quota(self):
+        return self._quota
+
+    @Slot()
+    def refreshQuota(self):
+        try:
+            text = QUOTA_CACHE.read_text()
+            json.loads(text)
+        except (OSError, ValueError):
+            text = "{}"
+        if text != self._quota:
+            self._quota = text
+            self.quotaChanged.emit()
 
     # ── Projects (sidebar) ─────────────────────────────────────
 

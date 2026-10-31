@@ -7,20 +7,24 @@ import QtQuick.Dialogs
 Window {
     id: win
 
-    width: 1120
-    height: 800
-    minimumWidth: 760
-    minimumHeight: 520
+    width: 1320
+    height: 860
+    minimumWidth: 980
+    minimumHeight: 600
     visible: !startQuick  // started for the quick box only: the window comes with the answer
     title: "Goblin AI"
     color: "#07090D"
     onClosing: Qt.quit()
 
     property string view: backend.hasKeys ? "chat" : "settings"
-    // The sidebar (28 Oct, the user's wish): open by default; « hides it at the left edge, where the mouse slides it
-    // out over the chat; » keeps it open again (and gives it its own room)
-    property bool sideOpen: backend.sidePinned
-    readonly property int sideSpace: backend.sidePinned ? sidebar.width : 0
+    // The layout (1 Nov, the user's wish – the sketch "Goblin AI – skiss ny layout"): boxes KAKAN, PROJEKT,
+    // KOMMANDON and MODELLER left of the big box with the tabs SVAR · CHATTAR · LÄR DIG KODA · INSTÄLLNINGAR;
+    // on a standing screen (portrait) the boxes are a row above it. Square corners, the accent only.
+    readonly property bool portrait: zoomRoot.height > zoomRoot.width
+    readonly property int gap: 10
+    readonly property int sideWidth: 330   // the boxes' column (lying screen)
+    readonly property int rowHeight: 300   // the boxes' row (standing screen)
+    property string settingsJump: ""       // a section to show when INSTÄLLNINGAR opens (Kakan, Lokal AI …)
     property string attachment: ""
     property var pendingSave: null // {index, seg} while the "save as" dialog is open
     property string pendingImage: "" // the picture being saved with "Spara som…"
@@ -236,7 +240,7 @@ Window {
         { name: "testa", note: "kör Claudes testlista – /testa <namn>, /testa stopp", args: true },
         { name: "pdf", note: "spara senaste svaret som PDF" },
         { name: "word", note: "spara senaste svaret som Word" },
-        { name: "inställningar", note: "AI-tjänster och inställningar", aliases: ["settings"] },
+        { name: "inställningar", note: "inställningar och AI-tjänster", aliases: ["settings"] },
         { name: "hjälp", note: "alla kommandon", aliases: ["help", "?"] }
     ].filter(c => !c.hidden).concat(onlyCommands).concat(ownCommands)
     // /wiki, /wcl … <fråga>: only those tools for the question (goblinai.ONLY_COMMANDS)
@@ -490,8 +494,7 @@ Window {
             break;
         case "minne":
             view = "settings";
-            memCard.open = true;
-            Qt.callLater(() => settings.contentY = Math.max(0, Math.min(memCard.y, settings.contentHeight - settings.height)));
+            settings.jump(memCard);
             break;
         case "claude": {
             const index = latestAnswer();
@@ -553,6 +556,58 @@ Window {
     Component.onCompleted: {
         reload();
         history = JSON.parse(backend.inputHistory());
+        backend.refreshModels();  // MODELLER shows them at once
+        backend.refreshQuota();
+    }
+
+    // ── The boxes' data (1 Nov) ──
+    readonly property var folders: JSON.parse(backend.folders)
+    // MODELLER: [{header} | a model with inMemory and a short note], as the model menu lists them
+    readonly property var modelRows: {
+        const loaded = (localStatus.loaded || []).map(n => n.replace(/:latest$/, ""));
+        const out = [];
+        let last = null;
+        for (const m of JSON.parse(backend.modelChoices)) {
+            const group = m.group || "Allmänt";
+            if (group !== last) {
+                out.push({ header: group });
+                last = group;
+            }
+            const local = m.group === "Lokal AI";
+            const parts = (m.note || "").split(" · ");
+            const short = !m.id ? "väljer åt dig" : local ? (parts[0].indexOf("GB") >= 0 ? parts[0] : "")
+                        : parts[0];
+            out.push({ id: m.id, name: m.name, note: m.note, inMemory: local && loaded.indexOf(m.name.replace(/:latest$/, "")) >= 0,
+                       short: (m.tag && m.tag !== "BÄST" ? m.tag.toLowerCase() + " · " : "") + short });
+        }
+        return out;
+    }
+    readonly property var quotaServices: (JSON.parse(backend.quota).services || []).filter(s => (s.windows || []).length > 0 || s.error)
+    Timer {  // the quota widget saves a new one every 5 minutes; the local models in memory change too
+        interval: 60000
+        repeat: true
+        running: win.active
+        onTriggered: {
+            backend.refreshQuota();
+            backend.refreshLocal();
+        }
+    }
+
+    function openTab(v) {
+        if (v === "learn") {
+            view = "learn";
+            learnSetup = !course;
+            if (course && !learnModuleId)
+                openModule(course.current);
+        } else {
+            view = v;
+        }
+    }
+    // INSTÄLLNINGAR at a section (the avatar in KAKAN → "kakan", Hantera … in MODELLER → "lokal")
+    function openSettings(section) {
+        view = "settings";
+        settingsJump = "";
+        settingsJump = section || "";
     }
 
     property int dailyPick: -1          // the button whose model list is open (-2 = the new one)
@@ -696,6 +751,12 @@ Window {
             const path = backend.localPath(selectedFile.toString());
             win.editProject(p => { if (p.files.indexOf(path) < 0) p.files.push(path); });
         }
+    }
+    FolderDialog {
+        id: addFolderDialog
+        title: "Lägg till en projektmapp"
+        onVisibleChanged: backend.sharpText()
+        onAccepted: backend.addFolder(selectedFolder.toString())
     }
     FolderDialog {
         id: projectFolderDialog
@@ -1277,316 +1338,880 @@ Window {
             }
         }
 
-        // ── Sidebar ──────────────────────────────────────────────
+        // ── The boxes (1 Nov, the user's wish): KAKAN, PROJEKT, KOMMANDON, MODELLER ─────────
+        // Left of the big box on a lying screen, a row above it on a standing one (win.portrait).
 
-        // Hidden: a thin strip at the left edge; the mouse there opens the sidebar
-        Rectangle {
-            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-            width: 3
-            z: 20
-            visible: !win.sideOpen
-            color: edgeHover.hovered ? accent.color : "#1E2A40"
-            HoverHandler { id: edgeHover; margin: 4; onHoveredChanged: if (hovered) win.sideOpen = true }
-        }
-
-        Rectangle {
-            id: sidebar
-            anchors { top: parent.top; bottom: parent.bottom }
-            x: win.sideOpen ? 0 : -width - 1
-            z: 19
-            width: 264
-            color: "#0B1018"
-            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-
-            // Out of the sidebar (not pinned): it slides away after a moment
-            HoverHandler { id: sideHover }
-            Timer {
-                interval: 450
-                running: win.sideOpen && !backend.sidePinned && !sideHover.hovered
-                onTriggered: win.sideOpen = false
-            }
-
-            // The pin: keep it open (»|) or let it hide at the edge (|«)
-            Text {
-                anchors { right: parent.right; rightMargin: 14; top: parent.top; topMargin: 30 }
-                z: 2
-                text: backend.sidePinned ? "«" : "»"
-                color: pinArea.containsMouse ? "#E6ECF5" : "#8B98AD"
-                font.family: "IBM Plex Sans"
-                font.pixelSize: 20
-                MouseArea {
-                    id: pinArea
-                    anchors { fill: parent; margins: -8 }
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        backend.setSidePinned(!backend.sidePinned);
-                        win.sideOpen = backend.sidePinned;
+        // A box: a header in small capitals with a mark in the accent and a note to the right, the content under it
+        component Panel: Rectangle {
+            id: panel
+            property string title
+            property string mark
+            property string note
+            property bool noteLink: false
+            signal noteClicked()
+            default property alias content: panelBody.data
+            color: "#0E1420"
+            border.width: 1
+            border.color: "#1E2A40"
+            clip: true
+            Item {
+                id: panelHead
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: 36
+                Text {
+                    id: panelMark
+                    anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                    text: panel.mark
+                    color: accent.text
+                    font.family: "IBM Plex Mono"
+                    font.pixelSize: 13
+                }
+                Text {
+                    anchors { left: panelMark.right; leftMargin: 8; right: panelNote.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                    text: panel.title
+                    elide: Text.ElideRight
+                    color: "#E6ECF5"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 12
+                    font.letterSpacing: 2
+                }
+                Text {
+                    id: panelNote
+                    anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                    text: panel.note
+                    color: panel.noteLink ? (panelNoteArea.containsMouse ? "#E6ECF5" : accent.text) : "#8B98AD"
+                    font.family: "IBM Plex Mono"
+                    font.pixelSize: 11
+                    MouseArea {
+                        id: panelNoteArea
+                        anchors { fill: parent; margins: -6 }
+                        enabled: panel.noteLink
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: panel.noteClicked()
                     }
                 }
+                Rectangle {
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 1 }
+                    height: 1
+                    color: "#1A2438"
+                }
             }
+            Item {
+                id: panelBody
+                anchors { left: parent.left; right: parent.right; top: panelHead.bottom; bottom: parent.bottom; margins: 1 }
+            }
+        }
 
+        // A group's name in a box (MAPPAR, LOKAL AI …)
+        component GroupLabel: Text {
+            leftPadding: 12
+            topPadding: 10
+            bottomPadding: 4
+            color: "#8B98AD"
+            font.family: "Chakra Petch"
+            font.weight: Font.DemiBold
+            font.pixelSize: 10
+            font.letterSpacing: 2
+        }
+
+        // One line in a box: a small square (accent when chosen), the name, a note to the right
+        component PanelRow: Rectangle {
+            id: prow
+            property string text
+            property string note
+            property string tag          // in the accent before the note (I MINNET)
+            property bool chosen: false
+            property bool dim: false     // "+ Öppna mapp …"
+            property bool showMark: !dim
+            property bool gear: false    // ⚙ on hover (a Kakan project's settings)
+            signal clicked()
+            signal gearClicked()
+            width: parent ? parent.width : 200
+            height: 30
+            color: chosen ? "#12203A" : prowArea.containsMouse || prowGearArea.containsMouse ? "#111A2A" : "transparent"
             Rectangle {
-                anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
-                width: 1
-                color: "#1E2A40"
+                visible: prow.chosen
+                width: 2
+                height: parent.height
+                color: accent.color
             }
+            Rectangle {
+                visible: prow.showMark
+                x: 13
+                anchors.verticalCenter: parent.verticalCenter
+                width: 6
+                height: 6
+                color: prow.chosen ? accent.color : "#33415A"
+            }
+            Text {
+                anchors { left: parent.left; leftMargin: prow.showMark ? 28 : 12; right: prowNote.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                text: prow.text
+                elide: Text.ElideRight
+                color: prow.dim ? (prowArea.containsMouse ? accent.text : "#8B98AD") : "#E6ECF5"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 13
+            }
+            Text {
+                id: prowNote
+                anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                visible: !prowGear.visible && text !== ""
+                textFormat: Text.StyledText
+                text: (prow.tag ? "<font color=\"" + accent.text + "\">" + prow.tag + "</font>  " : "") + prow.note
+                color: "#8B98AD"
+                font.family: "IBM Plex Mono"
+                font.pixelSize: 11
+            }
+            MouseArea {
+                id: prowArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: prow.clicked()
+            }
+            Text {
+                id: prowGear
+                anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                visible: prow.gear && (prowArea.containsMouse || prowGearArea.containsMouse)
+                text: "⚙"
+                color: prowGearArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                font.pixelSize: 14
+                MouseArea {
+                    id: prowGearArea
+                    anchors { fill: parent; margins: -6 }
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: prow.gearClicked()
+                }
+            }
+        }
 
-            Row {
-                id: brand
-                anchors { left: parent.left; leftMargin: 22; top: parent.top; topMargin: 24 }
-                spacing: 12
-                Image {
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: logoUrl
-                    sourceSize.width: 36
-                    sourceSize.height: 36
+        Item {
+            id: sidePanel
+            x: win.gap
+            y: win.gap
+            width: win.portrait ? zoomRoot.width - 2 * win.gap : win.sideWidth
+            height: win.portrait ? win.rowHeight : zoomRoot.height - 2 * win.gap
+            readonly property real restDown: height - kakanBox.height - 3 * win.gap     // lying: under KAKAN
+            readonly property real restAcross: width - kakanBox.width - 3 * win.gap    // standing: right of KAKAN
+
+            // ── KAKAN: the avatar (the thinking one while she works), her name, model, memory, what she does ──
+            Panel {
+                id: kakanBox
+                readonly property bool thinking: backend.busy
+                readonly property int memoryCount: JSON.parse(backend.memory).length
+                readonly property int lessonCount: JSON.parse(backend.lessons).length
+                x: 0
+                y: 0
+                width: win.portrait ? 210 : parent.width
+                height: win.portrait ? parent.height : 150
+                title: (backend.aiName || "Goblin AI").toUpperCase()
+                mark: "◉"
+                note: thinking ? "tänker…" : "redo"
+
+                Rectangle {
+                    id: kakanAvatar
+                    readonly property string picture: kakanBox.thinking && backend.avatarThinking !== "" ? backend.avatarThinking : backend.avatar
+                    x: win.portrait ? (parent.width - width) / 2 : 12
+                    y: win.portrait ? 14 : (parent.height - height) / 2
+                    width: win.portrait ? 120 : 92
+                    height: width
+                    color: "#12203A"
+                    border.width: 1
+                    border.color: kakanBox.thinking ? accent.color : "#1E2A40"
+                    // While she works the frame pulses in the accent
+                    SequentialAnimation on border.color {
+                        running: kakanBox.thinking
+                        loops: Animation.Infinite
+                        ColorAnimation { to: "#1E2A40"; duration: 700 }
+                        ColorAnimation { to: accent.color; duration: 700 }
+                    }
+                    Image {
+                        anchors { fill: parent; margins: kakanAvatar.picture !== "" ? 1 : 14 }
+                        source: kakanAvatar.picture !== "" ? kakanAvatar.picture : logoUrl
+                        sourceSize: Qt.size(256, 256)
+                        fillMode: kakanAvatar.picture !== "" ? Image.PreserveAspectCrop : Image.PreserveAspectFit
+                        cache: false
+                        asynchronous: true
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: win.openSettings("kakan")
+                    }
                 }
                 Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 2
+                    x: win.portrait ? 12 : kakanAvatar.x + kakanAvatar.width + 14
+                    y: win.portrait ? kakanAvatar.y + kakanAvatar.height + 12 : (parent.height - height) / 2
+                    width: parent.width - x - 12
+                    spacing: 4
                     Text {
-                        text: "GOBLIN AI"
+                        width: parent.width
+                        horizontalAlignment: win.portrait ? Text.AlignHCenter : Text.AlignLeft
+                        elide: Text.ElideRight
+                        text: (backend.aiName || "Goblin AI").toUpperCase()
                         color: "#E6ECF5"
                         font.family: "Chakra Petch"
                         font.weight: Font.Bold
-                        font.pixelSize: 20
+                        font.pixelSize: 18
                         font.letterSpacing: 3
                     }
-                    // Which code runs: "Version 2026.10.30 · 2026-10-30" or "Repo 52e71cd · 2026-10-30 10:49"
-                    Text {
-                        visible: text !== ""
-                        text: backend.version
-                        color: "#8B98AD"
-                        font.family: "IBM Plex Mono"
-                        font.pixelSize: 10
+                    Repeater {
+                        model: [win.modelName(backend.model),
+                                "minne " + kakanBox.memoryCount + " · lärdomar " + kakanBox.lessonCount,
+                                kakanBox.thinking ? (backend.status || "tänker …") : "redo"]
+                        Text {
+                            required property string modelData
+                            required property int index
+                            width: parent.width
+                            horizontalAlignment: win.portrait ? Text.AlignHCenter : Text.AlignLeft
+                            elide: Text.ElideRight
+                            text: modelData
+                            color: index === 2 && kakanBox.thinking ? accent.text : "#8B98AD"
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 11
+                        }
                     }
                 }
             }
 
-            FlatButton {
-                id: newButton
-                anchors { left: parent.left; right: parent.right; margins: 18; top: brand.bottom; topMargin: 24 }
-                width: parent.width - 36
-                primary: true
-                text: "+  Ny chatt"
-                enabledState: !backend.busy
-                onClicked: { backend.newConversation(); win.view = backend.hasKeys ? "chat" : "settings"; }
-            }
+            // ── PROJEKT: own folders (VS Code or Claude Code in the terminal) and Kakan's projects ──
+            Panel {
+                id: projBox
+                x: win.portrait ? kakanBox.width + win.gap : 0
+                y: win.portrait ? 0 : kakanBox.height + win.gap
+                width: win.portrait ? sidePanel.restAcross * 0.3 : parent.width
+                height: win.portrait ? parent.height : sidePanel.restDown * 0.4
+                title: "PROJEKT"
+                mark: "▣"
+                note: "" + (win.folders.length + win.projects.length)
 
-            // Projects: own instructions, files, models and chats
-            Item {
-                id: projectHead
-                anchors { left: parent.left; right: parent.right; top: newButton.bottom; topMargin: 24 }
-                height: 22
-                Label {
-                    anchors { left: parent.left; leftMargin: 22; verticalCenter: parent.verticalCenter }
-                    text: "PROJEKT"
-                }
-                Text {
-                    anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                    text: win.choosingTemplate ? "×" : "+"
-                    color: addArea.containsMouse ? "#E6ECF5" : "#8B98AD"
-                    font.pixelSize: 20
-                    MouseArea {
-                        id: addArea
-                        anchors.fill: parent
-                        anchors.margins: -8
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: win.choosingTemplate = !win.choosingTemplate
+                Flickable {
+                    id: projFlick
+                    FastWheel { flick: projFlick }
+                    anchors.fill: parent
+                    contentHeight: projBoxCol.height + 6
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    Column {
+                        id: projBoxCol
+                        width: projFlick.width
+                        GroupLabel { text: "MAPPAR" }
+                        Repeater {
+                            model: win.folders
+                            PanelRow {
+                                id: folderRow
+                                required property var modelData
+                                text: modelData.name
+                                note: modelData.exists ? "" : "finns inte"
+                                chosen: folderMenu.visible && folderMenu.folder.path === modelData.path
+                                onClicked: folderMenu.openAt(folderRow, modelData)
+                            }
+                        }
+                        PanelRow {
+                            dim: true
+                            text: "+ Öppna mapp …"
+                            onClicked: addFolderDialog.open()
+                        }
+                        GroupLabel { text: (backend.aiName || "Goblin AI").toUpperCase() }
+                        PanelRow {
+                            text: "Inget projekt"
+                            note: "vanlig"
+                            chosen: backend.currentProject === ""
+                            onClicked: {
+                                backend.selectProject("");
+                                win.view = backend.hasKeys ? "chat" : "settings";
+                            }
+                        }
+                        Repeater {
+                            model: win.projects
+                            PanelRow {
+                                required property var modelData
+                                readonly property bool active: modelData.id === backend.currentProject
+                                text: modelData.name
+                                note: modelData.order === "local-only" ? "lokalt" : (modelData.files || []).length ? modelData.files.length + " filer" : ""
+                                chosen: active
+                                gear: true
+                                onClicked: {
+                                    backend.selectProject(active ? "" : modelData.id);
+                                    win.view = backend.hasKeys ? "chat" : "settings";
+                                }
+                                onGearClicked: {
+                                    if (!active)
+                                        backend.selectProject(modelData.id);
+                                    win.removingProject = false;
+                                    win.view = "project";
+                                }
+                            }
+                        }
+                        PanelRow {
+                            dim: true
+                            text: win.choosingTemplate ? "× Avbryt" : "+ Nytt projekt"
+                            onClicked: win.choosingTemplate = !win.choosingTemplate
+                        }
+                        Flow {
+                            visible: win.choosingTemplate
+                            x: 12
+                            width: parent.width - 24
+                            height: visible ? implicitHeight + 8 : 0
+                            spacing: 6
+                            Repeater {
+                                model: JSON.parse(backend.templates)
+                                FlatButton {
+                                    required property var modelData
+                                    small: true
+                                    text: modelData.name
+                                    onClicked: {
+                                        win.choosingTemplate = false;
+                                        backend.createProject(modelData.id);
+                                        win.view = "project";
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
-            Flow {
-                id: templateRow
-                anchors { left: parent.left; right: parent.right; leftMargin: 18; rightMargin: 18; top: projectHead.bottom; topMargin: 8 }
-                visible: win.choosingTemplate
-                height: visible ? implicitHeight : 0
-                spacing: 6
-                Repeater {
-                    model: JSON.parse(backend.templates)
-                    FlatButton {
+
+            // ── KOMMANDON: the /commands – a click runs it, or writes it in the input when it needs more ──
+            Panel {
+                id: cmdBox
+                x: win.portrait ? projBox.x + projBox.width + win.gap : 0
+                y: win.portrait ? 0 : projBox.y + projBox.height + win.gap
+                width: win.portrait ? sidePanel.restAcross * 0.3 : parent.width
+                height: win.portrait ? parent.height : sidePanel.restDown * 0.22
+                title: "KOMMANDON"
+                mark: "/"
+                note: "skriv /"
+
+                ListView {
+                    id: cmdBoxList
+                    FastWheel { flick: cmdBoxList }
+                    anchors { fill: parent; topMargin: 4; bottomMargin: 4 }
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: win.commands
+                    delegate: Rectangle {
+                        id: cmdBoxRow
                         required property var modelData
-                        small: true
-                        text: modelData.name
-                        onClicked: {
-                            win.choosingTemplate = false;
-                            backend.createProject(modelData.id);
-                            win.view = "project";
+                        width: cmdBoxList.width
+                        height: 26
+                        color: cmdBoxArea.containsMouse ? "#111A2A" : "transparent"
+                        Text {
+                            id: cmdBoxName
+                            x: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "/" + cmdBoxRow.modelData.name
+                            color: accent.text
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 12
                         }
-                    }
-                }
-            }
-            ListView {
-                id: projectList
-                FastWheel { flick: projectList }
-                anchors { left: parent.left; right: parent.right; top: templateRow.bottom; topMargin: 6 }
-                height: Math.min(count, 6) * 34
-                clip: true
-                interactive: count > 6
-                model: win.projects
-                boundsBehavior: Flickable.StopAtBounds
-                delegate: Rectangle {
-                    id: projItem
-                    required property var modelData
-                    readonly property bool active: modelData.id === backend.currentProject
-                    width: projectList.width
-                    height: 34
-                    color: projArea.containsMouse || active ? "#121B2B" : "transparent"
-                    Rectangle {
-                        visible: projItem.active
-                        width: 2
-                        height: parent.height
-                        color: accent.color
-                    }
-                    Text {
-                        anchors { left: parent.left; leftMargin: 22; right: gear.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                        text: "▸  " + projItem.modelData.name + (projItem.modelData.order === "local-only" ? "  ·  lokalt" : "")
-                        color: projItem.active ? "#E6ECF5" : "#B8C2D3"
-                        elide: Text.ElideRight
-                        font.family: "IBM Plex Sans"
-                        font.weight: projItem.active ? Font.DemiBold : Font.Normal
-                        font.pixelSize: 14
-                    }
-                    MouseArea {
-                        id: projArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            backend.selectProject(projItem.active ? "" : projItem.modelData.id);
-                            win.view = backend.hasKeys ? "chat" : "settings";
+                        Text {
+                            anchors { left: cmdBoxName.right; leftMargin: 8; right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                            text: cmdBoxRow.modelData.note
+                            elide: Text.ElideRight
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
                         }
-                    }
-                    Text {
-                        id: gear
-                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                        visible: projArea.containsMouse || gearArea.containsMouse || (projItem.active && win.view === "project")
-                        text: "⚙"
-                        color: gearArea.containsMouse ? "#E6ECF5" : "#8B98AD"
-                        font.pixelSize: 15
                         MouseArea {
-                            id: gearArea
+                            id: cmdBoxArea
                             anchors.fill: parent
-                            anchors.margins: -6
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                if (!projItem.active)
-                                    backend.selectProject(projItem.modelData.id);
-                                win.removingProject = false;
-                                win.view = "project";
+                                const c = cmdBoxRow.modelData;
+                                win.view = "chat";
+                                if (c.args) {
+                                    input.text = "/" + c.name + " ";
+                                    input.cursorPosition = input.text.length;
+                                    input.forceActiveFocus();
+                                } else {
+                                    win.runCommand("/" + c.name);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── MODELLER: who answers (click = choose), the local ones in memory, the subscriptions' quota ──
+            Panel {
+                id: modelBox
+                x: win.portrait ? cmdBox.x + cmdBox.width + win.gap : 0
+                y: win.portrait ? 0 : cmdBox.y + cmdBox.height + win.gap
+                width: win.portrait ? sidePanel.restAcross * 0.4 : parent.width
+                height: win.portrait ? parent.height : sidePanel.restDown * 0.38
+                title: "MODELLER"
+                mark: "◈"
+                note: "Hantera …"
+                noteLink: true
+                onNoteClicked: win.openSettings("lokal")
+
+                Flickable {
+                    id: modelFlick
+                    FastWheel { flick: modelFlick }
+                    anchors.fill: parent
+                    contentHeight: modelCol.height + 8
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    Column {
+                        id: modelCol
+                        width: modelFlick.width
+                        Repeater {
+                            model: win.modelRows
+                            Item {
+                                id: modelItem
+                                required property var modelData
+                                width: modelCol.width
+                                height: modelData.header !== undefined ? modelHead.height : modelRow.height
+                                GroupLabel {
+                                    id: modelHead
+                                    visible: modelItem.modelData.header !== undefined
+                                    text: (modelItem.modelData.header || "").toUpperCase()
+                                }
+                                PanelRow {
+                                    id: modelRow
+                                    visible: modelItem.modelData.header === undefined
+                                    readonly property var m: modelItem.modelData
+                                    text: m.name || m.note || ""
+                                    dim: !m.name
+                                    showMark: !!m.name
+                                    tag: m.inMemory ? "I MINNET" : ""
+                                    note: m.name ? m.short || "" : ""
+                                    chosen: !!m.name && backend.model === m.id
+                                    onClicked: if (m.name) backend.setModel(m.id)
+                                }
+                            }
+                        }
+                        Text {
+                            visible: win.modelRows.length <= 2
+                            x: 12
+                            width: parent.width - 24
+                            topPadding: 6
+                            wrapMode: Text.WordWrap
+                            text: backend.modelsLoading ? "Hämtar modellerna …" : "Lägg till en tjänst eller lokal AI under Inställningar."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
+                        }
+                        // The subscriptions (the top bar's quota widget): how much of 5 h and the week is used
+                        GroupLabel {
+                            visible: win.quotaServices.length > 0
+                            text: "ABONNEMANG · KVOT"
+                        }
+                        Repeater {
+                            model: win.quotaServices
+                            Column {
+                                id: quotaItem
+                                required property var modelData
+                                width: modelCol.width
+                                bottomPadding: 4
+                                Item {
+                                    width: parent.width
+                                    height: 24
+                                    Text {
+                                        x: 12
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: quotaItem.modelData.name + (quotaItem.modelData.plan ? "  ·  " + quotaItem.modelData.plan : "")
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                    Text {
+                                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                                        visible: !!quotaItem.modelData.error
+                                        text: quotaItem.modelData.error || ""
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 10
+                                    }
+                                }
+                                Repeater {
+                                    model: quotaItem.modelData.windows || []
+                                    Item {
+                                        id: quotaRow
+                                        required property var modelData
+                                        width: quotaItem.width
+                                        height: 16
+                                        Text {
+                                            id: quotaLabel
+                                            x: 28
+                                            width: 44
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: quotaRow.modelData.label.toLowerCase()
+                                            color: "#8B98AD"
+                                            font.family: "IBM Plex Mono"
+                                            font.pixelSize: 10
+                                        }
+                                        Rectangle {
+                                            anchors { left: quotaLabel.right; right: quotaPercent.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                                            height: 3
+                                            color: "#1E2A40"
+                                            Rectangle {
+                                                width: parent.width * Math.min(100, quotaRow.modelData.percent) / 100
+                                                height: parent.height
+                                                color: quotaRow.modelData.percent >= 90 ? accent.errorBright : accent.color
+                                            }
+                                        }
+                                        Text {
+                                            id: quotaPercent
+                                            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                                            width: 32
+                                            horizontalAlignment: Text.AlignRight
+                                            text: quotaRow.modelData.percent + "%"
+                                            color: "#8B98AD"
+                                            font.family: "IBM Plex Mono"
+                                            font.pixelSize: 10
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── The big box: the tabs SVAR · CHATTAR · LÄR DIG KODA · INSTÄLLNINGAR, the view under them ──
+        Rectangle {
+            id: mainBox
+            x: win.portrait ? win.gap : sidePanel.x + sidePanel.width + win.gap
+            y: win.portrait ? sidePanel.y + sidePanel.height + win.gap : win.gap
+            width: zoomRoot.width - x - win.gap
+            height: zoomRoot.height - y - win.gap
+            color: "#0B1018"
+            border.width: 1
+            border.color: "#1E2A40"
+
+            Item {
+                id: tabBar
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 1 }
+                height: 44
+                Row {
+                    id: tabRow
+                    height: parent.height
+                    Repeater {
+                        model: [{ v: "chat", label: "SVAR", mark: "◆" }, { v: "chats", label: "CHATTAR", mark: "≡" },
+                                { v: "learn", label: "LÄR DIG KODA", mark: "</>" }, { v: "settings", label: "INSTÄLLNINGAR", mark: "⚙" }]
+                        Item {
+                            id: tab
+                            required property var modelData
+                            readonly property bool on: win.view === modelData.v
+                            width: tabContent.width + 32
+                            height: tabRow.height
+                            Row {
+                                id: tabContent
+                                anchors.centerIn: parent
+                                spacing: 8
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: tab.modelData.mark
+                                    color: tab.on ? accent.text : "#8B98AD"
+                                    font.family: "IBM Plex Mono"
+                                    font.pixelSize: 12
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: tab.modelData.label
+                                    color: tab.on || tabArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                                    font.family: "Chakra Petch"
+                                    font.weight: Font.DemiBold
+                                    font.pixelSize: 12
+                                    font.letterSpacing: 2
+                                }
+                            }
+                            Rectangle {
+                                visible: tab.on
+                                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                                height: 2
+                                color: accent.color
+                            }
+                            MouseArea {
+                                id: tabArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: win.openTab(tab.modelData.v)
+                            }
+                        }
+                    }
+                }
+                Row {
+                    anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                    spacing: 14
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: tabBar.width - tabRow.width > 420
+                        textFormat: Text.StyledText
+                        text: "svarar nu: <font color=\"" + accent.text + "\">" + win.modelName(backend.model) + "</font>"
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 11
+                    }
+                    FlatButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        small: true
+                        primary: true
+                        text: "+  Ny chatt"
+                        enabledState: !backend.busy
+                        onClicked: { backend.newConversation(); win.view = backend.hasKeys ? "chat" : "settings"; }
+                    }
+                }
+                Rectangle {
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                    height: 1
+                    color: "#1A2438"
+                }
+            }
+        }
+        // Where the views (SVAR, CHATTAR, LÄR DIG KODA, INSTÄLLNINGAR, a project) are drawn
+        Item {
+            id: viewArea
+            x: mainBox.x + 1
+            y: mainBox.y + 1 + tabBar.height
+            width: mainBox.width - 2
+            height: mainBox.height - 2 - tabBar.height
+        }
+
+        // ── CHATTAR: the chats (of the chosen project), a search, + Ny chatt ──
+        Item {
+            id: chatsView
+            visible: win.view === "chats"
+            anchors.fill: viewArea
+            property string query: ""
+            // [{header} | {chat}], newest first, under I DAG / I GÅR / TIDIGARE
+            readonly property var rows: {
+                const q = query.trim().toLowerCase();
+                const day = new Date();
+                day.setHours(0, 0, 0, 0);
+                const today = day.getTime() / 1000, yesterday = today - 86400;
+                const out = [];
+                let last = "";
+                for (const c of JSON.parse(backend.conversations)) {
+                    if (q && c.title.toLowerCase().indexOf(q) < 0)
+                        continue;
+                    const t = c.time || 0;
+                    const group = t >= today ? "I DAG" : t >= yesterday ? "I GÅR" : "TIDIGARE";
+                    if (group !== last) {
+                        out.push({ header: group });
+                        last = group;
+                    }
+                    const d = new Date(t * 1000);
+                    out.push({ id: c.id, title: c.title,
+                               when: t >= yesterday ? Qt.formatTime(d, "hh:mm") : Qt.formatDate(d, "d MMM") });
+                }
+                return out;
+            }
+
+            Row {
+                id: chatsTop
+                x: 24
+                y: 20
+                spacing: 12
+                FlatButton {
+                    primary: true
+                    text: "+  Ny chatt"
+                    enabledState: !backend.busy
+                    onClicked: { backend.newConversation(); win.view = backend.hasKeys ? "chat" : "settings"; }
+                }
+                Rectangle {
+                    width: Math.min(420, chatsView.width - 220)
+                    height: 40
+                    color: "#07090D"
+                    border.width: 1
+                    border.color: chatsSearch.activeFocus ? accent.color : "#1E2A40"
+                    TextInput {
+                        id: chatsSearch
+                        anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+                        verticalAlignment: TextInput.AlignVCenter
+                        color: "#E6ECF5"
+                        selectionColor: accent.color
+                        selectedTextColor: accent.on
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 13
+                        clip: true
+                        onTextChanged: chatsView.query = text
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: chatsSearch.text === ""
+                            text: "Sök i chattarna …"
+                            color: "#5C6880"
+                            font: chatsSearch.font
+                        }
+                    }
+                }
+            }
+            Label {
+                id: chatsLabel
+                x: 24
+                anchors { top: chatsTop.bottom; topMargin: 18 }
+                text: win.project ? "CHATTAR I " + win.project.name.toUpperCase() : "CHATTAR UTANFÖR PROJEKT"
+            }
+            ListView {
+                id: chatsList
+                FastWheel { flick: chatsList }
+                anchors { left: parent.left; right: parent.right; top: chatsLabel.bottom; bottom: parent.bottom; leftMargin: 24; rightMargin: 24; topMargin: 4; bottomMargin: 12 }
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                model: chatsView.rows
+                delegate: Item {
+                    id: chatRow
+                    required property var modelData
+                    readonly property bool active: modelData.id === backend.conversationId
+                    width: chatsList.width
+                    height: modelData.header !== undefined ? 34 : 40
+                    GroupLabel {
+                        visible: chatRow.modelData.header !== undefined
+                        anchors.bottom: parent.bottom
+                        leftPadding: 2
+                        text: chatRow.modelData.header || ""
+                    }
+                    Rectangle {
+                        visible: chatRow.modelData.header === undefined
+                        anchors.fill: parent
+                        color: chatRow.active ? "#12203A" : chatArea2.containsMouse || chatDelArea.containsMouse ? "#111A2A" : "transparent"
+                        Rectangle {
+                            visible: chatRow.active
+                            width: 2
+                            height: parent.height
+                            color: accent.color
+                        }
+                        Rectangle {
+                            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                            height: 1
+                            color: "#1A2438"
+                        }
+                        Text {
+                            anchors { left: parent.left; leftMargin: 14; right: chatWhen.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                            text: chatRow.modelData.title || ""
+                            elide: Text.ElideRight
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: chatRow.active ? Font.DemiBold : Font.Normal
+                            font.pixelSize: 14
+                        }
+                        Text {
+                            id: chatWhen
+                            anchors { right: chatDel.left; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                            text: chatRow.modelData.when || ""
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 11
+                        }
+                        MouseArea {
+                            id: chatArea2
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                backend.openConversation(chatRow.modelData.id);
+                                win.view = "chat";
+                            }
+                        }
+                        Text {
+                            id: chatDel
+                            anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                            opacity: chatArea2.containsMouse || chatDelArea.containsMouse ? 1 : 0
+                            text: "×"
+                            color: chatDelArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                            font.pixelSize: 18
+                            MouseArea {
+                                id: chatDelArea
+                                anchors { fill: parent; margins: -6 }
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: backend.deleteConversation(chatRow.modelData.id)
                             }
                         }
                     }
                 }
             }
             Text {
-                id: noProjects
-                anchors { left: parent.left; leftMargin: 22; right: parent.right; rightMargin: 18; top: projectList.bottom }
-                visible: win.projects.length === 0 && !win.choosingTemplate
-                height: visible ? implicitHeight : 0
-                text: "Samla chattar med egna instruktioner och filer – tryck +."
-                color: "#5C6880"
-                wrapMode: Text.WordWrap
+                anchors { top: chatsLabel.bottom; topMargin: 16; left: parent.left; leftMargin: 24 }
+                visible: chatsView.rows.length === 0
+                text: chatsView.query ? "Ingen chatt med de orden." : "Inga chattar än."
+                color: "#8B98AD"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: 12
-            }
-
-            Label {
-                id: recentLabel
-                anchors { left: parent.left; leftMargin: 22; right: parent.right; rightMargin: 18; top: noProjects.bottom; topMargin: 22 }
-                text: win.project ? "CHATTAR I " + win.project.name.toUpperCase() : "SENASTE"
-                elide: Text.ElideRight
-            }
-
-            ListView {
-                id: convList
-                FastWheel { flick: convList }
-                anchors { left: parent.left; right: parent.right; top: recentLabel.bottom; topMargin: 10; bottom: learnButton.top; bottomMargin: 12 }
-                clip: true
-                model: JSON.parse(backend.conversations)
-                boundsBehavior: Flickable.StopAtBounds
-
-                delegate: Rectangle {
-                    id: convItem
-                    required property var modelData
-                    readonly property bool active: modelData.id === backend.conversationId && win.view === "chat"
-                    width: convList.width
-                    height: 40
-                    color: convArea.containsMouse || active ? "#121B2B" : "transparent"
-
-                    Rectangle {
-                        visible: convItem.active
-                        width: 2
-                        height: parent.height
-                        color: accent.color
-                    }
-                    Text {
-                        anchors { left: parent.left; leftMargin: 22; right: del.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                        text: convItem.modelData.title
-                        color: convItem.active ? "#E6ECF5" : "#B8C2D3"
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
-                        font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
-                    }
-                    MouseArea {
-                        id: convArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: backend.openConversation(convItem.modelData.id)
-                    }
-                    Text {
-                        id: del
-                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                        visible: convArea.containsMouse || delArea.containsMouse
-                        text: "×"
-                        color: delArea.containsMouse ? "#E6ECF5" : "#8B98AD"
-                        font.pixelSize: 18
-                        MouseArea {
-                            id: delArea
-                            anchors.fill: parent
-                            anchors.margins: -6
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: backend.deleteConversation(convItem.modelData.id)
-                        }
-                    }
-                }
-            }
-
-            FlatButton {
-                id: learnButton
-                anchors { left: parent.left; right: parent.right; margins: 18; bottom: settingsButton.top; bottomMargin: 10 }
-                width: parent.width - 36
-                primary: win.view === "learn"
-                text: "Lär dig koda"
-                onClicked: {
-                    win.view = "learn";
-                    win.learnSetup = !win.course;
-                    if (win.course && !win.learnModuleId)
-                        win.openModule(win.course.current);
-                }
-            }
-
-            FlatButton {
-                id: settingsButton
-                anchors { left: parent.left; right: parent.right; margins: 18; bottom: parent.bottom; bottomMargin: 20 }
-                width: parent.width - 36
-                text: "AI-tjänster"
-                onClicked: win.view = "settings"
+                font.pixelSize: 14
             }
         }
+
+        // ── A folder's menu (PROJEKT → MAPPAR): VS Code or Claude Code in the terminal ──
+        MouseArea {  // a click beside it closes it
+            anchors.fill: parent
+            z: 40
+            visible: folderMenu.visible
+            onClicked: folderMenu.visible = false
+        }
+        Rectangle {
+            id: folderMenu
+            objectName: "folderMenu"
+            property var folder: ({})
+            function openAt(row, f) {
+                folder = f;
+                const p = row.mapToItem(zoomRoot, row.width + 6, 0);
+                x = Math.min(p.x, zoomRoot.width - width - 8);
+                y = Math.min(p.y, zoomRoot.height - height - 8);
+                visible = true;
+            }
+            function run(how) {
+                visible = false;
+                const why = backend.openFolder(folder.path, how);
+                toast.show(why || (how === "code" ? "VS Code öppnas i " : "Claude Code startar i ") + folder.name + " …");
+            }
+            visible: false
+            z: 41
+            width: 280
+            height: folderMenuCol.height + 2
+            color: "#0B1018"
+            border.width: 1
+            border.color: accent.color
+            Column {
+                id: folderMenuCol
+                x: 1
+                y: 1
+                width: parent.width - 2
+                GroupLabel {
+                    width: parent.width
+                    bottomPadding: 8
+                    elide: Text.ElideRight
+                    text: (folderMenu.folder.name || "").toUpperCase()
+                }
+                Text {
+                    width: parent.width
+                    leftPadding: 12
+                    rightPadding: 12
+                    bottomPadding: 8
+                    elide: Text.ElideMiddle
+                    text: folderMenu.folder.path || ""
+                    color: "#5C6880"
+                    font.family: "IBM Plex Mono"
+                    font.pixelSize: 10
+                }
+                PanelRow { height: 36; text: "Öppna i VS Code"; note: "som vanligt"; onClicked: folderMenu.run("code") }
+                PanelRow { height: 36; text: "Claude Code i terminalen"; note: "ny session"; onClicked: folderMenu.run("terminal") }
+                PanelRow {
+                    height: 32
+                    dim: true
+                    text: "Ta bort från listan"
+                    note: "mappen finns kvar"
+                    onClicked: {
+                        folderMenu.visible = false;
+                        backend.removeFolder(folderMenu.folder.path);
+                    }
+                }
+            }
+        }
+
 
         // ── Chat ─────────────────────────────────────────────────
 
         Item {
             id: chatArea
             visible: win.view === "chat"
-            anchors { left: parent.left; leftMargin: win.sideSpace; right: parent.right; top: parent.top; bottom: parent.bottom }
+            anchors.fill: viewArea
 
             // The teacher's chats (project "Lärläge"): back to the lesson
             FlatButton {
@@ -1674,60 +2299,46 @@ Window {
                 boundsBehavior: Flickable.StopAtBounds
                 onCountChanged: Qt.callLater(positionViewAtEnd)
 
+                // While the AI works: "KAKAN tänker …" with the steps, a stripe in the accent like an answer's
+                // (the thinking avatar is in the KAKAN box since 1 Nov)
                 footer: Item {
                     width: messagesView.width
-                    height: backend.busy ? Math.max(backend.avatarThinking !== "" ? 96 : 48, workCol.height + 24) : 0
+                    height: backend.busy ? workCol.height + 24 : 0
                     visible: backend.busy
-                    // The thinking avatar (24 Oct, the user's wish): the picture with the name instead of "tänker…"
-                    Column {
-                        id: thinkingBox
-                        visible: backend.avatarThinking !== ""
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 64
-                        spacing: 6
-                        Rectangle {
-                            width: 64
-                            height: 64
-                            color: "#07090D"
-                            border.width: 1
-                            border.color: "#1E2A40"
-                            Image {
-                                anchors { fill: parent; margins: 1 }
-                                source: backend.avatarThinking
-                                sourceSize: Qt.size(128, 128)
-                                fillMode: Image.PreserveAspectCrop
-                                cache: false
-                                asynchronous: true
-                            }
-                        }
-                        Text {
-                            width: parent.width
-                            horizontalAlignment: Text.AlignHCenter
-                            elide: Text.ElideRight
-                            text: backend.aiName || "Goblin AI"
-                            color: "#E6ECF5"
-                            font.family: "IBM Plex Sans"
-                            font.weight: Font.DemiBold
-                            font.pixelSize: 12
-                        }
+                    Rectangle {
+                        x: 0
+                        y: 12
+                        width: 2
+                        height: workCol.height
+                        color: accent.color
                     }
                     Column {
                         id: workCol
-                        x: thinkingBox.visible ? 80 : 0
+                        x: 16
+                        y: 12
                         width: Math.min(860, messagesView.width) - x
-                        anchors.verticalCenter: parent.verticalCenter
                         spacing: 8
+                        Row {
+                            spacing: 10
+                            Text {
+                                text: (backend.aiName || "Goblin AI").toUpperCase()
+                                color: accent.text
+                                font.family: "Chakra Petch"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 12
+                                font.letterSpacing: 2
+                            }
+                            Text {
+                                text: backend.status || "tänker …"
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Mono"
+                                font.pixelSize: 12
+                            }
+                        }
                         StepList {
                             width: parent.width
                             steps: JSON.parse(backend.steps)
                             visible: steps.length > 0
-                        }
-                        Text {
-                            visible: !thinkingBox.visible
-                            text: backend.status
-                            color: "#8B98AD"
-                            font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
                         }
                         Rectangle {
                             width: 160
@@ -1753,29 +2364,75 @@ Window {
                     required property string msg
                     required property int index
                     readonly property var m: JSON.parse(msg)
-                    readonly property real maxWidth: Math.min(860, messagesView.width)
+                    readonly property real maxWidth: Math.min(876, messagesView.width) - 16
+                    // Who answered: Claude Code (Fråga Claude) by its name, otherwise the AI's own name
+                    readonly property string who: m.role === "user" ? "DU" : m.role === "error" ? "FEL"
+                                                  : /^Claude .*läste/.test(m.service || "") ? "CLAUDE"
+                                                  : (backend.aiName || "Goblin AI").toUpperCase()
 
                     width: messagesView.width
-                    height: m.role === "user" ? userBox.height : m.role === "error" ? errorText.height
-                            : Math.max(answer.height, avatarBox.visible ? avatarBox.height : 0)
+                    height: metaRow.height + 6 + (m.role === "user" ? userBox.height : m.role === "error" ? errorText.height : answer.height)
 
-                    // The user's question: "❯ the question", dim, like a line typed in a terminal (26 Oct)
+                    // A log, like the sketch (1 Nov): a thin stripe (the accent for answers), then who · time · model
+                    Rectangle {
+                        width: 2
+                        height: parent.height
+                        color: msgItem.m.role === "assistant" ? accent.color : msgItem.m.role === "error" ? accent.errorBright : "#1E2A40"
+                    }
+                    Row {
+                        id: metaRow
+                        x: 16
+                        height: 20
+                        spacing: 10
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: msgItem.who
+                            color: msgItem.m.role === "assistant" ? accent.text : msgItem.m.role === "error" ? accent.errorBright : "#E6ECF5"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 12
+                            font.letterSpacing: 2
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !!msgItem.m.time
+                            text: msgItem.m.time || ""
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 11
+                        }
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: msgItem.m.role === "assistant" && !!msgItem.m.service
+                            width: Math.min(serviceTag.implicitWidth + 14, msgItem.maxWidth - 160)
+                            height: 18
+                            color: "transparent"
+                            border.width: 1
+                            border.color: accent.color
+                            Text {
+                                id: serviceTag
+                                anchors { fill: parent; leftMargin: 7; rightMargin: 7 }
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                                text: msgItem.m.service || ""
+                                color: accent.text
+                                font.family: "IBM Plex Mono"
+                                font.pixelSize: 11
+                            }
+                        }
+                    }
+
+                    // The user's question, dim, like a line typed in a terminal (26 Oct)
                     Item {
                         id: userBox
                         visible: msgItem.m.role === "user"
+                        x: 16
+                        y: metaRow.height + 6
                         width: msgItem.maxWidth
                         height: userCol.height
-                        Text {
-                            id: userMark
-                            text: "❯"
-                            color: accent.text
-                            font.family: "IBM Plex Mono"
-                            font.pixelSize: 15
-                        }
                         Column {
                             id: userCol
-                            x: userMark.width + 10
-                            width: parent.width - x
+                            width: parent.width
                             spacing: 8
                             Text {
                                 visible: !!msgItem.m.picture
@@ -1832,53 +2489,23 @@ Window {
                     Text {
                         id: errorText
                         visible: msgItem.m.role === "error"
+                        x: 16
+                        y: metaRow.height + 6
                         width: msgItem.maxWidth
-                        text: msgItem.m.text + "\n\nKolla nätverket, eller lägg till fler tjänster under AI-tjänster."
+                        text: msgItem.m.text + "\n\nKolla nätverket, eller lägg till fler tjänster under Inställningar."
                         wrapMode: Text.WordWrap
                         color: "#E8A0A4"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 14
                     }
 
-                    // The AI's avatar with its name under it, left of the answer (20 Oct) – only when it has one
-                    Column {
-                        id: avatarBox
-                        visible: msgItem.m.role === "assistant" && backend.avatar !== ""
-                        width: 64
-                        spacing: 6
-                        Rectangle {
-                            width: 64
-                            height: 64
-                            color: "#07090D"
-                            border.width: 1
-                            border.color: "#1E2A40"
-                            Image {
-                                anchors { fill: parent; margins: 1 }
-                                source: backend.avatar
-                                sourceSize: Qt.size(128, 128)
-                                fillMode: Image.PreserveAspectCrop
-                                cache: false
-                                asynchronous: true
-                            }
-                        }
-                        Text {
-                            width: parent.width
-                            horizontalAlignment: Text.AlignHCenter
-                            elide: Text.ElideRight
-                            text: backend.aiName || "Goblin AI"
-                            color: "#E6ECF5"
-                            font.family: "IBM Plex Sans"
-                            font.weight: Font.DemiBold
-                            font.pixelSize: 12
-                        }
-                    }
-
                     // The answer: text, command cards, new file versions, code
                     Column {
                         id: answer
                         visible: msgItem.m.role === "assistant"
-                        x: avatarBox.visible ? 80 : 0
-                        width: msgItem.maxWidth - x
+                        x: 16
+                        y: metaRow.height + 6
+                        width: msgItem.maxWidth
                         spacing: 14
 
                         // "▸ 4 steg · 12,3 s": what was done, folded out on a click
@@ -2156,7 +2783,7 @@ Window {
                                                 visible: segItem.s.state === "error"
                                                 spacing: 10
                                                 FlatButton { small: true; primary: true; text: "Försök igen"; onClicked: backend.retryImage(msgItem.index, segItem.index) }
-                                                FlatButton { small: true; text: "AI-tjänster"; onClicked: win.view = "settings" }
+                                                FlatButton { small: true; text: "Inställningar"; onClicked: win.view = "settings" }
                                             }
                                         }
 
@@ -2307,7 +2934,7 @@ Window {
                                             text: segItem.s.state === "running" ? "Kör…"
                                                 : segItem.s.state === "skipped" ? (segItem.s.level === "change" ? "Inte tillåtet" : "Hoppades över")
                                                 : "Klart" + (segItem.s.code_result !== undefined && segItem.s.code_result !== null && segItem.s.code_result !== 0 ? " (fel " + segItem.s.code_result + ")" : "")
-                                                  + (segItem.s.level === "change" ? "  ·  ångra under AI-tjänster → Körda kommandon" : "")
+                                                  + (segItem.s.level === "change" ? "  ·  ångra under Inställningar → Körda kommandon" : "")
                                             color: "#8B98AD"
                                             font.family: "IBM Plex Sans"
                                             font.pixelSize: 13
@@ -2444,12 +3071,6 @@ Window {
                             visible: !msgItem.m.stopped  // STOPP: nothing to copy, save or ♥
                             width: parent.width  // wraps when the window is narrow (Skicka till Claude made it long)
                             spacing: 14
-                            Text {
-                                text: msgItem.m.service || ""
-                                color: "#5C6880"
-                                font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
-                            }
                             Text {
                                 text: "Kopiera svaret"
                                 color: copyArea.containsMouse ? "#E6ECF5" : "#5C6880"
@@ -2667,7 +3288,7 @@ Window {
                             width: parent.width
                             wrapMode: Text.WordWrap
                             text: (msgItem.m.thumb ? "👎 Undvik: " : "♥ Lärdom: ") + (msgItem.m.lesson || "")
-                                  + "   (ändra eller ta bort under AI-tjänster → Lärdomar)"
+                                  + "   (ändra eller ta bort under Inställningar → Lärdomar)"
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 12
@@ -2681,7 +3302,7 @@ Window {
                 }
             }
 
-            // ── Own buttons (20 Oct): a saved instruction with its own model, AI-tjänster → Egna knappar ──
+            // ── Own buttons (20 Oct): a saved instruction with its own model, Inställningar → Egna knappar ──
             // As words like the rest of the input (26 Oct); also /<namn>
             Flow {
                 id: ownButtons
@@ -3204,7 +3825,7 @@ Window {
         Item {
             id: learnView
             visible: win.view === "learn"
-            anchors { left: parent.left; leftMargin: win.sideSpace; right: parent.right; top: parent.top; bottom: parent.bottom }
+            anchors.fill: viewArea
 
             // ── Choosing: goal, tracks, own goal, level, the teacher ──
             Flickable {
@@ -3343,7 +3964,7 @@ Window {
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: win.pickOrder === "local-only"
-                              ? "Bara lokalt: frågor och kod lämnar aldrig datorn" + (win.localStatus.installed ? "." : " – kräver lokal AI (AI-tjänster → Lokal AI).")
+                              ? "Bara lokalt: frågor och kod lämnar aldrig datorn" + (win.localStatus.installed ? "." : " – kräver lokal AI (Inställningar → Lokal AI).")
                               : "Svårare frågor kan gå till molntjänsterna (Claude m.fl.) – din kod skickas då dit."
                         color: !win.localStatus.installed && win.pickOrder === "local-only" ? accent.errorBright : "#8B98AD"
                         font.family: "IBM Plex Sans"
@@ -3738,7 +4359,7 @@ Window {
             id: projectView
             FastWheel { flick: projectView }
             visible: win.view === "project" && !!win.project
-            anchors { left: parent.left; leftMargin: win.sideSpace; right: parent.right; top: parent.top; bottom: parent.bottom }
+            anchors.fill: viewArea
             contentHeight: projCol.height + 80
             clip: true
             boundsBehavior: Flickable.StopAtBounds
@@ -3830,7 +4451,7 @@ Window {
                     width: parent.width
                     spacing: 8
                     Repeater {
-                        model: [{ "id": "inherit", "name": "Som i AI-tjänster" }, { "id": "local-first", "name": "Lokalt först" },
+                        model: [{ "id": "inherit", "name": "Som i Inställningar" }, { "id": "local-first", "name": "Lokalt först" },
                                 { "id": "cloud-first", "name": "Molnet först" }, { "id": "local-only", "name": "Bara lokalt" },
                                 { "id": "cloud-only", "name": "Bara molnet" }]
                         FlatButton {
@@ -3847,7 +4468,7 @@ Window {
                     wrapMode: Text.WordWrap
                     visible: !!win.project && win.project.order === "local-only"
                     text: win.localStatus.installed ? "Bara lokalt: inget i projektet lämnar datorn – inte heller nätsökningar."
-                                                    : "Bara lokalt kräver lokal AI – installera den under AI-tjänster → Lokal AI."
+                                                    : "Bara lokalt kräver lokal AI – installera den under Inställningar → Lokal AI."
                     color: win.localStatus.installed ? "#8B98AD" : accent.errorBright
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 13
@@ -3874,7 +4495,7 @@ Window {
                         FlatButton {
                             small: true
                             primary: !!win.project && !win.project.models[roleFlow.modelData.id]
-                            text: "Som i AI-tjänster"
+                            text: "Som i Inställningar"
                             onClicked: win.editProject(p => { delete p.models[roleFlow.modelData.id]; })
                         }
                         Repeater {
@@ -3943,7 +4564,7 @@ Window {
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Kräver en Tavily-nyckel (AI-tjänster). Gäller aldrig Bara lokalt."
+                        text: "Kräver en Tavily-nyckel (Inställningar). Gäller aldrig Bara lokalt."
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13
@@ -4002,11 +4623,80 @@ Window {
 
         // ── Settings: AI services and keys ───────────────────────
 
+        // INSTÄLLNINGAR's menu (1 Nov): the sections; a click shows it, the one on screen is marked
+        Rectangle {
+            id: settingsNav
+            visible: win.view === "settings"
+            x: viewArea.x
+            y: viewArea.y
+            width: viewArea.width > 900 ? 210 : 0
+            height: viewArea.height
+            color: "transparent"
+            clip: true
+            Rectangle {
+                anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+                width: 1
+                color: "#1A2438"
+            }
+            Column {
+                y: 14
+                width: parent.width - 1
+                Repeater {
+                    model: settings.sections
+                    PanelRow {
+                        required property var modelData
+                        required property int index
+                        height: 34
+                        showMark: false
+                        text: modelData.name
+                        chosen: settings.current === index
+                        onClicked: settings.jump(modelData.item)
+                    }
+                }
+            }
+            Text {
+                anchors { left: parent.left; leftMargin: 12; right: parent.right; rightMargin: 12; bottom: parent.bottom; bottomMargin: 12 }
+                visible: text !== ""
+                text: backend.version
+                elide: Text.ElideRight
+                color: "#5C6880"
+                font.family: "IBM Plex Mono"
+                font.pixelSize: 10
+            }
+        }
+
         Flickable {
             id: settings
             FastWheel { flick: settings }
             visible: win.view === "settings"
-            anchors { left: parent.left; leftMargin: win.sideSpace; right: parent.right; top: parent.top; bottom: parent.bottom }
+            anchors { fill: viewArea; leftMargin: settingsNav.width }
+            // Show a section (the menu, KAKAN's avatar, MODELLER's Hantera …); a folded card opens
+            function jump(item) {
+                if (item.open !== undefined)
+                    item.open = true;
+                Qt.callLater(() => { contentY = Math.max(0, Math.min(item.y + settingsCol.y - 20, contentHeight - height)); });
+            }
+            readonly property var sections: [
+                { name: "Namn", item: setName, key: "kakan" }, { name: "Avatar", item: setAvatar },
+                { name: "Minne", item: memCard }, { name: "Lärdomar", item: lessonCard },
+                { name: "Körda kommandon", item: cmdLogCard }, { name: "Verktyg (MCP)", item: mcpCard },
+                { name: "Egna knappar", item: dailyCard }, { name: "Lokal AI", item: setLocal, key: "lokal" },
+                { name: "Skapa bilder", item: setImage }, { name: "AI-tjänster och nycklar", item: setKeys }]
+            readonly property int current: {
+                let c = -1;
+                for (let i = 0; i < sections.length; i++)
+                    if (sections[i].item.y + settingsCol.y <= contentY + 80)
+                        c = i;
+                return c;
+            }
+            Connections {
+                target: win
+                function onSettingsJumpChanged() {
+                    const s = settings.sections.find(x => x.key === win.settingsJump);
+                    if (s)
+                        settings.jump(s.item);
+                }
+            }
             contentHeight: settingsCol.height + 80
             clip: true
             boundsBehavior: Flickable.StopAtBounds
@@ -4019,7 +4709,7 @@ Window {
                 spacing: 16
 
                 Text {
-                    text: "AI-TJÄNSTER"
+                    text: "INSTÄLLNINGAR"
                     color: "#E6ECF5"
                     font.family: "Chakra Petch"
                     font.weight: Font.Bold
@@ -4045,6 +4735,7 @@ Window {
 
                 // ── The AI's own name (16 Oct) ──
                 Rectangle {
+                    id: setName
                     width: settingsCol.width
                     height: nameCol.height + 36
                     color: "#0E1420"
@@ -4143,6 +4834,7 @@ Window {
 
                 // ── The AI's avatar (20 Oct): own picture or one it draws ──
                 Rectangle {
+                    id: setAvatar
                     width: settingsCol.width
                     height: avatarCol.height + 36
                     color: "#0E1420"
@@ -5356,6 +6048,7 @@ Window {
 
                 // ── Local AI (15 Oct): Ollama on this computer ──
                 Rectangle {
+                    id: setLocal
                     width: settingsCol.width
                     height: localCol.height + 36
                     color: "#0E1420"
@@ -5732,6 +6425,7 @@ Window {
 
                 // ── Pictures (16 Oct): drawn on this computer, else in the cloud ──
                 Rectangle {
+                    id: setImage
                     width: settingsCol.width
                     height: imageCol.height + 36
                     color: "#0E1420"
@@ -5992,6 +6686,8 @@ Window {
                     }
                 }
 
+                // Where the services and their keys begin (INSTÄLLNINGAR → AI-tjänster)
+                Item { id: setKeys; width: 1; height: 1 }
                 Repeater {
                     model: JSON.parse(backend.providers)
 

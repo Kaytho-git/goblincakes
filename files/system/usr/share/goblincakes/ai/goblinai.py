@@ -119,7 +119,7 @@ CLOUDFLARE = {
 }
 SERVICES = PROVIDERS + [CLOUDFLARE, SEARCH]
 
-# Local AI (15 Oct): Ollama on this computer (/usr/libexec/goblincakes-ollama, Goblin AI → AI-tjänster →
+# Local AI (15 Oct): Ollama on this computer (/usr/libexec/goblincakes-ollama, Goblin AI → Inställningar →
 # Lokal AI) – no key, nothing leaves the computer. Its place among the services is the user's choice
 # ("order" in ~/.config/goblincakes/ollama.json): local first (default), cloud first, only local, only cloud.
 LOCAL = {
@@ -271,14 +271,14 @@ def local_models(messages, project=None):
             raise ServiceError("Ollama startar inte") from None
         return local_models(messages, project)
     if not ids:
-        raise ServiceError("ingen modell hämtad än (AI-tjänster → Lokal AI)")
+        raise ServiceError("ingen modell hämtad än (Inställningar → Lokal AI)")
     roles = dict(local_settings()["roles"])
     roles.update({r: m for r, m in ((project or {}).get("models") or {}).items() if m})
     if has_images(messages):
         # A picture: only the models that see pictures, the one for pictures first
         seeing = [m for m in ids if local_sees(m)]
         if not seeing:
-            raise ServiceError("ingen hämtad modell kan se bilder – hämta t.ex. qwen3-vl:8b under AI-tjänster → Lokal AI")
+            raise ServiceError("ingen hämtad modell kan se bilder – hämta t.ex. qwen3-vl:8b under Inställningar → Lokal AI")
         first = [m for m in (roles.get("bild"), roles.get("vardag")) if m in seeing]
         return list(dict.fromkeys(first + seeing))
     want = [roles.get("kod")] if CODE_WORDS.search(typed_question(messages)) else []
@@ -2349,7 +2349,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     LAST.mcp_names = {w: t["mcp"] for w, t in tools.items() if t.get("mcp")}
     LAST.tools = []
     if forced and "sök" not in tools and notice:
-        notice("Sökningen gick inte: " + ("ingen Tavily-nyckel (AI-tjänster → Tavily)" if not keys.get(SEARCH["env"])
+        notice("Sökningen gick inte: " + ("ingen Tavily-nyckel (Inställningar → Tavily)" if not keys.get(SEARCH["env"])
                                           else "inte här (projektet söker inte, eller en bild är med)"))
     if not tools:
         return ask_once(messages, keys, status, notice, project, choice)
@@ -2848,7 +2848,7 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice="", 
         # Automatic never sends a picture of the screen (or a photo) to the cloud: only the local AI
         if not local_settings()["installed"]:
             raise ServiceError("Bilder skickas bara till lokal AI när Automatiskt är valt, och den är inte installerad "
-                               "(AI-tjänster → Lokal AI). Vill du skicka bilden till en tjänst i molnet: välj en modell vid Skicka.")
+                               "(Inställningar → Lokal AI). Vill du skicka bilden till en tjänst i molnet: välj en modell vid Skicka.")
         try:
             models = local_models(messages, project)
         except ServiceError as e:
@@ -2911,7 +2911,7 @@ def ask_once(messages, keys, status=None, notice=None, project=None, choice="", 
                 notice(f"{provider['name']}: {e} – provar nästa")
     if not errors:
         if project and project.get("order") == "local-only":
-            raise ServiceError("Projektet får bara använda lokal AI, men den är inte installerad (AI-tjänster → Lokal AI).")
+            raise ServiceError("Projektet får bara använda lokal AI, men den är inte installerad (Inställningar → Lokal AI).")
         raise ServiceError("Ingen AI-tjänst är inställd.")
     raise ServiceError("Ingen AI-tjänst svarade.\n" + "\n".join(errors))
 
@@ -3665,7 +3665,7 @@ def goblin_commands():
             "`goblin help` visar samma lista):\n" + "\n".join(lines))
 
 
-NAME_FILE = CONFIG / "ai-name"  # the name the user gave the AI (AI-tjänster → Namn), e.g. Kakan
+NAME_FILE = CONFIG / "ai-name"  # the name the user gave the AI (Inställningar → Namn), e.g. Kakan
 
 
 def ai_name():
@@ -3770,9 +3770,9 @@ def self_prompt():
         lines.append("- Frågar någon hur du ser ut: svara kort, en eller två meningar om dig själv (hår, ansikte, kläder) – "
                      "inte bakgrunden, ljuset eller bildutsnittet. De detaljerna är bara till när du ritar dig själv.")
         lines.append("- Ritar du dig själv, utgå från avataren. Ny avatar: knappen \"Använd som avatar\" under en bild, "
-                     "eller AI-tjänster → Avatar.")
+                     "eller Inställningar → Avatar.")
     else:
-        lines.append("- Du har ingen avatar än. Användaren kan välja en bild eller be dig rita en (AI-tjänster → Avatar).")
+        lines.append("- Du har ingen avatar än. Användaren kan välja en bild eller be dig rita en (Inställningar → Avatar).")
     lines.append("- Du kör lokalt på användarens dator när Lokal AI används (Ollama), annars hos den AI-tjänst som står "
                  "under svaret. Du minns det som står i Minnet och lärdomarna, inte tidigare chattar.")
     return "\n".join(lines)
@@ -5379,11 +5379,11 @@ def _make_image(prompt, fmt, keys, project=None, status=None, notice=None, progr
     if not errors:
         if project and project.get("order") == "local-only":
             raise ServiceError("Projektet får bara använda din dator, men bildprogrammet är inte installerat "
-                               "(AI-tjänster → Skapa bilder).")
+                               "(Inställningar → Skapa bilder).")
         raise ServiceError("Inget kan skapa bilder än: installera bildprogrammet eller lägg in en "
-                           "Cloudflare-nyckel under AI-tjänster.")
+                           "Cloudflare-nyckel under Inställningar.")
     hint = ("" if keys.get(CLOUDFLARE["env"]) else
-            "\nTips: med en gratis Cloudflare-nyckel (AI-tjänster) ritas bilder i molnet när din dator inte kan.")
+            "\nTips: med en gratis Cloudflare-nyckel (Inställningar) ritas bilder i molnet när din dator inte kan.")
     raise ServiceError("Bilden kunde inte skapas.\n" + "\n".join(errors) + hint)
 
 
