@@ -11,6 +11,11 @@ power cable are left out (power supply: yes). An empty list = nothing wireless w
 A Logitech mouse charging on its cable is a plain USB device: the kernel shows no battery for it then and it
 vanished from the top bar (30 Oct, G502 X PLUS). Then the mouse itself is asked over HID++ (hidraw, readable
 without root): the Unified Battery feature 0x1004 gives percent and charging.
+
+Logitech's estimate sags right after a full charge: 100 % on the cable, 91 % once unplugged (31 Oct) –
+the battery is full but its resting voltage is lower. The first reading after a full charge is kept as the
+top in ~/.cache/goblincakes/device-battery.json and top…50 is stretched to 100…50; below 50 the device's own
+number is shown, so the widget's colours (green ≥ 50, orange, red ≤ 10) change at the real levels.
 """
 import json
 import os
@@ -25,6 +30,8 @@ KINDS = {"mouse", "keyboard", "headset", "headphones", "gaming-input", "touchpad
          "pen", "tablet", "speakers", "remote control"}
 # Devices that only know a level, not a percentage (some Logitech mice)
 LEVELS = {"full": 100, "high": 80, "normal": 55, "low": 20, "critical": 5}
+STATE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "goblincakes/device-battery.json"
+FLOOR = 50  # below this the device's own percent is shown (the green/orange line)
 
 
 def _hidpp(fd, feature, function, params=b""):
@@ -69,8 +76,38 @@ def wired_logitech():
             # state of charge, level, charging status (1/2 = charging, 3 = full), external power
             found.append({"kind": "keyboard" if "keyboard" in name.lower() else "mouse",
                           "name": re.sub(r"^Logitech\s+", "", name), "percent": status[4],
-                          "charging": status[6] in (1, 2, 3)})
+                          "charging": status[6] in (1, 2, 3), "full": status[6] == 3})
     return found
+
+
+def compensate(devices):
+    """Stretch the sag after a full charge: the first reading off the charger counts as 100 % (see top)."""
+    try:
+        state = json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        state = {}
+    before = dict(state)
+    for d in devices:
+        key = re.sub(r"^Logitech\s+", "", d["name"])  # the cable and the receiver name it differently
+        full = d.pop("full", False) or d["percent"] >= 100
+        if d["charging"]:
+            state[key] = {"full": full}
+            continue
+        seen = state.get(key, {})
+        if seen.get("full") and not seen.get("top"):
+            seen = state[key] = {"full": True, "top": d["percent"]}
+        top = seen.get("top")
+        if top and FLOOR < d["percent"] <= top < 100:
+            d["percent"] = min(100, round(FLOOR + (d["percent"] - FLOOR) * (100 - FLOOR) / (top - FLOOR)))
+        elif top and top < d["percent"]:
+            state[key] = {"full": True, "top": min(d["percent"], 100)}
+    if state != before:
+        try:
+            STATE.parent.mkdir(parents=True, exist_ok=True)
+            STATE.write_text(json.dumps(state))
+        except OSError:
+            pass
+    return devices
 
 
 def main():
@@ -104,10 +141,11 @@ def main():
             "name": info.get("model") or kind,
             "percent": percent,
             "charging": info.get("state") in ("charging", "fully-charged"),
+            "full": info.get("state") == "fully-charged",
         })
     if not any(d["kind"] in ("mouse", "keyboard") for d in devices):
         devices += wired_logitech()
-    print(json.dumps(devices, ensure_ascii=False))
+    print(json.dumps(compensate(devices), ensure_ascii=False))
 
 
 if __name__ == "__main__":

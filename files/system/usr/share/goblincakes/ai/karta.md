@@ -42,6 +42,9 @@ Ord: toppfält, toppfältet, panel, widget, spelas nu, nowplaying, batteri, ladd
 Kontroll: `/usr/libexec/goblincakes-device-battery`
 Kontroll: `grep -n 'Command:' /usr/share/plasma/plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml ~/.local/share/plasma/plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml`
 - Enheter utan batteri i UPower (många sladdade headset) syns inte – det är inget fel.
+- Efter en full laddning visar widgeten 100 % fast musen själv säger t.ex. 91 % – avsiktligt: musens första
+  siffra efter laddningen sparas som topp i ~/.cache/goblincakes/device-battery.json och räknas om till 100 %
+  (ner till 50 %, under det visas musens egen siffra). Skiljer sig siffran från G HUB/upower är det inget fel.
 
 ## Toppfältet: uppdateringspilen och uppdateringar
 Ord: uppdatering, uppdatera, update, grön pil, pilen, goblin update, automatiska uppdateringar, ny version, stäng av, rpm-ostree, flatpak
