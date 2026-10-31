@@ -2399,7 +2399,10 @@ Window {
                                 }
                             }
                             Repeater {
-                                model: receiptBox.open && receiptBox.r ? receiptBox.r.items : []
+                                // What went wrong always shows (the user 31 Oct: the receipt's ✗ rows say more than her
+                                // answer); the ✓ rows behind the click
+                                model: !receiptBox.r ? [] : receiptBox.open ? receiptBox.r.items
+                                       : receiptBox.r.items.filter(i => !i.ok)
                                 Row {
                                     id: receiptRow
                                     required property var modelData
