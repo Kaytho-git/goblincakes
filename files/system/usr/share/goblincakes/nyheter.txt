@@ -1,3 +1,4 @@
+2026-10-31  WoW Stats: rutan "M+ i tid" visas inte längre på raid-fliken
 2026-10-31  CS2 Stats visar bara Competitive och Premier, PRIVAT bara privata servrar – casual, rush och wingman räknas inte längre
 2026-10-30  Lagmätaren: rapporten visar nu också spelets grafikinställningar (WoW och CS2) och vad de betyder bredvid mätningen – t.ex. fullt grafikkort med högt grafikläge eller inget fps-tak. Kakan föreslår ändringar i spelets meny men rör aldrig spelets filer.
 2026-10-30  Goblin AI: under Kakans svar står nu ett kvitto – vad hon läste, körde och ändrade. Säger hon att något är klart men kortet väntar på Tillåt, ett kommando gav fel eller hon inte kollade efteråt, så står det där – och hon får själv veta det och kollar eller rättar innan hon säger klart igen.

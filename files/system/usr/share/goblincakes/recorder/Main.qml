@@ -2382,6 +2382,7 @@ Window {
         // the chosen part, or the one there is something in
         readonly property string sec: win.wowSection === "mplus" && hasKeys || !hasRaid ? "mplus" : "raid"
         readonly property bool keys: sec === "mplus"
+        readonly property int tiles: keys ? 6 : 5 // the tile row (no M+ in time on the raid tab)
         readonly property var s: keys ? d.mplus : r // best/median for the tiles
         // the same before the latest day you played (the arrows)
         readonly property var b: (keys ? (d.before || {}).mplus : ((d.before || {}).raid || {})[win.wowShownDiff]) || {}
@@ -2503,7 +2504,7 @@ Window {
                 visible: !!wowPage.d.player
                 spacing: 28
                 Flow {
-                    width: 6 * 112 + 5 * 6
+                    width: wowPage.tiles * 112 + (wowPage.tiles - 1) * 6
                     spacing: 6
                     StatTile {
                         label: "BÄSTA SNITT " + wowPage.metric
@@ -2536,16 +2537,17 @@ Window {
                     }
                     StatTile { label: "ITEM LEVEL"; value: wowPage.d.ilvl ? String(wowPage.d.ilvl) : "–"; tip: "Din item level i den senaste loggen." }
                     StatTile {
-                        label: wowPage.keys ? "NYCKLAR" : "M+ I TID"
-                        value: wowPage.keys ? String(wowPage.d.mplus.runs) : wowPage.d.mplus ? wowPage.d.mplus.timed + "/" + wowPage.d.mplus.runs : "–"
-                        tip: wowPage.keys ? "Inspelade nycklar." : "Inspelade nycklar i tid av alla."
+                        visible: wowPage.keys // not M+ in time on the raid tab (31 Oct, the user)
+                        label: "NYCKLAR"
+                        value: String(wowPage.d.mplus.runs)
+                        tip: "Inspelade nycklar."
                     }
                 }
                 Bars {
                     visible: wowPage.trend.length > 1
                     title: "PARSE ÖVER TID (" + wowPage.metric + ")"
                     barHeight: 34 // the same height as the tiles beside it
-                    maxWidth: wowCol.width - (6 * 112 + 5 * 6) - 28
+                    maxWidth: wowCol.width - (wowPage.tiles * 112 + (wowPage.tiles - 1) * 6) - 28
                     info: "Bara pulls och nycklar som GoblinRecorder spelat in. Parse = Warcraft Logs (healers på HPS, övriga på DPS); "
                           + "ILVL % = mot spelare med samma item level; i Mythic+ är parsen mot samma nyckelnivå (som Warcraft Logs) och ALLA % mot alla nivåer; ILVL = din, AVG.ILVL = gruppens snitt i den killen. "
                           + "Klicka på en rad i tabellen för att öppna din bästa i Warcraft Logs."
