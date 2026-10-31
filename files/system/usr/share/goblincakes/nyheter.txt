@@ -1,3 +1,4 @@
+2026-11-01  Goblin AI startar maximerat, och texten har samma storlek vare sig fönstret är maximerat eller inte.
 2026-11-01  Goblin AI har fått nytt utseende: rutor för Kakan, projekt, kommandon och modeller (med hur mycket av Claude- och ChatGPT-kvoten som är kvar), och flikarna Svar, Chattar, Lär dig koda och Inställningar. På en stående skärm hamnar rutorna överst.
 2026-11-01  Goblin AI: lägg till dina egna projektmappar under Projekt – ett klick öppnar mappen i VS Code eller startar Claude Code i terminalen där.
 2026-10-31  GoblinRecorder: CS2-demos på workshop-kartor (t.ex. Cobblestone på egen server) får nu också TTD och sikte – kartans väggar tas fram ur kartfilen första gången.

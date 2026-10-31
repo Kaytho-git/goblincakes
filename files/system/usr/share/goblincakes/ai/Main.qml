@@ -21,6 +21,7 @@ Window {
     // KOMMANDON and MODELLER left of the big box with the tabs SVAR · CHATTAR · LÄR DIG KODA · INSTÄLLNINGAR;
     // on a standing screen (portrait) the boxes are a row above it. Square corners, the accent only.
     readonly property bool portrait: zoomRoot.height > zoomRoot.width
+    property bool shownOnce: !startQuick
     readonly property int gap: 10
     readonly property int sideWidth: 330   // the boxes' column (lying screen)
     readonly property int rowHeight: 300   // the boxes' row (standing screen)
@@ -556,6 +557,8 @@ Window {
     Component.onCompleted: {
         reload();
         history = JSON.parse(backend.inputHistory());
+        if (!startQuick)
+            showMaximized();  // starts maximized (1 Nov, the user's wish)
         backend.refreshModels();  // MODELLER shows them at once
         backend.refreshQuota();
     }
@@ -639,7 +642,11 @@ Window {
             toast.show(text);
         }
         function onRaiseWindow() {
-            win.show();
+            if (!win.visible && !win.shownOnce)
+                win.showMaximized();  // started for the quick box only: the first time maximized too
+            else
+                win.show();
+            win.shownOnce = true;
             win.raise();
             win.requestActivate();
         }
@@ -1121,7 +1128,9 @@ Window {
     // the same small text in a corner: zoom up to 1.3 × when the window is bigger than its start size.
     Item {
         id: zoomRoot
-        readonly property real zoom: Math.max(1, Math.min(1.3, win.width / 1120, win.height / 800))
+        // The size follows the screen, not the window (1 Nov, the user: the text was another size in a smaller window
+        // than maximized) – the same as maximized always; a standing screen gets what its width allows
+        readonly property real zoom: Math.max(1, Math.min(1.3, Screen.width / 1120, Screen.desktopAvailableHeight / 800))
         width: win.width / zoom
         height: win.height / zoom
         scale: zoom
