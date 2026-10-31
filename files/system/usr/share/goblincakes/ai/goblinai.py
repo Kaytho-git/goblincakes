@@ -2173,8 +2173,16 @@ def receipt(display, index):
     when nothing was read, run or changed and nothing is claimed. items = [{"text", "ok"}] in the order it happened;
     state = "ok" (done and looked at afterwards), "warn" (changed, not looked at), "no" (not done) or ""."""
     items, events = [], []  # events: (kind, ok) – kind "read", "change", "fail", "wait", "skip"
-    count = {"read": 0, "ran": 0, "fail": 0, "changed": 0, "wait": 0}
+    count = {"read": 0, "ran": 0, "fail": 0, "changed": 0, "wait": 0, "stuck": 0}
+    stuck = []
     for m in _chain(display, index):
+        # Where she got stuck on the way (the user 31 Oct: the receipt showed what she did, not where it went wrong) –
+        # last in the list, after what she did
+        for st in m.get("steps") or []:
+            if st.get("state") in ("fel", "gräns", "stopp"):
+                note = f" – {st['note']}" if st.get("note") and st["note"] != st["state"] else ""
+                stuck.append({"text": f"fastnade: {st.get('text', '')[:90]}{note}", "ok": False})
+                count["stuck"] += 1
         for tool, query in m.get("tools") or []:
             if tool in RECEIPT_NONE:
                 continue
@@ -2247,12 +2255,14 @@ def receipt(display, index):
             verdict, state, kind = "Klart – ändrat och kontrollerat efteråt.", "ok", "ok"
         elif "unseen" in events:
             verdict, state, kind = "Kördes i terminalen – kolla där att det gick bra.", "warn", "terminal"
+    items += stuck
     if not items and not verdict:
         return None
     parts = [f"läste {count['read']}" if count["read"] else "",
              f"körde {count['ran']}" + (f" ({count['fail']} fel)" if count["fail"] else "") if count["ran"] else "",
              f"ändrade {count['changed']}" if count["changed"] else "",
-             f"väntar {count['wait']}" if count["wait"] else ""]
+             f"väntar {count['wait']}" if count["wait"] else "",
+             f"fastnade {count['stuck']}" if count["stuck"] else ""]
     line = " · ".join(p for p in parts if p) or "inget gjort"
     return {"line": line, "items": items[-20:], "verdict": verdict, "state": state, "kind": kind}
 
@@ -2728,7 +2738,9 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         steps.start(sys_tools().describe(query) if tool == "leta" else f"{name}{': ' + query[:80] if query else ''}")
         try:
             text, found = run(query)
-            steps.done()
+            # A tool that answered "couldn't" is a step that failed – the receipt shows where she got stuck (31 Oct)
+            stuck = isinstance(text, str) and re.match(r"(?:Inget kort gjort|Inget bytt|Gick inte|Det gick inte)\b", text)
+            steps.done("fel", text.split(":", 1)[-1]) if stuck else steps.done()
             LAST.done.append((tool, query, "" if tool in ("sök", "leta", "sida") else text))
         except Exception as e:  # noqa: BLE001 – ServiceError, wowtools.ToolError, the network
             steps.done("fel", e)

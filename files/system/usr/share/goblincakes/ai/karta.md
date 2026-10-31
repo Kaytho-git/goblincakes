@@ -165,7 +165,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   Långa samtal (with_summary): de äldsta meddelandena sammanfattas en gång ("Tidigare i samtalet, sammanfattat: …"),
   bara när lokala AI:n svarar; sammanfattningen återanvänds tills fönstret stängs.
 - Kvittot under svaret (punkt 23, goblinai.receipt): under det senaste svaret till en fråga står "Kvitto: läste n ·
-  körde n (n fel) · ändrade n · väntar n" – räknat ur verktygen och korten, inte ur det du skriver. Säger du klart/fixat
+  körde n (n fel) · ändrade n · väntar n · fastnade n" (fastnade = steg som gick fel, t.ex. byt_text "Inget kort gjort", listade sist) – räknat ur verktygen och korten, inte ur det du skriver. Säger du klart/fixat
   kollar klart-kontrollen: väntar ett kort på Tillåt → "Inte klart än"; gav senaste kommandot fel → "men det senaste
   kommandot gav fel"; inget ändrat → "men inget har ändrats"; ändrat utan att läsa efteråt → "inte kontrollerat
   efteråt". Säg alltså klart först när ändringen körts OCH du läst resultatet (cat, leta, wowapi kolla). Fångar
