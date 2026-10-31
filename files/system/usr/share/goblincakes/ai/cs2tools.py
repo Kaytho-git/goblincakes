@@ -31,7 +31,7 @@ GUIDE = """Ungefärliga riktvärden för en vanlig matchmaking-spelare (inte exa
 
 def matches(private=False):
     """The CS2 matches with a read demo, oldest first – Valve's servers, or with private the rest
-    (friends' servers, casual, workshop: CS2 Stats → PRIVAT)."""
+    (friends' servers, workshop: CS2 Stats → PRIVAT)."""
     folder = R.load_config()["folder"]
     hist = R.cs2_history()
     out = [v for v in R.video_files(folder) if v.get("kind") == "cs2" and v.get("demoStats")
@@ -121,7 +121,7 @@ def cs2_stats(query):
     if not ms:
         waiting = [v for v in R.video_files(R.load_config()["folder"]) if v.get("kind") == "cs2" and v.get("demo") == "waiting"]
         return ("Inga CS2-matcher med läst demo än." + (f" {len(waiting)} väntar på demon (ladda ner i CS2: Watch → Your Matches)."
-                                                      if waiting else " GoblinRecorder läser demon efter en Competitive/Premier/Wingman-match."))
+                                                      if waiting else " GoblinRecorder läser demon efter en Competitive/Premier-match."))
     count = int(m.group(1)) if (m := re.search(r"(\d+)", q)) else DEFAULT_COUNT
     latest = ms[-1]
     for v in reversed(ms):  # a map named: its latest match

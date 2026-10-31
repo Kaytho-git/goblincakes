@@ -3073,6 +3073,10 @@ def cs2_history_add(metas):
             e["demoDir"] = Path(v.get("demoFile") or "").parent.name
         if (hist.get(key) or {}).get("manual") is not None:
             e["manual"] = hist[key]["manual"]
+        if cs2_private(e, hist) is None:  # casual, rush, wingman … on Valve's servers – not kept
+            if hist.pop(key, None) is not None:
+                changed = True
+            continue
         if hist.get(key) != e:
             hist[key], changed = e, True
     if changed:
@@ -3082,28 +3086,30 @@ def cs2_history_add(metas):
         tmp.replace(CS2_HISTORY)
 
 
-# Your real numbers = Premier/Competitive/Wingman on Valve's servers (24 Oct, the user: Saturdays on
-# friends' private server – other maps, for fun, not always sober – gave a crooked picture). The rest
-# is under PRIVAT in CS2 Stats: a demo from another server, a workshop map, a mode without ranked games
-# (casual …). A match can be moved by hand (the match unfolded → Flytta till …).
-OFFICIAL_MODES = ("competitive", "scrimcomp2v2", "premier", "wingman")
+# Your real numbers = Premier/Competitive on Valve's servers (24 Oct, the user: Saturdays on
+# friends' private server – other maps, for fun, not always sober – gave a crooked picture). Private
+# servers are under PRIVAT in CS2 Stats: a demo from another server, your own `record`, a workshop map.
+# Everything else on Valve's servers (casual, rush, wingman, deathmatch …) is in neither (31 Oct, the
+# user). A match can be moved by hand (the match unfolded → Flytta till …).
+OFFICIAL_MODES = ("competitive", "premier")
 
 
 def cs2_private(e, hist=None):
+    """True = PRIVAT, False = CS2 Stats, None = not in CS2 Stats at all."""
     manual = e.get("manual") if "manual" in e else \
         ((hist if hist is not None else cs2_history()).get(str(int(e.get("started") or 0))) or {}).get("manual")
     if manual is not None:
         return bool(manual)
     server = e.get("server") if "server" in e else e.get("demoServer")
     demo_dir = e.get("demoDir") if "demoDir" in e else (Path(e["demoFile"]).parent.name if e.get("demoFile") else None)
-    if server:
-        return not re.match(r"valve\b", server, re.I)
-    if demo_dir is not None and demo_dir != "replays":  # your own `record` – Valve's come from Watch → Your Matches
+    mode = (e.get("mode") or e.get("difficulty") or "").lower()
+    if server and not re.match(r"valve\b", server, re.I):
+        return True
+    if not server and demo_dir is not None and demo_dir != "replays":  # your own `record` – Valve's come from Watch → Your Matches
         return True
     if "workshop" in (e.get("map") or "").lower():
         return True
-    mode = (e.get("mode") or e.get("difficulty") or "").lower()
-    return mode not in OFFICIAL_MODES
+    return False if mode in OFFICIAL_MODES else None
 
 
 def cs2_set_private(started, private):
@@ -3130,8 +3136,9 @@ def cs2_overview(folder, count=10, season="", private=False):
     for m in hist.values():  # the card in Inspelningar, while it is there
         f = Path(folder) / (m.get("file") or "")
         m["path"] = str(f) if m.get("file") and f.with_suffix(".json").is_file() else ""
-    side = [m for m in hist.values() if cs2_private(m, hist) == private]
-    other = len(hist) - len(side)
+    kinds = [(m, cs2_private(m, hist)) for m in hist.values()]
+    side = [m for m, k in kinds if k == private]
+    other = sum(k == (not private) for m, k in kinds)
     seasons_ = season_list("cs2", side)
     chosen = next((x for x in seasons_ if x["key"] == season), seasons_[0] if seasons_ else None)
     ms = sorted(in_season(side, chosen), key=lambda v: v.get("started", 0))

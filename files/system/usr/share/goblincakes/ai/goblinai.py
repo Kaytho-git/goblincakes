@@ -1076,8 +1076,8 @@ eller en karta, t.ex. `Mirage`), t.ex.
 ```cs2
 senaste 10
 ```
-Siffrorna gäller matcher på Valves servrar (Premier/Competitive/Wingman). Frågar användaren om matcherna på
-privata servrar (kompisarnas server, casual, workshop), lägg till `privat`, t.ex. `privat senaste 10`.
+Siffrorna gäller matcher på Valves servrar (Premier/Competitive). Frågar användaren om matcherna på
+privata servrar (kompisarnas server, workshop), lägg till `privat`, t.ex. `privat senaste 10`.
 Du får då användarens egna siffror ur GoblinRecorders lästa demos: senaste matchen, snittet, match för match
 och ungefärliga riktvärden."""
 
@@ -1497,7 +1497,7 @@ def tools_for(keys, project, messages):
     if cs2_on:
         tools["cs2"] = tool("Läser dina CS2-siffror", CS2_PROMPT, CS2_GUIDE, lambda q: (cs2_tools().cs2_stats(q), []), "cs2",
                             "När användaren frågar om sina CS2-matcher, sin statistik, sitt snitt eller vad hen ska träna "
-                            "på: egna siffror ur GoblinRecorders lästa demos (Valves servrar: Premier/Competitive/Wingman) – "
+                            "på: egna siffror ur GoblinRecorders lästa demos (Valves servrar: Premier/Competitive) – "
                             "senaste matchen, snittet, match för match, riktvärden.",
                             "`senaste`, antal matcher (`senaste 20`) eller en karta (`Mirage`); lägg till `privat` för "
                             "matcher på privata servrar")

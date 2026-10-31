@@ -2686,13 +2686,13 @@ Window {
                 spacing: 8
                 Choice {
                     text: "CS2 STATS"
-                    sub: "Premier, Competitive och Wingman på Valves servrar – dina riktiga siffror"
+                    sub: "Premier och Competitive på Valves servrar – dina riktiga siffror"
                     chosen: !win.cs2Private
                     onPicked: { win.cs2Private = false; win.cs2Season = ""; win.cs2Open = 0; }
                 }
                 Choice {
                     text: "PRIVAT" + (!win.cs2Private && cs2Page.d.other ? " (" + cs2Page.d.other + ")" : "")
-                    sub: "Privata servrar, casual och workshop-kartor – räknas inte in i CS2 Stats"
+                    sub: "Privata servrar och workshop-kartor – räknas inte in i CS2 Stats"
                     chosen: win.cs2Private
                     onPicked: { win.cs2Private = true; win.cs2Season = ""; win.cs2Open = 0; }
                 }
@@ -2717,7 +2717,7 @@ Window {
                 SectionTitle { text: (cs2Page.d.seasons || []).length > 1 ? "INGA MATCHER I " + cs2Page.d.seasons[0].name.toUpperCase() + " ÄN" : "INGA CS2-SIFFROR ÄN" }
                 Note {
                     width: parent.width
-                    text: ((cs2Page.d.seasons || []).length > 1 ? "Ny säsong – de äldre säsongerna finns under Arkiv nedanför. " : "") + "CS2 Stats sammanställs av matcherna du spelar med CS2 inkopplat (Competitive/Premier/Wingman, inte deathmatch) – "
+                    text: ((cs2Page.d.seasons || []).length > 1 ? "Ny säsong – de äldre säsongerna finns under Arkiv nedanför. " : "") + "CS2 Stats sammanställs av matcherna du spelar med CS2 inkopplat (Competitive/Premier – inte Wingman, Casual eller Deathmatch) – "
                           + "kills, huvudskott och dödsfall direkt; ladda ner demon i CS2 (Watch → Your Matches) för ADR, KAST, entry, clutchar m.m."
                           + (cs2Page.d.waiting ? " " + cs2Page.d.waiting + " match(er) väntar på demon nu." : "")
                 }
