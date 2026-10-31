@@ -233,6 +233,10 @@ Ord: goblinrecorder, recorder, inspelning, spela in, obs, film, raid, mythic, m+
   "target not found" i journalen). Tjänsten startar då om OBS en gång själv. Kommer rutan ändå: välj skärmen. Tryck
   aldrig Reload på källan Skärm (då glöms valet). Valet: `flatpak permissions screencast`, OBS logg
   ~/.var/app/com.obsproject.Studio/config/obs-studio/logs/ ("Asking for monitor" utan "source selected").
+- CS2-demon läses med demoparser2/awpy (/usr/lib/goblincakes/demoparser). Kartornas väggar (TTD/sikte):
+  ~/.cache/goblincakes/awpy/ (Valves kartor); workshop-kartor görs ur kartans .vpk med Source 2 Viewer
+  (~/.cache/goblincakes/source2viewer/, hämtas första gången) → ~/.cache/goblincakes/awpy/workshop/<id>-*.mesh.
+  Gick det inte: en .failed bredvid (nytt försök efter ett dygn). Egen demo (record) saknar motståndarnas namn.
 Kontroll: `systemctl --user is-active goblincakes-recorder`
 Kontroll: `journalctl --user -u goblincakes-recorder -n 15 --no-pager`
 

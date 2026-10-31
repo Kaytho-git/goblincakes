@@ -24,8 +24,11 @@ import statistics
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
+import urllib.request
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -924,8 +927,8 @@ STEAM_ROOTS = [HOME / ".local/share/Steam", HOME / ".steam/steam",
                HOME / ".var/app/com.valvesoftware.Steam/.local/share/Steam"]
 
 
-def cs2_cfg_dir():
-    """The game's cfg folder in whichever Steam library CS2 is in, or None."""
+def steam_libraries():
+    """Every Steam library folder (the Steam roots and those in libraryfolders.vdf)."""
     libraries = []
     for root in STEAM_ROOTS:
         libraries.append(root)
@@ -934,7 +937,12 @@ def cs2_cfg_dir():
         except OSError:
             continue
         libraries += [Path(p.replace("\\\\", "\\")) for p in re.findall(r'"path"\s+"([^"]+)"', text)]
-    for lib in libraries:
+    return list(dict.fromkeys(libraries))
+
+
+def cs2_cfg_dir():
+    """The game's cfg folder in whichever Steam library CS2 is in, or None."""
+    for lib in steam_libraries():
         d = lib / "steamapps/common/Counter-Strike Global Offensive/game/csgo/cfg"
         if d.is_dir():
             return d
@@ -1318,7 +1326,8 @@ def cs2_demo_load(path):
     players = players or names
     header = p.parse_header()
     return {
-        "map": header.get("map_name", ""), "server": str(header.get("server_name") or ""), "players": players, "start": start,
+        "map": header.get("map_name", ""), "server": str(header.get("server_name") or ""),
+        "addons": str(header.get("addons") or ""), "players": players, "start": start,
         "roundEnds": round_ends, "freeze": [{"tick": t, "players": at.get(t, {})} for t in freeze],
         "deaths": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "killer": _sid(r.get("attacker_steamid")),
                     "assister": _sid(r.get("assister_steamid")), "flash": _flag(r.get("assistedflash")),
@@ -1567,6 +1576,159 @@ def cs2_map_mesh(map_name):
         return None
 
 
+
+# Workshop maps (de_cbble on DatHost, 31 Oct): awpy only has Valve's maps, so the walls come out of the map's own .vpk
+# with Source 2 Viewer (ValveResourceFormat's CLI – it only reads the game's files), fetched the first time it's needed
+S2V_VERSION = "20.1"
+S2V_URL = f"https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/{S2V_VERSION}/cli-linux-x64.zip"
+S2V_DIR = CACHE_DIR / "source2viewer"
+S2V_FILES = ("Source2Viewer-CLI", "libSkiaSharp.so", "libspirv-cross.so")
+WORKSHOP_MESH_DIR = AWPY_DIR / "workshop"
+WORKSHOP_RETRY = 24 * 3600  # a map that couldn't be made: tried again after this long
+# Collision that doesn't hide anyone: player/NPC clips, ladders, fences bullets pass, windows – and glass
+NOT_WALLS = {"playerclip", "npcclip", "ladder", "passbullets", "window"}
+SEE_THROUGH = {"glass"}
+
+
+def cs2_workshop_vpk(addon="", map_name=""):
+    """The workshop map's .vpk: by its id (the demo's addons, GSI's workshop/<id>/<map>) or by the map's name in it."""
+    found = re.match(r"workshop/(\d+)/", map_name or "")
+    ids = re.findall(r"\d+", addon or "") + ([found.group(1)] if found else [])
+    name = (map_name or "").rsplit("/", 1)[-1]
+    folders = [lib / "steamapps/workshop/content/730" for lib in steam_libraries()]
+    for folder in folders:
+        for i in ids:
+            for vpk in sorted((folder / i).glob("*.vpk")):
+                return vpk
+    if name:
+        for folder in folders:
+            for vpk in folder.glob("*/*.vpk"):
+                try:
+                    with vpk.open("rb") as f:
+                        head = f.read(1 << 20)  # the file list is at the start
+                except OSError:
+                    continue
+                if b"\0" + name.encode() + b"\0" in head:
+                    return vpk
+    return None
+
+
+def source2viewer():
+    """Source 2 Viewer's CLI in the cache (fetched from its GitHub release the first time), or None."""
+    cli = S2V_DIR / "Source2Viewer-CLI"
+    stamp = S2V_DIR / ".version"
+    if cli.is_file() and stamp.is_file() and stamp.read_text().strip() == S2V_VERSION:
+        return cli
+    S2V_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = S2V_DIR / "cli.zip.part"
+    try:
+        socket.setdefaulttimeout(60)
+        urllib.request.urlretrieve(S2V_URL, tmp)
+        with zipfile.ZipFile(tmp) as z:
+            for name in S2V_FILES:  # only the files we know – nothing else from the zip
+                if name in z.namelist():
+                    (S2V_DIR / name).write_bytes(z.read(name))
+        cli.chmod(0o755)
+        stamp.write_text(S2V_VERSION)
+    except (OSError, zipfile.BadZipFile) as e:
+        print(f"Source 2 Viewer gick inte att hämta: {e}", file=sys.stderr)
+        return None
+    finally:
+        tmp.unlink(missing_ok=True)
+    return cli if cli.is_file() else None
+
+
+def glb_to_mesh(glb, out):
+    """The physics glTF (Source 2 Viewer's *_physics.glb) as awpy's .mesh: "AWMH", version 1, vertex and triangle
+    counts (u32), the vertices (3 × f32, Hammer units – the mesh's own coordinates; the node matrix only turns them
+    into glTF's metres, Y up) and the triangles (3 × u32). Clips, ladders and glass are left out. → triangle count."""
+    data = Path(glb).read_bytes()
+    size = struct.unpack_from("<I", data, 12)[0]
+    doc = json.loads(data[20:20 + size])
+    at = 20 + size
+    binary = data[at + 8:at + 8 + struct.unpack_from("<I", data, at)[0]]
+
+    def array(index, kind):
+        acc = doc["accessors"][index]
+        view = doc["bufferViews"][acc["bufferView"]]
+        width = {"VEC3": 3, "SCALAR": 1}[acc["type"]]
+        fmt = {5126: "f", 5125: "I", 5123: "H", 5121: "B"}[acc["componentType"]]
+        step = struct.calcsize(fmt) * width
+        stride = view.get("byteStride") or step
+        start = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
+        return [struct.unpack_from("<" + fmt * width, binary, start + i * stride) for i in range(acc["count"])]
+
+    verts, tris = [], []
+    for node in doc.get("nodes", []):
+        extras = node.get("extras") or {}
+        if "mesh" not in node or set(extras.get("InteractAs") or []) & NOT_WALLS \
+                or str(extras.get("SurfaceProperty", "")).lower() in SEE_THROUGH:
+            continue
+        for prim in doc["meshes"][node["mesh"]]["primitives"]:
+            if prim.get("mode", 4) != 4 or "indices" not in prim:
+                continue
+            base = len(verts)
+            verts += array(prim["attributes"]["POSITION"], "VEC3")
+            idx = [i[0] for i in array(prim["indices"], "SCALAR")]
+            tris += [(base + idx[k], base + idx[k + 1], base + idx[k + 2]) for k in range(0, len(idx) - 2, 3)]
+    if not tris:
+        raise ValueError("inga väggar i kartan")
+    tmp = Path(out).with_suffix(".part")
+    with tmp.open("wb") as f:
+        f.write(b"AWMH" + struct.pack("<III", 1, len(verts), len(tris)))
+        f.write(b"".join(struct.pack("<3f", *v) for v in verts))
+        f.write(b"".join(struct.pack("<3I", *t) for t in tris))
+    tmp.replace(out)
+    return len(tris)
+
+
+def cs2_workshop_mesh(addon="", map_name=""):
+    """The walls of a workshop map as an awpy .mesh (made once per map version, ~1 min), or None."""
+    vpk = cs2_workshop_vpk(addon, map_name)
+    if not vpk:
+        return None
+    WORKSHOP_MESH_DIR.mkdir(parents=True, exist_ok=True)
+    out = WORKSHOP_MESH_DIR / f"{vpk.parent.name}-{int(vpk.stat().st_mtime)}.mesh"
+    failed = out.with_suffix(".failed")
+    if out.is_file():
+        return out
+    if failed.is_file() and time.time() - failed.stat().st_mtime < WORKSHOP_RETRY:
+        return None
+    cli = source2viewer()
+    if not cli:
+        return None
+    work = Path(tempfile.mkdtemp(prefix="workshop-", dir=CACHE_DIR))
+
+    def s2v(*args):
+        return subprocess.run(["nice", str(cli), *args], capture_output=True, text=True, timeout=900,
+                              cwd=work).stdout
+
+    try:
+        listed = s2v("-i", str(vpk), "-l")
+        inner = re.search(r"^(maps/[^/\s]+\.vpk)\s", listed, re.M)  # the map's own .vpk inside the addon's
+        if inner:
+            s2v("-i", str(vpk), "--vpk_filepath", inner.group(1), "-o", str(work))
+            vpk_in = work / inner.group(1)
+            listed = s2v("-i", str(vpk_in), "-l")
+        else:
+            vpk_in = vpk
+        phys = re.search(r"^(maps/\S+/world_physics\.vmdl_c)\s", listed, re.M)
+        if not phys:
+            raise ValueError("ingen world_physics i kartan")
+        s2v("-i", str(vpk_in), "--vpk_filepath", phys.group(1), "-d", "--gltf_export_format", "glb",
+            "--gltf_export_extras", "-o", str(work / "walls"))
+        glb_to_mesh(work / "walls_physics.glb", out)
+        for old in WORKSHOP_MESH_DIR.glob(f"{vpk.parent.name}-*.mesh"):  # an older version of the map
+            if old != out:
+                old.unlink(missing_ok=True)
+        return out
+    except (OSError, ValueError, KeyError, struct.error, subprocess.SubprocessError) as e:
+        print(f"Workshop-kartans väggar gick inte att göra ({vpk.parent.name}): {e}", file=sys.stderr)
+        failed.touch()
+        return None
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
 def _seg_dist(a, b, c):
     """Distance from point c to the segment a–b."""
     ab = [b[i] - a[i] for i in range(3)]
@@ -1578,7 +1740,8 @@ def _seg_dist(a, b, c):
 
 def cs2_demo_aim(dem, raw, a, me):
     """{"ttd": ms (median), "cp": degrees (median), and how many encounters each} or {}."""
-    mesh = cs2_map_mesh(raw["map"])
+    official = raw["map"] and not raw["map"].startswith("workshop/")
+    mesh = (cs2_map_mesh(raw["map"]) if official else None) or cs2_workshop_mesh(raw.get("addons", ""), raw["map"])
     if not mesh:
         return {}
     from awpy import VisibilityChecker  # noqa: PLC0415
@@ -1621,12 +1784,14 @@ def cs2_demo_aim(dem, raw, a, me):
             seen_at.clear()
             return
         x, y, z, pitch, yaw, duck, alive, team = mine[:8]
+        if x != x or pitch != pitch:
+            return
         eye = (x, y, z + EYE - DUCK * duck)
         pr, yr = math.radians(pitch), math.radians(yaw)
         view = (math.cos(pr) * math.cos(yr), math.cos(pr) * math.sin(yr), -math.sin(pr))
         for sid, (ex, ey, ez, _p, _y, educk, ealive, eteam) in rows.items():
-            if sid == me or not ealive or eteam in (team, 0, 1):
-                continue
+            if sid == me or not ealive or eteam in (team, 0, 1) or ex != ex or ey != ey or ez != ez:
+                continue  # NaN: a player the server didn't send you (a demo you recorded yourself)
             head = (ex, ey, ez + EYE - DUCK * educk)
             d = math.dist(eye, head) or 1.0
             cosang = sum(view[i] * (head[i] - eye[i]) / d for i in range(3))
@@ -1637,7 +1802,9 @@ def cs2_demo_aim(dem, raw, a, me):
                 continue
             if tick - seen_at.get(sid, -10 ** 9) > AIM_GAP:  # a new encounter
                 cp.append(angle)
-                hit = next((t for t in my_hits.get(sid, []) if tick <= t <= tick + TTD_WINDOW), None)
+                # your hit on him – in a demo you recorded yourself the other team has no names: any nameless hit
+                hit = next((t for t in sorted(my_hits.get(sid, []) + my_hits.get("", [])) if tick <= t <= tick + TTD_WINDOW),
+                           None)
                 if hit is not None:
                     ttd.append((hit - tick) * 1000 / TICKRATE)
                 # reaction time: seen → your first shot
@@ -1656,7 +1823,7 @@ def cs2_demo_aim(dem, raw, a, me):
                 tick_done(cur, rows)
             rows, cur = {}, t
         rows[_sid(c["steamid"][i])] = (c["X"][i], c["Y"][i], c["Z"][i], c["pitch"][i], c["yaw"][i],
-                                       c["duck_amount"][i] or 0.0, bool(c["is_alive"][i]), int(c["team_num"][i] or 0))
+                                       _float(c["duck_amount"][i]), _flag(c["is_alive"][i]), _int(c["team_num"][i]))
     if cur is not None:
         tick_done(cur, rows)
     return {"ttd": round(statistics.median(ttd)) if ttd else None, "ttdCount": len(ttd),
