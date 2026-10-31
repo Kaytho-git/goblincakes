@@ -975,6 +975,15 @@ def byt_run(query):
         args = None
     if isinstance(args, dict):
         path, old, new = (str(args.get(k) or "") for k in ("fil", "gammal", "ny"))
+        if not old and re.search(r"\bgammal\s*=", path):
+            # gemma4 put all three in "fil" as `\n fil="…" gammal="…" ny="…"` – "the file doesn't exist" until she gave up
+            # and wrote the whole file again (gear round 15, 31 Oct)
+            pairs = {k: bytes(v, "utf-8").decode("unicode_escape") if "\\" in v else v
+                     for k, v in re.findall(r'\b(fil|gammal|ny)\s*=\s*"((?:[^"\\]|\\.)*)"', path, re.S)}
+            path, old, new = pairs.get("fil", path), pairs.get("gammal", old), pairs.get("ny", new)
+        found = re.search(r"(?:~|/)[^\"'\n]*?\.\w{1,5}(?=[\"'\s]|$)", path)
+        if found and not Path(os.path.expanduser(path.strip())).exists():
+            path = found.group(0)  # only the path in "fil", whatever else came with it
     else:
         first, _, rest = query.partition("\n")
         path = re.sub(r"^\s*(?:fil|file)\s*:\s*", "", first).strip().strip("\"'`")
@@ -984,6 +993,9 @@ def byt_run(query):
             return f"Inget kort gjort: {e}", []
     if not path:
         return "Inget kort gjort: filens hela sökväg saknas.", []
+    if not old:
+        return ('Inget kort gjort: "gammal" saknas. Tre fält: "fil" = bara sökvägen, "gammal" = raderna exakt som de '
+                'står i filen nu, "ny" = som de ska stå.'), []
     full = Path(os.path.expanduser(path))
     why = bytatext.check(full, old, new)
     if why:
