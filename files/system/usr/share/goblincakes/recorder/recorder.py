@@ -1240,6 +1240,38 @@ def _sid(v):
     return "" if v is None or v != v or v == "" else str(v).split(".")[0]
 
 
+def _float(value):
+    """A number from a demo row: missing and NaN (pandas' empty cell) = 0."""
+    try:
+        value = float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return 0.0 if math.isnan(value) else value
+
+
+def _flag(value):
+    """A yes/no from a demo row: NaN (pandas' empty cell) is no, not yes."""
+    return bool(value) and value == value
+
+
+def _int(value):
+    return int(_float(value))
+
+
+def _team(value):
+    """A team as CS2's number (2 = T, 3 = CT): demoparser2 now says "CT"/"T" for round_end's winner – every demo
+    crashed on int("CT") (DatHost test demo, 31 Oct)."""
+    text = str(value or "").strip().upper()
+    if text in ("CT", "COUNTER-TERRORIST", "COUNTERTERRORIST"):
+        return 3
+    if text in ("T", "TERRORIST", "TERRORISTS"):
+        return 2
+    try:
+        return int(float(text or 0))
+    except ValueError:
+        return 0
+
+
 def cs2_demo_load(path):
     """What we use of a demo, as plain lists (no pandas outside this function)."""
     if str(DEMO_LIB) not in sys.path:
@@ -1263,15 +1295,18 @@ def cs2_demo_load(path):
         return sorted((r for r in rows(event, **kw, **other) if r["tick"] >= start and not r.get("is_warmup_period")),
                       key=lambda r: r["tick"])
 
-    round_ends = [{"tick": r["tick"], "winner": int(r.get("winner") or 0)} for r in live_rows("round_end")]
+    round_ends = [{"tick": r["tick"], "winner": _team(r.get("winner"))} for r in live_rows("round_end")]
     freeze = [r["tick"] for r in live_rows("round_freeze_end")]
+    names = {}  # from the ticks: a demo you record yourself has no player list (DatHost test demo, 31 Oct)
     at = {}  # freeze-end tick → {steamid: [team, alive, equipment value]}
     if freeze:
         try:
-            df = p.parse_ticks(["team_num", "is_alive", "current_equip_value"], ticks=freeze)
+            df = p.parse_ticks(["team_num", "is_alive", "current_equip_value", "name"], ticks=freeze)
             for r in df.to_dict("records"):
-                at.setdefault(r["tick"], {})[_sid(r["steamid"])] = [int(r["team_num"] or 0), bool(r["is_alive"]),
-                                                                    int(r["current_equip_value"] or 0)]
+                if _sid(r["steamid"]) not in ("", "0") and isinstance(r.get("name"), str):
+                    names[_sid(r["steamid"])] = r["name"]
+                at.setdefault(r["tick"], {})[_sid(r["steamid"])] = [_int(r["team_num"] or 0), bool(_int(r["is_alive"])),
+                                                                    _int(r["current_equip_value"] or 0)]
         except Exception:  # noqa: BLE001
             pass
     players = {}
@@ -1280,26 +1315,27 @@ def cs2_demo_load(path):
             players[_sid(r["steamid"])] = str(r["name"])
     except Exception:  # noqa: BLE001
         pass
+    players = players or names
     header = p.parse_header()
     return {
         "map": header.get("map_name", ""), "server": str(header.get("server_name") or ""), "players": players, "start": start,
         "roundEnds": round_ends, "freeze": [{"tick": t, "players": at.get(t, {})} for t in freeze],
         "deaths": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "killer": _sid(r.get("attacker_steamid")),
-                    "assister": _sid(r.get("assister_steamid")), "flash": bool(r.get("assistedflash")),
-                    "weapon": str(r.get("weapon") or ""), "hs": bool(r.get("headshot")),
-                    "wall": int(r.get("penetrated") or 0) > 0, "smoke": bool(r.get("thrusmoke")),
-                    "noscope": bool(r.get("noscope")), "blind": bool(r.get("attackerblind"))}
+                    "assister": _sid(r.get("assister_steamid")), "flash": _flag(r.get("assistedflash")),
+                    "weapon": str(r.get("weapon") or ""), "hs": _flag(r.get("headshot")),
+                    "wall": _int(r.get("penetrated") or 0) > 0, "smoke": _flag(r.get("thrusmoke")),
+                    "noscope": _flag(r.get("noscope")), "blind": _flag(r.get("attackerblind"))}
                    for r in live_rows("player_death")],
         "hurts": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "attacker": _sid(r.get("attacker_steamid")),
-                   "dmg": int(r.get("dmg_health") or 0), "health": int(r.get("health") or 0),
+                   "dmg": _int(r.get("dmg_health") or 0), "health": _int(r.get("health") or 0),
                    "weapon": str(r.get("weapon") or "")} for r in live_rows("player_hurt")],
         # n = the bullet's place in the spray (0 = the first), speed = how fast you moved (units/s)
         "fires": [{"tick": r["tick"], "who": _sid(r.get("user_steamid")), "weapon": str(r.get("weapon") or ""),
-                   "n": int(r.get("user_shots_fired") or 0),
-                   "speed": math.hypot(r.get("user_velocity_X") or 0.0, r.get("user_velocity_Y") or 0.0)}
+                   "n": _int(r.get("user_shots_fired") or 0),
+                   "speed": math.hypot(_float(r.get("user_velocity_X")), _float(r.get("user_velocity_Y")))}
                   for r in live_rows("weapon_fire", player=["shots_fired", "velocity_X", "velocity_Y"])],
         "blinds": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "attacker": _sid(r.get("attacker_steamid")),
-                    "time": float(r.get("blind_duration") or 0)} for r in live_rows("player_blind")],
+                    "time": _float(r.get("blind_duration") or 0)} for r in live_rows("player_blind")],
     }
 
 
@@ -1343,8 +1379,14 @@ def cs2_demo_analyse(raw, me):
             last = {"t": teams[r], "a": alive0[r]}
     my_team = [teams[r].get(me, 0) for r in range(n)]
 
+    # A demo you record yourself (record on DatHost, 31 Oct): the other team's players are never named in the
+    # events – a kill of yours has no victim. Then a nameless player is the other team.
+    pov = sum(1 for d in raw["deaths"] if not d["killer"] or not d["victim"]) > len(raw["deaths"]) / 2
+
     def enemy(r, sid):
-        return bool(sid) and teams[r].get(sid) not in (None, my_team[r])
+        if not sid:
+            return pov
+        return teams[r].get(sid) not in (None, my_team[r])
 
     def mate(r, sid):
         return bool(sid) and sid != me and teams[r].get(sid) == my_team[r]
@@ -1418,7 +1460,7 @@ def cs2_demo_analyse(raw, me):
         r = round_of(h["tick"])
         if r is None or h["attacker"] != me or not enemy(r, h["victim"]):
             continue
-        real = min(h["dmg"], health.get((r, h["victim"]), 100))
+        real = min(h["dmg"], health.get((r, h["victim"]), 100) if h["victim"] else h["dmg"] + h["health"], 100)
         health[(r, h["victim"])] = h["health"]
         dmg += real
         rounds[r]["dmg"] += real

@@ -1,3 +1,4 @@
+2026-10-31  GoblinRecorder: CS2-demos läses igen (de gick inte att läsa alls), och egna demos från en egen server (record) räknar nu dina kills och din skada.
 2026-10-31  Goblin AI: kvittot under svaret visar nu också var Kakan körde fast på vägen, inte bara vad hon gjorde
 2026-10-31  Goblin AI: korten som behöver Tillåt säger nu med vanliga ord vad som händer (t.ex. "Kopierar mappen till WoW:s tilläggsmapp") – koden ligger bakom knappen Visa koden, och kommer flera kort på en gång numreras de
 2026-10-31  Musens batteri visar 100 % efter full laddning i stället för att hoppa ner till runt 90 % när sladden dras ur – siffran sjunker jämnt och färgerna byter vid samma nivåer som förut
