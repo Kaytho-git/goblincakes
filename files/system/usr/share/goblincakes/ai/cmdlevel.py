@@ -724,6 +724,9 @@ def tidy(code):
     install's app ids are checked against Flathub. Lines with pipes, variables or several commands are left."""
     out = []
     for line in code.split("\n"):
+        # ~/Games/WoW/<version>/AddOns is a link to the game's disk: `find ~/Games/WoW -name "*gear*"` found nothing
+        # without -L and Kakan said the add-on wasn't in the WoW folder (31 Oct)
+        line = re.sub(r"^(\s*)find\s+(?!-[LHP]\b)(?=[\"']?(?:~|\$HOME|/home/[^/\s]+)/Games\b)", r"\1find -L ", line)
         w = _words(line)
         sub = next((a for a in w[1:] if not a.startswith("-")), "") if w[:1] == ["flatpak"] else ""
         if sub not in FLATPAK_CHANGE or re.search(r"[;&|`$<>(){}]", line):

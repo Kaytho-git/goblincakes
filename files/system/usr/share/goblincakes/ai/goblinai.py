@@ -1978,7 +1978,11 @@ def abilities(tools):
     return ("[Goblin AI: det här kan du göra just nu – dina verktyg, hela listan:]\n" + "\n".join(lines)
             + f"\n\nDu kan INTE: {CANNOT}. Allt som inte står ovan kan du inte göra själv – säg det ärligt, och "
             "säg inte att du kan något bara för att det låter rimligt. Är frågan en begäran (\"kan du öppna X?\"): "
-            "gör det med verktyget i stället för att beskriva." + NUDGE_NOTE)
+            "gör det med verktyget i stället för att beskriva. Kopiera, flytta, skapa mappar och ändra filer KAN du: "
+            "ett ```bash-kort (cp, mv, mkdir) eller byt_text som användaren trycker Tillåt på – säg aldrig att du saknar "
+            "tillgång till en mapp (\"Kan du lägga den i min addon-mapp?\" fick en instruktion att göra det själv i "
+            "Dolphin, 31 okt). WoW:s tilläggsmappar: ~/Games/WoW/<version>/AddOns (länkar till spelets disk – "
+            "find behöver -L)." + NUDGE_NOTE)
 
 
 def own_data_question(question, tools):
@@ -4500,8 +4504,10 @@ Hittar du inte orsaken efter att ha sökt och jämfört: säg "Det kan jag inte 
 # The user's own words that ask for something on the desktop (windows, programs, music, reminders …)
 DESK_ASKED = re.compile(r"fönster|öppna|starta|skärm|maximera|minimera|påminn|notis|urklipp|musik|låt\b|volym|"
                         r"spela upp|pausa|kalender", re.I)
-REPAIR_WHEN = (re.compile(BROKEN.pattern + r"|\b(?:visar|händer|syns|ritar)\s+(?:ingenting|inget|inte något)\b", re.I),
-               re.compile(r"(?:tillägg|addon|add-on|widget|plasmoid|skript|script)\w*|\bkod(?:en)?\b"
+# "/gear visar bara "Min Utrustning" … Det ska vara en ruta …" (31 Oct) was neither: no files laid before her, she guessed
+REPAIR_WHEN = (re.compile(BROKEN.pattern + r"|\b(?:visar|händer|syns|ritar)\s+(?:ingenting|inget|inte något)\b"
+                          r"|\b(?:visar|syns|kommer|står)\s+bara\b", re.I),
+               re.compile(r"(?:tillägg|addon|add-on|widget|plasmoid|skript|script)\w*|\bkod(?:en)?\b|(?:^|\s)/[a-z]\w+"
                           r"|\.(?:lua|toc|qml|py|sh|js)\b|~/", re.I))
 
 GUIDES = [(re.compile(r"\b(plasmoid\w*|kpackagetool6?|plasmawindowed|widgetmeny\w*)\b|\b(gör|göra|skapa|bygg\w*|ny|nytt|"
