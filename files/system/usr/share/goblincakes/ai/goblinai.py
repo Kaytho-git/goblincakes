@@ -963,6 +963,23 @@ BYT_GUIDE = """
 Säg i en mening vad det ändrar. Säger verktyget att texten inte finns: kopiera raderna exakt som de står och försök igen."""
 
 
+def byt_fields(text):
+    """`fil="…" gammal="…" ny="…"` in one field → {fil, gammal, ny}, cut at the field names, not at the quotes: the
+    code's own quotes (`string.format("%s…`) cut "gammal" in the middle of a line and it was never found (gear round 16)."""
+    marks = list(re.finditer(r'(?:^|(?<=\s)|(?<=\\))(fil|gammal|ny)\s*=\s*(?=")', text))
+    out = {}
+    for n, m in enumerate(marks):
+        v = text[m.end():marks[n + 1].start() if n + 1 < len(marks) else len(text)]
+        v = re.sub(r'[\s\\]+$', "", v)
+        if v.startswith('"'):
+            v = v[1:]
+            v = v[:-1] if v.endswith('"') else v
+        if '\\"' in v:  # \" inside a "…": the code's own quotes
+            v = v.replace('\\"', '"')
+        out.setdefault(m.group(1), v)
+    return out
+
+
 def byt_run(query):
     """The byt tool (30 Oct): the change checked against the file now, then the Tillåt card that makes it – gemma4's
     `sed -i '10,12c\\…\\n…'` left `\\n` as text in gear's code and she mended her own broken lines for six rounds."""
@@ -978,8 +995,7 @@ def byt_run(query):
         if not old and re.search(r"\bgammal\s*=", path):
             # gemma4 put all three in "fil" as `\n fil="…" gammal="…" ny="…"` – "the file doesn't exist" until she gave up
             # and wrote the whole file again (gear round 15, 31 Oct)
-            pairs = {k: bytes(v, "utf-8").decode("unicode_escape") if "\\" in v else v
-                     for k, v in re.findall(r'\b(fil|gammal|ny)\s*=\s*"((?:[^"\\]|\\.)*)"', path, re.S)}
+            pairs = byt_fields(path)
             path, old, new = pairs.get("fil", path), pairs.get("gammal", old), pairs.get("ny", new)
         found = re.search(r"(?:~|/)[^\"'\n]*?\.\w{1,5}(?=[\"'\s]|$)", path)
         if found and not Path(os.path.expanduser(path.strip())).exists():

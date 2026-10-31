@@ -57,6 +57,23 @@ def replace(text, old, new):
     # The new lines get the file's indentation where the old text's first line had another
     given, real = _indent(old.split("\n")[0]), _indent(have[i])
     out = [real + line[len(given):] if line.startswith(given) and line.strip() else line for line in new.split("\n")]
+    found = have[i:i + len(want)]
+    if [_indent(o) for o in old.split("\n")] != [_indent(h) for h in found]:
+        # Written without the file's indentation (gear round 16: every line with one space): the new lines are
+        # paired with the old ones in order – a kept or replaced line gets its old line's indentation
+        news = new.split("\n")
+        pairs = difflib.SequenceMatcher(None, [h.strip() for h in found], [x.strip() for x in news], autojunk=False)
+        indents = [None] * len(news)
+        for tag, a1, a2, b1, b2 in pairs.get_opcodes():
+            if tag in ("equal", "replace"):
+                for k in range(b1, b2):
+                    indents[k] = _indent(found[min(a1 + k - b1, a2 - 1)])
+        last, out = real, []
+        for line, ind in zip(news, indents):
+            if line.strip():
+                last = ind if ind is not None else last
+                line = last + line.strip()
+            out.append(line)
     if not new:
         out = []
     have[i:i + len(want)] = out
