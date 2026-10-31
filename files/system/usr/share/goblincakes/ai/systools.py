@@ -736,9 +736,23 @@ tjänster [text]                         – vilka tjänster som körs
 program [text]                          – installerade program (t.ex. program kalender)"""
 
 
+# Fields written into the line: 'filer namn="*gear*' looked for a file called namn="…gear… and found nothing (gear varv 16)
+FIELD = re.compile(r'(?<!\S)(?:namn|name|mönster|monster|pattern|program|tjänst|tjanst|service|mapp|folder|fil|file|'
+                   r'sökväg|sokvag|path|text|från|fran|till|i|in)\s*=\s*', re.I)
+
+
+def unfield(q):
+    """'filer namn="*gear*" i="~/x"' → 'filer *gear* i ~/x' (the word i/från/till stays as a word)."""
+    def keep(m):
+        word = m.group(0).split("=")[0].strip().lower()
+        return f"{word} " if word in ("i", "in", "från", "fran", "till") else ""
+    q = FIELD.sub(keep, q)
+    return " ".join(re.sub(r'(?<!\S)["\']|["\'](?!\S)', "", q).split())
+
+
 def describe(query):
     """A ```leta line in plain words, for the steps: "läs ~/x.json" → "Läser ~/x.json"."""
-    q = " ".join(query.split())
+    q = unfield(" ".join(query.split()))
     word, _, rest = q.partition(" ")
     word = word.lower().rstrip(":")
     m = re.match(r"(.+?)\s+(?:i|från|fran|med)\s+(.+)$", rest)
@@ -768,7 +782,7 @@ def describe(query):
 
 def look(query):
     """The text for the AI for one ```leta line."""
-    q = " ".join(query.split())
+    q = unfield(" ".join(query.split()))
     # A slip in the path: "~/ .config/goblincakes/" looked in the wrong place and found nothing (25 Oct)
     q = re.sub(r"(?<=~/)\s+|(?<=/)\s+(?=\.)", "", q)
     word, _, rest = q.partition(" ")
