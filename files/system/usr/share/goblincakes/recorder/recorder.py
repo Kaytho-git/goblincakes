@@ -1872,11 +1872,15 @@ def cs2_demo_run(dem, meta_path=None):
         candidates = [dict(v, path=str(Path(v["path"]).with_suffix(".json"))) for v in cs2_waiting(load_config()["folder"])
                       if v.get("started", 0) <= mtime]
     why = "Demon passar ingen match som väntar."
+    demo_map = raw.get("map", "")
     for meta in reversed(candidates):  # the newest match first
         me = cs2_demo_me(raw, meta.get("steamid", ""), meta.get("player", ""))
         if not me:
             why = f"Hittar inte {meta.get('player') or 'dig'} i demon."
             continue
+        # A demo you record yourself has no map name (DatHost, 31 Oct): the video's, from GSI – the map
+        # geometry for time to damage and crosshair placement goes by it
+        raw["map"] = demo_map or meta.get("map", "")
         a = cs2_demo_analyse(raw, me)
         if not cs2_demo_fits(meta, a):
             why = (f"Demon är {cs2_map_name(a['map'])} {a['score'][0]}–{a['score'][1]}, "
