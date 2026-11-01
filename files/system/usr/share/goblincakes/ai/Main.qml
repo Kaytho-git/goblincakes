@@ -14,7 +14,19 @@ Window {
     visible: !startQuick  // started for the quick box only: the window comes with the answer
     title: "Goblin AI"
     color: "#07090D"
-    onClosing: Qt.quit()
+    // Running terminals (the TERMINAL tab) end with the window: the first close only warns
+    property bool closeAnyway: false
+    onClosing: close => {
+        if (terminals.count() > 0 && !closeAnyway) {
+            close.accepted = false;
+            closeAnyway = true;
+            closeAgain.restart();
+            toast.show("Terminalerna avslutas när fönstret stängs – stäng igen för att stänga ändå");
+            return;
+        }
+        Qt.quit();
+    }
+    Timer { id: closeAgain; interval: 5000; onTriggered: win.closeAnyway = false }
 
     property string view: backend.hasKeys ? "chat" : "settings"
     // The layout (1 Nov, the user's wish – the sketch "Goblin AI – skiss ny layout"): boxes KAKAN, PROJEKT,
@@ -241,6 +253,7 @@ Window {
         { name: "testa", note: "kör Claudes testlista – /testa <namn>, /testa stopp", args: true },
         { name: "pdf", note: "spara senaste svaret som PDF" },
         { name: "word", note: "spara senaste svaret som Word" },
+        { name: "terminal", note: "en terminal här i fönstret – /terminal <kommando> kör det i den", args: true, hidden: !hasWeb },
         { name: "inställningar", note: "inställningar och AI-tjänster", aliases: ["settings"] },
         { name: "hjälp", note: "alla kommandon", aliases: ["help", "?"] }
     ].filter(c => !c.hidden).concat(onlyCommands).concat(ownCommands)
@@ -512,6 +525,9 @@ Window {
         case "word":
             saveLatest(c.name === "word");
             break;
+        case "terminal":
+            openTerminal("", arg);
+            break;
         case "inställningar":
             view = "settings";
             break;
@@ -597,7 +613,15 @@ Window {
     }
 
     function openTab(v) {
-        if (v === "learn") {
+        if (v === "terminal") {
+            view = "terminal";
+            if (!termLoader.active)
+                termLoader.active = true;  // the page opens the first shell itself
+            else if (termTabs.count === 0)
+                terminals.request("", "");
+            else
+                termLoader.item.focusTerminal();
+        } else if (v === "learn") {
             view = "learn";
             learnSetup = !course;
             if (course && !learnModuleId)
@@ -605,6 +629,12 @@ Window {
         } else {
             view = v;
         }
+    }
+    // TERMINAL (1 Nov): a new tab in a folder, with a command or a plain shell
+    function openTerminal(folder, command) {
+        view = "terminal";
+        terminals.request(folder || "", command || "");
+        termLoader.active = true;
     }
     // INSTÄLLNINGAR at a section (the avatar in KAKAN → "kakan", Hantera … in MODELLER → "lokal")
     function openSettings(section) {
@@ -1830,7 +1860,9 @@ Window {
                     height: parent.height
                     Repeater {
                         model: [{ v: "chat", label: "SVAR", mark: "◆" }, { v: "chats", label: "CHATTAR", mark: "≡" },
-                                { v: "learn", label: "LÄR DIG KODA", mark: "</>" }, { v: "settings", label: "INSTÄLLNINGAR", mark: "⚙" }]
+                                { v: "learn", label: "LÄR DIG KODA", mark: "</>" }]
+                               .concat(hasWeb ? [{ v: "terminal", label: "TERMINAL", mark: ">_" }] : [])
+                               .concat([{ v: "settings", label: "INSTÄLLNINGAR", mark: "⚙" }])
                         Item {
                             id: tab
                             required property var modelData
@@ -1944,6 +1976,171 @@ Window {
             y: mainBox.y + 1 + tabBar.height
             width: mainBox.width - 2
             height: mainBox.height - 2 - tabBar.height
+        }
+
+        // ── TERMINAL (1 Nov, the user): shells in tabs – xterm.js in TerminalView.qml, the shells in ptyterm.py ──
+        ListModel { id: termTabs }  // {sid, title}
+        property int termCurrent: 0
+        Connections {
+            target: terminals
+            function onOpened(sid, folder, command) {
+                const name = folder.replace(/\/+$/, "").split("/").pop() || "/";
+                termTabs.append({ sid: sid, title: (command.indexOf("claude") >= 0 ? "claude · " : "") + name });
+                zoomRoot.termCurrent = sid;
+                if (termLoader.item)
+                    termLoader.item.focusWeb();
+            }
+            function onTitled(sid, title) {
+                for (let i = 0; i < termTabs.count; i++)
+                    if (termTabs.get(i).sid === sid && title)  // Fedora's bash: user@host:~/folder → ~/folder
+                        termTabs.setProperty(i, "title", title.replace(/^[^@\s]+@[^:\s]+:\s*/, ""));
+            }
+            function onExited(sid) {
+                let at = -1;
+                for (let i = 0; i < termTabs.count; i++)
+                    if (termTabs.get(i).sid === sid)
+                        at = i;
+                if (at < 0)
+                    return;
+                termTabs.remove(at);
+                if (zoomRoot.termCurrent === sid && termTabs.count > 0) {
+                    zoomRoot.termCurrent = termTabs.get(Math.min(at, termTabs.count - 1)).sid;
+                    termLoader.item.show(zoomRoot.termCurrent);
+                }
+            }
+        }
+        Item {
+            id: terminalView
+            visible: win.view === "terminal"
+            anchors.fill: viewArea
+            onVisibleChanged: if (visible && termLoader.item) termLoader.item.focusTerminal()
+
+            Item {
+                id: termStrip
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: 34
+                Row {
+                    id: termRow
+                    x: 8
+                    height: parent.height
+                    Repeater {
+                        model: termTabs
+                        Item {
+                            id: termTab
+                            required property int sid
+                            required property string title
+                            readonly property bool on: zoomRoot.termCurrent === sid
+                            width: Math.min(220, termTabText.implicitWidth + 44)
+                            height: termRow.height
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.topMargin: 6
+                                color: termTab.on ? "#12203A" : termTabArea.containsMouse ? "#0E1420" : "transparent"
+                            }
+                            Text {
+                                id: termTabText
+                                anchors { left: parent.left; leftMargin: 12; right: termClose.left; rightMargin: 6; verticalCenter: parent.verticalCenter; verticalCenterOffset: 3 }
+                                elide: Text.ElideLeft
+                                text: termTab.title
+                                color: termTab.on ? "#E6ECF5" : "#8B98AD"
+                                font.family: "IBM Plex Mono"
+                                font.pixelSize: 11
+                            }
+                            MouseArea {
+                                id: termTabArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { zoomRoot.termCurrent = termTab.sid; termLoader.item.show(termTab.sid); }
+                            }
+                            Text {
+                                id: termClose
+                                anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter; verticalCenterOffset: 3 }
+                                text: "✕"
+                                color: termCloseArea.containsMouse ? accent.errorBright : "#5C6880"
+                                font.pixelSize: 10
+                                MouseArea {
+                                    id: termCloseArea
+                                    anchors { fill: parent; margins: -6 }
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: terminals.close(termTab.sid)
+                                }
+                            }
+                            Rectangle {
+                                visible: termTab.on
+                                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                                height: 2
+                                color: accent.color
+                            }
+                        }
+                    }
+                    Item {
+                        width: 36
+                        height: termRow.height
+                        Text {
+                            anchors.centerIn: parent
+                            anchors.verticalCenterOffset: 3
+                            text: "+"
+                            color: termPlus.containsMouse ? accent.text : "#8B98AD"
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 16
+                        }
+                        MouseArea {
+                            id: termPlus
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: win.openTerminal("", "")
+                        }
+                    }
+                }
+                Text {
+                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter; verticalCenterOffset: 3 }
+                    visible: parent.width - termRow.width > 420
+                    text: "ctrl+shift+c/v kopiera/klistra · högerklick · ctrl+shift+t/w ny/stäng"
+                    color: "#5C6880"
+                    font.family: "IBM Plex Mono"
+                    font.pixelSize: 10
+                }
+                Rectangle {
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                    height: 1
+                    color: "#1A2438"
+                }
+            }
+            Loader {
+                id: termLoader
+                active: false
+                anchors { left: parent.left; right: parent.right; top: termStrip.bottom; bottom: parent.bottom }
+                source: "TerminalView.qml"
+            }
+            Column {
+                visible: termTabs.count === 0 && termLoader.status === Loader.Ready
+                anchors.centerIn: parent
+                spacing: 14
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Inga terminaler öppna"
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 14
+                }
+                FlatButton {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    primary: true
+                    text: "+  Ny terminal"
+                    onClicked: win.openTerminal("", "")
+                }
+            }
+            Text {
+                visible: termLoader.status === Loader.Error
+                anchors.centerIn: parent
+                text: "Terminalen gick inte att starta (QtWebEngine saknas?)"
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 14
+            }
         }
 
         // ── CHATTAR: the chats (of the chosen project), a search, + Ny chatt ──
@@ -2127,6 +2324,10 @@ Window {
                 y = Math.min(p.y, zoomRoot.height - height - 8);
                 visible = true;
             }
+            function here(command) {
+                visible = false;
+                win.openTerminal(folder.path, command);
+            }
             function run(how) {
                 visible = false;
                 const why = backend.openFolder(folder.path, how);
@@ -2162,7 +2363,9 @@ Window {
                     font.pixelSize: 10
                 }
                 PanelRow { height: 36; text: "Öppna i VS Code"; note: "som vanligt"; onClicked: folderMenu.run("code") }
-                PanelRow { height: 36; text: "Claude Code i terminalen"; note: "ny session"; onClicked: folderMenu.run("terminal") }
+                PanelRow { visible: hasWeb; height: 36; text: "Claude Code här"; note: "i TERMINAL"; onClicked: folderMenu.here(backend.claudeCommand()) }
+                PanelRow { visible: hasWeb; height: 36; text: "Terminal här"; note: "i TERMINAL"; onClicked: folderMenu.here("") }
+                PanelRow { height: 36; text: "Claude Code i eget fönster"; note: "Ghostty"; onClicked: folderMenu.run("terminal") }
                 PanelRow {
                     height: 32
                     dim: true

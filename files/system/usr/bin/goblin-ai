@@ -22,6 +22,7 @@ from pathlib import Path
 SHARE = Path(os.environ.get("GOBLIN_AI_SHARE", "/usr/share/goblincakes/ai"))
 sys.path.insert(0, str(SHARE))
 import goblinai  # noqa: E402
+import ptyterm  # noqa: E402
 import learn  # noqa: E402
 import testlist  # noqa: E402
 import toclaude  # noqa: E402
@@ -1824,6 +1825,13 @@ class Backend(QObject):
             return f"Kunde inte starta: {e}"
         return ""
 
+    @Slot(result=str)
+    def claudeCommand(self):
+        """Claude Code for a TERMINAL tab (a folder's menu → Claude Code här)."""
+        claude = toclaude.claude_path()
+        return ("'" + claude.replace("'", "'\\''") + "'" if claude
+                else "echo 'Claude Code finns inte – installera det i GOBLINCAKES Config → Program'")
+
     # ── The subscriptions' quota (MODELLER): what the top bar's widget saved (goblincakes-quota) ──
 
     quotaChanged = Signal()
@@ -2767,6 +2775,16 @@ def main():
     own_scale = "QT_SCALE_FACTOR" not in os.environ
     if own_scale:
         os.environ["QT_SCALE_FACTOR"] = "0.8"
+    try:
+        ui_scale = float(os.environ["QT_SCALE_FACTOR"])
+    except ValueError:
+        ui_scale = 1.0
+    try:  # the TERMINAL tab (xterm.js in a web view) – must come before the application; the rest works without it
+        from PySide6.QtWebEngineQuick import QtWebEngineQuick
+        QtWebEngineQuick.initialize()
+        web = True
+    except ImportError:
+        web = False
     app = QGuiApplication(sys.argv)
     if own_scale:
         del os.environ["QT_SCALE_FACTOR"]
@@ -2822,6 +2840,11 @@ def main():
 
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("backend", backend)
+    terminals = ptyterm.Terminals()
+    app.aboutToQuit.connect(terminals.close_all)
+    engine.rootContext().setContextProperty("terminals", terminals)
+    engine.rootContext().setContextProperty("hasWeb", web)
+    engine.rootContext().setContextProperty("uiScale", ui_scale)
     engine.rootContext().setContextProperty("startQuick", quick)
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO") or season_logo()))

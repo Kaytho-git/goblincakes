@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<!-- Goblin AI's TERMINAL tab: one xterm.js per tab, the shells in ptyterm.py over QWebChannel.
+     QML keeps the tab strip and calls show(id); the colours come in the address (?accent=…&size=…). -->
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="xterm.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #0B1018; overflow: hidden; }
+  .term { position: absolute; inset: 6px 4px 4px 10px; display: none; }
+  .term.on { display: block; }
+  .xterm-viewport::-webkit-scrollbar { width: 8px; }
+  .xterm-viewport::-webkit-scrollbar-thumb { background: #1E2A40; }
+  .xterm-viewport::-webkit-scrollbar-track { background: transparent; }
+</style>
+<script src="xterm.js"></script>
+<script src="addon-fit.js"></script>
+<script src="addon-web-links.js"></script>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body>
+<script>
+const q = new URLSearchParams(location.search);
+const accent = q.get("accent") || "#2F6FED";
+const fontSize = Number(q.get("size")) || 14;
+const theme = {
+  background: "#0B1018", foreground: "#E6ECF5", cursor: accent, cursorAccent: "#0B1018",
+  selectionBackground: accent + "66",
+  black: "#1A2438", red: "#E5484D", green: "#4CC38A", yellow: "#F5D90A", blue: "#5B8DEF",
+  magenta: "#B48EF0", cyan: "#4CCCE6", white: "#C7D0DD",
+  brightBlack: "#5C6880", brightRed: "#FF6369", brightGreen: "#6BDDA5", brightYellow: "#FFE45C",
+  brightBlue: "#82A9F5", brightMagenta: "#CBACF7", brightCyan: "#7CDDF0", brightWhite: "#FFFFFF"
+};
+
+let terms = null;           // ptyterm.Terminals
+const tabs = {};            // id → {term, fit, el}
+const early = {};           // output that came before open() answered
+let current = 0;
+let size = fontSize;        // Ctrl+Shift+plus/minus: every tab, new ones too
+
+function make(folder, command) {
+  const el = document.createElement("div");
+  el.className = "term on";
+  document.body.appendChild(el);
+  const term = new Terminal({
+    fontFamily: "'IBM Plex Mono', 'DejaVu Sans Mono', monospace", fontSize: size, lineHeight: 1.1,
+    cursorBlink: true, cursorStyle: "block", scrollback: 10000, theme: theme, allowProposedApi: true,
+    linkHandler: { activate: (e, uri) => terms.openUrl(uri) }
+  });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.loadAddon(new WebLinksAddon.WebLinksAddon((e, uri) => terms.openUrl(uri)));
+  term.open(el);
+  fit.fit();
+  // Ctrl+Shift+C/V like other Linux terminals; Ctrl+Shift+T/W = new/close tab; Ctrl+Shift+plus/minus/0 = text size
+  term.attachCustomKeyEventHandler(ev => {
+    if (ev.type !== "keydown" || !ev.ctrlKey || !ev.shiftKey) return true;
+    const k = ev.key.toLowerCase();
+    if (k === "c") { terms.copy(term.getSelection()); return false; }
+    if (k === "v") { terms.paste(text => term.paste(text)); return false; }
+    if (k === "t") { terms.request("", ""); return false; }
+    if (k === "w") { if (current) terms.close(current); return false; }
+    if (k === "+" || k === "=" || k === "_" || k === "-" || k === ")" || k === "0") {  // Ctrl+Shift+plus/minus/0: text size
+      size = k === ")" || k === "0" ? fontSize : Math.max(8, Math.min(32, size + (k === "_" || k === "-" ? -1 : 1)));
+      for (const id in tabs) tabs[id].term.options.fontSize = size;
+      if (tabs[current]) tabs[current].fit.fit();
+      return false;
+    }
+    return true;
+  });
+  el.addEventListener("contextmenu", ev => {  // right click: copy the selection, otherwise paste
+    ev.preventDefault();
+    if (term.hasSelection()) { terms.copy(term.getSelection()); term.clearSelection(); }
+    else terms.paste(text => term.paste(text));
+  });
+  terms.open(folder, command, term.cols, term.rows, id => {
+    tabs[id] = { term, fit, el };
+    term.onData(d => terms.write(id, d));
+    term.onResize(s => terms.resize(id, s.cols, s.rows));
+    term.onTitleChange(t => terms.setTitle(id, t));
+    if (early[id]) { term.write(early[id]); delete early[id]; }
+    show(id);
+  });
+}
+
+function show(id) {
+  if (!tabs[id]) return;
+  current = id;
+  for (const k in tabs) tabs[k].el.classList.toggle("on", Number(k) === id);
+  tabs[id].fit.fit();
+  tabs[id].term.focus();
+}
+
+function focusCurrent() {
+  if (tabs[current]) { tabs[current].fit.fit(); tabs[current].term.focus(); }
+}
+
+window.addEventListener("resize", () => { if (tabs[current]) tabs[current].fit.fit(); });
+
+new QWebChannel(qt.webChannelTransport, ch => {
+  terms = ch.objects.terms;
+  terms.output.connect((id, text) => {
+    if (tabs[id]) tabs[id].term.write(text);
+    else early[id] = (early[id] || "") + text;
+  });
+  terms.exited.connect(id => {
+    const t = tabs[id];
+    if (!t) return;
+    t.term.dispose();
+    t.el.remove();
+    delete tabs[id];
+  });
+  terms.wanted.connect((folder, command) => make(folder, command));
+  document.fonts.load(fontSize + "px 'IBM Plex Mono'").finally(() => terms.ready(list => {
+    list = JSON.parse(list);
+    if (!list.length) make("", "");
+    list.forEach(w => make(w[0], w[1]));
+  }));
+});
+</script>
+</body>
+</html>
