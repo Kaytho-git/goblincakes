@@ -1601,7 +1601,7 @@ Window {
                         font.letterSpacing: 3
                     }
                     Repeater {
-                        model: [win.modelName(backend.model),
+                        model: [win.modelName(backend.model) + (backend.memoryUse !== "" ? " · " + backend.memoryUse : ""),
                                 "minne " + kakanBox.memoryCount + " · lärdomar " + kakanBox.lessonCount,
                                 kakanBox.thinking ? (backend.status || "tänker …") : "redo"]
                         Text {

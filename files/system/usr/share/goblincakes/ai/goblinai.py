@@ -3232,9 +3232,21 @@ def tokens(messages):
     return int(chars / CHARS["per_token"])
 
 
+USAGE = {"tokens": 0, "at": 0.0}  # the local AI's last prompt (Ollama's own count) – the counter by the model (1 Nov)
+
+
+def usage_text():
+    """"21k / 64k" – how full the local AI's memory was at its last step, for the KAKAN box; "" for a while after."""
+    if not USAGE["tokens"] or time.time() - USAGE["at"] > 3600:
+        return ""
+    return f"{round(USAGE['tokens'] / 1000)}k / {round(local_context() / 1024)}k"
+
+
 def count_tokens(sent, reply, tools=None):
     """Ollama's usage of an answer → CHARS (the tools' descriptions are counted apart: ~3.7 characters/token)."""
     prompt = (reply.get("usage") or {}).get("prompt_tokens") or 0
+    if prompt and not getattr(QUICK, "on", False):  # side jobs (a part's notes, the search words) have their own memory
+        USAGE.update(tokens=prompt + ((reply.get("usage") or {}).get("completion_tokens") or 0), at=time.time())
     prompt -= len(json.dumps(tools, ensure_ascii=False)) / 3.7 if tools else 0
     if any(not isinstance(m.get("content"), str) for m in sent):
         return  # a picture: its tokens aren't characters
@@ -3465,6 +3477,8 @@ def chat(provider, key, model, messages, tools=None):
     code block in the text, see tool_call_block), else their prompts go into the system prompt.
     LAST.native says which it was (the tool's guide then comes with its answer)."""
     LAST.native = False
+    if not provider.get("local") and not getattr(QUICK, "on", False):
+        USAGE["tokens"] = 0  # a cloud service answers: the counter is the local AI's only
     blocks = "".join(t["prompt"] for t in (tools or {}).values())
     asked = messages
 

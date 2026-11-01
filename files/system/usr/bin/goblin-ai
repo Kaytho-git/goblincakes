@@ -1543,6 +1543,12 @@ class Backend(QObject):
     # ── Which code the window runs: the image's version, or the repo's last commit (30 Oct, the user: "uppdateras
     # länken till repo versionen?" – a window started before a fix kept the old code) ──
 
+    @Property(str, notify=stepsChanged)
+    def memoryUse(self):
+        """How full the local AI's memory was at its last step ("21k / 64k") – the user: "lite hum om hur mycket
+        utrymme det finns" (1 Nov). Updated with each step; "" when the last answer wasn't the local AI's."""
+        return goblinai.usage_text()
+
     @Property(str, constant=True)
     def version(self):
         try:
