@@ -2803,6 +2803,14 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             # receipt too: the same failed byt_text silently used up "högst 10 steg" after two visible tries (gear round 17)
             steps.start(f"Samma sak igen – körs inte: {tools[tool]['name']}")
             steps.done("fel", "redan gjort i den här frågan")
+            if tool == "byt" and getattr(LAST, "cards", []):
+                # The card is made and waits for Tillåt – she sent the same byt_text again and again ("Det har du redan
+                # hämtat" didn't stop her: nothing had changed in the file yet, gear round 20). The answer as it is,
+                # the card goes under it.
+                messages.pop()
+                answer = re.sub(r"```[\w-]*[ \t]*\n?.*?```", "", answer, flags=re.S).strip() or (
+                    "Ändringen är klar att göra – tryck **Tillåt** på kortet nedan, så ändras filen.")
+                break
             messages.append({"role": "user", "content": "[Goblin AI] Det har du redan hämtat – svaret står ovan. "
                              "Använd det, hämta något annat, eller svara nu." + NUDGE_NOTE})
             continue
