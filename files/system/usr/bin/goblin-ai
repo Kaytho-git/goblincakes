@@ -1255,6 +1255,11 @@ class Backend(QObject):
     def onlyCommands(self):
         return json.dumps([{"name": k, "note": v[1]} for k, v in goblinai.ONLY_COMMANDS.items()], ensure_ascii=False)
 
+    @Property(str, constant=True)
+    def ownTools(self):
+        """Inställningar → Egna verktyg: the tools without a /command (goblinai.plain_tools, 1 Nov)."""
+        return json.dumps(goblinai.plain_tools(), ensure_ascii=False)
+
     @Property(bool, notify=keysChanged)
     def canSearch(self):
         return bool(self._keys.get(goblinai.SEARCH["env"]))

@@ -126,12 +126,12 @@ Ord: goblin, kommando, terminal, goblin help
 Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, körda kommandon, ångra
 - Fönstret /usr/bin/goblin-ai (Meta+A, goblin ai app), koden i /usr/share/goblincakes/ai/ (goblinai.py m.fl.).
 - Fönstrets layout (1 nov): rutorna KAKAN (avatar, modell, minne, vad du gör), PROJEKT (MAPPAR + dina projekt),
-  KOMMANDON och MODELLER (klick = välj modell, I MINNET = laddad i Ollama, abonnemangens kvot) till vänster – på stående
+  KOMMANDON och MODELLER (klick = välj modell, I MINNET = laddad i Ollama) till vänster – på stående
   skärm i en rad överst – och flikarna SVAR, CHATTAR, LÄR DIG KODA, INSTÄLLNINGAR (meny till vänster med delarna).
 - MAPPAR = användarens egna projektmappar i ~/.config/goblincakes/ai-mappar.json (en lista med sökvägar). Klick på en
   mapp: Öppna i VS Code (~/.local/share/vscode/bin/code <mapp>) eller Claude Code i terminalen (goblincakes-terminal run
   i mappen, `claude`). Arbetet sker där, inte i fönstret. Du ändrar aldrig koden i mapparna.
-- Kvoten i MODELLER läses ur ~/.cache/goblincakes/quota.json (kvot-widgetens fil, varje minut medan fönstret har fokus).
+- Kvoten (knappen KVOT bredvid flikarna, öppnar en ruta med staplar och när den nollställs) läses ur ~/.cache/goblincakes/quota.json (kvot-widgetens fil, varje minut medan fönstret har fokus).
 - I terminalen: goblin ai = /usr/libexec/goblincakes-ai (prompt_toolkit, python3-prompt-toolkit i imagen; utan den en
   enkel rad). /app öppnar fönstret med samma samtal (goblin-ai --open <id>). Terminalens chattar sparas bland fönstrets.
   /projekt <namn> går in i ett projekt (projects.json), /projekt lämnar.

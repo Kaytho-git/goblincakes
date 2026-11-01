@@ -1,3 +1,5 @@
+2026-11-01  Goblin AI: Claude- och ChatGPT-kvoten har flyttat till knappen KVOT bredvid Inställningar – tryck så visas hur mycket som är använt och när det nollställs.
+2026-11-01  Goblin AI: Inställningar → Egna verktyg visar vad Kakans verktyg gör (de som inte har ett eget /kommando).
 2026-11-01  Goblin AI startar maximerat, och texten har samma storlek vare sig fönstret är maximerat eller inte.
 2026-11-01  Goblin AI har fått nytt utseende: rutor för Kakan, projekt, kommandon och modeller (med hur mycket av Claude- och ChatGPT-kvoten som är kvar), och flikarna Svar, Chattar, Lär dig koda och Inställningar. På en stående skärm hamnar rutorna överst.
 2026-11-01  Goblin AI: lägg till dina egna projektmappar under Projekt – ett klick öppnar mappen i VS Code eller startar Claude Code i terminalen där.

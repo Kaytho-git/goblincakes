@@ -1745,7 +1745,7 @@ Window {
                 }
             }
 
-            // ── MODELLER: who answers (click = choose), the local ones in memory, the subscriptions' quota ──
+            // ── MODELLER: who answers (click = choose), the local ones in memory (the quota: KVOT by the tabs) ──
             Panel {
                 id: modelBox
                 x: win.portrait ? cmdBox.x + cmdBox.width + win.gap : 0
@@ -1804,79 +1804,6 @@ Window {
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 12
-                        }
-                        // The subscriptions (the top bar's quota widget): how much of 5 h and the week is used
-                        GroupLabel {
-                            visible: win.quotaServices.length > 0
-                            text: "ABONNEMANG · KVOT"
-                        }
-                        Repeater {
-                            model: win.quotaServices
-                            Column {
-                                id: quotaItem
-                                required property var modelData
-                                width: modelCol.width
-                                bottomPadding: 4
-                                Item {
-                                    width: parent.width
-                                    height: 24
-                                    Text {
-                                        x: 12
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: quotaItem.modelData.name + (quotaItem.modelData.plan ? "  ·  " + quotaItem.modelData.plan : "")
-                                        color: "#E6ECF5"
-                                        font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
-                                    }
-                                    Text {
-                                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                                        visible: !!quotaItem.modelData.error
-                                        text: quotaItem.modelData.error || ""
-                                        color: "#8B98AD"
-                                        font.family: "IBM Plex Mono"
-                                        font.pixelSize: 10
-                                    }
-                                }
-                                Repeater {
-                                    model: quotaItem.modelData.windows || []
-                                    Item {
-                                        id: quotaRow
-                                        required property var modelData
-                                        width: quotaItem.width
-                                        height: 16
-                                        Text {
-                                            id: quotaLabel
-                                            x: 28
-                                            width: 44
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: quotaRow.modelData.label.toLowerCase()
-                                            color: "#8B98AD"
-                                            font.family: "IBM Plex Mono"
-                                            font.pixelSize: 10
-                                        }
-                                        Rectangle {
-                                            anchors { left: quotaLabel.right; right: quotaPercent.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                                            height: 3
-                                            color: "#1E2A40"
-                                            Rectangle {
-                                                width: parent.width * Math.min(100, quotaRow.modelData.percent) / 100
-                                                height: parent.height
-                                                color: quotaRow.modelData.percent >= 90 ? accent.errorBright : accent.color
-                                            }
-                                        }
-                                        Text {
-                                            id: quotaPercent
-                                            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                                            width: 32
-                                            horizontalAlignment: Text.AlignRight
-                                            text: quotaRow.modelData.percent + "%"
-                                            color: "#8B98AD"
-                                            font.family: "IBM Plex Mono"
-                                            font.pixelSize: 10
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -1944,6 +1871,41 @@ Window {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: win.openTab(tab.modelData.v)
                             }
+                        }
+                    }
+                    // KVOT (1 Nov, the user): the subscriptions' quota in its own box instead of under MODELLER
+                    Item {
+                        id: quotaTab
+                        visible: win.quotaServices.length > 0
+                        width: quotaTabContent.width + 32
+                        height: tabRow.height
+                        Row {
+                            id: quotaTabContent
+                            anchors.centerIn: parent
+                            spacing: 8
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "%"
+                                color: quotaBox.visible ? accent.text : "#8B98AD"
+                                font.family: "IBM Plex Mono"
+                                font.pixelSize: 12
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "KVOT"
+                                color: quotaBox.visible || quotaTabArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                                font.family: "Chakra Petch"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 12
+                                font.letterSpacing: 2
+                            }
+                        }
+                        MouseArea {
+                            id: quotaTabArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { backend.refreshQuota(); quotaBox.visible = !quotaBox.visible; }
                         }
                     }
                 }
@@ -4688,7 +4650,8 @@ Window {
             readonly property var sections: [
                 { name: "Namn", item: setName, key: "kakan" }, { name: "Avatar", item: setAvatar },
                 { name: "Minne", item: memCard }, { name: "Lärdomar", item: lessonCard },
-                { name: "Körda kommandon", item: cmdLogCard }, { name: "Verktyg (MCP)", item: mcpCard },
+                { name: "Körda kommandon", item: cmdLogCard }, { name: "Egna verktyg", item: ownToolsCard, key: "verktyg" },
+                { name: "Verktyg (MCP)", item: mcpCard },
                 { name: "Egna knappar", item: dailyCard }, { name: "Lokal AI", item: setLocal, key: "lokal" },
                 { name: "Skapa bilder", item: setImage }, { name: "AI-tjänster och nycklar", item: setKeys }]
             readonly property int current: {
@@ -5558,6 +5521,76 @@ Window {
                                 small: true
                                 text: "Visa fler"
                                 onClicked: cmdLogCard.shown += 20
+                            }
+                        }
+                    }
+                }
+
+                // ── Egna verktyg (1 Nov, the user): Kakan's own tools without a /command, what they do ──
+                Rectangle {
+                    id: ownToolsCard
+                    property bool open: false
+                    readonly property var items: JSON.parse(backend.ownTools)
+                    width: settingsCol.width
+                    height: ownToolsCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+
+                    Column {
+                        id: ownToolsCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 10
+                        Text {
+                            width: parent.width
+                            text: (ownToolsCard.open ? "▾  " : "▸  ") + "Egna verktyg   (" + ownToolsCard.items.length + ")"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: ownToolsCard.open = !ownToolsCard.open
+                            }
+                        }
+                        Column {
+                            visible: ownToolsCard.open
+                            width: parent.width
+                            spacing: 12
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: (backend.aiName || "Goblin AI") + " använder dem själv när frågan behöver det. Verktygen som har ett eget /kommando (t.ex. /wiki, /wcl, /sök) står under KOMMANDON."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Repeater {
+                                model: ownToolsCard.items
+                                Column {
+                                    id: ownToolRow
+                                    required property var modelData
+                                    width: ownToolsCol.width
+                                    spacing: 2
+                                    Text {
+                                        text: ownToolRow.modelData.name
+                                        color: accent.text
+                                        font.family: "IBM Plex Sans"
+                                        font.weight: Font.DemiBold
+                                        font.pixelSize: 14
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        wrapMode: Text.WordWrap
+                                        text: ownToolRow.modelData.text
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
                             }
                         }
                     }
@@ -6807,6 +6840,146 @@ Window {
             }
         }
 
+
+        // ── KVOT: the subscriptions (the top bar's quota widget), how much of 5 h and the week is used ──
+        Rectangle {
+            id: quotaBox
+            visible: false
+            anchors.fill: parent
+            color: "#B007090D"
+            onVisibleChanged: if (visible) quotaFocus.forceActiveFocus()
+            MouseArea { anchors.fill: parent; onClicked: quotaBox.visible = false }
+            function resetText(t) {
+                if (!t) return "";
+                const d = new Date(t * 1000), now = new Date();
+                const hm = Qt.formatTime(d, "HH:mm");
+                if (d.toDateString() === now.toDateString()) return "nollställs " + hm;
+                return "nollställs " + ["sön", "mån", "tis", "ons", "tor", "fre", "lör"][d.getDay()] + " " + hm;
+            }
+            Rectangle {
+                anchors.centerIn: parent
+                width: 420
+                height: quotaCol.height + 2
+                color: "#0B1018"
+                border.width: 1
+                border.color: "#1E2A40"
+                MouseArea { anchors.fill: parent }  // a click in the box doesn't close it
+                Item {
+                    id: quotaFocus
+                    focus: true
+                    Keys.onEscapePressed: quotaBox.visible = false
+                }
+                Column {
+                    id: quotaCol
+                    x: 1
+                    y: 1
+                    width: parent.width - 2
+                    Item {
+                        width: parent.width
+                        height: 44
+                        Text {
+                            x: 20
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "ABONNEMANG · KVOT"
+                            color: "#E6ECF5"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 13
+                            font.letterSpacing: 2
+                        }
+                        Text {
+                            anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                            text: "✕"
+                            color: quotaClose.containsMouse ? "#E6ECF5" : "#8B98AD"
+                            font.pixelSize: 14
+                            MouseArea {
+                                id: quotaClose
+                                anchors { fill: parent; margins: -8 }
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: quotaBox.visible = false
+                            }
+                        }
+                        Rectangle {
+                            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                            height: 1
+                            color: "#1A2438"
+                        }
+                    }
+                    Repeater {
+                        model: win.quotaServices
+                        Column {
+                            id: quotaItem
+                            required property var modelData
+                            width: quotaCol.width
+                            topPadding: 14
+                            bottomPadding: 6
+                            spacing: 8
+                            Item {
+                                width: parent.width
+                                height: 20
+                                Text {
+                                    x: 20
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: quotaItem.modelData.name + (quotaItem.modelData.plan ? "  ·  " + quotaItem.modelData.plan : "")
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 14
+                                }
+                                Text {
+                                    anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                                    visible: !!quotaItem.modelData.error
+                                    text: quotaItem.modelData.error || ""
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Mono"
+                                    font.pixelSize: 11
+                                }
+                            }
+                            Repeater {
+                                model: quotaItem.modelData.windows || []
+                                Column {
+                                    id: quotaRow
+                                    required property var modelData
+                                    x: 20
+                                    width: quotaItem.width - 40
+                                    spacing: 4
+                                    Item {
+                                        width: parent.width
+                                        height: 16
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: quotaRow.modelData.label.toLowerCase()
+                                                  + (quotaRow.modelData.resets ? "  ·  " + quotaBox.resetText(quotaRow.modelData.resets) : "")
+                                            color: "#8B98AD"
+                                            font.family: "IBM Plex Mono"
+                                            font.pixelSize: 11
+                                        }
+                                        Text {
+                                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                            text: quotaRow.modelData.percent + "%"
+                                            color: quotaRow.modelData.percent >= 90 ? accent.errorBright : "#E6ECF5"
+                                            font.family: "IBM Plex Mono"
+                                            font.pixelSize: 12
+                                        }
+                                    }
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 4
+                                        color: "#1E2A40"
+                                        Rectangle {
+                                            width: parent.width * Math.min(100, quotaRow.modelData.percent) / 100
+                                            height: parent.height
+                                            color: quotaRow.modelData.percent >= 90 ? accent.errorBright : accent.color
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Item { width: 1; height: 14 }
+                }
+            }
+        }
 
         // ── Short messages at the bottom ─────────────────────────
 

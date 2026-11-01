@@ -1590,6 +1590,32 @@ ONLY_COMMANDS = {
 }
 
 
+# Kakan's own tools in plain words for Inställningar → Egna verktyg (1 Nov, the user: only the ones without
+# a /command – those are already in KOMMANDON). A new tool → a line here; its word in ONLY_COMMANDS hides it.
+PLAIN_TOOLS = [
+    ("sök", "Sök på nätet", "Söker när svaret kan ha ändrats – nyheter, patchar, priser, öppettider. Kräver en Tavily-nyckel."),
+    ("sida", "Läs en webbsida", "Läser en hel sida – en guide, patch notes, en artikel – när sökningens utdrag inte räcker "
+             "eller när du ger en länk."),
+    ("skrivbord", "Styr skrivbordet", "Musiken (spela, pausa, nästa låt, en viss artist), volymen, öppnar program, sidor och "
+                  "filer, flyttar fönster, startar spel, kör goblin-kommandon, kalendern och påminnelser, säger till när "
+                  "något blir klart (Steam, en nedladdning, uppdateringen). Loggas och kan ångras."),
+    ("byt", "Ändra en fil", "Byter, lägger till eller tar bort rader i en fil som redan finns – t.ex. när ett WoW-tillägg "
+            "lagas. Du ser före och efter och trycker Tillåt."),
+    ("kommandon", "Kör kommandon", "Kör kommandon i terminalen åt dig. Kommandon som bara läser körs direkt, de som ändrar "
+                  "något får ett Tillåt-kort (ångra under Körda kommandon)."),
+    ("fil", "Skapa filer", "Sparar en ny fil – ett skript, ett WoW-tillägg, en text – i mappen du jobbar i, efter att du "
+            "sagt ja. En gammal fil med samma namn sparas som .bak."),
+    ("rapport", "Rapport som bild", "Ritar en sammanställning med tabeller och siffror som en bild i GOBLINCAKES stil – "
+                "be om \"som bild\" efter en sammanställning."),
+]
+
+
+def plain_tools():
+    """PLAIN_TOOLS without the ones a /command already gives (/sök, /wiki, /wcl …): [{name, text}]."""
+    covered = {"sök"} | {t for words, _ in ONLY_COMMANDS.values() for t in words}
+    return [{"name": name, "text": text} for key, name, text in PLAIN_TOOLS if key not in covered]
+
+
 def only_tools(messages):
     """The tools the user's latest own question was limited to (its "only", set by /wiki), or []."""
     for m in reversed(messages):
