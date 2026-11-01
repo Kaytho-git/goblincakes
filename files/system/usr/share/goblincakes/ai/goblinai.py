@@ -168,7 +168,11 @@ def needs_thinking(messages):
         # retell: after a wiki answer gemma4 thought 8000 tokens (2 min) before "Metallica grundades 1981" (30 Oct)
         return True
     typed = typed_question(messages)
-    return bool(has_images(messages) or len(typed) > 400 or CODE_WORDS.search(typed[:600]) or THINK_WORDS.search(typed[:600]))
+    # Mending something broken ("/gear funkar inte … fixa det"): Goblin AI reads the files first (29 Oct), not a tool she
+    # asked for, and none of the words above – the whole gear test ran without thinking, byt_text tries guessed (1 Nov)
+    repair = REPAIR_ASK.search(typed[:600]) and all(p.search(typed[:600]) for p in REPAIR_WHEN)
+    return bool(has_images(messages) or len(typed) > 400 or CODE_WORDS.search(typed[:600]) or THINK_WORDS.search(typed[:600])
+                or repair)
 
 
 def local_settings():
@@ -965,8 +969,9 @@ Säg i en mening vad det ändrar. Säger verktyget att texten inte finns: kopier
 
 def byt_fields(text):
     """`fil="…" gammal="…" ny="…"` in one field → {fil, gammal, ny}, cut at the field names, not at the quotes: the
-    code's own quotes (`string.format("%s…`) cut "gammal" in the middle of a line and it was never found (gear round 16)."""
-    marks = list(re.finditer(r'(?:^|(?<=\s)|(?<=\\))(fil|gammal|ny)\s*=\s*(?=")', text))
+    code's own quotes (`string.format("%s…`) cut "gammal" in the middle of a line and it was never found (gear round 16).
+    A bare `ny=` at the end is an empty "ny" (remove the lines) – it was missed and "gammal" got `" \\ ny=` (round 17)."""
+    marks = list(re.finditer(r'(?:^|(?<=\s)|(?<=\\))(fil|gammal|ny)\s*=\s*(?="|\\|$)', text))
     out = {}
     for n, m in enumerate(marks):
         v = text[m.end():marks[n + 1].start() if n + 1 < len(marks) else len(text)]
@@ -2769,7 +2774,10 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             continue
         used += 1
         if (tool, query) in LAST.tools:
-            # The same thing again: gemma4 read amp.json three times in a row (25 Oct) – not run, and told so
+            # The same thing again: gemma4 read amp.json three times in a row (25 Oct) – not run, and told so. In the
+            # receipt too: the same failed byt_text silently used up "högst 10 steg" after two visible tries (gear round 17)
+            steps.start(f"Samma sak igen – körs inte: {tools[tool]['name']}")
+            steps.done("fel", "redan gjort i den här frågan")
             messages.append({"role": "user", "content": "[Goblin AI] Det har du redan hämtat – svaret står ovan. "
                              "Använd det, hämta något annat, eller svara nu." + NUDGE_NOTE})
             continue
