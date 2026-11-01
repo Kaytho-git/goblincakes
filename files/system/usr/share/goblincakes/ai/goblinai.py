@@ -243,6 +243,8 @@ def activity(kind, text, local=None, progress=None, steps=None):
         # The step she is on: thinking after the last tool's ✓, not that tool still spinning (the user 1 Nov) –
         # gone when the next step starts
         steps = steps[-7:] + [{"text": "Tänker", "state": "run", "think": True}]
+        if getattr(LAST, "steps", None):
+            LAST.steps._send(think=True)  # in the window's steps too (the user 1 Nov)
     data = {"pid": os.getpid(), "kind": kind, "text": text,
             "local": bool(old.get("local") if local is None else local), "progress": progress,
             "steps": steps, "started": old.get("started") or time.time()}
@@ -1045,7 +1047,18 @@ def byt_run(query):
         return f"Inget kort gjort: {why}", []
     # The card goes under her answer by itself (ask()) – not back to her: three copies a change (the result, her
     # answer, "Så här gick det:") filled the local AI's memory in one question (30 Oct)
-    LAST.cards = getattr(LAST, "cards", []) + [f"```bash\n{bytatext.card(full, old, new)}\n```"]
+    # The same lines again = a new version of that change, not one more: three cards for lines 25–51, the user
+    # pressed Tillåt on all three, the first (her worst) changed the file and the other two missed (gear round 22,
+    # 1 Nov). The newest version replaces the old card.
+    lines = {x.strip() for x in old.split("\n") if len(x.strip()) >= 12}
+    spans = getattr(LAST, "card_spans", [])
+    again = [i for i, (f, o) in enumerate(spans) if f == full and lines & {x.strip() for x in o.split("\n")}]
+    cards = [c for i, c in enumerate(getattr(LAST, "cards", [])) if i not in again]
+    LAST.card_spans = [x for i, x in enumerate(spans) if i not in again] + [(full, old)]
+    LAST.cards = cards + [f"```bash\n{bytatext.card(full, old, new)}\n```"]
+    if again:
+        return (f"Klart – det nya kortet för {full.name} ersätter ditt förra för samma rader (bara det nya visas). "
+                "Svara nu med en mening om vad ändringen gör."), []
     # "Fler ändringar …: en byt_text för var och en" read as "do it again" – the same card over and over (gear round 20)
     return (f"Klart – kortet för {full.name} är gjort och läggs under ditt svar (skriv det inte själv). Filen ändras när "
             "användaren trycker Tillåt, så den ser likadan ut tills dess – det är rätt, gör inte samma ändring igen. "
@@ -1818,7 +1831,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     steps: a Steps – what is done is reported to it, and its stop ends the work (raises Stopped).
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
-    LAST.tools, LAST.steps, LAST.done, LAST.cards, LAST.cut_short = [], None, [], [], False
+    LAST.tools, LAST.steps, LAST.done, LAST.cards, LAST.card_spans, LAST.cut_short = [], None, [], [], [], False
     LAST.stop = steps.stop if steps else None  # request() closes the local AI's connection on STOPP
     activity("ask", "tänker", steps=[])
     messages = [{**m, "content": m["content"].replace("\n\n" + FROM_MEMORY, "")}
@@ -2195,9 +2208,10 @@ class Steps:
         """The steps for the top bar: [{text, state}], the last 8."""
         return [{"text": i["text"][:90], "state": i["state"]} for i in self.items[-8:]]
 
-    def _send(self):
+    def _send(self, think=False):
+        """think: "Tänker" last while she thinks between the steps – shown, not kept with the answer."""
         if self.report:
-            self.report(self.shown())
+            self.report(self.shown() + ([{"text": "Tänker", "state": "run", "think": True}] if think else []))
 
 
 DONE_KEEP = 8  # answers back whose tool lines she still sees
