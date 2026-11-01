@@ -231,13 +231,13 @@ def _activity_file():
 
 def activity(kind, text, local=None, progress=None, steps=None):
     """What the top bar's "Spelas nu" shows; local and steps (the work loop's [{text, state}], 25 Oct: the
-    widget only said "tänker") stay as they were when not given."""
+    widget only said "tänker") stay as they were when not given – and text too when None."""
     path = _activity_file()
     try:
         old = json.loads(path.read_text())
     except (OSError, ValueError):
         old = {}
-    data = {"pid": os.getpid(), "kind": kind, "text": text,
+    data = {"pid": os.getpid(), "kind": kind, "text": old.get("text", "arbetar") if text is None else text,
             "local": bool(old.get("local") if local is None else local), "progress": progress,
             "steps": old.get("steps", []) if steps is None else steps, "started": old.get("started") or time.time()}
     try:
@@ -2178,6 +2178,9 @@ class Steps:
             if note:
                 step["note"] = " ".join(str(note).split())[:160]
             self._send()
+            # The top bar too: the step it showed kept spinning while she thought, already ticked off in the window
+            # (gear round 22, 1 Nov)
+            activity("ask", None, steps=self.brief())
 
     def shown(self):
         return [{k: v for k, v in s.items() if k != "t"} for s in self.items]
