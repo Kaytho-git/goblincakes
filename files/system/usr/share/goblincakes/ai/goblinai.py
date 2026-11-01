@@ -4963,8 +4963,8 @@ def investigate(question, tools, keys, notice, project, choice, steps, status=No
         # A WoW add-on: the check against the game's API is what to follow, not the web (the user 30 Oct: "varför söker
         # hon när hon har api?") – the search and a whole page only filled her memory ("Slutar hämta: minnet är nästan
         # fullt" in the 4th round of the gear repair). She can still look a function up with wowapi, or search herself.
-        steps.start("Söker inte på nätet – kontrollen mot WoW:s API räcker")
-        steps.done()
+        # (Was a receipt line "Söker inte på nätet – …" – what she didn't do told the user nothing; "Kontrollerar
+        # tillägget mot WoW" above already says the API is used, 1 Nov)
         return "## Filerna\n" + "\n\n".join(parts), []
     steps.start("Skriver sökfrågan")
     QUICK.on = True
