@@ -2821,7 +2821,14 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         if status:
             status(f"{name}{': ' + query if query else ''}…")
         # What she does, in plain words ("Läser recorder.json") – the chat and the top bar's tooltip (25 Oct)
-        steps.start(sys_tools().describe(query) if tool == "leta" else f"{name}{': ' + query[:80] if query else ''}")
+        if tool == "byt":
+            # Not the raw block cut at 80 characters ("fil: … <<<<<<< GAMMALT ⏎ 3") – the user saw only GAMMALT and no
+            # new text (1 Nov); the file here, the red/green lines on the card under the answer
+            target = re.search(r"(?:~|/)[^\"'\n\\]*?\.\w{1,5}(?=[\"'\s\\]|$)", query)
+            label = f"Byter text i {Path(target.group(0)).name}" if target else "Byter text i en fil"
+        else:
+            label = sys_tools().describe(query) if tool == "leta" else f"{name}{': ' + query[:80] if query else ''}"
+        steps.start(label)
         try:
             text, found = run(query)
             # A tool that answered "couldn't" is a step that failed – the receipt shows where she got stuck (31 Oct)
