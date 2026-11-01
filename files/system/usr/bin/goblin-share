@@ -1,0 +1,303 @@
+#!/usr/bin/env python3
+"""GoblinShare – the window (files and messages to the computers and phones on the same network).
+
+    goblin-share                    the window
+    goblin-share --send <fil>…      the window with the files ready: click who gets them (Dolphin's
+                                    "Skicka med GoblinShare", goblin share skicka <fil>)
+
+The sending and receiving is done by the user service (/usr/libexec/goblincakes-share run, the LocalSend
+protocol in /usr/share/goblincakes/share/share.py); the window asks it over its Unix socket.
+Window: /usr/share/goblincakes/share/Main.qml
+"""
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+from PySide6.QtCore import QObject, QTimer, QUrl, Property, Signal, Slot
+from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QIcon
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtWidgets import QApplication, QFileDialog
+
+SHARE = Path(os.environ.get("GOBLINCAKES_SHARE_DIR") or
+             Path(__file__).resolve().parents[1] / "share/goblincakes/share")
+sys.path.insert(0, str(SHARE))
+import share as S  # noqa: E402
+
+
+def use_accent(engine):
+    """GOBLINCAKES' accent colour as the QML property "accent", followed live (accent.py)."""
+    for d in (SHARE.parent, Path("/usr/share/goblincakes")):
+        if (d / "accent.py").exists():
+            sys.path.insert(0, str(d))
+            break
+    try:
+        import accent
+        accent.install(engine)
+    except Exception:  # noqa: BLE001 – an old or broken file must not stop the window
+        engine.rootContext().setContextProperty("accent", {
+            "color": "#2F6FED", "hover": "#4A82F0", "on": "#E6ECF5", "text": "#2F6FED",
+            "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
+
+
+class Backend(QObject):
+    statusChanged = Signal()
+    stagedChanged = Signal()
+    message = Signal(str)
+
+    def __init__(self, staged):
+        super().__init__()
+        self._status = json.dumps({"running": False})
+        self._staged = [p for p in staged if Path(p).exists()]
+        self._starting = False
+        self.timer = QTimer(self, interval=700, timeout=self.poll)
+        self.timer.start()
+        self.scan_timer = QTimer(self, interval=30000, timeout=lambda: S.call("scan", sweep=False, timeout=1))
+        self.scan_timer.start()
+        self.poll()
+        if self.running:
+            S.call("scan", sweep=True, timeout=1)
+
+    # ---------------------------------------------------------- state
+    def poll(self):
+        st = S.call("status", timeout=1)
+        if st is None:
+            st = {"running": False, "on": S.FLAG.exists(), "starting": self._starting}
+        else:
+            st["on"] = True
+            self._starting = False
+        text = json.dumps(st, ensure_ascii=False)
+        if text != self._status:
+            self._status = text
+            self.statusChanged.emit()
+
+    @property
+    def running(self):
+        return json.loads(self._status).get("running", False)
+
+    @Property(str, notify=statusChanged)
+    def status(self):
+        return self._status
+
+    @Property(str, notify=stagedChanged)
+    def staged(self):
+        return json.dumps([{"path": p, "name": Path(p).name, "folder": Path(p).is_dir(),
+                            "size": 0 if Path(p).is_dir() else Path(p).stat().st_size}
+                           for p in self._staged if Path(p).exists()], ensure_ascii=False)
+
+    def stage(self, paths):
+        self._staged = [p for p in paths if Path(p).exists()]
+        self.stagedChanged.emit()
+
+    # ---------------------------------------------------------- on/off
+    @Slot()
+    def turnOn(self):
+        self._starting = True
+        S.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        S.FLAG.touch()
+        subprocess.Popen(["sh", "-c", f"systemctl --user daemon-reload; systemctl --user start {S.UNIT}"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        QTimer.singleShot(2500, lambda: S.call("scan", sweep=True, timeout=1))
+        self.poll()
+
+    @Slot()
+    def turnOff(self):
+        S.FLAG.unlink(missing_ok=True)
+        subprocess.Popen(["systemctl", "--user", "stop", S.UNIT], stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+
+    @Slot()
+    def scan(self):
+        S.call("scan", sweep=True, timeout=1)
+        self.poll()
+
+    # ---------------------------------------------------------- sending
+    def _send(self, fp, paths):
+        if not paths:
+            return
+        res = S.call("send", to=fp, paths=[str(Path(p).resolve()) for p in paths], timeout=10)
+        if not res or not res.get("ok"):
+            self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
+        self.poll()
+
+    @Slot(str)
+    def sendFiles(self, fp):
+        files, _ = QFileDialog.getOpenFileNames(None, "Välj filer att skicka", str(Path.home()))
+        self._send(fp, files)
+
+    @Slot(str)
+    def sendFolder(self, fp):
+        folder = QFileDialog.getExistingDirectory(None, "Välj en mapp att skicka", str(Path.home()))
+        self._send(fp, [folder] if folder else [])
+
+    @Slot(str, "QVariantList")
+    def sendUrls(self, fp, urls):
+        """Dropped on a device (QML gives file:// URLs)."""
+        paths = [QUrl(u).toLocalFile() if isinstance(u, str) else u.toLocalFile() for u in urls]
+        self._send(fp, [p for p in paths if p])
+
+    @Slot(str)
+    def sendStaged(self, fp):
+        paths, self._staged = self._staged, []
+        self.stagedChanged.emit()
+        self._send(fp, paths)
+
+    @Slot()
+    def clearStaged(self):
+        self.stage([])
+
+    @Slot(str, str)
+    def sendText(self, fp, text):
+        if text.strip():
+            res = S.call("text", to=fp, text=text, timeout=10)
+            if not res or not res.get("ok"):
+                self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
+            self.poll()
+
+    @Slot(str, bool)
+    def answer(self, rid, accept):
+        S.call("answer", id=rid, accept=accept)
+        self.poll()
+
+    @Slot(str)
+    def cancel(self, tid):
+        S.call("cancel", id=tid)
+        self.poll()
+
+    # ---------------------------------------------------------- settings
+    @Slot(str, bool)
+    def trust(self, fp, on):
+        S.call("trust", fingerprint=fp, on=on)
+        self.poll()
+
+    @Slot(str)
+    def setAlias(self, text):
+        S.call("set", key="alias", value=text)
+        self.poll()
+
+    @Slot()
+    def chooseFolder(self):
+        st = json.loads(self._status)
+        folder = QFileDialog.getExistingDirectory(None, "Var ska mottagna filer sparas?", st.get("folder") or
+                                                  str(Path.home()))
+        if folder:
+            S.call("set", key="folder", value=folder)
+            self.poll()
+
+    @Slot()
+    def resetFolder(self):
+        S.call("set", key="folder", value="")
+        self.poll()
+
+    @Slot(float)
+    def forget(self, t):
+        S.call("forget", t=t)
+        self.poll()
+
+    @Slot()
+    def clearHistory(self):
+        S.call("clear")
+        self.poll()
+
+    # ---------------------------------------------------------- files
+    @Slot(str)
+    def openPath(self, path):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+
+    @Slot(str)
+    def showFile(self, path):
+        """The folder in Dolphin with the file chosen (FileManager1), else just the folder."""
+        url = QUrl.fromLocalFile(path).toString()
+        ok = subprocess.run(["gdbus", "call", "--session", "--dest", "org.freedesktop.FileManager1",
+                             "--object-path", "/org/freedesktop/FileManager1", "--method",
+                             "org.freedesktop.FileManager1.ShowItems", f"['{url}']", ""],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0 \
+            if Path(path).exists() else False
+        if not ok:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent if Path(path).is_file() else path)))
+
+    @Slot(str)
+    def copyText(self, text):
+        QGuiApplication.clipboard().setText(text)
+        self.message.emit("Kopierat")
+
+    @Slot(str, result=str)
+    def size(self, n):
+        return S.human_size(float(n or 0))
+
+
+def staged_from(argv):
+    if "--send" in argv:
+        return [str(Path(p).expanduser().resolve()) for p in argv[argv.index("--send") + 1:]]
+    return []
+
+
+def main():
+    own_scale = "QT_SCALE_FACTOR" not in os.environ
+    if own_scale:
+        os.environ["QT_SCALE_FACTOR"] = "0.8"
+    app = QApplication(sys.argv[:1])
+    if own_scale:
+        del os.environ["QT_SCALE_FACTOR"]
+    app.setApplicationName("goblin-share")
+    app.setApplicationDisplayName("GoblinShare")
+    app.setDesktopFileName("goblin-share")
+    icon = Path(__file__).resolve().parents[1] / "share/icons/hicolor/scalable/apps/goblincakes-share.svg"
+    app_icon = QIcon.fromTheme("goblincakes-share", QIcon(str(icon)))
+    app.setWindowIcon(app_icon)
+    for font in os.environ.get("GOBLINCAKES_CONFIG_FONTS", "").split(":"):
+        if font:
+            QFontDatabase.addApplicationFont(font)
+    staged = staged_from(sys.argv)
+
+    # One window at a time: a second start brings the first one forward (with its files)
+    name = os.environ.get("GOBLINCAKES_SHARE_INSTANCE", f"goblin-share-{os.getuid()}")
+    sock = QLocalSocket()
+    sock.connectToServer(name)
+    if sock.waitForConnected(300):
+        sock.write(json.dumps({"send": staged}).encode() + b"\n")
+        sock.waitForBytesWritten(500)
+        return 0
+    QLocalServer.removeServer(name)
+    server = QLocalServer()
+    server.listen(name)
+
+    backend = Backend(staged)
+    engine = QQmlApplicationEngine()
+    engine.rootContext().setContextProperty("backend", backend)
+    engine.rootContext().setContextProperty("iconUrl", QUrl.fromLocalFile(
+        str(icon) if icon.exists() else "/usr/share/icons/hicolor/scalable/apps/goblincakes-share.svg"))
+    use_accent(engine)
+    engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
+    if not engine.rootObjects():
+        return 1
+    win = engine.rootObjects()[0]
+
+    def incoming():
+        conn = server.nextPendingConnection()
+        if not conn:
+            return
+
+        def read():
+            try:
+                files = json.loads(bytes(conn.readAll()).decode() or "{}").get("send") or []
+            except ValueError:
+                files = []
+            if files:
+                backend.stage(files)
+            conn.close()
+            win.show()
+            win.raise_()
+            win.requestActivate()
+        if conn.waitForReadyRead(500):
+            read()
+        else:
+            conn.readyRead.connect(read)
+    server.newConnection.connect(incoming)
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

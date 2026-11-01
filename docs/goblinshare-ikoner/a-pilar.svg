@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- GoblinShare A: the GOBLINCAKES goblin above a blue box with two arrows going both ways (the cupcake made into what it does) -->
+  <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+  <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
+  <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
+  <path d="M28 70 H92 V106 H28 Z" fill="#2F6FED"/>
+  <path d="M38 81 H76 M68 74 L77 81 L68 88" stroke="#E6ECF5" stroke-width="4.5" fill="none" stroke-linecap="square"/>
+  <path d="M82 96 H44 M52 89 L43 96 L52 103" stroke="#07090D" stroke-width="4.5" fill="none" stroke-linecap="square" opacity="0.75"/>
+</svg>
