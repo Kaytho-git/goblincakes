@@ -3122,11 +3122,28 @@ def in_season(entries, chosen):
             and (chosen["end"] is None or (e.get("started") or 0) < chosen["end"])]
 
 
-def wow_overview(folder, player="", days=0, season=""):
+def spec_of_pulls(own):
+    """Each pull's spec: its own, else the nearest pull's within 3 hours (wipes often have no row
+    of their own, and nobody changes spec between two pulls in a row)."""
+    known = sorted((e.get("started") or 0, e["spec"]) for e in own if e.get("spec"))
+    out = {}
+    for e in own:
+        if e.get("spec"):
+            out[id(e)] = e["spec"]
+            continue
+        t = e.get("started") or 0
+        near = min(known, key=lambda k: abs(k[0] - t), default=None)
+        if near and abs(near[0] - t) < 3 * 3600:
+            out[id(e)] = near[1]
+    return out
+
+
+def wow_overview(folder, player="", days=0, season="", spec=""):
     """The WoW Stats page: per raid difficulty and boss your best and median parse, kills, wipes,
     fastest kill, best DPS/HPS and item level (like Warcraft Logs' character page), per dungeon your
     best key and parses, and the parses and item level over time. season = its key ("" = the
-    current one), days = only the last days of it."""
+    current one), days = only the last days of it, spec = one of the character's specs ("" = the
+    one played last, "all" = all of them – parses only compare within a spec, 1 Nov the user)."""
     for v in video_files(folder):  # videos from before the history (or fetched in the window)
         if v.get("kind") in ("raid", "mplus") and v.get("player"):
             wow_history_add(v)
@@ -3142,9 +3159,24 @@ def wow_overview(folder, player="", days=0, season=""):
     chosen = next((x for x in seasons_ if x["key"] == season), seasons_[0])
     mine = sorted((e for e in in_season(own, chosen) if (e.get("started") or 0) >= since),
                   key=lambda e: e.get("started") or 0)
+    pull_spec = spec_of_pulls(own)
+    specs = []
+    for e in reversed(mine):
+        sp = pull_spec.get(id(e))
+        if sp and sp not in [x["spec"] for x in specs]:
+            specs.append({"spec": sp, "pulls": 0})
+    for e in mine:
+        for x in specs:
+            if x["spec"] == pull_spec.get(id(e)):
+                x["pulls"] += 1
+    if spec != "all":
+        spec = spec if spec in [x["spec"] for x in specs] else (specs[0]["spec"] if specs else "")
+        if spec:
+            mine = [e for e in mine if pull_spec.get(id(e)) == spec]
     with_row = [e for e in mine if e.get("spec")]
     # class and spec: the season's latest, else the character's (a new season with nothing yet)
-    last = with_row[-1] if with_row else max((e for e in own if e.get("spec")), key=lambda e: e.get("started") or 0, default={})
+    last = with_row[-1] if with_row else max((e for e in own if e.get("spec") and spec in ("all", "", e["spec"])),
+                                             key=lambda e: e.get("started") or 0, default={})
 
     def amount(e):
         return e.get("hps") if e.get("role") == "healers" else e.get("dps")
@@ -3215,7 +3247,7 @@ def wow_overview(folder, player="", days=0, season=""):
     name, realm, region = (player.split("-")[0], *player.split("-", 1)[1].rsplit("-", 1)) if player.count("-") >= 2 else (player, "", "")
     return {
         "players": players, "player": player, "name": name, "realm": realm, "region": region,
-        "seasons": seasons_, "season": chosen["key"],
+        "seasons": seasons_, "season": chosen["key"], "specs": specs, "chosenSpec": spec or "all",
         "class": last.get("class", ""), "spec": last.get("spec", ""), "role": last.get("role", ""),
         "ilvl": next((e["ilvl"] for e in reversed(mine) if e.get("ilvl")), None),
         "wclUrl": f"{WCL}/character/{region.lower()}/{server_slug(realm)}/{name.lower()}" if region else "",

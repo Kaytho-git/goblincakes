@@ -1,3 +1,4 @@
+2026-11-01  WoW Stats: klicka på karaktärens namn för att välja spec (t.ex. Holy, Protection eller Retribution) – siffrorna visas för en spec i taget, eller Alla specs
 2026-11-01  Nytt program: GoblinShare – skicka filer, mappar och meddelanden mellan GOBLINCAKES-datorerna hemma, och till telefoner med gratisappen LocalSend (bara GOBLINCAKES-datorer kan skicka till dig). Fönstret blir större när du maximerar det. Slå på det i Config → Program → System, och högerklicka sedan på filer i Dolphin → Skicka med GoblinShare.
 2026-11-01  Goblin AI: bredvid modellen i Kakans ruta syns hur fullt hennes minne är (t.ex. 22k / 64k) när den lokala AI:n svarar
 2026-11-01  Goblin AI: Kakan tänker efter innan hon svarar när du ber henne laga något som inte fungerar (tar lite längre tid, men blir mer noggrann)

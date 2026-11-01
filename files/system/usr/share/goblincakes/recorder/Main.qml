@@ -2353,9 +2353,10 @@ Window {
     property int cs2Count: 10
     property real cs2Open: 0 // the match unfolded in CS2 Stats (its start)
     property string wowSeason: "" // "" = the current season, else an archived one's key
+    property string wowSpec: "" // "" = the spec played last, "all" = every spec (parses only compare within one)
     property string cs2Season: ""
     property bool cs2Private: false // PRIVAT: friends' servers, casual, workshop – not in your real numbers
-    readonly property var wowData: tab === "wowstats" ? (videos, JSON.parse(backend.wowOverview(wowPlayer, wowDays, wowSeason))) : ({})
+    readonly property var wowData: tab === "wowstats" ? (videos, JSON.parse(backend.wowOverview(wowPlayer, wowDays, wowSeason, wowSpec))) : ({})
     readonly property var cs2Data: tab === "cs2stats" ? (videos, JSON.parse(backend.cs2Overview(cs2Count, cs2Season, cs2Private))) : ({})
     function seasonSub(x, what) {
         return (x.current ? "Nuvarande säsong" : "Arkiverad · " + day(x.start) + " – " + day(x.end))
@@ -2425,26 +2426,101 @@ Window {
             }
 
             // the character: name in its class colour, spec, item level
+            // a click on the character picks the spec: Heligget is Holy, Protection and Retribution,
+            // parses only compare within one (1 Nov, the user)
             Item {
+                id: wowChar
                 visible: !!wowPage.d.player
                 width: parent.width
                 height: 56
+                z: 5 // the spec menu lies over the tiles below
+                property bool menuOpen: false
+                readonly property var specs: wowPage.d.specs || []
                 Column {
+                    id: wowCharText
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
-                    Text {
-                        text: wowPage.d.name || ""
-                        color: win.classColors[wowPage.d["class"]] || "#E6ECF5"
-                        font.family: "Chakra Petch"
-                        font.weight: Font.Bold
-                        font.pixelSize: 26
+                    Row {
+                        spacing: 10
+                        Text {
+                            text: wowPage.d.name || ""
+                            color: win.classColors[wowPage.d["class"]] || "#E6ECF5"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.Bold
+                            font.pixelSize: 26
+                        }
+                        Text {
+                            visible: wowChar.specs.length > 1
+                            anchors.baseline: parent.children[0].baseline
+                            text: (wowPage.d.chosenSpec === "all" ? "ALLA SPECS" : (wowPage.d.chosenSpec || "").toUpperCase()) + "  ▾"
+                            color: specArea.containsMouse || wowChar.menuOpen ? accent.text : "#8B98AD"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.Medium
+                            font.pixelSize: 14
+                        }
                     }
                     Text {
-                        text: [wowPage.d.spec, wowPage.d["class"], wowPage.d.realm, wowPage.d.region].filter(x => x).join(" · ")
+                        text: [wowPage.d.chosenSpec === "all" ? "Alla specs" : wowPage.d.spec, wowPage.d["class"],
+                               wowPage.d.realm, wowPage.d.region].filter(x => x).join(" · ")
                               + (wowPage.d.role ? " · parse på " + wowPage.metric : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13
+                    }
+                }
+                MouseArea {
+                    id: specArea
+                    anchors.fill: wowCharText
+                    enabled: wowChar.specs.length > 1
+                    hoverEnabled: true
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: wowChar.menuOpen = !wowChar.menuOpen
+                }
+                Rectangle { // the specs played this season, the latest first
+                    objectName: "wowSpecMenu"
+                    visible: wowChar.menuOpen && wowChar.specs.length > 1
+                    anchors { top: wowCharText.bottom; topMargin: 6; left: wowCharText.left }
+                    width: 260
+                    height: specList.height + 2
+                    color: "#0B1018"
+                    border.color: "#1E2A40"
+                    Column {
+                        id: specList
+                        x: 1; y: 1
+                        width: parent.width - 2
+                        Repeater {
+                            model: wowChar.specs.concat([{ spec: "all", pulls: wowChar.specs.reduce((n, x) => n + x.pulls, 0) }])
+                            Rectangle {
+                                required property var modelData
+                                readonly property bool chosen: wowPage.d.chosenSpec === modelData.spec
+                                width: specList.width
+                                height: 34
+                                color: rowArea.containsMouse ? "#12203A" : "transparent"
+                                Rectangle { visible: parent.chosen; width: 3; height: parent.height; color: accent.color }
+                                Text {
+                                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                                    text: parent.modelData.spec === "all" ? "Alla specs" : parent.modelData.spec
+                                    color: parent.chosen ? accent.text : "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.weight: Font.Medium
+                                    font.pixelSize: 14
+                                }
+                                Text {
+                                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                                    text: parent.modelData.pulls + " pulls/nycklar"
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Mono"
+                                    font.pixelSize: 12
+                                }
+                                MouseArea {
+                                    id: rowArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: { win.wowSpec = parent.modelData.spec; wowChar.menuOpen = false }
+                                }
+                            }
+                        }
                     }
                 }
                 Row {
@@ -2485,7 +2561,7 @@ Window {
                         text: modelData.split("-")[0]
                         sub: modelData
                         chosen: wowPage.d.player === modelData
-                        onPicked: win.wowPlayer = modelData
+                        onPicked: { win.wowPlayer = modelData; win.wowSpec = "" }
                     }
                 }
                 Item { visible: (wowPage.d.players || []).length > 1; width: 16; height: 1 }

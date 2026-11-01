@@ -749,9 +749,15 @@ def wow_stats(query):
     o = R.wow_overview(R.load_config()["folder"], "", days)
     if not o["player"]:
         return "Inga WoW-siffror än – GoblinRecorder sparar dem när loggen för en inspelad pull hämtas från Warcraft Logs."
+    # one spec at a time like the page (1 Nov): the one asked about, else the one played last
+    asked = next((x["spec"] for x in o.get("specs", []) if x["spec"].lower() in q), "")
+    if asked and asked != o["chosenSpec"]:
+        o = R.wow_overview(R.load_config()["folder"], "", days, "", asked)
     metric = "HPS" if o["role"] == "healers" else "DPS"
     lines = [f"{o['name']} – {o['spec']} {o['class']}, item level {o['ilvl'] or '?'}"
-             + (f", de senaste {days} dagarna" if days else ", allt inspelat"),
+             + (f", de senaste {days} dagarna" if days else ", allt inspelat")
+             + (" (bara den specen; spelar även " + ", ".join(x["spec"] for x in o["specs"] if x["spec"] != o["chosenSpec"])
+                + " – nämn specen för dess siffror)" if len(o.get("specs", [])) > 1 else ""),
              "Parse = Warcraft Logs percentil (healers på HPS, andra på DPS); ilvl-parse = mot samma item level (i raid); i Mythic+ är parse mot samma nyckelnivå (det Warcraft Logs visar) och alla-parse mot alla nivåer. "
              "Färger hos WCL: 25 grön, 50 blå, 75 lila, 95 orange, 99 rosa, 100 guld."]
     # The newest of each, said outright: "senaste bossen" got the last line of the boss list (24 Oct)

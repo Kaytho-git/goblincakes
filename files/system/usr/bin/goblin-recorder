@@ -430,10 +430,10 @@ class Backend(QObject):
         threading.Thread(target=work, daemon=True).start()
 
     # ---------------------------------------------------------- WoW Stats / CS2 Stats
-    @Slot(str, int, str, result=str)
-    def wowOverview(self, player, days, season):
+    @Slot(str, int, str, str, result=str)
+    def wowOverview(self, player, days, season, spec):
         """The WoW Stats page, put together from your own history (no Warcraft Logs calls)."""
-        return json.dumps(R.wow_overview(R.load_config()["folder"], player, days, season), ensure_ascii=False)
+        return json.dumps(R.wow_overview(R.load_config()["folder"], player, days, season, spec), ensure_ascii=False)
 
     @Slot(int, str, bool, result=str)
     def cs2Overview(self, count, season, private):
