@@ -62,7 +62,8 @@ TERMINAL = os.environ.get("GOBLINCAKES_CONFIG_TERMINAL", "/usr/libexec/goblincak
 TERMINALS = ("ghostty", "konsole", "kitty")
 # Installed apps whose tick can be taken away = uninstalled (goblincakes-config-install uninstall).
 # Not Battle.net (the games are in its prefix), Ianseo, GoblinRecorder or Claude Code.
-REMOVABLE = ("flatpak", "flatpak-or-rpm", "appimage", "webapp", "discord", "vscode", "chatgpt", "gamescope-flatpak")
+REMOVABLE = ("flatpak", "flatpak-or-rpm", "appimage", "webapp", "discord", "vscode", "chatgpt", "gamescope-flatpak",
+             "share")
 
 
 def removable(app):

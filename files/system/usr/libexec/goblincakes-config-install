@@ -116,6 +116,7 @@ check() {
         chatgpt) /usr/libexec/goblincakes-chatgpt status | grep -q '"installed": true' ;;
         discord) [ -x "$HOME/.local/share/discord-app/discord" ] ;;
         kitty) [ -x "$HOME/.local/kitty.app/bin/kitty" ] ;;
+        share) [ -e "$HOME/.config/goblincakes/share-on" ] ;;
         recorder) [ -e "$HOME/.config/goblincakes/recorder-on" ] && flatpak info com.obsproject.Studio >/dev/null 2>&1 ;;
         ianseo) [ "$(cat "$HOME/.local/share/goblincakes/ianseo/layout" 2>/dev/null)" = 2 ] \
                     && [ -e "$HOME/.local/share/goblincakes/ianseo/www/index.php" ] ;;
@@ -163,6 +164,10 @@ uninstall() {
             rm -f "$HOME/.local/bin/code" "$apps/code.desktop" "$apps/code-url-handler.desktop" ;;
         chatgpt)
             /usr/libexec/goblincakes-chatgpt uninstall ;;
+        share)
+            # GoblinShare off: nobody on the network sees this computer (received files stay)
+            status "Stänger av GoblinShare…"
+            /usr/libexec/goblincakes-share off >/dev/null ;;
         gamescope-flatpak)
             status "Avinstallerar gamescope för Lutris/Heroic…"
             flatpak list --user --runtime --columns=ref 2>/dev/null | grep '^org\.freedesktop\.Platform\.VulkanLayer\.gamescope/' \
@@ -420,6 +425,12 @@ DESKTOP
         touch "$HOME/.config/goblincakes/recorder-on"
         systemctl --user daemon-reload 2>/dev/null || :
         systemctl --user start goblincakes-recorder.service
+        ;;
+
+    share-on)
+        # GoblinShare: the flag, the firewall's port 53317 if needed (password) and the user service
+        status "Slår på GoblinShare…"
+        /usr/libexec/goblincakes-share on
         ;;
 
     open-url)

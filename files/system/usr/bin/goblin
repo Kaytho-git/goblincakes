@@ -292,6 +292,7 @@ COMMANDS=(
     "tile|Fönsterlayouter (Config → Fönster, Meta+Ctrl+1–9): goblin tile layouts, goblin tile open raid; förslag: goblin tile huvud firefox discord + goblin tile förslag; automatiska rutor: goblin tile auto på; alla rutor av: goblin tile av; en ruta: goblin tile add discord 2 1"
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
     "amp|GoblinAmp – liten spelare i Winamps anda: dina musikfiler och spellistor eller Spotify (Z X C V B, mellanslag = paus); goblin amp <filer|mapp> spelar dem; goblin amp hjälp = så ställer du in Spotify-listorna"
+    "share|GoblinShare – skicka filer och meddelanden till datorerna och telefonerna hemma: goblin share skicka <filer> (du väljer vem i fönstret), goblin share till <namn> <filer>, goblin share text <namn> <text>, goblin share lista, goblin share på/av"
     "graph|Ljudgraf i WoW:s klassfärger till musiken – goblin graph [staplar|våg|cirkel|explosion] [alla|klass|mage …] [lås|lås upp]; goblin graph auto on = öppnas när musik spelar"
     "moonbyte|Spelar Moonbyte Drift i terminalen med grafen (mellanslag paus, ←/→ 10 s, q avslutar)"
     "moonlit|Spelar Moonlit Pixel Drift i terminalen med grafen (goblin moonlit pixel drift går också)"
@@ -731,6 +732,27 @@ HELP
         info "Ta bort:  goblin play remove <ord>"
         info "Fäst i dockan: goblin play dock <spel>  (startas via Steam; ta bort: goblin play dock remove <spel>)"
         info "Alla spel med vad du skriver i add: goblin play steam" ;;
+    share|dela|goblinshare) shift
+        case ${1:-} in
+            "") (setsid goblin-share >/dev/null 2>&1 &) ;;
+            skicka|send)
+                shift
+                [ $# -gt 0 ] || { echo "Använd: goblin share skicka <filer eller mappar>" >&2; exit 2; }
+                for f in "$@"; do [ -e "$f" ] || { echo "Finns inte: $f" >&2; exit 1; }; done
+                (setsid goblin-share --send "$@" >/dev/null 2>&1 &) ;;
+            till|to) shift; exec /usr/libexec/goblincakes-share send "$@" ;;
+            text|meddelande) shift; exec /usr/libexec/goblincakes-share text "$@" ;;
+            lista|list|enheter) exec /usr/libexec/goblincakes-share list ;;
+            leta|scan|sök) exec /usr/libexec/goblincakes-share scan ;;
+            på|on|av|off|status) exec /usr/libexec/goblincakes-share "$1" ;;
+            *)
+                # goblin share <filer> = the same as skicka
+                if [ -e "$1" ]; then
+                    (setsid goblin-share --send "$@" >/dev/null 2>&1 &)
+                else
+                    echo "Okänt: goblin share $1 – se goblin help" >&2; exit 2
+                fi ;;
+        esac ;;
     nyheter|news) shift; heading "Nytt i GOBLINCAKES"; exec /usr/libexec/goblincakes-news latest "${1:-15}" ;;
     färg|farg|color|colour) shift; cmd_farg "$@" ;;
     gamemode) cmd_gamemode ;;

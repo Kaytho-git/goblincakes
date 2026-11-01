@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=GoblinShare
+GenericName=Dela filer hemma
+Comment=Skicka filer, mappar och meddelanden till datorerna och telefonerna i hemnätverket (fungerar med LocalSend)
+Exec=goblin-share %F
+Icon=goblincakes-share
+Categories=Network;FileTransfer;
+Keywords=dela;skicka;filer;share;localsend;airdrop;telefon;iphone;android;nätverk;
+StartupWMClass=goblin-share

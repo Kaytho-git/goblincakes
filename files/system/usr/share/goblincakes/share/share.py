@@ -694,7 +694,7 @@ class Share:
                 return 422, {"message": "Checksum mismatch"}
             dest = unique(dest)   # another file with the same name may have finished meanwhile
             part.replace(dest)
-        except (OSError, InterruptedError, ValueError) as e:
+        except (OSError, InterruptedError, ValueError):
             part.unlink(missing_ok=True)
             with self.lock:
                 if s["state"] == "tar emot":
@@ -1170,11 +1170,47 @@ def service_active():
     return subprocess.run(["systemctl", "--user", "is-active", "--quiet", UNIT]).returncode == 0
 
 
+def firewall_open():
+    """Lets 53317 (TCP + UDP) in when firewalld is on and doesn't already – Fedora's workstation zone lets
+    1025–65535 in, other zones don't. Changing asks for the password (polkit), like Ianseo's network switch.
+    → "" (open), or why not."""
+    def run(*args):
+        try:
+            return subprocess.run(["firewall-cmd", *args], capture_output=True, text=True, timeout=120)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+    state = run("--state")
+    if not state or state.returncode != 0:
+        return ""     # no firewalld, or it's off
+    listed = run("--list-ports")
+    ports = (listed.stdout.split() if listed and listed.returncode == 0 else [])
+
+    def covered(proto):
+        for p in ports:
+            rng, _, pr = p.partition("/")
+            lo, _, hi = rng.partition("-")
+            try:
+                if pr == proto and int(lo) <= PORT <= int(hi or lo):
+                    return True
+            except ValueError:
+                continue
+        return False
+    if covered("tcp") and covered("udp"):
+        return ""
+    ok = True
+    for extra in (["--permanent"], []):
+        r = run("--quiet", *extra, f"--add-port={PORT}/tcp", f"--add-port={PORT}/udp")
+        ok = ok and bool(r) and r.returncode == 0
+    return "" if ok else f"Brandväggen släpper inte in port {PORT} – andra kan inte skicka hit"
+
+
 def turn_on():
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     FLAG.touch()
+    why = firewall_open()
     subprocess.run(["systemctl", "--user", "daemon-reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["systemctl", "--user", "start", UNIT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return why
 
 
 def turn_off():

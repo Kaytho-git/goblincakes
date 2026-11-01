@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Service
+MimeType=all/all;
+Actions=goblinShare;
+X-KDE-Priority=TopLevel
+
+[Desktop Action goblinShare]
+Name=Skicka med GoblinShare
+Icon=goblincakes-share
+Exec=goblin-share --send %F

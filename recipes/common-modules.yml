@@ -158,6 +158,7 @@ modules:
         - goblincakes-disk-owner.path     # own Linux-formatted disks mounted later (otherwise root's)
         - goblincakes-frames.path         # goblin frames: a notification when a measured game closes
         - goblincakes-recorder.service    # GoblinRecorder – only runs for those who chose it in Config
+        - goblincakes-share.service       # GoblinShare (LocalSend protocol) – only runs for those who turned it on
         - goblincakes-graph.service       # goblin graph opens when music plays – only with goblin graph auto on
         - goblincakes-season.timer        # the desktop's look by date (login + midnight)
         - goblincakes-ollama.service      # lokal AI – only runs for those who installed it in Goblin AI

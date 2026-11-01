@@ -61,7 +61,9 @@ def main(argv):
         share.run()
         return 0
     if cmd in ("on", "på"):
-        S.turn_on()
+        why = S.turn_on()
+        if why:
+            print(why)
         for _ in range(30):
             if S.call("status"):
                 break
