@@ -1616,6 +1616,17 @@ Window {
                             font.pixelSize: 11
                         }
                     }
+                    // Which code runs (448e525 had it under the name; the new layout lost it, 1 Nov)
+                    Text {
+                        visible: text !== ""
+                        width: parent.width
+                        horizontalAlignment: win.portrait ? Text.AlignHCenter : Text.AlignLeft
+                        elide: Text.ElideRight
+                        text: backend.version
+                        color: "#5C6880"
+                        font.family: "IBM Plex Mono"
+                        font.pixelSize: 10
+                    }
                 }
             }
 
