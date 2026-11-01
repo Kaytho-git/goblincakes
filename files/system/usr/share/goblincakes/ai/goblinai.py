@@ -1039,8 +1039,10 @@ def byt_run(query):
     # The card goes under her answer by itself (ask()) – not back to her: three copies a change (the result, her
     # answer, "Så här gick det:") filled the local AI's memory in one question (30 Oct)
     LAST.cards = getattr(LAST, "cards", []) + [f"```bash\n{bytatext.card(full, old, new)}\n```"]
-    return (f"Kortet för {full.name} är klart och läggs under ditt svar – skriv det inte själv. Ändringen görs när "
-            "användaren trycker Tillåt. Fler ändringar i samma svar: en byt_text för var och en."), []
+    # "Fler ändringar …: en byt_text för var och en" read as "do it again" – the same card over and over (gear round 20)
+    return (f"Klart – kortet för {full.name} är gjort och läggs under ditt svar (skriv det inte själv). Filen ändras när "
+            "användaren trycker Tillåt, så den ser likadan ut tills dess – det är rätt, gör inte samma ändring igen. "
+            "Behövs en ANNAN ändring: byt_text för den. Annars: svara nu med en mening om vad ändringen gör."), []
 
 
 # "uppdatera sen stäng av datorn", "stäng av datorn när uppdateringen är klar" (29 Oct)
