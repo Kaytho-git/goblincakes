@@ -73,7 +73,8 @@ class Terminals(QObject):
             folder = os.path.expanduser("~")
         shell = os.environ.get("SHELL") or "/bin/bash"
         argv = [shell, "-c", command + "; exec " + shlex.quote(shell)] if command else [shell]
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("QT_", "QML_", "GOBLIN_AI_"))}
+        # Not Goblin AI's own (Qt's scale) or a Claude Code session's markers when started from one
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("QT_", "QML_", "GOBLIN_AI_", "CLAUDECODE", "CLAUDE_CODE_"))}
         env.update(TERM="xterm-256color", COLORTERM="truecolor", TERM_PROGRAM="goblin-ai")
         pid, fd = pty.fork()
         if pid == 0:  # the child: only exec from here

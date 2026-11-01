@@ -1985,15 +1985,19 @@ Window {
             target: terminals
             function onOpened(sid, folder, command) {
                 const name = folder.replace(/\/+$/, "").split("/").pop() || "/";
-                termTabs.append({ sid: sid, title: (command.indexOf("claude") >= 0 ? "claude · " : "") + name });
+                termTabs.append({ sid: sid, folder: name, title: (command.indexOf("claude") >= 0 ? "claude · " : "") + name });
                 zoomRoot.termCurrent = sid;
                 if (termLoader.item)
                     termLoader.item.focusWeb();
             }
             function onTitled(sid, title) {
                 for (let i = 0; i < termTabs.count; i++)
-                    if (termTabs.get(i).sid === sid && title)  // Fedora's bash: user@host:~/folder → ~/folder
-                        termTabs.setProperty(i, "title", title.replace(/^[^@\s]+@[^:\s]+:\s*/, ""));
+                    if (termTabs.get(i).sid === sid && title) {
+                        // Fedora's bash: user@host:~/folder → ~/folder; a program's own title ("✳ Claude Code")
+                        // gets the folder in front – several Claude Code tabs looked the same (1 Nov)
+                        const path = title.match(/^[^@\s]+@[^:\s]+:\s*(.*)$/);
+                        termTabs.setProperty(i, "title", path ? path[1] : termTabs.get(i).folder + " · " + title.replace(/Claude Code/, "claude"));
+                    }
             }
             function onExited(sid) {
                 let at = -1;
