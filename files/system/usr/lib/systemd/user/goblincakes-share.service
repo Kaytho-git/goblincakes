@@ -1,0 +1,16 @@
+[Unit]
+Description=GoblinShare: files and messages between computers and phones on the same network (LocalSend protocol)
+# Only for those who turned it on (GOBLINCAKES Config → GoblinShare, the window, goblin share på)
+ConditionPathExists=%h/.config/goblincakes/share-on
+ConditionKernelCommandLine=!rd.live.image
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/libexec/goblincakes-share run
+Restart=on-failure
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=graphical-session.target

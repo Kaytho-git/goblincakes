@@ -1,0 +1,140 @@
+#!/usr/bin/python3
+"""GoblinShare's service and command line (the LocalSend protocol – /usr/share/goblincakes/share/share.py).
+
+    goblincakes-share run                     the user service itself (goblincakes-share.service)
+    goblincakes-share on | off                visible on the network or not (the flag + the service)
+    goblincakes-share status                  name, address, devices, transfers (JSON with --json)
+    goblincakes-share list                    the devices that can be sent to
+    goblincakes-share send <namn> <fil|mapp>…  sends to a device (its name or part of it)
+    goblincakes-share text <namn> <text>      sends a message
+    goblincakes-share scan                    looks for devices again (multicast + the local network)
+"""
+import json
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(os.environ.get("GOBLINCAKES_SHARE_DIR") or
+                            Path(__file__).resolve().parents[1] / "share/goblincakes/share")))
+import share as S  # noqa: E402
+
+
+def need_service():
+    st = S.call("status")
+    if st is None:
+        print("GoblinShare är avstängt – slå på det med: goblin share på", file=sys.stderr)
+        sys.exit(2)
+    return st
+
+
+def wait_job(jid):
+    """Prints the progress of a sending until it is done → exit code."""
+    last = ""
+    while True:
+        st = S.call("status") or {}
+        job = next((t for t in st.get("transfers", []) if t["id"] == jid), None)
+        if not job:
+            hist = next((h for h in st.get("history", []) if h.get("dir") == "out"), None)
+            ok = bool(hist and hist.get("state") == "klart")
+            print("Klart." if ok else (hist or {}).get("why") or "Avslutat.")
+            return 0 if ok else 1
+        line = job["state"]
+        if job["state"] == "skickar" and job["total"]:
+            line += f" {job['done'] * 100 // max(1, job['total'])} %"
+        if line != last:
+            print(line, flush=True)
+            last = line
+        if job["state"] in ("klart", "nekad", "avbruten", "fel"):
+            if job["why"]:
+                print(job["why"])
+            return 0 if job["state"] == "klart" else 1
+        time.sleep(0.5)
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else "status"
+    if cmd == "run":
+        share = S.Share()
+        signal.signal(signal.SIGTERM, lambda *_: (share.shutdown(), sys.exit(0)))
+        share.run()
+        return 0
+    if cmd in ("on", "på"):
+        S.turn_on()
+        for _ in range(30):
+            if S.call("status"):
+                break
+            time.sleep(0.2)
+        st = S.call("status")
+        print(f"GoblinShare är på – andra ser dig som \"{st['alias']}\"." if st else
+              "Tjänsten startade inte – se: journalctl --user -u goblincakes-share")
+        return 0 if st else 1
+    if cmd in ("off", "av"):
+        S.turn_off()
+        print("GoblinShare är av – ingen på nätverket ser dig.")
+        return 0
+    if cmd == "scan":
+        need_service()
+        S.call("scan", sweep=True)
+        time.sleep(4)
+        cmd = "list"
+    if cmd == "status":
+        st = S.call("status")
+        if "--json" in argv:
+            print(json.dumps(st or {"running": False}, ensure_ascii=False, indent=1))
+            return 0
+        if not st:
+            print("GoblinShare är avstängt (goblin share på).")
+            return 0
+        print(f"Synlig som \"{st['alias']}\" på {', '.join(st['addresses']) or 'inget nätverk'} "
+              f"(port {st['port']}, {st['protocol'].upper()})")
+        if st["error"]:
+            print("FEL:", st["error"])
+        print(f"Tar emot till {st['folder']}")
+        print(f"{len(st['peers'])} enhet(er) syns.")
+        for t in st["transfers"]:
+            pct = f" {t['done'] * 100 // max(1, t['total'])} %" if t["total"] else ""
+            print(f"  {'←' if t['dir'] == 'in' else '→'} {t['alias']}: {t['name']}  {t['state']}{pct}")
+        for r in st["requests"]:
+            print(f"  ? {r['alias']} vill skicka {r['count']} fil(er), {S.human_size(r['size'])} – svara i fönstret")
+        return 0
+    if cmd == "list":
+        st = need_service()
+        if not st["peers"]:
+            print("Inga enheter hittade. Har de GoblinShare eller LocalSend öppet, på samma wifi? (goblin share leta)")
+        for p in st["peers"]:
+            kind = "GOBLINCAKES" if p["goblincakes"] else (p["model"] or p["type"])
+            print(f"{p['alias']:<24} {kind:<16} {p['ip']:<16}" + ("  betrodd" if p["trusted"] else ""))
+        return 0
+    if cmd in ("send", "skicka", "text"):
+        if len(argv) < 4:
+            print(__doc__.strip())
+            return 1
+        st = need_service()
+        to = argv[2]
+        peer = next((p for p in st["peers"] if p["alias"].lower() == to.lower()), None) or \
+            next((p for p in st["peers"] if to.lower() in p["alias"].lower()), None)
+        if not peer:
+            print(f"Hittar ingen \"{to}\". Enheterna: " + (", ".join(p["alias"] for p in st["peers"]) or "inga"))
+            return 1
+        if cmd == "text":
+            res = S.call("text", to=peer["fingerprint"], text=" ".join(argv[3:]))
+        else:
+            paths = [str(Path(p).expanduser().resolve()) for p in argv[3:]]
+            missing = [p for p in paths if not Path(p).exists()]
+            if missing:
+                print("Finns inte:", ", ".join(missing))
+                return 1
+            res = S.call("send", to=peer["fingerprint"], paths=paths)
+        if not res or not res.get("ok"):
+            print((res or {}).get("error") or "Gick inte att skicka")
+            return 1
+        print(f"Till {peer['alias']} – väntar på att de tar emot …", flush=True)
+        return wait_job(res["id"])
+    print(__doc__.strip())
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
