@@ -4624,8 +4624,11 @@ Hittar du inte orsaken efter att ha sökt och jämfört: säg "Det kan jag inte 
 DESK_ASKED = re.compile(r"fönster|öppna|starta|skärm|maximera|minimera|påminn|notis|urklipp|musik|låt\b|volym|"
                         r"spela upp|pausa|kalender", re.I)
 # "/gear visar bara "Min Utrustning" … Det ska vara en ruta …" (31 Oct) was neither: no files laid before her, she guessed
+# What it does wrong, told without "inte"/"fixa" – "står det total ilvl: 0 och bara texten …, ingen ram, ingen utrustning"
+# was taken as a plain WoW question: no files read, no thinking, she asked for BugSack errors (gear round 19, 1 Nov)
+WRONG_NOW = r"|\b(?:står|visar|blir)\s+(?:det\s+)?(?:bara|0|noll)\b|\bbara\s+texten\b|\bingen\s+(?:ram|ruta|text|lista|utrustning|knapp|ikon|bild|ljud)\b|\b(?:döljer|försvinner)\b"
 REPAIR_WHEN = (re.compile(BROKEN.pattern + r"|\b(?:visar|händer|syns|ritar)\s+(?:ingenting|inget|inte något)\b"
-                          r"|\b(?:visar|syns|kommer|står)\s+bara\b", re.I),
+                          r"|\b(?:visar|syns|kommer|står)\s+bara\b" + WRONG_NOW, re.I),
                re.compile(r"(?:tillägg|addon|add-on|widget|plasmoid|skript|script)\w*|\bkod(?:en)?\b|(?:^|\s)/[a-z]\w+"
                           r"|\.(?:lua|toc|qml|py|sh|js)\b|~/", re.I))
 
@@ -4694,7 +4697,7 @@ REPAIR_COMPARE = ("Jämför filerna ovan med det källorna säger, rad för rad 
                   "raden (`sed -i`, `mv`). Står svaret inte i källorna: börja svaret med \"Det kan jag inte hitta\" och säg "
                   "vad som saknas – gissa inte.")
 # In a repair chat, a message that asks for finding out or fixing again ("det står fortfarande …, ta reda på varför")
-REPAIR_ASK = re.compile(r"\b(?:varför|ta reda på|rätta|laga|fixa|fortfarande|felet|inte)\b", re.I)
+REPAIR_ASK = re.compile(r"\b(?:varför|ta reda på|rätta|laga|fixa|fortfarande|felet|inte)\b" + WRONG_NOW, re.I)
 QUERY_PROMPT = ("Skriv EN sökfråga på engelska (högst 10 ord) som hittar hur det ska vara när det här inte fungerar. "
                 "Bara sökfrågan, inget annat – inga citattecken, ingen förklaring.")
 
