@@ -400,7 +400,7 @@ def ask_live(chat, keys, choice=""):
     chat.tools = result.get("tools", [])
     chat.done = result.get("done", [])
     if working.steps:
-        chat.steps = [{k: v for k, v in s.items() if k != "t"} for s in working.steps]
+        chat.steps = [{k: v for k, v in s.items() if k != "t"} for s in working.steps if not s.get("think")]
     return answer, service
 
 

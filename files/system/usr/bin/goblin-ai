@@ -497,7 +497,8 @@ class Backend(QObject):
         if not self._busy or self._stop is None or self._stop.is_set():
             return
         self._stop.set()
-        steps = [{**s, "state": "stopp" if s["state"] == "run" else s["state"]} for s in json.loads(self._steps)]
+        steps = [{**s, "state": "stopp" if s["state"] == "run" else s["state"]} for s in json.loads(self._steps)
+                 if not s.get("think")]
         steps.append({"text": "Stoppad av dig", "state": "stopp"})
         self._stop = None
         self._set_steps("[]")
@@ -634,7 +635,7 @@ class Backend(QObject):
         shown = {"role": "assistant", "text": answer, "segments": goblinai.segments(answer),
                  "service": service, "file": "", "tools": self._pending_tools, "time": time.strftime("%H:%M")}
         if self._steps != "[]":
-            shown["steps"] = json.loads(self._steps)
+            shown["steps"] = [s for s in json.loads(self._steps) if not s.get("think")]  # "Tänker" only while working
         if self._pending_report_done:  # for Skicka till Claude – the tools' answers, longer
             shown["report_done"] = self._pending_report_done
         self._pending_report_done = []
