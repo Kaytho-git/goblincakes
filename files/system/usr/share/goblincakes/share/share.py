@@ -9,9 +9,11 @@ both Android and iPhones. Only the standard library (+ the `openssl` command for
                 POST /api/localsend/v2/register (or a multicast reply with announce false).
                 "Leta igen" also asks every address in the local /24 (GET …/info) for routers that
                 block multicast.
-    receiving   HTTPS on port 53317 (self-signed certificate, fingerprint = SHA-256 of it):
+    receiving   HTTPS on port 53317 (self-signed certificate, fingerprint = SHA-256 of it), only from
+                other GoblinShares (deviceModel GOBLINCAKES + an answer on our own /api/goblincakes):
                 prepare-upload (asks: notification with Ta emot / Neka + the window; trusted
                 devices directly) → upload per file → saved in the GoblinShare folder.
+                LocalSend apps can be sent to, but what they send is turned away (403).
                 A single text/plain "file" with a preview = a message (no upload, answer 204).
     sending     prepare-upload to the other one (waits until they answer) → upload per file.
     extra       GET /api/goblincakes/v1/info – the accent colour of another GOBLINCAKES computer
@@ -613,6 +615,12 @@ class Share:
                           "modified": ((f.get("metadata") or {}).get("modified") if isinstance(f.get("metadata"), dict)
                                        else None)})
 
+        # Only from other GoblinShares (1 Nov, the user's decision): LocalSend apps (phones, Windows) can get
+        # files from us but not send here. Its own word (deviceModel) and an answer on our own address, which
+        # LocalSend doesn't have – turned away at once, no notification.
+        if not self.is_goblinshare(body["info"], ip):
+            return 403, {"message": "Only GoblinShare devices can send here"}
+
         # Trusted = the fingerprint AND the address the device was found at. LocalSend reads the sender's
         # fingerprint from its certificate; Python's ssl can't take an unknown client certificate, so a
         # copied fingerprint alone must not be enough (files would only land in the folder, but still).
@@ -665,6 +673,20 @@ class Share:
             session["changed"] = time.time()
             Path(session["folder"]).mkdir(parents=True, exist_ok=True)
             return 200, {"sessionId": sid, "files": {fid: f["token"] for fid, f in session["files"].items()}}
+
+    def is_goblinshare(self, info, ip):
+        if str(info.get("deviceModel") or "") != MODEL:
+            return False
+        try:
+            port = int(info.get("port") or PORT)
+        except (TypeError, ValueError):
+            port = PORT
+        peer = {"ip": ip, "port": port, "protocol": "http" if info.get("protocol") == "http" else "https"}
+        try:
+            status, data = request(peer, "GET", OWN_API + "/info", timeout=3)
+        except (OSError, ssl.SSLError, http.client.HTTPException):
+            return False
+        return status == 200 and isinstance(data, dict) and data.get("app") == "GoblinShare"
 
     def answer(self, sid, accept):
         with self.lock:
