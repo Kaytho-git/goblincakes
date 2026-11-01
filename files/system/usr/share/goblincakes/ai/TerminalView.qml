@@ -17,15 +17,18 @@ Item {
     }
     WebEngineView {
         id: web
-        anchors.fill: parent
+        // Main.qml's zoomRoot enlarges everything 1–1.3× as a picture: the web view would be stretched (blurry,
+        // half-redrawn rows on the real screen 1 Nov). Undone here – one pixel per pixel, the text bigger instead.
+        width: root.width * zoomRoot.zoom
+        height: root.height * zoomRoot.zoom
+        scale: 1 / zoomRoot.zoom
+        transformOrigin: Item.TopLeft
         backgroundColor: "#0B1018"
-        // The web view ignores QT_SCALE_FACTOR (0.8): without this the right fifth was cut off (provat offscreen)
-        zoomFactor: uiScale
         webChannel: channel
         settings.focusOnNavigationEnabled: true
         // Set once: a reload would lose the tabs' screens (the shells live on in ptyterm.py)
         Component.onCompleted: url = Qt.resolvedUrl("terminal/index.html") + "?accent=" + encodeURIComponent(accent.color)
-                                     + "&size=" + Math.round(13 / uiScale)  // 13 px on the screen
+                                     + "&size=" + Math.round(13 * zoomRoot.zoom)
         onContextMenuRequested: request => request.accepted = true  // the page's own right click (copy/paste)
         onNewWindowRequested: request => Qt.openUrlExternally(request.requestedUrl)
         onNavigationRequested: request => {

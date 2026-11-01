@@ -2775,10 +2775,6 @@ def main():
     own_scale = "QT_SCALE_FACTOR" not in os.environ
     if own_scale:
         os.environ["QT_SCALE_FACTOR"] = "0.8"
-    try:
-        ui_scale = float(os.environ["QT_SCALE_FACTOR"])
-    except ValueError:
-        ui_scale = 1.0
     try:  # the TERMINAL tab (xterm.js in a web view) – must come before the application; the rest works without it
         from PySide6.QtWebEngineQuick import QtWebEngineQuick
         QtWebEngineQuick.initialize()
@@ -2844,7 +2840,6 @@ def main():
     app.aboutToQuit.connect(terminals.close_all)
     engine.rootContext().setContextProperty("terminals", terminals)
     engine.rootContext().setContextProperty("hasWeb", web)
-    engine.rootContext().setContextProperty("uiScale", ui_scale)
     engine.rootContext().setContextProperty("startQuick", quick)
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO") or season_logo()))
