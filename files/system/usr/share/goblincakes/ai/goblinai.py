@@ -237,9 +237,15 @@ def activity(kind, text, local=None, progress=None, steps=None):
         old = json.loads(path.read_text())
     except (OSError, ValueError):
         old = {}
-    data = {"pid": os.getpid(), "kind": kind, "text": old.get("text", "arbetar") if text is None else text,
+    text = old.get("text", "arbetar") if text is None else text
+    steps = [s for s in old.get("steps", []) if not s.get("think")] if steps is None else steps
+    if kind == "ask" and text.startswith("tänker"):
+        # The step she is on: thinking after the last tool's ✓, not that tool still spinning (the user 1 Nov) –
+        # gone when the next step starts
+        steps = steps[-7:] + [{"text": "Tänker", "state": "run", "think": True}]
+    data = {"pid": os.getpid(), "kind": kind, "text": text,
             "local": bool(old.get("local") if local is None else local), "progress": progress,
-            "steps": old.get("steps", []) if steps is None else steps, "started": old.get("started") or time.time()}
+            "steps": steps, "started": old.get("started") or time.time()}
     try:
         ACTIVITY_DIR.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
