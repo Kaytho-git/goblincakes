@@ -58,7 +58,7 @@ function make(folder, command) {
     const k = ev.key.toLowerCase();
     if (k === "c") { terms.copy(term.getSelection()); return false; }
     if (k === "v") { terms.paste(text => term.paste(text)); return false; }
-    if (k === "t") { terms.request("", ""); return false; }
+    if (k === "t") { terms.requestNear(current); return false; }
     if (k === "w") { if (current) terms.close(current); return false; }
     if (k === "+" || k === "=" || k === "_" || k === "-" || k === ")" || k === "0") {  // Ctrl+Shift+plus/minus/0: text size
       size = k === ")" || k === "0" ? fontSize : Math.max(8, Math.min(32, size + (k === "_" || k === "-" ? -1 : 1)));

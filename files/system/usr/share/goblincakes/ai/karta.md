@@ -131,7 +131,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
 - MAPPAR = användarens egna projektmappar i ~/.config/goblincakes/ai-mappar.json (en lista med sökvägar). Klick på en
   mapp: Öppna i VS Code (~/.local/share/vscode/bin/code <mapp>) eller Claude Code i terminalen (goblincakes-terminal run
   i mappen, `claude`). Arbetet sker där, inte i fönstret. Du ändrar aldrig koden i mapparna.
-- TERMINAL-fliken: riktiga skal i flikar (ai/ptyterm.py startar skalen, ai/TerminalView.qml + ai/terminal/index.html = xterm.js i en webbvy, kräver paketen qt6-qtwebengine och qt6-qtwebchannel). Mappens meny i PROJEKT: Claude Code här / Terminal här. Terminalerna avslutas när fönstret stängs. Syns inte fliken: kolla att PySide6.QtWebEngineQuick går att importera.
+- TERMINAL-fliken: riktiga skal i flikar (ai/ptyterm.py startar skalen, ai/TerminalView.qml + ai/terminal/index.html = xterm.js i en webbvy, kräver paketen qt6-qtwebengine och qt6-qtwebchannel). Mappens meny i PROJEKT: Claude Code här; + i terminalflikarna öppnar i den aktuella flikens mapp. Terminalerna avslutas när fönstret stängs. Syns inte fliken: kolla att PySide6.QtWebEngineQuick går att importera.
 - Kvoten (knappen KVOT bredvid flikarna, öppnar en ruta med staplar och när den nollställs) läses ur ~/.cache/goblincakes/quota.json (kvot-widgetens fil, varje minut medan fönstret har fokus).
 - I terminalen: goblin ai = /usr/libexec/goblincakes-ai (prompt_toolkit, python3-prompt-toolkit i imagen; utan den en
   enkel rad). /app öppnar fönstret med samma samtal (goblin-ai --open <id>). Terminalens chattar sparas bland fönstrets.

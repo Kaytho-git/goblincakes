@@ -2091,7 +2091,7 @@ Window {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: win.openTerminal("", "")
+                            onClicked: terminals.requestNear(zoomRoot.termCurrent)  // in the current tab's folder
                         }
                     }
                 }
@@ -2364,7 +2364,6 @@ Window {
                 }
                 PanelRow { height: 36; text: "Öppna i VS Code"; note: "som vanligt"; onClicked: folderMenu.run("code") }
                 PanelRow { visible: hasWeb; height: 36; text: "Claude Code här"; note: "i TERMINAL"; onClicked: folderMenu.here(backend.claudeCommand()) }
-                PanelRow { visible: hasWeb; height: 36; text: "Terminal här"; note: "i TERMINAL"; onClicked: folderMenu.here("") }
                 PanelRow { height: 36; text: "Claude Code i eget fönster"; note: "Ghostty"; onClicked: folderMenu.run("terminal") }
                 PanelRow {
                     height: 32

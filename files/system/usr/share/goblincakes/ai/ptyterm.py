@@ -47,6 +47,18 @@ class Terminals(QObject):
         else:
             self._waiting.append([folder, command])
 
+    @Slot(int)
+    def requestNear(self, sid):
+        """+ / Ctrl+Shift+T: a new shell in the folder the current tab's shell stands in (home without one)."""
+        s = self._sessions.get(sid)
+        folder = ""
+        if s:
+            try:
+                folder = os.readlink(f"/proc/{s.pid}/cwd")
+            except OSError:
+                pass
+        self.request(folder, "")
+
     @Slot(result=str)
     def ready(self):
         """The page has loaded: what to open first ([] = one plain shell in the home folder)."""
