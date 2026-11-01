@@ -1861,7 +1861,8 @@ OWN_SYSTEM = re.compile(r"\b(?:logg\w*|journal\w*|tjänst\w*|datorn|min dator|kr
 
 def own_system_question(question, tools):
     return isinstance(question, str) and "leta" in tools and bool(
-        OWN_SYSTEM.search(question[:600]) or sys_tools().named_paths(question[:600])[1])
+        OWN_SYSTEM.search(question[:600]) or sys_tools().DISK_SPACE.search(question[:600])
+        or sys_tools().named_paths(question[:600])[1])
 
 
 # Checking the answer (24 Oct): times, paths and numbers in it must be in what the AI read or the user

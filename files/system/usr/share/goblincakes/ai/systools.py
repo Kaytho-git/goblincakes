@@ -343,6 +343,29 @@ def disks():
     return found
 
 
+# "Hur mycket diskutrymme har jag kvar?" (the start page's own example, 1 Nov): gemma4 ran nothing and offered
+# to – df is read before she answers. The composefs / always shows 100 % full and is left out, like tmpfs
+DISK_SPACE = re.compile(r"disk\w*utrymme\w*|utrymme\w* kvar|ledig\w* (?:utrymme|plats|på disk\w*)|plats kvar|hur mycket plats|"
+                        r"\bfull\w* disk\w*|disk\w* (?:är |blir )?full\w*|\bdf\b", re.I)
+SPACE_SKIP_FS = {"tmpfs", "devtmpfs", "overlay", "efivarfs", "squashfs", "ramfs", "proc", "sysfs"}
+
+
+def free_space():
+    """The disks' size and free space in plain words – one line per disk (the system's btrfs once)."""
+    out = run(["df", "-B1", "--output=source,fstype,target,size,avail,pcent"])
+    lines, seen = [], set()
+    for row in out.splitlines()[1:]:
+        parts = row.split(None, 5)
+        if len(parts) < 6 or parts[1] in SPACE_SKIP_FS or parts[0] in seen or parts[2].startswith("/boot"):
+            continue
+        source, _, target, size, avail, pcent = parts
+        seen.add(source)
+        name = "Systemet och hemmappen" if target in ("/etc", "/var", "/var/home", "/sysroot") else target
+        gb = lambda b: f"{int(b) / 2**30:.0f} GB"  # noqa: E731 – GiB, like Dolphin and df -h
+        lines.append(f"{name}: {gb(avail)} ledigt av {gb(size)} ({pcent.strip()} använt)")
+    return "Diskutrymme (df):\n" + "\n".join(lines) if lines else ""
+
+
 def find_places():
     """FIND_PLACES + the plugged-in disks – punkt 3 (25 Oct): free paths."""
     return FIND_PLACES + disks()
@@ -773,6 +796,8 @@ def describe(query):
         text = "Kollar vilka tjänster som körs"
     elif word in ("program", "appar"):
         text = f"Kollar installerade program: {rest}" if rest else "Kollar installerade program"
+    elif word in ("diskutrymme", "df"):
+        text = "Kollar diskutrymmet"
     elif word == "systemfel":
         text = "Läser datorns fel" + (f" för {rest}" if rest else "")
     else:
@@ -962,6 +987,10 @@ def named_paths(question):
 
 def gather(question):
     """What Goblin AI reads by itself for a question about the computer: (text, [what was read])."""
+    if DISK_SPACE.search(question):
+        space = free_space()
+        if space:
+            return space, ["diskutrymme"]
     text, read = named_paths(question)
     if read:
         return text, read

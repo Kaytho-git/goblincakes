@@ -1,3 +1,4 @@
+2026-11-01  Goblin AI: frågar du hur mycket diskutrymme du har kvar kollar Kakan diskarna själv innan hon svarar
 2026-11-01  Goblin AI har fått fliken Terminal: riktiga terminaler i flikar inne i fönstret. Under Projekt → en mapp kan du starta Claude Code direkt där, och + öppnar en ny terminal i samma mapp som fliken du står i. Kopiera/klistra in med Ctrl+Shift+C/V eller högerklick.
 2026-11-01  Goblin AI: Claude- och ChatGPT-kvoten har flyttat till knappen KVOT bredvid Inställningar – tryck så visas hur mycket som är använt och när det nollställs.
 2026-11-01  Goblin AI: Inställningar → Egna verktyg visar vad Kakans verktyg gör (de som inte har ett eget /kommando).
