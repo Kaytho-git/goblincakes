@@ -7,10 +7,10 @@ import QtQuick.Dialogs
 Window {
     id: win
 
-    width: 1320
-    height: 860
-    minimumWidth: 980
-    minimumHeight: 600
+    width: 1320 * uiScale
+    height: 860 * uiScale
+    minimumWidth: 980 * uiScale
+    minimumHeight: 600 * uiScale
     visible: !startQuick  // started for the quick box only: the window comes with the answer
     title: "Goblin AI"
     color: "#07090D"
@@ -863,8 +863,8 @@ Window {
         id: quick
         title: "Goblin AI – snabbfråga"  // the KWin script goblincakes-windows places it by this title
         flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
-        width: 680
-        height: quickBox.height
+        width: 680 * uiScale
+        height: quickBox.height * uiScale
         color: "#0B1018"
         property bool wasActive: false
 
@@ -968,7 +968,9 @@ Window {
         // Like the window's input (26 Oct): the words above, ❯ and the blinking block, ↑/↓ = earlier questions
         Rectangle {
             id: quickBox
-            width: parent.width
+            width: quick.width / uiScale
+            scale: uiScale  // 80 % like the window (goblin-ai main())
+            transformOrigin: Item.TopLeft
             height: quickCol.height + 28
             color: "#0B1018"
             border.width: 2
@@ -1160,7 +1162,9 @@ Window {
         id: zoomRoot
         // The size follows the screen, not the window (1 Nov, the user: the text was another size in a smaller window
         // than maximized) – the same as maximized always; a standing screen gets what its width allows
-        readonly property real zoom: Math.max(1, Math.min(1.3, Screen.width / 1120, Screen.desktopAvailableHeight / 800))
+        // × uiScale: the 80 % that QT_SCALE_FACTOR did before (goblin-ai main(); the screen counted in those units)
+        readonly property real zoom: uiScale * Math.max(1, Math.min(1.3, Screen.width / uiScale / 1120,
+                                                                    Screen.desktopAvailableHeight / uiScale / 800))
         width: win.width / zoom
         height: win.height / zoom
         scale: zoom

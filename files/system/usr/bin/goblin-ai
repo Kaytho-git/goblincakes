@@ -2770,11 +2770,11 @@ def use_accent(engine):
 
 
 def main():
-    # The QML uses fixed pixel sizes: drawn at 80 % (still sharp – Qt renders at that size),
-    # matching GOBLINCAKES' 9 pt interface. Not passed on to programs started from here.
-    own_scale = "QT_SCALE_FACTOR" not in os.environ
-    if own_scale:
-        os.environ["QT_SCALE_FACTOR"] = "0.8"
+    # The QML uses fixed pixel sizes: drawn at 80 %, matching GOBLINCAKES' 9 pt interface. Done inside the
+    # window (`uiScale` × Main.qml's zoomRoot/quick box) and not with QT_SCALE_FACTOR=0.8 as the other windows:
+    # Chromium (the TERMINAL tab) can't draw below 1 and showed only the top left 80 % of the page (1 Nov).
+    # A QT_SCALE_FACTOR of the user's own still counts – then nothing more here.
+    ui_scale = 0.8 if "QT_SCALE_FACTOR" not in os.environ else 1.0
     try:  # the TERMINAL tab (xterm.js in a web view) – must come before the application; the rest works without it
         from PySide6.QtWebEngineQuick import QtWebEngineQuick
         QtWebEngineQuick.initialize()
@@ -2782,8 +2782,6 @@ def main():
     except ImportError:
         web = False
     app = QGuiApplication(sys.argv)
-    if own_scale:
-        del os.environ["QT_SCALE_FACTOR"]
     app.setApplicationName("goblin-ai")
     app.setApplicationDisplayName("Goblin AI")
     app.setDesktopFileName("goblin-ai")
@@ -2840,6 +2838,7 @@ def main():
     app.aboutToQuit.connect(terminals.close_all)
     engine.rootContext().setContextProperty("terminals", terminals)
     engine.rootContext().setContextProperty("hasWeb", web)
+    engine.rootContext().setContextProperty("uiScale", ui_scale)
     engine.rootContext().setContextProperty("startQuick", quick)
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO") or season_logo()))

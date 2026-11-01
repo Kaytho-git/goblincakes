@@ -28,7 +28,7 @@ Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prov
 Kör `git pull`, svara med vilket steg hen är på (första ej avbockade i Status) och visa steglistan med status (klart / pågår / kvar). Kort, på svenska.
 
 ## Konventioner i koden
-- **Egna fönster** = PySide6 + QML i Configs stil (platt, raka hörn, egna komponenter utan Qt Quick Controls: FlatButton/CheckSquare/FlatScrollBar/FlatField kopieras mellan fönstren). Varje Flickable/ListView får `FastWheel { flick: <id> }`. Varje FileDialog/FolderDialog: `onVisibleChanged: backend.sharpText()`. `QT_SCALE_FACTOR=0.8` för våra fönster. Ett fönster i taget via QLocalServer.
+- **Egna fönster** = PySide6 + QML i Configs stil (platt, raka hörn, egna komponenter utan Qt Quick Controls: FlatButton/CheckSquare/FlatScrollBar/FlatField kopieras mellan fönstren). Varje Flickable/ListView får `FastWheel { flick: <id> }`. Varje FileDialog/FolderDialog: `onVisibleChanged: backend.sharpText()`. `QT_SCALE_FACTOR=0.8` för våra fönster – utom Goblin AI (0.8 via `uiScale` i fönstret; Chromium i TERMINAL klarar inte < 1). Ett fönster i taget via QLocalServer.
 - **Färg:** accenten är valbar (`accent.py`, `goblincakes-accent`). I QML: `accent.color` (aldrig `"#2F6FED"`), `accent.text` för text i accentfärg, `accent.on` på fylld accent.
 - **Ikoner för egna program:** loggans goblinhuvud oförändrat + cupcaken utbytt mot något som visar programmet; 2–3 varianter, användaren väljer. `files/system/usr/share/icons/hicolor/scalable/apps/goblincakes-<program>.svg`, `QIcon.fromTheme(…, QIcon(<fil>))`.
 - **`goblin`-kommandon:** `files/system/usr/bin/goblin` – funktion `cmd_<namn>` + rad i `COMMANDS` + `case` längst ner. Hjälpare i `files/system/usr/libexec/goblincakes-*`.
