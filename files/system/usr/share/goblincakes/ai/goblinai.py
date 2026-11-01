@@ -1032,6 +1032,7 @@ def byt_run(query):
     if not old:
         return ('Inget kort gjort: "gammal" saknas. Tre fält: "fil" = bara sökvägen, "gammal" = raderna exakt som de '
                 'står i filen nu, "ny" = som de ska stå.'), []
+    old, new = bytatext.unnumber(old), bytatext.unnumber(new)
     full = Path(os.path.expanduser(path))
     why = bytatext.check(full, old, new)
     if why:
@@ -1843,7 +1844,9 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         # byt_text's card as the tool made it – a copy she typed again could differ from the checked text
         answer = re.sub(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", "", answer, flags=re.S)
     for card in cards:
-        if card.split("\n")[1] not in answer:
+        # A byt_text card whole: two changes in one file start with the same command line, and the second was taken
+        # for a copy of the first and dropped (gear round 21, 1 Nov)
+        if (card if "bytatext.py" in card else card.split("\n")[1]) not in answer:
             answer = answer.rstrip() + "\n\nDet här körs först när du trycker Tillåt:\n" + card
     if cards and getattr(LAST, "cut_short", False):
         # "Slutar hämta: minnet är nästan fullt" and then a change anyway, said to use "de korrekta metoderna" – it was

@@ -15,6 +15,7 @@ Körs från Tillåt-kortet:
     KAKAN_SLUT
 """
 import difflib
+import re
 import sys
 from pathlib import Path
 
@@ -110,6 +111,15 @@ def parse(body):
     if len(mids) != 1:
         raise Miss(f"Exakt en rad {MID} ska skilja den gamla texten från den nya.")
     return "\n".join(lines[1:mids[0]]), "\n".join(lines[mids[0] + 1:end])
+
+
+def unnumber(text):
+    """The text without line numbers in front ("33:             local …") when every line has one – gemma4 copied
+    them from her own reading and the first try missed (gear round 21, 1 Nov)."""
+    lines = text.split("\n")
+    if any(x.strip() for x in lines) and all(re.match(r"\s*\d+: ?", x) for x in lines if x.strip()):
+        return "\n".join(re.sub(r"^\s*\d+: ?", "", x) for x in lines)
+    return text
 
 
 def card(path, old, new, me=None):
