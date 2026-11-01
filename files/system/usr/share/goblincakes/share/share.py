@@ -409,6 +409,12 @@ class Share:
         fp = str(info.get("fingerprint") or "")[:128]
         if not fp or fp == self.fingerprint:
             return None
+        try:
+            port = int(info.get("port") or self.peers.get(fp, {}).get("port") or PORT)
+        except (TypeError, ValueError):
+            port = PORT
+        if not 0 < port < 65536:
+            port = PORT
         with self.lock:
             old = self.peers.get(fp, {})
             peer = {
@@ -417,8 +423,8 @@ class Share:
                 "deviceModel": str(info.get("deviceModel") or old.get("deviceModel") or "")[:40],
                 "deviceType": str(info.get("deviceType") or old.get("deviceType") or "desktop"),
                 "ip": ip,
-                "port": int(info.get("port") or old.get("port") or PORT),
-                "protocol": info.get("protocol") or old.get("protocol") or "https",
+                "port": port,
+                "protocol": "http" if (info.get("protocol") or old.get("protocol")) == "http" else "https",
                 "seen": time.time(),
                 "how": how,
                 "accent": old.get("accent"),
@@ -512,7 +518,11 @@ class Share:
                         continue
                     if not isinstance(msg, dict):
                         continue
-                    peer = self.saw(msg, ip, "multicast")
+                    try:
+                        peer = self.saw(msg, ip, "multicast")
+                    except Exception as e:  # noqa: BLE001 – a strange announcement must not stop listening
+                        print("annons:", e, file=sys.stderr)
+                        continue
                     if peer and (msg.get("announce") or msg.get("announcement")):
                         threading.Thread(target=self._answer, args=(peer,), daemon=True).start()
                 s.close()
@@ -589,6 +599,20 @@ class Share:
         files = body.get("files")
         if not isinstance(files, dict) or not files:
             return 400, {"message": "Request body malformed"}
+        items = []
+        for key, f in files.items():
+            try:
+                if not isinstance(f, dict) or int(f.get("size") or 0) < 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                return 400, {"message": "Request body malformed"}
+            items.append({"id": str(f.get("id") or key), "name": str(f.get("fileName") or "fil"),
+                          "sha256": str(f.get("sha256") or "").lower() or None,
+                          "size": int(f.get("size") or 0), "type": str(f.get("fileType") or ""),
+                          "preview": f.get("preview"),
+                          "modified": ((f.get("metadata") or {}).get("modified") if isinstance(f.get("metadata"), dict)
+                                       else None)})
+
         # Trusted = the fingerprint AND the address the device was found at. LocalSend reads the sender's
         # fingerprint from its certificate; Python's ssl can't take an unknown client certificate, so a
         # copied fingerprint alone must not be enough (files would only land in the folder, but still).
@@ -601,16 +625,6 @@ class Share:
                   if not known or known["ip"] == ip else None) or {
             "fingerprint": str(body["info"].get("fingerprint", "")), "alias": str(body["info"].get("alias") or "Okänd"),
             "deviceModel": str(body["info"].get("deviceModel") or ""), "deviceType": "desktop", "ip": ip}
-        items = []
-        for key, f in files.items():
-            if not isinstance(f, dict):
-                return 400, {"message": "Request body malformed"}
-            items.append({"id": str(f.get("id") or key), "name": str(f.get("fileName") or "fil"),
-                          "sha256": str(f.get("sha256") or "").lower() or None,
-                          "size": int(f.get("size") or 0), "type": str(f.get("fileType") or ""),
-                          "preview": f.get("preview"),
-                          "modified": ((f.get("metadata") or {}).get("modified") if isinstance(f.get("metadata"), dict)
-                                       else None)})
 
         # A message: one text file with the text as its preview
         if len(items) == 1 and items[0]["type"] in ("text/plain", "text") and isinstance(items[0]["preview"], str):
