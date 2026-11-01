@@ -19,7 +19,14 @@ if [[ -z "${GOBLINCAKES_APPGRID_INNER:-}" && -f "${BASH_SOURCE[0]}" ]]; then
     exit 0
 fi
 
-dnf5 -y install dnf5-plugins git cmake extra-cmake-modules gcc-c++ gettext qt6-qtbase-private-devel
+# Build against the image's own KDE/Qt: Fedora's updates can be a Plasma ahead of Universal Blue's base
+# (1 Nov: the -devel packages pulled in Plasma 6.8.2 while the base had 6.7.5 → AppGrid linked to
+# libPlasma.so.8, which the image didn't have, and check-appgrid.sh stopped the build). Locked, dnf takes
+# the -devel of the same version from updates-archive.
+dnf5 -y install dnf5-plugins
+dnf5 versionlock add $(rpm -qa --qf '%{NAME}\n' 'libplasma*' 'plasma-*' 'kf6-*' 'qt6-*' 'kwin*' 'kdecoration*' | sort -u)
+
+dnf5 -y install git cmake extra-cmake-modules gcc-c++ gettext qt6-qtbase-private-devel
 
 # Same version as the COPR package, so the rest of its files match
 dnf5 -y copr enable scujas/plasma-applet-appgrid
