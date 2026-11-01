@@ -127,7 +127,22 @@ LOCAL = {
     "url": "http://127.0.0.1:11434/v1",
     "temperature": 0.4,
 }
-LOCAL_CONTEXT = 32768  # OLLAMA_CONTEXT_LENGTH in goblincakes-ollama
+LOCAL_CONTEXT = 32768  # OLLAMA_CONTEXT_LENGTH in goblincakes-ollama – what a loaded model really got: local_context()
+CONTEXT_SEEN = {"tokens": 0, "at": 0.0}
+
+
+def local_context():
+    """The local AI's memory in tokens as Ollama loaded the model (/api/ps context_length) – 64k fits gemma4 in 12 GB
+    (its cache is mostly a 1024-token window, 270 MB at 32k), so the number isn't fixed any more (1 Nov)."""
+    if time.time() - CONTEXT_SEEN["at"] > 30:
+        CONTEXT_SEEN["at"] = time.time()
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:11434/api/ps", timeout=2) as r:
+                sizes = [m.get("context_length") or 0 for m in json.load(r).get("models", [])]
+            CONTEXT_SEEN["tokens"] = max(sizes) if sizes and max(sizes) >= 4096 else CONTEXT_SEEN["tokens"]
+        except (OSError, ValueError):
+            pass
+    return CONTEXT_SEEN["tokens"] or LOCAL_CONTEXT
 LOCAL_MIN_TOKENS = 3000  # answer + thinking at least, even when the question is long
 LOCAL_MAX_TOKENS = 8000  # and at most – with room for more, gemma4 thought for 28 000 tokens (13 min, 18 Oct)
 OLLAMA_FILE = CONFIG / "ollama.json"
@@ -1794,7 +1809,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     steps: a Steps – what is done is reported to it, and its stop ends the work (raises Stopped).
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
-    LAST.tools, LAST.steps, LAST.done, LAST.cards = [], None, [], []
+    LAST.tools, LAST.steps, LAST.done, LAST.cards, LAST.cut_short = [], None, [], [], False
     LAST.stop = steps.stop if steps else None  # request() closes the local AI's connection on STOPP
     activity("ask", "tänker", steps=[])
     messages = [{**m, "content": m["content"].replace("\n\n" + FROM_MEMORY, "")}
@@ -1828,6 +1843,11 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     for card in cards:
         if card.split("\n")[1] not in answer:
             answer = answer.rstrip() + "\n\nDet här körs först när du trycker Tillåt:\n" + card
+    if cards and getattr(LAST, "cut_short", False):
+        # "Slutar hämta: minnet är nästan fullt" and then a change anyway, said to use "de korrekta metoderna" – it was
+        # a guess she never got to look up (gear round 18, 1 Nov)
+        answer = answer.rstrip() + ("\n\n*Obs: Kakans minne tog slut innan hon hann kolla klart – ändringen kan vara "
+                                    "gissad. Tryck Tillåt bara om du vill prova den, annars **Skicka till Claude**.*")
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
     # gemma4 wrote "~/ .config/goblincakes/recorder.json" (25 Oct) – a path with a space isn't a link
     answer = re.sub(r"(?<![\w/])~/[ \t]+(?=\.?[\w-]+/)", "~/", answer)
@@ -2836,6 +2856,11 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             and not NOT_FACT.search(typed_q) and not WRITE_SOMETHING.search(typed_q)
             and not cmd_level().code_blocks_in(answer) and "*Obs:" not in answer):
         answer = answer.rstrip() + "\n\n" + FROM_MEMORY
+    if checked_addon and "\nFEL:\n" not in checked_addon and "*Obs: kontrollen" not in answer:
+        # "Nu bör listan visas korrekt" after "inga fel" – the check only sees names; iLvl was still 0 (gear round 18)
+        answer = answer.rstrip() + ("\n\n*Obs: kontrollen ser bara att namnen finns i WoW, inte att koden gör rätt – "
+                                    "det vet du först när du provat i spelet.*")
+    LAST.cut_short = stopped_fetching
     if searched:
         service += " · sökte på nätet"
     elif used:
@@ -3192,7 +3217,7 @@ TOOLS_SIZE = {"tokens": 1500}
 
 
 def local_budget():
-    return LOCAL_CONTEXT - LOCAL_MIN_TOKENS - 1000 - TOOLS_SIZE["tokens"]
+    return local_context() - LOCAL_MIN_TOKENS - 1000 - TOOLS_SIZE["tokens"]
 
 
 PICTURE_CHARS = 5_000  # what a picture counts as
@@ -3467,7 +3492,7 @@ def chat(provider, key, model, messages, tools=None):
             # Thinking models (gemma4) sometimes think in circles until the whole context is full and
             # give no answer (18 Oct: 12 000 tokens, 3 min) – a ceiling, then once more without thinking
             used = tokens(messages) + (len(json.dumps(body.get("tools", []), ensure_ascii=False)) // 4 if native else 0)
-            body["max_tokens"] = max(LOCAL_MIN_TOKENS, min(LOCAL_MAX_TOKENS, LOCAL_CONTEXT - used - 500))
+            body["max_tokens"] = max(LOCAL_MIN_TOKENS, min(LOCAL_MAX_TOKENS, local_context() - used - 500))
             if body.get("reasoning_effort") == "none":
                 # no thinking: an answer is far shorter – a stuck model (see below) is stopped after ~50 s, not 140
                 body["max_tokens"] = LOCAL_MIN_TOKENS
