@@ -7180,6 +7180,21 @@ Window {
                                     }
                                 }
                             }
+                            // Anthropic's offers (a free reset …) as the quota helper found them (goblincakes-quota offers())
+                            Repeater {
+                                model: quotaItem.modelData.offers || []
+                                Text {
+                                    required property var modelData
+                                    x: 20
+                                    width: quotaItem.width - 40
+                                    wrapMode: Text.WordWrap
+                                    textFormat: Text.PlainText
+                                    text: "ERBJUDANDE  ·  " + modelData.text
+                                    color: accent.text
+                                    font.family: "IBM Plex Mono"
+                                    font.pixelSize: 11
+                                }
+                            }
                         }
                     }
                     Item { width: 1; height: 14 }

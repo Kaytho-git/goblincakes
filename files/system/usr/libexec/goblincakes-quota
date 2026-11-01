@@ -51,6 +51,26 @@ def http_error(error):
     return "svaret gick inte att läsa"
 
 
+# Anthropic's gifts (1 Nov, the user: "sometimes Anthropic is kind" – a free reset). The answer has no plain
+# field for it; these look like offers and were all empty 1 Nov – shown as they come, to learn what they say.
+OFFER_WORDS = ("promo", "offer", "gift", "bonus", "reset", "grant")
+
+
+def offers(data):
+    found = []
+    for key, value in data.items():
+        if value in (None, False, [], {}, 0) or not any(w in key.lower() for w in OFFER_WORDS):
+            continue
+        if isinstance(value, dict):
+            text = next((str(value[k]) for k in ("title", "message", "description", "name", "display_name")
+                         if value.get(k)), "")
+            text = text or ", ".join(f"{k}: {v}" for k, v in value.items() if v not in (None, "", False))
+        else:
+            text = str(value)
+        found.append({"key": key, "text": text[:200]})
+    return found
+
+
 def claude():
     service = {"id": "claude", "name": "Claude", "plan": "", "error": "", "source": "live", "windows": []}
     try:
@@ -73,6 +93,7 @@ def claude():
                 service["windows"].append(window(label, part.get("utilization"), resets))
         if not service["windows"]:
             service["error"] = "svaret gick inte att läsa"
+        service["offers"] = offers(data)
     except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as error:
         service["error"] = http_error(error)
     return service
