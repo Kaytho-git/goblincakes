@@ -4610,24 +4610,27 @@ if [ -n "$fel" ]; then echo "$fel"; elif [ "$kod" -ne 124 ]; then echo "PROVET S
 
 # Repairing (29 Oct): asked why the WoW add-on didn't show in the list at all, gemma4 named a harmless line as the
 # cause with full confidence, left "## InterfaceTool" as it was and never searched – a silent fault gets a guess
+# The way of working, not more tools (1 Nov, the user: "vi ger henne massa saker men inte kunskapen att faktiskt kunna
+# använda det" – like a welder's WPS). Claude mended gear with only her tools by working in this order; she had never
+# compared with other add-ons, and stopped after the first of three asked-for things (gear rounds 18–20).
 REPAIR_GUIDE = """
 
-Reparera kod som inte fungerar (ett tillägg, en widget, ett skript) – arbeta så här, i den här ordningen:
-1. Läs först: `ls -la` på mappen och `cat` på varje fil. Säg ingenting om orsaken innan du har läst dem.
-2. Finns ett felmeddelande (fil:rad, "attempt to call a nil value", "is not a type"): gå efter det och rätta just
-   den raden.
-3. Inget felmeddelande ("syns inte", "händer inget", "visar ingenting"): GISSA INTE. Sök först på hur det ska vara
-   (på engelska, t.ex. `wow addon not listed in addon list`, `plasma 6 widget not showing`), läs den bästa träffen
-   (las_sida), och jämför sedan dina filer punkt för punkt med det du läste: mappens och filernas namn, filens
-   första rader (huvudet), varje inställningsrad, namnen på funktionerna.
-4. Säg vad du jämförde: "Enligt <källan> ska X vara Y – här står Z." Varje skillnad är ett fel; det kan vara flera.
-   Hittar du ingen skillnad: säg det och vad du skulle behöva veta – hitta aldrig på en orsak som låter rimlig.
-5. Rätta bara det som skilde (byt_text på raderna, `mv` för ett namn) – skriv inte om hela filen.
-   Ett WoW-tillägg: slå upp varje WoW-funktion du ändrar till med wowapi – Goblin AI kontrollerar dessutom
-   tillägget mot spelet efter varje ändring och säger vad som fortfarande är fel.
-6. Kan det inte provas härifrån (ett WoW-tillägg provas bara i spelet): säg vad användaren ska titta efter, och
-   säg aldrig att det är löst förrän användaren har provat.
-Hittar du inte orsaken efter att ha sökt och jämfört: säg "Det kan jag inte hitta" och vad du har kollat."""
+Laga kod som inte fungerar (ett WoW-tillägg, en widget, ett skript) – arbetsordningen, steg för steg:
+1. VAD SKA DET BLI: skriv upp det användaren bad om, punkt för punkt (t.ex. "ett fönster", "en lista med …",
+   "en summa"). Det är kraven – alla ska vara uppfyllda innan du är klar.
+2. LÄS HELA KODEN (Goblin AI lägger ofta fram filerna med radnummer – annars läs dem själv). Gissa inget du inte läst.
+3. FÖLJ VÄRDENA: slå upp varje funktion koden använder (wowapi för WoW): vad den TAR EMOT och vad den GER TILLBAKA.
+   Stämmer det med vad koden skickar in och gör med svaret? En funktion som får fel sorts värde ger tyst fel (tomt, 0).
+   Finns ett felmeddelande (fil:rad, "nil value"): börja där.
+4. TITTA HUR ANDRA GÖR: andra installerade tillägg/program gör ofta samma sak. Sök efter funktionsnamnen och orden
+   ur koden i dem (`sök <namn> i ~/Games/WoW/Retail/AddOns`, för en widget i ~/.local/share/plasma/plasmoids) och läs
+   hur de gör. Jämför med din kod: vad gör de som din kod inte gör?
+   Inte ett WoW-tillägg och inget att jämföra med: sök på nätet hur det ska vara.
+5. ÄNDRA en sak i taget med byt_text (några hela rader, exakt som de står) – skriv aldrig om hela filen.
+6. BOCKA AV: gå igenom kraven från steg 1 – vilka är uppfyllda nu, vilka inte? Är något kvar: tillbaka till steg 3.
+   "Inga fel" i Goblin AI:s kontroll betyder bara att namnen finns, inte att koden gör rätt.
+7. SÄG vad du ändrade och vad användaren ska prova (ett WoW-tillägg provas bara i spelet). Säg aldrig att det är
+   löst förrän användaren provat. Hittar du inte orsaken: säg vad du kollat och att användaren kan trycka Skicka till Claude."""
 
 # "syns inte", "fungerar inte" … about code: both must be in what the user said
 # The user's own words that ask for something on the desktop (windows, programs, music, reminders …)
@@ -4702,10 +4705,9 @@ def repair_nudge(answer, messages, tools, searched, sent=()):
             "vad du har kollat – ändra inget på en gissning.")
 
 
-REPAIR_COMPARE = ("Jämför filerna ovan med det källorna säger, rad för rad (mappens och filernas namn, huvudet, varje "
-                  "inställningsrad). För varje skillnad: \"Enligt <källan> ska X vara Y – här står Z.\", och rätta just den "
-                  "raden (`sed -i`, `mv`). Står svaret inte i källorna: börja svaret med \"Det kan jag inte hitta\" och säg "
-                  "vad som saknas – gissa inte.")
+REPAIR_COMPARE = ("Arbeta efter arbetsordningen (steg 1–7). Börja med steg 1: skriv kort upp vad användaren bad om, punkt "
+                  "för punkt. Står det källor ovan: jämför med dem (\"Enligt <källan> ska X vara Y – här står Z.\"). "
+                  "Ändra med byt_text, och säg klart först när varje punkt är uppfylld.")
 # In a repair chat, a message that asks for finding out or fixing again ("det står fortfarande …, ta reda på varför")
 REPAIR_ASK = re.compile(r"\b(?:varför|ta reda på|rätta|laga|fixa|fortfarande|felet|inte)\b" + WRONG_NOW, re.I)
 QUERY_PROMPT = ("Skriv EN sökfråga på engelska (högst 10 ord) som hittar hur det ska vara när det här inte fungerar. "
