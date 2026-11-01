@@ -2812,7 +2812,9 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "rör inte fönster eller program när du lagar något. Svara nu med vad du har gjort." + NUDGE_NOTE})
             continue
         used += 1
-        if (tool, query) in LAST.tools:
+        # Spaces and \\ don't count: the same failed byt_text again with one space more in "gammal" (1 Nov) or
+        # another number of \\ before the quotes (31 Oct) got past the exact match and failed the same way
+        if any(t == tool and re.sub(r"[\s\\]", "", q) == re.sub(r"[\s\\]", "", query) for t, q in LAST.tools):
             # The same thing again: gemma4 read amp.json three times in a row (25 Oct) – not run, and told so. In the
             # receipt too: the same failed byt_text silently used up "högst 10 steg" after two visible tries (gear round 17)
             steps.start(f"Samma sak igen – körs inte: {tools[tool]['name']}")
