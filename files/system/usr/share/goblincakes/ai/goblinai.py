@@ -1752,6 +1752,11 @@ def tool_request(text, tools):
             # `goblin update --stäng-av` on a card is the command: "goblin" is also a tool's name, so the card
             # became the tool, which asked for the card – round and round until the memory was full (30 Oct)
             continue
+        head, _, rest = m.group(2).strip("\n").partition("\n")
+        if TOOL_WORDS.get(head.strip().lower()) == "byt" and "byt" in tools and not shutil.which(head.strip()):
+            # ```bash with "byt" alone on the first line and the byt block under it: bash ran it ("byt: kommandot finns
+            # inte"), she got it right the next time (gear round 18, 1 Nov)
+            return "byt", rest
         written = written_call(m.group(2), tools)
         if written:
             return written
