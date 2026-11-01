@@ -1,3 +1,4 @@
+2026-11-01  Nytt program: GoblinShare – skicka filer, mappar och meddelanden till de andra datorerna hemma, och till telefoner med gratisappen LocalSend. Slå på det i Config → Program → System, och högerklicka sedan på filer i Dolphin → Skicka med GoblinShare.
 2026-11-01  Goblin AI: bredvid modellen i Kakans ruta syns hur fullt hennes minne är (t.ex. 22k / 64k) när den lokala AI:n svarar
 2026-11-01  Goblin AI: Kakan tänker efter innan hon svarar när du ber henne laga något som inte fungerar (tar lite längre tid, men blir mer noggrann)
 2026-11-01  Goblin AI: versionen syns igen under Kakans namn i rutan uppe till vänster

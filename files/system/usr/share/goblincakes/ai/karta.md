@@ -259,6 +259,24 @@ Ord: goblinamp, amp, musikspelare, winamp, spotify, spellista, låtar, mediatang
 - GRAF under spelaren är genomskinlig (fönstret har alfakanal; spelaren och spellistan egna bakgrunder). Omslag vid
   hovring = Spotifys bild-URL (`image` på album- och listrader, spotifyweb.py `_cover`).
 
+## GoblinShare
+Ord: goblinshare, share, dela, skicka fil, ta emot, localsend, airdrop, filer till telefonen, filer mellan datorerna
+- Filer, mappar och meddelanden mellan datorerna och telefonerna i hemnätverket med LocalSends protokoll v2 (andra
+  GOBLINCAKES-datorer har GoblinShare, telefoner/Windows/Mac appen LocalSend). Tjänsten goblincakes-share
+  (/usr/libexec/goblincakes-share run, kod /usr/share/goblincakes/share/share.py), fönstret /usr/bin/goblin-share,
+  Dolphins högerklick "Skicka med GoblinShare" (/usr/share/kio/servicemenus/goblincakes-share.desktop).
+- Påslaget = flaggan ~/.config/goblincakes/share-on (Config → Program → System, fönstrets reglage, `goblin share på`).
+  Inställningar ~/.config/goblincakes/share.json (namn, mapp, betrodda), certifikat och historik
+  ~/.local/share/goblincakes/share/. Mottagna filer: Hämtade/GoblinShare om inget annat valts.
+- Port 53317 TCP (HTTPS) och UDP (multicast 224.0.0.167). Syns ingen: samma wifi? gästnätverk/"AP-isolering" i
+  routern stoppar det; brandväggen: `firewall-cmd --list-ports` (Fedoras zon släpper in 1025–65535, annars
+  öppnas 53317 när GoblinShare slås på); ett annat program på porten (LocalSend själv) = felrad i fönstret.
+  Telefonen syns bara medan LocalSend-appen är öppen. "Leta igen" frågar också hela /24-nätet direkt.
+- `goblin share lista` (enheterna), `goblin share status`, `goblin share till <namn> <fil>`, `goblin share text <namn> <text>`.
+Kontroll: `systemctl --user is-active goblincakes-share`
+Kontroll: `/usr/libexec/goblincakes-share status`
+Kontroll: `journalctl --user -u goblincakes-share -n 30 --no-pager`
+
 ## goblin graph
 Ord: graph, ljudgraf, staplar, visualisering
 - /usr/bin/goblin-graph (QML i /usr/share/goblincakes/graph/), tjänsten goblincakes-graph öppnar den när musik

@@ -99,6 +99,14 @@ Spelar in WoW och Counter-Strike 2 av sig själv med OBS – du behöver inte tr
   <img src="docs/goblinamp-genrer.png" width="380" alt="GoblinAmps GENRER-flik: populärt i genren från Last.fm, Spotifys låtar och artister">
 </p>
 
+### GoblinShare – dela filer hemma
+Skicka filer, hela mappar och meddelanden mellan datorerna och telefonerna i hemnätverket – utan konto, utan internet och krypterat. Andra GOBLINCAKES-datorer syns av sig själva (med sin egen färg); iPhone, Android, Windows och Mac når du med gratisappen [LocalSend](https://localsend.org), eftersom GoblinShare talar samma protokoll.
+- **Dra och släpp** filer på en enhet, välj **Filer**, **Mapp** eller **Text** – eller högerklicka på filer i Dolphin → **Skicka med GoblinShare**.
+- **Inget tas emot utan att du säger ja** (notis med Ta emot / Neka), utom från enheter du själv kryssat för.
+- Slås på i Config → Program → System eller i fönstret. I terminalen: `goblin share till anna semester.jpg`.
+
+![GoblinShare med en annan GOBLINCAKES-dator och en iPhone med LocalSend](docs/goblinshare.png)
+
 ### goblin graph
 Ljudstaplar till musiken i WoW:s klassfärger – ett fönster utan ram som ligger bland de andra fönstren, med bara staplarna synliga. Varje stapel i en klassfärg, eller allt i din klass färg (läses ur stridsloggen). Fyra vyer: staplar, våg, cirkel och explosion som smäller i takt. Lyssnar bara på musikprogram (Spotify, Quod Libet m.fl.), inte på spel eller film, och kan öppnas av sig själv när musiken börjar (`goblin graph auto on`). Ikonen i systemfältet byter vy och låser fönstret.
 
@@ -106,7 +114,7 @@ Ljudstaplar till musiken i WoW:s klassfärger – ett fönster utan ram som ligg
 
 ### GOBLINCAKES Config
 Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+C** eller från appmenyn:
-- **Program** – kryssa i det du vill ha, i hopfällbara kategorier: webbläsare (Brave, Opera GX, Google Chrome – med reglaget *Huvudwebbläsare*), spel och WoW (Lutris, Battle.net, Discord, Heroic, ProtonUp-Qt, GPU Screen Recorder, WowUp, Raider.IO, Archon m.fl.), moddar (Limo för Nexus Mods, r2modman för Thunderstore), emulatorer, media (Spotify, OBS, GIMP, VLC, EasyEffects, Quod Libet), streaming (Netflix, Disney+, HBO Max, Prime Video, YouTube, SVT Play, TV4 Play), kontor (LibreOffice, Okular, Ark, FileZilla), Ianseo och system (Claude, VS Code, Claude Code, Pika Backup m.fl.).
+- **Program** – kryssa i det du vill ha, i hopfällbara kategorier: webbläsare (Brave, Opera GX, Google Chrome – med reglaget *Huvudwebbläsare*), spel och WoW (Lutris, Battle.net, Discord, Heroic, ProtonUp-Qt, GPU Screen Recorder, WowUp, Raider.IO, Archon m.fl.), moddar (Limo för Nexus Mods, r2modman för Thunderstore), emulatorer, media (Spotify, OBS, GIMP, VLC, EasyEffects, Quod Libet), streaming (Netflix, Disney+, HBO Max, Prime Video, YouTube, SVT Play, TV4 Play), kontor (LibreOffice, Okular, Ark, FileZilla), Ianseo och system (Claude, VS Code, Claude Code, Pika Backup, GoblinShare m.fl.).
   - **Egen webbapp:** klistra in en länk så blir sidan ett eget program med ikon.
   - **Starta vid inloggning:** reglage på installerade program.
 - **Förinstallerat** – visa eller dölj systemets program i appmenyn.
@@ -133,6 +141,7 @@ Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**), i en 
 | `goblin ai` | **Goblin AI** i terminalen – fråga om datorn eller vad som helst (`/app` eller **Meta+A** = fönstret) |
 | `goblin play` | Dina spel – skriv spelets namn eller förkortning direkt i terminalen (t.ex. `wow`, `cs2`) så startas det via Steam; `goblin play dock cs2` fäster det i dockan |
 | `goblin amp` | **GoblinAmp** – musikspelaren (`goblin amp hjälp` visar hur Spotify-listorna kopplas in) |
+| `goblin share` | **GoblinShare** – skicka filer till datorerna och telefonerna hemma (`goblin share till anna bild.jpg`, `goblin share text anna Middag!`) |
 | `goblin färg` | Byter GOBLINCAKES färg (`goblin färg mage`) |
 | `goblin graph` | Ljudstaplar i WoW:s klassfärger till musiken (`goblin graph mage`, `goblin graph cirkel`) |
 | `goblin screen` | Vilken skärm ett program öppnas på (`goblin screen add discord screen 2`) |
