@@ -1,4 +1,4 @@
-# GoblinShare på riktigt (två datorer och en telefon)
+# GoblinShare på riktigt (två GOBLINCAKES-datorer och en telefon)
 
 Så här provar du (rader utan "- " först läses inte av /testa):
   1. Vänta på nästa image och starta om datorn.
@@ -31,17 +31,16 @@ Så här provar du (rader utan "- " först läses inte av /testa):
   fråga: Syns datorn i LocalSend-appen på telefonen (med ditt namn och GOBLINCAKES)? Dra ner för att uppdatera om den inte syns.
 - Från datorn till telefonen
   fråga: Dra en bild från Dolphin till telefonens ruta i GoblinShare. Frågade telefonen, och kom bilden fram när du tryckte acceptera?
-- Från telefonen till datorn
-  fråga: Skicka en bild från LocalSend på telefonen till datorn. Kom en notis med Ta emot / Neka, och hamnade bilden i Hämtade/GoblinShare när du tryckte Ta emot?
-- Den mottagna bilden
-  kör: ls -la ~/Hämtade/GoblinShare/ 2>/dev/null || ls -la ~/Downloads/GoblinShare/
-  väntat: bilden från telefonen finns där (inte som .part)
-- Meddelande från telefonen
-  fråga: Skicka en text från LocalSend (Skicka → Text) till datorn. Kom en notis med texten, och syns den under HISTORIK i GoblinShare med en Kopiera-knapp?
+- Telefonen kan inte skicka hit
+  fråga: Försök skicka en bild från LocalSend på telefonen till datorn. Nekades den direkt i appen, utan någon notis på datorn? (Det är meningen – bara GOBLINCAKES-datorer kan skicka hit.)
+- Fönstret maximerat
+  fråga: Maximera GoblinShare-fönstret. Blir text och rutor större (inte små i ett hörn)?
 - Dolphins högerklick
   fråga: Högerklicka på en fil i Dolphin. Finns "Skicka med GoblinShare", och öppnas GoblinShare med "Att skicka – …" överst?
 - Den andra GOBLINCAKES-datorn
   fråga: Om frugans dator har GoblinShare på: syns den med GOBLINCAKES och en färgad remsa överst på rutan, och går det att skicka en mapp dit?
+- Från den andra datorn hit
+  fråga: Skicka en fil från frugans dator till din. Kom notisen med Ta emot / Neka, och hamnade filen i Hämtade/GoblinShare?
 - Tjänstens logg
   kör: journalctl --user -u goblincakes-share -n 30 --no-pager
   väntat: inga Traceback-rader

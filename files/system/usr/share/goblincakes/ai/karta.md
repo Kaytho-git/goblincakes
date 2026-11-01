@@ -261,8 +261,9 @@ Ord: goblinamp, amp, musikspelare, winamp, spotify, spellista, låtar, mediatang
 
 ## GoblinShare
 Ord: goblinshare, share, dela, skicka fil, ta emot, localsend, airdrop, filer till telefonen, filer mellan datorerna
-- Filer, mappar och meddelanden mellan datorerna och telefonerna i hemnätverket med LocalSends protokoll v2 (andra
-  GOBLINCAKES-datorer har GoblinShare, telefoner/Windows/Mac appen LocalSend). Tjänsten goblincakes-share
+- Filer, mappar och meddelanden mellan GOBLINCAKES-datorerna i hemnätverket med LocalSends protokoll v2. Telefoner med
+  appen LocalSend kan FÅ filer härifrån, men allt de skickar hit nekas (bara GoblinShare kan skicka hit – användarens
+  beslut). "Kan inte skicka från telefonen till datorn" är alltså meningen, inget fel. Tjänsten goblincakes-share
   (/usr/libexec/goblincakes-share run, kod /usr/share/goblincakes/share/share.py), fönstret /usr/bin/goblin-share,
   Dolphins högerklick "Skicka med GoblinShare" (/usr/share/kio/servicemenus/goblincakes-share.desktop).
 - Påslaget = flaggan ~/.config/goblincakes/share-on (Config → Program → System, fönstrets reglage, `goblin share på`).
