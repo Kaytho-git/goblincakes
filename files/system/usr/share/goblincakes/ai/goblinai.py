@@ -4760,7 +4760,7 @@ VERDICT_NO = re.compile(r"kan jag laga det\W{0,8}nej\b", re.I)
 # understood the faults but couldn't hold a long chain of exact changes together). The user's words choose:
 # "bara kolla", "laga inte", "skicka vidare" … = she changes nothing, the report goes on to Claude.
 REPORT_ONLY = re.compile(r"\bbara\s+(?:kolla|titta|leta|hitta|undersöka|felsöka|sammanfatta)|\blaga\s+(?:det\s+)?inte\b|"
-                         r"\b(?:ändra|rör)\s+(?:inget|inte|ingenting)\b|\bskicka\s+(?:det\s+|den\s+|rapporten\s+)?(?:vidare|till\s+claude)"
+                         r"\b(?:ändra|rör)\s+(?:inget|inte|ingenting)\b|\bskicka\s+(?:det\s+|den\s+|rapporten\s+)?(?:vidare|till\s+(?:claude|codex))"
                          r"|\b(?:kolla|titta|sammanfatta)\b[^.?!\n]{0,40}\bskicka\b"  # "kolla, sammanfatta och skicka"
                          r"|\brapportera\b|\bgör\s+en\s+rapport\b", re.I)
 SMALL_FIXES = 2   # changes she may make herself for one question (moving a line = add + remove)
@@ -4776,7 +4776,7 @@ loggarna, slå upp det som behövs och hitta felen. Svara med rapporten:
 GUIDES.append((REPORT_ONLY, REPORT_GUIDE))
 
 
-SEND_CLAUDE = re.compile(r"\bskicka\s+(?:det\s+|den\s+|rapporten\s+)?(?:vidare\s+)?till\s+claude\b", re.I)
+SEND_TO = re.compile(r"\bskicka\s+(?:det\s+|den\s+|rapporten\s+)?(?:vidare\s+)?till\s+(claude|codex)\b", re.I)
 
 
 def latest_said(messages):
@@ -4785,10 +4785,11 @@ def latest_said(messages):
                  and not m["content"].startswith(REPORT_TURNS)), "")
 
 
-def send_to_claude(messages):
-    """The user's latest message says "skicka till Claude": Claude Code starts with the report by itself (2 Nov) –
-    their own words choose to spend quota; "skicka" alone only saves it."""
-    return bool(SEND_CLAUDE.search(latest_said(messages)))
+def send_to(messages):
+    """The user's latest message says "skicka till Claude" / "till Codex": that one starts with the report by itself
+    (2 Nov) – their own words choose to spend quota; "skicka" alone only saves it. "claude", "codex" or ""."""
+    m = SEND_TO.search(latest_said(messages))
+    return m.group(1).lower() if m else ""
 
 
 def report_only(messages):

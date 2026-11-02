@@ -112,6 +112,7 @@ check() {
         # prefix was there and Lutris said "Battle.net Launcher.exe could not be found")
         battlenet) compgen -G "$HOME/Games/battlenet*/drive_c/Program Files*/Battle.net/Battle.net*.exe" >/dev/null ;;
         claude-code) [ -x "$HOME/.local/bin/claude" ] ;;
+        codex) [ -x "$HOME/.local/bin/codex" ] ;;
         vscode) [ -x "$HOME/.local/share/vscode/code" ] ;;
         chatgpt) /usr/libexec/goblincakes-chatgpt status | grep -q '"installed": true' ;;
         discord) [ -x "$HOME/.local/share/discord-app/discord" ] ;;
@@ -678,6 +679,18 @@ DESKTOP
             exit 1
         fi
         status "Klart – öppna en terminal och skriv claude (logga in på GitHub med gh auth login)"
+        ;;
+
+    codex)
+        # OpenAI's Codex (their coding assistant in the terminal, 2 Nov) with OpenAI's own installer: into the home
+        # folder (~/.local/bin/codex, ~/.codex), so it works on the read-only system; `codex update` updates it.
+        status "Hämtar Codex från OpenAI…"
+        if ! out=$(curl -fsSL https://chatgpt.com/codex/install.sh | sh 2>&1); then
+            echo "$out" >&2
+            status "$(echo "$out" | tail -n1)"
+            exit 1
+        fi
+        status "Klart – öppna en terminal och skriv codex (logga in med ditt ChatGPT-konto)"
         ;;
 
     *)

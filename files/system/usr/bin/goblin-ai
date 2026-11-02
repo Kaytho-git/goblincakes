@@ -670,11 +670,15 @@ class Backend(QObject):
         except (OSError, IndexError) as e:
             self.notice.emit(f"Rapporten gick inte att spara: {e}")
             return
-        send = goblinai.send_to_claude(self._api)  # "skicka till Claude": the user chose to spend quota (2 Nov)
-        note = (f"*Rapporten är skickad till Claude ({path.name}) – Claude Code startar i TERMINAL.*" if send else
-                f"*Rapporten är sparad åt Claude ({path.name}). Vill du ha svar nu: tryck Skicka till Claude.*")
+        # "skicka till Claude" / "till Codex": the user chose to spend quota (2 Nov) – when that one is there
+        wanted = goblinai.send_to(self._api)
+        send = wanted if wanted and toclaude.installed(wanted) else ""
+        name = toclaude.NAMES.get(send or toclaude.current(), "Claude")
+        note = (f"*Rapporten är skickad till {name} ({path.name}) – {toclaude.PROGRAMS[send]} startar i TERMINAL.*"
+                if send else f"*Rapporten är sparad ({path.name}). Vill du ha svar nu: tryck Skicka till {name}.*"
+                + (f" ({toclaude.PROGRAMS[wanted]} finns inte på datorn.)" if wanted else ""))
         if send:
-            self._fix_in_terminal(path)
+            self._fix_in_terminal(path, send)
         shown = self._display[index]
         shown["text"] += "\n\n" + note
         shown["segments"] += goblinai.segments(note)
@@ -2472,9 +2476,38 @@ class Backend(QObject):
     # "ask" = read-only without a window, the answer comes back here. Both cost from the week's Claude quota – only
     # on the user's click, or their own words "skicka till Claude" in the question (2 Nov).
 
-    @Property(bool, constant=True)
+    helperChanged = Signal()
+
+    @Property(bool, notify=helperChanged)
     def claude(self):
-        return toclaude.claude_path() is not None
+        """Somewhere to send to: Claude Code, Codex or an own program (the buttons under the answers)."""
+        return bool(toclaude.current())
+
+    @Property(str, notify=helperChanged)
+    def helperName(self):
+        return toclaude.NAMES.get(toclaude.current(), "")
+
+    @Property(bool, notify=helperChanged)
+    def helperAsk(self):  # Fråga … (read-only, the answer here) – not for an own program
+        return toclaude.current() in ("claude", "codex")
+
+    @Property(str, notify=helperChanged)
+    def helpers(self):
+        """Inställningar → Skicka vidare: the choices, which is chosen and the own command."""
+        chosen = toclaude.current()
+        return json.dumps({"chosen": chosen, "command": toclaude.settings().get("command", ""),
+                           "list": [{"id": h, "name": toclaude.PROGRAMS[h], "installed": toclaude.installed(h)}
+                                    for h in toclaude.NAMES]}, ensure_ascii=False)
+
+    @Slot(str)
+    def setHelper(self, helper):
+        toclaude.save_settings(helper=helper)
+        self.helperChanged.emit()
+
+    @Slot(str)
+    def setHelperCommand(self, command):
+        toclaude.save_settings(command=command.strip(), **({"helper": "egen"} if command.strip() else {}))
+        self.helperChanged.emit()
 
     @Slot(int, str)
     def sendClaude(self, index, mode):
@@ -2489,31 +2522,35 @@ class Backend(QObject):
             return
         import knowledge  # noqa: PLC0415 – finds the GOBLINCAKES repo, if there is one
         repo = knowledge.find_repo()
-        self.notice.emit("Claude läser Kakans rapport (bara läsning, en stund)…")
+        helper = toclaude.current()
+        self.notice.emit(f"{toclaude.NAMES.get(helper, 'Claude')} läser Kakans rapport (bara läsning, en stund)…")
         conversation = self._id
 
         def work():
             try:
-                self._claudeDone.emit(conversation, str(path), toclaude.ask(path, repo), True)
+                self._claudeDone.emit(conversation, str(path), toclaude.ask(path, repo, helper), True)
             except Exception as e:  # noqa: BLE001
                 self._claudeDone.emit(conversation, str(path), str(e), False)
 
         threading.Thread(target=work, daemon=True).start()
 
-    def _fix_in_terminal(self, path):
-        """Claude Code with the report in a TERMINAL tab, in the repo – its own terminal window without the tab
-        (no QtWebEngine). The user sees it work and approves its changes there."""
+    def _fix_in_terminal(self, path, helper=""):
+        """Claude Code (or Codex, or the own program – Inställningar → Skicka vidare) with the report in a TERMINAL
+        tab, in the repo – its own terminal window without the tab (no QtWebEngine). The user sees it work and
+        approves its changes there."""
         import knowledge  # noqa: PLC0415
         repo = knowledge.find_repo()
-        if not toclaude.claude_path():
-            self.notice.emit(f"Claude Code finns inte – rapporten: {path}")
+        helper = toclaude.current(helper)
+        program = toclaude.PROGRAMS.get(helper, "")
+        if not helper:
+            self.notice.emit(f"Varken Claude Code eller Codex finns – rapporten: {path}")
         elif self.web:
-            self.claudeTerminal.emit(str(repo or Path.home()), toclaude.fix_command(path))
-            self.notice.emit("Claude Code startar i TERMINAL med Kakans rapport")
-        elif toclaude.start_fix(path, repo):
-            self.notice.emit("Claude Code startar i en terminal med Kakans rapport")
+            self.claudeTerminal.emit(str(repo or Path.home()), toclaude.fix_command(path, helper))
+            self.notice.emit(f"{program} startar i TERMINAL med Kakans rapport")
+        elif toclaude.start_fix(path, repo, helper):
+            self.notice.emit(f"{program} startar i en terminal med Kakans rapport")
         else:
-            self.notice.emit(f"Claude Code gick inte att starta – rapporten: {path}")
+            self.notice.emit(f"{program} gick inte att starta – rapporten: {path}")
 
     def _on_claude(self, conversation, path, text, ok):
         try:
@@ -2527,7 +2564,9 @@ class Backend(QObject):
         if conversation != self._id:  # another chat is open now: the answer is in the report
             self.notice.emit(f"Claude har svarat – svaret står sist i {Path(path).name}")
             return
-        service = f"Claude {toclaude.MODEL.capitalize()} (läste Kakans rapport)"
+        helper = toclaude.current()
+        service = (f"Claude {toclaude.MODEL.capitalize()}" if helper == "claude" else toclaude.NAMES.get(helper, "")) \
+            + " (läste Kakans rapport)"
         shown = {"role": "assistant", "text": text, "segments": goblinai.segments(text), "service": service,
                  "file": "", "tools": []}
         self._apply_memory(shown, source="claude")  # its ```löst = a known solution, not confirmed yet

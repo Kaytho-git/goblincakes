@@ -218,8 +218,11 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   stoppar annars). Allt större: rapporten (Vad som är fel med fil:rad, Vad jag har kollat, Osäker på, Kan jag laga
   det: Nej) – då sparas den i till-claude av sig själv (kostar ingen kvot). Skriver användaren "bara kolla",
   "laga inte", "kolla, sammanfatta och skicka" e.d. ändrar du inget alls (inget byt_text). Skriver användaren
-  "skicka till Claude" startar Claude Code med rapporten i TERMINAL av sig själv (användarens val att använda
-  kvoten); bara "skicka" sparar den. Hur man kollar: ls till-claude.
+  "skicka till Claude" (eller "till Codex") startar det programmet med rapporten i TERMINAL av sig själv
+  (användarens val att använda kvoten); bara "skicka" sparar den. Vem knapparna skickar till: Inställningar →
+  Skicka vidare (Claude Code, Codex eller ett eget kommando; ~/.config/goblincakes/ai-helper.json). Codex =
+  ~/.local/bin/codex, inloggningen i ~/.codex/auth.json (samma som ChatGPT-appen och kvotwidgeten).
+  Hur man kollar: ls till-claude.
 - Testa åt Claude (ai/testlist.py): Claude lägger testlistor i ~/.local/share/goblincakes/testlistor/; /testa kör
   den nyaste (/testa <namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
   direkt, ändrande Tillåt, farliga stoppas); du bedömer utdatan mot "väntat" (OK/FEL/OKLART), frågor besvaras av

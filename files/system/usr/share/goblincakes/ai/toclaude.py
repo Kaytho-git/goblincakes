@@ -11,7 +11,11 @@ Two ways on (the user's choice, 28 Oct):
 Either one costs from the week's Claude quota, so it only ever starts on the user's own click.
 
 Claude Code reads the reports with the MCP tool `rapporter` (kakan_mcp.py) as well.
+
+Who gets it (2 Nov, the user: "for those who use ChatGPT"): Claude Code, OpenAI's Codex or an own command –
+Goblin AI → Inställningar → Skicka vidare (~/.config/goblincakes/ai-helper.json). The name stays toclaude.py.
 """
+import json
 import os
 import re
 import shutil
@@ -27,12 +31,52 @@ KEEP = 12            # messages back from the one sent
 ASK_TOOLS = "Read,Grep,Glob"  # "Fråga bara": Claude reads, never changes
 ASK_SECONDS = 600
 MODEL = "sonnet"     # the user, 28 Oct: Opus is more than Kakan's problems need; Haiku loses its way across several parts
+SETTINGS = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes/ai-helper.json"
+NAMES = {"claude": "Claude", "codex": "Codex", "egen": "eget program"}
+PROGRAMS = {"claude": "Claude Code", "codex": "Codex", "egen": "Ditt program"}
 
 
 def claude_path():
     """Claude Code on this computer, or None (the buttons are hidden then)."""
     found = shutil.which("claude") or str(Path.home() / ".local/bin/claude")
     return found if Path(found).is_file() else None
+
+
+def codex_path():
+    """OpenAI's Codex (its installer puts it in ~/.local/bin), or None."""
+    found = shutil.which("codex") or str(Path.home() / ".local/bin/codex")
+    return found if Path(found).is_file() else None
+
+
+def settings():
+    try:
+        data = json.loads(SETTINGS.read_text())
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_settings(**changes):
+    data = {**settings(), **changes}
+    SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    SETTINGS.write_text(json.dumps(data, ensure_ascii=False))
+
+
+def installed(helper):
+    if helper == "claude":
+        return claude_path() is not None
+    if helper == "codex":
+        return codex_path() is not None
+    return helper == "egen" and bool(settings().get("command", "").strip())
+
+
+def current(wanted=""):
+    """The helper to use: the one asked for (when it is there), else the chosen one, else the first installed –
+    "" when there is none (the buttons are hidden)."""
+    for helper in (wanted, settings().get("helper", ""), "claude", "codex"):
+        if helper in NAMES and installed(helper):
+            return helper
+    return ""
 
 
 def _cut(text, chars):
@@ -114,19 +158,21 @@ def save(markdown):
     return path
 
 
-def task(path, mode):
-    """What Claude Code is asked."""
+def task(path, mode, helper="claude"):
+    """What Claude Code (or Codex, or the user's own program) is asked."""
+    tools = "Kakans MCP-verktyg finns – losningar visar om det hänt förut" if helper == "claude" else (
+        f"python3 {SOLUTIONS} list visar om det hänt förut")
     if mode == "ask":
         return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem. Läs hennes rapport {path} och svara på "
                 "svenska, kort och utan jargong för en användare som inte är programmerare: vad är troligen fel, och "
-                "vad ska användaren göra? Du får bara läsa (filer och Kakans MCP-verktyg) – ändra inget. Behövs en "
-                "ändring i datorn eller i GOBLINCAKES kod: säg vad, så tar användaren det i Claude Code. Är du säker "
+                "vad ska användaren göra? Du får bara läsa – ändra inget. Behövs en "
+                f"ändring i datorn eller i GOBLINCAKES kod: säg vad, så tar användaren det i {PROGRAMS[helper]}. Är du säker "
                 "på orsak och lösning: avsluta svaret med ett kodblock märkt ```löst med tre rader – \"Tecken: <vad "
                 "användaren märkte>\", \"Orsak: <vad som är fel>\", \"Lösning: <vad som ska göras>\" – då sparas det "
                 "som en känd lösning åt Kakan (ej bekräftad tills den fungerat). Är du osäker: inget sådant block.")
     return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem och skickade det till dig. Läs hennes rapport "
-            f"{path}, ta reda på vad som är fel (Kakans MCP-verktyg finns – losningar visar om det hänt förut) och lös det: är felet i GOBLINCAKES, rätta "
-            "koden i repot enligt CLAUDE.md; är det bara på den här datorn, rätta det där. Är det något Kakan borde "
+            f"{path}, ta reda på vad som är fel ({tools}) och lös det: är felet i GOBLINCAKES, rätta "
+            "koden i repot enligt CLAUDE.md (projektets regler); är det bara på den här datorn, rätta det där. Är det något Kakan borde "
             "känna igen nästa gång och det gäller en del av GOBLINCAKES: skriv en kort rad (tecken på felet → vad "
             "som är fel → vad hon ska göra) i den delens ##-avsnitt i hennes karta, "
             "files/system/usr/share/goblincakes/ai/karta.md i repot – hon läser kartan (den nya raden efter nästa "
@@ -137,17 +183,27 @@ def task(path, mode):
             "lösningen är sparad.")
 
 
-def fix_command(path):
-    """Claude Code with the report as its task – for a TERMINAL tab in Goblin AI (2 Nov) or a terminal of its own."""
-    return f"{_quote(claude_path())} --model {MODEL} {_quote(task(path, 'fix'))}"
+def fix_command(path, helper=""):
+    """The helper with the report as its task – for a TERMINAL tab in Goblin AI (2 Nov) or a terminal of its own.
+    "" when there is none."""
+    helper = current(helper)
+    job = _quote(task(path, "fix", helper))
+    if helper == "claude":
+        return f"{_quote(claude_path())} --model {MODEL} {job}"
+    if helper == "codex":
+        return f"{_quote(codex_path())} {job}"
+    if helper == "egen":
+        return f"{settings()['command'].strip()} {job}"
+    return ""
 
 
-def start_fix(path, repo=None):
-    """Claude Code in the user's terminal, in the repo (else the home folder). False if it couldn't start."""
-    if not claude_path():
+def start_fix(path, repo=None, helper=""):
+    """The helper in the user's terminal, in the repo (else the home folder). False if it couldn't start."""
+    command = fix_command(path, helper)
+    if not command:
         return False
     folder = str(repo or Path.home())
-    script = f"cd {_quote(folder)} && {fix_command(path)}; exec bash"
+    script = f"cd {_quote(folder)} && {command}; exec bash"
     try:
         subprocess.Popen(["/usr/libexec/goblincakes-terminal", "run", "bash", "-c", script],
                          start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -156,19 +212,33 @@ def start_fix(path, repo=None):
         return False
 
 
-def ask(path, repo=None):
-    """Fråga bara: Claude Code without a window, read-only. Returns its answer (raises RuntimeError)."""
-    claude = claude_path()
-    if not claude:
-        raise RuntimeError("Claude Code finns inte på datorn")
-    cmd = [claude, "-p", task(path, "ask"), "--model", MODEL, "--tools", ASK_TOOLS,
-           "--allowedTools", f"{ASK_TOOLS},mcp__kakan", "--add-dir", str(FOLDER)]
+def ask(path, repo=None, helper=""):
+    """Fråga bara: the helper without a window, read-only. Returns its answer (raises RuntimeError)."""
+    helper = current(helper)
+    folder = str(repo or Path.home())
+    last = None
+    if helper == "claude":
+        cmd = [claude_path(), "-p", task(path, "ask", helper), "--model", MODEL, "--tools", ASK_TOOLS,
+               "--allowedTools", f"{ASK_TOOLS},mcp__kakan", "--add-dir", str(FOLDER)]
+    elif helper == "codex":
+        # read-only sandbox; its last message to a file – stdout has the whole run (2 Nov)
+        last = FOLDER / f".codex-svar-{os.getpid()}.txt"
+        cmd = [codex_path(), "exec", "-s", "read-only", "--skip-git-repo-check", "--ephemeral", "-C", folder,
+               "-o", str(last), task(path, "ask", helper)]
+    else:
+        raise RuntimeError("Fråga finns bara för Claude Code och Codex")
     try:
-        done = subprocess.run(cmd, cwd=str(repo or Path.home()), capture_output=True, text=True,
+        done = subprocess.run(cmd, cwd=folder, capture_output=True, text=True,
                               timeout=ASK_SECONDS, stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
-        raise RuntimeError(f"Claude svarade inte på {ASK_SECONDS // 60} minuter") from None
+        raise RuntimeError(f"{NAMES[helper]} svarade inte på {ASK_SECONDS // 60} minuter") from None
     answer = done.stdout.strip()
+    if last:
+        try:
+            answer = last.read_text(encoding="utf-8").strip()
+            last.unlink()
+        except OSError:
+            answer = ""
     if done.returncode or not answer:
         raise RuntimeError(_cut(done.stderr or answer or f"avslutskod {done.returncode}", 400))
     return answer

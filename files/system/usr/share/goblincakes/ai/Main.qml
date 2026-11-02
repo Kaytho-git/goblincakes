@@ -711,6 +711,7 @@ Window {
 
     // Pictures on this computer (goblincakes-image): status, models
     readonly property var imageStatus: JSON.parse(backend.image || "{}")
+    readonly property var helpers: JSON.parse(backend.helpers || "{}")  // Skicka vidare (2 Nov)
     property string imagePlace: ""
     property string imageText: ""
     property real imageFraction: -1
@@ -3328,7 +3329,7 @@ Window {
                             // Fråga Claude = read-only, the answer comes back here. Both cost Claude quota.
                             Text {
                                 visible: backend.claude
-                                text: "Skicka till Claude"
+                                text: "Skicka till " + backend.helperName
                                 color: claudeArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 12
@@ -3341,8 +3342,8 @@ Window {
                                 }
                             }
                             Text {
-                                visible: backend.claude
-                                text: "Fråga Claude"
+                                visible: backend.helperAsk
+                                text: "Fråga " + backend.helperName
                                 color: claudeAskArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 12
@@ -4891,7 +4892,7 @@ Window {
                 { name: "Körda kommandon", item: cmdLogCard }, { name: "Egna verktyg", item: ownToolsCard, key: "verktyg" },
                 { name: "Verktyg (MCP)", item: mcpCard },
                 { name: "Egna knappar", item: dailyCard }, { name: "Lokal AI", item: setLocal, key: "lokal" },
-                { name: "Skapa bilder", item: setImage }, { name: "AI-tjänster och nycklar", item: setKeys }]
+                { name: "Skicka vidare", item: setHelper, key: "skicka" }, { name: "Skapa bilder", item: setImage }, { name: "AI-tjänster och nycklar", item: setKeys }]
             readonly property int current: {
                 let c = -1;
                 for (let i = 0; i < sections.length; i++)
@@ -6699,6 +6700,102 @@ Window {
                             color: win.localError ? accent.errorBright : "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 13
+                        }
+                    }
+                }
+
+                // ── Skicka vidare (2 Nov): who gets Kakan's reports – Claude Code, Codex or an own program ──
+                Rectangle {
+                    id: setHelper
+                    width: settingsCol.width
+                    height: helperCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+
+                    Column {
+                        id: helperCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 12
+                        Text {
+                            text: "Skicka vidare"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Det Kakan inte kan laga själv blir en rapport. Här väljer du vem som får den: knappen under svaren "
+                                  + "startar programmet i TERMINAL med rapporten som uppgift. Skriv \"skicka till Claude\" eller "
+                                  + "\"skicka till Codex\" i frågan så startar det av sig självt när rapporten är klar – det "
+                                  + "använder kvoten på ditt abonnemang. Bara \"skicka\" sparar rapporten utan att starta något."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Flow {
+                            width: parent.width
+                            spacing: 10
+                            Repeater {
+                                model: (win.helpers.list || []).filter(h => h.id !== "egen")
+                                Pick {
+                                    required property var modelData
+                                    title: modelData.name
+                                    sub: modelData.installed ? (modelData.id === "claude" ? "Anthropic – Claude-abonnemanget"
+                                                                                         : "OpenAI – ChatGPT-abonnemanget")
+                                                             : "Inte installerat – GOBLINCAKES Config → Program"
+                                    chosen: win.helpers.chosen === modelData.id
+                                    onPicked: if (modelData.installed) backend.setHelper(modelData.id)
+                                }
+                            }
+                        }
+                        Label { text: "ELLER ETT EGET PROGRAM" }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Ett annat AI-program i terminalen: skriv kommandot – uppgiften läggs sist. Tomt = inget eget."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Row {
+                            spacing: 10
+                            Rectangle {
+                                width: 320
+                                height: 30
+                                color: "#07090D"
+                                border.width: win.helpers.chosen === "egen" ? 2 : 1
+                                border.color: helperInput.activeFocus || win.helpers.chosen === "egen" ? accent.color : "#1E2A40"
+                                TextInput {
+                                    id: helperInput
+                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    clip: true
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Mono"
+                                    font.pixelSize: 13
+                                    text: win.helpers.command || ""
+                                    onAccepted: backend.setHelperCommand(text)
+                                    Text {
+                                        visible: helperInput.text === ""
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "t.ex. aider"
+                                        color: "#5C6880"
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                            }
+                            FlatButton {
+                                small: true
+                                primary: true
+                                text: "Spara"
+                                onClicked: backend.setHelperCommand(helperInput.text)
+                            }
                         }
                     }
                 }
