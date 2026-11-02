@@ -28,6 +28,10 @@ SOLUTIONS = Path(__file__).resolve().parent / "solutions.py"  # Claude Code save
 OUTPUT_CHARS = 4000  # of each command's output in the report
 TOOL_CHARS = 3000    # of each tool's answer (kept with the answer as "report_done")
 KEEP = 12            # messages back from the one sent
+FILE_LINES = 400     # of each file she read, numbered in the report (2 Nov: Claude needn't look for them again)
+FILES_MAX = 4
+FILE_SUFFIXES = {".lua", ".toc", ".xml", ".py", ".sh", ".js", ".qml", ".json", ".css", ".html", ".conf", ".ini",
+                 ".cfg", ".txt", ".md", ".desktop", ".service", ".yml", ".yaml", ".toml"}
 ASK_TOOLS = "Read,Grep,Glob"  # "Fråga bara": Claude reads, never changes
 ASK_SECONDS = 600
 MODEL = "sonnet"     # the user, 28 Oct: Opus is more than Kakan's problems need; Haiku loses its way across several parts
@@ -93,6 +97,38 @@ def _title(text):
     return " ".join(words) or "rapport"
 
 
+def files_read(chat, question):
+    """The files she read (las_fil / leta läs, wowapi kolla <tillägg>) and the paths in the question – as they are
+    now, numbered: Claude starts from them instead of finding and reading them again (2 Nov, the user: as little
+    of Claude's quota as possible when Kakan has done her part)."""
+    paths = re.findall(r"(?:~|/(?:home|var|run|usr|etc|opt|tmp))/[^\s\"'`<>|]+", question)
+    for m in chat:
+        for tool, query in (t[:2] for t in m.get("tools") or [] if isinstance(t, (list, tuple)) and len(t) >= 2):
+            q = str(query).strip()
+            if tool == "leta" and q.startswith(("läs ", "las ")):
+                paths.append(q.split(" ", 1)[1])
+            elif tool == "wowapi" and q.startswith("kolla ") and len(q) > 6:
+                paths.append(q.split(" ", 1)[1])
+    files = []
+    for raw in paths:
+        p = Path(os.path.expanduser(raw.strip().strip("'\"").rstrip(".,:;)")))
+        found = sorted(f for f in p.iterdir() if f.is_file() and f.suffix.lower() in FILE_SUFFIXES)[:6] \
+            if p.is_dir() else [p] if p.is_file() else []
+        for f in found:
+            if f.resolve() not in (x.resolve() for x in files):
+                files.append(f)
+    out = []
+    for f in files[:FILES_MAX]:
+        try:
+            rows = f.read_text(errors="replace").splitlines()
+        except OSError:
+            continue
+        shown = "\n".join(f"{n:4}  {row}" for n, row in enumerate(rows[:FILE_LINES], 1))
+        more = f"\n[… {len(rows) - FILE_LINES} rader till]" if len(rows) > FILE_LINES else ""
+        out += ["", f"### {f.resolve()}", _fence(shown + more)]
+    return out
+
+
 def build(display, index, info=""):
     """The report for the answer at display[index], with the messages before it (the last KEEP) – Markdown."""
     chat = display[max(0, index - KEEP + 1):index + 1]
@@ -109,6 +145,9 @@ def build(display, index, info=""):
            "", "## Frågan", question.strip() or "(ingen fråga hittades)"]
     if info:
         out += ["", "## Datorn", info.strip()]
+    files = files_read(chat, question)
+    if files:
+        out += ["", "## Filerna hon läste (som de ser ut nu, med radnummer)"] + files
     out += ["", "## Samtalet"]
     for m in chat:
         role = m.get("role")
@@ -163,7 +202,8 @@ def task(path, mode, helper="claude"):
     tools = "Kakans MCP-verktyg finns – losningar visar om det hänt förut" if helper == "claude" else (
         f"python3 {SOLUTIONS} list visar om det hänt förut")
     if mode == "ask":
-        return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem. Läs hennes rapport {path} och svara på "
+        return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem. Läs hennes rapport {path} (hennes analys "
+                "är en ledtråd, inte facit – filerna hon läste står i den med radnummer) och svara på "
                 "svenska, kort och utan jargong för en användare som inte är programmerare: vad är troligen fel, och "
                 "vad ska användaren göra? Du får bara läsa – ändra inget. Behövs en "
                 f"ändring i datorn eller i GOBLINCAKES kod: säg vad, så tar användaren det i {PROGRAMS[helper]}. Är du säker "
@@ -171,7 +211,10 @@ def task(path, mode, helper="claude"):
                 "användaren märkte>\", \"Orsak: <vad som är fel>\", \"Lösning: <vad som ska göras>\" – då sparas det "
                 "som en känd lösning åt Kakan (ej bekräftad tills den fungerat). Är du osäker: inget sådant block.")
     return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem och skickade det till dig. Läs hennes rapport "
-            f"{path}, ta reda på vad som är fel ({tools}) och lös det. Två fall:\n"
+            f"{path}, ta reda på vad som är fel ({tools}) och lös det. Hennes analys är en ledtråd, inte facit – "
+            "kontrollera varje påstående själv; användarens egen beskrivning av vad som händer är det säkraste. "
+            "Filerna hon läste står i rapporten med radnummer: börja där i stället för att leta upp och läsa dem "
+            "igen, och läs bara vidare när det behövs. Två fall:\n"
             "1. Felet är bara på den här datorn (ett WoW-tillägg, en inställning, ett program, en fil i hemmappen): "
             "rätta det där. Rör INTE repot – ingen commit, ingen push, ingen rad i Kakans karta.\n"
             "2. Felet är i GOBLINCAKES egen kod: rätta koden i repot enligt CLAUDE.md (projektets regler). Är det "
