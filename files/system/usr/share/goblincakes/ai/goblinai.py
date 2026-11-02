@@ -1027,6 +1027,10 @@ def byt_run(query):
             path, old, new = pairs.get("fil", path), pairs.get("gammal", old), pairs.get("ny", new)
         found = re.search(r"(?:~|/)[^\"'\n]*?\.\w{1,5}(?=[\"'\s]|$)", path)
         if found and not Path(os.path.expanduser(path.strip())).exists():
+            if not old:
+                # The old line after the path in "fil" (`…GearDisplay.lua' ' frame:Hide()'`), "gammal" empty – seven
+                # tries the same way (gear round 25, 2 Nov)
+                old = path[found.end():].strip(" \t\n\"'")
             path = found.group(0)  # only the path in "fil", whatever else came with it
     else:
         first, _, rest = query.partition("\n")
@@ -2370,6 +2374,10 @@ def receipt(display, index):
             verdict, state, kind = "Klart – ändrat och kontrollerat efteråt.", "ok", "ok"
         elif "unseen" in events:
             verdict, state, kind = "Kördes i terminalen – kolla där att det gick bra.", "warn", "terminal"
+    if state in ("ok", "warn") and any(st.get("state") == "gräns" for st in display[index].get("steps") or []):
+        # "Klart – ändrat och kontrollerat efteråt" under an answer that hit "högst 10 steg" after seven failed
+        # byt_text – the change was the one before Tillåt (gear round 25, 2 Nov)
+        verdict, state, kind = "Inte klart – hon nådde gränsen för antal steg innan hon blev färdig.", "no", "limit"
     items += stuck
     if not items and not verdict:
         return None
@@ -2861,6 +2869,17 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                 answer = re.sub(r"```[\w-]*[ \t]*\n?.*?```", "", answer, flags=re.S).strip() or (
                     "Ändringen är klar att göra – tryck **Tillåt** på kortet nedan, så ändras filen.")
                 break
+            failed = next((str(r) for t, q, r in reversed(LAST.done) if t == tool and q == query
+                           and re.match(r"(?:Inget kort gjort|Inget bytt|Gick inte|Det gick inte|gick inte)\b", str(r))),
+                          "")
+            if failed:
+                # The same failed call again: "Det har du redan hämtat" told her nothing – she sent a byt_text without
+                # "gammal" seven times (gear round 25, 2 Nov). The error again, and how a right call looks.
+                messages.append({"role": "user", "content": f"[Goblin AI] Samma anrop gav nyss: {failed[:300]} Samma "
+                                 "anrop ger samma fel – ändra det innan du försöker igen."
+                                 + (' Exempel: {"fil": "/sökväg/fil.lua", "gammal": "raden exakt som den står nu", '
+                                    '"ny": "som den ska stå (tom = ta bort)"}' if tool == "byt" else "") + NUDGE_NOTE})
+                continue
             messages.append({"role": "user", "content": "[Goblin AI] Det har du redan hämtat – svaret står ovan. "
                              "Använd det, hämta något annat, eller svara nu." + NUDGE_NOTE})
             continue
