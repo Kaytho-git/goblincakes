@@ -1868,9 +1868,14 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     # Her own cards too: one at a time (2 Nov) – the first, the next after Tillåt
     for extra in re.findall(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", answer, flags=re.S)[1:]:
         answer = answer.replace(extra, "")
+    # A tool call written as a card ("```bash\nwowapi(fraga=...)\n```") is no command – it ran and failed with
+    # exit code 2 (gear round 24, 2 Nov)
+    answer = re.sub(r"```(?:bash|sh)?\n\s*[a-z_]+\([^\n]*\)\s*\n```\n?", "", answer)
     if any("bytatext.py" in c for c in cards):
         # byt_text's card as the tool made it – a copy she typed again could differ from the checked text
         answer = re.sub(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", "", answer, flags=re.S)
+        # One card at a time: her next step's command waits until she has seen how the change went (round 24)
+        answer = re.sub(r"```(?:bash|sh)\n.*?\n```\n?", "", answer, flags=re.S)
     for card in cards:
         # A byt_text card whole: two changes in one file start with the same command line, and the second was taken
         # for a copy of the first and dropped (gear round 21, 1 Nov)
