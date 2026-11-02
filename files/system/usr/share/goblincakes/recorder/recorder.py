@@ -2777,20 +2777,7 @@ def wcl_stats(wcl):
         return {e["name"]: e.get("total", 0) / secs for e in t.get("entries") or []}
 
     def parses(table):
-        out = {}
-        for fight in data(table) or []:
-            for role in (fight.get("roles") or {}).values():
-                for c in role.get("characters") or []:
-                    # rank = totalParses with 0 %: a key Warcraft Logs hasn't ranked yet (no team/affixes in the
-                    # rankings either – 22 Oct); "~N" alone is its usual estimate with a real percent
-                    if c.get("rankPercent") is not None and str(c.get("rank", "")).lstrip("~") != str(c.get("totalParses")):
-                        if fight.get("difficulty") == MPLUS_DIFFICULTY:
-                            # M+: the report page's parse is against the same key level (bracket) – 64 against
-                            # all levels was 0 at +13 on the page (29 Oct); the other number = all levels
-                            out[c["name"]] = (c.get("bracketPercent"), c["rankPercent"], None, None)
-                        else:
-                            out[c["name"]] = (c["rankPercent"], c.get("bracketPercent"), c.get("rank"), c.get("totalParses"))
-        return out
+        return {name: row for (_, name), row in rank_rows(data(table)).items()}
 
     dps, hps = per_second("dmg"), per_second("heal")
     pdps, phps = parses("rdps"), parses("rhps")
@@ -2826,6 +2813,78 @@ def wcl_stats(wcl):
 
 
 MPLUS_DIFFICULTY = 10  # Warcraft Logs' difficulty for Mythic+ in rankings
+
+
+def rank_rows(fights):
+    """A rankings answer → {(fightID, name): (parse, ilvl parse, rank, of)} – the parse Warcraft Logs' report page
+    shows."""
+    out = {}
+    for fight in fights or []:
+        for role in (fight.get("roles") or {}).values():
+            for c in role.get("characters") or []:
+                # rank = totalParses with 0 %: a key Warcraft Logs hasn't ranked yet (no team/affixes in the
+                # rankings either – 22 Oct); "~N" alone is its usual estimate with a real percent
+                if c.get("rankPercent") is not None and str(c.get("rank", "")).lstrip("~") != str(c.get("totalParses")):
+                    key = (fight.get("fightID"), c["name"])
+                    if fight.get("difficulty") == MPLUS_DIFFICULTY:
+                        # M+: the report page's parse is against the same key level (bracket) – 64 against
+                        # all levels was 0 at +13 on the page (29 Oct); the other number = all levels
+                        out[key] = (c.get("bracketPercent"), c["rankPercent"], None, None)
+                    else:
+                        out[key] = (c["rankPercent"], c.get("bracketPercent"), c.get("rank"), c.get("totalParses"))
+    return out
+
+
+# The parses again for a week (2 Nov, the user: yesterday's didn't match Warcraft Logs): a percent moves the first
+# days as more logs come in, and one fetched too early can be plain wrong – 100 against 32 at the same item level
+# on Entombed Sentinels, 6 when asked again. Once a day; an odd one (far above its item level parse) hourly.
+PARSE_REFRESH_DAYS = 7
+PARSE_REFRESH_EVERY = 24 * 3600
+PARSE_ODD = 30  # parse this much above the item level parse = not settled
+
+
+def wow_parses_refresh(folder=None, now=None, reports=10):
+    """Your kills and timed keys from the last week in WoW Stats: their parses fetched again from Warcraft Logs
+    (one call per report and metric) – the history and the videos' cards. Returns how many changed."""
+    now = now or time.time()
+    hist = wow_history()
+    due = {}  # report code → {history key: fight}
+    for key, e in hist.items():
+        if not isinstance(e, dict) or e.get("result") not in ("kill", "timed") or "#fight=" not in (e.get("url") or ""):
+            continue
+        if now - (e.get("started") or 0) > PARSE_REFRESH_DAYS * 86400:
+            continue
+        odd = e.get("parse") is not None and e.get("ilvlParse") is not None and e["parse"] - e["ilvlParse"] >= PARSE_ODD
+        if now - e.get("parsesChecked", 0) < (3600 if odd else PARSE_REFRESH_EVERY):
+            continue
+        code = e["url"].split("/reports/")[1].split("#")[0]
+        due.setdefault(code, {})[key] = int(e["url"].split("#fight=")[1])
+    changed = {}
+    for code, keys in list(due.items())[:reports]:
+        rep = wcl_query("query($c:String,$f:[Int]){ reportData { report(code:$c) {"
+                        " rdps: rankings(fightIDs:$f, playerMetric: dps) rhps: rankings(fightIDs:$f, playerMetric: hps) } } }",
+                        {"c": code, "f": sorted(set(keys.values()))})["reportData"]["report"]
+        rows = {m: rank_rows(((rep.get(m) or {}).get("data")) if isinstance(rep.get(m), dict) else None)
+                for m in ("rdps", "rhps")}
+        for key, fight in keys.items():
+            e = hist[key]
+            row = rows["rhps" if e.get("role") == "healers" else "rdps"].get((fight, e["player"].split("-")[0]))
+            e["parsesChecked"] = now
+            if row and (row[0], row[1]) != (e.get("parse"), e.get("ilvlParse")):
+                e["parse"], e["ilvlParse"] = row[0], row[1]
+                changed[key] = e
+    if due:
+        _save_history(hist)
+    for v in video_files(folder) if folder and changed else []:
+        e = changed.get(f"{v.get('player')}|{int(v.get('started', 0))}")
+        st = v.get("wclStats")
+        if not e or not st:
+            continue
+        for p in st.get("players", []):
+            if p.get("name") == e["player"].split("-")[0]:
+                p["parse"], p["ilvlParse"] = e["parse"], e["ilvlParse"]
+        set_meta(v["path"], wclStats=st)
+    return len(changed)
 
 
 def mplus_key_level_fix(folder):

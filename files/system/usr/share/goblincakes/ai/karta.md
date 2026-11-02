@@ -257,6 +257,9 @@ Ord: goblinrecorder, recorder, inspelning, spela in, obs, film, raid, mythic, m+
 Kontroll: `systemctl --user is-active goblincakes-recorder`
 Kontroll: `journalctl --user -u goblincakes-recorder -n 15 --no-pager`
 
+- Parserna i WoW Stats hämtas igen från Warcraft Logs en gång om dagen i en vecka (procenten ändras de första
+  dagarna; en för tidigt hämtad kan vara fel – 100 mot ilvl-parse 32). Stämmer en parse inte med Warcraft Logs:
+  vänta ett dygn, eller kolla `journalctl --user -u goblincakes-recorder | grep "parses again"`.
 ## GoblinAmp
 Ord: goblinamp, amp, musikspelare, winamp, spotify, spellista, låtar, mediatangenter
 - /usr/bin/goblin-amp (kod /usr/share/goblincakes/amp/), inställningar ~/.config/goblincakes/amp.json och

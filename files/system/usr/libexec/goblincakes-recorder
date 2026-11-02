@@ -142,6 +142,7 @@ class Service:
         self.me = ""  # Name-Realm-Region of the character playing (for Warcraft Logs)
         self.wcl_next = time.time() + 60
         self.wcl_busy = False
+        self.parses_next = time.time() + 120  # the week's parses again (R.wow_parses_refresh) – it picks what is due
         self.tidy = False  # WoW closed: remove non-kills once the last video is saved
         self.screen_ok = None  # KDE told OBS which screen to record?
         self.screen_check = 0
@@ -775,12 +776,15 @@ class Service:
         seen = R.reports_read()
         reports = [(c, p) for c, (t, p) in newest.items()
                    if c not in seen or (now - t < REPORT_FRESH and now - seen[c] > REPORT_AGAIN)][:5]
-        if not todo and not stats and not ilvl and not reports:
+        refresh = now >= self.parses_next
+        if refresh:
+            self.parses_next = now + 3600
+        if not todo and not stats and not ilvl and not reports and not refresh:
             return
         self.wcl_busy = True
-        threading.Thread(target=self.wcl_run, args=(todo, stats, ilvl, reports), daemon=True).start()
+        threading.Thread(target=self.wcl_run, args=(todo, stats, ilvl, reports, refresh), daemon=True).start()
 
-    def wcl_run(self, todo, stats=(), ilvl=(), reports=()):
+    def wcl_run(self, todo, stats=(), ilvl=(), reports=(), refresh=False):
         try:
             for v in todo:
                 found = R.wcl_find(v)
@@ -800,6 +804,11 @@ class Service:
                 n = R.wcl_report_pulls(code, player)
                 R.reports_read(code)
                 log("Warcraft Logs report", code, "read for WoW Stats:", n, "new pulls")
+            if refresh:
+                n = R.wow_parses_refresh(self.cfg["folder"])
+                if n:
+                    self.last_video = f"parses {time.time()}"
+                    log("Warcraft Logs: the week's parses again –", n, "changed")
         except Exception as e:  # noqa: BLE001 – no network etc.: try again later
             log("Warcraft Logs:", e)
         finally:
