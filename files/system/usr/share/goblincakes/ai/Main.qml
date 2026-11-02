@@ -2490,6 +2490,20 @@ Window {
                 model: chatModel
                 boundsBehavior: Flickable.StopAtBounds
                 onCountChanged: Qt.callLater(positionViewAtEnd)
+                // Follow the steps as they grow while at the bottom; working again (Tillåt on a card) follows again –
+                // after Tillåt the view stayed at the card (2 Nov, the user)
+                property bool follow: true
+                onContentYChanged: follow = originY + contentHeight + bottomMargin - height - contentY < 80
+                onContentHeightChanged: if (follow) Qt.callLater(positionViewAtEnd)
+                Connections {
+                    target: backend
+                    function onBusyChanged() {
+                        if (backend.busy) {
+                            messagesView.follow = true;
+                            Qt.callLater(messagesView.positionViewAtEnd);
+                        }
+                    }
+                }
 
                 // While the AI works: "KAKAN tänker …" with the steps, a stripe in the accent like an answer's
                 // (the thinking avatar is in the KAKAN box since 1 Nov)
