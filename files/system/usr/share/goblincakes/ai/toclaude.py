@@ -137,13 +137,17 @@ def task(path, mode):
             "lösningen är sparad.")
 
 
+def fix_command(path):
+    """Claude Code with the report as its task – for a TERMINAL tab in Goblin AI (2 Nov) or a terminal of its own."""
+    return f"{_quote(claude_path())} --model {MODEL} {_quote(task(path, 'fix'))}"
+
+
 def start_fix(path, repo=None):
     """Claude Code in the user's terminal, in the repo (else the home folder). False if it couldn't start."""
-    claude = claude_path()
-    if not claude:
+    if not claude_path():
         return False
     folder = str(repo or Path.home())
-    script = f"cd {_quote(folder)} && {_quote(claude)} --model {MODEL} {_quote(task(path, 'fix'))}; exec bash"
+    script = f"cd {_quote(folder)} && {fix_command(path)}; exec bash"
     try:
         subprocess.Popen(["/usr/libexec/goblincakes-terminal", "run", "bash", "-c", script],
                          start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

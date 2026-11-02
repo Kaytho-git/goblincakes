@@ -663,6 +663,9 @@ Window {
             input.text = text;
             win.view = "chat";
         }
+        function onClaudeTerminal(folder, command) {  // Skicka till Claude (2 Nov): Claude Code in a TERMINAL tab
+            win.openTerminal(folder, command);
+        }
         function onScreenshotReady(path) {
             win.attachment = path;
             win.view = "chat";

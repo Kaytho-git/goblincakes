@@ -358,6 +358,7 @@ def _similar_items(entry, lessons=None):
 
 class Backend(QObject):
     """Talks to Main.qml. Display messages: {role, text, segments, service, file}."""
+    web = False  # the TERMINAL tab (QtWebEngine) – set in main()
 
     conversationChanged = Signal()  # the whole message list changed (new/loaded)
     messageAdded = Signal(str)  # JSON of one display message
@@ -374,6 +375,7 @@ class Backend(QObject):
     _answered = Signal(str, str)  # answer, service
     _failed = Signal(str)
     _claudeDone = Signal(str, str, str, bool)  # conversation id, report path, answer or error, ok
+    claudeTerminal = Signal(str, str)  # folder, command: Claude Code with Kakan's report in a TERMINAL tab (2 Nov)
     _testJudged = Signal(str, str)  # verdict, why (Kakan's judgement of a test point)
     _statusText = Signal(str)
     _stepsText = Signal(str)  # the work loop's steps (JSON)
@@ -668,7 +670,11 @@ class Backend(QObject):
         except (OSError, IndexError) as e:
             self.notice.emit(f"Rapporten gick inte att spara: {e}")
             return
-        note = f"*Rapporten är sparad åt Claude ({path.name}). Vill du ha svar nu: tryck Skicka till Claude.*"
+        send = goblinai.send_to_claude(self._api)  # "skicka till Claude": the user chose to spend quota (2 Nov)
+        note = (f"*Rapporten är skickad till Claude ({path.name}) – Claude Code startar i TERMINAL.*" if send else
+                f"*Rapporten är sparad åt Claude ({path.name}). Vill du ha svar nu: tryck Skicka till Claude.*")
+        if send:
+            self._fix_in_terminal(path)
         shown = self._display[index]
         shown["text"] += "\n\n" + note
         shown["segments"] += goblinai.segments(note)
@@ -2462,8 +2468,9 @@ class Backend(QObject):
             self._to_chatgpt(f"Skapa en bild: {text.strip()}")
 
     # ── Skicka till Claude (point 14 of Kakan's plan, 28 Oct; toclaude.py) ──
-    # "fix" = Claude Code in a terminal in the repo, the user sees it work; "ask" = read-only without a window,
-    # the answer comes back here. Both cost from the week's Claude quota – only ever on the user's click.
+    # "fix" = Claude Code in a TERMINAL tab in the repo (2 Nov; before, a terminal window), the user sees it work;
+    # "ask" = read-only without a window, the answer comes back here. Both cost from the week's Claude quota – only
+    # on the user's click, or their own words "skicka till Claude" in the question (2 Nov).
 
     @Property(bool, constant=True)
     def claude(self):
@@ -2477,14 +2484,11 @@ class Backend(QObject):
         except (OSError, IndexError) as e:
             self.notice.emit(f"Rapporten gick inte att spara: {e}")
             return
+        if mode == "fix":
+            self._fix_in_terminal(path)
+            return
         import knowledge  # noqa: PLC0415 – finds the GOBLINCAKES repo, if there is one
         repo = knowledge.find_repo()
-        if mode == "fix":
-            if toclaude.start_fix(path, repo):
-                self.notice.emit("Claude Code startar i en terminal med Kakans rapport")
-            else:
-                self.notice.emit(f"Claude Code gick inte att starta – rapporten: {path}")
-            return
         self.notice.emit("Claude läser Kakans rapport (bara läsning, en stund)…")
         conversation = self._id
 
@@ -2495,6 +2499,21 @@ class Backend(QObject):
                 self._claudeDone.emit(conversation, str(path), str(e), False)
 
         threading.Thread(target=work, daemon=True).start()
+
+    def _fix_in_terminal(self, path):
+        """Claude Code with the report in a TERMINAL tab, in the repo – its own terminal window without the tab
+        (no QtWebEngine). The user sees it work and approves its changes there."""
+        import knowledge  # noqa: PLC0415
+        repo = knowledge.find_repo()
+        if not toclaude.claude_path():
+            self.notice.emit(f"Claude Code finns inte – rapporten: {path}")
+        elif self.web:
+            self.claudeTerminal.emit(str(repo or Path.home()), toclaude.fix_command(path))
+            self.notice.emit("Claude Code startar i TERMINAL med Kakans rapport")
+        elif toclaude.start_fix(path, repo):
+            self.notice.emit("Claude Code startar i en terminal med Kakans rapport")
+        else:
+            self.notice.emit(f"Claude Code gick inte att starta – rapporten: {path}")
 
     def _on_claude(self, conversation, path, text, ok):
         try:
@@ -2836,6 +2855,7 @@ def main():
     app.setQuitOnLastWindowClosed(False)
 
     backend = Backend()
+    backend.web = web  # the TERMINAL tab is there: Skicka till Claude opens Claude Code in it
 
     def connection():
         sock = server.nextPendingConnection()

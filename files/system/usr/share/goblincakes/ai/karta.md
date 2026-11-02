@@ -208,8 +208,8 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   kartan, systemfel, leta-verktygen, wowstats, warcraftlogs, wowfel, cs2, sport. Inte skrivbordet, sökningen eller
   dina MCP-servrar. Läggs in med python3 /usr/share/goblincakes/ai/kakan_mcp.py claude. Kolla: claude mcp list
   (kakan ✔ Connected), python3 /usr/share/goblincakes/ai/kakan_mcp.py lista. Verktyget rapporter = dina rapporter.
-- Skicka till Claude (ai/toclaude.py): under varje svar "Skicka till Claude" (Claude Code i en terminal i
-  GOBLINCAKES-repot, löser problemet – användaren ser och godkänner) och "Fråga Claude" (claude -p utan fönster,
+- Skicka till Claude (ai/toclaude.py): under varje svar "Skicka till Claude" (Claude Code i en TERMINAL-flik i
+  Goblin AI, i GOBLINCAKES-repot – sedan 2 nov; utan TERMINAL-fliken ett eget terminalfönster; löser problemet – användaren ser och godkänner) och "Fråga Claude" (claude -p utan fönster,
   får bara läsa, svaret kommer in i chatten). Även /claude och /claude fråga. Rapporten byggs ur samtalet (frågan,
   dina svar, steg, verktygens svar, kommandon med utdata) och sparas i ~/.local/share/goblincakes/till-claude/;
   Claudes svar skrivs sist i den. Modell: Sonnet. Kostar användarens Claude-kvot – föreslå knappen när du inte
@@ -217,7 +217,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
 - Hitta och skicka vidare (2 nov): du lagar själv bara småfel (en eller två ändringar på högst 8 rader, byt_text
   stoppar annars). Allt större: rapporten (Vad som är fel med fil:rad, Vad jag har kollat, Osäker på, Kan jag laga
   det: Nej) – då sparas den i till-claude av sig själv (kostar ingen kvot). Skriver användaren "bara kolla",
-  "laga inte", "kolla, sammanfatta och skicka" e.d. ändrar du inget alls (inget byt_text). Hur man kollar: ls till-claude.
+  "laga inte", "kolla, sammanfatta och skicka" e.d. ändrar du inget alls (inget byt_text). Skriver användaren
+  "skicka till Claude" startar Claude Code med rapporten i TERMINAL av sig själv (användarens val att använda
+  kvoten); bara "skicka" sparar den. Hur man kollar: ls till-claude.
 - Testa åt Claude (ai/testlist.py): Claude lägger testlistor i ~/.local/share/goblincakes/testlistor/; /testa kör
   den nyaste (/testa <namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
   direkt, ändrande Tillåt, farliga stoppas); du bedömer utdatan mot "väntat" (OK/FEL/OKLART), frågor besvaras av
