@@ -1883,9 +1883,14 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     for extra in re.findall(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", answer, flags=re.S)[1:]:
         answer = answer.replace(extra, "")
     if report_only(messages):
-        # "Bara kolla … skicka vidare": a card that changes files is not shown (2 Nov)
-        answer = re.sub(r"```(?:bash|sh)\n.*?\n```\n?", lambda m: "" if CHANGES_FILES.search(m.group(0)) else m.group(0),
-                        answer, flags=re.S)
+        # "Bara kolla … skicka vidare": only cards that read are shown – she wrote her changes as `byt_text "…"` cards
+        # and said "Kan jag laga det: Ja" (2 Nov); the verdict is Nej, so the report is saved
+        answer = re.sub(r"```(?:bash|sh)\n(.*?)\n```\n?",
+                        lambda m: m.group(0) if cmd_level().level(m.group(1))[0] == "read" else "", answer, flags=re.S)
+        answer = re.sub(r"(kan jag laga det\W{0,8})ja\b[^\n]*(?:\n(?!\s*\*\*|\s*$)[^\n]*)*",
+                        r"\1Nej – du bad mig bara kolla.", answer, flags=re.I)
+        # …and her plans for changes after it ("Åtgärder: …", "Vill du att jag utför dessa ändringar nu?") go too
+        answer = re.sub(r"(Nej – du bad mig bara kolla\.)\n.*?(?=\n\*\*Hämtat från|\Z)", r"\1\n", answer, flags=re.S)
     # A tool call written as a card ("```bash\nwowapi(fraga=...)\n```") is no command – it ran and failed with
     # exit code 2 (gear round 24, 2 Nov)
     answer = re.sub(r"```(?:bash|sh)?\n\s*[a-z_]+\([^\n]*\)\s*\n```\n?", "", answer)
@@ -4772,8 +4777,11 @@ GUIDES.append((REPORT_ONLY, REPORT_GUIDE))
 
 
 def report_only(messages):
-    """The user asked her only to look, find and send on – no changes (2 Nov)."""
-    return bool(REPORT_ONLY.search(user_said(messages)))
+    """The user's latest own message asked her only to look, find and send on – no changes (2 Nov). Not the whole
+    chat: "skicka vidare" earlier must not stop a later "laga det"."""
+    latest = next((m["content"] for m in reversed(messages) if m["role"] == "user" and isinstance(m.get("content"), str)
+                   and not m["content"].startswith(REPORT_TURNS)), "")
+    return bool(REPORT_ONLY.search(latest))
 
 
 def fixes_done(messages):
