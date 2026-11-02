@@ -49,6 +49,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - Discord = Discords egen Linux-version (inte Flatpak). Ghostty standardterminal (Konsole valbar).
 - ISO: en stor live-ISO per variant (vanlig + Nvidia), installerar utan internet; USB-skaparen hämtar den från releasen.
 - Ianseo lokalt som standard; nätverk och internet (Cloudflare-tunnel + lösenord) som reglage.
+- Kakan (2 nov): hittar fel, sammanfattar, skickar vidare (Skicka till Claude); lagar själv bara små fel (en ändring, några rader – som CooldownVoice). Gear-provets lagningsregler nedlagda → hitta-och-rapportera-prov.
 - Lokal AI (Ollama) och lärläget: Bara lokalt som standard för läraren; spelvakten stänger av Ollama medan spel kör.
 - GoblinRecorder: ingen ständig inspelning; raid från pull till END, M+ från nyckel till slut.
 - Discord-kanalnamn: bara GOBLINCAKES-guildens får till GitHub (krypterat), andra servrar stannar lokalt.
