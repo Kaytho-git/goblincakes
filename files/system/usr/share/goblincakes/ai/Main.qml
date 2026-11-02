@@ -2388,6 +2388,8 @@ Window {
                 PanelRow { height: 36; text: "Öppna i VS Code"; note: "som vanligt"; onClicked: folderMenu.run("code") }
                 PanelRow { visible: hasWeb; height: 36; text: "Claude Code här"; note: "i TERMINAL"; onClicked: folderMenu.here(backend.claudeCommand()) }
                 PanelRow { height: 36; text: "Claude Code i eget fönster"; note: "Ghostty"; onClicked: folderMenu.run("terminal") }
+                PanelRow { visible: hasWeb && backend.codex; height: 36; text: "Codex här"; note: "i TERMINAL"; onClicked: folderMenu.here(backend.aiCommand("codex")) }
+                PanelRow { visible: backend.codex; height: 36; text: "Codex i eget fönster"; note: "Ghostty"; onClicked: folderMenu.run("codex") }
                 PanelRow {
                     height: 32
                     dim: true

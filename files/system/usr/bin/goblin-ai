@@ -376,6 +376,7 @@ class Backend(QObject):
     _failed = Signal(str)
     _claudeDone = Signal(str, str, str, bool)  # conversation id, report path, answer or error, ok
     claudeTerminal = Signal(str, str)  # folder, command: Claude Code with Kakan's report in a TERMINAL tab (2 Nov)
+    helperChanged = Signal()  # Inställningar → Skicka vidare (Claude Code, Codex, own program)
     _testJudged = Signal(str, str)  # verdict, why (Kakan's judgement of a test point)
     _statusText = Signal(str)
     _stepsText = Signal(str)  # the work loop's steps (JSON)
@@ -1836,7 +1837,8 @@ class Backend(QObject):
 
     @Slot(str, str, result=str)
     def openFolder(self, path, how):
-        """how = "code" (VS Code) or "terminal" (Claude Code in the chosen terminal). "" = started, else why not."""
+        """how = "code" (VS Code), "terminal" (Claude Code in the chosen terminal) or "codex" (Codex there, 2 Nov).
+        "" = started, else why not."""
         if not Path(path).is_dir():
             return "Mappen finns inte längre"
         if how == "code":
@@ -1846,10 +1848,8 @@ class Backend(QObject):
                 return "VS Code finns inte – installera det i GOBLINCAKES Config → Program"
             cmd = [code, path]
         else:
-            claude = toclaude.claude_path()
             quoted = "'" + path.replace("'", "'\\''") + "'"
-            script = (f"cd {quoted} && " + (f"'{claude}'" if claude else
-                      "echo 'Claude Code finns inte – installera det i GOBLINCAKES Config → Program'") + "; exec bash")
+            script = f"cd {quoted} && " + self.aiCommand("codex" if how == "codex" else "claude") + "; exec bash"
             cmd = ["/usr/libexec/goblincakes-terminal", "run", "bash", "-c", script]
         try:
             subprocess.Popen(cmd, cwd=path, start_new_session=True,
@@ -1861,9 +1861,18 @@ class Backend(QObject):
     @Slot(result=str)
     def claudeCommand(self):
         """Claude Code for a TERMINAL tab (a folder's menu → Claude Code här)."""
-        claude = toclaude.claude_path()
-        return ("'" + claude.replace("'", "'\\''") + "'" if claude
-                else "echo 'Claude Code finns inte – installera det i GOBLINCAKES Config → Program'")
+        return self.aiCommand("claude")
+
+    @Slot(str, result=str)
+    def aiCommand(self, helper):
+        """Claude Code or Codex (2 Nov) for a terminal – or a line saying where to install it."""
+        found = toclaude.codex_path() if helper == "codex" else toclaude.claude_path()
+        return ("'" + found.replace("'", "'\\''") + "'" if found else
+                f"echo '{toclaude.PROGRAMS.get(helper, helper)} finns inte – installera det i GOBLINCAKES Config → Program'")
+
+    @Property(bool, notify=helperChanged)
+    def codex(self):  # PROJEKT → MAPPAR: Codex här / i eget fönster
+        return toclaude.installed("codex")
 
     # ── The subscriptions' quota (MODELLER): what the top bar's widget saved (goblincakes-quota) ──
 
@@ -2475,8 +2484,6 @@ class Backend(QObject):
     # "fix" = Claude Code in a TERMINAL tab in the repo (2 Nov; before, a terminal window), the user sees it work;
     # "ask" = read-only without a window, the answer comes back here. Both cost from the week's Claude quota – only
     # on the user's click, or their own words "skicka till Claude" in the question (2 Nov).
-
-    helperChanged = Signal()
 
     @Property(bool, notify=helperChanged)
     def claude(self):

@@ -1,3 +1,4 @@
+2026-11-02  Goblin AI: dina projektmappar (PROJEKT → MAPPAR) kan nu också öppnas med Codex, i TERMINAL eller i ett eget fönster.
 2026-11-02  Goblin AI: välj vem som får Kakans rapporter i Inställningar → Skicka vidare – Claude Code, Codex (OpenAI, för den som har ChatGPT) eller ett eget program. Skriv "skicka till Codex" i frågan så startar Codex. Codex finns nu i GOBLINCAKES Config → Program.
 2026-11-02  Goblin AI: skriv "skicka till Claude" i frågan så startar Claude Code med Kakans rapport direkt i TERMINAL-fliken. Knappen Skicka till Claude öppnar också där i stället för ett eget fönster.
 2026-11-02  Goblin AI: Kakan lagar själv bara små fel. Större fel letar hon upp, sammanfattar och skickar vidare till Claude som en rapport. Skriv "bara kolla" eller "kolla, sammanfatta och skicka" så ändrar hon ingenting, bara rapporterar.
