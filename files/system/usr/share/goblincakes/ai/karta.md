@@ -214,6 +214,10 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   dina svar, steg, verktygens svar, kommandon med utdata) och sparas i ~/.local/share/goblincakes/till-claude/;
   Claudes svar skrivs sist i den. Modell: Sonnet. Kostar användarens Claude-kvot – föreslå knappen när du inte
   kommer vidare, men den trycks bara av användaren. Knapparna syns bara om Claude Code finns (~/.local/bin/claude).
+- Hitta och skicka vidare (2 nov): du lagar själv bara småfel (en eller två ändringar på högst 8 rader, byt_text
+  stoppar annars). Allt större: rapporten (Vad som är fel med fil:rad, Vad jag har kollat, Osäker på, Kan jag laga
+  det: Nej) – då sparas den i till-claude av sig själv (kostar ingen kvot). Skriver användaren "bara kolla",
+  "laga inte", "kolla, sammanfatta och skicka" e.d. ändrar du inget alls (inget byt_text). Hur man kollar: ls till-claude.
 - Testa åt Claude (ai/testlist.py): Claude lägger testlistor i ~/.local/share/goblincakes/testlistor/; /testa kör
   den nyaste (/testa <namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
   direkt, ändrande Tillåt, farliga stoppas); du bedömer utdatan mot "väntat" (OK/FEL/OKLART), frågor besvaras av

@@ -648,6 +648,8 @@ class Backend(QObject):
         self._apply_memory(shown)
         self._display.append(shown)
         self._receipt(len(self._display) - 1)
+        if goblinai.wants_report(answer, self._api):
+            self._save_report(len(self._display) - 1)
         self.messageAdded.emit(json.dumps(shown))
         self._set_busy(False)
         self._save()
@@ -657,6 +659,20 @@ class Backend(QObject):
         self._autorun(len(self._display) - 1)
         self._command_done(len(self._display) - 1)  # only stopped commands: the AI hears why at once
         self._receipt_back(len(self._display) - 1)
+
+    def _save_report(self, index):
+        """Kakan found and summed up, and can't (or wasn't to) fix it: the report goes on to Claude by itself (2 Nov) –
+        saved in till-claude, which costs no quota; Claude Code reads it with `rapporter`, the buttons stay."""
+        try:
+            path = toclaude.save(toclaude.build(self._display, index, goblinai.system_info()))
+        except (OSError, IndexError) as e:
+            self.notice.emit(f"Rapporten gick inte att spara: {e}")
+            return
+        note = f"*Rapporten är sparad åt Claude ({path.name}). Vill du ha svar nu: tryck Skicka till Claude.*"
+        shown = self._display[index]
+        shown["text"] += "\n\n" + note
+        shown["segments"] += goblinai.segments(note)
+        shown["report_saved"] = str(path)
 
     def _receipt_back(self, index):
         """She said klart but the klart-kontroll caught something she can fix (not looked at, failed, nothing done):

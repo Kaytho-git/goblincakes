@@ -1045,6 +1045,14 @@ def byt_run(query):
         return ('Inget kort gjort: "gammal" saknas. Tre fält: "fil" = bara sökvägen, "gammal" = raderna exakt som de '
                 'står i filen nu, "ny" = som de ska stå.'), []
     old, new = bytatext.unnumber(old), bytatext.unnumber(new)
+    # Only small faults herself (2 Nov): a third change for one question, or a big one, is no small fault
+    size = max(old.count("\n"), new.count("\n")) + 1
+    too_big = ("du har redan gjort två ändringar för den här frågan" if getattr(LAST, "fixes", 0) >= SMALL_FIXES
+               else f"ändringen är {size} rader" if size > SMALL_LINES else "")
+    if too_big:
+        return (f"Inget kort gjort: det här är inget småfel ({too_big}). Ändra inget mer – svara med rapporten "
+                "(**Vad som är fel:** med fil:rad, **Vad jag har kollat:**, **Osäker på:**, **Kan jag laga det:** Nej). "
+                "Den sparas åt Claude av sig själv."), []
     full = Path(os.path.expanduser(path))
     why = bytatext.check(full, old, new)
     if why:
@@ -1558,6 +1566,8 @@ def tools_for(keys, project, messages):
                              "ny": ("Raderna som ska stå där i stället (tomt = ta bort)", False)},
                             lambda a: json.dumps({k: str(a.get(k) or "") for k in ("fil", "gammal", "ny")},
                                                  ensure_ascii=False))])
+    if report_only(messages):  # "bara kolla … skicka vidare": nothing to change with (2 Nov)
+        del tools["byt"]
     try:  # GoblinRecorder records CS2 → your numbers from its read demos
         cs2_on = bool(json.loads((CONFIG / "recorder.json").read_text()).get("cs2"))
     except (OSError, ValueError):
@@ -1872,6 +1882,10 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     # Her own cards too: one at a time (2 Nov) – the first, the next after Tillåt
     for extra in re.findall(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", answer, flags=re.S)[1:]:
         answer = answer.replace(extra, "")
+    if report_only(messages):
+        # "Bara kolla … skicka vidare": a card that changes files is not shown (2 Nov)
+        answer = re.sub(r"```(?:bash|sh)\n.*?\n```\n?", lambda m: "" if CHANGES_FILES.search(m.group(0)) else m.group(0),
+                        answer, flags=re.S)
     # A tool call written as a card ("```bash\nwowapi(fraga=...)\n```") is no command – it ran and failed with
     # exit code 2 (gear round 24, 2 Nov)
     answer = re.sub(r"```(?:bash|sh)?\n\s*[a-z_]+\([^\n]*\)\s*\n```\n?", "", answer)
@@ -2453,6 +2467,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     if asked.pop("rewrite", False):  # a quick button under an answer: only the text again – no tools
         return ask_once(messages, keys, status, notice, project, choice)
     tools = tools_for(keys, project, messages)
+    LAST.fixes = fixes_done(messages)
     LAST.mcp_names = {w: t["mcp"] for w, t in tools.items() if t.get("mcp")}
     LAST.tools = []
     if forced and "sök" not in tools and notice:
@@ -3732,10 +3747,12 @@ När användaren vill få något gjort på datorn:
   säg det rakt ut och föreslå knappen "Skicka till Claude" under svaret – den tar med allt du tagit reda på.
 - När något har gått sönder eller inte fungerar och du har tagit reda på det: svara alltid med de här tre raderna
   först (kommandon efter dem):
-  **Vad som är fel:** en mening – eller "Vet inte än".
+  **Vad som är fel:** varje fel på en egen rad, med fil:rad när det är kod – eller "Vet inte än".
   **Vad jag har kollat:** filerna, loggarna och sidorna du faktiskt läste.
-  **Kan jag laga det:** Ja (och hur – kommandona följer) eller Nej (och varför – då: tryck "Skicka till Claude",
-  allt du tagit reda på följer med). Stora fel, ändringar i GOBLINCAKES eller osäkert = Nej.
+  **Osäker på:** det du inte kunde ta reda på (eller "Inget").
+  **Kan jag laga det:** Ja bara för ett småfel (ett stavfel, ett fel namn, en rad – en eller två små ändringar).
+  Allt annat = Nej (och varför): stora fel, flera fel, ändringar i GOBLINCAKES eller osäkert. Vid Nej ändrar du
+  inget – rapporten sparas åt Claude av sig själv, med allt du tagit reda på.
 - Blocken körs efter varandra i samma mapp, som i en terminal: `cd` i ett block gäller även i nästa.
   Sökvägar med mellanslag skrivs inom citattecken: `cd "/run/media/$USER/Min disk/Mapp"`.
 - Du ser bara det du får: läs själv med verktygen för filer, mappar, loggar och tjänster, eller be om att få köra
@@ -4700,12 +4717,12 @@ Laga kod som inte fungerar (ett WoW-tillägg, en widget, ett skript) – arbetso
    ur koden i dem (`sök <namn> i ~/Games/WoW/Retail/AddOns`, för en widget i ~/.local/share/plasma/plasmoids) och läs
    hur de gör. Jämför med din kod: vad gör de som din kod inte gör?
    Inte ett WoW-tillägg och inget att jämföra med: sök på nätet hur det ska vara.
-5. ÄNDRA en sak i taget med byt_text (några hela rader, exakt som de står) – skriv aldrig om hela filen. Efter
-   kortet slutar din tur: användaren trycker Tillåt, du ser hur det gick och tar nästa ändring därifrån.
-6. BOCKA AV: gå igenom kraven från steg 1 – vilka är uppfyllda nu, vilka inte? Är något kvar: tillbaka till steg 3.
-   "Inga fel" i Goblin AI:s kontroll betyder bara att namnen finns, inte att koden gör rätt.
-7. SÄG vad du ändrade och vad användaren ska prova (ett WoW-tillägg provas bara i spelet). Säg aldrig att det är
-   löst förrän användaren provat. Hittar du inte orsaken: säg vad du kollat och att användaren kan trycka Skicka till Claude."""
+5. BARA SMÅFEL LAGAR DU SJÄLV: ett stavfel, ett fel namn, en rad som saknas eller står fel – en eller två ändringar
+   på några rader med byt_text (exakt som de står, aldrig hela filen). Efter kortet slutar din tur: användaren
+   trycker Tillåt och du ser hur det gick. Är det mer än så (flera fel, flera ställen, osäkert): ändra INGET – svara
+   med rapporten (**Kan jag laga det:** Nej), den sparas åt Claude av sig själv.
+6. SÄG vad du ändrade och vad användaren ska prova (ett WoW-tillägg provas bara i spelet). Säg aldrig att det är
+   löst förrän användaren provat."""
 
 # "syns inte", "fungerar inte" … about code: both must be in what the user said
 # The user's own words that ask for something on the desktop (windows, programs, music, reminders …)
@@ -4732,6 +4749,50 @@ CHANGES_FILES = re.compile(r"(?:^|[;&|]\s*)(?:sed\s+-i|mv|cp|rm|tee|truncate)\b|
 
 
 VERDICT = re.compile(r"kan jag laga det\W{0,8}(?:ja|nej)\b", re.I)
+VERDICT_NO = re.compile(r"kan jag laga det\W{0,8}nej\b", re.I)
+
+# Kakan finds and sends on; she fixes only small faults herself (the user, 2 Nov – after 26 rounds of gear: she
+# understood the faults but couldn't hold a long chain of exact changes together). The user's words choose:
+# "bara kolla", "laga inte", "skicka vidare" … = she changes nothing, the report goes on to Claude.
+REPORT_ONLY = re.compile(r"\bbara\s+(?:kolla|titta|leta|hitta|undersöka|felsöka|sammanfatta)|\blaga\s+(?:det\s+)?inte\b|"
+                         r"\b(?:ändra|rör)\s+(?:inget|inte|ingenting)\b|\bskicka\s+(?:det\s+|den\s+)?(?:vidare|till\s+claude)"
+                         r"|\b(?:kolla|titta|sammanfatta)\b[^.?!\n]{0,40}\bskicka\b"  # "kolla, sammanfatta och skicka"
+                         r"|\brapportera\b|\bgör\s+en\s+rapport\b", re.I)
+SMALL_FIXES = 2   # changes she may make herself for one question (moving a line = add + remove)
+SMALL_LINES = 8   # lines in one change – a typo, a wrong name, a missing line; more is no small fault
+REPORT_GUIDE = """
+
+Användaren bad dig BARA KOLLA – ändra ingenting (inga byt_text, inga kommandon som ändrar filer). Läs koden och
+loggarna, slå upp det som behövs och hitta felen. Svara med rapporten:
+**Vad som är fel:** varje fel på en egen rad, med fil:rad och vad som är fel där.
+**Vad jag har kollat:** filerna, loggarna och uppslagen du faktiskt gjorde.
+**Osäker på:** det du inte kunde ta reda på (eller "Inget").
+**Kan jag laga det:** Nej – du bad mig bara kolla. Rapporten sparas åt Claude av sig själv."""
+GUIDES.append((REPORT_ONLY, REPORT_GUIDE))
+
+
+def report_only(messages):
+    """The user asked her only to look, find and send on – no changes (2 Nov)."""
+    return bool(REPORT_ONLY.search(user_said(messages)))
+
+
+def fixes_done(messages):
+    """byt_text changes made (Tillåt) since the user's latest own message – the small-fix limit counts them."""
+    count = 0
+    for m in reversed(messages):
+        content = m.get("content") if isinstance(m.get("content"), str) else ""
+        if m["role"] == "user" and not content.startswith(REPORT_TURNS):
+            break
+        if m["role"] == "user" and content.startswith("Så här gick det:"):
+            count += content.count("\nBytt i ")
+    return count
+
+
+def wants_report(answer, messages):
+    """The answer goes on to Claude as a report: only looking was asked for, or she said she can't fix it."""
+    answer = answer or ""
+    # report-only: her finished answer (no card waiting to show her more), not every step on the way
+    return bool(VERDICT_NO.search(answer)) or (report_only(messages) and "```" not in answer)
 
 
 def only_reading(answer):
