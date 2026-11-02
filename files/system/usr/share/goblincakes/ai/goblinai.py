@@ -1060,9 +1060,11 @@ def byt_run(query):
         return (f"Klart – det nya kortet för {full.name} ersätter ditt förra för samma rader (bara det nya visas). "
                 "Svara nu med en mening om vad ändringen gör."), []
     # "Fler ändringar …: en byt_text för var och en" read as "do it again" – the same card over and over (gear round 20)
+    # One card at a time (2 Nov, the user: three cards at once was a lot to take in, and the 2nd and 3rd were made
+    # against the file before the 1st) – she answers now, sees "Så här gick det" after Tillåt and goes on from there
     return (f"Klart – kortet för {full.name} är gjort och läggs under ditt svar (skriv det inte själv). Filen ändras när "
-            "användaren trycker Tillåt, så den ser likadan ut tills dess – det är rätt, gör inte samma ändring igen. "
-            "Behövs en ANNAN ändring: byt_text för den. Annars: svara nu med en mening om vad ändringen gör."), []
+            "användaren trycker Tillåt. Svara nu med en mening om vad ändringen gör – gör ingen fler ändring nu. "
+            "Nästa ändring gör du när du sett hur det gick (du får veta det när användaren tryckt Tillåt)."), []
 
 
 # "uppdatera sen stäng av datorn", "stäng av datorn när uppdateringen är klar" (29 Oct)
@@ -1863,6 +1865,9 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     # lacked the day's fixes when Goblin AI ran from the repo (gear round 23, 2 Nov)
     answer = re.sub(r"python3 \S*bytatext\.py", lambda _: f"python3 {Path(__file__).resolve().parent / 'bytatext.py'}",
                     answer)
+    # Her own cards too: one at a time (2 Nov) – the first, the next after Tillåt
+    for extra in re.findall(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", answer, flags=re.S)[1:]:
+        answer = answer.replace(extra, "")
     if any("bytatext.py" in c for c in cards):
         # byt_text's card as the tool made it – a copy she typed again could differ from the checked text
         answer = re.sub(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", "", answer, flags=re.S)
@@ -2822,6 +2827,12 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             messages.append({"role": "user", "content": "Inga fler sökningar eller hämtningar"
                              + (" (ditt minne är nästan fullt)" if full else "") + " – svara nu med det du har."})
             continue
+        if tool == "byt" and getattr(LAST, "cards", []):
+            # A change waits for Tillåt: one card at a time (2 Nov) – her answer as it is, the card goes under it
+            messages.pop()
+            answer = re.sub(r"```[\w-]*[ \t]*\n?.*?```", "", answer, flags=re.S).strip() or (
+                "Första ändringen är klar – tryck **Tillåt** på kortet nedan. Sedan tar jag nästa.")
+            break
         if (tool == "skrivbord" and all(p.search(user_said(messages)) for p in REPAIR_WHEN)
                 and not DESK_ASKED.search(user_said(messages))):
             # Repairing, nothing asked of the desktop: after fixing gear she brought "wow" to the front – it was
@@ -4665,7 +4676,8 @@ Laga kod som inte fungerar (ett WoW-tillägg, en widget, ett skript) – arbetso
    ur koden i dem (`sök <namn> i ~/Games/WoW/Retail/AddOns`, för en widget i ~/.local/share/plasma/plasmoids) och läs
    hur de gör. Jämför med din kod: vad gör de som din kod inte gör?
    Inte ett WoW-tillägg och inget att jämföra med: sök på nätet hur det ska vara.
-5. ÄNDRA en sak i taget med byt_text (några hela rader, exakt som de står) – skriv aldrig om hela filen.
+5. ÄNDRA en sak i taget med byt_text (några hela rader, exakt som de står) – skriv aldrig om hela filen. Efter
+   kortet slutar din tur: användaren trycker Tillåt, du ser hur det gick och tar nästa ändring därifrån.
 6. BOCKA AV: gå igenom kraven från steg 1 – vilka är uppfyllda nu, vilka inte? Är något kvar: tillbaka till steg 3.
    "Inga fel" i Goblin AI:s kontroll betyder bara att namnen finns, inte att koden gör rätt.
 7. SÄG vad du ändrade och vad användaren ska prova (ett WoW-tillägg provas bara i spelet). Säg aldrig att det är
