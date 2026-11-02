@@ -1,3 +1,4 @@
+2026-11-02  GoblinRecorder: CS2-klippen med 2K–ACE hoppar nu över tiden mellan killsen, precis som klippet med alla kills – bara själva killsen, inte hela rundan.
 2026-11-02  WoW Stats: dina parses hämtas igen från Warcraft Logs varje dag i en vecka efter killen, så att de stämmer med sidan (en för tidigt hämtad parse kunde bli helt fel).
 2026-11-02  Goblin AI: dina projektmappar (PROJEKT → MAPPAR) kan nu också öppnas med Codex, i TERMINAL eller i ett eget fönster.
 2026-11-02  Goblin AI: välj vem som får Kakans rapporter i Inställningar → Skicka vidare – Claude Code, Codex (OpenAI, för den som har ChatGPT) eller ett eget program. Skriv "skicka till Codex" i frågan så startar Codex. Codex finns nu i GOBLINCAKES Config → Program.

@@ -1054,14 +1054,31 @@ def cs2_kill_text(n, headshot):
 # The match → clips (22 Oct, the user's wish – a whole match is 7–10 GB on Bäst): every 2K–ACE
 # as its own clip, a reel with all your kills, then the whole match goes. Cut without
 # re-encoding (keyframes every 2 s – a clip may start up to 2 s earlier), all audio tracks.
-CLIP_BEFORE, CLIP_AFTER = 5.0, 3.0  # 2K–ACE: from the first kill of the round to the last
+CLIP_BEFORE, CLIP_AFTER = 5.0, 3.0  # 2K–ACE: before the first kill of the round, after the last …
+# … and between them the reel's pieces (2 Nov, the user: a 3K ran the whole round from the first kill to the last,
+# the reel cut far better) – kills more than REEL_JOIN apart skip the walk between
 REEL_BEFORE, REEL_AFTER = 3.0, 1.5  # each kill in the reel …
 REEL_JOIN = 8.0  # … and kills at most this far apart become one piece (22 Oct, the user: it jumped
 # from a kill straight to a death without what happened between)
 
 
+def kill_pieces(kills, spawns, dur, first_before=REEL_BEFORE, last_after=REEL_AFTER):
+    """Kill times → [(start, end, [kill times])]: a short piece round each kill, kills at most REEL_JOIN apart in
+    one piece, never from the death screen. first_before/last_after: more before the first and after the last."""
+    pieces = []
+    for i, t in enumerate(kills):
+        s = max(t - (first_before if i == 0 else REEL_BEFORE), 0)
+        e = min(t + (last_after if i == len(kills) - 1 else REEL_AFTER), dur)
+        s = max([s] + [sp for sp in spawns if sp < t])  # just spawned: not from the death screen
+        if pieces and t - pieces[-1][2][-1] <= REEL_JOIN:
+            pieces[-1] = (pieces[-1][0], e, pieces[-1][2] + [t])
+        else:
+            pieces.append((s, e, [t]))
+    return pieces
+
+
 def cs2_clip_plan(meta):
-    """[(label, round, start, end, [kill times])] for the multikills, and the reel's pieces
+    """[(label, round, [(start, end, [kill times])])] for the multikills, and the reel's pieces
     [(start, end, [kill times])]."""
     dur = meta.get("duration") or 0
     rounds = cs2_has_rounds(meta.get("mode"))
@@ -1073,24 +1090,16 @@ def cs2_clip_plan(meta):
         elif m["kind"] == "kill":
             kills.append(m["t"])
             per_round.setdefault(rnd, []).append(m["t"])
+    spawns = meta.get("spawns")
+    if spawns is None:  # videos from before 22 Oct: about when you were back after a death
+        spawns = [m["t"] + 1.0 for m in meta.get("markers", []) if m["kind"] == "death"]
     multi = []
     if rounds:
         for r, ts in sorted(per_round.items()):
             if len(ts) >= 2:
                 label = "ACE" if len(ts) >= 5 else f"{len(ts)}K"
-                multi.append((label, r, max(ts[0] - CLIP_BEFORE, 0), min(ts[-1] + CLIP_AFTER, dur), ts))
-    pieces = []
-    spawns = meta.get("spawns")
-    if spawns is None:  # videos from before 22 Oct: about when you were back after a death
-        spawns = [m["t"] + 1.0 for m in meta.get("markers", []) if m["kind"] == "death"]
-    for t in kills:
-        s, e = max(t - REEL_BEFORE, 0), min(t + REEL_AFTER, dur)
-        s = max([s] + [sp for sp in spawns if sp < t])  # just spawned: not from the death screen
-        if pieces and t - pieces[-1][2][-1] <= REEL_JOIN:
-            pieces[-1] = (pieces[-1][0], e, pieces[-1][2] + [t])
-        else:
-            pieces.append((s, e, [t]))
-    return multi, pieces
+                multi.append((label, r, kill_pieces(ts, spawns, dur, CLIP_BEFORE, CLIP_AFTER)))
+    return multi, kill_pieces(kills, spawns, dur)
 
 
 def video_length(path):
@@ -1136,23 +1145,22 @@ def cs2_make_clips(meta_path, keep_match=False):
                    dest.with_suffix(".jpg"))
         made.append(dest.name)
 
-    for label, rnd, start, end, ts in multi:
-        dest = folder / (safe_name(f"{base} – {label} runda {rnd}") + video.suffix)
-        todo.append(dest)
-        if cut_copy(video, start, end, dest):
+    texts = {m["t"]: m["text"] for m in meta["markers"] if m["kind"] == "kill"}
+
+    def cut_pieces(pieces, dest):
+        """The pieces one after another into dest (MPEG-TS pieces joined, no re-encoding) → (length, kill marks),
+        or None. One piece is cut straight."""
+        if len(pieces) == 1:
+            s, e, ts = pieces[0]
+            if not cut_copy(video, s, e, dest):
+                return None
             length = video_length(dest)
-            lead = length - (end - start)  # the cut starts on the keyframe before
-            marks = [{"t": round(t - start + lead, 2), "kind": "kill", "text": m["text"]}
-                     for m in meta["markers"] if m["kind"] == "kill" and start <= m["t"] <= end for t in [m["t"]]]
-            clip_meta(dest, label, rnd, start, length, marks)
-    if pieces:
-        dest = folder / (safe_name(f"{base} – alla kills") + video.suffix)
-        todo.append(dest)
+            lead = length - (e - s)  # the cut starts on the keyframe before
+            return length, [{"t": round(t - s + lead, 2), "kind": "kill", "text": texts.get(t, "Kill")} for t in ts]
         tmp = folder / f".goblincakes-reel-{os.getpid()}"
         tmp.mkdir(exist_ok=True)
         try:
             parts, marks, at = [], [], 0.0
-            texts = {m["t"]: m["text"] for m in meta["markers"] if m["kind"] == "kill"}
             for i, (s, e, ts) in enumerate(pieces):
                 part = tmp / f"{i:04d}.ts"
                 if not cut_copy(video, s, e, part):
@@ -1167,9 +1175,23 @@ def cs2_make_clips(meta_path, keep_match=False):
                                 "-i", str(tmp / "list.txt"), "-map", "0", "-c", "copy", "-movflags", "+faststart",
                                 str(dest)], capture_output=True, text=True)
             if parts and r.returncode == 0 and video_length(dest) > 0.5:
-                clip_meta(dest, "Alla kills", None, pieces[0][0], video_length(dest), marks)
+                return video_length(dest), marks
+            return None
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+    for label, rnd, parts in multi:
+        dest = folder / (safe_name(f"{base} – {label} runda {rnd}") + video.suffix)
+        todo.append(dest)
+        done = cut_pieces(parts, dest)
+        if done:
+            clip_meta(dest, label, rnd, parts[0][0], *done)
+    if pieces:
+        dest = folder / (safe_name(f"{base} – alla kills") + video.suffix)
+        todo.append(dest)
+        done = cut_pieces(pieces, dest)
+        if done:
+            clip_meta(dest, "Alla kills", None, pieces[0][0], *done)
     if len(made) < len(todo):
         return made, f"{len(todo) - len(made)} av {len(todo)} klipp gick inte att göra – hela matchen sparas."
     data = json.loads(meta_path.read_text())
