@@ -104,9 +104,14 @@ def _closest(have, want):
 def parse(body):
     """(old, new) from the card's text between the markers. Raises Miss."""
     lines = body.strip("\n").split("\n")
-    if not lines or lines[0].strip() != OLD or NEW not in [x.strip() for x in lines]:
+    while lines and lines[-1].strip() == END:
+        lines.pop()
+    if not lines or lines[0].strip() != OLD:
         raise Miss(f"Texten ska börja med {OLD}, sedan {MID}, och sluta med {NEW}.")
-    end = max(i for i, x in enumerate(lines) if x.strip() == NEW)
+    # Without the last marker the text ends where it ends: gemma4 left it out of her own card five times in a row
+    # and got the same "Inget bytt" each time (gear round 23, 2 Nov)
+    ends = [i for i, x in enumerate(lines) if x.strip() == NEW]
+    end = max(ends) if ends else len(lines)
     mids = [i for i, x in enumerate(lines[:end]) if x.strip() == MID]
     if len(mids) != 1:
         raise Miss(f"Exakt en rad {MID} ska skilja den gamla texten från den nya.")
@@ -114,10 +119,15 @@ def parse(body):
 
 
 def unnumber(text):
-    """The text without line numbers in front ("33:             local …") when every line has one – gemma4 copied
-    them from her own reading and the first try missed (gear round 21, 1 Nov)."""
+    """The text without line numbers in front ("33:             local …") – gemma4 copied them from her own reading
+    and the first try missed (gear round 21, 1 Nov). Not only when every line has one: a line she added without a
+    number (frame:Hide() last) left all the numbers in gear's code (gear round 23, 2 Nov). Numbered = most lines,
+    and the numbers count up one by one – so code that really starts with "12:" isn't touched."""
     lines = text.split("\n")
-    if any(x.strip() for x in lines) and all(re.match(r"\s*\d+: ?", x) for x in lines if x.strip()):
+    full = [x for x in lines if x.strip()]
+    nums = [int(m.group(1)) for x in full if (m := re.match(r"\s*(\d+): ?", x))]
+    counting = len(nums) >= 2 and all(b == a + 1 for a, b in zip(nums, nums[1:]))
+    if full and (len(nums) == len(full) or (counting and len(nums) * 3 >= len(full) * 2)):
         return "\n".join(re.sub(r"^\s*\d+: ?", "", x) for x in lines)
     return text
 
@@ -152,7 +162,13 @@ def main():
     try:
         old, new = parse(sys.stdin.read())
         text = p.read_text()
-        out, first, last = replace(text, old, new)
+        try:
+            out, first, last = replace(text, old, new)
+        except Miss:
+            # Her own card (not made by byt_text) with the reading's line numbers left in (gear round 23)
+            if unnumber(old) == old:
+                raise
+            out, first, last = replace(text, unnumber(old), unnumber(new))
     except (Miss, OSError) as e:
         print(f"Inget bytt: {e}", file=sys.stderr)
         return 1

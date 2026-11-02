@@ -1859,6 +1859,10 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     cards = list(dict.fromkeys([c for _, _, text in getattr(LAST, "done", [])
                                 for c in re.findall(r"```bash\n.*?\n```", str(text), re.S)]
                                + getattr(LAST, "cards", [])))
+    # Her own bytatext card (copied from an earlier one) runs the bytatext.py next to this file – the image's copy
+    # lacked the day's fixes when Goblin AI ran from the repo (gear round 23, 2 Nov)
+    answer = re.sub(r"python3 \S*bytatext\.py", lambda _: f"python3 {Path(__file__).resolve().parent / 'bytatext.py'}",
+                    answer)
     if any("bytatext.py" in c for c in cards):
         # byt_text's card as the tool made it – a copy she typed again could differ from the checked text
         answer = re.sub(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", "", answer, flags=re.S)
