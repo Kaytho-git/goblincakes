@@ -171,16 +171,17 @@ def task(path, mode, helper="claude"):
                 "användaren märkte>\", \"Orsak: <vad som är fel>\", \"Lösning: <vad som ska göras>\" – då sparas det "
                 "som en känd lösning åt Kakan (ej bekräftad tills den fungerat). Är du osäker: inget sådant block.")
     return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem och skickade det till dig. Läs hennes rapport "
-            f"{path}, ta reda på vad som är fel ({tools}) och lös det: är felet i GOBLINCAKES, rätta "
-            "koden i repot enligt CLAUDE.md (projektets regler); är det bara på den här datorn, rätta det där. Är det något Kakan borde "
-            "känna igen nästa gång och det gäller en del av GOBLINCAKES: skriv en kort rad (tecken på felet → vad "
-            "som är fel → vad hon ska göra) i den delens ##-avsnitt i hennes karta, "
-            "files/system/usr/share/goblincakes/ai/karta.md i repot – hon läser kartan (den nya raden efter nästa "
-            "image). Spara också lösningen som en känd lösning, så att Kakan känner igen den direkt på den här "
-            f"datorn: python3 {SOLUTIONS} add --tecken \"<vad användaren märkte, med hens ord>\" --orsak \"<vad som "
+            f"{path}, ta reda på vad som är fel ({tools}) och lös det. Två fall:\n"
+            "1. Felet är bara på den här datorn (ett WoW-tillägg, en inställning, ett program, en fil i hemmappen): "
+            "rätta det där. Rör INTE repot – ingen commit, ingen push, ingen rad i Kakans karta.\n"
+            "2. Felet är i GOBLINCAKES egen kod: rätta koden i repot enligt CLAUDE.md (projektets regler). Är det "
+            "något Kakan borde känna igen nästa gång: en kort rad (tecken på felet → vad som är fel → vad hon ska "
+            "göra) i den delens ##-avsnitt i hennes karta, files/system/usr/share/goblincakes/ai/karta.md.\n"
+            "Skriv bara det du har kontrollerat (t.ex. med wowapi eller i filen) – inga gissningar om att något "
+            "\"inte finns\". I båda fallen: spara lösningen som en känd lösning, så att Kakan känner igen den på den "
+            f"här datorn: python3 {SOLUTIONS} add --tecken \"<vad användaren märkte, med hens ord>\" --orsak \"<vad som "
             "var fel>\" --losning \"<vad som gjordes>\" (lägg till --bekraftad bara om du provat att det fungerar "
-            "nu). Säg sedan kort vad det var, vilken rad du lade i kartan (eller att ingen behövdes) och att "
-            "lösningen är sparad.")
+            "nu). Säg sedan kort vad det var, om repot ändrades (och vad) och att lösningen är sparad.")
 
 
 def fix_command(path, helper=""):
