@@ -312,9 +312,11 @@ def other_updates(old):
             req = urllib.request.Request("https://discord.com/api/download?platform=linux&format=tar.gz",
                                          method="HEAD", headers={"User-Agent": "goblincakes-updates"})
             with urllib.request.urlopen(req, timeout=20) as r:
-                m = re.search(r"/discord-([0-9.]+)\.tar\.gz", r.geturl())
-            if m and m.group(1) != read(home / ".local/share/discord-app/.goblincakes-version"):
-                found.append({"part": "discord", "name": f"Discord {m.group(1)}"})
+                # …/discord-<version>.tar.gz, since Nov 2026 …/<version>/Discord.tar.gz
+                m = re.search(r"/discord-([0-9.]+)\.tar\.gz|/([0-9]+(?:\.[0-9]+)+)/[Dd]iscord\.tar\.gz", r.geturl())
+            new = m and (m.group(1) or m.group(2))
+            if new and new != read(home / ".local/share/discord-app/.goblincakes-version"):
+                found.append({"part": "discord", "name": f"Discord {new}"})
         except OSError:
             keep("discord")
 

@@ -537,10 +537,11 @@ DESKTOP
         conf="${XDG_CONFIG_HOME:-$HOME/.config}/discord"
         fresh=0; [ -x "$dir/discord" ] || fresh=1
         status "Letar efter senaste Discord…"
-        # discord.com sends the newest file on (…/apps/linux/<version>/discord-<version>.tar.gz)
+        # discord.com sends the newest file on: …/apps/linux/<version>/discord-<version>.tar.gz,
+        # since Nov 2026 …/linux/x64/<version>/Discord.tar.gz – both are read
         url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
             'https://discord.com/api/download?platform=linux&format=tar.gz' 2>/dev/null) || true
-        version=$(echo "${url:-}" | sed -n 's|.*/discord-\([0-9.]*\)\.tar\.gz.*|\1|p')
+        version=$(echo "${url:-}" | sed -nE 's|.*/discord-([0-9.]+)\.tar\.gz.*|\1|p; s|.*/([0-9]+(\.[0-9]+)+)/[Dd]iscord\.tar\.gz.*|\1|p' | head -n1)
         [ -n "$version" ] || { status "Kunde inte nå Discord"; exit 1; }
         if [ -x "$dir/discord" ] && [ "$(cat "$dir/.goblincakes-version" 2>/dev/null)" = "$version" ]; then
             status "Discord $version finns redan"
