@@ -90,7 +90,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Kvot-widget i toppfältet (Claude + ChatGPT/Codex, 5 h + vecka, `goblincakes-quota`)
 - [x] Egen docka `org.goblincakes.dock` (bara fästa, våg, accent; ersatte icontasks 29 okt)
 - [x] ChatGPT-appen (OpenAIs RPM uppackad i hemmappen, `goblincakes-chatgpt`; Goblin AI → "Skicka till ChatGPT" via urklipp) – ej provad med riktiga paketet
-- [x] GoblinShare (filer/mappar/text mellan GOBLINCAKES-datorerna hemma, LocalSend-protokollet – telefoner kan bara ta emot; Config → System, Dolphins högerklick, `goblin share`) – provat i molnet med två tjänster, ej på riktigt
+- [x] GoblinShare (filer/mappar/text mellan GOBLINCAKES-datorerna hemma, LocalSend-protokollet – telefoner kan bara ta emot; Config → System, Dolphins högerklick, `goblin share`; Beställ = Goblin AI på den andra datorn gör det och skickar tillbaka) – provat i molnet med två tjänster, ej på riktigt
 - [x] Goblin AI ny layout (rutor Kakan/Projekt/Kommandon/Modeller, flikar, stående skärm; MAPPAR → VS Code eller Claude Code i terminalen) – provad offscreen, ej på riktigt
 
 ## Att göra

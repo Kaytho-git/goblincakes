@@ -18,6 +18,11 @@ both Android and iPhones. Only the standard library (+ the `openssl` command for
     sending     prepare-upload to the other one (waits until they answer) → upload per file.
     extra       GET /api/goblincakes/v1/info – the accent colour of another GOBLINCAKES computer
                 (LocalSend never asks for it; its own announcement is left untouched).
+    orders      (3 Nov, the user: the wife orders a picture from Kakan) a single "file" of the type
+                ORDER_TYPE with the wish as its preview, like a message – only between GOBLINCAKES
+                computers. Kept in orders.json; a notification with Starta/Senare, and Starta runs
+                /usr/share/goblincakes/ai/order.py, which asks Goblin AI and sends the answer and the
+                pictures back. Files from a computer we ordered from (the last 3 days) need no Ta emot.
 
 The service (/usr/libexec/goblincakes-share run, user service goblincakes-share) owns everything; the
 window (goblin-share) and `goblin share` talk to it over a Unix socket: one JSON line in, one out.
@@ -57,6 +62,11 @@ CONFIG = CONFIG_DIR / "share.json"
 FLAG = CONFIG_DIR / "share-on"   # the user service only runs with it (Config → GoblinShare, the window)
 DATA = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share") / "goblincakes/share"
 HISTORY = DATA / "history.json"
+ORDERS = DATA / "orders.json"
+ORDER_TYPE = "application/x-goblincakes-order"
+ORDER_RUNNER = Path(__file__).resolve().parent.parent / "ai/order.py"
+ORDER_KEEP = 30
+ORDER_REPLY_DAYS = 3    # files from a computer we ordered from are taken without asking for this long
 RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
 SOCK = Path(os.environ.get("GOBLINCAKES_SHARE_SOCK") or RUNTIME / "goblincakes-share.sock")
 UNIT = "goblincakes-share.service"
@@ -364,6 +374,7 @@ class Share:
         self.incoming = {}      # session id → a request/receiving
         self.outgoing = {}      # job id → a sending
         self.history = self._load_history()
+        self.orders = self._load_orders()
         self.error = ""
         self.started = time.time()
         self.last_sweep = 0
@@ -403,6 +414,86 @@ class Share:
                 tmp.replace(HISTORY)
             except OSError:
                 pass
+
+    # ---------------------------------------------------------- orders (to Kakan on this computer)
+    @staticmethod
+    def _load_orders():
+        try:
+            data = json.loads(ORDERS.read_text())
+            return [o for o in data if isinstance(o, dict) and o.get("id")][:ORDER_KEEP]
+        except (OSError, ValueError):
+            return []
+
+    def _save_orders(self):
+        with self.lock:
+            try:
+                DATA.mkdir(parents=True, exist_ok=True)
+                tmp = ORDERS.with_suffix(".tmp")
+                tmp.write_text(json.dumps(self.orders[:ORDER_KEEP], ensure_ascii=False))
+                tmp.replace(ORDERS)
+            except OSError:
+                pass
+
+    def order(self, oid):
+        with self.lock:
+            return next((o for o in self.orders if o["id"] == oid), None)
+
+    def new_order(self, sender, text):
+        o = {"id": uuid.uuid4().hex[:10], "alias": sender["alias"], "fingerprint": sender["fingerprint"],
+             "text": text, "t": time.time(), "state": "väntar", "why": ""}
+        with self.lock:
+            self.orders.insert(0, o)
+        self._save_orders()
+        self.remember({"dir": "in", "kind": "order", "order": o["id"], "alias": o["alias"],
+                       "fingerprint": o["fingerprint"], "text": text, "state": "klart"})
+        notify(f"Beställning från {o['alias']}", text[:400], actions=[("start", "Starta nu"), ("later", "Senare")],
+               wait_cb=lambda key: self.start_order(o["id"]) if key == "start" else None)
+        return o
+
+    def start_order(self, oid):
+        """Kakan takes the order (or sends a finished answer again) → "" or why not."""
+        with self.lock:
+            o = self.order(oid)
+            if not o:
+                return "Beställningen finns inte längre"
+            if o["state"] == "pågår" and time.time() - o.get("started", 0) < 30 * 60:
+                return "Beställningen pågår redan"  # (after half an hour it may be started again: it hung)
+            if o["state"] == "skickad":
+                return "Beställningen är redan skickad"
+            o["state"], o["why"], o["started"] = "pågår", "", time.time()
+        self._save_orders()
+        try:
+            subprocess.Popen([sys.executable, str(ORDER_RUNNER), "run", oid], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as e:
+            self.update_order(oid, {"state": "fel", "why": f"Kunde inte starta Goblin AI: {e.strerror}"})
+            return "Kunde inte starta Goblin AI"
+        return ""
+
+    def update_order(self, oid, fields):
+        with self.lock:
+            o = self.order(oid)
+            if not o:
+                return False
+            for k in ("state", "why", "answer", "paths", "service"):
+                if k in fields:
+                    o[k] = fields[k]
+        self._save_orders()
+        return True
+
+    def forget_order(self, oid):
+        with self.lock:
+            self.orders = [o for o in self.orders if o["id"] != oid]
+        self._save_orders()
+        return True
+
+    def awaits_reply(self, fp):
+        """We sent this computer an order lately: its answer (the pictures) comes in without Ta emot."""
+        now = time.time()
+        with self.lock:
+            return any(h.get("kind") == "order" and h.get("dir") == "out" and h.get("fingerprint") == fp
+                       and h.get("state") == "klart" and now - h.get("t", 0) < ORDER_REPLY_DAYS * 86400
+                       for h in self.history)
 
     # ---------------------------------------------------------- devices
     def saw(self, info, ip, how):
@@ -626,13 +717,21 @@ class Share:
         # copied fingerprint alone must not be enough (files would only land in the folder, but still).
         fp = str(body["info"].get("fingerprint") or "")
         known = self.peers.get(fp)
-        trusted = fp in self.cfg.get("trusted", []) and bool(known) and known["ip"] == ip \
-            and known.get("how") != "upload"
+        trusted = (fp in self.cfg.get("trusted", []) or self.awaits_reply(fp)) and bool(known) \
+            and known["ip"] == ip and known.get("how") != "upload"
         # A known device's entry is only updated from its own address (a copy can't take over its place)
         sender = (self.saw(body["info"], ip, "upload" if not known else known["how"])
                   if not known or known["ip"] == ip else None) or {
             "fingerprint": str(body["info"].get("fingerprint", "")), "alias": str(body["info"].get("alias") or "Okänd"),
             "deviceModel": str(body["info"].get("deviceModel") or ""), "deviceType": "desktop", "ip": ip}
+
+        # An order to Kakan: one "file" of our own type with the wish as its preview
+        if len(items) == 1 and items[0]["type"] == ORDER_TYPE:
+            text = items[0]["preview"].strip()[:4000] if isinstance(items[0]["preview"], str) else ""
+            if not text:
+                return 400, {"message": "Empty order"}
+            self.new_order(sender, text)
+            return 204, None
 
         # A message: one text file with the text as its preview
         if len(items) == 1 and items[0]["type"] in ("text/plain", "text") and isinstance(items[0]["preview"], str):
@@ -780,13 +879,22 @@ class Share:
             notify(f"Överföringen från {s['sender']['alias']} avbröts", why)
 
     # ---------------------------------------------------------- sending
-    def send(self, fp, paths=None, text=None):
-        """Start sending files/folders (or a text) to a device → the job's id, or an error text."""
+    def send(self, fp, paths=None, text=None, order=False):
+        """Start sending files/folders (or a text, or an order) to a device → the job's id, or an error text."""
         peer = self.peers.get(fp) or self.find_peer(fp)
         if not peer:
             return None, "Hittar inte enheten – tryck Leta igen"
         files = []
-        if text is not None:
+        if order:
+            text = (text or "").strip()[:4000]
+            if not text:
+                return None, "Skriv vad du vill beställa"
+            if peer["deviceModel"] != MODEL:
+                return None, "Beställningar går bara till GOBLINCAKES-datorer"
+            data = text.encode()
+            files.append({"id": uuid.uuid4().hex, "name": "bestallning.txt", "size": len(data),
+                          "type": ORDER_TYPE, "preview": text, "data": data})
+        elif text is not None:
             data = text.encode()
             files.append({"id": uuid.uuid4().hex, "name": f"{uuid.uuid4().hex[:8]}.txt", "size": len(data),
                           "type": "text/plain", "preview": text, "data": data})
@@ -803,7 +911,7 @@ class Share:
         jid = uuid.uuid4().hex[:12]
         job = {"id": jid, "peer": dict(peer), "files": files, "state": "väntar på svar", "sent": 0,
                "total": sum(f["size"] for f in files), "cancel": False, "session": None, "why": "",
-               "changed": time.time(), "text": text}
+               "changed": time.time(), "text": text, "order": order}
         with self.lock:
             self.outgoing[jid] = job
         threading.Thread(target=self._send_job, args=(job,), daemon=True).start()
@@ -890,7 +998,7 @@ class Share:
             job["state"], job["why"], job["changed"] = state, why, time.time()
         peer = job["peer"]
         if job.get("text") is not None:
-            self.remember({"dir": "out", "kind": "text", "alias": peer["alias"], "fingerprint": peer["fingerprint"],
+            self.remember({"dir": "out", "kind": "order" if job.get("order") else "text", "alias": peer["alias"], "fingerprint": peer["fingerprint"],
                            "text": job["text"][:20000], "state": state, "why": why})
         else:
             self.remember({"dir": "out", "kind": "files", "alias": peer["alias"], "fingerprint": peer["fingerprint"],
@@ -976,10 +1084,13 @@ class Share:
                               for s in self.incoming.values() if s["state"] != "frågar"
                               and not (s["state"] == "nekad" and not s.get("why"))]
                              + [{"id": j["id"], "dir": "out", "alias": j["peer"]["alias"], "count": len(j["files"]),
-                                 "name": "Meddelande" if j.get("text") is not None else j["files"][0]["name"],
+                                 "name": "Beställning" if j.get("order") else "Meddelande" if j.get("text") is not None
+                                 else j["files"][0]["name"],
                                  "done": j["sent"], "total": j["total"], "state": j["state"], "why": j["why"]}
                                 for j in self.outgoing.values()],
                 "history": self.history[:40],
+                "orders": [{k: o.get(k) for k in ("id", "alias", "fingerprint", "text", "t", "state", "why")}
+                           for o in self.orders if o.get("state") != "skickad"],
             }
         return out
 
@@ -997,6 +1108,22 @@ class Share:
         if op == "text":
             jid, err = self.send(str(req.get("to", "")), text=str(req.get("text", "")))
             return {"ok": bool(jid), "id": jid, "error": err}
+        if op == "order":
+            jid, err = self.send(str(req.get("to", "")), text=str(req.get("text", "")), order=True)
+            return {"ok": bool(jid), "id": jid, "error": err}
+        if op == "order_get":
+            o = self.order(str(req.get("id", "")))
+            return {"ok": bool(o), "order": dict(o) if o else None}
+        if op == "order_start":
+            why = self.start_order(str(req.get("id", "")))
+            return {"ok": not why, "error": why}
+        if op == "order_update":
+            return {"ok": self.update_order(str(req.get("id", "")), req.get("fields") or {})}
+        if op == "order_forget":
+            return {"ok": self.forget_order(str(req.get("id", "")))}
+        if op == "orders":
+            with self.lock:
+                return {"ok": True, "orders": [dict(o) for o in self.orders]}
         if op == "answer":
             return {"ok": self.answer(str(req.get("id", "")), bool(req.get("accept")))}
         if op == "cancel":

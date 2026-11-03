@@ -41,6 +41,15 @@ Så här provar du (rader utan "- " först läses inte av /testa):
   fråga: Om frugans dator har GoblinShare på: syns den med GOBLINCAKES och en färgad remsa överst på rutan, och går det att skicka en mapp dit?
 - Från den andra datorn hit
   fråga: Skicka en fil från frugans dator till din. Kom notisen med Ta emot / Neka, och hamnade filen i Hämtade/GoblinShare?
+- Beställning till Goblin AI
+  fråga: På frugans dator: tryck Beställ på din dators ruta i GoblinShare och skriv "en bild på en katt i rustning". Kom en notis "Beställning från …" med Starta nu / Senare här, och syns den under BESTÄLLNINGAR i GoblinShare?
+- Beställningen körs och kommer fram
+  fråga: Tryck Starta (i notisen eller i GoblinShare). Försvann den ur BESTÄLLNINGAR efter en stund, och kom svaret och bilden fram på frugans dator utan att hon behövde trycka Ta emot?
+- Beställningen i loggen
+  kör: cat ~/.local/share/goblincakes/share/orders.json
+  väntat: beställningen med "state": "skickad"
+- /kalender i Goblin AI
+  fråga: Skriv i Goblin AI: /kalender lägg in tandläkaren på torsdag kl 14, påminn dagen innan. Står den i Merkuro på rätt dag och tid med påminnelse? (Ta bort den efteråt med Ångra under Körda kommandon.)
 - Tjänstens logg
   kör: journalctl --user -u goblincakes-share -n 30 --no-pager
   väntat: inga Traceback-rader

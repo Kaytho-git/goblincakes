@@ -7,6 +7,8 @@
     goblincakes-share list                    the devices that can be sent to
     goblincakes-share send <namn> <fil|mapp>…  sends to a device (its name or part of it)
     goblincakes-share text <namn> <text>      sends a message
+    goblincakes-share order <namn> <text>     an order to Goblin AI on another GOBLINCAKES computer
+    goblincakes-share orders                  the orders that came here (start <nr> = Goblin AI takes it)
     goblincakes-share scan                    looks for devices again (multicast + the local network)
 """
 import json
@@ -109,7 +111,27 @@ def main(argv):
             kind = "GOBLINCAKES" if p["goblincakes"] else (p["model"] or p["type"])
             print(f"{p['alias']:<24} {kind:<16} {p['ip']:<16}" + ("  betrodd" if p["trusted"] else ""))
         return 0
-    if cmd in ("send", "skicka", "text"):
+    if cmd in ("orders", "beställningar", "bestallningar"):
+        st = need_service()
+        orders = st.get("orders", [])
+        if len(argv) > 3 and argv[2] in ("start", "starta"):
+            try:
+                o = orders[int(argv[3]) - 1]
+            except (ValueError, IndexError):
+                print("Ingen beställning med det numret")
+                return 1
+            res = S.call("order_start", id=o["id"]) or {}
+            print("Goblin AI tar beställningen – svaret skickas till " + o["alias"] + " av sig självt."
+                  if res.get("ok") else res.get("error") or "Gick inte")
+            return 0 if res.get("ok") else 1
+        if not orders:
+            print("Inga beställningar väntar.")
+        for n, o in enumerate(orders, 1):
+            print(f"{n}. {o['alias']}: {o['text'][:80]}  [{o['state']}{' – ' + o['why'] if o.get('why') else ''}]")
+        if any(o["state"] in ("väntar", "fel", "ej skickad") for o in orders):
+            print("Starta: goblin share beställningar start <nr>")
+        return 0
+    if cmd in ("send", "skicka", "text", "order", "beställ", "bestall"):
         if len(argv) < 4:
             print(__doc__.strip())
             return 1
@@ -122,6 +144,8 @@ def main(argv):
             return 1
         if cmd == "text":
             res = S.call("text", to=peer["fingerprint"], text=" ".join(argv[3:]))
+        elif cmd in ("order", "beställ", "bestall"):
+            res = S.call("order", to=peer["fingerprint"], text=" ".join(argv[3:]))
         else:
             paths = [str(Path(p).expanduser().resolve()) for p in argv[3:]]
             missing = [p for p in paths if not Path(p).exists()]
@@ -132,7 +156,8 @@ def main(argv):
         if not res or not res.get("ok"):
             print((res or {}).get("error") or "Gick inte att skicka")
             return 1
-        print(f"Till {peer['alias']} – väntar på att de tar emot …", flush=True)
+        print(f"Beställningen skickas till {peer['alias']} …" if cmd in ("order", "beställ", "bestall") else
+              f"Till {peer['alias']} – väntar på att de tar emot …", flush=True)
         return wait_job(res["id"])
     print(__doc__.strip())
     return 1

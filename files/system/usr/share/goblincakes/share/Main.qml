@@ -21,9 +21,11 @@ Window {
     readonly property var requests: st.requests || []
     readonly property var transfers: st.transfers || []
     readonly property var history: st.history || []
+    readonly property var orders: st.orders || []   // orders to Kakan here (3 Nov)
     property string tab: "devices" // devices | history | settings
     property string note: ""
     property var textTo: null       // the device a message is being written to
+    property bool ordering: false   // … or an order to its Kakan
     // A big (maximized) window: everything bigger instead of small text spread out – as GoblinRecorder
     readonly property real zoom: Math.max(1, Math.min(1.6, Math.min(width / 1080, height / 720)))
 
@@ -50,6 +52,11 @@ Window {
     }
 
     Shortcut { sequence: "Esc"; onActivated: win.textTo ? (win.textTo = null) : win.close() }
+    function sendWritten() {
+        if (win.ordering) backend.sendOrder(win.textTo.fingerprint, textEdit.text);
+        else backend.sendText(win.textTo.fingerprint, textEdit.text);
+        win.textTo = null;
+    }
     Connections {
         target: backend
         function onMessage(text) { win.note = text; noteTimer.restart(); }
@@ -502,6 +509,71 @@ Window {
                     }
                 }
 
+                // Orders to Kakan here: Starta when it suits (3 Nov)
+                Column {
+                    visible: win.orders.length > 0
+                    width: parent.width
+                    spacing: 10
+                    SectionTitle { text: "BESTÄLLNINGAR" }
+                    Repeater {
+                        model: win.orders
+                        Rectangle {
+                            id: ord
+                            required property var modelData
+                            readonly property bool busy: modelData.state === "pågår"
+                            readonly property bool failed: modelData.state === "fel" || modelData.state === "ej skickad"
+                            width: devCol.width
+                            height: ordCol.height + 32
+                            color: "#0E1420"
+                            border.width: 1
+                            border.color: ord.modelData.state === "väntar" ? accent.color : "#1E2A40"
+                            Column {
+                                id: ordCol
+                                anchors { left: parent.left; leftMargin: 22; right: ordButtons.left; rightMargin: 20; top: parent.top; topMargin: 16 }
+                                spacing: 6
+                                Text {
+                                    text: "FRÅN " + ord.modelData.alias.toUpperCase() + "  ·  " + win.when(ord.modelData.t)
+                                    color: accent.text
+                                    font.family: "Chakra Petch"
+                                    font.weight: Font.DemiBold
+                                    font.pixelSize: 13
+                                    font.letterSpacing: 1
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: ord.modelData.text
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 15
+                                    wrapMode: Text.Wrap
+                                    maximumLineCount: 4
+                                    elide: Text.ElideRight
+                                    textFormat: Text.PlainText
+                                }
+                                Note {
+                                    width: parent.width
+                                    text: ord.busy ? "Goblin AI jobbar på den …"
+                                        : ord.failed ? (ord.modelData.why || ord.modelData.state)
+                                        : "Väntar – starta när det passar (spelar du får den gärna vänta)"
+                                    color: ord.failed ? accent.errorBright : "#8B98AD"
+                                }
+                            }
+                            Row {
+                                id: ordButtons
+                                anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                                spacing: 10
+                                FlatButton { visible: !ord.busy; text: "Ta bort"; onClicked: backend.forgetOrder(ord.modelData.id) }
+                                FlatButton {
+                                    visible: !ord.busy
+                                    primary: true
+                                    text: ord.modelData.state === "ej skickad" ? "Skicka igen" : ord.modelData.state === "fel" ? "Försök igen" : "Starta"
+                                    onClicked: backend.startOrder(ord.modelData.id)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Someone wants to send something
                 Repeater {
                     model: win.requests
@@ -660,7 +732,7 @@ Window {
                             required property var modelData
                             readonly property color tone: modelData.goblincakes ? (modelData.accent || "#2F6FED") : "#8B98AD"
                             readonly property bool hot: cardArea.containsMouse || drop.containsDrag
-                            width: 236
+                            width: modelData.goblincakes ? 310 : 236 // room for Beställ (3 Nov)
                             height: 186
                             color: hot ? "#12203A" : "#0E1420"
                             border.width: drop.containsDrag || (win.staged.length && cardArea.containsMouse) ? 2 : 1
@@ -741,7 +813,13 @@ Window {
                                 spacing: 8
                                 FlatButton { small: true; text: "Filer"; onClicked: backend.sendFiles(card.modelData.fingerprint) }
                                 FlatButton { small: true; text: "Mapp"; onClicked: backend.sendFolder(card.modelData.fingerprint) }
-                                FlatButton { small: true; text: "Text"; onClicked: { win.textTo = card.modelData; textEdit.text = ""; textEdit.forceActiveFocus(); } }
+                                FlatButton { small: true; text: "Text"; onClicked: { win.ordering = false; win.textTo = card.modelData; textEdit.text = ""; textEdit.forceActiveFocus(); } }
+                                FlatButton { // an order to the other computer's Kakan (only GOBLINCAKES)
+                                    small: true
+                                    visible: card.modelData.goblincakes
+                                    text: "Beställ"
+                                    onClicked: { win.ordering = true; win.textTo = card.modelData; textEdit.text = ""; textEdit.forceActiveFocus(); }
+                                }
                             }
                             Row { // trusted: taken without asking (only GOBLINCAKES computers can send here)
                         visible: card.modelData.goblincakes
@@ -808,7 +886,7 @@ Window {
             delegate: Rectangle {
                 id: h
                 required property var modelData
-                readonly property bool isText: modelData.kind === "text"
+                readonly property bool isText: modelData.kind === "text" || modelData.kind === "order"
                 readonly property bool failed: modelData.state !== "klart"
                 width: histList.width - 14
                 height: hCol.height + 28
@@ -830,7 +908,7 @@ Window {
                             font.letterSpacing: 1
                         }
                         Text {
-                            text: win.when(h.modelData.t) + (h.isText ? " · meddelande" : " · " + (h.modelData.count === 1 ? win.size(h.modelData.size)
+                            text: win.when(h.modelData.t) + (h.modelData.kind === "order" ? " · beställning" : h.isText ? " · meddelande" : " · " + (h.modelData.count === 1 ? win.size(h.modelData.size)
                                   : win.plural(h.modelData.count, "fil", "filer") + ", " + win.size(h.modelData.size)))
                                   + (h.failed ? " · " + (h.modelData.why || h.modelData.state) : "")
                             color: h.failed ? accent.errorBright : "#5C6880"
@@ -1000,7 +1078,7 @@ Window {
                     id: textCol
                     anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
                     spacing: 14
-                    SectionTitle { text: "MEDDELANDE TILL " + (win.textTo ? win.textTo.alias.toUpperCase() : "") }
+                    SectionTitle { text: (win.ordering ? "BESTÄLLNING TILL " : "MEDDELANDE TILL ") + (win.textTo ? win.textTo.alias.toUpperCase() : "") }
                     Rectangle {
                         width: parent.width
                         height: 150
@@ -1025,8 +1103,7 @@ Window {
                                 selectByMouse: true
                                 Keys.onReturnPressed: e => {
                                     if (e.modifiers & Qt.ControlModifier) {
-                                        backend.sendText(win.textTo.fingerprint, text);
-                                        win.textTo = null;
+                                        win.sendWritten();
                                     } else {
                                         e.accepted = false;
                                     }
@@ -1034,7 +1111,13 @@ Window {
                             }
                         }
                     }
-                    Note { text: "En länk, en adress, en kod – kommer fram som ett meddelande som kan kopieras. Ctrl+Enter skickar."; width: parent.width }
+                    Note {
+                        text: win.ordering
+                            ? "Vad ska Goblin AI på " + (win.textTo ? win.textTo.alias : "") + " göra? T.ex. \"en bild på en katt i rustning, tecknad\". "
+                              + "Hen får en notis och startar den när det passar – bilden eller svaret kommer hit av sig själv. Ctrl+Enter skickar."
+                            : "En länk, en adress, en kod – kommer fram som ett meddelande som kan kopieras. Ctrl+Enter skickar."
+                        width: parent.width
+                    }
                     Row {
                         anchors.right: parent.right
                         spacing: 10
@@ -1043,7 +1126,7 @@ Window {
                             primary: true
                             text: "Skicka"
                             enabledState: textEdit.text.trim().length > 0
-                            onClicked: { backend.sendText(win.textTo.fingerprint, textEdit.text); win.textTo = null; }
+                            onClicked: win.sendWritten()
                         }
                     }
                 }

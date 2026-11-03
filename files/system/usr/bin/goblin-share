@@ -157,6 +157,27 @@ class Backend(QObject):
                 self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
             self.poll()
 
+    @Slot(str, str)
+    def sendOrder(self, fp, text):
+        """An order to Kakan on another GOBLINCAKES computer (3 Nov)."""
+        if text.strip():
+            res = S.call("order", to=fp, text=text, timeout=10)
+            if not res or not res.get("ok"):
+                self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
+            self.poll()
+
+    @Slot(str)
+    def startOrder(self, oid):
+        res = S.call("order_start", id=oid, timeout=5)
+        if not res or not res.get("ok"):
+            self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
+        self.poll()
+
+    @Slot(str)
+    def forgetOrder(self, oid):
+        S.call("order_forget", id=oid)
+        self.poll()
+
     @Slot(str, bool)
     def answer(self, rid, accept):
         S.call("answer", id=rid, accept=accept)
