@@ -988,6 +988,12 @@ T.ex.
 kalender lägg torsdag 14:00 ; Tandläkaren ; 1 dag
 ```"""
 
+# /kalender: Goblin AI asks for the one line and runs it before she answers – a small model on the wife's laptop
+# answered from memory and was stopped by the /-command check instead of writing the block (3 Nov)
+CAL_LINE_PROMPT = ("Skriv den rad som gör det användaren ber om – bara raden, inget annat (ingen förklaring, inget "
+                   "kodblock). En av raderna:\n" + CAL_LINES + "\nT.ex. `kalender lägg torsdag 14:00 ; Tandläkaren ; 1 dag`, "
+                   "`kalender visa 7`, `påminn om 20 min ; pizzan`. I dag är {today}.")
+
 CAL_GUIDE = """
 Säg kort vad du gjorde ("Lade in Tandläkaren torsdag 14:00, påminnelse 1 dag innan."). Gick det inte: säg varför."""
 
@@ -2611,6 +2617,41 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                          "skrev användaren inte in]\n\n" + "\n\n---\n\n".join(found_text) + "\n\n[Slut på uppslagen]\n\n"
                          f"Så här svarar du med det:\n{WIKI_GUIDE.strip()} Står svaret inte här: slå upp en del av "
                          f"artikeln med ```wiki, eller säg att det inte står där.\n\nAnvändarens fråga var: \"{question}\""})
+    if only_tools(messages) == ["kalender"] and "kalender" in tools and not LAST.tools:
+        # /kalender: the line from a quick question, run here – then she only says what happened
+        steps.start("Skriver kalenderraden")
+        QUICK.on = True
+        try:
+            today = datetime.now().strftime("%A %Y-%m-%d %H:%M")
+            for en, sv in (("Monday", "måndag"), ("Tuesday", "tisdag"), ("Wednesday", "onsdag"), ("Thursday", "torsdag"),
+                           ("Friday", "fredag"), ("Saturday", "lördag"), ("Sunday", "söndag")):
+                today = today.replace(en, sv)
+            words, _ = ask_once([{"role": "system", "content": CAL_LINE_PROMPT.format(today=today)},
+                                 {"role": "user", "content": question}], keys, None, notice, project, choice)
+            steps.done()
+        except (ServiceError, IndexError) as e:
+            words = ""
+            steps.done("fel", e)
+        finally:
+            QUICK.on = False
+        line = next((x.strip(" `\"'") for x in words.splitlines()
+                     if x.strip(" `\"'") and not x.strip().startswith("```")), "")
+        steps.start(f"Kalendern: {line[:80] or '(ingen rad)'}")
+        try:
+            result, _ = cal_run(line) if line else ("Kunde inte skriva någon kalenderrad av frågan.", [])
+            steps.done()
+        except Exception as e:  # noqa: BLE001 – told to her and the user
+            result = f"Kalendern gick inte: {e}"
+            steps.done("fel", e)
+        LAST.tools.append(("kalender", line))
+        LAST.done.append(("kalender", line, result))
+        used = 1
+        tools.pop("kalender", None)   # done: no second ```kalender = no event twice
+        messages.append({"role": "user", "content":
+                         "[Goblin AI körde kalendern åt dig innan du svarar (användaren skrev /kalender) – det här "
+                         f"skrev användaren inte in]\n\nRaden: {line or '(ingen)'}\nSvar: {result}\n\n"
+                         f"Så här svarar du med det:{CAL_GUIDE.rstrip()} Det är redan gjort – skriv inget kodblock.\n\n"
+                         f"Användarens fråga var: \"{question}\""})
     chat_only = bool(NOT_FACT.search(str(asked.get("content", ""))[:600]))  # "hur mår du idag?" searched the web
     if "sök" in tools and not typed and (forced or (fresh_question(asked.get("content")) and not own and not chat_only)):
         # Goblin AI searches first, with the question itself (Tavily takes plain questions)
