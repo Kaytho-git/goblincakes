@@ -3,10 +3,14 @@
 det när det går"). The order comes in through GoblinShare (share.py: a notification with Starta/Senare, the
 window's BESTÄLLNINGAR); Starta runs this:
 
-    order.py run <id>     Goblin AI answers the wish (pictures in ```bild are drawn), the answer goes back
-                          as a GoblinShare message and the pictures as files (taken there without Ta emot,
-                          share.py awaits_reply). Already answered but not sent (the other computer was
-                          off) → only sent again.
+    order.py run <id> [--via ai|chatgpt]
+                          ai (default): Goblin AI answers the wish (pictures in ```bild are drawn).
+                          chatgpt (3 Nov, the user: "skicka det till chatgpt för ordentliga bilder"): the
+                          ChatGPT app opens with the wish written in (goblincakes-chatgpt image – press Enter
+                          there), the picture it draws is taken when it comes (≤ 10 min).
+                          The answer goes back as a GoblinShare message and the pictures as files (taken there
+                          without Ta emot, share.py awaits_reply). Already answered but not sent (the other
+                          computer was off) → only sent again.
 
 The state is kept by the GoblinShare service (orders.json): väntar → pågår → skickad, or fel / ej skickad.
 """
@@ -99,7 +103,29 @@ def send_back(order, text, paths):
     return ""
 
 
-def run(oid):
+CHATGPT = "/usr/libexec/goblincakes-chatgpt"
+
+
+def chatgpt_picture(text):
+    """The ChatGPT app draws the wish → (path or None, why)."""
+    out = Path(os.path.expanduser("~/Bilder/ChatGPT"))
+    try:
+        res = subprocess.run([CHATGPT, "image", f"Skapa en bild: {text}", "--out", f"{out}/"], capture_output=True,
+                             text=True, timeout=12 * 60)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return None, f"ChatGPT-appen gick inte att använda ({type(e).__name__})"
+    lines = [line.strip() for line in res.stdout.splitlines() if line.strip() and not line.startswith("@@")]
+    path = lines[-1] if lines else ""
+    if res.returncode == 0 and path and Path(path).is_file():
+        return path, ""
+    said = [line[3:].strip() for line in res.stdout.splitlines() if line.startswith("@@ ")]
+    if not said or said[-1].startswith("Codex i ChatGPT-appen öppnas"):
+        said.append("ChatGPT-appen är inte installerad" if not Path(os.path.expanduser(
+            "~/.local/share/chatgpt-app/.goblincakes.json")).is_file() else "ChatGPT gav ingen bild")
+    return None, said[-1]
+
+
+def run(oid, via="ai"):
     res = S.call("order_get", id=oid) or {}
     order = res.get("order")
     if not order:
@@ -112,6 +138,15 @@ def run(oid):
 
     if order.get("answer") is not None or order.get("paths"):  # answered before, the other one was off
         text, paths = order.get("answer") or "", [p for p in order.get("paths") or [] if Path(p).is_file()]
+    elif via == "chatgpt":
+        name = "ChatGPT"
+        path, why = chatgpt_picture(order["text"])
+        if not path:
+            update(oid, state="fel", why=why[:300])
+            notice(f"Beställningen från {order['alias']} gick inte", f"{short}\n{why}")
+            return 1
+        text, paths = f"ChatGPT ritade din beställning \"{short}\".", [path]
+        update(oid, answer=text, paths=paths, service="ChatGPT")
     else:
         keys = goblinai.load_keys()
         messages = [{"role": "system", "content": goblinai.system_prompt()},
@@ -156,6 +191,6 @@ def run(oid):
 
 if __name__ == "__main__":
     if sys.argv[1:2] == ["run"] and len(sys.argv) > 2:
-        sys.exit(run(sys.argv[2]))
+        sys.exit(run(sys.argv[2], sys.argv[sys.argv.index("--via") + 1] if "--via" in sys.argv[:-1] else "ai"))
     print(__doc__.strip())
     sys.exit(2)

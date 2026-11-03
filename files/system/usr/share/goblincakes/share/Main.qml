@@ -552,9 +552,12 @@ Window {
                                 }
                                 Note {
                                     width: parent.width
-                                    text: ord.busy ? "Goblin AI jobbar på den …"
+                                    text: ord.busy ? (ord.modelData.via === "chatgpt"
+                                            ? "ChatGPT-appen är öppen med beställningen – tryck Enter där. Bilden skickas när den är klar."
+                                            : "Goblin AI jobbar på den …")
                                         : ord.failed ? (ord.modelData.why || ord.modelData.state)
-                                        : "Väntar – starta när det passar (spelar du får den gärna vänta)"
+                                        : "Väntar – välj vem som gör den när det passar"
+                                          + (win.st.chatgpt ? " (ChatGPT ritar bättre bilder)" : "")
                                     color: ord.failed ? accent.errorBright : "#8B98AD"
                                 }
                             }
@@ -564,10 +567,22 @@ Window {
                                 spacing: 10
                                 FlatButton { visible: !ord.busy; text: "Ta bort"; onClicked: backend.forgetOrder(ord.modelData.id) }
                                 FlatButton {
-                                    visible: !ord.busy
+                                    visible: !ord.busy && ord.modelData.state === "ej skickad"
                                     primary: true
-                                    text: ord.modelData.state === "ej skickad" ? "Skicka igen" : ord.modelData.state === "fel" ? "Försök igen" : "Starta"
-                                    onClicked: backend.startOrder(ord.modelData.id)
+                                    text: "Skicka igen"
+                                    onClicked: backend.startOrder(ord.modelData.id, "")
+                                }
+                                // Who does it (3 Nov, the user): the ChatGPT app for proper pictures, or Goblin AI here
+                                FlatButton {
+                                    visible: !ord.busy && ord.modelData.state !== "ej skickad" && !!win.st.chatgpt
+                                    text: "ChatGPT"
+                                    onClicked: backend.startOrder(ord.modelData.id, "chatgpt")
+                                }
+                                FlatButton {
+                                    visible: !ord.busy && ord.modelData.state !== "ej skickad"
+                                    primary: true
+                                    text: "Goblin AI"
+                                    onClicked: backend.startOrder(ord.modelData.id, "ai")
                                 }
                             }
                         }

@@ -288,7 +288,8 @@ Ord: goblinshare, share, dela, skicka fil, ta emot, localsend, airdrop, filer ti
 - `goblin share lista` (enheterna), `goblin share status`, `goblin share till <namn> <fil>`, `goblin share text <namn> <text>`.
 - Beställningar: en annan GOBLINCAKES-dator kan beställa något av Goblin AI här (knappen Beställ, `goblin share beställ
   <namn> <text>`). De ligger i ~/.local/share/goblincakes/share/orders.json och under BESTÄLLNINGAR i fönstret; Starta kör
-  /usr/share/goblincakes/ai/order.py run <id> (svarar, ritar ```bild, skickar tillbaka). "ej skickad" = den andra datorn
+  /usr/share/goblincakes/ai/order.py run <id> [--via chatgpt] (Goblin AI svarar och ritar ```bild, eller
+  ChatGPT-appen ritar via goblincakes-chatgpt image – Enter i appen – och bilden skickas tillbaka). "ej skickad" = den andra datorn
   syntes inte – Skicka igen. Beställarens dator tar emot bilderna utan Ta emot i 3 dagar. `goblin share beställningar`.
 Kontroll: `systemctl --user is-active goblincakes-share`
 Kontroll: `/usr/libexec/goblincakes-share status`

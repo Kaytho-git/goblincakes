@@ -166,9 +166,10 @@ class Backend(QObject):
                 self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
             self.poll()
 
-    @Slot(str)
-    def startOrder(self, oid):
-        res = S.call("order_start", id=oid, timeout=5)
+    @Slot(str, str)
+    def startOrder(self, oid, via):
+        """via "ai" = Goblin AI here, "chatgpt" = the ChatGPT app draws it (3 Nov)."""
+        res = S.call("order_start", id=oid, via=via, timeout=5)
         if not res or not res.get("ok"):
             self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
         self.poll()

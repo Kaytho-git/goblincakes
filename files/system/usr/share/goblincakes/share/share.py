@@ -67,6 +67,12 @@ ORDER_TYPE = "application/x-goblincakes-order"
 ORDER_RUNNER = Path(__file__).resolve().parent.parent / "ai/order.py"
 ORDER_KEEP = 30
 ORDER_REPLY_DAYS = 3    # files from a computer we ordered from are taken without asking for this long
+CHATGPT_APP = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share") / "chatgpt-app/.goblincakes.json"
+
+
+def chatgpt_installed():
+    """OpenAI's ChatGPT app in the home folder (goblincakes-chatgpt) – an order can be drawn there."""
+    return CHATGPT_APP.is_file()
 RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
 SOCK = Path(os.environ.get("GOBLINCAKES_SHARE_SOCK") or RUNTIME / "goblincakes-share.sock")
 UNIT = "goblincakes-share.service"
@@ -446,12 +452,17 @@ class Share:
         self._save_orders()
         self.remember({"dir": "in", "kind": "order", "order": o["id"], "alias": o["alias"],
                        "fingerprint": o["fingerprint"], "text": text, "state": "klart"})
-        notify(f"Beställning från {o['alias']}", text[:400], actions=[("start", "Starta nu"), ("later", "Senare")],
-               wait_cb=lambda key: self.start_order(o["id"]) if key == "start" else None)
+        # Who does it is chosen when it's started (3 Nov, the user): Goblin AI here, or ChatGPT for proper pictures
+        actions = [("start", "Goblin AI")] + ([("chatgpt", "ChatGPT")] if chatgpt_installed() else []) + [("later", "Senare")]
+        notify(f"Beställning från {o['alias']}", text[:400], actions=actions,
+               wait_cb=lambda key: self.start_order(o["id"], "chatgpt" if key == "chatgpt" else "ai")
+               if key in ("start", "chatgpt") else None)
         return o
 
-    def start_order(self, oid):
-        """Kakan takes the order (or sends a finished answer again) → "" or why not."""
+    def start_order(self, oid, via="ai"):
+        """Kakan (via "ai") or the ChatGPT app ("chatgpt") takes the order, or a finished answer is sent
+        again → "" or why not."""
+        via = "chatgpt" if via == "chatgpt" else "ai"
         with self.lock:
             o = self.order(oid)
             if not o:
@@ -460,10 +471,13 @@ class Share:
                 return "Beställningen pågår redan"  # (after half an hour it may be started again: it hung)
             if o["state"] == "skickad":
                 return "Beställningen är redan skickad"
+            if o.get("answer") is None and not o.get("paths"):
+                o["via"] = via  # (a finished answer is only sent again, whoever made it)
             o["state"], o["why"], o["started"] = "pågår", "", time.time()
         self._save_orders()
         try:
-            subprocess.Popen([sys.executable, str(ORDER_RUNNER), "run", oid], start_new_session=True,
+            subprocess.Popen([sys.executable, str(ORDER_RUNNER), "run", oid, "--via", o.get("via") or "ai"],
+                             start_new_session=True,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError as e:
             self.update_order(oid, {"state": "fel", "why": f"Kunde inte starta Goblin AI: {e.strerror}"})
@@ -1089,7 +1103,8 @@ class Share:
                                  "done": j["sent"], "total": j["total"], "state": j["state"], "why": j["why"]}
                                 for j in self.outgoing.values()],
                 "history": self.history[:40],
-                "orders": [{k: o.get(k) for k in ("id", "alias", "fingerprint", "text", "t", "state", "why")}
+                "chatgpt": chatgpt_installed(),
+                "orders": [{k: o.get(k) for k in ("id", "alias", "fingerprint", "text", "t", "state", "why", "via")}
                            for o in self.orders if o.get("state") != "skickad"],
             }
         return out
@@ -1115,7 +1130,7 @@ class Share:
             o = self.order(str(req.get("id", "")))
             return {"ok": bool(o), "order": dict(o) if o else None}
         if op == "order_start":
-            why = self.start_order(str(req.get("id", "")))
+            why = self.start_order(str(req.get("id", "")), str(req.get("via", "ai")))
             return {"ok": not why, "error": why}
         if op == "order_update":
             return {"ok": self.update_order(str(req.get("id", "")), req.get("fields") or {})}

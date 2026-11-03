@@ -45,6 +45,8 @@ Så här provar du (rader utan "- " först läses inte av /testa):
   fråga: På frugans dator: tryck Beställ på din dators ruta i GoblinShare och skriv "en bild på en katt i rustning". Kom en notis "Beställning från …" med Starta nu / Senare här, och syns den under BESTÄLLNINGAR i GoblinShare?
 - Beställningen körs och kommer fram
   fråga: Tryck Starta (i notisen eller i GoblinShare). Försvann den ur BESTÄLLNINGAR efter en stund, och kom svaret och bilden fram på frugans dator utan att hon behövde trycka Ta emot?
+- Beställning via ChatGPT
+  fråga: Gör en ny beställning från frugans dator och tryck ChatGPT här (i notisen eller GoblinShare). Öppnades ChatGPT-appen med beställningen ifylld, och kom bilden fram hos henne efter att du tryckt Enter?
 - Beställningen i loggen
   kör: cat ~/.local/share/goblincakes/share/orders.json
   väntat: beställningen med "state": "skickad"

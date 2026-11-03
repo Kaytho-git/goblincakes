@@ -8,7 +8,8 @@
     goblincakes-share send <namn> <fil|mapp>…  sends to a device (its name or part of it)
     goblincakes-share text <namn> <text>      sends a message
     goblincakes-share order <namn> <text>     an order to Goblin AI on another GOBLINCAKES computer
-    goblincakes-share orders                  the orders that came here (start <nr> = Goblin AI takes it)
+    goblincakes-share orders                  the orders that came here (start <nr> [chatgpt] = Goblin AI
+                                              takes it, or the ChatGPT app draws it)
     goblincakes-share scan                    looks for devices again (multicast + the local network)
 """
 import json
@@ -120,8 +121,10 @@ def main(argv):
             except (ValueError, IndexError):
                 print("Ingen beställning med det numret")
                 return 1
-            res = S.call("order_start", id=o["id"]) or {}
-            print("Goblin AI tar beställningen – svaret skickas till " + o["alias"] + " av sig självt."
+            via = "chatgpt" if "chatgpt" in [a.lower() for a in argv[4:]] else "ai"
+            res = S.call("order_start", id=o["id"], via=via) or {}
+            print(("ChatGPT-appen öppnas med beställningen – tryck Enter där. Bilden" if via == "chatgpt"
+                   else "Goblin AI tar beställningen – svaret") + " skickas till " + o["alias"] + " av sig självt."
                   if res.get("ok") else res.get("error") or "Gick inte")
             return 0 if res.get("ok") else 1
         if not orders:
@@ -129,7 +132,7 @@ def main(argv):
         for n, o in enumerate(orders, 1):
             print(f"{n}. {o['alias']}: {o['text'][:80]}  [{o['state']}{' – ' + o['why'] if o.get('why') else ''}]")
         if any(o["state"] in ("väntar", "fel", "ej skickad") for o in orders):
-            print("Starta: goblin share beställningar start <nr>")
+            print("Starta: goblin share beställningar start <nr>  (eller start <nr> chatgpt)")
         return 0
     if cmd in ("send", "skicka", "text", "order", "beställ", "bestall"):
         if len(argv) < 4:
