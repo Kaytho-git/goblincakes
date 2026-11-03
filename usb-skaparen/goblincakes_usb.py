@@ -203,6 +203,21 @@ def finish_device(device):
 BUFFER_CHUNKS = 64  # 64 × 4 MB = 256 MB between the download and the stick
 
 
+SYNC_EVERY = 64 * 1024 * 1024
+_unsynced = [0]
+
+
+def stick_write(fd, data):
+    """os.write to the stick. On Linux the writes otherwise pile up in RAM (several GB) and
+    the progress showed "about 1 min left" for ten minutes at the end while Linux wrote them
+    out (3 Nov) – waiting for the stick every 64 MB makes the progress its real speed."""
+    os.write(fd, data)
+    _unsynced[0] += len(data)
+    if not WINDOWS and _unsynced[0] >= SYNC_EVERY:
+        _unsynced[0] = 0
+        os.fdatasync(fd)
+
+
 def download_parts(base, parts, out):
     """Downloader thread: every part in order into the queue `out`, while the main
     thread writes to the stick – so the network never waits for a slow USB stick.
@@ -331,7 +346,7 @@ def write_via_disk(fd, base, parts, total, spool):
                         if len(data) % 4096 and WINDOWS:
                             # Raw disks on Windows only take whole sectors: pad the very end
                             data += b"\0" * (-len(data) % 4096)
-                        os.write(fd, data)
+                        stick_write(fd, data)
                         with lock:
                             state["written"] += min(len(data), part["size"])
                             report()
@@ -367,13 +382,13 @@ def write_streaming(fd, base, parts, total):
         if kind == "start":
             index, offset = message[1], message[2]
             if index != current and pending:
-                os.write(fd, pending)  # end of the previous part (parts are whole sectors)
+                stick_write(fd, pending)  # end of the previous part (parts are whole sectors)
             current, part_offset, part_written, pending = index, offset, 0, b""
             os.lseek(fd, offset, os.SEEK_SET)  # also back to the start on a retry
         elif kind == "data":
             pending += message[1]
             while len(pending) >= CHUNK:
-                os.write(fd, pending[:CHUNK])
+                stick_write(fd, pending[:CHUNK])
                 pending = pending[CHUNK:]
                 part_written += CHUNK
             now = time.monotonic()
@@ -387,7 +402,7 @@ def write_streaming(fd, base, parts, total):
         else:  # done
             if pending:
                 # Raw disks on Windows only take whole sectors: pad the very end with zeros
-                os.write(fd, pending + b"\0" * (-len(pending) % 4096) if WINDOWS else pending)
+                stick_write(fd, pending + b"\0" * (-len(pending) % 4096) if WINDOWS else pending)
             emit(stage="download", done=total, total=total, seconds=time.monotonic() - started)
             break
 
@@ -416,6 +431,12 @@ def write(device, variant_id, manifest_url=MANIFEST_URL):
             if hasattr(os, "fsync"):
                 try:
                     os.fsync(fd)
+                except OSError:
+                    pass
+            if hasattr(os, "posix_fadvise"):
+                # Drop Linux's copy in RAM, so the check below reads the stick itself
+                try:
+                    os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
                 except OSError:
                     pass
 
