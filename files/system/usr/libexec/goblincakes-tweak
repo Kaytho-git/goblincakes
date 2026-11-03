@@ -159,6 +159,19 @@ for o in outputs:
             set) /usr/libexec/goblincakes-gameguard set "$value" ;;
         esac ;;
 
+    fan-boost)
+        # Lenovo IdeaPad/Legion: Spelläge turns the fans' boost mode on during games (as
+        # Lenovo's Windows program does) – only shown where ideapad_laptop has fan_mode
+        if ! ls /sys/bus/platform/devices/VPC2004:*/fan_mode >/dev/null 2>&1; then
+            [ "$cmd" = status ] && echo unavailable
+            exit 0
+        fi
+        flag="${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/fan-boost-off"
+        case $cmd in
+            status) [ -e "$flag" ] && echo off || echo on ;;
+            set) if [ "$value" = on ]; then rm -f "$flag"; else mkdir -p "$(dirname "$flag")"; touch "$flag"; fi ;;
+        esac ;;
+
     discord-vencord)
         # Discord in GOBLINCAKES' look (Vencord + our theme) – only for those who choose it
         case $cmd in

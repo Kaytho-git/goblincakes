@@ -1,0 +1,4 @@
+# GOBLINCAKES: Lenovo IdeaPad/Legion fan modes (ideapad_laptop: 0 quiet, 1 standard, 2 dust
+# cleaning, 4 efficient thermal dissipation) – Spelläge (a user service) sets 4 during games
+# and puts the previous mode back afterwards (Config → Spel → Fläktboost under spel)
+ACTION=="bind", SUBSYSTEM=="platform", DRIVER=="ideapad_acpi", RUN+="/bin/sh -c 'chmod 0666 /sys%p/fan_mode 2>/dev/null || :'"

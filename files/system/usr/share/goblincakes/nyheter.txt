@@ -1,3 +1,4 @@
+2026-11-03  Lenovo-laptops: fläktarna går upp i Lenovos kylläge medan ett spel kör (som boost i Lenovos Windows-program) och tillbaka efteråt. Reglage i Config → Spel → Fläktboost under spel.
 2026-11-03  GOBLINCAKES USB (Linux): tiden som visas stämmer nu även i slutet (förut stod det "1 min kvar" i tio minuter), och kontrollen efteråt läser verkligen från USB-minnet.
 2026-11-03  GOBLINCAKES USB för Linux hämtar ISO:n igen på Fedora och andra system – det stod "Kunde inte hämta listan över ISO:er" (certifikatfel).
 2026-11-03  Uppdateringen hittar Discord igen – Discord hade bytt adress på sin nedladdning, så det stod "Kunde inte nå Discord".

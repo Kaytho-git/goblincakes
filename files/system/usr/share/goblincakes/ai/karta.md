@@ -301,10 +301,14 @@ Ord: graph, ljudgraf, staplar, visualisering
   spelas om `goblin graph auto on`. Inställningar ~/.config/goblincakes/graph.json. Vilar under spel.
 
 ## Spelläget
-Ord: spelläge, gamemode, spel, prestanda, lagg, fps, wowup stängs, akonadi, baloo
+Ord: spelläge, gamemode, spel, prestanda, lagg, fps, wowup stängs, akonadi, baloo, fläktar, fläktboost, lenovo
 - Tjänsten goblincakes-gameguard (/usr/libexec/goblincakes-gameguard run) ser var 3:e sekund om ett spel kör:
   GameMode, uppdateringar väntar, Akonadi/Baloo vilar, WoWUp stängs medan WoW kör. Allt återställs efter spelet.
 - Vad som räknas som spel: /usr/share/goblincakes/gaming.py. Reglage: Config → Inställningar → Spel.
+- Fläktboost (Lenovo IdeaPad/Legion, bara där `/sys/bus/platform/devices/VPC2004:*/fan_mode` finns): fan_mode 4 under spel,
+  förra läget tillbaka efteråt (0 tyst, 1 standard, 2 dammrensning, 4 kylning). Skrivbar via udev-regeln
+  /usr/lib/udev/rules.d/60-goblincakes-ideapad-fan.rules. Av = ~/.config/goblincakes/fan-boost-off (reglaget "Fläktboost under spel").
+  Kolla: `cat /sys/bus/platform/devices/VPC2004:*/fan_mode`, `ls -l` på den (ska vara rw för alla), journalen ovan ("Fläktboost på").
 - Kolla: `goblincakes-gameguard status` (/usr/libexec/), `journalctl --user -u goblincakes-gameguard -n 50`.
 Kontroll: `/usr/libexec/goblincakes-gameguard status`
 

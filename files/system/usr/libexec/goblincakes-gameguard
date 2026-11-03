@@ -14,6 +14,9 @@ not the launchers themselves):
     ExecStartPre=… wait that waits until the game is closed (never mid-game downloads)
   - Akonadi (the calendar's background service, ~400 MB) and Baloo (file search) rest
   - WoWUp closes while WoW runs (only updates add-ons) and starts again afterwards
+  - Lenovo IdeaPad/Legion: the fans' "efficient thermal dissipation" mode (fan_mode 4, what
+    Lenovo's Windows program calls boost), the previous mode back afterwards; only where
+    ideapad_laptop has fan_mode (a udev rule makes it writable), switch: fan-boost-off
   - $XDG_RUNTIME_DIR/goblincakes-gaming exists (touched every look): goblin graph and
     GoblinAmp's bars rest, root's wait() sees it
 Everything is undone when the game is closed, and when the service stops (logout, switch off).
@@ -34,6 +37,8 @@ from gaming import WOW, find_game, processes  # noqa: E402 – one rule for what
 
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes"
 OFF = CONFIG / "gameguard-off"
+FAN_OFF = CONFIG / "fan-boost-off"
+FAN_BOOST = "4"
 RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
 STATE = RUNTIME / "goblincakes-gaming"
 FRESH = 30          # seconds: an older state file is left over from a crash
@@ -55,6 +60,11 @@ def gaming_somewhere():
         except OSError:
             pass
     return False
+
+
+def fan_mode_file():
+    """Lenovo's fan modes (ideapad_laptop), or None on other computers."""
+    return next(iter(sorted(Path("/sys/bus/platform/devices").glob("VPC2004:*/fan_mode"))), None)
 
 
 def run(*cmd, timeout=20):
@@ -117,6 +127,7 @@ class Guard:
         self.akonadi = False      # we stopped it
         self.baloo = False        # we suspended it
         self.wowup = None         # how to start it again: ("unit", name) or ("run", [argv])
+        self.fan = None           # (file, the mode before the game) while we boost
         self.gone = 0             # looks without a game (two in a row = closed)
 
     def start(self, pid, procs):
@@ -130,6 +141,30 @@ class Guard:
         if r and r.returncode == 0 and "running" in r.stdout.lower() and "suspended" not in r.stdout.lower():
             run("balooctl6", "suspend")
             self.baloo = True
+        self.fan_boost()
+
+    def fan_boost(self):
+        fan = fan_mode_file()
+        if fan is None or FAN_OFF.exists():
+            return
+        try:
+            before = fan.read_text().strip()
+            if before != FAN_BOOST:
+                fan.write_text(FAN_BOOST)
+                self.fan = (fan, before)
+                log(f"Fläktboost på (läge {before} → {FAN_BOOST})")
+        except OSError as e:
+            log("Fläktläget gick inte att ändra:", e)
+
+    def fan_back(self):
+        if self.fan:
+            fan, before = self.fan
+            self.fan = None
+            try:
+                fan.write_text(before)
+                log(f"Fläktläget tillbaka ({before})")
+            except OSError as e:
+                log("Fläktläget gick inte att sätta tillbaka:", e)
 
     def register(self, pid):
         r = run("busctl", "--user", "call", *GAMEMODE, "RegisterGameByPID", "ii", str(os.getpid()), str(pid))
@@ -187,6 +222,7 @@ class Guard:
             self.baloo = False
         if self.wowup is not None:
             self.wowup_back()
+        self.fan_back()
         STATE.unlink(missing_ok=True)
 
     def look(self):
