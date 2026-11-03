@@ -449,6 +449,9 @@ Ord: tangentbord, dubbla tryck, två tryck, studsar, studsande tangenter, key ch
 ## Laptop
 Ord: laptop, bärbar, batteri laptop, dubbla grafikkort
 - /usr/libexec/goblincakes-laptop körs vid inloggning (gör inget på stationära).
+- Wifi utan strömsparläge på alla datorer: /usr/lib/NetworkManager/conf.d/90-goblincakes-wifi-powersave.conf
+  (wifi.powersave = 2). Kolla: iw dev <wlp…> get power_save → "off". Står det "on": har anslutningen egen
+  inställning? nmcli -f 802-11-wireless.powersave connection show <namn> (0 = följer vår fil).
 
 ## ChatGPT-appen
 Ord: chatgpt, openai-appen
