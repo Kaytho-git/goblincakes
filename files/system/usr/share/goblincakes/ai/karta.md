@@ -114,6 +114,9 @@ Ord: config, inställningar, goblincakes config, program, förinstallerat, föns
   Flikar: Program, Förinstallerat, Inställningar, Fönster, Grafik, Uppdatera.
 - Reglagen i Inställningar körs av /usr/libexec/goblincakes-tweak (status/set per reglage); installationer i
   Program av /usr/libexec/goblincakes-config-install.
+- Inloggning/lås (System): "Automatisk inloggning" = /etc/sddm.conf.d/90-goblincakes-autologin.conf (bara vid start;
+  TV-lägets zz-goblincakes-autologin.conf vinner när den finns). "Inget lösenord efter viloläge" = LockOnResume=false i
+  ~/.config/kscreenlockerrc. Kolla: cat filen / kreadconfig6 --file kscreenlockerrc --group Daemon --key LockOnResume.
 
 - Avinstallera: kryssa ur ett installerat program under Program → knappen Avinstallera = `goblincakes-config-install
   uninstall <kind> <args>` (Flatpak från user/system, AppImage, webbapp, Discord, VS Code, ChatGPT, gamescope).

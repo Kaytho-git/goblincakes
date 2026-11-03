@@ -194,6 +194,19 @@ for o in outputs:
                     /ScreenSaver org.kde.screensaver.configure >/dev/null 2>&1 || true ;;
         esac ;;
 
+    no-lock-resume)
+        # No password when the computer wakes from sleep (a laptop's lid opened again) – KDE's
+        # own setting (System Settings → Screen Locking → "After waking from sleep").
+        case $cmd in
+            status) [ "$(kreadconfig6 --file kscreenlockerrc --group Daemon --key LockOnResume --default true)" = false ] \
+                        && echo on || echo off ;;
+            set)
+                kwriteconfig6 --file kscreenlockerrc --group Daemon --key LockOnResume \
+                    "$([ "$value" = on ] && echo false || echo true)"
+                dbus-send --session --type=method_call --dest=org.freedesktop.ScreenSaver \
+                    /ScreenSaver org.kde.screensaver.configure >/dev/null 2>&1 || true ;;
+        esac ;;
+
     calendar)
         # Calendar accounts in the clock's calendar (KDE PIM: Akonadi with its database, Merkuro).
         # Not in the image since 11 Oct (a smaller ISO, ~0.5 GB): switching on adds the packages
@@ -290,6 +303,24 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
                 fi ;;
         esac
         exit 0 ;;
+
+    autologin)
+        # Straight to the desktop when the computer starts, no login screen – SDDM's autologin
+        # for the user who switched it on (PKEXEC_UID). TV mode's own file
+        # (zz-goblincakes-autologin.conf, goblincakes-session-select) is read after and wins
+        # while it exists. Only at start: logging out still shows the login screen.
+        conf=/etc/sddm.conf.d/90-goblincakes-autologin.conf
+        case $cmd in
+            status) [ -e "$conf" ] && echo on || echo off ;;
+            set)
+                if [ "$value" = on ]; then
+                    user=$(id -nu "${PKEXEC_UID:?run through pkexec}")
+                    mkdir -p "$(dirname "$conf")"
+                    printf '# GOBLINCAKES Config → Inställningar → Automatisk inloggning\n[Autologin]\nUser=%s\nSession=plasma.desktop\n' "$user" > "$conf"
+                else
+                    rm -f "$conf"
+                fi ;;
+        esac ;;
 
     no-sleep)
         # Never sleep or hibernate – Nvidia's drivers sometimes don't wake up again (black
