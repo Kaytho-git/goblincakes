@@ -14,8 +14,10 @@ stick; the work is done by this same file in "write" mode, with administrator ri
                                            back and check it; progress as JSON lines
 
 The ISO comes from the GitHub release "iso" (public, no login): goblincakes-iso.json
-lists the ISO kinds and their parts (under 2 GB each, GitHub's limit). Nothing is
-stored on the computer on the way – the parts go straight to the stick.
+lists the ISO kinds and their parts (under 2 GB each, GitHub's limit). The parts are
+downloaded a few at a time to the hard disk and written to the stick in order meanwhile,
+each deleted once it is on the stick (the user's choice: straight to the stick was slow);
+without room on the disk they go straight to the stick.
 Built for Windows/Linux as one file by .github/workflows/build-usb-creator.yml.
 """
 import hashlib
