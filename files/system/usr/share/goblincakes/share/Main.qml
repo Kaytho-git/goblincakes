@@ -352,19 +352,21 @@ Window {
         function refresh() {
             const text = backend.chat(fingerprint, cw.visible && cw.active);
             if (text === raw) return;
-            const atEnd = list.atYEnd || !messages.length;
+            const atEnd = list.nearEnd() || !messages.length;
             const grew = JSON.parse(text);
             const mine = grew.length > messages.length && grew[grew.length - 1].dir === "out";
+            const y = list.contentY;
             raw = text;
-            messages = grew;
-            if (atEnd || mine) Qt.callLater(() => list.positionViewAtEnd());
+            messages = grew;   // a new model: the view resets and lays the bubbles out afterwards
+            if (atEnd || mine) list.follow();
+            else list.keepAt(y);
         }
         function show() {
             visible = true;
             raise();
             requestActivate();
             refresh();
-            Qt.callLater(() => list.positionViewAtEnd());
+            list.follow();
             input.forceActiveFocus();
         }
         function send() {
@@ -453,6 +455,21 @@ Window {
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             model: cw.messages
+            // New messages at the bottom (4 Nov, the user: they ended up below the view): the new
+            // model resets the view and the bubbles' heights are known only once laid out, so for a
+            // moment after a change the view goes to the end (or back where the user was reading).
+            property real holdY: NaN
+            function endY() { return Math.max(originY - topMargin, originY + contentHeight + bottomMargin - height); }
+            function nearEnd() { return contentY >= endY() - 40; }
+            function follow() { holdY = NaN; settleNow(); settle.restart(); }
+            function keepAt(y) { holdY = y; contentY = y; settle.restart(); }
+            function settleNow() {
+                if (isNaN(holdY)) { positionViewAtEnd(); contentY = endY(); }   // the bubbles are made, then the exact end with the margin
+                else contentY = holdY;
+            }
+            Timer { id: settle; interval: 400; onTriggered: list.settleNow() }
+            onContentHeightChanged: if (settle.running) settleNow()
+            onContentYChanged: if (settle.running && !isNaN(holdY) && contentY !== holdY) Qt.callLater(settleNow)
             FastWheel { flick: list }
             header: Note {
                 visible: !cw.messages.length
