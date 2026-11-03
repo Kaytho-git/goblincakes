@@ -973,6 +973,35 @@ musik paus
 DESK_GUIDE = """
 Säg kort vad du gjorde ("Pausade Spotify."). Gick det inte: säg varför, gissa inte."""
 
+# /kalender <fråga> (3 Nov, the user: a small model on the wife's laptop for everyday things): only the calendar and the
+# reminders out of skrivbord – a short menu a 4B model gets right, instead of the whole desktop
+CAL_WORDS = ("kalender", "påminn", "påminnelser")
+CAL_LINES = "\n".join(line for line in DESK_LINES.splitlines() if line.split(" ", 1)[0] in CAL_WORDS)
+
+CAL_PROMPT = """
+
+Kalendern och påminnelser: ber användaren dig lägga in något i kalendern, visa kalendern eller påminna om något –
+gör det direkt med BARA ett kodblock märkt ```kalender med en av raderna nedan (det loggas och kan ångras):
+""" + CAL_LINES + """
+T.ex.
+```kalender
+kalender lägg torsdag 14:00 ; Tandläkaren ; 1 dag
+```"""
+
+CAL_GUIDE = """
+Säg kort vad du gjorde ("Lade in Tandläkaren torsdag 14:00, påminnelse 1 dag innan."). Gick det inte: säg varför."""
+
+
+def cal_run(query):
+    """The /kalender tool: a line without its word (`lägg torsdag 14 ; …`) is a calendar line."""
+    line = " ".join(query.split())
+    word = line.split(" ", 1)[0].lower() if line else ""
+    if word in ("lägg", "lagg", "visa"):
+        line = "kalender " + line
+    elif word not in CAL_WORDS + ("kalendern", "paminn", "påminnelse", "paminnelser"):
+        return ("Det verktyget gör bara kalendern och påminnelser (" + ", ".join(CAL_WORDS) + ")."), []
+    return desktop().act(line), []
+
 BYT_PROMPT = """
 Ändra en fil som redan finns (byta, lägga till eller ta bort rader) med ett ```byt-block – inte med sed:
 ```byt
@@ -1555,6 +1584,11 @@ def tools_for(keys, project, messages):
                               "säga till när något händer (Steam/uppdatering/nedladdning klar, program stängs, sida ändras), "
                               "ta reda på något senare och svara med en notis.",
                               "En av raderna:\n" + DESK_LINES, DESK_FNS)
+    if "kalender" in only_tools(messages):  # /kalender: only the calendar's part of skrivbord (3 Nov)
+        tools["kalender"] = tool("Kalendern", CAL_PROMPT, CAL_GUIDE, cal_run, "kalender",
+                                 "Kalendern (Merkuro) och påminnelser, direkt: visa vad som står i kalendern, lägga in en "
+                                 "händelse med påminnelse, påminna vid en tid, visa eller ta bort väntande påminnelser.",
+                                 "En av raderna:\n" + CAL_LINES, CAL_FNS)
     tools["byt"] = tool("Byter text i en fil", BYT_PROMPT, BYT_GUIDE, byt_run, "byt_text",
                         "", "", [look_fn(
                             "byt_text", "Ändrar en fil som redan finns: byter den gamla texten (några hela rader, exakt "
@@ -1639,6 +1673,7 @@ def tools_for(keys, project, messages):
 # används /wiki så jobbar den bara med wiki"). Shared by the window and the terminal.
 ONLY_COMMANDS = {
     "wiki": (["wiki"], "fråga uppslagsverket – bara Wikipedia"),
+    "kalender": (["kalender"], "bara kalendern och påminnelser"),
     "wcl": (["warcraftlogs", "wowstats"], "bara Warcraft Logs och dina WoW-siffror"),
     "wow": (["wowfel", "wowapi", "wowstats", "warcraftlogs", "leta"], "bara WoW: felen, API:t, siffrorna, loggarna, filerna"),
     "cs2": (["cs2"], "bara dina CS2-siffror"),
@@ -1699,7 +1734,7 @@ TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel
               "goblincakes": "goblincakes", "karta": "goblincakes", "kartan": "goblincakes",
               "sida": "sida", "webbsida": "sida", "page": "sida", "las_sida": "sida",
               "skrivbord": "skrivbord", "desktop": "skrivbord", "musik": "skrivbord", "volym": "skrivbord",
-              "påminn": "skrivbord", "bevaka": "skrivbord",
+              "påminn": "skrivbord", "bevaka": "skrivbord", "kalender": "kalender",
               "lagg": "lagg", "laggmätning": "lagg", "lagmätning": "lagg",
               "byggstatus": "byggstatus", "bygget": "byggstatus",
               "byt": "byt", "byt_text": "byt", "bytatext": "byt"}
@@ -2071,6 +2106,7 @@ WRITE_SOMETHING = re.compile(r"^\W*(?:skriv|gör|hitta på|formulera|författa|d
                              r"dikt\w*|text\w*|inlägg\w*|hälsning\w*|tal|låt|vers\w*|skämt\w*|rim|limerick\w*)\b", re.I)
 
 
+CAL_FNS = [f for f in DESK_FNS if f["fn"] in ("kalender_visa", "kalender_lagg", "paminn", "paminnelser")]
 DESK_ASK = re.compile(r"\b(?:pausa|volym\w*|ljudet|musiken|nästa låt|förra låt\w*|vad spelas|vilken låt (?:är det|spelas)"
                       r"|spela|öppna|starta|urklipp\w*|notis\w*|fönstr\w*|fönster|flytta|maximera|minimera|fullskärm\w*|helskärm\w*"
                       r"|goblin (?:update|nyheter|screen|tile|play|frames|färg|help|fast)|kalender\w*|påminn\w*|bevaka\w*|säg till (?:när|om|kl)|väck mig)\b", re.I)
@@ -2185,7 +2221,7 @@ def local_sources():
             else:
                 name = sys_tools().describe(query)
                 name = name[:1].lower() + name[1:]
-        elif tool == "skrivbord" and re.match(r"(?:kalender visa|musik vad|urklipp vad|volym\s*$|fönster lista|spel lista|goblin |påminnelser\s*$)",
+        elif tool in ("skrivbord", "kalender") and re.match(r"(?:kalender visa|musik vad|urklipp vad|volym\s*$|fönster lista|spel lista|goblin |påminnelser\s*$)",
                                               query.strip()):
             name = {"kalender": "kalendern", "musik": "spelaren (MPRIS)", "urklipp": "urklippet", "volym": "volymen",
                     "fönster": "öppna fönster", "spel": "spelen", "påminnelser": "påminnelserna", "goblin": "`goblin " + query.split(" ", 1)[-1] + "`"
@@ -2281,7 +2317,7 @@ RECEIPT_READ = {"sök": "sökte på nätet", "sida": "läste sidan", "sport": "h
                 "leta": "letade i datorn", "wowstats": "läste WoW-siffrorna", "cs2": "läste CS2-siffrorna",
                 "wowapi": "slog upp i WoW:s API", "wowfel": "läste WoW-felen",
                 "warcraftlogs": "hämtade från Warcraft Logs"}
-RECEIPT_DID = {"skrivbord": "skrivbordet"}  # does something itself – its answer says how it went
+RECEIPT_DID = {"skrivbord": "skrivbordet", "kalender": "kalendern"}  # does something itself – its answer says how it went
 RECEIPT_NONE = {"byt"}  # only makes a card – the card is counted
 # "Fixat", "nu fungerar det", "jag har ändrat …" – says something is done (FIXED) or just "klart" (DONE)
 FIXED_SAY = re.compile(r"\b(?:fixat|fixade|löst|löste|lagat|lagade|rättat|rättade|åtgärdat|åtgärdade"
@@ -2730,14 +2766,15 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "```bash-block) – sedan vad som är fel och hur det rättas. "
                              f"Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
-        if (not request_ and not acted and "skrivbord" in tools and len(answer) < 500 and DONE_CLAIM.search(answer)
-                and not any(t == "skrivbord" for t, _ in LAST.tools)):
+        desk = "skrivbord" if "skrivbord" in tools else "kalender" if "kalender" in tools else ""
+        if (not request_ and not acted and desk and len(answer) < 500 and DONE_CLAIM.search(answer)
+                and not any(t == desk for t, _ in LAST.tools)):
             # "75" after "sänk till 50": gemma4 answered "Jag har ändrat volymen i Spotify till 75 %" without the tool
             # (28 Oct) – the chat only holds her earlier answers, so she copied them. Once more: do it for real.
             acted = True
             messages.append({"role": "assistant", "content": answer})
             messages.append({"role": "user", "content":
-                             "[Goblin AI] Inget har gjorts – du använde inte verktyget skrivbord, så det du skrev är "
+                             f"[Goblin AI] Inget har gjorts – du använde inte verktyget {desk}, så det du skrev är "
                              "inte sant. Gör det nu med verktyget. Ett kort svar (\"75\", \"lite till\", \"nästa\") "
                              "fortsätter det ni just gjorde: samma sak och samma program som förra gången. "
                              f"Frågan var: \"{question}\"" + NUDGE_NOTE})
@@ -4105,6 +4142,7 @@ CATEGORY_WORDS = [  # (category, words in the question/lesson) – the guess whe
 ]
 CATEGORY_TOOLS = {"warcraftlogs": "spel", "wowfel": "spel", "wowapi": "spel", "wowstats": "spel", "cs2": "spel", "lagg": "spel",
                   "goblincakes": "goblincakes", "systemfel": "datorn", "leta": "datorn", "skrivbord": "skrivbordet",
+                  "kalender": "skrivbordet",
                   "sök": "natet", "sport": "natet", "wiki": "natet", "byggstatus": "goblincakes"}
 
 
@@ -4157,7 +4195,7 @@ def rewrite_message(kind, answer, last=True):
 
 TOOL_NAMES = {"sök": "sökte på nätet", "wiki": "slog upp på Wikipedia", "wowfel": "läste WoW-felen", "wowapi": "slog upp i WoW:s API", "warcraftlogs": "hämtade pullen från Warcraft Logs",
               "sport": "hämtade lagets ställning", "systemfel": "läste datorns fel", "leta": "letade i datorn",
-              "skrivbord": "styrde skrivbordet"}
+              "skrivbord": "styrde skrivbordet", "kalender": "skötte kalendern"}
 
 
 def load_lessons():
