@@ -4,6 +4,7 @@
     goblin-share                    the window
     goblin-share --send <fil>…      the window with the files ready: click who gets them (Dolphin's
                                     "Skicka med GoblinShare", goblin share skicka <fil>)
+    goblin-share --chat <id>        only the chat with a device (the notification's "Öppna chatten")
 
 The sending and receiving is done by the user service (/usr/libexec/goblincakes-share run, the LocalSend
 protocol in /usr/share/goblincakes/share/share.py); the window asks it over its Unix socket.
@@ -47,6 +48,7 @@ class Backend(QObject):
     statusChanged = Signal()
     stagedChanged = Signal()
     message = Signal(str)
+    chatRequested = Signal(str)     # open the chat window for a device (fingerprint)
 
     def __init__(self, staged):
         super().__init__()
@@ -167,6 +169,17 @@ class Backend(QObject):
                 self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
             self.poll()
 
+    @Slot(str, bool, result=str)
+    def chat(self, fp, looking):
+        """The messages with a device (JSON list); looking = its chat window is on the screen (read)."""
+        res = S.call("chat", fingerprint=fp, looking=looking, timeout=1)
+        return json.dumps((res or {}).get("messages") or [], ensure_ascii=False)
+
+    @Slot(str)
+    def chatClear(self, fp):
+        S.call("chat_clear", fingerprint=fp)
+        self.poll()
+
     @Slot(str, str)
     def sendOrder(self, fp, text):
         """An order to Kakan on another GOBLINCAKES computer (3 Nov)."""
@@ -284,13 +297,14 @@ def main():
         if font:
             QFontDatabase.addApplicationFont(font)
     staged = staged_from(sys.argv)
+    chat = sys.argv[sys.argv.index("--chat") + 1] if "--chat" in sys.argv[:-1] else ""
 
     # One window at a time: a second start brings the first one forward (with its files)
     name = os.environ.get("GOBLINCAKES_SHARE_INSTANCE", f"goblin-share-{os.getuid()}")
     sock = QLocalSocket()
     sock.connectToServer(name)
     if sock.waitForConnected(300):
-        sock.write(json.dumps({"send": staged}).encode() + b"\n")
+        sock.write(json.dumps({"send": staged, "chat": chat}).encode() + b"\n")
         sock.waitForBytesWritten(500)
         return 0
     QLocalServer.removeServer(name)
@@ -300,6 +314,7 @@ def main():
     backend = Backend(staged)
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("backend", backend)
+    engine.rootContext().setContextProperty("chatOnly", bool(chat))   # the main window stays hidden
     engine.rootContext().setContextProperty("iconUrl", QUrl.fromLocalFile(
         str(icon) if icon.exists() else "/usr/share/icons/hicolor/scalable/apps/goblincakes-share.svg"))
     use_accent(engine)
@@ -307,6 +322,8 @@ def main():
     if not engine.rootObjects():
         return 1
     win = engine.rootObjects()[0]
+    if chat:
+        QTimer.singleShot(0, lambda: backend.chatRequested.emit(chat))
 
     def incoming():
         conn = server.nextPendingConnection()
@@ -315,12 +332,16 @@ def main():
 
         def read():
             try:
-                files = json.loads(bytes(conn.readAll()).decode() or "{}").get("send") or []
+                req = json.loads(bytes(conn.readAll()).decode() or "{}")
             except ValueError:
-                files = []
+                req = {}
+            files, fp = req.get("send") or [], req.get("chat") or ""
             if files:
                 backend.stage(files)
             conn.close()
+            if fp:
+                backend.chatRequested.emit(fp)
+                return
             win.show()
             win.raise_()
             win.requestActivate()

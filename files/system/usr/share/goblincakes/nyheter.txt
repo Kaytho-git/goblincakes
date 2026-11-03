@@ -1,3 +1,4 @@
+2026-11-03  GoblinShare: Text öppnar ett eget chattfönster med hela samtalet med den datorn (Enter skickar, klick på ett meddelande kopierar det, länkar går att klicka på). En siffra på Text visar nya meddelanden, och notisen öppnar chatten. Meddelandena ligger inte längre i Historik.
 2026-11-03  Wifi går alltid på full kraft (inget strömsparläge) – färre korta avbrott och mindre lagg, särskilt på laptops.
 2026-11-03  GoblinShare stängdes när man tryckte på Filer eller Mapp för att skicka – nu går det.
 2026-11-03  Config → Inställningar → System: Automatisk inloggning (rakt till skrivbordet vid start) och Inget lösenord efter viloläge (öppna laptopens lock och fortsätt direkt).

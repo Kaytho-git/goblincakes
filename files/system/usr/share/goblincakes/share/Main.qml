@@ -11,7 +11,7 @@ Window {
     height: 720
     minimumWidth: 800
     minimumHeight: 560
-    visible: true
+    visible: !chatOnly   // goblin-share --chat: only the chat window
     title: "GoblinShare"
     color: "#07090D"
 
@@ -20,8 +20,19 @@ Window {
     readonly property var peers: st.peers || []
     readonly property var requests: st.requests || []
     readonly property var transfers: st.transfers || []
-    readonly property var history: st.history || []
+    readonly property var history: (st.history || []).filter(h => h.kind !== "text")   // messages: the chats
     readonly property var orders: st.orders || []   // orders to Kakan here (3 Nov)
+    readonly property var chats: st.chats || {}     // per device: unread messages (the Text button)
+    property var chatWindows: ({})
+    function openChat(fp, alias) {
+        let w = chatWindows[fp];
+        if (!w) {
+            w = chatComp.createObject(null, { fingerprint: fp, fallbackAlias: alias || "" });
+            chatWindows[fp] = w;   // kept and hidden when closed, never destroyed mid-click
+        }
+        w.show();
+    }
+    Component { id: chatComp; ChatWindow {} }
     property string tab: "devices" // devices | history | settings
     property string note: ""
     property var textTo: null       // the device a message is being written to
@@ -59,7 +70,8 @@ Window {
     }
     Connections {
         target: backend
-        function onMessage(text) { win.note = text; noteTimer.restart(); }
+        function onMessage(text) { if (win.active) { win.note = text; noteTimer.restart(); } }
+        function onChatRequested(fp) { win.openChat(fp, ""); }
     }
     Timer { id: noteTimer; interval: 6000; onTriggered: win.note = "" }
 
@@ -306,6 +318,255 @@ Window {
             height: parent.height
             color: parent.tone
             Behavior on width { NumberAnimation { duration: 250 } }
+        }
+    }
+
+    // The chat with one device (Text on its card, the notification's "Öppna chatten" – 3 Nov):
+    // its own small window, messages from the service's chats.json (backend.chat), polled while open.
+    component ChatWindow: Window {
+        id: cw
+        property string fingerprint
+        property string fallbackAlias
+        readonly property var st: JSON.parse(backend.status)
+        readonly property var peer: (st.peers || []).find(p => p.fingerprint === fingerprint) || null
+        readonly property string alias: peer ? peer.alias : (((st.chats || {})[fingerprint] || {}).alias || fallbackAlias || "Okänd")
+        readonly property bool phone: !!peer && !peer.goblincakes
+        readonly property color tone: peer && peer.goblincakes ? (peer.accent || accent.color) : "#8B98AD"
+        property var messages: []
+        property string raw: ""
+        property string note: ""
+        width: 460
+        height: 640
+        minimumWidth: 360
+        minimumHeight: 420
+        title: alias + " – GoblinShare"
+        color: "#07090D"
+
+        function refresh() {
+            const text = backend.chat(fingerprint, cw.visible && cw.active);
+            if (text === raw) return;
+            const atEnd = list.atYEnd || !messages.length;
+            const grew = JSON.parse(text);
+            const mine = grew.length > messages.length && grew[grew.length - 1].dir === "out";
+            raw = text;
+            messages = grew;
+            if (atEnd || mine) Qt.callLater(() => list.positionViewAtEnd());
+        }
+        function show() {
+            visible = true;
+            raise();
+            requestActivate();
+            refresh();
+            Qt.callLater(() => list.positionViewAtEnd());
+            input.forceActiveFocus();
+        }
+        function send() {
+            const t = input.text;
+            if (!t.trim()) return;
+            backend.sendText(fingerprint, t);
+            input.text = "";
+            refresh();
+        }
+        function when(t) {
+            const d = new Date(t * 1000), now = new Date();
+            const hm = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+            if (d.toDateString() === now.toDateString()) return hm;
+            const y = new Date(now.getTime() - 86400000);
+            if (d.toDateString() === y.toDateString()) return "i går " + hm;
+            return d.getDate() + "/" + (d.getMonth() + 1) + " " + hm;
+        }
+        // Plain text with clickable links (StyledText: only <a> and <br> from us)
+        function linked(t, on) {
+            const esc = t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return esc.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g, '<a href="$1">$1</a>').replace(/\n/g, "<br>");
+        }
+
+        Timer { interval: 700; repeat: true; running: cw.visible; onTriggered: cw.refresh() }
+        onActiveChanged: if (active) refresh()
+        Timer { id: cwNoteTimer; interval: 3000; onTriggered: cw.note = "" }
+        Connections {
+            target: backend
+            function onMessage(text) { if (cw.active) { cw.note = text; cwNoteTimer.restart(); } }
+        }
+        Shortcut { sequence: "Esc"; onActivated: cw.close() }
+
+        Rectangle { // the device's colour
+            id: strip
+            anchors { left: parent.left; right: parent.right; top: parent.top }
+            height: 4
+            color: cw.tone
+        }
+        Item {
+            id: cwHead
+            anchors { left: parent.left; right: parent.right; top: strip.bottom }
+            height: 76
+            Row {
+                anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                spacing: 12
+                DeviceGlyph { anchors.verticalCenter: parent.verticalCenter; kind: cw.peer ? cw.peer.type : "desktop"; tone: cw.tone }
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 3
+                    Text {
+                        width: cw.width - 20 - 34 - 12 - 150
+                        text: cw.alias
+                        color: "#E6ECF5"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 18
+                        elide: Text.ElideRight
+                    }
+                    Text {
+                        text: !cw.peer ? "Syns inte i nätverket just nu" : cw.phone ? "Telefon – kan bara ta emot" : "GOBLINCAKES"
+                        color: !cw.peer ? "#5C6880" : cw.phone ? "#8B98AD" : cw.tone
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
+                }
+            }
+            FlatButton {
+                anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                small: true
+                danger: true
+                visible: cw.messages.length > 0
+                text: "Rensa chatten"
+                onClicked: Qt.callLater(() => { backend.chatClear(cw.fingerprint); cw.refresh(); })
+            }
+            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: "#1A2438" }
+        }
+
+        ListView {
+            id: list
+            anchors { left: parent.left; right: parent.right; top: cwHead.bottom; bottom: writeBox.top; bottomMargin: 12 }
+            topMargin: 16
+            bottomMargin: 4
+            leftMargin: 16
+            rightMargin: 20
+            spacing: 10
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            model: cw.messages
+            FastWheel { flick: list }
+            header: Note {
+                visible: !cw.messages.length
+                width: list.width - 36
+                height: visible ? implicitHeight + 16 : 0
+                horizontalAlignment: Text.AlignHCenter
+                text: "Inga meddelanden än. Skriv nedan – Enter skickar, Shift+Enter ger ny rad."
+            }
+            delegate: Item {
+                id: m
+                required property var modelData
+                readonly property bool out: modelData.dir === "out"
+                readonly property bool failed: out && modelData.state !== "klart" && modelData.state !== "skickar"
+                width: list.width - list.leftMargin - list.rightMargin
+                height: bubble.height + stamp.height + 4
+                Rectangle {
+                    id: bubble
+                    anchors { right: m.out ? parent.right : undefined; left: m.out ? undefined : parent.left }
+                    width: Math.min(m.width * 0.8, body.implicitWidth + 28)
+                    height: body.height + 20
+                    color: m.out ? (m.failed ? "#3A1418" : accent.color) : "#0E1420"
+                    border.width: m.out && !m.failed ? 0 : 1
+                    border.color: m.failed ? accent.error : bubbleArea.containsMouse ? "#2A3852" : "#1E2A40"
+                    opacity: m.modelData.state === "skickar" ? 0.7 : 1
+                    MouseArea { // click = copy (links are clicked in the text above)
+                        id: bubbleArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: backend.copyText(m.modelData.text)
+                    }
+                    Text {
+                        id: body
+                        x: 14
+                        y: 10
+                        width: Math.min(m.width * 0.8 - 28, implicitWidth)
+                        text: cw.linked(m.modelData.text)
+                        textFormat: Text.StyledText
+                        wrapMode: Text.Wrap
+                        color: m.out && !m.failed ? accent.on : "#E6ECF5"
+                        linkColor: m.out && !m.failed ? accent.on : accent.text
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                        lineHeight: 1.1
+                        onLinkActivated: link => Qt.openUrlExternally(link)
+                        HoverHandler { enabled: body.hoveredLink !== ""; cursorShape: Qt.PointingHandCursor }
+                    }
+                }
+                Text {
+                    id: stamp
+                    anchors { top: bubble.bottom; topMargin: 4; right: m.out ? parent.right : undefined; left: m.out ? undefined : parent.left }
+                    text: cw.when(m.modelData.t) + (!m.out ? "" : m.modelData.state === "skickar" ? " · skickar …"
+                          : m.failed ? " · ✗ " + (m.modelData.why || "skickades inte") : " · ✓")
+                    color: m.failed ? accent.errorBright : "#5C6880"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 11
+                }
+            }
+        }
+        FlatScrollBar { flick: list }
+
+        Rectangle {
+            id: writeBox
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 16 }
+            height: Math.min(140, Math.max(46, input.contentHeight + 24))
+            color: "#0B1018"
+            border.width: 1
+            border.color: input.activeFocus ? accent.color : "#2A3852"
+            Flickable {
+                id: inputFlick
+                anchors { left: parent.left; leftMargin: 14; right: sendBtn.left; rightMargin: 10; top: parent.top; topMargin: 12; bottom: parent.bottom; bottomMargin: 12 }
+                contentHeight: input.contentHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                FastWheel { flick: inputFlick }
+                TextEdit {
+                    id: input
+                    width: inputFlick.width
+                    color: "#E6ECF5"
+                    selectionColor: accent.color
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 14
+                    wrapMode: TextEdit.Wrap
+                    selectByMouse: true
+                    onCursorRectangleChanged: if (cursorRectangle.y + cursorRectangle.height > inputFlick.contentY + inputFlick.height)
+                                                  inputFlick.contentY = cursorRectangle.y + cursorRectangle.height - inputFlick.height
+                    Keys.onReturnPressed: e => {
+                        if (e.modifiers & Qt.ShiftModifier) e.accepted = false;
+                        else cw.send();
+                    }
+                    Keys.onEnterPressed: e => cw.send()
+                }
+                Text {
+                    visible: !input.text && !input.activeFocus
+                    text: cw.phone ? "Skriv till telefonen …" : "Skriv ett meddelande …"
+                    color: "#5C6880"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 14
+                }
+            }
+            FlatButton {
+                id: sendBtn
+                anchors { right: parent.right; rightMargin: 8; bottom: parent.bottom; bottomMargin: 8 }
+                small: true
+                primary: true
+                text: "Skicka"
+                enabledState: input.text.trim().length > 0
+                onClicked: cw.send()
+            }
+        }
+
+        Rectangle { // a short note (copied, errors)
+            visible: cw.note !== ""
+            anchors { horizontalCenter: parent.horizontalCenter; bottom: writeBox.top; bottomMargin: 14 }
+            width: cwNote.implicitWidth + 32
+            height: 34
+            color: "#12203A"
+            border.width: 1
+            border.color: accent.color
+            z: 3
+            Text { id: cwNote; anchors.centerIn: parent; text: cw.note; color: "#E6ECF5"; font.family: "IBM Plex Sans"; font.pixelSize: 13 }
         }
     }
 
@@ -828,7 +1089,29 @@ Window {
                                 spacing: 8
                                 FlatButton { small: true; text: "Filer"; onClicked: backend.sendFiles(card.modelData.fingerprint) }
                                 FlatButton { small: true; text: "Mapp"; onClicked: backend.sendFolder(card.modelData.fingerprint) }
-                                FlatButton { small: true; text: "Text"; onClicked: { win.ordering = false; win.textTo = card.modelData; textEdit.text = ""; textEdit.forceActiveFocus(); } }
+                                FlatButton {
+                                    id: textBtn
+                                    readonly property int unread: (win.chats[card.modelData.fingerprint] || {}).unread || 0
+                                    small: true
+                                    text: "Text"
+                                    onClicked: { const fp = card.modelData.fingerprint, alias = card.modelData.alias; Qt.callLater(() => win.openChat(fp, alias)); }
+                                    Rectangle { // new messages
+                                        visible: textBtn.unread > 0
+                                        anchors { right: parent.right; rightMargin: -7; top: parent.top; topMargin: -7 }
+                                        width: Math.max(18, unreadText.implicitWidth + 8)
+                                        height: 18
+                                        color: accent.color
+                                        Text {
+                                            id: unreadText
+                                            anchors.centerIn: parent
+                                            text: textBtn.unread > 99 ? "99+" : textBtn.unread
+                                            color: accent.on
+                                            font.family: "IBM Plex Sans"
+                                            font.weight: Font.Bold
+                                            font.pixelSize: 11
+                                        }
+                                    }
+                                }
                                 FlatButton { // an order to the other computer's Kakan (only GOBLINCAKES)
                                     small: true
                                     visible: card.modelData.goblincakes

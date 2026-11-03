@@ -62,6 +62,7 @@ CONFIG = CONFIG_DIR / "share.json"
 FLAG = CONFIG_DIR / "share-on"   # the user service only runs with it (Config → GoblinShare, the window)
 DATA = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share") / "goblincakes/share"
 HISTORY = DATA / "history.json"
+CHATS = DATA / "chats.json"     # the messages per device (Text → the chat window, 3 Nov)
 ORDERS = DATA / "orders.json"
 ORDER_TYPE = "application/x-goblincakes-order"
 ORDER_RUNNER = Path(__file__).resolve().parent.parent / "ai/order.py"
@@ -81,6 +82,8 @@ ASK_SECONDS = 180       # a request nobody answers is declined
 STALE = 15 * 60         # a device not heard from in 15 min leaves the list
 ANNOUNCE_EVERY = 5 * 60
 HISTORY_KEEP = 60
+CHAT_KEEP = 300         # messages kept per device
+CHAT_LOOKING = 3        # s: the window says it shows a chat – no notification, read at once
 CHUNK = 256 * 1024
 SKIP_IFACES = ("lo", "podman", "docker", "virbr", "veth", "br-", "cni", "tun", "tap", "wg", "tailscale")
 
@@ -380,6 +383,8 @@ class Share:
         self.incoming = {}      # session id → a request/receiving
         self.outgoing = {}      # job id → a sending
         self.history = self._load_history()
+        self.chats = self._load_chats()
+        self.looking = {}       # fingerprint → when the window last showed its chat
         self.orders = self._load_orders()
         self.error = ""
         self.started = time.time()
@@ -420,6 +425,71 @@ class Share:
                 tmp.replace(HISTORY)
             except OSError:
                 pass
+
+    # ---------------------------------------------------------- chats (the messages, per device)
+    def _load_chats(self):
+        """{fingerprint: {"alias", "read", "messages": [{id, dir, text, t, state, why}] oldest first}}.
+        Messages in the history from before the chats (3 Nov) move here once."""
+        try:
+            chats = json.loads(CHATS.read_text())
+        except (OSError, ValueError):
+            chats = None
+        if chats is not None:
+            return chats
+        chats = {}
+        for h in reversed(self.history):
+            if h.get("kind") == "text" and h.get("fingerprint"):
+                c = chats.setdefault(h["fingerprint"], {"alias": h.get("alias", ""), "read": 0, "messages": []})
+                c["messages"].append({"id": uuid.uuid4().hex[:12], "dir": h.get("dir", "in"), "text": h.get("text", ""),
+                                      "t": h.get("t", 0), "state": h.get("state", "klart"), "why": h.get("why", "")})
+                c["read"] = max(c["read"], h.get("t", 0))   # the old ones count as read
+        self.history = [h for h in self.history if h.get("kind") != "text"]
+        self._save_chats(chats)
+        try:
+            HISTORY.write_text(json.dumps(self.history, ensure_ascii=False))
+        except OSError:
+            pass
+        return chats
+
+    def _save_chats(self, chats=None):
+        try:
+            DATA.mkdir(parents=True, exist_ok=True)
+            tmp = CHATS.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self.chats if chats is None else chats, ensure_ascii=False))
+            tmp.replace(CHATS)
+        except OSError:
+            pass
+
+    def chat_add(self, fp, alias, direction, text, state="klart", why="", mid=None):
+        """A message into the chat with a device → its id."""
+        with self.lock:
+            c = self.chats.setdefault(fp, {"alias": alias, "read": 0, "messages": []})
+            c["alias"] = alias or c.get("alias", "")
+            m = {"id": mid or uuid.uuid4().hex[:12], "dir": direction, "text": text[:20000], "t": time.time(),
+                 "state": state, "why": why}
+            c["messages"].append(m)
+            del c["messages"][:-CHAT_KEEP]
+            if direction == "in" and time.time() - self.looking.get(fp, 0) < CHAT_LOOKING:
+                c["read"] = m["t"]
+            self._save_chats()
+            return m["id"]
+
+    def chat_state(self, fp, mid, state, why=""):
+        with self.lock:
+            for m in reversed(self.chats.get(fp, {}).get("messages", [])):
+                if m["id"] == mid:
+                    m["state"], m["why"] = state, why
+                    self._save_chats()
+                    return
+
+    def chat_summary(self):
+        """Per device: name, unread messages, the last one – for the cards' Text button."""
+        out = {}
+        for fp, c in self.chats.items():
+            msgs = c.get("messages", [])
+            out[fp] = {"alias": c.get("alias", ""), "last": msgs[-1]["t"] if msgs else 0,
+                       "unread": sum(1 for m in msgs if m["dir"] == "in" and m["t"] > c.get("read", 0))}
+        return out
 
     # ---------------------------------------------------------- orders (to Kakan on this computer)
     @staticmethod
@@ -750,9 +820,18 @@ class Share:
         # A message: one text file with the text as its preview
         if len(items) == 1 and items[0]["type"] in ("text/plain", "text") and isinstance(items[0]["preview"], str):
             text = items[0]["preview"]
-            self.remember({"dir": "in", "kind": "text", "alias": sender["alias"], "fingerprint": sender["fingerprint"],
-                           "text": text[:20000], "state": "klart"})
-            notify(f"Meddelande från {sender['alias']}", text[:400])
+            fp = sender["fingerprint"]
+            self.chat_add(fp, sender["alias"], "in", text)
+            if time.time() - self.looking.get(fp, 0) >= CHAT_LOOKING:   # not when its chat is on the screen
+                def opened(key, fp=fp):
+                    if key:
+                        try:
+                            subprocess.Popen(["goblin-share", "--chat", fp], stdout=subprocess.DEVNULL,
+                                             stderr=subprocess.DEVNULL, start_new_session=True)
+                        except OSError:
+                            pass
+                notify(f"Meddelande från {sender['alias']}", text[:400],
+                       actions=[("default", "Öppna chatten"), ("open", "Öppna chatten")], wait_cb=opened)
             return 204, None
 
         with self.lock:
@@ -923,6 +1002,8 @@ class Share:
         if not files:
             return None, "Inga filer att skicka"
         jid = uuid.uuid4().hex[:12]
+        if text is not None and not order:
+            self.chat_add(peer["fingerprint"], peer["alias"], "out", text, state="skickar", mid=jid)
         job = {"id": jid, "peer": dict(peer), "files": files, "state": "väntar på svar", "sent": 0,
                "total": sum(f["size"] for f in files), "cancel": False, "session": None, "why": "",
                "changed": time.time(), "text": text, "order": order}
@@ -1011,8 +1092,10 @@ class Share:
         with self.lock:
             job["state"], job["why"], job["changed"] = state, why, time.time()
         peer = job["peer"]
-        if job.get("text") is not None:
-            self.remember({"dir": "out", "kind": "order" if job.get("order") else "text", "alias": peer["alias"], "fingerprint": peer["fingerprint"],
+        if job.get("text") is not None and not job.get("order"):
+            self.chat_state(peer["fingerprint"], job["id"], state, why)
+        elif job.get("text") is not None:
+            self.remember({"dir": "out", "kind": "order", "alias": peer["alias"], "fingerprint": peer["fingerprint"],
                            "text": job["text"][:20000], "state": state, "why": why})
         else:
             self.remember({"dir": "out", "kind": "files", "alias": peer["alias"], "fingerprint": peer["fingerprint"],
@@ -1103,6 +1186,7 @@ class Share:
                                  "done": j["sent"], "total": j["total"], "state": j["state"], "why": j["why"]}
                                 for j in self.outgoing.values()],
                 "history": self.history[:40],
+                "chats": self.chat_summary(),
                 "chatgpt": chatgpt_installed(),
                 "orders": [{k: o.get(k) for k in ("id", "alias", "fingerprint", "text", "t", "state", "why", "via")}
                            for o in self.orders if o.get("state") != "skickad"],
@@ -1148,6 +1232,23 @@ class Share:
             return {"ok": True}
         if op == "set":
             return {"ok": self.set(str(req.get("key", "")), req.get("value"))}
+        if op == "chat":
+            # The chat window: its messages, and (looking=True) it is on the screen = all read
+            fp = str(req.get("fingerprint", ""))
+            with self.lock:
+                c = self.chats.get(fp) or {"alias": "", "read": 0, "messages": []}
+                if req.get("looking"):
+                    self.looking[fp] = time.time()
+                    last_in = max((m["t"] for m in c["messages"] if m["dir"] == "in"), default=0)
+                    if fp in self.chats and last_in > c.get("read", 0):
+                        c["read"] = last_in
+                        self._save_chats()
+                return {"ok": True, "alias": c.get("alias", ""), "messages": list(c["messages"])}
+        if op == "chat_clear":
+            with self.lock:
+                self.chats.pop(str(req.get("fingerprint", "")), None)
+                self._save_chats()
+            return {"ok": True}
         if op == "forget":
             with self.lock:
                 self.history = [h for h in self.history if h.get("t") != req.get("t")]

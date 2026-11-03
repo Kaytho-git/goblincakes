@@ -289,6 +289,9 @@ Ord: goblinshare, share, dela, skicka fil, ta emot, localsend, airdrop, filer ti
   öppnas 53317 när GoblinShare slås på); ett annat program på porten (LocalSend själv) = felrad i fönstret.
   Telefonen syns bara medan LocalSend-appen är öppen. "Leta igen" frågar också hela /24-nätet direkt.
 - `goblin share lista` (enheterna), `goblin share status`, `goblin share till <namn> <fil>`, `goblin share text <namn> <text>`.
+- Meddelanden: knappen Text på en enhet öppnar ett eget chattfönster (`goblin-share --chat <fingeravtryck>`, även
+  notisens "Öppna chatten"); siffran på Text = olästa. Sparas per enhet i ~/.local/share/goblincakes/share/chats.json
+  (300 per enhet; "read" = senast läst), inte i HISTORIK. Ingen notis medan chatten med just den enheten visas.
 - Beställningar: en annan GOBLINCAKES-dator kan beställa något av Goblin AI här (knappen Beställ, `goblin share beställ
   <namn> <text>`). De ligger i ~/.local/share/goblincakes/share/orders.json och under BESTÄLLNINGAR i fönstret; Starta kör
   /usr/share/goblincakes/ai/order.py run <id> [--via chatgpt] (Goblin AI svarar och ritar ```bild, eller
