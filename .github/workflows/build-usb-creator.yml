@@ -57,7 +57,7 @@ jobs:
             libxcb-render-util0 libxcb-image0
 
       - name: Verktyg
-        run: python -m pip install --upgrade pyside6-essentials pyinstaller
+        run: python -m pip install --upgrade pyside6-essentials pyinstaller certifi
 
       - name: Typsnitt och ikon
         run: |

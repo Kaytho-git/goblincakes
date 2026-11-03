@@ -40,6 +40,31 @@ NO_WINDOW = 0x08000000 if WINDOWS else 0  # CREATE_NO_WINDOW: no black console f
 FAKE = os.environ.get("GOBLINCAKES_USB_FAKE")  # tests: JSON file with drives/gpu instead of the real ones
 
 
+def https_certificates():
+    """The bundled Python (built on Ubuntu) looks for the CA certificates where Ubuntu keeps
+    them; Fedora, openSUSE and others keep them elsewhere, and every download then failed with
+    CERTIFICATE_VERIFY_FAILED (3 Nov). On Linux: the system's own bundle, else certifi's."""
+    if WINDOWS or os.environ.get("SSL_CERT_FILE"):
+        return
+    import ssl
+    cafile = next((p for p in ("/etc/pki/tls/certs/ca-bundle.crt",   # Fedora, RHEL
+                               "/etc/ssl/certs/ca-certificates.crt",  # Debian, Ubuntu, Arch
+                               "/etc/ssl/ca-bundle.pem",              # openSUSE
+                               "/etc/ssl/cert.pem")                   # Alpine, others
+                   if os.path.isfile(p)), None)
+    if cafile is None:
+        try:
+            import certifi
+            cafile = certifi.where()
+        except ImportError:
+            return
+    context = ssl.create_default_context(cafile=cafile)
+    urllib.request.install_opener(urllib.request.build_opener(urllib.request.HTTPSHandler(context=context)))
+
+
+https_certificates()
+
+
 def run(cmd, timeout=60):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, creationflags=NO_WINDOW)
 
