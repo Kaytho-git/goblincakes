@@ -193,14 +193,20 @@ update_firmware() {
     command -v fwupdmgr >/dev/null || return 0
     heading "Firmware"
     fwupdmgr refresh --force >/dev/null 2>&1 || true
-    fwupdmgr update --assume-yes --no-reboot-check
-    local code=$?
-    # 2 = nothing to update
+    local log code reason
+    log=$(mktemp)
+    fwupdmgr update --assume-yes --no-reboot-check 2>&1 | tee "$log"
+    code=${PIPESTATUS[0]}
+    # 2 = nothing to update. Anything else (e.g. a UEFI/BIOS update the computer refuses):
+    # a warning with fwupd's own reason, not a failed update – the rest isn't affected (4 Nov)
     case $code in
         0) info "Ny firmware installerad" ;;
         2) info "Ingen ny firmware" ;;
-        *) return 1 ;;
+        *) reason=$(sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -v '^[[:space:]]*$' | tail -n 1 | cut -c1-160)
+           info "Hoppades över – fwupd: ${reason:-okänt fel} (se fwupdmgr get-updates)" ;;
     esac
+    rm -f "$log"
+    return 0
 }
 
 cmd_update() {
