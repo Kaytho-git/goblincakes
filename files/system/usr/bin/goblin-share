@@ -123,27 +123,37 @@ class Backend(QObject):
             self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
         self.poll()
 
+    # The buttons and drops below sit in a device card. The file dialog's own event loop – and
+    # poll() after sending – rebuild the cards (new peers list), and Qt aborts the whole window
+    # when a card goes while its onClicked still runs (3 Nov: sending files crashed GoblinShare).
+    # So the work starts once the click is over.
     @Slot(str)
     def sendFiles(self, fp):
-        files, _ = QFileDialog.getOpenFileNames(None, "Välj filer att skicka", str(Path.home()))
-        self._send(fp, files)
+        def pick():
+            files, _ = QFileDialog.getOpenFileNames(None, "Välj filer att skicka", str(Path.home()))
+            self._send(fp, files)
+        QTimer.singleShot(0, pick)
 
     @Slot(str)
     def sendFolder(self, fp):
-        folder = QFileDialog.getExistingDirectory(None, "Välj en mapp att skicka", str(Path.home()))
-        self._send(fp, [folder] if folder else [])
+        def pick():
+            folder = QFileDialog.getExistingDirectory(None, "Välj en mapp att skicka", str(Path.home()))
+            self._send(fp, [folder] if folder else [])
+        QTimer.singleShot(0, pick)
 
     @Slot(str, "QVariantList")
     def sendUrls(self, fp, urls):
         """Dropped on a device (QML gives file:// URLs)."""
         paths = [QUrl(u).toLocalFile() if isinstance(u, str) else u.toLocalFile() for u in urls]
-        self._send(fp, [p for p in paths if p])
+        QTimer.singleShot(0, lambda: self._send(fp, [p for p in paths if p]))
 
     @Slot(str)
     def sendStaged(self, fp):
         paths, self._staged = self._staged, []
-        self.stagedChanged.emit()
-        self._send(fp, paths)
+        def go():
+            self.stagedChanged.emit()
+            self._send(fp, paths)
+        QTimer.singleShot(0, go)
 
     @Slot()
     def clearStaged(self):
