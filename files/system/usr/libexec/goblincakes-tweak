@@ -3,6 +3,7 @@
 #
 #   goblincakes-tweak status <id>        prints on, off or unavailable
 #   goblincakes-tweak set <id> on|off    changes it (system ones run as root via pkexec)
+#   share-ssh is GoblinShare's "Tillåt terminal" (not in tweaks.json – the GoblinShare window runs it)
 #
 # System settings go in /etc (writable on the atomic system) and survive updates;
 # switching off removes our file again, so the system default is back.
@@ -348,6 +349,51 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
                         DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" \
                         systemctl --user try-restart plasma-powerdevil.service >/dev/null 2>&1 || true
                 done ;;
+        esac ;;
+
+    share-ssh)
+        # GoblinShare → Inställningar → "Tillåt terminal på den här datorn" (4 Nov): sshd on, with keys only
+        # (the keys GoblinShare puts in ~/.ssh/authorized_keys after Tillåt) and no root login. Not in
+        # tweaks.json – the GoblinShare window runs it. Off = sshd and the firewall back as they were (only
+        # what we changed, kept in $mark); GoblinShare then removes its keys.
+        conf=/etc/ssh/sshd_config.d/10-goblincakes-share.conf
+        mark=/etc/goblincakes/share-ssh
+        case $cmd in
+            status) [ -e "$conf" ] && echo on || echo off ;;
+            set)
+                if [ "$value" = on ]; then
+                    command -v sshd >/dev/null || { echo "SSH-servern (openssh-server) finns inte i den här imagen" >&2; exit 1; }
+                    mkdir -p "$(dirname "$conf")" "$(dirname "$mark")"
+                    if [ ! -e "$conf" ]; then
+                        : > "$mark"
+                        systemctl is-enabled --quiet sshd.service 2>/dev/null || echo sshd >> "$mark"
+                        if firewall-cmd --state >/dev/null 2>&1 && ! firewall-cmd --query-service=ssh >/dev/null 2>&1; then
+                            firewall-cmd --quiet --permanent --add-service=ssh && firewall-cmd --quiet --add-service=ssh \
+                                && echo firewall >> "$mark"
+                        fi
+                    fi
+                    # First value wins in sshd_config, and the .d files come before Fedora's own settings
+                    printf '# GOBLINCAKES GoblinShare → Tillåt terminal: bara nycklar, aldrig lösenord eller root\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\nPubkeyAuthentication yes\n' > "$conf"
+                    if ! sshd -t 2>/dev/null; then
+                        rm -f "$conf" "$mark"
+                        echo "SSH-servern godtog inte inställningarna" >&2; exit 1
+                    fi
+                    systemctl enable --now sshd.service >/dev/null 2>&1
+                    systemctl reload-or-restart sshd.service
+                else
+                    [ -e "$conf" ] || exit 0
+                    rm -f "$conf"
+                    if grep -qx sshd "$mark" 2>/dev/null; then
+                        systemctl disable --now sshd.service >/dev/null 2>&1 || true
+                    else
+                        systemctl try-reload-or-restart sshd.service >/dev/null 2>&1 || true
+                    fi
+                    if grep -qx firewall "$mark" 2>/dev/null && firewall-cmd --state >/dev/null 2>&1; then
+                        firewall-cmd --quiet --permanent --remove-service=ssh || true
+                        firewall-cmd --quiet --remove-service=ssh || true
+                    fi
+                    rm -f "$mark"
+                fi ;;
         esac ;;
 
     auto-updates)

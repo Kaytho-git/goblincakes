@@ -103,6 +103,7 @@ Spelar in WoW och Counter-Strike 2 av sig själv med OBS – du behöver inte tr
 Skicka filer, hela mappar och meddelanden mellan GOBLINCAKES-datorerna i hemnätverket – utan konto, utan internet och krypterat. Datorerna syns av sig själva (med sin egen färg). Telefoner (iPhone, Android) med gratisappen [LocalSend](https://localsend.org) kan få filer härifrån, eftersom GoblinShare talar samma protokoll – men bara GOBLINCAKES-datorer kan skicka till dig.
 - **Dra och släpp** filer på en enhet, välj **Filer**, **Mapp** eller **Text** – eller högerklicka på filer i Dolphin → **Skicka med GoblinShare**.
 - **Inget tas emot utan att du säger ja** (notis med Ta emot / Neka), utom från datorer du själv kryssat för.
+- **Terminal på den andra datorn** – knappen Terminal öppnar en terminal där (SSH). Den andra datorn får frågan en gång och svarar Tillåt eller Neka, och bara om *Tillåt terminal* är påslaget där. Bara i hemnätverket, med nyckel, aldrig lösenord. Sedan räcker `ssh <datorns namn>`.
 - Slås på i Config → Program → System eller i fönstret. I terminalen: `goblin share till anna semester.jpg`.
 
 ![GoblinShare med en annan GOBLINCAKES-dator och en iPhone med LocalSend](docs/goblinshare.png)
@@ -141,7 +142,7 @@ Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**), i en 
 | `goblin ai` | **Goblin AI** i terminalen – fråga om datorn eller vad som helst (`/app` eller **Meta+A** = fönstret) |
 | `goblin play` | Dina spel – skriv spelets namn eller förkortning direkt i terminalen (t.ex. `wow`, `cs2`) så startas det via Steam; `goblin play dock cs2` fäster det i dockan |
 | `goblin amp` | **GoblinAmp** – musikspelaren (`goblin amp hjälp` visar hur Spotify-listorna kopplas in) |
-| `goblin share` | **GoblinShare** – skicka filer till de andra datorerna och telefonerna hemma (`goblin share till anna bild.jpg`, `goblin share text anna Middag!`) |
+| `goblin share` | **GoblinShare** – skicka filer till de andra datorerna och telefonerna hemma (`goblin share till anna bild.jpg`, `goblin share text anna Middag!`, `goblin share terminal anna`) |
 | `goblin färg` | Byter GOBLINCAKES färg (`goblin färg mage`) |
 | `goblin graph` | Ljudstaplar i WoW:s klassfärger till musiken (`goblin graph mage`, `goblin graph cirkel`) |
 | `goblin screen` | Vilken skärm ett program öppnas på (`goblin screen add discord screen 2`) |

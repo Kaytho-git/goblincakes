@@ -55,3 +55,16 @@ Så här provar du (rader utan "- " först läses inte av /testa):
 - Tjänstens logg
   kör: journalctl --user -u goblincakes-share -n 30 --no-pager
   väntat: inga Traceback-rader
+- Tillåt terminal på frugans dator
+  fråga: På frugans dator: GoblinShare → Inställningar → slå på "Tillåt terminal på den här datorn". Frågade den efter lösenordet, och stod reglaget på efteråt?
+- SSH-servern där
+  fråga: På frugans dator i en terminal: systemctl is-active sshd. Svarade den active?
+- Koppla ihop
+  fråga: Här: tryck Terminal på frugans ruta i GoblinShare. Kom notisen "… vill kunna öppna en terminal här" med Tillåt/Neka på hennes dator, och öppnades en terminal inloggad på hennes dator när du tryckt Tillåt?
+- ssh med namnet
+  kör: goblin share terminal
+  väntat: en rad "Terminal på <hennes dator>: ssh <namn>"
+- Kommando på den andra datorn
+  fråga: Kör ssh <namnet från förra punkten> hostname i en terminal här. Svarade den med frugans dators namn, utan att fråga efter lösenord?
+- Tillåt terminal av
+  fråga: På frugans dator: slå av "Tillåt terminal". Fungerar ssh <namn> hostname här inte längre (Permission denied eller Connection refused), och är sshd av där (systemctl is-active sshd = inactive)?

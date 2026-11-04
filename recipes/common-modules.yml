@@ -32,6 +32,8 @@ modules:
         - ddcutil               # monitor brightness over DDC/CI
         - pipewire-utils        # pw-record: goblin graph listens to what the speakers play
         - gh                    # GitHub CLI: log in and push to GitHub (Claude Code, own projects)
+        - openssh-server        # GoblinShare → Terminal: sshd (off until "Tillåt terminal"; usually already in Kinoite)
+        - openssh-clients       # ssh and ssh-keygen for the same
         - skopeo                # reads the newest GOBLINCAKES image's Fedora version (goblincakes-fedora-check)
         - gamemode              # performance mode while gaming
         - gamescope             # Valve's game compositor (gamescope -- spel), also the TV mode

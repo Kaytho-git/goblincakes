@@ -23,6 +23,9 @@ both Android and iPhones. Only the standard library (+ the `openssl` command for
                 computers. Kept in orders.json; a notification with Starta/Senare, and Starta runs
                 /usr/share/goblincakes/ai/order.py, which asks Goblin AI and sends the answer and the
                 pictures back. Files from a computer we ordered from (the last 3 days) need no Ta emot.
+    terminal    (4 Nov) POST /api/goblincakes/v1/ssh with our public key → Tillåt / Neka there → `ssh <namn>`
+                opens a terminal on that computer (only GOBLINCAKES, only where "Tillåt terminal" is on).
+                The keys and ~/.ssh files: sshlink.py.
 
 The service (/usr/libexec/goblincakes-share run, user service goblincakes-share) owns everything; the
 window (goblin-share) and `goblin share` talk to it over a Unix socket: one JSON line in, one out.
@@ -48,6 +51,9 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sshlink  # noqa: E402
 
 PORT = int(os.environ.get("GOBLINCAKES_SHARE_PORT", 53317))
 GROUP = "224.0.0.167"
@@ -92,6 +98,8 @@ DEFAULTS = {
     "folder": "",           # where received files go ("" = Hämtade/GoblinShare)
     "trusted": [],          # fingerprints whose files are taken without asking
     "trustedNames": {},     # fingerprint → alias when trusted (the list shows them while away)
+    "sshPaired": {},        # computers we can open a terminal on: fp → {alias, host, ip, user, hostKey}
+    "sshGranted": {},       # computers let in here (Tillåt): fp → alias (the keys: ~/.ssh/authorized_keys)
 }
 
 
@@ -386,6 +394,8 @@ class Share:
         self.chats = self._load_chats()
         self.looking = {}       # fingerprint → when the window last showed its chat
         self.orders = self._load_orders()
+        self.ssh_asks = {}      # id → someone wants to be able to open a terminal here
+        self.ssh_jobs = {}      # fingerprint → our own pairing with another computer
         self.error = ""
         self.started = time.time()
         self.last_sweep = 0
@@ -611,6 +621,13 @@ class Share:
             if fp in self.cfg.get("trusted", []) and self.cfg.get("trustedNames", {}).get(fp) != peer["alias"]:
                 self.cfg.setdefault("trustedNames", {})[fp] = peer["alias"]
                 save_config(self.cfg)
+            paired = self.cfg.get("sshPaired", {}).get(fp)
+            moved = bool(paired) and how != "upload" and paired.get("ip") != ip
+            if moved:   # a new address from the router: `ssh <namn>` follows it
+                paired["ip"] = ip
+                save_config(self.cfg)
+        if moved:
+            self.write_ssh()
         if peer["deviceModel"] == MODEL and (new or not peer.get("accent")):
             threading.Thread(target=self._ask_accent, args=(fp,), daemon=True).start()
         return peer
@@ -762,6 +779,13 @@ class Share:
                 for jid, j in list(self.outgoing.items()):
                     if j["state"] in ("klart", "nekad", "avbruten", "fel") and now - j["changed"] > 30:
                         del self.outgoing[jid]
+                for fp, j in list(self.ssh_jobs.items()):
+                    if j["state"] != "väntar" and now - j["changed"] > 60:
+                        del self.ssh_jobs[fp]
+                for aid, a in list(self.ssh_asks.items()):
+                    if a["answer"] is not None and now - a["changed"] > 30:
+                        del self.ssh_asks[aid]
+            self.check_ssh_allowed()
             if now - self.started > 10 and int(now) % ANNOUNCE_EVERY < 20:
                 self.announce()
             new_accent = accent_color()
@@ -1121,6 +1145,178 @@ class Share:
                 return True
         return self.cancel_incoming(jid, "Du avbröt")
 
+    # ---------------------------------------------------------- terminal (ssh, 4 Nov)
+    def ssh_request(self, ip, body):
+        """Another GOBLINCAKES computer wants to be able to open a terminal here → (status, JSON).
+        Asks (notification + the window) like files do; Tillåt = its key in authorized_keys."""
+        if not isinstance(body, dict) or not isinstance(body.get("info"), dict):
+            return 400, {"message": "Request body malformed"}
+        key = sshlink.valid_key(body.get("key"))
+        if not key:
+            return 400, {"message": "Bad key"}
+        if not sshlink.allowed_here():
+            return 403, {"message": "off"}
+        if not self.is_goblinshare(body["info"], ip):
+            return 403, {"message": "Only GoblinShare devices"}
+        info = body["info"]
+        fp = sshlink.clean_fp(info.get("fingerprint"))
+        alias = str(info.get("alias") or "Okänd")[:60]
+        if not fp or fp == self.fingerprint:
+            return 400, {"message": "Request body malformed"}
+        with self.lock:
+            waiting = [a for a in self.ssh_asks.values() if a["answer"] is None]
+            if len(waiting) >= 3 or any(a["fingerprint"] == fp for a in waiting):
+                return 429, {"message": "Too many requests"}
+            aid = uuid.uuid4().hex
+            ask = {"id": aid, "fingerprint": fp, "alias": alias, "ip": ip, "answer": None,
+                   "event": threading.Event(), "changed": time.time()}
+            self.ssh_asks[aid] = ask
+        close = notify(f"{alias} vill kunna öppna en terminal här",
+                       "Då kan den datorn köra kommandon som du på den här datorn (inte som administratör utan ditt "
+                       "lösenord). Tillåt bara datorer du känner. Kan tas bort i GoblinShare → Inställningar.",
+                       actions=[("allow", "Tillåt"), ("deny", "Neka")],
+                       wait_cb=lambda k: self.ssh_answer(aid, k == "allow") if k else None, urgency="critical")
+        ask["event"].wait(ASK_SECONDS)
+        close()
+        with self.lock:
+            ask["changed"] = time.time()
+            if not ask["answer"]:
+                ask["answer"] = False
+                return 403, {"message": "declined"}
+        if not sshlink.grant(fp, key):
+            return 500, {"message": "Could not save the key"}
+        with self.lock:
+            self.cfg.setdefault("sshGranted", {})[fp] = alias
+            save_config(self.cfg)
+        import pwd
+        return 200, {"user": pwd.getpwuid(os.getuid()).pw_name, "hostKey": sshlink.host_key(), "alias": self.alias()}
+
+    def ssh_answer(self, aid, allow):
+        with self.lock:
+            a = self.ssh_asks.get(aid)
+            if not a or a["answer"] is not None:
+                return False
+            a["answer"] = bool(allow)
+            a["changed"] = time.time()
+        a["event"].set()
+        return True
+
+    def ssh_pair(self, word):
+        """Asks another GOBLINCAKES computer to let us in (Terminal on its card) → "" or an error."""
+        peer = self.peers.get(word) or self.find_peer(word)
+        if not peer:
+            return "Hittar inte datorn – tryck Leta igen"
+        if peer["deviceModel"] != MODEL:
+            return "Terminal går bara till GOBLINCAKES-datorer"
+        fp = peer["fingerprint"]
+        with self.lock:
+            if self.ssh_jobs.get(fp, {}).get("state") == "väntar":
+                return ""
+            self.ssh_jobs[fp] = {"state": "väntar", "why": "", "changed": time.time(), "alias": peer["alias"]}
+        threading.Thread(target=self._ssh_pair_job, args=(dict(peer),), daemon=True).start()
+        return ""
+
+    def _ssh_pair_job(self, peer):
+        fp, alias = peer["fingerprint"], peer["alias"]
+        state, why = "fel", ""
+        try:
+            key = sshlink.own_key(f"GoblinShare {self.alias()}")
+        except (OSError, subprocess.SubprocessError) as e:
+            with self.lock:
+                self.ssh_jobs[fp] = {"state": "fel", "why": f"Ingen SSH-nyckel: {e}", "changed": time.time(),
+                                     "alias": alias}
+            return
+        try:
+            status, data = request(peer, "POST", OWN_API + "/ssh", body={"info": self.info(), "key": key},
+                                   timeout=5, read_timeout=ASK_SECONDS + 60)
+            data = data if isinstance(data, dict) else {}
+            if status == 200 and data.get("user"):
+                with self.lock:
+                    paired = self.cfg.setdefault("sshPaired", {})
+                    taken = {p.get("host") for f, p in paired.items() if f != fp}
+                    host = (paired.get(fp) or {}).get("host") or sshlink.host_name(alias, taken)
+                    paired[fp] = {"alias": alias, "host": host, "ip": peer["ip"], "user": str(data["user"])[:64],
+                                  "hostKey": sshlink.valid_hostkey(data.get("hostKey"))}
+                    save_config(self.cfg)
+                self.write_ssh()
+                state = "klar"
+            elif status == 403 and data.get("message") == "off":
+                why = f"Terminal är inte tillåten på {alias} – slå på \"Tillåt terminal\" i GoblinShare där"
+            elif status == 403:
+                why = f"{alias} tackade nej" if data.get("message") == "declined" else f"{alias} sa nej"
+            elif status == 404:
+                why = f"{alias} har en äldre GOBLINCAKES – uppdatera den först"
+            elif status == 429:
+                why = f"{alias} har redan en fråga om terminalen – svara på den där"
+            else:
+                why = f"{alias} svarade {status}"
+        except (OSError, ssl.SSLError, http.client.HTTPException):
+            why = f"Nådde inte {alias} (eller ingen svarade i tid)"
+        with self.lock:
+            self.ssh_jobs[fp] = {"state": state, "why": why, "changed": time.time(), "alias": alias}
+
+    def write_ssh(self):
+        with self.lock:
+            paired = json.loads(json.dumps(self.cfg.get("sshPaired", {})))
+        try:
+            if paired:
+                sshlink.write_client(paired)
+            else:
+                sshlink.CLIENT_CONF.unlink(missing_ok=True)
+                sshlink.KNOWN.unlink(missing_ok=True)
+                sshlink.remove_include()
+        except OSError as e:
+            print("GoblinShare: ~/.ssh:", e, file=sys.stderr)
+
+    def ssh_forget(self, fp):
+        """We no longer open a terminal there (the other computer still has our key until it removes it)."""
+        with self.lock:
+            gone = self.cfg.get("sshPaired", {}).pop(fp, None)
+            self.ssh_jobs.pop(fp, None)
+            save_config(self.cfg)
+        self.write_ssh()
+        if gone:   # tell it, so its list is right too (it only removes our own key)
+            peer = self.peers.get(fp)
+            if peer:
+                threading.Thread(target=lambda: self._quiet(request, peer, "POST", OWN_API + "/ssh-forget",
+                                                            body={"info": self.info()}, timeout=3),
+                                 daemon=True).start()
+        return bool(gone)
+
+    @staticmethod
+    def _quiet(fn, *args, **kw):
+        try:
+            fn(*args, **kw)
+        except (OSError, ssl.SSLError, http.client.HTTPException):
+            pass
+
+    def ssh_revoke(self, fp):
+        """Lets a computer in here no more."""
+        sshlink.revoke(fp)
+        with self.lock:
+            self.cfg.get("sshGranted", {}).pop(fp, None)
+            save_config(self.cfg)
+        return True
+
+    def ssh_forgotten(self, ip, body):
+        """The other computer pressed Glöm: its key goes – only from the address it is known at."""
+        info = body.get("info") if isinstance(body, dict) else None
+        fp = str((info or {}).get("fingerprint") or "")
+        known = self.peers.get(fp)
+        if fp in self.cfg.get("sshGranted", {}) and known and known["ip"] == ip and self.is_goblinshare(info, ip):
+            self.ssh_revoke(fp)
+        return 204, None
+
+    def check_ssh_allowed(self):
+        """"Tillåt terminal" off (here, in a terminal or by the tweak) → no GoblinShare key stays."""
+        if sshlink.allowed_here():
+            return
+        if self.cfg.get("sshGranted") or sshlink.granted():
+            sshlink.revoke()
+            with self.lock:
+                self.cfg["sshGranted"] = {}
+                save_config(self.cfg)
+
     # ---------------------------------------------------------- settings
     def trust(self, fp, on):
         with self.lock:
@@ -1147,8 +1343,10 @@ class Share:
     # ---------------------------------------------------------- status for the window
     def status(self):
         now = time.time()
+        allowed = sshlink.allowed_here()
         with self.lock:
             trusted = set(self.cfg.get("trusted", []))
+            paired = self.cfg.get("sshPaired", {})
             peers = sorted(self.peers.values(), key=lambda p: (p["deviceModel"] != MODEL, p["alias"].lower()))
             out = {
                 "running": True,
@@ -1165,7 +1363,9 @@ class Share:
                 "peers": [{"fingerprint": p["fingerprint"], "alias": p["alias"], "model": p["deviceModel"],
                            "type": p["deviceType"], "ip": p["ip"], "goblincakes": p["deviceModel"] == MODEL,
                            "accent": p.get("accent") or "", "ago": int(now - p["seen"]),
-                           "trusted": p["fingerprint"] in trusted} for p in peers],
+                           "trusted": p["fingerprint"] in trusted,
+                           "ssh": (paired.get(p["fingerprint"]) or {}).get("host", ""),
+                           "sshState": (self.ssh_jobs.get(p["fingerprint"]) or {}).get("state", "")} for p in peers],
                 "trustedAway": [{"fingerprint": fp, "alias": self.cfg.get("trustedNames", {}).get(fp, "Okänd")}
                                 for fp in trusted if fp not in self.peers],
                 "requests": [{"id": s["id"], "alias": s["sender"]["alias"], "model": s["sender"].get("deviceModel", ""),
@@ -1190,6 +1390,18 @@ class Share:
                 "chatgpt": chatgpt_installed(),
                 "orders": [{k: o.get(k) for k in ("id", "alias", "fingerprint", "text", "t", "state", "why", "via")}
                            for o in self.orders if o.get("state") != "skickad"],
+                "ssh": {
+                    "allowed": allowed,
+                    "granted": [{"fingerprint": fp, "alias": a, "here": fp in self.peers}
+                                for fp, a in self.cfg.get("sshGranted", {}).items()],
+                    "paired": [{"fingerprint": fp, "alias": p.get("alias", ""), "host": p.get("host", ""),
+                                "ip": p.get("ip", ""), "here": fp in self.peers} for fp, p in paired.items()],
+                    "asks": [{"id": a["id"], "alias": a["alias"], "fingerprint": a["fingerprint"],
+                              "left": max(0, int(ASK_SECONDS - (now - a["changed"])))}
+                             for a in self.ssh_asks.values() if a["answer"] is None],
+                    "jobs": [{"fingerprint": fp, "alias": j["alias"], "state": j["state"], "why": j["why"],
+                              "t": j["changed"]} for fp, j in self.ssh_jobs.items()],
+                },
             }
         return out
 
@@ -1232,6 +1444,18 @@ class Share:
             return {"ok": True}
         if op == "set":
             return {"ok": self.set(str(req.get("key", "")), req.get("value"))}
+        if op == "ssh_pair":
+            why = self.ssh_pair(str(req.get("to", "")))
+            return {"ok": not why, "error": why}
+        if op == "ssh_answer":
+            return {"ok": self.ssh_answer(str(req.get("id", "")), bool(req.get("allow")))}
+        if op == "ssh_forget":
+            return {"ok": self.ssh_forget(str(req.get("fingerprint", "")))}
+        if op == "ssh_revoke":
+            return {"ok": self.ssh_revoke(str(req.get("fingerprint", "")))}
+        if op == "ssh_check":   # the window/terminal just switched "Tillåt terminal"
+            self.check_ssh_allowed()
+            return {"ok": True, "allowed": sshlink.allowed_here()}
         if op == "chat":
             # The chat window: its messages, and (looking=True) it is on the screen = all read
             fp = str(req.get("fingerprint", ""))
@@ -1375,6 +1599,12 @@ class Share:
                 if path == API + "/prepare-upload":
                     status, data = share.prepare_upload(ip, body)
                     return self.reply(status, data)
+                if path == OWN_API + "/ssh":
+                    status, data = share.ssh_request(ip, body)
+                    return self.reply(status, data)
+                if path == OWN_API + "/ssh-forget":
+                    status, data = share.ssh_forgotten(ip, body)
+                    return self.reply(status, data)
                 self.reply(404, {"message": "Not found"})
 
         class Server(ThreadingHTTPServer):
@@ -1401,6 +1631,9 @@ class Share:
     # ---------------------------------------------------------- run
     def run(self):
         self.control_server()
+        if self.cfg.get("sshPaired"):
+            self.write_ssh()
+        self.check_ssh_allowed()
         threading.Thread(target=self.housekeeping, daemon=True).start()
         while not self.stop.is_set():
             try:
@@ -1495,3 +1728,7 @@ def turn_on():
 def turn_off():
     FLAG.unlink(missing_ok=True)
     subprocess.run(["systemctl", "--user", "stop", UNIT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # GoblinShare off = its terminal too: sshd back as it was (asks for the password); the keys go in any case
+    if sshlink.allowed_here():
+        sshlink.set_allowed(False)
+    sshlink.revoke()

@@ -23,6 +23,7 @@ Window {
     readonly property var history: (st.history || []).filter(h => h.kind !== "text")   // messages: the chats
     readonly property var orders: st.orders || []   // orders to Kakan here (3 Nov)
     readonly property var chats: st.chats || {}     // per device: unread messages (the Text button)
+    readonly property var ssh: st.ssh || {}         // the terminal (4 Nov): allowed here, paired, asks
     property var chatWindows: ({})
     function openChat(fp, alias) {
         let w = chatWindows[fp];
@@ -897,6 +898,47 @@ Window {
                     }
                 }
 
+                // Someone wants to be able to open a terminal here (4 Nov)
+                Repeater {
+                    model: win.ssh.asks || []
+                    Rectangle {
+                        id: sshAsk
+                        required property var modelData
+                        width: devCol.width
+                        height: sshAskCol.height + 36
+                        color: "#0E1420"
+                        border.width: 1
+                        border.color: accent.color
+                        Column {
+                            id: sshAskCol
+                            anchors { left: parent.left; leftMargin: 22; right: sshAskButtons.left; rightMargin: 20; top: parent.top; topMargin: 18 }
+                            spacing: 6
+                            Text {
+                                text: sshAsk.modelData.alias + " vill kunna öppna en terminal här"
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.weight: Font.Medium
+                                font.pixelSize: 16
+                                width: parent.width
+                                elide: Text.ElideRight
+                            }
+                            Note {
+                                width: parent.width
+                                text: "Då kan den datorn köra kommandon som du här (inte som administratör utan ditt lösenord). " +
+                                      "Tillåt bara datorer du känner – du kan ta bort det under Inställningar."
+                            }
+                            Note { text: "svara inom " + sshAsk.modelData.left + " s"; color: "#5C6880" }
+                        }
+                        Row {
+                            id: sshAskButtons
+                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                            spacing: 10
+                            FlatButton { text: "Neka"; onClicked: backend.sshAnswer(sshAsk.modelData.id, false) }
+                            FlatButton { primary: true; text: "Tillåt"; onClicked: backend.sshAnswer(sshAsk.modelData.id, true) }
+                        }
+                    }
+                }
+
                 // Sending and receiving right now (and just finished)
                 Column {
                     visible: win.transfers.length > 0
@@ -1139,6 +1181,14 @@ Window {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: backend.trust(card.modelData.fingerprint, !card.modelData.trusted)
                             }
+                            FlatButton { // a terminal there (ssh) – asks that computer the first time (4 Nov)
+                                visible: card.modelData.goblincakes
+                                anchors { right: parent.right; rightMargin: 14; bottom: parent.bottom; bottomMargin: 10 }
+                                small: true
+                                enabledState: card.modelData.sshState !== "väntar"
+                                text: card.modelData.sshState === "väntar" ? "Väntar …" : "Terminal"
+                                onClicked: { const fp = card.modelData.fingerprint; Qt.callLater(() => backend.terminal(fp)); }
+                            }
                         }
                     }
                 }
@@ -1330,6 +1380,84 @@ Window {
                             elide: Text.ElideRight
                         }
                         FlatButton { small: true; text: "Sluta lita på"; onClicked: backend.trust(trustRow.modelData.fingerprint, false) }
+                    }
+                }
+
+                Item { width: 1; height: 14 }
+                SectionTitle { text: "TERMINAL" }
+                Row {
+                    spacing: 14
+                    ToggleSwitch {
+                        anchors.verticalCenter: parent.verticalCenter
+                        on: !!win.ssh.allowed
+                        enabledState: !win.st.sshBusy
+                        onToggled: backend.setSshAllowed(!win.ssh.allowed)
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: win.st.sshBusy ? "Ändrar … (skriv lösenordet)" : "Tillåt terminal på den här datorn"
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                    }
+                }
+                Note {
+                    width: parent.width
+                    text: "Andra GOBLINCAKES-datorer kan då be om att få öppna en terminal här (Terminal på deras ruta) – du får " +
+                          "frågan en gång per dator och svarar Tillåt eller Neka. Den datorn kan sedan köra kommandon som du, " +
+                          "t.ex. för att hjälpa till eller laga något. Bara från hemnätverket och med en nyckel, aldrig med lösenord. " +
+                          "Av = SSH stängs av igen och alla godkännanden tas bort."
+                }
+                Repeater {
+                    model: win.ssh.granted || []
+                    Row {
+                        id: grantRow
+                        required property var modelData
+                        spacing: 14
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 260
+                            text: grantRow.modelData.alias + " får öppna en terminal här"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 14
+                            elide: Text.ElideRight
+                        }
+                        FlatButton { small: true; text: "Ta bort"; danger: true; onClicked: backend.sshRevoke(grantRow.modelData.fingerprint) }
+                    }
+                }
+                Note {
+                    visible: (win.ssh.paired || []).length > 0
+                    width: parent.width
+                    text: "Du kan öppna en terminal på de här datorerna – med Terminal på rutan, eller i vilken terminal som helst " +
+                          "(också åt Claude Code) med kommandot bredvid:"
+                }
+                Repeater {
+                    model: win.ssh.paired || []
+                    Row {
+                        id: pairRow
+                        required property var modelData
+                        spacing: 14
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 200
+                            text: pairRow.modelData.alias + (pairRow.modelData.here ? "" : "  (inte här nu)")
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 14
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 200
+                            text: "ssh " + pairRow.modelData.host
+                            color: accent.text
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 13
+                            elide: Text.ElideRight
+                        }
+                        FlatButton { small: true; text: "Kopiera"; onClicked: backend.copyText("ssh " + pairRow.modelData.host) }
+                        FlatButton { small: true; text: "Glöm"; onClicked: backend.sshForget(pairRow.modelData.fingerprint) }
                     }
                 }
 

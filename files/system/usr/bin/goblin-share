@@ -27,6 +27,9 @@ SHARE = Path(os.environ.get("GOBLINCAKES_SHARE_DIR") or
 HELPER = Path(__file__).resolve().parents[1] / "libexec/goblincakes-share"   # /usr/libexec, or the repo's
 sys.path.insert(0, str(SHARE))
 import share as S  # noqa: E402
+import sshlink  # noqa: E402
+import threading  # noqa: E402
+TERMINAL = Path(__file__).resolve().parents[1] / "libexec/goblincakes-terminal"
 
 
 def use_accent(engine):
@@ -49,12 +52,17 @@ class Backend(QObject):
     stagedChanged = Signal()
     message = Signal(str)
     chatRequested = Signal(str)     # open the chat window for a device (fingerprint)
+    pairAgain = Signal(str)         # from the ssh check's thread: Terminal again, in the window's thread
 
     def __init__(self, staged):
         super().__init__()
         self._status = json.dumps({"running": False})
         self._staged = [p for p in staged if Path(p).exists()]
         self._starting = False
+        self._terminal_wanted = {}  # fingerprint → when Terminal was pressed (opens once the pairing is done)
+        self._ssh_busy = False      # "Tillåt terminal" is being switched (pkexec asks for the password)
+        self._ssh_said = ""         # … and why it didn't work
+        self.pairAgain.connect(self.terminal)
         self.timer = QTimer(self, interval=700, timeout=self.poll)
         self.timer.start()
         self.scan_timer = QTimer(self, interval=30000, timeout=lambda: S.call("scan", sweep=False, timeout=1))
@@ -71,6 +79,11 @@ class Backend(QObject):
         else:
             st["on"] = True
             self._starting = False
+            self._terminal_after_pairing(st)
+        st["sshBusy"] = self._ssh_busy
+        if self._ssh_said:
+            self.message.emit(self._ssh_said)
+            self._ssh_said = ""
         text = json.dumps(st, ensure_ascii=False)
         if text != self._status:
             self._status = text
@@ -108,8 +121,8 @@ class Backend(QObject):
     @Slot()
     def turnOff(self):
         S.FLAG.unlink(missing_ok=True)
-        subprocess.Popen(["systemctl", "--user", "stop", S.UNIT], stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL)
+        # The service, and "Tillåt terminal" with it (may ask for the password) – not in the window's thread
+        subprocess.Popen([sys.executable, str(HELPER), "off"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     @Slot()
     def scan(self):
@@ -210,6 +223,90 @@ class Backend(QObject):
     @Slot(str)
     def cancel(self, tid):
         S.call("cancel", id=tid)
+        self.poll()
+
+    # ---------------------------------------------------------- terminal (ssh, 4 Nov)
+    def _launch(self, host):
+        cmd = [str(TERMINAL) if TERMINAL.exists() else "/usr/libexec/goblincakes-terminal", "run", "ssh", host]
+        try:
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError as e:
+            self.message.emit(f"Terminalen startade inte: {e}")
+
+    def _terminal_after_pairing(self, st):
+        if not self._terminal_wanted:
+            return
+        jobs = {j["fingerprint"]: j for j in st.get("ssh", {}).get("jobs", [])}
+        hosts = {p["fingerprint"]: p["host"] for p in st.get("ssh", {}).get("paired", [])}
+        for fp, t in list(self._terminal_wanted.items()):
+            job = jobs.get(fp)
+            if job and job["t"] >= t - 1 and job["state"] == "klar" and fp in hosts:
+                del self._terminal_wanted[fp]
+                self.message.emit(f"Ihopkopplat – i en terminal räcker: ssh {hosts[fp]}")
+                self._launch(hosts[fp])
+            elif job and job["t"] >= t - 1 and job["state"] == "fel":
+                del self._terminal_wanted[fp]
+                self.message.emit(job["why"] or "Gick inte")
+
+    @Slot(str)
+    def terminal(self, fp):
+        """Terminal on a GOBLINCAKES card: ssh there – the first time it asks that computer (Tillåt)."""
+        self.poll()   # fresh: after "denied" below the pairing is already forgotten
+        st = json.loads(self._status)
+        peer = next((p for p in st.get("peers", []) if p["fingerprint"] == fp), {})
+        if peer.get("ssh"):
+            # Paired – but the other computer may have removed us (or switched Tillåt terminal off)
+            def try_it(host=peer["ssh"], alias=peer.get("alias", "")):
+                said = sshlink.check(host)
+                if said == "ok":
+                    self._launch(host)
+                elif said == "denied":   # pair again (it asks there)
+                    S.call("ssh_forget", fingerprint=fp, timeout=5)
+                    self.pairAgain.emit(fp)
+                elif said == "hostkey":
+                    self._ssh_said = (f"{alias} har nya SSH-nycklar (ominstallerad?) – Glöm den under Inställningar "
+                                      "→ Terminal och tryck Terminal igen")
+                else:
+                    self._ssh_said = f"Når inte {alias} med SSH – är datorn på, och Tillåt terminal på där?"
+            threading.Thread(target=try_it, daemon=True).start()
+            return
+        import time
+        self._terminal_wanted[fp] = time.time()
+        res = S.call("ssh_pair", to=fp, timeout=5)
+        if not res or not res.get("ok"):
+            self._terminal_wanted.pop(fp, None)
+            self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
+        else:
+            self.message.emit("Frågar den datorn – tryck Tillåt där")
+        self.poll()
+
+    @Slot(bool)
+    def setSshAllowed(self, on):
+        if self._ssh_busy:
+            return
+        self._ssh_busy = True
+
+        def run():
+            why = sshlink.set_allowed(on)
+            S.call("ssh_check", timeout=5)
+            self._ssh_said = why
+            self._ssh_busy = False
+        threading.Thread(target=run, daemon=True).start()
+        self.poll()
+
+    @Slot(str, bool)
+    def sshAnswer(self, aid, allow):
+        S.call("ssh_answer", id=aid, allow=allow)
+        self.poll()
+
+    @Slot(str)
+    def sshForget(self, fp):
+        S.call("ssh_forget", fingerprint=fp)
+        self.poll()
+
+    @Slot(str)
+    def sshRevoke(self, fp):
+        S.call("ssh_revoke", fingerprint=fp)
         self.poll()
 
     # ---------------------------------------------------------- settings
