@@ -1,0 +1,15 @@
+[Unit]
+Description=Kakan's voice – hold the voice key (F8) and talk (installed from Goblin AI)
+# Only for those who installed the voice (goblincakes-voice install)
+ConditionPathExists=%h/.local/share/goblincakes-voice/venv/bin/python3
+# Needs the desktop (KDE's shortcut service, the sound server)
+After=graphical-session.target pipewire.service
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/libexec/goblincakes-voice listen
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target

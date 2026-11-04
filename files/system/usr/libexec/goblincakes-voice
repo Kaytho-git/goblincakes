@@ -10,6 +10,10 @@
     goblincakes-voice test [seconds]          record (default 5 s), then hear – prints the text and the times
     goblincakes-voice say <text> [--voice kvinna|man] [--out <wav>]
                                               text → speech, played (or saved with --out)
+    goblincakes-voice listen                  the service: hold the voice key (F8 – the G502's button 4)
+                                              and talk; released → text (step B: shown as a notification)
+    goblincakes-voice worker                  (used by listen) the loaded model: a wav path per line in,
+                                              JSON {text, seconds} per line out
 
 Nothing goes into the image: the environment and the models live in the home folder and are
 fetched when the user turns Röst on. Speech to text = KBLab's Swedish Whisper (kb-whisper-small,
@@ -18,9 +22,17 @@ Text to speech = Piper: lisa (Kakan, a woman – a little slower, a little husky
 filter) and nst (for a male avatar, a little faster). The user chose both by ear 4 Nov.
 Settings: ~/.config/goblincakes/voice.json {"voices": {"kvinna": {…}, "man": {…}}}.
 Lines starting with "@@ " (and "@@progress {…}") are for the window, as in goblincakes-ollama.
+
+The key: a KDE global shortcut (kglobalaccel, component "goblincakes-voice", changeable in
+System Settings → Shortcuts) – kglobalaccel sends both pressed and released, so it works over
+games too. Not F20–F23: xkb makes them microphone mute / touchpad keys (F20 held = the mic
+toggled on and off, 4 Nov). While the key is held only the microphone TOWARDS Discord is muted
+(its PipeWire source-output); what the others say is heard as usual. The ids we muted are kept
+in a file so a crash can't leave Discord muted: listen unmutes them when it starts.
 """
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -181,11 +193,13 @@ def cmd_install():
     except RuntimeError as e:
         say(str(e))
         return 1
+    subprocess.run(["systemctl", "--user", "restart", "goblincakes-voice.service"], capture_output=True)
     say("Rösten är installerad.")
     return 0
 
 
 def cmd_uninstall():
+    subprocess.run(["systemctl", "--user", "stop", "goblincakes-voice.service"], capture_output=True)
     shutil.rmtree(DIR, ignore_errors=True)
     say("Rösten är borttagen.")
     return 0
@@ -251,6 +265,7 @@ def hear(path):
         audio(path), language="sv", beam_size=5, vad_filter=True,
         condition_on_previous_text=False, initial_prompt=VOCABULARY)
     text = " ".join(s.text.strip() for s in segments).strip()
+    text = re.sub(r"<\|[^|>]*\|>", "", text).strip()     # Whisper's own markers, e.g. <|nospeech|>
     return text, time.monotonic() - t
 
 
@@ -331,6 +346,224 @@ def cmd_say(args):
     return 0
 
 
+# ── The service: hold the key and talk ────────────────────────────
+
+SHORTCUT = ["goblincakes-voice", "push-to-talk", "Goblin AI röst", "Håll in och prata med Kakan"]
+KEY_F8 = 0x01000037
+MIN_HOLD = 0.4          # shorter = a slip of the finger
+MAX_HOLD = 30           # a stuck key stops by itself
+MUTED_FILE = Path(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()) / "goblincakes-voice-muted.json"
+START_SOUND = "/usr/share/sounds/ocean/stereo/button-pressed.oga"
+
+
+def cmd_worker():
+    """The model stays loaded; one wav path per line → one JSON line."""
+    in_venv()
+    whisper_model()
+    print(json.dumps({"ready": True}), flush=True)
+    for line in sys.stdin:
+        path = line.strip()
+        if not path:
+            continue
+        try:
+            text, secs = hear(path)
+            print(json.dumps({"text": text, "seconds": round(secs, 2)}, ensure_ascii=False), flush=True)
+        except Exception as e:  # noqa: BLE001 – one bad recording must not stop the service
+            print(json.dumps({"text": "", "error": str(e)}, ensure_ascii=False), flush=True)
+    return 0
+
+
+def discord_inputs():
+    """PipeWire source-outputs (microphone streams) that belong to Discord: [(index, muted)]."""
+    r = subprocess.run(["pactl", "-f", "json", "list", "source-outputs"], capture_output=True, text=True)
+    try:
+        outputs = json.loads(r.stdout or "[]")
+    except ValueError:
+        return []
+    found = []
+    for o in outputs:
+        props = o.get("properties") or {}
+        names = " ".join(str(props.get(k) or "") for k in
+                         ("application.name", "application.process.binary", "node.name", "application.id"))
+        if "discord" in names.lower():
+            found.append((o.get("index"), bool(o.get("mute"))))
+    return found
+
+
+def discord_mute():
+    """Mute Discord's microphone streams that aren't muted already; remember which."""
+    ids = [i for i, muted in discord_inputs() if not muted and i is not None]
+    for i in ids:
+        subprocess.run(["pactl", "set-source-output-mute", str(i), "1"], capture_output=True)
+    if ids:
+        MUTED_FILE.write_text(json.dumps(ids))
+    return ids
+
+
+def discord_unmute():
+    try:
+        ids = json.loads(MUTED_FILE.read_text())
+    except (OSError, ValueError):
+        return
+    for i in ids:
+        subprocess.run(["pactl", "set-source-output-mute", str(i), "0"], capture_output=True)
+    MUTED_FILE.unlink(missing_ok=True)
+
+
+def osd(text, icon="audio-input-microphone"):
+    """Plasma's own small box in the middle of the screen (as for the volume)."""
+    subprocess.Popen(["gdbus", "call", "--session", "--dest", "org.kde.plasmashell",
+                      "--object-path", "/org/kde/osdService", "--method", "org.kde.osdService.showText",
+                      icon, text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def notify(title, body):
+    subprocess.Popen(["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", title, body],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+class Listener:
+    def __init__(self):
+        from gi.repository import Gio, GLib
+        self.Gio, self.GLib = Gio, GLib
+        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+        self.rec = None
+        self.wav = None
+        self.started = 0.0
+        self.timer = None
+        self.tmp = Path(tempfile.mkdtemp(prefix="goblincakes-voice-"))
+        # (a leftover semaphore from the speech library is harmless – its warning is hidden)
+        env = {**os.environ, "PYTHONWARNINGS": "ignore::UserWarning:multiprocessing.resource_tracker"}
+        self.worker = subprocess.Popen([str(PY), "-s", os.path.abspath(__file__), "worker"], env=env,
+                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+        ready = self.worker.stdout.readline()
+        if '"ready"' not in ready:
+            raise RuntimeError("Taligenkänningen startade inte.")
+        GLib.io_add_watch(self.worker.stdout, GLib.PRIORITY_DEFAULT, GLib.IO_IN | GLib.IO_HUP, self.on_text)
+
+    def kga(self, method, sig, args, ret=None):
+        return self.bus.call_sync("org.kde.kglobalaccel", "/kglobalaccel", "org.kde.KGlobalAccel", method,
+                                  self.GLib.Variant(sig, args), self.GLib.VariantType(ret) if ret else None,
+                                  0, -1, None)
+
+    def register(self):
+        self.kga("doRegister", "(as)", (SHORTCUT,))
+        self.kga("setShortcut", "(asaiu)", (SHORTCUT, [KEY_F8], 1), "(ai)")   # IsDefault
+        active = self.kga("setShortcut", "(asaiu)", (SHORTCUT, [KEY_F8], 2), "(ai)").unpack()[0]  # SetPresent
+        path = self.kga("getComponent", "(s)", (SHORTCUT[0],), "(o)").unpack()[0]
+        self.bus.signal_subscribe("org.kde.kglobalaccel", "org.kde.kglobalaccel.Component", None, path,
+                                  None, 0, self.on_signal, None)
+        return active
+
+    def unregister(self):
+        try:
+            self.kga("setInactive", "(as)", (SHORTCUT,))
+        except Exception:  # noqa: BLE001 – the session may already be gone
+            pass
+
+    def on_signal(self, _conn, _sender, _path, _iface, name, params, _data):
+        _component, action, _ts = params.unpack()
+        if action != SHORTCUT[1]:
+            return
+        if name == "globalShortcutPressed":
+            self.press()
+        elif name == "globalShortcutReleased":
+            self.release()
+
+    def press(self):
+        if self.rec:
+            return
+        self.wav = self.tmp / f"{int(time.time() * 1000)}.wav"
+        self.rec = subprocess.Popen(["pw-record", "--rate", "16000", "--channels", "1", "--format", "s16",
+                                     str(self.wav)])
+        self.started = time.monotonic()
+        discord_mute()
+        osd("Kakan lyssnar…")
+        if os.path.exists(START_SOUND):
+            subprocess.Popen(["pw-play", START_SOUND], stderr=subprocess.DEVNULL)
+        self.timer = self.GLib.timeout_add_seconds(MAX_HOLD, self.release)
+
+    def release(self):
+        if not self.rec:
+            return False
+        if self.timer:
+            self.GLib.source_remove(self.timer)
+            self.timer = None
+        held = time.monotonic() - self.started
+        self.rec.send_signal(signal.SIGINT)
+        try:
+            self.rec.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            self.rec.kill()
+        self.rec = None
+        discord_unmute()
+        if held < MIN_HOLD or not self.wav.is_file():
+            self.wav.unlink(missing_ok=True)
+            return False
+        self.worker.stdin.write(str(self.wav) + "\n")
+        self.worker.stdin.flush()
+        return False
+
+    def on_text(self, source, condition):
+        line = source.readline()
+        if not line:
+            print("Taligenkänningen stannade.", file=sys.stderr, flush=True)
+            self.GLib.MainLoop().quit()
+            os._exit(1)        # systemd starts the service again
+        try:
+            result = json.loads(line)
+        except ValueError:
+            return True
+        for f in self.tmp.glob("*.wav"):
+            f.unlink(missing_ok=True)
+        self.heard(result.get("text") or "", result)
+        return True
+
+    def heard(self, text, result):
+        """Step B: show what was heard. (C: simple commands, D: Kakan + read aloud.)"""
+        print(f"Hörde ({result.get('seconds')} s): {text or '–'}", flush=True)
+        if text:
+            notify("Kakan hörde", text)
+        else:
+            osd("Kakan hörde inget", "audio-input-microphone-muted")
+
+    def close(self):
+        if self.rec:
+            self.rec.kill()
+        discord_unmute()
+        self.unregister()
+        try:
+            self.worker.stdin.close()          # the worker ends its loop and exits by itself
+            self.worker.wait(timeout=3)
+        except (OSError, subprocess.TimeoutExpired):
+            self.worker.kill()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+def cmd_listen():
+    discord_unmute()                       # left from a crash while the key was held
+    if not installed():
+        print("Rösten är inte installerad (goblincakes-voice install).", file=sys.stderr)
+        return 1
+    from gi.repository import GLib
+    listener = Listener()
+    active = listener.register()
+    print(f"Lyssnar efter röstknappen ({', '.join(hex(k) for k in active) or 'ingen tangent'}).", flush=True)
+    loop = GLib.MainLoop()
+    try:
+        from gi.repository import GLibUnix
+        add_signal = GLibUnix.signal_add
+    except ImportError:
+        add_signal = GLib.unix_signal_add
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        add_signal(GLib.PRIORITY_HIGH, sig, loop.quit)
+    try:
+        loop.run()
+    finally:
+        listener.close()
+    return 0
+
+
 def main(argv):
     cmd = argv[0] if argv else "status"
     rest = argv[1:]
@@ -342,6 +575,8 @@ def main(argv):
         "hear": lambda: cmd_hear(rest),
         "test": lambda: cmd_test(rest),
         "say": lambda: cmd_say(rest),
+        "listen": lambda: cmd_listen(),
+        "worker": lambda: cmd_worker(),
     }
     if cmd not in commands:
         print(__doc__, file=sys.stderr)
