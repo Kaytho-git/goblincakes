@@ -10,7 +10,7 @@ in memory). Windows has this (Prefetch/SysMain); Linux doesn't, as most have SSD
     goblincakes-prewarm --list     which programs and files it would read, nothing read
     goblincakes-prewarm --force    also on an SSD (testing)
 
-The programs: the ones started most in the last 14 days (the user journal's app-… units), at most APPS of
+The programs: the chosen web browser first, then the ones started most in the last 14 days (the user journal's app-… units), at most APPS of
 them and BUDGET MB. A Flatpak = its own files + the libraries of its runtime; another program = its binary
 and the libraries it links (ldd). Reading only puts them in the page cache – nothing is changed, and the
 service runs with the idle I/O class (BFQ: only when nobody else wants the disk).
@@ -27,7 +27,9 @@ from pathlib import Path
 APPS = 6
 BUDGET = 2000 * 1024 * 1024        # bytes in all – 16 GB of memory has room for it many times over
 PER_APP = 700 * 1024 * 1024        # Firefox with its runtime's libraries: ~630 MB
-SKIP = {"org.kde.plasmashell", "org.kde.dolphin_dolphin_dolphin", "com.mitchellh.ghostty", "goblin-share"}
+# Steam starts by itself at login and reads its own files then; small/always-open windows aren't worth it
+SKIP = {"org.kde.plasmashell", "org.kde.dolphin_dolphin_dolphin", "com.mitchellh.ghostty", "goblin-share",
+        "steam", "com.valvesoftware.Steam"}
 UNIT_RE = re.compile(r"Started (?:app-)?(?:flatpak-)?([A-Za-z0-9._\\-]+?)(?:@[0-9a-f]{8,}\.service|-[0-9]+\.scope)")
 DESKTOP_DIRS = [Path.home() / ".local/share/flatpak/exports/share/applications",
                 Path("/var/lib/flatpak/exports/share/applications"),
@@ -67,6 +69,17 @@ def most_used():
             if name not in SKIP:
                 count[name] += 1
     return [name for name, _ in count.most_common()]
+
+
+def browser():
+    """The chosen web browser (Config → huvudwebbläsare sets the same): first, whatever was used most –
+    the user (4 Nov): she wants the browser first, then perhaps Spotify."""
+    try:
+        out = subprocess.run(["xdg-settings", "get", "default-web-browser"], capture_output=True, text=True,
+                             timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.removesuffix(".desktop")
 
 
 def desktop_file(app):
@@ -205,7 +218,9 @@ def main():
         log("SSD – inget att förvärma")
         return 0
     apps = []
-    for app in most_used():
+    first = browser()
+    order = ([first] if first else []) + [a for a in most_used() if a != first]
+    for app in order:
         paths = files_for(app)
         if paths:
             apps.append((app, paths))
