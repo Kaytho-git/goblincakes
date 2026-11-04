@@ -54,6 +54,12 @@ Ord: uppdatering, uppdatera, update, grön pil, pilen, goblin update, automatisk
 - `goblin update` uppdaterar allt (systemet, Flatpaks, AppImages, Discord, Proton, firmware); `--only <del>` en del.
 - Automatiska uppdateringar: reglage i Config → Uppdatera. Under spel väntar de (spelläget).
 - Uppdatera och stäng av ("uppdatera när bygget är klart och stäng sen av datorn"): `goblin update --stäng-av` (Tillåt-kort; = Config → Uppdatera och stäng av) – väntar på bygget som pågår, uppdaterar, väntar på spel, stänger av efter två minuter med Avbryt; aldrig om något misslyckas. En bevakning gör inte detta (bara en notis). Avbryt: `goblin update --avbryt`. Läge: /usr/libexec/goblincakes-update-poweroff status, logg ~/.local/state/goblincakes/update-poweroff.log.
+- Bakgrundsjobben ger plats åt användaren (för hårddiskar): Flatpaks automatiska uppdatering (flatpak-system-update/
+  flatpak-user-update) körs 20 min efter start eller 04:00, med lägsta disk- och processorprioritet; `flatpak repair`
+  bara en gång i veckan (/usr/libexec/goblincakes-idle-jobs repair, stämpel /var/lib/goblincakes/idle-jobs/ resp.
+  ~/.local/state/goblincakes/idle-jobs/). Fedoras programlista och manualsidor (fedora-atomic-desktop-appstream-cache-refresh,
+  -mandb-update) byggs bara om när imagen ändrats ("Skipped due to 'exec-condition'" i journalen = rätt). Tilläggsfilerna:
+  /usr/lib/systemd/{system,user}/<tjänst>.d/goblincakes-*.conf. Kolla: `systemctl list-timers`, `systemd-analyze blame`.
 - Kolla: `rpm-ostree status` (vilken version, väntar en på omstart?), `journalctl --user -u goblincakes-updates`.
 Kontroll: `cat ~/.cache/goblincakes/updates.json`
 
@@ -468,6 +474,9 @@ Ord: tangentbord, dubbla tryck, två tryck, studsar, studsande tangenter, key ch
 ## Laptop
 Ord: laptop, bärbar, batteri laptop, dubbla grafikkort
 - /usr/libexec/goblincakes-laptop körs vid inloggning (gör inget på stationära).
+- Prestanda (strömmenyn/Config → Prestandaläge) = tuned-profilen goblincakes-performance (/usr/lib/tuned/profiles/,
+  vald i /etc/tuned/ppd.conf): Fedoras throughput-performance men med liten skrivbuffert (dirty 10 %/3 % i stället
+  för 40 %) – annars frös en hårddisk i flera sekunder. Kolla: `tuned-adm active`, `cat /proc/sys/vm/dirty_ratio`.
 - Wifi utan strömsparläge på alla datorer: /usr/lib/NetworkManager/conf.d/90-goblincakes-wifi-powersave.conf
   (wifi.powersave = 2). Kolla: iw dev <wlp…> get power_save → "off". Står det "on": har anslutningen egen
   inställning? nmcli -f 802-11-wireless.powersave connection show <namn> (0 = följer vår fil).

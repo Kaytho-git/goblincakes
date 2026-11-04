@@ -1,0 +1,46 @@
+#!/usr/bin/bash
+# GOBLINCAKES: background jobs that shouldn't fight the user for the disk (4 Nov, the wife's laptop with a
+# 5400 rpm disk: Flatpak's update + repair, the software list and the man pages ran right at start-up and
+# the desktop stayed slow for 5 minutes after login – Windows on the same disk didn't).
+#   goblincakes-idle-jobs repair --system|--user   flatpak repair, at most once a week (it reads every file)
+#   goblincakes-idle-jobs changed <name>           exit 0 when the image changed since `done <name>`
+#                                                  (ExecCondition: the software list/man pages only after an update)
+#   goblincakes-idle-jobs done <name>              remember this image for <name>
+# The drop-ins that use it: flatpak-{system,user}-update, fedora-atomic-desktop-{appstream-cache-refresh,mandb-update}.
+set -u
+
+if [ "$(id -u)" = 0 ]; then
+    state=/var/lib/goblincakes/idle-jobs
+else
+    state="${XDG_STATE_HOME:-$HOME/.local/state}/goblincakes/idle-jobs"
+fi
+
+# What the running image is: its os-release (version + date) and the kernel/initrd checksum ostree booted
+image_id() {
+    { cat /usr/lib/os-release; grep -o 'ostree=[^ ]*' /proc/cmdline; } 2>/dev/null | sha256sum | cut -c1-32
+}
+
+case "${1:-}" in
+    repair)
+        scope="${2:---system}"
+        stamp="$state/flatpak-repair${scope#-}"
+        # -mtime -7: the stamp is newer than 7 days → nothing to do
+        if [ -n "$(find "$stamp" -mtime -7 2>/dev/null)" ]; then
+            exit 0
+        fi
+        /usr/bin/flatpak "$scope" repair || exit $?
+        mkdir -p "$state" && touch "$stamp"
+        ;;
+    changed)
+        name="${2:?name}"
+        [ "$(cat "$state/$name" 2>/dev/null)" != "$(image_id)" ]
+        ;;
+    done)
+        name="${2:?name}"
+        mkdir -p "$state" && image_id > "$state/$name"
+        ;;
+    *)
+        echo "Använd: goblincakes-idle-jobs repair --system|--user | changed <namn> | done <namn>" >&2
+        exit 2
+        ;;
+esac
