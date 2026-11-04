@@ -246,6 +246,13 @@ def notify(title, body, actions=None, icon="goblincakes-share", wait_cb=None, ur
 
 # ── Network interfaces (ioctl – no `ip` needed) ───────────────────────────────
 
+def away(seconds):
+    """How long a device has been quiet, for the status: 0 the first 3 min, then whole minutes (in seconds).
+    The exact seconds changed the status every second, and the window then rebuilt every device card
+    (the screen blinked now and then, 4 Nov)."""
+    return 0 if seconds <= 180 else int(seconds // 60) * 60
+
+
 def interfaces():
     """[(name, address, netmask)] for the IPv4 interfaces that lead to the home network."""
     import fcntl
@@ -1374,7 +1381,7 @@ class Share:
                 "sweeping": now - self.last_sweep < 8,
                 "peers": [{"fingerprint": p["fingerprint"], "alias": p["alias"], "model": p["deviceModel"],
                            "type": p["deviceType"], "ip": p["ip"], "goblincakes": p["deviceModel"] == MODEL,
-                           "accent": p.get("accent") or "", "ago": int(now - p["seen"]),
+                           "accent": p.get("accent") or "", "ago": away(now - p["seen"]),
                            "trusted": p["fingerprint"] in trusted,
                            "ssh": (paired.get(p["fingerprint"]) or {}).get("host", ""),
                            "sshState": (self.ssh_jobs.get(p["fingerprint"]) or {}).get("state", "")} for p in peers],

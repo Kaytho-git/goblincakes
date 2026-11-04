@@ -1150,7 +1150,7 @@ Window {
                                 }
                                 Text {
                                     topPadding: 4
-                                    text: card.modelData.ip + (card.modelData.ago > 180 ? " · sedd för " + Math.round(card.modelData.ago / 60) + " min sedan" : "")
+                                    text: card.modelData.ip + (card.modelData.ago > 0 ? " · sedd för " + Math.round(card.modelData.ago / 60) + " min sedan" : "")
                                     color: "#5C6880"
                                     font.family: "IBM Plex Mono"
                                     font.pixelSize: 11
