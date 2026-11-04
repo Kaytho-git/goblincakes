@@ -1,3 +1,4 @@
+2026-11-04  GoblinShare: Be om hjälp sa alltid "Hjälp via terminal är av" fast den var påslagen – nu kommer koden fram.
 2026-11-04  GoblinShare blinkar inte längre då och då – fönstret ritades om varje sekund i onödan.
 2026-11-04  GoblinShare: Be om hjälp gav "SSH-servern godtog inte inställningarna" på datorer som aldrig haft SSH-servern igång – nu fungerar det.
 2026-11-04  GoblinShare: Be om hjälp. Den som behöver hjälp med datorn trycker Be om hjälp och läser upp koden som visas. Den som hjälper trycker Terminal på hens ruta, skriver in koden och kan sedan köra kommandon där så länge terminalen är öppen. Varje gång behövs en ny kod, och Avsluta stänger direkt.

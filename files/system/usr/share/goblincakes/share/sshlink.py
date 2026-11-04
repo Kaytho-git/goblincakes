@@ -19,7 +19,7 @@ look for and fix the fault).
                            (its host key from the answer), "Include goblinshare.conf" at the top of config.
 
 Only the standard library + ssh/ssh-keygen. Paths can be moved for tests with GOBLINCAKES_SSH_DIR (instead of
-~/.ssh), GOBLINCAKES_SSHD_DROPIN, GOBLINCAKES_SSH_HOSTKEY and GOBLINCAKES_SSH_NETS.
+~/.ssh), GOBLINCAKES_SSHD_DROPIN, GOBLINCAKES_SSH_MARK, GOBLINCAKES_SSH_HOSTKEY and GOBLINCAKES_SSH_NETS.
 """
 import base64
 import os
@@ -46,8 +46,13 @@ HOME_NETS = os.environ.get("GOBLINCAKES_SSH_NETS") or "10.0.0.0/8,172.16.0.0/12,
 KEY_RE = re.compile(r"^ssh-ed25519 [A-Za-z0-9+/]{60,100}={0,2}$")
 
 
+# … and its note of what it changed, which everyone can read: on Fedora /etc/ssh/sshd_config.d is root-only
+# (0700), so the drop-in can't be seen from here and Be om hjälp always said "av" (found on Fedora 4 Nov)
+MARK = Path(os.environ.get("GOBLINCAKES_SSH_MARK") or "/etc/goblincakes/share-ssh")
+
+
 def allowed_here():
-    return DROPIN.exists()
+    return MARK.exists()
 
 
 def set_allowed(on):
