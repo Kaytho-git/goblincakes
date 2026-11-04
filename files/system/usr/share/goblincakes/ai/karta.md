@@ -117,6 +117,9 @@ Ord: config, inställningar, goblincakes config, program, förinstallerat, föns
 - Inloggning/lås (System): "Automatisk inloggning" = /etc/sddm.conf.d/90-goblincakes-autologin.conf (bara vid start;
   TV-lägets zz-goblincakes-autologin.conf vinner när den finns). "Inget lösenord efter viloläge" = LockOnResume=false i
   ~/.config/kscreenlockerrc. Kolla: cat filen / kreadconfig6 --file kscreenlockerrc --group Daemon --key LockOnResume.
+- "Inget viloläge" (System) = /etc/systemd/sleep.conf.d/90-goblincakes-no-sleep.conf (AllowSuspend=no m.fl.). Vid
+  på/av startas plasma-powerdevil om i alla inloggade sessioner (annars gäller ändringen först efter ny inloggning).
+  Kolla: busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend (yes/na).
 
 - Avinstallera: kryssa ur ett installerat program under Program → knappen Avinstallera = `goblincakes-config-install
   uninstall <kind> <args>` (Flatpak från user/system, AppImage, webbapp, Discord, VS Code, ChatGPT, gamescope).

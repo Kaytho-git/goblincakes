@@ -335,7 +335,19 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
                     printf '# GOBLINCAKES Config → Inställningar → Inget viloläge\n[Sleep]\nAllowSuspend=no\nAllowHibernation=no\nAllowHybridSleep=no\nAllowSuspendThenHibernate=no\n' > "$conf"
                 else
                     rm -f "$conf"
-                fi ;;
+                fi
+                # systemd reads the file on every request, but KDE's power management
+                # (PowerDevil) only asks at login whether sleep is possible – it then did
+                # nothing when the lid closed until the next login. Restart it in every
+                # logged-in user's session so the change applies at once.
+                for bus in /run/user/*/bus; do
+                    [ -S "$bus" ] || continue
+                    uid=$(basename "$(dirname "$bus")")
+                    user=$(id -nu "$uid" 2>/dev/null) || continue
+                    runuser -u "$user" -- env XDG_RUNTIME_DIR="/run/user/$uid" \
+                        DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" \
+                        systemctl --user try-restart plasma-powerdevil.service >/dev/null 2>&1 || true
+                done ;;
         esac ;;
 
     auto-updates)

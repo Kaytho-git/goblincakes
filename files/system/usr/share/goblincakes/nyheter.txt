@@ -1,3 +1,4 @@
+2026-11-04  Inget viloläge gäller direkt när du slår av eller på det i Config – förut fick man logga ut och in innan locket fick datorn att sova igen.
 2026-11-03  Goblin AI: /kalender fungerar även med en liten AI-modell – händelsen läggs in direkt i stället för att Kakan stoppas.
 2026-11-03  GoblinShare: Text öppnar ett eget chattfönster med hela samtalet med den datorn (Enter skickar, klick på ett meddelande kopierar det, länkar går att klicka på). En siffra på Text visar nya meddelanden, och notisen öppnar chatten. Meddelandena ligger inte längre i Historik.
 2026-11-03  Wifi går alltid på full kraft (inget strömsparläge) – färre korta avbrott och mindre lagg, särskilt på laptops.
