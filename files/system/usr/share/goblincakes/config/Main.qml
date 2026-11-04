@@ -232,8 +232,10 @@ Window {
             parts.push({ "part": "system", "title": "GOBLINCAKES", "detail": "Ny version – används efter en omstart" });
         if (apps.length > 0 || runtimes > 0)
             parts.push({ "part": "flatpak", "title": "Flatpak-program",
-                         "detail": apps.length > 0 ? apps.join(", ") + (runtimes > 0 ? " + " + runtimes + " systemdelar" : "")
-                                                   : runtimes + (runtimes === 1 ? " systemdel" : " systemdelar") + " för programmen" });
+                         "detail": (apps.length > 0 ? apps.join(", ") + (runtimes > 0 ? " + " + runtimes + " systemdelar" : "")
+                                                    : runtimes + (runtimes === 1 ? " systemdel" : " systemdelar") + " för programmen")
+                                   // They also update quietly in the background once a day (Universal Blue's timer, 4 Nov)
+                                   + "\nUppdateras också tyst i bakgrunden en gång om dagen" });
         const groups = [["appimages", "AppImage-program"], ["vscode", "VS Code"], ["chatgpt", "ChatGPT"], ["discord", "Discord"],
                         ["kitty", "Kitty"], ["proton", "GE-Proton"], ["firmware", "Firmware"]];
         for (const [id, title] of groups) {
