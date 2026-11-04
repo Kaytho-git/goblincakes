@@ -1,3 +1,4 @@
+2026-11-04  GoblinShare: Be om hjälp gav "SSH-servern godtog inte inställningarna" på datorer som aldrig haft SSH-servern igång – nu fungerar det.
 2026-11-04  GoblinShare: Be om hjälp. Den som behöver hjälp med datorn trycker Be om hjälp och läser upp koden som visas. Den som hjälper trycker Terminal på hens ruta, skriver in koden och kan sedan köra kommandon där så länge terminalen är öppen. Varje gång behövs en ny kod, och Avsluta stänger direkt.
 2026-11-04  Inget viloläge gäller direkt när du slår av eller på det i Config – förut fick man logga ut och in innan locket fick datorn att sova igen.
 2026-11-04  GoblinShare: chatten visar alltid nya meddelanden längst ner (de hamnade ibland under fönstrets kant). Läser du längre upp hoppar den inte.
