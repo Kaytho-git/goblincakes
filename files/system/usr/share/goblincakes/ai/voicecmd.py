@@ -16,6 +16,7 @@ with the user's microphone 4 Nov) – fix_words() turns them back before matchin
 Try without a microphone:  python3 voicecmd.py "starta vov" "spela albumet master of puppets med metallica"
 """
 import difflib
+import os
 import re
 import subprocess
 import time
@@ -26,7 +27,16 @@ CONVERSATION = "röst"   # how the voice's actions are marked in Kakan's log
 
 HEARD_AS = [
     (r"\b(?:vov|vav|vaw|vow|vå|wov|wow|wåw)\b", "wow"),
-    (r"\bworld of warcraft\b", "wow"),
+    (r"\b(?:world|wall|vold|ward|wold|vöröld|world's)\s+(?:of|av)\s+warcraft\b", "wow"),
+    # The reading test 4 Nov (the user's 15 lines): game words heard the Swedish way
+    (r"\bh[eä]j\s+(?=vol)", "höj "),                                   # "Hej volymen" ×3 = höj
+    (r"\b(?:volleimen|volymer|volymmen|volejmen|vollymen)\b", "volymen"),
+    (r"\b(?:spartify|spotifaj|spotifej|spåtify|spottify)\b", "spotify"),
+    (r"\b(?:mitic|mytic|mythik|mitik|mytik|mythic)\s*(?:plus|pluss|\+)", "mythic plus"),
+    (r"\b(?:parces|parsar|parsen|parser)\b", "parses"),
+    (r"\b(?:buggsäck|bugsäck|buggsack|bug sack|buggsäcken)\b", "bugsack"),
+    (r"\b(?:gerplaner|gear\s*planer|gir\s*planer|gearplaner|gerplanner|gear planner)\b", "gear-planner"),
+    (r"\bpremiär(?=matchen|match|\b)", "premier"),
     (r"\b(?:fullen|pulen|bullen|pullan|poolen|pullet)\b", "pullen"),
     (r"\b(?:cs\s*två|cs\s*2|counter[\s-]*strike(?:\s*2|\s*två)?|ces två)\b", "cs2"),
     (r"\bwarcraft\s*l[oå]g[gs]?s?\b", "warcraft logs"),
@@ -78,6 +88,9 @@ def match(text):
         return ("pull", "")
     if re.fullmatch(r"(?:lite|ännu|en gång|en bit)?\s*(?:till|mer|igen|en gång till)", t):
         return ("again", "")
+    m = re.search(r"\b(?:volym\w*|ljud\w*|musik\w*)\b.*?\btill\s+(\d{1,3})\s*(?:%|procent)?", t)
+    if m and re.search(r"\b(?:sätt|ställ|höj\w*|sänk\w*|ändra)\b", t):
+        return ("volume_to", m.group(1))
     if re.search(r"\b(?:höj\w*|ök\w*|högre|starkare|mer ljud)\b", t) and (short or re.search(MUSIC, t)):
         return ("louder", "big" if re.search(r"\bmycket\b", t) else "")
     if re.search(r"\b(?:sänk\w*|minsk\w*|lägre|tystare|svagare|mindre ljud)\b", t) and (short or re.search(MUSIC, t)):
@@ -217,6 +230,8 @@ def run(command, arg):
     if command in ("pause", "play", "next", "previous"):
         word = {"pause": "paus", "play": "spela", "next": "nästa", "previous": "föregående"}[command]
         return _plain(d.music(word, CONVERSATION)), False
+    if command == "volume_to":
+        return _plain(d.player_volume("musiken", arg, CONVERSATION)), False
     if command in ("louder", "quieter"):
         step = 25 if arg == "big" else 10
         return _plain(d.player_volume("musiken", f"{'+' if command == 'louder' else '-'}{step}", CONVERSATION)), False
@@ -225,6 +240,11 @@ def run(command, arg):
             subprocess.Popen(["goblin-ai"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              start_new_session=True)
             return "Här är jag.", True
+        if os.environ.get("GOBLINCAKES_VOICE_NO_GAMES"):   # a reading test: everything but the games
+            gm = d._games_module()
+            name = {"wow": "wow", "cs2": "cs2"}.get(arg, arg)
+            if arg in GAMES or gm.find(name, gm.games()):
+                return f"Prov: {arg} startas inte.", True
         said = d.start_game(arg, CONVERSATION)
         if said.startswith(("Hittar inget spel", "Kommer inte åt")):
             said = d.open_thing(arg, CONVERSATION)

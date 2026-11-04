@@ -238,6 +238,7 @@ def cmd_record(args):
 
 
 _model = None
+last_sure = []
 
 
 def whisper_model():
@@ -266,8 +267,13 @@ def hear(path):
     segments, _info = whisper_model().transcribe(
         audio(path), language="sv", beam_size=5, vad_filter=True,
         condition_on_previous_text=False, initial_prompt=VOCABULARY)
+    segments = list(segments)
     text = " ".join(s.text.strip() for s in segments).strip()
     text = re.sub(r"<\|[^|>]*\|>", "", text).strip()     # Whisper's own markers, e.g. <|nospeech|>
+    # How sure Whisper was, per part (logged to find a limit for talk in the background, 4 Nov:
+    # "hans medicinpris är helt ofelbar" was someone on the phone in the room)
+    global last_sure
+    last_sure = [(round(s.avg_logprob, 2), round(s.no_speech_prob, 2)) for s in segments]
     return text, time.monotonic() - t
 
 
@@ -378,7 +384,7 @@ def cmd_worker():
         try:
             if "hear" in job:
                 text, secs = hear(job["hear"])
-                answer = {"hear": job["hear"], "text": text, "seconds": round(secs, 2)}
+                answer = {"hear": job["hear"], "text": text, "seconds": round(secs, 2), "sure": last_sure}
             elif "say" in job:
                 speak(job["say"], job.get("voice") or "kvinna", job["out"])
                 answer = {"said": job["out"]}
@@ -574,7 +580,7 @@ class Listener:
 
     def heard(self, text, result):
         """A simple command is done at once (voicecmd.py, part C); anything else is shown (part D: Kakan)."""
-        print(f"Hörde ({result.get('seconds')} s): {text or '–'}", flush=True)
+        print(f"Hörde ({result.get('seconds')} s, säkerhet {result.get('sure')}): {text or '–'}", flush=True)
         if not text:
             osd("Kakan hörde inget", "audio-input-microphone-muted")
             return
