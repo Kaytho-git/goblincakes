@@ -14,6 +14,9 @@ not the launchers themselves):
     ExecStartPre=… wait that waits until the game is closed (never mid-game downloads)
   - Akonadi (the calendar's background service, ~400 MB) and Baloo (file search) rest
   - WoWUp closes while WoW runs (only updates add-ons) and starts again afterwards
+  - Battle.net's Agent (its download service) closes a minute after WoW started, when the
+    app itself is gone ("Avsluta Battle.net helt"): it stays otherwise and keeps the prefix's
+    wineserver – shared with WoW – busier (4 Nov: 4 % → 15 %); the app starts it again
   - Lenovo IdeaPad/Legion: the fans' "efficient thermal dissipation" mode (fan_mode 4, what
     Lenovo's Windows program calls boost), the previous mode back afterwards; only where
     ideapad_laptop has fan_mode (a udev rule makes it writable), switch: fan-boost-off
@@ -43,6 +46,7 @@ RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
 STATE = RUNTIME / "goblincakes-gaming"
 FRESH = 30          # seconds: an older state file is left over from a crash
 LOOK = 3
+AGENT_AFTER = 60    # seconds of WoW before Agent closes: the launch login is long done
 
 def log(*a):
     print(*a, flush=True)
@@ -128,6 +132,8 @@ class Guard:
         self.baloo = False        # we suspended it
         self.wowup = None         # how to start it again: ("unit", name) or ("run", [argv])
         self.fan = None           # (file, the mode before the game) while we boost
+        self.wow_since = None     # when WoW was first seen this time
+        self.agent_done = False   # Agent closed once for this WoW – an app opened later keeps it
         self.gone = 0             # looks without a game (two in a row = closed)
 
     def start(self, pid, procs):
@@ -196,6 +202,28 @@ class Guard:
         elif not wow and self.wowup is not None:
             self.wowup_back()
 
+    def agent_check(self, procs):
+        """Battle.net's Agent left alone after the app exited: closed once per WoW session."""
+        if not any(WOW.match(p[1]) for p in procs):
+            self.wow_since, self.agent_done = None, False
+            return
+        now = time.monotonic()
+        if self.wow_since is None:
+            self.wow_since = now
+        if self.agent_done or now - self.wow_since < AGENT_AFTER:
+            return
+        self.agent_done = True
+        if any(p[1].lower().startswith("battle.net") for p in procs):
+            return   # the app is open (or the user opened it): it needs its Agent
+        agents = [p[0] for p in procs if p[1].lower() == "agent.exe"]
+        for pid in agents:
+            try:
+                os.kill(pid, signal.SIGTERM)   # Wine ends the process on SIGTERM
+            except OSError:
+                pass
+        if agents:
+            log("WoW kör – Battle.nets Agent stängd (Battle.net startar den igen)")
+
     def wowup_back(self):
         kind, what = self.wowup
         self.wowup = None
@@ -244,6 +272,7 @@ class Guard:
                 self.unregister()
                 self.register(pid)
         self.wowup_check(procs)
+        self.agent_check(procs)
 
 
 def serve():

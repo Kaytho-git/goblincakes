@@ -331,9 +331,11 @@ Ord: graph, ljudgraf, staplar, visualisering
   spelas om `goblin graph auto on`. Inställningar ~/.config/goblincakes/graph.json. Vilar under spel.
 
 ## Spelläget
-Ord: spelläge, gamemode, spel, prestanda, lagg, fps, wowup stängs, akonadi, baloo, fläktar, fläktboost, lenovo
+Ord: spelläge, gamemode, spel, prestanda, lagg, fps, wowup stängs, battle.net agent, akonadi, baloo, fläktar, fläktboost, lenovo
 - Tjänsten goblincakes-gameguard (/usr/libexec/goblincakes-gameguard run) ser var 3:e sekund om ett spel kör:
   GameMode, uppdateringar väntar, Akonadi/Baloo vilar, WoWUp stängs medan WoW kör. Allt återställs efter spelet.
+- Battle.nets Agent (nedladdningstjänsten, blir kvar när appen avslutats helt) stängs en gång en minut efter att WoW startat –
+  bara om Battle.net-appen själv inte är öppen. Journalen: "Battle.nets Agent stängd". Battle.net startar den igen.
 - Vad som räknas som spel: /usr/share/goblincakes/gaming.py. Reglage: Config → Inställningar → Spel.
 - Fläktboost (Lenovo IdeaPad/Legion, bara där `/sys/bus/platform/devices/VPC2004:*/fan_mode` finns): fan_mode 4 under spel,
   förra läget tillbaka efteråt (0 tyst, 1 standard, 2 dammrensning, 4 kylning). Skrivbar via udev-regeln
