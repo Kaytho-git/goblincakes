@@ -23,14 +23,15 @@ both Android and iPhones. Only the standard library (+ the `openssl` command for
                 computers. Kept in orders.json; a notification with Starta/Senare, and Starta runs
                 /usr/share/goblincakes/ai/order.py, which asks Goblin AI and sends the answer and the
                 pictures back. Files from a computer we ordered from (the last 3 days) need no Ta emot.
-    terminal    (4 Nov) POST /api/goblincakes/v1/ssh with our public key → Tillåt / Neka there → `ssh <namn>`
-                opens a terminal on that computer (only GOBLINCAKES, only where "Tillåt terminal" is on).
-                The keys and ~/.ssh files: sshlink.py.
+    terminal    (4 Nov) help on another GOBLINCAKES computer: it presses Be om hjälp and reads out a code;
+                POST /api/goblincakes/v1/ssh with our public key + the code → a short-lived key there →
+                our Terminal (ssh) is in while it is open. The keys and ~/.ssh files: sshlink.py.
 
 The service (/usr/libexec/goblincakes-share run, user service goblincakes-share) owns everything; the
 window (goblin-share) and `goblin share` talk to it over a Unix socket: one JSON line in, one out.
 """
 import hashlib
+import hmac
 import http.client
 import io
 import json
@@ -90,6 +91,9 @@ ANNOUNCE_EVERY = 5 * 60
 HISTORY_KEEP = 60
 CHAT_KEEP = 300         # messages kept per device
 CHAT_LOOKING = 3        # s: the window says it shows a chat – no notification, read at once
+HELP_SECONDS = 10 * 60  # Be om hjälp: the code works this long
+HELP_TRIES = 5          # wrong codes before it is gone
+HELP_LOGIN = 120        # s from the right code until the key stops working (he is in long before)
 CHUNK = 256 * 1024
 SKIP_IFACES = ("lo", "podman", "docker", "virbr", "veth", "br-", "cni", "tun", "tap", "wg", "tailscale")
 
@@ -98,8 +102,7 @@ DEFAULTS = {
     "folder": "",           # where received files go ("" = Hämtade/GoblinShare)
     "trusted": [],          # fingerprints whose files are taken without asking
     "trustedNames": {},     # fingerprint → alias when trusted (the list shows them while away)
-    "sshPaired": {},        # computers we can open a terminal on: fp → {alias, host, ip, user, hostKey}
-    "sshGranted": {},       # computers let in here (Tillåt): fp → alias (the keys: ~/.ssh/authorized_keys)
+    "sshPaired": {},        # computers we have helped: fp → {alias, host, ip, user, hostKey} (`ssh <host>`)
 }
 
 
@@ -394,7 +397,7 @@ class Share:
         self.chats = self._load_chats()
         self.looking = {}       # fingerprint → when the window last showed its chat
         self.orders = self._load_orders()
-        self.ssh_asks = {}      # id → someone wants to be able to open a terminal here
+        self.help = None        # Be om hjälp here: the code, then who is in (help_start)
         self.ssh_jobs = {}      # fingerprint → our own pairing with another computer
         self.error = ""
         self.started = time.time()
@@ -782,9 +785,6 @@ class Share:
                 for fp, j in list(self.ssh_jobs.items()):
                     if j["state"] != "väntar" and now - j["changed"] > 60:
                         del self.ssh_jobs[fp]
-                for aid, a in list(self.ssh_asks.items()):
-                    if a["answer"] is not None and now - a["changed"] > 30:
-                        del self.ssh_asks[aid]
             self.check_ssh_allowed()
             if now - self.started > 10 and int(now) % ANNOUNCE_EVERY < 20:
                 self.announce()
@@ -1146,9 +1146,33 @@ class Share:
         return self.cancel_incoming(jid, "Du avbröt")
 
     # ---------------------------------------------------------- terminal (ssh, 4 Nov)
+    # The user (4 Nov): help on the wife's computer – "ett id som säkerhet" that she reads out, approved every
+    # time. She presses Be om hjälp → a 6-digit code (HELP_SECONDS); he presses Terminal and types it → our
+    # key goes in her authorized_keys for HELP_LOGIN s (expiry-time) and is taken away as soon as he is in.
+    # His terminal is the connection (ControlMaster): Claude Code's `ssh <namn> …` rides on it, and when he
+    # closes it (or she presses Avsluta) nobody gets in until she gives a new code.
+    def help_start(self):
+        """Be om hjälp → the code (or an error when "Hjälp via terminal" is off)."""
+        if not sshlink.allowed_here():
+            return None, "Hjälp via terminal är av – slå på den först"
+        with self.lock:
+            code = f"{secrets.randbelow(1000000):06d}"
+            self.help = {"code": code, "until": time.time() + HELP_SECONDS, "tries": 0, "state": "kod",
+                         "alias": "", "fingerprint": "", "since": 0, "close": None}
+        return code, ""
+
+    def help_stop(self, why="Du avslutade"):
+        """Avsluta: the code goes, the key goes, and his connection is cut."""
+        with self.lock:
+            h, self.help = self.help, None
+        sshlink.revoke()
+        cut = sshlink.end_sessions() if h and h.get("state") in ("ansluter", "inne") else 0
+        if h and h.get("close"):
+            h["close"]()
+        return {"ok": True, "cut": cut, "was": (h or {}).get("state", "")}
+
     def ssh_request(self, ip, body):
-        """Another GOBLINCAKES computer wants to be able to open a terminal here → (status, JSON).
-        Asks (notification + the window) like files do; Tillåt = its key in authorized_keys."""
+        """Someone types her code in their Terminal box → (status, JSON)."""
         if not isinstance(body, dict) or not isinstance(body.get("info"), dict):
             return 400, {"message": "Request body malformed"}
         key = sshlink.valid_key(body.get("key"))
@@ -1163,46 +1187,65 @@ class Share:
         alias = str(info.get("alias") or "Okänd")[:60]
         if not fp or fp == self.fingerprint:
             return 400, {"message": "Request body malformed"}
+        typed = "".join(c for c in str(body.get("code") or "") if c.isdigit())
         with self.lock:
-            waiting = [a for a in self.ssh_asks.values() if a["answer"] is None]
-            if len(waiting) >= 3 or any(a["fingerprint"] == fp for a in waiting):
-                return 429, {"message": "Too many requests"}
-            aid = uuid.uuid4().hex
-            ask = {"id": aid, "fingerprint": fp, "alias": alias, "ip": ip, "answer": None,
-                   "event": threading.Event(), "changed": time.time()}
-            self.ssh_asks[aid] = ask
-        close = notify(f"{alias} vill kunna öppna en terminal här",
-                       "Då kan den datorn köra kommandon som du på den här datorn (inte som administratör utan ditt "
-                       "lösenord). Tillåt bara datorer du känner. Kan tas bort i GoblinShare → Inställningar.",
-                       actions=[("allow", "Tillåt"), ("deny", "Neka")],
-                       wait_cb=lambda k: self.ssh_answer(aid, k == "allow") if k else None, urgency="critical")
-        ask["event"].wait(ASK_SECONDS)
-        close()
-        with self.lock:
-            ask["changed"] = time.time()
-            if not ask["answer"]:
-                ask["answer"] = False
-                return 403, {"message": "declined"}
-        if not sshlink.grant(fp, key):
+            h = self.help
+            if not h or h["state"] != "kod" or time.time() > h["until"]:
+                return 403, {"message": "nocode"}
+            h["tries"] += 1
+            if not hmac.compare_digest(typed, h["code"]):
+                if h["tries"] >= HELP_TRIES:   # guessing: the code is gone, she asks for a new one
+                    self.help = None
+                    notify("Koden för hjälp är borttagen", f"{alias} skrev fel kod {HELP_TRIES} gånger. "
+                           "Tryck Be om hjälp igen för en ny kod.", urgency="critical")
+                    return 403, {"message": "nocode"}
+                return 403, {"message": "code", "left": HELP_TRIES - h["tries"]}
+            h.update(state="ansluter", alias=alias, fingerprint=fp, since=time.time())
+        if not sshlink.grant(fp, key, seconds=HELP_LOGIN):
+            self.help = None
             return 500, {"message": "Could not save the key"}
-        with self.lock:
-            self.cfg.setdefault("sshGranted", {})[fp] = alias
-            save_config(self.cfg)
         import pwd
-        return 200, {"user": pwd.getpwuid(os.getuid()).pw_name, "hostKey": sshlink.host_key(), "alias": self.alias()}
+        return 200, {"user": pwd.getpwuid(os.getuid()).pw_name, "hostKey": sshlink.host_key(), "alias": self.alias(),
+                     "login": HELP_LOGIN}
 
-    def ssh_answer(self, aid, allow):
-        with self.lock:
-            a = self.ssh_asks.get(aid)
-            if not a or a["answer"] is not None:
-                return False
-            a["answer"] = bool(allow)
-            a["changed"] = time.time()
-        a["event"].set()
-        return True
+    def help_watch(self):
+        """Every 2 s while a help is on: logged in → the key goes (the connection stays) + a notification
+        with Avsluta; the connection ended → over; nobody came → over."""
+        while not self.stop.wait(2):
+            with self.lock:
+                h = self.help
+            if not h:
+                continue
+            now = time.time()
+            if h["state"] == "kod":
+                if now > h["until"]:
+                    with self.lock:
+                        self.help = None
+                continue
+            inside = sshlink.sessions()
+            if h["state"] == "ansluter":
+                if inside:
+                    sshlink.revoke()   # he is in: no new logins with that key
+                    with self.lock:
+                        h["state"], h["since"] = "inne", now
+                    h["close"] = notify(f"{h['alias']} är inne i din dator",
+                                        "Hen kan köra kommandon i en terminal här tills hen stänger den. "
+                                        "Avsluta = ut direkt.", actions=[("end", "Avsluta")],
+                                        wait_cb=lambda k: self.help_stop() if k == "end" else None)
+                elif now - h["since"] > HELP_LOGIN + 5:
+                    sshlink.revoke()
+                    with self.lock:
+                        self.help = None
+            elif h["state"] == "inne" and not inside:
+                sshlink.revoke()
+                with self.lock:
+                    self.help = None
+                if h.get("close"):
+                    h["close"]()
+                notify(f"{h['alias']} har lämnat datorn", "Hjälpen är slut. Nästa gång behövs en ny kod.")
 
-    def ssh_pair(self, word):
-        """Asks another GOBLINCAKES computer to let us in (Terminal on its card) → "" or an error."""
+    def ssh_pair(self, word, code):
+        """Terminal + her code → a login on that computer (the terminal then opens) → "" or an error."""
         peer = self.peers.get(word) or self.find_peer(word)
         if not peer:
             return "Hittar inte datorn – tryck Leta igen"
@@ -1213,10 +1256,10 @@ class Share:
             if self.ssh_jobs.get(fp, {}).get("state") == "väntar":
                 return ""
             self.ssh_jobs[fp] = {"state": "väntar", "why": "", "changed": time.time(), "alias": peer["alias"]}
-        threading.Thread(target=self._ssh_pair_job, args=(dict(peer),), daemon=True).start()
+        threading.Thread(target=self._ssh_pair_job, args=(dict(peer), str(code)), daemon=True).start()
         return ""
 
-    def _ssh_pair_job(self, peer):
+    def _ssh_pair_job(self, peer, code):
         fp, alias = peer["fingerprint"], peer["alias"]
         state, why = "fel", ""
         try:
@@ -1227,40 +1270,40 @@ class Share:
                                      "alias": alias}
             return
         try:
-            status, data = request(peer, "POST", OWN_API + "/ssh", body={"info": self.info(), "key": key},
-                                   timeout=5, read_timeout=ASK_SECONDS + 60)
+            status, data = request(peer, "POST", OWN_API + "/ssh",
+                                   body={"info": self.info(), "key": key, "code": code}, timeout=8)
             data = data if isinstance(data, dict) else {}
             if status == 200 and data.get("user"):
                 with self.lock:
-                    paired = self.cfg.setdefault("sshPaired", {})
-                    taken = {p.get("host") for f, p in paired.items() if f != fp}
-                    host = (paired.get(fp) or {}).get("host") or sshlink.host_name(alias, taken)
-                    paired[fp] = {"alias": alias, "host": host, "ip": peer["ip"], "user": str(data["user"])[:64],
-                                  "hostKey": sshlink.valid_hostkey(data.get("hostKey"))}
+                    known = self.cfg.setdefault("sshPaired", {})
+                    taken = {p.get("host") for f, p in known.items() if f != fp}
+                    host = (known.get(fp) or {}).get("host") or sshlink.host_name(alias, taken)
+                    known[fp] = {"alias": alias, "host": host, "ip": peer["ip"], "user": str(data["user"])[:64],
+                                 "hostKey": sshlink.valid_hostkey(data.get("hostKey"))}
                     save_config(self.cfg)
                 self.write_ssh()
                 state = "klar"
             elif status == 403 and data.get("message") == "off":
-                why = f"Terminal är inte tillåten på {alias} – slå på \"Tillåt terminal\" i GoblinShare där"
-            elif status == 403:
-                why = f"{alias} tackade nej" if data.get("message") == "declined" else f"{alias} sa nej"
+                why = f"Hjälp via terminal är av på {alias} – hen slår på den i GoblinShare → Inställningar"
+            elif status == 403 and data.get("message") == "code":
+                why = f"Fel kod – försök igen ({data.get('left', '?')} försök kvar)"
+            elif status == 403 and data.get("message") == "nocode":
+                why = f"Ingen giltig kod på {alias} – be hen trycka Be om hjälp och läsa upp den nya koden"
             elif status == 404:
                 why = f"{alias} har en äldre GOBLINCAKES – uppdatera den först"
-            elif status == 429:
-                why = f"{alias} har redan en fråga om terminalen – svara på den där"
             else:
                 why = f"{alias} svarade {status}"
         except (OSError, ssl.SSLError, http.client.HTTPException):
-            why = f"Nådde inte {alias} (eller ingen svarade i tid)"
+            why = f"Nådde inte {alias}"
         with self.lock:
             self.ssh_jobs[fp] = {"state": state, "why": why, "changed": time.time(), "alias": alias}
 
     def write_ssh(self):
         with self.lock:
-            paired = json.loads(json.dumps(self.cfg.get("sshPaired", {})))
+            known = json.loads(json.dumps(self.cfg.get("sshPaired", {})))
         try:
-            if paired:
-                sshlink.write_client(paired)
+            if known:
+                sshlink.write_client(known)
             else:
                 sshlink.CLIENT_CONF.unlink(missing_ok=True)
                 sshlink.KNOWN.unlink(missing_ok=True)
@@ -1269,53 +1312,22 @@ class Share:
             print("GoblinShare: ~/.ssh:", e, file=sys.stderr)
 
     def ssh_forget(self, fp):
-        """We no longer open a terminal there (the other computer still has our key until it removes it)."""
+        """Glöm: its name, address and host key go from ~/.ssh (it never had a lasting key of ours)."""
         with self.lock:
             gone = self.cfg.get("sshPaired", {}).pop(fp, None)
             self.ssh_jobs.pop(fp, None)
             save_config(self.cfg)
         self.write_ssh()
-        if gone:   # tell it, so its list is right too (it only removes our own key)
-            peer = self.peers.get(fp)
-            if peer:
-                threading.Thread(target=lambda: self._quiet(request, peer, "POST", OWN_API + "/ssh-forget",
-                                                            body={"info": self.info()}, timeout=3),
-                                 daemon=True).start()
         return bool(gone)
 
-    @staticmethod
-    def _quiet(fn, *args, **kw):
-        try:
-            fn(*args, **kw)
-        except (OSError, ssl.SSLError, http.client.HTTPException):
-            pass
-
-    def ssh_revoke(self, fp):
-        """Lets a computer in here no more."""
-        sshlink.revoke(fp)
-        with self.lock:
-            self.cfg.get("sshGranted", {}).pop(fp, None)
-            save_config(self.cfg)
-        return True
-
-    def ssh_forgotten(self, ip, body):
-        """The other computer pressed Glöm: its key goes – only from the address it is known at."""
-        info = body.get("info") if isinstance(body, dict) else None
-        fp = str((info or {}).get("fingerprint") or "")
-        known = self.peers.get(fp)
-        if fp in self.cfg.get("sshGranted", {}) and known and known["ip"] == ip and self.is_goblinshare(info, ip):
-            self.ssh_revoke(fp)
-        return 204, None
-
     def check_ssh_allowed(self):
-        """"Tillåt terminal" off (here, in a terminal or by the tweak) → no GoblinShare key stays."""
+        """"Hjälp via terminal" off (here, in a terminal or by the tweak) → no help, no GoblinShare key."""
         if sshlink.allowed_here():
             return
-        if self.cfg.get("sshGranted") or sshlink.granted():
+        if self.help:
+            self.help_stop()
+        elif sshlink.granted():
             sshlink.revoke()
-            with self.lock:
-                self.cfg["sshGranted"] = {}
-                save_config(self.cfg)
 
     # ---------------------------------------------------------- settings
     def trust(self, fp, on):
@@ -1392,13 +1404,11 @@ class Share:
                            for o in self.orders if o.get("state") != "skickad"],
                 "ssh": {
                     "allowed": allowed,
-                    "granted": [{"fingerprint": fp, "alias": a, "here": fp in self.peers}
-                                for fp, a in self.cfg.get("sshGranted", {}).items()],
+                    "help": ({"state": self.help["state"], "code": self.help["code"] if self.help["state"] == "kod" else "",
+                              "left": max(0, int(self.help["until"] - now)), "alias": self.help["alias"],
+                              "since": self.help["since"]} if self.help else None),
                     "paired": [{"fingerprint": fp, "alias": p.get("alias", ""), "host": p.get("host", ""),
                                 "ip": p.get("ip", ""), "here": fp in self.peers} for fp, p in paired.items()],
-                    "asks": [{"id": a["id"], "alias": a["alias"], "fingerprint": a["fingerprint"],
-                              "left": max(0, int(ASK_SECONDS - (now - a["changed"])))}
-                             for a in self.ssh_asks.values() if a["answer"] is None],
                     "jobs": [{"fingerprint": fp, "alias": j["alias"], "state": j["state"], "why": j["why"],
                               "t": j["changed"]} for fp, j in self.ssh_jobs.items()],
                 },
@@ -1445,15 +1455,16 @@ class Share:
         if op == "set":
             return {"ok": self.set(str(req.get("key", "")), req.get("value"))}
         if op == "ssh_pair":
-            why = self.ssh_pair(str(req.get("to", "")))
+            why = self.ssh_pair(str(req.get("to", "")), str(req.get("code", "")))
             return {"ok": not why, "error": why}
-        if op == "ssh_answer":
-            return {"ok": self.ssh_answer(str(req.get("id", "")), bool(req.get("allow")))}
         if op == "ssh_forget":
             return {"ok": self.ssh_forget(str(req.get("fingerprint", "")))}
-        if op == "ssh_revoke":
-            return {"ok": self.ssh_revoke(str(req.get("fingerprint", "")))}
-        if op == "ssh_check":   # the window/terminal just switched "Tillåt terminal"
+        if op == "help_start":
+            code, why = self.help_start()
+            return {"ok": bool(code), "code": code, "error": why, "seconds": HELP_SECONDS}
+        if op == "help_stop":
+            return self.help_stop()
+        if op == "ssh_check":   # the window/terminal just switched "Hjälp via terminal"
             self.check_ssh_allowed()
             return {"ok": True, "allowed": sshlink.allowed_here()}
         if op == "chat":
@@ -1602,9 +1613,6 @@ class Share:
                 if path == OWN_API + "/ssh":
                     status, data = share.ssh_request(ip, body)
                     return self.reply(status, data)
-                if path == OWN_API + "/ssh-forget":
-                    status, data = share.ssh_forgotten(ip, body)
-                    return self.reply(status, data)
                 self.reply(404, {"message": "Not found"})
 
         class Server(ThreadingHTTPServer):
@@ -1634,6 +1642,7 @@ class Share:
         if self.cfg.get("sshPaired"):
             self.write_ssh()
         self.check_ssh_allowed()
+        threading.Thread(target=self.help_watch, daemon=True).start()
         threading.Thread(target=self.housekeeping, daemon=True).start()
         while not self.stop.is_set():
             try:
@@ -1732,3 +1741,4 @@ def turn_off():
     if sshlink.allowed_here():
         sshlink.set_allowed(False)
     sshlink.revoke()
+    sshlink.end_sessions()

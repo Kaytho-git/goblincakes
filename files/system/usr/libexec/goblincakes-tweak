@@ -3,7 +3,7 @@
 #
 #   goblincakes-tweak status <id>        prints on, off or unavailable
 #   goblincakes-tweak set <id> on|off    changes it (system ones run as root via pkexec)
-#   share-ssh is GoblinShare's "Tillåt terminal" (not in tweaks.json – the GoblinShare window runs it)
+#   share-ssh is GoblinShare's "Hjälp via terminal" (not in tweaks.json – the GoblinShare window runs it)
 #
 # System settings go in /etc (writable on the atomic system) and survive updates;
 # switching off removes our file again, so the system default is back.
@@ -352,8 +352,8 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
         esac ;;
 
     share-ssh)
-        # GoblinShare → Inställningar → "Tillåt terminal på den här datorn" (4 Nov): sshd on, with keys only
-        # (the keys GoblinShare puts in ~/.ssh/authorized_keys after Tillåt) and no root login. Not in
+        # GoblinShare → Inställningar → "Tillåt hjälp via terminal på den här datorn" (4 Nov): sshd on, with keys only
+        # (GoblinShare puts a key in ~/.ssh/authorized_keys for 2 min after the right help code) and no root login. Not in
         # tweaks.json – the GoblinShare window runs it. Off = sshd and the firewall back as they were (only
         # what we changed, kept in $mark); GoblinShare then removes its keys.
         conf=/etc/ssh/sshd_config.d/10-goblincakes-share.conf
@@ -373,7 +373,7 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
                         fi
                     fi
                     # First value wins in sshd_config, and the .d files come before Fedora's own settings
-                    printf '# GOBLINCAKES GoblinShare → Tillåt terminal: bara nycklar, aldrig lösenord eller root\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\nPubkeyAuthentication yes\n' > "$conf"
+                    printf '# GOBLINCAKES GoblinShare → Hjälp via terminal: bara nycklar, aldrig lösenord eller root\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\nPubkeyAuthentication yes\n' > "$conf"
                     if ! sshd -t 2>/dev/null; then
                         rm -f "$conf" "$mark"
                         echo "SSH-servern godtog inte inställningarna" >&2; exit 1

@@ -11,10 +11,12 @@
     goblincakes-share orders                  the orders that came here (start <nr> [chatgpt] = Goblin AI
                                               takes it, or the ChatGPT app draws it)
     goblincakes-share scan                    looks for devices again (multicast + the local network)
-    goblincakes-share terminal [<namn>]       a terminal on another GOBLINCAKES computer (ssh; asks it once
-                                              – Tillåt there); without a name: which ones, and if this one
-                                              lets others in. terminal på|av = "Tillåt terminal" here,
-                                              terminal glöm <namn> / terminal ta-bort <namn>
+    goblincakes-share hjälp [avsluta]         Be om hjälp: a code to read out to the one helping (waits;
+                                              Ctrl+C = out). "Hjälp via terminal" is switched on if needed
+    goblincakes-share terminal <namn> [kod]   a terminal on that computer with the code it shows (ssh); while
+                                              it is open `ssh <namn> <kommando>` works too (Claude Code).
+                                              terminal = the list, terminal på|av = "Hjälp via terminal" here,
+                                              terminal glöm <namn>
 """
 import json
 import os
@@ -60,82 +62,137 @@ def wait_job(jid):
         time.sleep(0.5)
 
 
-def terminal(argv):
+def _sshlink():
     sys.path.insert(0, str(Path(S.__file__).parent))
     import sshlink
+    return sshlink
+
+
+def allow(on):
+    sshlink = _sshlink()
+    why = sshlink.set_allowed(on)
+    S.call("ssh_check")
+    return why
+
+
+def help_here(argv):
+    """Be om hjälp: shows the code to read out, then who is in; Ctrl+C or `hjälp avsluta` = out."""
+    if len(argv) > 2 and argv[2] in ("avsluta", "stopp", "stop", "slut"):
+        res = S.call("help_stop") or {}
+        print("Hjälpen är avslutad." if res.get("ok") else "GoblinShare är avstängt.")
+        return 0
+    need_service()
+    if not _sshlink().allowed_here():
+        print("Hjälp via terminal slås på först (skriv ditt lösenord) …", flush=True)
+        why = allow(True)
+        if why:
+            print(why)
+            return 1
+    res = S.call("help_start") or {}
+    if not res.get("ok"):
+        print(res.get("error") or "Gick inte")
+        return 1
+    code = res["code"]
+    print(f"\n    Din kod:  {code[:3]} {code[3:]}\n")
+    print(f"Läs upp den för den som ska hjälpa dig – hen trycker Terminal på din ruta i GoblinShare och skriver in "
+          f"den. Gäller i {res['seconds'] // 60} minuter. Ctrl+C = avbryt / avsluta hjälpen.", flush=True)
+    last = "kod"
+    try:
+        while True:
+            time.sleep(1)
+            h = ((S.call("status") or {}).get("ssh") or {}).get("help")
+            state = h["state"] if h else ""
+            if state != last:
+                if state == "inne":
+                    print(f"{h['alias']} är inne i din dator nu. Ctrl+C = ut direkt.", flush=True)
+                elif not state:
+                    print("Hjälpen är slut." if last == "inne" else "Koden gäller inte längre.")
+                    return 0
+                last = state
+    except KeyboardInterrupt:
+        S.call("help_stop")
+        print("\nAvslutat – ingen kommer in utan en ny kod.")
+        return 0
+
+
+def terminal(argv):
+    sshlink = _sshlink()
     word = argv[2] if len(argv) > 2 else ""
     if word in ("på", "on", "av", "off"):
         on = word in ("på", "on")
-        why = sshlink.set_allowed(on)
-        S.call("ssh_check")
-        print(why or ("Andra GOBLINCAKES-datorer kan nu be om att få öppna en terminal här (du får frågan)." if on
-                      else "Ingen kan öppna en terminal här längre – SSH är som förut och GoblinShares nycklar borta."))
+        why = allow(on)
+        print(why or ("Hjälp via terminal är på. När du behöver hjälp: goblin share hjälp (eller Be om hjälp i "
+                      "GoblinShare) – ingen kommer in utan koden du läser upp." if on
+                      else "Hjälp via terminal är av – SSH är som förut och ingen kommer in."))
         return 1 if why else 0
     st = need_service()
     ssh = st.get("ssh", {})
     if not word:
-        print("Tillåt terminal här: " + ("på" if ssh.get("allowed") else "av (goblin share terminal på)"))
-        for g in ssh.get("granted", []):
-            print(f"  {g['alias']} får öppna en terminal här  (ta bort: goblin share terminal ta-bort \"{g['alias']}\")")
+        print("Hjälp via terminal här: " + ("på (goblin share hjälp = be om hjälp)" if ssh.get("allowed")
+                                            else "av (goblin share terminal på)"))
+        h = ssh.get("help")
+        if h:
+            print(f"  {h['alias']} är inne i datorn nu" if h["state"] == "inne" else f"  koden {h['code']} väntar")
         for p in ssh.get("paired", []):
-            print(f"Terminal på {p['alias']}: ssh {p['host']}" + ("" if p["here"] else "  (syns inte nu)"))
-        if not ssh.get("paired"):
-            print("Inga datorer ihopkopplade än: goblin share terminal <namn>")
+            on = sshlink.connected(p["host"])
+            print(f"{p['alias']}: " + (f"ansluten – ssh {p['host']} <kommando>" if on else
+                                       f"goblin share terminal {p['host']} <koden från hen>"))
         return 0
-    if word in ("glöm", "glom", "ta-bort", "tabort", "remove", "forget") and len(argv) > 3:
+    if word in ("glöm", "glom", "forget") and len(argv) > 3:
         name = " ".join(argv[3:]).lower()
-        group = ssh.get("paired" if word.startswith("gl") or word == "forget" else "granted", [])
+        group = ssh.get("paired", [])
         hit = next((x for x in group if x["alias"].lower() == name or x.get("host") == name), None) or \
             next((x for x in group if name in x["alias"].lower()), None)
         if not hit:
             print(f"Hittar ingen \"{name}\"")
             return 1
-        S.call("ssh_forget" if group is ssh.get("paired") else "ssh_revoke", fingerprint=hit["fingerprint"])
-        print(f"{hit['alias']}: borttagen.")
+        S.call("ssh_forget", fingerprint=hit["fingerprint"])
+        print(f"{hit['alias']}: glömd.")
         return 0
-    name = " ".join(argv[2:])
-    low = name.lower()
+    args = argv[2:]
+    code = "".join(args[-1].split()) if args and args[-1].replace(" ", "").isdigit() else ""
+    if code:
+        args = args[:-1]
+    low = " ".join(args).lower()
     paired = next((p for p in ssh.get("paired", []) if low in (p["host"], p["alias"].lower())), None)
     peer = next((p for p in st["peers"] if p["alias"].lower() == low), None) or \
-        next((p for p in st["peers"] if low in p["alias"].lower()), None)
+        next((p for p in st["peers"] if low and low in p["alias"].lower()), None)
     if not paired and peer:
         paired = next((p for p in ssh.get("paired", []) if p["fingerprint"] == peer["fingerprint"]), None)
-    if paired:
-        said = sshlink.check(paired["host"])
-        if said == "denied" and peer:   # removed there – ask again
-            print(f"{paired['alias']} släpper inte in den här datorn längre – frågar igen.")
-            S.call("ssh_forget", fingerprint=paired["fingerprint"])
-            paired = None
-        elif said == "hostkey":
-            print(f"{paired['alias']} har nya SSH-nycklar (ominstallerad?). Om det är rätt dator: "
-                  f"goblin share terminal glöm {paired['host']} och sedan goblin share terminal {paired['host']}")
-            return 1
-        elif said == "unreachable":
-            print(f"Når inte {paired['alias']} – är datorn på, och Tillåt terminal på där?")
-            return 1
-    if not paired:
-        if not peer:
-            print(f"Hittar ingen \"{name}\". Enheterna: " + (", ".join(p["alias"] for p in st["peers"]) or "inga"))
-            return 1
-        res = S.call("ssh_pair", to=peer["fingerprint"]) or {}
+    if paired and sshlink.connected(paired["host"]):   # a Terminal is open: one more on the same connection
+        os.execvp("ssh", ["ssh", paired["host"]])
+    if not peer:
+        print(f"Hittar ingen \"{low}\". Enheterna: " + (", ".join(p["alias"] for p in st["peers"]) or "inga"))
+        return 1
+    while True:
+        if not code:
+            try:
+                code = "".join(input(f"Koden som visas på {peer['alias']} (hen trycker Be om hjälp): ").split())
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return 1
+        res = S.call("ssh_pair", to=peer["fingerprint"], code=code) or {}
         if not res.get("ok"):
             print(res.get("error") or "Gick inte")
             return 1
-        print(f"Frågar {peer['alias']} – tryck Tillåt där …", flush=True)
         while True:
-            time.sleep(0.5)
+            time.sleep(0.3)
             st = S.call("status") or {}
             job = next((j for j in st.get("ssh", {}).get("jobs", []) if j["fingerprint"] == peer["fingerprint"]), None)
-            if job and job["state"] != "väntar":
-                break
-            if not job and not st:
+            if not st:
                 print("GoblinShare stannade")
                 return 1
-        if job["state"] != "klar":
-            print(job["why"] or "Gick inte")
+            if job and job["state"] != "väntar":
+                break
+        if job["state"] == "klar":
+            break
+        print(job["why"] or "Gick inte")
+        if not job["why"].startswith("Fel kod") or not sys.stdin.isatty():
             return 1
-        paired = next((p for p in st["ssh"]["paired"] if p["fingerprint"] == peer["fingerprint"]), None)
-        print(f"Klart – från och med nu räcker: ssh {paired['host']}", flush=True)
+        code = ""
+    paired = next((p for p in st["ssh"]["paired"] if p["fingerprint"] == peer["fingerprint"]), None)
+    print(f"Inne på {peer['alias']}. Medan den här terminalen är öppen fungerar också ssh {paired['host']} <kommando> "
+          "(t.ex. åt Claude Code). Stäng den = ute.", flush=True)
     os.execvp("ssh", ["ssh", paired["host"]])
 
 
@@ -164,6 +221,8 @@ def main(argv):
         return 0
     if cmd in ("terminal", "ssh"):
         return terminal(argv)
+    if cmd in ("hjälp", "hjalp", "help-me"):
+        return help_here(argv)
     if cmd == "scan":
         need_service()
         S.call("scan", sweep=True)

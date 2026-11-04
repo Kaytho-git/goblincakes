@@ -1,4 +1,4 @@
-2026-11-04  GoblinShare: knappen Terminal öppnar en terminal på den andra GOBLINCAKES-datorn. Den datorn måste först slå på Tillåt terminal under Inställningar och trycka Tillåt en gång. Sedan räcker ssh och datorns namn i vilken terminal som helst.
+2026-11-04  GoblinShare: Be om hjälp. Den som behöver hjälp med datorn trycker Be om hjälp och läser upp koden som visas. Den som hjälper trycker Terminal på hens ruta, skriver in koden och kan sedan köra kommandon där så länge terminalen är öppen. Varje gång behövs en ny kod, och Avsluta stänger direkt.
 2026-11-04  Inget viloläge gäller direkt när du slår av eller på det i Config – förut fick man logga ut och in innan locket fick datorn att sova igen.
 2026-11-03  Goblin AI: /kalender fungerar även med en liten AI-modell – händelsen läggs in direkt i stället för att Kakan stoppas.
 2026-11-03  GoblinShare: Text öppnar ett eget chattfönster med hela samtalet med den datorn (Enter skickar, klick på ett meddelande kopierar det, länkar går att klicka på). En siffra på Text visar nya meddelanden, och notisen öppnar chatten. Meddelandena ligger inte längre i Historik.

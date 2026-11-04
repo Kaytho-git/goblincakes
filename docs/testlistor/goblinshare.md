@@ -55,16 +55,19 @@ Så här provar du (rader utan "- " först läses inte av /testa):
 - Tjänstens logg
   kör: journalctl --user -u goblincakes-share -n 30 --no-pager
   väntat: inga Traceback-rader
-- Tillåt terminal på frugans dator
-  fråga: På frugans dator: GoblinShare → Inställningar → slå på "Tillåt terminal på den här datorn". Frågade den efter lösenordet, och stod reglaget på efteråt?
+- Be om hjälp på frugans dator
+  fråga: På frugans dator: tryck Be om hjälp i GoblinShare. Frågade den efter lösenordet (bara första gången), och visades sedan en sexsiffrig kod?
 - SSH-servern där
   fråga: På frugans dator i en terminal: systemctl is-active sshd. Svarade den active?
-- Koppla ihop
-  fråga: Här: tryck Terminal på frugans ruta i GoblinShare. Kom notisen "… vill kunna öppna en terminal här" med Tillåt/Neka på hennes dator, och öppnades en terminal inloggad på hennes dator när du tryckt Tillåt?
-- ssh med namnet
-  kör: goblin share terminal
-  väntat: en rad "Terminal på <hennes dator>: ssh <namn>"
-- Kommando på den andra datorn
-  fråga: Kör ssh <namnet från förra punkten> hostname i en terminal här. Svarade den med frugans dators namn, utan att fråga efter lösenord?
-- Tillåt terminal av
-  fråga: På frugans dator: slå av "Tillåt terminal". Fungerar ssh <namn> hostname här inte längre (Permission denied eller Connection refused), och är sshd av där (systemctl is-active sshd = inactive)?
+- Terminal med koden
+  fråga: Här: tryck Terminal på frugans ruta och skriv koden hon läser upp. Öppnades en terminal inloggad på hennes dator, och står det "… är inne i din dator" med Avsluta hos henne?
+- Kommando via anslutningen
+  fråga: Medan den terminalen är öppen: kör ssh <namnet som goblin share terminal visar> hostname i en annan terminal här. Svarade den med frugans dators namn, utan lösenord eller kod?
+- Nyckeln borta medan han är inne
+  fråga: På frugans dator under tiden: grep -c goblinshare ~/.ssh/authorized_keys. Blev det 0?
+- Avsluta
+  fråga: Frugan trycker Avsluta. Stängdes din terminal till henne, och nekas ssh <namn> hostname nu (Permission denied)?
+- Stänga terminalen
+  fråga: Be om en ny kod, anslut, och stäng sedan terminalen själv. Fick frugan notisen "… har lämnat datorn"?
+- Hjälp via terminal av
+  fråga: På frugans dator: Inställningar → slå av "Tillåt hjälp via terminal". Är sshd av där (systemctl is-active sshd = inactive)?

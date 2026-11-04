@@ -38,6 +38,10 @@ Window {
     property string note: ""
     property var textTo: null       // the device a message is being written to
     property bool ordering: false   // … or an order to its Kakan
+    property var codeTo: null       // Terminal: the computer whose help code is being typed (4 Nov)
+    property string codeWhy: ""     // … and why the last code didn't work
+    readonly property var help: (st.ssh || {}).help || null   // Be om hjälp here: the code / who is in
+    function mmss(n) { return Math.floor(n / 60) + ":" + ("0" + (n % 60)).slice(-2) }
     // A big (maximized) window: everything bigger instead of small text spread out – as GoblinRecorder
     readonly property real zoom: Math.max(1, Math.min(1.6, Math.min(width / 1080, height / 720)))
 
@@ -63,7 +67,7 @@ Window {
                + (staged.length > 3 ? " …" : "");
     }
 
-    Shortcut { sequence: "Esc"; onActivated: win.textTo ? (win.textTo = null) : win.close() }
+    Shortcut { sequence: "Esc"; onActivated: win.codeTo ? (win.codeTo = null) : win.textTo ? (win.textTo = null) : win.close() }
     function sendWritten() {
         if (win.ordering) backend.sendOrder(win.textTo.fingerprint, textEdit.text);
         else backend.sendText(win.textTo.fingerprint, textEdit.text);
@@ -73,6 +77,8 @@ Window {
         target: backend
         function onMessage(text) { if (win.active) { win.note = text; noteTimer.restart(); } }
         function onChatRequested(fp) { win.openChat(fp, ""); }
+        function onAskCode(fp, alias) { win.codeWhy = ""; win.codeTo = { "fingerprint": fp, "alias": alias }; codeField.text = ""; codeField.field.forceActiveFocus(); }
+        function onCodeResult(fp, ok, why) { if (ok) win.codeTo = null; else if (win.codeTo) { win.codeWhy = why; codeField.text = ""; } }
     }
     Timer { id: noteTimer; interval: 6000; onTriggered: win.note = "" }
 
@@ -624,6 +630,13 @@ Window {
                 id: onRow
                 anchors { right: parent.right; rightMargin: 40; top: parent.top; topMargin: 40 }
                 spacing: 14
+                FlatButton { // someone helps on this computer: a code to read out (4 Nov)
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: !!win.st.running && !win.help
+                    text: win.st.sshBusy ? "Slår på …" : "Be om hjälp"
+                    enabledState: !win.st.sshBusy
+                    onClicked: { win.tab = "devices"; backend.helpStart(); }
+                }
                 FlatButton {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !!win.st.running
@@ -898,43 +911,54 @@ Window {
                     }
                 }
 
-                // Someone wants to be able to open a terminal here (4 Nov)
-                Repeater {
-                    model: win.ssh.asks || []
-                    Rectangle {
-                        id: sshAsk
-                        required property var modelData
-                        width: devCol.width
-                        height: sshAskCol.height + 36
-                        color: "#0E1420"
-                        border.width: 1
-                        border.color: accent.color
-                        Column {
-                            id: sshAskCol
-                            anchors { left: parent.left; leftMargin: 22; right: sshAskButtons.left; rightMargin: 20; top: parent.top; topMargin: 18 }
-                            spacing: 6
-                            Text {
-                                text: sshAsk.modelData.alias + " vill kunna öppna en terminal här"
-                                color: "#E6ECF5"
-                                font.family: "IBM Plex Sans"
-                                font.weight: Font.Medium
-                                font.pixelSize: 16
-                                width: parent.width
-                                elide: Text.ElideRight
-                            }
-                            Note {
-                                width: parent.width
-                                text: "Då kan den datorn köra kommandon som du här (inte som administratör utan ditt lösenord). " +
-                                      "Tillåt bara datorer du känner – du kan ta bort det under Inställningar."
-                            }
-                            Note { text: "svara inom " + sshAsk.modelData.left + " s"; color: "#5C6880" }
+                // Be om hjälp here: the code to read out, then who is in (4 Nov)
+                Rectangle {
+                    visible: !!win.help
+                    width: devCol.width
+                    height: helpCol.height + 40
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: accent.color
+                    Column {
+                        id: helpCol
+                        anchors { left: parent.left; leftMargin: 22; right: helpButtons.left; rightMargin: 20; top: parent.top; topMargin: 20 }
+                        spacing: 8
+                        SectionTitle { text: !win.help ? "" : win.help.state === "kod" ? "BE OM HJÄLP" : "HJÄLP PÅGÅR" }
+                        Text {
+                            visible: !!win.help && win.help.state === "kod"
+                            text: win.help ? win.help.code.slice(0, 3) + " " + win.help.code.slice(3) : ""
+                            color: accent.text
+                            font.family: "Chakra Petch"
+                            font.weight: Font.Bold
+                            font.pixelSize: 44
+                            font.letterSpacing: 6
                         }
-                        Row {
-                            id: sshAskButtons
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 10
-                            FlatButton { text: "Neka"; onClicked: backend.sshAnswer(sshAsk.modelData.id, false) }
-                            FlatButton { primary: true; text: "Tillåt"; onClicked: backend.sshAnswer(sshAsk.modelData.id, true) }
+                        Text {
+                            width: parent.width
+                            text: !win.help ? "" : win.help.state === "kod"
+                                  ? "Läs upp koden för den som ska hjälpa dig. Hen trycker Terminal på din ruta i GoblinShare och skriver in den."
+                                  : win.help.state === "ansluter" ? win.help.alias + " loggar in …"
+                                  : win.help.alias + " är inne i din dator sedan " + win.when(win.help.since)
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.Medium
+                            font.pixelSize: 16
+                            wrapMode: Text.Wrap
+                        }
+                        Note {
+                            width: parent.width
+                            text: !win.help ? "" : win.help.state === "kod"
+                                  ? "Koden gäller i " + win.mmss(win.help.left) + " och bara en gång. Utan den kommer ingen in."
+                                  : "Hen kan köra kommandon i en terminal här tills hen stänger den – sedan behövs en ny kod. Avsluta = ut direkt."
+                        }
+                    }
+                    Row {
+                        id: helpButtons
+                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                        FlatButton {
+                            danger: !!win.help && win.help.state !== "kod"
+                            text: !!win.help && win.help.state === "kod" ? "Avbryt" : "Avsluta"
+                            onClicked: backend.helpStop()
                         }
                     }
                 }
@@ -1186,7 +1210,7 @@ Window {
                                 anchors { right: parent.right; rightMargin: 14; bottom: parent.bottom; bottomMargin: 10 }
                                 small: true
                                 enabledState: card.modelData.sshState !== "väntar"
-                                text: card.modelData.sshState === "väntar" ? "Väntar …" : "Terminal"
+                                text: card.modelData.sshState === "väntar" ? "Ansluter …" : "Terminal"
                                 onClicked: { const fp = card.modelData.fingerprint; Qt.callLater(() => backend.terminal(fp)); }
                             }
                         }
@@ -1384,7 +1408,7 @@ Window {
                 }
 
                 Item { width: 1; height: 14 }
-                SectionTitle { text: "TERMINAL" }
+                SectionTitle { text: "HJÄLP VIA TERMINAL" }
                 Row {
                     spacing: 14
                     ToggleSwitch {
@@ -1395,7 +1419,7 @@ Window {
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: win.st.sshBusy ? "Ändrar … (skriv lösenordet)" : "Tillåt terminal på den här datorn"
+                        text: win.st.sshBusy ? "Ändrar … (skriv lösenordet)" : "Tillåt hjälp via terminal på den här datorn"
                         color: "#E6ECF5"
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 14
@@ -1403,34 +1427,16 @@ Window {
                 }
                 Note {
                     width: parent.width
-                    text: "Andra GOBLINCAKES-datorer kan då be om att få öppna en terminal här (Terminal på deras ruta) – du får " +
-                          "frågan en gång per dator och svarar Tillåt eller Neka. Den datorn kan sedan köra kommandon som du, " +
-                          "t.ex. för att hjälpa till eller laga något. Bara från hemnätverket och med en nyckel, aldrig med lösenord. " +
-                          "Av = SSH stängs av igen och alla godkännanden tas bort."
-                }
-                Repeater {
-                    model: win.ssh.granted || []
-                    Row {
-                        id: grantRow
-                        required property var modelData
-                        spacing: 14
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 260
-                            text: grantRow.modelData.alias + " får öppna en terminal här"
-                            color: "#E6ECF5"
-                            font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
-                            elide: Text.ElideRight
-                        }
-                        FlatButton { small: true; text: "Ta bort"; danger: true; onClicked: backend.sshRevoke(grantRow.modelData.fingerprint) }
-                    }
+                    text: "När du behöver hjälp med datorn: tryck Be om hjälp (överst) och läs upp koden som visas. Den som hjälper " +
+                          "dig trycker Terminal på din ruta och skriver in koden – sedan kan hen köra kommandon här så länge hens " +
+                          "terminal är öppen. Varje gång behövs en ny kod; utan den kommer ingen in. Bara från hemnätverket, aldrig " +
+                          "med lösenord och aldrig som administratör. Av = SSH stängs av igen."
                 }
                 Note {
                     visible: (win.ssh.paired || []).length > 0
                     width: parent.width
-                    text: "Du kan öppna en terminal på de här datorerna – med Terminal på rutan, eller i vilken terminal som helst " +
-                          "(också åt Claude Code) med kommandot bredvid:"
+                    text: "Datorer du har hjälpt – medan din terminal till dem är öppen fungerar kommandot bredvid i vilken terminal " +
+                          "som helst, också åt Claude Code:"
                 }
                 Repeater {
                     model: win.ssh.paired || []
@@ -1449,14 +1455,13 @@ Window {
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            width: 200
-                            text: "ssh " + pairRow.modelData.host
+                            width: 260
+                            text: "ssh " + pairRow.modelData.host + " <kommando>"
                             color: accent.text
                             font.family: "IBM Plex Mono"
                             font.pixelSize: 13
                             elide: Text.ElideRight
                         }
-                        FlatButton { small: true; text: "Kopiera"; onClicked: backend.copyText("ssh " + pairRow.modelData.host) }
                         FlatButton { small: true; text: "Glöm"; onClicked: backend.sshForget(pairRow.modelData.fingerprint) }
                     }
                 }
@@ -1483,6 +1488,61 @@ Window {
             }
         }
         FlatScrollBar { flick: setFlick }
+
+        // ── Terminal: the code the other computer shows (4 Nov) ──
+
+        Rectangle {
+            anchors.fill: parent
+            visible: !!win.codeTo
+            color: "#C007090D"
+            z: 11
+            MouseArea { anchors.fill: parent; onClicked: win.codeTo = null }
+            Rectangle {
+                anchors.centerIn: parent
+                width: Math.min(520, stage.width - 80)
+                height: codeCol.height + 48
+                color: "#0E1420"
+                border.width: 1
+                border.color: "#1E2A40"
+                MouseArea { anchors.fill: parent }
+                Column {
+                    id: codeCol
+                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
+                    spacing: 14
+                    SectionTitle { text: "TERMINAL PÅ " + (win.codeTo ? win.codeTo.alias.toUpperCase() : "") }
+                    Note {
+                        width: parent.width
+                        text: "Be " + (win.codeTo ? win.codeTo.alias : "") + " trycka Be om hjälp i GoblinShare och läsa upp koden som visas där."
+                    }
+                    FlatField {
+                        id: codeField
+                        width: 220
+                        hint: "123 456"
+                        field.font.family: "IBM Plex Mono"
+                        field.font.pixelSize: 20
+                        field.inputMethodHints: Qt.ImhDigitsOnly
+                        onAccepted: if (win.codeTo && text.replace(/\D/g, "").length === 6) backend.connectWithCode(win.codeTo.fingerprint, text)
+                    }
+                    Note {
+                        visible: win.codeWhy !== ""
+                        width: parent.width
+                        text: win.codeWhy
+                        color: accent.errorBright
+                    }
+                    Row {
+                        anchors.right: parent.right
+                        spacing: 10
+                        FlatButton { text: "Avbryt"; onClicked: win.codeTo = null }
+                        FlatButton {
+                            primary: true
+                            text: win.codeTo && (win.peers.find(p => p.fingerprint === win.codeTo.fingerprint) || {}).sshState === "väntar" ? "Ansluter …" : "Anslut"
+                            enabledState: codeField.text.replace(/\D/g, "").length === 6
+                            onClicked: backend.connectWithCode(win.codeTo.fingerprint, codeField.text)
+                        }
+                    }
+                }
+            }
+        }
 
         // ── Writing a message ────────────────────────────────────
 

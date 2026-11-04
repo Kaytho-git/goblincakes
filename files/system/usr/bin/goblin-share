@@ -52,7 +52,8 @@ class Backend(QObject):
     stagedChanged = Signal()
     message = Signal(str)
     chatRequested = Signal(str)     # open the chat window for a device (fingerprint)
-    pairAgain = Signal(str)         # from the ssh check's thread: Terminal again, in the window's thread
+    askCode = Signal(str, str)      # Terminal: the code box for a computer (fingerprint, name)
+    codeResult = Signal(str, bool, str)  # … in, or why not (the box stays with the reason)
 
     def __init__(self, staged):
         super().__init__()
@@ -60,9 +61,8 @@ class Backend(QObject):
         self._staged = [p for p in staged if Path(p).exists()]
         self._starting = False
         self._terminal_wanted = {}  # fingerprint → when Terminal was pressed (opens once the pairing is done)
-        self._ssh_busy = False      # "Tillåt terminal" is being switched (pkexec asks for the password)
+        self._ssh_busy = False      # "Hjälp via terminal" is being switched (pkexec asks for the password)
         self._ssh_said = ""         # … and why it didn't work
-        self.pairAgain.connect(self.terminal)
         self.timer = QTimer(self, interval=700, timeout=self.poll)
         self.timer.start()
         self.scan_timer = QTimer(self, interval=30000, timeout=lambda: S.call("scan", sweep=False, timeout=1))
@@ -121,7 +121,7 @@ class Backend(QObject):
     @Slot()
     def turnOff(self):
         S.FLAG.unlink(missing_ok=True)
-        # The service, and "Tillåt terminal" with it (may ask for the password) – not in the window's thread
+        # The service, and "Hjälp via terminal" with it (may ask for the password) – not in the window's thread
         subprocess.Popen([sys.executable, str(HELPER), "off"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     @Slot()
@@ -226,6 +226,8 @@ class Backend(QObject):
         self.poll()
 
     # ---------------------------------------------------------- terminal (ssh, 4 Nov)
+    # Help on another GOBLINCAKES computer: it presses Be om hjälp and reads out a code, Terminal here asks
+    # for it (askCode → the code box) – the terminal that opens is the connection Claude Code rides on.
     def _launch(self, host):
         cmd = [str(TERMINAL) if TERMINAL.exists() else "/usr/libexec/goblincakes-terminal", "run", "ssh", host]
         try:
@@ -240,48 +242,41 @@ class Backend(QObject):
         hosts = {p["fingerprint"]: p["host"] for p in st.get("ssh", {}).get("paired", [])}
         for fp, t in list(self._terminal_wanted.items()):
             job = jobs.get(fp)
-            if job and job["t"] >= t - 1 and job["state"] == "klar" and fp in hosts:
-                del self._terminal_wanted[fp]
-                self.message.emit(f"Ihopkopplat – i en terminal räcker: ssh {hosts[fp]}")
+            if not job or job["t"] < t - 1 or job["state"] == "väntar":
+                continue
+            del self._terminal_wanted[fp]
+            if job["state"] == "klar" and fp in hosts:
+                self.codeResult.emit(fp, True, "")
+                self.message.emit(f"Inne – medan terminalen är öppen fungerar också: ssh {hosts[fp]} <kommando>")
                 self._launch(hosts[fp])
-            elif job and job["t"] >= t - 1 and job["state"] == "fel":
-                del self._terminal_wanted[fp]
-                self.message.emit(job["why"] or "Gick inte")
+            else:
+                self.codeResult.emit(fp, False, job["why"] or "Gick inte")
 
     @Slot(str)
     def terminal(self, fp):
-        """Terminal on a GOBLINCAKES card: ssh there – the first time it asks that computer (Tillåt)."""
-        self.poll()   # fresh: after "denied" below the pairing is already forgotten
+        """Terminal on a GOBLINCAKES card: one more terminal if one is open there, else the code box."""
         st = json.loads(self._status)
         peer = next((p for p in st.get("peers", []) if p["fingerprint"] == fp), {})
-        if peer.get("ssh"):
-            # Paired – but the other computer may have removed us (or switched Tillåt terminal off)
-            def try_it(host=peer["ssh"], alias=peer.get("alias", "")):
-                said = sshlink.check(host)
-                if said == "ok":
-                    self._launch(host)
-                elif said == "denied":   # pair again (it asks there)
-                    S.call("ssh_forget", fingerprint=fp, timeout=5)
-                    self.pairAgain.emit(fp)
-                elif said == "hostkey":
-                    self._ssh_said = (f"{alias} har nya SSH-nycklar (ominstallerad?) – Glöm den under Inställningar "
-                                      "→ Terminal och tryck Terminal igen")
-                else:
-                    self._ssh_said = f"Når inte {alias} med SSH – är datorn på, och Tillåt terminal på där?"
-            threading.Thread(target=try_it, daemon=True).start()
-            return
+
+        def go(host=peer.get("ssh", ""), alias=peer.get("alias", "")):
+            if host and sshlink.connected(host):
+                self._launch(host)
+            else:
+                self.askCode.emit(fp, alias)
+        threading.Thread(target=go, daemon=True).start()
+
+    @Slot(str, str)
+    def connectWithCode(self, fp, code):
         import time
         self._terminal_wanted[fp] = time.time()
-        res = S.call("ssh_pair", to=fp, timeout=5)
+        res = S.call("ssh_pair", to=fp, code="".join(c for c in code if c.isdigit()), timeout=5)
         if not res or not res.get("ok"):
             self._terminal_wanted.pop(fp, None)
-            self.message.emit((res or {}).get("error") or "GoblinShare svarar inte")
-        else:
-            self.message.emit("Frågar den datorn – tryck Tillåt där")
+            self.codeResult.emit(fp, False, (res or {}).get("error") or "GoblinShare svarar inte")
         self.poll()
 
-    @Slot(bool)
-    def setSshAllowed(self, on):
+    def _root(self, on, then=None):
+        """"Hjälp via terminal" on/off – pkexec asks for the password, so not in the window's thread."""
         if self._ssh_busy:
             return
         self._ssh_busy = True
@@ -289,24 +284,39 @@ class Backend(QObject):
         def run():
             why = sshlink.set_allowed(on)
             S.call("ssh_check", timeout=5)
-            self._ssh_said = why
             self._ssh_busy = False
+            if why:
+                self._ssh_said = why
+            elif then:
+                then()
         threading.Thread(target=run, daemon=True).start()
         self.poll()
 
-    @Slot(str, bool)
-    def sshAnswer(self, aid, allow):
-        S.call("ssh_answer", id=aid, allow=allow)
+    @Slot(bool)
+    def setSshAllowed(self, on):
+        self._root(on)
+
+    @Slot()
+    def helpStart(self):
+        """Be om hjälp: switches "Hjälp via terminal" on the first time (password), then the code."""
+        def start():
+            res = S.call("help_start", timeout=5) or {}
+            if not res.get("ok"):
+                self._ssh_said = res.get("error") or "GoblinShare svarar inte"
+        if sshlink.allowed_here():
+            start()
+            self.poll()
+        else:
+            self._root(True, start)
+
+    @Slot()
+    def helpStop(self):
+        S.call("help_stop", timeout=5)
         self.poll()
 
     @Slot(str)
     def sshForget(self, fp):
         S.call("ssh_forget", fingerprint=fp)
-        self.poll()
-
-    @Slot(str)
-    def sshRevoke(self, fp):
-        S.call("ssh_revoke", fingerprint=fp)
         self.poll()
 
     # ---------------------------------------------------------- settings

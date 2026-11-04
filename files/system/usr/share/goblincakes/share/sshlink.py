@@ -1,28 +1,32 @@
-"""GoblinShare's terminal (4 Nov, the user: "gör ssh funktionen till goblinshare" – a terminal on the other
-GOBLINCAKES computer, and Claude Code here can run commands there).
+"""GoblinShare's terminal – help on another GOBLINCAKES computer (4 Nov, the user: access to the wife's terminal
+when she needs help, "ett id som säkerhet" that she reads out, approved every time, and Claude Code here can
+look for and fix the fault).
 
-    the computer that lets others in   GoblinShare → Inställningar → "Tillåt terminal på den här datorn"
-                                       (root: goblincakes-tweak set share-ssh on – sshd on, keys only, no
-                                       root login; off = sshd back as it was and every key below removed)
-    pairing (once)                     Terminal on a GOBLINCAKES card → POST /api/goblincakes/v1/ssh with our
-                                       public key → a notification there (Tillåt / Neka) → the key goes in
-                                       ~/.ssh/authorized_keys, only from the home network (from="…"),
-                                       restrict,pty, the comment goblinshare:<fingerprint>; the answer has the
-                                       login name and the computer's host key.
-    using it                           ~/.ssh/goblinshare.conf (Include at the top of ~/.ssh/config): a Host
-                                       per paired computer, named after it ("frugans-laptop"), its current
-                                       address (rewritten when GoblinShare sees it at a new one), our key
-                                       ~/.ssh/goblinshare_ed25519 and its host key in
-                                       ~/.ssh/goblinshare_known_hosts. So `ssh frugans-laptop` works in any
-                                       terminal – also for Claude Code.
+    her computer, once     GoblinShare → Inställningar → "Tillåt hjälp via terminal" (root: goblincakes-tweak
+                           set share-ssh on – sshd on, keys only, no root login; off = sshd and the firewall
+                           back as they were). Nobody gets in by that alone: authorized_keys has no key.
+    every time             she presses Be om hjälp → a 6-digit code on her screen (10 min, 5 tries) → she reads
+                           it out → he presses Terminal on her card and types it → POST /api/goblincakes/v1/ssh
+                           with his public key → the key goes in her ~/.ssh/authorized_keys with
+                           expiry-time (2 min), from="home networks", restrict,pty, the comment
+                           goblinshare:<fingerprint> → his terminal logs in → the key is taken away at once.
+    while he is in         his terminal is the connection (ControlMaster in ~/.ssh/goblinshare.conf), so
+                           `ssh <namn> <kommando>` in any terminal – Claude Code too – rides on it without a
+                           new login. He closes the terminal, or she presses Avsluta (window/notification:
+                           her sshd sessions are ended) → out; next time a new code.
+    his ~/.ssh             goblinshare_ed25519 (our key), goblinshare.conf (Host per computer helped, its current
+                           address – rewritten when GoblinShare sees it at a new one), goblinshare_known_hosts
+                           (its host key from the answer), "Include goblinshare.conf" at the top of config.
 
-Only the standard library + ssh-keygen. Paths can be moved for tests with GOBLINCAKES_SSH_DIR (instead of
+Only the standard library + ssh/ssh-keygen. Paths can be moved for tests with GOBLINCAKES_SSH_DIR (instead of
 ~/.ssh), GOBLINCAKES_SSHD_DROPIN, GOBLINCAKES_SSH_HOSTKEY and GOBLINCAKES_SSH_NETS.
 """
 import base64
 import os
 import re
+import signal
 import subprocess
+import time
 from pathlib import Path
 
 SSH_DIR = Path(os.environ.get("GOBLINCAKES_SSH_DIR") or Path.home() / ".ssh")
@@ -33,7 +37,7 @@ AUTH = SSH_DIR / "authorized_keys"
 USER_CONF = SSH_DIR / "config"
 INCLUDE = "Include goblinshare.conf   # GoblinShare: Terminal (ssh <namn>)"
 TAG = "goblinshare:"
-# Written by goblincakes-tweak share-ssh – its existence = "Tillåt terminal" is on
+# Written by goblincakes-tweak share-ssh – its existence = "Hjälp via terminal" is on
 DROPIN = Path(os.environ.get("GOBLINCAKES_SSHD_DROPIN") or "/etc/ssh/sshd_config.d/10-goblincakes-share.conf")
 HOSTKEY = Path(os.environ.get("GOBLINCAKES_SSH_HOSTKEY") or "/etc/ssh/ssh_host_ed25519_key.pub")
 TWEAK = os.environ.get("GOBLINCAKES_TWEAK") or "/usr/libexec/goblincakes-tweak"
@@ -61,6 +65,7 @@ def set_allowed(on):
         return said.splitlines()[-1] if said else "Gick inte"
     if not on:
         revoke()
+        end_sessions()
     return ""
 
 
@@ -105,15 +110,17 @@ def clean_fp(fp):
     return re.sub(r"[^0-9A-Za-z]", "", str(fp or ""))[:128]
 
 
-def grant(fp, key):
-    """Lets the computer with this fingerprint in with its key (an older key of the same computer goes)."""
+def grant(fp, key, seconds=120):
+    """Lets the computer with this fingerprint log in with its key for `seconds` (sshd's expiry-time, local
+    time – a login after that is refused even if the line were left); an older line of it goes."""
     key = valid_key(key)
     fp = clean_fp(fp)
     if not key or not fp:
         return False
     _private_dir()
+    until = time.strftime("%Y%m%d%H%M%S", time.localtime(time.time() + max(30, int(seconds))))
     lines = [l for l in _auth_lines() if not l.rstrip().endswith(" " + TAG + fp)]
-    lines.append(f'from="{HOME_NETS}",restrict,pty {key} {TAG}{fp}')
+    lines.append(f'from="{HOME_NETS}",expiry-time="{until}",restrict,pty {key} {TAG}{fp}')
     _write(AUTH, "\n".join(lines) + "\n")
     _relabel(SSH_DIR, AUTH)
     return True
@@ -146,6 +153,36 @@ def revoke(fp=None):
         _write(AUTH, "\n".join(keep) + ("\n" if keep else ""))
         return True
     return False
+
+
+def sessions():
+    """Our user's ssh logins right now: the pids of the sshd processes that run as us ("sshd: anna@pts/0",
+    "sshd-session: anna@notty" since OpenSSH 9.8)."""
+    uid, out = os.getuid(), []
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            if os.stat(f"/proc/{d}").st_uid != uid:
+                continue
+            with open(f"/proc/{d}/cmdline", "rb") as f:
+                cmd = f.read().replace(b"\0", b" ").decode(errors="replace").strip()
+        except OSError:
+            continue
+        if re.match(r"^sshd(-session)?: \S+@", cmd):
+            out.append(int(d))
+    return out
+
+
+def end_sessions():
+    """Avsluta: cuts every ssh login of ours (his terminal and everything riding on it) → how many."""
+    pids = sessions()
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    return len(pids)
 
 
 def host_key():
@@ -200,7 +237,9 @@ def write_client(paired):
                       f"    IdentityFile {KEY}\n    IdentitiesOnly yes\n    HostKeyAlias {alias}\n"
                       f"    UserKnownHostsFile {KNOWN}\n"
                       f"    StrictHostKeyChecking {'yes' if p.get('hostKey') else 'accept-new'}\n"
-                      f"    ConnectTimeout 8\n    ServerAliveInterval 30\n")
+                      f"    ConnectTimeout 8\n    ServerAliveInterval 30\n"
+                      # The Terminal window is the connection; `ssh <namn> …` (Claude Code) rides on it
+                      f"    ControlMaster auto\n    ControlPath {SSH_DIR}/goblinshare-%C\n    ControlPersist no\n")
         if p.get("hostKey"):
             known.append(f"{alias} {p['hostKey']}")
     _write(CLIENT_CONF, "\n".join(blocks))
@@ -234,14 +273,13 @@ def valid_hostkey(key):
     return valid_key(" ".join(str(key or "").split()[:2]))
 
 
-def check(host):
-    """Does `ssh <host>` get in? → "ok", "denied" (our key is gone there, or Tillåt terminal is off – pair
-    again), "hostkey" (the computer has new host keys: reinstalled, or not the same computer) or "unreachable"."""
+def connected(host):
+    """Is a Terminal to it open (the connection others ride on)?"""
     try:
-        r = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", host, "true"],
-                           capture_output=True, text=True, timeout=20)
+        return subprocess.run(["ssh", "-O", "check", host], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              timeout=5).returncode == 0
     except (OSError, subprocess.TimeoutExpired):
-        return "unreachable"
+        return False
     if r.returncode == 0:
         return "ok"
     err = r.stderr

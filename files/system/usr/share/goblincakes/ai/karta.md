@@ -292,18 +292,18 @@ Ord: goblinshare, share, dela, skicka fil, ta emot, localsend, airdrop, filer ti
   öppnas 53317 när GoblinShare slås på); ett annat program på porten (LocalSend själv) = felrad i fönstret.
   Telefonen syns bara medan LocalSend-appen är öppen. "Leta igen" frågar också hela /24-nätet direkt.
 - `goblin share lista` (enheterna), `goblin share status`, `goblin share till <namn> <fil>`, `goblin share text <namn> <text>`.
-- Terminal (ssh, 4 nov): knappen Terminal på en GOBLINCAKES-ruta / `goblin share terminal <namn>` = terminal på den
-  datorn. Första gången frågar den andra datorn (notis Tillåt/Neka) – bara om "Tillåt terminal på den här datorn" är på
-  där (GoblinShare → Inställningar, `goblin share terminal på/av`; root-delen `goblincakes-tweak set share-ssh on|off`:
-  /etc/ssh/sshd_config.d/10-goblincakes-share.conf = bara nycklar, ingen root; sshd + brandväggens ssh-tjänst slås på
-  och tillbaka som de var, minnet i /etc/goblincakes/share-ssh). Tillåt = nyckeln i ~/.ssh/authorized_keys med
-  from="hemnät",restrict,pty och kommentaren goblinshare:<fingeravtryck>; av = alla sådana rader bort (egna nycklar kvar).
-  Hos den som kopplat ihop: ~/.ssh/goblinshare_ed25519, ~/.ssh/goblinshare.conf (Host <namn> med aktuell adress, skrivs
-  om när datorn byter adress), Include överst i ~/.ssh/config, värdnyckeln i ~/.ssh/goblinshare_known_hosts. Sedan räcker
-  `ssh <namn>` i vilken terminal som helst (även Claude Code). Kolla: `goblin share terminal` (listan),
-  `ssh -v <namn> true`, `systemctl status sshd` på den andra datorn. "Permission denied (publickey)" = nyckeln borttagen
-  där eller "Tillåt terminal" av → tryck Terminal igen. "REMOTE HOST IDENTIFICATION HAS CHANGED" = den andra datorn
-  ominstallerad (nya värdnycklar) → Glöm i Inställningar och koppla ihop igen.
+- Hjälp via terminal (ssh, 4 nov): den som behöver hjälp trycker **Be om hjälp** i GoblinShare (`goblin share hjälp`)
+  och läser upp en 6-siffrig kod (10 min, 5 försök, en gång). Hjälparen trycker Terminal på hens ruta och skriver koden
+  (`goblin share terminal <namn> <kod>`) → en terminal där. Medan den är öppen fungerar `ssh <namn> <kommando>` i vilken
+  terminal som helst (ControlMaster, ~/.ssh/goblinshare.conf) – även för Claude Code. Stängs terminalen eller trycker hen
+  Avsluta (fönstret/notisen, `goblin share hjälp avsluta`) är hjälparen ute; nästa gång en ny kod.
+  Förutsättning hos den som får hjälp: "Tillåt hjälp via terminal" (Inställningar; första Be om hjälp slår på den;
+  root-delen `goblincakes-tweak set share-ssh on|off`: /etc/ssh/sshd_config.d/10-goblincakes-share.conf = bara nycklar,
+  ingen root; sshd och brandväggens ssh-tjänst tillbaka som de var vid av, minnet i /etc/goblincakes/share-ssh).
+  Nyckeln ligger i ~/.ssh/authorized_keys bara de sekunder det tar att logga in (expiry-time, kommentar goblinshare:…).
+  Kolla: `goblin share terminal` (listan/ansluten?), `systemctl status sshd`, `ssh -v <namn> true`.
+  "Permission denied (publickey)" = ingen terminal öppen (eller koden inte använd) – be om en ny kod. "REMOTE HOST
+  IDENTIFICATION HAS CHANGED" = den andra datorn ominstallerad → Glöm i Inställningar och anslut med ny kod.
 - Meddelanden: knappen Text på en enhet öppnar ett eget chattfönster (`goblin-share --chat <fingeravtryck>`, även
   notisens "Öppna chatten"); siffran på Text = olästa. Sparas per enhet i ~/.local/share/goblincakes/share/chats.json
   (300 per enhet; "read" = senast läst), inte i HISTORIK. Ingen notis medan chatten med just den enheten visas.
