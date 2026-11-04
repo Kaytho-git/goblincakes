@@ -1,3 +1,4 @@
+2026-11-04  Goblin AI i terminalen: mappar och filer hon skriver i svaren går att klicka på (Ctrl+klick i Ghostty och Konsole, klick i Kitty), och när hon gjort en bild finns en länk som öppnar mappen.
 2026-11-04  Terminalen: när du öppnar den visas nu bara de vanligaste kommandona (update, fast, play, screen, ai, nyheter). Alla kommandon ser du om du skriver goblin.
 2026-11-04  Goblin AI: när hon har installerat ett program får kortet en knapp Starta <programmet> – och hon säger att det finns i appmenyn, i stället för att försöka starta det själv (förut såg det ut som att installationen misslyckats).
 2026-11-04  Datorer med hårddisk: de program du använder mest läses in i förväg en minut efter inloggningen, så att de öppnas snabbt redan första gången (förut tog t.ex. Firefox upp till en halv minut och syntes bara som en ikon uppe till höger under tiden). Med SSD händer ingenting – där behövs det inte.

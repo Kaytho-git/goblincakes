@@ -101,12 +101,40 @@ def link(text, target):
     return f"\033]8;;{target}\033\\{ACCENT}{UNDERLINE}{text}{RESET}\033]8;;\033\\"
 
 
+def local_path(text):
+    """An existing file/folder written as /… or ~/… (trailing punctuation ignored), else None."""
+    text = text.strip().rstrip(".,:;!?")
+    if not text.startswith(("/", "~/")) or len(text) < 2:
+        return None
+    path = Path(text).expanduser()
+    try:
+        return path if path.exists() else None
+    except OSError:
+        return None
+
+
+def path_link(match):
+    """A path Kakan wrote as plain text or `code`: clickable when it exists (asked for a link to the
+    pictures folder and got text Ghostty could not open, 4 Nov)."""
+    raw = match.group(1) or match.group(2)
+    path = local_path(raw)
+    if not path:
+        return match.group(0) if match.group(2) else f"{ACCENT}{raw}{RESET}"
+    shown = raw.strip().rstrip(".,:;!?")
+    return link(shown, path.as_uri()) + raw[len(shown):] if match.group(2) else link(shown, path.as_uri())
+
+
 def inline(line):
-    """**bold**, `code` and links in a line of the answer."""
-    line = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", lambda m: link(m.group(1).strip("`"), m.group(2)), line)
+    """**bold**, `code` and links in a line of the answer; existing local paths become links."""
+    def md_link(m):
+        target = m.group(2).strip("<>")
+        path = local_path(target)
+        return link(m.group(1).strip("`"), path.as_uri() if path else target)
+    line = re.sub(r"\[([^\]]+)\]\((<[^>]+>|[^)\s]+)\)", md_link, line)
     line = re.sub(r"<(https?://[^>]+)>", lambda m: link(m.group(1), m.group(1)), line)
     line = re.sub(r"\*\*(.+?)\*\*", lambda m: f"{BOLD}{FROST}{m.group(1)}{RESET}", line)
-    line = re.sub(r"(?<![`\w])`([^`]+)`", lambda m: f"{ACCENT}{m.group(1)}{RESET}", line)
+    # `code` (a path in it may have spaces) or a bare /… or ~/… path that is not part of a URL/link
+    line = re.sub(r"(?<![`\w])`([^`]+)`|(?<![\w/:~.\\\]])(~?/[^\s`*()<>\"'\033]+)", path_link, line)
     return line
 
 
@@ -143,7 +171,8 @@ def render_text(markdown, indent="  "):
             for part in textwrap.wrap(quote.group(1), max(20, room - 2)) or [""]:
                 print(f"{indent}{BORDER}▌{RESET} {MUTED}{inline(part)}{RESET}")
             continue
-        for part in textwrap.wrap(line, room, break_on_hyphens=False, drop_whitespace=True) or [""]:
+        for part in textwrap.wrap(line, room, break_on_hyphens=False, break_long_words=False,
+                                  drop_whitespace=True) or [""]:
             print(f"{indent}{inline(part)}")
 
 
@@ -530,7 +559,9 @@ def draw(part, keys, project=None):
     if "done" in result:
         path, where = result["done"]
         part.update(state="done", path=str(path), service=where, progress="", fraction=-1.0)
-        print(f"  {RULE}▌{RESET} {ACCENT_BOLD}Bilden{RESET} {link(str(path), Path(path).as_uri())}")
+        folder = Path(path).parent
+        print(f"  {RULE}▌{RESET} {ACCENT_BOLD}Bilden{RESET} {link(str(path), Path(path).as_uri())}"
+              f" {MUTED}·{RESET} {link('öppna mappen', folder.as_uri())}")
         muted(f"    {where}")
     else:
         part.update(state="error", error=result.get("error", "Ingen bild."))
