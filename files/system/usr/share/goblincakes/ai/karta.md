@@ -52,6 +52,8 @@ Ord: uppdatering, uppdatera, update, grön pil, pilen, goblin update, automatisk
   Widget: /usr/share/plasma/plasmoids/org.goblincakes.updates. Den läser ~/.cache/goblincakes/updates.json som
   /usr/libexec/goblincakes-updates check skriver (tjänsten/timern goblincakes-updates, vid inloggning och var 4:e timme).
 - `goblin update` uppdaterar allt (systemet, Flatpaks, AppImages, Discord, Proton, firmware); `--only <del>` en del.
+  Firmware som datorn redan nekat (fwupdmgr get-history: misslyckad, samma version) hoppas över tyst – t.ex. Lenovos
+  som vägrar Microsofts nya Secure Boot-nyckel (KEK 2023); en ny version provas igen. Kolla: `fwupdmgr get-history`.
 - Automatiska uppdateringar: reglage i Config → Uppdatera. Under spel väntar de (spelläget).
 - Uppdatera och stäng av ("uppdatera när bygget är klart och stäng sen av datorn"): `goblin update --stäng-av` (Tillåt-kort; = Config → Uppdatera och stäng av) – väntar på bygget som pågår, uppdaterar, väntar på spel, stänger av efter två minuter med Avbryt; aldrig om något misslyckas. En bevakning gör inte detta (bara en notis). Avbryt: `goblin update --avbryt`. Läge: /usr/libexec/goblincakes-update-poweroff status, logg ~/.local/state/goblincakes/update-poweroff.log.
 - Bakgrundsjobben ger plats åt användaren (för hårddiskar): Flatpaks automatiska uppdatering (flatpak-system-update/

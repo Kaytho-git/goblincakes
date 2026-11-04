@@ -1,3 +1,4 @@
+2026-11-04  Uppdatera: en firmwareuppdatering som datorn redan har vägrat (t.ex. en ny Secure Boot-nyckel som BIOS inte tar emot) provas inte igen varje gång – den hoppas över tills tillverkaren släpper en ny version.
 2026-11-04  Datorer med hårddisk blir smidigare direkt efter start: Flatpak-uppdateringen väntar 20 minuter och kör med lägsta prioritet, den stora kontrollen av alla Flatpaks görs en gång i veckan, och programlistan och manualsidorna byggs bara om efter en uppdatering. Prestandaläget ger inte längre korta frysningar när mycket skrivs till disken.
 2026-11-04  GoblinShare: Be om hjälp sa alltid "Hjälp via terminal är av" fast den var påslagen – nu kommer koden fram.
 2026-11-04  GoblinShare blinkar inte längre då och då – fönstret ritades om varje sekund i onödan.

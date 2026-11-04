@@ -193,20 +193,59 @@ update_firmware() {
     command -v fwupdmgr >/dev/null || return 0
     heading "Firmware"
     fwupdmgr refresh --force >/dev/null 2>&1 || true
-    local log code reason
+    # Updates this computer has already refused (fwupd's history: failed, same version as offered now) are
+    # skipped quietly – the wife's Lenovo refuses Microsoft's new Secure Boot key (KEK 2023: only Lenovo
+    # could sign it for that model) and every update said so again (4 Nov). A new version is tried again.
+    local lines ids refused log code reason id installed=0 failed=0
+    mapfile -t lines < <(fwupd_wanted)
+    [ "${#lines[@]}" -gt 0 ] || lines=(0)
+    refused=${lines[-1]:-0}
+    [ "$refused" -gt 0 ] 2>/dev/null || refused=0
+    ids=("${lines[@]:0:${#lines[@]}-1}")
+    if [ "${#ids[@]}" = 0 ]; then
+        if [ "$refused" -gt 0 ]; then info "Ingen ny firmware ($refused som datorn redan har nekat hoppas över)"
+        else info "Ingen ny firmware"; fi
+        return 0
+    fi
     log=$(mktemp)
-    fwupdmgr update --assume-yes --no-reboot-check 2>&1 | tee "$log"
-    code=${PIPESTATUS[0]}
-    # 2 = nothing to update. Anything else (e.g. a UEFI/BIOS update the computer refuses):
-    # a warning with fwupd's own reason, not a failed update – the rest isn't affected (4 Nov)
-    case $code in
-        0) info "Ny firmware installerad" ;;
-        2) info "Ingen ny firmware" ;;
-        *) reason=$(sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -v '^[[:space:]]*$' | tail -n 1 | cut -c1-160)
-           info "Hoppades över – fwupd: ${reason:-okänt fel} (se fwupdmgr get-updates)" ;;
-    esac
+    for id in "${ids[@]}"; do
+        fwupdmgr update "$id" --assume-yes --no-reboot-check 2>&1 | tee "$log"
+        code=${PIPESTATUS[0]}
+        # 2 = nothing to update. Anything else (e.g. a UEFI/BIOS update the computer refuses): a warning with
+        # fwupd's own reason, not a failed update – the rest isn't affected (4 Nov); next time it's skipped
+        case $code in
+            0) installed=1 ;;
+            2) ;;
+            *) failed=1
+               reason=$(sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -v '^[[:space:]]*$' | tail -n 1 | cut -c1-160)
+               info "Hoppades över – fwupd: ${reason:-okänt fel} (provas inte igen förrän en ny version kommer)" ;;
+        esac
+    done
     rm -f "$log"
+    if [ "$installed" = 1 ]; then info "Ny firmware installerad"
+    elif [ "$failed" = 0 ]; then info "Ingen ny firmware"; fi
     return 0
+}
+
+# The device ids with an update worth trying (one per line), then the number skipped because this
+# computer already refused that very version (last line, always there)
+fwupd_wanted() {
+    local updates history
+    updates=$(fwupdmgr get-updates --json 2>/dev/null) || updates='{}'
+    history=$(fwupdmgr get-history --json 2>/dev/null) || history='{}'
+    UPDATES=$updates HISTORY=$history python3 -c '
+import json, os
+def load(k):
+    try: return json.loads(os.environ[k] or "{}").get("Devices", [])
+    except ValueError: return []
+refused = {(d.get("DeviceId"), (d.get("Releases") or [{}])[0].get("Version"))
+           for d in load("HISTORY") if d.get("UpdateState") == 3}
+skipped = 0
+for d in load("UPDATES"):
+    rel = (d.get("Releases") or [{}])[0].get("Version")
+    if (d.get("DeviceId"), rel) in refused: skipped += 1
+    elif d.get("DeviceId"): print(d["DeviceId"])
+print(skipped)'
 }
 
 cmd_update() {
