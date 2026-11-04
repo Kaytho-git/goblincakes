@@ -1,3 +1,4 @@
+2026-11-04  Terminalen: när du öppnar den visas nu bara de vanligaste kommandona (update, fast, play, screen, ai, nyheter). Alla kommandon ser du om du skriver goblin.
 2026-11-04  Goblin AI: när hon har installerat ett program får kortet en knapp Starta <programmet> – och hon säger att det finns i appmenyn, i stället för att försöka starta det själv (förut såg det ut som att installationen misslyckats).
 2026-11-04  Datorer med hårddisk: de program du använder mest läses in i förväg en minut efter inloggningen, så att de öppnas snabbt redan första gången (förut tog t.ex. Firefox upp till en halv minut och syntes bara som en ikon uppe till höger under tiden). Med SSD händer ingenting – där behövs det inte.
 2026-11-04  Config: det står nu tydligt att Flatpak-program även uppdateras tyst i bakgrunden en gång om dagen – vid reglaget Automatiska systemuppdateringar och vid Flatpak-raden under Uppdatera.

@@ -348,7 +348,18 @@ COMMANDS=(
     "help|Visa alla goblin-kommandon"
 )
 
+# The short list shown when a new terminal opens (goblincakes-motd.sh); the rest: goblin
+MOTD_COMMANDS=(
+    "update|Uppdatera allt – system, program, drivrutiner och firmware"
+    "fast|Systeminfo med GOBLINCAKES-loggan"
+    "play|Starta dina Steam-spel från terminalen – skriv bara namnet, t.ex. cs2"
+    "screen|Välj vilken skärm ett program öppnas på, eller vrid en skärm stående"
+    "ai|Goblin AI här i terminalen – /app öppnar fönstret (eller tryck Meta+A)"
+    "nyheter|Vad som är nytt i GOBLINCAKES"
+)
+
 command_list() {
+    local -n list=${1:-COMMANDS}
     local entry name pad desc word line cols width indent
     # Long descriptions wrap at whole words to the terminal's width, continuing under the
     # description column (the terminal cut them mid-word at the left edge, 11 Oct)
@@ -358,7 +369,7 @@ command_list() {
     width=$((cols - 21))
     [ "$width" -ge 20 ] || width=0
     printf -v indent '%21s' ''
-    for entry in "${COMMANDS[@]}"; do
+    for entry in "${list[@]}"; do
         name=${entry%%|*} desc=${entry#*|}
         # Pad by characters, not bytes (å, ä, ö)
         printf -v pad '%*s' $((11 - ${#name})) ''
@@ -651,7 +662,8 @@ cmd_motd() {
             # Shown by /etc/profile.d/goblincakes-motd.sh in every new terminal
             [ -e "$motd_off_file" ] && return 0
             printf '%s▌ GOBLINCAKES%s %s– kommandon i terminalen:%s\n' "$accent" "$reset" "$muted" "$reset"
-            command_list
+            command_list MOTD_COMMANDS
+            printf '  %sAlla kommandon: skriv %sgoblin%s %s· dölj listan: goblin motd off%s\n' "$muted" "$accent" "$reset" "$muted" "$reset"
             echo ;;
         *) printf 'Använd: goblin motd on|off\n' >&2; return 2 ;;
     esac
