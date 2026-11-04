@@ -1,7 +1,8 @@
 """Testa åt Claude (point 15 of Kakan's plan, 28 Oct): Claude leaves a test list, Kakan runs it and reports back.
 
 Claude Code writes the lists – what it couldn't try on the real computer – as Markdown in
-~/.local/share/goblincakes/testlistor/<name>.md:
+~/.local/share/goblincakes/testlistor/<name>.md, or (from a cloud session) in the repo's docs/testlistor/till-kakan/
+– taken into that folder once, after git pull, the next time the lists are read (from_repo):
 
     # Efter nästa image
     - Lagmätartjänsten finns i imagen
@@ -35,8 +36,50 @@ NO = ("nej", "n", "no", "nope", "funkar inte", "syns inte")
 SKIP = ("hoppa", "hoppa över", "skip", "vet inte", "-")
 
 
+REPO_LISTS = "docs/testlistor/till-kakan"   # in the repo clone: new lists come with git pull (4 Nov)
+TAKEN = FOLDER / ".fran-repot.json"          # name → hash of the lists already taken from there
+
+
+def from_repo():
+    """Lists Claude Code pushed to the repo (docs/testlistor/till-kakan/) → into FOLDER, each once (again only
+    if it changed). The repo is found like the notes are (knowledge.find_repo). → the names taken now."""
+    try:
+        import hashlib
+        import json
+        import knowledge
+        repo = knowledge.find_repo()
+    except Exception:  # noqa: BLE001 – no repo here is fine
+        return []
+    if not repo or not (repo / REPO_LISTS).is_dir():
+        return []
+    try:
+        taken = json.loads(TAKEN.read_text())
+    except (OSError, ValueError):
+        taken = {}
+    new = []
+    for src in sorted((repo / REPO_LISTS).glob("*.md")):
+        try:
+            text = src.read_text()
+        except OSError:
+            continue
+        digest = hashlib.sha256(text.encode()).hexdigest()
+        if taken.get(src.name) == digest:
+            continue
+        FOLDER.mkdir(parents=True, exist_ok=True)
+        (FOLDER / src.name).write_text(text)
+        taken[src.name] = digest
+        new.append(src.stem)
+    if new:
+        try:
+            TAKEN.write_text(json.dumps(taken, ensure_ascii=False, indent=1))
+        except OSError:
+            pass
+    return new
+
+
 def lists():
-    """The lists waiting to be run, newest first."""
+    """The lists waiting to be run, newest first (new ones from the repo first taken in)."""
+    from_repo()
     return sorted(FOLDER.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
 
 
