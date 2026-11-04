@@ -744,6 +744,19 @@ class Backend(QObject):
 
     # ── Commands ──────────────────────────────────────────────
 
+    @Slot(int, int, str)
+    def launchApp(self, index, seg, app_id):
+        """Starta on a card that installed a program."""
+        try:
+            part = self._display[index]["segments"][seg]
+        except (IndexError, KeyError):
+            return
+        if not any(a["id"] == app_id for a in part.get("launch") or []):
+            return
+        if goblinai.launch_app(app_id):
+            part["launched"] = sorted(set(part.get("launched", [])) | {app_id})
+            self._update(index)
+
     @Slot(int, int)
     def runCommand(self, index, seg):
         """Tillåt / Kör on a command card."""
@@ -803,6 +816,10 @@ class Backend(QObject):
                 plan["undo"] = cmdlevel.trash_restore(plan["trash"]) + plan["undo"]
             part = self._display[index]["segments"][seg]
             part.update(state="done", output=out.strip(), code_result=exit_code)
+            if exit_code == 0 and "flatpak" in code:
+                apps = goblinai.installed_apps(code)
+                if apps:  # a Starta button on the card (4 Nov)
+                    part["launch"] = apps
             part["log"] = cmdlevel.log(code, lvl, by, exit_code, out, plan, self._id)
             self._update(index)
             self.commandLogChanged.emit()
@@ -863,6 +880,11 @@ class Backend(QObject):
                 out = s.get("output", "")
                 out = goblinai.cmd_level().shorten(out, code=s['code'])
                 report.append(f"$ {goblinai.reported_code(s['code'])}\n{out}\n(avslutskod {s.get('code_result', '?')})")
+                if s.get("launch"):
+                    names = ", ".join(a["name"] for a in s["launch"])
+                    report.append(f"({names} är installerat och finns nu i appmenyn. Kortet har en Starta-knapp – "
+                                  "säg att det är klart och att användaren kan trycka Starta eller hitta det i "
+                                  "appmenyn; starta det inte själv med ett kommando.)")
         self._api.append({"role": "user", "content": "Så här gick det:\n\n" + "\n\n".join(report)
                           + f"\n\n(Mappen nu: {self._cwd})"
                           + goblinai.after_commands(self._api)})

@@ -3151,6 +3151,28 @@ Window {
                                             font.family: "IBM Plex Sans"
                                             font.pixelSize: 13
                                         }
+                                        // A program the card installed: start it from here (it's in the app menu too)
+                                        Row {
+                                            visible: segItem.s.type === "command" && segItem.s.state === "done" && !!segItem.s.launch
+                                            spacing: 10
+                                            Repeater {
+                                                model: segItem.s.launch || []
+                                                FlatButton {
+                                                    required property var modelData
+                                                    primary: true
+                                                    small: true
+                                                    text: ((segItem.s.launched || []).indexOf(modelData.id) >= 0 ? "Startar " : "Starta ") + modelData.name
+                                                    onClicked: backend.launchApp(msgItem.index, segItem.index, modelData.id)
+                                                }
+                                            }
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: "Finns nu också i appmenyn"
+                                                color: "#8B98AD"
+                                                font.family: "IBM Plex Sans"
+                                                font.pixelSize: 13
+                                            }
+                                        }
                                         CodeBox {
                                             visible: segItem.s.type === "command" && (segItem.s.output || "") !== ""
                                             code: segItem.s.output || ""

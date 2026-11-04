@@ -4999,6 +4999,47 @@ def reported_code(code):
     return f"byt_text {m.group(1)}" if m else code
 
 
+# ── Start what was just installed (4 Nov): Kakan on the wife's laptop installed Tux Paint but couldn't start it –
+# `… &` is "startar något i bakgrunden" (unsure) – so it looked like it had failed, though it was in AppGrid ──
+
+FLATPAK_EXPORTS = (Path.home() / ".local/share/flatpak/exports/share/applications",
+                   Path("/var/lib/flatpak/exports/share/applications"))
+
+
+def installed_apps(code):
+    """The programs a finished `flatpak install` card put in the app menu: [{"id", "name"}] (the menu name from the
+    exported .desktop file; an app without one – a runtime – isn't listed)."""
+    apps = []
+    for line in code.split("\n"):
+        w = cmd_level()._words(line) if "flatpak" in line else []
+        if w[:1] != ["flatpak"] or next((a for a in w[1:] if not a.startswith("-")), "") != "install":
+            continue
+        for app in [a for a in w[w.index("install") + 1:] if a.count(".") >= 2 and not a.startswith("-")]:
+            desktop = next((d / f"{app}.desktop" for d in FLATPAK_EXPORTS if (d / f"{app}.desktop").is_file()), None)
+            if desktop is None or any(a["id"] == app for a in apps):
+                continue
+            name = app.rsplit(".", 1)[-1]
+            try:
+                m = re.search(r"^Name=(.+)$", desktop.read_text(errors="replace"), re.M)
+                name = m.group(1).strip() if m else name
+            except OSError:
+                pass
+            apps.append({"id": app, "name": name})
+    return apps
+
+
+def launch_app(app_id):
+    """Start an installed Flatpak on its own (it keeps running when Goblin AI closes). True when it was started."""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", app_id or "") or shutil.which("flatpak") is None:
+        return False
+    try:
+        subprocess.Popen(["flatpak", "run", app_id], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+        return True
+    except OSError:
+        return False
+
+
 def sed_newline_nudge(answer):
     """A sed that writes code: `c\\`/`i\\`/`a\\` (new lines) or `\\n` in the new text. gemma4 ran `sed -i '48c\\ …
     table.concat(gear_data, "\\n"))'` three times, one more broken line each time; told to write `\\\\n` she used it
