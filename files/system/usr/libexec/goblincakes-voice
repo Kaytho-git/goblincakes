@@ -11,9 +11,10 @@
     goblincakes-voice say <text> [--voice kvinna|man] [--out <wav>]
                                               text → speech, played (or saved with --out)
     goblincakes-voice listen                  the service: hold the voice key (F8 – the G502's button 4)
-                                              and talk; released → text (step B: shown as a notification)
-    goblincakes-voice worker                  (used by listen) the loaded model: a wav path per line in,
-                                              JSON {text, seconds} per line out
+                                              and talk; released → text → a simple command is done at once
+                                              (ai/voicecmd.py) and answered aloud; the key again = quiet
+    goblincakes-voice worker                  (used by listen) the loaded model and the voices: JSON lines
+                                              {"hear": wav} / {"say": text, "voice", "out"} in, results out
 
 Nothing goes into the image: the environment and the models live in the home folder and are
 fetched when the user turns Röst on. Speech to text = KBLab's Swedish Whisper (kb-whisper-small,
@@ -38,6 +39,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -298,11 +300,17 @@ def cmd_test(args):
     return 0
 
 
+_voices = {}
+
+
 def speak(text, who="kvinna", out=None):
     """Text → speech with the chosen voice; played with pw-play, or saved to out."""
     from piper import PiperVoice, SynthesisConfig
     v = load()["voices"].get(who) or DEFAULT_VOICES["kvinna"]
-    voice = PiperVoice.load(str(piper_file(v["model"])))
+    model = str(piper_file(v["model"]))
+    if model not in _voices:              # the service keeps the voices loaded
+        _voices[model] = PiperVoice.load(model)
+    voice = _voices[model]
     cfg = SynthesisConfig(length_scale=float(v.get("length") or 1.0))
     rate = voice.config.sample_rate
     silence = bytes(int(rate * float(v.get("pause") or 0)) * 2)
@@ -357,19 +365,28 @@ START_SOUND = "/usr/share/sounds/ocean/stereo/button-pressed.oga"
 
 
 def cmd_worker():
-    """The model stays loaded; one wav path per line → one JSON line."""
+    """The model stays loaded. One JSON line in, one out:
+    {"hear": wav} → {"hear": wav, "text", "seconds"};  {"say": text, "voice", "out": wav} → {"said": wav}."""
     in_venv()
     whisper_model()
     print(json.dumps({"ready": True}), flush=True)
     for line in sys.stdin:
-        path = line.strip()
-        if not path:
+        try:
+            job = json.loads(line)
+        except ValueError:
             continue
         try:
-            text, secs = hear(path)
-            print(json.dumps({"text": text, "seconds": round(secs, 2)}, ensure_ascii=False), flush=True)
-        except Exception as e:  # noqa: BLE001 – one bad recording must not stop the service
-            print(json.dumps({"text": "", "error": str(e)}, ensure_ascii=False), flush=True)
+            if "hear" in job:
+                text, secs = hear(job["hear"])
+                answer = {"hear": job["hear"], "text": text, "seconds": round(secs, 2)}
+            elif "say" in job:
+                speak(job["say"], job.get("voice") or "kvinna", job["out"])
+                answer = {"said": job["out"]}
+            else:
+                continue
+        except Exception as e:  # noqa: BLE001 – one bad job must not stop the service
+            answer = {**{k: v for k, v in job.items() if k in ("hear",)}, "text": "", "error": str(e)}
+        print(json.dumps(answer, ensure_ascii=False), flush=True)
     return 0
 
 
@@ -417,6 +434,28 @@ def osd(text, icon="audio-input-microphone"):
                       icon, text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+_voicecmd = None
+
+
+def voicecmd():
+    """Kakan's command module (next to her other files: /usr/share/goblincakes/ai, or the repo's)."""
+    global _voicecmd
+    if _voicecmd is None:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "share/goblincakes/ai"))
+        import voicecmd as module  # noqa: PLC0415
+        _voicecmd = module
+    return _voicecmd
+
+
+def voice_for_avatar():
+    """The man's voice when the AI is "han" (Goblin AI → name and hon/han/hen), otherwise lisa."""
+    try:
+        gender = (Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes/ai-gender").read_text()
+    except OSError:
+        gender = ""
+    return "man" if gender.strip() == "han" else "kvinna"
+
+
 def notify(title, body):
     subprocess.Popen(["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", title, body],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -431,6 +470,7 @@ class Listener:
         self.wav = None
         self.started = 0.0
         self.timer = None
+        self.player = None       # pw-play while she speaks – the key stops her
         self.tmp = Path(tempfile.mkdtemp(prefix="goblincakes-voice-"))
         # (a leftover semaphore from the speech library is harmless – its warning is hidden)
         env = {**os.environ, "PYTHONWARNINGS": "ignore::UserWarning:multiprocessing.resource_tracker"}
@@ -473,6 +513,7 @@ class Listener:
     def press(self):
         if self.rec:
             return
+        self.hush()
         self.wav = self.tmp / f"{int(time.time() * 1000)}.wav"
         self.rec = subprocess.Popen(["pw-record", "--rate", "16000", "--channels", "1", "--format", "s16",
                                      str(self.wav)])
@@ -500,9 +541,17 @@ class Listener:
         if held < MIN_HOLD or not self.wav.is_file():
             self.wav.unlink(missing_ok=True)
             return False
-        self.worker.stdin.write(str(self.wav) + "\n")
-        self.worker.stdin.flush()
+        self.send({"hear": str(self.wav)})
         return False
+
+    def send(self, job):
+        self.worker.stdin.write(json.dumps(job, ensure_ascii=False) + "\n")
+        self.worker.stdin.flush()
+
+    def hush(self):
+        if self.player and self.player.poll() is None:
+            self.player.terminate()
+        self.player = None
 
     def on_text(self, source, condition):
         line = source.readline()
@@ -514,20 +563,60 @@ class Listener:
             result = json.loads(line)
         except ValueError:
             return True
-        for f in self.tmp.glob("*.wav"):
-            f.unlink(missing_ok=True)
+        if "said" in result:
+            if not self.rec:                   # the key pressed again meanwhile = quiet
+                self.hush()
+                self.player = subprocess.Popen(["pw-play", result["said"]], stderr=subprocess.DEVNULL)
+            return True
+        Path(result.get("hear") or self.tmp / "-").unlink(missing_ok=True)
         self.heard(result.get("text") or "", result)
         return True
 
     def heard(self, text, result):
-        """Step B: show what was heard. (C: simple commands, D: Kakan + read aloud.)"""
+        """A simple command is done at once (voicecmd.py, part C); anything else is shown (part D: Kakan)."""
         print(f"Hörde ({result.get('seconds')} s): {text or '–'}", flush=True)
-        if text:
-            notify("Kakan hörde", text)
-        else:
+        if not text:
             osd("Kakan hörde inget", "audio-input-microphone-muted")
+            return
+        commands = voicecmd().match_all(text)
+        # "lite till" = the last command again (volume, next song), within a minute
+        last, when = getattr(self, "last", (None, 0))
+        commands = [last if c[0] == "again" else c for c in commands
+                    if c[0] != "again" or (last and time.monotonic() - when < 60)]
+        if commands:
+            self.last = (commands[-1], time.monotonic())
+        if not commands:
+            notify("Kakan hörde", text)
+            return
+        print(f"Kommandon: {commands}", flush=True)
+
+        def work():
+            shown, spoken = [], []
+            for command in commands:
+                try:
+                    sentence, speak_it = voicecmd().run(*command)
+                except Exception as e:  # noqa: BLE001 – a broken command must not stop the service
+                    sentence, speak_it = f"Det gick inte: {e}", True
+                if sentence:
+                    shown.append(sentence)
+                    if speak_it:
+                        spoken.append(speak_it if isinstance(speak_it, str) else sentence)
+            self.GLib.idle_add(self.answer, " ".join(shown), " ".join(spoken))
+        threading.Thread(target=work, daemon=True).start()
+
+    def answer(self, shown, spoken):
+        """shown in the box, spoken read aloud ("" = only shown)."""
+        print(f"Svar: {shown}" + (f"  (säger: {spoken})" if spoken and spoken != shown else ""), flush=True)
+        if not shown:
+            return False
+        osd(shown, "goblincakes-ai")
+        if spoken:
+            out = self.tmp / f"say-{int(time.time() * 1000)}.wav"
+            self.send({"say": spoken, "voice": voice_for_avatar(), "out": str(out)})
+        return False
 
     def close(self):
+        self.hush()
         if self.rec:
             self.rec.kill()
         discord_unmute()
