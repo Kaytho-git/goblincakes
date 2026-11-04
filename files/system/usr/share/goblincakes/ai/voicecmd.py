@@ -26,7 +26,7 @@ CONVERSATION = "röst"   # how the voice's actions are marked in Kakan's log
 # ── Understanding ─────────────────────────────────────────────────
 
 HEARD_AS = [
-    (r"\b(?:vov|vav|vaw|vow|vå|wov|wow|wåw)\b", "wow"),
+    (r"\b(?:vov|vav|vaw|vow|vå|wov|wow|wåw|förhopp|för hopp)\b", "wow"),   # "Starta förhopp" = starta WoW (4 Nov)
     (r"\b(?:world|wall|vold|ward|wold|vöröld|world's)\s+(?:of|av)\s+warcraft\b", "wow"),
     # The reading test 4 Nov (the user's 15 lines): game words heard the Swedish way
     (r"\bh[eä]j\s+(?=vol)", "höj "),                                   # "Hej volymen" ×3 = höj
