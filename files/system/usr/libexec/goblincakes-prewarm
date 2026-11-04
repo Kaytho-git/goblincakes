@@ -1,0 +1,231 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: the programs used most, read into memory a while after login – only with a hard disk.
+
+The wife's laptop (4 Nov, 5400 rpm disk): Firefox took 23 s to show its window the first time after a
+start-up (hundreds of files, each a seek), only its icon in the top bar meanwhile – it looked like it went
+to the system tray, she pressed again and got two windows. The second time it was there at once (the files
+in memory). Windows has this (Prefetch/SysMain); Linux doesn't, as most have SSDs. On an SSD this does nothing.
+
+    goblincakes-prewarm            read (the user service goblincakes-prewarm, 60 s after login)
+    goblincakes-prewarm --list     which programs and files it would read, nothing read
+    goblincakes-prewarm --force    also on an SSD (testing)
+
+The programs: the ones started most in the last 14 days (the user journal's app-… units), at most APPS of
+them and BUDGET MB. A Flatpak = its own files + the libraries of its runtime; another program = its binary
+and the libraries it links (ldd). Reading only puts them in the page cache – nothing is changed, and the
+service runs with the idle I/O class (BFQ: only when nobody else wants the disk).
+"""
+import collections
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+APPS = 6
+BUDGET = 2000 * 1024 * 1024        # bytes in all – 16 GB of memory has room for it many times over
+PER_APP = 700 * 1024 * 1024        # Firefox with its runtime's libraries: ~630 MB
+SKIP = {"org.kde.plasmashell", "org.kde.dolphin_dolphin_dolphin", "com.mitchellh.ghostty", "goblin-share"}
+UNIT_RE = re.compile(r"Started (?:app-)?(?:flatpak-)?([A-Za-z0-9._\\-]+?)(?:@[0-9a-f]{8,}\.service|-[0-9]+\.scope)")
+DESKTOP_DIRS = [Path.home() / ".local/share/flatpak/exports/share/applications",
+                Path("/var/lib/flatpak/exports/share/applications"),
+                Path.home() / ".local/share/applications", Path("/usr/share/applications")]
+
+
+def log(*a):
+    print(*a, flush=True)
+
+
+def hard_disk():
+    """True when the disk with /var (the user's files, Flatpaks) spins."""
+    try:
+        src = subprocess.run(["findmnt", "-no", "SOURCE", "/var"], capture_output=True, text=True,
+                             timeout=5).stdout.strip().split("[")[0]
+        parent = subprocess.run(["lsblk", "-ndo", "PKNAME", src], capture_output=True, text=True,
+                                timeout=5).stdout.strip() or Path(src).name
+        return Path(f"/sys/block/{parent}/queue/rotational").read_text().strip() == "1"
+    except (OSError, subprocess.SubprocessError, IndexError):
+        return False
+
+
+def most_used():
+    """Desktop ids, most started first (autostart entries and our own small windows left out)."""
+    try:
+        out = subprocess.run(["journalctl", "--user", "--since", "-14d", "--no-pager", "-q", "-o", "cat",
+                              "--grep", "Started app-"], capture_output=True, text=True, timeout=60).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    count = collections.Counter()
+    for line in out.splitlines():
+        if "@autostart" in line:
+            continue
+        m = UNIT_RE.search(line)
+        if m:
+            name = m.group(1).replace("\\x2d", "-")
+            if name not in SKIP:
+                count[name] += 1
+    return [name for name, _ in count.most_common()]
+
+
+def desktop_file(app):
+    for d in DESKTOP_DIRS:
+        f = d / f"{app}.desktop"
+        if f.exists():
+            return f
+    return None
+
+
+def flatpak_location(ref):
+    try:
+        out = subprocess.run(["flatpak", "info", "--show-location", ref], capture_output=True, text=True,
+                             timeout=10)
+        return Path(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def flatpak_runtime(app):
+    try:
+        out = subprocess.run(["flatpak", "info", "--show-runtime", app], capture_output=True, text=True,
+                             timeout=10).stdout.strip()
+        return out or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def tree(root, libs_only=False):
+    """The files under root, biggest last (the libraries the program needs first are many small ones)."""
+    found = []
+    for dirpath, _, names in os.walk(root):
+        for n in names:
+            if libs_only and ".so" not in n:
+                continue
+            p = os.path.join(dirpath, n)
+            try:
+                if os.path.isfile(p) and not os.path.islink(p):
+                    found.append(p)
+            except OSError:
+                pass
+    return found
+
+
+def files_for(app):
+    """The files that make the program start: [paths]."""
+    desk = desktop_file(app)
+    text = desk.read_text(errors="replace") if desk else ""
+    if "X-Flatpak=" in text or flatpak_location(app):
+        loc = flatpak_location(app)
+        if not loc:
+            return []
+        paths = tree(loc / "files")
+        runtime = flatpak_runtime(app)
+        rloc = flatpak_location(runtime) if runtime else None
+        if rloc:
+            paths += tree(rloc / "files", libs_only=True)
+        return paths
+    m = re.search(r"^Exec=(\S+)", text, re.M)
+    binary = shutil.which(m.group(1)) if m else shutil.which(app.split(".")[-1])
+    if not binary:
+        return []
+    paths = [binary] + linked(binary)
+    try:
+        with open(binary, "rb") as f:
+            head = f.read(4096)
+    except OSError:
+        head = b""
+    if head.startswith(b"#!") and b"python" in head.split(b"\n", 1)[0]:
+        # Our own windows (Config, Goblin AI, GoblinShare …): Python + PySide6 – Qt is what takes the time
+        python = shutil.which("python3")
+        paths += [python] + linked(python) if python else []
+        if b"PySide6" in head or b"PySide6" in Path(binary).read_bytes()[:200000]:
+            paths += pyside_files()
+    return paths
+
+
+def linked(binary):
+    """The libraries a program links (ldd)."""
+    try:
+        out = subprocess.run(["ldd", binary], capture_output=True, text=True, timeout=10).stdout
+        return re.findall(r"=> (/\S+)", out)
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+
+_pyside = None
+
+
+def pyside_files():
+    """PySide6's modules for a QML window and the Qt libraries they link (once)."""
+    global _pyside
+    if _pyside is None:
+        _pyside = []
+        try:
+            where = subprocess.run(["python3", "-c", "import PySide6, os; print(os.path.dirname(PySide6.__file__))"],
+                                   capture_output=True, text=True, timeout=20).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            where = ""
+        for mod in ("QtCore", "QtGui", "QtQml", "QtQuick", "QtWidgets", "QtNetwork", "QtDBus"):
+            for f in Path(where).glob(f"{mod}.*.so") if where else []:
+                _pyside += [str(f)] + linked(str(f))
+        qml = Path("/usr/lib64/qt6/qml/QtQuick")
+        if qml.is_dir():
+            _pyside += [p for p in tree(qml, libs_only=True) if "/Controls/" not in p]
+    return _pyside
+
+
+SEEN = set()   # a file shared by two programs (a Flatpak runtime, Qt) is read once
+
+
+def read_all(paths, budget):
+    """Reads the files (into the page cache) until the budget is used: bytes read."""
+    done = 0
+    for p in paths:
+        if done >= budget:
+            break
+        if p in SEEN:
+            continue
+        SEEN.add(p)
+        try:
+            with open(p, "rb", buffering=0) as f:
+                while done < budget:
+                    chunk = f.read(1 << 20)
+                    if not chunk:
+                        break
+                    done += len(chunk)
+        except OSError:
+            pass
+    return done
+
+
+def main():
+    listing = "--list" in sys.argv
+    if not hard_disk() and "--force" not in sys.argv:
+        log("SSD – inget att förvärma")
+        return 0
+    apps = []
+    for app in most_used():
+        paths = files_for(app)
+        if paths:
+            apps.append((app, paths))
+        if len(apps) >= APPS:
+            break
+    left, t0 = BUDGET, time.time()
+    for app, paths in apps:
+        size = sum(os.path.getsize(p) for p in set(paths) if os.path.exists(p))
+        if listing:
+            log(f"{app}: {len(paths)} filer, {size // 1048576} MB")
+            continue
+        got = read_all(paths, min(PER_APP, left))
+        left -= got
+        log(f"{app}: {got // 1048576} MB inläst")
+        if left <= 0:
+            break
+    if not listing:
+        log(f"Klart på {time.time() - t0:.0f} s ({(BUDGET - left) // 1048576} MB)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

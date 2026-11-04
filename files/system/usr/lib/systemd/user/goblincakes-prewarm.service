@@ -1,0 +1,9 @@
+[Unit]
+Description=GOBLINCAKES: the most used programs into memory after login (only with a hard disk)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/goblincakes-prewarm
+# Only when nobody else wants the disk (BFQ honours the idle class) – the login and the user go first
+Nice=19
+IOSchedulingClass=idle

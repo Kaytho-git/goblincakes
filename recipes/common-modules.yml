@@ -163,6 +163,7 @@ modules:
         - goblincakes-share.service       # GoblinShare (LocalSend protocol) – only runs for those who turned it on
         - goblincakes-graph.service       # goblin graph opens when music plays – only with goblin graph auto on
         - goblincakes-season.timer        # the desktop's look by date (login + midnight)
+        - goblincakes-prewarm.timer       # hard disks: the most used programs into memory after login
         - goblincakes-ollama.service      # lokal AI – only runs for those who installed it in Goblin AI
         - goblincakes-vencord.path        # Vencord back into Discord after Discord updates – only when switched on in Config
         - goblincakes-vencord.service     # the same at login

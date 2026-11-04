@@ -479,6 +479,10 @@ Ord: laptop, bärbar, batteri laptop, dubbla grafikkort
 - Prestanda (strömmenyn/Config → Prestandaläge) = tuned-profilen goblincakes-performance (/usr/lib/tuned/profiles/,
   vald i /etc/tuned/ppd.conf): Fedoras throughput-performance men med liten skrivbuffert (dirty 10 %/3 % i stället
   för 40 %) – annars frös en hårddisk i flera sekunder. Kolla: `tuned-adm active`, `cat /proc/sys/vm/dirty_ratio`.
+- Förvärmning (bara med hårddisk): användartjänsten goblincakes-prewarm (timer 60 s efter inloggning, lägsta
+  prioritet) läser de mest startade programmen (användarens journal, 14 dagar, högst 6 st / 2 GB) in i minnet –
+  annars tog Firefox 23 s första gången efter start. /usr/libexec/goblincakes-prewarm --list visar vad;
+  "SSD – inget att förvärma" = rätt på SSD. Kolla: `journalctl --user -u goblincakes-prewarm`.
 - Wifi utan strömsparläge på alla datorer: /usr/lib/NetworkManager/conf.d/90-goblincakes-wifi-powersave.conf
   (wifi.powersave = 2). Kolla: iw dev <wlp…> get power_save → "off". Står det "on": har anslutningen egen
   inställning? nmcli -f 802-11-wireless.powersave connection show <namn> (0 = följer vår fil).

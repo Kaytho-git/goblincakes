@@ -1,0 +1,10 @@
+[Unit]
+Description=GOBLINCAKES: read the most used programs in a minute after login (hard disks)
+
+[Timer]
+# About when the desktop is ready on a hard disk (the wife's laptop: Plasma ~50 s after the session started);
+# during the start-up itself it would only make the desktop come later (4 Nov)
+OnStartupSec=60s
+
+[Install]
+WantedBy=timers.target
