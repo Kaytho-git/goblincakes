@@ -760,7 +760,7 @@ def open_window():
 def window():
     own_scale = "QT_SCALE_FACTOR" not in os.environ
     if own_scale:
-        os.environ["QT_SCALE_FACTOR"] = "0.8"
+        os.environ["QT_SCALE_FACTOR"] = "0.9"   # 90 % (the user 5 Nov: 80 % too small, 100 % a little big)
     from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot  # noqa: PLC0415
     from PySide6.QtGui import QGuiApplication, QIcon  # noqa: PLC0415
     from PySide6.QtNetwork import QLocalServer, QLocalSocket  # noqa: PLC0415

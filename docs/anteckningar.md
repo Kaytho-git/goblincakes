@@ -12,6 +12,9 @@ Användaren kör Windows med VS Code, testar imagen i en VirtualBox-VM (Kinoite 
 **Pusha inte efter varje ändring** (användarens beslut 11 okt, färre uppdateringar/byggen): committa som vanligt, men pusha först när minst 5 commits väntar (`git rev-list --count origin/main..HEAD` ≥ 5) – eller när användaren ber om det. Före push: `git pull --rebase` (hen redigerar ibland på GitHub). Säg i svaret hur många commits som väntar på push.
 **Nyheter (sedan 8 okt):** varje ändring som användaren märker får en rad på svenska överst i `files/system/usr/share/goblincakes/nyheter.txt` (`ÅÅÅÅ-MM-DD`, två mellanslag, kort text på vanlig svenska – inte teknisk). `goblin update` visar raderna som är nya i den hämtade versionen (`/usr/libexec/goblincakes-news update` läser filen ur den väntande deploymenten + sammanfattar Fedoras paket med `rpm-ostree db diff`); `goblin nyheter` visar de senaste. Listan = alla rader i den hämtade versionens fil som inte finns i den körda – alltså allt sedan senaste uppdateringen, utan tak (taket 25 togs bort 11 okt, användarens önskan; i Config försvann resten tyst). Pilen/Config läser samma sak via `goblincakes-updates` (rader på GitHub minus egna).
 
+
+## Textstorleken i våra fönster (5 nov)
+Användaren jämförde Config bredvid varandra i 80/100/90 %: 80 % för litet, 100 % lite stort i litet fönster, **90 % lagom** → `QT_SCALE_FACTOR=0.9` i goblincakes-config, goblin-recorder, goblin-share, goblincakes-remove-apps, goblincakes-lagmeter, goblincakes-voice (box). GoblinAmp/goblin graph sätter ingen skala (100 %). Goblin AI oförändrad: `uiScale` 0,8 × skärmzoom (max 1,3 → 1,04 på 1080p, följer skärmen sedan 1 nov) – användaren: litet fönster "mycket bra", maximerat "lite större" (öppen fråga: ta bort zoomen?).
 ## När användaren hälsar ("hej" o.d.) i en ny session
 Kör `git pull`, svara sedan med vilket steg hen är på (första ej avbockade steget nedan) och visa hela steglistan med status (klart / pågår / kvar). Kort, på svenska.
 

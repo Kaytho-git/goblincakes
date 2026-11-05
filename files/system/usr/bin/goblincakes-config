@@ -1100,7 +1100,7 @@ def main():
     # matching GOBLINCAKES' 9 pt interface. Not passed on to programs started from here.
     own_scale = "QT_SCALE_FACTOR" not in os.environ
     if own_scale:
-        os.environ["QT_SCALE_FACTOR"] = "0.8"
+        os.environ["QT_SCALE_FACTOR"] = "0.9"   # 90 % (the user 5 Nov: 80 % too small, 100 % a little big)
     app = QGuiApplication(sys.argv)
     if own_scale:
         del os.environ["QT_SCALE_FACTOR"]
