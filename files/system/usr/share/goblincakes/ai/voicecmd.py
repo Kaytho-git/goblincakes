@@ -15,11 +15,14 @@ Whisper hears English game words the Swedish way: "Starta Vov" = WoW, "fullen" =
 with the user's microphone 4 Nov) – fix_words() turns them back before matching.
 Try without a microphone:  python3 voicecmd.py "starta vov" "spela albumet master of puppets med metallica"
 """
+import collections
 import difflib
+import json
 import os
 import re
 import subprocess
 import time
+from pathlib import Path
 
 CONVERSATION = "röst"   # how the voice's actions are marked in Kakan's log
 
@@ -42,6 +45,9 @@ HEARD_AS = [
     (r"\bwarcraft\s*l[oå]g[gs]?s?\b", "warcraft logs"),
     (r"\bgoblin\s*a\s*i\b|\bgoblin\s*aj\b", "goblin ai"),
     # GoblinAmp as Whisper heard it 4 Nov: gollinab, gobblorna, gubblarna ("spela gubblarna" found Babblarna)
+    # 5 Nov: "Starta kabeln app" = GoblinAmp, "Starta Bob" = WoW
+    (r"\bkab+eln\s*ap+\b", "goblinamp"),
+    (r"\b(starta|spela|öppna|kör)\s+bob\b", r"\1 wow"),
     (r"\b(?:go[bl]{1,3}in\s*am[pb]?|go[bl]{1,3}ina[bp]|go[bl]{1,3}ina?m|gob+lorna|gub+larna|gob+larna|gob+linamp)\b",
      "goblinamp"),
 ]
@@ -49,7 +55,8 @@ MUSIC = r"(?:musik(?:en)?|låt(?:en)?|spotify|goblinamp|ljud(?:et)?|volym(?:en)?
 GAMES = ("wow", "cs2")
 KINDS = {"albumet": "album", "album": "album", "albumen": "album", "skivan": "album", "plattan": "album",
          "låten": "låt", "låt": "låt", "artisten": "artist", "bandet": "artist", "gruppen": "artist",
-         "listan": "lista", "spellistan": "lista"}
+         "listan": "lista", "spellistan": "lista", "spellista": "lista", "lista": "lista"}
+PLAY = r"(?:spela|starta|sätt på|lyssna på)\s+(?:upp\s+)?"
 
 
 def fix_words(text):
@@ -86,6 +93,11 @@ def match(text):
     if re.search(r"\b(?:senaste|sista|förra)\s+(?:pullen|pull|försöket|wipen|wipe|killen)\b", t) \
             or (re.search(r"\bpullen\b", t) and re.search(r"\b(?:visa|ge|öppna|ta fram)\b", t)):
         return ("pull", "")
+    if re.fullmatch(r"(?:ja|japp|jo|jajamän|precis|exakt|ja tack|ja det|ja spela (?:den|det)|gör det|"
+                    r"det stämmer|stämmer|ja det stämmer)", t):
+        return ("yes", "")              # "Menade du …?" (find_music was unsure)
+    if re.fullmatch(r"(?:nej|nä|nej tack|fel|nej det var fel)", t):
+        return ("no", "")
     if re.fullmatch(r"(?:lite|ännu|en gång|en bit)?\s*(?:till|mer|igen|en gång till)", t):
         return ("again", "")
     m = re.search(r"\b(?:volym\w*|ljud\w*|musik\w*)\b.*?\btill\s+(\d{1,3})\s*(?:%|procent)?", t)
@@ -107,6 +119,16 @@ def match(text):
     if re.fullmatch(r"(?:spela|starta|fortsätt(?: spela)?|sätt på)\s+(?:i\s+|på\s+)?(?:goblinamp|spotify)", t):
         return ("play", "")
     t = re.sub(r"\s+(?:i|på|med)\s+(?:goblinamp|spotify)$", "", t)   # where: always Spotify
+    # "spela min spellista tyngaste opeth någonsin" (5 Nov: was searched as an artist)
+    m = re.match(rf"^{PLAY}(?:min|mina|min egen|vår)\s+(?:spel)?list(?:a|an)\s+(.+)$", t)
+    if m:
+        return ("music", ("lista", "", m.group(1).strip()))
+    # "spela senaste albumet med zakk wylde" / "spela zakk wyldes senaste album" (5 Nov)
+    m = re.match(rf"^{PLAY}(?:det\s+)?(?:senaste|nyaste)\s+(?:albumet|album|skivan|plattan)\s+(?:med|av|från)\s+(.+)$", t)
+    if not m:
+        m = re.match(rf"^{PLAY}(.+?)s?\s+(?:senaste|nyaste)\s+(?:albumet|album|skiva|skivan|platta|plattan)$", t)
+    if m:
+        return ("music", ("senaste", m.group(1).strip(), ""))
     # "starta <artist> albumet <titel>" (artist first, 4 Nov: "Starta Lamb of God, albumet Lamb of God")
     m = re.match(r"^(?:spela|starta|sätt på|lyssna på)\s+(?:upp\s+)?(.+?)\s+(albumet|album|skivan|plattan|låten)\s+"
                  r"(?!med\b|av\b)(.+)$", t)
@@ -134,8 +156,8 @@ def match(text):
         title, artist = title.strip(), artist.strip()
         if not title:
             return None
-        if not kind and not artist:
-            kind = "artist"          # "spela metallica"
+        # no kind and no artist ("spela metallica", "spela tyngsta opeth någonsin"): anything –
+        # find_music tries artists, the user's lists, albums and tracks
         return ("music", (kind, artist, title))
     m = re.match(r"^(?:kan du\s+|snälla\s+)?(?:starta|öppna|kör|sätt igång)\s+(?:upp\s+)?(.+)$", t)
     if m and short:
@@ -165,34 +187,224 @@ def _sounds(text):
     "venions falls" and "vengeance falls" → "venians fals" / "venjans fals"."""
     t = re.sub(r"\W+", " ", text.lower()).strip()
     for a, b in (("ng", "n"), ("ge", "je"), ("ce", "s"), ("ea", "e"), ("io", "ia"), ("ph", "f"), ("th", "t"),
-                 ("w", "v"), ("ck", "k"), ("c", "k"), ("y", "i"), ("z", "s"), ("ou", "au"), ("ll", "l"),
+                 ("w", "v"), ("ck", "k"), ("ch", "k"), ("kk", "k"), ("c", "k"), ("y", "i"), ("z", "s"), ("ou", "au"), ("ll", "l"),
                  ("ss", "s"), ("tt", "t"), ("pp", "p"), ("ee", "i"), ("oo", "u")):
         t = t.replace(a, b)
     return t
 
 
-def heard_album(d, artist, title):
-    """Whisper hears English titles the Swedish way ("Venjans Fals" by "Trivim" = Vengeance Falls by
-    Trivium, 4 Nov): Spotify's own search finds the artist despite the spelling, then the artist's album
-    whose name sounds most like it. (artist, title) as Spotify writes them; unchanged when not found."""
+# ── The user's own music: Whisper's word list and what was meant (5 Nov) ──────────
+# The test 4 Nov: Whisper heard the Swedish fine but English names the Swedish way ("Saquald" = Zakk Wylde,
+# "Aldard Remains" = All That Remains), and the plain Spotify search then played something else
+# (Saxon, Cannibal Corpse). Now: the user's own library first, everything compared by how it sounds,
+# and only a close match is played – a half-close one is asked about ("Menade du …?" → "ja").
+
+WORDS_FILE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "goblincakes" / "voice-words.json"
+WORDS_AGE = 24 * 3600
+SURE, MAYBE = 0.75, 0.6        # how alike: play / ask / not found
+DASH = re.compile(r"\s+[–—-]\s+")
+_pending = None               # (kind, uri, name, label, when) – what "ja" plays
+
+
+def own_music():
+    """The cached library ({} before the first refresh): artists (most listened first), lists, albums, tracks."""
     try:
-        sw = d._spotify()
-        client = sw.Client()
-        items = (client.get("/search", {"q": artist, "type": "artist", "limit": 5}).get("artists") or {}).get("items") or []
-        found = next((i for i in items if i), None)
-        if not found:
-            return artist, title
-        albums, singles = sw.Library(client).artist_albums({"uri": found["uri"], "title": found.get("name", artist)})
-        heard = _sounds(title)
-        scored = []
-        for a in albums + singles:
-            plain = re.sub(r"\s*[(\[].*?[)\]]|\s+-\s+.*$", "", a["title"]).strip()   # "(2023 Remaster)" away
-            scored.append((difflib.SequenceMatcher(None, heard, _sounds(plain)).ratio(), plain))
-        scored.sort(reverse=True)
-        best = scored[0] if scored and scored[0][0] >= 0.5 else None
-        return found.get("name", artist), (best[1] if best else title)
-    except Exception:  # noqa: BLE001 – not signed in, no network: the plain search in play() then
-        return artist, title
+        return json.loads(WORDS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def refresh_own_music(force=False):
+    """Fetches the user's lists, saved albums and liked tracks from Spotify (GoblinAmp's sign-in) once a day.
+    Returns the data, or None when not signed in / no network."""
+    old = own_music()
+    if not force and old and time.time() - old.get("made", 0) < WORDS_AGE:
+        return old
+    sw = _desktop()._spotify()
+    if not sw.load().get("refreshToken"):
+        return None
+    client = sw.Client()
+    counts = collections.Counter()
+    lists, albums, tracks = [], [], []
+    for e in sw.Library(client).lists():
+        if e.get("special") or not e.get("name"):
+            continue
+        artist, title = _split(e["name"])
+        lists.append({"name": title, "artist": artist, "uri": e["uri"], "full": e["name"]})
+        counts[artist] += 10 if artist else 0
+    for path, out, cap in (("/me/albums", albums, 500), ("/me/tracks", tracks, 2000)):
+        url, query = path, {"limit": 50}
+        while url and len(out) < cap:
+            page = client.get(url, query)
+            query = None
+            for it in page.get("items") or []:
+                thing = (it or {}).get("album" if path == "/me/albums" else "track") or {}
+                names = [a.get("name", "") for a in thing.get("artists") or [] if a]
+                if not thing.get("uri") or not names:
+                    continue
+                out.append({"name": thing.get("name", ""), "artist": names[0], "uri": thing["uri"]})
+                for n in names:
+                    counts[n] += 10 if path == "/me/albums" else 1   # saved = chosen
+            url = page.get("next")
+    data = {"made": time.time(), "artists": [a for a, _ in counts.most_common(300) if a],
+            "lists": lists, "albums": albums, "tracks": tracks}
+    WORDS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = WORDS_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(WORDS_FILE)
+    return data
+
+
+def whisper_words():
+    """Names for Whisper to expect, most important first (the worker cuts the list to fit its prompt):
+    the most listened artists, then the albums saved as lists."""
+    data = own_music()
+    words = list(data.get("artists") or [])[:60]
+    for e in (data.get("lists") or []) + (data.get("albums") or []):
+        if e.get("artist") and e.get("name") and e["name"] not in words:
+            words.append(_clean(e["name"]))
+    return words
+
+
+def _split(name):
+    """"Zakk Wylde – Book Of Shadows II" → ("Zakk Wylde", "Book Of Shadows II"); no dash → ("", name)."""
+    parts = DASH.split(name, maxsplit=1)
+    return (parts[0].strip(), parts[1].strip()) if len(parts) == 2 else ("", name.strip())
+
+
+def _clean(text):
+    t = re.sub(r"\s*[(\[].*?[)\]]", "", text)                  # (Deluxe), [2023 Remaster]
+    t = re.sub(r"\s+-\s+(?:\d{4}\s+)?(?:remaster|live|deluxe).*$", "", t, flags=re.I)
+    return t.strip()
+
+
+def _sim(heard, real):
+    """0–1, how alike two names sound ("saquald" / "Zakk Wylde"); "the", 2/II/två the same."""
+    def norm(x):
+        x = re.sub(r"^the\s+", "", _clean(x).lower())
+        x = re.sub(r"\b(?:2|två)\b", "ii", re.sub(r"\b(?:3|tre)\b", "iii", x))
+        return _sounds(x).replace(" ", "")
+    a, b = norm(heard), norm(real)
+    return difflib.SequenceMatcher(None, a, b).ratio() if a and b else 0.0
+
+
+def _score(c, artist, title):
+    if artist and c.get("artist"):
+        sa, st = _sim(artist, c["artist"]), _sim(title, c["name"])
+        return 0.6 * (sa + st) / 2 + 0.4 * min(sa, st)          # one name wrong pulls it down
+    if artist:      # a list without an artist in its name: the whole heard against it
+        return 0.9 * _sim(f"{title} {artist}", c["name"])
+    s = _sim(title, c["name"])
+    if c.get("artist"):                                        # "candlemass black dwarf" = artist + title
+        s = max(s, _sim(title, f"{c['artist']} {c['name']}"), _sim(title, f"{c['name']} {c['artist']}"))
+    return s
+
+
+def _search(client, q, kind):
+    try:
+        page = client.get("/search", {"q": q, "type": kind, "limit": 10})
+    except Exception:  # noqa: BLE001 – the other searches still count
+        return []
+    return [i for i in (page.get(kind + "s") or {}).get("items") or [] if i]
+
+
+def _artist(client, heard):
+    """(score, name, uri) of the artist that sounds most like it – the user's own first, then Spotify's."""
+    own = [(_sim(heard, n) + 0.05, n, "") for n in own_music().get("artists") or []]   # the user's own wins
+    found = [(_sim(heard, i.get("name", "")), i.get("name", ""), i.get("uri", "")) for i in _search(client, heard, "artist")]
+    best = max(own + found, default=(0.0, "", ""))
+    if best[1] and not best[2]:      # own name: Spotify's uri for exactly that name
+        exact = [i for i in _search(client, f'artist:"{best[1]}"', "artist")
+                 if i.get("name", "").casefold() == best[1].casefold()]
+        best = (best[0], best[1], exact[0]["uri"] if exact else "")
+    return best
+
+
+def find_music(kind, artist, title):
+    """What was meant: ("play", kind, uri, name) / ("ask", kind, uri, name) / ("none", "", "", "").
+    kind in: album, låt, artist, lista, senaste (the artist's newest album), "" (anything)."""
+    sw = _desktop()._spotify()
+    client = sw.Client()
+    lib = sw.Library(client)
+    own = own_music()
+    if kind == "senaste":
+        score, name, uri = _artist(client, artist)
+        if score < MAYBE or not uri:
+            return ("none", "", "", "")
+        albums, _singles = lib.artist_albums({"uri": uri, "title": name})
+        if not albums:
+            return ("none", "", "", "")
+        a = albums[0]
+        return ("play" if score >= SURE else "ask", "album", a["uri"], f"{name} – {a['title']}")
+    want = {"album": {"album", "playlist"}, "låt": {"track"}, "artist": {"artist"}, "lista": {"playlist"}}.get(
+        kind, {"album", "track", "artist", "playlist"})
+    cands = []     # (kind, uri, name shown, artist, title compared)
+    if "playlist" in want:
+        for e in own.get("lists") or []:
+            if kind == "album" and not e.get("artist"):
+                continue                       # only lists saved from an album count as albums
+            cands.append(("playlist", e["uri"], e.get("full") or e["name"], e.get("artist", ""), e["name"]))
+    if "album" in want:
+        cands += [("album", e["uri"], f"{e['artist']} – {e['name']}", e["artist"], e["name"]) for e in own.get("albums") or []]
+    if "track" in want:
+        cands += [("track", e["uri"], f"{e['artist']} – {e['name']}", e["artist"], e["name"]) for e in own.get("tracks") or []]
+
+    def best_of(cs, bonus=0.0):
+        scored = [(_score({"artist": a, "name": t}, artist, title) + bonus, k, u, n) for k, u, n, a, t in cs]
+        return max(scored, default=(0.0, "", "", ""))
+
+    best = best_of(cands, 0.03)                  # the user's own wins a tie
+    if best[0] < SURE and kind != "lista":       # Spotify's search too
+        more = []
+        if "artist" in want and not artist:
+            score, name, uri = _artist(client, title)
+            if uri:
+                more.append((score, "artist", uri, name))
+        if "album" in want:
+            if artist:
+                score, name, uri = _artist(client, artist)
+                if score >= MAYBE and uri:
+                    albums, singles = lib.artist_albums({"uri": uri, "title": name})
+                    cs = [("album", a["uri"], f"{name} – {a['title']}", name, a["title"]) for a in albums + singles]
+                    more.append(best_of(cs))
+            for n, i in enumerate(_search(client, f"{title} {artist}".strip(), "album")):
+                a = ", ".join(x.get("name", "") for x in i.get("artists") or [])   # a tie: Spotify's order
+                more.append(best_of([("album", i["uri"], f"{a} – {i.get('name', '')}", a, i.get("name", ""))], -0.005 * n))
+        if "track" in want:
+            for n, i in enumerate(_search(client, f"{title} {artist}".strip(), "track")):
+                a = ", ".join(x.get("name", "") for x in i.get("artists") or [])   # "enter sandman" = Metallica's
+                more.append(best_of([("track", i["uri"], f"{a} – {i.get('name', '')}", a, i.get("name", ""))], -0.005 * n))
+        best = max([best] + more)
+    score, k, uri, name = best
+    if score >= SURE:
+        return ("play", k, uri, name)
+    if score >= MAYBE:
+        return ("ask", k, uri, name)
+    return ("none", "", "", "")
+
+
+LABEL = {"album": "albumet", "track": "låten", "artist": "artisten", "playlist": "listan"}
+
+
+def music_sentence(d, kind, artist, title):
+    """Plays what was meant, asks about a half-close one, or says it wasn't found. → (shown, spoken)"""
+    global _pending
+    heard = f"{artist} – {title}" if artist and title else (artist or title)
+    if not d._spotify().load().get("refreshToken"):
+        return "GoblinAmp är inte inloggat på Spotify – logga in i GoblinAmp först (⋯ → Logga in).", True
+    try:
+        what, k, uri, name = find_music(kind, artist, title)
+    except Exception as e:  # noqa: BLE001 – no network, Spotify down
+        return f"Spotify svarade inte: {e}", True
+    if what == "play":
+        said = _plain(d.play_uri(k, uri, name, CONVERSATION))
+        # her English is worse than the user's (4 Nov): titles only in the box
+        return said, (f"Spelar {LABEL[k]}." if said.startswith("Spelar ") else True)
+    if what == "ask":
+        _pending = (k, uri, name, time.monotonic())
+        return (f"Jag är inte säker på vad jag hörde (\"{heard}\"). Menade du {LABEL[k]} {name}? "
+                f"Säg ja så spelar jag det.", "Jag är inte säker. Menade du det som står i rutan? Säg ja.")
+    return f"Jag hittade inte \"{heard}\" på Spotify.", "Det hittade jag inte på Spotify."
 
 
 def latest_pull():
@@ -227,6 +439,10 @@ def run(command, arg):
                          start_new_session=True)
         return said, True
     d = _desktop()
+    if command == "play" and not d.players():   # "Starta GoblinAmp" with nothing running (5 Nov)
+        subprocess.Popen(["gtk-launch", "goblin-amp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+        return "Startar GoblinAmp.", True
     if command in ("pause", "play", "next", "previous"):
         word = {"pause": "paus", "play": "spela", "next": "nästa", "previous": "föregående"}[command]
         return _plain(d.music(word, CONVERSATION)), False
@@ -250,15 +466,17 @@ def run(command, arg):
             said = d.open_thing(arg, CONVERSATION)
         return _plain(said), True
     if command == "music":
-        kind, artist, title = arg
-        if kind == "album" and artist:
-            artist, title = heard_album(d, artist, title)
-        what = f"{artist} - {title}" if artist else title
-        said = _plain(d.play(kind, what, CONVERSATION))
-        if said.startswith("Spelar "):   # her English is worse than the user's (4 Nov): titles only in the box
-            return said, {"album": "Spelar albumet.", "låt": "Spelar låten.", "artist": "Spelar artisten.",
-                          "lista": "Spelar listan."}.get(kind, "Spelar.")
-        return said, True
+        return music_sentence(d, *arg)
+    if command in ("yes", "no"):
+        global _pending
+        pending, _pending = _pending, None
+        if not pending or time.monotonic() - pending[3] > 60:
+            return ("", False) if command == "no" else ("Ja till vad? Jag har inte frågat något.", True)
+        if command == "no":
+            return "Okej, då spelar jag inget. Säg namnet igen, gärna långsamt.", True
+        k, uri, name, _when = pending
+        said = _plain(d.play_uri(k, uri, name, CONVERSATION))
+        return said, (f"Spelar {LABEL[k]}." if said.startswith("Spelar ") else True)
     return "", False
 
 

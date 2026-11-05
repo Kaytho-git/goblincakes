@@ -239,6 +239,35 @@ def cmd_record(args):
 
 _model = None
 last_sure = []
+_prompt = (None, VOCABULARY)    # (the word file's mtime, the prompt made from it)
+PROMPT_TOKENS = 212             # Whisper keeps the last ~223 tokens of the prompt
+OWN_WORDS = 12                  # 5 Nov: ~30 names made Whisper invent "&nbsp;…" for 6 s (Piper's voice) – few
+# Whisper's made-up text: html bits, the same piece over and over
+NONSENSE = re.compile(r"&nb|nbsp|&[a-z]+;|(\b\w{2,}\b)(?:\W+\1\b){3,}", re.I)
+
+
+def prompt():
+    """VOCABULARY + the user's own artists and albums (voicecmd.whisper_words, 5 Nov: "Saquald" was
+    Zakk Wylde), cut to fit. The most important words last – Whisper drops from the front."""
+    global _prompt
+    vc = voicecmd()
+    try:
+        mtime = vc.WORDS_FILE.stat().st_mtime
+    except OSError:
+        return VOCABULARY
+    if _prompt[0] == mtime:
+        return _prompt[1]
+    tok = whisper_model().hf_tokenizer
+    words, text = vc.whisper_words(), VOCABULARY
+    for w in words[:OWN_WORDS]:                       # most important first, until it is full
+        longer = f"{text.rstrip('.')}, {w}."
+        if len(tok.encode(" " + longer).ids) > PROMPT_TOKENS:
+            break
+        text = longer
+    own = text[len(VOCABULARY.rstrip(".")) + 2:].rstrip(".")
+    text = (own + ". " + VOCABULARY) if own else VOCABULARY   # the fixed words last (kept if ever too long)
+    _prompt = (mtime, text)
+    return text
 
 
 def whisper_model():
@@ -264,11 +293,20 @@ def audio(path):
 def hear(path):
     """Speech → text. Returns (text, seconds spent)."""
     t = time.monotonic()
+    sound = audio(path)
+    words = prompt()
     segments, _info = whisper_model().transcribe(
-        audio(path), language="sv", beam_size=5, vad_filter=True,
-        condition_on_previous_text=False, initial_prompt=VOCABULARY)
+        sound, language="sv", beam_size=5, vad_filter=True,
+        condition_on_previous_text=False, initial_prompt=words)
     segments = list(segments)
     text = " ".join(s.text.strip() for s in segments).strip()
+    if words != VOCABULARY and (NONSENSE.search(text) or len(text) > 25 * len(sound) / 16000 + 20):
+        print(f"Whisper hittade på ({text[:60]!r}) – igen utan den egna ordlistan", file=sys.stderr, flush=True)
+        segments, _info = whisper_model().transcribe(
+            sound, language="sv", beam_size=5, vad_filter=True,
+            condition_on_previous_text=False, initial_prompt=VOCABULARY)
+        segments = list(segments)
+        text = " ".join(s.text.strip() for s in segments).strip()
     text = re.sub(r"<\|[^|>]*\|>", "", text).strip()     # Whisper's own markers, e.g. <|nospeech|>
     # How sure Whisper was, per part (logged to find a limit for talk in the background, 4 Nov:
     # "hans medicinpris är helt ofelbar" was someone on the phone in the room)
@@ -486,6 +524,19 @@ class Listener:
         if '"ready"' not in ready:
             raise RuntimeError("Taligenkänningen startade inte.")
         GLib.io_add_watch(self.worker.stdout, GLib.PRIORITY_DEFAULT, GLib.IO_IN | GLib.IO_HUP, self.on_text)
+        # The user's own music (Whisper's word list, what "spela …" means): now, then every 6 h –
+        # refresh_own_music itself fetches only when the copy is a day old
+        self.own_music()
+        GLib.timeout_add_seconds(6 * 3600, self.own_music)
+
+    def own_music(self):
+        def work():
+            try:
+                voicecmd().refresh_own_music()
+            except Exception as e:  # noqa: BLE001 – no network / not signed in: the old copy stays
+                print(f"Musikbiblioteket hämtades inte: {e}", flush=True)
+        threading.Thread(target=work, daemon=True).start()
+        return True
 
     def kga(self, method, sig, args, ret=None):
         return self.bus.call_sync("org.kde.kglobalaccel", "/kglobalaccel", "org.kde.KGlobalAccel", method,

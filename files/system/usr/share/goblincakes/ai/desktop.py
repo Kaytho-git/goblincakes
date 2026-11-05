@@ -351,9 +351,17 @@ def play(kind, what, conversation=""):
         found, by = _best(items, title, artist)
     if not found:
         return f"Hittar inget på Spotify för {what}. Fråga användaren om stavningen."
-    label = {"track": "låten", "album": "albumet", "artist": "artisten", "playlist": "listan"}[kind]
     name = (", ".join(by) + " – " if by else "") + found.get("name", "")
-    body = {"uris": [found["uri"]]} if kind == "track" else {"context_uri": found["uri"]}
+    return play_uri(kind, found["uri"], name, conversation)
+
+
+def play_uri(kind, uri, name, conversation=""):
+    """Plays exactly this (track/album/artist/playlist uri) – play() after its search, and Kakan's voice
+    after it has checked that what was found sounds like what was said (voicecmd.find_music)."""
+    sw = _spotify()
+    client = sw.Client()
+    label = {"track": "låten", "album": "albumet", "artist": "artisten", "playlist": "listan"}[kind]
+    body = {"uris": [uri]} if kind == "track" else {"context_uri": uri}
     try:
         lib = sw.Library(client)
         device = lib.device(_start_spotify_app)
@@ -364,7 +372,7 @@ def play(kind, what, conversation=""):
             ["pgrep", "-f", "bin/goblin-amp"], capture_output=True).stdout:
         subprocess.Popen(["gtk-launch", "goblin-amp"], start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # "i GoblinAmp": the window too
-    cmdlevel.log(f"spela {label} {name} ({found['uri']})", "change", "kakan", 0, "", {"undo": [], "hint":
+    cmdlevel.log(f"spela {label} {name} ({uri})", "change", "kakan", 0, "", {"undo": [], "hint":
                  "Byt låt själv i GoblinAmp eller Spotify."}, conversation)
     return f"Spelar {label} {name} på Spotify (syns i GoblinAmp)."
 
