@@ -756,37 +756,14 @@ class Listener:
                     if c[0] != "again" or (last and time.monotonic() - when < 60)]
         if commands:
             self.last = (commands[-1], time.monotonic())
-        if not commands:      # a question for Kakan (part D2, voiceask.py)
-            if in_game():     # the local AI rests during games (the game guard) – only simple commands then
-                self.box("answer", text, "Under spel kan jag bara enkla kommandon (musik, volym, klockan …). "
-                                         "Fråga mig igen när spelet är stängt.", 6, fallback=f"Kakan hörde: {text}")
+        if not commands:      # not a simple command: Goblin AI with a proper model (the user's decision 5 Nov)
+            if in_game():     # the window would land over the game – it waits until the game is closed
+                self.box("answer", text, "Det är inget kommando jag kan med rösten. Fråga mig i Goblin AI när "
+                                         "spelet är stängt – vid lagg: säg \"det laggar\" så mäter jag.", 7,
+                         fallback=f"Kakan hörde: {text}")
                 return
-            self.box("thinking", text)
-            print("Fråga till Kakan", flush=True)
-
-            def think():
-                try:
-                    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "share/goblincakes/ai"))
-                    import voiceask  # noqa: PLC0415
-                    r = voiceask.ask(text)
-                except Exception as e:  # noqa: BLE001 – a broken question must not stop the service
-                    r = {"error": f"Något gick fel: {e}"}
-                if "error" in r:
-                    self.GLib.idle_add(self.answer, r["error"], "Det gick inte. Det står i rutan.")
-                    return
-                said = r["speak"] or "Jag har svarat i Goblin AI."
-                if r["needs_ok"]:     # never run from the voice: the window with the card
-                    voicecmd().open_chat(r["id"])
-                    shown = said + "\n\nDet behöver du godkänna – jag öppnar Goblin AI."
-                    spoken = said + " Det behöver du godkänna i Goblin AI."
-                elif r["more"]:
-                    voicecmd().offer_open(r["id"])
-                    shown, spoken = said + "\n\nVill du se hela? Säg ja.", said + " Vill du se hela?"
-                else:
-                    shown, spoken = said, said
-                print(f"Kakan (chatt {r['id']}): {r['shown'][:300]!r}", flush=True)
-                self.GLib.idle_add(self.answer, shown, spoken)
-            threading.Thread(target=think, daemon=True).start()
+            voicecmd().ask_in_window(text)
+            self.answer("Jag tar det i Goblin AI.", "Jag tar det i Goblin AI.")
             return
         self.box("thinking", text)
         print(f"Kommandon: {commands}", flush=True)
@@ -812,8 +789,7 @@ class Listener:
             self.box("nothing")
             return False
         # on screen while she speaks and a little after; while she waits for "ja"/a name: the minute
-        vc = voicecmd()
-        waiting = time.monotonic() - getattr(vc, "_asked", 0) < 60 or bool(getattr(vc, "_open", None))
+        waiting = time.monotonic() - getattr(voicecmd(), "_asked", 0) < 60
         hold = 60 if waiting else len(spoken or shown) / 12 + 5
         self.box("answer", getattr(self, "heard_text", ""), shown, hold, fallback=shown)
         if spoken and in_game():

@@ -91,6 +91,9 @@ def match(text):
     if not t:
         return None
     short = len(t.split()) <= 5
+    # "det laggar" (5 Nov): the lag meter marks the moment (as Meta+Shift+L) – the looking is Goblin AI's later
+    if short and re.search(r"\b(?:laggar|lagar|lagger|hackar|stammar|laggigt|lagget)\b", t):
+        return ("lag", "")
     if re.search(r"\bklockan\b", t) and re.search(r"\b(?:vad|hur|vilken)\b", t):
         return ("clock", "")
     if re.search(r"\b(?:senaste|sista|förra)\s+(?:pullen|pull|försöket|wipen|wipe|killen)\b", t) \
@@ -209,17 +212,12 @@ DASH = re.compile(r"\s+[–—-]\s+")
 _pending = None               # (kind, uri, name, when) – what "ja" plays
 _asked = 0.0                  # when she last asked about music – a bare name after it = "spela <name>"
 _by = None                    # (uri, name, when): "Spela Zakk Wylde" → "Vilket album eller vilken låt?"
-_open = None                  # (chat id, when): a spoken question's whole answer – "Vill du se hela?" → "ja"
 
 
-def offer_open(chat_id):
-    """After a spoken question to Kakan (voiceask.py): "ja" within a minute opens the chat in Goblin AI."""
-    global _open
-    _open = (chat_id, time.monotonic()) if chat_id else None
-
-
-def open_chat(chat_id):
-    subprocess.Popen(["goblin-ai", "--open", chat_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+def ask_in_window(text):
+    """Anything that isn't a simple command: Goblin AI opens with the question asked, so a proper model
+    answers there (the user 5 Nov: the voice does the small things; checking is Goblin AI's job)."""
+    subprocess.Popen(["goblin-ai", "--ask", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
 ANY = re.compile(r"^(?:spela\s+)?(?:vad som helst|vilken som helst|vilket som helst|blanda|bara (?:spela|artisten|honom|henne|dem)|"
                  r"allt|alla|spela bara|det spelar ingen roll|spelar ingen roll|artisten)$")
@@ -540,6 +538,11 @@ def run(command, arg):
     instead (the sentence is still shown), False = only show it."""
     if command == "clock":
         return clock_sentence(), True
+    if command == "lag":
+        meter = Path(__file__).resolve().parents[3] / "libexec/goblincakes-lagmeter"   # /usr/libexec (or the repo's)
+        subprocess.Popen([str(meter), "mark", "laggar nu (röst)"], stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+        return "Jag mäter laggen nu. Fråga mig i Goblin AI efteråt, så går vi igenom det.", True
     if command == "pull":
         try:
             url, said = latest_pull()
@@ -578,13 +581,7 @@ def run(command, arg):
     if command == "music":
         return music_sentence(d, *arg)
     if command in ("yes", "no"):
-        global _pending, _asked, _by, _open
-        if _open and not _pending and time.monotonic() - _open[1] < 60:     # "Vill du se hela?"
-            chat_id, _open = _open[0], None
-            if command == "no":
-                return "Okej.", True
-            open_chat(chat_id)
-            return "Här är hela svaret.", True
+        global _pending, _asked, _by
         pending, _pending = _pending, None
         if not pending and _by and time.monotonic() - _by[2] < 60:   # "Menade du Strikkland? Vilket album …" – "nej"
             if command == "no":
