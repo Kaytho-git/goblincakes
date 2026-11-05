@@ -209,6 +209,18 @@ DASH = re.compile(r"\s+[–—-]\s+")
 _pending = None               # (kind, uri, name, when) – what "ja" plays
 _asked = 0.0                  # when she last asked about music – a bare name after it = "spela <name>"
 _by = None                    # (uri, name, when): "Spela Zakk Wylde" → "Vilket album eller vilken låt?"
+_open = None                  # (chat id, when): a spoken question's whole answer – "Vill du se hela?" → "ja"
+
+
+def offer_open(chat_id):
+    """After a spoken question to Kakan (voiceask.py): "ja" within a minute opens the chat in Goblin AI."""
+    global _open
+    _open = (chat_id, time.monotonic()) if chat_id else None
+
+
+def open_chat(chat_id):
+    subprocess.Popen(["goblin-ai", "--open", chat_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
 ANY = re.compile(r"^(?:spela\s+)?(?:vad som helst|vilken som helst|vilket som helst|blanda|bara (?:spela|artisten|honom|henne|dem)|"
                  r"allt|alla|spela bara|det spelar ingen roll|spelar ingen roll|artisten)$")
 
@@ -566,7 +578,13 @@ def run(command, arg):
     if command == "music":
         return music_sentence(d, *arg)
     if command in ("yes", "no"):
-        global _pending, _asked, _by
+        global _pending, _asked, _by, _open
+        if _open and not _pending and time.monotonic() - _open[1] < 60:     # "Vill du se hela?"
+            chat_id, _open = _open[0], None
+            if command == "no":
+                return "Okej.", True
+            open_chat(chat_id)
+            return "Här är hela svaret.", True
         pending, _pending = _pending, None
         if not pending and _by and time.monotonic() - _by[2] < 60:   # "Menade du Strikkland? Vilket album …" – "nej"
             if command == "no":
