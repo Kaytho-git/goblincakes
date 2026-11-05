@@ -482,6 +482,8 @@ def cmd_box():
     own_scale = "QT_SCALE_FACTOR" not in os.environ
     if own_scale:
         os.environ["QT_SCALE_FACTOR"] = "0.8"
+    if os.environ.get("WAYLAND_DISPLAY"):      # Box.qml's LayerShell settings need it (Plasma's layer shell)
+        os.environ["QT_WAYLAND_SHELL_INTEGRATION"] = "layer-shell"
     from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot  # noqa: PLC0415
     from PySide6.QtGui import QGuiApplication, QIcon  # noqa: PLC0415
     from PySide6.QtQml import QQmlApplicationEngine  # noqa: PLC0415
@@ -541,6 +543,16 @@ def cmd_box():
     print("ready", flush=True)
     signal.signal(signal.SIGTERM, lambda *_: app.quit())
     return app.exec()
+
+
+def in_game():
+    """A game runs (gaming.py's rule, the same as the game mode's): then she only shows, never speaks."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "share/goblincakes"))
+        from gaming import find_game  # noqa: PLC0415
+        return find_game() is not None
+    except Exception:  # noqa: BLE001 – unsure = speak as usual
+        return False
 
 
 def osd(text, icon="audio-input-microphone"):
@@ -775,6 +787,9 @@ class Listener:
         waiting = time.monotonic() - getattr(voicecmd(), "_asked", 0) < 60
         hold = 60 if waiting else len(spoken or shown) / 12 + 5
         self.box("answer", getattr(self, "heard_text", ""), shown, hold, fallback=shown)
+        if spoken and in_game():
+            print("Spel igång – bara i rutan, inget läses upp", flush=True)   # the user 5 Nov: don't intrude
+            spoken = ""
         if spoken:
             out = self.tmp / f"say-{int(time.time() * 1000)}.wav"
             self.send({"say": spoken, "voice": voice_for_avatar(), "out": str(out)})

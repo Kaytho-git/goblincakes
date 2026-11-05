@@ -1,9 +1,12 @@
 // Kakan's voice box (step 9 D1, 5 Nov – the user's wish): what she heard and her answer, top right
-// below the top bar on the screen the mouse is on (placed by KWin's goblincakes-windows script).
+// below the top bar on the screen the mouse is on. A layer-shell surface in the overlay layer (as Plasma's
+// own OSD): above a fullscreen game too – a kept-above window was hidden behind WoW (5 Nov) – placed by
+// KWin itself (the active screen = the mouse's, below the panels' exclusive zones), never a title bar.
 // Never takes focus or clicks (a game or what you type keeps them). Driven by goblincakes-voice:
 // box.state = listening / thinking / answer / nothing, box.heard, box.answer, box.hold (seconds).
 import QtQuick
 import QtQuick.Window
+import org.kde.layershell as LayerShell
 
 Window {
     id: root
@@ -12,8 +15,17 @@ Window {
     visible: false
     color: "#0B1018"
     title: "Kakan"
-    flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
-           | Qt.WindowDoesNotAcceptFocus | Qt.WindowTransparentForInput
+    flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus | Qt.WindowTransparentForInput
+    LayerShell.Window.scope: "goblincakes-voice-box"
+    LayerShell.Window.layer: LayerShell.Window.LayerOverlay
+    LayerShell.Window.anchors: LayerShell.Window.AnchorTop | LayerShell.Window.AnchorRight
+    LayerShell.Window.margins.top: 12
+    LayerShell.Window.margins.right: 16
+    LayerShell.Window.exclusionZone: 0          // keeps clear of the top bar, takes no room itself
+    LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityNone
+    LayerShell.Window.activateOnShow: false
+    LayerShell.Window.screenConfiguration: LayerShell.Window.ScreenFromCompositor
+    LayerShell.Window.wantsToBeOnActiveScreen: true
 
     readonly property string state: box.state
     readonly property color frost: "#E6ECF5"
