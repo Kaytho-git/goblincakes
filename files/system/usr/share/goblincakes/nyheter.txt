@@ -1,3 +1,4 @@
+2026-11-05  Nya ikoner för de egna programmen (Goblin AI, GoblinAmp, GoblinRecorder, GoblinShare, Uppdatera, Avinstallera, goblin graph): symbolen är stor och har varje programs egen färg, så de är lättare att skilja åt. Goblinhuvudet sitter kvar litet i hörnet.
 2026-11-05  Goblin AI → Inställningar → Röst: installera eller ta bort röstknappen, prova rösten, och se vilka namn Kakan har lärt sig att du menar – med en Glöm-knapp på varje.
 2026-11-05  Kakans röst lär sig hur hon hör dig: säger du ja till "Menade du …?" (eller säger namnet igen efter ett nej) kommer hon ihåg det och spelar rätt direkt nästa gång. Lärde hon sig fel – säg nej direkt efteråt så glömmer hon det.
 2026-11-05  Kakans röst: säg "det laggar" så börjar lagmätningen direkt, även mitt i spelet – sedan går ni igenom det i Goblin AI. Annat än de enkla kommandona öppnar Goblin AI med frågan redan ställd, så att en riktig modell svarar där.
