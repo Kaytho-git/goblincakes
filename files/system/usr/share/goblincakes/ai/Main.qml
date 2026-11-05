@@ -706,8 +706,16 @@ Window {
             win.imageFraction = -1;
             win.imageError = !ok;
         }
+        function onVoiceProgress(text, fraction) { win.voiceText = text; }
+        function onVoiceDone(ok, message) { win.voiceText = message; win.voiceError = !ok; }
         function onQuickShow() { quick.open(); }
     }
+
+    // Kakan's voice (goblincakes-voice, step 9 E): installed, running, what she learned
+    readonly property var voiceStatus: JSON.parse(backend.voice || "{}")
+    property string voiceText: ""
+    property bool voiceError: false
+    property bool voiceRemoving: false
 
     // Pictures on this computer (goblincakes-image): status, models
     readonly property var imageStatus: JSON.parse(backend.image || "{}")
@@ -4916,7 +4924,7 @@ Window {
                 { name: "Körda kommandon", item: cmdLogCard }, { name: "Egna verktyg", item: ownToolsCard, key: "verktyg" },
                 { name: "Verktyg (MCP)", item: mcpCard },
                 { name: "Egna knappar", item: dailyCard }, { name: "Lokal AI", item: setLocal, key: "lokal" },
-                { name: "Skicka vidare", item: setHelper, key: "skicka" }, { name: "Skapa bilder", item: setImage }, { name: "AI-tjänster och nycklar", item: setKeys }]
+                { name: "Skicka vidare", item: setHelper, key: "skicka" }, { name: "Skapa bilder", item: setImage }, { name: "Röst", item: setVoice, key: "rost" }, { name: "AI-tjänster och nycklar", item: setKeys }]
             readonly property int current: {
                 let c = -1;
                 for (let i = 0; i < sections.length; i++)
@@ -7081,6 +7089,151 @@ Window {
                             wrapMode: Text.WordWrap
                             text: win.imageText
                             color: win.imageError ? accent.errorBright : "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                    }
+                }
+
+                // Kakan's voice (step 9 E, 5 Nov): hold the key and talk – install, try, what she has learned
+                Rectangle {
+                    id: setVoice
+                    width: settingsCol.width
+                    height: voiceCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: win.voiceStatus.installed ? accent.color : "#1E2A40"
+                    Component.onCompleted: backend.refreshVoice()
+
+                    Column {
+                        id: voiceCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 12
+
+                        Row {
+                            spacing: 12
+                            Text {
+                                text: "Röst"
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 16
+                            }
+                            Text {
+                                text: win.voiceStatus.installed === undefined ? "Kollar…"
+                                    : !win.voiceStatus.installed ? "Inte installerad"
+                                    : win.voiceStatus.running ? "Igång – håll F8 och prata" : "Installerad men inte igång"
+                                color: win.voiceStatus.installed ? accent.text : "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Håll röstknappen (F8 – byt i Systeminställningar → Genvägar → goblincakes-voice) och prata, släpp när "
+                                  + "du är klar. Enkla saker gör " + (backend.aiName || "Kakan") + " direkt: musik, volym, starta spel och program, klockan, "
+                                  + "senaste pullen, \"det laggar\". Annat öppnar Goblin AI med frågan. Under spel läser " + (backend.aiName || "Kakan")
+                                  + " inte upp något – svaret syns bara i rutan uppe till höger. Allt hörs och läses på din dator, "
+                                  + "inget skickas iväg."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Flow {
+                            width: parent.width
+                            spacing: 8
+                            FlatButton {
+                                visible: win.voiceStatus.installed === false
+                                primary: true
+                                enabledState: !backend.voiceBusy
+                                text: "Installera rösten (~1 GB)"
+                                onClicked: { win.voiceError = false; backend.installVoice(); }
+                            }
+                            FlatButton {
+                                visible: !!win.voiceStatus.installed
+                                small: true
+                                text: "Prova rösten"
+                                onClicked: backend.tryVoice()
+                            }
+                            FlatButton {
+                                visible: !!win.voiceStatus.installed
+                                small: true
+                                text: "Ta bort rösten …"
+                                enabledState: !backend.voiceBusy
+                                onClicked: win.voiceRemoving = !win.voiceRemoving
+                            }
+                        }
+                        Row {
+                            visible: win.voiceRemoving && !!win.voiceStatus.installed
+                            spacing: 10
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "Tar bort taligenkänningen och rösterna (~1 GB). Det inlärda finns kvar."
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            FlatButton {
+                                small: true
+                                text: "Ta bort"
+                                enabledState: !backend.voiceBusy
+                                onClicked: { win.voiceRemoving = false; win.voiceError = false; backend.uninstallVoice(); }
+                            }
+                        }
+
+                        Label { text: "INLÄRDA NAMN"; visible: !!win.voiceStatus.installed }
+                        Text {
+                            visible: !!win.voiceStatus.installed
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: (win.voiceStatus.learned || []).length
+                                  ? "Det " + (backend.aiName || "Kakan") + " har hört och vad du menade. Lärt när du sagt ja till \"Menade du …?\" "
+                                    + "– säg nej direkt efter något fel, eller tryck Glöm här."
+                                  : "Inget än. När du säger ja till \"Menade du …?\" kommer " + (backend.aiName || "Kakan")
+                                    + " ihåg det hon hörde och spelar rätt direkt nästa gång."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Repeater {
+                            model: win.voiceStatus.learned || []
+                            Rectangle {
+                                id: learnedRow
+                                required property var modelData
+                                required property int index
+                                width: voiceCol.width
+                                height: 40
+                                color: "#0B1018"
+                                border.width: 1
+                                border.color: "#1E2A40"
+                                Text {
+                                    anchors { left: parent.left; leftMargin: 14; right: forgetBtn.left; rightMargin: 10
+                                              verticalCenter: parent.verticalCenter }
+                                    elide: Text.ElideRight
+                                    text: "\u201D" + learnedRow.modelData.heard + "\u201D  =  " + learnedRow.modelData.name
+                                          + (learnedRow.modelData.n > 1 ? "   · " + learnedRow.modelData.n + " gånger" : "")
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                }
+                                FlatButton {
+                                    id: forgetBtn
+                                    anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                                    small: true
+                                    text: "Glöm"
+                                    onClicked: backend.forgetVoiceWord(learnedRow.index + 1)
+                                }
+                            }
+                        }
+                        Text {
+                            visible: win.voiceText !== ""
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: win.voiceText
+                            color: win.voiceError ? accent.errorBright : "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 13
                         }

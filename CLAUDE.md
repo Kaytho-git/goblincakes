@@ -91,6 +91,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] Egen docka `org.goblincakes.dock` (bara fästa, våg, accent; ersatte icontasks 29 okt)
 - [x] ChatGPT-appen (OpenAIs RPM uppackad i hemmappen, `goblincakes-chatgpt`; Goblin AI → "Skicka till ChatGPT" via urklipp) – ej provad med riktiga paketet
 - [x] GoblinShare (filer/mappar/text mellan GOBLINCAKES-datorerna hemma, LocalSend-protokollet – telefoner kan bara ta emot; Config → System, Dolphins högerklick, `goblin share`; Beställ = Goblin AI på den andra datorn gör det och skickar tillbaka; Be om hjälp = hon läser upp en kod, Terminal + koden = ssh dit så länge terminalen är öppen, då även `ssh <namn> <kommando>` för Claude Code – ej provat på riktigt) – text mellan två riktiga datorer provat 3 nov (frus laptop); filer/mappar ej än
+- [x] Kakans röst (F8: kommandon utan språkmodell, musik med Menade du/lär sig, rutan uppe till höger, frågor → Goblin AI, Inställningar → Röst)
 - [x] Goblin AI ny layout (rutor Kakan/Projekt/Kommandon/Modeller, flikar, stående skärm; MAPPAR → VS Code eller Claude Code i terminalen) – provad offscreen, ej på riktigt
 
 ## Att göra

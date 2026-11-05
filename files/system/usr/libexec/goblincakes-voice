@@ -478,8 +478,11 @@ def discord_unmute():
 BOX_QML = Path(__file__).resolve().parent.parent / "share/goblincakes/voice/Box.qml"
 
 
-def cmd_learned():
+def cmd_learned(as_json=False):
     items = sorted(voicecmd().learned().items(), key=lambda kv: -kv[1].get("t", 0))
+    if as_json:          # Goblin AI's voice card
+        print(json.dumps([{"heard": h, "name": x["name"], "n": x.get("n", 1)} for h, x in items], ensure_ascii=False))
+        return 0
     if not items:
         print("Inget inlärt än – hon lär sig när du säger ja till \"Menade du …?\".")
         return 0
@@ -882,7 +885,7 @@ def main(argv):
         "listen": lambda: cmd_listen(),
         "worker": lambda: cmd_worker(),
         "box": lambda: cmd_box(),
-        "lärt": lambda: cmd_learned(),
+        "lärt": lambda: cmd_learned("--json" in rest),
         "glöm": lambda: cmd_forget(rest),
     }
     if cmd not in commands:

@@ -384,6 +384,28 @@ Ord: lagg, laggar, ping, laggknappen, meta+shift+l, lagmätning, hackar, nätet,
   `journalctl --user -u goblincakes-lagmeter`.
 Kontroll: `/usr/libexec/goblincakes-lagmeter status`
 
+## Kakans röst (röstknappen)
+Ord: röst, röstknappen, f8, prata, hör inte, hörde fel, uppläsning, rutan, whisper, piper, menade du, lärt
+- Håll F8 (musknapp 4 på G502 = F8) och prata, släpp när du är klar. Tjänsten goblincakes-voice
+  (/usr/libexec/goblincakes-voice listen, /usr/lib/systemd/user/goblincakes-voice.service) startar bara om
+  miljön finns: ~/.local/share/goblincakes-voice (venv med faster-whisper + Piper, kb-whisper-small, rösterna).
+  Kortkommandot heter "goblincakes-voice" i Systeminställningar → Genvägar. Inte F20–F23 (mikrofon av/pekplatta).
+- Medan knappen hålls tystas bara mikrofonen mot Discord (dess PipeWire source-output), sedan på igen.
+- Tal → text (Whisper, ~1,5 s) → enkla kommandon direkt utan språkmodell (/usr/share/goblincakes/ai/voicecmd.py):
+  musik (spela album/låt/artist/min spellista/senaste albumet på Spotify via GoblinAmps inloggning), volym, paus,
+  nästa, starta spel och program, klockan, senaste pullen, "det laggar" (= lagmätaren mark). Annat → Goblin AI
+  öppnas med frågan (`goblin-ai --ask`). Under spel: inget läses upp, bara rutan; frågor får vänta.
+- Musiken kontrolleras: dina listor/sparade album/gillade låtar först (~/.cache/goblincakes/voice-words.json,
+  hämtas en gång per dygn), osäkert → "Menade du …?" (ja/nej inom en minut), bara artist → "Vilket album eller låt?".
+- Hon lär sig felhörningar: ja/nej sparas i ~/.config/goblincakes/voice-learned.json; "nej" direkt efter = glöm.
+  Lista/glöm: `/usr/libexec/goblincakes-voice lärt`, `/usr/libexec/goblincakes-voice glöm <nr|alla>`.
+- Rutan uppe till höger (`goblincakes-voice box`, /usr/share/goblincakes/voice/Box.qml, layer-shell över helskärm,
+  tar inga klick). Syns den inte: kraschar den visas Plasmas egen ruta i stället – se loggen.
+- Kolla: `systemctl --user status goblincakes-voice`, `journalctl --user -u goblincakes-voice` (raderna "Hörde",
+  "Kommandon", "Svar", "Lärde mig"), `/usr/libexec/goblincakes-voice status`, prova hörseln utan knappen:
+  `/usr/libexec/goblincakes-voice test 5`.
+Kontroll: `/usr/libexec/goblincakes-voice status`
+
 ## Steam och spel
 Ord: steam, proton, spel startar inte, goblin play, tv-läge, big picture, lutris, heroic
 - Steam finns i systemet. `goblin play <namn>` startar Steam-spel från terminalen (/usr/libexec/goblincakes-games),

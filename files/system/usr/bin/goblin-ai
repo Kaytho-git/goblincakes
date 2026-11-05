@@ -20,6 +20,9 @@ import time
 from pathlib import Path
 
 SHARE = Path(os.environ.get("GOBLIN_AI_SHARE", "/usr/share/goblincakes/ai"))
+# Kakan's voice (step 9): next to this file's /usr – the repo's own when started from the repo
+VOICE_HELPER = os.environ.get("GOBLINCAKES_VOICE_HELPER",
+                              str(Path(__file__).resolve().parent.parent / "libexec/goblincakes-voice"))
 sys.path.insert(0, str(SHARE))
 import goblinai  # noqa: E402
 import ptyterm  # noqa: E402
@@ -437,6 +440,10 @@ class Backend(QObject):
         self._learnDone.connect(self._on_learn_done)
         self._image = "{}"
         self._image_proc = None
+        self._voice = "{}"
+        self._voice_proc = None
+        self._voiceInfo.connect(self._on_voice_info)
+        self.refreshVoice()
         self._image_lock = threading.Lock()  # one picture at a time (the graphics card)
         self._image_jobs = {}  # (conversation, message, segment) -> the segment being drawn
         self._imageInfo.connect(self._on_image_info)
@@ -2188,13 +2195,13 @@ class Backend(QObject):
 
     def _helper_run(self, kind, args, done_text):
         """A helper (goblincakes-ollama / goblincakes-image) with its progress lines shown in the window."""
-        attr = "_local_proc" if kind == "local" else "_image_proc"
+        attr = f"_{kind}_proc"
         if getattr(self, attr) is not None:
             return
-        progress = self.localProgress if kind == "local" else self.imageProgress
-        done = self.localDone if kind == "local" else self.imageDone
-        changed = self.localChanged if kind == "local" else self.imageChanged
-        refresh = self.refreshLocal if kind == "local" else self.refreshImage
+        progress = {"local": self.localProgress, "image": self.imageProgress, "voice": self.voiceProgress}[kind]
+        done = {"local": self.localDone, "image": self.imageDone, "voice": self.voiceDone}[kind]
+        changed = {"local": self.localChanged, "image": self.imageChanged, "voice": self.voiceChanged}[kind]
+        refresh = {"local": self.refreshLocal, "image": self.refreshImage, "voice": self.refreshVoice}[kind]
         proc = QProcess(self)
         proc.setProcessChannelMode(QProcess.SeparateChannels)
         errors = []
@@ -2225,7 +2232,7 @@ class Backend(QObject):
         proc.finished.connect(finished)
         setattr(self, attr, proc)
         changed.emit()
-        proc.start(goblinai.OLLAMA_HELPER if kind == "local" else goblinai.IMAGE_HELPER, args)
+        proc.start({"local": goblinai.OLLAMA_HELPER, "image": goblinai.IMAGE_HELPER, "voice": VOICE_HELPER}[kind], args)
 
     @Slot(str)
     def installLocal(self, place):
@@ -2262,6 +2269,59 @@ class Backend(QObject):
     def setLocalOrder(self, order):
         subprocess.run([goblinai.OLLAMA_HELPER, "order", order], capture_output=True)
         self.refreshLocal()
+
+    # ── Kakan's voice (step 9 E, 5 Nov): /usr/libexec/goblincakes-voice – install, try, what she learned ──
+
+    voiceChanged = Signal()
+    voiceProgress = Signal(str, float)
+    voiceDone = Signal(bool, str)
+    _voiceInfo = Signal(str)
+
+    @Property(str, notify=voiceChanged)
+    def voice(self):
+        return self._voice
+
+    @Property(bool, notify=voiceChanged)
+    def voiceBusy(self):
+        return self._voice_proc is not None
+
+    @Slot()
+    def refreshVoice(self):
+        def work():
+            out = {}
+            try:
+                r = subprocess.run([VOICE_HELPER, "status"], capture_output=True, text=True, timeout=20)
+                out = json.loads(r.stdout or "{}")
+                r = subprocess.run([VOICE_HELPER, "lärt", "--json"], capture_output=True, text=True, timeout=20)
+                out["learned"] = json.loads(r.stdout or "[]")
+            except (OSError, ValueError, subprocess.SubprocessError):
+                pass
+            out["running"] = subprocess.run(["systemctl", "--user", "is-active", "--quiet", "goblincakes-voice.service"]
+                                            ).returncode == 0
+            self._voiceInfo.emit(json.dumps(out))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_voice_info(self, text):
+        self._voice = text or "{}"
+        self.voiceChanged.emit()
+
+    @Slot()
+    def installVoice(self):
+        self._helper_run("voice", ["install"], "Rösten är installerad – håll F8 och prata.")
+
+    @Slot()
+    def uninstallVoice(self):
+        self._helper_run("voice", ["uninstall"], "Rösten är borttagen.")
+
+    @Slot()
+    def tryVoice(self):
+        subprocess.Popen([VOICE_HELPER, "say", "Hej! Håll in röstknappen och prata med mig."],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+    @Slot(int)
+    def forgetVoiceWord(self, number):
+        subprocess.run([VOICE_HELPER, "glöm", str(number)], capture_output=True, timeout=20)
+        self.refreshVoice()
 
     # ── Pictures (16 Oct): ```bild blocks and the Skapa bild button ─────────
     # The program on this computer is /usr/libexec/goblincakes-image; the order (computer, Cloudflare,
