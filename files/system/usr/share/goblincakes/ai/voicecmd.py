@@ -73,6 +73,9 @@ def match_all(text):
     Split at sentence ends and "och"/"sen"; a part that isn't a command makes the whole thing a question
     for Kakan, so a real question with "och" in it is never half done."""
     whole = match(text)
+    # 5 Nov: "Menade du …?" → "nej" → "Sack Wild, Book of Shadros II" without "spela" = the answer
+    if not whole and time.monotonic() - _asked < 60 and 0 < len(fix_words(text).split()) <= 10:
+        return [("music", ("", "", fix_words(text)))]
     parts = [p for p in re.split(r"[.?!]+|\s+(?:och sedan|och sen|och|sen|sedan)\s+", text) if p and p.strip()]
     if len(parts) > 1:
         found = [match(p) for p in parts]
@@ -203,7 +206,8 @@ WORDS_FILE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / 
 WORDS_AGE = 24 * 3600
 SURE, MAYBE = 0.75, 0.6        # how alike: play / ask / not found
 DASH = re.compile(r"\s+[–—-]\s+")
-_pending = None               # (kind, uri, name, label, when) – what "ja" plays
+_pending = None               # (kind, uri, name, when) – what "ja" plays
+_asked = 0.0                  # when she last asked about music – a bare name after it = "spela <name>"
 
 
 def own_music():
@@ -388,7 +392,8 @@ LABEL = {"album": "albumet", "track": "låten", "artist": "artisten", "playlist"
 
 def music_sentence(d, kind, artist, title):
     """Plays what was meant, asks about a half-close one, or says it wasn't found. → (shown, spoken)"""
-    global _pending
+    global _pending, _asked
+    _asked = 0.0
     heard = f"{artist} – {title}" if artist and title else (artist or title)
     if not d._spotify().load().get("refreshToken"):
         return "GoblinAmp är inte inloggat på Spotify – logga in i GoblinAmp först (⋯ → Logga in).", True
@@ -402,9 +407,12 @@ def music_sentence(d, kind, artist, title):
         return said, (f"Spelar {LABEL[k]}." if said.startswith("Spelar ") else True)
     if what == "ask":
         _pending = (k, uri, name, time.monotonic())
+        _asked = _pending[3]
         return (f"Jag är inte säker på vad jag hörde (\"{heard}\"). Menade du {LABEL[k]} {name}? "
                 f"Säg ja så spelar jag det.", "Jag är inte säker. Menade du det som står i rutan? Säg ja.")
-    return f"Jag hittade inte \"{heard}\" på Spotify.", "Det hittade jag inte på Spotify."
+    _asked = time.monotonic()
+    return (f"Jag hittade inte \"{heard}\" på Spotify. Säg namnet igen.",
+            "Det hittade jag inte på Spotify. Säg namnet igen.")
 
 
 def latest_pull():
@@ -468,12 +476,13 @@ def run(command, arg):
     if command == "music":
         return music_sentence(d, *arg)
     if command in ("yes", "no"):
-        global _pending
+        global _pending, _asked
         pending, _pending = _pending, None
         if not pending or time.monotonic() - pending[3] > 60:
             return ("", False) if command == "no" else ("Ja till vad? Jag har inte frågat något.", True)
         if command == "no":
-            return "Okej, då spelar jag inget. Säg namnet igen, gärna långsamt.", True
+            _asked = time.monotonic()        # the name said next is the answer
+            return "Okej. Säg namnet igen, gärna långsamt.", True
         k, uri, name, _when = pending
         said = _plain(d.play_uri(k, uri, name, CONVERSATION))
         return said, (f"Spelar {LABEL[k]}." if said.startswith("Spelar ") else True)
