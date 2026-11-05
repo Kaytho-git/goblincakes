@@ -42,7 +42,9 @@ STEAM = "/usr/libexec/goblincakes-steam-activity"
 PARTIAL = re.compile(r"\.(?:part|crdownload|download|partial|opdownload)$", re.I)  # Firefox, Chrome, Safari-likes, Opera
 WATCH_NAMES = {"steam": "Steam är klar", "uppdatering": "uppdateringen är klar", "nedladdning": "nedladdningen är klar",
                "stängt": "{arg} är stängt", "startat": "{arg} har startat", "sida": "sidan {arg} ändras",
-               "bygge": "bygget på GitHub är klart ({arg})"}
+               "bygge": "bygget på GitHub är klart ({arg})",
+               "antifusk": "något ändras i Linux-stödet för {arg} (tittar en gång om dagen)"}
+ANTIFUSK_FLAG = DATA / "antifusk-tillagd"  # the watch was added once on the builder's computer (5 Nov)
 
 
 # ── The store (the service and Goblin AI both write: one at a time) ─────────────
@@ -268,7 +270,8 @@ def watch(rest, conversation=""):
             "nedladdning": "nedladdning", "nedladdningen": "nedladdning", "download": "nedladdning",
             "stängt": "stängt", "stängd": "stängt", "stängs": "stängt", "slut": "stängt", "startat": "startat",
             "startar": "startat", "igång": "startat", "sida": "sida", "sidan": "sida", "webbsida": "sida",
-            "bygge": "bygge", "bygget": "bygge", "build": "bygge", "github": "bygge"}.get(word.lower())
+            "bygge": "bygge", "bygget": "bygge", "build": "bygge", "github": "bygge",
+            "antifusk": "antifusk", "anti-fusk": "antifusk", "anticheat": "antifusk", "anti-cheat": "antifusk"}.get(word.lower())
     item = _new(kind or "", note=note)
     if kind == "steam":
         busy = steam_busy()
@@ -321,10 +324,19 @@ def watch(rest, conversation=""):
             return f"Hittar ingen commit {arg} på GitHub (är den pushad?)."
         item.update(arg=sha[:7], sha=sha, looked=0)
         said = f"Säger till när GOBLINCAKES-bygget för commit {sha[:7]} är klart – lyckat eller inte."
+    elif kind == "antifusk":
+        # Kakan's standing watch on anti-cheat for Linux (anticheatwatch.py): stays until removed
+        import anticheatwatch  # noqa: PLC0415
+        if any(i["kind"] == "antifusk" for i in load()):
+            return "Jag bevakar redan anti-fusket för Linux (FACEIT, Ricochet, EA Javelin) – en gång om dagen."
+        item.update(arg=anticheatwatch.DEFAULT_ARG, looked=0, known=None)
+        said = ("Tittar en gång om dagen på areweanticheatyet.com och säger till när något ändras för FACEIT (CS2), "
+                "Ricochet (Call of Duty) och EA Javelin (Battlefield) – t.ex. när ett spel får Linux-stöd planerat. "
+                "Sluta: `påminnelser bort antifusk`.")
     else:
         return ("Det kan jag inte bevaka. Det går: `bevaka steam`, `bevaka uppdatering`, `bevaka nedladdning`, "
                 "`bevaka stängt <program>`, `bevaka startat <program>`, `bevaka sida <adress> [ord]`, "
-                "`bevaka bygge [commit]`.")
+                "`bevaka bygge [commit]`, `bevaka antifusk`.")
     _add(item)
     _log(f"bevakning: {what.strip()}", said, item["id"], conversation)
     return said + (" Under ett spel väntar notisen tills spelet är stängt." if kind != "startat" else "")
@@ -486,6 +498,8 @@ def due(item, gaming_now, now):
         if sha != item["sha"]:  # cancelled by a newer push (same concurrency group): that build has this one too
             return False, {"looked": now, "sha": sha, "arg": sha[:7]}
         return state == "done", {"looked": now}
+    if kind == "antifusk":
+        return False, antifusk_look(item, now)  # never fired: a standing watch
     if kind == "sida":
         if now - item.get("looked", 0) < PAGE_LOOK:
             return False, {}
@@ -495,6 +509,42 @@ def due(item, gaming_now, now):
             return False, {"looked": now}
         return (found if item.get("word") else digest != item.get("hash")), {"looked": now}
     return True, {}  # unknown kind (a newer version's): out of the way
+
+
+def antifusk_look(item, now):
+    """Once a day: the anti-cheat list – changes since the last look are a notice. The first look only remembers."""
+    import anticheatwatch as acw  # noqa: PLC0415
+    if now - item.get("looked", 0) < acw.DAY:
+        return {}
+    try:
+        seen = acw.watched(acw.fetch())
+    except Exception:  # noqa: BLE001 – offline, GitHub down: try again in an hour
+        return {"looked": now - acw.DAY + 3600}
+    if not seen:
+        return {"looked": now}  # the list changed its format: keep what was known
+    if item.get("known") is not None:
+        lines = acw.changes(item["known"], seen)
+        if lines:
+            body = "\n".join(lines[:5]) + (f"\n… och {len(lines) - 5} till" if len(lines) > 5 else "")
+            notice("Anti-fusk på Linux: något har ändrats", body, actions=[("open", "Öppna listan")],
+                   on_action=lambda c: c == "open" and subprocess.Popen(["xdg-open", acw.PAGE]))
+    return {"looked": now, "known": seen}
+
+
+def add_antifusk_once():
+    """The user asked 5 Nov for the anti-cheat watch: added once on the computer with the repo (the builder's).
+    Removed with `påminnelser bort antifusk`, it stays removed."""
+    try:
+        import buildstatus  # noqa: PLC0415
+        if ANTIFUSK_FLAG.exists() or not buildstatus.builder():
+            return
+        if not any(i["kind"] == "antifusk" for i in load()):
+            import anticheatwatch  # noqa: PLC0415
+            _add(_new("antifusk", note="", arg=anticheatwatch.DEFAULT_ARG, looked=0, known=None))
+        DATA.mkdir(parents=True, exist_ok=True)
+        ANTIFUSK_FLAG.touch()
+    except Exception as e:  # noqa: BLE001 – never stops the reminders
+        print(f"antifusk: {e}", file=sys.stderr)
 
 
 def after_update():
@@ -521,6 +571,7 @@ def run():
     import buildstatus  # noqa: PLC0415
     import gaming  # noqa: PLC0415
     started = time.time()
+    add_antifusk_once()
     checked = False
     built = 0.0
     while True:

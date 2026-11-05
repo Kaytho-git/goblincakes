@@ -168,7 +168,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   påminnelserna visas av kalendarac (pgrep kalendarac).
   Påminnelser och bevakningar (ai/reminders.py, tjänsten goblincakes-kakan-vakt.service tittar var 15:e s):
   påminn <när> ; <text> (notis med ljud, även under spel, "Om 10 min"-knapp), bevaka steam|uppdatering|nedladdning|
-  stängt X|startat X|sida X [ord] (väntar tills spelet är stängt), fråga <när> ; <frågan> (du svarar då, svaret som
+  stängt X|startat X|sida X [ord] (väntar tills spelet är stängt), bevaka antifusk (stående, se Grafikkort), fråga <när> ; <frågan> (du svarar då, svaret som
   notis + sparat samtal), påminnelser [bort]. Listan: ~/.local/share/goblincakes/ai/vakt.json. Missad tid (datorn av)
   kommer vid inloggning. Kolla: systemctl --user status goblincakes-kakan-vakt.
   Kolla spelarna: busctl --user list | grep mpris. Volymen: wpctl get-volume @DEFAULT_AUDIO_SINK@.
@@ -447,7 +447,7 @@ Ord: skärm, skärmar, hz, uppdateringsfrekvens, fönster, tiling, rutor, layout
   rutor, Meta+Z). Kolla `journalctl --user -b | grep -i goblincakes-windows`.
 
 ## Grafikkort och drivrutiner
-Ord: grafikkort, gpu, nvidia, drivrutin, amd, secure boot, variant, anticheat, easy anti-cheat, fortnite, tpm
+Ord: grafikkort, gpu, nvidia, drivrutin, amd, secure boot, variant, anticheat, easy anti-cheat, fortnite, tpm, faceit, ricochet, javelin, battlefield, call of duty, antifusk
 - Tre varianter: goblincakes (AMD/Intel), goblincakes-nvidia, goblincakes-nvidia-legacy (GTX 900/10).
   Byte: Config → Grafik (/usr/libexec/goblincakes-gpu). Vilken som körs: `rpm-ostree status`.
 - Kolla: `nvidia-smi`, `lspci -k | grep -A3 -i vga`.
@@ -457,6 +457,13 @@ Ord: grafikkort, gpu, nvidia, drivrutin, amd, secure boot, variant, anticheat, e
   pkexec, polkit org.goblincakes.anticheat, inget lösenord). `goblin anticheat fixa` ändrar kärnans argument
   (rpm-ostree kargs, gäller efter omstart), `ångra` tar tillbaka dem; vad som ändrats: ~/.local/state/goblincakes/anticheat-kargs.json.
   BIOS-delarna (Secure Boot, TPM, IOMMU) kan bara användaren slå på. Kort i Config → Grafik. Kolla: `rpm-ostree kargs`.
+- Bevakning av anti-fusk för Linux (användaren vill spela CS2 på FACEIT, Call of Duty och Battlefield utan Windows):
+  `bevaka antifusk` (lagd på användarens dator 5 nov, en gång) läser en gång om dagen areweanticheatyet.coms lista
+  (ai/anticheatwatch.py, games.json på GitHub) och ger en notis när status ändras för spel med FACEIT, Ricochet (CoD)
+  eller EA Javelin (Battlefield), en ny rad i ett spels historik eller ett nytt spel. Läget nu: `python3
+  /usr/share/goblincakes/ai/anticheatwatch.py` (läser bara). Senast sett: posten "antifusk" i vakt.json. Sluta:
+  `påminnelser bort antifusk`. Bakgrund: Epics EAC v2 (se ovan) är modellen de andra kan kopiera; EA har sagt att de
+  undersöker Linux för Javelin, Activision och FACEIT har inga planer (5 nov).
 
 ## Diskar
 Ord: disk, diskar, hårddisk, usb, montera, automount, ägare, rättigheter

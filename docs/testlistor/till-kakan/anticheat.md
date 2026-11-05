@@ -21,3 +21,9 @@
 - Efter omstart
   kör: cat /proc/sys/kernel/kexec_load_disabled; rpm-ostree kargs
   väntat: 1, och kargs innehåller sysctl.kernel.kexec_load_disabled=1 (bara om Gör systemet redo trycktes – annars 0 och hoppa)
+- Bevakningen av anti-fusket finns
+  kör: python3 /usr/share/goblincakes/ai/reminders.py påminnelser
+  väntat: en rad "säg till när något ändras i Linux-stödet för FACEIT, Ricochet och EA Javelin" (läggs in när tjänsten goblincakes-kakan-vakt startat efter nästa image)
+- Listan går att läsa
+  kör: python3 /usr/share/goblincakes/ai/anticheatwatch.py
+  väntat: rader för Counter-Strike 2 (FACEIT), Battlefield 6 och Call of Duty med status, och "Källa: https://areweanticheatyet.com"
