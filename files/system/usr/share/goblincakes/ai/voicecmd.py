@@ -205,6 +205,54 @@ def _sounds(text):
 # (Saxon, Cannibal Corpse). Now: the user's own library first, everything compared by how it sounds,
 # and only a close match is played – a half-close one is asked about ("Menade du …?" → "ja").
 
+# What she has learned the user means (5 Nov, the user: "jag säger ju inte Strikewild" – it's what Whisper
+# hears for Zakk Wylde): a "ja" to "Menade du …?", or the name said again after a "nej", saves heard → meant.
+# Only on this computer; the voice card in Goblin AI lists them and can remove one.
+LEARNED_FILE = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes" / "voice-learned.json"
+_missed = None                # (heard, when): after a "nej" – what was heard wrong, until the right one plays
+_used = None                  # (heard, when): something just played from what she learned – "nej" forgets it
+
+
+def _heard_key(artist, title):
+    return " ".join(f"{artist} {title}".lower().replace("–", " ").split())
+
+
+def learned():
+    try:
+        return json.loads(LEARNED_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def learn(heard, kind, uri, name):
+    """heard (as _heard_key) now means this – used at once the next time, without asking."""
+    if not heard or not uri:
+        return
+    data = learned()
+    old = data.get(heard, {})
+    data[heard] = {"kind": kind, "uri": uri, "name": name, "t": time.time(),
+                   "n": old.get("n", 0) + 1 if old.get("uri") == uri else 1}
+    LEARNED_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = LEARNED_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(LEARNED_FILE)
+    print(f"Lärde mig: \"{heard}\" = {name}", flush=True)
+
+
+def forget_learned(heard):
+    data = learned()
+    if data.pop(heard, None) is not None:
+        LEARNED_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def _learn_missed(kind, uri, name):
+    """After "nej" + the name again: what was heard wrong the first time means what just played."""
+    global _missed
+    if _missed and time.monotonic() - _missed[1] < 90:
+        learn(_missed[0], kind, uri, name)
+    _missed = None
+
+
 WORDS_FILE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "goblincakes" / "voice-words.json"
 WORDS_AGE = 24 * 3600
 SURE, MAYBE = 0.75, 0.6        # how alike: play / ask / not found
@@ -464,7 +512,7 @@ def by_artist(artist_uri, artist_name, title):
 
 def music_sentence(d, kind, artist, title):
     """Plays what was meant, asks about a half-close one, or says it wasn't found. → (shown, spoken)"""
-    global _pending, _asked, _by
+    global _pending, _asked, _by, _missed
     _asked = 0.0
     by, _by = _by, None
     answer = kind == "svar"
@@ -484,33 +532,48 @@ def music_sentence(d, kind, artist, title):
         except Exception as e:  # noqa: BLE001
             return f"Spotify svarade inte: {e}", True
         if score >= MAYBE:
+            if len(by) > 3 and by[3]:     # "Menade du X? Vilket album …" answered with an album = yes to X
+                learn(by[3], "artist", by[0], by[1])
             said = _plain(d.play_uri(k, uri, name, CONVERSATION))
             return said, (f"Spelar {LABEL[k]}." if said.startswith("Spelar ") else True)
-        _by, _asked = (by[0], by[1], time.monotonic()), time.monotonic()
+        _by, _asked = (by[0], by[1], time.monotonic()) + tuple(by[3:]), time.monotonic()
         return (f"Jag hittar inget av {by[1]} som heter \"{title}\". Säg det igen, eller \"vad som helst\".",
                 "Det hittade jag inte. Säg det igen, eller vad som helst.")
     heard = f"{artist} – {title}" if artist and title else (artist or title)
+    key = _heard_key(artist, title)
     if not d._spotify().load().get("refreshToken"):
         return "GoblinAmp är inte inloggat på Spotify – logga in i GoblinAmp först (⋯ → Logga in).", True
-    try:
-        what, k, uri, name = find_music(kind, artist, title)
-    except Exception as e:  # noqa: BLE001 – no network, Spotify down
-        return f"Spotify svarade inte: {e}", True
+    known = learned().get(key)
+    if known and (known["kind"] != "artist" or kind in ("", "artist")):    # learned: no asking
+        what, k, uri, name = "play", known["kind"], known["uri"], known["name"]
+        learn(key, k, uri, name)                                             # counted
+        global _used
+        _used = (key, time.monotonic())
+    else:
+        try:
+            what, k, uri, name = find_music(kind, artist, title)
+        except Exception as e:  # noqa: BLE001 – no network, Spotify down
+            return f"Spotify svarade inte: {e}", True
     if k == "artist" and kind == "" and what in ("play", "ask"):    # "Spela Zakk Wylde" → which one?
-        _by, _asked = (uri, name, time.monotonic()), time.monotonic()
+        if what == "play":
+            _learn_missed("artist", uri, name)
+        _by = (uri, name, time.monotonic(), key if what == "ask" else "")
+        _asked = time.monotonic()
         sure = "" if what == "play" else "Menade du "
         return (f"{sure}{name}{'?' if sure else '.'} Vilket album eller vilken låt? (\"Vad som helst\" = blanda artisten.)",
                 f"{sure}{_spoken(name)}{'?' if sure else '.'} Vilket album eller vilken låt?")
     if what == "play":
+        _learn_missed(k, uri, name)
         said = _plain(d.play_uri(k, uri, name, CONVERSATION))
         # her English is worse than the user's (4 Nov): titles only in the box
         return said, (f"Spelar {LABEL[k]}." if said.startswith("Spelar ") else True)
     if what == "ask":
-        _pending = (k, uri, name, time.monotonic())
+        _pending = (k, uri, name, time.monotonic(), key)
         _asked = _pending[3]
         return (f"Jag är inte säker på vad jag hörde (\"{heard}\"). Menade du {LABEL[k]} {name}? "
                 f"Säg ja så spelar jag det.", f"Menade du {_spoken(name)}? Säg ja.")
     _asked = time.monotonic()
+    _missed = (key, time.monotonic())         # the name said next, when it plays, is what this meant
     return (f"Jag hittade inte \"{heard}\" på Spotify. Säg namnet igen.",
             "Det hittade jag inte på Spotify. Säg namnet igen.")
 
@@ -581,20 +644,31 @@ def run(command, arg):
     if command == "music":
         return music_sentence(d, *arg)
     if command in ("yes", "no"):
-        global _pending, _asked, _by
+        global _pending, _asked, _by, _missed, _used
         pending, _pending = _pending, None
+        if command == "no" and not pending and _used and time.monotonic() - _used[1] < 60:
+            forget_learned(_used[0])              # learned wrong ("ja" to a wrong guess) – away, and ask again
+            _missed, _used, _by, _asked = (_used[0], time.monotonic()), None, None, time.monotonic()
+            print(f"Glömde: \"{_missed[0]}\"", flush=True)
+            return "Okej, det glömmer jag. Säg namnet igen.", True
         if not pending and _by and time.monotonic() - _by[2] < 60:   # "Menade du Strikkland? Vilket album …" – "nej"
             if command == "no":
+                if len(_by) > 3 and _by[3]:
+                    _missed = (_by[3], time.monotonic())
                 _by, _asked = None, time.monotonic()
                 return "Okej. Säg namnet igen.", True
+            if len(_by) > 3 and _by[3]:
+                learn(_by[3], "artist", _by[0], _by[1])          # "ja" – that artist
             _by = (_by[0], _by[1], time.monotonic())
             return f"Vilket album eller vilken låt av {_by[1]}? Eller \"vad som helst\".", "Vilket album eller vilken låt?"
         if not pending or time.monotonic() - pending[3] > 60:
             return ("", False) if command == "no" else ("Ja till vad? Jag har inte frågat något.", True)
         if command == "no":
             _asked = time.monotonic()        # the name said next is the answer
+            _missed = (pending[4], time.monotonic())
             return "Okej. Säg namnet igen, gärna långsamt.", True
-        k, uri, name, _when = pending
+        k, uri, name, _when, heard = pending
+        learn(heard, k, uri, name)
         said = _plain(d.play_uri(k, uri, name, CONVERSATION))
         return said, (f"Spelar {LABEL[k]}." if said.startswith("Spelar ") else True)
     return "", False

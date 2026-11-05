@@ -13,6 +13,8 @@
     goblincakes-voice listen                  the service: hold the voice key (F8 – the G502's button 4)
                                               and talk; released → text → a simple command is done at once
                                               (ai/voicecmd.py) and answered aloud; the key again = quiet
+    goblincakes-voice lärt                    what she has learned the user means ("strikewild" = Zakk Wylde)
+    goblincakes-voice glöm <nummer|alla>      forget one of them (the number from lärt), or all
     goblincakes-voice box                     (used by listen) the box top right: what she heard and her
                                               answer – JSON lines {"state", "heard", "answer", "hold"} in
     goblincakes-voice worker                  (used by listen) the loaded model and the voices: JSON lines
@@ -476,6 +478,32 @@ def discord_unmute():
 BOX_QML = Path(__file__).resolve().parent.parent / "share/goblincakes/voice/Box.qml"
 
 
+def cmd_learned():
+    items = sorted(voicecmd().learned().items(), key=lambda kv: -kv[1].get("t", 0))
+    if not items:
+        print("Inget inlärt än – hon lär sig när du säger ja till \"Menade du …?\".")
+        return 0
+    for i, (heard, x) in enumerate(items, 1):
+        print(f"{i:3}. \"{heard}\" = {x['name']}  ({x.get('n', 1)} gånger)")
+    return 0
+
+
+def cmd_forget(args):
+    items = sorted(voicecmd().learned().items(), key=lambda kv: -kv[1].get("t", 0))
+    if args[:1] == ["alla"]:
+        for heard, _ in items:
+            voicecmd().forget_learned(heard)
+        print(f"Glömde alla ({len(items)}).")
+        return 0
+    if not args or not args[0].isdigit() or not 1 <= int(args[0]) <= len(items):
+        print("goblincakes-voice glöm <nummer från lärt> | alla", file=sys.stderr)
+        return 2
+    heard, x = items[int(args[0]) - 1]
+    voicecmd().forget_learned(heard)
+    print(f"Glömde \"{heard}\" = {x['name']}.")
+    return 0
+
+
 def cmd_box():
     """Kakan's box (step 9 D1, 5 Nov): one window, shown and hidden by the listener through stdin.
     Its own process, so a broken box never stops the voice (the listener falls back to Plasma's OSD)."""
@@ -854,6 +882,8 @@ def main(argv):
         "listen": lambda: cmd_listen(),
         "worker": lambda: cmd_worker(),
         "box": lambda: cmd_box(),
+        "lärt": lambda: cmd_learned(),
+        "glöm": lambda: cmd_forget(rest),
     }
     if cmd not in commands:
         print(__doc__, file=sys.stderr)
