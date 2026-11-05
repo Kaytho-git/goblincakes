@@ -488,8 +488,8 @@ class Backend(QObject):
         dest = Path(R.load_config()["folder"]) / "YouTube" / (R.safe_name(title) + ".mp4")
 
         def work():
-            err = R.youtube_clip(path, start, end, dest)
-            self.youtubeDone.emit(json.dumps({"error": err} if err else {"file": str(dest)}, ensure_ascii=False))
+            made, err = R.youtube_clip(path, start, end, dest)   # made = the video itself when nothing is cut
+            self.youtubeDone.emit(json.dumps({"error": err} if err else {"file": str(made)}, ensure_ascii=False))
         threading.Thread(target=work, daemon=True).start()
 
     # ---------------------------------------------------------- YouTube upload (API)
@@ -554,17 +554,18 @@ class Backend(QObject):
                     self.youtubeProgress.emit(float(sent), float(total))
             try:
                 self.youtubeProgress.emit(0.0, 0.0)
-                err = R.youtube_clip(path, start, end, dest)
+                made, err = R.youtube_clip(path, start, end, dest)
                 if err:
                     raise RuntimeError(f"Det gick inte att göra filmen: {err}")
-                vid = R.yt_upload(str(dest), title, description, privacy, progress, lambda: self._yt_cancel)
+                vid = R.yt_upload(str(made), title, description, privacy, progress, lambda: self._yt_cancel)
                 url = f"https://youtu.be/{vid}"
                 R.set_meta(path, youtube={"id": vid, "url": url, "privacy": privacy,
                                           "title": title, "uploaded": time.time()})
-                try:
-                    dest.unlink()
-                except OSError:
-                    pass
+                if made.resolve() != Path(path).resolve():   # only the cut copy – never the video itself
+                    try:
+                        made.unlink()
+                    except OSError:
+                        pass
                 self.youtubeUploaded.emit(json.dumps({"url": url}))
             except Exception as e:  # noqa: BLE001
                 self.youtubeUploaded.emit(json.dumps({"error": str(e)}, ensure_ascii=False))

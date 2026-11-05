@@ -2271,9 +2271,27 @@ def prune_youtube_copies(folder):
     return gone
 
 
+def _probe_for_youtube(video):
+    """(duration in seconds, number of audio tracks) – (0, 99) when ffprobe can't tell (= make a copy)."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_type",
+                        "-of", "json", str(video)], capture_output=True, text=True)
+    try:
+        d = json.loads(r.stdout)
+        audio = sum(1 for x in d.get("streams", []) if x.get("codec_type") == "audio")
+        return float(d["format"]["duration"]), audio
+    except (ValueError, KeyError, TypeError):
+        return 0.0, 99
+
+
 def youtube_clip(video, start, end, dest):
-    """Cut without re-encoding (fast, same quality); only the first audio track (everything)
-    – YouTube plays just one. Returns an error text or ""."""
+    """The file for YouTube → (path, error text or ""). Nothing cut and at most one audio track: the
+    video itself (5 Nov, the user: start and end are hardly ever cut – no copy, no wait, no space).
+    Otherwise a copy cut without re-encoding (same quality), only the first audio track – YouTube plays
+    just one. No "+faststart": that rewrote the whole file once more (6.2 GB: 75 s → 130–150 s) and is
+    only for playing while downloading – YouTube takes the whole file and makes its own."""
+    length, audio = _probe_for_youtube(video)
+    if length and audio <= 1 and start <= 0.5 and (not end or end >= length - 0.5):
+        return Path(video), ""
     dest.parent.mkdir(parents=True, exist_ok=True)
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
     if start > 0:
@@ -2281,11 +2299,11 @@ def youtube_clip(video, start, end, dest):
     cmd += ["-i", str(video)]
     if end:
         cmd += ["-t", f"{max(end - start, 1):.3f}"]
-    cmd += ["-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-movflags", "+faststart", str(dest)]
+    cmd += ["-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", str(dest)]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0 or not dest.is_file():
-        return (r.stderr or "ffmpeg misslyckades").strip().splitlines()[-1]
-    return ""
+        return dest, (r.stderr or "ffmpeg misslyckades").strip().splitlines()[-1]
+    return dest, ""
 
 
 # ---------------------------------------------------------------- YouTube upload (API)
