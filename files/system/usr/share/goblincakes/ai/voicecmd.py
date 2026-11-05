@@ -327,6 +327,31 @@ def _artist(client, heard):
     return best
 
 
+REISSUE = re.compile(r"\b(?:remaster\w*|deluxe|box set|live|anniversary|expanded|reissue|edition|demos?)\b", re.I)
+NEWEST = re.compile(r"^(?:spela\s+)?(?:den\s+|det\s+)?(?:senaste|nyaste|sista|nya)(?:\s+(?:albumet|skivan|plattan|album|skiva))?$")
+
+
+def newest_album(lib, uri, name):
+    """The artist's newest album – not a remaster/deluxe/live re-release of an old one (5 Nov:
+    "Metallicas senaste skiva" gave "ReLoad (Remastered Deluxe Box Set)", not 72 Seasons).
+    Spotify's search by year, newest years first – the artist's album list is not used: Spotify shut it
+    for a day after many calls (5 Nov, "vänta 85435 s"), and its stand-in (10 search hits) misses new albums."""
+    artist_id = uri.rsplit(":", 1)[-1]
+    year = time.localtime().tm_year
+    for first, last in ((year - 2, year), (year - 6, year - 3), (year - 14, year - 7), (1950, year - 15)):
+        try:
+            page = lib.client.get("/search", {"q": f'artist:"{name}" year:{first}-{last}', "type": "album", "limit": 10})
+        except Exception:  # noqa: BLE001 – the next span
+            continue
+        found = [i for i in (page.get("albums") or {}).get("items") or []
+                 if i and i.get("album_type") == "album" and not REISSUE.search(i.get("name", ""))
+                 and artist_id in {a.get("id") for a in i.get("artists") or [] if a}]
+        if found:
+            best = max(found, key=lambda i: i.get("release_date") or "")
+            return {"uri": best["uri"], "title": best.get("name", "")}
+    return None
+
+
 def find_music(kind, artist, title):
     """What was meant: ("play", kind, uri, name) / ("ask", kind, uri, name) / ("none", "", "", "").
     kind in: album, låt, artist, lista, senaste (the artist's newest album), "" (anything)."""
@@ -338,10 +363,9 @@ def find_music(kind, artist, title):
         score, name, uri = _artist(client, artist)
         if score < MAYBE or not uri:
             return ("none", "", "", "")
-        albums, _singles = lib.artist_albums({"uri": uri, "title": name})
-        if not albums:
+        a = newest_album(lib, uri, name)
+        if not a:
             return ("none", "", "", "")
-        a = albums[0]
         return ("play" if score >= SURE else "ask", "album", a["uri"], f"{name} – {a['title']}")
     want = {"album": {"album", "playlist"}, "låt": {"track"}, "artist": {"artist"}, "lista": {"playlist"}}.get(
         kind, {"album", "track", "artist", "playlist"})
@@ -410,6 +434,12 @@ def by_artist(artist_uri, artist_name, title):
     entry = {"uri": artist_uri, "title": artist_name}
     albums, singles = lib.artist_albums(entry)
     cands = [("album", a["uri"], f"{artist_name} – {a['title']}", a["title"]) for a in albums + singles]
+    # the title itself among the artist's (the album list can be cut to 10 when Spotify limits it)
+    artist_id = artist_uri.rsplit(":", 1)[-1]
+    for kind in ("album", "track"):
+        for i in _search(lib.client, f'{title} artist:"{artist_name}"', kind):
+            if artist_id in {a.get("id") for a in i.get("artists") or [] if a}:
+                cands.append((kind, i["uri"], f"{artist_name} – {i.get('name', '')}", i.get("name", "")))
     cands += [("track", t["uri"], f"{artist_name} – {t['title']}", t["title"]) for t in lib.artist_tracks(entry)]
     for e in own_music().get("tracks") or []:
         if e.get("artist", "").casefold() == artist_name.casefold():
@@ -430,6 +460,12 @@ def music_sentence(d, kind, artist, title):
     answer = kind == "svar"
     kind = "" if answer else kind
     if by and answer and time.monotonic() - by[2] < 60:      # the answer to "Vilket album …?"
+        if NEWEST.match(title):          # "Vilket album …?" – "senaste"
+            sw = d._spotify()
+            a = newest_album(sw.Library(sw.Client()), by[0], by[1])
+            if a:
+                said = _plain(d.play_uri("album", a["uri"], f"{by[1]} – {a['title']}", CONVERSATION))
+                return said, ("Spelar albumet." if said.startswith("Spelar ") else True)
         if ANY.match(title):
             said = _plain(d.play_uri("artist", by[0], by[1], CONVERSATION))
             return said, ("Spelar artisten." if said.startswith("Spelar ") else True)
