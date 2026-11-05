@@ -889,6 +889,11 @@ class Service:
     # ------------------------------------------------------------ main loop
     def tick(self):
         now = time.time()
+        if now - getattr(self, "yt_pruned", 0) > 600 and not self.current:   # every 10 min, never while recording
+            self.yt_pruned = now
+            gone = R.prune_youtube_copies(self.cfg["folder"])
+            if gone:
+                log(f"removed {gone} YouTube copy/copies older than {R.YT_COPY_HOURS} h")
         # A change during a recording waits until it is done (OBS is not touched while recording)
         if self.mtime(R.CONFIG_FILE) != self.cfg_mtime and not self.current:
             self.cfg_mtime = self.mtime(R.CONFIG_FILE)

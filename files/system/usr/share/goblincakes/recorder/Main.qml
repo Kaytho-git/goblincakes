@@ -2160,7 +2160,8 @@ Window {
                             : win.ytUploading ? (win.ytTotal > 0 ? win.size(win.ytSent) + " av " + win.size(win.ytTotal) + " – du kan titta på andra filmer under tiden, men låt fönstret vara öppet."
                                                                  : "Klipper filmen …")
                             : win.ytFile ? "Klar. Dra in filen i YouTube Studio (den är markerad i filhanteraren). Titeln är kopierad – klistra in den, "
-                                           + "sedan Kopiera beskrivningen och klistra in den. Bossarnas tider blir kapitel i YouTube."
+                                           + "sedan Kopiera beskrivningen och klistra in den. Bossarnas tider blir kapitel i YouTube. "
+                                           + "Kopian tas bort av sig själv efter 3 timmar – själva filmen ligger kvar här."
                             : "Bara filmens första ljudspår (allt) kommer med. Klipps utan omkodning – går fort, samma kvalitet."
                               + (win.yt.signedIn ? "" : " Vill du ladda upp direkt härifrån? Logga in under Inställningar → YouTube.")
                         color: win.ytError ? "#E5534B" : "#8B98AD"

@@ -2252,6 +2252,25 @@ def youtube_text(meta, start=0.0, end=None):
     return {"title": title, "description": "\n".join(desc)}
 
 
+YT_COPY_HOURS = 3   # the cut copies for YouTube Studio (folder/YouTube) go after this (5 Nov, the user:
+                    # "efter uppladdningen är det ingen mening att ha den kvar") – the video itself stays
+
+
+def prune_youtube_copies(folder):
+    """The YouTube Studio copies older than YT_COPY_HOURS away. Only .mp4 directly in <folder>/YouTube.
+    Returns how many."""
+    d = Path(folder) / "YouTube"
+    gone = 0
+    try:
+        for f in d.glob("*.mp4"):
+            if time.time() - f.stat().st_mtime > YT_COPY_HOURS * 3600:
+                f.unlink(missing_ok=True)
+                gone += 1
+    except OSError:
+        pass
+    return gone
+
+
 def youtube_clip(video, start, end, dest):
     """Cut without re-encoding (fast, same quality); only the first audio track (everything)
     – YouTube plays just one. Returns an error text or ""."""
@@ -2279,7 +2298,7 @@ def youtube_clip(video, start, end, dest):
 # (projects made after 28 July 2020) as private – the YouTube API audit form lifts it.
 YT_FILE = CONFIG_DIR / "youtube.json"  # client id/secret + refresh token, only readable by you
 YT_CONSOLE = "https://console.cloud.google.com/apis/credentials"
-YT_AUDIT = "https://support.google.com/youtube/contact/yt_api_form"
+YT_AUDIT = "https://support.google.com/youtube/contact/yt_api_form?hl=en"   # only in English – Swedish gave "inte support på ditt språk" (5 Nov)
 YT_SCOPES = "https://www.googleapis.com/auth/youtube.upload openid email"
 YT_CHUNK = 16 * 1024 * 1024  # bytes per request (a multiple of 256 KiB, as YouTube wants)
 
