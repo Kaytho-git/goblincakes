@@ -393,6 +393,27 @@ DESKTOP
             mkdir -p "$t"
             tar -xzf "$tmp/$name" -C "$t"
         done
+        # Only the newest stays (the user 5 Nov: five old ones = 6.4 GB nobody used) – except a version
+        # a game is set to in Steam (Properties → Compatibility), which would stop starting without it
+        used=$(cat "$HOME/.local/share/Steam/config/config.vdf" \
+                   "$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/config/config.vdf" 2>/dev/null \
+               | grep -o 'GE-Proton[0-9][0-9A-Za-z.-]*' | sort -u)
+        for t in "${targets[@]}"; do
+            for old in "${t:?}"/GE-Proton*; do
+                [ -d "$old" ] || continue
+                base=${old##*/}
+                [ "$base" = "$version" ] && continue
+                # Steam keeps the tool's internal name (compatibilitytool.vdf) – usually the folder's
+                inner=$(grep -o '^[[:space:]]*"GE-Proton[^"]*"' "$old/compatibilitytool.vdf" 2>/dev/null \
+                        | head -1 | tr -d ' \t"')
+                if printf '%s\n' "$used" | grep -qxF -e "$base" -e "${inner:-$base}"; then
+                    status "Behåller $base (ett spel använder den)"
+                    continue
+                fi
+                rm -rf "${old:?}"
+                status "Tog bort gamla $base"
+            done
+        done
         status "$version klar – välj den i Steam under Kompatibilitet"
         ;;
 
