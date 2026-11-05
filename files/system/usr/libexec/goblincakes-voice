@@ -13,6 +13,8 @@
     goblincakes-voice listen                  the service: hold the voice key (F8 – the G502's button 4)
                                               and talk; released → text → a simple command is done at once
                                               (ai/voicecmd.py) and answered aloud; the key again = quiet
+    goblincakes-voice box                     (used by listen) the box top right: what she heard and her
+                                              answer – JSON lines {"state", "heard", "answer", "hold"} in
     goblincakes-voice worker                  (used by listen) the loaded model and the voices: JSON lines
                                               {"hear": wav} / {"say": text, "voice", "out"} in, results out
 
@@ -471,6 +473,76 @@ def discord_unmute():
     MUTED_FILE.unlink(missing_ok=True)
 
 
+BOX_QML = Path(__file__).resolve().parent.parent / "share/goblincakes/voice/Box.qml"
+
+
+def cmd_box():
+    """Kakan's box (step 9 D1, 5 Nov): one window, shown and hidden by the listener through stdin.
+    Its own process, so a broken box never stops the voice (the listener falls back to Plasma's OSD)."""
+    own_scale = "QT_SCALE_FACTOR" not in os.environ
+    if own_scale:
+        os.environ["QT_SCALE_FACTOR"] = "0.8"
+    from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot  # noqa: PLC0415
+    from PySide6.QtGui import QGuiApplication, QIcon  # noqa: PLC0415
+    from PySide6.QtQml import QQmlApplicationEngine  # noqa: PLC0415
+    app = QGuiApplication(sys.argv[:1])
+    if own_scale:
+        del os.environ["QT_SCALE_FACTOR"]
+    app.setApplicationName("goblincakes-voice-box")
+    app.setApplicationDisplayName("Kakan")
+    app.setDesktopFileName("goblincakes-voice-box")      # = the window's class for KWin's script
+    app.setWindowIcon(QIcon.fromTheme("goblincakes-ai"))
+    app.setQuitOnLastWindowClosed(False)
+
+    class Box(QObject):
+        changed = Signal()
+        incoming = Signal(dict)
+
+        def __init__(self):
+            super().__init__()
+            self._d = {"state": "nothing", "heard": "", "answer": "", "hold": 6}
+            self.incoming.connect(self.take)
+
+        def take(self, d):
+            self._d = {**self._d, **d}
+            self.changed.emit()
+
+        @Slot()
+        def hidden(self):
+            self._d["state"] = "nothing"
+            self.changed.emit()
+
+        state = Property(str, lambda self: self._d["state"], notify=changed)
+        heard = Property(str, lambda self: self._d.get("heard") or "", notify=changed)
+        answer = Property(str, lambda self: self._d.get("answer") or "", notify=changed)
+        hold = Property(float, lambda self: float(self._d.get("hold") or 6), notify=changed)
+
+    box = Box()
+
+    def read():
+        for line in sys.stdin:
+            try:
+                box.incoming.emit(json.loads(line))
+            except ValueError:
+                continue
+        app.quit()                      # the listener is gone
+    threading.Thread(target=read, daemon=True).start()
+    engine = QQmlApplicationEngine()
+    engine.rootContext().setContextProperty("box", box)
+    sys.path.insert(0, str(BOX_QML.parent.parent))
+    try:
+        import accent  # noqa: PLC0415
+        accent.install(engine)
+    except Exception:  # noqa: BLE001 – an old or broken file must not stop the box
+        engine.rootContext().setContextProperty("accent", {"color": "#2F6FED", "text": "#2F6FED"})
+    engine.load(QUrl.fromLocalFile(str(BOX_QML)))
+    if not engine.rootObjects():
+        return 1
+    print("ready", flush=True)
+    signal.signal(signal.SIGTERM, lambda *_: app.quit())
+    return app.exec()
+
+
 def osd(text, icon="audio-input-microphone"):
     """Plasma's own small box in the middle of the screen (as for the volume)."""
     subprocess.Popen(["gdbus", "call", "--session", "--dest", "org.kde.plasmashell",
@@ -515,6 +587,7 @@ class Listener:
         self.started = 0.0
         self.timer = None
         self.player = None       # pw-play while she speaks – the key stops her
+        self.boxproc = None      # the box top right (cmd_box), started at the first use
         self.tmp = Path(tempfile.mkdtemp(prefix="goblincakes-voice-"))
         # (a leftover semaphore from the speech library is harmless – its warning is hidden)
         env = {**os.environ, "PYTHONWARNINGS": "ignore::UserWarning:multiprocessing.resource_tracker"}
@@ -567,6 +640,32 @@ class Listener:
         elif name == "globalShortcutReleased":
             self.release()
 
+    def box(self, state, heard="", answer="", hold=6.0, fallback=""):
+        """The box top right; Plasma's OSD (fallback) if the box can't start."""
+        msg = json.dumps({"state": state, "heard": heard, "answer": answer, "hold": hold}, ensure_ascii=False)
+        for _try in (1, 2):
+            if not self.boxproc or self.boxproc.poll() is not None:
+                if not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")):
+                    break
+                try:
+                    self.boxproc = subprocess.Popen([sys.executable, os.path.abspath(__file__), "box"],
+                                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+                                                    bufsize=1)
+                    if self.boxproc.stdout.readline().strip() != "ready":
+                        raise OSError("rutan startade inte")
+                except OSError as e:
+                    print(f"Rutan: {e}", flush=True)
+                    self.boxproc = None
+                    break
+            try:
+                self.boxproc.stdin.write(msg + "\n")
+                self.boxproc.stdin.flush()
+                return
+            except (OSError, ValueError):
+                self.boxproc = None
+        if fallback:
+            osd(fallback)
+
     def press(self):
         if self.rec:
             return
@@ -576,7 +675,7 @@ class Listener:
                                      str(self.wav)])
         self.started = time.monotonic()
         discord_mute()
-        osd("Kakan lyssnar…")
+        self.box("listening", fallback="Kakan lyssnar…")
         if os.path.exists(START_SOUND):
             subprocess.Popen(["pw-play", START_SOUND], stderr=subprocess.DEVNULL)
         self.timer = self.GLib.timeout_add_seconds(MAX_HOLD, self.release)
@@ -597,7 +696,9 @@ class Listener:
         discord_unmute()
         if held < MIN_HOLD or not self.wav.is_file():
             self.wav.unlink(missing_ok=True)
+            self.box("nothing")
             return False
+        self.box("thinking")
         self.send({"hear": str(self.wav)})
         return False
 
@@ -633,8 +734,9 @@ class Listener:
         """A simple command is done at once (voicecmd.py, part C); anything else is shown (part D: Kakan)."""
         print(f"Hörde ({result.get('seconds')} s, säkerhet {result.get('sure')}): {text or '–'}", flush=True)
         if not text:
-            osd("Kakan hörde inget", "audio-input-microphone-muted")
+            self.box("answer", "", "Jag hörde inget.", 3, fallback="Kakan hörde inget")
             return
+        self.heard_text = text
         commands = voicecmd().match_all(text)
         # "lite till" = the last command again (volume, next song), within a minute
         last, when = getattr(self, "last", (None, 0))
@@ -642,9 +744,11 @@ class Listener:
                     if c[0] != "again" or (last and time.monotonic() - when < 60)]
         if commands:
             self.last = (commands[-1], time.monotonic())
-        if not commands:
-            notify("Kakan hörde", text)
+        if not commands:      # a question for Kakan – part D2
+            self.box("answer", text, "Det är inget kommando jag kan. Frågor till mig med rösten kommer snart "
+                                     "– skriv den i Goblin AI så länge.", 8, fallback=f"Kakan hörde: {text}")
             return
+        self.box("thinking", text)
         print(f"Kommandon: {commands}", flush=True)
 
         def work():
@@ -665,14 +769,20 @@ class Listener:
         """shown in the box, spoken read aloud ("" = only shown)."""
         print(f"Svar: {shown}" + (f"  (säger: {spoken})" if spoken and spoken != shown else ""), flush=True)
         if not shown:
+            self.box("nothing")
             return False
-        osd(shown, "goblincakes-ai")
+        # on screen while she speaks and a little after; while she waits for "ja"/a name: the minute
+        waiting = time.monotonic() - getattr(voicecmd(), "_asked", 0) < 60
+        hold = 60 if waiting else len(spoken or shown) / 12 + 5
+        self.box("answer", getattr(self, "heard_text", ""), shown, hold, fallback=shown)
         if spoken:
             out = self.tmp / f"say-{int(time.time() * 1000)}.wav"
             self.send({"say": spoken, "voice": voice_for_avatar(), "out": str(out)})
         return False
 
     def close(self):
+        if self.boxproc and self.boxproc.poll() is None:
+            self.boxproc.terminate()
         self.hush()
         if self.rec:
             self.rec.kill()
@@ -723,6 +833,7 @@ def main(argv):
         "say": lambda: cmd_say(rest),
         "listen": lambda: cmd_listen(),
         "worker": lambda: cmd_worker(),
+        "box": lambda: cmd_box(),
     }
     if cmd not in commands:
         print(__doc__, file=sys.stderr)

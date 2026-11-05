@@ -379,6 +379,24 @@ function lagmeterAdded(window) {
     window.keepAbove = true;
 }
 
+// Kakan's voice box (goblincakes-voice box, step 9 D1, 5 Nov): what she heard and her answer, top right
+// below the top bar on the screen the mouse is on (the user's choice), above everything, never in the
+// taskbar or Alt+Tab. Shown again for every answer (a new window each time on Wayland) → placed each time.
+const VOICEBOX = "goblincakes-voice-box";
+
+function voiceBoxAdded(window) {
+    window.skipTaskbar = true;
+    window.skipSwitcher = true;
+    window.skipPager = true;
+    window.keepAbove = true;
+    window.onAllDesktops = true;
+    const screen = workspace.screenAt(workspace.cursorPos) || window.output;
+    const area = workspace.clientArea(KWin.MaximizeArea, screen, workspace.currentDesktop);
+    const geo = window.frameGeometry;
+    window.frameGeometry = { x: area.x + area.width - geo.width - 16, y: area.y + 12,
+                             width: geo.width, height: geo.height };
+}
+
 // AppGrid (12 Oct, the user: with AppGrid open, the system tray and the dock couldn't be
 // clicked – the click went back to the game): AppGrid opens a see-through window over the
 // whole screen with the grid in the middle, above the panels, and a click on it closes
@@ -533,6 +551,10 @@ function added(window) {
     }
     if (window.resourceClass === LAGMETER) {
         lagmeterAdded(window);
+        return;
+    }
+    if (window.resourceClass === VOICEBOX) {
+        voiceBoxAdded(window);
         return;
     }
     const tiled = window.normalWindow && !window.transient && !isGame(window) ? ruleTile(window) : null;
