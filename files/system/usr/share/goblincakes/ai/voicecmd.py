@@ -566,8 +566,14 @@ def run(command, arg):
     if command == "music":
         return music_sentence(d, *arg)
     if command in ("yes", "no"):
-        global _pending, _asked
+        global _pending, _asked, _by
         pending, _pending = _pending, None
+        if not pending and _by and time.monotonic() - _by[2] < 60:   # "Menade du Strikkland? Vilket album …" – "nej"
+            if command == "no":
+                _by, _asked = None, time.monotonic()
+                return "Okej. Säg namnet igen.", True
+            _by = (_by[0], _by[1], time.monotonic())
+            return f"Vilket album eller vilken låt av {_by[1]}? Eller \"vad som helst\".", "Vilket album eller vilken låt?"
         if not pending or time.monotonic() - pending[3] > 60:
             return ("", False) if command == "no" else ("Ja till vad? Jag har inte frågat något.", True)
         if command == "no":
