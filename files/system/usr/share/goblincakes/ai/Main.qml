@@ -1168,15 +1168,19 @@ Window {
         }
     }
 
-    // Everything grows with a big window (maximized/full screen at 1080p) instead of leaving
-    // the same small text in a corner: zoom up to 1.3 × when the window is bigger than its start size.
+    // The text follows the window (5 Nov, the user tried 90 → 100 %, then chose 94 % at the start size or smaller and
+    // 104 % maximized – the maximized size it had before), evenly between – width and height count half each.
+    // (1 Nov–5 Nov it followed the screen only: 104 % always, which felt bigger the smaller the window was.)
     Item {
         id: zoomRoot
-        // The size follows the screen, not the window (1 Nov, the user: the text was another size in a smaller window
-        // than maximized) – the same as maximized always; a standing screen gets what its width allows
-        // × uiScale: the 80 % that QT_SCALE_FACTOR did before (goblin-ai main(); the screen counted in those units)
-        readonly property real zoom: uiScale * Math.max(1, Math.min(1.3, Screen.width / uiScale / 1120,
-                                                                    Screen.desktopAvailableHeight / uiScale / 800))
+        readonly property real startW: 1320 * uiScale
+        readonly property real startH: 860 * uiScale
+        readonly property real fullW: Math.max(startW + 1, Screen.desktopAvailableWidth)
+        readonly property real fullH: Math.max(startH + 1, Screen.desktopAvailableHeight)
+        readonly property real grown: (Math.max(0, Math.min(1, (win.width - startW) / (fullW - startW)))
+                                       + Math.max(0, Math.min(1, (win.height - startH) / (fullH - startH)))) / 2
+        // uiScale 0.8 = no QT_SCALE_FACTOR of the user's own (goblin-ai main()); with one, relative to it
+        readonly property real zoom: (0.94 + 0.10 * grown) * uiScale / 0.8   // 94 % → 104 % (the user's second try)
         width: win.width / zoom
         height: win.height / zoom
         scale: zoom

@@ -1496,7 +1496,8 @@ Window {
                                : rowItem.dragged ? accent.on : rowItem.plain ? "#5C6880"
                                : rowItem.r.local ? "#5C6880" : rowItem.kind === "track" || rowItem.kind === "genre" ? "#C8D1DE" : "#9AA7BC"
                         font.family: rowItem.plain ? "Chakra Petch" : "IBM Plex Sans"
-                        font.weight: rowItem.current || rowItem.plain ? Font.DemiBold : Font.Normal
+                        // Medium (5 Nov, the user: "lite tjockare text" in the list) – the playing one stays DemiBold
+                        font.weight: rowItem.current || rowItem.plain ? Font.DemiBold : Font.Medium
                         font.pixelSize: rowItem.plain ? 9 : 11
                         font.letterSpacing: rowItem.plain ? 1.2 : 0
                     }

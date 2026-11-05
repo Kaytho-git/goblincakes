@@ -1,3 +1,4 @@
+2026-11-05  Goblin AI: texten följer fönstret – lite mindre i ett litet fönster, som förut när fönstret är maximerat. GoblinAmp: låtarna i spellistan har lite tjockare text.
 2026-11-05  Större text i GOBLINCAKES egna fönster: Config, GoblinRecorder, GoblinShare, Avinstallera program, lagmätaren och Kakans röstruta är nu i 90 % i stället för 80 %.
 2026-11-05  Steam: vid inloggning väntar Steam nu tills spel-disken är monterad. Den startade en bråkdel av en sekund före och glömde då ibland sina förberedda shaders – CS2 kunde bearbeta shaders i över en timme efter en omstart.
 2026-11-05  GoblinRecorder och YouTube: klipper du inte bort något laddas själva filmen upp direkt – ingen kopia och ingen väntan. Klipper du görs kopian ungefär dubbelt så snabbt som förut, och den tas bort av sig själv efter 3 timmar. Länken till granskningsformuläret för YouTube öppnar nu den engelska sidan – den svenska fanns inte.
