@@ -1096,14 +1096,10 @@ def use_accent(engine):
 def main():
     if "--first-run" in sys.argv and (DONE_FILE.exists() or OLD_DONE_FILE.exists()):
         return 0
-    # The QML uses fixed pixel sizes: drawn at 80 % (still sharp – Qt renders at that size),
-    # matching GOBLINCAKES' 9 pt interface. Not passed on to programs started from here.
-    own_scale = "QT_SCALE_FACTOR" not in os.environ
-    if own_scale:
-        os.environ["QT_SCALE_FACTOR"] = "0.9"   # 90 % (the user 5 Nov: 80 % too small, 100 % a little big)
+    # The size of everything follows the window in Main.qml (zoom: 94 % at the start size → 104 % maximized, as
+    # Goblin AI – the user 5 Nov), not QT_SCALE_FACTOR (fixed for the whole program). A QT_SCALE_FACTOR of the
+    # user's own still counts on top.
     app = QGuiApplication(sys.argv)
-    if own_scale:
-        del os.environ["QT_SCALE_FACTOR"]
     app.setApplicationName("goblincakes-config")
     app.setApplicationDisplayName("GOBLINCAKES Config")
     app.setDesktopFileName("goblincakes-config")

@@ -6,10 +6,28 @@ import QtQuick.Window
 Window {
     id: win
 
-    width: 1180
-    height: 800
-    minimumWidth: 760
-    minimumHeight: 560
+    // Everything is drawn at "zoom": 94 % at the start size or smaller, 104 % maximized, evenly between (5 Nov, the
+    // user: the same as Goblin AI). The sizes below are the layout's own units; the window gets them × the start zoom.
+    readonly property real startZoom: 0.94
+    readonly property real startW: 1180 * startZoom
+    readonly property real startH: 800 * startZoom
+    readonly property real grown: (Math.max(0, Math.min(1, (width - startW) / Math.max(1, Screen.desktopAvailableWidth - startW)))
+                                   + Math.max(0, Math.min(1, (height - startH) / Math.max(1, Screen.desktopAvailableHeight - startH)))) / 2
+    readonly property real zoom: startZoom + 0.10 * grown
+    function fitZoom() {
+        contentItem.transformOrigin = Item.TopLeft;
+        contentItem.scale = zoom;
+        contentItem.width = width / zoom;
+        contentItem.height = height / zoom;
+    }
+    onWidthChanged: Qt.callLater(fitZoom)     // after the window has given contentItem its own size
+    onHeightChanged: Qt.callLater(fitZoom)
+    onZoomChanged: Qt.callLater(fitZoom)
+
+    width: startW
+    height: startH
+    minimumWidth: 760 * startZoom
+    minimumHeight: 560 * startZoom
     visible: true
     title: "GOBLINCAKES Config"
     color: "#07090D"
@@ -59,6 +77,7 @@ Window {
     property string appFilter: ""
     onTabChanged: if (tab === "system") backend.refreshSystemApps()
     Component.onCompleted: {
+        fitZoom();
         if (tab === "system")
             backend.refreshSystemApps();
         showCheck(backend.knownUpdates(), true);
