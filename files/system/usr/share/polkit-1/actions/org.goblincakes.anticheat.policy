@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>GOBLINCAKES</vendor>
+  <!-- Read-only: the kernel's lockdown mode and the TPM's boot log can only be read as root.
+       The helper only runs `check` through pkexec (fix/undo use rpm-ostree's own password prompt). -->
+  <action id="org.goblincakes.anticheat">
+    <description>Check whether the computer meets Easy Anti-Cheat's requirements</description>
+    <message>GOBLINCAKES kollar om datorn klarar Easy Anti-Cheat</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/goblincakes-anticheat</annotate>
+  </action>
+</policyconfig>

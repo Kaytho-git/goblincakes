@@ -447,10 +447,16 @@ Ord: skärm, skärmar, hz, uppdateringsfrekvens, fönster, tiling, rutor, layout
   rutor, Meta+Z). Kolla `journalctl --user -b | grep -i goblincakes-windows`.
 
 ## Grafikkort och drivrutiner
-Ord: grafikkort, gpu, nvidia, drivrutin, amd, secure boot, variant
+Ord: grafikkort, gpu, nvidia, drivrutin, amd, secure boot, variant, anticheat, easy anti-cheat, fortnite, tpm
 - Tre varianter: goblincakes (AMD/Intel), goblincakes-nvidia, goblincakes-nvidia-legacy (GTX 900/10).
   Byte: Config → Grafik (/usr/libexec/goblincakes-gpu). Vilken som körs: `rpm-ostree status`.
 - Kolla: `nvidia-smi`, `lspci -k | grep -A3 -i vga`.
+- Easy Anti-Cheat v2 (Fortnite m.fl., Epics krav för Linux): `goblin anticheat` (läser bara) visar tio kontroller –
+  signerad kärna/drivrutiner, TPM 2.0, Secure Boot, bara kända MOK-nycklar, measured boot, IOMMU, lockdown, kexec av,
+  BPF-LSM. Hjälparen /usr/libexec/goblincakes-anticheat (`check --json`; lockdown och TPM-loggen läses som root via
+  pkexec, polkit org.goblincakes.anticheat, inget lösenord). `goblin anticheat fixa` ändrar kärnans argument
+  (rpm-ostree kargs, gäller efter omstart), `ångra` tar tillbaka dem; vad som ändrats: ~/.local/state/goblincakes/anticheat-kargs.json.
+  BIOS-delarna (Secure Boot, TPM, IOMMU) kan bara användaren slå på. Kort i Config → Grafik. Kolla: `rpm-ostree kargs`.
 
 ## Diskar
 Ord: disk, diskar, hårddisk, usb, montera, automount, ägare, rättigheter

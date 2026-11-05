@@ -53,6 +53,8 @@ Window {
     property string tab: startTab // apps | system | tweaks | graphics | update
     readonly property var gpu: JSON.parse(backend.gpu)
     property string gpuMessage: ""
+    readonly property var anticheat: JSON.parse(backend.anticheat) // Grafik → Easy Anti-Cheat (goblincakes-anticheat check --json)
+    property string anticheatMessage: ""
     readonly property string mainBrowser: backend.mainBrowser // app id, "" = Firefox
     readonly property var autostart: JSON.parse(backend.autostart) // installed app id → starts at login
     readonly property var fullscreen: JSON.parse(backend.fullscreen) // web app id → opens in fullscreen
@@ -75,11 +77,18 @@ Window {
     // Förinstallerat tab
     readonly property var systemApps: JSON.parse(backend.systemApps)
     property string appFilter: ""
-    onTabChanged: if (tab === "system") backend.refreshSystemApps()
+    onTabChanged: {
+        if (tab === "system")
+            backend.refreshSystemApps();
+        if (tab === "graphics")
+            backend.refreshAnticheat();
+    }
     Component.onCompleted: {
         fitZoom();
         if (tab === "system")
             backend.refreshSystemApps();
+        if (tab === "graphics")
+            backend.refreshAnticheat();
         showCheck(backend.knownUpdates(), true);
     }
 
@@ -320,6 +329,9 @@ Window {
         }
         function onGpuProgress(text) {
             win.gpuMessage = text;
+        }
+        function onAnticheatProgress(text) {
+            win.anticheatMessage = text;
         }
         function onUpdateProgress(frac, title, status) {
             win.updateFrac = frac;
@@ -3081,6 +3093,181 @@ Window {
                         visible: !!win.gpu.keyFile
                         text: "Godkänn nyckeln"
                         onClicked: backend.enrollKey()
+                    }
+                }
+            }
+
+            // Easy Anti-Cheat Linux v2 (Fortnite …): Epic's requirements, checked by goblincakes-anticheat
+            Rectangle {
+                id: acCard
+                readonly property var checks: win.anticheat.checks || []
+                readonly property bool checked: checks.length > 0
+                readonly property bool busy: backend.anticheatBusy
+                width: gfxCol.width
+                height: acCol.height + 40
+                color: "#0E1420"
+                border.width: 1
+                border.color: win.anticheat.restartPending ? accent.color : "#1E2A40"
+                Column {
+                    id: acCol
+                    x: 22
+                    y: 20
+                    width: parent.width - 44
+                    spacing: 14
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: "Easy Anti-Cheat v2 (Fortnite m.fl.)"
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 16
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        lineHeight: 1.15
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                        text: !acCard.checked
+                            ? (acCard.busy ? "Kollar datorn…" : "Kunde inte kolla datorn. Prova goblin anticheat i terminalen.")
+                            : win.anticheat.ready
+                            ? "Datorn uppfyller Epics krav för det nya anti-fusket. Spelen finns inte för Linux än – kraven kan ändras när de kommer."
+                            : win.anticheat.passed + " av " + win.anticheat.total + " klara. Epics nya anti-fusk för Linux kräver en signerad och låst dator. Spelen finns inte för Linux än – det här visar om datorn är redo när de kommer."
+                    }
+                    Text {
+                        visible: !!win.anticheat.valve
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        lineHeight: 1.15
+                        color: accent.errorBright
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 14
+                        text: "Steam Deck / Steam Machine: slå inte på Secure Boot – det kan göra enheten obrukbar. Valves firmware klarar inte Easy Anti-Cheat v2 än."
+                    }
+
+                    Column {
+                        visible: acCard.checked
+                        width: parent.width
+                        spacing: 12
+                        Repeater {
+                            model: acCard.checks
+                            delegate: Row {
+                                required property var modelData
+                                width: acCol.width
+                                spacing: 14
+                                Item {
+                                    width: 22
+                                    height: 22
+                                    CheckSquare {
+                                        visible: modelData.ok === true
+                                        checked: true
+                                    }
+                                    Rectangle {
+                                        visible: modelData.ok !== true
+                                        anchors.fill: parent
+                                        color: "transparent"
+                                        border.width: 1
+                                        border.color: modelData.ok === false ? accent.errorBright : "#2A3852"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: modelData.ok === false ? "✕" : "?"
+                                            color: modelData.ok === false ? accent.errorBright : "#8B98AD"
+                                            font.family: "IBM Plex Sans"
+                                            font.weight: Font.DemiBold
+                                            font.pixelSize: 13
+                                        }
+                                    }
+                                }
+                                Column {
+                                    width: parent.width - 36
+                                    spacing: 3
+                                    Row {
+                                        spacing: 10
+                                        Text {
+                                            text: modelData.name
+                                            color: "#E6ECF5"
+                                            font.family: "IBM Plex Sans"
+                                            font.weight: Font.Medium
+                                            font.pixelSize: 14
+                                        }
+                                        Text {
+                                            // Where it's fixed: in BIOS, or by GOBLINCAKES (Gör systemet redo)
+                                            visible: modelData.ok === false && (modelData.fix || "") !== ""
+                                            topPadding: 3
+                                            text: modelData.fix === "bios" ? "BIOS"
+                                                : modelData.fix === "system" ? "GOBLINCAKES" : "BIOS + GOBLINCAKES"
+                                            color: accent.text
+                                            font.family: "IBM Plex Mono"
+                                            font.pixelSize: 11
+                                            font.letterSpacing: 1
+                                        }
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        wrapMode: Text.WordWrap
+                                        lineHeight: 1.1
+                                        text: modelData.text
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        visible: win.anticheatMessage !== "" || !!win.anticheat.restartPending
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                        text: backend.anticheatBusy && win.anticheatMessage !== "" ? win.anticheatMessage
+                            : win.anticheat.restartPending ? "Starta om datorn för att ändringarna ska gälla."
+                            : win.anticheatMessage
+                    }
+                    Text {
+                        visible: acCard.checked && !win.anticheat.ready
+                                 && acCard.checks.some(c => c.ok === false && (c.fix || "").indexOf("bios") >= 0)
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        lineHeight: 1.15
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                        text: "BIOS = datorns inställningar, som du kommer till med Del eller F2 när datorn startar."
+                    }
+
+                    Row {
+                        spacing: 12
+                        FlatButton {
+                            visible: !!win.anticheat.fixable && !win.anticheat.restartPending
+                            enabledState: !acCard.busy
+                            primary: true
+                            text: "Gör systemet redo"
+                            onClicked: { win.anticheatMessage = ""; backend.fixAnticheat(); }
+                        }
+                        FlatButton {
+                            visible: !!win.anticheat.restartPending
+                            primary: true
+                            text: "Starta om nu"
+                            onClicked: backend.reboot()
+                        }
+                        FlatButton {
+                            enabledState: !acCard.busy
+                            text: acCard.busy && !acCard.checked ? "Kollar…" : "Kolla igen"
+                            onClicked: { win.anticheatMessage = ""; backend.refreshAnticheat(); }
+                        }
+                        FlatButton {
+                            visible: !!win.anticheat.changed
+                            enabledState: !acCard.busy
+                            text: "Ångra ändringarna"
+                            onClicked: { win.anticheatMessage = ""; backend.undoAnticheat(); }
+                        }
                     }
                 }
             }

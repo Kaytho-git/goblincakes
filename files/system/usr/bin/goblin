@@ -10,6 +10,7 @@
 #   goblin remove      window to uninstall Fedora programs (with a name: straight away)
 #   goblin old         uninstalled programs, and how to bring them back
 #   goblin fast        system info with the GOBLINCAKES logo
+#   goblin anticheat   ready for Easy Anti-Cheat v2 (Fortnite …)? fixa = the system's part, ångra
 #   goblin motd        the command list shown in every new terminal (on/off)
 #   goblin help        list the commands
 #
@@ -342,6 +343,7 @@ COMMANDS=(
     "moonbyte|Spelar Moonbyte Drift i terminalen med grafen (mellanslag paus, ←/→ 10 s, q avslutar)"
     "moonlit|Spelar Moonlit Pixel Drift i terminalen med grafen (goblin moonlit pixel drift går också)"
     "gamemode|Testa GameMode och visa hur du slår på det i Steam och Lutris"
+    "anticheat|Klarar datorn Easy Anti-Cheat v2 (Fortnite m.fl.)? goblin anticheat fixa = ändra det GOBLINCAKES kan själv (gäller efter omstart), goblin anticheat ångra = ta tillbaka det (också i Config → Grafik)"
     "nyheter|Vad som är nytt i GOBLINCAKES (goblin update visar det automatiskt)"
     "fast|Systeminfo med GOBLINCAKES-loggan"
     "motd off|Sluta visa den här listan i nya terminaler (on = visa igen)"
@@ -417,6 +419,29 @@ for a in json.load(sys.stdin):
 '
     echo
     info "Byt: goblin färg dk, goblin färg mage … (eller i Config → Inställningar → Utseende)"
+}
+
+# Easy Anti-Cheat Linux v2 (/usr/libexec/goblincakes-anticheat): the check, or fix/undo the kernel arguments
+cmd_anticheat() {
+    local helper=/usr/libexec/goblincakes-anticheat
+    case ${1:-} in
+        ""|kolla|check)
+            heading "Easy Anti-Cheat v2 (Fortnite m.fl.)"
+            info "Epics krav för Linux: signerad och låst dator. Kollar – ändrar inget…"
+            echo
+            exec "$helper" check ;;
+        fixa|fix|redo)
+            heading "Easy Anti-Cheat v2 – gör systemet redo"
+            "$helper" fix | sed -u 's/^@@ //'
+            local code=${PIPESTATUS[0]}
+            [ "$code" = 0 ] && { echo; info "Kolla efter omstarten: goblin anticheat"; }
+            return "$code" ;;
+        ångra|angra|undo)
+            heading "Easy Anti-Cheat v2 – ångra"
+            "$helper" undo | sed -u 's/^@@ //'
+            return "${PIPESTATUS[0]}" ;;
+        *) echo "Använd: goblin anticheat [fixa|ångra]" >&2; return 2 ;;
+    esac
 }
 
 cmd_gamemode() {
@@ -817,6 +842,7 @@ HELP
     nyheter|news) shift; heading "Nytt i GOBLINCAKES"; exec /usr/libexec/goblincakes-news latest "${1:-15}" ;;
     färg|farg|color|colour) shift; cmd_farg "$@" ;;
     gamemode) cmd_gamemode ;;
+    anticheat|anti-cheat|eac|antifusk) shift; cmd_anticheat "$@" ;;
     fast|fastfetch|info) shift; cmd_fastfetch "$@" ;;
     motd) shift; cmd_motd "$@" ;;
     help|-h|--help) cmd_help ;;

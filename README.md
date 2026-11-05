@@ -121,7 +121,7 @@ Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+
 - **Förinstallerat** – visa eller dölj systemets program i appmenyn.
 - **Inställningar** – reglage med rubriker: prestandaläge, spelschemaläggare, MangoHud, spel på det kraftfulla grafikkortet, shader-cache, ljud med låg fördröjning, HDR, ingen musacceleration, automatiska uppdateringar, kalender med konton (Google, Outlook), Ianseo – plus färgval och en knapp som återställer GOBLINCAKES-utseendet.
 - **Fönster** – layouter med rutor för skärmarna och vilka program som hamnar var; **Föreslå layout** ordnar dina huvudfönster åt dig.
-- **Grafik** – byt mellan AMD/Intel- och Nvidia-drivrutiner med en knapp; hjälp med Secure Boot.
+- **Grafik** – byt mellan AMD/Intel- och Nvidia-drivrutiner med en knapp; hjälp med Secure Boot; och en kontroll av om datorn klarar Epics nya anti-fusk för Linux (Easy Anti-Cheat v2, Fortnite) – även `goblin anticheat` i terminalen.
 - **Uppdatera** – se vad som är nytt och uppdatera allt eller en del i taget (systemet, Flatpak-program, VS Code, Discord, WoW-tillägg, GE-Proton, firmware).
 
 ### Goblin AI

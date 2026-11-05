@@ -1,0 +1,534 @@
+#!/usr/bin/env python3
+"""Is this computer ready for Easy Anti-Cheat Linux v2 (Fortnite and other EAC v2 games)?
+`goblin anticheat` and the Easy Anti-Cheat card in GOBLINCAKES Config → Grafik.
+
+    goblincakes-anticheat check [--json]   the eight requirements (ten checks), with what to do
+    goblincakes-anticheat fix              kernel arguments that make the system part ready (rpm-ostree kargs,
+                                           asks for the password itself; used after a restart)
+    goblincakes-anticheat undo             take back the kernel arguments `fix` changed
+
+Requirements: https://onlineservices.epicgames.com/news/introducing-easy-anti-cheat-linux-v2 – the
+same checks as Bazzite's `ujust check-anticheat` (ublue-os/bazzite, 96-bazzite-anticheat.just), but
+without sbsigntools/tpm2-tools: the kernel's signature and the TPM's boot log are read here.
+Nothing is changed by `check`. Two things can only be read as root (the lockdown mode and the TPM's
+boot log): `check` asks pkexec (polkit org.goblincakes.anticheat, no password in the active session)
+and otherwise works out what it can. Lines starting with "@@ " are status for the Config window.
+"""
+import json
+import os
+import re
+import struct
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+SELF = "/usr/libexec/goblincakes-anticheat"
+# The signing keys EAC Linux v2 treats as well-known (Epic's list, as in Bazzite's check)
+WELL_KNOWN = re.compile(
+    r"Canonical Ltd\. Master Certificate Authority|Fedora Secure Boot CA|Universal Blue|Debian Secure Boot CA"
+    r"|openSUSE Secure Boot CA|SUSE Linux Enterprise Secure Boot CA|Rocky Linux Secure Boot Root CA"
+    r"|Microsoft (Corporation )?UEFI CA|AlmaLinux Secure Boot CA")
+ROOT = Path(os.environ.get("GOBLINCAKES_ANTICHEAT_ROOT", "/"))  # tests: a fake / with sys, proc, usr …
+STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
+KARGS_FILE = STATE / "anticheat-kargs.json"  # what `fix` changed: {"appended": [], "deleted": [], "boot": id}
+
+
+def path(p):
+    return ROOT / p.lstrip("/")
+
+
+def read(p, default=None):
+    try:
+        return path(p).read_text().strip()
+    except OSError:
+        return default
+
+
+def cmdline():
+    return (read("/proc/cmdline", "") or "").split()
+
+
+def kernel_release():
+    return os.environ.get("GOBLINCAKES_ANTICHEAT_KERNEL") or os.uname().release
+
+
+def tool(args, timeout=10):
+    try:
+        p = subprocess.run(args, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
+        return p.returncode, p.stdout + p.stderr
+    except (OSError, subprocess.TimeoutExpired):
+        return None, ""
+
+
+# ── The kernel's signature: the certificate table of the EFI (PE) file ───────────
+
+def pe_signatures(data):
+    """The Authenticode blobs (PKCS#7, DER) in a PE file; [] = unsigned. ValueError = not a PE file."""
+    if data[:2] != b"MZ" or len(data) < 0x40:
+        raise ValueError("not a PE file")
+    pe = struct.unpack_from("<I", data, 0x3C)[0]
+    if data[pe:pe + 4] != b"PE\0\0":
+        raise ValueError("not a PE file")
+    opt = pe + 24
+    magic = struct.unpack_from("<H", data, opt)[0]
+    dirs = opt + (112 if magic == 0x20B else 96)  # PE32+ / PE32
+    count = struct.unpack_from("<I", data, dirs - 4)[0]
+    if count < 5:
+        return []
+    offset, size = struct.unpack_from("<II", data, dirs + 4 * 8)  # entry 4 = the certificate table (a file offset)
+    blobs = []
+    end = min(offset + size, len(data))
+    while offset and offset + 8 <= end:
+        length, _revision, kind = struct.unpack_from("<IHH", data, offset)
+        if length < 8:
+            break
+        if kind == 2:  # WIN_CERT_TYPE_PKCS_SIGNED_DATA
+            blobs.append(data[offset + 8:offset + length])
+        offset += (length + 7) & ~7
+    return blobs
+
+
+def check_kernel():
+    release = kernel_release()
+    kernel = path(f"/usr/lib/modules/{release}/vmlinuz")
+    try:
+        blobs = pe_signatures(kernel.read_bytes())
+    except (OSError, ValueError, struct.error):
+        return fail("Hittar inte kärnan att kontrollera ({})".format(kernel), fix="")
+    if not blobs:
+        return fail(f"Kärnan {release} är inte signerad", fix="")
+    # The certificates' names are plain text in the DER: the well-known key shows up as it is
+    names = [m.group(0) for b in blobs for m in WELL_KNOWN.finditer(b.decode("latin-1"))]
+    if names:
+        return ok(f"Kärnan {release} är signerad av {names[0]}")
+    return fail(f"Kärnan {release} är signerad, men inte med en nyckel Epic känner till", fix="")
+
+
+def check_modules():
+    unsigned, count = [], 0
+    for line in (read("/proc/modules", "") or "").splitlines():
+        name = line.split(" ", 1)[0]
+        count += 1
+        if "E" in (read(f"/sys/module/{name}/taint", "") or ""):
+            unsigned.append(name)
+    if unsigned:
+        return fail("Osignerade drivrutiner är laddade: " + ", ".join(unsigned), fix="")
+    try:
+        tainted = int(read("/proc/sys/kernel/tainted", "0") or 0)
+    except ValueError:
+        tainted = 0
+    if tainted & 8192:
+        return fail("En osignerad drivrutin laddades sedan datorn startade – starta om", fix="")
+    return ok(f"Alla {count} laddade drivrutiner är signerade")
+
+
+def check_tpm():
+    version = read("/sys/class/tpm/tpm0/tpm_version_major")
+    if version == "2":
+        return ok("TPM 2.0 finns")
+    if path("/sys/class/tpm/tpm0").exists():
+        return fail("Datorn har en TPM, men inte version 2.0", fix="bios")
+    return fail("Ingen TPM hittades. Slå på den i BIOS – heter ofta fTPM (AMD), PTT (Intel) eller Security Device",
+                fix="bios")
+
+
+def secure_boot_state():
+    code, out = tool(["mokutil", "--sb-state"])
+    if code is None:
+        # No mokutil: the SecureBoot EFI variable (4 bytes attributes + 1 byte value)
+        for var in path("/sys/firmware/efi/efivars").glob("SecureBoot-*"):
+            try:
+                return var.read_bytes()[4:5] == b"\x01"
+            except OSError:
+                pass
+        return None
+    return "SecureBoot enabled" in out and "validation is disabled" not in out
+
+
+def check_secure_boot(sb, variant):
+    if sb:
+        return ok("Secure Boot är påslaget")
+    if sb is None:
+        return unknown("Kunde inte läsa om Secure Boot är på")
+    text = "Slå på Secure Boot i BIOS (ofta under Security eller Boot; på MSI: Settings → Advanced → Windows OS Configuration)."
+    if variant in ("nvidia", "nvidia-legacy"):
+        text += (" Nvidia: när Secure Boot är på behöver datorn godkänna Universal Blues nyckel en gång – "
+                 "kortet Secure Boot här i Grafik visar knappen")
+    return fail(text, fix="bios")
+
+
+def key_name(der):
+    code, out = tool(["openssl", "x509", "-inform", "DER", "-in", str(der), "-noout", "-subject", "-nameopt", "multiline"])
+    m = re.search(r"commonName\s*=\s*(.+)", out) if code == 0 else None
+    return m.group(1).strip() if m else "namn okänt"
+
+
+def check_mok():
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            p = subprocess.run(["mokutil", "--export"], cwd=tmp, capture_output=True, text=True, timeout=10,
+                               stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired):
+            return unknown("Kunde inte läsa de godkända nycklarna (mokutil saknas)")
+        if p.returncode != 0:
+            return unknown("Kunde inte läsa de godkända nycklarna: " + (p.stderr or p.stdout).strip()[:120])
+        unknown_keys = []
+        for der in sorted(Path(tmp).glob("MOK-*.der")):
+            data = der.read_bytes().decode("latin-1")
+            if not WELL_KNOWN.search(data):
+                unknown_keys.append(f"{der.name} ({key_name(der)})")
+    if unknown_keys:
+        return fail("Nycklar som Epic inte känner till är godkända i datorn: " + ", ".join(unknown_keys)
+                    + ". Ta bara bort en nyckel om du vet att inget använder den (sudo mokutil --delete <fil> efter "
+                    "mokutil --export, bekräftas vid nästa start)", fix="")
+    return ok("Bara nycklar Epic känner till (Universal Blue, Fedora …)")
+
+
+# ── Measured boot: the TPM's boot log (TCG PC Client event log) ──────────────────
+
+def measured_pcrs(data):
+    """The PCRs the boot log has events for."""
+    pcrs, pos = set(), 0
+    if len(data) < 32:
+        return pcrs
+    # First event: always the old SHA-1 format; in a crypto-agile log it is the "Spec ID Event03"
+    pcr, _kind = struct.unpack_from("<II", data, 0)
+    size = struct.unpack_from("<I", data, 28)[0]
+    event = data[32:32 + size]
+    pos = 32 + size
+    sizes = None
+    if event.startswith(b"Spec ID Event03"):
+        count = struct.unpack_from("<I", event, 24)[0]
+        sizes = {}
+        for i in range(count):
+            alg, dsize = struct.unpack_from("<HH", event, 28 + 4 * i)
+            sizes[alg] = dsize
+    else:
+        pcrs.add(pcr)
+    while pos + 8 <= len(data):
+        pcr, kind = struct.unpack_from("<II", data, pos)
+        if pcr == 0xFFFFFFFF or (pcr == 0 and kind == 0):
+            break
+        pos += 8
+        if sizes is None:
+            pos += 20
+        else:
+            count = struct.unpack_from("<I", data, pos)[0]
+            pos += 4
+            for _ in range(count):
+                alg = struct.unpack_from("<H", data, pos)[0]
+                if alg not in sizes:
+                    return pcrs
+                pos += 2 + sizes[alg]
+        if pos + 4 > len(data):
+            break
+        size = struct.unpack_from("<I", data, pos)[0]
+        pos += 4 + size
+        if pos > len(data):
+            break
+        pcrs.add(pcr)
+    return pcrs
+
+
+def check_measured(is_root):
+    log = path("/sys/kernel/security/tpm0/binary_bios_measurements")
+    if not log.exists() and not path("/sys/class/tpm/tpm0").exists():
+        return fail("Ingen TPM, så inga mätningar av starten (slå på TPM i BIOS)", fix="bios")
+    try:
+        data = log.read_bytes()
+    except PermissionError:
+        return unknown("Startens mätningar kan bara läsas med administratörsrätt")
+    except OSError:
+        return fail("TPM:en har inga mätningar av starten", fix="bios")
+    try:
+        pcrs = measured_pcrs(data)
+    except struct.error:
+        return unknown("Kunde inte läsa TPM:ens logg över starten")
+    # GRUB measures into PCRs 8 and 9, systemd-boot and systemd-stub into 11 and 12
+    if pcrs & {8, 9, 11, 12}:
+        return ok("Starthanteraren mäter starten i TPM:en")
+    return fail("Datorns firmware mätte starten, men inte starthanteraren", fix="")
+
+
+# ── IOMMU, lockdown, kexec, BPF ──────────────────────────────────────────────
+
+PASSTHROUGH_ARGS = ("iommu=pt", "iommu=off", "iommu.passthrough=1", "amd_iommu=pt", "amd_iommu=off", "intel_iommu=off")
+
+
+def handheld():
+    return read("/sys/class/dmi/id/sys_vendor") == "Valve" or read("/sys/class/dmi/id/chassis_type") in ("30", "31", "32")
+
+
+def kernel_config(option):
+    config = read(f"/usr/lib/modules/{kernel_release()}/config", "") or ""
+    return f"\n{option}=y" in "\n" + config
+
+
+def check_iommu():
+    args = cmdline()
+    passthrough = [a for a in PASSTHROUGH_ARGS if a in args]
+    default_pt = (not passthrough and "iommu.passthrough=0" not in args and kernel_config("CONFIG_IOMMU_DEFAULT_PASSTHROUGH"))
+    active = any(path("/sys/class/iommu").glob("*"))
+    intel = "GenuineIntel" in (read("/proc/cpuinfo", "") or "")
+    if active and not passthrough and not default_pt:
+        return ok("IOMMU är på (utan passthrough)")
+    if handheld():
+        return ok("Behövs inte på handhållna datorer")
+    if default_pt:
+        return fail("Kärnan har passthrough som standard", fix="system", append=["iommu.passthrough=0"])
+    if passthrough:
+        # Intel without a working IOMMU also needs intel_iommu=on (and VT-d in BIOS)
+        extra = ["intel_iommu=on"] if intel and not active else []
+        return fail("Passthrough är på (" + ", ".join(passthrough) + ")" + (" och IOMMU är av – slå på VT-d i BIOS" if extra else ""),
+                    fix="bios+system" if extra else "system", delete=passthrough, append=extra)
+    if intel:
+        return fail("IOMMU är av. Slå på VT-d i BIOS – och kärnan behöver intel_iommu=on",
+                    fix="bios+system", append=["intel_iommu=on"])
+    return fail("IOMMU är av. Slå på IOMMU (AMD-Vi) i BIOS – på MSI-kort under OC eller Advanced → AMD CBS",
+                fix="bios")
+
+
+def lockdown_mode():
+    """'integrity', 'confidentiality', 'none' – or None when it can only be read as root."""
+    text = read("/sys/kernel/security/lockdown")
+    if text is None:
+        return None
+    m = re.search(r"\[(\w+)\]", text)
+    return m.group(1) if m else None
+
+
+def check_lockdown(sb):
+    mode = lockdown_mode()
+    if mode is None:
+        # Only root can read it. Fedora's kernel locks itself down (integrity) when started with Secure Boot
+        # (CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT), and a lockdown= argument can only make it stricter
+        arg = next((a.split("=", 1)[1] for a in cmdline() if a.startswith("lockdown=")), "")
+        if arg in ("integrity", "confidentiality"):
+            return ok(f"Lockdown är på ({arg})")
+        if sb and kernel_config("CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT"):
+            return ok("Lockdown är på (följer Secure Boot)")
+        if sb is False:
+            return fail("Lockdown är av – slås på av sig själv när Secure Boot är på", fix="bios")
+        return unknown("Lockdown-läget kan bara läsas med administratörsrätt")
+    if mode in ("integrity", "confidentiality"):
+        return ok(f"Lockdown är på ({mode})")
+    if handheld():
+        return fail("Lockdown är av. Vänta med att slå på den på handhållna datorer", fix="")
+    if not sb:
+        return fail("Lockdown är av – slås på av sig själv när Secure Boot är på", fix="bios")
+    return fail("Lockdown är av", fix="system", append=["lockdown=integrity"])
+
+
+def check_kexec():
+    # No setting = the kernel was built without kexec
+    if read("/proc/sys/kernel/kexec_load_disabled", "1") == "1":
+        return ok("Kexec är avstängt")
+    return fail("Kexec är på (byte till en annan kärna utan omstart – används inte av GOBLINCAKES)",
+                fix="system", append=["sysctl.kernel.kexec_load_disabled=1"])
+
+
+def check_bpf():
+    lsms = read("/sys/kernel/security/lsm")
+    if lsms is None:
+        return unknown("Kunde inte läsa vilka säkerhetsmoduler som är på")
+    if "bpf" in lsms.split(","):
+        return ok("BPF-LSM är på")
+    return fail("BPF-LSM är av (på: " + lsms + ")", fix="system", append=[f"lsm={lsms},bpf"])
+
+
+# ── Results ─────────────────────────────────────────────────────────────────
+
+def ok(text):
+    return {"ok": True, "text": text, "fix": ""}
+
+
+def fail(text, fix="", append=(), delete=()):
+    return {"ok": False, "text": text, "fix": fix, "append": list(append), "delete": list(delete)}
+
+
+def unknown(text):
+    return {"ok": None, "text": text, "fix": ""}
+
+
+NAMES = [
+    ("kernel", "Signerad kärna"),
+    ("modules", "Signerade drivrutiner"),
+    ("tpm", "TPM 2.0"),
+    ("secureboot", "Secure Boot"),
+    ("mok", "Bara kända nycklar"),
+    ("measured", "Measured boot"),
+    ("iommu", "IOMMU"),
+    ("lockdown", "Kernel lockdown"),
+    ("kexec", "Kexec avstängt"),
+    ("bpf", "BPF-LSM"),
+]
+
+
+def collect():
+    is_root = os.geteuid() == 0
+    sb = secure_boot_state()
+    variant = read("/usr/share/goblincakes/variant", "base")
+    results = {
+        "kernel": check_kernel(),
+        "modules": check_modules(),
+        "tpm": check_tpm(),
+        "secureboot": check_secure_boot(sb, variant),
+        "mok": check_mok(),
+        "measured": check_measured(is_root),
+        "iommu": check_iommu(),
+        "lockdown": check_lockdown(sb),
+        "kexec": check_kexec(),
+        "bpf": check_bpf(),
+    }
+    checks = [{"id": i, "name": n, **results[i]} for i, n in NAMES]
+    return {
+        "checks": checks,
+        "passed": sum(1 for c in checks if c["ok"] is True),
+        "total": len(checks),
+        "ready": all(c["ok"] is True for c in checks),
+        # Steam Deck / Steam Machine: Secure Boot can brick them (Valve's firmware)
+        "valve": read("/sys/class/dmi/id/sys_vendor") == "Valve",
+        "root": is_root,
+        "bootId": read("/proc/sys/kernel/random/boot_id", ""),
+    }
+
+
+def as_root():
+    """The full check through pkexec (no password in the active session); None = not allowed."""
+    if os.geteuid() == 0 or os.environ.get("GOBLINCAKES_ANTICHEAT_ROOT") or not Path(SELF).exists():
+        return None
+    code, out = tool(["pkexec", "--disable-internal-agent", SELF, "check", "--json", "--root"], timeout=60)
+    if code != 0:
+        return None
+    try:
+        return json.loads(out.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return None
+
+
+def load_state():
+    try:
+        return json.loads(KARGS_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def check(args):
+    result = None if "--root" in args else as_root()
+    if result is None:
+        result = collect()
+    if "--root" not in args:
+        state = load_state()
+        result["changed"] = bool(state.get("appended") or state.get("deleted"))
+        # `fix` ran during this start: the new arguments are used after a restart
+        result["restartPending"] = bool(state.get("boot")) and state.get("boot") == result.get("bootId")
+        result["fixable"] = any("system" in c.get("fix", "") for c in result["checks"]) and not result["valve"]
+    if "--json" in args:
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        print_text(result)
+    return 0
+
+
+def print_text(r):
+    tty = sys.stdout.isatty()
+    green, red, muted, bold, reset = (("\033[1;38;2;80;200;120m", "\033[1;38;2;220;70;76m",
+                                       "\033[38;2;139;152;173m", "\033[1m", "\033[0m") if tty else ("",) * 5)
+    if r.get("valve"):
+        print(f"{red}Steam Deck / Steam Machine:{reset} Slå INTE på Secure Boot – det kan göra enheten obrukbar.")
+        print("Valves firmware klarar inte Easy Anti-Cheat v2 än; det är Valve som måste laga det.\n")
+    for c in r["checks"]:
+        mark = f"{green}[OK]{reset}  " if c["ok"] else f"{red}[NEJ]{reset} " if c["ok"] is False else f"{muted}[?]{reset}   "
+        print(f"  {mark}{bold}{c['name']}{reset}")
+        print(f"        {muted}{c['text']}{reset}")
+    print()
+    if r["ready"]:
+        print(f"{green}Alla {r['total']} kontroller klara.{reset} Datorn uppfyller kraven för Easy Anti-Cheat v2.")
+    else:
+        print(f"{bold}{r['passed']} av {r['total']} klara.{reset}")
+    if r.get("restartPending"):
+        print("Ändringarna i kärnans inställningar gäller efter en omstart.")
+    elif r.get("fixable"):
+        print("Det som GOBLINCAKES kan ändra själv: goblin anticheat fixa (frågar efter lösenordet, gäller efter omstart).")
+    if any("bios" in c.get("fix", "") for c in r["checks"] if c["ok"] is False):
+        print("Det som står om BIOS gör du i datorns inställningar vid start (oftast Del eller F2).")
+    if r.get("changed"):
+        print(f"{muted}Ångra GOBLINCAKES ändringar: goblin anticheat ångra{reset}")
+    print(f"{muted}Fortnite och andra spel med Easy Anti-Cheat v2 finns inte för Linux än – kraven kan ändras.{reset}")
+
+
+def status_line(text):
+    print(f"@@ {text}", flush=True)
+
+
+def kargs(append, delete):
+    cmd = ["rpm-ostree", "kargs"] + [f"--append-if-missing={a}" for a in append] + [f"--delete-if-present={d}" for d in delete]
+    print("+ " + " ".join(cmd), flush=True)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for line in proc.stdout:
+        print(line.rstrip(), flush=True)
+    return proc.wait()
+
+
+def fix(_args):
+    r = as_root() or collect()
+    if r.get("valve"):
+        print("Steam Deck / Steam Machine: inget ändras (Secure Boot kan göra enheten obrukbar).", file=sys.stderr)
+        return 1
+    append, delete = [], []
+    for c in r["checks"]:
+        if c["ok"] is False and "system" in c.get("fix", ""):
+            append += [a for a in c.get("append", []) if a not in append]
+            delete += [d for d in c.get("delete", []) if d not in delete]
+    if not append and not delete:
+        status_line("Inget att ändra i systemet – resten görs i BIOS")
+        return 0
+    status_line("Ändrar kärnans inställningar (frågar efter lösenordet)…")
+    code = kargs(append, delete)
+    if code != 0:
+        status_line("Det gick inte att ändra kärnans inställningar")
+        return code
+    state = load_state()
+    state["appended"] = sorted(set(state.get("appended", [])) | set(append))
+    state["deleted"] = sorted(set(state.get("deleted", [])) | set(delete))
+    state["boot"] = r.get("bootId") or read("/proc/sys/kernel/random/boot_id", "")
+    STATE.mkdir(parents=True, exist_ok=True)
+    KARGS_FILE.write_text(json.dumps(state))
+    status_line("Klart – starta om datorn för att ändringarna ska gälla")
+    return 0
+
+
+def undo(_args):
+    state = load_state()
+    append, delete = state.get("deleted", []), state.get("appended", [])
+    if not append and not delete:
+        status_line("GOBLINCAKES har inte ändrat något för Easy Anti-Cheat")
+        return 0
+    status_line("Tar bort GOBLINCAKES ändringar för Easy Anti-Cheat (frågar efter lösenordet)…")
+    code = kargs(append, delete)
+    if code != 0:
+        status_line("Det gick inte att ändra kärnans inställningar")
+        return code
+    state = {"boot": read("/proc/sys/kernel/random/boot_id", "")}
+    STATE.mkdir(parents=True, exist_ok=True)
+    KARGS_FILE.write_text(json.dumps(state))
+    status_line("Klart – starta om datorn för att ändringarna ska gälla")
+    return 0
+
+
+def main(args):
+    cmd = args[0] if args else "check"
+    if cmd == "check":
+        return check(args[1:])
+    # Through pkexec (the polkit action lets the active session in without a password) only `check`
+    if cmd == "fix" and "PKEXEC_UID" not in os.environ:
+        return fix(args[1:])
+    if cmd == "undo" and "PKEXEC_UID" not in os.environ:
+        return undo(args[1:])
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -57,6 +57,7 @@ class IconProvider(QQuickImageProvider):
         return pixmap
 TWEAK = os.environ.get("GOBLINCAKES_CONFIG_TWEAK", "/usr/libexec/goblincakes-tweak")
 GPU = os.environ.get("GOBLINCAKES_CONFIG_GPU", "/usr/libexec/goblincakes-gpu")
+ANTICHEAT = os.environ.get("GOBLINCAKES_CONFIG_ANTICHEAT", "/usr/libexec/goblincakes-anticheat")
 BROWSER = os.environ.get("GOBLINCAKES_CONFIG_BROWSER", "/usr/libexec/goblincakes-browser")
 TERMINAL = os.environ.get("GOBLINCAKES_CONFIG_TERMINAL", "/usr/libexec/goblincakes-terminal")
 TERMINALS = ("ghostty", "konsole", "kitty")
@@ -266,6 +267,8 @@ class Config(QObject):
     gpuChanged = Signal()
     gpuProgress = Signal(str)  # status line while switching
     gpuDone = Signal(bool)  # switch/undo finished, ok
+    anticheatChanged = Signal()  # Grafik → Easy Anti-Cheat: the check (goblincakes-anticheat check --json), busy
+    anticheatProgress = Signal(str)  # status line while fixing/undoing
     catalogChanged = Signal()
     showTab = Signal(str)  # another start (e.g. the update arrow): show this window on that tab
     checkDone = Signal(str)  # "Kolla efter uppdateringar": goblincakes-updates' JSON ("" = failed)
@@ -334,6 +337,9 @@ class Config(QObject):
         self._gpu = "{}"
         self._gpu_proc = None
         self._update_proc = None
+        self._anticheat = "{}"  # checked when the Grafik tab opens (pkexec + mokutil: not at start)
+        self._anticheat_proc = None
+        self._anticheat_checking = False
         self._poweroff = ""
         self._poweroff_timer = QTimer(self)  # the helper runs on its own (this window may close): read its state
         self._poweroff_timer.timeout.connect(self._read_poweroff)
@@ -884,6 +890,72 @@ class Config(QObject):
     @Slot()
     def undoSwitch(self):
         self._gpu_run(["undo"])
+
+    # ── Easy Anti-Cheat v2 (Grafik) ───────────────────────────
+
+    @Property(str, notify=anticheatChanged)
+    def anticheat(self):
+        return self._anticheat
+
+    @Property(bool, notify=anticheatChanged)
+    def anticheatBusy(self):
+        return self._anticheat_proc is not None or self._anticheat_checking
+
+    @Slot()
+    def refreshAnticheat(self):
+        """In the background: the check reads the TPM's log and asks pkexec (no password)."""
+        if self._anticheat_checking:
+            return
+        proc = QProcess(self)
+
+        def finished(*_):
+            try:
+                out = bytes(proc.readAllStandardOutput()).decode(errors="replace").strip()
+            except RuntimeError:  # the window closed while checking
+                return
+            self._anticheat_checking = False
+            self._anticheat = out if out.startswith("{") else "{}"
+            self.anticheatChanged.emit()
+
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda e: finished() if e == QProcess.FailedToStart else None)
+        self._anticheat_checking = True
+        self.anticheatChanged.emit()
+        proc.start(ANTICHEAT, ["check", "--json"])
+
+    def _anticheat_run(self, args):
+        if self._anticheat_proc:
+            return
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+
+        def read():
+            for line in bytes(proc.readAllStandardOutput()).decode(errors="replace").splitlines():
+                print(line, flush=True)
+                if line.startswith("@@ "):
+                    self.anticheatProgress.emit(line[3:])
+
+        def finished(code, exit_status):
+            self._anticheat_proc = None
+            if exit_status != QProcess.NormalExit or code != 0:
+                self.anticheatProgress.emit("Det gick inte att ändra kärnans inställningar")
+            self.refreshAnticheat()
+
+        proc.readyReadStandardOutput.connect(read)
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda e: finished(-1, QProcess.CrashExit) if e == QProcess.FailedToStart else None)
+        self._anticheat_proc = proc
+        self.anticheatChanged.emit()
+        proc.start(ANTICHEAT, args)
+
+    @Slot()
+    def fixAnticheat(self):
+        """rpm-ostree kargs asks for the password itself (polkit); used after a restart."""
+        self._anticheat_run(["fix"])
+
+    @Slot()
+    def undoAnticheat(self):
+        self._anticheat_run(["undo"])
 
     @Slot(result=str)
     def knownUpdates(self):

@@ -368,6 +368,8 @@ def _goblin(args):
     p = positional(args)
     if not p or p[0] in {"fast", "help", "nyheter", "old"} or p == ["tile", "layouts"]:
         return ""
+    if p[0] in {"anticheat", "eac"} and (len(p) == 1 or p[1:] in (["kolla"], ["check"])):
+        return ""  # only the check; fixa/ångra change kernel arguments
     return "" if p[0] in {"screen", "tile", "discord", "frames"} and len(p) == 1 else f"goblin {p[0]}"
 
 
@@ -497,6 +499,7 @@ LIBEXEC_READ = {
     "goblincakes-ianseo": lambda a: "" if len(a) == 2 and a[0] in ("network", "internet") and a[1] in ("status", "url")
     else "ianseo ändrar",
     "goblincakes-gpu": lambda a: "" if a in (["status"], ["hw"]) else "gpu ändrar",
+    "goblincakes-anticheat": lambda a: "" if a in ([], ["check"], ["check", "--json"]) else "anticheat ändrar",
 }
 
 # Unquoted * ? [ are fine for these (a file name that starts with - can't make them write); others are a change
