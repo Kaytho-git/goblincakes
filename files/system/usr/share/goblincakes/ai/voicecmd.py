@@ -75,7 +75,7 @@ def match_all(text):
     whole = match(text)
     # 5 Nov: "Menade du …?" → "nej" → "Sack Wild, Book of Shadros II" without "spela" = the answer
     if not whole and time.monotonic() - _asked < 60 and 0 < len(fix_words(text).split()) <= 10:
-        return [("music", ("", "", fix_words(text)))]
+        return [("music", ("svar", "", fix_words(text)))]     # an answer, not a new "spela …"
     parts = [p for p in re.split(r"[.?!]+|\s+(?:och sedan|och sen|och|sen|sedan)\s+", text) if p and p.strip()]
     if len(parts) > 1:
         found = [match(p) for p in parts]
@@ -208,6 +208,9 @@ SURE, MAYBE = 0.75, 0.6        # how alike: play / ask / not found
 DASH = re.compile(r"\s+[–—-]\s+")
 _pending = None               # (kind, uri, name, when) – what "ja" plays
 _asked = 0.0                  # when she last asked about music – a bare name after it = "spela <name>"
+_by = None                    # (uri, name, when): "Spela Zakk Wylde" → "Vilket album eller vilken låt?"
+ANY = re.compile(r"^(?:spela\s+)?(?:vad som helst|vilken som helst|vilket som helst|blanda|bara (?:spela|artisten|honom|henne|dem)|"
+                 r"allt|alla|spela bara|det spelar ingen roll|spelar ingen roll|artisten)$")
 
 
 def own_music():
@@ -358,12 +361,12 @@ def find_music(kind, artist, title):
         return max(scored, default=(0.0, "", "", ""))
 
     best = best_of(cands, 0.03)                  # the user's own wins a tie
+    if "artist" in want and not artist:          # always: "spela orbit kultur" is the band, not a liked track
+        score, name, uri = _artist(client, title)
+        if uri and score >= best[0] - 0.08:      # "Lamb of God" = the band before its album of that name
+            best = (max(score, best[0]) + 0.01, "artist", uri, name)
     if best[0] < SURE and kind != "lista":       # Spotify's search too
         more = []
-        if "artist" in want and not artist:
-            score, name, uri = _artist(client, title)
-            if uri:
-                more.append((score, "artist", uri, name))
         if "album" in want:
             if artist:
                 score, name, uri = _artist(client, artist)
@@ -399,10 +402,47 @@ def _spoken(name):
 LABEL = {"album": "albumet", "track": "låten", "artist": "artisten", "playlist": "listan"}
 
 
+def by_artist(artist_uri, artist_name, title):
+    """The album or track of this artist that sounds most like the answer – only the artist's own,
+    so a rough hearing is enough (5 Nov, the user's idea: artist first, then she asks which one)."""
+    sw = _desktop()._spotify()
+    lib = sw.Library(sw.Client())
+    entry = {"uri": artist_uri, "title": artist_name}
+    albums, singles = lib.artist_albums(entry)
+    cands = [("album", a["uri"], f"{artist_name} – {a['title']}", a["title"]) for a in albums + singles]
+    cands += [("track", t["uri"], f"{artist_name} – {t['title']}", t["title"]) for t in lib.artist_tracks(entry)]
+    for e in own_music().get("tracks") or []:
+        if e.get("artist", "").casefold() == artist_name.casefold():
+            cands.append(("track", e["uri"], f"{artist_name} – {e['name']}", e["name"]))
+    for e in own_music().get("lists") or []:
+        if e.get("artist", "").casefold() == artist_name.casefold():
+            cands.append(("playlist", e["uri"], e.get("full") or e["name"], e["name"]))
+    heard = re.sub(r"^(?:albumet|skivan|plattan|låten|spela|spela albumet|spela låten)\s+", "", title)
+    scored = [(_sim(heard, t) + (0.02 if k == "playlist" else 0), k, u, n) for k, u, n, t in cands]
+    return max(scored, default=(0.0, "", "", ""))
+
+
 def music_sentence(d, kind, artist, title):
     """Plays what was meant, asks about a half-close one, or says it wasn't found. → (shown, spoken)"""
-    global _pending, _asked
+    global _pending, _asked, _by
     _asked = 0.0
+    by, _by = _by, None
+    answer = kind == "svar"
+    kind = "" if answer else kind
+    if by and answer and time.monotonic() - by[2] < 60:      # the answer to "Vilket album …?"
+        if ANY.match(title):
+            said = _plain(d.play_uri("artist", by[0], by[1], CONVERSATION))
+            return said, ("Spelar artisten." if said.startswith("Spelar ") else True)
+        try:
+            score, k, uri, name = by_artist(by[0], by[1], title)
+        except Exception as e:  # noqa: BLE001
+            return f"Spotify svarade inte: {e}", True
+        if score >= MAYBE:
+            said = _plain(d.play_uri(k, uri, name, CONVERSATION))
+            return said, (f"Spelar {LABEL[k]}." if said.startswith("Spelar ") else True)
+        _by, _asked = (by[0], by[1], time.monotonic()), time.monotonic()
+        return (f"Jag hittar inget av {by[1]} som heter \"{title}\". Säg det igen, eller \"vad som helst\".",
+                "Det hittade jag inte. Säg det igen, eller vad som helst.")
     heard = f"{artist} – {title}" if artist and title else (artist or title)
     if not d._spotify().load().get("refreshToken"):
         return "GoblinAmp är inte inloggat på Spotify – logga in i GoblinAmp först (⋯ → Logga in).", True
@@ -410,6 +450,11 @@ def music_sentence(d, kind, artist, title):
         what, k, uri, name = find_music(kind, artist, title)
     except Exception as e:  # noqa: BLE001 – no network, Spotify down
         return f"Spotify svarade inte: {e}", True
+    if k == "artist" and kind == "" and what in ("play", "ask"):    # "Spela Zakk Wylde" → which one?
+        _by, _asked = (uri, name, time.monotonic()), time.monotonic()
+        sure = "" if what == "play" else "Menade du "
+        return (f"{sure}{name}{'?' if sure else '.'} Vilket album eller vilken låt? (\"Vad som helst\" = blanda artisten.)",
+                f"{sure}{_spoken(name)}{'?' if sure else '.'} Vilket album eller vilken låt?")
     if what == "play":
         said = _plain(d.play_uri(k, uri, name, CONVERSATION))
         # her English is worse than the user's (4 Nov): titles only in the box
