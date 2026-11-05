@@ -387,6 +387,15 @@ def find_music(kind, artist, title):
     return ("none", "", "", "")
 
 
+def _spoken(name):
+    """A name for reading aloud (5 Nov, the user: say it even in her English – "Sack Vilde" is
+    understood, a box that has gone is not): "Zakk Wylde – Book Of Shadows II" → "Zakk Wylde, Book Of Shadows två"."""
+    t = _clean(name).replace(" – ", ", ").replace(" - ", ", ")
+    for roman, word in (("III", "tre"), ("II", "två"), ("IV", "fyra")):
+        t = re.sub(rf"\b{roman}\b", word, t)
+    return t
+
+
 LABEL = {"album": "albumet", "track": "låten", "artist": "artisten", "playlist": "listan"}
 
 
@@ -409,7 +418,7 @@ def music_sentence(d, kind, artist, title):
         _pending = (k, uri, name, time.monotonic())
         _asked = _pending[3]
         return (f"Jag är inte säker på vad jag hörde (\"{heard}\"). Menade du {LABEL[k]} {name}? "
-                f"Säg ja så spelar jag det.", "Jag är inte säker. Menade du det som står i rutan? Säg ja.")
+                f"Säg ja så spelar jag det.", f"Menade du {_spoken(name)}? Säg ja.")
     _asked = time.monotonic()
     return (f"Jag hittade inte \"{heard}\" på Spotify. Säg namnet igen.",
             "Det hittade jag inte på Spotify. Säg namnet igen.")
