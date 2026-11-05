@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# GOBLINCAKES: Steam started at login waits until its game libraries are there (5 Nov).
+# Plasma starts Steam and goblincakes-automount at the same moment; Steam came 0.2–0.3 s before
+# the game disk (/run/media/<user>/Spel) was mounted at every login, saw that library missing and
+# now and then forgot its shader cache – CS2's shaders were processed again from nothing
+# ("Committed bucket … from 0", up to 95 minutes) after a restart.
+# Run as ExecStartPre of app-steam@autostart.service (the drop-in next to it). Waits at most
+# WAIT seconds for every library in libraryfolders.vdf; always exits 0 – Steam starts anyway.
+WAIT=${GOBLINCAKES_STEAM_WAIT:-30}
+vdf="$HOME/.local/share/Steam/steamapps/libraryfolders.vdf"
+[ -f "$vdf" ] || exit 0
+mapfile -t libs < <(grep -oP '^\s*"path"\s*"\K[^"]+' "$vdf")
+for ((i = 0; i < WAIT * 2; i++)); do
+    missing=0
+    for lib in "${libs[@]}"; do
+        [ -d "$lib/steamapps" ] || missing=1
+    done
+    [ $missing = 0 ] && exit 0
+    sleep 0.5
+done
+echo "Steam startar utan alla bibliotek efter ${WAIT} s: ${libs[*]}" >&2
+exit 0

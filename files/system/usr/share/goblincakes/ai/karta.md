@@ -411,6 +411,9 @@ Ord: steam, proton, spel startar inte, goblin play, tv-läge, big picture, lutri
 - Steam finns i systemet. `goblin play <namn>` startar Steam-spel från terminalen (/usr/libexec/goblincakes-games),
   egna ord i ~/.config/goblincakes/game-aliases. TV-läge: `goblin tv`.
 - Krascher syns med verktyget systemfel (coredumps).
+- Steam vid inloggning väntar (högst 30 s) tills alla bibliotek i libraryfolders.vdf finns: /usr/libexec/goblincakes-steam-wait-libraries
+  (ExecStartPre i /usr/lib/systemd/user/app-steam@autostart.service.d/). Shaderbearbetningen: ~/.local/share/Steam/logs/shader_log.txt
+  ("Committed bucket … from 0" = börjar om från noll).
 
 ## Discord
 Ord: discord, röstkanal, vencord, discord-tema
