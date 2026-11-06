@@ -1,3 +1,4 @@
+2026-11-06  GoblinAmp: fönster som + Filer, + Mapp och Välj musikmapp öppnas mitt på skärmen där GoblinAmp ligger – inte halvt utanför skärmen när GoblinAmp sitter vid kanten.
 2026-11-06  Goblin AI: lättare att scrolla. TERMINAL-fliken går dubbelt så långt per hjulsteg, och när du väljer mappar och filer (till exempel en projektmapp) öppnas KDE:s vanliga fönster – samma som i Dolphin.
 2026-11-06  GoblinAmp: du väljer själv vilken mapp som är din musikmapp (LOKALT → Musikmapp ▾ → Välj musikmapp…). Egna spellistor gör du med + NY LISTA, och när du håller musen över en lista syns Byt namn och Ta bort direkt. Listorna ligger kvar även om du byter musikmapp.
 2026-11-06  GoblinAmp heter nu GoblinAmp (med sin ikon) i ljudmixern i stället för "python3". Ljudet stängs bara av när du drar ner GoblinAmps volym till 0 % och slås på igen när du höjer den – stängs det av någon annanstans, till exempel i ljudmixern, slås det på igen direkt.

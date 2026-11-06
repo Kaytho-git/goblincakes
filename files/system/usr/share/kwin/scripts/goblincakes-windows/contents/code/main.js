@@ -224,8 +224,8 @@ function keepGame(window, screen) {
     window.maximizedChanged.connect(full);
 }
 
-function center(window) {
-    const screen = mainScreen(window);
+function center(window, onScreen) {
+    const screen = onScreen || mainScreen(window);
     const area = workspace.clientArea(KWin.PlacementArea, screen, workspace.currentDesktop);
     const geo = window.frameGeometry;
     window.frameGeometry = {
@@ -328,6 +328,13 @@ const AMP = "goblin-amp";
 const AMP_PLAYLIST = "GoblinAmp – spellista";
 
 function ampAdded(window) {
+    // Its dialogs (+ Filer, + Mapp, Välj musikmapp…): in the middle of the screen GoblinAmp is on –
+    // KWin put them centred over GoblinAmp, half outside the screen when it sits at the edge (6 Nov)
+    if (window.transient || window.dialog || !window.normalWindow) {
+        const owner = window.transientFor;
+        center(window, owner ? owner.output : window.output);
+        return;
+    }
     const playlist = String(window.caption) === AMP_PLAYLIST;
     const xy = String(readConfig(playlist ? "ampPlPlace" : "ampPlace", "")).split(",").map(Number);
     const geo = window.frameGeometry;
