@@ -82,6 +82,7 @@ DEFAULT_VOICES = {
 # (ɡɔblˈiːn, "gooblin" now and then); check a new spelling with PiperVoice.phonemize()
 SAY_AS = [
     (r"\bGoblin\s*AI\b", "Gåbblinn ej-aj"),
+    (r"\bGoblin\s*Amp\b", "Gåbblinn-amp"),     # the user chose it of four by ear (6 Nov)
 ]
 
 
