@@ -23,8 +23,9 @@
 Nothing goes into the image: the environment and the models live in the home folder and are
 fetched when the user turns Röst on. Speech to text = KBLab's Swedish Whisper (kb-whisper-small,
 CTranslate2) via faster-whisper, int8 on 4 threads so a game keeps the rest of the processor.
-Text to speech = Piper: lisa (Kakan, a woman – a little slower, a little husky via an ffmpeg
-filter) and nst (for a male avatar, a little faster). The user chose both by ear 4 Nov.
+Text to speech = Piper: lisa (Kakan, a woman – Piper's own sound, no filter since 6 Nov: the user
+"ta bort filtrena helt") and nst (for a male avatar, a little faster). Chosen by ear 4 Nov.
+Names Piper says the Swedish way are spelt for her ear first (SAY_AS).
 Settings: ~/.config/goblincakes/voice.json {"voices": {"kvinna": {…}, "man": {…}}}.
 Lines starting with "@@ " (and "@@progress {…}") are for the window, as in goblincakes-ollama.
 
@@ -72,12 +73,15 @@ VOCABULARY = ("Kakan, Goblin AI, GOBLINCAKES, Warcraft Logs, WoW, World of Warcr
 
 PIPER_VOICES = {"lisa": "sv/sv_SE/lisa/medium/sv_SE-lisa-medium",
                 "nst": "sv/sv_SE/nst/medium/sv_SE-nst-medium"}
-HUSKY = ("asetrate=22050*0.94,aresample=22050,lowpass=f=6500,"
-         "acrusher=bits=12:mix=0.12,aecho=0.8:0.5:12:0.08")
 DEFAULT_VOICES = {
-    "kvinna": {"model": "lisa", "length": 1.10, "pause": 0.3, "husky": True},
-    "man": {"model": "nst", "length": 0.85, "pause": 0.3, "husky": False},
+    "kvinna": {"model": "lisa", "length": 1.0, "pause": 0.3},
+    "man": {"model": "nst", "length": 0.85, "pause": 0.3},
 }
+# How words are written for Piper's ear (only what is spoken; the box shows the real words).
+# "Gåbblin ej-aj" = the user: "sa hon det perfekt" (6 Nov, against "Goblin AI" / "Goblin ej aj")
+SAY_AS = [
+    (r"\bGoblin\s*AI\b", "Gåbblin ej-aj"),
+]
 
 
 def say(text):
@@ -360,6 +364,8 @@ def speak(text, who="kvinna", out=None):
         _voices[model] = PiperVoice.load(model)
     voice = _voices[model]
     cfg = SynthesisConfig(length_scale=float(v.get("length") or 1.0))
+    for pattern, word in SAY_AS:
+        text = re.sub(pattern, word, text, flags=re.I)
     rate = voice.config.sample_rate
     silence = bytes(int(rate * float(v.get("pause") or 0)) * 2)
     with tempfile.TemporaryDirectory(prefix="goblincakes-voice-") as tmp:
@@ -372,11 +378,6 @@ def speak(text, who="kvinna", out=None):
                 w.writeframes(chunk.audio_int16_bytes)
                 w.writeframes(silence)
         final = raw
-        if v.get("husky"):
-            final = Path(tmp) / "husky.wav"
-            r = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(raw), "-af", HUSKY, str(final)])
-            if r.returncode != 0:
-                final = raw
         if out:
             shutil.copyfile(final, out)
         else:

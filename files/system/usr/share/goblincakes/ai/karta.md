@@ -394,6 +394,8 @@ Ord: röst, röstknappen, f8, prata, hör inte, hörde fel, uppläsning, rutan, 
 - Håll F8 (musknapp 4 på G502 = F8) och prata, släpp när du är klar. Tjänsten goblincakes-voice
   (/usr/libexec/goblincakes-voice listen, /usr/lib/systemd/user/goblincakes-voice.service) startar bara om
   miljön finns: ~/.local/share/goblincakes-voice (venv med faster-whisper + Piper, kb-whisper-small, rösterna).
+- Uttal: Piper läser rent (inget filter); ord hon säger fel stavas om i SAY_AS i /usr/libexec/goblincakes-voice
+  (t.ex. Goblin AI → "Gåbblin ej-aj"). Prova: goblincakes-voice say "<text>".
   Kortkommandot heter "goblincakes-voice" i Systeminställningar → Genvägar. Inte F20–F23 (mikrofon av/pekplatta).
 - Medan knappen hålls tystas bara mikrofonen mot Discord (dess PipeWire source-output), sedan på igen.
 - Tal → text (Whisper, ~1,5 s) → enkla kommandon direkt utan språkmodell (/usr/share/goblincakes/ai/voicecmd.py):
