@@ -288,7 +288,7 @@ Ord: goblinamp, amp, musikspelare, winamp, spotify, spellista, låtar, mediatang
 - Egen musik (LOKALT): musikmappen = amp.json `musicDir` (vald under "Musikmapp ▾", annars xdg-user-dir MUSIC);
   egna listor = .m3u8 i ~/.local/share/goblincakes/amp/spellistor (förr ~/Musik/Spellistor – kopieras dit en gång).
 - Egen musik hörs inte: kolla mixern (`pactl list sink-inputs`, strömmen GoblinAmp / nod goblin-amp, "Mute").
-  GoblinAmp stänger själv av den bara vid 0 % och slår på den igen vid nästa låt eller när volymen höjs från 0.
+  GoblinAmp håller den avstängd bara vid 0 % – en avstängning från mixern slås på igen direkt (pactl subscribe).
 
 ## GoblinShare
 Ord: goblinshare, share, dela, skicka fil, ta emot, localsend, airdrop, filer till telefonen, filer mellan datorerna

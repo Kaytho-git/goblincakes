@@ -247,6 +247,7 @@ class LocalPlayer(QObject):
     changed = Signal()
     queueChanged = Signal()
     _cover = Signal(str, str)   # path, cover (from a thread)
+    _mixer = Signal()           # PipeWire said a stream changed (from the pactl subscribe thread)
 
     def __init__(self, settings, save):
         super().__init__()
@@ -279,7 +280,34 @@ class LocalPlayer(QObject):
             self._player.durationChanged.connect(self._changed)
             self._player.mediaStatusChanged.connect(self._status)
             self._player.errorOccurred.connect(self._error)
+            self._watch_mixer()
         return self._player
+
+    def _watch_mixer(self):
+        """Muted only at 0 % (6 Nov, the user's choice): a mute from the mixer is undone at once.
+        `pactl subscribe` tells about every change – nothing runs while nothing happens."""
+        self._sync = QTimer(self)
+        self._sync.setSingleShot(True)
+        self._sync.setInterval(250)   # many changes at once (a volume being dragged) = one look
+        self._sync.timeout.connect(lambda: mixer_mute(self.volume <= 0))
+        self._mixer.connect(self._sync.start)
+
+        def run():
+            try:
+                self._subscribe = subprocess.Popen(["pactl", "subscribe"], stdout=subprocess.PIPE,
+                                                   stderr=subprocess.DEVNULL, text=True,
+                                                   env=dict(CHILD_ENV, LC_ALL="C"))   # else Swedish lines
+                for line in self._subscribe.stdout:
+                    if "on sink-input" in line and "remove" not in line:
+                        self._mixer.emit()
+            except OSError:
+                pass
+        threading.Thread(target=run, daemon=True).start()
+
+    def stop_watch(self):
+        proc = getattr(self, "_subscribe", None)
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
 
     def halt(self, stop=False):
         """Pause (or stop) – nothing to do while no own song was played yet."""
@@ -1402,6 +1430,7 @@ class Amp(QObject):
         QGuiApplication.quit()
 
     def stop(self):
+        self.local.stop_watch()
         self.watcher.alive = False
         self.watcher.wake.set()
         self.showGraph(False, remember=False)
