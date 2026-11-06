@@ -78,9 +78,10 @@ DEFAULT_VOICES = {
     "man": {"model": "nst", "length": 0.85, "pause": 0.3},
 }
 # How words are written for Piper's ear (only what is spoken; the box shows the real words).
-# "Gåbblin ej-aj" = the user: "sa hon det perfekt" (6 Nov, against "Goblin AI" / "Goblin ej aj")
+# "Gåbblinn ej-aj" (6 Nov, the user: "nu låter det bra"): ˈɡɔblɪn – "Gåbblin" put the stress last
+# (ɡɔblˈiːn, "gooblin" now and then); check a new spelling with PiperVoice.phonemize()
 SAY_AS = [
-    (r"\bGoblin\s*AI\b", "Gåbblin ej-aj"),
+    (r"\bGoblin\s*AI\b", "Gåbblinn ej-aj"),
 ]
 
 
