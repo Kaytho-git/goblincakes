@@ -1,0 +1,5 @@
+{
+  "permissions": {
+    "ask": ["mcp__github__create_repository"]
+  }
+}

@@ -15,6 +15,8 @@ Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prov
 
 ## Arbetssätt (användarens beslut)
 - **Kör alltid `git pull` innan du ändrar något.**
+- **Kan en instruktion tolkas på två sätt – fråga först, gissa inte.** Säg kort vilka tolkningar som finns och vänta på svar innan du ändrar, skapar eller tar bort något.
+- **Skapa aldrig GitHub-repon utan att användaren bett om det** (Claude Code frågar dessutom via `.claude/settings.json`).
 - **Jobba direkt i `main`** – inga grenar/PR, även om sessionen föreslår annat.
 - **Pusha först när ≥ 5 commits väntar** (`git rev-list --count origin/main..HEAD`) eller när användaren ber om det. Före push `git pull --rebase`. Säg i svaret hur många commits som väntar.
 - **Efter push: vänta inte på bygget** – lämna det till Kakan: `python3 files/system/usr/share/goblincakes/ai/reminders.py bevaka bygge <hash>` (notis när det är klart, lyckat eller inte; orsaken: `buildstatus.py`).
