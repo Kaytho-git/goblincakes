@@ -61,6 +61,11 @@ MPRIS = "/org/mpris/MediaPlayer2"
 PLAYER = "org.mpris.MediaPlayer2.Player"
 SETTINGS = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes/amp.json"
 GRAPH_FLAG = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-amp-graph"
+# The mixer showed the own songs as "python3" – easy to mute by mistake, and they then played
+# silently (6 Nov). PipeWire reads the name when Qt connects (at the first song, so it stays set);
+# programs GoblinAmp starts get CHILD_ENV, without it, so Spotify isn't called GoblinAmp.
+CHILD_ENV = dict(os.environ)
+os.environ["PIPEWIRE_PROPS"] = '{ application.name = "GoblinAmp" application.icon-name = "goblincakes-amp" }'
 sys.path.insert(0, str(SHARE))
 import local as L  # noqa: E402
 import spotifyweb as SW  # noqa: E402
@@ -98,6 +103,22 @@ def busctl(*args, timeout=3):
     out = subprocess.run(["busctl", "--user", "--json=short", *args], capture_output=True,
                          text=True, timeout=timeout).stdout
     return [json.loads(line) for line in out.splitlines() if line.strip()]
+
+
+def mixer_mute(on):
+    """GoblinAmp's own stream muted/unmuted in PipeWire's mixer (node.name goblin-amp). Qt's
+    setMuted only silences inside Qt: the mixer's mute is another one, Qt never sees it (6 Nov)."""
+    def run():
+        try:
+            rows = json.loads(subprocess.run(["pactl", "-f", "json", "list", "sink-inputs"],
+                                             capture_output=True, text=True, timeout=5).stdout or "[]")
+            for s in rows:
+                if s.get("properties", {}).get("node.name") == "goblin-amp" and bool(s.get("mute")) != on:
+                    subprocess.run(["pactl", "set-sink-input-mute", str(s["index"]), "1" if on else "0"],
+                                   capture_output=True, timeout=5)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+    threading.Thread(target=run, daemon=True).start()
 
 
 def players():
@@ -206,7 +227,7 @@ def start_spotify_app():
     if helper.exists():
         subprocess.run([str(helper)], capture_output=True, timeout=10)
     else:
-        subprocess.Popen(["flatpak", "run", "com.spotify.Client"], start_new_session=True,
+        subprocess.Popen(["flatpak", "run", "com.spotify.Client"], start_new_session=True, env=CHILD_ENV,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -369,6 +390,8 @@ class LocalPlayer(QObject):
         S = QMediaPlayer.MediaStatus
         if status in (S.LoadedMedia, S.BufferedMedia):
             self.errors = 0
+        if status == S.BufferedMedia:   # the stream is there: muted only at 0 % (also a mute from the mixer)
+            QTimer.singleShot(300, lambda: mixer_mute(self.volume <= 0))
         if status == S.EndOfMedia:
             n = self.next_index(False)
             if n is None:
@@ -397,7 +420,10 @@ class LocalPlayer(QObject):
         self.changed.emit()
 
     def set_volume(self, v):
+        was = self.volume
         self.volume = max(0.0, min(1.0, float(v)))
+        if self._player is not None and (was <= 0) != (self.volume <= 0):   # to/from 0 %
+            mixer_mute(self.volume <= 0)
         if self.out is not None:
             self.out.setVolume(self.volume)
         self.settings["localVolume"] = round(self.volume, 3)
@@ -1088,7 +1114,7 @@ class Amp(QObject):
         if service:
             self._call("call", "org.mpris.MediaPlayer2", "Raise")
         else:
-            subprocess.Popen(["flatpak", "run", "com.spotify.Client"], start_new_session=True,
+            subprocess.Popen(["flatpak", "run", "com.spotify.Client"], start_new_session=True, env=CHILD_ENV,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # Search in all of Spotify, own lists changed (21 Oct)
@@ -1423,7 +1449,7 @@ class Amp(QObject):
     def popOutGraph(self):
         """⇱: goblin graph in its own window again."""
         self.showGraph(False)
-        subprocess.Popen([sys.executable, str(HERE.parent / "goblin-graph")], start_new_session=True,
+        subprocess.Popen([sys.executable, str(HERE.parent / "goblin-graph")], start_new_session=True, env=CHILD_ENV,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def message(self, data):
@@ -1787,7 +1813,7 @@ class Amp(QObject):
     @Slot(str)
     def showFile(self, path):
         """Visa i mappen: Dolphin with the file picked."""
-        subprocess.Popen(["dolphin", "--select", path], start_new_session=True,
+        subprocess.Popen(["dolphin", "--select", path], start_new_session=True, env=CHILD_ENV,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     @Slot(str)

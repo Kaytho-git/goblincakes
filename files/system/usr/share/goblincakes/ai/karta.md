@@ -285,6 +285,8 @@ Ord: goblinamp, amp, musikspelare, winamp, spotify, spellista, låtar, mediatang
   ampPlPlace (fönstret heter "GoblinAmp – spellista").
 - GRAF under spelaren är genomskinlig (fönstret har alfakanal; spelaren och spellistan egna bakgrunder). Omslag vid
   hovring = Spotifys bild-URL (`image` på album- och listrader, spotifyweb.py `_cover`).
+- Egen musik hörs inte: kolla mixern (`pactl list sink-inputs`, strömmen GoblinAmp / nod goblin-amp, "Mute").
+  GoblinAmp stänger själv av den bara vid 0 % och slår på den igen vid nästa låt eller när volymen höjs från 0.
 
 ## GoblinShare
 Ord: goblinshare, share, dela, skicka fil, ta emot, localsend, airdrop, filer till telefonen, filer mellan datorerna
