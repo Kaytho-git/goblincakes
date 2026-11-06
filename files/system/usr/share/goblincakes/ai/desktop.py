@@ -368,7 +368,13 @@ def play_uri(kind, uri, name, conversation=""):
         client.request("PUT", "/me/player/play", {"device_id": device}, body)
     except sw.SpotifyError as e:
         return f"Det gick inte att spela: {e}"
-    if not any(p["app"].lower() == "goblinamp" for p in players()) and not subprocess.run(
+    # GoblinAmp's own music stops, as when the user plays from its Spotify tab – then GoblinAmp
+    # shows Spotify (6 Nov: a local song kept playing and the album only started in Spotify)
+    now = players()
+    for p in now:
+        if p["app"].lower() == "goblinamp" and p["status"] == "Playing":
+            subprocess.run(_call(p["name"], "Pause"), shell=True, capture_output=True, timeout=5)
+    if not any(p["app"].lower() == "goblinamp" for p in now) and not subprocess.run(
             ["pgrep", "-f", "bin/goblin-amp"], capture_output=True).stdout:
         subprocess.Popen(["gtk-launch", "goblin-amp"], start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # "i GoblinAmp": the window too

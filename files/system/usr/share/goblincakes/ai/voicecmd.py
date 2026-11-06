@@ -65,6 +65,8 @@ def fix_words(text):
     t = re.sub(r"(?<=\w)['’](?=\w)", "", t)          # "l'ambe of god"
     for pattern, word in HEARD_AS:
         t = re.sub(pattern, word, t)
+    t = re.sub(r"^((?:kakan\s+)?(?:kan du\s+)?)spelar\b", r"\1spela", t)   # Whisper hears "Spelar …" (6 Nov)
+    t = re.sub(r"\b(\w{2,}?)(albumet|album)\b", r"\1 \2", t)               # "vengeance falalbum" (6 Nov)
     return " ".join(t.split())
 
 
@@ -86,6 +88,13 @@ def match_all(text):
 
 
 def match(text):
+    # "Spela Triviums, Vengeance Falls album" (6 Nov): artist, comma, title + kind – the comma is gone
+    # after fix_words, so it is looked for first
+    m = re.match(r"^(?:kakan\s+)?(?:kan du\s+)?(?:spela|spelar|starta|sätt på|lyssna på)\s+(?:upp\s+)?([^,]+?)s?,\s*"
+                 r"([^,]+?)[\s-]*(albumet|album|skivan|plattan|låten)[.!?\s]*$",
+                 re.sub(r"\b(\w{2,}?)(albumet|album)\b", r"\1 \2", text.lower().strip()))
+    if m and fix_words(m.group(1)) and fix_words(m.group(2)):
+        return ("music", (KINDS[m.group(3)], fix_words(m.group(1)), fix_words(m.group(2))))
     t = fix_words(text)
     t = re.sub(r"^(?:kakan\s+)?(?:kan du\s+|snälla\s+)?", "", t)
     if not t:
