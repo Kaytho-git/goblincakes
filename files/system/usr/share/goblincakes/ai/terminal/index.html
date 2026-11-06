@@ -44,7 +44,9 @@ function make(folder, command) {
   document.body.appendChild(el);
   const term = new Terminal({
     fontFamily: "'IBM Plex Mono', 'DejaVu Sans Mono', monospace", fontSize: size, lineHeight: 1.1,
-    cursorBlink: true, cursorStyle: "block", scrollback: 10000, theme: theme, allowProposedApi: true,
+    cursorBlink: true, cursorStyle: "block", scrollback: 10000,
+    // a wheel notch = ~6 rows (xterm's 1 ≈ 3 rows felt sluggish, 6 Nov); Alt+wheel 5× faster
+    scrollSensitivity: 2, theme: theme, allowProposedApi: true,
     linkHandler: { activate: (e, uri) => terms.openUrl(uri) }
   });
   const fit = new FitAddon.FitAddon();

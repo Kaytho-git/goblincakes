@@ -2951,7 +2951,10 @@ def main():
         web = True
     except ImportError:
         web = False
-    app = QGuiApplication(sys.argv)
+    # QApplication (Widgets), not QGuiApplication: only then do FileDialog/FolderDialog get KDE's own
+    # dialog (places, Dolphin's scrolling) – without it Qt Quick's fallback dialog scrolled sluggishly (6 Nov)
+    from PySide6.QtWidgets import QApplication
+    app = QApplication(sys.argv)
     app.setApplicationName("goblin-ai")
     app.setApplicationDisplayName("Goblin AI")
     app.setDesktopFileName("goblin-ai")
