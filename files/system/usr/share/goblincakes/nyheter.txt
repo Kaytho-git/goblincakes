@@ -1,3 +1,4 @@
+2026-11-06  Kakans röst kan spela dina egna spellistor i GoblinAmp: säg "spela min spellista <namn>" (eller bara "spela <namn>").
 2026-11-06  Ber du Kakan spela något på Spotify medan din egen musik spelar i GoblinAmp, pausas din musik och GoblinAmp visar Spotify i stället. Hon förstår också bättre när du säger "spela <artist>, <album> album".
 2026-11-06  GoblinAmp: fönster som + Filer, + Mapp och Välj musikmapp öppnas mitt på skärmen där GoblinAmp ligger – inte halvt utanför skärmen när GoblinAmp sitter vid kanten.
 2026-11-06  Goblin AI: lättare att scrolla. TERMINAL-fliken går dubbelt så långt per hjulsteg, och när du väljer mappar och filer (till exempel en projektmapp) öppnas KDE:s vanliga fönster – samma som i Dolphin.

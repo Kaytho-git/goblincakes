@@ -280,6 +280,33 @@ ANY = re.compile(r"^(?:spela\s+)?(?:vad som helst|vilken som helst|vilket som he
                  r"allt|alla|spela bara|det spelar ingen roll|spelar ingen roll|artisten)$")
 
 
+def own_list(heard, sure):
+    """(name, path) of the user's own GoblinAmp list (LOKALT, made with + NY LISTA) that sounds like
+    what was said – at least `sure` alike – or None."""
+    import sys  # noqa: PLC0415
+    amp = str(Path(__file__).resolve().parents[1] / "amp")       # /usr/share/goblincakes/amp (or the repo's)
+    if amp not in sys.path:
+        sys.path.insert(0, amp)
+    try:
+        import local  # noqa: PLC0415 – GoblinAmp's own module (no Qt)
+        lists = local.saved_lists()
+    except Exception:  # noqa: BLE001 – no lists folder yet
+        return None
+    best = max(((_sim(heard, name), name, path) for _id, name, path in lists), default=(0.0, "", None))
+    return (best[1], best[2]) if best[0] >= sure else None
+
+
+def play_own_list(d, name, path):
+    """The list plays in GoblinAmp (started if it isn't running; --quiet = no window raised over a game);
+    GoblinAmp pauses Spotify itself when its own music starts."""
+    amp = Path(__file__).resolve().parents[3] / "bin/goblin-amp"
+    subprocess.Popen([str(amp if amp.exists() else "goblin-amp"), "--quiet", str(path)], start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    d.cmdlevel.log(f"spela din lista {name} i GoblinAmp ({path})", "change", "kakan", 0, "",
+                   {"undo": [], "hint": "Byt låt själv i GoblinAmp."}, CONVERSATION)
+    return f"Spelar din lista {name} i GoblinAmp.", "Spelar din lista."
+
+
 def own_music():
     """The cached library ({} before the first refresh): artists (most listened first), lists, albums, tracks."""
     try:
@@ -549,6 +576,10 @@ def music_sentence(d, kind, artist, title):
         return (f"Jag hittar inget av {by[1]} som heter \"{title}\". Säg det igen, eller \"vad som helst\".",
                 "Det hittade jag inte. Säg det igen, eller vad som helst.")
     heard = f"{artist} – {title}" if artist and title else (artist or title)
+    if kind in ("lista", "") and title and not artist:     # the user's own GoblinAmp lists first (6 Nov)
+        found = own_list(title, sure=MAYBE if kind == "lista" else SURE)
+        if found:
+            return play_own_list(d, *found)
     key = _heard_key(artist, title)
     if not d._spotify().load().get("refreshToken"):
         return "GoblinAmp är inte inloggat på Spotify – logga in i GoblinAmp först (⋯ → Logga in).", True

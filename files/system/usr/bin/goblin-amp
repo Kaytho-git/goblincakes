@@ -1499,7 +1499,8 @@ class Amp(QObject):
             self.showGraph(True)
         if isinstance(msg, dict) and msg.get("files"):
             self.openFiles(msg["files"])
-        self.raiseWindow.emit()
+        if not (isinstance(msg, dict) and msg.get("quiet")):   # Kakan's voice: no window over a game (6 Nov)
+            self.raiseWindow.emit()
 
     def openFiles(self, paths):
         self.local.open_paths(paths)
@@ -1947,7 +1948,8 @@ def main():
     probe = QLocalSocket()
     probe.connectToServer(SOCKET)
     if probe.waitForConnected(300):
-        probe.write(json.dumps({"files": files}).encode() if files else b"raise")
+        msg = dict({"files": files}, **({"quiet": True} if "--quiet" in sys.argv[1:] else {}))
+        probe.write(json.dumps(msg).encode() if files else b"raise")
         probe.waitForBytesWritten(1000)
         probe.disconnectFromServer()
         return 0
