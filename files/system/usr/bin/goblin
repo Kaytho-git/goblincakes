@@ -704,8 +704,8 @@ case ${1:-help} in
                 cat <<'HELP'
 GoblinAmp – så ställer du in Spotify-listorna (en gång, kräver Spotify Premium)
 
-Din egen musik behöver ingen inställning: PL → LOKALT (Nu spelas, Musikmappen, egna listor
-i ~/Musik/Spellistor – dra in filer och mappar från Dolphin, eller goblin amp <filer|mapp>).
+Din egen musik behöver ingen inställning: PL → LOKALT (Nu spelas, Musikmappen – välj mappen under
+"Musikmapp ▾" – och egna listor: + NY LISTA; dra in filer och mappar från Dolphin, eller goblin amp <filer|mapp>).
 
 Fliken SPOTIFY i spellistan (PL) läser dina Spotify-listor med en egen, gratis Spotify-app:
 

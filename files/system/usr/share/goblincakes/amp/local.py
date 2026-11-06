@@ -4,7 +4,8 @@ No Qt here – the window (goblin-amp) plays; this file knows the music:
   • the tags (title, artist, album, track number, length) read with ffprobe and kept in
     ~/.cache/goblincakes/amp-tags.json (path → mtime/size + tags; read again when the file changed)
   • the music folder (xdg-user-dir MUSIC, e.g. ~/Musik) and every music file in it
-  • the playlists: .m3u8 files in <music folder>/Spellistor – Winamp's own format, so other
+  • the playlists: .m3u8 files in ~/.local/share/goblincakes/amp/spellistor (before 6 Nov in
+    <music folder>/Spellistor – copied over once) – Winamp's own format, so other
     players open them and old Winamp lists can be brought in (.m3u, .m3u8, .pls)
   • "Nu spelas" (Winamp's playlist window): ~/.local/share/goblincakes/amp/nu-spelas.m3u8
 """
@@ -32,8 +33,12 @@ LIST_EXT = {".m3u", ".m3u8", ".pls"}
 COVER_NAMES = ("cover", "folder", "front", "album", "albumart")
 
 
-def music_dir():
-    """The user's music folder: xdg-user-dir MUSIC (Swedish: ~/Musik), else ~/Musik or ~/Music."""
+LISTS = DATA / "spellistor"
+CHOSEN = None   # the music folder chosen in GoblinAmp (amp.json musicDir) – set by goblin-amp
+
+
+def default_music_dir():
+    """xdg-user-dir MUSIC (Swedish: ~/Musik), else ~/Musik or ~/Music."""
     folder = os.environ.get("GOBLINCAKES_AMP_MUSIC")
     if not folder:
         try:
@@ -47,8 +52,24 @@ def music_dir():
     return path
 
 
+def music_dir():
+    """The music folder: the one chosen in GoblinAmp (6 Nov, the user's wish), else the default."""
+    if CHOSEN and not os.environ.get("GOBLINCAKES_AMP_MUSIC"):
+        return Path(CHOSEN).expanduser()
+    return default_music_dir()
+
+
 def lists_dir():
-    return music_dir() / "Spellistor"
+    """The own lists, in one fixed place so they stay when the music folder is changed (6 Nov,
+    the user's choice). The old place <default music folder>/Spellistor is copied over once."""
+    if not LISTS.is_dir():
+        LISTS.mkdir(parents=True, exist_ok=True)
+        old = default_music_dir() / "Spellistor"
+        if old.is_dir():
+            for p in old.iterdir():
+                if p.is_file() and p.suffix.lower() in LIST_EXT and not (LISTS / p.name).exists():
+                    shutil.copy2(p, LISTS / p.name)
+    return LISTS
 
 
 def is_music(path):
@@ -145,7 +166,7 @@ def safe_name(name):
 
 
 def free_file(name):
-    """<music folder>/Spellistor/<name>.m3u8 that doesn't exist yet (Name 2, Name 3 …)."""
+    """<lists folder>/<name>.m3u8 that doesn't exist yet (Name 2, Name 3 …)."""
     folder = lists_dir()
     base = safe_name(name) or "Ny lista"
     path, n = folder / f"{base}.m3u8", 2

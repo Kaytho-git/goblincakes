@@ -765,6 +765,7 @@ Window {
                         items.push({ text: "Töm Nu spelas", act: () => amp.localClear() });
                     } else if (l.id === "library") {
                         items.push({ text: "Läs om musikmappen", act: () => amp.localRescan() });
+                        items.push({ text: "Välj musikmapp…", act: () => musicDirDialog.open() });
                     } else {
                         items.push({ text: "Byt namn…", act: () => win.askName("rename", l.id, "", l.name) });
                         items.push({ text: "Visa filen", act: () => amp.showList(l.id) });
@@ -801,7 +802,9 @@ Window {
                         spacing: 12
                         SmallLink {
                             visible: !localPane.entry
-                            text: "+ Ny lista"
+                            text: "+ NY LISTA"
+                            color: accent.text
+                            font.weight: Font.DemiBold
                             onClicked: win.askName("new", "", "", "")
                         }
                         SmallLink {
@@ -892,7 +895,7 @@ Window {
                         color: picked ? accent.dim : lrowArea.containsMouse ? "#16203A" : current ? "#12203A" : "transparent"
                         Text {
                             x: 4
-                            width: parent.width - 60
+                            width: parent.width - 60 - (listTools.visible ? listTools.width : 0)
                             anchors.verticalCenter: parent.verticalCenter
                             elide: Text.ElideRight
                             text: lrow.isTrack
@@ -903,6 +906,16 @@ Window {
                             font.weight: lrow.current ? Font.DemiBold : Font.Normal
                             font.strikeout: !!lrow.r.missing
                             font.pixelSize: 11
+                        }
+                        // Own lists: rename/delete right on the row while hovering (6 Nov – the menus were hard to find)
+                        Row {
+                            id: listTools
+                            visible: !lrow.isTrack && !lrow.r.special && (lrowArea.containsMouse || renLink.hovered || delLink.hovered)
+                            anchors { right: parent.right; rightMargin: 40; verticalCenter: parent.verticalCenter }
+                            spacing: 10
+                            z: 2
+                            SmallLink { id: renLink; text: "Byt namn"; onClicked: win.askName("rename", lrow.r.id, "", lrow.r.name) }
+                            SmallLink { id: delLink; text: "Ta bort"; color: "#E0646C"; onClicked: amp.localDelete(lrow.r.id) }
                         }
                         Text {
                             anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
@@ -1096,7 +1109,19 @@ Window {
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                         spacing: 10
                         SmallLink { visible: !localPane.entry; text: "Öppna lista…"; onClicked: importDialog.open() }
-                        SmallLink { visible: !localPane.entry; text: "Musikmappen"; onClicked: amp.openMusicDir() }
+                        SmallLink {
+                            id: musicDirLink
+                            visible: !localPane.entry
+                            text: "Musikmapp ▾"
+                            onClicked: {
+                                const p = musicDirLink.mapToItem(null, 0, musicDirLink.height);
+                                const items = [{ text: "Välj musikmapp…  (nu " + win.loc.musicDir + ")", act: () => musicDirDialog.open() },
+                                               { text: "Öppna musikmappen", act: () => amp.openMusicDir() }];
+                                if (win.loc.musicChosen)
+                                    items.push({ text: "Använd standardmappen igen", act: () => amp.chooseMusicDir("") });
+                                win.openMenu(items, p.x - 120, p.y + 2);
+                            }
+                        }
                         SmallLink { visible: localPane.editable || localPane.listId === "library"; text: "+ Filer"; onClicked: filesDialog.open() }
                         SmallLink { visible: localPane.editable || localPane.listId === "library"; text: "+ Mapp"; onClicked: folderDialog.open() }
                     }
@@ -2152,6 +2177,12 @@ Window {
         id: folderDialog
         title: "Lägg till en mapp med musik"
         onAccepted: amp.localAddPaths(JSON.stringify([String(selectedFolder)]))
+    }
+    FolderDialog {
+        id: musicDirDialog
+        title: "Välj musikmapp"
+        currentFolder: "file://" + (win.loc.musicPath || "")
+        onAccepted: amp.chooseMusicDir(String(selectedFolder))
     }
     FileDialog {
         id: importDialog

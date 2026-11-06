@@ -8,8 +8,9 @@ a seek bar, volume, ⏮ ▶ ❚❚ ■ ⏭, shuffle and repeat. "PL" opens the p
 rolls the window up to one line (Winamp's windowshade).
 
 Own music (21 Oct, the user's wish): the playlist's LOKALT tab plays music files itself (Qt's
-media player) – "Nu spelas" (Winamp's playlist), Musikmappen (~/Musik) and the user's own
-lists (.m3u8 in ~/Musik/Spellistor, Winamp's format): drag files and folders in from Dolphin,
+media player) – "Nu spelas" (Winamp's playlist), Musikmappen (~/Musik, or the one chosen under
+"Musikmapp ▾") and the user's own lists (.m3u8 in ~/.local/share/goblincakes/amp/spellistor,
+Winamp's format): drag files and folders in from Dolphin,
 drag rows to move them, right-click for more, sort, rename. While it plays its own music
 GoblinAmp is an MPRIS player (amp/mpris.py) – Plasma's media controls, the media keys and
 the Now playing widget see it; starting Spotify music pauses it and the other way round.
@@ -547,13 +548,15 @@ class Amp(QObject):
         self.listener = G.Listener("goblin-amp-bars", "GoblinAmp")
         self.listener.start()
         # Own music (the playlist's LOKALT tab)
+        L.CHOSEN = self.settings.get("musicDir") or None   # Välj musikmapp… (6 Nov)
         self.local = LocalPlayer(self.settings, self._save_settings)
         self.local.changed.connect(self._compose)
         self.local.queueChanged.connect(self._queue_changed)
         self.mpris = M.Mpris(self.local, self.raiseWindow.emit, QGuiApplication.quit) if M else None
         self._loc = {"tab": self.settings.get("plTab") or ("spotify" if self._pl["signedIn"] else "local"),
                      "list": None, "lists": [], "busy": "", "message": "",
-                     "musicDir": str(L.music_dir()).replace(str(Path.home()), "~", 1)}
+                     "musicDir": str(L.music_dir()).replace(str(Path.home()), "~", 1),
+                     "musicPath": str(L.music_dir()), "musicChosen": bool(L.CHOSEN)}
         self._rows = []          # the open local list's rows (for "now": the queue itself)
         self._library = None     # Musikmappen's rows, once read
         self._probing = 0        # a tag reading's number (a newer one makes an older stop)
@@ -1821,6 +1824,26 @@ class Amp(QObject):
         path = self._list_path(list_id)
         if path:
             self.showFile(str(path))
+
+    @Slot(str)
+    def chooseMusicDir(self, url):
+        """Välj musikmapp…: the folder Musikmappen shows (amp.json musicDir); "" = the default
+        (xdg-user-dir MUSIC). The own lists stay – they have their own place (local.lists_dir)."""
+        path = QUrl(url).toLocalFile() if url.startswith("file:") else url
+        if path and not Path(path).is_dir():
+            return
+        if path and Path(path) == L.default_music_dir():
+            path = ""
+        if path:
+            self.settings["musicDir"] = path
+        else:
+            self.settings.pop("musicDir", None)
+        self._save_settings()
+        L.CHOSEN = path or None
+        self._loc.update(musicDir=str(L.music_dir()).replace(str(Path.home()), "~", 1),
+                         musicPath=str(L.music_dir()), musicChosen=bool(path))
+        self._library = None
+        self.localRescan()   # its text says where it looks; Musikmappen's row shows the folder
 
     @Slot()
     def openMusicDir(self):
