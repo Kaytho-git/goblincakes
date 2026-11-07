@@ -661,3 +661,54 @@ Obs: läsverktyget dolde text som liknar nycklar (`***`) – Haiku och Sonnet tr
 **Röst: small + medium (7 nov, användarens prov):** 7 meningar, 75 s inspelning – small 0,16 s/s tal (~2 s per fråga) "Anna I'm Ducks", "pulledning", "Iten-Level"; medium 0,49 s/s (~5–6 s) "Anaheim Ducks", "pullen i Warcraft Logs", "item level", men "Spela"→"Spelade", "Öppna"→"Öppnade"; ingen klarade "addon i WoW"/"Metallica". Byggt: small hör allt (kommandon direkt), inte ett kommando → arbetsprocessen hör samma wav med `WHISPER_BIG` kb-whisper-medium (`{"hear", "big": True}`, laddas första gången, ~1 GB minne), sedan `known_words()`: `HEARD_AS` (ardon/erdon/adron/donnie + vov/yvov → addon i WoW) och likhet ≥ 0,75 mot `OWN_ADDON_NAMES` + 60 mest spelade artister (namn ≥ 6 bokstäver, småord ≤ 3 bokstäver aldrig del av ett namn). Installationen hämtar medium också (1,5 GB); utan den = small som förut. Provat: rättningen på dagens 6 fel + 17 vanliga meningar (inga felrättningar), heard() med attrapper (fråga → medium → Goblin AI). Ej provat: medium i röstprogrammet på riktigt.
 **Spelprov 2 (7 nov 12:19–12:20):** Haiku lagade 2 av 4 (Item Level – gav faktiskt ett BugSack-fel, ItemSummaryUI.lua:255 – och GetClassColour), numrerat och "✓ 1" som tänkt. Missade RefreshUi och PLAYER_EQUIPMENT_CHANGE: inte nya i BugSack den gången, och Haiku körde aldrig "wowapi kolla" trots prompten. Lagat: reservvägen i `ask()` kör `addon_check(messages)` själv efter Så här gick det (som `_ask` gör för Kakan) och lägger FEL/KANSKE i samtalet → Haiku lägger till dem i listan. Provat: addon_check på ett låtsat Tillåt → båda KANSKE-raderna.
 **Spelprov 3 (7 nov 12:24):** Haiku hittade CharactersUI.lua:332 men gjorde kortet på provkopian ~/kakan-prov (MainWindowUI.lua) → avslutskod 1 → Kakans regel "inget nytt kort efter misslyckat" stoppade Haiku → "Kan jag laga det: Nej" → Sonnet, utan kort ("du bad mig bara kolla"). Lagat: reserven undantas från regeln (`failed` i `ask()`, `rein_in` via `LAST.reserve_used`, `change` i `ask_reserve`); läsverktyget visar konstanter `"ITEM_LEVEL_COUNT"` (bara versaler/understreck). Provkopian ~/kakan-prov/gear-planner förvirrar – användaren tillfrågad.
+
+
+## Statuslistan och framtida idéer (flyttad från CLAUDE.md 7 nov 2026, för att hålla starten billig)
+CLAUDE.md har nu bara en kort sammanfattning. Här är hela listan som den stod, med vad som är provat.
+
+### Status (detaljer: grep i docs/anteckningar.md)
+**Testas på riktig installation, inte i VM:en.**
+- [x] Steg 1: bas-recept (paket, Flatpaks, udev, tjänster)
+- [x] Ghostty som standardterminal (VM-wrapper för OpenGL); Konsole och Kitty valbara (Kitty i hemmappen); alla tre följer accentfärgen
+- [x] Steg 3: KDE-utseende + varumärke (tema, ramar, paneler, splash, Plymouth, inloggning/SDDM-tema, låsskärm, utloggning)
+- [x] AppGrid med raka hörn (byggsteget `appgrid-square`), halva storleken
+- [x] `goblin update` + grön/färgad uppdateringsmarkering i toppfältet, Config → Uppdatera
+- [x] Steg 4: GOBLINCAKES Config (Program, Förinstallerat, Inställningar, Fönster, Grafik, Uppdatera; webbappar, huvudwebbläsare, starta vid inloggning; avinstallera genom att kryssa ur)
+- [x] Steg 5: Ianseo i container (+ systemfältsikon, nätverk, internet)
+- [x] Goblin AI (fönster, Meta+A, Meta+§, terminal; lokal AI, bilder, projekt, lärläge, verktyg: sök/wiki/WCL/wowfel/sport/systemfel/cs2/wowstats, minne, ♥/👎-lärdomar, avatar, egna knappar, Spara som PDF/Word; inmatning i terminalstil: ↑/↓, Ctrl+R, /kommandon; `goblin ai` = samma i terminalen som Claude Code, /app = fönstret; TERMINAL-flik med xterm.js)
+- [x] Laptop och dubbla grafikkort (ej testat – kräver laptop)
+- [x] Grafikdrivrutiner: tre varianter, Grafik-fliken, Secure Boot
+- [x] Diskar: automontering, ägare, I/O-schemaläggare
+- [x] Spelpaket 2: MangoHud, goblin frames, NTSYNC, Xbox-kontroller, Battle.net/WoW-länkar, TV-läge, shaders, ljud
+- [x] Program för intressena (GPU Screen Recorder, Pika Backup, Ianseo i nätverket)
+- [x] Toppfältet: öppna program + Spelas nu (musik, Discord-röst, Steam-nedladdning/shaders, Goblin AI, trådlösa enheters batteri)
+- [x] Dolda Fedora-program + Avinstallera program
+- [x] Skärmar med olika Hz, program på vald skärm (`goblin screen`)
+- [ ] Notis om ny Fedora-version (kan inte testas förrän Fedora 45 i `latest`)
+- [x] Version (CalVer) + Config-förbättringar
+- [x] Steg 6: installations-ISO + GOBLINCAKES USB (signering via SignPath väntar på ansökan)
+- [x] Automatiska systemuppdateringar (reglage)
+- [x] Spel från terminalen (`goblin play`, egna ord, `goblin play dock <spel>`)
+- [x] Spelverktyg + gaming-optimering (reglage)
+- [x] Spelläge (automatiskt under spel: GameMode, uppdateringar väntar, Akonadi/Baloo/WoWUp vilar, OBS stängs efter spel; `gaming.py` = vad som är ett spel)
+- [x] goblin graph (ljudstaplar i klassfärger)
+- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI → 2K–ACE-klipp + alla kills, matchen tas bort; CS2-demon läses: egna siffror, vunna clutchar som klipp; WoW Stats/CS2 Stats sammanställt lokalt, per säsong med arkiv; privata CS2-servrar under PRIVAT; spelikon på korten)
+- [x] Plasma 6.8-förberedelser
+- [x] Välj färg (blå + 13 klassfärger)
+- [x] Chrome/Brave/Chromium-tema, Firefox-tema
+- [x] Discord i GOBLINCAKES-stil (Vencord, eget val i Config; läggs in igen efter Discord-uppdateringar)
+- [x] Tiling med egna regler (Config → Fönster, layouter, Meta+Ctrl+1–9)
+- [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, sök/egna listor, spara album, GENRER med Last.fm, MPRIS, GRAF; spellistan kan lossas till eget fönster, genomskinlig GRAF, omslag vid hovring)
+- [x] Kvot-widget i toppfältet (Claude + ChatGPT/Codex, 5 h + vecka, `goblincakes-quota`)
+- [x] Egen docka `org.goblincakes.dock` (bara fästa, våg, accent; ersatte icontasks 29 okt)
+- [x] ChatGPT-appen (OpenAIs RPM uppackad i hemmappen, `goblincakes-chatgpt`; Goblin AI → "Skicka till ChatGPT" via urklipp) – ej provad med riktiga paketet
+- [x] GoblinShare (filer/text mellan datorerna hemma, Beställ, Be om hjälp) – text provat 3 nov (frus laptop), filer/mappar och Be om hjälp ej än
+- [x] Kakans röst (F8: kommandon utan språkmodell, musik med Menade du/lär sig, rutan uppe till höger, frågor → Goblin AI, Inställningar → Röst)
+- [x] Goblin AI ny layout (rutor Kakan/Projekt/Kommandon/Modeller, flikar, stående skärm; MAPPAR → VS Code eller Claude Code i terminalen) – provad offscreen, ej på riktigt
+- [x] Tyglad Kakan + `/laga` (7 nov: ändringskort bara på begäran, ett i taget, kort i tre delar, rapportens rader kontrolleras; svårare → Skicka till Claude) – provat i fönstret
+- [x] `goblin anticheat` + kort i Config → Grafik (Easy Anti-Cheat v2-kraven, "Gör systemet redo" = kargs) – provat med attrapper/offscreen, ej på riktigt
+- [x] Kakans reserv (punkt 17): Claude Haiku → Sonnet / ChatGPT via abonnemanget under spel och på "Försök igen", läser via `kakan_mcp.py`, ändrar via kort – attrapper/offscreen + riktigt `claude -p`, ej i riktiga fönstret
+
+
+### Framtida idéer (byggs bara på begäran – detaljer i anteckningarna)
+Kakan lär sig steg 2 (LoRA-finjustering), Goblin AI som vardags-AI (röst, Google-tjänster), Kakan för hela familjen på en egen dator (röst i rummen, svar till telefonerna via ntfy, flera samtal samtidigt, bara lokal AI – grep "hela familjen"), Steam-DM i Spelas nu (väntar på freedesktop-notiser), GoblinRecorder fristående (Flatpak/AppImage), Ianseo-nedladdningssida på Simply med TOTP, Kakan på egen minidator (bara Ollama där, t.ex. NiPoGi G2 Pro + senare RTX 3090 via OCuLink – grep "egen dator"), backup-plan om AI-verktyget måste bytas (bara reserv – grep "Backup-plan").

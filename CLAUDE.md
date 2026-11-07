@@ -56,48 +56,9 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - GoblinRecorder: ingen ständig inspelning; raid från pull till END, M+ från nyckel till slut.
 - Discord-kanalnamn: bara GOBLINCAKES-guildens får till GitHub (krypterat), andra servrar stannar lokalt.
 
-## Status (detaljer: grep i docs/anteckningar.md)
-**Testas på riktig installation, inte i VM:en.**
-- [x] Steg 1: bas-recept (paket, Flatpaks, udev, tjänster)
-- [x] Ghostty som standardterminal (VM-wrapper för OpenGL); Konsole och Kitty valbara (Kitty i hemmappen); alla tre följer accentfärgen
-- [x] Steg 3: KDE-utseende + varumärke (tema, ramar, paneler, splash, Plymouth, inloggning/SDDM-tema, låsskärm, utloggning)
-- [x] AppGrid med raka hörn (byggsteget `appgrid-square`), halva storleken
-- [x] `goblin update` + grön/färgad uppdateringsmarkering i toppfältet, Config → Uppdatera
-- [x] Steg 4: GOBLINCAKES Config (Program, Förinstallerat, Inställningar, Fönster, Grafik, Uppdatera; webbappar, huvudwebbläsare, starta vid inloggning; avinstallera genom att kryssa ur)
-- [x] Steg 5: Ianseo i container (+ systemfältsikon, nätverk, internet)
-- [x] Goblin AI (fönster, Meta+A, Meta+§, terminal; lokal AI, bilder, projekt, lärläge, verktyg: sök/wiki/WCL/wowfel/sport/systemfel/cs2/wowstats, minne, ♥/👎-lärdomar, avatar, egna knappar, Spara som PDF/Word; inmatning i terminalstil: ↑/↓, Ctrl+R, /kommandon; `goblin ai` = samma i terminalen som Claude Code, /app = fönstret; TERMINAL-flik med xterm.js)
-- [x] Laptop och dubbla grafikkort (ej testat – kräver laptop)
-- [x] Grafikdrivrutiner: tre varianter, Grafik-fliken, Secure Boot
-- [x] Diskar: automontering, ägare, I/O-schemaläggare
-- [x] Spelpaket 2: MangoHud, goblin frames, NTSYNC, Xbox-kontroller, Battle.net/WoW-länkar, TV-läge, shaders, ljud
-- [x] Program för intressena (GPU Screen Recorder, Pika Backup, Ianseo i nätverket)
-- [x] Toppfältet: öppna program + Spelas nu (musik, Discord-röst, Steam-nedladdning/shaders, Goblin AI, trådlösa enheters batteri)
-- [x] Dolda Fedora-program + Avinstallera program
-- [x] Skärmar med olika Hz, program på vald skärm (`goblin screen`)
+## Status (hela listan med vad som är provat: grep "Statuslistan" i anteckningarna)
+**Testas på riktig installation, inte i VM:en.** Klart: Steg 1 bas-recept, Steg 3 utseende/varumärke, Steg 4 Config, Steg 5 Ianseo, Steg 6 ISO + USB-skaparen, terminaler, AppGrid, `goblin update`, Goblin AI (fönster, terminal, lokal AI, lärläge, verktyg), laptop/dubbla grafikkort, grafikdrivrutiner, diskar, spelpaket, spelläge, spelverktyg, `goblin play`, `goblin screen`, toppfältet/Spelas nu, Avinstallera, CalVer, automatiska uppdateringar, goblin graph, GoblinRecorder (WoW + CS2), GoblinAmp, färgval, webbläsarteman, Discord-tema, tiling, kvot-widget, egen docka, ChatGPT-appen, GoblinShare, Kakans röst, `/laga`, `goblin anticheat`, Kakans reserv (Haiku/Sonnet – spelprovet pågår).
 - [ ] Notis om ny Fedora-version (kan inte testas förrän Fedora 45 i `latest`)
-- [x] Version (CalVer) + Config-förbättringar
-- [x] Steg 6: installations-ISO + GOBLINCAKES USB (signering via SignPath väntar på ansökan)
-- [x] Automatiska systemuppdateringar (reglage)
-- [x] Spel från terminalen (`goblin play`, egna ord, `goblin play dock <spel>`)
-- [x] Spelverktyg + gaming-optimering (reglage)
-- [x] Spelläge (automatiskt under spel: GameMode, uppdateringar väntar, Akonadi/Baloo/WoWUp vilar, OBS stängs efter spel; `gaming.py` = vad som är ett spel)
-- [x] goblin graph (ljudstaplar i klassfärger)
-- [x] GoblinRecorder (WoW-inspelning med OBS, WCL, YouTube, testinspelning, systemfält; CS2-matcher via GSI → 2K–ACE-klipp + alla kills, matchen tas bort; CS2-demon läses: egna siffror, vunna clutchar som klipp; WoW Stats/CS2 Stats sammanställt lokalt, per säsong med arkiv; privata CS2-servrar under PRIVAT; spelikon på korten)
-- [x] Plasma 6.8-förberedelser
-- [x] Välj färg (blå + 13 klassfärger)
-- [x] Chrome/Brave/Chromium-tema, Firefox-tema
-- [x] Discord i GOBLINCAKES-stil (Vencord, eget val i Config; läggs in igen efter Discord-uppdateringar)
-- [x] Tiling med egna regler (Config → Fönster, layouter, Meta+Ctrl+1–9)
-- [x] GoblinAmp (Winamp-lik spelare: egen musik, Spotify-listor, sök/egna listor, spara album, GENRER med Last.fm, MPRIS, GRAF; spellistan kan lossas till eget fönster, genomskinlig GRAF, omslag vid hovring)
-- [x] Kvot-widget i toppfältet (Claude + ChatGPT/Codex, 5 h + vecka, `goblincakes-quota`)
-- [x] Egen docka `org.goblincakes.dock` (bara fästa, våg, accent; ersatte icontasks 29 okt)
-- [x] ChatGPT-appen (OpenAIs RPM uppackad i hemmappen, `goblincakes-chatgpt`; Goblin AI → "Skicka till ChatGPT" via urklipp) – ej provad med riktiga paketet
-- [x] GoblinShare (filer/text mellan datorerna hemma, Beställ, Be om hjälp) – text provat 3 nov (frus laptop), filer/mappar och Be om hjälp ej än
-- [x] Kakans röst (F8: kommandon utan språkmodell, musik med Menade du/lär sig, rutan uppe till höger, frågor → Goblin AI, Inställningar → Röst)
-- [x] Goblin AI ny layout (rutor Kakan/Projekt/Kommandon/Modeller, flikar, stående skärm; MAPPAR → VS Code eller Claude Code i terminalen) – provad offscreen, ej på riktigt
-- [x] Tyglad Kakan + `/laga` (7 nov: ändringskort bara på begäran, ett i taget, kort i tre delar, rapportens rader kontrolleras; svårare → Skicka till Claude) – provat i fönstret
-- [x] `goblin anticheat` + kort i Config → Grafik (Easy Anti-Cheat v2-kraven, "Gör systemet redo" = kargs) – provat med attrapper/offscreen, ej på riktigt
-- [x] Kakans reserv (punkt 17): Claude Haiku → Sonnet / ChatGPT via abonnemanget under spel och på "Försök igen", läser via `kakan_mcp.py`, ändrar via kort – attrapper/offscreen + riktigt `claude -p`, ej i riktiga fönstret
 
 ## Att göra
 - [ ] **Kakan självgående – veckans plan, punkt 0–23** (ordning, vad som är byggt och vad som är kvar: grep "veckans plan" i anteckningarna).
@@ -105,5 +66,5 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [ ] **GoblinRecorder för CS2** – byggt, deathmatch provat på riktigt. Kvar: en riktig Premier/Competitive + nedladdad demo (siffror mot Leetify, klippen, servernamnet "Valve") – grep "Leetify".
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
-## Framtida idéer (byggs bara på begäran – detaljer i anteckningarna)
-Kakan lär sig steg 2 (LoRA-finjustering), Goblin AI som vardags-AI (röst, Google-tjänster), Kakan för hela familjen på en egen dator (röst i rummen, svar till telefonerna via ntfy, flera samtal samtidigt, bara lokal AI – grep "hela familjen"), Steam-DM i Spelas nu (väntar på freedesktop-notiser), GoblinRecorder fristående (Flatpak/AppImage), Ianseo-nedladdningssida på Simply med TOTP, Kakan på egen minidator (bara Ollama där, t.ex. NiPoGi G2 Pro + senare RTX 3090 via OCuLink – grep "egen dator"), backup-plan om AI-verktyget måste bytas (bara reserv – grep "Backup-plan").
+## Framtida idéer
+Byggs bara på begäran – grep "Framtida idéer" i anteckningarna.
