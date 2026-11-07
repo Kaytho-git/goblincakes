@@ -2127,6 +2127,10 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         answer = re.sub(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", "", answer, flags=re.S)
         # One card at a time: her next step's command waits until she has seen how the change went (round 24)
         answer = re.sub(r"```(?:bash|sh)\n.*?\n```\n?", "", answer, flags=re.S)
+    changing_left = [c for c in cards if "bytatext.py" in c or cmd_level().level(c.split("\n", 1)[-1].rsplit("\n```", 1)[0])[0] != "read"]
+    if changing_left or any("bytatext.py" in b or cmd_level().level(b)[0] != "read"
+                            for b in re.findall(r"```(?:bash|sh)\n(.*?)\n```", answer, re.S)):
+        answer = not_yet_done(answer)  # a change waits for Tillåt: nothing is done yet
     for card in cards:
         # A byt_text card whole: two changes in one file start with the same command line, and the second was taken
         # for a copy of the first and dropped (gear round 21, 1 Nov)
@@ -2200,6 +2204,33 @@ def one_change(code):
                 continue
         keep.append(line)
     return "\n".join(keep).rstrip() if changes > 1 else code
+
+
+# Said as done while the card still waits (7 Nov, the user: "Felet med klassfärgerna rättas – inte har rättats"):
+# her past tense becomes present while a change card waits for Tillåt; after it she may say "har rättats"
+NOT_YET_DONE = [
+    (r"\bhar (?:nu )?(rätt|ändr|fix|lag|åtgärd|uppdater|install|flytt|spar|skap|kopier)ats\b", r"\1as"),
+    (r"\bhar (?:nu )?bytts\b", "byts"), (r"\bhar (?:nu )?tagits bort\b", "tas bort"),
+    (r"\bhar (?:nu )?lagts till\b", "läggs till"),
+    (r"\b(?:är|blev) (?:nu )?(rätt|ändr|fix|lag|åtgärd|uppdater|install)(?:ad|at|ade)\b", r"\1as"),
+    (r"\b[Jj]ag har (?:nu )?(bytt|ändrat|rättat|fixat|lagat|tagit bort|lagt till|flyttat|sparat|skapat)\b",
+     lambda m: "Jag " + {"bytt": "byter", "ändrat": "ändrar", "rättat": "rättar", "fixat": "fixar", "lagat": "lagar",
+                         "tagit bort": "tar bort", "lagt till": "lägger till", "flyttat": "flyttar", "sparat": "sparar",
+                         "skapat": "skapar"}[m.group(1)]),
+    (r"\bhar jag (?:nu )?(bytt|ändrat|rättat|fixat|lagat)\b",
+     lambda m: {"bytt": "byter", "ändrat": "ändrar", "rättat": "rättar", "fixat": "fixar", "lagat": "lagar"}[m.group(1)] + " jag"),
+    (r"\b[Ff]ilen är (?:nu )?(?:redo|klar|rättad|fixad|lagad)\b", "Filen blir klar när du trycker Tillåt"),
+    (r"\b[Ää]ndringen är (?:nu )?(?:klar|gjord)\b", "Ändringen görs när du trycker Tillåt"),
+]
+
+
+def not_yet_done(answer):
+    """Her text outside code blocks with "har rättats" … as "rättas" – only called while a change card waits."""
+    parts = re.split(r"(```.*?```)", answer, flags=re.S)
+    for i in range(0, len(parts), 2):  # the even parts are text, the odd ones code blocks
+        for pattern, to in NOT_YET_DONE:
+            parts[i] = re.sub(pattern, to, parts[i])
+    return "".join(parts)
 
 
 def rein_in(answer, cards, messages):

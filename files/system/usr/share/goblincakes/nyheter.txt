@@ -1,3 +1,4 @@
+2026-11-07  När Kakan har ett ändringskort som väntar står det "rättas" i hennes text, inte "har rättats" – inget är gjort förrän du trycker Tillåt.
 2026-11-07  Goblin AI kontrollerar Kakans felrapporter: står det inte på raden det hon påstår, så står det under rapporten – du ser direkt vilka delar som håller.
 2026-11-07  Kakans ändringskort visar tre saker: vad som är fel (enligt Kakan), vad som ändras (röda och gröna rader direkt, innan du trycker Tillåt) och vad det ska bli. Hon får bara en ändring per kort och ett kort i taget – nästa kommer när du tryckt Tillåt eller Nej.
 2026-11-07  Kakan är tyglad: hon gör bara ändringskort när du ber om en ändring (annars tittar och berättar hon), kort med påhittade kommandon tas bort, och har ett kommando gått fel säger Goblin AI det tydligt och hon får inte försöka med ett nytt på egen hand.
