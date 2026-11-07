@@ -319,9 +319,10 @@ class Config(QObject):
         self.refreshWebapps()
 
         tweaks = json.loads((SHARE / "tweaks.json").read_text())
-        self._tweaks = {t["id"]: t for t in tweaks["tweaks"]}
         code, out = run(GPU, ["hw"])
         laptop = code == 0 and json.loads(out or "{}").get("laptop", False)
+        tweaks["tweaks"] = [t for t in tweaks["tweaks"] if laptop or not t.get("laptopOnly")]
+        self._tweaks = {t["id"]: t for t in tweaks["tweaks"]}
         for tweak in tweaks["tweaks"]:
             tweak["state"] = self._tweak_status(tweak["id"])
             tweak["note"] = tweak.get("laptopNote", "") if laptop else ""

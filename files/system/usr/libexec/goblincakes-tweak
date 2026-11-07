@@ -195,6 +195,34 @@ for o in outputs:
                     /ScreenSaver org.kde.screensaver.configure >/dev/null 2>&1 || true ;;
         esac ;;
 
+    sleep-lid-only)
+        # Laptop (7 Nov, the user: keep it from going to sleep by itself, but still sleep when she closes the
+        # lid): KDE's own "sleep automatically when left alone" (System Settings → Power Management) set to
+        # Do nothing on the charger, on battery and on low battery. The lid and Sov in the power menu stay.
+        # Off = KDE's standard again (the keys removed). PowerDevil reads it again right away.
+        case $cmd in
+            status)
+                for g in AC Battery LowBattery; do
+                    [ "$(kreadconfig6 --file powerdevilrc --group "$g" --group SuspendAndShutdown \
+                          --key AutoSuspendAction)" = 0 ] || { echo off; exit 0; }
+                done
+                echo on ;;
+            set)
+                for g in AC Battery LowBattery; do
+                    if [ "$value" = on ]; then
+                        kwriteconfig6 --file powerdevilrc --group "$g" --group SuspendAndShutdown \
+                            --key AutoSuspendAction 0
+                    else
+                        kwriteconfig6 --file powerdevilrc --group "$g" --group SuspendAndShutdown \
+                            --key AutoSuspendAction --delete
+                    fi
+                done
+                busctl --user call org.kde.Solid.PowerManagement /org/kde/Solid/PowerManagement \
+                    org.kde.Solid.PowerManagement reparseConfiguration >/dev/null 2>&1 || true
+                busctl --user call org.kde.Solid.PowerManagement /org/kde/Solid/PowerManagement \
+                    org.kde.Solid.PowerManagement refreshStatus >/dev/null 2>&1 || true ;;
+        esac ;;
+
     no-lock-resume)
         # No password when the computer wakes from sleep (a laptop's lid opened again) – KDE's
         # own setting (System Settings → Screen Locking → "After waking from sleep").
