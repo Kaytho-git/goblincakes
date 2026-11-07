@@ -786,10 +786,20 @@ def check(target):
                          f"local a, b = {full}(…).")
             for ns, fn in NS_CALL.findall(line):
                 full = f"{ns}.{fn}"
-                if full in known_ns or ns in own or ("ns", full) in reported or _guarded(full, code) or _guarded(ns, code):
+                if full in known_ns or ns in own or ("ns", full) in reported:
                     continue
                 names = [x.split(".")[1] for x in known_ns if x.startswith(ns + ".")]
                 near = _close(fn, names, n=3)
+                if _guarded(full, code) or _guarded(ns, code):
+                    # `C_ClassColor.GetClassColour and C_ClassColor.GetClassColour(x)` (7 Nov): the guard was taken for
+                    # another game version's fallback – but the name is one letter off a real one, so the line never runs
+                    # and the class colours were silently white. A near name in a namespace that exists = a likely typo.
+                    typo = [x for x in near if difflib.SequenceMatcher(None, fn.lower(), x.lower()).ratio() >= 0.85]
+                    if ns in namespaces and typo:
+                        once(("ns", full), maybe, f"{rel} rad {n}: {full} finns inte – {ns} har {ns}.{typo[0]}. Koden "
+                             "kollar att den finns först, så raden körs aldrig och felet blir tyst (inget felmeddelande, "
+                             "bara att det inte händer något). Troligen ett stavfel." + note)
+                    continue
                 once(("ns", full), sure_, f"{rel} rad {n}: {full}() finns inte"
                      + (f" – {ns} har {', '.join(ns + '.' + x for x in near)}" if near else
                         f" ({ns} finns inte heller)" if ns not in namespaces else "") + note)
