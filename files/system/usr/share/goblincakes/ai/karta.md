@@ -367,6 +367,8 @@ Ord: goblinshare, share, dela, skicka fil, ta emot, localsend, airdrop, filer ti
   /usr/share/goblincakes/ai/order.py run <id> [--via chatgpt] (Goblin AI svarar och ritar ```bild, eller
   ChatGPT-appen ritar via goblincakes-chatgpt image – Enter i appen – och bilden skickas tillbaka). "ej skickad" = den andra datorn
   syntes inte – Skicka igen. Beställarens dator tar emot bilderna utan Ta emot i 3 dagar. `goblin share beställningar`.
+- Medan någon är inne via Be om hjälp håller tjänsten datorn från automatisk vila (systemd-inhibit --what=idle,
+  who=GoblinShare); locket och Sov fungerar. Syns med `systemd-inhibit --list`.
 Kontroll: `systemctl --user is-active goblincakes-share`
 Kontroll: `/usr/libexec/goblincakes-share status`
 Kontroll: `journalctl --user -u goblincakes-share -n 30 --no-pager`

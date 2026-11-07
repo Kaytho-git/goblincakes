@@ -1173,6 +1173,7 @@ class Share:
         with self.lock:
             h, self.help = self.help, None
         sshlink.revoke()
+        self.help_awake(False)
         cut = sshlink.end_sessions() if h and h.get("state") in ("ansluter", "inne") else 0
         if h and h.get("close"):
             h["close"]()
@@ -1215,6 +1216,29 @@ class Share:
         return 200, {"user": pwd.getpwuid(os.getuid()).pw_name, "hostKey": sshlink.host_key(), "alias": self.alias(),
                      "login": HELP_LOGIN}
 
+    def help_awake(self, on, alias=""):
+        """The user (7 Nov): while someone helps via the terminal the computer must not go to sleep by itself
+        (her laptop slept at 23.36 and the connection was gone). An idle lock = PowerDevil's automatic sleep
+        (and screen off) waits; the lid and Sov in the power menu still work. PowerDevil takes it after ~5 s.
+        The child dies with the service (same cgroup)."""
+        p = getattr(self, "_awake", None)
+        if on and not (p and p.poll() is None):
+            try:
+                self._awake = subprocess.Popen(
+                    ["systemd-inhibit", "--what=idle", "--who=GoblinShare", "--mode=block",
+                     f"--why={alias or 'Någon'} hjälper dig via terminalen", "sleep", "infinity"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except OSError:
+                self._awake = None
+        elif not on and p:
+            self._awake = None
+            if p.poll() is None:
+                p.terminate()
+                try:
+                    p.wait(3)
+                except subprocess.TimeoutExpired:
+                    p.kill()
+
     def help_watch(self):
         """Every 2 s while a help is on: logged in → the key goes (the connection stays) + a notification
         with Avsluta; the connection ended → over; nobody came → over."""
@@ -1235,6 +1259,7 @@ class Share:
                     sshlink.revoke()   # he is in: no new logins with that key
                     with self.lock:
                         h["state"], h["since"] = "inne", now
+                    self.help_awake(True, h["alias"])
                     h["close"] = notify(f"{h['alias']} är inne i din dator",
                                         "Hen kan köra kommandon i en terminal här tills hen stänger den. "
                                         "Avsluta = ut direkt.", actions=[("end", "Avsluta")],
@@ -1245,6 +1270,7 @@ class Share:
                         self.help = None
             elif h["state"] == "inne" and not inside:
                 sshlink.revoke()
+                self.help_awake(False)
                 with self.lock:
                     self.help = None
                 if h.get("close"):
