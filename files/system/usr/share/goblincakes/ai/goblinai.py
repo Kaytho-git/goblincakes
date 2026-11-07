@@ -1920,7 +1920,12 @@ def written_call(body, tools):
     for word, t in tools.items():
         for f in t["fns"]:
             if f["fn"] == fn:
-                args = dict(re.findall(r"(\w+)\s*=\s*[\"']([^\"']*)[\"']", m.group(2) or ""))
+                # Fields in parentheses or after the name – `byt_text fil="…" gammal="…" ny="…"` in a ```bash block
+                # (/laga in the window 7 Nov: the right change, taken out as a made-up command)
+                args = dict(re.findall(r"(\w+)\s*=\s*\"((?:[^\"\\]|\\.)*)\"|(\w+)\s*=\s*'([^']*)'",
+                                       m.group(2) or m.group(3) or "") and [
+                    (a or c, (b or d).replace('\\"', '"').replace("\\n", "\n")) for a, b, c, d in re.findall(
+                        r"(\w+)\s*=\s*\"((?:[^\"\\]|\\.)*)\"|(\w+)\s*=\s*'([^']*)'", m.group(2) or m.group(3) or "")])
                 if not args and (m.group(2) or m.group(3) or "").strip():
                     args = {next(iter(f["props"])): (m.group(2) or m.group(3)).strip().strip("\"'")}
                 return word, " ".join(f["line"](fix_args(f, args)).split())
