@@ -950,7 +950,7 @@ spela <låt|album|artist> <artist> - <titel> – spela en låt, ett album eller 
 notis <text>                              – visa en notis nu ("Rubrik: text" ger en rubrik)
 urklipp <text>                            – lägg texten i urklippet (det gamla går att få tillbaka)
 urklipp vad                               – vad som ligger i urklippet
-spara <sökväg> ; <text>                   – spara texten (Markdown) som PDF/Word/text efter ändelsen, t.ex. `spara ~/Dokument/Recept/Carbonara.pdf ; # Carbonara …`
+spara <sökväg> ; <text>                   – spara texten (Markdown) som PDF/Word/text efter ändelsen, t.ex. `spara ~/Dokument/Rapport.pdf ; # Rapport …` – i mappen användaren sa, aldrig en egen undermapp
 fönster <program> [skärm <1|2|andra|vänster|höger>] [fram|maximera|fullskärm|minimera|normal|stäng|avsluta] – ett
                                             fönster, flera saker på en gång (fönster goblin ai skärm andra fullskärm)
 fönster lista                             – vilka fönster som är öppna och var
@@ -1461,11 +1461,14 @@ DESK_FNS = [
             lambda a: f"urklipp {look_arg(a, 'text') or 'vad'}"),
     look_fn("spara_dokument", "Sparar en text som en fil åt användaren, direkt: PDF (standard), Word (.docx), "
             "OpenDocument (.odt), text (.txt) eller Markdown (.md) – efter filens ändelse. Ber användaren om en PDF/ett "
-            "dokument (\"spara receptet som PDF i Recept\") gör du det med det här verktyget. Bara i hemmappen; finns "
+            "dokument (\"spara det som PDF i Dokument\") gör du det med det här verktyget. Spara i EXAKT den mapp användaren "
+            "sa – hitta aldrig på en egen undermapp (\"i Dokument\" = ~/Dokument/namn.pdf); sa användaren ingen mapp: "
+            "~/Dokument. Bara i hemmappen; finns "
             "filen redan får den nytt namn (aldrig över en gammal). Texten skriver du HELA själv i Markdown (# rubrik, "
             "listor) – innehållet, inte en hänvisning till ett tidigare svar, ordagrant och utan att korta det – och "
             "med källorna (länkarna) sist när det kom från nätet.",
-            {"fil": ("Var: `~/Dokument/Recept/Carbonara.pdf` (en mapp utan ~/ = under ~/Dokument; utan ändelse = PDF)", True),
+            {"fil": ("Var: den mapp användaren sa + ett kort namn, t.ex. `~/Dokument/Rapport.pdf` (en mapp utan ~/ = under "
+                     "~/Dokument; utan ändelse = PDF)", True),
              "text": ("Hela innehållet i Markdown, t.ex. `# Carbonara\\n\\n## Ingredienser\\n- 400 g spaghetti …`", True)},
             lambda a: f"spara {look_arg(a, 'fil')} ; " + json.dumps(str(a.get("text") or ""), ensure_ascii=False)),
     look_fn("fonster", "Flyttar eller ändrar ett öppet fönster, direkt: till en annan skärm, fram, maximera, fullskärm, "

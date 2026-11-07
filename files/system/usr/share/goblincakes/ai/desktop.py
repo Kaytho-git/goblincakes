@@ -417,7 +417,7 @@ def save_doc(rest, conversation=""):
             pass
     where = where.strip().strip("`'\"")
     if not sep or not where or not text.strip():
-        return "Skriv `spara <sökväg> ; <texten>`, t.ex. `spara ~/Dokument/Recept/Carbonara.pdf ; # Carbonara …`."
+        return "Skriv `spara <sökväg> ; <texten>`, t.ex. `spara ~/Dokument/Rapport.pdf ; # Rapport …`."
     home = Path.home().resolve()
     path = Path(where).expanduser()
     if not path.is_absolute():
