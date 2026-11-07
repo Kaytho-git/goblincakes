@@ -285,7 +285,19 @@ def find_fight(r, query):
     codes, player = ([m.group(1)], "") if m else candidate_reports(r)
     wanted = int(m.group(2)) if m and m.lastindex and m.lastindex >= 2 and m.group(2) else None
     pull = re.search(r"\b(?:pull|försök|forsok)\s*(\d+)", query, re.I)
-    words = [w for w in re.findall(r"[\w']+", query.lower())
+    key = not m and MPLUS_WORDS.search(query)
+    if key:
+        # "senaste nyckeln" (punkt 18, 7 Nov): the latest Mythic+ run – WoW Stats' history first (your own key),
+        # else the newest key in your recent reports
+        try:
+            mine = sorted((v for v in r.wow_history().values() if isinstance(v, dict) and v.get("url")
+                           and v.get("kind") == "mplus"), key=lambda v: -(v.get("started") or 0))
+        except Exception:  # noqa: BLE001
+            mine = []
+        own = re.search(r"reports/([A-Za-z0-9]{16})(?:#.*?fight=(\d+))?", mine[0]["url"]) if mine else None
+        if own:
+            codes, wanted, player = [own.group(1)], int(own.group(2)) if own.group(2) else None, mine[0].get("player", "")
+    words = [] if key else [w for w in re.findall(r"[\w']+", query.lower())
              if w not in ("senaste", "sista", "pull", "pullen", "wipe", "wipen", "kill", "på", "vi", "den", "fight",
                           "alla", "boss", "bossen")
              and not w.isdigit() and len(w) > 2]
@@ -307,10 +319,13 @@ def find_fight(r, query):
     for code in codes:
         rep = r.wcl_query("query($c:String){ reportData { report(code:$c) { code title startTime zone { name }"
                           " fights(killType: Encounters) { id name kill bossPercentage fightPercentage startTime"
-                          " endTime lastPhase difficulty encounterID keystoneLevel } } } }", {"c": code})["reportData"]["report"]
+                          " endTime lastPhase difficulty encounterID keystoneLevel keystoneBonus"
+                          " dungeonPulls { name startTime endTime encounterID } } } } }", {"c": code})["reportData"]["report"]
         if not rep or not rep.get("fights"):
             continue
         fights = rep["fights"]
+        if key:
+            fights = [f for f in fights if f.get("keystoneLevel")]
         if wanted:
             fights = [f for f in fights if f["id"] == wanted]
         elif words:
@@ -327,6 +342,7 @@ def find_fight(r, query):
 
 
 ALL_WORDS = re.compile(r"\b(?:alla|allihop|varje|samtliga|all|every|bossar|bossarna)\b", re.I)
+MPLUS_WORDS = re.compile(r"(?:\bm\+|\bmythic\s*\+|\bmythic\s*plus\b|\bmplus\b|\bnyckel|\bnycklar|\bnyckeln\b|\bkey(?:s|en)?\b|\bkeystone)", re.I)
 
 
 # Cooldowns worth reporting (the game's English names, as in Warcraft Logs): raid-wide, on someone
@@ -371,6 +387,32 @@ CD_KIND = {**{n: "dps" for n in DPS_CDS}, **{n: "egen" for n in PERSONAL_CDS},
            **{n: "raid" for n in RAID_CDS}}
 CD_FILTER = "ability.name in (" + ", ".join(f'"{n}"' for n in CD_KIND) + ")"
 
+# The defensive side (punkt 18, 7 Nov – the user's idea after carried.io): was a defensive up when the big hit came
+# or someone died, which own defensives each player used, and CC per player. Only facts and numbers, no grades
+# (the user's choice). Retail names; when Warcraft Logs has WoW Forever, its lists go next to these.
+# Defensives that lower the damage while their buff is up; heals (Healthstone, Exhilaration …) only show around deaths.
+HEAL_CDS = ("Healthstone", "Demonic Healthstone", "Exhilaration", "Crimson Vial", "Renewal", "Death Pact")
+GROUP_DR = ("Spirit Link Totem", "Power Word: Barrier", "Rallying Cry", "Anti-Magic Zone", "Darkness", "Aura Mastery")
+DEF_BUFFS = {**{n: "raid" for n in GROUP_DR},
+             **{n: "extern" for n in EXTERNAL_CDS if n not in ("Power Infusion", "Intervene", "Lay on Hands")},
+             **{n: "egen" for n in PERSONAL_CDS if n not in HEAL_CDS}}
+DEF_FILTER = "ability.name in (" + ", ".join(f'"{n}"' for n in DEF_BUFFS) + ")"
+BIG_HIT = 0.4  # a hit of at least this much of the player's max health, before armor and defensives = a big hit
+# Crowd control a player casts (stuns, fears, knockbacks, roots, AoE silences, grips) – interrupts have their own table
+CC_SPELLS = ("Hammer of Justice", "Blinding Light", "Repentance", "Turn Evil", "Leg Sweep", "Paralysis",
+             "Ring of Peace", "Shockwave", "Storm Bolt", "Intimidating Shout", "Kidney Shot", "Cheap Shot",
+             "Blind", "Sap", "Gouge", "Asphyxiate", "Gorefiend's Grasp", "Shadowfury", "Mortal Coil", "Fear",
+             "Howl of Terror", "Axe Toss", "Banish", "Chaos Nova", "Fel Eruption", "Imprison", "Sigil of Misery",
+             "Sigil of Chains", "Sigil of Silence", "Polymorph", "Ring of Frost", "Dragon's Breath", "Blast Wave",
+             "Supernova", "Frost Nova", "Psychic Scream", "Psychic Horror", "Holy Word: Chastise",
+             "Shackle Undead", "Mind Control", "Capacitor Totem", "Hex", "Thunderstorm", "Earthbind Totem",
+             "Incapacitating Roar", "Mighty Bash", "Maim", "Typhoon", "Ursol's Vortex", "Mass Entanglement",
+             "Entangling Roots", "Solar Beam", "Hibernate", "Cyclone", "Intimidation", "Binding Shot",
+             "Freezing Trap", "Tar Trap", "High Explosive Trap", "Bursting Shot", "Scatter Shot", "Sleep Walk",
+             "Landslide", "Tail Swipe", "Wing Buffet", "Oppressing Roar", "War Stomp", "Quaking Palm",
+             "Haymaker", "Bull Rush")
+CC_FILTER = "ability.name in (" + ", ".join(f'"{n}"' for n in CC_SPELLS) + ")"
+
 FIGHT_QUERY = ("query($c:String,$f:[Int]){ reportData { report(code:$c) {"
                " deaths: table(dataType: Deaths, fightIDs:$f)"
                " taken: table(dataType: DamageTaken, fightIDs:$f, viewBy: Ability, hostilityType: Friendlies)"
@@ -384,21 +426,23 @@ _names = {}  # report code → (ability names by game id, actors by id)
 def report_names(r, code):
     if code not in _names:
         md = r.wcl_query("query($c:String){ reportData { report(code:$c) { masterData {"
-                         " abilities { gameID name } actors { id name type } } } } }",
+                         " abilities { gameID name } actors { id name type petOwner } } } } }",
                          {"c": code})["reportData"]["report"]["masterData"]
         _names[code] = ({a["gameID"]: a["name"] for a in md.get("abilities") or []},
                         {a["id"]: a for a in md.get("actors") or []})
     return _names[code]
 
 
-def events(r, code, fight, pages=8, **args):
-    """Events in a fight, every page (args: dataType, hostilityType, abilityID, targetID, filterExpression)."""
+def events(r, code, fight, pages=8, limit=5000, resources=False, **args):
+    """Events in a fight, every page (args: dataType, hostilityType, abilityID, targetID, filterExpression);
+    resources = the target's health and max health on each damage event."""
     types = {"dataType": "EventDataType", "hostilityType": "HostilityType", "abilityID": "Float",
              "targetID": "Int", "filterExpression": "String"}
     decl = "".join(f", ${k}:{types[k]}" for k in args)
     call = "".join(f", {k}:${k}" for k in args)
     query = (f"query($c:String,$f:[Int],$s:Float,$e:Float{decl}){{ reportData {{ report(code:$c) {{"
-             f" events(fightIDs:$f, startTime:$s, endTime:$e, limit: 5000{call}) {{ data nextPageTimestamp }} }} }} }}")
+             f" events(fightIDs:$f, startTime:$s, endTime:$e, limit: {limit}{call}"
+             f"{', includeResources: true' if resources else ''}) {{ data nextPageTimestamp }} }} }} }}")
     out, start = [], fight["startTime"]
     for _ in range(pages):
         ev = r.wcl_query(query, {"c": code, "f": [fight["id"]], "s": start, "e": fight["endTime"], **args}
@@ -427,9 +471,124 @@ def cooldowns(r, rep, fight):
     return out
 
 
-def fight_data(r, rep, fight):
+def owner_name(actors, i):
+    """A pet's owner (the Felguard's Axe Toss is the warlock's), else the actor itself."""
+    a = actors.get(i) or {}
+    return (actors.get(a.get("petOwner")) or a).get("name", "?")
+
+
+def defensive_windows(r, rep, fight):
+    """{player: [(start, end, name, kind, from)]} – when each defensive buff was up (ms into the pull)."""
+    abilities, actors = report_names(r, rep["code"])
+    start, end = fight["startTime"], fight["endTime"]
+    out, open_ = {}, {}
+    for e in events(r, rep["code"], fight, dataType="Buffs", hostilityType="Friendlies", filterExpression=DEF_FILTER):
+        name = abilities.get(e.get("abilityGameID"), "")
+        if name not in DEF_BUFFS:
+            continue
+        k = (e.get("targetID"), name)
+        if e["type"] == "applybuff":
+            open_[k] = (e["timestamp"], e.get("sourceID"))
+        elif e["type"] == "removebuff":
+            t0, src = open_.pop(k, (start, e.get("sourceID")))
+            out.setdefault(k[0], []).append((t0 - start, e["timestamp"] - start, name, src))
+    for (target, name), (t0, src) in open_.items():  # still up when the pull ended
+        out.setdefault(target, []).append((t0 - start, end - start, name, src))
+    named = {}
+    for target, wins in out.items():
+        who = (actors.get(target) or {}).get("name", "?")
+        for a, b, name, src in wins:
+            kind = DEF_BUFFS[name]
+            if kind == "extern" and src == target:  # Blessing of Protection on yourself is your own
+                kind = "egen"
+            named.setdefault(who, []).append((a, b, name, kind, owner_name(actors, src)))
+    return named
+
+
+def big_hits(r, rep, fight):
+    """The big hits on players (≥ BIG_HIT of max health before armor and defensives, not melee), the same ability
+    on the same player within 3 s counted once: [{t, who, name, pct}]."""
+    abilities, actors = report_names(r, rep["code"])
+    code, start = rep["code"], fight["startTime"]
+    probe = events(r, code, fight, pages=1, limit=400, resources=True, dataType="DamageTaken", hostilityType="Friendlies")
+    lowest = min((e["maxHitPoints"] for e in probe if e.get("maxHitPoints")
+                  and (actors.get(e.get("targetID")) or {}).get("type") == "Player"), default=0)
+    if not lowest:
+        return []
+    hits = []
+    for e in events(r, code, fight, resources=True, dataType="DamageTaken", hostilityType="Friendlies",
+                    filterExpression=f"rawDamage > {int(lowest * BIG_HIT)}"):
+        target = actors.get(e.get("targetID")) or {}
+        if e.get("type") != "damage" or target.get("type") != "Player" or e.get("abilityGameID") == 1 \
+                or not e.get("maxHitPoints"):
+            continue
+        raw = e.get("unmitigatedAmount") or (e.get("amount") or 0) + (e.get("absorbed") or 0) + (e.get("mitigated") or 0)
+        pct = raw / e["maxHitPoints"]
+        if pct < BIG_HIT:
+            continue
+        hit = {"t": e["timestamp"] - start, "who": target["name"], "name": abilities.get(e.get("abilityGameID"), "?"),
+               "pct": pct}
+        same = next((h for h in reversed(hits[-30:]) if h["who"] == hit["who"] and h["name"] == hit["name"]
+                     and hit["t"] - h["t"] < 3000), None)
+        if same:
+            same["pct"] = max(same["pct"], pct)
+        else:
+            hits.append(hit)
+    return hits
+
+
+def cc_casts(r, rep, fight):
+    """{player: {spell: casts}} – crowd control, a pet's under its owner."""
+    abilities, actors = report_names(r, rep["code"])
+    out = {}
+    for e in events(r, rep["code"], fight, dataType="Casts", hostilityType="Friendlies", filterExpression=CC_FILTER):
+        name = abilities.get(e.get("abilityGameID"), "")
+        if e.get("type") == "cast" and name in CC_SPELLS:
+            who = out.setdefault(owner_name(actors, e.get("sourceID")), {})
+            who[name] = who.get(name, 0) + 1
+    return out
+
+
+_own_defs = {}  # report code → {player: {own defensives used anywhere in the report}}
+
+
+def report_own_defensives(r, rep):
+    """Each player's own defensives used in any pull or key of the report – to say which ones they have but did
+    not use in this one (WCL doesn't tell what a character has, only what it cast)."""
+    if rep["code"] in _own_defs:
+        return _own_defs[rep["code"]]
+    abilities, actors = report_names(r, rep["code"])
+    own = [n for n, k in CD_KIND.items() if k == "egen"]
+    flt = "ability.name in (" + ", ".join(f'"{n}"' for n in own) + ")"
+    fights = rep.get("fights") or []
+    out = {}
+    if fights:
+        span = {"id": 0, "startTime": min(f["startTime"] for f in fights), "endTime": max(f["endTime"] for f in fights)}
+        query = ("query($c:String,$f:[Int],$s:Float,$e:Float,$x:String){ reportData { report(code:$c) {"
+                 " events(fightIDs:$f, startTime:$s, endTime:$e, limit: 5000, dataType: Casts, hostilityType: Friendlies,"
+                 " filterExpression:$x) { data nextPageTimestamp } } } }")
+        t = span["startTime"]
+        for _ in range(10):
+            ev = r.wcl_query(query, {"c": rep["code"], "f": [f["id"] for f in fights], "s": t, "e": span["endTime"],
+                                     "x": flt})["reportData"]["report"]["events"]
+            for e in ev.get("data") or []:
+                name = abilities.get(e.get("abilityGameID"), "")
+                if e.get("type") == "cast" and name in own:
+                    out.setdefault((actors.get(e.get("sourceID")) or {}).get("name", "?"), set()).add(name)
+            t = ev.get("nextPageTimestamp")
+            if not t:
+                break
+    _own_defs[rep["code"]] = out
+    return out
+
+
+def fight_data(r, rep, fight, compact=False):
     data = r.wcl_query(FIGHT_QUERY, {"c": rep["code"], "f": [fight["id"]]})["reportData"]["report"]
     data["cooldowns"] = cooldowns(r, rep, fight)
+    data["windows"] = defensive_windows(r, rep, fight)
+    data["bighits"] = [] if compact else big_hits(r, rep, fight)  # every boss at once: 13 s more, 8 kB more
+    data["cc"] = cc_casts(r, rep, fight)
+    data["owndefs"] = report_own_defensives(r, rep)
     return data
 
 
@@ -464,9 +623,22 @@ def pull_text(rep, fight, player, data, stats, compact=False):
     number = same.index(fight) + 1
     length = fight["endTime"] - fight["startTime"]
     diff = DIFFICULTY.get(fight.get("difficulty"), "")
-    if fight.get("keystoneLevel"):
-        diff = f"+{fight['keystoneLevel']}"
     result = "KILL" if fight.get("kill") else f"WIPE på {fight.get('bossPercentage', 0):.1f} % bossliv (fas {fight.get('lastPhase') or '?'})"
+    key = bool(fight.get("keystoneLevel"))
+    if key:  # a whole Mythic+ key is one fight; keystoneBonus = how many levels the key went up (0 = not in time)
+        diff = f"Mythic+ +{fight['keystoneLevel']}"
+        bonus = fight.get("keystoneBonus")
+        result = ("KLAR" if fight.get("kill") else "INTE KLAR") + (
+            "" if bonus is None else f", {'i tid (+' + str(bonus) + ')' if bonus else 'inte i tid'}")
+    pulls = fight.get("dungeonPulls") or []
+
+    def where(t):  # in a key: which pull (boss or trash, by its main enemy) the time was in
+        if not pulls:
+            return ""
+        at = t + fight["startTime"]
+        n = next((i for i, p in enumerate(pulls, 1) if p["startTime"] - 2000 <= at <= p["endTime"] + 5000), 0)
+        p = pulls[n - 1] if n else None
+        return f" [pull {n}: {p['name']}{' (boss)' if p.get('encounterID') else ''}]" if p else " [mellan pulls]"
     out = [f"Warcraft Logs: {rep.get('title', '')} – {fight['name']} {diff}, pull {number} av {len(same)}: {result}, "
            f"{mmss(length)} lång.",
            f"Länk: https://www.warcraftlogs.com/reports/{rep['code']}#fight={fight['id']}"]
@@ -493,7 +665,8 @@ def pull_text(rep, fight, player, data, stats, compact=False):
             src = ", ".join(s["name"] for s in (dmg.get("sources") or [])[:2])
             top = ", ".join(f"{a['name']} {short(a.get('total'))}" for a in sorted(
                 dmg.get("abilities") or [], key=lambda a: -a.get("total", 0))[:3])
-            out.append(f"- {mmss(d.get('timestamp', 0) - fight['startTime'])} {d['name']} ({d.get('icon', d.get('type', '')).replace('-', ' ')})"
+            t = d.get("timestamp", 0) - fight["startTime"]
+            out.append(f"- {mmss(t)}{where(t)} {d['name']} ({d.get('icon', d.get('type', '')).replace('-', ' ')})"
                        f" – {ability}{' (' + src + ')' if src else ''}; {top}")
         if len(deaths) > limit:
             out.append(f"- … och {len(deaths) - limit} till")
@@ -501,7 +674,7 @@ def pull_text(rep, fight, player, data, stats, compact=False):
         out.append("\nInga dödsfall.")
     taken = sorted(table("taken").get("entries") or [], key=lambda a: -a.get("total", 0))[:6 if compact else 10]
     if taken:
-        out.append("\nSkadan raiden tog, mest först (förmåga – från – totalt – träffar):")
+        out.append(f"\nSkadan {'gruppen' if key else 'raiden'} tog, mest först (förmåga – från – totalt – träffar):")
         for a in taken:
             hits = (a.get("hitCount") or 0) + (a.get("tickCount") or 0)
             out.append(f"- {a['name']} – {a.get('actorName', '?')} – {short(a.get('total'))} – {hits}")
@@ -528,6 +701,7 @@ def pull_text(rep, fight, player, data, stats, compact=False):
             who = ", ".join(f"{d['name']} {d.get('total', 0)}" for d in sorted(
                 g.get("details") or [], key=lambda d: -d.get("total", 0)))
             out.append(f"- {g['name']} – {who}")
+    out += defensive_text(fight, data, stats, deaths[:limit], where, compact)
     players = stats.get("players") or []
     if players:
         out.append("\nSpelarna (roll – spec klass – DPS – HPS – dödsfall" + (" – parse" if stats.get("ranked") else "") + "):")
@@ -541,6 +715,72 @@ def pull_text(rep, fight, player, data, stats, compact=False):
             mark = "  ← den här" if f is fight else ""
             out.append(f"- {i} – {res} – {mmss(f['endTime'] - f['startTime'])}{mark}")
     return "\n".join(out)
+
+
+def defensive_text(fight, data, stats, deaths, where, compact):
+    """The defensive side (punkt 18): defensives at each death and at the big hits, own defensives per player, CC."""
+    out = []
+    windows, cds = data.get("windows") or {}, data.get("cooldowns") or []
+    roles = {p["name"]: p["role"] for p in stats.get("players") or []}
+    up = lambda who, t: sorted({f"{n} ({k}{', från ' + src if k != 'egen' and src != who else ''})"  # noqa: E731
+                                for a, b, n, k, src in windows.get(who, []) if a - 300 <= t <= b + 300})
+    if deaths:
+        out.append("\nDefensiver vid dödsfallen (uppe när hen dog – egna defensiver/heals tidigare i "
+                   + ("nyckeln" if fight.get("keystoneLevel") else "pullen") + " med tid – sina egna som inte användes här):")
+        for d in deaths:
+            who, t = d["name"], d.get("timestamp", 0) - fight["startTime"]
+            before = {}  # name → its times, the one used last first
+            for c in cds:
+                if c["who"] == who and c["kind"] == "egen" and c["t"] <= t:
+                    before.setdefault(c["name"], []).append(mmss(c["t"]))
+            used = {c["name"] for c in cds if c["who"] == who and c["kind"] == "egen"}
+            unused = sorted((data.get("owndefs") or {}).get(who, set()) - used)
+            given = [f"{c['name']} från {c['who']} {mmss(c['t'])}" for c in cds
+                     if c["kind"] == "extern" and c.get("target") == who and t - 30000 <= c["t"] <= t]
+            out.append(f"- {mmss(t)}{where(t)} {who}: uppe: {', '.join(up(who, t)) or 'ingen'} – före: "
+                       + ("; ".join(f"{n} {', '.join(ts[-4:])}" for n, ts in
+                                     before.items()) or "inga")
+                       + (f" – extern på hen (30 s före): {', '.join(given)}" if given else "")
+                       + (f" – inte använda här (fanns i andra pulls): {', '.join(unused)}" if unused else ""))
+    hits = data.get("bighits") or []
+    if hits:
+        per = {}
+        for h in hits:
+            h["up"] = up(h["who"], h["t"])
+            per.setdefault(h["who"], []).append(h)
+        out.append(f"\nStora smällar (en träff ≥ {BIG_HIT * 100:.0f} % av spelarens maxliv före armor och defensiver, inte "
+                   "melee) – per spelare: antal – med egen defensiv uppe – med extern/raid uppe – utan någon"
+                   + ("" if compact else "; de största med tid, förmåga, % av maxliv och vad som var uppe") + ":")
+        for who, hs in sorted(per.items(), key=lambda x: (roles.get(x[0]) != "tanks", -len(x[1]))):
+            own = sum(1 for h in hs if any("(egen" in u for u in h["up"]))
+            other = sum(1 for h in hs if h["up"] and not any("(egen" in u for u in h["up"]))
+            line = f"- {who}{' (tank)' if roles.get(who) == 'tanks' else ''}: {len(hs)} – {own} – {other} – {len(hs) - own - other}"
+            if not compact:
+                top = sorted(hs, key=lambda h: -h["pct"])[:3]
+                line += "; " + "; ".join(f"{mmss(h['t'])}{where(h['t'])} {h['name']} {h['pct'] * 100:.0f} % "
+                                         f"({', '.join(h['up']) or 'ingen uppe'})" for h in top)
+            out.append(line)
+    if not compact:
+        players = [p["name"] for p in stats.get("players") or []] or sorted({c["who"] for c in cds})
+        rows = []
+        for who in players:
+            mine = {}
+            for c in cds:
+                if c["who"] == who and c["kind"] == "egen":
+                    mine[c["name"]] = mine.get(c["name"], 0) + 1
+            unused = sorted((data.get("owndefs") or {}).get(who, set()) - set(mine))
+            rows.append(f"- {who}: " + (", ".join(f"{n} {v}" for n, v in sorted(mine.items(), key=lambda x: -x[1])) or "inga")
+                        + (f" | inte här: {', '.join(unused)}" if unused else ""))
+        out.append("\nEgna defensiver och heals per spelare (antal gånger här | använda i andra pulls i rapporten men "
+                   "inte här – vad en karaktär har syns inte i loggen, bara vad den använde):")
+        out += rows
+    cc = data.get("cc") or {}
+    out.append("\nCC per spelare (stun, fear, knockback, root, silence m.m. – antal casts; interrupts står ovan):"
+               if cc else "\nIngen CC (stun, fear, knockback …) i loggen.")
+    for who, spells in sorted(cc.items(), key=lambda x: -sum(x[1].values())):
+        out.append(f"- {who}: {sum(spells.values())} – " + ", ".join(
+            f"{n} {v}" for n, v in sorted(spells.items(), key=lambda x: -x[1])))
+    return out
 
 
 def wcl_all(r, query):
@@ -566,10 +806,11 @@ def wcl_all(r, query):
         if player:
             parts.append(f"Användarens karaktär: {player.split('-')[0]}")
         for f in chosen:
-            data = fight_data(r, rep, f)
+            data = fight_data(r, rep, f, compact=True)
             stats = r.wcl_stats({"code": rep["code"], "fight": f["id"]})
             parts.append("\n══════ " + f["name"] + " ══════\n" + pull_text(rep, f, "", data, stats, compact=True))
-        parts.append("\nOBS: här finns inte skade-cooldowns eller vad som hände under en viss förmåga eller fiende. "
+        parts.append("\nOBS: här finns inte skade-cooldowns, de stora smällarna per spelare eller vad som hände under en "
+                     "viss förmåga eller fiende (smällarna: be om bossen för sig, `<boss>`). "
                      "Frågar användaren om en förmåga/mekanik/fiende (t.ex. vilka som körde cooldowns på något), be nu "
                      "om den igen (warcraftlogs `<boss> förmåga: <namn>`) innan du svarar – gissa inte ur listorna ovan.")
     except ToolError:

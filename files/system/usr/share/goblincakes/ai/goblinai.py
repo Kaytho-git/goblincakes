@@ -826,11 +826,14 @@ WCL_PROMPT = """
 
 Warcraft Logs: frågar användaren om en pull, wipe, kill eller raidkväll ("varför wipade vi?",
 "vem dog först?", "hur gick Kith'ix?"), svara med BARA ett kodblock märkt ```warcraftlogs med vad
-som söks: `senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, eller en länk till rapporten.
+som söks: `senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, `senaste nyckeln` (en hel Mythic+-nyckel),
+eller en länk till rapporten.
 Vill användaren ha alla bossar i en rapport/kväll, skriv `alla` (+ länken om du har den) – då får du
 varje boss på en gång (killen, annars sista pullen). En ny länk = hämta igen, använd aldrig gammal data.
 Du får då pullens data: dödsfall, skadan raiden tog, cooldowns med tider (raid, lust, på andra, egna),
-interrupts, dispels och alla spelare med DPS/HPS.
+interrupts, dispels, alla spelare med DPS/HPS – och den defensiva sidan för hela gruppen: vilka defensiver
+som var uppe när någon dog, de stora smällarna per spelare (med eller utan defensiv uppe), varje spelares
+egna defensiver och CC per spelare. I en nyckel står varje tid med vilken pull (boss eller trash) den var i.
 Gäller frågan bara användarens parse ("vilken parse fick jag på …?") – använd wowstats, inte warcraftlogs:
 WoW Stats har den riktiga parsen även för ej rankade nycklar (Warcraft Logs visar då samma siffra för alla).
 
@@ -846,7 +849,8 @@ Regler för svaret (viktigt):
 - Använd bara det som står i datan. Hitta aldrig på mekaniker, förmågor, faser eller orsaker som
   inte står där – skriv hellre "det syns inte i datan".
 - Saknas något du behöver, hämta det med ett nytt block i stället för att gissa eller ge upp.
-- Räkna inte fram egna procent eller betyg; ta siffrorna som de står.
+- Räkna inte fram egna procent eller betyg; ta siffrorna som de står. Defensiverna och CC: säg vad som
+  hände (vem hade vad uppe, vem använde vad) – ge inga betyg eller poäng.
 - Namnge rätt spelare: den som står i datan, med samma stavning.
 - Analysera: i vilken ordning och av vad folk dog (de första dödsfallen avgör oftast), skada från
   förmågor som går att undvika, om cooldowns kom i tid, och jämför med de andra pullsen.
@@ -1691,10 +1695,11 @@ def tools_for(keys, project, messages):
         tools["warcraftlogs"] = tool(
             "Hämtar pullen från Warcraft Logs", WCL_PROMPT, WCL_GUIDE, wcl, "warcraftlogs",
             "När användaren frågar vad som hände i en pull, wipe, kill eller raidkväll (\"varför wipade vi?\", \"vem "
-            "dog först?\", \"hur gick Kith'ix?\", en förmåga eller mekanik): dödsfall, skadan raiden tog, cooldowns med "
-            "tider, interrupts, dispels och alla spelare med DPS/HPS från Warcraft Logs. Inte användarens egen parse "
+            "dog först?\", \"hur gick Kith'ix?\", \"hur gick nyckeln?\", en förmåga eller mekanik): dödsfall, skadan raiden tog, "
+            "cooldowns med tider, interrupts, dispels, defensiver vid dödsfall och stora smällar, CC per spelare och alla "
+            "spelare med DPS/HPS från Warcraft Logs. Inte användarens egen parse "
             "eller senaste boss (då wowstats). En ny länk = hämta igen.",
-            "`senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, en länk till rapporten; `alla` (+ länken) = varje boss i "
+            "`senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, `senaste nyckeln` (Mythic+), en länk till rapporten; `alla` (+ länken) = varje boss i "
             "rapporten; en förmåga/mekanik/fiende: `<boss> förmåga: <namn>` (t.ex. `Ula'tek förmåga: Venomous Heart`)")
     only = only_tools(messages)
     if only and not any(k.startswith("mcp_") for k in only):
@@ -5107,7 +5112,7 @@ def words(text):
     return {w for w in re.findall(r"[\wåäö]{3,}", str(text).casefold()) if w not in STOP_WORDS}
 
 
-TOOL_HINTS = {"warcraftlogs": r"logs?\b|pull|boss|wcl|wipe|kill", "wowfel": r"bugsack|lua|tillägg|addon|fel i wow",
+TOOL_HINTS = {"warcraftlogs": r"logs?\b|pull|boss|wcl|wipe|kill|nyckel|m\+|defensiv", "wowfel": r"bugsack|lua|tillägg|addon|fel i wow",
               "wowapi": r"\.lua\b|\.toc\b|tillägg|addon|wow-?funktion|api",
               "sport": r"\blag\b|match|tabell|serie", "wiki": r"vem var|vad är|wikipedia|historia|betyder|uppslag",
               "systemfel": r"krasch|fel|startar inte|journal",
