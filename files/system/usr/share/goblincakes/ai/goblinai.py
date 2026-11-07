@@ -950,7 +950,7 @@ spela <låt|album|artist> <artist> - <titel> – spela en låt, ett album eller 
 notis <text>                              – visa en notis nu ("Rubrik: text" ger en rubrik)
 urklipp <text>                            – lägg texten i urklippet (det gamla går att få tillbaka)
 urklipp vad                               – vad som ligger i urklippet
-spara <sökväg> ; <text>                   – spara texten (Markdown) som PDF/Word/text efter ändelsen, t.ex. `spara ~/Dokument/Rapport.pdf ; # Rapport …` – i mappen användaren sa, aldrig en egen undermapp
+spara <sökväg> ; <text>                   – spara texten (Markdown) som PDF/Word/text efter ändelsen, t.ex. `spara ~/Dokument/Rapport.pdf ; # Rapport …` – i mappen användaren sa; sa hen ingen: en passande undermapp i ~/Dokument
 fönster <program> [skärm <1|2|andra|vänster|höger>] [fram|maximera|fullskärm|minimera|normal|stäng|avsluta] – ett
                                             fönster, flera saker på en gång (fönster goblin ai skärm andra fullskärm)
 fönster lista                             – vilka fönster som är öppna och var
@@ -1462,8 +1462,9 @@ DESK_FNS = [
     look_fn("spara_dokument", "Sparar en text som en fil åt användaren, direkt: PDF (standard), Word (.docx), "
             "OpenDocument (.odt), text (.txt) eller Markdown (.md) – efter filens ändelse. Ber användaren om en PDF/ett "
             "dokument (\"spara det som PDF i Dokument\") gör du det med det här verktyget. Spara i EXAKT den mapp användaren "
-            "sa – hitta aldrig på en egen undermapp (\"i Dokument\" = ~/Dokument/namn.pdf); sa användaren ingen mapp: "
-            "~/Dokument. Bara i hemmappen; finns "
+            "sa (\"i Dokument\" = ~/Dokument/namn.pdf, ingen undermapp). Sa användaren INGEN mapp: välj själv en passande "
+            "undermapp i ~/Dokument efter vad det är (recept → ~/Dokument/Recept, rapporter → ~/Dokument/Rapporter) "
+            "och säg var filen hamnade. Bara i hemmappen; finns "
             "filen redan får den nytt namn (aldrig över en gammal). Texten skriver du HELA själv i Markdown (# rubrik, "
             "listor) – innehållet, inte en hänvisning till ett tidigare svar, ordagrant och utan att korta det – och "
             "med källorna (länkarna) sist när det kom från nätet.",
