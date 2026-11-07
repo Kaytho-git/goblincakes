@@ -908,7 +908,9 @@ def newest_log():
 def wow_running():
     if os.environ.get("GOBLINCAKES_RECORDER_WOW"):  # tests: pretend WoW runs
         return True
-    return subprocess.run(["pgrep", "-f", r"/_[a-z_]+_/Wow[A-Za-z]*\.exe"],
+    # Started from Battle.net the game is "Z:\\…\\_retail_\\WoW.exe" – backslashes and a capital W (7 Nov: no
+    # recording since the user began starting it that way; the Steam shortcut gave "/_retail_/Wow.exe")
+    return subprocess.run(["pgrep", "-if", r"[/\\]_[a-z_]+_[/\\]wow[a-z]*\.exe"],
                           capture_output=True).returncode == 0
 
 
