@@ -1814,6 +1814,39 @@ def clean_arg(value):
     return CALL_TAG.sub(" ", value).strip() if isinstance(value, str) else value
 
 
+def fix_args(own, args):
+    """Her fields put right, however the call came (a real call, a code block, written as text) – qwen3.5 in the
+    window 7 Nov: the next field inside a value ("~/…/MainWindowUI.lua text RefreshUi fran_rad 360"), a misspelled
+    field ("fråga_rad", "fråna_rad"), field=value glued on, the folder inside the search words (searched all of ~)."""
+    props = list(own["props"])
+    args = {near_field(k, props): v for k, v in dict(args).items()}
+    for _ in range(len(props)):  # a value split off can hold the next field too
+        changed = False
+        for key in [k for k in props if isinstance(args.get(k), str)]:
+            for other in props:
+                if other == key or look_arg(args, other):
+                    continue
+                hit = re.search(rf"\s+{other}\s*[=:]?\s*[\"']?(.+?)[\"']?\s*$", args[key])
+                if hit:
+                    args[other], args[key], changed = hit.group(1), args[key][:hit.start()].strip(), True
+            for name, value in re.findall(r"\s+([\wåäö]+)\s*=\s*[\"']?([^\s\"']+)[\"']?", args.get(key, "")):
+                field = near_field(name, props)
+                if field in props and field != key and not look_arg(args, field):
+                    args[field], changed = value, True
+                    args[key] = re.sub(rf"\s+{re.escape(name)}\s*=\s*[\"']?{re.escape(value)}[\"']?", "", args[key]).strip()
+        if not changed:
+            break
+    if "mapp" in props and not look_arg(args, "mapp"):
+        for key in [k for k in props if k != "mapp" and isinstance(args.get(k), str)]:
+            hit = re.search(r"\s+((?:~|/)\S+)\s*$", args[key])
+            if hit:
+                args["mapp"], args[key] = hit.group(1), args[key][:hit.start()].strip()
+    for key in [k for k in props if k.endswith("rad") and isinstance(args.get(k), str)]:
+        number = re.search(r"\d+", args[key])  # "330 till rad 380" → 330
+        args[key] = number.group(0) if number else args[key]
+    return args
+
+
 def tool_call_block(call, tools):
     """A tool call from the model as the code block it would have written: ```sport\nAnaheim Ducks\n```"""
     fn = near_fn((call.get("function") or {}).get("name", ""), tools)
@@ -1839,27 +1872,7 @@ def tool_call_block(call, tools):
     args = {k: clean_arg(v) for k, v in args.items()} if isinstance(args, dict) else clean_arg(args)
     own = next((f for f in tools[word]["fns"] if f["fn"] == fn), None)
     if own and isinstance(args, dict) and not own.get("schema"):
-        # The next field inside a value – "sokvag": "~/…/MainWindowUI.lua fran_rad 360" (qwen3.5 via Ollama, 7 Nov)
-        # A field she misspelled ("fråga_rad", "fråna_rad" for fran_rad – in the window 7 Nov): the nearest one
-        args = {near_field(k, own["props"]): v for k, v in args.items()}
-        for key in list(args):
-            for other in own["props"]:
-                hit = isinstance(args.get(key), str) and other != key and not look_arg(args, other) and re.search(
-                    rf"\s+{other}\s*[=:]?\s*[\"']?(.+?)[\"']?\s*$", args[key])
-                if hit:
-                    args[other], args[key] = hit.group(1), args[key][:hit.start()].strip()
-            # "fråga_rad=367" glued on: a field=value whose name is near one of them
-            for name, value in re.findall(r"\s+([\wåäö]+)\s*=\s*[\"']?([^\s\"']+)[\"']?", str(args.get(key, ""))):
-                field = near_field(name, own["props"])
-                if field in own["props"] and field != key and not look_arg(args, field):
-                    args[field] = value
-                    args[key] = re.sub(rf"\s+{re.escape(name)}\s*=\s*[\"']?{re.escape(value)}[\"']?", "", args[key]).strip()
-        if "mapp" in own["props"] and not look_arg(args, "mapp"):
-            # The folder inside the search words: "RefreshUi ~/kakan-prov/gear-planner/MainWindowUI.lua" searched all of ~
-            for key in [k for k in own["props"] if k != "mapp"]:
-                hit = isinstance(args.get(key), str) and re.search(r"\s+((?:~|/)\S+)\s*$", args[key])
-                if hit:
-                    args["mapp"], args[key] = hit.group(1), args[key][:hit.start()].strip()
+        args = fix_args(own, args)
     if own and own.get("schema"):  # MCP: the fields as they are (numbers, lists), not as a line of words
         return f"```{word}\n{own['line'](args if isinstance(args, dict) else {})}\n```"
     if own:  # a tool with its own fields → the code block's line (a model may still send the whole line in one)
@@ -1887,7 +1900,7 @@ def written_call(body, tools):
                 args = dict(re.findall(r"(\w+)\s*=\s*[\"']([^\"']*)[\"']", m.group(2) or ""))
                 if not args and (m.group(2) or m.group(3) or "").strip():
                     args = {next(iter(f["props"])): (m.group(2) or m.group(3)).strip().strip("\"'")}
-                return word, " ".join(f["line"](args).split())
+                return word, " ".join(f["line"](fix_args(f, args)).split())
     # A tool's name as a shell command – ```bash\nwowfel\n``` (gemma4, 30 Oct: "wowfel: kommandot finns inte"):
     # the tool, when no program has that name
     word = TOOL_WORDS.get(m.group(1)) or next((w for w, t in tools.items() if m.group(1) in (w, t["fn"])), None)
@@ -1963,7 +1976,7 @@ def fields_call(fn, body, tools):
                         re.findall(r"^\s*(\w+)\s*(?:[=:]|\s(?=\S))\s*(.+?)\s*$", body, re.M)
                         if "=" in body or ":" in body or k.strip() in f["props"]}
                 if args:
-                    return word, " ".join(f["line"](args).split())
+                    return word, " ".join(f["line"](fix_args(f, args)).split())
     return None
 
 
