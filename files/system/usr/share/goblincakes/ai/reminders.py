@@ -610,9 +610,20 @@ def run():
 
 # ── A question at its time ──────────────────────────────────────────────────────
 
+PLAN_REMIND = re.compile(r"^\s*(?:påminn?|paminn?|påmin|säg till|väck)\s+(?:mig\s+)?(?:att\s+|om\s+(?:att\s+)?)?(.+)$",
+                         re.I | re.S)
+
+
 def plan_step(when, text, plan):
     """A step of /planering at its time (the user's decision 7 Nov): Kakan DOES it then with her tools – a "fråga"
-    with the plan along (only the user's own steps: nothing she reads adds a step). Returns the id or an error."""
+    with the plan along (only the user's own steps: nothing she reads adds a step). "Påminn mig att handla" is a plain
+    reminder at once – no model (the first test: she set a new reminder for the same minute, slowly). Returns the id."""
+    m = PLAN_REMIND.match(text)
+    if m and m.group(1).strip():
+        what = " ".join(m.group(1).split())[:300]
+        item = _new("tid", at=when.timestamp(), text=what[:1].upper() + what[1:])
+        _add(item)
+        return item["id"]
     item = _new("fråga", at=when.timestamp(), text=" ".join(text.split())[:1000], plan=plan[:3000])
     _add(item)
     return item["id"]

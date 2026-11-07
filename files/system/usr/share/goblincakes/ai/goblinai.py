@@ -176,6 +176,10 @@ def typed_question(messages):
 
 
 def needs_thinking(messages):
+    if any(m.get("plan") for m in messages if m["role"] == "user"):
+        # a /planering step is a small job – its text is long only because the plan comes along (7 Nov: "väldigt
+        # mycket tänkande" for a reminder)
+        return False
     last = next((m for m in reversed(messages) if m["role"] == "user"), {})
     text = last.get("content") if isinstance(last.get("content"), str) else ""
     if (text.startswith("[Svar från verktyget") and not re.match(r"\[Svar från verktyget (?:sök|wiki|sport) ", text)
