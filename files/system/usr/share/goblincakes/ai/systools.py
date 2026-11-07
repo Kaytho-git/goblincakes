@@ -372,14 +372,20 @@ def find_places():
 FIND_SKIP = ("/proc", "/sys", "/dev", "/run", str(HOME / ".cache"), str(HOME / ".local/share/Trash"),
              str(HOME / ".ssh"), str(HOME / ".gnupg"), str(HOME / ".local/share/keyrings"))
 # A key inside an ordinary file (recorder.json's cs2Token, OBS's password): the value is hidden
-SECRET_VALUE = re.compile(r"((?:token|secret|passw\w*|api[_-]?key|\w*key|auth\w*|cookie|bearer)\w*[\"']?\s*[:=]\s*[\"']?)"
+SECRET_VALUE = re.compile(r"((?:token|secret|passw\w*|api[_-]?key|\w*key|auth\w*|cookie|bearer)\w*[\"']?\s*[:=]\s*[\"']?(?:(?:bearer|basic|token)\s+)?)"
                           r"([^\s\"',;}]{6,})", re.I)
 READ_LINES = 150
 READ_BYTES = 2_000_000  # bigger files: only the end is read
 
 
+CODE_NAME = re.compile(r"^[A-Za-z_]\w{0,23}(?:[.:][A-Za-z_]\w{0,23})+(?:\(\))?$")  # preset.key, self:GetKey()
+HIDDEN = "[dolt av Goblin AI]"
+
+
 def hide(line):
-    return SECRET_VALUE.sub(lambda m: m.group(1) + "***", line)
+    """A key's value hidden – marked so no AI takes it for what the file says (7 Nov: `key = preset.key,` became
+    `key = ***,` and Haiku and Sonnet both said the Lua was broken). Code (a name with dots) is no key."""
+    return SECRET_VALUE.sub(lambda m: m.group(0) if CODE_NAME.match(m.group(2)) else m.group(1) + HIDDEN, line)
 
 
 class SearchError(Exception):
