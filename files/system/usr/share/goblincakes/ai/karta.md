@@ -253,13 +253,13 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   15 rader var. Samtalet efter /laga stannar i lagningen (bara de tre verktygen) tills användaren skriver /ny.
   Andras tillägg och GOBLINCAKES egna filer lagas inte så. Kod: laga_message/laga_chat/LAGA_GUIDE i goblinai.py.
 - /planering (punkt 20, 7 nov): Goblin AI (inte du) frågar användaren ett steg i taget – Vad ska göras? När? (nu,
-  16:00, om 20 min, imorgon 8) – till "klart", visar planen (kör / stryk <nr> / avbryt). Stegen "nu" får du ett i
+  16:00, om 20 min, imorgon 8) – till "klart", visar planen (kör / ändra <nr> / lägg till [efter|före <nr>] / stryk <nr> / avbryt). Stegen "nu" får du ett i
   taget i fönstret, från noll med hela planen som bakgrund och svaret från steget före (plan_message/plan_chat i
   goblinai.py); väntar ett kort på Tillåt väntar planen. Ordningen = användarens: "nu" efter ett steg med tid görs
   direkt efter det steget. Efter "nu"-stegen görs resten om till rader datorn kör utan AI (plan_actions: öppna/spela/
   musik/volym/notis/spel/fönster, kontrollerade – filen finns, adressen kom från planen) eller "jag gör det då"; de
   läggs i vakt.json som "plan" (reminders.plan_chain/run_plan, väntar under spel) – "påminn mig att …" = vanlig
-  påminnelse. Steg en annan dag än idag står också i kalendern (Merkuro, utan kalenderns egen påminnelse). Planen är bara användarens egna svar:
+  påminnelse. Har ett steg i kedjan gått via dig öppnas Goblin AI med samtalet (inte under spel). Steg en annan dag än idag står också i kalendern (Merkuro, utan kalenderns egen påminnelse). Planen är bara användarens egna svar:
   inget du läser lägger till steg. Fortsätter inte planen: användaren skriver fortsätt eller avbryt.
 - Kakans reserv (punkt 17, 7 nov): Claude Code eller Codex med användarens eget abonnemang tar frågan åt dig när
   lokala AI:n vilar (ett spel kör) och när användaren trycker "Försök igen med Claude Haiku" (eller /haiku, /sonnet;

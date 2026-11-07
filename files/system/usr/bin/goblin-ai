@@ -1441,8 +1441,8 @@ class Backend(QObject):
         return "\n".join(f"{n}. {self._plan_when(st['at'])} – {st['text']}" for n, st in enumerate(self._plan["steps"], 1))
 
     def _plan_shown(self, head="**Planen:**"):
-        self._plan_post(f"{head}\n\n{self._plan_text()}\n\nSkriv **kör** så börjar jag, **stryk 2** tar bort steg 2, "
-                        "**avbryt** avslutar.")
+        self._plan_post(f"{head}\n\n{self._plan_text()}\n\nSkriv **kör** så börjar jag – eller **ändra 2**, **lägg till** "
+                        "(*lägg till efter 2*), **stryk 2**, **avbryt**.")
 
     def _plan_answer(self, text):
         import reminders  # noqa: PLC0415
@@ -1456,22 +1456,38 @@ class Backend(QObject):
             self._plan = None
             return self._plan_post("Planeringen är avbruten – inget har gjorts.")
         if p["waiting"] == "what":
-            if word in self.PLAN_DONE or word in self.PLAN_GO:
+            k = p.get("edit")  # ändra N / lägg till: the step being written (0-based), else a new one last
+            if k is None and (word in self.PLAN_DONE or word in self.PLAN_GO):
                 if not p["steps"]:
                     self._plan = None
                     return self._plan_post("Inga steg – planeringen är avslutad.")
                 p["waiting"] = "ok"
                 return self._plan_shown()
-            p["steps"].append({"text": text.strip(), "at": None})
+            if k is None:
+                p["steps"].append({"text": text.strip(), "at": None})
+                p["edit_new"] = None
+            elif word not in ("samma", "behåll", "behåll den"):
+                p["steps"][k]["text"] = text.strip()
             p["waiting"] = "when"
-            return self._plan_post("**När?** **nu**, ett klockslag (*16:00*), *om 20 min* eller *imorgon 8*.")
+            return self._plan_post("**När?** **nu**, ett klockslag (*16:00*), *om 20 min* eller *imorgon 8*"
+                                   + (" – **samma** behåller tiden." if k is not None and p.get("keep_time") else "."))
         if p["waiting"] == "when":
-            if word not in self.PLAN_NOW:
+            k = p.get("edit")
+            target = p["steps"][-1] if k is None else p["steps"][k]
+            if k is not None and p.get("keep_time") and word in ("samma", "behåll", "behåll den"):
+                pass
+            elif word in self.PLAN_NOW:
+                target["at"] = None
+            else:
                 at = reminders.parse_at(text)
                 if at is None:
                     return self._plan_post(f"Förstår inte när \"{text.strip()}\" är – skriv **nu**, *16:00*, "
                                            "*om 20 min* eller *imorgon 8*.")
-                p["steps"][-1]["at"] = at.timestamp()
+                target["at"] = at.timestamp()
+            if k is not None:  # back to the plan after ändra / lägg till
+                p["edit"] = p["keep_time"] = None
+                p["waiting"] = "ok"
+                return self._plan_shown()
             p["waiting"] = "what"
             return self._plan_post(f"**Steg {len(p['steps']) + 1}: Vad ska göras?** – eller **klart** om det var allt.")
         # "ok": the plan is shown
@@ -1485,8 +1501,28 @@ class Backend(QObject):
                 self._plan = None
                 return self._plan_post("Inga steg kvar – planeringen är avslutad.")
             return self._plan_shown()
+        m = re.fullmatch(r"ändra\s+(?:steg\s+)?(\d+)", word)
+        if m:  # the user, 7 Nov: changing a time meant starting over – and a step was lost on the way
+            n = int(m.group(1))
+            if not 1 <= n <= len(p["steps"]):
+                return self._plan_post(f"Det finns inget steg {n}.")
+            p["edit"], p["keep_time"], p["waiting"] = n - 1, True, "what"
+            st = p["steps"][n - 1]
+            return self._plan_post(f"**Steg {n}: Vad ska göras?** Nu: *{st['text']}* ({self._plan_when(st['at'])}) – "
+                                   "skriv det nya, eller **samma** för att behålla texten.")
+        m = re.fullmatch(r"lägg till(?:\s+(?:ett\s+)?(?:steg\s+)?(?:efter|före)\s+(?:steg\s+)?(\d+))?(?:\s+steg)?", word)
+        if m:
+            n = int(m.group(1)) if m.group(1) else len(p["steps"])
+            if not 0 <= n <= len(p["steps"]):
+                return self._plan_post(f"Det finns inget steg {n}.")
+            if "före" in word:
+                n -= 1
+            p["steps"].insert(n, {"text": "", "at": None})
+            p["edit"], p["keep_time"], p["waiting"] = n, False, "what"
+            return self._plan_post(f"**Nytt steg {n + 1}: Vad ska göras?**")
         if word not in self.PLAN_GO:
-            return self._plan_post("Skriv **kör**, **stryk <nr>** eller **avbryt**.")
+            return self._plan_post("Skriv **kör**, **ändra <nr>**, **lägg till** (*lägg till efter 2*), **stryk <nr>** "
+                                   "eller **avbryt**.")
         self._plan_run()
 
     def _plan_run(self):

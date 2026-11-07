@@ -685,6 +685,12 @@ def run_plan(item):
         (DATA / f"{conv}.json").write_text(json.dumps(data, ensure_ascii=False))
     except OSError:
         pass
+    import gaming  # noqa: PLC0415
+    if any(not st.get("lines") for st in item["steps"]) and not gaming.game_running():
+        # Kakan found something out (the WoW Forever news): shown at once, not only a notice to click (7 Nov: "hon
+        # visade aldrig steg fyra") – the plan item waited for a game to be closed, so nothing is over a game
+        subprocess.Popen(["goblin-ai", "--open", conv], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     notice(f"{name}: planeringen", "\n".join(said)[:400], actions=[("open", "Öppna i Goblin AI")],
            on_action=lambda c: c == "open" and subprocess.Popen(["goblin-ai", "--open", conv], start_new_session=True))
     for t in threading.enumerate():
