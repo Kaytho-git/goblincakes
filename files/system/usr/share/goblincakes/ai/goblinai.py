@@ -850,7 +850,8 @@ Regler för svaret (viktigt):
   inte står där – skriv hellre "det syns inte i datan".
 - Saknas något du behöver, hämta det med ett nytt block i stället för att gissa eller ge upp.
 - Räkna inte fram egna procent eller betyg; ta siffrorna som de står. Defensiverna och CC: säg vad som
-  hände (vem hade vad uppe, vem använde vad) – ge inga betyg eller poäng.
+  hände (vem hade vad uppe, vem använde vad) – ge inga betyg eller poäng, och skriv inte vad en enskild
+  spelare "behöver" bli bättre på. Tips gäller i så fall hela gruppen.
 - Namnge rätt spelare: den som står i datan, med samma stavning.
 - Analysera: i vilken ordning och av vad folk dog (de första dödsfallen avgör oftast), skada från
   förmågor som går att undvika, om cooldowns kom i tid, och jämför med de andra pullsen.
@@ -2410,6 +2411,11 @@ def own_bosses():
 PARSE_WORDS = re.compile(r"\b(?:parse\w*|median|ilvl|item level|sämst|bäst|förbättra|snitt\w*)\b", re.I)
 
 
+# The latest Mythic+ key (punkt 18, 7 Nov: qwen3.5 searched the web for "senaste nyckeln" and found hockey)
+KEY_Q = re.compile(r"\b(?:senaste|sista|förra|vår|dagens|kvällens)\s+(?:m\+\s*|mythic\+?\s*)?(?:nyckel|nyckeln|key|keyn)\b"
+                   r"|(?<!\w)m\+|\bmythic\s*(?:\+|plus)", re.I)
+
+
 # Only words about the fight itself – "länk" made "ge mig en länk till mina bilder map" fetch Ula'tek again (25 Oct)
 FOLLOW_UP = re.compile(r"\b(?:loggen|logg|pullen|killen|wipen|striden|bossen|raiden|samma pull)\b", re.I)
 
@@ -2427,6 +2433,8 @@ def own_fight(question, tools, messages=None):
         return "goblincakes", "anticheat secure boot easy anti-cheat"
     bosses = [b for b in own_bosses() if len(b) >= 4]
     boss = max((b for b in bosses if b in low), key=len, default="")
+    if not boss and KEY_Q.search(low) and not PARSE_WORDS.search(low) and "warcraftlogs" in tools:
+        return "warcraftlogs", "senaste nyckeln"
     if not boss and messages and FOLLOW_UP.search(low):
         # "ge mig länken till loggen" after a question about Ula'tek: the boss from the question before
         # (25 Oct: the latest report – a Mythic+ – was linked instead)
@@ -2560,7 +2568,7 @@ def own_data_question(question, tools):
     if not isinstance(question, str):
         return False
     text = question[:600]
-    if any(t in tools for t in OWN_TOOLS) and (OWN_DATA.search(text) or OWN_FIGHT.search(text)
+    if any(t in tools for t in OWN_TOOLS) and (OWN_DATA.search(text) or OWN_FIGHT.search(text) or KEY_Q.search(text)
                                                or any(b in text.casefold() for b in own_bosses() if len(b) >= 4)):
         return True
     if "sport" in tools:

@@ -629,7 +629,7 @@ def pull_text(rep, fight, player, data, stats, compact=False):
         diff = f"Mythic+ +{fight['keystoneLevel']}"
         bonus = fight.get("keystoneBonus")
         result = ("KLAR" if fight.get("kill") else "INTE KLAR") + (
-            "" if bonus is None else f", {'i tid (+' + str(bonus) + ')' if bonus else 'inte i tid'}")
+            "" if bonus is None else f", {'i tid – nyckeln gick upp ' + str(bonus) + ' nivå' + ('er' if bonus > 1 else '') if bonus else 'inte i tid'}")
     pulls = fight.get("dungeonPulls") or []
 
     def where(t):  # in a key: which pull (boss or trash, by its main enemy) the time was in
@@ -725,8 +725,9 @@ def defensive_text(fight, data, stats, deaths, where, compact):
     up = lambda who, t: sorted({f"{n} ({k}{', från ' + src if k != 'egen' and src != who else ''})"  # noqa: E731
                                 for a, b, n, k, src in windows.get(who, []) if a - 300 <= t <= b + 300})
     if deaths:
-        out.append("\nDefensiver vid dödsfallen (uppe när hen dog – egna defensiver/heals tidigare i "
-                   + ("nyckeln" if fight.get("keystoneLevel") else "pullen") + " med tid – sina egna som inte användes här):")
+        out.append("\nDefensiver vid dödsfallen (UPPE VID DÖDEN = det enda som skyddade just då; ANVÄNT TIDIGARE = egna "
+                   "defensiver/heals tidigare i " + ("nyckeln" if fight.get("keystoneLevel") else "pullen")
+                   + " med tid, var INTE uppe vid döden om de inte också står under uppe):")
         for d in deaths:
             who, t = d["name"], d.get("timestamp", 0) - fight["startTime"]
             before = {}  # name → its times, the one used last first
@@ -737,11 +738,11 @@ def defensive_text(fight, data, stats, deaths, where, compact):
             unused = sorted((data.get("owndefs") or {}).get(who, set()) - used)
             given = [f"{c['name']} från {c['who']} {mmss(c['t'])}" for c in cds
                      if c["kind"] == "extern" and c.get("target") == who and t - 30000 <= c["t"] <= t]
-            out.append(f"- {mmss(t)}{where(t)} {who}: uppe: {', '.join(up(who, t)) or 'ingen'} – före: "
+            out.append(f"- {mmss(t)}{where(t)} {who}: UPPE VID DÖDEN: {', '.join(up(who, t)) or 'ingen'} | ANVÄNT TIDIGARE: "
                        + ("; ".join(f"{n} {', '.join(ts[-4:])}" for n, ts in
                                      before.items()) or "inga")
-                       + (f" – extern på hen (30 s före): {', '.join(given)}" if given else "")
-                       + (f" – inte använda här (fanns i andra pulls): {', '.join(unused)}" if unused else ""))
+                       + (f" | extern på hen (30 s före): {', '.join(given)}" if given else "")
+                       + (f" | inte använda här (fanns i andra pulls): {', '.join(unused)}" if unused else ""))
     hits = data.get("bighits") or []
     if hits:
         per = {}
@@ -749,15 +750,15 @@ def defensive_text(fight, data, stats, deaths, where, compact):
             h["up"] = up(h["who"], h["t"])
             per.setdefault(h["who"], []).append(h)
         out.append(f"\nStora smällar (en träff ≥ {BIG_HIT * 100:.0f} % av spelarens maxliv före armor och defensiver, inte "
-                   "melee) – per spelare: antal – med egen defensiv uppe – med extern/raid uppe – utan någon"
-                   + ("" if compact else "; de största med tid, förmåga, % av maxliv och vad som var uppe") + ":")
+                   "melee), per spelare" + ("" if compact else "; de största med tid, förmåga, % av maxliv och vad som var uppe") + ":")
         for who, hs in sorted(per.items(), key=lambda x: (roles.get(x[0]) != "tanks", -len(x[1]))):
             own = sum(1 for h in hs if any("(egen" in u for u in h["up"]))
             other = sum(1 for h in hs if h["up"] and not any("(egen" in u for u in h["up"]))
-            line = f"- {who}{' (tank)' if roles.get(who) == 'tanks' else ''}: {len(hs)} – {own} – {other} – {len(hs) - own - other}"
+            line = (f"- {who}{' (tank)' if roles.get(who) == 'tanks' else ''}: {len(hs)} smällar – {own} med egen defensiv "
+                    f"uppe, {other} med bara extern/raid uppe, {len(hs) - own - other} utan någon defensiv")
             if not compact:
                 top = sorted(hs, key=lambda h: -h["pct"])[:3]
-                line += "; " + "; ".join(f"{mmss(h['t'])}{where(h['t'])} {h['name']} {h['pct'] * 100:.0f} % "
+                line += ". Största: " + "; ".join(f"{mmss(h['t'])}{where(h['t'])} {h['name']} {h['pct'] * 100:.0f} % "
                                          f"({', '.join(h['up']) or 'ingen uppe'})" for h in top)
             out.append(line)
     if not compact:
