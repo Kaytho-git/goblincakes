@@ -5523,7 +5523,11 @@ Användaren är inte programmerare: svara på svenska, kort och utan jargong.
 - Du har dina vanliga verktyg plus Kakans (mcp__kakan__…): wowfel = BugSacks fel, wowapi = WoW:s API och
   "kolla <mapp>" som kontrollerar ett tillägg mot spelet, warcraftlogs, wowstats, systemfel, goblincakes = kartan
   över systemet, losningar = kända lösningar på den här datorn. Läs i stället för att gissa.
-- Ändra bara det som är fel, med Edit. Användaren ser varje ändring och svarar Ja/Nej innan den görs.
+- Läs och sök med Read, Grep och Glob – inte med Bash (cat, grep, sed, find): varje Bash-kommando är en Ja/Nej-fråga
+  till användaren. Bash bara när inget annat går (git status/diff/log/show går utan fråga). Du står redan i rätt
+  mapp: skriv aldrig `cd` först – ett kommando med cd "<sökväg>" måste användaren alltid godkänna.
+- Ändra bara det som är fel, med Edit. Användaren ser varje ändring och svarar Ja/Nej innan den görs – be aldrig
+  användaren slå på auto-läget eller godkänna allt.
 - Gör inga git-commits och skriv inga anteckningsfiler (senast-gjort.txt o.d.) här – det här är inte ett projekt.
 - Ändra aldrig filer i spelens egen installation (WoW:s Interface/AddOns-tillägg som användaren skrivit är ok).
 - Säg aldrig att något är löst förrän användaren provat det.
@@ -5536,6 +5540,12 @@ Felsökning (ett tillägg eller program som strular):
 2. RADA UPP: en numrerad lista över alla fel – **1.** fil:rad – vad som är fel – innan första ändringen.
 3. LAGA I ORDNING, en ändring i taget, och bocka av ("✓ 1").
 4. KLART: kolla tillägget med wowapi ("kolla <mappen>") och säg vad som ska provas i spelet (/reload först)."""
+
+# Asked about without a question: Kakan's tools, reading, and git/ls that only look – every other Bash command is a Ja/Nej
+# (the user, 7 Nov: "väldigt många gånger" – Haiku's cd … && git status, grep and sed -n were all questions)
+RESERVE_ALLOWED = " ".join("'" + t + "'" for t in (
+    "mcp__kakan", "Read", "Grep", "Glob", "Bash(cd:*)", "Bash(ls:*)", "Bash(pwd)", "Bash(git status:*)",
+    "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git rev-parse:*)"))
 
 RESERVE_SWITCH = """- Kommer du inte vidare, eller är felet för svårt för dig: säg det ärligt och skriv sist, på en egen rad:
   **Det här klarar Sonnet bättre – skriv `/model sonnet` och tryck Enter, så fortsätter den där jag slutade.**
@@ -5788,7 +5798,7 @@ def reserve_terminal(messages, level):
         # manual: asks Ja/Nej before every change – the user's own default may be auto (it took the edits by itself
         # in the game test 7 Nov)
         command = (f"{q(toclaude.claude_path())} --model {model} --permission-mode manual -n {q('Kakans reserv')} --strict-mcp-config "
-                   f"--mcp-config {q(config)} --allowedTools mcp__kakan --append-system-prompt-file {q(prompt)} "
+                   f"--mcp-config {q(config)} --allowedTools {RESERVE_ALLOWED} --append-system-prompt-file {q(prompt)} "
                    f"{q(start + chr(10) + chr(10) + question)}")
     else:
         command = (f"{q(toclaude.codex_path())} -m {model} -s read-only -a on-request "  # every write asks first
