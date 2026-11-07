@@ -95,6 +95,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [x] GoblinShare (filer/text mellan datorerna hemma, Beställ, Be om hjälp) – text provat 3 nov (frus laptop), filer/mappar och Be om hjälp ej än
 - [x] Kakans röst (F8: kommandon utan språkmodell, musik med Menade du/lär sig, rutan uppe till höger, frågor → Goblin AI, Inställningar → Röst)
 - [x] Goblin AI ny layout (rutor Kakan/Projekt/Kommandon/Modeller, flikar, stående skärm; MAPPAR → VS Code eller Claude Code i terminalen) – provad offscreen, ej på riktigt
+- [x] Tyglad Kakan + `/laga` (7 nov: ändringskort bara på begäran, ett i taget, kort i tre delar, rapportens rader kontrolleras; svårare → Skicka till Claude) – provat i fönstret
 - [x] `goblin anticheat` + kort i Config → Grafik (Easy Anti-Cheat v2-kraven, "Gör systemet redo" = kargs) – provat med attrapper/offscreen, ej på riktigt
 
 ## Att göra
