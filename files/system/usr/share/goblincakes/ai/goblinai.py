@@ -2132,6 +2132,11 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         # a guess she never got to look up (gear round 18, 1 Nov)
         answer = answer.rstrip() + ("\n\n*Obs: Kakans minne tog slut innan hon hann kolla klart – ändringen kan vara "
                                     "gissad. Tryck Tillåt bara om du vill prova den, annars **Skicka till Claude**.*")
+    wrong = check_report(answer)
+    if wrong:
+        # Her report checked against the file (7 Nov) – what doesn't hold is said under it, by Goblin AI
+        answer = answer.rstrip() + "\n\n*Obs – Goblin AI läste raderna rapporten pekar på, och det här stämmer inte: " + \
+            "; ".join(wrong) + ". Den delen av rapporten kan vara gissad.*"
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
     # gemma4 wrote "~/ .config/goblincakes/recorder.json" (25 Oct) – a path with a space isn't a link
     answer = re.sub(r"(?<![\w/])~/[ \t]+(?=\.?[\w-]+/)", "~/", answer)
@@ -4209,7 +4214,8 @@ När användaren vill få något gjort på datorn:
   säg det rakt ut och föreslå knappen "Skicka till Claude" under svaret – den tar med allt du tagit reda på.
 - När något har gått sönder eller inte fungerar och du har tagit reda på det: svara alltid med de här tre raderna
   först (kommandon efter dem):
-  **Vad som är fel:** varje fel på en egen rad, med fil:rad när det är kod – eller "Vet inte än".
+  **Vad som är fel:** varje fel på en egen rad, med fil:rad när det är kod – eller "Vet inte än". Bara det du sett:
+  raden som den står (`…`); en gissning ("verkar", "kanske") hör under **Osäker på:**.
   **Vad jag har kollat:** filerna, loggarna och sidorna du faktiskt läste.
   **Osäker på:** det du inte kunde ta reda på (eller "Inget").
   **Kan jag laga det:** Ja bara för ett småfel (ett stavfel, ett fel namn, en rad – en eller två små ändringar).
@@ -5229,7 +5235,7 @@ REPORT_GUIDE = """
 
 Användaren bad dig BARA KOLLA – ändra ingenting (inga byt_text, inga kommandon som ändrar filer). Läs koden och
 loggarna, slå upp det som behövs och hitta felen. Svara med rapporten:
-**Vad som är fel:** varje fel på en egen rad, med fil:rad och vad som är fel där.
+**Vad som är fel:** varje fel på en egen rad, med fil:rad och vad som är fel där. Bara det du SETT: skriv fil:rad och raden som den står (`…`) – en gissning ("verkar", "kanske") hör under **Osäker på:**, inte här.
 **Vad jag har kollat:** filerna, loggarna och uppslagen du faktiskt gjorde.
 **Osäker på:** det du inte kunde ta reda på (eller "Inget").
 **Kan jag laga det:** Nej – du bad mig bara kolla. Rapporten sparas åt Claude av sig själv."""
@@ -5363,9 +5369,70 @@ def laga_message(messages):
                 break
             parts.append(f"--- {shown}, rad {a}–{b} av {len(lines)} ---\n{block}")
             used += len(block)
-    content = (f"{LAGA_HEAD}\n\nRapporten (Kakans egen, från samtalet före):\n{report}\n\n"
+    wrong = check_report(whole)
+    checked = ("\n\n[Goblin AI kontrollerade rapporten mot filen – det här stämmer INTE, lita inte på det: "
+               + "; ".join(wrong) + "]") if wrong else ""
+    content = (f"{LAGA_HEAD}\n\nRapporten (Kakans egen, från samtalet före):\n{report}{checked}\n\n"
                f"Koden rapporten pekar på:\n```\n" + "\n\n".join(parts) + "\n```\n\nLaga felen i rapporten.")
     return {"role": "user", "content": content, "laga": True, "only": list(LAGA_TOOLS)}, ""
+
+
+def report_section(text):
+    """The "Vad som är fel" part of a report (to the next **…:** heading), or ""."""
+    m = re.search(r"\*\*Vad som är fel:?\*\*:?(.*?)(?=\n\s*\*\*[^*\n]{3,40}:?\*\*|\Z)", text, re.S | re.I)
+    return m.group(1) if m else ""
+
+
+def check_report(answer):
+    """Goblin AI reads the lines her report points at and compares the code she quotes (7 Nov: "rad 934: W:RefreshUi()"
+    where line 934 is `function W:RefreshUI()` – she built a fault on it). Notes for what doesn't hold, [] = all held
+    (or nothing to check). Only quotes that look like code (`…` with a ( . : _ or =), on a line or span she named."""
+    section = report_section(answer)
+    if not section:
+        return []
+    files = list(dict.fromkeys(re.findall(r"([\w.!/~-]*[\w!-]\.(?:lua|toc|xml|qml|py|js|sh))\b", section)))
+    last = files[0] if len(files) == 1 else ""
+    notes, read = [], {}
+    for line in section.split("\n"):
+        named = re.findall(r"([\w.!/~-]*[\w!-]\.(?:lua|toc|xml|qml|py|js|sh))\b", line)
+        last = named[-1] if named else last
+        # Each line number with the first code quote after it on the line – "rad 367 (`W:RefreshUi()`) … men den heter
+        # `W:RefreshUI()`": only the first is what stands there
+        pairs = []
+        code = [(q.start(), q.end(), q.group(1)) for q in re.finditer(r"`([^`\n]*)`", line)
+                if 4 <= len(q.group(1)) <= 120 and re.search(r"[(.:_=]", q.group(1)) and not re.fullmatch(
+                    r"[\w.!/~-]+\.(?:lua|toc|xml|qml|py|js|sh)(?::\d+)?", q.group(1))]
+        for m in re.finditer(r"(?::|\brad(?:erna)?\s+)(\d+)(?:\s*[-–]\s*(\d+))?", line, re.I):
+            if any(qs < m.start() < qe for qs, qe, _ in code):
+                continue  # a number inside a quote
+            near = min(code, key=lambda c: min(abs(c[0] - m.end()), abs(c[1] - m.start())), default=None)
+            if near:
+                pairs.append((int(m.group(1)), int(m.group(2) or m.group(1)), near[2]))
+        if not (last and pairs):
+            continue
+        path = laga_file(last, answer)
+        named = [Path(os.path.expanduser(x.rstrip(".,:`"))) for x in re.findall(r"(?:~|/home)/[\w./!-]+", answer)]
+        if not path or not any(path == n or n in path.parents for n in named):
+            continue  # which Core.lua? Only a file under a path her answer names – another add-on's gave a false note
+        if path not in read:
+            try:
+                read[path] = path.read_text(errors="replace").split("\n")
+            except OSError:
+                continue
+        lines = read[path]
+        for a, b, q in pairs:
+            want = " ".join(q.split())
+            there = " ".join(" ".join(lines[max(0, a - 2):min(len(lines), b + 1)]).split())
+            if want in there:
+                continue
+            elsewhere = [n for n, l in enumerate(lines, 1) if want in " ".join(l.split())][:3]
+            at = f"rad {a}" + (f"–{b}" if b != a else "")
+            now = " ".join(lines[a - 1].split())[:80] if 0 < a <= len(lines) else ""
+            notes.append(f"`{q}` står inte på {at} i {path.name}"
+                         + (f" (där står `{now}`)" if now and b == a else "")
+                         + (f" – den står på rad {', '.join(map(str, elsewhere))}" if elsewhere else
+                            " – den finns inte någonstans i filen"))
+    return list(dict.fromkeys(notes))
 
 
 def can_laga(answer):

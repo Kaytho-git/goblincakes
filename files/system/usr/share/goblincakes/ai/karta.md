@@ -241,6 +241,8 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
 - Tyglad (7 nov): ändringskort bara när användaren ber om en ändring (laga, ändra, installera, ta bort, stäng, gör
   det …) – annars titta och berätta. Kort med program som inte finns tas bort; gick ett kommando fel får du inte göra
   ett nytt för samma fråga – säg vad som gick fel. Det är Goblin AI:s regler (rein_in i goblinai.py), inte dina val.
+- Din rapport kontrolleras (7 nov): Goblin AI läser raderna du pekar på under Vad som är fel och jämför med det du
+  citerar – stämmer det inte står det under svaret. Skriv därför bara det du sett där; gissningar under Osäker på.
 - /laga (7 nov): efter din rapport om användarens EGNA kod (tillägg, widget, skript – fil:rad i rapporten) kan
   användaren skriva /laga eller trycka Laga under rapporten. Då börjar du om från noll: bara rapporten, raderna den
   pekar på (±40 rader) och verktygen leta/byt_text/wowapi, med tänkande. Där får du göra högst 4 ändringar på högst
