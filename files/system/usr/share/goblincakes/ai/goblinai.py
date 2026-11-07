@@ -5841,6 +5841,9 @@ def _reserve_steps(log, seen, steps):
                 steps.done(e.get("state", "ok"), e.get("text", "").split(":", 1)[-1] if e.get("state") == "fel" else "")
             tool = e.get("tool", "")
             LAST.done.append((tool, e.get("query", ""), "" if tool in ("sök", "leta", "sida") else e.get("text", "")))
+            # Whole (as the log has it): what the fast model read goes on to the strong one (7 Nov, the user)
+            LAST.reserve_read = getattr(LAST, "reserve_read", []) + [(e.get("tool", ""), e.get("query", ""),
+                                                                      e.get("state", "ok"), e.get("text", ""))]
         elif e.get("t") == "card" and e.get("card"):
             # The same lines again = the new version of that card (as byt_run does it)
             path, old = Path(e.get("path", "")), str(e.get("old", ""))
@@ -5852,6 +5855,26 @@ def _reserve_steps(log, seen, steps):
     return len(lines)
 
 
+RESERVE_HANDOVER_CHARS = 40000  # of what the fast model read, to the strong one (Sonnet reads much more than that)
+
+
+def reserve_handover(name, read):
+    """What the fast model did, for the strong one: every tool it used, with the answer – so it needn't read it all
+    again (7 Nov, the user: Sonnet read the same files as Haiku once more)."""
+    parts, used = [], 0
+    for tool, query, state, text in read:
+        text = (text or "").strip()
+        room = max(0, RESERVE_HANDOVER_CHARS - used)
+        part = f"### {tool}: {query}" + (" (gick inte)" if state == "fel" else "") + "\n" + (
+            text[:room] + ("\n[… avkortat]" if len(text) > room else "") if room else "[utelämnat – för mycket]")
+        parts.append(part)
+        used += len(part)
+    did = ("\n\n".join(parts)) if parts else "(inga verktyg användes)"
+    return (f"[Goblin AI] {name} kom inte vidare med frågan. Det här läste {name} med verktygen – svaren står här, "
+            "läs dem inte igen:\n\n" + did + "\n\n[Slut på det som redan lästs]\n\nFortsätt där den slutade: läs bara "
+            "det som saknas, och lita inte blint på dess slutsatser – kolla det som avgör.")
+
+
 def ask_reserve(messages, level, status=None, notice=None, steps=None):
     """Kakans reserv answers the question: the fast model, and once the strong one when the fast one got stuck
     (its tool rounds ran out, or it said it got nowhere) – "Claude Sonnet (Haiku kom inte vidare)". Returns
@@ -5861,6 +5884,7 @@ def ask_reserve(messages, level, status=None, notice=None, steps=None):
     if not helper or not models:
         raise ServiceError("Kakans reserv: varken Claude Code eller Codex är installerat och inloggat")
     change = change_allowed(messages) and not failed_card(messages)
+    LAST.reserve_read = []
     tries = [level] if level == "strong" else ["fast", "strong"]
     why = ""
     for n, lvl in enumerate(tries):
@@ -5883,9 +5907,8 @@ def ask_reserve(messages, level, status=None, notice=None, steps=None):
             why = f" ({models['fast'][1].split()[-1]} kom inte vidare)"
             if notice:
                 notice(f"{name} kom inte vidare – {models['strong'][1]} tar över")
-            messages = messages + [{"role": "assistant", "content": answer or "(inget svar)"},
-                                   {"role": "user", "content": "[Goblin AI] Det här försöket kom inte vidare – ta det "
-                                    "från början och kolla med verktygen."}]
+            messages = messages + [{"role": "assistant", "content": answer or "(inget svar – stegen tog slut)"},
+                                   {"role": "user", "content": reserve_handover(models["fast"][1], LAST.reserve_read)}]
             continue
         if stop == "turns":
             answer = (answer.rstrip() + "\n\n" if answer else "") + (

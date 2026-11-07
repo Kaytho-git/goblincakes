@@ -111,7 +111,7 @@ def run(tools, name, args):
         raise
     text = (text or "").strip() or "(tomt svar)"
     stuck = re.match(r"(?:Inget kort gjort|Inget bytt|Gick inte|Det gick inte)\b", text)
-    log(t="done", tool=word, query=query, state="fel" if stuck else "ok", text=text[:3000])
+    log(t="done", tool=word, query=query, state="fel" if stuck else "ok", text=text[:12000])  # whole file parts: they go on to Sonnet
     new = getattr(g.LAST, "cards", []) or []
     if word == "byt" and (len(new) > cards or "ersätter ditt förra" in text):
         path, old = g.LAST.card_spans[-1]
