@@ -385,9 +385,10 @@ Window {
             return d.getDate() + "/" + (d.getMonth() + 1) + " " + hm;
         }
         // Plain text with clickable links (StyledText: only <a> and <br> from us)
-        function linked(t, on) {
+        function linked(t, color) {
             const esc = t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            return esc.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g, '<a href="$1">$1</a>').replace(/\n/g, "<br>");
+            const a = color ? '<a href="$1" style="color:' + color + '">$1</a>' : '<a href="$1">$1</a>';
+            return esc.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g, a).replace(/\n/g, "<br>");
         }
 
         Timer { interval: 700; repeat: true; running: cw.visible; onTriggered: cw.refresh() }
@@ -494,28 +495,48 @@ Window {
                     border.width: m.out && !m.failed ? 0 : 1
                     border.color: m.failed ? accent.error : bubbleArea.containsMouse ? "#2A3852" : "#1E2A40"
                     opacity: m.modelData.state === "skickar" ? 0.7 : 1
-                    MouseArea { // click = copy (links are clicked in the text above)
+                    MouseArea { // click on the edge = copy all (the text itself: see below)
                         id: bubbleArea
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: backend.copyText(m.modelData.text)
                     }
-                    Text {
+                    Text { // only measures: the bubble's width as before (TextEdit has no unwrapped width)
+                        id: measure
+                        visible: false
+                        width: Math.min(m.width * 0.8 - 28, implicitWidth)
+                        text: body.text
+                        textFormat: Text.StyledText
+                        wrapMode: Text.Wrap
+                        font: body.font
+                    }
+                    // The user (8 Nov): mark part of a message instead of copying all of it. Drag = select,
+                    // the marked text is copied when the mouse stops (and Ctrl+C); a click = the whole message
+                    // as before; links still open with a click.
+                    TextEdit {
                         id: body
                         x: 14
                         y: 10
-                        width: Math.min(m.width * 0.8 - 28, implicitWidth)
-                        text: cw.linked(m.modelData.text)
-                        textFormat: Text.StyledText
-                        wrapMode: Text.Wrap
+                        width: measure.width
+                        text: cw.linked(m.modelData.text, m.out && !m.failed ? accent.on : accent.text)
+                        textFormat: TextEdit.RichText
+                        wrapMode: TextEdit.Wrap
+                        readOnly: true
+                        selectByMouse: true
+                        persistentSelection: false
                         color: m.out && !m.failed ? accent.on : "#E6ECF5"
-                        linkColor: m.out && !m.failed ? accent.on : accent.text
+                        selectionColor: m.out && !m.failed ? "#0B1018" : accent.color
+                        selectedTextColor: m.out && !m.failed ? "#E6ECF5" : accent.on
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 14
-                        lineHeight: 1.1
                         onLinkActivated: link => Qt.openUrlExternally(link)
-                        HoverHandler { enabled: body.hoveredLink !== ""; cursorShape: Qt.PointingHandCursor }
+                        onSelectedTextChanged: if (selectedText !== "") copySel.restart()
+                        Timer { id: copySel; interval: 350; onTriggered: if (body.selectedText !== "") backend.copyText(body.selectedText) }
+                        TapHandler {
+                            onTapped: if (body.selectedText === "" && body.hoveredLink === "") backend.copyText(m.modelData.text)
+                        }
+                        HoverHandler { cursorShape: body.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.IBeamCursor }
                     }
                 }
                 Text {

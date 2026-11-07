@@ -1,3 +1,4 @@
+2026-11-08  GoblinShare-chatten: dra över texten i ett meddelande för att markera och kopiera bara en del av det (t.ex. ett kommando). Ett vanligt klick kopierar fortfarande hela meddelandet.
 2026-11-07  Nytt val för laptops i GOBLINCAKES Config → System: Vila bara när locket stängs. Datorn somnar då inte av sig själv när den står orörd, men går fortfarande i viloläge när du stänger locket eller väljer Sov.
 2026-11-07  GoblinShare: medan någon hjälper dig via terminalen (Be om hjälp) går datorn inte i vila av sig själv, så att hjälpen inte bryts mitt i. Locket och Sov i strömmenyn fungerar som vanligt.
 2026-11-07  GoblinRecorder spelar in igen när du startar WoW från Battle.net – den kände bara igen spelet när det startades från Steam-genvägen, så OBS startade aldrig.
