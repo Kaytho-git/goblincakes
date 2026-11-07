@@ -40,6 +40,20 @@ jobs:
           - recipe-nvidia.yml # goblincakes-nvidia (switched to in GOBLINCAKES Config)
           - recipe-nvidia-legacy.yml # goblincakes-nvidia-legacy (GTX 900/10, Nvidia's 580 driver; switched to in Config)
     steps:
+      # The repo with its whole history (7 Nov): the news lines get the commit they came from
+      # (tools/news-commits.py → nyheter-commits.json, shown by goblin update). The action's own
+      # checkout is skipped below, so this copy – with the file – is the one that is built.
+      - name: Hämta repot (hela historiken)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Never stops the build: without the file goblin update just shows no commits
+      - name: Nyheternas commits
+        continue-on-error: true
+        run: python3 tools/news-commits.py
+
       # BuildKit (the builder the action sets up) comes from Docker Hub, whose login timed out from
       # GitHub's machines for a whole evening (9 Oct). Fetched first from Google's Docker Hub mirror
       # under the same name, so Docker doesn't need Docker Hub for it; if the mirror fails too,
@@ -58,6 +72,7 @@ jobs:
           cosign_private_key: ${{ secrets.SIGNING_SECRET }}
           registry_token: ${{ github.token }}
           pr_event_number: ${{ github.event.number }}
+          skip_checkout: "true" # checked out above, with the news commits
 
           # enabled by default, disable if your image is small and you want faster builds
           maximize_build_space: true

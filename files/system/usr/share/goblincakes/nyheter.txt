@@ -1,3 +1,4 @@
+2026-11-07  goblin update och goblin nyheter visar nyheterna uppdelade per dag, och varje rad har sin commit-kod efter sig – så att du kan säga exakt vilken ändring något började strula efter.
 2026-11-07  Kakan har blivit bättre på dina WoW-siffror (alla dina karaktärer, parse och nyckelnivå hålls isär), slår upp WoW-funktioner i spelets egen lista i stället för på nätet och förklarar anti-fusk och Secure Boot rätt. Qwen 3.5 9B finns som snabbare modell att välja i Lokal AI.
 2026-11-06  Kakans röst låter som Pipers egen röst igen, utan det hesa filtret, och hon säger "Goblin AI" rätt.
 2026-11-06  Kakans röst kan spela dina egna spellistor i GoblinAmp: säg "spela min spellista <namn>" (eller bara "spela <namn>").

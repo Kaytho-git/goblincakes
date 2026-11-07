@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 NEWS = "usr/share/goblincakes/nyheter.txt"
+COMMITS = "usr/share/goblincakes/nyheter-commits.json"   # {line text: short commit}, made by the build
 ACCENT, MUTED, FROST, BOLD, RESET = "\033[38;2;47;111;237m", "\033[38;2;139;152;173m", \
     "\033[38;2;230;236;245m", "\033[1m", "\033[0m"
 if not sys.stdout.isatty():
@@ -73,9 +74,25 @@ def fedora_summary():
     return ", ".join(parts)
 
 
-def show(items):
+def commits(root):
+    """{line text: short commit} of an image (tools/news-commits.py in the build) – {} for older images."""
+    try:
+        return json.loads((Path(root) / COMMITS).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def show(items, commit=None):
+    """Grouped by day, newest first, each line with the commit it came from (7 Nov, the user's wish:
+    "allt ser ut som det är från och samma")."""
+    commit = commit or {}
+    day = None
     for date, text in items:
-        print(f"  {ACCENT}•{RESET} {FROST}{text}{RESET} {MUTED}({date}){RESET}")
+        if date != day:
+            day = date
+            print(f"  {ACCENT}▌{RESET} {BOLD}{FROST}{date}{RESET}")
+        sha = commit.get(text)
+        print(f"    {ACCENT}•{RESET} {FROST}{text}{RESET}" + (f" {MUTED}({sha}){RESET}" if sha else ""))
 
 
 def cmd_update():
@@ -95,7 +112,7 @@ def cmd_update():
     print(f"\n{ACCENT}▌ {BOLD}Nytt i GOBLINCAKES{RESET}")
     # All of it: everything since the version the user runs, however long ago that was
     # (the user's wish, 11 Oct – a cap of 25 also hid the rest silently in Config)
-    show(new)
+    show(new, commits(deploy_root(pending)))
     if fedora:
         print(f"  {MUTED}Fedora: {fedora}{RESET}")
     return 0
@@ -106,7 +123,7 @@ def cmd_latest(n):
     if not items:
         print("Inga nyheter hittades.")
         return 0
-    show(items[:n])
+    show(items[:n], commits("/"))
     return 0
 
 

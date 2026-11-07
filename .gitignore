@@ -4,3 +4,5 @@ cosign.private
 *.iso
 *.iso-CHECKSUM
 __pycache__/
+# made by tools/news-commits.py in the build
+files/system/usr/share/goblincakes/nyheter-commits.json
