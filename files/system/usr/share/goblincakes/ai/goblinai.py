@@ -2062,6 +2062,12 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         activity_done()
         raise
     messages = with_guides(with_lessons(with_done(messages), project))
+    failed = failed_card(messages)
+    if failed and messages[-1]["role"] == "user":
+        # The command she made just failed: no new card this question – she says what went wrong (7 Nov)
+        messages[-1] = {**messages[-1], "content": messages[-1]["content"] + (
+            f"\n\n[Goblin AI] Kommandot gick fel (avslutskod {failed[1]}) – inget ändrades av det. Gör INGET nytt kort "
+            "eller byt_text nu: säg kort och ärligt vad som gick fel och att det inte är gjort.")}
     try:
         if read_links(messages, keys, status):
             # The pages are there: one plain answer – no searching on top, no long thinking (a button
@@ -2082,6 +2088,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     # lacked the day's fixes when Goblin AI ran from the repo (gear round 23, 2 Nov)
     answer = re.sub(r"python3 \S*bytatext\.py", lambda _: f"python3 {Path(__file__).resolve().parent / 'bytatext.py'}",
                     answer)
+    answer, cards = rein_in(answer, cards, messages)
     # Her own cards too: one at a time (2 Nov) – the first, the next after Tillåt
     for extra in re.findall(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", answer, flags=re.S)[1:]:
         answer = answer.replace(extra, "")
@@ -2121,6 +2128,73 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
 
 
 PICTURE_WORDS = re.compile(r"bild|png|jpe?g|infografik|mallen|picture|image", re.I)
+
+# The reined-in Kakan (7 Nov, the user: "som en 8-åring med svår adhd i en godisaffär" – she said "Filen fixas" over a
+# made-up card, ran it, and wrote the same again). The rules are Goblin AI's, after her answer – she can't get past them.
+# A: change cards only when the user's own words ask for a change (or /laga); looking and telling otherwise.
+CHANGE_ASKED = re.compile(r"\b(?:laga|fixa|rätta|ändra|byt(?:a|er)?|installera|avinstallera|ta\s+bort|radera|stäng\w*|"
+                          r"slå\s+(?:på|av)|sätt\s+på|aktivera|inaktivera|starta\s+om|uppdatera|flytta|kopiera|skapa|"
+                          r"lägg(?:a)?\s+till|spara|återställ|ställ\s+in|gör\s+(?:så|det|om|en|ett)|kör\s+(?:det|den|kommandot)|"
+                          r"döp\s+om|byt\s+namn|rensa|töm|ångra|avbryt|ladda\s+ner|hämta\s+hem|lös\s+det)\w*", re.I)
+CHANGE_NOTE = ("*Kakan ville ändra något, men du bad inte om en ändring – inget kort gjordes. Vill du att hon gör det: "
+               "skriv t.ex. \"gör det\" eller \"laga det\".*")
+
+
+def change_allowed(messages):
+    """A: the user's latest own words ask for a change – or /laga, or the desktop things they steer themselves."""
+    if laga_on(messages):
+        return True
+    said = latest_said(messages)[:600]
+    return bool(CHANGE_ASKED.search(said) or DESK_ASKED.search(said)) and not report_only(messages)
+
+
+def failed_card(messages):
+    """The changing command that just failed (its exit code in "Så här gick det:" after the user's latest own message),
+    as (command, code) – or None. A reading command that found nothing (grep's 1) doesn't count."""
+    for m in reversed(messages):
+        content = m.get("content") if isinstance(m.get("content"), str) else ""
+        if m["role"] == "user" and not content.startswith(REPORT_TURNS):
+            return None
+        if m["role"] == "user" and content.startswith("Så här gick det:"):
+            for part in re.split(r"\n\n(?=\$ )", content):
+                hit = re.match(r"\$ (.*?)\n.*\(avslutskod (-?\d+)\)", part, re.S)
+                if hit and hit.group(2) != "0" and cmd_level().level(hit.group(1))[0] != "read":
+                    return hit.group(1).split("\n")[0][:80], int(hit.group(2))
+            return None
+    return None
+
+
+def rein_in(answer, cards, messages):
+    """A, B and the failed card on her finished answer: (answer, cards) with what she may not do taken out and said."""
+    notes = []
+    blocks = re.findall(r"```(?:bash|sh)\n(.*?)\n```\n?", answer, re.S)
+    # B: a card whose programs aren't on the computer – "Kör gammal:" (7 Nov): taken out, nothing runs
+    fake = [(b, cmd_level().missing_programs(b)) for b in blocks if "bytatext.py" not in b]
+    fake = [(b, miss) for b, miss in fake if miss]
+    for b, miss in fake:
+        answer = answer.replace(f"```bash\n{b}\n```", "").replace(f"```sh\n{b}\n```", "")
+    cards = [c for c in cards if not any(c.strip("`\n").endswith(b.strip()) for b, _ in fake)]
+    if fake:
+        names = ", ".join(dict.fromkeys(n for _, miss in fake for n in miss))[:120]
+        notes.append(f"*Obs: Kakan skrev ett kort med kommandon som inte finns ({names}) – det togs bort, inget kördes.*")
+    failed = failed_card(messages)
+    changing = lambda code: "bytatext.py" in code or cmd_level().level(code)[0] != "read"  # noqa: E731
+    if failed or not change_allowed(messages):
+        kept = [c for c in cards if not changing(c.split("\n", 1)[-1].rsplit("\n```", 1)[0])]
+        dropped = len(cards) - len(kept)
+        new_answer = re.sub(r"```(?:bash|sh)\n(.*?)\n```\n?", lambda m: "" if changing(m.group(1)) else m.group(0),
+                            answer, flags=re.S)
+        if dropped or new_answer != answer:
+            notes.append(f"*Obs: förra kommandot gick fel (avslutskod {failed[1]}) – inget ändrades av det, och Kakan "
+                         "får inte göra ett nytt kort för den här frågan. Vill du försöka igen: säg till, eller tryck "
+                         "Skicka till Claude.*" if failed else CHANGE_NOTE)
+        elif failed:
+            notes.append(f"*Obs: förra kommandot gick fel (avslutskod {failed[1]}) – inget ändrades av det.*")
+        answer, cards = new_answer, kept
+    if notes:
+        answer = answer.rstrip() + "\n\n" + "\n".join(notes)
+    return answer, cards
+
 
 
 def no_unasked_report(answer, question):
@@ -2513,7 +2587,10 @@ RECEIPT_NONE = {"byt"}  # only makes a card – the card is counted
 FIXED_SAY = re.compile(r"\b(?:fixat|fixade|löst|löste|lagat|lagade|rättat|rättade|åtgärdat|åtgärdade"
                        r"|(?:har|är)(?: nu)? (?:ändrat|ändrad|installerat|installerad|uppdaterat|uppdaterad|tagit bort"
                        r"|borttagen|borttaget|lagt till|bytt|flyttat|sparat|skapat|kopierat)"
-                       r"|(?:fungerar|funkar|går) (?:nu|igen)|nu (?:fungerar|funkar|går) det|ska (?:nu )?fungera)\b", re.I)
+                       r"|(?:fungerar|funkar|går) (?:nu|igen)|nu (?:fungerar|funkar|går) det|ska (?:nu )?fungera"
+                       # "Filen fixas", "Jag fixar detta" (7 Nov) – said as done, over a made-up card that failed
+                       r"|fixas|lagas|rättas|åtgärdas|(?:är|blev) (?:nu )?(?:fixad|fixat|lagad|lagat|rättad|rättat)"
+                       r"|jag (?:fixar|lagar|rättar|åtgärdar)(?: nu)? (?:det|detta|felet|filen))\b", re.I)
 DONE_SAY = re.compile(r"\b(?:klart|klar|färdigt|färdig|gjort|done)\b", re.I)
 NOT_YET = re.compile(r"\b(?:inte|ej|aldrig|när|om|tills|innan|sen|sedan|efter att|förrän|kan|kunde|skulle|borde)\b"
                      r"[^.!?\n]{0,25}$", re.I)
@@ -2619,6 +2696,9 @@ def receipt(display, index):
             verdict, state, kind = "Klart – ändrat och kontrollerat efteråt.", "ok", "ok"
         elif "unseen" in events:
             verdict, state, kind = "Kördes i terminalen – kolla där att det gick bra.", "warn", "terminal"
+    if not verdict and events and events[-1] == "fail":
+        # C: a command that failed, nothing said about it – under the answer, not only inside the receipt (7 Nov)
+        verdict, state, kind = "Senaste kommandot gick fel – inget ändrades av det.", "no", "failed"
     if state in ("ok", "warn") and any(st.get("state") == "gräns" for st in display[index].get("steps") or []):
         # "Klart – ändrat och kontrollerat efteråt" under an answer that hit "högst 10 steg" after seven failed
         # byt_text – the change was the one before Tillåt (gear round 25, 2 Nov)
@@ -2698,6 +2778,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     if asked.pop("rewrite", False):  # a quick button under an answer: only the text again – no tools
         return ask_once(messages, keys, status, notice, project, choice)
     tools = tools_for(keys, project, messages)
+    if "byt" in tools and (not change_allowed(messages) or failed_card(messages)):
+        tools.pop("byt")  # A: no change asked for (or the last one failed) – no change cards to make
     LAST.fixes = fixes_done(messages)
     LAST.mcp_names = {w: t["mcp"] for w, t in tools.items() if t.get("mcp")}
     LAST.tools = []
@@ -3130,7 +3212,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             tool, query = "wowapi", api_name.group(0)
         messages.append({"role": "assistant", "content": answer})
         full = tokens(messages[:1] + messages[start:]) > local_budget() * 0.8
-        if (used >= STEP_LIMIT or full or repeats >= 2) and stopped_fetching:
+        if (used >= (LAGA_STEPS if getattr(LAST, "laga", False) else STEP_LIMIT) or full or repeats >= 2) and stopped_fetching:
             # Told to stop and asking again: the answer as it is, without the request – "Slutar hämta: minnet är
             # nästan fullt" came again and again, each round adding more (30 Oct)
             messages.pop()
@@ -3139,12 +3221,17 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                  else "Jag kom inte vidare – minnet tog slut innan jag hann klart.")
                 + " Börja ett nytt samtal, eller tryck **Skicka till Claude**.")
             break
-        if used >= STEP_LIMIT or full:
+        limit = LAGA_STEPS if getattr(LAST, "laga", False) else STEP_LIMIT
+        if used >= limit or full:
             stopped_fetching = True
-            steps.start(f"Slutar hämta: {'minnet är nästan fullt' if full else f'högst {STEP_LIMIT} steg'}")
+            steps.start(f"Slutar hämta: {'minnet är nästan fullt' if full else f'högst {limit} steg'}")
             steps.done("gräns")
+            # D: stuck = the report, not one more try (7 Nov: she went on hunting the vague fault and never reported)
+            then = (" Skriv rapporten nu med det du har: **Vad som är fel:** (fil:rad), **Vad jag har kollat:**, "
+                    "**Osäker på:**, **Kan jag laga det:** Nej – och varför." if report_only(messages) or getattr(LAST, "laga", False)
+                    else " – svara nu med det du har.")
             messages.append({"role": "user", "content": "Inga fler sökningar eller hämtningar"
-                             + (" (ditt minne är nästan fullt)" if full else "") + " – svara nu med det du har."})
+                             + (" (ditt minne är nästan fullt)" if full else "") + then})
             continue
         if tool == "byt" and getattr(LAST, "cards", []):
             # A change waits for Tillåt: one card at a time (2 Nov) – her answer as it is, the card goes under it
@@ -5101,6 +5188,7 @@ LAGA_TOOLS = ["leta", "byt", "wowapi"]
 LAGA_FIXES = 4
 LAGA_LINES = 15
 LAGA_AROUND = 40
+LAGA_STEPS = 6  # D: a shorter leash than STEP_LIMIT – the code is already laid before her
 LAGA_CODE_MAX = 40_000  # characters of code laid before her (64k memory: ~13k tokens)
 LAGA_HEAD = "/laga – lagningen börjar om från noll"
 LAGA_GUIDE = f"""
@@ -5459,6 +5547,9 @@ def addon_check(messages):
     report = messages[-1].get("content", "") if messages and messages[-1]["role"] == "user" else ""
     said = next((m["content"] for m in reversed(messages[:-1]) if m["role"] == "assistant"), "")
     if not str(report).startswith("Så här gick det:") or not isinstance(said, str):
+        return ""
+    if not re.search(r"\(avslutskod 0\)", report):
+        # C: "inga fel" after a card that failed (exit code 2) looked like all was well – nothing had changed (7 Nov)
         return ""
     m = re.search(r"\(Mappen nu: (.+?)\)", report)
     cwd = Path(m.group(1)) if m else Path.home()

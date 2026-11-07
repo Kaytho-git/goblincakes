@@ -975,3 +975,59 @@ def set_autorun(on):
     else:
         AUTORUN_OFF.parent.mkdir(parents=True, exist_ok=True)
         AUTORUN_OFF.write_text("")
+
+
+# ── Made-up commands (7 Nov): a card whose programs aren't on the computer ──
+# Kakan wrote "MainWindowUI.lua, byt_text / gammal: W:RefreshUi() / ny: …" as a ```bash card; it showed as
+# "Kör gammal:" and ran with exit code 2 – the user can't judge that (and shouldn't have to). Goblin AI stops it.
+SHELL_WORDS = {
+    "if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done", "case", "esac", "in", "function",
+    "select", "time", "!", "{", "}", "[[", "]]", "[", "test", "cd", "echo", "printf", "export", "unset", "set",
+    "source", ".", "read", "local", "declare", "typeset", "return", "exit", "true", "false", ":", "shift", "eval",
+    "exec", "trap", "wait", "type", "command", "builtin", "alias", "unalias", "pushd", "popd", "dirs", "let",
+    "break", "continue", "hash", "ulimit", "umask", "jobs", "fg", "bg", "kill", "disown", "readonly", "getopts",
+    "mapfile", "readarray", "history", "shopt", "complete", "enable", "help", "logout", "times", "caller"}
+PREFIXES = {"sudo", "pkexec", "env", "nice", "ionice", "nohup", "timeout", "time", "stdbuf", "flatpak-spawn"}
+
+
+def missing_programs(code):
+    """The first words of the block's commands that are no program, shell word or path to one: [] = all there.
+    Heredoc text is skipped; a word with $ or a subshell counts as there (can't be known before it runs)."""
+    missing, until = [], None
+    joined = re.sub(r"\\\n", " ", code)
+    for line in joined.split("\n"):
+        if until is not None:
+            if line.strip() == until:
+                until = None
+            continue
+        here = re.search(r"<<-?\s*['\"]?(\w+)['\"]?", line)
+        if here:
+            until = here.group(1)
+        for part in re.split(r"&&|\|\||[;|&]", re.sub(r"<<-?\s*['\"]?\w+['\"]?", "", line)):
+            part = part.strip()
+            if not part or part.startswith("#") or part.startswith(("(", ")", "$(")):
+                continue
+            try:
+                words = shlex.split(part, comments=True)
+            except ValueError:
+                words = part.split()
+            words = [w for w in words if not re.match(r"^[A-Za-z_]\w*=", w)]  # VAR=value first
+            while words and words[0] in PREFIXES:
+                words = words[1:]
+                while words and words[0].startswith("-"):
+                    words = words[1:]
+                if words and re.fullmatch(r"\d+[smhd]?", words[0]):  # timeout 10 …
+                    words = words[1:]
+            if not words:
+                continue
+            first = words[0]
+            if first in SHELL_WORDS or "$" in first or "`" in first or first.endswith(")"):
+                continue
+            path = Path(os.path.expanduser(first))
+            if "/" in first and path.is_file() and os.access(path, os.X_OK):
+                continue
+            if "/" not in first and shutil.which(first):
+                continue
+            if first not in missing:
+                missing.append(first)
+    return missing

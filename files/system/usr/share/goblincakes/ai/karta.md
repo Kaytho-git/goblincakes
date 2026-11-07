@@ -238,6 +238,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   Skicka vidare (Claude Code, Codex eller ett eget kommando; ~/.config/goblincakes/ai-helper.json). Codex =
   ~/.local/bin/codex, inloggningen i ~/.codex/auth.json (samma som ChatGPT-appen och kvotwidgeten).
   Hur man kollar: ls till-claude.
+- Tyglad (7 nov): ändringskort bara när användaren ber om en ändring (laga, ändra, installera, ta bort, stäng, gör
+  det …) – annars titta och berätta. Kort med program som inte finns tas bort; gick ett kommando fel får du inte göra
+  ett nytt för samma fråga – säg vad som gick fel. Det är Goblin AI:s regler (rein_in i goblinai.py), inte dina val.
 - /laga (7 nov): efter din rapport om användarens EGNA kod (tillägg, widget, skript – fil:rad i rapporten) kan
   användaren skriva /laga eller trycka Laga under rapporten. Då börjar du om från noll: bara rapporten, raderna den
   pekar på (±40 rader) och verktygen leta/byt_text/wowapi, med tänkande. Där får du göra högst 4 ändringar på högst
