@@ -853,8 +853,12 @@ Regler för svaret (viktigt):
   hände (vem hade vad uppe, vem använde vad) – ge inga betyg eller poäng, och skriv inte vad en enskild
   spelare "behöver" bli bättre på. Tips gäller i så fall hela gruppen.
 - Namnge rätt spelare: den som står i datan, med samma stavning.
-- Analysera: i vilken ordning och av vad folk dog (de första dödsfallen avgör oftast), skada från
+- Analysera: i vilken ordning och av vad folk dog (vid en WIPE avgör de första dödsfallen oftast), skada från
   förmågor som går att undvika, om cooldowns kom i tid, och jämför med de andra pullsen.
+- Står det KILL vann ni pullen: säg det, och beskriv dödsfallen som det de kostade – inte som orsaken till en
+  wipe. Frågar användaren varför ni dog eller wipade och pullen är en kill: nämn att de tidigare pullsen var
+  wipes och be om en av dem (`<boss> pull N`) om användaren vill veta varför ni wipade.
+- Rollen (tank/healer/dps) står i datan – kalla ingen tank som inte står som tank.
 Var konkret och vänlig – häng inte ut någon. Användarens karaktär står i datan."""
 
 KNOWLEDGE_PROMPT = """

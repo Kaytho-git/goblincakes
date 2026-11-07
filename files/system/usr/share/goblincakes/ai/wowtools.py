@@ -299,16 +299,20 @@ def find_fight(r, query):
             codes, wanted, player = [own.group(1)], int(own.group(2)) if own.group(2) else None, mine[0].get("player", "")
     words = [] if key else [w for w in re.findall(r"[\w']+", query.lower())
              if w not in ("senaste", "sista", "pull", "pullen", "wipe", "wipen", "kill", "på", "vi", "den", "fight",
-                          "alla", "boss", "bossen")
+                          "alla", "boss", "bossen", "the", "and", "och", "wipade", "dog", "varför")
              and not w.isdigit() and len(w) > 2]
+
+    def score(name):  # the name matching the most words wins, then the newest (7 Nov: "The Coiled Altar" found
+        name = str(name).lower()  # The Blinding Vale through "the", and Altar of Fangs through "altar")
+        return sum(1 for w in words if w in name.replace("'", "") or w in name)
+
     if not m and words:
         # A boss by name: your own latest fight against it (WoW Stats' history), not the newest report that has
         # it – a raid you joined is in someone else's report, where the boss was killed again after you left
         # (25 Oct: haren's report, fight 33, instead of the GOBLINCAKES kill)
         try:
             mine = sorted((v for v in r.wow_history().values() if isinstance(v, dict) and v.get("url")
-                           and any(w in str(v.get("name", "")).lower().replace("'", "") or w in str(v.get("name", "")).lower()
-                                   for w in words)), key=lambda v: -(v.get("started") or 0))
+                           and score(v.get("name", ""))), key=lambda v: (-score(v.get("name", "")), -(v.get("started") or 0)))
         except Exception:  # noqa: BLE001 – the history is only a shortcut
             mine = []
         own = re.search(r"reports/([A-Za-z0-9]{16})(?:#.*?fight=(\d+))?", mine[0]["url"]) if mine else None
@@ -329,7 +333,8 @@ def find_fight(r, query):
         if wanted:
             fights = [f for f in fights if f["id"] == wanted]
         elif words:
-            fights = [f for f in fights if any(w in f["name"].lower().replace("'", "") or w in f["name"].lower() for w in words)] or (fights if m else [])
+            best = max((score(f["name"]) for f in fights), default=0)
+            fights = [f for f in fights if best and score(f["name"]) == best] or (fights if m else [])
         if fights and pull:
             boss = fights[-1]["encounterID"]
             same = [f for f in rep["fights"] if f["encounterID"] == boss]
@@ -582,9 +587,33 @@ def report_own_defensives(r, rep):
     return out
 
 
-def fight_data(r, rep, fight, compact=False):
+def api_error(e):
+    """The API's fault as a sentence. 429 = the client's points for the hour are used up (7 Nov: the tests used
+    them all – GoblinRecorder's fetches share them)."""
+    if "429" in str(e):
+        return ToolError("Warcraft Logs timgräns är nådd (för många hämtningar den senaste timmen, även GoblinRecorders) "
+                         "– försök igen om en stund, högst en timme")
+    return ToolError(f"Warcraft Logs svarade inte: {e}")
+
+
+_fights = {}  # (report, fight, its end, compact) → (data, stats): a pull that has ended doesn't change
+
+
+def fight_data_stats(r, rep, fight, compact=False):
+    """fight_data + the players' numbers, kept for the follow-up questions about the same pull."""
+    key = (rep["code"], fight["id"], fight["endTime"], compact)
+    if key not in _fights:
+        if len(_fights) > 40:
+            _fights.clear()
+        _fights[key] = (fight_data(r, rep, fight, compact), r.wcl_stats({"code": rep["code"], "fight": fight["id"]}))
+    return _fights[key]
+
+
+def fight_data(r, rep, fight, compact=False, defensive=True):
     data = r.wcl_query(FIGHT_QUERY, {"c": rep["code"], "f": [fight["id"]]})["reportData"]["report"]
     data["cooldowns"] = cooldowns(r, rep, fight)
+    if not defensive:  # one ability (wcl_ability) only needs the deaths and the cooldowns
+        return data
     data["windows"] = defensive_windows(r, rep, fight)
     data["bighits"] = [] if compact else big_hits(r, rep, fight)  # every boss at once: 13 s more, 8 kB more
     data["cc"] = cc_casts(r, rep, fight)
@@ -608,12 +637,11 @@ def wcl_pull(query=""):
         return wcl_all(r, query)
     try:
         rep, fight, player = find_fight(r, query)
-        data = fight_data(r, rep, fight)
-        stats = r.wcl_stats({"code": rep["code"], "fight": fight["id"]})
+        data, stats = fight_data_stats(r, rep, fight)
     except ToolError:
         raise
     except Exception as e:  # noqa: BLE001 – the API or the network
-        raise ToolError(f"Warcraft Logs svarade inte: {e}") from None
+        raise api_error(e) from None
     return pull_text(rep, fight, player, data, stats)
 
 
@@ -642,6 +670,12 @@ def pull_text(rep, fight, player, data, stats, compact=False):
     out = [f"Warcraft Logs: {rep.get('title', '')} – {fight['name']} {diff}, pull {number} av {len(same)}: {result}, "
            f"{mmss(length)} lång.",
            f"Länk: https://www.warcraftlogs.com/reports/{rep['code']}#fight={fight['id']}"]
+    if fight.get("kill") and not key:
+        # 7 Nov: "varför dog vi på Twin Fangs?" – qwen3.5 read the kill as a wipe ("the first death decided it")
+        out.append("OBS: det här var en KILL – bossen dog och ni vann pullen. Dödsfallen nedan kostade, men ledde inte "
+                   "till en wipe." + (" Wipes på bossen: pull " + ", ".join(
+                       str(i) for i, f in enumerate(same, 1) if not f.get("kill")) + " (fråga om `<boss> pull N`)."
+                       if any(not f.get("kill") for f in same) else ""))
     if player and not compact:
         out.append(f"Användarens karaktär: {player.split('-')[0]}")
 
@@ -738,7 +772,8 @@ def defensive_text(fight, data, stats, deaths, where, compact):
             unused = sorted((data.get("owndefs") or {}).get(who, set()) - used)
             given = [f"{c['name']} från {c['who']} {mmss(c['t'])}" for c in cds
                      if c["kind"] == "extern" and c.get("target") == who and t - 30000 <= c["t"] <= t]
-            out.append(f"- {mmss(t)}{where(t)} {who}: UPPE VID DÖDEN: {', '.join(up(who, t)) or 'ingen'} | ANVÄNT TIDIGARE: "
+            role = {"tanks": "tank", "healers": "healer", "dps": "dps"}.get(roles.get(who), "")
+            out.append(f"- {mmss(t)}{where(t)} {who}{' (' + role + ')' if role else ''}: UPPE VID DÖDEN: {', '.join(up(who, t)) or 'ingen'} | ANVÄNT TIDIGARE: "
                        + ("; ".join(f"{n} {', '.join(ts[-4:])}" for n, ts in
                                      before.items()) or "inga")
                        + (f" | extern på hen (30 s före): {', '.join(given)}" if given else "")
@@ -807,8 +842,7 @@ def wcl_all(r, query):
         if player:
             parts.append(f"Användarens karaktär: {player.split('-')[0]}")
         for f in chosen:
-            data = fight_data(r, rep, f, compact=True)
-            stats = r.wcl_stats({"code": rep["code"], "fight": f["id"]})
+            data, stats = fight_data_stats(r, rep, f, compact=True)
             parts.append("\n══════ " + f["name"] + " ══════\n" + pull_text(rep, f, "", data, stats, compact=True))
         parts.append("\nOBS: här finns inte skade-cooldowns, de stora smällarna per spelare eller vad som hände under en "
                      "viss förmåga eller fiende (smällarna: be om bossen för sig, `<boss>`). "
@@ -817,7 +851,7 @@ def wcl_all(r, query):
     except ToolError:
         raise
     except Exception as e:  # noqa: BLE001 – the API or the network
-        raise ToolError(f"Warcraft Logs svarade inte: {e}") from None
+        raise api_error(e) from None
     return "\n".join(parts)
 
 
@@ -859,11 +893,12 @@ def wcl_ability(r, boss_query, wanted):
         hits = []  # damage on the enemy asked about
         for a in enemies:
             hits += events(r, code, fight, dataType="DamageDone", hostilityType="Friendlies", targetID=a["id"])
-        data = fight_data(r, rep, fight)
+        kept = next((_fights[k] for k in _fights if k[:3] == (code, fight["id"], fight["endTime"])), None)
+        data = kept[0] if kept else fight_data(r, rep, fight, defensive=False)
     except ToolError:
         raise
     except Exception as e:  # noqa: BLE001 – the API or the network
-        raise ToolError(f"Warcraft Logs svarade inte: {e}") from None
+        raise api_error(e) from None
 
     start = fight["startTime"]
     who = lambda i: (actors.get(i) or {}).get("name", "?")  # noqa: E731
