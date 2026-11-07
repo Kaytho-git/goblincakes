@@ -2080,6 +2080,8 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         raise
     messages = with_guides(with_lessons(with_done(messages), project))
     failed = failed_card(messages)
+    if failed and reserve_for(messages, choice, project):
+        failed = None  # Kakans reserv may make a new card after one that failed (the game test 7 Nov) – not Kakan
     if failed and messages[-1]["role"] == "user":
         # The command she made just failed: no new card this question – she says what went wrong (7 Nov)
         messages[-1] = {**messages[-1], "content": messages[-1]["content"] + (
@@ -2087,6 +2089,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
             "eller byt_text nu: säg kort och ärligt vad som gick fel och att det inte är gjort.")}
     try:
         reserve, answer = reserve_for(messages, choice, project), None
+        LAST.reserve_used = False
         if reserve:
             # Kakans reserv (punkt 17): the button / /haiku, or the local AI resting while a game runs
             LAST.fixes = fixes_done(messages)
@@ -2106,6 +2109,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
                     "inte klart. Inget kvar: säg vad användaren ska prova i spelet (/reload först)."}]
             try:
                 answer, service = ask_reserve(messages, reserve, status, notice, steps)
+                LAST.reserve_used = True
             except ServiceError as e:
                 if reserve_level(messages):  # asked for: said, not something else behind the user's back
                     raise ServiceError(f"Kakans reserv: {e}") from None
@@ -2275,7 +2279,7 @@ def rein_in(answer, cards, messages):
     if fake:
         names = ", ".join(dict.fromkeys(n for _, miss in fake for n in miss))[:120]
         notes.append(f"*Obs: Kakan skrev ett kort med kommandon som inte finns ({names}) – det togs bort, inget kördes.*")
-    failed = failed_card(messages)
+    failed = None if getattr(LAST, "reserve_used", False) else failed_card(messages)  # the reserve: a new card is fine
     changing = lambda code: "bytatext.py" in code or cmd_level().level(code)[0] != "read"  # noqa: E731
     if failed or not change_allowed(messages):
         kept = [c for c in cards if not changing(c.split("\n", 1)[-1].rsplit("\n```", 1)[0])]
@@ -5924,7 +5928,7 @@ def ask_reserve(messages, level, status=None, notice=None, steps=None):
     models = reserve_models(helper)
     if not helper or not models:
         raise ServiceError("Kakans reserv: varken Claude Code eller Codex är installerat och inloggat")
-    change = change_allowed(messages) and not failed_card(messages)
+    change = change_allowed(messages)  # after a failed card too: Haiku reads the line again and fixes the card
     LAST.reserve_read = []
     tries = [level] if level == "strong" else ["fast", "strong"]
     why = ""

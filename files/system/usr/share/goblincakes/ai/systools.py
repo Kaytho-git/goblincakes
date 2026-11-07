@@ -398,6 +398,8 @@ def not_secret(label, value):
     api/bearer always hidden; a "name" with more than 3 capitals (AbCdEfGh…) is taken for a key."""
     if SURELY_SECRET.search(label):
         return False
+    if re.fullmatch(r"[A-Z][A-Z_]{2,40}", value):
+        return True  # ITEM_LEVEL_COUNT: a constant's name (Sonnet couldn't see it, the game test 7 Nov)
     return bool(CODE_NAME.match(value) or (PLAIN_NAME.match(value) and sum(c.isupper() for c in value) <= 3))
 
 
