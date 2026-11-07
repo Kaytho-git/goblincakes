@@ -2058,6 +2058,10 @@ def own_fight(question, tools, messages=None):
     if not isinstance(question, str):
         return None
     low = question[:600].casefold()
+    if ANTICHEAT_Q.search(low) and "goblincakes" in tools:
+        # Anti-cheat/Secure Boot: the map's part first (the model test 7 Nov: no model looked anything up and two of four
+        # explained Secure Boot wrongly – "the game needs signed drivers")
+        return "goblincakes", "anticheat secure boot easy anti-cheat"
     bosses = [b for b in own_bosses() if len(b) >= 4]
     boss = max((b for b in bosses if b in low), key=len, default="")
     if not boss and messages and FOLLOW_UP.search(low):
@@ -2087,6 +2091,22 @@ def own_game_question(question, tools):
 
 # Goblin AI's own reminders aren't the user: "Du har rätt, jag borde ha använt verktygen … Jag ber om ursäkt"
 # ended up in the answer (25 Oct)
+ANTICHEAT_Q = re.compile(r"secure\s*boot|anti[\s-]*(?:fusk|cheat)|easy\s*anti|\beac\b|fortnite|faceit|ricochet|javelin")
+
+# A WoW API name in the question (C_Item.GetItemInfo, GetItemInfo, UnitHealth) – looked up with wowapi first
+WOW_API_NAME = re.compile(r"\b(?:C_[A-Za-z]+\.[A-Za-z_]\w*|(?:Get|Unit|Is|Set|Has|Can)[A-Z][A-Za-z]{3,})\b")
+
+# Goblin AI's own words to the model, which a model sometimes writes back as its answer (7 Nov: qwen3.5 began
+# with "Inga fler sökningar eller hämtningar – svara nu med det du har.") – never shown to the user
+INTERNAL_LINE = re.compile(r"^\s*(?:\[Goblin AI[^\]]*\].*|Inga fler sökningar eller hämtningar.*|Det har du redan hämtat.*"
+                           r"|Du har redan hämtat det här.*|Hämta inget mer\..*)$", re.M)
+
+
+def strip_internal(answer):
+    cleaned = re.sub(r"\n{3,}", "\n\n", INTERNAL_LINE.sub("", answer)).strip()
+    return cleaned or answer
+
+
 NUDGE_NOTE = (" (Det här skrev Goblin AI, inte användaren – svara användaren direkt på frågan; be inte om ursäkt "
               "och nämn inte påminnelsen.)")
 
@@ -2653,7 +2673,24 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                          f"Så här svarar du med det:{CAL_GUIDE.rstrip()} Det är redan gjort – skriv inget kodblock.\n\n"
                          f"Användarens fråga var: \"{question}\""})
     chat_only = bool(NOT_FACT.search(str(asked.get("content", ""))[:600]))  # "hur mår du idag?" searched the web
-    if "sök" in tools and not typed and (forced or (fresh_question(asked.get("content")) and not own and not chat_only)):
+    api_asked = WOW_API_NAME.search(asked_text(asked.get("content"))[:600]) if "wowapi" in tools and not forced else None
+    if api_asked:
+        # A WoW function asked about: the game's own list instead of the first web search (the model test 7 Nov: the
+        # search said C_Item.GetItemInfo was removed – wowapi has it, with every return type)
+        name = api_asked.group(0)
+        steps.start(f"Slår upp i WoW:s API: {name}")
+        try:
+            text, _ = tools["wowapi"]["run"](name)
+            steps.done()
+            LAST.tools.append(("wowapi", name))
+            LAST.done.append(("wowapi", name, text[:3000]))
+            messages.append({"role": "user", "content":
+                             "[Goblin AI slog upp det här åt dig i WoW:s API (spelets lista just nu) innan du svarar – det "
+                             f"här skrev användaren inte in]\n\n{text}\n\n[Slut]\n\nAnvändarens fråga var: \"{question}\""})
+        except Exception as e:  # noqa: BLE001 – the AI may look it up itself
+            steps.done("fel", e)
+            api_asked = None
+    if "sök" in tools and not typed and not api_asked and (forced or (fresh_question(asked.get("content")) and not own and not chat_only)):
         # Goblin AI searches first, with the question itself (Tavily takes plain questions)
         query = " ".join(asked_text(asked.get("content")).split())[:300]
         activity("ask", "söker på nätet")
@@ -2717,6 +2754,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              f"användaren inte in]\n\n{text}\n\n[Slut på det Goblin AI tog reda på]\n\n"
                              f"Användarens fråga var: \"{question}\"\n{REPAIR_COMPARE}"})
     nudged = promised = looked = acted = claimed = judged = offed = stopped_fetching = False
+    repeats = 0       # the same call again (7 Nov: qwen3.5 sent "musik vad" ten times and used up every step)
     repaired = set()  # the repair checks already sent back (repair_nudge)
     fight = own_fight(asked.get("content"), tools, messages)
     if fight:
@@ -2921,15 +2959,21 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                                             "kan vara gissat.*")
             break
         tool, query = request_
+        api_name = WOW_API_NAME.search(str(question or ""))
+        if tool == "sök" and api_name and "wowapi" in tools and not any(t == "wowapi" for t, _ in LAST.tools):
+            # A WoW function asked about: the game's own list before a web search (the model test 7 Nov: every model
+            # searched for C_Item.GetItemInfo and one listed itemQuality as a string – wowapi has the exact types)
+            tool, query = "wowapi", api_name.group(0)
         messages.append({"role": "assistant", "content": answer})
         full = tokens(messages[:1] + messages[start:]) > local_budget() * 0.8
-        if (used >= STEP_LIMIT or full) and stopped_fetching:
+        if (used >= STEP_LIMIT or full or repeats >= 2) and stopped_fetching:
             # Told to stop and asking again: the answer as it is, without the request – "Slutar hämta: minnet är
             # nästan fullt" came again and again, each round adding more (30 Oct)
             messages.pop()
             answer = re.sub(r"```[\w-]*[ \t]*\n?.*?```", "", answer, flags=re.S).strip() or (
-                "Jag kom inte vidare – minnet tog slut innan jag hann klart. Börja ett nytt samtal, eller tryck "
-                "**Skicka till Claude**.")
+                ("Jag kom inte vidare – samma hämtning gav inget nytt." if repeats >= 2 and not full and used < STEP_LIMIT
+                 else "Jag kom inte vidare – minnet tog slut innan jag hann klart.")
+                + " Börja ett nytt samtal, eller tryck **Skicka till Claude**.")
             break
         if used >= STEP_LIMIT or full:
             stopped_fetching = True
@@ -2978,8 +3022,20 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                                  + (' Exempel: {"fil": "/sökväg/fil.lua", "gammal": "raden exakt som den står nu", '
                                     '"ny": "som den ska stå (tom = ta bort)"}' if tool == "byt" else "") + NUDGE_NOTE})
                 continue
-            messages.append({"role": "user", "content": "[Goblin AI] Det har du redan hämtat – svaret står ovan. "
-                             "Använd det, hämta något annat, eller svara nu." + NUDGE_NOTE})
+            repeats += 1
+            earlier = next((str(r) for t, q, r in reversed(LAST.done) if t == tool
+                            and re.sub(r"[\s\\]", "", q) == re.sub(r"[\s\\]", "", query)), "")
+            if repeats >= 2:
+                # Twice the same: no more fetching – what it gave, and answer now (the model test 7 Nov: qwen3.5
+                # repeated one call until "högst 10 steg" and then wrote Goblin AI's own words as its answer)
+                stopped_fetching = True
+                messages.append({"role": "user", "content": "[Goblin AI] Du har redan hämtat det här, och det gav:\n"
+                                 + (earlier[:1500] or "(se ovan)") + "\nHämta inget mer. Svara användaren nu med det "
+                                 "du vet – säg vad du inte kunde ta reda på." + NUDGE_NOTE})
+                continue
+            messages.append({"role": "user", "content": "[Goblin AI] Det har du redan hämtat – svaret står ovan"
+                             + (f": {earlier[:600]}" if earlier else "") + ". Använd det, hämta något annat, eller svara nu."
+                             + NUDGE_NOTE})
             continue
         LAST.tools.append((tool, query))
         name, run = tools[tool]["name"], tools[tool]["run"]
@@ -3022,6 +3078,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                          + (f"Så här svarar du med det:\n{guide}\n\n" if guide else "")
                          + f"Användarens fråga var: \"{question}\"\n"
                          "Svara nu på den frågan utifrån det här (eller använd ett verktyg till)."})
+    answer = strip_internal(answer)
     for url in re.findall(r"https://www\.warcraftlogs\.com/reports/[\w#=]+",
                           " ".join(str(t) for _, _, t in getattr(LAST, "done", []))):
         if url not in (s["url"] for s in sources):

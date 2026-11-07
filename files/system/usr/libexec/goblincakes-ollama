@@ -250,6 +250,7 @@ TIERS = [
 # rest in the ordinary memory). Sizes (GB) from ollama.com/library, Oct 2026.
 OPTIONS = {
     "vardag": [("gemma4:e2b", 4.6, "Snabbast"), ("gemma4:e4b", 6.6, "Bra till det mesta"),
+               ("qwen3.5:9b", 6.6, "Snabb, bra med verktyg, ser bilder"),
                ("gemma4:12b", 7.7, "Bättre svenska och texter"), ("gpt-oss:20b", 14, "Tänker efter längre"),
                ("gemma4:26b", 16, "Mycket bra"), ("gemma4:31b", 19, "Bäst")],
     "kod": [("qwen2.5-coder:3b", 1.9, "Snabbast"), ("qwen2.5-coder:7b", 4.7, "Bra till små skript"),

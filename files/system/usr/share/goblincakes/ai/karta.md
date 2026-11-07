@@ -464,6 +464,10 @@ Ord: grafikkort, gpu, nvidia, drivrutin, amd, secure boot, variant, anticheat, e
   pkexec, polkit org.goblincakes.anticheat, inget lösenord). `goblin anticheat fixa` ändrar kärnans argument
   (rpm-ostree kargs, gäller efter omstart), `ångra` tar tillbaka dem; vad som ändrats: ~/.local/state/goblincakes/anticheat-kargs.json.
   BIOS-delarna (Secure Boot, TPM, IOMMU) kan bara användaren slå på. Kort i Config → Grafik. Kolla: `rpm-ostree kargs`.
+- Varför Secure Boot spelar roll för anti-fusket: Easy Anti-Cheat v2 på Linux vill kunna lita på att datorn startade
+  med en orörd, signerad kärna och signerade drivrutiner – så att inget fuskprogram kan ha laddats in i systemet innan
+  spelet. Secure Boot (och TPM, som intygar hur datorn startade) är beviset; utan det startar spelet inte, eller kör utan
+  anti-fusk-kraven. Det handlar inte om att spelet självt eller grafikdrivrutinen saknar signatur. Fortnite finns inte för Linux än.
 - Bevakning av anti-fusk för Linux (användaren vill spela CS2 på FACEIT, Call of Duty och Battlefield utan Windows):
   `bevaka antifusk` (lagd på användarens dator 5 nov, en gång) läser en gång om dagen areweanticheatyet.coms lista
   (ai/anticheatwatch.py, games.json på GitHub) och ger en notis när status ändras för spel med FACEIT, Ricochet (CoD)

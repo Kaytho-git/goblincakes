@@ -746,13 +746,30 @@ def wow_stats(query):
     import recorder as R  # noqa: PLC0415
     q = (query or "").lower()
     days = int(m.group(1)) if (m := re.search(r"(\d+)\s*dag", q)) else 0
-    o = R.wow_overview(R.load_config()["folder"], "", days)
+    folder = R.load_config()["folder"]
+    o = R.wow_overview(folder, "", days)
     if not o["player"]:
         return "Inga WoW-siffror än – GoblinRecorder sparar dem när loggen för en inspelad pull hämtas från Warcraft Logs."
+    # Every character (7 Nov, the user: the answer was about one character only): the one named, else the one
+    # played last – and the others are named, so the AI knows they exist
+    players = o.get("players") or [o["player"]]
+    named = next((p for p in players if re.search(rf"\b{re.escape(p.split('-')[0].lower())}\b", q)), "")
+    if named and named != o["player"]:
+        o = R.wow_overview(folder, named, days)
+    others = [p.split("-")[0] for p in players if p != o["player"]]
+    every = []
+    if others and not named and re.search(r"\b(?:alla|karaktärer|karaktärerna|chars?|twinks?|alts?)\b", q):
+        for p in players:   # "alla mina karaktärer": a short line each, then the details of the latest
+            x = R.wow_overview(folder, p, days)
+            m = x["mplus"]
+            raid = "; ".join(f"raid {d} parse bäst {_v(r['best'])} median {_v(r['median'])}" for d, r in x["raid"].items())
+            every.append(f"- {x['name']} ({x['spec']} {x['class']}, ilvl {x['ilvl'] or '?'}): "
+                         + "; ".join(t for t in (raid, f"M+ {m['runs']} nycklar, parse bäst {_v(m['best'])} median {_v(m['median'])}"
+                                                 if m["runs"] else "") if t) or "inga siffror")
     # one spec at a time like the page (1 Nov): the one asked about, else the one played last
     asked = next((x["spec"] for x in o.get("specs", []) if x["spec"].lower() in q), "")
     if asked and asked != o["chosenSpec"]:
-        o = R.wow_overview(R.load_config()["folder"], "", days, "", asked)
+        o = R.wow_overview(folder, o["player"], days, "", asked)
     metric = "HPS" if o["role"] == "healers" else "DPS"
     lines = [f"{o['name']} – {o['spec']} {o['class']}, item level {o['ilvl'] or '?'}"
              + (f", de senaste {days} dagarna" if days else ", allt inspelat")
@@ -760,6 +777,11 @@ def wow_stats(query):
                 + " – nämn specen för dess siffror)" if len(o.get("specs", [])) > 1 else ""),
              "Parse = Warcraft Logs percentil (healers på HPS, andra på DPS); ilvl-parse = mot samma item level (i raid); i Mythic+ är parse mot samma nyckelnivå (det Warcraft Logs visar) och alla-parse mot alla nivåer. "
              "Färger hos WCL: 25 grön, 50 blå, 75 lila, 95 orange, 99 rosa, 100 guld."]
+    if others:
+        lines.insert(1, "Bara den här karaktären. Andra karaktärer med siffror: " + ", ".join(others)
+                     + " – nämn namnet för deras siffror, eller \"alla karaktärer\".")
+    if every:
+        lines += ["\nALLA KARAKTÄRER (kort):"] + every
     # The newest of each, said outright: "senaste bossen" got the last line of the boss list (24 Oct)
     runs = sorted((v for v in R.wow_history().values() if isinstance(v, dict) and v.get("parse") is not None
                    and v.get("player", o["player"]) == o["player"]), key=lambda v: -(v.get("started") or 0))
@@ -770,17 +792,19 @@ def wow_stats(query):
             lines.append(f"{label}: {what}, {v.get('result', '')}, {time.strftime('%Y-%m-%d', time.localtime(v['started']))}"
                          f" – parse {v['parse']}, {'alla' if mplus else 'ilvl'}-parse {_v(v.get('ilvlParse'))}")
     for d, r in o["raid"].items():
-        lines.append(f"\nRAID {d}: bästa snitt {_v(r['best'])}, median snitt {_v(r['median'])}, {r['kills']} kills av {r['pulls']} pulls")
+        lines.append(f"\nRAID {d}: parse bästa snitt {_v(r['best'])}, parse median snitt {_v(r['median'])}, {r['kills']} kills av {r['pulls']} pulls")
         for b in r["bosses"]:
-            lines.append(f"- {b['name']}: bäst {_v(b['best'])}, median {_v(b['median'])}, ilvl-parse {_v(b['ilvlParse'])}, "
+            lines.append(f"- {b['name']}: PARSE bäst {_v(b['best'])}, median {_v(b['median'])}, ilvl-parse {_v(b['ilvlParse'])} | "
                          f"{b['kills']} kills, {b['wipes']} wipes, bästa {metric} {b['amount'] or '–'}, snabbast "
                          f"{round(b['fastest'] or 0)} s")
     mp = o["mplus"]
     if mp["runs"]:
-        lines.append(f"\nMYTHIC+: {mp['timed']} i tid av {mp['runs']}, bästa snitt {_v(mp['best'])}, median snitt {_v(mp['median'])}")
+        lines.append(f"\nMYTHIC+: {mp['timed']} i tid av {mp['runs']}, parse bästa snitt {_v(mp['best'])}, parse median snitt {_v(mp['median'])}")
+        # The key level and the parse apart (7 Nov: "Altar of Fangs: bäst +13, median +13" – the key level was read
+        # as the parse, which was 0)
         for x in mp["dungeons"]:
-            lines.append(f"- {x['name']}: bästa i tid +{x['bestLevel'] or '–'}, högsta +{x['topLevel'] or '–'}, "
-                         f"{x['pulls']} körningar, {x['kills']} i tid, parse bäst {_v(x['best'])}, median {_v(x['median'])}")
+            lines.append(f"- {x['name']}: PARSE bäst {_v(x['best'])}, median {_v(x['median'])} | NYCKEL bästa i tid "
+                         f"+{x['bestLevel'] or '–'}, högsta +{x['topLevel'] or '–'}, {x['pulls']} körningar, {x['kills']} i tid")
     if o["trend"]:
         lines.append("\nParse över tid (äldst först): " + ", ".join(f"{t['name']} {t['parse']}" for t in o["trend"][-20:]))
     if o["missing"]:
