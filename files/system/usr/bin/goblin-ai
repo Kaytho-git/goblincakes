@@ -380,6 +380,7 @@ class Backend(QObject):
     _claudeDone = Signal(str, str, str, bool)  # conversation id, report path, answer or error, ok
     claudeTerminal = Signal(str, str)  # folder, command: Claude Code with Kakan's report in a TERMINAL tab (2 Nov)
     helperChanged = Signal()  # Inställningar → Skicka vidare (Claude Code, Codex, own program)
+    reserveChanged = Signal()  # Kakans reserv (punkt 17): Ja/Nej, the program
     _testJudged = Signal(str, str)  # verdict, why (Kakan's judgement of a test point)
     _statusText = Signal(str)
     _stepsText = Signal(str)  # the work loop's steps (JSON)
@@ -585,6 +586,9 @@ class Backend(QObject):
         if self._laga_next:  # /laga: the report and its code, from nothing (goblinai.laga_chat)
             question, self._laga_next = self._laga_next, None
             shown["laga"] = True
+        if getattr(self, "_reserve_next", None):  # /haiku …, Försök igen med …: Kakans reserv answers
+            question["reserve"] = shown["reserve"] = self._reserve_next
+            self._reserve_next = None
         if images:
             question["images"] = images
         if self._only_next:  # /wiki: only that tool for this question
@@ -666,6 +670,11 @@ class Backend(QObject):
             self._save_report(len(self._display) - 1)
         if "vad som är fel" in answer.lower():  # the Laga button: any report on the user's own code
             shown["canLaga"] = goblinai.can_laga(answer)
+        # Försök igen med Claude Haiku / Sonnet: under an answer where she got stuck – the user decides (punkt 17)
+        offer = goblinai.reserve_offer(shown, self._api)
+        if offer:
+            shown["canReserve"] = offer
+            shown["reserveName"] = goblinai.reserve_info()[offer]
         self.messageAdded.emit(json.dumps(shown))
         self._set_busy(False)
         self._save()
@@ -2610,6 +2619,51 @@ class Backend(QObject):
     def setHelper(self, helper):
         toclaude.save_settings(helper=helper)
         self.helperChanged.emit()
+        self.reserveChanged.emit()
+
+    # ── Kakans reserv (punkt 17, 7 Nov) ──
+    # Claude Code / Codex with the user's subscription answers for her while a game runs, and on the user's click
+    # under an answer where she got stuck. Asked once when found (the box at start), Nej = never; Inställningar.
+
+    @Property(str, notify=reserveChanged)
+    def reserve(self):
+        info = goblinai.reserve_info()
+        info["ask"] = bool(info["helper"]) and info["on"] is None
+        info["commands"] = goblinai.RESERVE_NAMES.get(info["helper"], {})
+        return json.dumps(info, ensure_ascii=False)
+
+    @Slot(bool)
+    def setReserve(self, on):
+        goblinai.set_reserve(on)
+        self.reserveChanged.emit()
+
+    @Slot(str, str)
+    def sendReserve(self, level, text):
+        """/haiku <fråga> (or /sonnet …): that question to Kakans reserv; without a question = try the last again."""
+        if self._busy or level not in goblinai.RESERVE_LEVELS:
+            return
+        if goblinai.reserve_on() is not True or not goblinai.reserve_helper():
+            self.notice.emit("Kakans reserv är av – Inställningar → Skicka vidare")
+            return
+        if text.strip():
+            self._reserve_next = level
+            self.send(text, "")
+        else:
+            self.retryReserve(len(self._display) - 1, level)
+
+    @Slot(int, str)
+    def retryReserve(self, index, level):
+        """Försök igen med … under an answer: the question again, her try above it in the chat."""
+        if self._busy or level not in goblinai.RESERVE_LEVELS or not goblinai.typed_question(self._api):
+            return
+        name = goblinai.reserve_info()[level]
+        shown = {"role": "user", "text": f"Försök igen med {name}", "segments": [], "service": "", "file": "",
+                 "time": time.strftime("%H:%M"), "reserve": level}
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        self._auto_count, self._blocked_told, self._receipt_told = 0, False, False
+        self._api.append(goblinai.reserve_question(self._api, level))
+        self._ask()
 
     @Slot(str)
     def setHelperCommand(self, command):

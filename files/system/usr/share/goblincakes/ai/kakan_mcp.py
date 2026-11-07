@@ -8,10 +8,16 @@ reminders), no web search (Claude has its own) and not Kakan's own MCP servers.
     python3 kakan_mcp.py lista         the tools it hands out
     python3 kakan_mcp.py claude        adds it to Claude Code (claude mcp add --scope user kakan …)
 
+Kakans reserv (point 17, 7 Nov): Goblin AI starts Claude Code/Codex with this server and two variables –
+GOBLINCAKES_MCP_LOG = a file where every call is written (one JSON line: "start", "done", "card"), so the window shows
+her steps and the receipt counts them, and GOBLINCAKES_MCP_CHANGE = "1" when the user asked for a change: then
+byt_text is handed out too – it only makes a card (Tillåt in the window), it never changes the file itself.
+
 Only the standard library; the tools are goblinai.tools_for's, so they work the same as in the window."""
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -37,11 +43,27 @@ def goblinai():
     return g
 
 
+LOG = os.environ.get("GOBLINCAKES_MCP_LOG", "")
+CHANGE = os.environ.get("GOBLINCAKES_MCP_CHANGE") == "1"
+
+
+def log(**entry):
+    """One line in Goblin AI's log of this question (only when Goblin AI started the server)."""
+    if not LOG:
+        return
+    try:
+        with open(LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
 def shared_tools():
-    """{word: tool} – Kakan's tools that only read and need no local AI."""
+    """{word: tool} – Kakan's tools that only read and need no local AI (and byt_text's card, see CHANGE)."""
     g = goblinai()
     tools = g.tools_for(g.load_keys(), {"search": False}, [])
-    tools = {w: t for w, t in tools.items() if w in SHARED}
+    tools = {w: t for w, t in tools.items() if w in SHARED or (w == "byt" and CHANGE)}
+    g.LAST.fixes = int(os.environ.get("GOBLINCAKES_MCP_FIXES") or 0)  # byt_text's "only small faults" counts the question's
     import toclaude  # noqa: PLC0415
     tools["rapporter"] = g.tool("Läser Kakans rapporter", "", "", lambda q: (toclaude.read(q), []), "rapporter",
                                 "Kakans rapporter till Claude: det hon inte kunde lösa själv – frågan, hennes svar och "
@@ -63,7 +85,11 @@ def mcp_list(tools):
     out = []
     for f in goblinai().tool_schemas(tools):
         fn = f["function"]
-        out.append({"name": fn["name"], "description": fn["description"], "inputSchema": fn["parameters"],
+        desc = fn["description"]
+        if fn["name"] == "byt_text":
+            desc += (" Gör bara ett ändringskort under ditt svar – filen ändras först när användaren trycker Tillåt. "
+                     "En ändring per kort, ett kort i taget.")
+        out.append({"name": fn["name"], "description": desc, "inputSchema": fn["parameters"],
                     "annotations": {"readOnlyHint": True, "openWorldHint": fn["name"] in ("warcraftlogs", "sport")}})
     return out
 
@@ -75,8 +101,21 @@ def run(tools, name, args):
     if not block:
         raise ValueError(f"okänt verktyg: {name}")
     word, _, query = block[3:-4].partition("\n")
-    text, _ = tools[word]["run"](query.strip())
+    query = query.strip()
+    log(t="start", tool=word, query=query, label=g.tool_label(word, query, tools))
+    cards = len(getattr(g.LAST, "cards", []) or [])
+    try:
+        text, _ = tools[word]["run"](query)
+    except Exception as e:
+        log(t="done", tool=word, query=query, state="fel", text=f"gick inte: {e}")
+        raise
     text = (text or "").strip() or "(tomt svar)"
+    stuck = re.match(r"(?:Inget kort gjort|Inget bytt|Gick inte|Det gick inte)\b", text)
+    log(t="done", tool=word, query=query, state="fel" if stuck else "ok", text=text[:3000])
+    new = getattr(g.LAST, "cards", []) or []
+    if word == "byt" and (len(new) > cards or "ersätter ditt förra" in text):
+        path, old = g.LAST.card_spans[-1]
+        log(t="card", card=new[-1], path=str(path), old=old)
     return text[:ANSWER_MAX] + ("\n[… avkortat]" if len(text) > ANSWER_MAX else "")
 
 

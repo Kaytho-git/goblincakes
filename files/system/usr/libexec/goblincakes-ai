@@ -34,6 +34,7 @@ from goblinai import (DAILY_PROMPT, laga_message, after_commands, installed_apps
                       make_image, make_report, model_choices, project_prompt, remember, run_in_folder, save_keys, save_solution,
                       segments,
                       set_chosen_model, system_prompt, test_key)
+import goblinai  # noqa: E402 – Kakans reserv (reserve_*)
 
 MAX_ROUNDS = 8  # command → output → next step, per question
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes" / "ai"
@@ -253,6 +254,7 @@ class Chat:
         self.search_next = False
         self.only_next = []  # /wiki: the next question gets only these tools
         self.laga_next = None  # /laga: the repair turn goblinai.laga_message made
+        self.reserve_next = None  # /haiku, /sonnet (Kakans reserv, punkt 17): "fast" or "strong" for the next question
 
     def project_data(self):
         return next((p for p in load_projects() if p["id"] == self.project), None) if self.project else None
@@ -650,6 +652,15 @@ def show_receipt(chat):
     return receipt_back(r, chat.api)
 
 
+def reserve_hint(chat):
+    """She got stuck: Kakans reserv can try – the user decides (punkt 17, 7 Nov)."""
+    level = goblinai.reserve_offer(chat.display[-1], chat.api) if chat.display else ""
+    if level:
+        info = goblinai.reserve_info()
+        muted(f"  Kom hon inte vidare? /{goblinai.RESERVE_NAMES[info['helper']][level]} försöker igen med {info[level]} "
+              "(ditt abonnemang).")
+
+
 def handle(chat, keys, shown, question, choice=""):
     """A question: the answer, its commands, the next step – at most MAX_ROUNDS."""
     chat.display.append(shown)
@@ -673,6 +684,7 @@ def handle(chat, keys, shown, question, choice=""):
             # goes back to her so she can fix it herself. Stopped ones: she hears why once (the safe way)
             back = show_receipt(chat)
             if not back or told_receipt:
+                reserve_hint(chat)
                 return
             told_receipt = True
             chat.api.append({"role": "user", "content": back})
@@ -706,6 +718,9 @@ def send(chat, keys, text, attachment=None, choice="", daily=False):
     if chat.laga_next:  # /laga: the report and its code, from nothing (goblinai.laga_chat)
         question, chat.laga_next = chat.laga_next, None
         shown["laga"] = True
+    if chat.reserve_next:  # /haiku …: Kakans reserv answers this question
+        question["reserve"] = shown["reserve"] = chat.reserve_next
+        chat.reserve_next = None
     if chat.only_next:  # /wiki
         question["only"] = shown["only"] = chat.only_next
         chat.only_next = []
@@ -756,12 +771,23 @@ def commands(keys):
         {"name": "projekt", "note": "gå in i ett projekt – utan namn: lämna projektet", "args": True},
         {"name": "minne", "note": f"vad {name()} kommer ihåg om dig"},
         {"name": "laga", "note": f"laga felen i {name()}s senaste rapport – börjar om med bara rapporten och koden"},
+    ] + reserve_commands() + [
         {"name": "inställningar", "note": "AI-tjänster och nycklar", "aliases": ["settings", "setup"]},
         {"name": "hjälp", "note": "alla kommandon och tangenter", "aliases": ["help", "?"]},
         {"name": "avsluta", "note": "tillbaka till terminalen (även ctrl+d)", "aliases": ["exit", "quit", "q"]},
     ]
     only = [{"name": k, "note": v[1] + " (snabbare)", "args": True} for k, v in ONLY_COMMANDS.items()]
     return [c for c in items if not c.get("hidden")] + only + own
+
+
+def reserve_commands():
+    """/haiku and /sonnet (/luna and /sol with Codex) – only when the user said Ja to Kakans reserv."""
+    info = goblinai.reserve_info()
+    if info["on"] is not True or not info["helper"]:
+        return []
+    names = goblinai.RESERVE_NAMES[info["helper"]]
+    return [{"name": names[lvl], "note": f"fråga {info[lvl]} (ditt abonnemang) – utan fråga: försök igen med den förra",
+             "args": True, "reserve": lvl} for lvl in goblinai.RESERVE_LEVELS]
 
 
 def find_command(cmds, word):
@@ -968,6 +994,17 @@ def run_slash(text, chat, keys, ui):
             send(chat, keys, "/laga")
         else:
             muted("  " + why)
+    elif c.get("reserve"):
+        chat.reserve_next = c["reserve"]
+        if arg:
+            send(chat, keys, arg)
+        elif goblinai.typed_question(chat.api):
+            chat.reserve_next = None
+            handle(chat, keys, {"role": "user", "text": f"Försök igen med {goblinai.reserve_info()[c['reserve']]}",
+                                "reserve": c["reserve"]}, goblinai.reserve_question(chat.api, c["reserve"]))
+        else:
+            chat.reserve_next = None
+            muted(f"  Skriv frågan efter /{n}.")
     elif n in ONLY_COMMANDS:
         if arg:
             chat.only_next = list(ONLY_COMMANDS[n][0])

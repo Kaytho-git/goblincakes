@@ -17,6 +17,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -2085,7 +2086,21 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
             f"\n\n[Goblin AI] Kommandot gick fel (avslutskod {failed[1]}) – inget ändrades av det. Gör INGET nytt kort "
             "eller byt_text nu: säg kort och ärligt vad som gick fel och att det inte är gjort.")}
     try:
-        if read_links(messages, keys, status):
+        reserve, answer = reserve_for(messages, choice, project), None
+        if reserve:
+            # Kakans reserv (punkt 17): the button / /haiku, or the local AI resting while a game runs
+            LAST.fixes = fixes_done(messages)
+            try:
+                answer, service = ask_reserve(messages, reserve, status, notice, steps)
+            except ServiceError as e:
+                if reserve_level(messages):  # asked for: said, not something else behind the user's back
+                    raise ServiceError(f"Kakans reserv: {e}") from None
+                LAST.tools, LAST.done, LAST.cards, LAST.card_spans = [], [], [], []
+                if notice:
+                    notice(f"Kakans reserv: {e} – frågar som vanligt")
+        if answer is not None:
+            pass
+        elif read_links(messages, keys, status):
             # The pages are there: one plain answer – no searching on top, no long thinking (a button
             # with links took 3–4 minutes)
             QUICK.on = True
@@ -2595,6 +2610,20 @@ def local_sources():
 
 
 LAST = threading.local()  # .tools: [(tool, query)] the last ask() used in this thread (the ♥ remembers them)
+
+
+def tool_label(tool, query, tools):
+    """What she does, in plain words ("Läser recorder.json") – the chat's steps and the top bar's tooltip (25 Oct);
+    the MCP server's log (Kakans reserv) says the same."""
+    if tool == "byt":
+        # Not the raw block cut at 80 characters ("fil: … <<<<<<< GAMMALT ⏎ 3") – the user saw only GAMMALT and no
+        # new text (1 Nov); the file here, the red/green lines on the card under the answer
+        target = re.search(r"(?:~|/)[^\"'\n\\]*?\.\w{1,5}(?=[\"'\s\\]|$)", query)
+        return f"Byter text i {Path(target.group(0)).name}" if target else "Byter text i en fil"
+    if tool == "leta":
+        return sys_tools().describe(query)
+    name = tools[tool]["name"] if tool in tools else tool
+    return f"{name}{': ' + query[:80] if query else ''}"
 
 
 class Stopped(Exception):
@@ -3388,14 +3417,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         if status:
             status(f"{name}{': ' + query if query else ''}…")
         # What she does, in plain words ("Läser recorder.json") – the chat and the top bar's tooltip (25 Oct)
-        if tool == "byt":
-            # Not the raw block cut at 80 characters ("fil: … <<<<<<< GAMMALT ⏎ 3") – the user saw only GAMMALT and no
-            # new text (1 Nov); the file here, the red/green lines on the card under the answer
-            target = re.search(r"(?:~|/)[^\"'\n\\]*?\.\w{1,5}(?=[\"'\s\\]|$)", query)
-            label = f"Byter text i {Path(target.group(0)).name}" if target else "Byter text i en fil"
-        else:
-            label = sys_tools().describe(query) if tool == "leta" else f"{name}{': ' + query[:80] if query else ''}"
-        steps.start(label)
+        steps.start(tool_label(tool, query, tools))
         try:
             text, found = run(query)
             # A tool that answered "couldn't" is a step that failed – the receipt shows where she got stuck (31 Oct)
@@ -5488,6 +5510,364 @@ def can_laga(answer):
         return laga_message([{"role": "assistant", "content": answer}])[0] is not None
     except Exception:  # noqa: BLE001 – a button never stops the answer
         return False
+
+
+# ── Kakans reserv (punkt 17, 7 Nov) ──────────────────────────────────────
+# Claude Code or Codex, logged in with the user's own subscription, answers for Kakan when the local AI rests (a game
+# runs) and when the user presses "Försök igen med …" under an answer where she got stuck (the user, 7 Nov: the user
+# decides that, never automatically). Asked once when found (Ja/Nej in the window, Inställningar → Skicka vidare);
+# the same choice of program as Skicka vidare. They read with Kakan's own tools through kakan_mcp.py (which writes
+# every call to a log: her steps in the window and the receipt count them) and change only with byt_text's cards and
+# ```bash cards – Tillåt, the klart-kontroll and the receipt work as for her. Never a Privat project, never a picture.
+
+RESERVE_DIR = CACHE / "reserv"          # an empty folder: no CLAUDE.md, no repo, no memory
+RESERVE_SECONDS = 300
+RESERVE_TURNS = 16                      # Claude's own tool rounds per question (--max-turns)
+RESERVE_LEVELS = ("fast", "strong")
+RESERVE_COMMANDS = {"haiku": "fast", "luna": "fast", "sonnet": "strong", "sol": "strong"}
+RESERVE_NAMES = {"claude": {"fast": "haiku", "strong": "sonnet"}, "codex": {"fast": "luna", "strong": "sol"}}  # the /commands
+RESERVE_STUCK = re.compile(r"jag kom inte vidare|minnet tog slut|kan jag laga det\W{0,8}nej(?!\W{0,4}(?:du bad mig bara kolla|någon annans))"
+                           r"|kakans minne tog slut", re.I)
+# Codex without its shell, the ChatGPT app's tools and plugins – only Kakan's (7 Nov: "inget skal")
+CODEX_OFF = ("shell_tool", "unified_exec", "apps", "browser_use", "computer_use", "in_app_browser", "plugins")
+
+RESERVE_PROMPT = """
+
+[Du är Kakans reserv just nu – {name} via användarens eget abonnemang.] Svara som Kakan, på svenska, kort.
+- Kakans verktyg heter mcp__kakan__… (du har inga andra): läs med dem i stället för att gissa – filer, loggar,
+  WoW:s API (wowapi), Warcraft Logs, kartan över GOBLINCAKES. Skriv inte verktygens kodblock själv.
+- Ändra en fil bara med verktyget byt_text (om det finns): det gör ett kort under ditt svar, filen ändras när
+  användaren trycker Tillåt. En ändring per kort, ett kort i taget. Finns inte byt_text: användaren bad inte om
+  någon ändring – gör ingen.
+- Ett kommando som måste köras skriver du i ett ```bash-block – det körs först när användaren trycker Tillåt.
+- Säg aldrig att något är gjort, lagat eller ändrat förrän det har körts: säg vad som händer när användaren trycker Tillåt.
+- Kommer du inte vidare: säg ärligt vad du kollat och vad som saknas."""
+
+
+def reserve_logged_in(helper):
+    if helper == "claude":
+        return (Path.home() / ".claude/.credentials.json").exists()
+    if helper == "codex":
+        return (Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "auth.json").exists()
+    return False
+
+
+def reserve_helper():
+    """"claude"/"codex": the program Kakans reserv uses (the one chosen for Skicka vidare when it is one of them),
+    installed and logged in – "" when there is none (whatever the user answered)."""
+    import toclaude  # noqa: PLC0415
+    chosen = toclaude.settings().get("helper", "")
+    for helper in ((chosen,) if chosen in ("claude", "codex") else ()) + ("claude", "codex"):
+        if toclaude.installed(helper) and reserve_logged_in(helper):
+            return helper
+    return ""
+
+
+def reserve_on():
+    """The user's answer: True (Ja), False (Nej – never used, never asked again), None (not asked yet)."""
+    import toclaude  # noqa: PLC0415
+    value = toclaude.settings().get("reserv")
+    return value if isinstance(value, bool) else None
+
+
+def set_reserve(on):
+    import toclaude  # noqa: PLC0415
+    toclaude.save_settings(reserv=bool(on))
+
+
+def _codex_models():
+    """ChatGPT's models from Codex's own list, by what they are – not fixed names (they change): the newest
+    "fast and affordable" and "workhorse" models that are listed."""
+    try:
+        data = json.loads((Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "models_cache.json").read_text())
+        models = [m for m in (data.get("models") if isinstance(data, dict) else data) or []
+                  if isinstance(m, dict) and m.get("visibility", "list") == "list"]
+    except (OSError, ValueError, AttributeError):
+        models = []
+
+    def find(*words):
+        return next((m.get("slug") or m.get("id") for m in models
+                     if any(w in (m.get("description") or "").lower() for w in words)
+                     and "older" not in (m.get("description") or "").lower()
+                     and "previous" not in (m.get("description") or "").lower()), None)
+    return find("fast and affordable", "fast and efficient") or "gpt-6-luna", find("workhorse") or "gpt-6.1-sol"
+
+
+def _model_name(slug):
+    """gpt-6-luna → GPT-6 Luna"""
+    parts = slug.split("-")
+    if parts[0] == "gpt" and len(parts) > 2:
+        return f"GPT-{parts[1]} " + " ".join(p.capitalize() for p in parts[2:])
+    return slug
+
+
+def reserve_models(helper=None):
+    """{"fast": (model, name), "strong": (model, name)} for the helper."""
+    helper = reserve_helper() if helper is None else helper
+    if helper == "claude":
+        return {"fast": ("haiku", "Claude Haiku"), "strong": ("sonnet", "Claude Sonnet")}
+    if helper == "codex":
+        fast, strong = _codex_models()
+        return {"fast": (fast, _model_name(fast)), "strong": (strong, _model_name(strong))}
+    return {}
+
+
+def reserve_info():
+    """For the window: the helper, its models' names and the user's answer."""
+    helper = reserve_helper()
+    models = reserve_models(helper)
+    import toclaude  # noqa: PLC0415
+    return {"helper": helper, "program": toclaude.PROGRAMS.get(helper, ""), "on": reserve_on(),
+            "fast": models.get("fast", ("", ""))[1], "strong": models.get("strong", ("", ""))[1]}
+
+
+def reserve_command(text):
+    """"/haiku fråga" (or /sonnet, /luna, /sol) → ("fast"|"strong", "fråga"); else (None, text)."""
+    m = re.match(r"^\s*/(\w+)\s+(\S[\s\S]*)$", text or "")
+    if m and m.group(1).lower() in RESERVE_COMMANDS:
+        return RESERVE_COMMANDS[m.group(1).lower()], m.group(2).strip()
+    return None, text
+
+
+def reserve_level(messages):
+    """The level asked for in this question: the latest user message's "reserve" – the turns Goblin AI writes itself
+    after it (Så här gick det, the klart-kontroll) keep it; a new question typed by the user ends it."""
+    for m in reversed(messages):
+        if m["role"] != "user":
+            continue
+        if m.get("reserve") in RESERVE_LEVELS:
+            return m["reserve"]
+        if not str(m.get("content", "")).startswith(OWN_TURNS + REPORT_TURNS + ("[Goblin AI",)):
+            return None
+    return None
+
+
+def reserve_for(messages, choice="", project=None):
+    """"fast"/"strong" when Kakans reserv answers this question, else None: asked for (the button, /haiku), or the
+    local AI resting while a game runs – with Automatiskt or a local model picked, never a Privat project or a picture."""
+    if (project or {}).get("order") == "local-only" or has_images(messages) or reserve_on() is not True:
+        return None
+    if not reserve_helper():
+        return None
+    level = reserve_level(messages)
+    if level:
+        return level
+    chosen = chosen_provider(choice)
+    if LOCAL_PAUSED.exists() and (not chosen or chosen[0].get("local")):
+        return "fast"
+    return None
+
+
+def reserve_offer(entry, messages):
+    """The button under an answer where she got stuck: "fast" (her own answer) or "strong" (the fast reserve's), else
+    "" – the user decides whether to try (7 Nov)."""
+    if reserve_on() is not True or not reserve_helper() or entry.get("role") != "assistant":
+        return ""
+    service = str(entry.get("service", ""))
+    text = str(entry.get("text", ""))
+    receipt = entry.get("receipt") or {}
+    stuck = (bool(RESERVE_STUCK.search(text)) or receipt.get("state") == "no"
+             or any(s.get("state") == "gräns" for s in entry.get("steps") or []))
+    if not stuck:
+        return ""
+    names = reserve_models()
+    if names and service.startswith(names["strong"][1]):
+        return ""
+    if names and service.startswith(names["fast"][1]):
+        return "strong"
+    return "fast"
+
+
+def reserve_question(messages, level):
+    """The button "Försök igen med …": the question again, with what came before (her try) in the chat."""
+    question = typed_question(messages)
+    return {"role": "user", "reserve": level, "content": (
+        f"{question}\n\n[Goblin AI] Kakan (lokala AI:n) kom inte vidare med det här – hennes försök står ovan. Ta "
+        "frågan från början med verktygen; lita inte på det hon påstod utan att kolla.")}
+
+
+def _reserve_text(messages, name):
+    """The chat as one prompt (Claude Code -p and Codex exec take one): the system prompt apart, earlier turns as text."""
+    system = next((m["content"] for m in messages if m["role"] == "system"), "") + RESERVE_PROMPT.format(name=name)
+    turns = [m for m in messages if m["role"] in ("user", "assistant") and isinstance(m.get("content"), str)]
+    lines = []
+    for m in turns[:-1][-24:]:
+        who = "Användaren" if m["role"] == "user" else "Kakan"
+        text = m["content"]
+        lines.append(f"### {who}\n{text[:8000]}")
+    last = turns[-1]["content"] if turns else ""
+    prompt = (("Samtalet hittills:\n\n" + "\n\n".join(lines) + "\n\n### Användaren (nu)\n") if lines else "") + last
+    return system, prompt
+
+
+def _reserve_run(helper, model, system, prompt, log, change, steps):
+    """One run of Claude Code/Codex; the steps from the log as they come. Returns (answer, error kind or "")."""
+    import toclaude  # noqa: PLC0415
+    RESERVE_DIR.mkdir(parents=True, exist_ok=True)
+    server = str(Path(__file__).resolve().parent / "kakan_mcp.py")
+    env = {"GOBLINCAKES_MCP_LOG": str(log), "GOBLINCAKES_MCP_CHANGE": "1" if change else "0",
+           "GOBLINCAKES_MCP_FIXES": str(getattr(LAST, "fixes", 0))}
+    out = RESERVE_DIR / f"svar-{os.getpid()}-{threading.get_ident()}.txt"
+    if helper == "claude":
+        config = RESERVE_DIR / f"mcp-{os.getpid()}-{threading.get_ident()}.json"
+        config.write_text(json.dumps({"mcpServers": {"kakan": {"command": sys.executable, "args": [server], "env": env}}}))
+        system_file = config.with_suffix(".txt")  # Kakan's prompt is ~23 000 characters – a file, not one argument
+        system_file.write_text(system, encoding="utf-8")
+        cmd = [toclaude.claude_path(), "-p", "--model", model, "--output-format", "json", "--no-session-persistence",
+               "--disable-slash-commands", "--strict-mcp-config", "--mcp-config", str(config), "--tools", "",
+               "--allowedTools", "mcp__kakan", "--setting-sources", "", "--system-prompt-file", str(system_file),
+               "--max-turns", str(RESERVE_TURNS)]
+        stdin = prompt
+    else:
+        envs = ",".join(f'{k}="{v}"' for k, v in env.items())
+        cmd = [toclaude.codex_path(), "exec", "--ephemeral", "--skip-git-repo-check", "--ignore-user-config",
+               "-s", "read-only", "-m", model, "-C", str(RESERVE_DIR), "-o", str(out)]
+        for feature in CODEX_OFF:
+            cmd += ["--disable", feature]
+        cmd += ["-c", f"mcp_servers.kakan.command={json.dumps(sys.executable)}",
+                "-c", f"mcp_servers.kakan.args=[{json.dumps(server)}]",
+                "-c", f"mcp_servers.kakan.env={{{envs}}}",
+                "-c", 'mcp_servers.kakan.default_tools_approval_mode="approve"', "-"]
+        stdin = system.strip() + "\n\n---\n\n" + prompt
+    try:
+        proc = subprocess.Popen(cmd, cwd=RESERVE_DIR, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, start_new_session=True)
+    except OSError as e:
+        raise ServiceError(f"{toclaude.PROGRAMS[helper]} startar inte: {e}") from None
+    result = {}
+
+    def talk():
+        try:
+            result["out"], result["err"] = proc.communicate(stdin)
+        except (OSError, ValueError) as e:
+            result["out"], result["err"] = "", str(e)
+    reader = threading.Thread(target=talk, daemon=True)
+    reader.start()
+    seen, started = 0, time.time()
+    try:
+        while reader.is_alive():
+            reader.join(0.3)
+            seen = _reserve_steps(log, seen, steps)
+            if (steps and steps.stop is not None and steps.stop.is_set()) or time.time() - started > RESERVE_SECONDS:
+                os.killpg(proc.pid, signal.SIGTERM)
+                reader.join(5)
+                if steps and steps.stop is not None and steps.stop.is_set():
+                    raise Stopped()
+                raise ServiceError(f"{toclaude.PROGRAMS[helper]} svarade inte på {RESERVE_SECONDS // 60} minuter")
+        _reserve_steps(log, seen, steps)
+    finally:
+        if helper == "claude":
+            config.unlink(missing_ok=True)
+            system_file.unlink(missing_ok=True)
+    text, err = result.get("out", ""), result.get("err", "")
+    if helper == "claude":
+        try:
+            data = json.loads(text.strip().splitlines()[-1]) if text.strip() else {}
+        except ValueError:
+            data = {}
+        answer = str(data.get("result") or "").strip()
+        USAGE_RESERVE.update(cost=data.get("total_cost_usd"), turns=data.get("num_turns"))
+        if data.get("subtype") == "error_max_turns":
+            return answer, "turns"
+        if data.get("is_error") or proc.returncode:
+            raise ServiceError(_reserve_error(answer or err or f"avslutskod {proc.returncode}"))
+        return answer, ""
+    try:
+        answer = out.read_text(encoding="utf-8").strip()
+        out.unlink()
+    except OSError:
+        answer = ""
+    if proc.returncode or not answer:
+        raise ServiceError(_reserve_error(err[-600:] or f"avslutskod {proc.returncode}"))
+    return answer, ""
+
+
+USAGE_RESERVE = {}
+
+
+def _reserve_error(text):
+    text = " ".join(str(text).split())
+    if re.search(r"usage limit|rate.?limit|limit reached|quota|5-hour|weekly", text, re.I):
+        return "abonnemangets gräns är nådd (kvot-widgeten visar när den räcker igen)"
+    if re.search(r"log ?in|logged out|auth|credential|401", text, re.I):
+        return "inte inloggad – logga in i programmet igen"
+    return text[:300]
+
+
+def _reserve_steps(log, seen, steps):
+    """The MCP server's log → her steps (and LAST, as if she had used the tools herself). Returns lines read."""
+    try:
+        lines = Path(log).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return seen
+    for line in lines[seen:]:
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if e.get("t") == "start":
+            if steps:
+                steps.start(e.get("label") or e.get("tool", ""))
+            LAST.tools.append((e.get("tool", ""), e.get("query", "")))
+        elif e.get("t") == "done":
+            if steps:
+                steps.done(e.get("state", "ok"), e.get("text", "").split(":", 1)[-1] if e.get("state") == "fel" else "")
+            tool = e.get("tool", "")
+            LAST.done.append((tool, e.get("query", ""), "" if tool in ("sök", "leta", "sida") else e.get("text", "")))
+        elif e.get("t") == "card" and e.get("card"):
+            # The same lines again = the new version of that card (as byt_run does it)
+            path, old = Path(e.get("path", "")), str(e.get("old", ""))
+            lines_ = {x.strip() for x in old.split("\n") if len(x.strip()) >= 12}
+            spans = getattr(LAST, "card_spans", [])
+            again = [i for i, (f, o) in enumerate(spans) if f == path and lines_ & {x.strip() for x in o.split("\n")}]
+            LAST.cards = [c for i, c in enumerate(getattr(LAST, "cards", [])) if i not in again] + [e["card"]]
+            LAST.card_spans = [x for i, x in enumerate(spans) if i not in again] + [(path, old)]
+    return len(lines)
+
+
+def ask_reserve(messages, level, status=None, notice=None, steps=None):
+    """Kakans reserv answers the question: the fast model, and once the strong one when the fast one got stuck
+    (its tool rounds ran out, or it said it got nowhere) – "Claude Sonnet (Haiku kom inte vidare)". Returns
+    (answer, service)."""
+    helper = reserve_helper()
+    models = reserve_models(helper)
+    if not helper or not models:
+        raise ServiceError("Kakans reserv: varken Claude Code eller Codex är installerat och inloggat")
+    change = change_allowed(messages) and not failed_card(messages)
+    tries = [level] if level == "strong" else ["fast", "strong"]
+    why = ""
+    for n, lvl in enumerate(tries):
+        model, name = models[lvl]
+        system, prompt = _reserve_text(messages, name)
+        log = RESERVE_DIR / f"logg-{os.getpid()}-{threading.get_ident()}.jsonl"
+        RESERVE_DIR.mkdir(parents=True, exist_ok=True)
+        log.write_text("")
+        activity("ask", f"tänker · {name}", False)
+        if status:
+            status(f"Frågar {name}…")
+        if steps:
+            steps.start(f"Frågar {name} (ditt abonnemang)")
+            steps.done()
+        try:
+            answer, stop = _reserve_run(helper, model, system, prompt, log, change, steps)
+        finally:
+            log.unlink(missing_ok=True)
+        if n + 1 < len(tries) and (stop == "turns" or not answer or RESERVE_STUCK.search(answer)):
+            why = f" ({models['fast'][1].split()[-1]} kom inte vidare)"
+            if notice:
+                notice(f"{name} kom inte vidare – {models['strong'][1]} tar över")
+            messages = messages + [{"role": "assistant", "content": answer or "(inget svar)"},
+                                   {"role": "user", "content": "[Goblin AI] Det här försöket kom inte vidare – ta det "
+                                    "från början och kolla med verktygen."}]
+            continue
+        if stop == "turns":
+            answer = (answer.rstrip() + "\n\n" if answer else "") + (
+                f"*{name} hann inte klart – gränsen för antal steg nåddes.*")
+        service = f"{name} (ditt abonnemang){why if lvl == 'strong' else ''}"
+        if any(t for t, _ in LAST.tools):
+            service += " · hämtade data"
+        return answer, service
+    raise ServiceError("Kakans reserv svarade inte")
 
 
 def laga_chat(messages):

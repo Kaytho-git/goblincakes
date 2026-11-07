@@ -251,6 +251,10 @@ Window {
         { name: "minne", note: "vad Goblin AI kommer ihåg om dig" },
         { name: "claude", note: "skicka senaste svaret till Claude Code – /claude fråga = bara läsa, svaret kommer hit", args: true, hidden: !backend.claude },
         { name: "laga", note: "laga felen i Kakans senaste rapport – hon börjar om med bara rapporten och koden (dina egna tillägg och skript)" },
+        { name: (reserveInfo.commands || {}).fast || "haiku", reserve: "fast", args: true, hidden: reserveInfo.on !== true || !reserveInfo.helper,
+          note: "fråga " + (reserveInfo.fast || "") + " (ditt abonnemang) – utan fråga: försök igen med den förra" },
+        { name: (reserveInfo.commands || {}).strong || "sonnet", reserve: "strong", args: true, hidden: reserveInfo.on !== true || !reserveInfo.helper,
+          note: "fråga " + (reserveInfo.strong || "") + " (ditt abonnemang) – utan fråga: försök igen med den förra" },
         { name: "testa", note: "kör Claudes testlista – /testa <namn>, /testa stopp", args: true },
         { name: "pdf", note: "spara senaste svaret som PDF" },
         { name: "word", note: "spara senaste svaret som Word" },
@@ -413,6 +417,13 @@ Window {
                 toast.show("Vänta tills svaret är klart.");
             else
                 backend.runButton(c.button);
+            return true;
+        }
+        if (c.reserve) {  // /haiku, /sonnet (Kakans reserv)
+            if (backend.busy)
+                toast.show("Vänta tills svaret är klart.");
+            else
+                backend.sendReserve(c.reserve, arg);
             return true;
         }
         if (c.only) {
@@ -727,6 +738,8 @@ Window {
     // Pictures on this computer (goblincakes-image): status, models
     readonly property var imageStatus: JSON.parse(backend.image || "{}")
     readonly property var helpers: JSON.parse(backend.helpers || "{}")  // Skicka vidare (2 Nov)
+    // Kakans reserv (punkt 17, 7 Nov): {helper, program, on (true/false/null), fast, strong, ask, commands}
+    readonly property var reserveInfo: JSON.parse(backend.reserve || "{}")
     property string imagePlace: ""
     property string imageText: ""
     property real imageFraction: -1
@@ -2348,6 +2361,67 @@ Window {
             }
         }
 
+        // ── Kakans reserv (punkt 17, 7 Nov): asked once when Claude Code / Codex is found logged in; Nej = never again ──
+        MouseArea {  // the window behind it waits
+            anchors.fill: parent
+            z: 50
+            visible: reserveBox.visible
+        }
+        Rectangle {
+            id: reserveBox
+            objectName: "reserveBox"
+            visible: win.reserveInfo.ask === true
+            z: 51
+            anchors.centerIn: parent
+            width: Math.min(560, parent.width - 40)
+            height: reserveCol.height + 44
+            color: "#0B1018"
+            border.width: 1
+            border.color: accent.color
+            Column {
+                id: reserveCol
+                x: 24
+                y: 22
+                width: parent.width - 48
+                spacing: 14
+                Text {
+                    text: "Ska " + (win.reserveInfo.program || "") + " hjälpa Kakan?"
+                    color: "#E6ECF5"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 20
+                }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: (win.reserveInfo.program || "") + " är inloggat på datorn. Kakan kan använda det som reserv:\n\n"
+                          + "•  När ett spel kör vilar lokala AI:n – då svarar " + (win.reserveInfo.fast || "") + " i stället.\n"
+                          + "•  När Kakan fastnar kommer knappen \"Försök igen med " + (win.reserveInfo.fast || "") + "\" under svaret – du väljer själv.\n"
+                          + "•  Kommer den inte vidare tar " + (win.reserveInfo.strong || "") + " över.\n\n"
+                          + "Den använder Kakans verktyg och ändrar bara via korten, när du trycker Tillåt. "
+                          + "Det drar av kvoten på ditt abonnemang – det syns i kvot-widgeten i toppfältet. "
+                          + "Aldrig i ett Privat-projekt, aldrig bilder.\n\n"
+                          + "Du kan ändra det när du vill i Inställningar → Skicka vidare."
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 14
+                    lineHeight: 1.15
+                }
+                Row {
+                    spacing: 10
+                    FlatButton {
+                        primary: true
+                        text: "Ja, koppla in"
+                        onClicked: backend.setReserve(true)
+                    }
+                    FlatButton {
+                        text: "Nej, aldrig"
+                        onClicked: backend.setReserve(false)
+                    }
+                }
+            }
+        }
+
         // ── A folder's menu (PROJEKT → MAPPAR): VS Code or Claude Code in the terminal ──
         MouseArea {  // a click beside it closes it
             anchors.fill: parent
@@ -3463,6 +3537,22 @@ Window {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: backend.busy ? toast.show("Vänta tills svaret är klart.") : backend.laga()
+                                }
+                            }
+                            // Kakans reserv (punkt 17): she got stuck – the user decides whether Claude/ChatGPT tries
+                            Text {
+                                visible: (msgItem.m.canReserve || "") !== "" && win.reserveInfo.on === true
+                                text: "Försök igen med " + (msgItem.m.reserveName || "")
+                                color: reserveArea.containsMouse ? "#E6ECF5" : accent.text
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                MouseArea {
+                                    id: reserveArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.busy ? toast.show("Vänta tills svaret är klart.")
+                                                            : backend.retryReserve(msgItem.index, msgItem.m.canReserve)
                                 }
                             }
                             Text {
@@ -6861,6 +6951,37 @@ Window {
                                     chosen: win.helpers.chosen === modelData.id
                                     onPicked: if (modelData.installed) backend.setHelper(modelData.id)
                                 }
+                            }
+                        }
+                        Label { visible: !!win.reserveInfo.helper; text: "KAKANS RESERV" }
+                        Text {
+                            visible: !!win.reserveInfo.helper
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "När lokala AI:n vilar (ett spel kör) svarar " + (win.reserveInfo.fast || "") + " i " + (win.reserveInfo.program || "")
+                                  + " åt Kakan, och när hon fastnar kan du trycka \"Försök igen med " + (win.reserveInfo.fast || "") + "\" under svaret. "
+                                  + "Kommer den inte heller vidare tar " + (win.reserveInfo.strong || "") + " över. Den läser med Kakans verktyg och "
+                                  + "ändrar bara via korten (Tillåt). Det drar av kvoten på ditt abonnemang – du ser det i kvot-widgeten i toppfältet. "
+                                  + "Aldrig i ett Privat-projekt, aldrig bilder."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Flow {
+                            visible: !!win.reserveInfo.helper
+                            width: parent.width
+                            spacing: 10
+                            Pick {
+                                title: "På"
+                                sub: "under spel och när du trycker Försök igen"
+                                chosen: win.reserveInfo.on === true
+                                onPicked: backend.setReserve(true)
+                            }
+                            Pick {
+                                title: "Av"
+                                sub: "används aldrig"
+                                chosen: win.reserveInfo.on !== true
+                                onPicked: backend.setReserve(false)
                             }
                         }
                         Label { text: "ELLER ETT EGET PROGRAM" }
