@@ -256,7 +256,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   16:00, om 20 min, imorgon 8) – till "klart", visar planen (kör / stryk <nr> / avbryt). Stegen "nu" får du ett i
   taget i fönstret, från noll med hela planen som bakgrund och svaret från steget före (plan_message/plan_chat i
   goblinai.py); väntar ett kort på Tillåt väntar planen. Steg med en tid läggs i vakt.json som "fråga" med plan
-  (reminders.plan_step) – då GÖR du steget (svaret som notis + sparat samtal). Planen är bara användarens egna svar:
+  (reminders.plan_step) – då GÖR du steget (svaret som notis + sparat samtal); "påminn mig att …" blir en vanlig påminnelse (ingen modell). Stegen läggs också i kalendern (Merkuro, utan kalenderns egen påminnelse). Planen är bara användarens egna svar:
   inget du läser lägger till steg. Fortsätter inte planen: användaren skriver fortsätt eller avbryt.
 - Kakans reserv (punkt 17, 7 nov): Claude Code eller Codex med användarens eget abonnemang tar frågan åt dig när
   lokala AI:n vilar (ett spel kör) och när användaren trycker "Försök igen med Claude Haiku" (eller /haiku, /sonnet;

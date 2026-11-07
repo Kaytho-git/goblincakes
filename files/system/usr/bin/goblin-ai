@@ -1503,6 +1503,18 @@ class Backend(QObject):
                 p["timed"].append(n)
             except OSError as e:
                 self.notice.emit(f"Steg {n} gick inte att lägga i vakten: {e}")
+                continue
+            # …and in the calendar, so the day's plan shows in Merkuro (the user, 7 Nov: "funktionerna finns ju för att
+            # användas") – without the calendar's own reminder: the vakt gives the notice (over a game too)
+            try:
+                said = goblinai.desktop().cal_add(st["text"], time.strftime("%Y-%m-%d %H:%M", time.localtime(st["at"])),
+                                                  "", 15, self._id)
+                if said.startswith("Lade in"):
+                    p.setdefault("cal", []).append(n)
+                else:
+                    self.notice.emit(f"Steg {n} kom inte in i kalendern: {said}")
+            except Exception as e:  # noqa: BLE001 – the vakt has it anyway
+                self.notice.emit(f"Steg {n} kom inte in i kalendern: {e}")
         p["now"] = [n for n, st in enumerate(p["steps"], 1) if st["at"] is None]
         p["waiting"], p["i"] = "running", 0
         self._plan_next()
@@ -1560,8 +1572,10 @@ class Backend(QObject):
                     f"vakten gör det {self._plan_when(st['at'])}" if n in p["timed"] else "inte gjort")
             lines.append(f"{n}. {st['text']} – {mark}")
         head = f"**Planeringen avbröts** – {why}." if why else "**Planeringen är klar.**"
-        tail = ("\n\nStegen med en tid gör jag då (väntar om ett spel kör) – svaret kommer som en notis. Ändra: "
-                "*påminnelser* visar dem, *påminnelser bort <nr>* tar bort ett.") if p["timed"] else ""
+        tail = ("\n\nStegen med en tid gör jag då (väntar om ett spel kör) – svaret kommer som en notis"
+                + (" – och de står i kalendern (Merkuro)" if p.get("cal") else "") +
+                ". Ändra: *påminnelser* visar dem, *påminnelser bort <nr>* tar bort ett (kalenderposten tar du bort i "
+                "Merkuro).") if p["timed"] else ""
         self._plan_post(f"{head}\n\n" + "\n".join(lines) + tail)
 
     @Slot(str, str)
