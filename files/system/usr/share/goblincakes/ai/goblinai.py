@@ -5544,6 +5544,19 @@ RESERVE_PROMPT = """
 - Kommer du inte vidare: säg ärligt vad du kollat och vad som saknas."""
 
 
+def game_running():
+    """A game runs: the local AI paused for it, or gaming.py's rule (the game mode's, the voice's) – also without a
+    local AI. Then Goblin AI never comes over the game (7 Nov)."""
+    if LOCAL_PAUSED.exists():
+        return True
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # /usr/share/goblincakes (or the repo's)
+        from gaming import find_game  # noqa: PLC0415
+        return find_game() is not None
+    except Exception:  # noqa: BLE001 – unsure = as usual
+        return False
+
+
 RECORDER_STATUS = CACHE / "recorder-status.json"
 PULL_KINDS = ("raid", "arena")  # a boss try or an arena match: short – a whole M+ key or CS2 match is too long to wait
 

@@ -791,10 +791,13 @@ class Listener:
         if commands:
             self.last = (commands[-1], time.monotonic())
         if not commands:      # not a simple command: Goblin AI with a proper model (the user's decision 5 Nov)
-            if in_game():     # the window would land over the game – it waits until the game is closed
-                self.box("answer", text, "Det är inget kommando jag kan med rösten. Fråga mig i Goblin AI när "
-                                         "spelet är stängt – vid lagg: säg \"det laggar\" så mäter jag.", 7,
-                         fallback=f"Kakan hörde: {text}")
+            if in_game():
+                # Under spel (7 Nov, the user: "gear planner funkar inte, kolla det" → Haiku starts working): Goblin
+                # AI takes it without coming over the game – the answer and any card on the free screen, a notice
+                # says so (goblin-ai _show_in_game). She doesn't speak during a game.
+                voicecmd().ask_in_window(text)
+                self.box("answer", text, "Jag tar det i Goblin AI – svaret kommer på andra skärmen.", 6,
+                         fallback="Kakan tar det i Goblin AI")
                 return
             voicecmd().ask_in_window(text)
             self.answer("Jag tar det i Goblin AI.", "Jag tar det i Goblin AI.")

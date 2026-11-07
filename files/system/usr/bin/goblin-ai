@@ -686,7 +686,7 @@ class Backend(QObject):
         self._set_busy(False)
         self._save()
         self._start_images(len(self._display) - 1)
-        if goblinai.LOCAL_PAUSED.exists() and not self._win_active and not shown.get("test"):
+        if not self._win_active and not shown.get("test") and goblinai.game_running():
             # A game runs and the user is in it: not raiseWindow (it takes the focus) – Goblin AI on a free screen and
             # a short notice, once the question is done and not in the middle of a pull (7 Nov, the user's wish)
             self._quick_waiting = False
@@ -3118,7 +3118,9 @@ def main():
             wish = b"show"
         if wish.startswith(b"ask:"):
             backend.askNew(wish[4:].decode(errors="replace"))
-            backend.raiseWindow.emit()
+            if not goblinai.game_running():
+                backend.raiseWindow.emit()
+            # under spel (the voice's F8, 7 Nov): not over the game – the answer comes beside it (_show_in_game)
             return
         if wish.startswith(b"open:"):
             backend.conversationsChanged.emit()  # the chat was saved by the terminal: into the list too
@@ -3136,6 +3138,8 @@ def main():
     engine.rootContext().setContextProperty("hasWeb", web)
     engine.rootContext().setContextProperty("uiScale", ui_scale)
     engine.rootContext().setContextProperty("startQuick", quick)
+    # --ask while a game runs (the voice's F8): started hidden – shown beside the game when the answer is there
+    engine.rootContext().setContextProperty("startHidden", bool(ask) and goblinai.game_running())
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO") or season_logo()))
     use_accent(engine)

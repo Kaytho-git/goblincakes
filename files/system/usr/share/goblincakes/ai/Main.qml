@@ -11,7 +11,7 @@ Window {
     height: 860 * uiScale
     minimumWidth: 980 * uiScale
     minimumHeight: 600 * uiScale
-    visible: !startQuick  // started for the quick box only: the window comes with the answer
+    visible: !startQuick && !startHidden  // started for the quick box only: the window comes with the answer
     onActiveChanged: backend.setWindowActive(active)
     onVisibleChanged: backend.setWindowVisible(visible)
     title: "Goblin AI"
@@ -594,7 +594,7 @@ Window {
         backend.setWindowVisible(visible);
         reload();
         history = JSON.parse(backend.inputHistory());
-        if (!startQuick)
+        if (!startQuick && !startHidden)
             showMaximized();  // starts maximized (1 Nov, the user's wish)
         backend.refreshModels();  // MODELLER shows them at once
         backend.refreshQuota();
@@ -696,7 +696,9 @@ Window {
             toast.show(text);
         }
         function onShowQuietly() {  // under spel: shown, not raised over the game or focused (the KWin script places it)
-            if (!win.visible)
+            if (!win.visible && !win.shownOnce)
+                win.showMaximized();
+            else if (!win.visible)
                 win.show();
             win.shownOnce = true;
         }

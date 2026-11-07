@@ -439,6 +439,10 @@ Ord: röst, röstknappen, f8, prata, hör inte, hörde fel, uppläsning, rutan, 
   `/usr/libexec/goblincakes-voice test 5`.
 Kontroll: `/usr/libexec/goblincakes-voice status`
 
+- Under spel (7 nov): en fråga som inte är ett kommando ("gear planner funkar inte, kolla det") går till Goblin AI
+  utan att fönstret kommer över spelet – rutan säger "Jag tar det i Goblin AI – svaret kommer på andra skärmen",
+  Claude Haiku (Kakans reserv) svarar, svaret och korten visas i Goblin AI på den lediga skärmen med en notis. Hon
+  läser aldrig upp något under spel.
 ## Steam och spel
 Ord: steam, proton, spel startar inte, goblin play, tv-läge, big picture, lutris, heroic
 - Steam finns i systemet. `goblin play <namn>` startar Steam-spel från terminalen (/usr/libexec/goblincakes-games),
