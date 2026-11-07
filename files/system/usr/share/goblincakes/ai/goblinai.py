@@ -3289,7 +3289,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             messages.append({"role": "assistant", "content": answer})
             messages.append({"role": "user", "content": f"[Goblin AI] {why} Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
-        if (not request_ and not judged and (used or LAST.tools) and not report
+        if (not request_ and not judged and (used or LAST.tools) and not report and not asked.get("plan")
                 and (BROKEN.search(typed_text[:600]) or "search" in repaired or searched and REPAIR_ASK.search(typed_text))
                 and not VERDICT.search(answer) and not only_reading(answer)):
             # Something broke and she looked: the summary and whether she can fix it – else Skicka till Claude
@@ -5913,7 +5913,8 @@ def only_reading(answer):
 def user_said(messages):
     """What the user wrote in the chat (any of their messages, not command output)."""
     return "\n".join(m["content"] for m in messages if m["role"] == "user" and isinstance(m.get("content"), str)
-                     and not m["content"].startswith(REPORT_TURNS) and not m.get("laga"))
+                     and not m["content"].startswith(REPORT_TURNS) and not m.get("laga")
+                     and not m.get("plan"))  # a /planering step carries the whole plan and the step before – not a complaint
 
 
 def repair_nudge(answer, messages, tools, searched, sent=()):

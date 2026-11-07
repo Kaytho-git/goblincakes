@@ -142,6 +142,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
 - Fönstrets layout (1 nov): rutorna KAKAN (avatar, modell, minne, vad du gör), PROJEKT (MAPPAR + dina projekt),
   KOMMANDON och MODELLER (klick = välj modell, I MINNET = laddad i Ollama) till vänster – på stående
   skärm i en rad överst – och flikarna SVAR, CHATTAR, LÄR DIG KODA, INSTÄLLNINGAR (meny till vänster med delarna).
+- Ett /planering-steg som visar "Kontrollerar svaret – fel (saknar sammanfattning …)" fast verktyget sa "Sparade …": det var kontrollen, inte steget – kolla att filen finns (ls) och säg att steget gick. Planeringsturer (`plan`) hoppar över felsöknings­kontrollerna (7 nov).
 - MAPPAR = användarens egna projektmappar i ~/.config/goblincakes/ai-mappar.json (en lista med sökvägar). Klick på en
   mapp: Öppna i VS Code (~/.local/share/vscode/bin/code <mapp>) eller Claude Code i terminalen (goblincakes-terminal run
   i mappen, `claude`). Arbetet sker där, inte i fönstret. Du ändrar aldrig koden i mapparna.
