@@ -2090,6 +2090,20 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         if reserve:
             # Kakans reserv (punkt 17): the button / /haiku, or the local AI resting while a game runs
             LAST.fixes = fixes_done(messages)
+            checked = addon_check(messages)
+            if checked:
+                # After Tillåt on an add-on: Goblin AI checks it against the game itself and Haiku gets the result, as
+                # Kakan does – Haiku skipped "kolla" and missed two of four faults (the game test 7 Nov)
+                if steps:
+                    steps.start("Kontrollerar tillägget mot WoW")
+                    steps.done(note="fel kvar" if re.search(r"\n(?:FEL|KANSKE)", checked) else "inga fel")
+                LAST.tools.append(("wowapi", "kolla"))
+                LAST.done.append(("wowapi", "kolla", ""))
+                messages = messages + [{"role": "user", "content":
+                    "[Goblin AI kontrollerade tillägget mot WoW efter ändringen – det här skrev användaren inte]\n\n"
+                    f"{checked}\n\n[Slut på kontrollen]\n\nStår det något under FEL: eller KANSKE: som hör till "
+                    "tillägget: lägg till det i din numrerade lista och laga det i ordning (ett kort i taget) – det är "
+                    "inte klart. Inget kvar: säg vad användaren ska prova i spelet (/reload först)."}]
             try:
                 answer, service = ask_reserve(messages, reserve, status, notice, steps)
             except ServiceError as e:
