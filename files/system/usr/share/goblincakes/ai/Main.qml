@@ -2833,6 +2833,37 @@ Window {
                                             color: segItem.s.type === "blocked" ? "#E8A0A4" : "#8B98AD"
                                         }
 
+                                        // The card in three parts (the user, 7 Nov): what is wrong and what it becomes are
+                                        // Kakan's words (marked so), what changes is Goblin AI's – read from the command itself
+                                        Column {
+                                            visible: segItem.s.type === "command" && !!segItem.s.wrong
+                                            width: parent.width
+                                            spacing: 2
+                                            Text {
+                                                text: "DET HÄR ÄR FEL  ·  enligt Kakan"
+                                                color: "#5C6880"
+                                                font.family: "IBM Plex Sans"
+                                                font.pixelSize: 11
+                                                font.letterSpacing: 1
+                                            }
+                                            Text {
+                                                width: parent.width
+                                                wrapMode: Text.WordWrap
+                                                textFormat: Text.PlainText
+                                                text: segItem.s.wrong || ""
+                                                color: "#C9D3E2"
+                                                font.family: "IBM Plex Sans"
+                                                font.pixelSize: 14
+                                            }
+                                        }
+                                        Text {
+                                            visible: segItem.s.type === "command" && !!segItem.s.explain && (!!segItem.s.wrong || !!segItem.s.result)
+                                            text: "DET HÄR ÄNDRAS  ·  enligt kommandot"
+                                            color: "#5C6880"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 11
+                                            font.letterSpacing: 1
+                                        }
                                         // What the command does in plain Swedish (explain.py); the code only when asked for
                                         Text {
                                             visible: segItem.s.type === "command" && !!segItem.s.explain
@@ -2853,7 +2884,7 @@ Window {
                                         }
                                         // byt_text: before/after – red goes, green comes, grey stays
                                         Rectangle {
-                                            visible: segItem.s.type === "command" && !!segItem.s.diff && segItem.showCode
+                                            visible: segItem.s.type === "command" && !!segItem.s.diff && (segItem.showCode || segItem.s.state === "new")
                                             width: parent.width
                                             height: Math.min(diffCol.implicitHeight + 24, 320)
                                             color: "#07090D"
@@ -2879,7 +2910,7 @@ Window {
                                                         bottomPadding: 6
                                                     }
                                                     Repeater {
-                                                        model: segItem.showCode ? (segItem.s.diff || []) : []
+                                                        model: segItem.showCode || segItem.s.state === "new" ? (segItem.s.diff || []) : []
                                                         Rectangle {
                                                             required property var modelData
                                                             width: diffCol.width
@@ -2903,6 +2934,27 @@ Window {
                                             }
                                         }
 
+                                        Column {
+                                            visible: segItem.s.type === "command" && !!segItem.s.result
+                                            width: parent.width
+                                            spacing: 2
+                                            Text {
+                                                text: "SÅ HÄR SKA DET BLI  ·  enligt Kakan"
+                                                color: "#5C6880"
+                                                font.family: "IBM Plex Sans"
+                                                font.pixelSize: 11
+                                                font.letterSpacing: 1
+                                            }
+                                            Text {
+                                                width: parent.width
+                                                wrapMode: Text.WordWrap
+                                                textFormat: Text.PlainText
+                                                text: segItem.s.result || ""
+                                                color: "#C9D3E2"
+                                                font.family: "IBM Plex Sans"
+                                                font.pixelSize: 14
+                                            }
+                                        }
                                         CodeBox {
                                             visible: ["image", "shot", "memory", "forget", "blocked", "solved"].indexOf(segItem.s.type) < 0
                                                      && (segItem.s.type !== "command" || !segItem.s.explain || (segItem.showCode && !segItem.s.diff))
@@ -3154,7 +3206,7 @@ Window {
                                                 onClicked: backend.skipCommand(msgItem.index, segItem.index)
                                             }
                                             FlatButton {
-                                                visible: !!segItem.s.explain
+                                                visible: !!segItem.s.explain && !segItem.s.diff  // a change is shown on the card already
                                                 small: true
                                                 text: segItem.showCode ? "Dölj koden" : (segItem.s.diff ? "Visa ändringen" : "Visa koden")
                                                 onClicked: segItem.showCode = !segItem.showCode

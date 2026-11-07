@@ -1054,8 +1054,10 @@ def byt_run(query):
         args = json.loads(query) if query.startswith("{") else None
     except ValueError:
         args = None
+    wrong = result = ""
     if isinstance(args, dict):
         path, old, new = (str(args.get(k) or "") for k in ("fil", "gammal", "ny"))
+        wrong, result = (" ".join(str(args.get(k) or "").split())[:200] for k in ("fel", "resultat"))
         if not old and re.search(r"\bgammal\s*=", path):
             # gemma4 put all three in "fil" as `\n fil="…" gammal="…" ny="…"` – "the file doesn't exist" until she gave up
             # and wrote the whole file again (gear round 15, 31 Oct)
@@ -1111,7 +1113,8 @@ def byt_run(query):
     again = [i for i, (f, o) in enumerate(spans) if f == full and lines & {x.strip() for x in o.split("\n")}]
     cards = [c for i, c in enumerate(getattr(LAST, "cards", [])) if i not in again]
     LAST.card_spans = [x for i, x in enumerate(spans) if i not in again] + [(full, old)]
-    LAST.cards = cards + [f"```bash\n{bytatext.card(full, old, new)}\n```"]
+    said = "".join(f"# {name}: {text}\n" for name, text in (("Fel", wrong), ("Resultat", result)) if text)
+    LAST.cards = cards + [f"```bash\n{said}{bytatext.card(full, old, new)}\n```"]
     if again:
         return (f"Klart – det nya kortet för {full.name} ersätter ditt förra för samma rader (bara det nya visas). "
                 "Svara nu med en mening om vad ändringen gör."), []
@@ -1612,8 +1615,14 @@ def tools_for(keys, project, messages):
                             "för sed när du lagar en fil (ett WoW-tillägg, ett skript, en inställning).",
                             {"fil": ("Filens hela sökväg, t.ex. `~/kakan-prov/gear/GearDisplay.lua`", True),
                              "gammal": ("Raderna som står där nu, exakt som i filen (flera rader går bra)", True),
-                             "ny": ("Raderna som ska stå där i stället (tomt = ta bort)", False)},
-                            lambda a: json.dumps({k: str(a.get(k) or "") for k in ("fil", "gammal", "ny")},
+                             "ny": ("Raderna som ska stå där i stället (tomt = ta bort)", False),
+                             # The card shows what is wrong, what changes and what it becomes (the user, 7 Nov) –
+                             # her two lines, the change itself Goblin AI's
+                             "fel": ("En kort mening: vad som är fel här, t.ex. `RefreshUi stavat med litet i – "
+                                     "funktionen heter RefreshUI` (ett fel per kort)", True),
+                             "resultat": ("En kort mening: vad det blir efter ändringen, t.ex. `Bytet av spec "
+                                          "fungerar utan fel`", True)},
+                            lambda a: json.dumps({k: str(a.get(k) or "") for k in ("fil", "gammal", "ny", "fel", "resultat")},
                                                  ensure_ascii=False))])
     if report_only(messages):  # "bara kolla … skicka vidare": nothing to change with (2 Nov)
         del tools["byt"]
@@ -1970,16 +1979,18 @@ def written_change(text):
     ("byt", its fields as JSON), else None."""
     for m in re.finditer(r"```[\w-]*[ \t]*\n(.*?)```", text, re.S):
         body = m.group(1)
-        old = re.search(r"^\s*gammal\s*[:=]\s*(.*?)\s*(?=^\s*(?:ny|fil)\s*[:=]|\Z)", body, re.S | re.M)
-        new = re.search(r"^\s*ny\s*[:=]\s*(.*?)\s*(?=^\s*(?:gammal|fil)\s*[:=]|\Z)", body, re.S | re.M)
+        old = re.search(r"^\s*gammal\s*[:=]\s*(.*?)\s*(?=^\s*(?:ny|fil|fel|resultat)\s*[:=]|\Z)", body, re.S | re.M)
+        new = re.search(r"^\s*ny\s*[:=]\s*(.*?)\s*(?=^\s*(?:gammal|fil|fel|resultat)\s*[:=]|\Z)", body, re.S | re.M)
         if not (old and new):
             continue
         named = re.search(r"^\s*fil\s*[:=]\s*(\S+)", body, re.M) or re.search(r"((?:~|/)[\w./!-]+\.\w{1,5})", body)
         if not named:
             continue
         unquote = lambda t: re.sub(r"^([\"'`])(.*)\1$", r"\2", t.strip(), flags=re.S)  # noqa: E731
+        said = {k: unquote(h.group(1)) for k in ("fel", "resultat")
+                for h in [re.search(rf"^\s*{k}\s*[:=]\s*(.+)$", body, re.M | re.I)] if h}
         return "byt", json.dumps({"fil": named.group(1).rstrip(",").strip("\"'`"), "gammal": unquote(old.group(1)),
-                                  "ny": unquote(new.group(1))}, ensure_ascii=False)
+                                  "ny": unquote(new.group(1)), **said}, ensure_ascii=False)
     return None
 
 
@@ -2164,6 +2175,23 @@ def failed_card(messages):
     return None
 
 
+def one_change(code):
+    """A card with several changing lines (each its own command – "four commands in one Tillåt", 7 Nov) cut to the first
+    one, with the reading lines before it (cd …). Heredocs, loops and continued lines stay whole – they can't be cut."""
+    if "<<" in code or "\\\n" in code or re.search(r"^\s*(?:for|while|until|if|case|function)\b|\{\s*$", code, re.M):
+        return code
+    lines = code.split("\n")
+    keep, changes = [], 0
+    for line in lines:
+        bare = line.strip()
+        if bare and not bare.startswith("#") and cmd_level().level(bare)[0] != "read":
+            changes += 1
+            if changes > 1:
+                continue
+        keep.append(line)
+    return "\n".join(keep).rstrip() if changes > 1 else code
+
+
 def rein_in(answer, cards, messages):
     """A, B and the failed card on her finished answer: (answer, cards) with what she may not do taken out and said."""
     notes = []
@@ -2191,6 +2219,32 @@ def rein_in(answer, cards, messages):
         elif failed:
             notes.append(f"*Obs: förra kommandot gick fel (avslutskod {failed[1]}) – inget ändrades av det.*")
         answer, cards = new_answer, kept
+    # One change per Tillåt (the user, 7 Nov: "hon ber om tillåtelse att ändra fel 1, gör det, ber om tillåtelse att
+    # ändra fel 2, så hon inte har möjlighet att blanda ihop"): the first changing card stays, the rest go
+    seen = [False]
+
+    def first_change(m):
+        if not changing(m.group(1)):
+            return m.group(0)
+        if seen[0]:
+            return ""
+        seen[0] = True
+        one = one_change(m.group(1))
+        return m.group(0) if one == m.group(1) else f"```bash\n{one}\n```\n"
+    trimmed = re.sub(r"```(?:bash|sh)\n(.*?)\n```\n?", first_change, answer, flags=re.S)
+    body = lambda c: c.split("\n", 1)[-1].rsplit("\n```", 1)[0]  # noqa: E731
+    change_cards = [c for c in cards if changing(body(c))]
+    if seen[0] and change_cards:  # a card from a tool too: the one in her answer goes first, the tool's waits
+        cards = [c for c in cards if not changing(body(c))]
+        trimmed_cards = True
+    elif len(change_cards) > 1:
+        cards = [c for c in cards if not changing(body(c)) or c is change_cards[0]]
+        trimmed_cards = True
+    else:
+        trimmed_cards = False
+    if trimmed != answer or trimmed_cards:
+        answer = trimmed
+        notes.append("*Ett ändringskort i taget: nästa ändring kommer när du tryckt Tillåt (eller Nej) på det här.*")
     if notes:
         answer = answer.rstrip() + "\n\n" + "\n".join(notes)
     return answer, cards
@@ -4215,6 +4269,8 @@ kill -0 "$(cat ~/namn.pid)" && echo "Körs." || echo "Har stannat."; cat ~/namn.
 - Rätta i en fil som finns med verktyget byt_text (raderna som är fel exakt som de står → som de ska stå), inte
   med sed – sed med radnummer och \\n förstör filen lätt.
 - Ta ett steg i taget när du behöver se resultatet först. Skriv inga ```bash-block när inget ska köras.
+- Ett ```bash-block som ändrar något börjar med två rader: `# Fel: <vad som är fel>` och `# Resultat: <vad det blir>`
+  (en kort mening var). Ett fel per kort – nästa fel får ett eget kort när användaren tryckt Tillåt.
 - Använd sudo bara när det verkligen behövs och säg varför (det körs i ett terminalfönster där användaren skriver
   sitt lösenord).
 - Säg aldrig att något är klart, fungerar, är provat eller verifierat i samma svar som kommandona – de har inte körts

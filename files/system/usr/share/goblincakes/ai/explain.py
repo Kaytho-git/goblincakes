@@ -262,12 +262,24 @@ def byt_text(code):
     return f"Ändrar{at} i {place(path)}: {what}.".replace(" 1 rader", " 1 rad")
 
 
+# Her own two lines at the top of a change card (7 Nov, the user: "detta är vad som är fel, detta är vad jag vill
+# ändra, och detta ska bli resultatet") – shown as hers; what changes is Goblin AI's, read from the command itself
+CLAIM = re.compile(r"^[ \t]*#[ \t]*(fel|resultat)[ \t]*:[ \t]*(.+?)[ \t]*$\n?", re.I | re.M)
+
+
+def card_claims(code):
+    """(the code without her lines, {"wrong", "result"})."""
+    said = {("wrong" if k.lower() == "fel" else "result"): v for k, v in CLAIM.findall(code)}
+    return CLAIM.sub("", code).strip("\n"), said
+
+
 def card_info(code, level, why=""):
-    """{"explain", "diff", "diffFile"} for a command card (diff only for byt_text)."""
+    """{"explain", "diff", "diffFile", "wrong", "result"} for a command card (diff only for byt_text)."""
+    code, said = card_claims(code)
     found = byt_diff(code)
     if found:
-        return {"explain": byt_text(code), "diff": found[1], "diffFile": place(found[0])}
-    return {"explain": describe(code, level, why)}
+        return {"explain": byt_text(code), "diff": found[1], "diffFile": place(found[0]), **said}
+    return {"explain": describe(code, level, why), **said}
 
 
 if __name__ == "__main__":
