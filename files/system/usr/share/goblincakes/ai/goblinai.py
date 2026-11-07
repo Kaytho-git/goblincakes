@@ -5785,11 +5785,13 @@ def reserve_terminal(messages, level):
         config.write_text(json.dumps({"mcpServers": {"kakan": {"command": sys.executable, "args": [server],
                                                                "env": {"GOBLINCAKES_MCP_CHANGE": "0"}}}}))
         question = typed_question(messages) or "Se samtalet i instruktionen."
-        command = (f"{q(toclaude.claude_path())} --model {model} -n {q('Kakans reserv')} --strict-mcp-config "
+        # manual: asks Ja/Nej before every change – the user's own default may be auto (it took the edits by itself
+        # in the game test 7 Nov)
+        command = (f"{q(toclaude.claude_path())} --model {model} --permission-mode manual -n {q('Kakans reserv')} --strict-mcp-config "
                    f"--mcp-config {q(config)} --allowedTools mcp__kakan --append-system-prompt-file {q(prompt)} "
                    f"{q(start + chr(10) + chr(10) + question)}")
     else:
-        command = (f"{q(toclaude.codex_path())} -m {model} "
+        command = (f"{q(toclaude.codex_path())} -m {model} -s read-only -a on-request "  # every write asks first
                    f"-c {q('mcp_servers.kakan.command=' + json.dumps(sys.executable))} "
                    f"-c {q('mcp_servers.kakan.args=[' + json.dumps(server) + ']')} "
                    f"-c {q('mcp_servers.kakan.env={GOBLINCAKES_MCP_CHANGE="0"}')} "
