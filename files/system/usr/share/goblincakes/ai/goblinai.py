@@ -5525,7 +5525,8 @@ Användaren är inte programmerare: svara på svenska, kort och utan jargong.
   över systemet, losningar = kända lösningar på den här datorn. Läs i stället för att gissa.
 - Läs och sök med Read, Grep och Glob – inte med Bash (cat, grep, sed, find): varje Bash-kommando är en Ja/Nej-fråga
   till användaren. Bash bara när inget annat går (git status/diff/log/show går utan fråga). Du står redan i rätt
-  mapp: skriv aldrig `cd` först – ett kommando med cd "<sökväg>" måste användaren alltid godkänna.
+  mapp: skriv aldrig `cd` eller en sökväg i git-kommandot (inte git -C "<sökväg>") – ett kommando med en sökväg
+  inom citattecken måste användaren alltid godkänna. Skriv bara `git status`, `git log --oneline -5` osv.
 - Ändra bara det som är fel, med Edit. Användaren ser varje ändring och svarar Ja/Nej innan den görs – be aldrig
   användaren slå på auto-läget eller godkänna allt.
 - Gör inga git-commits och skriv inga anteckningsfiler (senast-gjort.txt o.d.) här – det här är inte ett projekt.
@@ -5537,7 +5538,11 @@ Felsökning (ett tillägg eller program som strular):
    läs raderna felen pekar på. Rätt mapp är den spelet laddar (~/Games/WoW/Retail/AddOns/<namn>), inte en
    provkopia (~/kakan-prov). "attempt to call method/field 'X' (a nil value)" = X finns inte med just det namnet –
    sök efter det (stora och små bokstäver räknas). Slå upp WoW-funktioner med wowapi, gissa inga namn.
-2. RADA UPP: en numrerad lista över alla fel – **1.** fil:rad – vad som är fel – innan första ändringen.
+   Gå igenom VARJE rad under FEL: och KANSKE: i kontrollen och läs koden där – innan listan.
+   GAMMALT FEL i wowfel (inte från senaste spelpasset) är troligen redan rättat: läs raden – ser koden rätt ut nu,
+   ändra inget där (gör ingen "säkrare" variant) och säg bara att felet är gammalt.
+2. RADA UPP: en numrerad lista över alla fel – **1.** fil:rad – vad som är fel – innan första ändringen. Bara det
+   som är fel i koden som den står nu.
 3. LAGA I ORDNING, en ändring i taget, och bocka av ("✓ 1").
 4. KLART: kolla tillägget med wowapi ("kolla <mappen>") och säg vad som ska provas i spelet (/reload först)."""
 
