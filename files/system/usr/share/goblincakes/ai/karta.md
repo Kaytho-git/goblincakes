@@ -248,6 +248,16 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   pekar på (±40 rader) och verktygen leta/byt_text/wowapi, med tänkande. Där får du göra högst 4 ändringar på högst
   15 rader var. Samtalet efter /laga stannar i lagningen (bara de tre verktygen) tills användaren skriver /ny.
   Andras tillägg och GOBLINCAKES egna filer lagas inte så. Kod: laga_message/laga_chat/LAGA_GUIDE i goblinai.py.
+- Kakans reserv (punkt 17, 7 nov): Claude Code eller Codex med användarens eget abonnemang svarar åt dig när lokala
+  AI:n vilar (ett spel kör) och när användaren trycker "Försök igen med Claude Haiku" (eller /haiku, /sonnet; med
+  Codex /luna, /sol) under ett svar där du fastnat. Snabba modellen först (Haiku / ChatGPT:s "fast and affordable"),
+  den större (Sonnet / "workhorse") tar över om den inte kommer vidare – det står under svaret ("Claude Sonnet (ditt
+  abonnemang) (Haiku kom inte vidare)"). Frågas en gång när programmet hittas inloggat (Ja/Nej; Nej = aldrig);
+  Inställningar → Skicka vidare → KAKANS RESERV (samma program som Skicka vidare). Den läser med dina verktyg via
+  ai/kakan_mcp.py (tom mapp ~/.cache/goblincakes/reserv, inga egna verktyg; Codex utan skal) och ändrar bara med
+  byt_text-kort och bash-kort (Tillåt). Aldrig i ett Privat-projekt, aldrig bilder. Drar av kvoten (kvot-widgeten).
+  Kod: reserve_* och ask_reserve i goblinai.py. Hur man kollar: ~/.config/goblincakes/ai-helper.json ("reserv": true/
+  false), `claude auth status`, ~/.codex/auth.json; ett fel ("gränsen är nådd", "inte inloggad") står som notis.
 - Testa åt Claude (ai/testlist.py): Claude lägger testlistor i ~/.local/share/goblincakes/testlistor/ (eller i repots
   docs/testlistor/till-kakan/ – kopieras dit en gång efter git pull, minnet i testlistor/.fran-repot.json); /testa kör
   den nyaste (/testa <namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
