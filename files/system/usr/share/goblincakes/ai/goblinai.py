@@ -1463,7 +1463,8 @@ DESK_FNS = [
             "OpenDocument (.odt), text (.txt) eller Markdown (.md) – efter filens ändelse. Ber användaren om en PDF/ett "
             "dokument (\"spara receptet som PDF i Recept\") gör du det med det här verktyget. Bara i hemmappen; finns "
             "filen redan får den nytt namn (aldrig över en gammal). Texten skriver du HELA själv i Markdown (# rubrik, "
-            "listor) – innehållet, inte en hänvisning till ett tidigare svar.",
+            "listor) – innehållet, inte en hänvisning till ett tidigare svar, ordagrant och utan att korta det – och "
+            "med källorna (länkarna) sist när det kom från nätet.",
             {"fil": ("Var: `~/Dokument/Recept/Carbonara.pdf` (en mapp utan ~/ = under ~/Dokument; utan ändelse = PDF)", True),
              "text": ("Hela innehållet i Markdown, t.ex. `# Carbonara\\n\\n## Ingredienser\\n- 400 g spaghetti …`", True)},
             lambda a: f"spara {look_arg(a, 'fil')} ; " + json.dumps(str(a.get("text") or ""), ensure_ascii=False)),
@@ -1842,12 +1843,19 @@ def clean_arg(value):
     return CALL_TAG.sub(" ", value).strip() if isinstance(value, str) else value
 
 
+FREE_TEXT_FNS = ("spara_dokument",)
+
+
 def fix_args(own, args):
     """Her fields put right, however the call came (a real call, a code block, written as text) – qwen3.5 in the
     window 7 Nov: the next field inside a value ("~/…/MainWindowUI.lua text RefreshUi fran_rad 360"), a misspelled
     field ("fråga_rad", "fråna_rad"), field=value glued on, the folder inside the search words (searched all of ~)."""
     props = list(own["props"])
     args = {near_field(k, props): v for k, v in dict(args).items()}
+    if own["fn"] in FREE_TEXT_FNS:
+        # a whole document: "|" and "fil:" are its own text – the pipe cut cut a saved recipe at
+        # "[Spaghetti carbonara | Köket.se](…)" (7 Nov: the end and the sources were gone)
+        return args
     for key in [k for k in props if isinstance(args.get(k), str) and "|" in args[k]]:
         # A shell pipe in a field – "~/…/MainWindowUI.lua | grep -A5 -B5 RefreshUi" (the window, 7 Nov): the file, and
         # grep's word as the text to look for when there is a field for it
