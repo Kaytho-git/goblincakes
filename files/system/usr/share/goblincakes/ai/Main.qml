@@ -257,6 +257,7 @@ Window {
           note: "fråga " + (reserveInfo.fast || "") + " (ditt abonnemang) – utan fråga: försök igen med den förra" },
         { name: (reserveInfo.commands || {}).strong || "sonnet", reserve: "strong", args: true, hidden: reserveInfo.on !== true || !reserveInfo.helper,
           note: "fråga " + (reserveInfo.strong || "") + " (ditt abonnemang) – utan fråga: försök igen med den förra" },
+        { name: "planering", note: "planera flera saker – jag frågar ett steg i taget (vad, när), sedan kör jag planen", aliases: ["plan", "uppdrag"] },
         { name: "testa", note: "kör Claudes testlista – /testa <namn>, /testa stopp", args: true },
         { name: "pdf", note: "spara senaste svaret som PDF" },
         { name: "word", note: "spara senaste svaret som Word" },
@@ -534,6 +535,9 @@ Window {
         }
         case "testa":
             backend.startTest(arg);
+            break;
+        case "planering":
+            backend.startPlan();
             break;
         case "laga":
             if (backend.busy)

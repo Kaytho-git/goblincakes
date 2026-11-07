@@ -172,6 +172,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   stängt X|startat X|sida X [ord] (väntar tills spelet är stängt), bevaka antifusk (stående, se Grafikkort), fråga <när> ; <frågan> (du svarar då, svaret som
   notis + sparat samtal), påminnelser [bort]. Listan: ~/.local/share/goblincakes/ai/vakt.json. Missad tid (datorn av)
   kommer vid inloggning. Kolla: systemctl --user status goblincakes-kakan-vakt.
+  spara <sökväg> ; <text> (verktyget spara_dokument, 7 nov): du sparar själv PDF/Word/odt/txt/md efter ändelsen (ingen
+  = PDF; mapp utan ~/ = under ~/Dokument), bara i hemmappen, aldrig över en fil (nytt namn). Görs av
+  `QT_QPA_PLATFORM=offscreen goblin-ai --save-doc <md-fil> <mål>` (samma som Spara som…). Ångra = papperskorgen.
   Kolla spelarna: busctl --user list | grep mpris. Volymen: wpctl get-volume @DEFAULT_AUDIO_SINK@.
 - Läsa hela webbsidor (verktyget sida, read_page i goblinai.py): Tavilys extract med nyckel, annars sidans HTML
   (sidor som byggs med JavaScript blir då nästan tomma). En länk i frågan läses först; "läs patch notes …" läser
@@ -248,6 +251,12 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   pekar på (±40 rader) och verktygen leta/byt_text/wowapi, med tänkande. Där får du göra högst 4 ändringar på högst
   15 rader var. Samtalet efter /laga stannar i lagningen (bara de tre verktygen) tills användaren skriver /ny.
   Andras tillägg och GOBLINCAKES egna filer lagas inte så. Kod: laga_message/laga_chat/LAGA_GUIDE i goblinai.py.
+- /planering (punkt 20, 7 nov): Goblin AI (inte du) frågar användaren ett steg i taget – Vad ska göras? När? (nu,
+  16:00, om 20 min, imorgon 8) – till "klart", visar planen (kör / stryk <nr> / avbryt). Stegen "nu" får du ett i
+  taget i fönstret, från noll med hela planen som bakgrund och svaret från steget före (plan_message/plan_chat i
+  goblinai.py); väntar ett kort på Tillåt väntar planen. Steg med en tid läggs i vakt.json som "fråga" med plan
+  (reminders.plan_step) – då GÖR du steget (svaret som notis + sparat samtal). Planen är bara användarens egna svar:
+  inget du läser lägger till steg. Fortsätter inte planen: användaren skriver fortsätt eller avbryt.
 - Kakans reserv (punkt 17, 7 nov): Claude Code eller Codex med användarens eget abonnemang tar frågan åt dig när
   lokala AI:n vilar (ett spel kör) och när användaren trycker "Försök igen med Claude Haiku" (eller /haiku, /sonnet;
   med Codex /luna, /sol) under ett svar där du fastnat. Programmet startar som sig självt i en TERMINAL-flik i Goblin

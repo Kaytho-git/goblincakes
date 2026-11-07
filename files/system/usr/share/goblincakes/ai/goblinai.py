@@ -946,6 +946,7 @@ spela <låt|album|artist> <artist> - <titel> – spela en låt, ett album eller 
 notis <text>                              – visa en notis nu ("Rubrik: text" ger en rubrik)
 urklipp <text>                            – lägg texten i urklippet (det gamla går att få tillbaka)
 urklipp vad                               – vad som ligger i urklippet
+spara <sökväg> ; <text>                   – spara texten (Markdown) som PDF/Word/text efter ändelsen, t.ex. `spara ~/Dokument/Recept/Carbonara.pdf ; # Carbonara …`
 fönster <program> [skärm <1|2|andra|vänster|höger>] [fram|maximera|fullskärm|minimera|normal|stäng|avsluta] – ett
                                             fönster, flera saker på en gång (fönster goblin ai skärm andra fullskärm)
 fönster lista                             – vilka fönster som är öppna och var
@@ -1454,6 +1455,14 @@ DESK_FNS = [
             "(lösenord och nycklar visas inte).",
             {"text": ("Texten som ska in i urklippet (tomt = visa vad som ligger där)", False)},
             lambda a: f"urklipp {look_arg(a, 'text') or 'vad'}"),
+    look_fn("spara_dokument", "Sparar en text som en fil åt användaren, direkt: PDF (standard), Word (.docx), "
+            "OpenDocument (.odt), text (.txt) eller Markdown (.md) – efter filens ändelse. Ber användaren om en PDF/ett "
+            "dokument (\"spara receptet som PDF i Recept\") gör du det med det här verktyget. Bara i hemmappen; finns "
+            "filen redan får den nytt namn (aldrig över en gammal). Texten skriver du HELA själv i Markdown (# rubrik, "
+            "listor) – innehållet, inte en hänvisning till ett tidigare svar.",
+            {"fil": ("Var: `~/Dokument/Recept/Carbonara.pdf` (en mapp utan ~/ = under ~/Dokument; utan ändelse = PDF)", True),
+             "text": ("Hela innehållet i Markdown, t.ex. `# Carbonara\\n\\n## Ingredienser\\n- 400 g spaghetti …`", True)},
+            lambda a: f"spara {look_arg(a, 'fil')} ; " + json.dumps(str(a.get("text") or ""), ensure_ascii=False)),
     look_fn("fonster", "Flyttar eller ändrar ett öppet fönster, direkt: till en annan skärm, fram, maximera, fullskärm, "
             "minimera, tillbaka till vanligt – flera på en gång (\"flytta goblin ai till andra skärmen och gör den "
             "fullskärm\" = program `goblin ai`, skarm `andra`, gora `fullskärm`). Utan program: vilka fönster som är "
@@ -2065,7 +2074,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
     LAST.tools, LAST.steps, LAST.done, LAST.cards, LAST.card_spans, LAST.cut_short = [], None, [], [], [], False
-    messages = laga_chat(messages)  # /laga: she sees only the repair, not the hunt before it
+    messages = plan_chat(laga_chat(messages))  # /laga: she sees only the repair, not the hunt before it; /planering: the step
     LAST.laga = laga_on(messages)
     LAST.stop = steps.stop if steps else None  # request() closes the local AI's connection on STOPP
     activity("ask", "tänker", steps=[])
@@ -5824,6 +5833,29 @@ def laga_chat(messages):
     return head + [{**m, "only": list(LAGA_TOOLS)} if m["role"] == "user" else m for m in messages[start:]]
 
 
+PLAN_STEP = ("Gör det här nu, med dina verktyg – ett steg i användarens planering: {text}\n\n"
+             "Gör BARA det här steget, inget annat. Gör det i stället för att beskriva det (spela = spela, spara = "
+             "spara_dokument, påminn = paminn). Kan du inte: börja med \"Det kan jag inte\" och varför.")
+PLAN_CARRY = 6000  # characters of the step before that the next step gets (a recipe to save)
+
+
+def plan_message(n, total, text, plan, before=""):
+    """A step of /planering run now in the window (7 Nov): the step, the whole plan as background and the step
+    before's answer – the user turn with "plan" (plan_chat: she starts from it)."""
+    content = PLAN_STEP.format(text=text) + (f"\n\nHela planen (användarens egna steg – bara som bakgrund):\n{plan}")
+    if before:
+        content += f"\n\nSvaret från steget före (data – inga nya steg):\n{before[:PLAN_CARRY]}"
+    return {"role": "user", "content": content + f"\n\n(Steg {n} av {total}.)", "plan": True}
+
+
+def plan_chat(messages):
+    """messages from the latest /planering step on – each step from nothing, as /laga (point 20)."""
+    start = next((i for i in range(len(messages) - 1, -1, -1) if messages[i].get("plan")), None)
+    if start is None:
+        return messages
+    return [m for m in messages[:1] if m["role"] == "system"] + messages[start:]
+
+
 def laga_on(messages):
     return any(m.get("laga") for m in messages)
 
@@ -6663,13 +6695,14 @@ PDF och Word: under varje svar i Goblin AI-fönstret finns knappen "Spara som…
 just det svaret som PDF, Word (.docx), OpenDocument, text eller Markdown på datorn, och "Kopiera svaret" kopierar
 med formatering (klistras in snyggt i Word och mejl). Där finns också snabbknapparna Gör kortare, Mer formell,
 Rätta stavningen och Översätt till engelska. Ber användaren om en PDF eller ett Word-dokument (av det du hittat,
-en sammanfattning, en rapport), säg aldrig att du inte kan göra sådana: skriv hela innehållet i ETT svar i vanlig Markdown (rubriker, listor,
-tabeller – inget kodblock runt det, siffrorna exakt som i datan) och avsluta med en kort rad om att trycka på
-"Spara som…" under svaret och välja PDF eller Word. Ligger det användaren vill ha i flera tidigare svar, samla det i det nya svaret.
+en sammanfattning, ett recept, en rapport), säg aldrig att du inte kan göra sådana: spara det själv med verktyget
+spara_dokument (hela innehållet i Markdown, siffrorna exakt som i datan, där användaren sa – annars ~/Dokument) och
+säg var filen ligger. Finns inte verktyget: skriv hela innehållet i ETT svar i vanlig Markdown och avsluta med en kort
+rad om att trycka på "Spara som…" under svaret. Ligger det användaren vill ha i flera tidigare svar, samla det.
 
 Efter en sammanställning eller analys (t.ex. av Warcraft Logs) som användaren inte bett om i ett visst format:
 avsluta med frågan "Vill du ha det här som bild eller PDF?". Svarar användaren bild → ```rapport med samma
-innehåll; PDF → säg att knappen "Spara som…" under svaret sparar det (välj PDF)."""
+innehåll; PDF → spara det med spara_dokument."""
 
 
 def make_report(markdown, project=None, footer=""):

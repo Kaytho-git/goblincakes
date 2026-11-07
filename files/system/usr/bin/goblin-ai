@@ -414,6 +414,8 @@ class Backend(QObject):
         self._claudeDone.connect(self._on_claude)
         self._testJudged.connect(self._test_judged)
         self._test = None  # the test list being run (Testa åt Claude)
+        self._plan = None  # /planering (punkt 20): the steps asked one at a time, then run
+        self._plan_q = None  # the next step's question (goblinai.plan_message)
         self._mcpDone.connect(self._on_mcp_done)
         self._failed.connect(self._on_failure)
         self._search_next = False  # "Sök på nätet": the next question is searched first
@@ -479,6 +481,7 @@ class Backend(QObject):
         self._display = []
         self._file = None  # the attached file of this conversation (path)
         self._cwd = str(Path.home())  # where the next command card runs (follows `cd`, like a terminal)
+        self._plan = self._plan_q = None  # a /planering being written ends with its chat
 
     @Property(str, notify=conversationChanged)
     def messages(self):
@@ -516,6 +519,8 @@ class Backend(QObject):
         if not self._busy or self._stop is None or self._stop.is_set():
             return
         self._stop.set()
+        if self._plan and self._plan["waiting"] == "running":
+            QTimer.singleShot(0, lambda: self._plan_end("stoppad av dig"))
         steps = [{**s, "state": "stopp" if s["state"] == "run" else s["state"]} for s in json.loads(self._steps)
                  if not s.get("think")]
         steps.append({"text": "Stoppad av dig", "state": "stopp"})
@@ -549,6 +554,15 @@ class Backend(QObject):
             return
         if text and self._test and self._test.get("waiting") == "ask":  # the answer to a test point's question
             return self._test_answer(text)
+        if text and self._plan and self._plan["waiting"] != "running" and not self._plan_q:
+            return self._plan_answer(text)
+        if text and self._plan and self._plan["waiting"] == "running" and not self._plan_q:
+            word = " ".join(text.lower().strip(" .!").split())
+            if word in self.PLAN_STOP:  # between the steps (a card waiting): the rest is not done
+                return self._plan_end("avbruten av dig")
+            if word in ("fortsätt", "fortsatt", "nästa steg"):  # a step that never came back: on to the next
+                self._plan["i"] += 1
+                return self._plan_next()
         content = text or "Titta på den här filen."
         shown = {"role": "user", "text": text, "segments": [], "service": "", "file": "", "time": time.strftime("%H:%M")}
         images = []
@@ -594,6 +608,9 @@ class Backend(QObject):
         if self._laga_next:  # /laga: the report and its code, from nothing (goblinai.laga_chat)
             question, self._laga_next = self._laga_next, None
             shown["laga"] = True
+        if self._plan_q:  # /planering: one step, from nothing (goblinai.plan_chat)
+            question, self._plan_q = self._plan_q, None
+            shown["plan"] = True
         if getattr(self, "_reserve_next", None):  # /haiku …, Försök igen med …: Kakans reserv answers
             question["reserve"] = shown["reserve"] = self._reserve_next
             self._reserve_next = None
@@ -718,6 +735,8 @@ class Backend(QObject):
         self.messageAdded.emit(json.dumps(shown))
         self._set_busy(False)
         self._save()
+        if self._plan and self._plan["waiting"] == "running":
+            QTimer.singleShot(0, lambda: self._plan_answered(shown))  # after the cards' autorun below
         self._start_images(len(self._display) - 1)
         if not self._win_active and not shown.get("test") and goblinai.game_running():
             # A game runs and the user is in it: not raiseWindow (it takes the focus) – Goblin AI on a free screen and
@@ -768,6 +787,8 @@ class Backend(QObject):
             self._ask()
 
     def _on_failure(self, message):
+        if self._plan and self._plan["waiting"] == "running":
+            QTimer.singleShot(0, lambda: self._plan_end(f"steg {self._plan['now'][self._plan['i']]} gick inte: {message}"))
         self._stop = None
         self._set_steps("[]")
         shown = {"role": "error", "text": message, "segments": [], "service": "", "file": ""}
@@ -926,6 +947,9 @@ class Backend(QObject):
         """When every command card in the answer is run or skipped: tell the AI how it went."""
         if self._display[index].get("test"):  # a test point: the test list goes on, the AI isn't asked
             return self._test_command_done(index)
+        if self._plan and self._plan.get("last") is self._display[index]:  # /planering: on when she has stopped
+            shown = self._display[index]
+            QTimer.singleShot(1500, lambda: self._plan_settle(shown))
         segs = self._display[index]["segments"]
         parts = [s for s in segs if s["type"] in ("command", "blocked")]
         if any(s["state"] in ("new", "running") for s in parts):
@@ -1259,6 +1283,7 @@ class Backend(QObject):
         except (OSError, ValueError):
             return
         self._id = d["id"]
+        self._plan = self._plan_q = None
         if d.get("project", "") != self._project:
             self._project = d.get("project", "")
             self.projectsChanged.emit()
@@ -1375,6 +1400,169 @@ class Backend(QObject):
             return
         self._laga_next = question
         self.send("/laga", "")
+
+    # ── /planering (punkt 20, the user's design 7 Nov): Goblin AI asks the same questions each time – what, when,
+    # the next step – the plan is shown, "kör" runs it. Steps "nu" run here one at a time, each from nothing with the
+    # step before's answer (goblinai.plan_message); steps at a time go to the vakt (reminders.plan_step), which does
+    # them then. The plan is only the user's own answers: nothing she reads or answers adds a step.
+    PLAN_NOW = ("nu", "direkt", "genast", "nu direkt", "med en gång", "på en gång")
+    PLAN_DONE = ("klart", "klar", "färdig", "färdigt", "inga fler", "inget mer", "nej", "slut", "det var allt")
+    PLAN_STOP = ("avbryt", "stopp", "stop", "avsluta")
+    PLAN_GO = ("kör", "kor", "ja", "kör den", "starta", "kör planen", "kör på")
+
+    @Slot()
+    def startPlan(self):
+        if self._busy:
+            return self.notice.emit("Vänta tills svaret är klart.")
+        if self._plan and self._plan["waiting"] == "running":
+            return self.notice.emit("En planering körs redan.")
+        self._plan = {"steps": [], "waiting": "what", "i": 0, "now": [], "before": "", "done": [], "timed": [],
+                      "told": False}
+        self._plan_post("**Planering** – jag frågar ett steg i taget, och du får se hela planen innan något görs.\n\n"
+                        "**Steg 1: Vad ska göras?** (t.ex. *leta upp ett recept på carbonara*) – **avbryt** avslutar.")
+
+    def _plan_post(self, text):
+        shown = {"role": "assistant", "text": text, "segments": goblinai.segments(text), "service": "Planering",
+                 "file": "", "tools": [], "time": time.strftime("%H:%M"), "planning": True}
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        self._save()
+
+    @staticmethod
+    def _plan_when(at):
+        if at is None:
+            return "nu"
+        when = time.localtime(at)
+        return "kl " + time.strftime("%H:%M" if when.tm_yday == time.localtime().tm_yday else "%-d/%-m %H:%M", when)
+
+    def _plan_text(self):
+        return "\n".join(f"{n}. {self._plan_when(st['at'])} – {st['text']}" for n, st in enumerate(self._plan["steps"], 1))
+
+    def _plan_shown(self, head="**Planen:**"):
+        self._plan_post(f"{head}\n\n{self._plan_text()}\n\nSkriv **kör** så börjar jag, **stryk 2** tar bort steg 2, "
+                        "**avbryt** avslutar.")
+
+    def _plan_answer(self, text):
+        import reminders  # noqa: PLC0415
+        p = self._plan
+        shown = {"role": "user", "text": text, "segments": [], "service": "", "file": "", "planning": True,
+                 "time": time.strftime("%H:%M")}
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        word = " ".join(text.lower().strip(" .!").split())
+        if word in self.PLAN_STOP:
+            self._plan = None
+            return self._plan_post("Planeringen är avbruten – inget har gjorts.")
+        if p["waiting"] == "what":
+            if word in self.PLAN_DONE or word in self.PLAN_GO:
+                if not p["steps"]:
+                    self._plan = None
+                    return self._plan_post("Inga steg – planeringen är avslutad.")
+                p["waiting"] = "ok"
+                return self._plan_shown()
+            p["steps"].append({"text": text.strip(), "at": None})
+            p["waiting"] = "when"
+            return self._plan_post("**När?** **nu**, ett klockslag (*16:00*), *om 20 min* eller *imorgon 8*.")
+        if p["waiting"] == "when":
+            if word not in self.PLAN_NOW:
+                at = reminders.parse_at(text)
+                if at is None:
+                    return self._plan_post(f"Förstår inte när \"{text.strip()}\" är – skriv **nu**, *16:00*, "
+                                           "*om 20 min* eller *imorgon 8*.")
+                p["steps"][-1]["at"] = at.timestamp()
+            p["waiting"] = "what"
+            return self._plan_post(f"**Steg {len(p['steps']) + 1}: Vad ska göras?** – eller **klart** om det var allt.")
+        # "ok": the plan is shown
+        m = re.fullmatch(r"(?:stryk|ta bort|bort)\s+(?:steg\s+)?(\d+)", word)
+        if m:
+            n = int(m.group(1))
+            if not 1 <= n <= len(p["steps"]):
+                return self._plan_post(f"Det finns inget steg {n}.")
+            p["steps"].pop(n - 1)
+            if not p["steps"]:
+                self._plan = None
+                return self._plan_post("Inga steg kvar – planeringen är avslutad.")
+            return self._plan_shown()
+        if word not in self.PLAN_GO:
+            return self._plan_post("Skriv **kör**, **stryk <nr>** eller **avbryt**.")
+        self._plan_run()
+
+    def _plan_run(self):
+        import datetime  # noqa: PLC0415
+        import reminders  # noqa: PLC0415
+        p = self._plan
+        plan = self._plan_text()
+        for n, st in enumerate(p["steps"], 1):
+            if st["at"] is None:
+                continue
+            if st["at"] < time.time():  # the time passed while the plan was being written: now instead
+                st["at"] = None
+                continue
+            try:
+                reminders.plan_step(datetime.datetime.fromtimestamp(st["at"]), st["text"], plan)
+                p["timed"].append(n)
+            except OSError as e:
+                self.notice.emit(f"Steg {n} gick inte att lägga i vakten: {e}")
+        p["now"] = [n for n, st in enumerate(p["steps"], 1) if st["at"] is None]
+        p["waiting"], p["i"] = "running", 0
+        self._plan_next()
+
+    def _plan_next(self):
+        p = self._plan
+        if not p:
+            return
+        if self._busy:  # a card's command still finishing: a moment later
+            return QTimer.singleShot(500, self._plan_next)
+        if p["i"] >= len(p["now"]):
+            return self._plan_end()
+        n = p["now"][p["i"]]
+        p["told"] = False
+        self._plan_q = goblinai.plan_message(n, len(p["steps"]), p["steps"][n - 1]["text"], self._plan_text(), p["before"])
+        self.send(f"Steg {n}: {p['steps'][n - 1]['text']}", "")
+
+    def _plan_answered(self, shown):
+        """An answer while a step runs – the step is done when she has stopped: no follow-up after her cards (a
+        reading command runs by itself and she answers again; a change waits for Tillåt or Hoppa över)."""
+        p = self._plan
+        if not p or p["waiting"] != "running":
+            return
+        p["last"] = shown
+        QTimer.singleShot(1500, lambda: self._plan_settle(shown))
+
+    def _plan_settle(self, shown):
+        p = self._plan
+        if not p or p["waiting"] != "running" or p.get("last") is not shown or p["i"] >= len(p["now"]):
+            return
+        if self._busy:  # she is answering again (after her cards): that answer comes to _plan_answered
+            return
+        n = p["now"][p["i"]]
+        cards = [seg for seg in shown.get("segments") or [] if seg.get("type") == "command"]
+        if any(seg.get("state") in ("new", "running") for seg in cards):
+            if not p["told"]:
+                p["told"] = True
+                self._plan_post(f"Steg {n} väntar på ditt **Tillåt** (eller Hoppa över) ovan – sedan fortsätter planen.")
+            return
+        p["before"] = shown["text"]
+        if cards and all(seg.get("state") in ("skipped", "blocked") for seg in cards):
+            p.setdefault("skipped", []).append(n)  # nothing she asked for was run
+        elif n not in p["done"]:
+            p["done"].append(n)
+        p["i"] += 1
+        self._plan_next()
+
+    def _plan_end(self, why=""):
+        p, self._plan, self._plan_q = self._plan, None, None
+        if not p:
+            return
+        lines = []
+        for n, st in enumerate(p["steps"], 1):
+            mark = ("gjort ✓" if n in p["done"] else "hoppades över (kortet)" if n in p.get("skipped", []) else
+                    f"vakten gör det {self._plan_when(st['at'])}" if n in p["timed"] else "inte gjort")
+            lines.append(f"{n}. {st['text']} – {mark}")
+        head = f"**Planeringen avbröts** – {why}." if why else "**Planeringen är klar.**"
+        tail = ("\n\nStegen med en tid gör jag då (väntar om ett spel kör) – svaret kommer som en notis. Ändra: "
+                "*påminnelser* visar dem, *påminnelser bort <nr>* tar bort ett.") if p["timed"] else ""
+        self._plan_post(f"{head}\n\n" + "\n".join(lines) + tail)
 
     @Slot(str, str)
     def sendOnly(self, command, text):
@@ -3107,7 +3295,24 @@ def use_accent(engine):
             "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
 
 
+def save_doc_main(source, target):
+    """--save-doc <markdown file> <target>: Kakan's spara_dokument (desktop.save_doc, 7 Nov) – the same PDF/Word/text
+    as Spara som…, made without a window (started with QT_QPA_PLATFORM=offscreen)."""
+    app = QGuiApplication([sys.argv[0]])  # noqa: F841 – QTextDocument/QPdfWriter need one
+    for font in os.environ.get("GOBLIN_AI_FONTS", "").split(":"):
+        if font:
+            QFontDatabase.addApplicationFont(font)
+    try:
+        save_answer(Path(source).read_text(), target, Path(target).stem)
+    except OSError as e:
+        print(e, file=sys.stderr)
+        return 1
+    return 0
+
+
 def main():
+    if sys.argv[1:2] == ["--save-doc"] and len(sys.argv) == 4:
+        return save_doc_main(sys.argv[2], sys.argv[3])
     # The QML uses fixed pixel sizes: drawn at 80 %, matching GOBLINCAKES' 9 pt interface. Done inside the
     # window (`uiScale` × Main.qml's zoomRoot/quick box) and not with QT_SCALE_FACTOR=0.8 as the other windows:
     # Chromium (the TERMINAL tab) can't draw below 1 and showed only the top left 80 % of the page (1 Nov).

@@ -363,6 +363,8 @@ def question(rest, conversation=""):
 def _describe(item):
     if item["kind"] == "tid":
         return f"{_fmt(dt.datetime.fromtimestamp(item['at']))}: {item['text']}"
+    if item["kind"] == "fråga" and item.get("plan"):
+        return f"{_fmt(dt.datetime.fromtimestamp(item['at']))}: gör \"{item['text']}\" (planering)"
     if item["kind"] == "fråga":
         return f"{_fmt(dt.datetime.fromtimestamp(item['at']))}: tar reda på \"{item['text']}\""
     what = WATCH_NAMES[item["kind"]].format(arg=item.get("arg", ""))
@@ -608,14 +610,27 @@ def run():
 
 # ── A question at its time ──────────────────────────────────────────────────────
 
+def plan_step(when, text, plan):
+    """A step of /planering at its time (the user's decision 7 Nov): Kakan DOES it then with her tools – a "fråga"
+    with the plan along (only the user's own steps: nothing she reads adds a step). Returns the id or an error."""
+    item = _new("fråga", at=when.timestamp(), text=" ".join(text.split())[:1000], plan=plan[:3000])
+    _add(item)
+    return item["id"]
+
+
 def ask(item):
     import goblinai  # noqa: PLC0415
     name = goblinai.ai_name() or "Goblin AI"
     asked = dt.datetime.fromtimestamp(item["made"])
     question_text = item["text"]
-    messages = [{"role": "system", "content": goblinai.system_prompt()},
-                {"role": "user", "content": question_text + f"\n\n(Användaren bad dig {asked:%-d/%-m kl %H:%M} ta reda på "
-                 f"det här nu – nu är det {_fmt(dt.datetime.now())}. Svara kort – svaret visas som en notis.)"}]
+    if item.get("plan"):  # /planering: do the step, not only answer
+        content = (f"{goblinai.PLAN_STEP.format(text=question_text)}\n\nHela planen (användarens egna steg – bara som "
+                   f"bakgrund, gör BARA det här steget):\n{item['plan']}\n\n(Planerat {asked:%-d/%-m kl %H:%M}, nu är det "
+                   f"{_fmt(dt.datetime.now())}. Svara kort vad du gjorde – svaret visas som en notis.)")
+    else:
+        content = question_text + (f"\n\n(Användaren bad dig {asked:%-d/%-m kl %H:%M} ta reda på "
+                                   f"det här nu – nu är det {_fmt(dt.datetime.now())}. Svara kort – svaret visas som en notis.)")
+    messages = [{"role": "system", "content": goblinai.system_prompt()}, {"role": "user", "content": content}]
     try:
         answer, service = goblinai.ask(messages, goblinai.load_keys(), choice=goblinai.chosen_model())
     except Exception as e:  # noqa: BLE001 – no service answered: said in the notice
@@ -627,7 +642,7 @@ def ask(item):
               "tools": goblinai.last_tools()}]
     data = {"id": conv, "title": " ".join(question_text.split())[:80], "updated": time.time(), "file": None,
             "cwd": str(Path.home()), "project": "", "display": shown,
-            "api": [{"role": "user", "content": question_text}, {"role": "assistant", "content": answer}]}
+            "api": [{"role": "user", "content": content}, {"role": "assistant", "content": answer}]}
     try:
         (DATA / f"{conv}.json").write_text(json.dumps(data, ensure_ascii=False))
     except OSError:

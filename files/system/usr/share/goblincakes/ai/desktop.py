@@ -398,6 +398,58 @@ def notify(text, conversation=""):
     return _done(code, [], f"Visade notisen: {text}", conversation, "En notis går inte att ta tillbaka – stäng den.")
 
 
+DOC_ENDINGS = (".pdf", ".docx", ".odt", ".txt", ".md", ".html")
+GOBLIN_AI = Path(__file__).resolve().parents[3] / "bin" / "goblin-ai"  # usr/bin next to usr/share (the repo too)
+
+
+def save_doc(rest, conversation=""):
+    """`spara <sökväg> ; <text>` – Kakan saves a document herself (the user, 7 Nov: "så hon kan göra pdf när jag ber
+    om det, inte när jag trycker på knappen"): Markdown → PDF/Word/OpenDocument/text by the ending (none = PDF), made
+    by goblin-ai --save-doc as Spara som…. Only in the home folder, never over a file (a new name instead). The text
+    may come JSON-quoted (its line breaks kept – goblinai's spara_dokument)."""
+    where, sep, text = rest.partition(";")
+    text = text.strip()
+    if text.startswith('"'):
+        try:
+            text = json.loads(text)
+        except ValueError:
+            pass
+    where = where.strip().strip("`'\"")
+    if not sep or not where or not text.strip():
+        return "Skriv `spara <sökväg> ; <texten>`, t.ex. `spara ~/Dokument/Recept/Carbonara.pdf ; # Carbonara …`."
+    home = Path.home().resolve()
+    path = Path(where).expanduser()
+    if not path.is_absolute():
+        path = home / "Dokument" / path
+    if path.suffix.lower() not in DOC_ENDINGS:
+        path = path.with_name(path.name + ".pdf")
+    path = path.resolve()
+    if home not in path.parents:
+        return f"Sparar bara i hemmappen (~/…), inte i {path.parent}."
+    n = 2
+    stem = path.stem
+    while path.exists():
+        path = path.with_name(f"{stem} ({n}){path.suffix}")
+        n += 1
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return f"Mappen gick inte att skapa: {e}"
+    source = cmdlevel.BACKUPS / f"dokument-{time.time_ns()}.md"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(text.strip() + "\n")
+    helper = str(GOBLIN_AI) if GOBLIN_AI.exists() else "goblin-ai"
+    code = (f"QT_QPA_PLATFORM=offscreen {shlex.quote(sys.executable)} {shlex.quote(helper)} --save-doc "
+            f"{shlex.quote(str(source))} {shlex.quote(str(path))}")
+    shown = str(path).replace(str(home), "~", 1)
+    said = _done(code, [f"gio trash {shlex.quote(str(path))}"], f"Sparade {shown}", conversation)
+    try:
+        source.unlink()
+    except OSError:
+        pass
+    return said if path.exists() or not said.startswith("Sparade") else f"Det gick inte: {shown} skapades inte."
+
+
 def clipboard_text():
     try:
         out = subprocess.run(["wl-paste", "--no-newline", "--type", "text"], capture_output=True, timeout=3)
@@ -1017,6 +1069,8 @@ def act(line, conversation=""):
         return notify(rest, conversation)
     if word in ("urklipp", "urklippet", "clipboard"):
         return clipboard(rest, conversation)
+    if word in ("spara", "save"):
+        return save_doc(rest, conversation)
     if word in ("spela", "play"):
         kind, _, what = rest.strip().partition(" ")
         if kind.lower() in ("låt", "låten", "album", "albumet", "skivan", "artist", "artisten", "band", "bandet",
@@ -1025,7 +1079,7 @@ def act(line, conversation=""):
         return play("", rest, conversation)
     return ("Okänd rad. Raderna: musik paus|spela|nästa|föregående|vad, volym 40|+10|-10|tyst|ljud [i goblinamp|spotify], "
             "öppna <program|webbadress|sökväg>, spela låt|album|artist <artist> - <titel>, notis <text>, "
-            "urklipp <text|vad>, fönster <program> [skärm 2] [fram|maximera|fullskärm|minimera|normal], "
+            "urklipp <text|vad>, spara <sökväg> ; <text>, fönster <program> [skärm 2] [fram|maximera|fullskärm|minimera|normal], "
             "spel <namn|lista>, goblin <kommando>, kalender visa [dagar], kalender lägg <när> ; <titel> ; <påminnelse>, "
             "påminn <när> ; <text>, bevaka <steam|uppdatering|nedladdning|stängt X|startat X|sida X|bygge [commit]> [; text], "
             "fråga <när> ; <frågan>, påminnelser [bort <nr>].")
