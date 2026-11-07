@@ -10,6 +10,7 @@ tier; Gemini's own Google search needs a paid plan). Keys:
 """
 import base64
 import getpass
+import difflib
 import json
 import math
 import os
@@ -1792,13 +1793,30 @@ def tool_schemas(tools):
 CALL_TAG = re.compile(r"\s*</?(?:parameter|function|tool_call|arg_key|arg_value)\b[^>]*>\s*")
 
 
+def near_fn(fn, tools):
+    """A function name she misspelled ("vis_a_mapp") as the real one, when one is close – else fn as it was."""
+    names = [f["fn"] for t in tools.values() for f in t["fns"]] + [t["fn"] for t in tools.values()]
+    if not fn or fn in names:
+        return fn
+    close = difflib.get_close_matches(fn.lower().replace("å", "a").replace("ä", "a").replace("ö", "o"), names, 1, 0.8)
+    return close[0] if close else fn
+
+
+def near_field(name, props):
+    if name in props:
+        return name
+    plain = name.lower().replace("å", "a").replace("ä", "a").replace("ö", "o")
+    close = difflib.get_close_matches(plain, list(props), 1, 0.6)
+    return close[0] if close else name
+
+
 def clean_arg(value):
     return CALL_TAG.sub(" ", value).strip() if isinstance(value, str) else value
 
 
 def tool_call_block(call, tools):
     """A tool call from the model as the code block it would have written: ```sport\nAnaheim Ducks\n```"""
-    fn = (call.get("function") or {}).get("name", "")
+    fn = near_fn((call.get("function") or {}).get("name", ""), tools)
     word = next((w for w, t in tools.items() if t["fn"] == fn or any(f["fn"] == fn for f in t["fns"])), None)
     if not word and (TOOL_WORDS.get(fn) in tools or fn in tools):
         # The tool's word instead of a function – "leta", "byt" (an empty answer in the /laga test, 7 Nov)
@@ -1822,12 +1840,26 @@ def tool_call_block(call, tools):
     own = next((f for f in tools[word]["fns"] if f["fn"] == fn), None)
     if own and isinstance(args, dict) and not own.get("schema"):
         # The next field inside a value – "sokvag": "~/…/MainWindowUI.lua fran_rad 360" (qwen3.5 via Ollama, 7 Nov)
+        # A field she misspelled ("fråga_rad", "fråna_rad" for fran_rad – in the window 7 Nov): the nearest one
+        args = {near_field(k, own["props"]): v for k, v in args.items()}
         for key in list(args):
             for other in own["props"]:
                 hit = isinstance(args.get(key), str) and other != key and not look_arg(args, other) and re.search(
                     rf"\s+{other}\s*[=:]?\s*[\"']?(.+?)[\"']?\s*$", args[key])
                 if hit:
                     args[other], args[key] = hit.group(1), args[key][:hit.start()].strip()
+            # "fråga_rad=367" glued on: a field=value whose name is near one of them
+            for name, value in re.findall(r"\s+([\wåäö]+)\s*=\s*[\"']?([^\s\"']+)[\"']?", str(args.get(key, ""))):
+                field = near_field(name, own["props"])
+                if field in own["props"] and field != key and not look_arg(args, field):
+                    args[field] = value
+                    args[key] = re.sub(rf"\s+{re.escape(name)}\s*=\s*[\"']?{re.escape(value)}[\"']?", "", args[key]).strip()
+        if "mapp" in own["props"] and not look_arg(args, "mapp"):
+            # The folder inside the search words: "RefreshUi ~/kakan-prov/gear-planner/MainWindowUI.lua" searched all of ~
+            for key in [k for k in own["props"] if k != "mapp"]:
+                hit = isinstance(args.get(key), str) and re.search(r"\s+((?:~|/)\S+)\s*$", args[key])
+                if hit:
+                    args["mapp"], args[key] = hit.group(1), args[key][:hit.start()].strip()
     if own and own.get("schema"):  # MCP: the fields as they are (numbers, lists), not as a line of words
         return f"```{word}\n{own['line'](args if isinstance(args, dict) else {})}\n```"
     if own:  # a tool with its own fields → the code block's line (a model may still send the whole line in one)
@@ -1848,9 +1880,10 @@ def written_call(body, tools):
     m = re.match(r"\s*([a-z_]+)\s*(?:\((.*)\)|\s(.*))?\s*$", body, re.S)
     if not m:
         return None
+    fn = m.group(1) if shutil.which(m.group(1)) else near_fn(m.group(1), tools)
     for word, t in tools.items():
         for f in t["fns"]:
-            if f["fn"] == m.group(1):
+            if f["fn"] == fn:
                 args = dict(re.findall(r"(\w+)\s*=\s*[\"']([^\"']*)[\"']", m.group(2) or ""))
                 if not args and (m.group(2) or m.group(3) or "").strip():
                     args = {next(iter(f["props"])): (m.group(2) or m.group(3)).strip().strip("\"'")}
@@ -5023,7 +5056,8 @@ LAGA_GUIDE = f"""
 Du LAGAR felen i rapporten nedan – samtalet före den är borta, allt du behöver står här. Arbetsordningen:
 1. LÄS rapporten och koden under den (radnumret först på varje rad är inte en del av raden). BÖRJA med felen som
    har fil:rad eller ett felmeddelande – ett fel som bara beskrivs ("färgerna är vita") tar du sist. Behöver du se
-   mer: las_fil med från_rad, eller sok_i_filer.
+   mer: las_fil med från_rad, eller sok_i_filer. Står raderna med felet redan här: ändra direkt med byt_text –
+   läs inte filen igen.
    "attempt to call method/field 'X' (a nil value)" = X finns inte med just det namnet: sök efter funktionen
    (sok_i_filer "function" eller en del av namnet) – stora och små bokstäver räknas (RefreshUI är inte RefreshUi).
 2. SLÅ UPP varje WoW-funktion du rör med wowapi: vad den tar emot och vad den ger tillbaka. Gissa inga namn.
