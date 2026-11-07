@@ -5839,6 +5839,7 @@ def _reserve_run(helper, model, system, prompt, log, change, steps):
             data = {}
         answer = str(data.get("result") or "").strip()
         USAGE_RESERVE.update(cost=data.get("total_cost_usd"), turns=data.get("num_turns"))
+        _reserve_usage_log(helper, model, data, time.time() - started)
         if data.get("subtype") == "error_max_turns":
             return answer, "turns"
         if data.get("is_error") or proc.returncode:
@@ -5855,6 +5856,21 @@ def _reserve_run(helper, model, system, prompt, log, change, steps):
 
 
 USAGE_RESERVE = {}
+RESERVE_USAGE_LOG = CACHE / "reserv-forbrukning.jsonl"  # one line per Claude run: what it cost of the quota
+
+
+def _reserve_usage_log(helper, model, data, seconds):
+    """Saves what one run used (tokens, turns, Claude's own price estimate) – the quota is otherwise invisible."""
+    u = data.get("usage") or {}
+    row = {"tid": time.strftime("%Y-%m-%d %H:%M:%S"), "program": helper, "modell": model,
+           "varv": data.get("num_turns"), "sekunder": round(seconds), "in": u.get("input_tokens", 0),
+           "cache_skriv": u.get("cache_creation_input_tokens", 0), "cache_las": u.get("cache_read_input_tokens", 0),
+           "ut": u.get("output_tokens", 0), "usd": data.get("total_cost_usd"), "slut": data.get("subtype")}
+    try:
+        with RESERVE_USAGE_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
 
 
 def _reserve_error(text):
