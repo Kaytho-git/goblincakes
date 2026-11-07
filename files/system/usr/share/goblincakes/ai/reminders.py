@@ -630,7 +630,8 @@ def ask(item):
     else:
         content = question_text + (f"\n\n(Användaren bad dig {asked:%-d/%-m kl %H:%M} ta reda på "
                                    f"det här nu – nu är det {_fmt(dt.datetime.now())}. Svara kort – svaret visas som en notis.)")
-    messages = [{"role": "system", "content": goblinai.system_prompt()}, {"role": "user", "content": content}]
+    messages = [{"role": "system", "content": goblinai.system_prompt()},
+                {"role": "user", "content": content, **({"plan": True} if item.get("plan") else {})}]
     try:
         answer, service = goblinai.ask(messages, goblinai.load_keys(), choice=goblinai.chosen_model())
     except Exception as e:  # noqa: BLE001 – no service answered: said in the notice

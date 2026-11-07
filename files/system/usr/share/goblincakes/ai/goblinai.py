@@ -5897,6 +5897,10 @@ def fixes_done(messages):
 def wants_report(answer, messages):
     """The answer goes on to Claude as a report: only looking was asked for, or she said she can't fix it."""
     answer = answer or ""
+    asked = next((m for m in reversed(messages) if m["role"] == "user" and isinstance(m.get("content"), str)
+                  and not m["content"].startswith(REPORT_TURNS)), {})
+    if asked.get("plan"):  # a /planering step is never a fault report (7 Nov: step 2 started Claude Code)
+        return False
     # report-only: her finished answer (no card waiting to show her more), not every step on the way
     # report-only with "Vad som är fel" counts even with a block left: she wrote her own `gammal: … ny: …` card under the
     # report (the window, 7 Nov) and no report was saved, no Laga button
