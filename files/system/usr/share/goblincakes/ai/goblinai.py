@@ -5303,7 +5303,20 @@ def laga_file(name, report):
 def laga_excerpts(report):
     """{path: [(first, last), …]} – the lines the report names, LAGA_AROUND around them, overlapping ones joined."""
     spans = {}
-    for name, a, b in CODE_REF.findall(report.split("\n\n**Hämtat från:**")[0]):
+    body = report.split("\n\n**Hämtat från:**")[0]
+    refs = CODE_REF.findall(body)
+    if not refs:
+        # The file in one place and "Rad 367" in another (the window, 7 Nov – no Laga button): each line number with the
+        # file named last before it on the same bullet/line, else the one file the report names
+        files = list(dict.fromkeys(re.findall(r"([\w.!-]+\.(?:lua|toc|xml|qml|py|js|sh))\b", body)))
+        last = files[0] if len(files) == 1 else ""
+        for line in body.split("\n"):
+            named = re.findall(r"([\w.!-]+\.(?:lua|toc|xml|qml|py|js|sh))\b", line)
+            last = named[-1] if named else last
+            for a, b in re.findall(r"\brad(?:erna)?\s+(\d+)(?:\s*[-–]\s*(\d+))?", line, re.I):
+                if last:
+                    refs.append((last, a, b))
+    for name, a, b in refs:
         path = laga_file(name, report)
         if path:
             a, b = int(a), int(b or a)
