@@ -65,11 +65,76 @@ PACKAGES = ["faster-whisper==1.2.1", "piper-tts==1.8.0"]
 WHISPER = "kb-whisper-small"
 WHISPER_REPO = "KBLab/kb-whisper-small"
 WHISPER_FILES = ["model.bin", "config.json", "tokenizer.json", "vocabulary.json", "preprocessor_config.json"]
+# The bigger one for questions (7 Nov, the user's test: small 2 s "Anna I'm Ducks", medium 5–6 s "Anaheim Ducks", but
+# medium turns "Spela" into "Spelade" – so small hears the commands, medium what goes on to Goblin AI). 1.5 GB, ~1 GB
+# memory once used; without it everything is small's, as before.
+WHISPER_BIG = "kb-whisper-medium"
+WHISPER_BIG_REPO = "KBLab/kb-whisper-medium"
 WHISPER_THREADS = 4
 # Words Whisper otherwise hears as Swedish ("Warcraft Logs" → "varmkraft lågs"): given as the
 # text "before" the speech, so it leans towards these spellings.
 VOCABULARY = ("Kakan, Goblin AI, GOBLINCAKES, Warcraft Logs, WoW, World of Warcraft, CS2, Counter-Strike, "
-              "Discord, Spotify, Steam, pull, pullen, senaste pullen, raid, Mythic plus, wipe, parse, lagg, GoblinAmp, GoblinRecorder.")
+              "Discord, Spotify, Steam, pull, pullen, senaste pullen, raid, Mythic plus, wipe, parse, lagg, GoblinAmp, GoblinRecorder, "
+              "BugSack, WowUp, tillägg, addon, addon i WoW, gear planner, CooldownVoice, KeystoneDisplay, IDidWhatWhen, SimpleQuestRemover, "
+              "DadJoke.")  # the user's own add-ons: "gear planner" was heard "Gairplaner" (7 Nov)
+
+# What both models still hear wrong (the user's test 7 Nov: "Ardon i Vov", "Adronyvov", "DonnieVov" = addon i WoW)
+HEARD_AS = [
+    (r"\b(?:ardon|erdon|adron|adon|addån|ardån|donnie)\s*(?:i\s*|y)?(?:vov|wov|vav)\b", "addon i WoW"),
+    (r"\b(?:ardon|erdon|adron|addån|ardån)(?:i|y)(?:vov|wov|vav)\b", "addon i WoW"),
+    (r"\b(?:ardon|erdon|adron|addån|ardån)\b", "addon"),
+    (r"\b(?:i\s+(?:vov|wov|vav)|yvov|ivov)\b", "i WoW"),
+]
+OWN_ADDON_NAMES = ["gear-planner", "CooldownVoice", "KeystoneDisplay", "IDidWhatWhen", "SimpleQuestRemover",
+                   "SimpleSecondaryStats", "DadJoke", "BugSack", "Warcraft Logs", "GoblinAmp", "GoblinRecorder"]
+KNOWN_LIKE = 0.75  # how alike a heard word (or 2–3 together) and a known name must be
+
+
+def _letters(text):
+    return re.sub(r"[^a-zåäö0-9]", "", text.lower())
+
+
+def known_words(text):
+    """Heard text corrected against what she knows: the patterns above, then the user's own add-ons and their most
+    played artists (voicecmd.whisper_words) – "Gairplaner"/"Gearplanter" → gear-planner, "metalliker" → Metallica.
+    Only names of 6 letters or more, and only when nearly the same."""
+    import difflib  # noqa: PLC0415
+    for pattern, word in HEARD_AS:
+        text = re.sub(pattern, word, text, flags=re.I)
+    try:
+        names = OWN_ADDON_NAMES + list(voicecmd().whisper_words())[:60]
+    except Exception:  # noqa: BLE001 – no music list: the add-ons only
+        names = OWN_ADDON_NAMES
+    names = [(n, _letters(n)) for n in dict.fromkeys(names) if len(_letters(n)) >= 6]
+    words = re.findall(r"\S+", text)
+    out, i = [], 0
+    while i < len(words):
+        best = None
+        for n in (3, 2, 1):
+            part = words[i:i + n]
+            if len(part) < n:
+                continue
+            heard = _letters(" ".join(part))
+            if len(heard) < 5 or (n > 1 and any(len(_letters(w)) <= 3 for w in part)):
+                continue  # "i", "och", "på" are never part of a name ("bugsack och" → BugSack ate the "och")
+            for name, letters in names:
+                if heard == letters:
+                    best = best or (n, name, 1.0)
+                    continue
+                if abs(len(heard) - len(letters)) > max(3, len(letters) // 3):
+                    continue
+                like = difflib.SequenceMatcher(None, heard, letters).ratio()
+                if like >= KNOWN_LIKE and (not best or like > best[2]):
+                    best = (n, name, like)
+        if best and best[2] < 1.0:
+            tail = re.search(r"[.,!?:;]+$", words[i + best[0] - 1])
+            out.append(best[1] + (tail.group(0) if tail else ""))
+            i += best[0]
+        else:
+            out.append(words[i])
+            i += 1
+    return " ".join(out)
+
 
 PIPER_VOICES = {"lisa": "sv/sv_SE/lisa/medium/sv_SE-lisa-medium",
                 "nst": "sv/sv_SE/nst/medium/sv_SE-nst-medium"}
@@ -106,8 +171,12 @@ def load():
     return data
 
 
-def whisper_dir():
-    return MODELS / WHISPER
+def whisper_dir(big=False):
+    return MODELS / (WHISPER_BIG if big else WHISPER)
+
+
+def big_installed():
+    return all((whisper_dir(True) / f).is_file() for f in WHISPER_FILES)
 
 
 def piper_file(name):
@@ -196,6 +265,10 @@ def cmd_install():
         for f in WHISPER_FILES:
             if not (whisper_dir() / f).is_file():
                 fetch(f"{HF}/{WHISPER_REPO}/resolve/main/{f}", whisper_dir() / f, WHISPER)
+        say("Hämtar den större taligenkänningen för frågor (1,5 GB)…")
+        for f in WHISPER_FILES:
+            if not (whisper_dir(True) / f).is_file():
+                fetch(f"{HF}/{WHISPER_BIG_REPO}/resolve/main/{f}", whisper_dir(True) / f, WHISPER_BIG)
         say("Hämtar rösterna…")
         for name, path in PIPER_VOICES.items():
             for ext in (".onnx", ".onnx.json"):
@@ -280,8 +353,16 @@ def prompt():
     return text
 
 
-def whisper_model():
-    global _model
+_big = None
+
+
+def whisper_model(big=False):
+    global _model, _big
+    if big:
+        if _big is None:  # loaded the first time a question needs it (1,5 s), then kept
+            from faster_whisper import WhisperModel
+            _big = WhisperModel(str(whisper_dir(True)), device="cpu", compute_type="int8", cpu_threads=WHISPER_THREADS)
+        return _big
     if _model is None:
         from faster_whisper import WhisperModel
         _model = WhisperModel(str(whisper_dir()), device="cpu", compute_type="int8",
@@ -300,19 +381,19 @@ def audio(path):
     return numpy.frombuffer(r.stdout, dtype=numpy.float32)
 
 
-def hear(path):
-    """Speech → text. Returns (text, seconds spent)."""
+def hear(path, big=False):
+    """Speech → text (big: the bigger model, for a question). Returns (text, seconds spent)."""
     t = time.monotonic()
     sound = audio(path)
     words = prompt()
-    segments, _info = whisper_model().transcribe(
+    segments, _info = whisper_model(big).transcribe(
         sound, language="sv", beam_size=5, vad_filter=True,
         condition_on_previous_text=False, initial_prompt=words)
     segments = list(segments)
     text = " ".join(s.text.strip() for s in segments).strip()
     if words != VOCABULARY and (NONSENSE.search(text) or len(text) > 25 * len(sound) / 16000 + 20):
         print(f"Whisper hittade på ({text[:60]!r}) – igen utan den egna ordlistan", file=sys.stderr, flush=True)
-        segments, _info = whisper_model().transcribe(
+        segments, _info = whisper_model(big).transcribe(
             sound, language="sv", beam_size=5, vad_filter=True,
             condition_on_previous_text=False, initial_prompt=VOCABULARY)
         segments = list(segments)
@@ -428,8 +509,10 @@ def cmd_worker():
             continue
         try:
             if "hear" in job:
-                text, secs = hear(job["hear"])
-                answer = {"hear": job["hear"], "text": text, "seconds": round(secs, 2), "sure": last_sure}
+                big = bool(job.get("big")) and big_installed()
+                text, secs = hear(job["hear"], big)
+                answer = {"hear": job["hear"], "text": text, "seconds": round(secs, 2), "sure": last_sure,
+                          **({"big": True, "first": job.get("first", "")} if big else {})}
             elif "say" in job:
                 speak(job["say"], job.get("voice") or "kvinna", job["out"])
                 answer = {"said": job["out"]}
@@ -772,8 +855,8 @@ class Listener:
                 self.hush()
                 self.player = subprocess.Popen(["pw-play", result["said"]], stderr=subprocess.DEVNULL)
             return True
-        Path(result.get("hear") or self.tmp / "-").unlink(missing_ok=True)
-        self.heard(result.get("text") or "", result)
+        if self.heard(result.get("text") or "", result) != "again":
+            Path(result.get("hear") or self.tmp / "-").unlink(missing_ok=True)
         return True
 
     def heard(self, text, result):
@@ -782,6 +865,10 @@ class Listener:
         if not text:
             self.box("answer", "", "Jag hörde inget.", 3, fallback="Kakan hörde inget")
             return
+        fixed = known_words(text)
+        if fixed != text:
+            print(f"Rättat mot kända ord: {fixed}", flush=True)
+            text = fixed
         self.heard_text = text
         commands = voicecmd().match_all(text)
         # "lite till" = the last command again (volume, next song), within a minute
@@ -790,6 +877,12 @@ class Listener:
                     if c[0] != "again" or (last and time.monotonic() - when < 60)]
         if commands:
             self.last = (commands[-1], time.monotonic())
+        if not commands and not result.get("big") and big_installed() and result.get("hear"):
+            # A question, not a command: the bigger model hears the same recording once more (7 Nov) – the box shows
+            # small's words meanwhile
+            self.box("thinking", text)
+            self.send({"hear": result["hear"], "big": True, "first": text})
+            return "again"
         if not commands:      # not a simple command: Goblin AI with a proper model (the user's decision 5 Nov)
             if in_game():
                 # Under spel (7 Nov, the user: "gear planner funkar inte, kolla det" → Haiku starts working): Goblin

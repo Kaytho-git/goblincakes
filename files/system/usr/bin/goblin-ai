@@ -588,6 +588,7 @@ class Backend(QObject):
                 shown["file"] = Path(path).name
         self._display.append(shown)
         self.messageAdded.emit(json.dumps(shown))
+        self._last_at = time.time()
         self._auto_count, self._blocked_told, self._receipt_told = 0, False, False
         question = {"role": "user", "content": content}
         if self._laga_next:  # /laga: the report and its code, from nothing (goblinai.laga_chat)
@@ -656,6 +657,7 @@ class Backend(QObject):
         threading.Thread(target=work, daemon=True).start()
 
     def _on_answer(self, answer, service):
+        self._last_at = time.time()
         self._api.append({"role": "assistant", "content": answer, **({"done": self._pending_done} if self._pending_done else {})})
         shown = {"role": "assistant", "text": answer, "segments": goblinai.segments(answer),
                  "service": service, "file": "", "tools": self._pending_tools, "time": time.strftime("%H:%M")}
@@ -2987,6 +2989,19 @@ class Backend(QObject):
         self.send(text, "")
 
     pendingQuestion = Signal(str)
+    VOICE_SAME_CHAT = 1800  # s: a voice question this soon after the last message goes on in the same chat
+
+    def askVoice(self, text):
+        """A question from Kakan's voice (F8): in the chat already open when it was used in the last 30 min – "jag får
+        fortfarande fel" belongs to the question before it (7 Nov) – else a new chat, as askNew."""
+        if self._display and time.time() - getattr(self, "_last_at", 0) < self.VOICE_SAME_CHAT:
+            if self._busy:
+                self.notice.emit("Svarar redan på något – frågan står i rutan, skicka den sedan.")
+                self.pendingQuestion.emit(text)
+                return
+            self.send(text, "")
+            return
+        self.askNew(text)
 
     @Slot(result=str)
     def clipboard(self):
@@ -3091,13 +3106,14 @@ def main():
     quick = "--quick" in sys.argv[1:]
     # --ask <question>: a new chat with the question, the window shown (GoblinRecorder's "Fråga Kakan")
     ask = sys.argv[sys.argv.index("--ask") + 1] if "--ask" in sys.argv[1:-1] else ""
+    voice = "--voice" in sys.argv[1:]  # Kakan's voice: the same chat when the last question was recent
     # --open <id>: a saved chat, shown (/app in goblin ai in the terminal: the chat goes along, 26 Oct)
     conv = sys.argv[sys.argv.index("--open") + 1] if "--open" in sys.argv[1:-1] else ""
     # Already open: bring that window (or the quick box) to the front instead
     probe = QLocalSocket()
     probe.connectToServer(SOCKET_NAME)
     if probe.waitForConnected(300):
-        probe.write(b"ask:" + ask.encode() if ask else b"open:" + conv.encode() if conv
+        probe.write((b"voice:" if voice else b"ask:") + ask.encode() if ask else b"open:" + conv.encode() if conv
                     else b"quick" if quick else b"show")
         probe.waitForBytesWritten(300)
         return 0
@@ -3116,8 +3132,9 @@ def main():
             wish = bytes(sock.readAll())
         else:
             wish = b"show"
-        if wish.startswith(b"ask:"):
-            backend.askNew(wish[4:].decode(errors="replace"))
+        if wish.startswith((b"ask:", b"voice:")):
+            text = wish.split(b":", 1)[1].decode(errors="replace")
+            backend.askVoice(text) if wish.startswith(b"voice:") else backend.askNew(text)
             if not goblinai.game_running():
                 backend.raiseWindow.emit()
             # under spel (the voice's F8, 7 Nov): not over the game – the answer comes beside it (_show_in_game)
@@ -3147,7 +3164,7 @@ def main():
     if not engine.rootObjects():
         return 1
     if ask:
-        backend.askNew(ask)
+        backend.askVoice(ask) if voice else backend.askNew(ask)
     elif conv:
         backend.openConversation(conv)
     return app.exec()

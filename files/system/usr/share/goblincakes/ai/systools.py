@@ -385,7 +385,20 @@ HIDDEN = "[dolt av Goblin AI]"
 def hide(line):
     """A key's value hidden – marked so no AI takes it for what the file says (7 Nov: `key = preset.key,` became
     `key = ***,` and Haiku and Sonnet both said the Lua was broken). Code (a name with dots) is no key."""
-    return SECRET_VALUE.sub(lambda m: m.group(0) if CODE_NAME.match(m.group(2)) else m.group(1) + HIDDEN, line)
+    return SECRET_VALUE.sub(lambda m: m.group(0) if not_secret(m.group(1), m.group(2)) else m.group(1) + HIDDEN, line)
+
+
+PLAIN_NAME = re.compile(r"^[A-Za-z_]{1,40}$")  # specKey, preset – letters only: a name in code, not a key
+SURELY_SECRET = re.compile(r"passw|secret|token|bearer|basic|api", re.I)
+
+
+def not_secret(label, value):
+    """Code, not a key: a name with dots (preset.key) – or, after a *key/auth label, a plain name of letters only
+    (`specKey = specKey or …` was hidden and Haiku took the line for broken Lua, 7 Nov). After password/secret/token
+    api/bearer always hidden; a "name" with more than 3 capitals (AbCdEfGh…) is taken for a key."""
+    if SURELY_SECRET.search(label):
+        return False
+    return bool(CODE_NAME.match(value) or (PLAIN_NAME.match(value) and sum(c.isupper() for c in value) <= 3))
 
 
 class SearchError(Exception):

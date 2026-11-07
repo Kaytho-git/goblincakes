@@ -274,7 +274,9 @@ _by = None                    # (uri, name, when): "Spela Zakk Wylde" → "Vilke
 def ask_in_window(text):
     """Anything that isn't a simple command: Goblin AI opens with the question asked, so a proper model
     answers there (the user 5 Nov: the voice does the small things; checking is Goblin AI's job)."""
-    subprocess.Popen(["goblin-ai", "--ask", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    # --voice: a question after the last one (within 30 min) goes on in the same chat (7 Nov: five chats in eight
+    # minutes, "jag får fortfarande fel" without the question before it)
+    subprocess.Popen(["goblin-ai", "--ask", text, "--voice"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
 ANY = re.compile(r"^(?:spela\s+)?(?:vad som helst|vilken som helst|vilket som helst|blanda|bara (?:spela|artisten|honom|henne|dem)|"
                  r"allt|alla|spela bara|det spelar ingen roll|spelar ingen roll|artisten)$")

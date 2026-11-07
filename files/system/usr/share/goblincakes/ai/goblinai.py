@@ -5541,7 +5541,21 @@ RESERVE_PROMPT = """
   någon ändring – gör ingen.
 - Ett kommando som måste köras skriver du i ett ```bash-block – det körs först när användaren trycker Tillåt.
 - Säg aldrig att något är gjort, lagat eller ändrat förrän det har körts: säg vad som händer när användaren trycker Tillåt.
-- Kommer du inte vidare: säg ärligt vad du kollat och vad som saknas."""
+- Kommer du inte vidare: säg ärligt vad du kollat och vad som saknas.
+
+Felsökning (ett tillägg eller program som strular) – samma arbetsgång som Kakan (7 nov, användaren: "leta fel, rada
+upp, fixa i ordning"):
+1. LETA alla fel först, innan du ändrar något: wowfel (BugSacks fel för tillägget), wowapi med "kolla <mappen>",
+   läs raderna felen pekar på. Rätt mapp är den spelet laddar (WoW:s _retail_/Interface/AddOns/<namn>), inte en
+   provkopia. "attempt to call method/field 'X' (a nil value)" = X finns inte med just det namnet – sök efter det
+   (stora och små bokstäver räknas: RefreshUI är inte RefreshUi). Slå upp WoW-funktioner med wowapi, gissa inga namn.
+2. RADA UPP: skriv en numrerad lista över alla fel du hittat – **1.** fil:rad – vad som är fel – innan första kortet.
+   Fel med felmeddelande först, ett som bara beskrivs ("siffrorna är fel") sist. Även de du inte kan laga.
+3. LAGA I ORDNING: ett kort (byt_text) för nummer 1, sedan slutar din tur. Efter "Så här gick det:" (användaren
+   tryckte Tillåt): gick det bra – skriv "✓ 1" och ta nästa nummer direkt, vänta inte på att användaren ber igen.
+   Gick det fel: läs raden igen och rätta just det kortet.
+4. KLART när alla nummer är bockade: kolla tillägget med wowapi ("kolla <mappen>") och säg vad som ska provas i
+   spelet (/reload först). Säg aldrig att det är löst förrän användaren provat."""
 
 
 def game_running():
@@ -5916,7 +5930,9 @@ def ask_reserve(messages, level, status=None, notice=None, steps=None):
             answer, stop = _reserve_run(helper, model, system, prompt, log, change, steps)
         finally:
             log.unlink(missing_ok=True)
-        if n + 1 < len(tries) and (stop == "turns" or not answer or RESERVE_STUCK.search(answer)):
+        # A card made = it got somewhere (7 Nov: Sonnet took over after Haiku's card, two cards, one failed)
+        if n + 1 < len(tries) and not getattr(LAST, "cards", []) and (
+                stop == "turns" or not answer or RESERVE_STUCK.search(answer)):
             why = f" ({models['fast'][1].split()[-1]} kom inte vidare)"
             if notice:
                 notice(f"{name} kom inte vidare – {models['strong'][1]} tar över")
