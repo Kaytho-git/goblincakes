@@ -374,6 +374,7 @@ class Backend(QObject):
     keysChanged = Signal()
     keyTested = Signal(str, bool, str)  # provider id, ok, message
     raiseWindow = Signal()
+    showQuietly = Signal()  # under spel: the window shown without taking the focus from the game (7 Nov)
     # From worker threads to the GUI thread
     _answered = Signal(str, str)  # answer, service
     _failed = Signal(str)
@@ -452,6 +453,12 @@ class Backend(QObject):
         self._imageEvent.connect(self._on_image_event)
         self.refreshImage()
         self._quick_waiting = False
+        self._win_active = False  # Main.qml: the window has the focus (no notice then)
+        self._win_visible = False  # Main.qml: the window is shown (hidden = only the quick box was used)
+        self._game_since = 0.0  # under spel: when the answer came that is to be shown beside the game
+        self._game_timer = QTimer(self)
+        self._game_timer.setSingleShot(True)
+        self._game_timer.timeout.connect(self._show_in_game)
         self._model = goblinai.chosen_model()  # "" = automatic
         self._model_choices = "[]"
         self._models_loading = False
@@ -679,6 +686,12 @@ class Backend(QObject):
         self._set_busy(False)
         self._save()
         self._start_images(len(self._display) - 1)
+        if goblinai.LOCAL_PAUSED.exists() and not self._win_active and not shown.get("test"):
+            # A game runs and the user is in it: not raiseWindow (it takes the focus) – Goblin AI on a free screen and
+            # a short notice, once the question is done and not in the middle of a pull (7 Nov, the user's wish)
+            self._quick_waiting = False
+            self._game_since = self._game_since or time.time()
+            self._game_timer.start(1500)
         self._quick_answered()
         self._daily_done()
         self._autorun(len(self._display) - 1)
@@ -2631,6 +2644,43 @@ class Backend(QObject):
         info["ask"] = bool(info["helper"]) and info["on"] is None
         info["commands"] = goblinai.RESERVE_NAMES.get(info["helper"], {})
         return json.dumps(info, ensure_ascii=False)
+
+    @Slot(bool)
+    def setWindowVisible(self, visible):
+        self._win_visible = visible
+
+    @Slot(bool)
+    def setWindowActive(self, active):
+        self._win_active = active
+        if active:
+            self._game_since = 0.0
+            self._game_timer.stop()
+
+    def _show_in_game(self):
+        """The answer beside the game: wait while she works on (the next answer restarts the timer) and while a boss
+        try / arena match is recorded (at most 15 min), then the window on the free screen + the notice."""
+        if self._win_active or not self._game_since:
+            return
+        if self._busy or (goblinai.pull_on() and time.time() - self._game_since < 900):
+            self._game_timer.start(5000)
+            return
+        self._game_since = 0.0
+        entry = next((d for d in reversed(self._display) if d.get("role") == "assistant"), None)
+        if not entry:
+            return
+        title, text = goblinai.game_notice(entry)
+        hidden = not self._win_visible
+        if hidden:
+            self.showQuietly.emit()  # only when it isn't there at all: a new window takes the focus (Wayland)
+
+        def work():
+            if hidden:
+                time.sleep(0.5)  # mapped first – the KWin script gives the focus back to the game
+            placed = goblinai.desktop().beside_game("goblin-ai")
+            where = "Goblin AI på andra skärmen" if placed.get("moved") else "Goblin AI (Meta+A)"
+            subprocess.run(["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", title, f"{text}\n– {where}"],
+                           capture_output=True, timeout=10)
+        threading.Thread(target=work, daemon=True).start()
 
     @Slot(bool)
     def setReserve(self, on):

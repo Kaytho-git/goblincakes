@@ -531,6 +531,12 @@ def _kwin_here(payload, timeout=4000):
         bus.unregisterService(service)
 
 
+def beside_game(match="goblin-ai"):
+    """Kakans reserv under spel: the window on a screen without the game, the focus left in the game.
+    {"moved": True, "screen"} or {"why": …}."""
+    return _kwin({"mode": "beside", "match": match}) or {"why": "KWin svarade inte"}
+
+
 AMP_SOCKET = Path("/tmp") / f"goblin-amp-{__import__('os').getuid()}"  # GoblinAmp's QLocalServer
 
 

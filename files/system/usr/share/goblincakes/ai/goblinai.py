@@ -5544,6 +5544,33 @@ RESERVE_PROMPT = """
 - Kommer du inte vidare: säg ärligt vad du kollat och vad som saknas."""
 
 
+RECORDER_STATUS = CACHE / "recorder-status.json"
+PULL_KINDS = ("raid", "arena")  # a boss try or an arena match: short – a whole M+ key or CS2 match is too long to wait
+
+
+def pull_on():
+    """GoblinRecorder records a boss try or an arena match right now (its status is fresh): notices wait (30 Oct)."""
+    try:
+        status = json.loads(RECORDER_STATUS.read_text())
+    except (OSError, ValueError):
+        return False
+    current = status.get("current") or {}
+    return time.time() - float(status.get("time") or 0) < 30 and current.get("kind") in PULL_KINDS
+
+
+def game_notice(entry):
+    """The short notice for an answer that came while a game runs: (title, text)."""
+    cards = [p for p in entry.get("segments") or [] if p.get("type") == "command" and p.get("state") == "new"
+             and p.get("level") != "read"]
+    name = ai_name() or "Goblin AI"
+    if cards:
+        return f"{name} har ett ändringskort åt dig", "Tryck Tillåt eller Nej i Goblin AI – inget ändras förrän du gjort det."
+    text = re.sub(r"```.*?```", "", str(entry.get("text", "")), flags=re.S)
+    text = re.sub(r"[*_`#>]+", "", text)
+    first = re.split(r"(?<=[.!?])\s", " ".join(text.split()), maxsplit=1)[0][:160]
+    return f"{name} har svarat", first or "Svaret finns i Goblin AI."
+
+
 def reserve_logged_in(helper):
     if helper == "claude":
         return (Path.home() / ".claude/.credentials.json").exists()

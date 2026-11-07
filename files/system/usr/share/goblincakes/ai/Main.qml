@@ -12,6 +12,8 @@ Window {
     minimumWidth: 980 * uiScale
     minimumHeight: 600 * uiScale
     visible: !startQuick  // started for the quick box only: the window comes with the answer
+    onActiveChanged: backend.setWindowActive(active)
+    onVisibleChanged: backend.setWindowVisible(visible)
     title: "Goblin AI"
     color: "#07090D"
     // Running terminals (the TERMINAL tab) end with the window: the first close only warns
@@ -589,6 +591,7 @@ Window {
     ListModel { id: chatModel }
 
     Component.onCompleted: {
+        backend.setWindowVisible(visible);
         reload();
         history = JSON.parse(backend.inputHistory());
         if (!startQuick)
@@ -691,6 +694,11 @@ Window {
         }
         function onNotice(text) {
             toast.show(text);
+        }
+        function onShowQuietly() {  // under spel: shown, not raised over the game or focused (the KWin script places it)
+            if (!win.visible)
+                win.show();
+            win.shownOnce = true;
         }
         function onRaiseWindow() {
             if (!win.visible && !win.shownOnce)

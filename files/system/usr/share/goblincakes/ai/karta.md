@@ -258,6 +258,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   byt_text-kort och bash-kort (Tillåt). Aldrig i ett Privat-projekt, aldrig bilder. Drar av kvoten (kvot-widgeten).
   Kod: reserve_* och ask_reserve i goblinai.py. Hur man kollar: ~/.config/goblincakes/ai-helper.json ("reserv": true/
   false), `claude auth status`, ~/.codex/auth.json; ett fel ("gränsen är nådd", "inte inloggad") står som notis.
+  Under spel tar Goblin AI inte fokus från spelet: svaret (och ett ändringskort) visas i fönstret på skärmen utan
+  spelet och en kort notis säger var – mitt i ett bossförsök/en arenamatch (GoblinRecorder spelar in) väntar det
+  tills försöket är slut. Tillåt trycks alltid i Goblin AI, aldrig i en notis.
 - Testa åt Claude (ai/testlist.py): Claude lägger testlistor i ~/.local/share/goblincakes/testlistor/ (eller i repots
   docs/testlistor/till-kakan/ – kopieras dit en gång efter git pull, minnet i testlistor/.fran-repot.json); /testa kör
   den nyaste (/testa <namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande

@@ -136,6 +136,44 @@ if (DATA.mode === "list") {
         report.after = describe(w);
     }
     report.windows = windows().map(function (x) { return x.caption + " (" + (x.desktopFileName || x.resourceClass) + ")"; });
+} else if (DATA.mode === "beside") {
+    // Kakans reserv under spel (7 Nov): our window on a screen without the game – raised, never focused; the game
+    // (the active window) keeps the focus. One screen: nothing moves (report.why).
+    const w = find(DATA.match);
+    const active = workspace.activeWindow;
+    let game = active && active !== w ? active : null;
+    if (!game) {
+        // Just shown, our window took the focus (Wayland): the game is the topmost full screen window
+        const order = workspace.stackingOrder;
+        for (let i = order.length - 1; i >= 0 && !game; i--)
+            if (order[i] !== w && order[i].fullScreen && order[i].normalWindow)
+                game = order[i];
+    }
+    const busy = game ? game.output : null;
+    const free = workspace.screens.filter(function (s) { return s !== busy; });
+    if (!w)
+        report.why = "inget fönster";
+    else if (!busy)
+        report.why = "inget spel i fokus";
+    else if (!free.length)
+        report.why = "ingen ledig skärm";
+    else {
+        w.minimized = false;
+        if (w.output !== free[0]) {
+            const max = state(w).max;
+            if (max)
+                w.setMaximize(false, false);
+            workspace.sendClientToScreen(w, free[0]);
+            if (max)
+                w.setMaximize(true, true);
+        }
+        if (typeof workspace.raiseWindow === "function")
+            workspace.raiseWindow(w);
+        if (workspace.activeWindow !== game)
+            workspace.activeWindow = game;   // shown by the program: the focus back to the game
+        report.moved = true;
+        report.screen = free[0].name;
+    }
 } else if (DATA.mode === "find") {
     const w = find(DATA.match);
     if (w)
