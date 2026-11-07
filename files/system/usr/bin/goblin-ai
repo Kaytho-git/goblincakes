@@ -618,8 +618,12 @@ class Backend(QObject):
         return next((p for p in self._projects if p["id"] == project_id), None)
 
     def _ask(self):
-        self._set_busy(True, "Tänker…")
         project = self._project_of(self._project)
+        # Not an own button's daily run: nothing opens a terminal by itself without the user there
+        level = None if self._daily_running else goblinai.reserve_for(self._api, self._model, project)
+        if level and self._reserve_terminal(level):
+            return
+        self._set_busy(True, "Tänker…")
         messages = list(self._api)
         # The project's instructions and fixed files, read now (changed files are seen at once)
         prompt = goblinai.system_prompt() + goblinai.project_prompt(project)
@@ -655,6 +659,33 @@ class Backend(QObject):
                     self._failed.emit(f"Något gick fel: {e}")
 
         threading.Thread(target=work, daemon=True).start()
+
+    def _reserve_terminal(self, level):
+        """Kakans reserv (punkt 17): Claude Code (or Codex) as itself in a TERMINAL tab with the question and the chat
+        so far (the user, 7 Nov: "de får jobba i sin miljö med sina verktyg") – it asks Ja/Nej there before every
+        change. A line in the chat says so; under a game, Goblin AI comes to the free screen as for an answer."""
+        try:
+            folder, command, name = goblinai.reserve_terminal(self._api, level)
+        except (goblinai.ServiceError, OSError) as e:
+            self.notice.emit(f"Kakans reserv: {e} – frågar som vanligt")
+            return False
+        self.claudeTerminal.emit(str(folder), command)
+        text = (f"*{name} jobbar med frågan i TERMINAL-fliken ({folder}).* Den frågar där innan den ändrar något – "
+                "svara Ja eller Nej i terminalen." + (" Kommer den inte vidare: skriv `/model sonnet` där."
+                                                     if level == "fast" and goblinai.reserve_helper() == "claude" else ""))
+        self._last_at = time.time()
+        self._api.append({"role": "assistant", "content": text})
+        shown = {"role": "assistant", "text": text, "segments": goblinai.segments(text), "service": f"{name} (ditt abonnemang)",
+                 "file": "", "tools": [], "time": time.strftime("%H:%M"), "reserveTerminal": name}
+        self._display.append(shown)
+        self.messageAdded.emit(json.dumps(shown))
+        self._save()
+        if not self._win_active and goblinai.game_running():
+            self._quick_waiting = False  # not over the game – the free screen, as for an answer
+            self._game_since = self._game_since or time.time()
+            self._game_timer.start(1500)
+        self._quick_answered()
+        return True
 
     def _on_answer(self, answer, service):
         self._last_at = time.time()

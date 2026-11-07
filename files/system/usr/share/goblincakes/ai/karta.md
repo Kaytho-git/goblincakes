@@ -248,20 +248,21 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   pekar på (±40 rader) och verktygen leta/byt_text/wowapi, med tänkande. Där får du göra högst 4 ändringar på högst
   15 rader var. Samtalet efter /laga stannar i lagningen (bara de tre verktygen) tills användaren skriver /ny.
   Andras tillägg och GOBLINCAKES egna filer lagas inte så. Kod: laga_message/laga_chat/LAGA_GUIDE i goblinai.py.
-- Kakans reserv (punkt 17, 7 nov): Claude Code eller Codex med användarens eget abonnemang svarar åt dig när lokala
-  AI:n vilar (ett spel kör) och när användaren trycker "Försök igen med Claude Haiku" (eller /haiku, /sonnet; med
-  Codex /luna, /sol) under ett svar där du fastnat. Snabba modellen först (Haiku / ChatGPT:s "fast and affordable"),
-  den större (Sonnet / "workhorse") tar över om den inte kommer vidare – det står under svaret ("Claude Sonnet (ditt
-  abonnemang) (Haiku kom inte vidare)"). Frågas en gång när programmet hittas inloggat (Ja/Nej; Nej = aldrig);
-  Inställningar → Skicka vidare → KAKANS RESERV (samma program som Skicka vidare). Den läser med dina verktyg via
-  ai/kakan_mcp.py (tom mapp ~/.cache/goblincakes/reserv, inga egna verktyg; Codex utan skal) och ändrar bara med
-  byt_text-kort och bash-kort (Tillåt). Aldrig i ett Privat-projekt, aldrig bilder. Drar av kvoten (kvot-widgeten).
-  Kod: reserve_* och ask_reserve i goblinai.py. Hur man kollar: ~/.config/goblincakes/ai-helper.json ("reserv": true/
-  false), `claude auth status`, ~/.codex/auth.json; ett fel ("gränsen är nådd", "inte inloggad") står som notis.
-  Vad varje Claude-körning drog av kvoten (modell, varv, tokens, sekunder): ~/.cache/goblincakes/reserv-forbrukning.jsonl.
-  Under spel tar Goblin AI inte fokus från spelet: svaret (och ett ändringskort) visas i fönstret på skärmen utan
-  spelet och en kort notis säger var – mitt i ett bossförsök/en arenamatch (GoblinRecorder spelar in) väntar det
-  tills försöket är slut. Tillåt trycks alltid i Goblin AI, aldrig i en notis.
+- Kakans reserv (punkt 17, 7 nov): Claude Code eller Codex med användarens eget abonnemang tar frågan åt dig när
+  lokala AI:n vilar (ett spel kör) och när användaren trycker "Försök igen med Claude Haiku" (eller /haiku, /sonnet;
+  med Codex /luna, /sol) under ett svar där du fastnat. Programmet startar som sig självt i en TERMINAL-flik i Goblin
+  AI (i `goblin ai`: i samma terminal, /exit tillbaka) med frågan och samtalet – dess egna verktyg (Read/Grep/Edit)
+  plus dina via ai/kakan_mcp.py; det frågar Ja/Nej i terminalen före varje ändring. Startmapp: tillägget i
+  ~/Games/WoW/Retail/AddOns när frågan nämner det, annars AddOns vid WoW-ord, annars hemmappen. Haiku först; fastnar
+  den skriver den att användaren ska skriva `/model sonnet`. Svaret står i terminalen, inte i chatten (i chatten bara
+  "Claude Haiku jobbar med frågan i TERMINAL-fliken"). Frågas en gång när programmet hittas inloggat (Ja/Nej; Nej =
+  aldrig); Inställningar → Skicka vidare → KAKANS RESERV. Aldrig Privat-projekt, bilder eller egna knappars dagliga
+  körning. Drar av kvoten. Kod: reserve_terminal/reserve_for i goblinai.py, _reserve_terminal i goblin-ai,
+  reserve_here i goblincakes-ai. Hur man kollar: ~/.config/goblincakes/ai-helper.json ("reserv": true/false),
+  `claude auth status`, ~/.codex/auth.json; instruktionen och MCP-filen per körning i ~/.cache/goblincakes/reserv/.
+  Under spel tar Goblin AI inte fokus från spelet: fönstret (med TERMINAL-fliken) visas på skärmen utan spelet och en
+  kort notis säger var – mitt i ett bossförsök/en arenamatch (GoblinRecorder spelar in) väntar det tills försöket är
+  slut. Ja/Nej svaras alltid i Goblin AI, aldrig i en notis.
 - Testa åt Claude (ai/testlist.py): Claude lägger testlistor i ~/.local/share/goblincakes/testlistor/ (eller i repots
   docs/testlistor/till-kakan/ – kopieras dit en gång efter git pull, minnet i testlistor/.fran-repot.json); /testa kör
   den nyaste (/testa <namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
@@ -442,7 +443,7 @@ Kontroll: `/usr/libexec/goblincakes-voice status`
 
 - Under spel (7 nov): en fråga som inte är ett kommando ("gear planner funkar inte, kolla det") går till Goblin AI
   utan att fönstret kommer över spelet – rutan säger "Jag tar det i Goblin AI – svaret kommer på andra skärmen",
-  Claude Haiku (Kakans reserv) svarar, svaret och korten visas i Goblin AI på den lediga skärmen med en notis. Hon
+  Claude Haiku (Kakans reserv) startar i TERMINAL-fliken, Goblin AI visas på den lediga skärmen med en notis. Hon
   läser aldrig upp något under spel.
 ## Steam och spel
 Ord: steam, proton, spel startar inte, goblin play, tv-läge, big picture, lutris, heroic

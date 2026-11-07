@@ -17,7 +17,6 @@ import os
 import re
 import shlex
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -2080,45 +2079,13 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         raise
     messages = with_guides(with_lessons(with_done(messages), project))
     failed = failed_card(messages)
-    if failed and reserve_for(messages, choice, project):
-        failed = None  # Kakans reserv may make a new card after one that failed (the game test 7 Nov) – not Kakan
     if failed and messages[-1]["role"] == "user":
         # The command she made just failed: no new card this question – she says what went wrong (7 Nov)
         messages[-1] = {**messages[-1], "content": messages[-1]["content"] + (
             f"\n\n[Goblin AI] Kommandot gick fel (avslutskod {failed[1]}) – inget ändrades av det. Gör INGET nytt kort "
             "eller byt_text nu: säg kort och ärligt vad som gick fel och att det inte är gjort.")}
     try:
-        reserve, answer = reserve_for(messages, choice, project), None
-        LAST.reserve_used = False
-        if reserve:
-            # Kakans reserv (punkt 17): the button / /haiku, or the local AI resting while a game runs
-            LAST.fixes = fixes_done(messages)
-            checked = addon_check(messages)
-            if checked:
-                # After Tillåt on an add-on: Goblin AI checks it against the game itself and Haiku gets the result, as
-                # Kakan does – Haiku skipped "kolla" and missed two of four faults (the game test 7 Nov)
-                if steps:
-                    steps.start("Kontrollerar tillägget mot WoW")
-                    steps.done(note="fel kvar" if re.search(r"\n(?:FEL|KANSKE)", checked) else "inga fel")
-                LAST.tools.append(("wowapi", "kolla"))
-                LAST.done.append(("wowapi", "kolla", ""))
-                messages = messages + [{"role": "user", "content":
-                    "[Goblin AI kontrollerade tillägget mot WoW efter ändringen – det här skrev användaren inte]\n\n"
-                    f"{checked}\n\n[Slut på kontrollen]\n\nStår det något under FEL: eller KANSKE: som hör till "
-                    "tillägget: lägg till det i din numrerade lista och laga det i ordning (ett kort i taget) – det är "
-                    "inte klart. Inget kvar: säg vad användaren ska prova i spelet (/reload först)."}]
-            try:
-                answer, service = ask_reserve(messages, reserve, status, notice, steps)
-                LAST.reserve_used = True
-            except ServiceError as e:
-                if reserve_level(messages):  # asked for: said, not something else behind the user's back
-                    raise ServiceError(f"Kakans reserv: {e}") from None
-                LAST.tools, LAST.done, LAST.cards, LAST.card_spans = [], [], [], []
-                if notice:
-                    notice(f"Kakans reserv: {e} – frågar som vanligt")
-        if answer is not None:
-            pass
-        elif read_links(messages, keys, status):
+        if read_links(messages, keys, status):
             # The pages are there: one plain answer – no searching on top, no long thinking (a button
             # with links took 3–4 minutes)
             QUICK.on = True
@@ -2279,7 +2246,7 @@ def rein_in(answer, cards, messages):
     if fake:
         names = ", ".join(dict.fromkeys(n for _, miss in fake for n in miss))[:120]
         notes.append(f"*Obs: Kakan skrev ett kort med kommandon som inte finns ({names}) – det togs bort, inget kördes.*")
-    failed = None if getattr(LAST, "reserve_used", False) else failed_card(messages)  # the reserve: a new card is fine
+    failed = failed_card(messages)
     changing = lambda code: "bytatext.py" in code or cmd_level().level(code)[0] != "read"  # noqa: E731
     if failed or not change_allowed(messages):
         kept = [c for c in cards if not changing(c.split("\n", 1)[-1].rsplit("\n```", 1)[0])]
@@ -5531,49 +5498,48 @@ def can_laga(answer):
 
 
 # ── Kakans reserv (punkt 17, 7 Nov) ──────────────────────────────────────
-# Claude Code or Codex, logged in with the user's own subscription, answers for Kakan when the local AI rests (a game
-# runs) and when the user presses "Försök igen med …" under an answer where she got stuck (the user, 7 Nov: the user
-# decides that, never automatically). Asked once when found (Ja/Nej in the window, Inställningar → Skicka vidare);
-# the same choice of program as Skicka vidare. They read with Kakan's own tools through kakan_mcp.py (which writes
-# every call to a log: her steps in the window and the receipt count them) and change only with byt_text's cards and
-# ```bash cards – Tillåt, the klart-kontroll and the receipt work as for her. Never a Privat project, never a picture.
+# Claude Code or Codex, logged in with the user's own subscription, takes the question when the local AI rests (a
+# game runs) and when the user presses "Försök igen med …" under an answer where she got stuck (the user, 7 Nov: the
+# user decides that, never automatically). Asked once when found (Ja/Nej in the window, Inställningar → Skicka
+# vidare); the same choice of program as Skicka vidare. Since 7 Nov (the user: "då får de jobba i sin miljö med sina
+# verktyg") the program runs as itself in a TERMINAL tab (the terminal: in the same terminal) – its own Read/Grep/Edit,
+# Kakan's tools through kakan_mcp.py, and it asks Ja/Nej itself before every change. Never a Privat project or a
+# picture. The old way (claude -p in the background, Kakan's cards) is in git before that change.
 
-RESERVE_DIR = CACHE / "reserv"          # an empty folder: no CLAUDE.md, no repo, no memory
-RESERVE_SECONDS = 300
-RESERVE_TURNS = 16                      # Claude's own tool rounds per question (--max-turns)
+RESERVE_DIR = CACHE / "reserv"          # the prompt and MCP files of the runs (old ones are removed)
 RESERVE_LEVELS = ("fast", "strong")
 RESERVE_COMMANDS = {"haiku": "fast", "luna": "fast", "sonnet": "strong", "sol": "strong"}
 RESERVE_NAMES = {"claude": {"fast": "haiku", "strong": "sonnet"}, "codex": {"fast": "luna", "strong": "sol"}}  # the /commands
 RESERVE_STUCK = re.compile(r"jag kom inte vidare|minnet tog slut|kan jag laga det\W{0,8}nej(?!\W{0,4}(?:du bad mig bara kolla|någon annans))"
                            r"|kakans minne tog slut", re.I)
-# Codex without its shell, the ChatGPT app's tools and plugins – only Kakan's (7 Nov: "inget skal")
-CODEX_OFF = ("shell_tool", "unified_exec", "apps", "browser_use", "computer_use", "in_app_browser", "plugins")
 
 RESERVE_PROMPT = """
 
-[Du är Kakans reserv just nu – {name} via användarens eget abonnemang.] Svara som Kakan, på svenska, kort.
-- Kakans verktyg heter mcp__kakan__… (du har inga andra): läs med dem i stället för att gissa – filer, loggar,
-  WoW:s API (wowapi), Warcraft Logs, kartan över GOBLINCAKES. Skriv inte verktygens kodblock själv.
-- Ändra en fil bara med verktyget byt_text (om det finns): det gör ett kort under ditt svar, filen ändras när
-  användaren trycker Tillåt. En ändring per kort, ett kort i taget. Finns inte byt_text: användaren bad inte om
-  någon ändring – gör ingen.
-- Ett kommando som måste köras skriver du i ett ```bash-block – det körs först när användaren trycker Tillåt.
-- Säg aldrig att något är gjort, lagat eller ändrat förrän det har körts: säg vad som händer när användaren trycker Tillåt.
-- Kommer du inte vidare: säg ärligt vad du kollat och vad som saknas.
+# Kakans reserv
+Du är Kakans reserv just nu – {name}, startad av Goblin AI (GOBLINCAKES lokala AI heter Kakan) med användarens
+eget abonnemang. Kakan kunde inte ta frågan (ett spel kör och den lokala AI:n vilar, eller hon kom inte vidare).
+Användaren är inte programmerare: svara på svenska, kort och utan jargong.
 
-Felsökning (ett tillägg eller program som strular) – samma arbetsgång som Kakan (7 nov, användaren: "leta fel, rada
-upp, fixa i ordning"):
+- Du har dina vanliga verktyg plus Kakans (mcp__kakan__…): wowfel = BugSacks fel, wowapi = WoW:s API och
+  "kolla <mapp>" som kontrollerar ett tillägg mot spelet, warcraftlogs, wowstats, systemfel, goblincakes = kartan
+  över systemet, losningar = kända lösningar på den här datorn. Läs i stället för att gissa.
+- Ändra bara det som är fel, med Edit. Användaren ser varje ändring och svarar Ja/Nej innan den görs.
+- Gör inga git-commits och skriv inga anteckningsfiler (senast-gjort.txt o.d.) här – det här är inte ett projekt.
+- Ändra aldrig filer i spelens egen installation (WoW:s Interface/AddOns-tillägg som användaren skrivit är ok).
+- Säg aldrig att något är löst förrän användaren provat det.
+{switch}
+Felsökning (ett tillägg eller program som strular):
 1. LETA alla fel först, innan du ändrar något: wowfel (BugSacks fel för tillägget), wowapi med "kolla <mappen>",
-   läs raderna felen pekar på. Rätt mapp är den spelet laddar (WoW:s _retail_/Interface/AddOns/<namn>), inte en
-   provkopia. "attempt to call method/field 'X' (a nil value)" = X finns inte med just det namnet – sök efter det
-   (stora och små bokstäver räknas: RefreshUI är inte RefreshUi). Slå upp WoW-funktioner med wowapi, gissa inga namn.
-2. RADA UPP: skriv en numrerad lista över alla fel du hittat – **1.** fil:rad – vad som är fel – innan första kortet.
-   Fel med felmeddelande först, ett som bara beskrivs ("siffrorna är fel") sist. Även de du inte kan laga.
-3. LAGA I ORDNING: ett kort (byt_text) för nummer 1, sedan slutar din tur. Efter "Så här gick det:" (användaren
-   tryckte Tillåt): gick det bra – skriv "✓ 1" och ta nästa nummer direkt, vänta inte på att användaren ber igen.
-   Gick det fel: läs raden igen och rätta just det kortet.
-4. KLART när alla nummer är bockade: kolla tillägget med wowapi ("kolla <mappen>") och säg vad som ska provas i
-   spelet (/reload först). Säg aldrig att det är löst förrän användaren provat."""
+   läs raderna felen pekar på. Rätt mapp är den spelet laddar (~/Games/WoW/Retail/AddOns/<namn>), inte en
+   provkopia (~/kakan-prov). "attempt to call method/field 'X' (a nil value)" = X finns inte med just det namnet –
+   sök efter det (stora och små bokstäver räknas). Slå upp WoW-funktioner med wowapi, gissa inga namn.
+2. RADA UPP: en numrerad lista över alla fel – **1.** fil:rad – vad som är fel – innan första ändringen.
+3. LAGA I ORDNING, en ändring i taget, och bocka av ("✓ 1").
+4. KLART: kolla tillägget med wowapi ("kolla <mappen>") och säg vad som ska provas i spelet (/reload först)."""
+
+RESERVE_SWITCH = """- Kommer du inte vidare, eller är felet för svårt för dig: säg det ärligt och skriv sist, på en egen rad:
+  **Det här klarar Sonnet bättre – skriv `/model sonnet` och tryck Enter, så fortsätter den där jag slutade.**
+"""
 
 
 def game_running():
@@ -5608,6 +5574,9 @@ def game_notice(entry):
     cards = [p for p in entry.get("segments") or [] if p.get("type") == "command" and p.get("state") == "new"
              and p.get("level") != "read"]
     name = ai_name() or "Goblin AI"
+    if entry.get("reserveTerminal"):
+        return (f"{entry['reserveTerminal']} jobbar i Goblin AI",
+                "Den frågar Ja/Nej i TERMINAL innan den ändrar något.")
     if cards:
         return f"{name} har ett ändringskort åt dig", "Tryck Tillåt eller Nej i Goblin AI – inget ändras förrän du gjort det."
     text = re.sub(r"```.*?```", "", str(entry.get("text", "")), flags=re.S)
@@ -5758,229 +5727,74 @@ def reserve_question(messages, level):
         "frågan från början med verktygen; lita inte på det hon påstod utan att kolla.")}
 
 
-def _reserve_text(messages, name):
-    """The chat as one prompt (Claude Code -p and Codex exec take one): the system prompt apart, earlier turns as text."""
-    system = next((m["content"] for m in messages if m["role"] == "system"), "") + RESERVE_PROMPT.format(name=name)
+def _reserve_chat(messages):
+    """The chat so far as text for the reserve (its own prompt is apart): earlier turns, then the question now."""
     turns = [m for m in messages if m["role"] in ("user", "assistant") and isinstance(m.get("content"), str)]
     lines = []
     for m in turns[:-1][-24:]:
         who = "Användaren" if m["role"] == "user" else "Kakan"
-        text = m["content"]
-        lines.append(f"### {who}\n{text[:8000]}")
+        lines.append(f"### {who}\n{m['content'][:8000]}")
     last = turns[-1]["content"] if turns else ""
-    prompt = (("Samtalet hittills:\n\n" + "\n\n".join(lines) + "\n\n### Användaren (nu)\n") if lines else "") + last
-    return system, prompt
+    return (("Samtalet i Goblin AI hittills:\n\n" + "\n\n".join(lines) + "\n\n### Användaren (nu)\n") if lines else "") + last
 
 
-def _reserve_run(helper, model, system, prompt, log, change, steps):
-    """One run of Claude Code/Codex; the steps from the log as they come. Returns (answer, error kind or "")."""
+def reserve_folder(messages):
+    """Where the program starts: WoW's add-ons when the question is about WoW (so it doesn't end up in a test copy –
+    the game test 7 Nov), else the home folder."""
+    try:
+        from wowapi import ADDONS, own_addons  # noqa: PLC0415
+    except Exception:  # noqa: BLE001
+        return Path.home()
+    said = typed_question(messages) or ""
+    def flat(text):  # "gear planner" (said, F8) = gear-planner
+        return re.sub(r"[^a-z0-9åäö]", "", text.lower())
+    names = sorted(n for n in own_addons() if len(flat(n)) >= 4 and flat(n) in flat(said)) if ADDONS.is_dir() else []
+    if names and (ADDONS / names[0]).is_dir():
+        return ADDONS / names[0]
+    if ADDONS.is_dir() and re.search(r"\bwow\b|warcraft|till[äa]gg|addon|bugsack|lua\b", said, re.I):
+        return ADDONS
+    return Path.home()
+
+
+def reserve_terminal(messages, level):
+    """Kakans reserv in a terminal: (folder, shell command, name). The prompt (the rules + the chat so far) goes in
+    files – too long for one argument; Kakan's tools are the only MCP server (fewer tools to send each turn)."""
     import toclaude  # noqa: PLC0415
-    RESERVE_DIR.mkdir(parents=True, exist_ok=True)
-    server = str(Path(__file__).resolve().parent / "kakan_mcp.py")
-    env = {"GOBLINCAKES_MCP_LOG": str(log), "GOBLINCAKES_MCP_CHANGE": "1" if change else "0",
-           "GOBLINCAKES_MCP_FIXES": str(getattr(LAST, "fixes", 0))}
-    out = RESERVE_DIR / f"svar-{os.getpid()}-{threading.get_ident()}.txt"
-    if helper == "claude":
-        config = RESERVE_DIR / f"mcp-{os.getpid()}-{threading.get_ident()}.json"
-        config.write_text(json.dumps({"mcpServers": {"kakan": {"command": sys.executable, "args": [server], "env": env}}}))
-        system_file = config.with_suffix(".txt")  # Kakan's prompt is ~23 000 characters – a file, not one argument
-        system_file.write_text(system, encoding="utf-8")
-        cmd = [toclaude.claude_path(), "-p", "--model", model, "--output-format", "json", "--no-session-persistence",
-               "--disable-slash-commands", "--strict-mcp-config", "--mcp-config", str(config), "--tools", "",
-               "--allowedTools", "mcp__kakan", "--setting-sources", "", "--system-prompt-file", str(system_file),
-               "--max-turns", str(RESERVE_TURNS)]
-        stdin = prompt
-    else:
-        envs = ",".join(f'{k}="{v}"' for k, v in env.items())
-        cmd = [toclaude.codex_path(), "exec", "--ephemeral", "--skip-git-repo-check", "--ignore-user-config",
-               "-s", "read-only", "-m", model, "-C", str(RESERVE_DIR), "-o", str(out)]
-        for feature in CODEX_OFF:
-            cmd += ["--disable", feature]
-        cmd += ["-c", f"mcp_servers.kakan.command={json.dumps(sys.executable)}",
-                "-c", f"mcp_servers.kakan.args=[{json.dumps(server)}]",
-                "-c", f"mcp_servers.kakan.env={{{envs}}}",
-                "-c", 'mcp_servers.kakan.default_tools_approval_mode="approve"', "-"]
-        stdin = system.strip() + "\n\n---\n\n" + prompt
-    try:
-        proc = subprocess.Popen(cmd, cwd=RESERVE_DIR, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True, start_new_session=True)
-    except OSError as e:
-        raise ServiceError(f"{toclaude.PROGRAMS[helper]} startar inte: {e}") from None
-    result = {}
-
-    def talk():
-        try:
-            result["out"], result["err"] = proc.communicate(stdin)
-        except (OSError, ValueError) as e:
-            result["out"], result["err"] = "", str(e)
-    reader = threading.Thread(target=talk, daemon=True)
-    reader.start()
-    seen, started = 0, time.time()
-    try:
-        while reader.is_alive():
-            reader.join(0.3)
-            seen = _reserve_steps(log, seen, steps)
-            if (steps and steps.stop is not None and steps.stop.is_set()) or time.time() - started > RESERVE_SECONDS:
-                os.killpg(proc.pid, signal.SIGTERM)
-                reader.join(5)
-                if steps and steps.stop is not None and steps.stop.is_set():
-                    raise Stopped()
-                raise ServiceError(f"{toclaude.PROGRAMS[helper]} svarade inte på {RESERVE_SECONDS // 60} minuter")
-        _reserve_steps(log, seen, steps)
-    finally:
-        if helper == "claude":
-            config.unlink(missing_ok=True)
-            system_file.unlink(missing_ok=True)
-    text, err = result.get("out", ""), result.get("err", "")
-    if helper == "claude":
-        try:
-            data = json.loads(text.strip().splitlines()[-1]) if text.strip() else {}
-        except ValueError:
-            data = {}
-        answer = str(data.get("result") or "").strip()
-        USAGE_RESERVE.update(cost=data.get("total_cost_usd"), turns=data.get("num_turns"))
-        _reserve_usage_log(helper, model, data, time.time() - started)
-        if data.get("subtype") == "error_max_turns":
-            return answer, "turns"
-        if data.get("is_error") or proc.returncode:
-            raise ServiceError(_reserve_error(answer or err or f"avslutskod {proc.returncode}"))
-        return answer, ""
-    try:
-        answer = out.read_text(encoding="utf-8").strip()
-        out.unlink()
-    except OSError:
-        answer = ""
-    if proc.returncode or not answer:
-        raise ServiceError(_reserve_error(err[-600:] or f"avslutskod {proc.returncode}"))
-    return answer, ""
-
-
-USAGE_RESERVE = {}
-RESERVE_USAGE_LOG = CACHE / "reserv-forbrukning.jsonl"  # one line per Claude run: what it cost of the quota
-
-
-def _reserve_usage_log(helper, model, data, seconds):
-    """Saves what one run used (tokens, turns, Claude's own price estimate) – the quota is otherwise invisible."""
-    u = data.get("usage") or {}
-    row = {"tid": time.strftime("%Y-%m-%d %H:%M:%S"), "program": helper, "modell": model,
-           "varv": data.get("num_turns"), "sekunder": round(seconds), "in": u.get("input_tokens", 0),
-           "cache_skriv": u.get("cache_creation_input_tokens", 0), "cache_las": u.get("cache_read_input_tokens", 0),
-           "ut": u.get("output_tokens", 0), "usd": data.get("total_cost_usd"), "slut": data.get("subtype")}
-    try:
-        with RESERVE_USAGE_LOG.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
-    except OSError:
-        pass
-
-
-def _reserve_error(text):
-    text = " ".join(str(text).split())
-    if re.search(r"usage limit|rate.?limit|limit reached|quota|5-hour|weekly", text, re.I):
-        return "abonnemangets gräns är nådd (kvot-widgeten visar när den räcker igen)"
-    if re.search(r"log ?in|logged out|auth|credential|401", text, re.I):
-        return "inte inloggad – logga in i programmet igen"
-    return text[:300]
-
-
-def _reserve_steps(log, seen, steps):
-    """The MCP server's log → her steps (and LAST, as if she had used the tools herself). Returns lines read."""
-    try:
-        lines = Path(log).read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return seen
-    for line in lines[seen:]:
-        try:
-            e = json.loads(line)
-        except ValueError:
-            continue
-        if e.get("t") == "start":
-            if steps:
-                steps.start(e.get("label") or e.get("tool", ""))
-            LAST.tools.append((e.get("tool", ""), e.get("query", "")))
-        elif e.get("t") == "done":
-            if steps:
-                steps.done(e.get("state", "ok"), e.get("text", "").split(":", 1)[-1] if e.get("state") == "fel" else "")
-            tool = e.get("tool", "")
-            LAST.done.append((tool, e.get("query", ""), "" if tool in ("sök", "leta", "sida") else e.get("text", "")))
-            # Whole (as the log has it): what the fast model read goes on to the strong one (7 Nov, the user)
-            LAST.reserve_read = getattr(LAST, "reserve_read", []) + [(e.get("tool", ""), e.get("query", ""),
-                                                                      e.get("state", "ok"), e.get("text", ""))]
-        elif e.get("t") == "card" and e.get("card"):
-            # The same lines again = the new version of that card (as byt_run does it)
-            path, old = Path(e.get("path", "")), str(e.get("old", ""))
-            lines_ = {x.strip() for x in old.split("\n") if len(x.strip()) >= 12}
-            spans = getattr(LAST, "card_spans", [])
-            again = [i for i, (f, o) in enumerate(spans) if f == path and lines_ & {x.strip() for x in o.split("\n")}]
-            LAST.cards = [c for i, c in enumerate(getattr(LAST, "cards", [])) if i not in again] + [e["card"]]
-            LAST.card_spans = [x for i, x in enumerate(spans) if i not in again] + [(path, old)]
-    return len(lines)
-
-
-RESERVE_HANDOVER_CHARS = 40000  # of what the fast model read, to the strong one (Sonnet reads much more than that)
-
-
-def reserve_handover(name, read):
-    """What the fast model did, for the strong one: every tool it used, with the answer – so it needn't read it all
-    again (7 Nov, the user: Sonnet read the same files as Haiku once more)."""
-    parts, used = [], 0
-    for tool, query, state, text in read:
-        text = (text or "").strip()
-        room = max(0, RESERVE_HANDOVER_CHARS - used)
-        part = f"### {tool}: {query}" + (" (gick inte)" if state == "fel" else "") + "\n" + (
-            text[:room] + ("\n[… avkortat]" if len(text) > room else "") if room else "[utelämnat – för mycket]")
-        parts.append(part)
-        used += len(part)
-    did = ("\n\n".join(parts)) if parts else "(inga verktyg användes)"
-    return (f"[Goblin AI] {name} kom inte vidare med frågan. Det här läste {name} med verktygen – svaren står här, "
-            "läs dem inte igen:\n\n" + did + "\n\n[Slut på det som redan lästs]\n\nFortsätt där den slutade: läs bara "
-            "det som saknas, och lita inte blint på dess slutsatser – kolla det som avgör.")
-
-
-def ask_reserve(messages, level, status=None, notice=None, steps=None):
-    """Kakans reserv answers the question: the fast model, and once the strong one when the fast one got stuck
-    (its tool rounds ran out, or it said it got nowhere) – "Claude Sonnet (Haiku kom inte vidare)". Returns
-    (answer, service)."""
     helper = reserve_helper()
     models = reserve_models(helper)
     if not helper or not models:
         raise ServiceError("Kakans reserv: varken Claude Code eller Codex är installerat och inloggat")
-    change = change_allowed(messages)  # after a failed card too: Haiku reads the line again and fixes the card
-    LAST.reserve_read = []
-    tries = [level] if level == "strong" else ["fast", "strong"]
-    why = ""
-    for n, lvl in enumerate(tries):
-        model, name = models[lvl]
-        system, prompt = _reserve_text(messages, name)
-        log = RESERVE_DIR / f"logg-{os.getpid()}-{threading.get_ident()}.jsonl"
-        RESERVE_DIR.mkdir(parents=True, exist_ok=True)
-        log.write_text("")
-        activity("ask", f"tänker · {name}", False)
-        if status:
-            status(f"Frågar {name}…")
-        if steps:
-            steps.start(f"Frågar {name} (ditt abonnemang)")
-            steps.done()
+    model, name = models[level]
+    RESERVE_DIR.mkdir(parents=True, exist_ok=True)
+    for old in RESERVE_DIR.iterdir():  # a day old: that run is over
         try:
-            answer, stop = _reserve_run(helper, model, system, prompt, log, change, steps)
-        finally:
-            log.unlink(missing_ok=True)
-        # A card made = it got somewhere (7 Nov: Sonnet took over after Haiku's card, two cards, one failed)
-        if n + 1 < len(tries) and not getattr(LAST, "cards", []) and (
-                stop == "turns" or not answer or RESERVE_STUCK.search(answer)):
-            why = f" ({models['fast'][1].split()[-1]} kom inte vidare)"
-            if notice:
-                notice(f"{name} kom inte vidare – {models['strong'][1]} tar över")
-            messages = messages + [{"role": "assistant", "content": answer or "(inget svar – stegen tog slut)"},
-                                   {"role": "user", "content": reserve_handover(models["fast"][1], LAST.reserve_read)}]
-            continue
-        if stop == "turns":
-            answer = (answer.rstrip() + "\n\n" if answer else "") + (
-                f"*{name} hann inte klart – gränsen för antal steg nåddes.*")
-        service = f"{name} (ditt abonnemang){why if lvl == 'strong' else ''}"
-        if any(t for t, _ in LAST.tools):
-            service += " · hämtade data"
-        return answer, service
-    raise ServiceError("Kakans reserv svarade inte")
+            if time.time() - old.stat().st_mtime > 86400:
+                old.unlink()
+        except OSError:
+            pass
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    rules = RESERVE_PROMPT.format(name=name, switch=RESERVE_SWITCH if level == "fast" and helper == "claude" else "")
+    chat = _reserve_chat(messages)
+    server = str(Path(__file__).resolve().parent / "kakan_mcp.py")
+    q = toclaude._quote  # noqa: SLF001
+    start = "Ta frågan nedan (samtalet i Goblin AI står i din instruktion)." if helper == "claude" else ""
+    if helper == "claude":
+        prompt = RESERVE_DIR / f"instruktion-{stamp}.md"
+        prompt.write_text(rules.strip() + "\n\n" + chat, encoding="utf-8")
+        config = RESERVE_DIR / f"mcp-{stamp}.json"
+        config.write_text(json.dumps({"mcpServers": {"kakan": {"command": sys.executable, "args": [server],
+                                                               "env": {"GOBLINCAKES_MCP_CHANGE": "0"}}}}))
+        question = typed_question(messages) or "Se samtalet i instruktionen."
+        command = (f"{q(toclaude.claude_path())} --model {model} -n {q('Kakans reserv')} --strict-mcp-config "
+                   f"--mcp-config {q(config)} --allowedTools mcp__kakan --append-system-prompt-file {q(prompt)} "
+                   f"{q(start + chr(10) + chr(10) + question)}")
+    else:
+        command = (f"{q(toclaude.codex_path())} -m {model} "
+                   f"-c {q('mcp_servers.kakan.command=' + json.dumps(sys.executable))} "
+                   f"-c {q('mcp_servers.kakan.args=[' + json.dumps(server) + ']')} "
+                   f"-c {q('mcp_servers.kakan.env={GOBLINCAKES_MCP_CHANGE="0"}')} "
+                   f"{q(rules.strip() + chr(10) + chr(10) + chat)}")
+    return reserve_folder(messages), command, name
 
 
 def laga_chat(messages):

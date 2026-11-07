@@ -661,11 +661,37 @@ def reserve_hint(chat):
               "(ditt abonnemang).")
 
 
+def reserve_here(chat, choice=""):
+    """Kakans reserv (punkt 17, 7 Nov): Claude Code (or Codex) as itself in this terminal with the question and the
+    chat so far – it asks Ja/Nej before every change; back here when the user ends it (/exit). True if it ran."""
+    level = goblinai.reserve_for(chat.api, choice or chosen_model(), chat.project_data())
+    if not level:
+        return False
+    try:
+        folder, command, name = goblinai.reserve_terminal(chat.api, level)
+    except (goblinai.ServiceError, OSError) as e:
+        muted(f"  Kakans reserv: {e} – frågar som vanligt.")
+        return False
+    muted(f"  {name} tar frågan här i {folder}. Den frågar innan den ändrar något. /exit tar dig tillbaka till Kakan.")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDECODE", "CLAUDE_CODE_"))}
+    try:
+        subprocess.run(["bash", "-c", command], cwd=folder, env=env)
+    except (OSError, KeyboardInterrupt):
+        pass
+    chat.api.append({"role": "assistant", "content": f"*{name} tog frågan i terminalen.*"})
+    chat.display.append({"role": "assistant", "text": f"*{name} tog frågan i terminalen.*", "segments": [],
+                         "service": f"{name} (ditt abonnemang)", "file": ""})
+    chat.save()
+    return True
+
+
 def handle(chat, keys, shown, question, choice=""):
     """A question: the answer, its commands, the next step – at most MAX_ROUNDS."""
     chat.display.append(shown)
     chat.api.append(question)
     chat.save()
+    if reserve_here(chat, choice):
+        return
     told_blocked = told_receipt = False
     for round_ in range(MAX_ROUNDS):
         if round_:
