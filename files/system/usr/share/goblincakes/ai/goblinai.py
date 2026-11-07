@@ -3454,6 +3454,17 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
 
 
 def ask_once(messages, keys, status=None, notice=None, project=None, choice="", tools=None):
+    """_ask_once, and the top bar's "tänker" gone afterwards when no question (ask) was under way – the ♥'s lesson,
+    the lessons' sorting and the summaries left it there until Goblin AI closed (7 Nov: "tänkt över 1000 s")."""
+    own = not _activity_file().exists()
+    try:
+        return _ask_once(messages, keys, status, notice, project, choice, tools)
+    finally:
+        if own:
+            activity_done()
+
+
+def _ask_once(messages, keys, status=None, notice=None, project=None, choice="", tools=None):
     """Asks the services in order; returns (answer, "service · model").
 
     status(text): "asking X…"; notice(text): a service failed and the next is tried.
