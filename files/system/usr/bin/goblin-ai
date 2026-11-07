@@ -383,6 +383,7 @@ class Backend(QObject):
     helperChanged = Signal()  # Inställningar → Skicka vidare (Claude Code, Codex, own program)
     reserveChanged = Signal()  # Kakans reserv (punkt 17): Ja/Nej, the program
     _testJudged = Signal(str, str)  # verdict, why (Kakan's judgement of a test point)
+    _planPrepared = Signal(str)  # /planering: the steps with a time made into lines (JSON)
     _statusText = Signal(str)
     _stepsText = Signal(str)  # the work loop's steps (JSON)
     _keyResult = Signal(str, str, bool, str)  # provider id, key, ok, message
@@ -413,6 +414,7 @@ class Backend(QObject):
         self._answered.connect(self._on_answer)
         self._claudeDone.connect(self._on_claude)
         self._testJudged.connect(self._test_judged)
+        self._planPrepared.connect(self._plan_schedule)
         self._test = None  # the test list being run (Testa åt Claude)
         self._plan = None  # /planering (punkt 20): the steps asked one at a time, then run
         self._plan_q = None  # the next step's question (goblinai.plan_message)
@@ -1488,36 +1490,89 @@ class Backend(QObject):
         self._plan_run()
 
     def _plan_run(self):
-        import datetime  # noqa: PLC0415
+        """The steps in the user's order (7 Nov, (a)): the "nu" steps before the first time run here at once; a step
+        with a time starts a chain, and the "nu" steps after it are done right after it then (the vakt)."""
+        p = self._plan
+        for st in p["steps"]:
+            if st["at"] is not None and st["at"] < time.time():  # the time passed while writing the plan: now
+                st["at"] = None
+        first = next((n for n, st in enumerate(p["steps"], 1) if st["at"] is not None), len(p["steps"]) + 1)
+        p["now"] = list(range(1, first))
+        p["chains"] = []
+        for n in range(first, len(p["steps"]) + 1):
+            if p["steps"][n - 1]["at"] is not None or not p["chains"]:
+                p["chains"].append({"at": p["steps"][n - 1]["at"], "steps": [n]})
+            else:
+                p["chains"][-1]["steps"].append(n)
+        p["waiting"], p["i"], p["all_before"] = "running", 0, ""
+        self._plan_next()
+
+    def _plan_prepare(self):
+        """After the "nu" steps: each later step becomes the lines the vakt runs without a model (plan_actions – the
+        files saved now are known), "påminn mig att X" a notice; what needs finding out then stays Kakan's."""
         import reminders  # noqa: PLC0415
         p = self._plan
-        plan = self._plan_text()
-        for n, st in enumerate(p["steps"], 1):
-            if st["at"] is None:
-                continue
-            if st["at"] < time.time():  # the time passed while the plan was being written: now instead
-                st["at"] = None
-                continue
+        if not p["chains"]:
+            return self._plan_end()
+        self._set_busy(True, "Gör om stegen till handlingar…")
+        steps, plan, before = [dict(st) for st in p["steps"]], self._plan_text(), p["all_before"]
+        chains, keys, model = p["chains"], self._keys, self._model
+
+        def work():
+            made = {}
+            for chain in chains:
+                for n in chain["steps"]:
+                    text = steps[n - 1]["text"]
+                    m = reminders.PLAN_REMIND.match(text)
+                    if m and m.group(1).strip():
+                        what = " ".join(m.group(1).split())
+                        made[n] = {"remind": what[:1].upper() + what[1:]}
+                        continue
+                    try:
+                        lines = goblinai.plan_actions(text, list(goblinai.desktop().SAVED), before, keys, model)
+                    except Exception:  # noqa: BLE001 – no answer: Kakan does it then
+                        lines = None
+                    made[n] = {"lines": lines}
+            self._planPrepared.emit(json.dumps({"made": made, "plan": plan}, ensure_ascii=False))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _plan_schedule(self, data):
+        import datetime  # noqa: PLC0415
+        import reminders  # noqa: PLC0415
+        self._set_busy(False)
+        p = self._plan
+        if not p:
+            return
+        data = json.loads(data)
+        made = {int(k): v for k, v in data["made"].items()}
+        p["made"], p["cal"] = made, []
+        for c, chain in enumerate(p["chains"]):
+            when = datetime.datetime.fromtimestamp(chain["at"])
+            head = p["steps"][chain["steps"][0] - 1]["text"]
             try:
-                reminders.plan_step(datetime.datetime.fromtimestamp(st["at"]), st["text"], plan)
-                p["timed"].append(n)
-            except OSError as e:
-                self.notice.emit(f"Steg {n} gick inte att lägga i vakten: {e}")
-                continue
-            # …and in the calendar, so the day's plan shows in Merkuro (the user, 7 Nov: "funktionerna finns ju för att
-            # användas") – without the calendar's own reminder: the vakt gives the notice (over a game too)
-            try:
-                said = goblinai.desktop().cal_add(st["text"], time.strftime("%Y-%m-%d %H:%M", time.localtime(st["at"])),
-                                                  "", 15, self._id)
-                if said.startswith("Lade in"):
-                    p.setdefault("cal", []).append(n)
+                if len(chain["steps"]) == 1 and "remind" in made[chain["steps"][0]]:
+                    reminders.plan_step(when, head, data["plan"])  # a plain reminder (over a game too)
                 else:
-                    self.notice.emit(f"Steg {n} kom inte in i kalendern: {said}")
+                    reminders.plan_chain(when, [{"text": p["steps"][n - 1]["text"],
+                                                 "lines": ([f"notis Påminnelse: {made[n]['remind']}"] if "remind" in made[n]
+                                                           else made[n]["lines"])} for n in chain["steps"]], data["plan"])
+                chain["ok"] = True
+            except OSError as e:
+                self.notice.emit(f"Steg {chain['steps'][0]} gick inte att lägga i vakten: {e}")
+                continue
+            # …and in the calendar (the user, 7 Nov: "funktionerna finns ju för att användas") – without the calendar's
+            # own reminder: the vakt gives the notice
+            try:
+                titel = " → ".join(p["steps"][n - 1]["text"] for n in chain["steps"])
+                said = goblinai.desktop().cal_add(titel, when.strftime("%Y-%m-%d %H:%M"), "", 15, self._id)
+                if said.startswith("Lade in"):
+                    p["cal"].append(c)
+                else:
+                    self.notice.emit(f"Steg {chain['steps'][0]} kom inte in i kalendern: {said}")
             except Exception as e:  # noqa: BLE001 – the vakt has it anyway
-                self.notice.emit(f"Steg {n} kom inte in i kalendern: {e}")
-        p["now"] = [n for n, st in enumerate(p["steps"], 1) if st["at"] is None]
-        p["waiting"], p["i"] = "running", 0
-        self._plan_next()
+                self.notice.emit(f"Steg {chain['steps'][0]} kom inte in i kalendern: {e}")
+        self._plan_end()
 
     def _plan_next(self):
         p = self._plan
@@ -1526,7 +1581,7 @@ class Backend(QObject):
         if self._busy:  # a card's command still finishing: a moment later
             return QTimer.singleShot(500, self._plan_next)
         if p["i"] >= len(p["now"]):
-            return self._plan_end()
+            return self._plan_prepare()
         n = p["now"][p["i"]]
         p["told"] = False
         self._plan_q = goblinai.plan_message(n, len(p["steps"]), p["steps"][n - 1]["text"], self._plan_text(), p["before"])
@@ -1555,6 +1610,7 @@ class Backend(QObject):
                 self._plan_post(f"Steg {n} väntar på ditt **Tillåt** (eller Hoppa över) ovan – sedan fortsätter planen.")
             return
         p["before"] = shown["text"]
+        p["all_before"] += "\n" + shown["text"]
         if cards and all(seg.get("state") in ("skipped", "blocked") for seg in cards):
             p.setdefault("skipped", []).append(n)  # nothing she asked for was run
         elif n not in p["done"]:
@@ -1566,16 +1622,32 @@ class Backend(QObject):
         p, self._plan, self._plan_q = self._plan, None, None
         if not p:
             return
-        lines = []
+        self._set_busy(False)
+        made, lines = p.get("made", {}), []
+        chain_of = {n: ch for ch in p.get("chains", []) if ch.get("ok") for n in ch["steps"]}
         for n, st in enumerate(p["steps"], 1):
-            mark = ("gjort ✓" if n in p["done"] else "hoppades över (kortet)" if n in p.get("skipped", []) else
-                    f"vakten gör det {self._plan_when(st['at'])}" if n in p["timed"] else "inte gjort")
+            if n in p["done"]:
+                mark = "gjort ✓"
+            elif n in p.get("skipped", []):
+                mark = "hoppades över (kortet)"
+            elif n in chain_of:
+                ch = chain_of[n]
+                when = self._plan_when(ch["at"]) + ("" if n == ch["steps"][0] else f", direkt efter steg {n - 1}")
+                m = made.get(n, {})
+                how = (f"påminnelse \"{m['remind']}\"" if "remind" in m else
+                       "datorn kör: " + ", ".join(f"`{line}`" for line in m["lines"]) if m.get("lines") else
+                       "jag gör det då")
+                mark = f"{when} – {how}"
+            else:
+                mark = "inte gjort"
             lines.append(f"{n}. {st['text']} – {mark}")
         head = f"**Planeringen avbröts** – {why}." if why else "**Planeringen är klar.**"
-        tail = ("\n\nStegen med en tid gör jag då (väntar om ett spel kör) – svaret kommer som en notis"
-                + (" – och de står i kalendern (Merkuro)" if p.get("cal") else "") +
-                ". Ändra: *påminnelser* visar dem, *påminnelser bort <nr>* tar bort ett (kalenderposten tar du bort i "
-                "Merkuro).") if p["timed"] else ""
+        tail = ""
+        if chain_of:
+            tail = ("\n\nSteg med \"datorn kör\" görs utan AI på sekunden; \"jag gör det då\" behöver mig vid tiden. Allt "
+                    "med en tid väntar om ett spel kör (påminnelser kommer ändå)"
+                    + (" och står i kalendern (Merkuro)" if p.get("cal") else "")
+                    + ". Ändra: *påminnelser* visar dem, *påminnelser bort <nr>* tar bort.")
         self._plan_post(f"{head}\n\n" + "\n".join(lines) + tail)
 
     @Slot(str, str)

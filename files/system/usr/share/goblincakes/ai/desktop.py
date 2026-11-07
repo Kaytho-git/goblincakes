@@ -398,6 +398,7 @@ def notify(text, conversation=""):
     return _done(code, [], f"Visade notisen: {text}", conversation, "En notis går inte att ta tillbaka – stäng den.")
 
 
+SAVED = []  # files spara_dokument made in this process – /planering tells the later steps (Carbonara.pdf, 7 Nov)
 DOC_ENDINGS = (".pdf", ".docx", ".odt", ".txt", ".md", ".html")
 GOBLIN_AI = Path(__file__).resolve().parents[3] / "bin" / "goblin-ai"  # usr/bin next to usr/share (the repo too)
 
@@ -447,7 +448,10 @@ def save_doc(rest, conversation=""):
         source.unlink()
     except OSError:
         pass
-    return said if path.exists() or not said.startswith("Sparade") else f"Det gick inte: {shown} skapades inte."
+    if path.exists() and said.startswith("Sparade"):
+        SAVED.append(shown)
+        return said
+    return said if not said.startswith("Sparade") else f"Det gick inte: {shown} skapades inte."
 
 
 def clipboard_text():

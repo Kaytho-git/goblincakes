@@ -5852,6 +5852,55 @@ def plan_message(n, total, text, plan, before=""):
     return {"role": "user", "content": content + f"\n\n(Steg {n} av {total}.)", "plan": True}
 
 
+PLAN_ACT_WORDS = ("öppna", "spela", "musik", "volym", "notis", "spel", "fönster")
+PLAN_ACT_PROMPT = """Gör om ETT steg i användarens planering till rader som datorn kör själv vid tiden – utan dig.
+Raderna (bara de här):
+öppna <sökväg eller webbadress eller program>   – öppna en fil, sida eller ett program
+spela <låt|album|artist|lista> <artist> - <titel> – spela musik (Spotify)
+musik <paus|spela|nästa>                        – styra musiken
+volym <tal>                                     – datorns volym i procent
+notis <text>                                    – visa en notis
+spel <namn>                                     – starta ett spel
+fönster <program> [maximera|fullskärm|fram]     – ett fönster
+Skriv BARA raderna, en per rad, inget annat. En fil som sparats i planeringen öppnas med sin sökväg nedan – leta
+aldrig upp en annan på nätet. Behöver steget något som ska tas reda på eller skrivas vid tiden (söka, läsa nyheter,
+väder, en fråga, sammanfatta, spara en ny text) – skriv bara ordet FRÅGA."""
+
+
+def plan_actions(text, saved, before, keys, choice=""):
+    """A /planering step with a time → the lines the vakt runs then without a model (the user, 7 Nov: at 17:16 the
+    model opened another recipe than the saved PDF). Asked once at "kör" (no thinking); a line the code can't check
+    (a file that isn't there, an address not in the plan's results, an unknown word) → None = Kakan does it then."""
+    files = "\n".join(saved) or "(inga)"
+    messages = [{"role": "system", "content": PLAN_ACT_PROMPT},
+                {"role": "user", "content": f"Filer som sparats i planeringen:\n{files}\n\nSteget: {text}"}]
+    QUICK.on = True
+    try:
+        answer, _ = ask_once(messages, keys, choice=choice)
+    finally:
+        QUICK.on = False
+    lines = [re.sub(r"^[-*•\d.\s`]+|`+$", "", line).strip() for line in re.sub(r"<think>.*?</think>", "", answer, flags=re.S).splitlines()]
+    lines = [line for line in lines if line]
+    if not lines or any("FRÅGA" in line.upper() for line in lines):
+        return None
+    desk = desktop()
+    for line in lines:
+        word, _, rest = line.partition(" ")
+        if word.lower() not in PLAN_ACT_WORDS or not rest.strip():
+            return None
+        if word.lower() == "öppna":
+            thing = rest.strip().strip("'\"")
+            if re.match(r"https?://", thing):
+                if thing not in text and thing not in before:
+                    return None  # a page she found by herself: not without the user seeing where it came from
+            elif "/" in thing or thing.startswith("~"):
+                if not Path(thing).expanduser().exists():
+                    return None
+            elif not desk.find_app(thing)[0]:
+                return None
+    return lines
+
+
 def plan_chat(messages):
     """messages from the latest /planering step on – each step from nothing, as /laga (point 20)."""
     start = next((i for i in range(len(messages) - 1, -1, -1) if messages[i].get("plan")), None)
