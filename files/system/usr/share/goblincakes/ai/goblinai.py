@@ -127,7 +127,7 @@ LOCAL = {
     "url": "http://127.0.0.1:11434/v1",
     "temperature": 0.4,
 }
-LOCAL_CONTEXT = 32768  # OLLAMA_CONTEXT_LENGTH in goblincakes-ollama – what a loaded model really got: local_context()
+LOCAL_CONTEXT = 32768  # until Ollama says (64k on a 12 GB card: context_length() in goblincakes-ollama) – what a loaded model really got: local_context()
 CONTEXT_SEEN = {"tokens": 0, "at": 0.0}
 
 
@@ -3448,7 +3448,7 @@ def sees_images(choice=""):
     return local_settings()["installed"]
 
 
-# Of the local AI's 32 768 tokens (see goblincakes-ollama; 18 Oct: 16 384 was too little for a whole raid night +
+# Of the local AI's 32 768 or 65 536 tokens (see goblincakes-ollama; 18 Oct: 16 384 was too little for a whole raid night +
 # one ability): the chat gets what the answer (LOCAL_MIN_TOKENS) and the tools' descriptions leave. Their size is
 # measured in chat() – guessed as ~1 500 tokens, they were ~9 500 with the MCP servers (28 Oct), and Ollama cuts an
 # overfull prompt from the start = the instructions, without saying so

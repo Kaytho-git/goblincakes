@@ -597,6 +597,14 @@ from gaming import game_running  # noqa: E402,F401 – goblincakes-image uses O.
 PAUSED = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-ollama-paused"
 
 
+def context_length():
+    """The local AI's memory in tokens: 64k on a card with 12 GB or more (7 Nov, measured on 12 GB: qwen3.5:9b
+    6.9 GB, a 45 600-token text read right in 31 s; gemma4:12b fits too) – the fixed part (instructions + tools)
+    took ~20k of 32k before she had done anything. qwen3-vl gets only 29/37 layers on the card at 64k = slower
+    picture questions (the user's choice: fine). qwen2.5-coder stops at its own 32k. A smaller card keeps 32k."""
+    return "65536" if graphics()["vram"] >= 11.5 else "32768"
+
+
 def cmd_serve():
     """Ollama in the foreground (the user service) – stopped entirely while a game runs, started
     again when it has closed."""
@@ -613,7 +621,7 @@ def cmd_serve():
     # Ollama's own 4096 tokens were too few (16 Oct). Flash attention + an 8-bit cache keep it in
     # 12 GB of graphics memory; a card without flash attention just gets the normal cache.
     env = dict(os.environ, OLLAMA_HOST=HOST, OLLAMA_MODELS=str(b / "models"),
-               OLLAMA_CONTEXT_LENGTH=os.environ.get("OLLAMA_CONTEXT_LENGTH", "32768"),
+               OLLAMA_CONTEXT_LENGTH=os.environ.get("OLLAMA_CONTEXT_LENGTH", context_length()),
                OLLAMA_FLASH_ATTENTION="1", OLLAMA_KV_CACHE_TYPE="q8_0",
                # Loading a model took 13–36 s (24 Oct, measured) – Ollama's own 5 min made most questions
                # wait for it. Kept for an hour: a game stops Ollama anyway, so it never holds memory then
