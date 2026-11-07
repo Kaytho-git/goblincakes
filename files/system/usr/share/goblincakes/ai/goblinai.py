@@ -5888,6 +5888,8 @@ def plan_actions(text, saved, before, keys, choice=""):
         word, _, rest = line.partition(" ")
         if word.lower() not in PLAN_ACT_WORDS or not rest.strip():
             return None
+        if word.lower() == "notis" and not re.search(r"notis|påminn|pamin|säg till|meddela|skriv", text, re.I):
+            return None  # "visa mig receptet" became `notis Receptet har visats` (7 Nov) – a notice nobody asked for
         if word.lower() == "öppna":
             thing = rest.strip().strip("'\"")
             if re.match(r"https?://", thing):

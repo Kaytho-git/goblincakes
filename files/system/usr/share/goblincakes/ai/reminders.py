@@ -606,7 +606,11 @@ def run():
                     ids = {i["id"] for i in gone}
                     _save([{**i, **changed.get(i["id"], {})} for i in fresh if i["id"] not in ids])
                 for item in gone:
-                    fire(item, late=item["kind"] == "tid" and item["at"] < started - 60)
+                    try:
+                        fire(item, late=item["kind"] == "tid" and item["at"] < started - 60)
+                    except Exception as e:  # noqa: BLE001 – one broken item must not stop the vakt (7 Nov: a
+                        # "plan" item in a vakt started before it existed – KeyError, no reminders after that)
+                        print(f"vakten: {item.get('kind')} {item.get('id')} gick inte: {e!r}", file=sys.stderr, flush=True)
         nxt = min((i["at"] for i in load() if i["kind"] == "tid"), default=now + LOOK)
         time.sleep(max(1.0, min(LOOK, nxt - time.time() + 0.2)))
 
