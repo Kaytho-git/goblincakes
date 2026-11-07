@@ -1082,8 +1082,10 @@ def byt_run(query):
     old, new = bytatext.unnumber(old), bytatext.unnumber(new)
     # Only small faults herself (2 Nov): a third change for one question, or a big one, is no small fault
     size = max(old.count("\n"), new.count("\n")) + 1
-    too_big = ("du har redan gjort två ändringar för den här frågan" if getattr(LAST, "fixes", 0) >= SMALL_FIXES
-               else f"ändringen är {size} rader" if size > SMALL_LINES else "")
+    laga = getattr(LAST, "laga", False)  # /laga: a little more than small faults (7 Nov)
+    most, longest = (LAGA_FIXES, LAGA_LINES) if laga else (SMALL_FIXES, SMALL_LINES)
+    too_big = (f"du har redan gjort {most} ändringar för den här frågan" if getattr(LAST, "fixes", 0) >= most
+               else f"ändringen är {size} rader" if size > longest else "")
     if too_big:
         return (f"Inget kort gjort: det här är inget småfel ({too_big}). Ändra inget mer – svara med rapporten "
                 "(**Vad som är fel:** med fil:rad, **Vad jag har kollat:**, **Osäker på:**, **Kan jag laga det:** Nej). "
@@ -1785,10 +1787,29 @@ def tool_schemas(tools):
     return schemas
 
 
+# Ollama's qwen3.5 parser leaves the call's own tags in the values: "~/…/Core.lua </parameter>" – every read failed and
+# she said the folder was gone (the /laga test, 7 Nov)
+CALL_TAG = re.compile(r"\s*</?(?:parameter|function|tool_call|arg_key|arg_value)\b[^>]*>\s*")
+
+
+def clean_arg(value):
+    return CALL_TAG.sub(" ", value).strip() if isinstance(value, str) else value
+
+
 def tool_call_block(call, tools):
     """A tool call from the model as the code block it would have written: ```sport\nAnaheim Ducks\n```"""
     fn = (call.get("function") or {}).get("name", "")
     word = next((w for w, t in tools.items() if t["fn"] == fn or any(f["fn"] == fn for f in t["fns"])), None)
+    if not word and (TOOL_WORDS.get(fn) in tools or fn in tools):
+        # The tool's word instead of a function – "leta", "byt" (an empty answer in the /laga test, 7 Nov)
+        word = TOOL_WORDS.get(fn) if TOOL_WORDS.get(fn) in tools else fn
+        own = tools[word]["fns"]
+        if own:  # a tool with several functions: the first one that takes the fields she sent
+            args = (call.get("function") or {}).get("arguments") or {}
+            args = json.loads(args) if isinstance(args, str) and args.strip().startswith("{") else args
+            names = set(args) if isinstance(args, dict) else set()
+            pick = next((f for f in own if names and names <= set(f["props"])), own[0])
+            return tool_call_block({"function": {"name": pick["fn"], "arguments": args}}, tools)
     if not word:
         return ""
     args = (call.get("function") or {}).get("arguments") or {}
@@ -1797,7 +1818,16 @@ def tool_call_block(call, tools):
             args = json.loads(args or "{}")
         except ValueError:
             args = {"fraga": args}
+    args = {k: clean_arg(v) for k, v in args.items()} if isinstance(args, dict) else clean_arg(args)
     own = next((f for f in tools[word]["fns"] if f["fn"] == fn), None)
+    if own and isinstance(args, dict) and not own.get("schema"):
+        # The next field inside a value – "sokvag": "~/…/MainWindowUI.lua fran_rad 360" (qwen3.5 via Ollama, 7 Nov)
+        for key in list(args):
+            for other in own["props"]:
+                hit = isinstance(args.get(key), str) and other != key and not look_arg(args, other) and re.search(
+                    rf"\s+{other}\s*[=:]?\s*[\"']?(.+?)[\"']?\s*$", args[key])
+                if hit:
+                    args[other], args[key] = hit.group(1), args[key][:hit.start()].strip()
     if own and own.get("schema"):  # MCP: the fields as they are (numbers, lists), not as a line of words
         return f"```{word}\n{own['line'](args if isinstance(args, dict) else {})}\n```"
     if own:  # a tool with its own fields → the code block's line (a model may still send the whole line in one)
@@ -1835,6 +1865,16 @@ def written_call(body, tools):
 
 def tool_request(text, tools):
     """(tool, query) when the answer asks for a tool, else None."""
+    raw = qwen_call(text, tools)
+    if raw:
+        return raw
+    if text.count("```") % 2:
+        # The last block never closed – qwen3.5 wrote "```las_fil … </parameter></function></tool_call>" and stopped
+        # (the /laga test, 7 Nov): the rest of the answer is that block
+        text = text.rstrip() + "\n```"
+    # Qwen's own call tags left in a block ("```bash\nlas_fil ~/x\n</parameter>\n</function>") – the block without them
+    text = re.sub(r"```([\w-]*)([ \t]*\n?)(.*?)```", lambda b: f"```{b.group(1)}{b.group(2)}{CALL_TAG.sub(chr(10), b.group(3)).strip()}\n```",
+                  text, flags=re.S)
     for m in re.finditer(r"```([\w-]+)[ \t]*\n?(.*?)```", text, re.S):
         tool = TOOL_WORDS.get(m.group(1).lower()) or (m.group(1) if tools.get(m.group(1), {}).get("mcp") else None)
         if tool == "byt" and tool in tools:  # the old/new text exactly, spaces and line breaks too
@@ -1854,7 +1894,44 @@ def tool_request(text, tools):
         written = written_call(m.group(2), tools)
         if written:
             return written
+        named = fields_call(m.group(1), m.group(2), tools)
+        if named:
+            return named
     return json_call(text, tools)
+
+
+QWEN_CALL = re.compile(r"<function=([\w-]+)>(.*?)(?:</function>|$)", re.S)
+QWEN_PARAM = re.compile(r"<parameter=([\w-]+)>\s*(.*?)\s*(?:</parameter>|(?=<parameter=)|$)", re.S)
+
+
+def qwen_call(text, tools):
+    """qwen3.5's own tool call written as text – "<tool_call><function=las_fil><parameter=sokvag>~/x</parameter>…"
+    (Ollama's parser misses it now and then, 7 Nov) – as (tool, query), else None."""
+    m = QWEN_CALL.search(text)
+    if not m:
+        return None
+    args = {k: clean_arg(v) for k, v in QWEN_PARAM.findall(m.group(2))}
+    block = tool_call_block({"function": {"name": m.group(1), "arguments": args}}, tools)
+    if not block:
+        return None
+    word, _, body = block[3:].partition("\n")
+    body = body.rsplit("\n```", 1)[0]
+    return word, body.strip() if word == "byt" else " ".join(body.split())
+
+
+def fields_call(fn, body, tools):
+    """A tool written as a code block named after its function, one field per line – ```sok_i_filer\ntext=…\nmapp=…```
+    (qwen3.5 in the /laga test, 7 Nov: not seen as a call, the work stopped) – as (tool, query), else None."""
+    for word, t in tools.items():
+        for f in t["fns"]:
+            if f["fn"] == fn and f.get("line") and not f.get("schema"):
+                # "text=class", "text: class" – or "text class" when the first word is one of its fields
+                args = {k.strip(): clean_arg(v.strip().strip("\"'`")) for k, v in
+                        re.findall(r"^\s*(\w+)\s*(?:[=:]|\s(?=\S))\s*(.+?)\s*$", body, re.M)
+                        if "=" in body or ":" in body or k.strip() in f["props"]}
+                if args:
+                    return word, " ".join(f["line"](args).split())
+    return None
 
 
 JSON_CALL = re.compile(r'\{\s*"name"\s*:\s*"[\w-]+"\s*,\s*"(?:arguments|parameters)"\s*:')
@@ -1889,6 +1966,8 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
     LAST.tools, LAST.steps, LAST.done, LAST.cards, LAST.card_spans, LAST.cut_short = [], None, [], [], [], False
+    messages = laga_chat(messages)  # /laga: she sees only the repair, not the hunt before it
+    LAST.laga = laga_on(messages)
     LAST.stop = steps.stop if steps else None  # request() closes the local AI's connection on STOPP
     activity("ask", "tänker", steps=[])
     messages = [{**m, "content": m["content"].replace("\n\n" + FROM_MEMORY, "")}
@@ -2547,7 +2626,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:2000]
     # What the commands printed ("Så här gick det: …") is no question: a GitHub link on the page Kakan clicked to sent
     # the answer to GitHub, and a path in it to the computer's logs (28 Oct)
-    report = str(asked.get("content", "")).startswith(REPORT_TURNS)
+    report = str(asked.get("content", "")).startswith(REPORT_TURNS) or bool(asked.get("laga"))
     checked_addon = addon_check(messages) if report and "wowapi" in tools else ""
     noops = sed_noops(messages) if report else []
     if noops:
@@ -3709,6 +3788,17 @@ def native_tools(provider, model):
     return "tools" in local_caps(model) if provider.get("local") else provider["id"] in TOOL_SERVICES
 
 
+# Qwen 3.5's own settings (its model card, 7 Nov): without thinking temperature 0.7 / top_p 0.8, with thinking 1.0 /
+# 0.95, presence_penalty 1.5 against repeating itself. Goblin AI's 0.4 (tuned for gemma4) made her call the same
+# tool again and again ("musik vad" ten times). top_k 20 is in Ollama's model already. Other models keep LOCAL's.
+QWEN_SAMPLING = {False: {"temperature": 1.0, "top_p": 0.95, "presence_penalty": 1.5},
+                 True: {"temperature": 0.7, "top_p": 0.8, "presence_penalty": 1.5}}
+
+
+def local_sampling(model, no_thinking):
+    return dict(QWEN_SAMPLING[no_thinking]) if re.match(r"qwen3\.[5-9]", str(model)) else {}
+
+
 def chat(provider, key, model, messages, tools=None):
     """One question to one model; returns the answer's text.
 
@@ -3741,6 +3831,8 @@ def chat(provider, key, model, messages, tools=None):
             body["keep_alive"] = "1h"
         if provider.get("local") and (getattr(QUICK, "on", False) or not needs_thinking(messages)):
             body["reasoning_effort"] = "none"
+        if provider.get("local"):
+            body.update(local_sampling(model, body.get("reasoning_effort") == "none"))
         if provider.get("local"):
             # Thinking models (gemma4) sometimes think in circles until the whole context is full and
             # give no answer (18 Oct: 12 000 tokens, 3 min) – a ceiling, then once more without thinking
@@ -3782,6 +3874,10 @@ def chat(provider, key, model, messages, tools=None):
             block = tool_call_block(calls[0], tools)
             if block:
                 text = (text.rstrip() + "\n\n" + block).strip()
+            elif not text.strip():
+                # A tool that isn't there – said, not an empty answer that stopped the whole question
+                name = (calls[0].get("function") or {}).get("name", "?")
+                text = f"(Jag försökte använda ett verktyg som inte finns här: {name}.)"
         # Perplexity searches by itself: its sources go under the answer like ours
         links = [r.get("url") for r in reply.get("search_results") or [] if r.get("url")] or reply.get("citations") or []
         if links and text.strip():
@@ -4912,13 +5008,152 @@ loggarna, slå upp det som behövs och hitta felen. Svara med rapporten:
 GUIDES.append((REPORT_ONLY, REPORT_GUIDE))
 
 
+# /laga (punkt 24, 7 Nov, the user's choices): after her report, the repair starts over from nothing – the old chat
+# filled her memory before she got to the changes (gear rounds 16–26: ~20k fixed + the whole hunt). She gets only the
+# report, the lines it names with LAGA_AROUND lines around them, LAGA_TOOLS and LAGA_GUIDE; and a little more than
+# small faults: LAGA_FIXES changes of at most LAGA_LINES lines. Only the user's own add-ons (wowapi.own_addon).
+LAGA_TOOLS = ["leta", "byt", "wowapi"]
+LAGA_FIXES = 4
+LAGA_LINES = 15
+LAGA_AROUND = 40
+LAGA_CODE_MAX = 40_000  # characters of code laid before her (64k memory: ~13k tokens)
+LAGA_HEAD = "/laga – lagningen börjar om från noll"
+LAGA_GUIDE = f"""
+
+Du LAGAR felen i rapporten nedan – samtalet före den är borta, allt du behöver står här. Arbetsordningen:
+1. LÄS rapporten och koden under den (radnumret först på varje rad är inte en del av raden). BÖRJA med felen som
+   har fil:rad eller ett felmeddelande – ett fel som bara beskrivs ("färgerna är vita") tar du sist. Behöver du se
+   mer: las_fil med från_rad, eller sok_i_filer.
+   "attempt to call method/field 'X' (a nil value)" = X finns inte med just det namnet: sök efter funktionen
+   (sok_i_filer "function" eller en del av namnet) – stora och små bokstäver räknas (RefreshUI är inte RefreshUi).
+2. SLÅ UPP varje WoW-funktion du rör med wowapi: vad den tar emot och vad den ger tillbaka. Gissa inga namn.
+3. ÄNDRA med byt_text: "gammal" = raderna exakt som de står (utan radnummer), "ny" = som de ska stå. Ett fel per
+   kort, högst {LAGA_FIXES} ändringar på högst {LAGA_LINES} rader var. Efter kortet slutar din tur – användaren
+   trycker Tillåt och du ser hur det gick, sedan nästa fel.
+4. KLART när varje fel i rapporten är ändrat: säg kort vad du ändrade (fil:rad) och vad användaren ska prova i spelet
+   (/reload först). Säg aldrig att det är löst förrän användaren provat.
+Går ett fel inte att laga med det (för stort, osäkert): ändra inget mer och skriv **Kan jag laga det:** Nej – och
+varför. Det sparas åt Claude av sig själv."""
+CODE_REF = re.compile(r"((?:~|/)?[\w.!/-]*\w\.(?:lua|toc|xml|qml|py|js|sh))(?::|,?\s+rad(?:erna)?\s+)(\d+)(?:\s*[-–]\s*(\d+))?")
+
+
+def laga_report(messages, whole=False):
+    """Her latest report in the chat (the answer with "Kan jag laga det" or "Vad som är fel"), or "". whole: with its
+    "Hämtat från" line – the folder she read is often only there (the test 7 Nov: without it the user's real
+    gear-planner in AddOns was taken for the copy in ~/kakan-prov)."""
+    for m in reversed(messages):
+        content = m.get("content") if isinstance(m.get("content"), str) else ""
+        if m["role"] == "assistant" and (VERDICT.search(content) or "vad som är fel" in content.lower()):
+            return content.strip() if whole else content.split("\n\n**Hämtat från:**")[0].split("\n\n**Källor:**")[0].strip()
+    return ""
+
+
+def laga_file(name, report):
+    """A file the report names ("GearDisplay.lua", "~/…/gear/Core.lua") as a real path, or None: the path itself,
+    else the same name in an add-on the report names, else in one of the user's own add-ons or ~/kakan-prov."""
+    p = Path(os.path.expanduser(name))
+    if p.is_absolute() and p.is_file():
+        return p
+    # The paths she read first (they say which copy), then an add-on named by its name
+    named = [Path(os.path.expanduser(x.rstrip(".,:"))) for x in re.findall(r"(?:~|/home)/[\w./!-]+", report)]
+    roots = [x.parent if x.is_file() else x for x in named if x.exists()]
+    roots += [Path(os.path.expanduser(r)) for r in named_addons(report)]
+    try:
+        from wowapi import ADDONS, own_addons
+        roots += [ADDONS / d for d in sorted(own_addons())]
+    except Exception:  # noqa: BLE001 – no WoW on this computer
+        pass
+    roots += sorted(d for d in (Path.home() / "kakan-prov").glob("*") if d.is_dir())
+    for root in dict.fromkeys(roots):
+        for hit in sorted(root.rglob(p.name))[:1] if root.is_dir() else []:
+            return hit
+    return None
+
+
+def laga_excerpts(report):
+    """{path: [(first, last), …]} – the lines the report names, LAGA_AROUND around them, overlapping ones joined."""
+    spans = {}
+    for name, a, b in CODE_REF.findall(report.split("\n\n**Hämtat från:**")[0]):
+        path = laga_file(name, report)
+        if path:
+            a, b = int(a), int(b or a)
+            spans.setdefault(path, []).append((max(1, a - LAGA_AROUND), b + LAGA_AROUND))
+    joined = {}
+    for path, parts in spans.items():
+        out = []
+        for a, b in sorted(parts):
+            if out and a <= out[-1][1] + 1:
+                out[-1] = (out[-1][0], max(out[-1][1], b))
+            else:
+                out.append((a, b))
+        joined[path] = out
+    return joined
+
+
+def laga_message(messages):
+    """The /laga question (a user turn with "laga" and "only"), or (None, why) when there is nothing to mend."""
+    report, whole = laga_report(messages), laga_report(messages, whole=True)
+    if not report:
+        return None, "Det finns ingen rapport i samtalet än – be Kakan kolla felet först (t.ex. \"kolla tillägget X, Y fungerar inte\")."
+    spans = laga_excerpts(whole)
+    if not spans:
+        return None, "Rapporten pekar inte ut någon fil:rad som går att hitta – /laga behöver veta var felet är."
+    try:
+        from wowapi import own_addon
+    except Exception:  # noqa: BLE001
+        own_addon = lambda _: True  # noqa: E731
+    others = [p for p in spans if not own_addon(p)]
+    if others:
+        return None, f"{others[0].name} hör till någon annans tillägg – /laga lagar bara dina egna. Skicka rapporten till Claude i stället."
+    parts, used = [], 0
+    for path, ranges in spans.items():
+        try:
+            lines = path.read_text(errors="replace").split("\n")
+        except OSError:
+            continue
+        shown = str(path).replace(str(Path.home()), "~", 1)
+        for a, b in ranges:
+            b = min(b, len(lines))
+            block = "\n".join(f"{n}: {lines[n - 1]}" for n in range(a, b + 1))
+            if used + len(block) > LAGA_CODE_MAX:
+                parts.append(f"--- {shown} (mer finns – läs med las_fil) ---")
+                break
+            parts.append(f"--- {shown}, rad {a}–{b} av {len(lines)} ---\n{block}")
+            used += len(block)
+    content = (f"{LAGA_HEAD}\n\nRapporten (Kakans egen, från samtalet före):\n{report}\n\n"
+               f"Koden rapporten pekar på:\n```\n" + "\n\n".join(parts) + "\n```\n\nLaga felen i rapporten.")
+    return {"role": "user", "content": content, "laga": True, "only": list(LAGA_TOOLS)}, ""
+
+
+def can_laga(answer):
+    """The Laga button under a report: it names a file:line of the user's own that is there."""
+    try:
+        return laga_message([{"role": "assistant", "content": answer}])[0] is not None
+    except Exception:  # noqa: BLE001 – a button never stops the answer
+        return False
+
+
+def laga_chat(messages):
+    """messages from the latest /laga turn on (the rest is gone for her), with every user turn kept to LAGA_TOOLS;
+    the same messages when there is no /laga."""
+    start = next((i for i in range(len(messages) - 1, -1, -1) if messages[i].get("laga")), None)
+    if start is None:
+        return messages
+    head = [m for m in messages[:1] if m["role"] == "system"]
+    return head + [{**m, "only": list(LAGA_TOOLS)} if m["role"] == "user" else m for m in messages[start:]]
+
+
+def laga_on(messages):
+    return any(m.get("laga") for m in messages)
+
+
 SEND_TO = re.compile(r"\bskicka\s+(?:det\s+|den\s+|rapporten\s+)?(?:vidare\s+)?till\s+(claude|codex)\b", re.I)
 
 
 def latest_said(messages):
     """The user's latest own message (not command output)."""
     return next((m["content"] for m in reversed(messages) if m["role"] == "user" and isinstance(m.get("content"), str)
-                 and not m["content"].startswith(REPORT_TURNS)), "")
+                 and not m["content"].startswith(REPORT_TURNS) and not m.get("laga")), "")
 
 
 def send_to(messages):
@@ -4962,7 +5197,7 @@ def only_reading(answer):
 def user_said(messages):
     """What the user wrote in the chat (any of their messages, not command output)."""
     return "\n".join(m["content"] for m in messages if m["role"] == "user" and isinstance(m.get("content"), str)
-                     and not m["content"].startswith(REPORT_TURNS))
+                     and not m["content"].startswith(REPORT_TURNS) and not m.get("laga"))
 
 
 def repair_nudge(answer, messages, tools, searched, sent=()):
@@ -5347,6 +5582,8 @@ def with_guides(messages):
     """messages with the build guides the user's own words ask for (any of their messages, not command output)."""
     if not messages or messages[0]["role"] != "system":
         return messages
+    if laga_on(messages):
+        return with_system(messages, LAGA_GUIDE)
     said = user_said(messages)
     text = "".join(guide for patterns, guide in GUIDES
                    if all(p.search(said) for p in (patterns if isinstance(patterns, tuple) else (patterns,))))

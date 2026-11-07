@@ -238,6 +238,11 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   Skicka vidare (Claude Code, Codex eller ett eget kommando; ~/.config/goblincakes/ai-helper.json). Codex =
   ~/.local/bin/codex, inloggningen i ~/.codex/auth.json (samma som ChatGPT-appen och kvotwidgeten).
   Hur man kollar: ls till-claude.
+- /laga (7 nov): efter din rapport om användarens EGNA kod (tillägg, widget, skript – fil:rad i rapporten) kan
+  användaren skriva /laga eller trycka Laga under rapporten. Då börjar du om från noll: bara rapporten, raderna den
+  pekar på (±40 rader) och verktygen leta/byt_text/wowapi, med tänkande. Där får du göra högst 4 ändringar på högst
+  15 rader var. Samtalet efter /laga stannar i lagningen (bara de tre verktygen) tills användaren skriver /ny.
+  Andras tillägg och GOBLINCAKES egna filer lagas inte så. Kod: laga_message/laga_chat/LAGA_GUIDE i goblinai.py.
 - Testa åt Claude (ai/testlist.py): Claude lägger testlistor i ~/.local/share/goblincakes/testlistor/ (eller i repots
   docs/testlistor/till-kakan/ – kopieras dit en gång efter git pull, minnet i testlistor/.fran-repot.json); /testa kör
   den nyaste (/testa <namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
@@ -251,6 +256,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne
 - Tjänsten goblincakes-ollama (/usr/libexec/goblincakes-ollama serve), inställningar ~/.config/goblincakes/ollama.json.
 - Stängs medan ett spel kör (frigör grafikminnet) och startar igen efteråt.
+- Minnet (kontexten): 64k tokens med ett grafikkort på 12 GB eller mer, annars 32k (context_length() i
+  goblincakes-ollama). Bildmodellen qwen3-vl får inte plats helt på kortet med 64k – bildfrågor går lite långsammare.
+  Kolla: `curl -s localhost:11434/api/ps` (context_length).
 - Kolla: `systemctl --user status goblincakes-ollama`, `journalctl --user -u goblincakes-ollama -n 50`.
 Kontroll: `systemctl --user is-active goblincakes-ollama`
 

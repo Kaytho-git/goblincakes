@@ -250,6 +250,7 @@ Window {
         { name: "lär", note: "lärläget Lär dig koda, på eller av" },
         { name: "minne", note: "vad Goblin AI kommer ihåg om dig" },
         { name: "claude", note: "skicka senaste svaret till Claude Code – /claude fråga = bara läsa, svaret kommer hit", args: true, hidden: !backend.claude },
+        { name: "laga", note: "laga felen i Kakans senaste rapport – hon börjar om med bara rapporten och koden (dina egna tillägg och skript)" },
         { name: "testa", note: "kör Claudes testlista – /testa <namn>, /testa stopp", args: true },
         { name: "pdf", note: "spara senaste svaret som PDF" },
         { name: "word", note: "spara senaste svaret som Word" },
@@ -520,6 +521,12 @@ Window {
         }
         case "testa":
             backend.startTest(arg);
+            break;
+        case "laga":
+            if (backend.busy)
+                toast.show("Vänta tills svaret är klart.");
+            else
+                backend.laga();
             break;
         case "pdf":
         case "word":
@@ -3389,6 +3396,21 @@ Window {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: backend.sendClaude(msgItem.index, "ask")
+                                }
+                            }
+                            // Laga (punkt 24, 7 Nov): under her report on one of the user's own add-ons/scripts = /laga
+                            Text {
+                                visible: msgItem.m.canLaga === true
+                                text: "Laga"
+                                color: lagaArea.containsMouse ? "#E6ECF5" : accent.text
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                                MouseArea {
+                                    id: lagaArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.busy ? toast.show("Vänta tills svaret är klart.") : backend.laga()
                                 }
                             }
                             Text {

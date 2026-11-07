@@ -416,6 +416,7 @@ class Backend(QObject):
         self._failed.connect(self._on_failure)
         self._search_next = False  # "Sök på nätet": the next question is searched first
         self._only_next = []  # /wiki: the next question gets only these tools
+        self._laga_next = None  # /laga: the next question is the repair turn goblinai.laga_message made
         self._pending_tools = []  # the tools the answer on its way used (for the ♥)
         self._pending_done = []  # …and what they gave, short (saved with the answer, the AI sees it next time)
         self._pending_report_done = []  # …and longer, for Skicka till Claude
@@ -581,6 +582,9 @@ class Backend(QObject):
         self.messageAdded.emit(json.dumps(shown))
         self._auto_count, self._blocked_told, self._receipt_told = 0, False, False
         question = {"role": "user", "content": content}
+        if self._laga_next:  # /laga: the report and its code, from nothing (goblinai.laga_chat)
+            question, self._laga_next = self._laga_next, None
+            shown["laga"] = True
         if images:
             question["images"] = images
         if self._only_next:  # /wiki: only that tool for this question
@@ -660,6 +664,7 @@ class Backend(QObject):
         self._receipt(len(self._display) - 1)
         if goblinai.wants_report(answer, self._api):
             self._save_report(len(self._display) - 1)
+            shown["canLaga"] = goblinai.can_laga(answer)
         self.messageAdded.emit(json.dumps(shown))
         self._set_busy(False)
         self._save()
@@ -1302,6 +1307,18 @@ class Backend(QObject):
     def setSearchNext(self, on):
         self._search_next = bool(on)
         self.searchNextChanged.emit()
+
+    @Slot()
+    def laga(self):
+        """/laga and the Laga button (punkt 24): her latest report mended in a chat that starts over from it."""
+        if self._busy:
+            return
+        question, why = goblinai.laga_message(self._api)
+        if not question:
+            self.notice.emit(why)
+            return
+        self._laga_next = question
+        self.send("/laga", "")
 
     @Slot(str, str)
     def sendOnly(self, command, text):

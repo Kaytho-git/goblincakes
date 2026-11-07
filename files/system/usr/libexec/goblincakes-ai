@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, "/usr/share/goblincakes/ai")
 sys.path.insert(1, "/usr/share/goblincakes")
-from goblinai import (DAILY_PROMPT, after_commands, installed_apps, reported_code, FORMAT_WORDS, LOOK_UP_FIRST, ONLY_COMMANDS, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
+from goblinai import (DAILY_PROMPT, laga_message, after_commands, installed_apps, reported_code, FORMAT_WORDS, LOOK_UP_FIRST, ONLY_COMMANDS, SERVICES, SEARCH, ServiceError, Steps, Stopped,  # noqa: E402
                       ai_name, ask as ask_services, receipt, receipt_back, chosen_model, cmd_level, file_message, forget, has_keys,
                       image_request, images_possible, is_image, last_done, last_tools, load_daily, load_keys, load_memory, load_projects,
                       make_image, make_report, model_choices, project_prompt, remember, run_in_folder, save_keys, save_solution,
@@ -252,6 +252,7 @@ class Chat:
         self.cwd = os.getcwd()  # where the next block runs: starts where goblin ai was started, follows `cd`
         self.search_next = False
         self.only_next = []  # /wiki: the next question gets only these tools
+        self.laga_next = None  # /laga: the repair turn goblinai.laga_message made
 
     def project_data(self):
         return next((p for p in load_projects() if p["id"] == self.project), None) if self.project else None
@@ -702,6 +703,9 @@ def send(chat, keys, text, attachment=None, choice="", daily=False):
                 return
             chat.file = attachment
             shown["file"] = Path(attachment).name
+    if chat.laga_next:  # /laga: the report and its code, from nothing (goblinai.laga_chat)
+        question, chat.laga_next = chat.laga_next, None
+        shown["laga"] = True
     if chat.only_next:  # /wiki
         question["only"] = shown["only"] = chat.only_next
         chat.only_next = []
@@ -751,6 +755,7 @@ def commands(keys):
         {"name": "bifoga", "note": "bifoga en fil – /bifoga <sökväg>", "args": True},
         {"name": "projekt", "note": "gå in i ett projekt – utan namn: lämna projektet", "args": True},
         {"name": "minne", "note": f"vad {name()} kommer ihåg om dig"},
+        {"name": "laga", "note": f"laga felen i {name()}s senaste rapport – börjar om med bara rapporten och koden"},
         {"name": "inställningar", "note": "AI-tjänster och nycklar", "aliases": ["settings", "setup"]},
         {"name": "hjälp", "note": "alla kommandon och tangenter", "aliases": ["help", "?"]},
         {"name": "avsluta", "note": "tillbaka till terminalen (även ctrl+d)", "aliases": ["exit", "quit", "q"]},
@@ -956,6 +961,13 @@ def run_slash(text, chat, keys, ui):
         else:
             chat.search_next = not chat.search_next
             muted("  Nästa fråga söks på nätet först." if chat.search_next else "  Ingen sökning först.")
+    elif n == "laga":
+        question, why = laga_message(chat.api)
+        if question:
+            chat.laga_next = question
+            send(chat, keys, "/laga")
+        else:
+            muted("  " + why)
     elif n in ONLY_COMMANDS:
         if arg:
             chat.only_next = list(ONLY_COMMANDS[n][0])
