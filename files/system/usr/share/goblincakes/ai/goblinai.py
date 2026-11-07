@@ -1826,6 +1826,14 @@ def fix_args(own, args):
     field ("fråga_rad", "fråna_rad"), field=value glued on, the folder inside the search words (searched all of ~)."""
     props = list(own["props"])
     args = {near_field(k, props): v for k, v in dict(args).items()}
+    for key in [k for k in props if isinstance(args.get(k), str) and "|" in args[k]]:
+        # A shell pipe in a field – "~/…/MainWindowUI.lua | grep -A5 -B5 RefreshUi" (the window, 7 Nov): the file, and
+        # grep's word as the text to look for when there is a field for it
+        head, _, pipe = args[key].partition("|")
+        args[key] = head.strip()
+        word = re.search(r"\bgrep\b(?:\s+-\S+)*\s+[\"']?([^\"'|]+?)[\"']?\s*$", pipe)
+        if word and "text" in props and not look_arg(args, "text") and key != "text":
+            args["text"] = word.group(1).strip()
     for _ in range(len(props)):  # a value split off can hold the next field too
         changed = False
         for key in [k for k in props if isinstance(args.get(k), str)]:
@@ -1927,6 +1935,10 @@ def tool_request(text, tools):
     # Qwen's own call tags left in a block ("```bash\nlas_fil ~/x\n</parameter>\n</function>") – the block without them
     text = re.sub(r"```([\w-]*)([ \t]*\n?)(.*?)```", lambda b: f"```{b.group(1)}{b.group(2)}{CALL_TAG.sub(chr(10), b.group(3)).strip()}\n```",
                   text, flags=re.S)
+    if "byt" in tools:
+        written = written_change(text)
+        if written:
+            return written
     for m in re.finditer(r"```([\w-]+)[ \t]*\n?(.*?)```", text, re.S):
         tool = TOOL_WORDS.get(m.group(1).lower()) or (m.group(1) if tools.get(m.group(1), {}).get("mcp") else None)
         if tool == "byt" and tool in tools:  # the old/new text exactly, spaces and line breaks too
@@ -1950,6 +1962,25 @@ def tool_request(text, tools):
         if named:
             return named
     return json_call(text, tools)
+
+
+def written_change(text):
+    """A change written as a block of fields instead of a byt_text call – "```bash\n…lua, byt_text\ngammal: W:RefreshUi()\n
+    ny: W:RefreshUI()\nfil: ~/…/MainWindowUI.lua```" (qwen3.5 in /laga, the window 7 Nov: the right change, no card) – as
+    ("byt", its fields as JSON), else None."""
+    for m in re.finditer(r"```[\w-]*[ \t]*\n(.*?)```", text, re.S):
+        body = m.group(1)
+        old = re.search(r"^\s*gammal\s*[:=]\s*(.*?)\s*(?=^\s*(?:ny|fil)\s*[:=]|\Z)", body, re.S | re.M)
+        new = re.search(r"^\s*ny\s*[:=]\s*(.*?)\s*(?=^\s*(?:gammal|fil)\s*[:=]|\Z)", body, re.S | re.M)
+        if not (old and new):
+            continue
+        named = re.search(r"^\s*fil\s*[:=]\s*(\S+)", body, re.M) or re.search(r"((?:~|/)[\w./!-]+\.\w{1,5})", body)
+        if not named:
+            continue
+        unquote = lambda t: re.sub(r"^([\"'`])(.*)\1$", r"\2", t.strip(), flags=re.S)  # noqa: E731
+        return "byt", json.dumps({"fil": named.group(1).rstrip(",").strip("\"'`"), "gammal": unquote(old.group(1)),
+                                  "ny": unquote(new.group(1))}, ensure_ascii=False)
+    return None
 
 
 QWEN_CALL = re.compile(r"<function=([\w-]+)>(.*?)(?:</function>|$)", re.S)
@@ -2058,7 +2089,9 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         # "Bara kolla … skicka vidare": only cards that read are shown – she wrote her changes as `byt_text "…"` cards
         # and said "Kan jag laga det: Ja" (2 Nov); the verdict is Nej, so the report is saved
         answer = re.sub(r"```(?:bash|sh)\n(.*?)\n```\n?",
-                        lambda m: m.group(0) if cmd_level().level(m.group(1))[0] == "read" else "", answer, flags=re.S)
+                        lambda m: m.group(0) if cmd_level().level(m.group(1))[0] == "read"
+                        and not re.search(r"\bbyt_text\b|^\s*(?:gammal|ny)\s*[:=]", m.group(1), re.M) else "",
+                        answer, flags=re.S)
         answer = re.sub(r"(kan jag laga det\W{0,8})ja\b[^\n]*(?:\n(?!\s*\*\*|\s*$)[^\n]*)*",
                         r"\1Nej – du bad mig bara kolla.", answer, flags=re.I)
         # …and her plans for changes after it ("Åtgärder: …", "Vill du att jag utför dessa ändringar nu?") go too
@@ -5238,7 +5271,10 @@ def wants_report(answer, messages):
     """The answer goes on to Claude as a report: only looking was asked for, or she said she can't fix it."""
     answer = answer or ""
     # report-only: her finished answer (no card waiting to show her more), not every step on the way
-    return bool(VERDICT_NO.search(answer)) or (report_only(messages) and "```" not in answer)
+    # report-only with "Vad som är fel" counts even with a block left: she wrote her own `gammal: … ny: …` card under the
+    # report (the window, 7 Nov) and no report was saved, no Laga button
+    return bool(VERDICT_NO.search(answer)) or (report_only(messages) and ("```" not in answer
+                                                                         or "vad som är fel" in answer.lower()))
 
 
 def only_reading(answer):

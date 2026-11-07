@@ -664,6 +664,7 @@ class Backend(QObject):
         self._receipt(len(self._display) - 1)
         if goblinai.wants_report(answer, self._api):
             self._save_report(len(self._display) - 1)
+        if "vad som är fel" in answer.lower():  # the Laga button: any report on the user's own code
             shown["canLaga"] = goblinai.can_laga(answer)
         self.messageAdded.emit(json.dumps(shown))
         self._set_busy(False)
