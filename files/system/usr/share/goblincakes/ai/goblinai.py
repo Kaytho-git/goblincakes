@@ -1063,10 +1063,16 @@ def byt_run(query):
             path, old, new = pairs.get("fil", path), pairs.get("gammal", old), pairs.get("ny", new)
         found = re.search(r"(?:~|/)[^\"'\n]*?\.\w{1,5}(?=[\"'\s]|$)", path)
         if found and not Path(os.path.expanduser(path.strip())).exists():
-            if not old:
+            rest = path[found.end():]
+            quoted = re.findall(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'', rest)
+            if not old and not new and len(quoted) >= 2:
+                # Old and new both after the path: `…MainWindowUI.lua " W:RefreshUi()" " W:RefreshUI()"`, the
+                # right change but taken for one old text (/laga in the window, 7 Nov)
+                old, new = ("".join(q).replace('\\"', '"') for q in quoted[:2])
+            elif not old:
                 # The old line after the path in "fil" (`…GearDisplay.lua' ' frame:Hide()'`), "gammal" empty – seven
                 # tries the same way (gear round 25, 2 Nov)
-                old = path[found.end():].strip(" \t\n\"'")
+                old = rest.strip(" \t\n\"'")
             path = found.group(0)  # only the path in "fil", whatever else came with it
     else:
         first, _, rest = query.partition("\n")
