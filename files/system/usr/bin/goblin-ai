@@ -1561,8 +1561,10 @@ class Backend(QObject):
             except OSError as e:
                 self.notice.emit(f"Steg {chain['steps'][0]} gick inte att lägga i vakten: {e}")
                 continue
-            # …and in the calendar (the user, 7 Nov: "funktionerna finns ju för att användas") – without the calendar's
-            # own reminder: the vakt gives the notice
+            # …and in the calendar when it is another day than today (the user's choice (b), 7 Nov: a short plan for
+            # today is only clutter there) – without the calendar's own reminder: the vakt gives the notice
+            if when.date() == datetime.date.today():
+                continue
             try:
                 titel = " → ".join(p["steps"][n - 1]["text"] for n in chain["steps"])
                 said = goblinai.desktop().cal_add(titel, when.strftime("%Y-%m-%d %H:%M"), "", 15, self._id)
@@ -1646,7 +1648,7 @@ class Backend(QObject):
         if chain_of:
             tail = ("\n\nSteg med \"datorn kör\" görs utan AI på sekunden; \"jag gör det då\" behöver mig vid tiden. Allt "
                     "med en tid väntar om ett spel kör (påminnelser kommer ändå)"
-                    + (" och står i kalendern (Merkuro)" if p.get("cal") else "")
+                    + ("; stegen en annan dag står också i kalendern (Merkuro)" if p.get("cal") else "")
                     + ". Ändra: *påminnelser* visar dem, *påminnelser bort <nr>* tar bort.")
         self._plan_post(f"{head}\n\n" + "\n".join(lines) + tail)
 

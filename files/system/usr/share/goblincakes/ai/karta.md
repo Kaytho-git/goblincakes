@@ -259,7 +259,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   direkt efter det steget. Efter "nu"-stegen görs resten om till rader datorn kör utan AI (plan_actions: öppna/spela/
   musik/volym/notis/spel/fönster, kontrollerade – filen finns, adressen kom från planen) eller "jag gör det då"; de
   läggs i vakt.json som "plan" (reminders.plan_chain/run_plan, väntar under spel) – "påminn mig att …" = vanlig
-  påminnelse. Stegen står också i kalendern (Merkuro, utan kalenderns egen påminnelse). Planen är bara användarens egna svar:
+  påminnelse. Steg en annan dag än idag står också i kalendern (Merkuro, utan kalenderns egen påminnelse). Planen är bara användarens egna svar:
   inget du läser lägger till steg. Fortsätter inte planen: användaren skriver fortsätt eller avbryt.
 - Kakans reserv (punkt 17, 7 nov): Claude Code eller Codex med användarens eget abonnemang tar frågan åt dig när
   lokala AI:n vilar (ett spel kör) och när användaren trycker "Försök igen med Claude Haiku" (eller /haiku, /sonnet;
