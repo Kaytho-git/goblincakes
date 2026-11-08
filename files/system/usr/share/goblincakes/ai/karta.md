@@ -465,7 +465,8 @@ Kontroll: `/usr/libexec/goblincakes-voice status`
   läser aldrig upp något under spel.
 - 8 nov: under spel frågar rutan först "Vill du att Claude tittar på det nu, eller kan det vänta …?" och hon lyssnar
   själv (utan F8) i 6 s: "Claude"/"nu"/"ja" = Goblin AI direkt, "vänta"/inget = sparas i
-  ~/.local/share/goblincakes-voice/efter-spelet.json och skickas som en lista när spelet stängts (koll var 30:e s).
+  ~/.local/share/goblincakes-voice/efter-spelet.json; när spelet stängts (koll var 30:e s) en notis med
+  frågorna: Skicka till Claude / Släng (stängd utan val = ligger kvar till nästa spel). "fel"/"glöm det" = slängs direkt.
   Bara "Kakan" (eller "hej Kakan") = "Hej <namn från kontot>! Vad kan jag hjälpa dig med?" och sedan lyssnar hon själv.
   Loggen: "Lyssnade själv … s", "Sparad till efter spelet", "Spelet slut – N sparade frågor".
 ## Steam och spel

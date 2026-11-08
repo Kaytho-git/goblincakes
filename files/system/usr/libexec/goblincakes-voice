@@ -505,6 +505,8 @@ WAIT_WORDS = re.compile(r"\b(?:vänta\w*|sen|sedan|senare|efter\w*|nej|nä|inte 
 CLAUDE = r"(?:claude|klod|clod|cloud|kloud|klaud|klåd)"   # Whisper's ways of hearing "Claude"
 ANSWER_ONLY = re.compile(rf"(?:nu|direkt|vänta|vänta lite|sen|sedan|senare|klart|det kan vänta|inte nu|nu tack|ja nu|"
                          rf"(?:till |skicka till )?{CLAUDE}(?: nu)?)")
+# "fel"/"glöm det" to "Claude eller vänta?" (8 Nov: half a question was heard and saved) = thrown away at once
+DROP_WORDS = re.compile(r"\b(?:fel|glöm\w*|släng\w*|skippa|strunta i det|nej det var fel|hörde fel)\b")
 NOW_WORDS = re.compile(rf"\b(?:ja|japp|jo|nu|direkt|gör det|skicka|titta|kör|gärna|okej|ok|{CLAUDE})\b")
 MUTED_FILE = Path(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()) / "goblincakes-voice-muted.json"
 START_SOUND = "/usr/share/sounds/ocean/stereo/button-pressed.oga"
@@ -733,6 +735,8 @@ class Listener:
         self.follow = False      # "Kakan" alone: listen by herself once she has greeted
         self.auto = None         # that listening's pw-record (follow_listen)
         self.choice = None       # (question, monotonic) while she waits for "nu"/"vänta" during a game
+        self.offer_due = True    # saved questions are offered once after each game (and once at the start)
+        self.offering = False    # the Skicka/Släng notice is up
         GLib.timeout_add_seconds(30, self.ask_saved)
         self.boxproc = None      # the box top right (cmd_box), started at the first use
         self.tmp = Path(tempfile.mkdtemp(prefix="goblincakes-voice-"))
@@ -837,6 +841,7 @@ class Listener:
             self.GLib.source_remove(self.timer)
             self.timer = None
         held = time.monotonic() - self.started
+        print(f"F8 hölls {held:.1f} s", flush=True)    # 8 Nov: half a question heard – was the key let go early?
         self.rec.send_signal(signal.SIGINT)
         try:
             self.rec.wait(timeout=3)
@@ -930,29 +935,56 @@ class Listener:
         LATER_FILE.parent.mkdir(parents=True, exist_ok=True)
         LATER_FILE.write_text(json.dumps(saved, ensure_ascii=False))
         print(f"Sparad till efter spelet: {question}", flush=True)
-        self.box("answer", heard, "Okej, det får vänta. Jag frågar Claude när du spelat klart.", 5,
+        self.box("answer", heard, "Okej, det får vänta. När du spelat klart får du frågan i en notis – Skicka eller Släng.", 5,
                  fallback="Det får vänta tills du spelat klart")
 
     def ask_saved(self):
-        """Every 30 s: saved questions and no game any more → one question to Goblin AI with them all."""
-        if not LATER_FILE.is_file() or in_game():
+        """Every 30 s: saved questions and the game closed → a notice with them, Skicka / Släng (8 Nov, the user:
+        half a question went to Goblin AI by itself). Nothing is sent before Skicka; closed without a choice =
+        they stay, offered again after the next game."""
+        if in_game():
+            self.offer_due = True
+            return True
+        if self.offering or not self.offer_due or not LATER_FILE.is_file():
             return True
         try:
             saved = json.loads(LATER_FILE.read_text())
         except (OSError, ValueError):
             saved = []
-        LATER_FILE.unlink(missing_ok=True)
         if not saved:
+            LATER_FILE.unlink(missing_ok=True)
             return True
+        self.offer_due, self.offering = False, True
+        body = "\n".join(f"• ({s['at']}) {s['q']}" for s in saved)
+
+        def work():
+            try:
+                chosen = subprocess.run(
+                    ["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", "-A", "send=Skicka till Claude",
+                     "-A", "drop=Släng", "Kakan: frågor från spelet", body],
+                    capture_output=True, text=True, check=False).stdout.strip()
+            except OSError:
+                chosen = ""
+            self.GLib.idle_add(self.saved_chosen, saved, chosen)
+        threading.Thread(target=work, daemon=True).start()
+        return True
+
+    def saved_chosen(self, saved, chosen):
+        self.offering = False
+        print(f"Sparade frågor: {chosen or 'stängd utan val – ligger kvar'}", flush=True)
+        if chosen == "drop":
+            LATER_FILE.unlink(missing_ok=True)
+        if chosen != "send":
+            return False
+        LATER_FILE.unlink(missing_ok=True)
         if len(saved) == 1:
             text = f"Under spelet ({saved[0]['at']}) sa jag: {saved[0]['q']}"
         else:
             text = "Under spelet sa jag det här – ta det i tur och ordning:\n" + "\n".join(
                 f"{n}. ({s['at']}) {s['q']}" for n, s in enumerate(saved, 1))
-        print(f"Spelet slut – {len(saved)} sparade frågor till Goblin AI", flush=True)
+        print(f"{len(saved)} sparade frågor till Goblin AI", flush=True)
         voicecmd().ask_in_window(text)
-        notify("Kakan", "Spelet är slut – frågorna från spelet ligger nu hos Claude i Goblin AI.")
-        return True
+        return False
 
     def stop_follow(self, cancel=False):
         proc, self.auto = self.auto, None
@@ -1013,7 +1045,11 @@ class Listener:
         if self.choice and time.monotonic() - self.choice[1] < 60:
             question, self.choice = self.choice[0], None
             said = text.lower()
-            if NOW_WORDS.search(said) and not WAIT_WORDS.search(said):
+            if DROP_WORDS.search(said):
+                print(f"Slängd: {question}", flush=True)
+                self.box("answer", text, "Okej, jag glömmer det. Tryck F8 och säg frågan igen.", 5,
+                         fallback="Okej, jag glömmer det")
+            elif NOW_WORDS.search(said) and not WAIT_WORDS.search(said):
                 voicecmd().ask_in_window(question)
                 self.box("answer", text, "Claude tittar på det nu – svaret kommer på andra skärmen.", 6,
                          fallback="Claude tittar på det nu")
