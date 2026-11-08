@@ -497,6 +497,7 @@ Ord: ianseo, bågskytte, tävling, resultat, container
 
 ## Skärmar och fönster
 Ord: skärm, skärmar, hz, uppdateringsfrekvens, fönster, tiling, rutor, layout, goblin screen, goblin tile, kwin
+- Battle.net (Proton/Wine) maximeras aldrig: KWin-skriptet `goblincakes-windows` låter det fylla skärmen under toppfältet som vanligt fönster (maximerat hamnade klicken bredvid knapparna – gammalt Wine/CEF-fel). Klicken fel ändå → är fönstret maximerat? Helskärm (Alt+F3 → Fler åtgärder → Helskärm) fungerar också.
 - Vilken skärm ett program öppnas på: `goblin screen` (/usr/libexec/goblincakes-screen). Olika Hz: goblincakes-screens.
 - Rotera skärm: `goblin screen rotate 2` (skärm 2 stående), `rotate normal` (alla liggande), `rotate håll vänster|höger` (åt vilket håll, sparas i ~/.config/goblincakes/screen-portrait). Kortkommandon Meta+← (skärm 2), Meta+→ (skärm 1), Meta+↑ (alla) i /usr/share/kglobalaccel/goblincakes-rotate.desktop; KWins "Fönster snabbt sida vid sida" flyttas bort från dem en gång (flaggan ~/.local/state/goblincakes/meta-arrows-rotate). Kolla: `kscreen-doctor -o` (Rotation: 1 = liggande, 2 = vänster, 8 = höger).
 - Rutor/layouter: `goblin tile` och Config → Fönster, ~/.config/goblincakes/tile-layouts.json.

@@ -471,6 +471,63 @@ function spotifyAdded(window) {
     return true;
 }
 
+// Battle.net (8 Nov, the user's wish): maximized under Wine/Proton the clicks land beside the buttons
+// (CEF counts from the wrong place); full screen and a plain window are right. So Battle.net always
+// fills the screen below the top bar as a plain window – never maximized: a maximize (its own button,
+// a double click on its title bar, Meta+Up) becomes the same. No restoring (the user: always like this).
+function isBattlenet(window) {
+    return window.normalWindow && !window.transient && /^Battle\.net$/.test(String(window.caption));
+}
+
+function battlenetFill(window) {
+    if (window.fullScreen)
+        return;
+    if (window.maximizeMode !== 0)
+        window.setMaximize(false, false);
+    const a = workspace.clientArea(KWin.MaximizeArea, window);
+    const g = window.frameGeometry;
+    if (g.x !== a.x || g.y !== a.y || g.width !== a.width || g.height !== a.height)
+        window.frameGeometry = { x: a.x, y: a.y, width: a.width, height: a.height };
+}
+
+const battlenets = [];
+function battlenetWatch(window) {
+    if (battlenets.indexOf(window) >= 0)
+        return;
+    battlenets.push(window);
+    battlenetFill(window);
+    window.maximizedChanged.connect(function () {
+        if (window.maximizeMode !== 0)
+            battlenetFill(window);
+    });
+    // Battle.net puts back its own last size just after it opens
+    const start = Date.now();
+    window.frameGeometryChanged.connect(function () {
+        if (Date.now() - start < 8000)
+            battlenetFill(window);
+    });
+    window.closed.connect(function () {
+        battlenets.splice(battlenets.indexOf(window), 1);
+    });
+}
+
+function battlenetAdded(window) {
+    if (isBattlenet(window)) {
+        battlenetWatch(window);
+        return;
+    }
+    if (!window.normalWindow || window.transient)
+        return;
+    // the caption can come a moment after the window
+    const later = function () {
+        if (isBattlenet(window)) {
+            window.captionChanged.disconnect(later);
+            battlenetWatch(window);
+        }
+    };
+    window.captionChanged.connect(later);
+}
+
 // Our windows over a game (22 Oct, the user: Meta during a game, then a click on a tray icon –
 // the window seldom came up): the click goes to plasmashell, so the app has no input of its own
 // and KWin's focus stealing prevention refuses its activation – the window opens (or stays)
@@ -542,6 +599,9 @@ function added(window) {
         lagmeterAdded(window);
         return;
     }
+    battlenetAdded(window);
+    if (isBattlenet(window))
+        return;
     const tiled = window.normalWindow && !window.transient && !isGame(window) ? ruleTile(window) : null;
     const ruled = window.normalWindow ? ruleScreen(window) : null;
     if (CENTERED.indexOf(window.resourceClass) >= 0) {
@@ -764,6 +824,8 @@ for (let i = 0; i < existing.length; i++) {
     if (ordinaryWindow(existing[i]))
         watchDrag(existing[i]);
     ourWindow(existing[i], false);
+    if (isBattlenet(existing[i]))
+        battlenetWatch(existing[i]);
 }
 
 // 2 px between tiled windows (12 Oct, the user's wish): KDE's tiles have 4 px padding by default

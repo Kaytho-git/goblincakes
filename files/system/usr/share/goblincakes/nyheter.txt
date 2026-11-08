@@ -1,3 +1,4 @@
+2026-11-08  Battle.net fyller nu skärmen under toppfältet direkt när det startar, och maximeringsknappen gör samma sak. Förut hamnade klicken bredvid knapparna när Battle.net var maximerat.
 2026-11-08  WoW Stats: ny knapp Leta efter saknade. Den hittar nycklar och raidbossar från den senaste veckan som finns på Warcraft Logs men inte i WoW Stats (t.ex. när inget spelades in) – raid: kills och den bästa wipen per boss och kväll. Kryssa i det du vill ha och tryck Lägg till.
 2026-11-08  Archons lila ikon i systemfältet: ett klick öppnar nu Archons fönster (förut hände ingenting).
 2026-11-08  Kakan: "senaste nyckeln" ger nu verkligen den senaste nyckeln från Warcraft Logs, även när GoblinRecorder inte spelade in den. Hon tittar också på dina uppladdade loggar från den senaste veckan i stället för bara det senaste dygnet.
