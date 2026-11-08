@@ -960,7 +960,8 @@ class Listener:
         def work():
             try:
                 chosen = subprocess.run(
-                    ["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", "-A", "send=Skicka till Claude",
+                    # -t 0: stays on screen until a button or the cross (the user 8 Nov: "ibland kan man vara upptagen")
+                    ["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", "-t", "0", "-A", "send=Skicka till Claude",
                      "-A", "drop=Släng", "Kakan: frågor från spelet", body],
                     capture_output=True, text=True, check=False).stdout.strip()
             except OSError:
