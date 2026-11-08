@@ -242,7 +242,7 @@ def short(n):
 
 def candidate_reports(r):
     """Report codes to look in, newest first: GoblinRecorder's films with a Warcraft Logs link, then
-    your account's reports from the last day."""
+    your account's reports from the last week."""
     codes, player = [], ""
     try:
         folder = r.load_config().get("folder")
@@ -270,7 +270,7 @@ def candidate_reports(r):
         try:
             data = r.wcl_query("query($u:Int,$from:Float,$to:Float){ reportData { reports(userID:$u, startTime:$from,"
                                " endTime:$to, limit: 5) { data { code startTime } } } }",
-                               {"u": user, "from": now - 24 * 3600 * 1000, "to": now})
+                               {"u": user, "from": now - 7 * 24 * 3600 * 1000, "to": now})
             recent = sorted(data["reportData"]["reports"]["data"], key=lambda x: -x["startTime"])
             codes = [x["code"] for x in recent if x["code"] not in codes] + codes
         except Exception:  # noqa: BLE001
@@ -286,17 +286,9 @@ def find_fight(r, query):
     wanted = int(m.group(2)) if m and m.lastindex and m.lastindex >= 2 and m.group(2) else None
     pull = re.search(r"\b(?:pull|försök|forsok)\s*(\d+)", query, re.I)
     key = not m and MPLUS_WORDS.search(query)
-    if key:
-        # "senaste nyckeln" (punkt 18, 7 Nov): the latest Mythic+ run – WoW Stats' history first (your own key),
-        # else the newest key in your recent reports
-        try:
-            mine = sorted((v for v in r.wow_history().values() if isinstance(v, dict) and v.get("url")
-                           and v.get("kind") == "mplus"), key=lambda v: -(v.get("started") or 0))
-        except Exception:  # noqa: BLE001
-            mine = []
-        own = re.search(r"reports/([A-Za-z0-9]{16})(?:#.*?fight=(\d+))?", mine[0]["url"]) if mine else None
-        if own:
-            codes, wanted, player = [own.group(1)], int(own.group(2)) if own.group(2) else None, mine[0].get("player", "")
+    # "senaste nyckeln" (punkt 18, 7 Nov): the newest key in the reports above, newest first – your own
+    # uploads, then GoblinRecorder's films and WoW Stats' history. (8 Nov: WoW Stats first gave Den of
+    # Nalorakk – GoblinRecorder hadn't recorded the later Murder Row, but Archon had uploaded it.)
     words = [] if key else [w for w in re.findall(r"[\w']+", query.lower())
              if w not in ("senaste", "sista", "pull", "pullen", "wipe", "wipen", "kill", "på", "vi", "den", "fight",
                           "alla", "boss", "bossen", "the", "and", "och", "wipade", "dog", "varför")
