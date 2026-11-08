@@ -1,3 +1,4 @@
+2026-11-08  WoW Stats: ny knapp Leta efter saknade. Den hittar nycklar och raidbossar från den senaste veckan som finns på Warcraft Logs men inte i WoW Stats (t.ex. när inget spelades in) – raid: kills och den bästa wipen per boss och kväll. Kryssa i det du vill ha och tryck Lägg till.
 2026-11-08  Archons lila ikon i systemfältet: ett klick öppnar nu Archons fönster (förut hände ingenting).
 2026-11-08  Kakan: "senaste nyckeln" ger nu verkligen den senaste nyckeln från Warcraft Logs, även när GoblinRecorder inte spelade in den. Hon tittar också på dina uppladdade loggar från den senaste veckan i stället för bara det senaste dygnet.
 2026-11-08  GoblinRecorder: ta bort flera inspelningar på en gång. Tryck MARKERA ovanför listan, kryssa i dem du vill bli av med (eller tryck ALLA eller ALLA WIPES) och sedan Ta bort – du får frågan Ja/Nej först. Inspelningar som sparas för alltid går inte att markera.

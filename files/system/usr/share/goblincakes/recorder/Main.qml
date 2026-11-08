@@ -323,6 +323,24 @@ Window {
             noteTimer.restart();
         }
         function onWclBusy(busy) { win.wclBusy = busy; }
+        function onMissingReady(json) {
+            win.missingBusy = json === "";
+            if (json === "")
+                return;
+            const r = JSON.parse(json);
+            if (r.added !== undefined) { // Lägg till done: the unticked ones stay in the list
+                win.missing = win.missing.filter(e => !win.missingTicked[e.id]);
+                win.missingTicked = ({});
+                win.missingShown = win.missing.length > 0;
+                return;
+            }
+            win.missingError = r.error || "";
+            win.missing = r.error ? [] : r;
+            const t = {};
+            for (const e of win.missing) t[e.id] = true; // all ticked to begin with
+            win.missingTicked = t;
+            win.missingShown = true;
+        }
         function onYoutubeLoginBusy(busy) { win.ytLoginBusy = busy; }
         function onYoutubeProgress(sent, total) {
             win.ytSent = sent;
@@ -2483,6 +2501,14 @@ Window {
     property int wowDays: 0
     property string wowDiff: ""
     property string wowSection: "" // "raid" or "mplus" – one at a time, less to scroll
+    // LETA EFTER SAKNADE (8 Nov, the user's wish): keys and raid pulls on Warcraft Logs that WoW Stats
+    // hasn't got (not recorded) – raid: kills and the best wipe per boss and evening. Only on the button.
+    property bool missingShown: false
+    property bool missingBusy: false
+    property var missing: []
+    property var missingTicked: ({})
+    property string missingError: ""
+    function missingPicked() { return win.missing.filter(e => win.missingTicked[e.id]); }
     property int cs2Count: 10
     property real cs2Open: 0 // the match unfolded in CS2 Stats (its start)
     property string wowSeason: "" // "" = the current season, else an archived one's key
@@ -2660,6 +2686,13 @@ Window {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                     spacing: 8
                     FlatButton {
+                        visible: backend.wclConfigured
+                        enabledState: !win.missingBusy
+                        text: win.missingBusy ? "Söker …" : "Leta efter saknade"
+                        onClicked: backend.wowFindMissing()
+                        HoverTip { tip: "Nycklar och raidbossar från den senaste veckan som finns på Warcraft Logs men inte här (inte inspelade). Raid: kills och den bästa wipen per boss och kväll. Inget läggs till förrän du trycker Lägg till." }
+                    }
+                    FlatButton {
                         visible: !!wowPage.d.wclUrl
                         text: "Warcraft Logs"
                         onClicked: backend.openUrl(wowPage.d.wclUrl)
@@ -2669,6 +2702,113 @@ Window {
                         text: "Fråga " + backend.aiName + " vad jag ska förbättra"
                         onClicked: backend.askAi("Hur ser mina WoW-parses ut för " + (wowPage.d.name || "min karaktär")
                                                  + "? Vilka bossar och dungeons är svagast och vad ska jag förbättra?")
+                    }
+                }
+            }
+
+            // LETA EFTER SAKNADE: what was found, ticked – Lägg till / Stäng
+            Rectangle {
+                visible: win.missingShown && !!wowPage.d.player
+                width: parent.width
+                height: missCol.implicitHeight + 32
+                color: "#0B1018"
+                border.width: 1
+                border.color: accent.color
+                Column {
+                    id: missCol
+                    x: 16
+                    y: 16
+                    width: parent.width - 32
+                    spacing: 8
+                    readonly property int n: win.missingPicked().length
+                    SectionTitle {
+                        text: win.missingError ? "KUNDE INTE LETA" : win.missing.length
+                              ? "SAKNAS I WOW STATS (" + win.missing.length + ")" : "INGET SAKNAS"
+                    }
+                    Note {
+                        width: parent.width
+                        text: win.missingError ? "Warcraft Logs: " + win.missingError
+                              : win.missing.length ? "Från Warcraft Logs, den senaste veckan. Kryssa ur det du inte vill ha med."
+                              : "Allt från den senaste veckan på Warcraft Logs finns redan här."
+                    }
+                    Repeater {
+                        model: win.missing
+                        Rectangle {
+                            id: missRow
+                            required property var modelData
+                            readonly property bool on: !!win.missingTicked[modelData.id]
+                            width: missCol.width
+                            height: 38
+                            color: missArea.containsMouse ? "#12203A" : "transparent"
+                            border.width: 1
+                            border.color: "#1E2A40"
+                            Rectangle {
+                                x: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 18
+                                height: 18
+                                color: missRow.on ? accent.color : "transparent"
+                                border.width: missRow.on ? 0 : 1
+                                border.color: "#8B98AD"
+                                Text {
+                                    anchors.centerIn: parent
+                                    visible: missRow.on
+                                    text: "✓"
+                                    color: accent.on
+                                    font.family: "IBM Plex Sans"
+                                    font.weight: Font.Bold
+                                    font.pixelSize: 13
+                                }
+                            }
+                            Text {
+                                x: 40
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 220
+                                elide: Text.ElideRight
+                                text: (missRow.modelData.kind === "mplus" ? missRow.modelData.name + " +" + missRow.modelData.level
+                                                                         : missRow.modelData.name + " · " + missRow.modelData.difficulty)
+                                      + "  ·  " + missRow.modelData.player.split("-")[0]
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Text {
+                                anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                                text: win.when(missRow.modelData.started) + "   "
+                                      + ({ kill: "KILL", wipe: "WIPE " + (missRow.modelData.bossPercentage !== null && missRow.modelData.bossPercentage !== undefined
+                                                                          ? win.num(missRow.modelData.bossPercentage.toFixed(1)) + " %" : ""),
+                                           timed: "I TID", depleted: "FÖR SENT" })[missRow.modelData.result]
+                                color: missRow.modelData.result === "kill" || missRow.modelData.result === "timed" ? "#3FB950" : "#E5534B"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 12
+                            }
+                            MouseArea {
+                                id: missArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    const t = Object.assign({}, win.missingTicked);
+                                    if (t[missRow.modelData.id]) delete t[missRow.modelData.id]; else t[missRow.modelData.id] = true;
+                                    win.missingTicked = t;
+                                }
+                            }
+                        }
+                    }
+                    Row {
+                        spacing: 8
+                        topPadding: 4
+                        FlatButton {
+                            visible: win.missing.length > 0
+                            primary: true
+                            enabledState: missCol.n > 0 && !win.missingBusy
+                            text: win.missingBusy ? "Lägger till …" : "Lägg till (" + missCol.n + ")"
+                            onClicked: backend.wowAddMissing(JSON.stringify(win.missingPicked()))
+                        }
+                        FlatButton {
+                            text: "Stäng"
+                            onClicked: win.missingShown = false
+                        }
                     }
                 }
             }

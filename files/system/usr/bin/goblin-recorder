@@ -448,6 +448,34 @@ class Backend(QObject):
         """The WoW Stats page, put together from your own history (no Warcraft Logs calls)."""
         return json.dumps(R.wow_overview(R.load_config()["folder"], player, days, season, spec), ensure_ascii=False)
 
+    missingReady = Signal(str)  # JSON: [{…}] what is missing in WoW Stats, or {"error": …}; "" = searching
+
+    @Slot()
+    def wowFindMissing(self):
+        """LETA EFTER SAKNADE: your Warcraft Logs reports from the last week against WoW Stats."""
+        def work():
+            try:
+                self.missingReady.emit(json.dumps(R.wow_missing(), ensure_ascii=False))
+            except Exception as e:  # noqa: BLE001
+                self.missingReady.emit(json.dumps({"error": str(e)}, ensure_ascii=False))
+        self.missingReady.emit("")
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(str)
+    def wowAddMissing(self, items):
+        """The ticked ones into WoW Stats, with your numbers from the log."""
+        def work():
+            try:
+                n = R.wow_add_missing(json.loads(items))
+                self.message.emit(f"{n} tillagda i WoW Stats." if n != 1 else "1 tillagd i WoW Stats.")
+                self.missingReady.emit(json.dumps({"added": n}))
+            except Exception as e:  # noqa: BLE001
+                self.missingReady.emit(json.dumps({"error": str(e)}, ensure_ascii=False))
+            finally:
+                self.refreshLater.emit()
+        self.missingReady.emit("")
+        threading.Thread(target=work, daemon=True).start()
+
     @Slot(int, str, bool, result=str)
     def cs2Overview(self, count, season, private):
         return json.dumps(R.cs2_overview(R.load_config()["folder"], count, season, private), ensure_ascii=False)

@@ -3111,6 +3111,118 @@ def wcl_report_pulls(code, player):
     return new
 
 
+MISSING_DAYS = 7      # LETA EFTER SAKNADE looks this far back
+MISSING_KEY_SAME = 300  # a key in the history this close (seconds, same dungeon) is the same run
+
+
+def _evening(t):
+    """The raid evening a time belongs to (a raid past midnight counts to the day it began)."""
+    return time.strftime("%Y-%m-%d", time.localtime(t - 6 * 3600))
+
+
+def wow_missing(days=MISSING_DAYS):
+    """LETA EFTER SAKNADE in WoW Stats (8 Nov, the user's wish – Murder Row was uploaded by Archon but
+    not recorded): your account's uploaded reports from the last week, against the history. Keys:
+    every one that is missing. Raid: kills, and per boss, difficulty and report only the wipe that got
+    the boss lowest – and that only when no wipe of that boss is there already (the user's choice).
+    Only your own characters (the ones in the history). One Warcraft Logs call per account.
+    Returns [{id, code, fight, player, kind, name, …}], newest first."""
+    hist = wow_history()
+    mine = {}  # "name-server" (lower) → Name-Realm-Region
+    for e in hist.values():
+        p = e.get("player", "") if isinstance(e, dict) else ""
+        parts = p.split("-")
+        if len(parts) >= 3:
+            mine[(parts[0] + "-" + server_slug("-".join(parts[1:-1]))).lower()] = p
+    if not mine:
+        raise ValueError("vet inte vilka karaktärer som är dina än – spela in en pull eller nyckel först")
+    fields = ("code startTime fights(killType: Encounters) { id encounterID name kill startTime endTime difficulty"
+              " keystoneLevel bossPercentage fightPercentage averageItemLevel friendlyPlayers }"
+              " masterData { actors(type: \"Player\") { id name server } }")
+    now = time.time() * 1000
+    since = now - days * 86400 * 1000
+    reports = []
+    # your own uploads (Archon) – at once after the upload
+    for u in sorted(set((wcl_load().get("users") or {}).values())):
+        reports += wcl_query(
+            "query($u:Int,$from:Float,$to:Float){ reportData { reports(userID:$u, startTime:$from, endTime:$to,"
+            " limit: 25) { data { " + fields + " } } } }",
+            {"u": u, "from": since, "to": now})["reportData"]["reports"]["data"]
+    # and every report your characters are in – a raid someone else in the guild logged
+    for p in sorted(set(mine.values())):
+        parts = p.split("-")
+        char = wcl_query(
+            "query($n:String,$s:String,$r:String){ characterData { character(name:$n, serverSlug:$s, serverRegion:$r)"
+            " { recentReports(limit: 15) { data { " + fields + " } } } } }",
+            {"n": parts[0], "s": server_slug("-".join(parts[1:-1])), "r": parts[-1].lower()})["characterData"]["character"]
+        reports += [x for x in ((char or {}).get("recentReports") or {}).get("data") or [] if x["startTime"] >= since - 86400 * 1000]
+    reports = list({x["code"]: x for x in reports}.values())
+    urls = {e.get("url") for e in hist.values() if isinstance(e, dict) and e.get("url")}
+    out, wipes = [], {}
+    for rep in reports:
+        actors = {a["id"]: mine.get((a["name"] + "-" + server_slug(a.get("server") or "")).lower())
+                  for a in (rep.get("masterData") or {}).get("actors") or []}
+        for f in rep.get("fights") or []:
+            player = next((actors[i] for i in f.get("friendlyPlayers") or [] if actors.get(i)), None)
+            url = f"{WCL}/reports/{rep['code']}#fight={f['id']}"
+            if not player or url in urls:
+                continue
+            started = (rep["startTime"] + f["startTime"]) / 1000
+            e = {"code": rep["code"], "fight": f["id"], "url": url, "player": player, "name": f["name"],
+                 "started": started, "length": (f["endTime"] - f["startTime"]) / 1000,
+                 "avgIlvl": round(f["averageItemLevel"], 2) if f.get("averageItemLevel") else None}
+            if f.get("keystoneLevel"):
+                e.update(kind="mplus", difficulty="Mythic+", level=f["keystoneLevel"], encounterId=None,
+                         result="timed" if f.get("kill") else "depleted")
+                if any(o.get("player") == player and o.get("kind") == "mplus" and o.get("name") == f["name"]
+                       and abs((o.get("started") or 0) - started) < MISSING_KEY_SAME for o in hist.values()):
+                    continue
+            elif f.get("difficulty") in WCL_DIFFICULTIES:
+                e.update(kind="raid", difficulty=WCL_DIFFICULTIES[f["difficulty"]], encounterId=str(f["encounterID"]),
+                         result="kill" if f.get("kill") else "wipe", bossPercentage=f.get("bossPercentage"))
+                if _same_pull(hist, e):
+                    continue
+                if not f.get("kill"):
+                    group = (player, e["encounterId"], e["difficulty"], _evening(started))
+                    if group not in wipes or (f.get("bossPercentage") or 100) < (wipes[group].get("bossPercentage") or 100):
+                        wipes[group] = e
+                    continue
+            else:
+                continue
+            out.append(e)
+    for (player, enc, diff, evening), e in wipes.items():  # the best wipe – unless that evening has one already
+        if not any(o.get("player") == player and str(o.get("encounterId")) == enc and o.get("difficulty") == diff
+                   and o.get("result") == "wipe" and _evening(o.get("started") or 0) == evening for o in hist.values()):
+            out.append(e)
+    # the same pull in several reports (everyone in the guild logged the raid): once, your own upload first
+    seen = []
+    for e in out:
+        tol = SAME_PULL if e["kind"] == "raid" else MISSING_KEY_SAME
+        if not any(o["player"] == e["player"] and o["name"] == e["name"] and abs(o["started"] - e["started"]) < tol
+                   for o in seen):
+            seen.append(e)
+    out = sorted(seen, key=lambda e: -e["started"])
+    for e in out:
+        e["id"] = e["url"]
+    return out
+
+
+def wow_add_missing(items):
+    """The ticked ones from wow_missing into the history, with your row of the log's numbers (one
+    Warcraft Logs call each). Returns how many were added."""
+    n = 0
+    for e in items:
+        wcl = {"code": e["code"], "fight": e["fight"], "kill": e["result"] in ("kill", "timed"), "url": e["url"]}
+        stats = wcl_stats(wcl)
+        meta = {k: e.get(k) for k in ("player", "kind", "name", "difficulty", "level", "result", "started",
+                                      "encounterId", "avgIlvl")}
+        meta.update(fight=e.get("length"), wcl=wcl)
+        before = len(wow_history())
+        wow_history_add(meta, stats)
+        n += len(wow_history()) > before
+    return n
+
+
 REPORTS_READ = CACHE_DIR / "wcl-reports-read.json"
 
 
