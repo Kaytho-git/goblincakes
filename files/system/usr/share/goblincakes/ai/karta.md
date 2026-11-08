@@ -463,6 +463,11 @@ Kontroll: `/usr/libexec/goblincakes-voice status`
   utan att fönstret kommer över spelet – rutan säger "Jag tar det i Goblin AI – svaret kommer på andra skärmen",
   Claude Haiku (Kakans reserv) startar i TERMINAL-fliken, Goblin AI visas på den lediga skärmen med en notis. Hon
   läser aldrig upp något under spel.
+- 8 nov: under spel frågar rutan först "Vill du att Claude tittar på det nu, eller kan det vänta …?" och hon lyssnar
+  själv (utan F8) i 6 s: "Claude"/"nu"/"ja" = Goblin AI direkt, "vänta"/inget = sparas i
+  ~/.local/share/goblincakes-voice/efter-spelet.json och skickas som en lista när spelet stängts (koll var 30:e s).
+  Bara "Kakan" (eller "hej Kakan") = "Hej <namn från kontot>! Vad kan jag hjälpa dig med?" och sedan lyssnar hon själv.
+  Loggen: "Lyssnade själv … s", "Sparad till efter spelet", "Spelet slut – N sparade frågor".
 ## Steam och spel
 Ord: steam, proton, spel startar inte, goblin play, tv-läge, big picture, lutris, heroic
 - Steam finns i systemet. `goblin play <namn>` startar Steam-spel från terminalen (/usr/libexec/goblincakes-games),

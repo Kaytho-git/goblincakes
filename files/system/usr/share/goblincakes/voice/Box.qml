@@ -117,9 +117,10 @@ Window {
         Text {       // her answer
             visible: text !== ""
             width: parent.width
-            text: root.state === "listening" ? "Prata nu – släpp knappen när du är klar."
+            // listening without the key (8 Nov): her own words (the question) instead of the key's hint
+            text: root.state === "listening" ? (box.answer || "Prata nu – släpp knappen när du är klar.")
                   : root.state === "thinking" ? "" : box.answer
-            color: root.state === "listening" ? root.muted : root.frost
+            color: root.state === "listening" && !box.answer ? root.muted : root.frost
             font.family: "IBM Plex Sans"
             font.pixelSize: 16
             lineHeight: 1.15

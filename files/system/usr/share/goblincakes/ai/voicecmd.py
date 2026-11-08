@@ -96,6 +96,9 @@ def match(text):
     if m and fix_words(m.group(1)) and fix_words(m.group(2)):
         return ("music", (KINDS[m.group(3)], fix_words(m.group(1)), fix_words(m.group(2))))
     t = fix_words(text)
+    # just "Kakan" / "hej Kakan" (8 Nov, the user): she greets by name and listens by herself afterwards
+    if re.fullmatch(r"(?:hej|hallå|hejsan|tjena|hej hej)?\s*kakan", t):
+        return ("greet", "")
     t = re.sub(r"^(?:kakan\s+)?(?:kan du\s+|snälla\s+)?", "", t)
     if not t:
         return None
@@ -633,6 +636,17 @@ def latest_pull():
     return url, f"Här är den senaste pullen. {boss}{left}."
 
 
+def first_name():
+    """The account's name (the GECOS field, "Jonas"), else the login name – never written in the repo."""
+    import pwd
+    try:
+        entry = pwd.getpwuid(os.getuid())
+        name = entry.pw_gecos.split(",")[0].split()
+        return name[0] if name else entry.pw_name.capitalize()
+    except (KeyError, OSError):
+        return ""
+
+
 def clock_sentence():
     t = time.localtime()
     return f"Klockan är {t.tm_hour} och {t.tm_min:02d}." if t.tm_min else f"Klockan är {t.tm_hour} prick."
@@ -643,6 +657,9 @@ def run(command, arg):
     instead (the sentence is still shown), False = only show it."""
     if command == "clock":
         return clock_sentence(), True
+    if command == "greet":
+        name = first_name()
+        return f"Hej{' ' + name if name else ''}! Vad kan jag hjälpa dig med?", True
     if command == "lag":
         meter = Path(__file__).resolve().parents[3] / "libexec/goblincakes-lagmeter"   # /usr/libexec (or the repo's)
         subprocess.Popen([str(meter), "mark", "laggar nu (röst)"], stdout=subprocess.DEVNULL,

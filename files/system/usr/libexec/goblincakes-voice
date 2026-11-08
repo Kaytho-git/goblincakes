@@ -492,6 +492,20 @@ SHORTCUT = ["goblincakes-voice", "push-to-talk", "Goblin AI röst", "Håll in oc
 KEY_F8 = 0x01000037
 MIN_HOLD = 0.4          # shorter = a slip of the finger
 MAX_HOLD = 30           # a stuck key stops by itself
+# After "Kakan" alone (8 Nov, the user's choice "B", on trial): she greets and listens by herself – no key.
+# Ends 1.2 s after the speech stops; nothing said within 6 s = she stops listening.
+FOLLOW_WAIT = 6.0
+FOLLOW_QUIET = 1.2
+FOLLOW_MAX = 20.0
+# A question during a game (8 Nov, the user): she asks first – "nu" = Goblin AI (Claude) at once, "vänta"/nothing said =
+# saved here and asked when the game has closed
+LATER_FILE = DIR / "efter-spelet.json"
+ASK_NOW_OR_LATER = "Vill du att Claude tittar på det nu, eller kan det vänta tills du spelat klart?"
+WAIT_WORDS = re.compile(r"\b(?:vänta\w*|sen|sedan|senare|efter\w*|nej|nä|inte nu|det kan vänta)\b")
+CLAUDE = r"(?:claude|klod|clod|cloud|kloud|klaud|klåd)"   # Whisper's ways of hearing "Claude"
+ANSWER_ONLY = re.compile(rf"(?:nu|direkt|vänta|vänta lite|sen|sedan|senare|klart|det kan vänta|inte nu|nu tack|ja nu|"
+                         rf"(?:till |skicka till )?{CLAUDE}(?: nu)?)")
+NOW_WORDS = re.compile(rf"\b(?:ja|japp|jo|nu|direkt|gör det|skicka|titta|kör|gärna|okej|ok|{CLAUDE})\b")
 MUTED_FILE = Path(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()) / "goblincakes-voice-muted.json"
 START_SOUND = "/usr/share/sounds/ocean/stereo/button-pressed.oga"
 
@@ -716,6 +730,10 @@ class Listener:
         self.started = 0.0
         self.timer = None
         self.player = None       # pw-play while she speaks – the key stops her
+        self.follow = False      # "Kakan" alone: listen by herself once she has greeted
+        self.auto = None         # that listening's pw-record (follow_listen)
+        self.choice = None       # (question, monotonic) while she waits for "nu"/"vänta" during a game
+        GLib.timeout_add_seconds(30, self.ask_saved)
         self.boxproc = None      # the box top right (cmd_box), started at the first use
         self.tmp = Path(tempfile.mkdtemp(prefix="goblincakes-voice-"))
         # (a leftover semaphore from the speech library is harmless – its warning is hidden)
@@ -796,6 +814,9 @@ class Listener:
             osd(fallback)
 
     def press(self):
+        self.follow = False                    # (a waiting "nu eller vänta?" stays – the key may answer it)
+        if self.auto:                          # the key during her own listening: the key takes over
+            self.stop_follow(cancel=True)
         if self.rec:
             return
         self.hush()
@@ -831,6 +852,121 @@ class Listener:
         self.send({"hear": str(self.wav)})
         return False
 
+    def follow_listen(self):
+        """Listens without the key (after the greeting): records until the speech has stopped, then as a release."""
+        self.follow = False
+        if self.rec or self.auto:
+            return False
+        self.wav = self.tmp / f"{int(time.time() * 1000)}.wav"
+        words = (ASK_NOW_OR_LATER + " Säg Claude eller vänta.") if self.choice else "Jag lyssnar – säg vad du vill."
+        self.box("listening", answer=words, fallback="Kakan lyssnar…")
+        discord_mute()
+        if os.path.exists(START_SOUND):        # the sound first – it must not count as speech
+            subprocess.run(["pw-play", START_SOUND], stderr=subprocess.DEVNULL, timeout=3, check=False)
+        self.auto = subprocess.Popen(["pw-record", "--raw", "--rate", "16000", "--channels", "1",
+                                      "--format", "s16", "-"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        proc, wav = self.auto, self.wav
+
+        def work():
+            import array
+            import math
+            chunk = 3200                       # 0.1 s
+            got, floor, loud, spoke, quiet, n = [], [], 0, False, 0.0, 0
+            while True:
+                data = proc.stdout.read(chunk)
+                if not data:
+                    break                      # stopped (the key, or the service closing)
+                got.append(data)
+                n += 1
+                a = array.array("h", data[: len(data) // 2 * 2])
+                rms = math.sqrt(sum(x * x for x in a) / max(1, len(a)))
+                if n <= 3:                     # the room's own sound sets the bar (a quiet room ~40–110)
+                    floor.append(rms)
+                    continue
+                bar = max(500.0, 4 * (sorted(floor)[len(floor) // 2]))
+                loud = loud + 1 if rms > bar else 0
+                if loud >= 2:
+                    spoke, quiet = True, 0.0
+                elif spoke:
+                    quiet += 0.1
+                t = n * 0.1
+                if (spoke and quiet >= FOLLOW_QUIET) or (not spoke and t >= FOLLOW_WAIT) or t >= FOLLOW_MAX:
+                    break
+            if proc.poll() is None:
+                proc.terminate()
+            proc.wait()
+            if spoke:
+                with wave.open(str(wav), "wb") as w:
+                    w.setnchannels(1)
+                    w.setsampwidth(2)
+                    w.setframerate(16000)
+                    w.writeframes(b"".join(got))
+            print(f"Lyssnade själv {n * 0.1:.1f} s: " + ("tal" if spoke else "inget sagt"), flush=True)
+            self.GLib.idle_add(self.follow_done, proc, spoke)
+        threading.Thread(target=work, daemon=True).start()
+        return False
+
+    def follow_done(self, proc, spoke):
+        if self.auto is not proc:              # the key took over meanwhile
+            return False
+        self.auto = None
+        discord_unmute()
+        if spoke and self.wav.is_file():
+            self.box("thinking")
+            self.send({"hear": str(self.wav)})
+        elif self.choice:                      # nothing said to "nu eller vänta?": it waits
+            question, self.choice = self.choice[0], None
+            self.save_for_later(question, "")
+        else:
+            self.box("nothing")
+        return False
+
+    def save_for_later(self, question, heard):
+        try:
+            saved = json.loads(LATER_FILE.read_text())
+        except (OSError, ValueError):
+            saved = []
+        saved.append({"q": question, "at": time.strftime("%H:%M")})
+        LATER_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LATER_FILE.write_text(json.dumps(saved, ensure_ascii=False))
+        print(f"Sparad till efter spelet: {question}", flush=True)
+        self.box("answer", heard, "Okej, det får vänta. Jag frågar Claude när du spelat klart.", 5,
+                 fallback="Det får vänta tills du spelat klart")
+
+    def ask_saved(self):
+        """Every 30 s: saved questions and no game any more → one question to Goblin AI with them all."""
+        if not LATER_FILE.is_file() or in_game():
+            return True
+        try:
+            saved = json.loads(LATER_FILE.read_text())
+        except (OSError, ValueError):
+            saved = []
+        LATER_FILE.unlink(missing_ok=True)
+        if not saved:
+            return True
+        if len(saved) == 1:
+            text = f"Under spelet ({saved[0]['at']}) sa jag: {saved[0]['q']}"
+        else:
+            text = "Under spelet sa jag det här – ta det i tur och ordning:\n" + "\n".join(
+                f"{n}. ({s['at']}) {s['q']}" for n, s in enumerate(saved, 1))
+        print(f"Spelet slut – {len(saved)} sparade frågor till Goblin AI", flush=True)
+        voicecmd().ask_in_window(text)
+        notify("Kakan", "Spelet är slut – frågorna från spelet ligger nu hos Claude i Goblin AI.")
+        return True
+
+    def stop_follow(self, cancel=False):
+        proc, self.auto = self.auto, None
+        if proc and proc.poll() is None:
+            proc.terminate()
+        discord_unmute()
+        if cancel and self.wav:
+            self.wav.unlink(missing_ok=True)
+
+    def after_speech(self, _pid, _status):
+        if self.follow:
+            self.GLib.timeout_add(300, self.follow_listen)
+        return False
+
     def send(self, job):
         self.worker.stdin.write(json.dumps(job, ensure_ascii=False) + "\n")
         self.worker.stdin.flush()
@@ -854,6 +990,10 @@ class Listener:
             if not self.rec:                   # the key pressed again meanwhile = quiet
                 self.hush()
                 self.player = subprocess.Popen(["pw-play", result["said"]], stderr=subprocess.DEVNULL)
+                if self.follow:                # the greeting: listen when she has said it
+                    self.GLib.child_watch_add(self.player.pid, self.after_speech)
+            elif self.follow:
+                self.GLib.timeout_add(300, self.follow_listen)
             return True
         if self.heard(result.get("text") or "", result) != "again":
             Path(result.get("hear") or self.tmp / "-").unlink(missing_ok=True)
@@ -870,6 +1010,17 @@ class Listener:
             print(f"Rättat mot kända ord: {fixed}", flush=True)
             text = fixed
         self.heard_text = text
+        if self.choice and time.monotonic() - self.choice[1] < 60:
+            question, self.choice = self.choice[0], None
+            said = text.lower()
+            if NOW_WORDS.search(said) and not WAIT_WORDS.search(said):
+                voicecmd().ask_in_window(question)
+                self.box("answer", text, "Claude tittar på det nu – svaret kommer på andra skärmen.", 6,
+                         fallback="Claude tittar på det nu")
+            else:
+                self.save_for_later(question, text)
+            return
+        self.choice = None
         commands = voicecmd().match_all(text)
         # "lite till" = the last command again (volume, next song), within a minute
         last, when = getattr(self, "last", (None, 0))
@@ -877,6 +1028,12 @@ class Listener:
                     if c[0] != "again" or (last and time.monotonic() - when < 60)]
         if commands:
             self.last = (commands[-1], time.monotonic())
+        self.follow = any(c[0] == "greet" for c in commands)
+        if not commands and len(text.split()) <= 3 and (ANSWER_ONLY.fullmatch(voicecmd().fix_words(text))):
+            # 8 Nov: a lone "Nu!" with no "nu eller vänta?" asked became a question of its own for Claude
+            self.box("answer", text, "Jag väntade inte på något svar – tryck F8 och säg frågan igen.", 5,
+                     fallback="Kakan väntade inte på något svar")
+            return
         if not commands and not result.get("big") and big_installed() and result.get("hear"):
             # A question, not a command: the bigger model hears the same recording once more (7 Nov) – the box shows
             # small's words meanwhile
@@ -888,9 +1045,9 @@ class Listener:
                 # Under spel (7 Nov, the user: "gear planner funkar inte, kolla det" → Haiku starts working): Goblin
                 # AI takes it without coming over the game – the answer and any card on the free screen, a notice
                 # says so (goblin-ai _show_in_game). She doesn't speak during a game.
-                voicecmd().ask_in_window(text)
-                self.box("answer", text, "Jag tar det i Goblin AI – svaret kommer på andra skärmen.", 6,
-                         fallback="Kakan tar det i Goblin AI")
+                self.choice = (text, time.monotonic())
+                self.box("answer", text, ASK_NOW_OR_LATER, 60, fallback=ASK_NOW_OR_LATER)
+                self.GLib.timeout_add(1200, self.follow_listen)
                 return
             voicecmd().ask_in_window(text)
             self.answer("Jag tar det i Goblin AI.", "Jag tar det i Goblin AI.")
@@ -925,6 +1082,8 @@ class Listener:
         if spoken and in_game():
             print("Spel igång – bara i rutan, inget läses upp", flush=True)   # the user 5 Nov: don't intrude
             spoken = ""
+        if self.follow and not spoken:         # the greeting only shown (a game): listen at once
+            self.GLib.timeout_add(1200, self.follow_listen)
         if spoken:
             out = self.tmp / f"say-{int(time.time() * 1000)}.wav"
             self.send({"say": spoken, "voice": voice_for_avatar(), "out": str(out)})
@@ -936,6 +1095,7 @@ class Listener:
         self.hush()
         if self.rec:
             self.rec.kill()
+        self.stop_follow()
         discord_unmute()
         self.unregister()
         try:
