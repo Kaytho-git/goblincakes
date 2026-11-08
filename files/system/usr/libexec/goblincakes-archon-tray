@@ -139,13 +139,30 @@ class ArchonTray:
                 "call", service, self.menu_path, MENU, "Event", "isvu", "--",
                 str(cid), "clicked", "s", "", "0"))
 
+    def open_from_menu(self):
+        """Click Archon's own "Open …" menu entry; False when there is none."""
+        if not self.menu_path:
+            return False
+        service = self.item[0]
+        busctl("call", service, self.menu_path, MENU, "AboutToShow", "i", "0")
+        layout = busctl("call", service, self.menu_path, MENU, "GetLayout", "iias", "--", "0", "-1", "0")
+        for cid, label, enabled, separator in entries(layout["data"][1]) if layout else []:
+            if not separator and enabled and label.lower().startswith(("open", "show", "öppna", "visa")):
+                busctl("call", service, self.menu_path, MENU, "Event", "isvu", "--",
+                       str(cid), "clicked", "s", "", "0")
+                return True
+        return False
+
     def clicked(self, reason):
         if not self.item:
             return
         if reason in (QSystemTrayIcon.ActivationReason.Trigger,
                       QSystemTrayIcon.ActivationReason.DoubleClick):
-            pos = QCursor.pos()
-            busctl("call", *self.item, SNI, "Activate", "ii", str(pos.x()), str(pos.y()))
+            # Archon ignores Activate (8 Nov: nothing happened on a left click) – its menu's
+            # "Open Archon App" opens the window; Activate only when the menu has no such entry
+            if not self.open_from_menu():
+                pos = QCursor.pos()
+                busctl("call", *self.item, SNI, "Activate", "ii", str(pos.x()), str(pos.y()))
         elif reason == QSystemTrayIcon.ActivationReason.MiddleClick:
             busctl("call", *self.item, SNI, "SecondaryActivate", "ii", "0", "0")
 
