@@ -228,6 +228,19 @@ class Backend(QObject):
         R.remove_video(path)
         self.refreshVideos()
 
+    @Slot(str)
+    def removeVideos(self, paths):
+        """MARKERA → Ta bort: several at once. Kept ones ("Spara för alltid") stay, a match's kept clips too."""
+        vids = R.video_files(R.load_config()["folder"])
+        for path in json.loads(paths):
+            if any(v["path"] == path and v.get("keep") for v in vids):
+                continue
+            for clip in vids:  # a CS2 match: its clips too
+                if clip.get("parent") == Path(path).name and not clip.get("keep"):
+                    R.remove_video(clip["path"])
+            R.remove_video(path)
+        self.refreshVideos()
+
     @Slot(str, bool)
     def setKeep(self, path, keep):
         meta = Path(path).with_suffix(".json")

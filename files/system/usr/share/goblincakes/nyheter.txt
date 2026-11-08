@@ -1,3 +1,4 @@
+2026-11-08  GoblinRecorder: ta bort flera inspelningar på en gång. Tryck MARKERA ovanför listan, kryssa i dem du vill bli av med (eller tryck ALLA eller ALLA WIPES) och sedan Ta bort – du får frågan Ja/Nej först. Inspelningar som sparas för alltid går inte att markera.
 2026-11-08  GoblinShare-chatten: dra över texten i ett meddelande för att markera och kopiera bara en del av det (t.ex. ett kommando). Ett vanligt klick kopierar fortfarande hela meddelandet.
 2026-11-07  Nytt val för laptops i GOBLINCAKES Config → System: Vila bara när locket stängs. Datorn somnar då inte av sig själv när den står orörd, men går fortfarande i viloläge när du stänger locket eller väljer Sov.
 2026-11-07  GoblinShare: medan någon hjälper dig via terminalen (Be om hjälp) går datorn inte i vila av sig själv, så att hjälpen inte bryts mitt i. Locket och Sov i strömmenyn fungerar som vanligt.

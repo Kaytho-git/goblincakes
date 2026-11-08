@@ -165,6 +165,53 @@ Window {
         return bytes > 1e9 ? (bytes / 1e9).toFixed(1).replace(".", ",") + " GB" : Math.round(bytes / 1e6) + " MB";
     }
 
+    // MARKERA (8 Nov, the user's wish): tick several videos and remove them at once, after a
+    // Ja/Nej. "Spara för alltid" can't be ticked – ALLA and ALLA WIPES skip them too.
+    property bool pickMode: false
+    property var picked: ({})       // path → true
+    property bool pickAsk: false
+    function pickable(v) { return !!v && !v.keep; }
+    function togglePick(v) {
+        if (!pickable(v))
+            return;
+        const p = Object.assign({}, win.picked);
+        if (p[v.path]) delete p[v.path]; else p[v.path] = true;
+        win.picked = p;
+    }
+    function pickAll(onlyWipes) {
+        const p = {};
+        for (const v of win.videos)
+            if (pickable(v) && (!onlyWipes || v.result === "wipe"))
+                p[v.path] = true;
+        win.picked = p;
+    }
+    function allPicked(onlyWipes) {
+        const want = win.videos.filter(v => pickable(v) && (!onlyWipes || v.result === "wipe"));
+        return want.length > 0 && want.every(v => win.picked[v.path])
+            && (!onlyWipes || pickedList().length === want.length);
+    }
+    function pickedList() { return win.videos.filter(v => win.picked[v.path]); }
+    function pickedBytes() { // a CS2 match's clips go with it (not the kept ones)
+        let n = 0;
+        for (const v of pickedList()) {
+            n += v.size || 0;
+            for (const c of v.clips || [])
+                if (!c.keep) n += c.size || 0;
+        }
+        return n;
+    }
+    function endPick() { win.pickMode = false; win.picked = ({}); win.pickAsk = false; }
+    function removePicked() {
+        const gone = pickedList();
+        const s = win.selected;
+        if (s && gone.some(v => v.path === s.path || v.file === s.parent)) {
+            player.stop();
+            player.source = "";
+        }
+        backend.removeVideos(JSON.stringify(gone.map(v => v.path)));
+        endPick();
+    }
+
     function when(t) {
         const d = new Date(t * 1000);
         return d.toLocaleDateString(Qt.locale("sv_SE"), "ddd d MMM") + " " + d.toLocaleTimeString(Qt.locale("sv_SE"), "HH:mm");
@@ -1290,12 +1337,62 @@ Window {
             }
         }
 
+        // MARKERA, then ALLA and ALLA WIPES while ticking
+        Row {
+            id: pickBar
+            visible: win.videos.length > 0
+            anchors { left: parent.left; top: parent.top; leftMargin: 24; topMargin: 20 }
+            spacing: 8
+            FlatButton {
+                primary: win.pickMode
+                text: "MARKERA"
+                onClicked: win.pickMode ? win.endPick() : win.pickMode = true
+                HoverTip { tip: "Kryssa i flera inspelningar och ta bort dem på en gång. De som sparas för alltid går inte att kryssa i." }
+            }
+            FlatButton {
+                visible: win.pickMode
+                text: win.allPicked(false) ? "INGA" : "ALLA"
+                onClicked: win.allPicked(false) ? win.picked = ({}) : win.pickAll(false)
+            }
+            FlatButton {
+                visible: win.pickMode
+                text: "ALLA WIPES"
+                primary: win.allPicked(true)
+                onClicked: win.allPicked(true) ? win.picked = ({}) : win.pickAll(true)
+            }
+        }
+        // While ticking: how many and how much, Ta bort and Avbryt
+        Rectangle {
+            id: pickFoot
+            visible: win.pickMode && win.videos.length > 0
+            anchors { left: parent.left; bottom: parent.bottom; leftMargin: 24; bottomMargin: 20 }
+            width: 400 - 16
+            height: 50
+            color: "#0B1018"
+            border.width: 1
+            border.color: "#1E2A40"
+            readonly property int n: win.pickedList().length
+            Text {
+                anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                text: pickFoot.n ? pickFoot.n + " markerade · " + win.size(win.pickedBytes()) : "Klicka på inspelningarna"
+                color: pickFoot.n ? "#E6ECF5" : "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 13
+            }
+            Row {
+                anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                spacing: 8
+                FlatButton { danger: true; enabledState: pickFoot.n > 0; text: "Ta bort"; onClicked: win.pickAsk = true }
+                FlatButton { text: "Avbryt"; onClicked: win.endPick() }
+            }
+        }
+
         // The list of videos, newest first
         ListView {
             id: list
             FastWheel { flick: list }
             visible: win.videos.length > 0
-            anchors { left: parent.left; top: parent.top; bottom: parent.bottom; leftMargin: 24; topMargin: 20; bottomMargin: 20 }
+            anchors { left: parent.left; top: pickBar.bottom; bottom: win.pickMode ? pickFoot.top : parent.bottom; leftMargin: 24; topMargin: 10; bottomMargin: win.pickMode ? 10 : 20 }
             width: 400
             clip: true
             spacing: 8
@@ -1315,9 +1412,11 @@ Window {
                 width: list.width - 16
                 readonly property int headHeight: modelData.avgIlvl ? 100 : 84 // a 4th line: avg.ilvl
                 height: headHeight + (open ? (cs2match ? clipsCol.height : statsCol.height) + 12 : 0)
-                color: active ? "#12203A" : cardArea.containsMouse ? "#0E1420" : "transparent"
-                border.width: active ? 2 : 1
-                border.color: active ? accent.color : "#1E2A40"
+                readonly property bool ticked: win.pickMode && !!win.picked[modelData.path]
+                opacity: win.pickMode && !win.pickable(modelData) ? 0.45 : 1
+                color: ticked || active && !win.pickMode ? "#12203A" : cardArea.containsMouse ? "#0E1420" : "transparent"
+                border.width: ticked || active && !win.pickMode ? 2 : 1
+                border.color: ticked || active && !win.pickMode ? accent.color : "#1E2A40"
 
                 Item {
                     id: head
@@ -1423,6 +1522,37 @@ Window {
                             win.expanded = win.expanded === card.modelData.path ? "" : card.modelData.path;
                         else if (card.modelData.wcl)
                             win.toggleStats(card.modelData); // the players from Warcraft Logs
+                    }
+                }
+                // MARKERA: a click ticks the card (over everything in it, clips too)
+                MouseArea {
+                    visible: win.pickMode
+                    anchors.fill: parent
+                    z: 20
+                    hoverEnabled: true
+                    cursorShape: win.pickable(card.modelData) ? Qt.PointingHandCursor : Qt.ForbiddenCursor
+                    onClicked: win.togglePick(card.modelData)
+                    HoverTip { tip: win.pickable(card.modelData) ? "" : "Sparas för alltid – går inte att markera." }
+                }
+                Rectangle { // the tick box, over the thumbnail's top left corner
+                    visible: win.pickMode && win.pickable(card.modelData)
+                    x: 12
+                    y: (card.headHeight - 68) / 2 + 4
+                    z: 21
+                    width: 20
+                    height: 20
+                    readonly property bool on: !!win.picked[card.modelData.path]
+                    color: on ? accent.color : "#B307090D"
+                    border.width: on ? 0 : 1
+                    border.color: "#E6ECF5"
+                    Text {
+                        anchors.centerIn: parent
+                        visible: parent.on
+                        text: "✓"
+                        color: accent.on
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.Bold
+                        font.pixelSize: 14
                     }
                 }
 
@@ -3757,6 +3887,52 @@ Window {
                     FlatButton { primary: true; text: "Göm i systemfältet"; onClicked: win.closeAs("tray") }
                     FlatButton { text: "Stäng"; onClicked: win.closeAs("quit") }
                     FlatButton { text: "Avbryt"; onClicked: win.closeAsk = false }
+                }
+            }
+        }
+    }
+
+    // MARKERA → Ta bort asks Ja/Nej first (the files go for good)
+    Rectangle {
+        visible: win.pickAsk
+        anchors.fill: parent
+        z: 50
+        color: "#B307090D"
+        MouseArea { anchors.fill: parent; onClicked: win.pickAsk = false }
+        Rectangle {
+            anchors.centerIn: parent
+            width: 460
+            height: pickAskCol.implicitHeight + 48
+            color: "#0E1420"
+            border.width: 1
+            border.color: accent.error
+            MouseArea { anchors.fill: parent } // clicks inside don't close it
+            Column {
+                id: pickAskCol
+                x: 24
+                y: 24
+                width: parent.width - 48
+                spacing: 14
+                readonly property int n: win.pickAsk ? win.pickedList().length : 0
+                Text {
+                    width: parent.width
+                    text: pickAskCol.n === 1 ? "TA BORT 1 INSPELNING?" : "TA BORT " + pickAskCol.n + " INSPELNINGAR?"
+                    color: "#E6ECF5"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.Bold
+                    font.pixelSize: 16
+                    font.letterSpacing: 2
+                    wrapMode: Text.WordWrap
+                }
+                Note {
+                    width: parent.width
+                    text: (win.pickAsk ? win.size(win.pickedBytes()) : "") + " raderas direkt och går inte att få tillbaka. "
+                          + "Siffrorna i WoW Stats och CS2 Stats finns kvar. De som sparas för alltid är inte med."
+                }
+                Row {
+                    spacing: 10
+                    FlatButton { danger: true; text: "Ja, ta bort"; onClicked: win.removePicked() }
+                    FlatButton { primary: true; text: "Nej"; onClicked: win.pickAsk = false }
                 }
             }
         }
