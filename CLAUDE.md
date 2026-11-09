@@ -68,7 +68,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [ ] **Kakans samtal och kunskapsminne** – planeras, byggs inte förrän användaren säger det (grep "kunskapsminne" i anteckningarna).
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav; beredskapsplan om kärnkrav: grep "Beredskapsplan").
 - [ ] **GoblinRecorder för CS2** – byggt, deathmatch provat på riktigt. Kvar: en riktig Premier/Competitive + nedladdad demo (siffror mot Leetify, klippen, servernamnet "Valve") – grep "Leetify".
-- [ ] **Offhand – WoW över två skärmar** – provat i Retail 9 nov (med flyttad EllesmereUI-profil): kändes för ovant; Forever bara om användaren vill (grep "Offhand" i anteckningarna).
+- [ ] **Offhand – WoW över två skärmar** – provat i Retail 9 nov (med flyttad EllesmereUI-profil): kändes för ovant; nästa: prova i Forever (profilen atrocityUI Offhand får ligga kvar) (grep "Offhand" i anteckningarna).
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer
