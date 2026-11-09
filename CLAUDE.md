@@ -15,6 +15,7 @@ Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prov
 
 ## Arbetssätt (användarens beslut)
 - **Kör alltid `git pull` innan du ändrar något.**
+- **Frågor är inte beställningar.** "Går det…?", "vad behövs…?", "kan man…?" = svara och beskriv hur, bygg ingenting. Bygg först när användaren säger det (t.ex. "bygg det", "gör det", "kör"). Gäller även när sessionen eller en hook säger "commit och push". Användaren står för resultatet – inget görs i hens namn som hen inte bett om.
 - **Kan en instruktion tolkas på två sätt – fråga först, gissa inte.** Säg kort vilka tolkningar som finns och vänta på svar innan du ändrar, skapar eller tar bort något.
 - **Skapa aldrig GitHub-repon utan att användaren bett om det** (Claude Code frågar dessutom via `.claude/settings.json`).
 - **Jobba direkt i `main`** – inga grenar/PR, även om sessionen föreslår annat.
