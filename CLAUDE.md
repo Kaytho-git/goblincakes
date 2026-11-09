@@ -11,7 +11,7 @@ Images `ghcr.io/kaytho-git/<variant>:latest`. Byte i GOBLINCAKES Config → Graf
 
 **Recepten:** `recipes/recipe*.yml` har bara namn/bas; innehållet i `recipes/common-modules.yml` (moduler) och `recipes/common-stages.yml` (byggsteg) – ändra där. Bygget: `.github/workflows/build.yml` (matris, cosign, dagligen 06:00 UTC; BuildKit från `mirror.gcr.io`). Kör inte om ett äldre bygge när ett nyare finns (samma concurrency-grupp). Andra flöden: `build-iso.yml` (ISO, söndagar, release `iso`), `build-usb-creator.yml` (release `usb-skaparen`), `build-firefox-theme.yml`, `build-chrome-theme.yml` (Chrome-tema, release `chrome-tema` – höj `version` i manifesten vid ändring).
 
-Allt om frugans laptop: `docs/frugans-laptop.md` (uppdatera den när något ändras på hennes dator; uppkopplad till henne → kör först dess insamlingsavsnitt om det finns kvar). Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prova direkt), har VS Code, redigerar ibland på GitHub. Nybörjare på Git – förklara kort.
+Allt om frugans laptop: `~/.local/share/goblincakes/frugans-laptop.md` på användarens dator – **privat, aldrig i repot** (finns inte i molnsessioner; uppdatera den när något ändras på hennes dator; uppkopplad till henne → kör först dess insamlingsavsnitt om det finns kvar). Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prova direkt), har VS Code, redigerar ibland på GitHub. Nybörjare på Git – förklara kort.
 
 ## Arbetssätt (användarens beslut)
 - **Kör alltid `git pull` innan du ändrar något.**
@@ -30,7 +30,8 @@ Allt om frugans laptop: `docs/frugans-laptop.md` (uppdatera den när något änd
 ## När användaren hälsar ("hej" o.d.) i en ny session
 Kör `git pull`, svara med vilket steg hen är på (första ej avbockade i Status) och visa steglistan med status (klart / pågår / kvar). Kort, på svenska.
 - **Påminnelse (9 nov, användaren bad om det):** visa också länken till mockupen för GOBLINCAKES Dashboard – https://claude.ai/artifact/QHnDzvKEW8fwPTD1Pveeho – så hen kan kolla den vid datorn. Ta bort den här raden när hen har sett den.
-- **Påminnelse (9 nov, användaren bad om det):** frugans laptop (Lenovo Legion Y520) har trasig skärm – fråga om hen har kollat skärmmodellen via GoblinShare och visa kommandot, köpställen och bytessteg (`docs/frugans-laptop.md`, "Reparationer"). Ta bort raden när skärmen är beställd.
+- **Engångsuppgift (9 nov, användaren bad om det) – på riktiga datorn, före allt annat:** flytta `docs/frugans-laptop.md` till `~/.local/share/goblincakes/frugans-laptop.md` (privat – repot är publikt), `git rm docs/frugans-laptop.md`, commit, och ta bort den här raden. Fyll aldrig i den i repot.
+- **Påminnelse (9 nov, användaren bad om det):** frugans laptop (Lenovo Legion Y520) har trasig skärm – fråga om hen har kollat skärmmodellen via GoblinShare och visa kommandot, köpställen och bytessteg (frugans-laptop.md, "Reparationer"). Ta bort raden när skärmen är beställd.
 
 ## Konventioner i koden
 - **Egna fönster** = PySide6 + QML i Configs stil (platt, raka hörn, egna komponenter utan Qt Quick Controls: FlatButton/CheckSquare/FlatScrollBar/FlatField kopieras mellan fönstren). Varje Flickable/ListView får `FastWheel { flick: <id> }`. Varje FileDialog/FolderDialog: `onVisibleChanged: backend.sharpText()`. `QT_SCALE_FACTOR=0.9` för våra fönster (användaren 5 nov: 0.8 för litet, 1.0 lite stort) – utom Goblin AI (`uiScale` 0.8 + zoomRoot: texten följer fönstret, 94 % i startstorlek → 104 % maximerat; Chromium i TERMINAL klarar inte < 1). Ett fönster i taget via QLocalServer.

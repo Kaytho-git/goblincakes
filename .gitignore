@@ -6,3 +6,6 @@ cosign.private
 __pycache__/
 # made by tools/news-commits.py in the build
 files/system/usr/share/goblincakes/nyheter-commits.json
+
+# Privat – frugans laptop ligger bara på användarens dator
+docs/frugans-laptop.md

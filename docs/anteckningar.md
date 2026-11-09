@@ -773,4 +773,4 @@ Användaren: "när gick senaste OS i bågskytte?" → "blev det några världsre
 **Att tänka på:** gamla fakta (datum; "senaste"/priser/patchar söks ändå), fel som sparas (bara det som kom från en källa, aldrig gissningar; avsnitten syns och kan tas bort, t.ex. Inställningar bredvid Lärdomar), filen växer (tak eller städning). `minne.json` (60 saker à 300 tecken, om användaren) är för litet för detta och ligger kvar som det är.
 
 ## Frugans laptop: byta trasig skärm (9 nov)
-Flyttat till [`docs/frugans-laptop.md`](frugans-laptop.md) (allt om hennes dator samlat där).
+Flyttat till `~/.local/share/goblincakes/frugans-laptop.md` på användarens dator (allt om hennes dator samlat där – privat, inte i repot).

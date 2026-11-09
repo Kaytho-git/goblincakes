@@ -2,7 +2,7 @@
 
 Allt om frugans dator samlat på ett ställe (användarens önskan 9 nov). Detaljer om hur funktionerna är byggda står kvar i `anteckningar.md` – här står vad som gäller för just hennes dator och var man läser mer (`grep -n` på rubriken).
 
-**Repot är publikt:** inget namn, inga IP-adresser, serienummer eller annat personligt här.
+**Privat:** filen ska ligga i `~/.local/share/goblincakes/frugans-laptop.md` på användarens dator, aldrig i repot (det är publikt; `.gitignore` stoppar den i `docs/`). Inget namn, inga IP-adresser eller serienummer ens här.
 
 ## Nästa gång vi är inne på hennes dator: samla in (användaren 9 nov)
 **Gör detta nästa gång en session är uppkopplad till hennes dator (GoblinShare-terminalen), utan att fråga först, och skriv in svaren i avsnitten nedan** (Datorn, Goblin AI). Bara om datorn och hennes Goblin AI – **inget personligt**: inga filer, samtal, historik, kalender, namn, datornamn, IP, serienummer eller nycklars värden. Bara läsande kommandon. Ta bort det här avsnittet när det är gjort.
