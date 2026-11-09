@@ -63,6 +63,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 
 ## Att göra
 - [ ] **Kakan självgående – veckans plan, punkt 0–23** – allt klart utom punkt 18 (defensiva sidan i WoW-analyserna) (ordning, vad som är byggt och vad som är kvar: grep "veckans plan" i anteckningarna).
+- [ ] **Kakans samtal och kunskapsminne** – planeras, byggs inte förrän användaren säger det (grep "kunskapsminne" i anteckningarna).
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav; beredskapsplan om kärnkrav: grep "Beredskapsplan").
 - [ ] **GoblinRecorder för CS2** – byggt, deathmatch provat på riktigt. Kvar: en riktig Premier/Competitive + nedladdad demo (siffror mot Leetify, klippen, servernamnet "Valve") – grep "Leetify".
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
