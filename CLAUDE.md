@@ -29,6 +29,7 @@ Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prov
 
 ## När användaren hälsar ("hej" o.d.) i en ny session
 Kör `git pull`, svara med vilket steg hen är på (första ej avbockade i Status) och visa steglistan med status (klart / pågår / kvar). Kort, på svenska.
+- **Påminnelse (9 nov, användaren bad om det):** visa också länken till mockupen för GOBLINCAKES Dashboard – https://claude.ai/artifact/QHnDzvKEW8fwPTD1Pveeho – så hen kan kolla den vid datorn. Ta bort den här raden när hen har sett den.
 
 ## Konventioner i koden
 - **Egna fönster** = PySide6 + QML i Configs stil (platt, raka hörn, egna komponenter utan Qt Quick Controls: FlatButton/CheckSquare/FlatScrollBar/FlatField kopieras mellan fönstren). Varje Flickable/ListView får `FastWheel { flick: <id> }`. Varje FileDialog/FolderDialog: `onVisibleChanged: backend.sharpText()`. `QT_SCALE_FACTOR=0.9` för våra fönster (användaren 5 nov: 0.8 för litet, 1.0 lite stort) – utom Goblin AI (`uiScale` 0.8 + zoomRoot: texten följer fönstret, 94 % i startstorlek → 104 % maximerat; Chromium i TERMINAL klarar inte < 1). Ett fönster i taget via QLocalServer.
