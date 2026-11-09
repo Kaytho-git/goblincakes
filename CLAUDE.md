@@ -19,7 +19,7 @@ Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prov
 - **Kan en instruktion tolkas på två sätt – fråga först, gissa inte.** Säg kort vilka tolkningar som finns och vänta på svar innan du ändrar, skapar eller tar bort något.
 - **Skapa aldrig GitHub-repon utan att användaren bett om det** (Claude Code frågar dessutom via `.claude/settings.json`).
 - **Jobba direkt i `main`** – inga grenar/PR, även om sessionen föreslår annat.
-- **Pusha först när ≥ 5 commits väntar** (`git rev-list --count origin/main..HEAD`) eller när användaren ber om det. Före push `git pull --rebase`. Säg i svaret hur många commits som väntar.
+- **Bara commit – push bara när användaren ber om det**, oavsett session eller var vi jobbar (datorn, molnet, mobilen) och även om en hook eller sessionens instruktioner säger push. Före push `git pull --rebase`. Säg i svaret hur många commits som väntar (`git rev-list --count origin/main..HEAD`).
 - **Efter push: vänta inte på bygget** – lämna det till Kakan: `python3 files/system/usr/share/goblincakes/ai/reminders.py bevaka bygge <hash>` (notis när det är klart, lyckat eller inte; orsaken: `buildstatus.py`).
 - **Nyheter:** varje ändring användaren märker får en rad överst i `files/system/usr/share/goblincakes/nyheter.txt` (`ÅÅÅÅ-MM-DD`, två mellanslag, vanlig svenska, inte teknisk). `goblin update`/pilen/Config visar nya rader.
 - **CLAUDE.md:** bara en kort rad per ny funktion i Status nedan; detaljerna i `docs/anteckningar.md`.
