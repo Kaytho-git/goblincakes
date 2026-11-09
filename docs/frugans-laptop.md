@@ -4,6 +4,21 @@ Allt om frugans dator samlat på ett ställe (användarens önskan 9 nov). Detal
 
 **Repot är publikt:** inget namn, inga IP-adresser, serienummer eller annat personligt här.
 
+## Nästa gång vi är inne på hennes dator: samla in (användaren 9 nov)
+**Gör detta nästa gång en session är uppkopplad till hennes dator (GoblinShare-terminalen), utan att fråga först, och skriv in svaren i avsnitten nedan** (Datorn, Goblin AI). Bara om datorn och hennes Goblin AI – **inget personligt**: inga filer, samtal, historik, kalender, namn, datornamn, IP, serienummer eller nycklars värden. Bara läsande kommandon. Ta bort det här avsnittet när det är gjort.
+```
+ssh <hennes namn i GoblinShare> 'set +e
+cat /sys/class/dmi/id/{sys_vendor,product_name,product_version,bios_version} 2>/dev/null
+lscpu | grep -m1 "Model name"; free -h | head -2
+lsblk -d -o NAME,MODEL,SIZE,ROTA,TYPE | grep disk
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader 2>/dev/null
+for f in /sys/class/drm/card*-eDP-*/edid; do strings "$f"; done
+cat /usr/share/goblincakes/variant; rpm-ostree status --booted | sed -n 2,4p
+grep -E "^(PRETTY_NAME|VERSION_ID)=" /etc/os-release
+cd ~/.config/goblincakes 2>/dev/null && { echo "namn: $(cat ai-name 2>/dev/null || echo Goblin AI)"; echo "kön: $(cat ai-gender 2>/dev/null)"; echo "vald modell: $(cat ai-model 2>/dev/null || echo automatiskt)"; echo "nycklar (bara namnen):"; cut -d= -f1 ai.env 2>/dev/null; }
+curl -s 127.0.0.1:11434/api/tags | python3 -c "import json,sys; [print(m[\"name\"], m[\"details\"].get(\"parameter_size\",\"\"), round(m[\"size\"]/1e9,1), \"GB\") for m in json.load(sys.stdin)[\"models\"]]" 2>/dev/null || echo "Ollama svarar inte (av eller pausad av spelvakten)"'
+```
+
 ## Datorn
 - **Lenovo Legion Y520-15IKBN**, Intel i7-7700HQ, 16 GB minne.
 - **Grafik:** Nvidia GTX 1050 Ti (Pascal) → varianten `goblincakes-nvidia-legacy` (Nvidias 580-drivrutin). P8 i vila, ingen runtime D3. Läs mer: "Tredje varianten" i anteckningarna.
@@ -19,6 +34,10 @@ Allt om frugans dator samlat på ett ställe (användarens önskan 9 nov). Detal
 - **Wifi utan strömsparläge** för alla datorer (hennes hade `Power save: on`) – ej provat efter imagen: `iw dev wlp3s0 get power_save` → off.
 - **AI:** lokal AI kvar (hennes val), liten modell → `/kalender` byggt för henne. Ingen egen moln-AI – ChatGPT kan kopplas in. Beställningar via GoblinShare (bilder: Goblin AI eller ChatGPT på användarens dator).
 - **Hårddisken långsam:** bakgrundsjobben får låg prioritet och uppdateringarna väntar 20 min efter start; `goblincakes-prewarm` förvärmer de mest använda programmen. Mätt 4 nov: start 7 min 20 s, Firefox 23 s första gången. **Kvar:** mät igen efter en riktig omstart med nya imagen (`systemd-analyze` + `blame`). **Provkopia av prewarm i hennes hem** (`~/.local/bin/goblincakes-prewarm`, `~/.config/systemd/user/goblincakes-prewarm.*`) – tas bort när hennes image har den. Läs mer: "Hårddiskar: bakgrundsjobben", "Förvärmning efter inloggning".
+
+## Goblin AI
+- **Namn, kön, vald modell, lokala modeller (namn + storlek), vilka tjänster som har nyckel:** samlas in nästa gång (se ovan).
+- Lokal AI (Ollama) kvar, hennes val; liten modell → `/kalender`.
 
 ## Hjälp på distans (GoblinShare)
 - Hon trycker **Be om hjälp** och läser upp koden → användaren: Terminal + koden. Gäller tills terminalen stängs; under tiden fungerar `ssh <hennes namn i GoblinShare> <kommando>` från Claude Code (provat 4 nov: whoami, rpm-ostree status, uptime).

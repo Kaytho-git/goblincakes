@@ -11,7 +11,7 @@ Images `ghcr.io/kaytho-git/<variant>:latest`. Byte i GOBLINCAKES Config → Graf
 
 **Recepten:** `recipes/recipe*.yml` har bara namn/bas; innehållet i `recipes/common-modules.yml` (moduler) och `recipes/common-stages.yml` (byggsteg) – ändra där. Bygget: `.github/workflows/build.yml` (matris, cosign, dagligen 06:00 UTC; BuildKit från `mirror.gcr.io`). Kör inte om ett äldre bygge när ett nyare finns (samma concurrency-grupp). Andra flöden: `build-iso.yml` (ISO, söndagar, release `iso`), `build-usb-creator.yml` (release `usb-skaparen`), `build-firefox-theme.yml`, `build-chrome-theme.yml` (Chrome-tema, release `chrome-tema` – höj `version` i manifesten vid ändring).
 
-Allt om frugans laptop: `docs/frugans-laptop.md` (uppdatera den när något ändras på hennes dator). Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prova direkt), har VS Code, redigerar ibland på GitHub. Nybörjare på Git – förklara kort.
+Allt om frugans laptop: `docs/frugans-laptop.md` (uppdatera den när något ändras på hennes dator; uppkopplad till henne → kör först dess insamlingsavsnitt om det finns kvar). Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prova direkt), har VS Code, redigerar ibland på GitHub. Nybörjare på Git – förklara kort.
 
 ## Arbetssätt (användarens beslut)
 - **Kör alltid `git pull` innan du ändrar något.**
