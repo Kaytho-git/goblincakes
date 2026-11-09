@@ -61,7 +61,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 
 ## Status (hela listan med vad som är provat: grep "Statuslistan" i anteckningarna)
 **Testas på riktig installation, inte i VM:en.** Klart: Steg 1 bas-recept, Steg 3 utseende/varumärke, Steg 4 Config, Steg 5 Ianseo, Steg 6 ISO + USB-skaparen, terminaler, AppGrid, `goblin update`, Goblin AI (fönster, terminal, lokal AI, lärläge, verktyg), laptop/dubbla grafikkort, grafikdrivrutiner, diskar, spelpaket, spelläge, spelverktyg, `goblin play`, `goblin screen`, toppfältet/Spelas nu, Avinstallera, CalVer, automatiska uppdateringar, goblin graph, GoblinRecorder (WoW + CS2), GoblinAmp, färgval, webbläsarteman, Discord-tema, tiling, kvot-widget, egen docka, ChatGPT-appen, GoblinShare, Kakans röst, `/laga`, `goblin anticheat`, Kakans reserv (Haiku/Sonnet – spelprovet pågår).
-- [ ] Notis om ny Fedora-version (kan inte testas förrän Fedora 45 i `latest`)
+- [ ] Notis om ny Fedora-version – Fedora 45 kom 9 nov (utom nvidia-varianten); notisen gick på frugans laptop, knappen ej provad
 
 ## Att göra
 - [ ] **Kakan självgående – veckans plan, punkt 0–23** – allt klart utom punkt 18 (defensiva sidan i WoW-analyserna) (ordning, vad som är byggt och vad som är kvar: grep "veckans plan" i anteckningarna).
