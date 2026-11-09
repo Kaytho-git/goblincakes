@@ -30,7 +30,6 @@ Allt om frugans laptop: `~/.local/share/goblincakes/frugans-laptop.md` på anvä
 ## När användaren hälsar ("hej" o.d.) i en ny session
 Kör `git pull`, svara med vilket steg hen är på (första ej avbockade i Status) och visa steglistan med status (klart / pågår / kvar). Kort, på svenska.
 - **Påminnelse (9 nov, användaren bad om det):** visa också länken till mockupen för GOBLINCAKES Dashboard – https://claude.ai/artifact/QHnDzvKEW8fwPTD1Pveeho – så hen kan kolla den vid datorn. Ta bort den här raden när hen har sett den.
-- **Engångsuppgift (9 nov, användaren bad om det) – på riktiga datorn, före allt annat:** flytta `docs/frugans-laptop.md` till `~/.local/share/goblincakes/frugans-laptop.md` (privat – repot är publikt), `git rm docs/frugans-laptop.md`, commit, och ta bort den här raden. Fyll aldrig i den i repot.
 - **Påminnelse (9 nov, användaren bad om det):** frugans laptop (Lenovo Legion Y520) har trasig skärm – fråga om hen har kollat skärmmodellen via GoblinShare och visa kommandot, köpställen och bytessteg (frugans-laptop.md, "Reparationer"). Ta bort raden när skärmen är beställd.
 
 ## Konventioner i koden
