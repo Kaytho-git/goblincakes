@@ -1,3 +1,4 @@
+2026-11-09  Config: rutan på Uppdatera-sidan har sin nederkant igen – den försvann när fönstret inte var maximerat.
 2026-11-09  Kakan förstår följdfrågor bättre: frågar du "när gick senaste OS i bågskytte?" och sedan "blev det några världsrekord?" söker hon igen på nätet – och vet att det gäller OS i bågskytte. Du kan fortsätta fråga om samma sak så länge du vill.
 2026-11-08  Kakans röst: säg bara "Kakan" (håll F8) så hälsar hon och lyssnar sedan själv – du behöver inte trycka igen. Under spel frågar hon först om Claude ska titta på det nu eller om det kan vänta: säg "Claude" (eller "nu") för direkt, "vänta" eller ingenting så sparas det – när spelet stängs kommer en notis där du väljer Skicka eller Släng. Har hon hört fel: säg "fel" så glömmer hon det.
 2026-11-08  Battle.net fyller nu skärmen under toppfältet direkt när det startar, och maximeringsknappen gör samma sak. Förut hamnade klicken bredvid knapparna när Battle.net var maximerat.

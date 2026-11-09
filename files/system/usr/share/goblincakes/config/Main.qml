@@ -3437,7 +3437,10 @@ Window {
             Rectangle {
                 visible: win.updateState === "idle" && win.checkState !== ""
                 width: updCol.width
-                height: checkLabel.height + 28
+                // Whole pixels + antialiasing: at the start zoom (94 %) the 1 px bottom edge fell between two pixel
+                // rows and vanished – the text's lineHeight 1.2 gives a fractional height (9 Nov, the user)
+                height: Math.ceil(checkLabel.height) + 28
+                antialiasing: true
                 color: "#0E1420"
                 border.width: 1
                 border.color: win.checkFound ? "#3FB950" : "#1E2A40"
