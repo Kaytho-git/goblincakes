@@ -153,6 +153,9 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
 - I terminalen: goblin ai = /usr/libexec/goblincakes-ai (prompt_toolkit, python3-prompt-toolkit i imagen; utan den en
   enkel rad). /app öppnar fönstret med samma samtal (goblin-ai --open <id>). Terminalens chattar sparas bland fönstrets.
   /projekt <namn> går in i ett projekt (projects.json), /projekt lämnar.
+- Följdfrågor (9 nov): en kort fråga direkt efter ett svar med **Källor:** (från nätet) söks igen – follow_up_of() och
+  follow_up_query() i goblinai.py skriver om den med samtalets ämne (steget "Förstår följdfrågan" visar sökfrågan;
+  "ingen ny sökning behövs" = modellen svarade INGEN). Söker hon på fel sak: titta på den raden i stegen.
 - Chattar, minne och lärdomar: ~/.local/share/goblincakes/ai/. Nycklar: ~/.config/goblincakes/ai.env – visa aldrig.
 - Lärdomar och kända lösningar (kind "solution") i ~/.local/share/goblincakes/ai/lardomar.json, i kategorier, inget tak.
   Visas under Inställningar → Lärdomar och lösningar. Liknande (fältet similar) väljer användaren. Kända lösningar från

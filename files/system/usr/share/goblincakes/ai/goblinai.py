@@ -2596,6 +2596,65 @@ def fresh_question(question):
     return bool(FRESH_WORDS.search(text) or re.search(rf"\b(?:{year - 1}|{year}|{year + 1})\b", text))
 
 
+SOURCES_PART = re.compile(r"\n\n\*\*(?:Källor|Hämtat från):\*\*")
+FOLLOW_UP_CHARS = 200  # a follow-up is short ("blev det några världsrekord?") – a long question stands on its own
+FOLLOW_UP_PROMPT = """Ett samtal (det senaste sist):
+
+{chat}
+
+Användarens nya fråga: "{question}"
+
+Skriv den nya frågan som en fristående sökfråga för en sökmotor: ta med ämnet från samtalet som frågan syftar på
+(vilken händelse, person, sak, vilket år), så att den går att förstå utan samtalet. Kort, en rad.
+Byter användaren ämne: bara den nya frågan. Behövs ingen ny fakta (tack, förklara enklare, översätt, gör kortare,
+din åsikt) – skriv bara INGEN.
+Svara bara med sökfrågan (eller INGEN), inget annat."""
+
+
+def follow_up_of(messages, asked):
+    """The chat before a follow-up to an answer from the web (the user 9 Nov: "när gick senaste OS i bågskytte?" →
+    "blev det några världsrekord?" → "fanns det några svenskar med?" – the second question has no "senaste" and
+    alone says nothing to a search): [(question, answer)], the newest last, or [] when it isn't one."""
+    text = asked_text(asked.get("content"))
+    if not isinstance(asked.get("content"), str) or not text.strip() or len(text) > FOLLOW_UP_CHARS:
+        return []
+    if asked.get("content", "").startswith(OWN_TURNS + REPORT_TURNS):
+        return []
+    i = next((n for n in range(len(messages) - 1, -1, -1) if messages[n] is asked), len(messages))
+    pairs, answer = [], None
+    for m in reversed(messages[:i]):
+        content = m.get("content")
+        if not isinstance(content, str):
+            continue
+        if m["role"] == "assistant":
+            answer = answer if answer is not None else content
+        elif m["role"] == "user" and not content.startswith(OWN_TURNS + REPORT_TURNS) and answer is not None:
+            pairs.insert(0, (asked_text(content)[:400], answer))
+            answer = None
+            if len(pairs) == 3:
+                break
+    # Only when the answer just before came from the web – a chat about the computer or a recipe isn't searched
+    return pairs if pairs and "**Källor:**" in pairs[-1][1] else []
+
+
+def follow_up_query(pairs, question, keys, project=None, choice=""):
+    """The follow-up as a search on its own ("bågskytte OS 2024 världsrekord"), or "" when no search is needed.
+    Without the model (it failed): the first question's words in front – better than the follow-up alone."""
+    chat = "\n\n".join(f"Användaren: {q}\nSvaret: {SOURCES_PART.split(a)[0][:700]}" for q, a in pairs)
+    try:
+        line = helper_ask(FOLLOW_UP_PROMPT.format(chat=chat, question=question), keys, project, choice,
+                          system="Du skriver om följdfrågor till sökfrågor. Svara med en rad.")
+    except Exception:  # noqa: BLE001 – the plain way below
+        line = ""
+    line = re.sub(r"```.*?(?:```|\Z)", "", line, flags=re.S)
+    line = next((l.strip(" \"'*`") for l in line.splitlines() if l.strip()), "")
+    if re.fullmatch(r"INGEN\.?", line, re.I):
+        return ""
+    if not line or len(line) > 300:
+        line = f"{pairs[0][0]} {question}"
+    return " ".join(line.split())[:300]
+
+
 BUILD_WORDS = re.compile(r"\bbygge(?:t|n|na)?\b|\bbuild(?:et|en|s)?\b|byggstatus|byggloggen", re.I)
 
 # Where every answer's facts come from (28 Oct, the user: "länkar och källor på allt hon hämtar information
@@ -3087,9 +3146,19 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         except Exception as e:  # noqa: BLE001 – the AI may look it up itself
             steps.done("fel", e)
             api_asked = None
-    if "sök" in tools and not typed and not api_asked and (forced or (fresh_question(asked.get("content")) and not own and not chat_only)):
+    follow = (follow_up_of(messages, asked) if "sök" in tools and not typed and not api_asked and not own
+              and not chat_only and not report else [])
+    follow_query = ""
+    if follow:
+        # A follow-up to an answer from the web: searched again, the topic from the chat put into the search (9 Nov)
+        if status:
+            status("Förstår följdfrågan…")
+        steps.start("Förstår följdfrågan")
+        follow_query = follow_up_query(follow, " ".join(asked_text(asked.get("content")).split()), keys, project, choice)
+        steps.done(note=follow_query[:80] if follow_query else "ingen ny sökning behövs")
+    if "sök" in tools and not typed and not api_asked and (forced or follow_query or (fresh_question(asked.get("content")) and not own and not chat_only)):
         # Goblin AI searches first, with the question itself (Tavily takes plain questions)
-        query = " ".join(asked_text(asked.get("content")).split())[:300]
+        query = follow_query or " ".join(asked_text(asked.get("content")).split())[:300]
         activity("ask", "söker på nätet")
         if status:
             status("Söker på nätet…")
