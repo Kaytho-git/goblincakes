@@ -162,6 +162,9 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
   storlek, Meta-värdet före), kopior av panelfilen i ~/.local/state/goblincakes/layout-backup/. Tillbaka till toppfält
   och docka lägger dockans program och storlek tillbaka. Kolla: `kreadconfig6 --file kwinrc --group ModifierOnlyShortcuts --key Meta`
   (tomt = Plasmas standard, AppGrid).
+- Nederst i dashboarden: GOBLINCAKES egna program i en rad med små ikoner (dash.py own_apps: menyposterna goblin-* och
+  goblincakes-*), under dem programraden (egna val i dashboard.json, annars dockans fästa program – i upplägget
+  Dashboard de som sparades i desktop-layout.json när dockan togs bort).
 
 ## GOBLINCAKES Config
 Ord: config, inställningar, goblincakes config, program, förinstallerat, fönster, grafik, uppdatera, reglage

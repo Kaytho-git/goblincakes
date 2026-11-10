@@ -186,8 +186,41 @@ def save_views(rows, apps_ids=None):
     save_settings(saved)
 
 
+LAYOUT = CONFIG / "desktop-layout.json"   # goblincakes-desktop-layout: the dock's apps, saved while it is gone
+
+# GOBLINCAKES' own programs (10 Nov, the user's wish): in this order first, then the rest alphabetically
+OWN_FIRST = ["goblincakes-config.desktop", "goblin-ai.desktop", "goblin-recorder.desktop", "goblin-amp.desktop",
+             "goblin-share.desktop"]
+
+
+def own_apps(all_apps=None):
+    """GOBLINCAKES' own programs (goblin-*/goblincakes-* in the menu, and the ChatGPT app), shown small above the
+    programs at the bottom in every view – not the dashboard itself."""
+    rows = [a for a in (all_apps if all_apps is not None else apps())
+            if (a["id"].startswith(("goblin-", "goblincakes-")) or a["id"].lower().startswith("chatgpt"))
+            and a["id"] != "goblin-dashboard.desktop"]
+    order = {name: i for i, name in enumerate(OWN_FIRST)}
+    return sorted(rows, key=lambda a: (order.get(a["id"], len(order)), a["name"].lower()))
+
+
+def saved_dock_apps():
+    """The layout "Dashboard" has no dock: the apps it had, saved by goblincakes-desktop-layout."""
+    try:
+        data = json.loads(LAYOUT.read_text())
+    except (OSError, ValueError):
+        return []
+    if data.get("layout") != "dashboard":
+        return []
+    rows = (data.get("dock") or {}).get("launchers") or []
+    return [r.split(":", 1)[1] for r in rows if isinstance(r, str) and r.startswith("applications:")]
+
+
 def dock_apps():
-    """The desktop files pinned in the GOBLINCAKES dock (asked from plasmashell), [] when there is none."""
+    """The desktop files pinned in the GOBLINCAKES dock (asked from plasmashell) – in the layout "Dashboard" the
+    ones the dock had when it was taken away; [] when there is none."""
+    saved = saved_dock_apps()
+    if saved:
+        return saved
     js = ('var r = []; panels().forEach(function (p) { if (p.location !== "bottom") return; '
           'p.widgets().forEach(function (w) { if (w.type !== "org.goblincakes.dock" && '
           'w.type !== "org.kde.plasma.icontasks") return; w.currentConfigGroup = ["General"]; '

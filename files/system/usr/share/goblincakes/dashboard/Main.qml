@@ -18,6 +18,7 @@ Window {
     // ── What is shown (read from the backend as JSON) ─────────
     property var apps: []
     property var bottom: []
+    property var own: []         // GOBLINCAKES' own programs, small above the bottom row (dash.own_apps)
     property var windows: []
     property var system: ({})
     property var top: []
@@ -145,7 +146,7 @@ Window {
 
     Component.onCompleted: {
         for (const k of ["apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project",
-                         "trayBox", "tools", "wow", "cs2", "builds", "reports"])
+                         "trayBox", "tools", "wow", "cs2", "builds", "reports", "own"])
             load(k);
     }
     onVisibleChanged: {
@@ -2452,11 +2453,56 @@ Window {
         id: bottomBar
         anchors.bottom: parent.bottom
         width: parent.width
-        height: 112
+        height: 112 + (ownRow.visible ? ownRow.height : 0)
         color: "#0B1018"
         Rectangle { width: parent.width; height: 1; color: "#1A2438" }
+        // GOBLINCAKES' own programs, smaller, above the programs in every view (10 Nov, the user's wish)
         Row {
-            anchors.centerIn: parent
+            id: ownRow
+            visible: win.own.length > 0
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: 10
+            height: 56
+            spacing: 6
+            Repeater {
+                model: win.own
+                Rectangle {
+                    required property var modelData
+                    width: 72
+                    height: 56
+                    color: ownArea.containsMouse ? "#12203A" : "transparent"
+                    AppIcon {
+                        y: 4
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        side: 30
+                        icon: modelData.icon
+                        name: modelData.name
+                    }
+                    Text {
+                        y: 38
+                        width: parent.width - 4
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
+                        text: modelData.name.replace(/^GOBLINCAKES /, "")
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 10
+                    }
+                    MouseArea {
+                        id: ownArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: backend.launch(modelData.path)
+                    }
+                }
+            }
+        }
+        Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.bottom
+            anchors.verticalCenterOffset: -56
             spacing: 14
             Repeater {
                 model: win.bottom

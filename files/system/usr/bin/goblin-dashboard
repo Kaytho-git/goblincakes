@@ -151,12 +151,12 @@ class Backend(QObject):
     hideWanted = Signal()
 
     KEYS = ("apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project", "trayBox", "tools",
-            "wow", "cs2", "builds", "reports")
+            "wow", "cs2", "builds", "reports", "own")
 
     def __init__(self):
         super().__init__()
         self.test = test_data()
-        self.data = {k: "[]" if k in ("apps", "bottom", "windows", "top", "projects") else "{}" for k in self.KEYS}
+        self.data = {k: "[]" if k in ("apps", "bottom", "windows", "top", "projects", "own") else "{}" for k in self.KEYS}
         self.busy = set()
         self.system = dash.System()
         self.kwin = KWinBridge()
@@ -224,6 +224,7 @@ class Backend(QObject):
             by_id = {a["id"]: a for a in rows}
             self.arrived.emit("bottom", json.dumps([by_id[i] for i in bottom if i in by_id] if bottom is not None
                                                    else dash.bottom_apps(rows), ensure_ascii=False))
+            self.arrived.emit("own", json.dumps(dash.own_apps(rows), ensure_ascii=False))
             return rows
         self.job("apps", both)
 
