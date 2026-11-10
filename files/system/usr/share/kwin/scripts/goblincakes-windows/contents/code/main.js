@@ -836,6 +836,15 @@ registerShortcut("GOBLINCAKES Dock", "GOBLINCAKES: visa dockan (även över spel
     timer.start();
 });
 
+// GOBLINCAKES Dashboard (10 Nov): Meta in the dashboard layout. The key lives on this KWin action
+// (goblincakes-desktop-layout gives it Meta and takes it back; none by default), not in the
+// dashboard's own process – KWin is always alive, and the D-Bus call starts the dashboard when it
+// isn't running (org.goblincakes.dashboard.service). Before: the dashboard registered the shortcut
+// itself and Meta died with it (closed with Config, the terminal or at a crash).
+registerShortcut("GOBLINCAKES Dashboard", "GOBLINCAKES: visa eller göm dashboarden", "", function () {
+    callDBus("org.goblincakes.dashboard", "/dashboard", "org.goblincakes.dashboard", "toggle");
+});
+
 const existing = workspace.windowList();
 for (let i = 0; i < existing.length; i++) {
     if (ordinaryWindow(existing[i]))

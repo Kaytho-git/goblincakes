@@ -122,8 +122,14 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   menyposten GOBLINCAKES Dashboard. Med standardupplägget (toppfält och docka) öppnar Meta AppGrid; med upplägget
   Dashboard (steg 4 nedan) tar Meta fram dashboarden.
 - /usr/bin/goblin-dashboard (fönstret, kod /usr/share/goblincakes/dashboard/: Main.qml, dash.py = allt som läses,
-  windows.js = KWin-skriptet för öppna fönster). Processen ligger kvar gömd efter Esc så att den kommer upp direkt;
-  `goblin dashboard stäng` avslutar den. Inget läses medan den är gömd.
+  windows.js = KWin-skriptet för öppna fönster – växla till och stänga via högerklick). Processen ligger kvar gömd
+  efter Esc så att den kommer upp direkt; `goblin dashboard stäng` avslutar den. Inget läses medan den är gömd.
+- Meta i upplägget Dashboard = KWin-skriptet goblincakes-windows (kortkommandot "GOBLINCAKES Dashboard" under
+  KWin i Systeminställningar → Genvägar) som anropar D-Bus org.goblincakes.dashboard /dashboard toggle; D-Bus startar
+  dashboarden (/usr/share/dbus-1/services/org.goblincakes.dashboard.service, egen enhet
+  dbus-:1.x-org.goblincakes.dashboard@N.service) om den inte kör. Meta gör inget → kolla att åtgärden har Meta:
+  `busctl --user call org.kde.kglobalaccel /kglobalaccel org.kde.KGlobalAccel shortcut as 4 kwin "GOBLINCAKES Dashboard" KWin "GOBLINCAKES: visa eller göm dashboarden"`
+  (ska ge 16777250) och att startmenyn inte har den; lagas med `/usr/libexec/goblincakes-desktop-layout login`.
 - Inställningar: ~/.config/goblincakes/dashboard.json (`views` = vyerna [{name, left, right, mid}], `view` = den som
   visas, `apps` = egna program nederst – saknas den används dockans fästa program). Ändras i GOBLINCAKES Config →
   DASHBOARD (eller knappen Anpassa i dashboarden); dashboarden läser om dem varje gång den visas. Projekten = samma lista som Goblin AI:s PROJEKT → MAPPAR

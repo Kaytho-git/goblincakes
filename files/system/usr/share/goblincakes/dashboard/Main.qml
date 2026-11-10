@@ -27,6 +27,7 @@ Window {
     property var projects: []
     property var project: ({})
     property var trayBox: ({})
+    property var winMenu: null         // right-click on an open program: {id, name, x, y} (Växla till / Stäng)
     property var tools: ({})
     property var wow: ({})
     property var cs2: ({})
@@ -122,8 +123,10 @@ Window {
     function say(text) { note = text; noteTimer.restart(); }
     function showApps() { backend.setMid("apps"); search.forceActiveFocus(); }
     function back() {
-        // Esc: one step at a time – the small box, the search, the middle, and last the dashboard itself
-        if (backend.tray !== "")
+        // Esc: one step at a time – the small box/menu, the search, the middle, and last the dashboard itself
+        if (winMenu)
+            winMenu = null;
+        else if (backend.tray !== "")
             backend.closeTray();
         else if (search.text !== "")
             search.text = "";
@@ -151,6 +154,7 @@ Window {
     }
     onVisibleChanged: {
         backend.setVisible(visible);
+        winMenu = null;
         if (visible) {
             search.text = "";
             group = "";
@@ -600,7 +604,18 @@ Window {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: backend.activate(modelData.id)
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: mouse => {
+                        if (mouse.button === Qt.RightButton) {
+                            // the small menu under the chip (10 Nov, the user's wish: close a program from here)
+                            const at = mapToItem(null, 0, height);
+                            win.winMenu = {id: modelData.id, name: modelData.name,
+                                           x: Math.min(at.x, win.width - 220), y: at.y + 4};
+                        } else {
+                            win.winMenu = null;
+                            backend.activate(modelData.id);
+                        }
+                    }
                 }
             }
             Text {
@@ -2446,6 +2461,74 @@ Window {
         enabled: backend.tray !== ""
         visible: enabled
         onClicked: backend.closeTray()
+    }
+
+    // The menu behind a right-click on an open program: Växla till, Stäng
+    MouseArea {
+        anchors.fill: parent
+        z: 4
+        enabled: !!win.winMenu
+        visible: enabled
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: win.winMenu = null
+    }
+    Frame {
+        id: winMenuBox
+        visible: !!win.winMenu
+        x: win.winMenu ? win.winMenu.x : 0
+        y: win.winMenu ? win.winMenu.y : 0
+        z: 5
+        width: 200
+        height: menuColumn.implicitHeight + 16
+        border.color: accent.color
+        MouseArea { anchors.fill: parent }   // a press in the menu is not a press on what lies under it
+        Column {
+            id: menuColumn
+            x: 8
+            y: 8
+            width: parent.width - 16
+            Text {
+                width: parent.width
+                height: 28
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+                text: win.winMenu ? win.winMenu.name : ""
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 12
+                font.capitalization: Font.AllUppercase
+            }
+            Repeater {
+                model: [{text: "Växla till", act: "activate"}, {text: "Stäng", act: "close"}]
+                Rectangle {
+                    required property var modelData
+                    width: menuColumn.width
+                    height: 36
+                    color: itemArea.containsMouse ? "#1A2438" : "transparent"
+                    Text {
+                        anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
+                        text: modelData.text
+                        color: modelData.act === "close" && itemArea.containsMouse ? "#E5534B" : "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                    }
+                    MouseArea {
+                        id: itemArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            const id = win.winMenu.id;
+                            win.winMenu = null;
+                            if (modelData.act === "close")
+                                backend.closeWindow(id);
+                            else
+                                backend.activate(id);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ── At the bottom: the own programs ───────────────────────

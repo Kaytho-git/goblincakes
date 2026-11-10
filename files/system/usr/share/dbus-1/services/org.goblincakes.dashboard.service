@@ -1,5 +1,6 @@
-# GOBLINCAKES Dashboard: Meta in the dashboard layout calls org.goblincakes.dashboard /dashboard toggle
-# (goblincakes-desktop-layout); D-Bus starts the dashboard hidden first when it isn't running.
+# GOBLINCAKES Dashboard: Meta in the dashboard layout (the KWin script goblincakes-windows) calls
+# org.goblincakes.dashboard /dashboard toggle; D-Bus starts the dashboard hidden first when it isn't running,
+# in a unit of its own (so it never dies with Config, a terminal or the autostart unit).
 [D-BUS Service]
 Name=org.goblincakes.dashboard
 Exec=/usr/bin/goblin-dashboard --hidden

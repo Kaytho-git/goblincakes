@@ -1,5 +1,5 @@
 // GOBLINCAKES Dashboard: the open windows (ÖPPNA PROGRAM). Loaded for a moment by goblin-dashboard.
-// __DATA__ is replaced with {"mode": "list", "service"} or {"mode": "activate", "service", "id": internalId};
+// __DATA__ is replaced with {"mode": "list", "service"} or {"mode": "activate" | "close", "service", "id": internalId};
 // it answers with report(JSON) on the service's /win.
 const DATA = __DATA__;
 
@@ -22,12 +22,16 @@ if (DATA.mode === "list") {
         return {"id": String(w.internalId), "caption": w.caption, "app": w.resourceClass,
                 "desktop": w.desktopFileName, "min": w.minimized};
     });
-} else if (DATA.mode === "activate") {
+} else if (DATA.mode === "activate" || DATA.mode === "close") {
     const all = windows();
     for (let i = 0; i < all.length; i++) {
         if (String(all[i].internalId) === DATA.id) {
-            all[i].minimized = false;
-            workspace.activeWindow = all[i];
+            if (DATA.mode === "close") {
+                all[i].closeWindow();   // asks the program to close, as the X in its title bar
+            } else {
+                all[i].minimized = false;
+                workspace.activeWindow = all[i];
+            }
             answer.ok = true;
         }
     }

@@ -20,8 +20,10 @@ version only hid behind windows, "dodgewindows"). Its background is see-through
 (translucent mode is invisible in our Plasma theme), so only the boxes show. Meta: in Plasma 6 Meta alone is an
 ordinary global shortcut (kglobalaccel; kwinrc [ModifierOnlyShortcuts] is no longer read – the first version of
 step 4 wrote there and Meta did nothing, 10 Nov): Meta is taken from plasmashell's "activate application launcher"
-(Alt+F1 stays) and given to the action goblin-dashboard/toggle, which the running dashboard listens to
-(goblin-dashboard registers it too and is started hidden at login). Both show in System Settings → Shortcuts.
+(Alt+F1 stays) and given to the KWin script goblincakes-windows' action "GOBLINCAKES Dashboard", which calls
+org.goblincakes.dashboard /dashboard toggle – D-Bus starts the dashboard when it isn't running. (Until 10 Nov the
+dashboard's own process held the shortcut and Meta died with it: started from Config or a terminal it was killed
+with them. Now it is started over D-Bus, in a unit of its own.) Both show in System Settings → Shortcuts.
 Saved first, in ~/.config/goblincakes/desktop-layout.json: the dock's pinned apps and settings (size, the wave) and
 the launcher's old keys (launcherBefore); a copy of Plasma's panel file in ~/.local/state/goblincakes/layout-backup/.
 Classic: the top bar and the dock from the look-and-feel layout (the panel part of it – the wallpaper is left
@@ -47,7 +49,9 @@ SYSTRAY_JS = SHARE / "goblincakes/systray.js"
 OLD_META = "org.goblincakes.dashboard,/dashboard,org.goblincakes.dashboard,toggle"
 # kglobalaccel action ids: [component, action, component's friendly name, action's friendly name]
 LAUNCHER = ["plasmashell", "activate application launcher", "plasmashell", "Aktivera startprogram"]
-DASH_ACTION = ["goblin-dashboard", "toggle", "GOBLINCAKES Dashboard", "Visa eller göm dashboarden"]
+DASH_ACTION = ["kwin", "GOBLINCAKES Dashboard", "KWin", "GOBLINCAKES: visa eller göm dashboarden"]
+# The dashboard's own action (until 10 Nov) – its key is taken away if it is still there
+OLD_DASH_ACTION = ["goblin-dashboard", "toggle", "GOBLINCAKES Dashboard", "Visa eller göm dashboarden"]
 KEY_META = 0x01000022      # Qt::Key_Meta – Meta alone
 KEY_ALT_F1 = 0x08000030    # Alt+F1
 
@@ -184,14 +188,16 @@ def launcher_keys():
     return kga("shortcut", "as", *action_args(LAUNCHER))
 
 
-def set_keys(action, keys, own=False):
-    """own: the action is (also) registered here and its keys set and saved (SetPresent | NoAutoloading);
-    otherwise the keys of another program's action are changed (setForeignShortcut)."""
+def set_keys(action, keys):
+    """The keys of another program's action (plasmashell's launcher, KWin's dashboard action) changed and saved
+    (setForeignShortcut); None when kglobalaccel didn't answer or the action isn't registered (yet)."""
     keys = list(keys) or [0]
-    if own:
-        kga("doRegister", "as", *action_args(action))
-        return kga("setShortcut", "asaiu", *action_args(action), len(keys), *keys, 2 | 4)
     return kga("setForeignShortcut", "asai", *action_args(action), len(keys), *keys)
+
+
+def has_meta(action):
+    keys = kga("shortcut", "as", *action_args(action))
+    return bool(keys) and KEY_META in keys
 
 
 def old_meta_away():
@@ -202,28 +208,35 @@ def old_meta_away():
 
 
 def meta_is_dashboard():
-    keys = kga("shortcut", "as", *action_args(DASH_ACTION))
-    return bool(keys) and KEY_META in keys
+    return has_meta(DASH_ACTION)
 
 
 def meta_dashboard(state):
+    """Meta from the launcher to KWin's dashboard action. The launcher keeps Meta until the action has it (KWin's
+    script registers the action at login – an older KWin script has none: then Meta changes at the next login)."""
     old_meta_away()
     keys = launcher_keys()
     if keys is None:
         say("Kortkommandona svarar inte – Meta byts vid nästa inloggning.")
         return
+    if has_meta(OLD_DASH_ACTION):
+        set_keys(OLD_DASH_ACTION, [])
     if KEY_META in keys:
         if "launcherBefore" not in state:
             state["launcherBefore"] = [k for k in keys if k]
         set_keys(LAUNCHER, [k for k in keys if k and k != KEY_META])
-    set_keys(DASH_ACTION, [KEY_META], own=True)
+    if set_keys(DASH_ACTION, [KEY_META]) is None or not meta_is_dashboard():
+        say("Meta byts vid nästa inloggning (KWin-skriptet är inte uppdaterat än).")
+        if KEY_META in keys:
+            set_keys(LAUNCHER, keys)   # the launcher keeps Meta meanwhile – no dead key
 
 
 def meta_back(state):
     old_meta_away()
     before = state.pop("launcherBefore", None) or [KEY_META, KEY_ALT_F1]
-    if meta_is_dashboard():
-        set_keys(DASH_ACTION, [], own=True)
+    for action in (DASH_ACTION, OLD_DASH_ACTION):
+        if has_meta(action):
+            set_keys(action, [])
     keys = launcher_keys()
     if keys is not None and KEY_META not in keys:
         # Plasma's own default: Meta opens the application launcher (AppGrid behind the logo)
@@ -242,7 +255,11 @@ def trim_tray():
 
 
 def start_hidden():
-    subprocess.Popen(["goblin-dashboard", "--hidden"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+    """The dashboard started hidden over D-Bus (org.goblincakes.dashboard.service → goblin-dashboard --hidden):
+    D-Bus runs it in a unit of its own. Started as a child here it died with Config's or the autostart's unit
+    (systemd kills what is left in the unit when the main process ends) – and Meta with it (10 Nov)."""
+    subprocess.Popen(["busctl", "--user", "--timeout=60", "call", "org.goblincakes.dashboard", "/dashboard",
+                      "org.goblincakes.dashboard", "hide"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 

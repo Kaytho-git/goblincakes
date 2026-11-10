@@ -10,10 +10,13 @@ menu; step 4: the layout "Dashboard" (goblincakes-desktop-layout) takes the top 
     goblin-dashboard --quit     end the hidden process
     goblin-dashboard --hidden   start without showing (at login in the dashboard layout, and when D-Bus starts it)
 
-Step 4 (10 Nov): with the layout "Dashboard" (goblincakes-desktop-layout) Meta is the global shortcut
-goblin-dashboard/toggle (kglobalaccel – Plasma 6 no longer reads kwinrc [ModifierOnlyShortcuts]); this process
-registers the action at start and listens for it, so it has to run (started hidden at login). org.goblincakes.dashboard
-/dashboard toggle/show/hide also works (/usr/share/dbus-1/services starts it hidden first when it isn't running). The KWin script goblincakes-windows puts it on the active screen.
+Step 4 (10 Nov): with the layout "Dashboard" (goblincakes-desktop-layout) Meta is the KWin script
+goblincakes-windows' shortcut "GOBLINCAKES Dashboard" (kglobalaccel – Plasma 6 no longer reads kwinrc
+[ModifierOnlyShortcuts]), which calls org.goblincakes.dashboard /dashboard toggle (show/hide too) –
+/usr/share/dbus-1/services starts this program hidden when it isn't running, in a unit of its own. So the installed
+program never runs as a child of what started it: without a running instance `goblin-dashboard` asks D-Bus to
+start it and sends "show" (started from Config, a terminal or the menu it was killed with them, and until 10 Nov
+Meta – registered by this process – died with it). The KWin script puts it on the main screen.
 
 What it shows is read by /usr/share/goblincakes/dashboard/dash.py; the open windows are asked from KWin
 (dashboard/windows.js). Window: /usr/share/goblincakes/dashboard/Main.qml
@@ -27,7 +30,7 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import SLOT, ClassInfo, QObject, QSize, Qt, QTimer, QUrl, Property, Signal, Slot
+from PySide6.QtCore import ClassInfo, QObject, QSize, Qt, QTimer, QUrl, Property, Signal, Slot
 from PySide6.QtDBus import QDBusConnection
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
@@ -129,32 +132,9 @@ class KWinBridge(QObject):
 
 @ClassInfo({"D-Bus Interface": "org.goblincakes.dashboard"})
 class DashboardBus(QObject):
-    """org.goblincakes.dashboard /dashboard: toggle, show, hide – and the global shortcut goblin-dashboard/toggle
-    (Meta in the dashboard layout, set by goblincakes-desktop-layout; changeable in System Settings → Shortcuts)."""
+    """org.goblincakes.dashboard /dashboard: toggle, show, hide (Meta in the dashboard layout calls toggle through
+    the KWin script; until 10 Nov the shortcut was registered here and died with the process)."""
     wanted = Signal(str)
-    ACTION = ["goblin-dashboard", "toggle", "GOBLINCAKES Dashboard", "Visa eller göm dashboarden"]
-
-    def shortcut(self, bus):
-        """Register the action (its saved keys are loaded – none unless the layout gave it Meta) and listen."""
-        def kga(*args):
-            try:
-                return subprocess.run(["busctl", "--user", "call", "org.kde.kglobalaccel", "/kglobalaccel",
-                                       "org.kde.KGlobalAccel", *args], capture_output=True, text=True, timeout=10)
-            except (OSError, subprocess.SubprocessError):
-                return None
-        ids = [str(len(self.ACTION)), *self.ACTION]
-        kga("doRegister", "as", *ids)
-        kga("setShortcut", "asaiu", *ids, "0", "2")          # SetPresent: active, the saved keys kept
-        r = kga("getComponent", "s", self.ACTION[0])
-        path = r.stdout.split()[-1].strip('"') if r and r.returncode == 0 and r.stdout.startswith("o ") else ""
-        if path:
-            bus.connect("org.kde.kglobalaccel", path, "org.kde.kglobalaccel.Component", "globalShortcutPressed",
-                        self, SLOT("pressed(QString,QString,qlonglong)"))
-
-    @Slot(str, str, "qlonglong")
-    def pressed(self, _component, action, _timestamp):
-        if action == self.ACTION[1]:
-            self.wanted.emit("toggle")
 
     @Slot()
     def toggle(self):
@@ -463,6 +443,13 @@ class Backend(QObject):
         self.hideWanted.emit()
 
     @Slot(str)
+    def closeWindow(self, window_id):
+        """Right-click → Stäng: KWin asks the program to close (like the X in its title bar); the list is read
+        again when it has had a moment."""
+        self.kwin.run({"mode": "close", "id": window_id})
+        QTimer.singleShot(1500, self.read_windows)
+
+    @Slot(str)
     def media(self, what):
         try:
             name = json.loads(self.data["player"]).get("name", "")
@@ -581,6 +568,19 @@ class Backend(QObject):
         return bool(TEST) or bool(os.environ.get("GOBLINCAKES_DASHBOARD_STAY"))
 
 
+DBUS_SERVICE = Path("/usr/share/dbus-1/services/org.goblincakes.dashboard.service")
+
+
+def installed():
+    """This file is the one D-Bus starts (a copy run from the repo is not: it runs by itself as before)."""
+    try:
+        exe = next(l.partition("=")[2].split()[0] for l in DBUS_SERVICE.read_text().splitlines()
+                   if l.startswith("Exec="))
+        return Path(exe).resolve() == Path(sys.argv[0]).resolve()
+    except (OSError, StopIteration, IndexError):
+        return False
+
+
 def main():
     own_scale = "QT_SCALE_FACTOR" not in os.environ
     if own_scale:
@@ -611,6 +611,16 @@ def main():
         return 0
     if quit_it:
         return 0
+    if not hidden and not TEST and installed():
+        # Not running: D-Bus starts it hidden in a unit of its own (never a child of the terminal/Config/menu
+        # start that would take it down), then it is shown
+        try:
+            r = subprocess.run(["busctl", "--user", "--timeout=60", "call", "org.goblincakes.dashboard",
+                                "/dashboard", "org.goblincakes.dashboard", "show"], capture_output=True, timeout=70)
+            if r.returncode == 0:
+                return 0
+        except (OSError, subprocess.SubprocessError):
+            pass
     QLocalServer.removeServer(name)
     server = QLocalServer()
     server.listen(name)
@@ -657,7 +667,6 @@ def main():
     bus = QDBusConnection.sessionBus()
     if not TEST and bus.isConnected() and bus.registerObject("/dashboard", bus_obj, QDBusConnection.ExportAllSlots):
         bus.registerService("org.goblincakes.dashboard")
-        bus_obj.shortcut(bus)
     if not hidden:
         show()
     return app.exec()
