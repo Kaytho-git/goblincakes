@@ -162,7 +162,8 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
   `goblin dashboard stäng` gör Meta ingenting förrän `goblin dashboard` eller nästa inloggning). Sparat:
   ~/.config/goblincakes/desktop-layout.json (läget, dockans program och storlek, startmenyns tangenter före =
   launcherBefore), kopior av panelfilen i ~/.local/state/goblincakes/layout-backup/. Tillbaka till toppfält och docka
-  lägger dockans program och storlek och Meta på startmenyn tillbaka. Kolla: `grep -A2 '^\[goblin-dashboard\]'
+  lägger dockans program och storlek och Meta på startmenyn tillbaka. Låg något kvar (raden,
+  systemfältspanelen, Meta på dashboarden) tas det bort vid inloggningen (`login`). Kolla: `grep -A2 '^\[goblin-dashboard\]'
   ~/.config/kglobalshortcutsrc` och `grep 'activate application launcher' ~/.config/kglobalshortcutsrc` (Meta där =
   AppGrid). Dashboarden öppnas på huvudskärmen (KWin-skriptet goblincakes-windows, screenOrder[0]). Raden är 75 % av mockupens mått (egenskapen `s` i ClockBox.qml och DeskBox.qml, panelen 64 px).
 - Nederst i dashboarden: GOBLINCAKES egna program i en rad med små ikoner (dash.py own_apps: Config, Goblin AI,

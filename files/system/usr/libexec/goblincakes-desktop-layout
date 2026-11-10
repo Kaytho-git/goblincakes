@@ -328,6 +328,17 @@ def to_classic(state):
     return 0
 
 
+def classic_leftovers(state):
+    """At login with Standard: what the Dashboard left behind goes away – the row, the hidden tray panel (only when
+    the top bar with its own tray is there) and Meta on the dashboard. Happens when the switch back was made by an
+    older helper that didn't know them (10 Nov: Config from the image, the repo's dashboard steps)."""
+    plasma(FIND + "var bar = panels().some(isTopBar);\n"
+           "panels().forEach(function (p) { if (isRow(p) || (bar && isTrayPanel(p))) p.remove(); });")
+    if meta_is_dashboard():
+        meta_back(state)
+        save(state)
+
+
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else "status"
     state = load()
@@ -344,6 +355,8 @@ def main(argv):
                 meta_dashboard(state)
                 save(state)
             start_hidden()
+        else:
+            classic_leftovers(state)
         return 0
     if cmd == "forget":
         if current() == "dashboard":
