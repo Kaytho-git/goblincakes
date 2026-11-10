@@ -132,9 +132,18 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   enheter goblincakes-device-battery + lsblk.
 - Öppna program tomt fast program är öppna → KWin svarade inte: dashboarden laddar windows.js via
   org.kde.KWin /Scripting och får svaret på D-Bus-tjänsten org.goblincakes.dashboard.p<pid>.
+- Steg 2 (10 nov), ramarna till höger – dashboard/stats.py, läser bara det andra har sparat: WOW STATS och CS2 STATS ur
+  GoblinRecorders historik (~/.local/share/goblincakes/wow-history.json, cs2-history.json; CS2 = säsongens officiella
+  matcher, inte PRIVAT), BYGGEN = buildstatus.py (bara på datorn som har repot; sparas 5 min i
+  ~/.cache/goblincakes/dashboard-builds.json), KAKAN = rapporterna i ~/.local/share/goblincakes/till-claude.
+  En ram utan data syns inte alls (ingen WoW-historik → ingen WOW STATS).
+- Senaste raiden = senaste raidkvällen för karaktären som raidade sist. Staplarna (bossens hälsa per pull) frågas från
+  Warcraft Logs, en fråga per rapport, sparat i ~/.cache/goblincakes/dashboard-wcl.json; utan WCL-nyckel
+  (~/.config/goblincakes/wcl.json) eller utan länk på pullen visas bara kill/wipe.
 - Den göms av sig själv när ett annat fönster blir aktivt (som Plasmas Instrumentpanel för program).
 Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps, top, player, quota, projects,
-`tray nätverk|ljud|bluetooth|urklipp|enheter`, bottom) – skriver det fönstret skulle visa.
+`tray nätverk|ljud|bluetooth|urklipp|enheter`, bottom) – skriver det fönstret skulle visa; ramarna till höger:
+`python3 /usr/share/goblincakes/dashboard/stats.py wow` (även wow-fetch = med Warcraft Logs, cs2, builds, reports).
 
 ## GOBLINCAKES Config
 Ord: config, inställningar, goblincakes config, program, förinstallerat, fönster, grafik, uppdatera, reglage

@@ -26,6 +26,12 @@ Window {
     property var project: ({})
     property var trayBox: ({})
     property var tools: ({})
+    property var wow: ({})
+    property var cs2: ({})
+    property var builds: ({})
+    property var reports: ({})
+    property int boss: -1              // the chosen boss in SENASTE RAIDEN (-1 = the last one pulled)
+    property string csMap: ""          // the chosen map in CS2 ("" = the most played)
     readonly property var trayIcons: JSON.parse(backend.trayIcons)
 
     property string group: ""          // the chosen kind of program ("" = all)
@@ -35,6 +41,19 @@ Window {
     property date now: new Date()
     readonly property string mid: backend.mid
     readonly property string midProject: mid.indexOf("project:") === 0 ? mid.slice(8) : ""
+    readonly property string midChar: mid.indexOf("char:") === 0 ? mid.slice(5) : ""
+    readonly property var classColors: ({
+        DeathKnight: "#C41E3A", DemonHunter: "#A330C9", Druid: "#FF7C0A", Evoker: "#33937F",
+        Hunter: "#AAD372", Mage: "#3FC7EB", Monk: "#00FF98", Paladin: "#F48CBA", Priest: "#FFFFFF",
+        Rogue: "#FFF468", Shaman: "#0070DD", Warlock: "#8788EE", Warrior: "#C69B6D" })
+    // Warcraft Logs' parse colours
+    function parseColor(p) {
+        return p === null || p === undefined ? "#8B98AD" : p >= 100 ? "#E5CC80" : p >= 99 ? "#E268A8" : p >= 95 ? "#FF8000"
+             : p >= 75 ? "#A335EE" : p >= 50 ? "#0070FF" : p >= 25 ? "#1EFF00" : "#8B98AD";
+    }
+    function resultColor(kind) {
+        return ({"ok": "#3BD16F", "win": "#3BD16F", "fail": "#F06B6B", "loss": "#F06B6B", "run": "#F0B232"})[kind] || "#8B98AD";
+    }
 
     readonly property var groups: {
         const seen = [];
@@ -95,7 +114,7 @@ Window {
 
     Component.onCompleted: {
         for (const k of ["apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project",
-                         "trayBox", "tools"])
+                         "trayBox", "tools", "wow", "cs2", "builds", "reports"])
             load(k);
     }
     onVisibleChanged: {
@@ -263,6 +282,115 @@ Window {
                 font.pixelSize: Math.round(appIcon.side * 0.42)
             }
         }
+    }
+
+    // A number with its label under it
+    component Tile: Frame {
+        property string value
+        property string label
+        property color tint: "#E6ECF5"
+        height: 74
+        Text {
+            y: 12
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: parent.value
+            color: parent.tint
+            font.family: "Chakra Petch"
+            font.weight: Font.Bold
+            font.pixelSize: 22
+        }
+        Text {
+            y: 46
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: parent.label
+            color: "#8B98AD"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 11
+            font.letterSpacing: 1
+        }
+    }
+
+    // A row in a side frame that shows something in the middle
+    component SideCard: Rectangle {
+        id: card
+        property bool on: false
+        property string title
+        property string line
+        property color titleColor: "#E6ECF5"
+        property string side
+        property bool big: false
+        signal clicked()
+        width: parent ? parent.width : 0
+        height: 56
+        color: on || cardArea.containsMouse ? "#12203A" : "#0E1420"
+        border.width: on ? 2 : 1
+        border.color: on ? accent.color : "#1E2A40"
+        Column {
+            anchors { left: parent.left; leftMargin: 12; right: rightText.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+            spacing: 2
+            Text {
+                width: parent.width
+                elide: Text.ElideRight
+                text: card.title
+                color: card.titleColor
+                font.family: card.big ? "Chakra Petch" : "IBM Plex Sans"
+                font.weight: card.big ? Font.Bold : Font.DemiBold
+                font.pixelSize: card.big ? 17 : 15
+            }
+            Text {
+                width: parent.width
+                elide: Text.ElideRight
+                visible: text !== ""
+                text: card.line
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 12
+            }
+        }
+        Text {
+            id: rightText
+            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+            text: card.side
+            textFormat: Text.StyledText
+            color: "#8B98AD"
+            font.family: "IBM Plex Sans"
+            font.pixelSize: 12
+        }
+        MouseArea {
+            id: cardArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: card.clicked()
+        }
+    }
+
+    // A table's cell text
+    component Cell: Text {
+        color: "#E6ECF5"
+        font.family: "IBM Plex Sans"
+        font.pixelSize: 14
+        elide: Text.ElideRight
+        verticalAlignment: Text.AlignVCenter
+        horizontalAlignment: Text.AlignRight
+    }
+    component HeadCell: Text {
+        color: "#8B98AD"
+        font.family: "IBM Plex Sans"
+        font.pixelSize: 11
+        font.letterSpacing: 1
+        horizontalAlignment: Text.AlignRight
+    }
+    component BigTitle: Text {
+        color: "#E6ECF5"
+        font.family: "Chakra Petch"
+        font.weight: Font.Bold
+        font.pixelSize: 26
+    }
+    component SubTitle: Text {
+        color: "#8B98AD"
+        font.family: "IBM Plex Sans"
+        font.pixelSize: 13
     }
 
     // A thin bar: how much of something is used
@@ -1245,6 +1373,480 @@ Window {
                 }
             }
 
+            // ── The latest raid ──
+            Flickable {
+                id: raidView
+                visible: win.mid === "raid" && !!win.wow.raid
+                anchors { top: searchRow.bottom; topMargin: 20; left: parent.left; right: parent.right; bottom: parent.bottom
+                          leftMargin: 28; rightMargin: 28; bottomMargin: 20 }
+                contentHeight: raidColumn.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                readonly property var r: win.wow.raid || ({"bosses": []})
+                readonly property int at: win.boss >= 0 && win.boss < r.bosses.length ? win.boss : r.bosses.length - 1
+                readonly property var b: r.bosses[at] || ({"pulls": []})
+                Column {
+                    id: raidColumn
+                    width: raidView.width
+                    spacing: 16
+                    Row {
+                        spacing: 14
+                        BigTitle { id: raidTitle; text: "SENASTE RAIDEN" }
+                        SubTitle {
+                            anchors.baseline: raidTitle.baseline
+                            text: [raidView.r.name, raidView.r.difficulty, raidView.r.day, raidView.r.length].filter(t => t).join(" · ")
+                        }
+                    }
+                    Row {
+                        id: raidTiles
+                        width: parent.width
+                        spacing: 10
+                        readonly property real cell: (width - 40) / 5
+                        Tile { width: raidTiles.cell; value: (raidView.r.killed || 0) + "/" + raidView.r.bosses.length; label: "BOSSAR"; tint: "#3BD16F" }
+                        Tile { width: raidTiles.cell; value: String(raidView.r.pulls || 0); label: "PULLS" }
+                        Tile { width: raidTiles.cell; value: raidView.r.length || ""; label: "RAIDTID" }
+                        Tile { width: raidTiles.cell; value: raidView.r.bestParse === null || raidView.r.bestParse === undefined ? "–" : String(raidView.r.bestParse)
+                               label: "DIN BÄSTA PARSE"; tint: win.parseColor(raidView.r.bestParse) }
+                        Tile { width: raidTiles.cell; value: String(raidView.r.deaths || 0); label: "DINA DÖDSFALL" }
+                    }
+                    Column {
+                        width: parent.width
+                        Item {
+                            width: parent.width
+                            height: 30
+                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1E2A40" }
+                            HeadCell { x: 10; text: "BOSS – TRYCK FÖR PULLARNA"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
+                            Row {
+                                anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                                HeadCell { width: 110; text: "PULLS" }
+                                HeadCell { width: 110; text: "BÄSTA" }
+                                HeadCell { width: 110; text: "DIN PARSE" }
+                                HeadCell { width: 130; text: "DINA DÖDSFALL" }
+                            }
+                        }
+                        Repeater {
+                            model: raidView.r.bosses
+                            Rectangle {
+                                required property var modelData
+                                required property int index
+                                width: raidColumn.width
+                                height: 44
+                                color: raidView.at === index ? "#12203A" : bossArea.containsMouse ? "#101A2C" : "transparent"
+                                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+                                Cell { x: 10; width: parent.width - 490; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.name }
+                                Row {
+                                    anchors { right: parent.right; rightMargin: 10 }
+                                    height: parent.height
+                                    Cell { width: 110; height: parent.height; text: String(modelData.count) }
+                                    Cell { width: 110; height: parent.height; text: modelData.best; color: modelData.kill ? "#3BD16F" : "#F0B232" }
+                                    Cell { width: 110; height: parent.height; text: modelData.parse === null ? "–" : String(modelData.parse); color: win.parseColor(modelData.parse) }
+                                    Cell { width: 130; height: parent.height; text: String(modelData.deaths) }
+                                }
+                                MouseArea {
+                                    id: bossArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: win.boss = index
+                                }
+                            }
+                        }
+                    }
+                    Frame {
+                        width: parent.width
+                        height: pullColumn.implicitHeight + 32
+                        Column {
+                            id: pullColumn
+                            x: 16
+                            y: 16
+                            width: parent.width - 32
+                            spacing: 12
+                            Row {
+                                spacing: 12
+                                Heading { id: pullHead; text: "PULLARNA · " + String(raidView.b.name || "").toUpperCase() }
+                                Text {
+                                    anchors.baseline: pullHead.baseline
+                                    text: raidView.b.bars ? "bossens hälsa när pullen tog slut – grön = kill"
+                                                          : "grön = kill · bossens hälsa visas när Warcraft Logs har svarat"
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                }
+                            }
+                            Row {
+                                width: parent.width
+                                height: 64
+                                spacing: 4
+                                Repeater {
+                                    model: raidView.b.pulls
+                                    Item {
+                                        required property var modelData
+                                        width: Math.min(48, (pullColumn.width - (raidView.b.pulls.length - 1) * 4) / Math.max(1, raidView.b.pulls.length))
+                                        height: 64
+                                        Rectangle {
+                                            anchors.bottom: parent.bottom
+                                            width: parent.width
+                                            height: modelData.kill ? 64 : raidView.b.bars ? Math.max(6, 64 * modelData.pct / 100) : 20
+                                            color: modelData.kill ? "#3BD16F" : accent.color
+                                        }
+                                    }
+                                }
+                            }
+                            Row {
+                                spacing: 8
+                                FlatButton { text: "Öppna i Warcraft Logs"; visible: !!raidView.b.url; onClicked: backend.openUrl(raidView.b.url) }
+                                FlatButton { text: "Hela kvällen i Warcraft Logs"; visible: !!raidView.r.url; onClicked: backend.openUrl(raidView.r.url) }
+                                FlatButton {
+                                    primary: true
+                                    text: "Fråga Kakan om bossen"
+                                    onClicked: backend.askKakan("Titta på pullarna på " + raidView.b.name + " (" + raidView.b.difficulty
+                                        + ") från senaste raiden" + (raidView.b.url ? ": " + raidView.b.url : "")
+                                        + ". Vad gick fel och vad kan jag göra bättre?")
+                                }
+                            }
+                        }
+                    }
+                }
+                FastWheel { flick: raidView }
+            }
+            FlatScrollBar { flick: raidView }
+
+            // ── A character ──
+            Item {
+                id: charView
+                readonly property var c: {
+                    for (const p of win.wow.players || [])
+                        if (p.player === win.midChar)
+                            return p;
+                    return null;
+                }
+                visible: win.midChar !== "" && !!c
+                anchors { top: searchRow.bottom; topMargin: 20; left: parent.left; right: parent.right; bottom: parent.bottom
+                          leftMargin: 28; rightMargin: 28; bottomMargin: 20 }
+                Column {
+                    width: parent.width
+                    spacing: 16
+                    visible: !!charView.c
+                    Column {
+                        Text {
+                            text: charView.c ? charView.c.name : ""
+                            color: charView.c ? win.classColors[charView.c["class"]] || "#E6ECF5" : "#E6ECF5"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.Bold
+                            font.pixelSize: 34
+                        }
+                        SubTitle {
+                            text: charView.c ? [charView.c.spec, charView.c["class"], charView.c.realm, charView.c.region,
+                                                "spelade senast " + charView.c.last].filter(t => t).join(" · ") + " · den här säsongen" : ""
+                        }
+                    }
+                    Grid {
+                        id: charTiles
+                        width: parent.width
+                        columns: 6
+                        spacing: 10
+                        readonly property real cell: (width - 50) / 6
+                        readonly property var c: charView.c || ({})
+                        function show(v, pre) { return v === null || v === undefined ? "–" : (pre || "") + v; }
+                        Tile { width: charTiles.cell; value: charTiles.show(charTiles.c.ilvl); label: "ITEM LEVEL" }
+                        Tile { width: charTiles.cell; value: charTiles.show(charTiles.c.raidParse); label: "RAID-PARSE (SNITT)"; tint: win.parseColor(charTiles.c.raidParse) }
+                        Tile { width: charTiles.cell; value: charTiles.show(charTiles.c.bestParse); label: "BÄSTA PARSE"; tint: win.parseColor(charTiles.c.bestParse) }
+                        Tile { width: charTiles.cell; value: (charTiles.c.kills || 0) + " / " + (charTiles.c.wipes || 0); label: "KILLS / WIPES" }
+                        Tile { width: charTiles.cell; value: (charTiles.c.timed || 0) + " / " + (charTiles.c.keys || 0); label: "NYCKLAR I TID" }
+                        Tile { width: charTiles.cell; value: charTiles.show(charTiles.c.topKey, "+"); label: "HÖGSTA I TID" }
+                    }
+                    Heading { text: "PARSE ÖVER TID"; topPadding: 6 }
+                    Row {
+                        width: parent.width
+                        height: 80
+                        spacing: 4
+                        Repeater {
+                            model: charView.c ? charView.c.trend : []
+                            Item {
+                                required property var modelData
+                                width: Math.min(28, (charView.width - 39 * 4) / 40)
+                                height: 80
+                                Rectangle {
+                                    anchors.bottom: parent.bottom
+                                    width: parent.width
+                                    height: Math.max(3, 80 * modelData.parse / 100)
+                                    color: win.parseColor(modelData.parse)
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        visible: charView.c && charView.c.trend.length === 0
+                        text: "Inga parser den här säsongen ännu."
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                    }
+                    Row {
+                        spacing: 8
+                        FlatButton { text: "Senaste raiden"; visible: !!win.wow.raid; onClicked: backend.setMid("raid") }
+                        FlatButton { text: "Öppna på Warcraft Logs"; visible: charView.c && charView.c.wclUrl !== ""; onClicked: backend.openUrl(charView.c.wclUrl) }
+                        FlatButton { text: "WoW Stats i GoblinRecorder"; onClicked: backend.launch("goblin-recorder.desktop") }
+                        FlatButton {
+                            primary: true
+                            text: "Fråga Kakan"
+                            onClicked: backend.askKakan("Hur ligger " + charView.c.name + " till den här säsongen i raid och Mythic+ – vad ska jag förbättra först?")
+                        }
+                    }
+                }
+            }
+
+            // ── CS2 ──
+            Item {
+                id: csView
+                visible: win.mid === "cs2" && !!win.cs2.count
+                anchors { top: searchRow.bottom; topMargin: 20; left: parent.left; right: parent.right; bottom: parent.bottom
+                          leftMargin: 28; rightMargin: 28; bottomMargin: 20 }
+                readonly property var maps: win.cs2.maps || []
+                readonly property var chosen: {
+                    for (const m of maps)
+                        if (m.name === win.csMap)
+                            return m;
+                    return maps[0] || ({"rows": [], "name": ""});
+                }
+                Column {
+                    width: parent.width
+                    spacing: 18
+                    Row {
+                        spacing: 14
+                        BigTitle { id: csTitle; text: "COUNTER-STRIKE 2" }
+                        SubTitle {
+                            anchors.baseline: csTitle.baseline
+                            text: "senaste " + (win.cs2.count || 0) + " matcherna · " + (win.cs2.all || 0) + " den här säsongen"
+                        }
+                    }
+                    Row {
+                        id: csTiles
+                        width: parent.width
+                        spacing: 10
+                        readonly property real cell: (width - 50) / 6
+                        readonly property var a: win.cs2.avg || ({})
+                        Tile { width: csTiles.cell; value: String(win.cs2.wins || 0); label: "VINSTER"; tint: "#3BD16F" }
+                        Tile { width: csTiles.cell; value: String(win.cs2.losses || 0); label: "FÖRLUSTER"; tint: "#F06B6B" }
+                        Tile { width: csTiles.cell; value: csTiles.a.kd || "–"; label: "K/D" }
+                        Tile { width: csTiles.cell; value: csTiles.a.adr || "–"; label: "ADR" }
+                        Tile { width: csTiles.cell; value: (csTiles.a.kast || "–") + (csTiles.a.kast && csTiles.a.kast !== "–" ? " %" : ""); label: "KAST" }
+                        Tile { width: csTiles.cell; value: (csTiles.a.hs || "–") + (csTiles.a.hs && csTiles.a.hs !== "–" ? " %" : ""); label: "HEADSHOTS" }
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: 20
+                        Column {
+                            id: mapTable
+                            width: parent.width - 400
+                            Item {
+                                width: parent.width
+                                height: 30
+                                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1E2A40" }
+                                HeadCell { x: 10; text: "KARTA – TRYCK FÖR MATCHERNA"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
+                                Row {
+                                    anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                                    HeadCell { width: 90; text: "MATCHER" }
+                                    HeadCell { width: 90; text: "VINST %" }
+                                    HeadCell { width: 90; text: "ADR" }
+                                    HeadCell { width: 90; text: "K/D" }
+                                }
+                            }
+                            Repeater {
+                                model: csView.maps
+                                Rectangle {
+                                    required property var modelData
+                                    width: mapTable.width
+                                    height: 44
+                                    color: csView.chosen.name === modelData.name ? "#12203A" : mapArea.containsMouse ? "#101A2C" : "transparent"
+                                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+                                    Cell { x: 10; width: parent.width - 390; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.name }
+                                    Row {
+                                        anchors { right: parent.right; rightMargin: 10 }
+                                        height: parent.height
+                                        Cell { width: 90; height: parent.height; text: String(modelData.matches) }
+                                        Cell { width: 90; height: parent.height; text: modelData.win }
+                                        Cell { width: 90; height: parent.height; text: modelData.adr }
+                                        Cell { width: 90; height: parent.height; text: modelData.kd }
+                                    }
+                                    MouseArea {
+                                        id: mapArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: win.csMap = modelData.name
+                                    }
+                                }
+                            }
+                        }
+                        Frame {
+                            width: 380
+                            height: matchColumn.implicitHeight + 32
+                            Column {
+                                id: matchColumn
+                                x: 16
+                                y: 16
+                                width: parent.width - 32
+                                spacing: 6
+                                Heading { text: String(csView.chosen.name).toUpperCase() + " · NYAST FÖRST"; bottomPadding: 4 }
+                                Repeater {
+                                    model: csView.chosen.rows
+                                    Item {
+                                        required property var modelData
+                                        width: matchColumn.width
+                                        height: 44
+                                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+                                        Cell { width: 70; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.date; color: "#8B98AD" }
+                                        Cell { x: 78; width: 60; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.score
+                                               color: win.resultColor(modelData.result); font.weight: Font.DemiBold }
+                                        Cell { x: 146; width: 90; height: parent.height; text: "ADR " + modelData.adr }
+                                        Cell { anchors.right: parent.right; width: 90; height: parent.height; text: "K/D " + modelData.kd }
+                                    }
+                                }
+                                Item { width: 1; height: 6 }
+                                FlatButton {
+                                    primary: true
+                                    width: parent.width
+                                    text: "Fråga Kakan vad jag ska träna på här"
+                                    onClicked: backend.askKakan("Titta på mina senaste CS2-matcher på " + csView.chosen.name + ". Vad ska jag träna på där?")
+                                }
+                                FlatButton { width: parent.width; text: "CS2 Stats i GoblinRecorder"; onClicked: backend.launch("goblin-recorder.desktop") }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── The builds ──
+            Item {
+                id: buildView
+                visible: win.mid === "builds"
+                anchors { top: searchRow.bottom; topMargin: 20; left: parent.left; right: parent.right; bottom: parent.bottom
+                          leftMargin: 28; rightMargin: 28; bottomMargin: 20 }
+                Column {
+                    id: buildHead
+                    width: parent.width
+                    spacing: 16
+                    Row {
+                        spacing: 14
+                        BigTitle { id: buildTitle; text: "BYGGEN" }
+                        SubTitle {
+                            anchors.baseline: buildTitle.baseline
+                            text: "GOBLINCAKES-imagen på GitHub · varje push + dagligen" + (win.builds.error ? " · " + win.builds.error : "")
+                        }
+                    }
+                    Row {
+                        id: buildTiles
+                        width: parent.width
+                        spacing: 10
+                        readonly property real cell: (width - 30) / 4
+                        readonly property var last: win.builds.last || ({})
+                        Tile { width: buildTiles.cell; value: buildTiles.last.state || "–"; label: "SENASTE BYGGET"; tint: win.resultColor(buildTiles.last.kind) }
+                        Tile { width: buildTiles.cell; value: buildTiles.last.length || "–"; label: "TOG" }
+                        Tile { width: buildTiles.cell; value: String(win.builds.ok || 0); label: "LYCKADE AV DE SENASTE " + (win.builds.rows || []).length; tint: "#3BD16F" }
+                        Tile { width: buildTiles.cell; value: String(win.builds.failed || 0); label: "MISSLYCKADE"; tint: win.builds.failed ? "#F06B6B" : "#E6ECF5" }
+                    }
+                    Item {
+                        width: parent.width
+                        height: 30
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1E2A40" }
+                        HeadCell { text: "RESULTAT"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
+                        HeadCell { x: 132; text: "COMMIT"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
+                        HeadCell { x: 234; text: "VAD SOM ÄNDRADES"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
+                        HeadCell { anchors { right: parent.right; rightMargin: 100; verticalCenter: parent.verticalCenter } text: "NÄR" }
+                        HeadCell { anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter } text: "TID" }
+                    }
+                }
+                ListView {
+                    id: buildList
+                    anchors { top: buildHead.bottom; left: parent.left; right: parent.right; bottom: buildButtons.top; bottomMargin: 12 }
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: win.builds.rows || []
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: buildList.width
+                        height: 48
+                        color: rowHover.containsMouse ? "#101A2C" : "transparent"
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+                        Cell { width: 124; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.state
+                               color: win.resultColor(modelData.kind); font.weight: Font.DemiBold }
+                        Cell { x: 132; width: 90; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.hash
+                               color: accent.text; font.family: "IBM Plex Mono"; font.pixelSize: 12 }
+                        Cell { x: 234; width: parent.width - 234 - 270; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.title }
+                        Cell { anchors { right: parent.right; rightMargin: 100 } width: 160; height: parent.height; text: modelData.when; color: "#8B98AD" }
+                        Cell { anchors { right: parent.right; rightMargin: 12 } width: 84; height: parent.height; text: modelData.length
+                               color: "#8B98AD"; font.family: "IBM Plex Mono"; font.pixelSize: 12 }
+                        MouseArea {
+                            id: rowHover
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: backend.openUrl(modelData.url)
+                        }
+                    }
+                    FastWheel { flick: buildList }
+                }
+                FlatScrollBar { flick: buildList }
+                Row {
+                    id: buildButtons
+                    anchors.bottom: parent.bottom
+                    spacing: 8
+                    FlatButton { text: "Öppna på GitHub"; onClicked: backend.openUrl(win.builds.url || "") }
+                    FlatButton {
+                        visible: !!win.builds.running
+                        text: "Säg till när bygget är klart"
+                        onClicked: backend.watchBuild(win.builds.running.sha)
+                    }
+                    FlatButton {
+                        primary: true
+                        visible: !!win.builds.failed
+                        text: "Fråga Kakan varför det misslyckades"
+                        onClicked: backend.askKakan("Varför misslyckades det senaste misslyckade bygget av GOBLINCAKES?")
+                    }
+                }
+            }
+
+            // ── Kakan's reports ──
+            Item {
+                id: reportView
+                visible: win.mid === "reports"
+                anchors { top: searchRow.bottom; topMargin: 20; left: parent.left; right: parent.right; bottom: parent.bottom
+                          leftMargin: 28; rightMargin: 28; bottomMargin: 20 }
+                Row {
+                    id: reportHead
+                    spacing: 14
+                    BigTitle { id: reportTitle; text: "KAKANS RAPPORTER" }
+                    SubTitle { anchors.baseline: reportTitle.baseline; text: "det hon har lämnat till Claude · tryck för att läsa" }
+                }
+                ListView {
+                    id: reportList
+                    anchors { top: reportHead.bottom; topMargin: 16; left: parent.left; right: parent.right; bottom: parent.bottom }
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: win.reports.rows || []
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: reportList.width
+                        height: 56
+                        color: reportHover.containsMouse ? "#101A2C" : "transparent"
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+                        Rectangle { visible: modelData.new; width: 3; height: parent.height - 1; color: accent.color }
+                        Cell { x: 14; width: 150; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.when; color: "#8B98AD" }
+                        Cell { x: 172; width: parent.width - 184; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.title }
+                        MouseArea {
+                            id: reportHover
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: backend.openFile(modelData.path)
+                        }
+                    }
+                    FastWheel { flick: reportList }
+                }
+                FlatScrollBar { flick: reportList }
+            }
+
             // A line for a moment (why something could not be started)
             Rectangle {
                 visible: win.note !== ""
@@ -1265,12 +1867,205 @@ Window {
             }
         }
 
-        // Right: SPELAS NU at the bottom (WoW Stats and CS2 Stats come above it in step 2)
+        // Right: the stats frames, and SPELAS NU at the bottom
         Item {
             id: rightCol
             anchors.right: parent.right
             width: 340
             height: parent.height
+
+            // WOW STATS, CS2 STATS, BYGGEN and KAKAN – each only when there is something to show
+            Flickable {
+                id: statsFlick
+                anchors { top: parent.top; bottom: playFrame.top; bottomMargin: 16 }
+                width: parent.width
+                contentHeight: statsColumn.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                Column {
+                    id: statsColumn
+                    width: parent.width
+                    spacing: 16
+
+                    Frame {
+                        visible: (win.wow.players || []).length > 0
+                        width: parent.width
+                        height: wowColumn.implicitHeight + 32
+                        Column {
+                            id: wowColumn
+                            x: 16
+                            y: 16
+                            width: parent.width - 32
+                            spacing: 8
+                            Heading { text: "WOW STATS"; bottomPadding: 4 }
+                            SideCard {
+                                visible: !!win.wow.raid
+                                on: win.mid === "raid"
+                                title: "Senaste raiden"
+                                line: win.wow.raid ? win.wow.raid.short + " · " + win.wow.raid.difficulty + " · "
+                                                     + win.wow.raid.killed + "/" + win.wow.raid.bosses.length + " bossar" : ""
+                                onClicked: backend.setMid("raid")
+                            }
+                            Text {
+                                topPadding: 6
+                                text: "KARAKTÄRER"
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 11
+                                font.letterSpacing: 1
+                            }
+                            Repeater {
+                                model: (win.wow.players || []).slice(0, 3)
+                                SideCard {
+                                    required property var modelData
+                                    big: true
+                                    on: win.midChar === modelData.player
+                                    title: modelData.name
+                                    titleColor: win.classColors[modelData["class"]] || "#E6ECF5"
+                                    line: [modelData.spec, modelData["class"], modelData.realm].filter(t => t).join(" · ")
+                                    side: modelData.ilvl ? "ilvl <b><font color='#E6ECF5'>" + modelData.ilvl + "</font></b>" : ""
+                                    onClicked: backend.setMid("char:" + modelData.player)
+                                }
+                            }
+                        }
+                    }
+
+                    Frame {
+                        visible: !!win.cs2.count
+                        width: parent.width
+                        height: csColumn.implicitHeight + 32
+                        Column {
+                            id: csColumn
+                            x: 16
+                            y: 16
+                            width: parent.width - 32
+                            spacing: 10
+                            Heading { text: "CS2 STATS" }
+                            Rectangle {
+                                width: parent.width
+                                height: csInner.implicitHeight + 20
+                                color: win.mid === "cs2" || csArea.containsMouse ? "#12203A" : "#0E1420"
+                                border.width: win.mid === "cs2" ? 2 : 1
+                                border.color: win.mid === "cs2" ? accent.color : "#1E2A40"
+                                Column {
+                                    id: csInner
+                                    x: 12
+                                    y: 10
+                                    width: parent.width - 24
+                                    spacing: 6
+                                    Text {
+                                        text: "Senaste " + (win.cs2.count || 0) + " matcherna"
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.weight: Font.DemiBold
+                                        font.pixelSize: 15
+                                    }
+                                    Text {
+                                        text: win.cs2.count ? win.cs2.wins + " vinster, " + win.cs2.losses + " förluster · K/D "
+                                                              + win.cs2.avg.kd + " · ADR " + win.cs2.avg.adr : ""
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                    Row {
+                                        spacing: 4
+                                        Repeater {
+                                            model: win.cs2.form || []
+                                            Rectangle { required property string modelData; width: 18; height: 8; color: win.resultColor(modelData) }
+                                        }
+                                    }
+                                }
+                                MouseArea {
+                                    id: csArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.setMid("cs2")
+                                }
+                            }
+                        }
+                    }
+
+                    Frame {
+                        visible: !!win.builds.builder && (win.builds.rows || []).length > 0
+                        width: parent.width
+                        height: buildColumn.implicitHeight + 32
+                        Column {
+                            id: buildColumn
+                            x: 16
+                            y: 16
+                            width: parent.width - 32
+                            spacing: 10
+                            Heading { text: "BYGGEN" }
+                            Rectangle {
+                                width: parent.width
+                                height: buildInner.implicitHeight + 20
+                                color: win.mid === "builds" || buildArea.containsMouse ? "#12203A" : "#0E1420"
+                                border.width: win.mid === "builds" ? 2 : 1
+                                border.color: win.mid === "builds" ? accent.color : "#1E2A40"
+                                Column {
+                                    id: buildInner
+                                    x: 12
+                                    y: 10
+                                    width: parent.width - 24
+                                    spacing: 6
+                                    Text {
+                                        readonly property var last: win.builds.last || ({})
+                                        text: "Senaste bygget " + (last.state || "")
+                                        color: win.resultColor(last.kind) === "#8B98AD" ? "#E6ECF5" : win.resultColor(last.kind)
+                                        font.family: "IBM Plex Sans"
+                                        font.weight: Font.DemiBold
+                                        font.pixelSize: 15
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        elide: Text.ElideRight
+                                        text: win.builds.last ? win.builds.last.when + " · " + win.builds.last.length : ""
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                    Row {
+                                        spacing: 4
+                                        Repeater {
+                                            model: (win.builds.rows || []).slice().reverse()
+                                            Rectangle { required property var modelData; width: 18; height: 8; color: win.resultColor(modelData.kind) }
+                                        }
+                                    }
+                                }
+                                MouseArea {
+                                    id: buildArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.setMid("builds")
+                                }
+                            }
+                        }
+                    }
+
+                    Frame {
+                        visible: (win.reports.rows || []).length > 0
+                        width: parent.width
+                        height: kakanColumn.implicitHeight + 32
+                        Column {
+                            id: kakanColumn
+                            x: 16
+                            y: 16
+                            width: parent.width - 32
+                            spacing: 10
+                            Heading { text: "KAKAN" }
+                            SideCard {
+                                on: win.mid === "reports"
+                                title: win.reports.new ? win.reports.new + (win.reports.new === 1 ? " ny rapport" : " nya rapporter") : "Rapporter"
+                                line: (win.reports.rows || []).length ? "senast: " + win.reports.rows[0].title : ""
+                                onClicked: backend.setMid("reports")
+                            }
+                        }
+                    }
+                }
+                FastWheel { flick: statsFlick }
+            }
 
             Frame {
                 id: playFrame

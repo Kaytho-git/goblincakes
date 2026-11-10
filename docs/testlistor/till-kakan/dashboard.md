@@ -1,4 +1,4 @@
-# GOBLINCAKES Dashboard steg 1 – efter nästa image
+# GOBLINCAKES Dashboard steg 1 och 2 – efter nästa image
 - Programmet finns i imagen
   kör: test -x /usr/bin/goblin-dashboard && test -f /usr/share/goblincakes/dashboard/Main.qml && echo finns
   väntat: finns (annars är imagen för gammal – goblin update och starta om)
@@ -40,3 +40,27 @@
   fråga: Tryck på högtalarikonen under loggan. Ändras volymen när du trycker i stapeln, och fungerar Tyst?
 - Esc
   fråga: Stänger Esc ett steg i taget (lilla rutan, sökningen, tillbaka till alla program, och sist hela dashboarden)?
+- WoW-siffrorna
+  kör: python3 /usr/share/goblincakes/dashboard/stats.py wow-fetch
+  väntat: players med dina karaktärer (class, spec, ilvl) och raid med bosses; minst en wipe har pct som är ett tal (inte null) – null på alla = Warcraft Logs svarade inte, skriv det i rapporten
+- CS2-siffrorna
+  kör: python3 /usr/share/goblincakes/dashboard/stats.py cs2
+  väntat: count, wins, losses och maps – samma matcher som CS2 Stats i GoblinRecorder (inte de privata)
+- Byggena
+  kör: python3 /usr/share/goblincakes/dashboard/stats.py builds
+  väntat: builder true och rows med de senaste byggena (state, hash, title, when)
+- Rapporterna
+  kör: python3 /usr/share/goblincakes/dashboard/stats.py reports
+  väntat: rows med dina senaste rapporter till Claude, rubriken som title
+- Ramarna till höger
+  fråga: Öppna dashboarden. Syns WOW STATS, CS2 STATS, BYGGEN och KAKAN till höger ovanför Spelas nu, och får alla plats (annars: går det att rulla)?
+- Senaste raiden
+  fråga: Tryck på Senaste raiden. Stämmer bossarna, antal pulls, kill/bästa wipe och din parse med Warcraft Logs? Visar staplarna bossens hälsa per pull när du trycker på en boss?
+- Karaktären
+  fråga: Tryck på en karaktär. Stämmer klassfärgen, item level och rutorna med WoW Stats i GoblinRecorder?
+- CS2 i mitten
+  fråga: Tryck på CS2 STATS. Stämmer vinster/förluster och siffrorna per karta med CS2 Stats i GoblinRecorder?
+- Fråga Kakan
+  fråga: Tryck Fråga Kakan om bossen i Senaste raiden. Öppnades Goblin AI med frågan i en ny chatt, och försvann dashboarden?
+- Byggen i mitten
+  fråga: Tryck på BYGGEN. Visas listan, och öppnar ett tryck på en rad bygget på GitHub i webbläsaren?
