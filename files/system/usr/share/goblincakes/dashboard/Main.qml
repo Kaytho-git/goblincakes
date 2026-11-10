@@ -1,6 +1,7 @@
-// GOBLINCAKES Dashboard – step 1 (10 Nov): the open programs at the top, the own programs at the bottom,
-// PROJEKT / SYSTEM / KVOT to the left, SPELAS NU to the right, and in the middle every program (type =
-// search) or what was pressed in a frame. The data comes from goblin-dashboard (backend.get(key) = JSON).
+// GOBLINCAKES Dashboard – step 1–3 (10 Nov): the open programs at the top, the own programs at the bottom,
+// the frames of the view (SPEL, JOBB, … – chosen in Config → Dashboard) to the left and right with KVOT and
+// SPELAS NU always at the bottom, and in the middle every program (type = search) or what was pressed in a
+// frame. The data comes from goblin-dashboard (backend.get(key) = JSON).
 import QtQuick
 import QtQuick.Window
 import QtQuick.Shapes
@@ -33,6 +34,36 @@ Window {
     property int boss: -1              // the chosen boss in SENASTE RAIDEN (-1 = the last one pulled)
     property string csMap: ""          // the chosen map in CS2 ("" = the most played)
     readonly property var trayIcons: JSON.parse(backend.trayIcons)
+    // The views: [{name, left: [frame ids], right: [frame ids], mid}] and the one shown
+    readonly property var views: JSON.parse(backend.views)
+    readonly property var currentView: views[backend.view] || ({ "left": [], "right": [] })
+    function frameComponent(id) {
+        return ({ "projects": projectsFrame, "system": systemFrame, "wow": wowFrame, "cs2": cs2Frame,
+                  "builds": buildsFrame, "reports": reportsFrame })[id] || null;
+    }
+    // A frame is shown only when it has something to show (projects and the system always have)
+    function shows(id) {
+        return id === "projects" || id === "system" ? true
+             : id === "wow" ? (wow.players || []).length > 0
+             : id === "cs2" ? !!cs2.count
+             : id === "builds" ? !!builds.builder && (builds.rows || []).length > 0
+             : id === "reports" ? (reports.rows || []).length > 0 : false;
+    }
+    // A sideways swipe (touchpad) changes the view – once per swipe
+    property real swipe: 0
+    function nudgeView(dx) {
+        if (swipeLock.running) {
+            swipeLock.restart();
+            return;
+        }
+        swipe += dx;
+        if (Math.abs(swipe) >= 160) {
+            backend.stepView(swipe < 0 ? 1 : -1);
+            swipe = 0;
+            swipeLock.restart();
+        }
+    }
+    Timer { id: swipeLock; interval: 450; onTriggered: win.swipe = 0 }
 
     property string group: ""          // the chosen kind of program ("" = all)
     property int sel: 0                // the marked program in the grid
@@ -152,6 +183,11 @@ Window {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         onWheel: event => {
             const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
+            const side = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x;
+            if (Math.abs(side) > Math.abs(delta)) {     // sideways: changes the view (win.nudgeView)
+                win.nudgeView(side);
+                return;
+            }
             event.accepted = true;
             for (let f = flick; f; ) {
                 const top = f.originY, bottom = top + Math.max(0, f.contentHeight - f.height);
@@ -526,7 +562,7 @@ Window {
         }
         ListView {
             id: openList
-            anchors { left: openLabel.right; leftMargin: 20; right: clockBox.left; rightMargin: 20; verticalCenter: parent.verticalCenter }
+            anchors { left: openLabel.right; leftMargin: 20; right: customizeButton.left; rightMargin: 20; verticalCenter: parent.verticalCenter }
             height: 44
             orientation: ListView.Horizontal
             spacing: 8
@@ -573,6 +609,41 @@ Window {
                 color: "#5C6880"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 14
+            }
+        }
+        // Anpassa: Config → Dashboard (the views, what each frame shows, the programs at the bottom)
+        Rectangle {
+            id: customizeButton
+            anchors { right: clockBox.left; rightMargin: 20; verticalCenter: parent.verticalCenter }
+            width: customizeRow.implicitWidth + 28
+            height: 44
+            color: customizeArea.containsMouse ? "#1A2438" : "transparent"
+            border.width: 1
+            border.color: "#1E2A40"
+            Row {
+                id: customizeRow
+                anchors.centerIn: parent
+                spacing: 8
+                Glyph {
+                    anchors.verticalCenter: parent.verticalCenter
+                    scale: 0.7
+                    path: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M14 4h4v4h-4zM8 10h4v4H8zM16 16h4v4h-4z"
+                    stroke: "#8B98AD"
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Anpassa"
+                    color: customizeArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                }
+            }
+            MouseArea {
+                id: customizeArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: backend.customize()
             }
         }
         Column {
@@ -709,6 +780,327 @@ Window {
         }
     }
 
+    // ── The frames: each view (Config → Dashboard) picks which ones it shows, left and right ──
+    // A frame with nothing to show is left out (win.shows), and the dashboard grows the middle instead.
+    Component {
+        id: projectsFrame
+        Frame {
+            width: parent.width
+            height: projectColumn.implicitHeight + 32
+            Column {
+                id: projectColumn
+                x: 16
+                y: 16
+                width: parent.width - 32
+                spacing: 6
+                Heading { text: "PROJEKT"; bottomPadding: 6 }
+                Repeater {
+                    model: win.projects.slice(0, 5)
+                    Rectangle {
+                        required property var modelData
+                        readonly property bool on: win.midProject === modelData.path
+                        width: projectColumn.width
+                        height: 56
+                        color: on ? "#12203A" : projArea.containsMouse ? "#12203A" : "#0E1420"
+                        border.width: on ? 2 : 1
+                        border.color: on ? accent.color : "#1E2A40"
+                        opacity: modelData.exists ? 1 : 0.5
+                        Glyph {
+                            x: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            path: "M3 6h7l2 3h9v10H3z"
+                            stroke: "#8B98AD"
+                        }
+                        Column {
+                            anchors { left: parent.left; leftMargin: 48; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                            spacing: 2
+                            Text {
+                                width: parent.width
+                                elide: Text.ElideRight
+                                text: modelData.name
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 15
+                            }
+                            Text {
+                                width: parent.width
+                                elide: Text.ElideMiddle
+                                text: !modelData.exists ? "mappen finns inte längre"
+                                      : modelData.short + (modelData.changed ? " · " + modelData.changed + " ändrade" : "")
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Mono"
+                                font.pixelSize: 11
+                            }
+                        }
+                        MouseArea {
+                            id: projArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: backend.setMid("project:" + modelData.path)
+                        }
+                    }
+                }
+                Rectangle {
+                    width: projectColumn.width
+                    height: 44
+                    color: addArea.containsMouse ? "#12203A" : "transparent"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    Text {
+                        x: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "+ Lägg till projekt"
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                    }
+                    MouseArea {
+                        id: addArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { win.dialogOpen = true; addProjectDialog.open(); }
+                    }
+                }
+            }
+        }
+    }
+    Component {
+        id: systemFrame
+        Frame {
+            width: parent.width
+            height: systemColumn.implicitHeight + 32
+            color: win.mid === "system" ? "#0E1420" : "#0B1018"
+            border.color: win.mid === "system" ? accent.color : "#1E2A40"
+            Column {
+                id: systemColumn
+                x: 16
+                y: 16
+                width: parent.width - 32
+                spacing: 2
+                Heading { text: "SYSTEM"; bottomPadding: 8 }
+                Repeater {
+                    model: win.system.rows || []
+                    Item {
+                        required property var modelData
+                        width: systemColumn.width
+                        height: 40
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.k
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        Meter {
+                            x: 56
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - 56 - 84
+                            percent: modelData.p
+                            warn: modelData.warn
+                        }
+                        Text {
+                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                            text: modelData.v
+                            color: "#C3CCDA"
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 12
+                        }
+                    }
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: backend.setMid(win.mid === "system" ? "apps" : "system")
+            }
+        }
+    }
+    Component {
+        id: wowFrame
+        Frame {
+            width: parent.width
+            height: wowColumn.implicitHeight + 32
+            Column {
+                id: wowColumn
+                x: 16
+                y: 16
+                width: parent.width - 32
+                spacing: 8
+                Heading { text: "WOW STATS"; bottomPadding: 4 }
+                SideCard {
+                    visible: !!win.wow.raid
+                    on: win.mid === "raid"
+                    title: "Senaste raiden"
+                    line: win.wow.raid ? win.wow.raid.short + " · " + win.wow.raid.difficulty + " · "
+                                         + win.wow.raid.killed + "/" + win.wow.raid.bosses.length + " bossar" : ""
+                    onClicked: backend.setMid("raid")
+                }
+                Text {
+                    topPadding: 6
+                    text: "KARAKTÄRER"
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 11
+                    font.letterSpacing: 1
+                }
+                Repeater {
+                    model: (win.wow.players || []).slice(0, 3)
+                    SideCard {
+                        required property var modelData
+                        big: true
+                        on: win.midChar === modelData.player
+                        title: modelData.name
+                        titleColor: win.classColors[modelData["class"]] || "#E6ECF5"
+                        line: [modelData.spec, modelData["class"], modelData.realm].filter(t => t).join(" · ")
+                        side: modelData.ilvl ? "ilvl <b><font color='#E6ECF5'>" + modelData.ilvl + "</font></b>" : ""
+                        onClicked: backend.setMid("char:" + modelData.player)
+                    }
+                }
+            }
+        }
+    }
+    Component {
+        id: cs2Frame
+        Frame {
+            width: parent.width
+            height: csColumn.implicitHeight + 32
+            Column {
+                id: csColumn
+                x: 16
+                y: 16
+                width: parent.width - 32
+                spacing: 10
+                Heading { text: "CS2 STATS" }
+                Rectangle {
+                    width: parent.width
+                    height: csInner.implicitHeight + 20
+                    color: win.mid === "cs2" || csArea.containsMouse ? "#12203A" : "#0E1420"
+                    border.width: win.mid === "cs2" ? 2 : 1
+                    border.color: win.mid === "cs2" ? accent.color : "#1E2A40"
+                    Column {
+                        id: csInner
+                        x: 12
+                        y: 10
+                        width: parent.width - 24
+                        spacing: 6
+                        Text {
+                            text: "Senaste " + (win.cs2.count || 0) + " matcherna"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 15
+                        }
+                        Text {
+                            text: win.cs2.count ? win.cs2.wins + " vinster, " + win.cs2.losses + " förluster · K/D "
+                                                  + win.cs2.avg.kd + " · ADR " + win.cs2.avg.adr : ""
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
+                        }
+                        Row {
+                            spacing: 4
+                            Repeater {
+                                model: win.cs2.form || []
+                                Rectangle { required property string modelData; width: 18; height: 8; color: win.resultColor(modelData) }
+                            }
+                        }
+                    }
+                    MouseArea {
+                        id: csArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: backend.setMid("cs2")
+                    }
+                }
+            }
+        }
+    }
+    Component {
+        id: buildsFrame
+        Frame {
+            width: parent.width
+            height: buildColumn.implicitHeight + 32
+            Column {
+                id: buildColumn
+                x: 16
+                y: 16
+                width: parent.width - 32
+                spacing: 10
+                Heading { text: "BYGGEN" }
+                Rectangle {
+                    width: parent.width
+                    height: buildInner.implicitHeight + 20
+                    color: win.mid === "builds" || buildArea.containsMouse ? "#12203A" : "#0E1420"
+                    border.width: win.mid === "builds" ? 2 : 1
+                    border.color: win.mid === "builds" ? accent.color : "#1E2A40"
+                    Column {
+                        id: buildInner
+                        x: 12
+                        y: 10
+                        width: parent.width - 24
+                        spacing: 6
+                        Text {
+                            readonly property var last: win.builds.last || ({})
+                            text: "Senaste bygget " + (last.state || "")
+                            color: win.resultColor(last.kind) === "#8B98AD" ? "#E6ECF5" : win.resultColor(last.kind)
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 15
+                        }
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            text: win.builds.last ? win.builds.last.when + " · " + win.builds.last.length : ""
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
+                        }
+                        Row {
+                            spacing: 4
+                            Repeater {
+                                model: (win.builds.rows || []).slice().reverse()
+                                Rectangle { required property var modelData; width: 18; height: 8; color: win.resultColor(modelData.kind) }
+                            }
+                        }
+                    }
+                    MouseArea {
+                        id: buildArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: backend.setMid("builds")
+                    }
+                }
+            }
+        }
+    }
+    Component {
+        id: reportsFrame
+        Frame {
+            width: parent.width
+            height: kakanColumn.implicitHeight + 32
+            Column {
+                id: kakanColumn
+                x: 16
+                y: 16
+                width: parent.width - 32
+                spacing: 10
+                Heading { text: "KAKAN" }
+                SideCard {
+                    on: win.mid === "reports"
+                    title: win.reports.new ? win.reports.new + (win.reports.new === 1 ? " ny rapport" : " nya rapporter") : "Rapporter"
+                    line: (win.reports.rows || []).length ? "senast: " + win.reports.rows[0].title : ""
+                    onClicked: backend.setMid("reports")
+                }
+            }
+        }
+    }
+
     // ── The middle part ───────────────────────────────────────
     Item {
         id: body
@@ -718,145 +1110,34 @@ Window {
         // Left: PROJEKT, SYSTEM, and KVOT at the bottom
         Item {
             id: leftCol
-            width: 300
+            readonly property var frames: win.currentView.left.filter(f => win.shows(f))
+            visible: frames.length > 0 || quotaFrame.visible
+            width: visible ? 300 : 0     // nothing chosen to the left: the middle gets the room
             height: parent.height
 
-            Frame {
-                id: projectFrame
+            Flickable {
+                id: leftFlick
+                anchors { top: parent.top; bottom: quotaFrame.visible ? quotaFrame.top : parent.bottom
+                          bottomMargin: quotaFrame.visible ? 16 : 0 }
                 width: parent.width
-                height: projectColumn.implicitHeight + 32
+                contentHeight: leftColumn.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
                 Column {
-                    id: projectColumn
-                    x: 16
-                    y: 16
-                    width: parent.width - 32
-                    spacing: 6
-                    Heading { text: "PROJEKT"; bottomPadding: 6 }
+                    id: leftColumn
+                    width: parent.width
+                    spacing: 16
                     Repeater {
-                        model: win.projects.slice(0, 5)
-                        Rectangle {
-                            required property var modelData
-                            readonly property bool on: win.midProject === modelData.path
-                            width: projectColumn.width
-                            height: 56
-                            color: on ? "#12203A" : projArea.containsMouse ? "#12203A" : "#0E1420"
-                            border.width: on ? 2 : 1
-                            border.color: on ? accent.color : "#1E2A40"
-                            opacity: modelData.exists ? 1 : 0.5
-                            Glyph {
-                                x: 12
-                                anchors.verticalCenter: parent.verticalCenter
-                                path: "M3 6h7l2 3h9v10H3z"
-                                stroke: "#8B98AD"
-                            }
-                            Column {
-                                anchors { left: parent.left; leftMargin: 48; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                                spacing: 2
-                                Text {
-                                    width: parent.width
-                                    elide: Text.ElideRight
-                                    text: modelData.name
-                                    color: "#E6ECF5"
-                                    font.family: "IBM Plex Sans"
-                                    font.weight: Font.DemiBold
-                                    font.pixelSize: 15
-                                }
-                                Text {
-                                    width: parent.width
-                                    elide: Text.ElideMiddle
-                                    text: !modelData.exists ? "mappen finns inte längre"
-                                          : modelData.short + (modelData.changed ? " · " + modelData.changed + " ändrade" : "")
-                                    color: "#8B98AD"
-                                    font.family: "IBM Plex Mono"
-                                    font.pixelSize: 11
-                                }
-                            }
-                            MouseArea {
-                                id: projArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: backend.setMid("project:" + modelData.path)
-                            }
-                        }
-                    }
-                    Rectangle {
-                        width: projectColumn.width
-                        height: 44
-                        color: addArea.containsMouse ? "#12203A" : "transparent"
-                        border.width: 1
-                        border.color: "#1E2A40"
-                        Text {
-                            x: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "+ Lägg till projekt"
-                            color: "#8B98AD"
-                            font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
-                        }
-                        MouseArea {
-                            id: addArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { win.dialogOpen = true; addProjectDialog.open(); }
+                        model: leftCol.frames
+                        Loader {
+                            required property string modelData
+                            width: leftColumn.width
+                            sourceComponent: win.frameComponent(modelData)
                         }
                     }
                 }
+                FastWheel { flick: leftFlick }
             }
-
-            Frame {
-                id: systemFrame
-                anchors { top: projectFrame.bottom; topMargin: 16 }
-                width: parent.width
-                height: systemColumn.implicitHeight + 32
-                color: win.mid === "system" ? "#0E1420" : "#0B1018"
-                border.color: win.mid === "system" ? accent.color : "#1E2A40"
-                Column {
-                    id: systemColumn
-                    x: 16
-                    y: 16
-                    width: parent.width - 32
-                    spacing: 2
-                    Heading { text: "SYSTEM"; bottomPadding: 8 }
-                    Repeater {
-                        model: win.system.rows || []
-                        Item {
-                            required property var modelData
-                            width: systemColumn.width
-                            height: 40
-                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.k
-                                color: "#E6ECF5"
-                                font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
-                            }
-                            Meter {
-                                x: 56
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width - 56 - 84
-                                percent: modelData.p
-                                warn: modelData.warn
-                            }
-                            Text {
-                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: modelData.v
-                                color: "#C3CCDA"
-                                font.family: "IBM Plex Mono"
-                                font.pixelSize: 12
-                            }
-                        }
-                    }
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: backend.setMid(win.mid === "system" ? "apps" : "system")
-                }
-            }
-
             Frame {
                 id: quotaFrame
                 anchors.bottom: parent.bottom
@@ -936,7 +1217,8 @@ Window {
         // The middle: every program (type = search), or what was pressed in a frame
         Rectangle {
             id: middle
-            anchors { left: leftCol.right; leftMargin: 16; right: rightCol.left; rightMargin: 16; top: parent.top; bottom: parent.bottom }
+            anchors { left: leftCol.right; leftMargin: leftCol.visible ? 16 : 0; right: rightCol.left; rightMargin: 16
+                      top: parent.top; bottom: viewStrip.visible ? viewStrip.top : parent.bottom }
             color: "#0E1420"
             border.width: 1
             border.color: "#1E2A40"
@@ -974,8 +1256,17 @@ Window {
                     Keys.onEnterPressed: if (win.mid === "apps" && win.shown.length > 0) backend.launch(win.shown[win.sel].path)
                     Keys.onDownPressed: grid.step(grid.columns)
                     Keys.onUpPressed: grid.step(-grid.columns)
-                    Keys.onRightPressed: event => { if (cursorPosition === text.length) grid.step(1); else event.accepted = false; }
-                    Keys.onLeftPressed: event => { if (text === "") grid.step(-1); else event.accepted = false; }
+                    // Ctrl+← → changes the view; plain ← → too when the middle shows no program grid
+                    Keys.onRightPressed: event => {
+                        if (event.modifiers & Qt.ControlModifier || (text === "" && win.mid !== "apps")) backend.stepView(1);
+                        else if (cursorPosition === text.length) grid.step(1);
+                        else event.accepted = false;
+                    }
+                    Keys.onLeftPressed: event => {
+                        if (event.modifiers & Qt.ControlModifier || (text === "" && win.mid !== "apps")) backend.stepView(-1);
+                        else if (text === "") grid.step(-1);
+                        else event.accepted = false;
+                    }
                     Text {
                         visible: search.text === ""
                         text: "Skriv för att söka bland programmen"
@@ -1867,14 +2158,107 @@ Window {
             }
         }
 
-        // Right: the stats frames, and SPELAS NU at the bottom
+        // The views under the middle: ‹ • SPEL ◦ JOBB › – the wheel here, a sideways swipe or Ctrl+← → changes it
+        Item {
+            id: viewStrip
+            visible: win.views.length > 1
+            anchors { left: middle.left; right: middle.right; bottom: parent.bottom }
+            height: 40
+            WheelHandler {
+                target: null
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                property real sum: 0
+                onWheel: event => {
+                    const d = event.angleDelta.y !== 0 ? event.angleDelta.y : event.angleDelta.x;
+                    sum += d;
+                    if (Math.abs(sum) >= 120) {
+                        backend.stepView(sum < 0 ? 1 : -1);
+                        sum = 0;
+                    }
+                }
+            }
+            Row {
+                anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom }
+                height: 32
+                spacing: 14
+                Repeater {
+                    model: [-1].concat(win.views.map((v, i) => i)).concat([-2])
+                    Rectangle {
+                        required property int modelData
+                        readonly property bool arrow: modelData < 0
+                        readonly property bool on: modelData === backend.view
+                        width: arrow ? 44 : viewName.implicitWidth + 30
+                        height: 32
+                        color: stripArea.containsMouse ? "#12203A" : "transparent"
+                        Text {
+                            visible: parent.arrow
+                            anchors.centerIn: parent
+                            text: parent.modelData === -1 ? "‹" : "›"
+                            color: "#8B98AD"
+                            font.pixelSize: 20
+                        }
+                        Rectangle {
+                            visible: !parent.arrow
+                            x: 6
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 10
+                            height: 10
+                            color: parent.on ? accent.color : "transparent"
+                            border.width: parent.on ? 0 : 1
+                            border.color: "#5C6880"
+                        }
+                        Text {
+                            id: viewName
+                            visible: !parent.arrow
+                            x: 24
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: parent.arrow ? "" : (win.views[parent.modelData] || {}).name || ""
+                            color: parent.on ? "#E6ECF5" : "#5C6880"
+                            font.family: "Chakra Petch"
+                            font.pixelSize: 12
+                            font.letterSpacing: 2
+                        }
+                        MouseArea {
+                            id: stripArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: parent.modelData === -1 ? backend.stepView(-1) : parent.modelData === -2
+                                       ? backend.stepView(1) : backend.setView(parent.modelData)
+                        }
+                    }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "bläddra med hjulet eller Ctrl+← →"
+                    color: "#5C6880"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 11
+                }
+            }
+        }
+
+        // A sideways swipe anywhere else changes the view too (the lists leave it alone – FastWheel)
+        WheelHandler {
+            target: null
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: event => {
+                const side = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x;
+                const down = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
+                if (Math.abs(side) > Math.abs(down))
+                    win.nudgeView(side);
+            }
+        }
+
+        // Right: the view's frames, and SPELAS NU at the bottom
         Item {
             id: rightCol
+            readonly property var frames: win.currentView.right.filter(f => win.shows(f))
             anchors.right: parent.right
             width: 340
             height: parent.height
 
-            // WOW STATS, CS2 STATS, BYGGEN and KAKAN – each only when there is something to show
+            // The view's frames to the right (WOW STATS, CS2 STATS, BYGGEN, KAKAN …), SPELAS NU always
             Flickable {
                 id: statsFlick
                 anchors { top: parent.top; bottom: playFrame.top; bottomMargin: 16 }
@@ -1887,180 +2271,12 @@ Window {
                     width: parent.width
                     spacing: 16
 
-                    Frame {
-                        visible: (win.wow.players || []).length > 0
-                        width: parent.width
-                        height: wowColumn.implicitHeight + 32
-                        Column {
-                            id: wowColumn
-                            x: 16
-                            y: 16
-                            width: parent.width - 32
-                            spacing: 8
-                            Heading { text: "WOW STATS"; bottomPadding: 4 }
-                            SideCard {
-                                visible: !!win.wow.raid
-                                on: win.mid === "raid"
-                                title: "Senaste raiden"
-                                line: win.wow.raid ? win.wow.raid.short + " · " + win.wow.raid.difficulty + " · "
-                                                     + win.wow.raid.killed + "/" + win.wow.raid.bosses.length + " bossar" : ""
-                                onClicked: backend.setMid("raid")
-                            }
-                            Text {
-                                topPadding: 6
-                                text: "KARAKTÄRER"
-                                color: "#8B98AD"
-                                font.family: "IBM Plex Sans"
-                                font.pixelSize: 11
-                                font.letterSpacing: 1
-                            }
-                            Repeater {
-                                model: (win.wow.players || []).slice(0, 3)
-                                SideCard {
-                                    required property var modelData
-                                    big: true
-                                    on: win.midChar === modelData.player
-                                    title: modelData.name
-                                    titleColor: win.classColors[modelData["class"]] || "#E6ECF5"
-                                    line: [modelData.spec, modelData["class"], modelData.realm].filter(t => t).join(" · ")
-                                    side: modelData.ilvl ? "ilvl <b><font color='#E6ECF5'>" + modelData.ilvl + "</font></b>" : ""
-                                    onClicked: backend.setMid("char:" + modelData.player)
-                                }
-                            }
-                        }
-                    }
-
-                    Frame {
-                        visible: !!win.cs2.count
-                        width: parent.width
-                        height: csColumn.implicitHeight + 32
-                        Column {
-                            id: csColumn
-                            x: 16
-                            y: 16
-                            width: parent.width - 32
-                            spacing: 10
-                            Heading { text: "CS2 STATS" }
-                            Rectangle {
-                                width: parent.width
-                                height: csInner.implicitHeight + 20
-                                color: win.mid === "cs2" || csArea.containsMouse ? "#12203A" : "#0E1420"
-                                border.width: win.mid === "cs2" ? 2 : 1
-                                border.color: win.mid === "cs2" ? accent.color : "#1E2A40"
-                                Column {
-                                    id: csInner
-                                    x: 12
-                                    y: 10
-                                    width: parent.width - 24
-                                    spacing: 6
-                                    Text {
-                                        text: "Senaste " + (win.cs2.count || 0) + " matcherna"
-                                        color: "#E6ECF5"
-                                        font.family: "IBM Plex Sans"
-                                        font.weight: Font.DemiBold
-                                        font.pixelSize: 15
-                                    }
-                                    Text {
-                                        text: win.cs2.count ? win.cs2.wins + " vinster, " + win.cs2.losses + " förluster · K/D "
-                                                              + win.cs2.avg.kd + " · ADR " + win.cs2.avg.adr : ""
-                                        color: "#8B98AD"
-                                        font.family: "IBM Plex Sans"
-                                        font.pixelSize: 12
-                                    }
-                                    Row {
-                                        spacing: 4
-                                        Repeater {
-                                            model: win.cs2.form || []
-                                            Rectangle { required property string modelData; width: 18; height: 8; color: win.resultColor(modelData) }
-                                        }
-                                    }
-                                }
-                                MouseArea {
-                                    id: csArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.setMid("cs2")
-                                }
-                            }
-                        }
-                    }
-
-                    Frame {
-                        visible: !!win.builds.builder && (win.builds.rows || []).length > 0
-                        width: parent.width
-                        height: buildColumn.implicitHeight + 32
-                        Column {
-                            id: buildColumn
-                            x: 16
-                            y: 16
-                            width: parent.width - 32
-                            spacing: 10
-                            Heading { text: "BYGGEN" }
-                            Rectangle {
-                                width: parent.width
-                                height: buildInner.implicitHeight + 20
-                                color: win.mid === "builds" || buildArea.containsMouse ? "#12203A" : "#0E1420"
-                                border.width: win.mid === "builds" ? 2 : 1
-                                border.color: win.mid === "builds" ? accent.color : "#1E2A40"
-                                Column {
-                                    id: buildInner
-                                    x: 12
-                                    y: 10
-                                    width: parent.width - 24
-                                    spacing: 6
-                                    Text {
-                                        readonly property var last: win.builds.last || ({})
-                                        text: "Senaste bygget " + (last.state || "")
-                                        color: win.resultColor(last.kind) === "#8B98AD" ? "#E6ECF5" : win.resultColor(last.kind)
-                                        font.family: "IBM Plex Sans"
-                                        font.weight: Font.DemiBold
-                                        font.pixelSize: 15
-                                    }
-                                    Text {
-                                        width: parent.width
-                                        elide: Text.ElideRight
-                                        text: win.builds.last ? win.builds.last.when + " · " + win.builds.last.length : ""
-                                        color: "#8B98AD"
-                                        font.family: "IBM Plex Sans"
-                                        font.pixelSize: 12
-                                    }
-                                    Row {
-                                        spacing: 4
-                                        Repeater {
-                                            model: (win.builds.rows || []).slice().reverse()
-                                            Rectangle { required property var modelData; width: 18; height: 8; color: win.resultColor(modelData.kind) }
-                                        }
-                                    }
-                                }
-                                MouseArea {
-                                    id: buildArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.setMid("builds")
-                                }
-                            }
-                        }
-                    }
-
-                    Frame {
-                        visible: (win.reports.rows || []).length > 0
-                        width: parent.width
-                        height: kakanColumn.implicitHeight + 32
-                        Column {
-                            id: kakanColumn
-                            x: 16
-                            y: 16
-                            width: parent.width - 32
-                            spacing: 10
-                            Heading { text: "KAKAN" }
-                            SideCard {
-                                on: win.mid === "reports"
-                                title: win.reports.new ? win.reports.new + (win.reports.new === 1 ? " ny rapport" : " nya rapporter") : "Rapporter"
-                                line: (win.reports.rows || []).length ? "senast: " + win.reports.rows[0].title : ""
-                                onClicked: backend.setMid("reports")
-                            }
+                    Repeater {
+                        model: rightCol.frames
+                        Loader {
+                            required property string modelData
+                            width: statsColumn.width
+                            sourceComponent: win.frameComponent(modelData)
                         }
                     }
                 }

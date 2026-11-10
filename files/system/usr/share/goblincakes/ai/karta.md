@@ -123,8 +123,9 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
 - /usr/bin/goblin-dashboard (fönstret, kod /usr/share/goblincakes/dashboard/: Main.qml, dash.py = allt som läses,
   windows.js = KWin-skriptet för öppna fönster). Processen ligger kvar gömd efter Esc så att den kommer upp direkt;
   `goblin dashboard stäng` avslutar den. Inget läses medan den är gömd.
-- Inställningar: ~/.config/goblincakes/dashboard.json (`mid` = vad mitten visade sist, `apps` = egna program nederst –
-  saknas den används dockans fästa program). Projekten = samma lista som Goblin AI:s PROJEKT → MAPPAR
+- Inställningar: ~/.config/goblincakes/dashboard.json (`views` = vyerna [{name, left, right, mid}], `view` = den som
+  visas, `apps` = egna program nederst – saknas den används dockans fästa program). Ändras i GOBLINCAKES Config →
+  DASHBOARD (eller knappen Anpassa i dashboarden); dashboarden läser om dem varje gång den visas. Projekten = samma lista som Goblin AI:s PROJEKT → MAPPAR
   (~/.config/goblincakes/ai-mappar.json). Kvoten = ~/.cache/goblincakes/quota.json (kvot-widgetens fil).
 - Varifrån siffrorna kommer: CPU /proc/stat, minne /proc/meminfo, grafikkort /sys/class/drm/card*/device/gpu_busy_percent
   (AMD/Intel) eller nvidia-smi, temperatur /sys/class/hwmon (k10temp/coretemp/amdgpu), disk = hemmappen + monterade
@@ -141,8 +142,13 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   Warcraft Logs, en fråga per rapport, sparat i ~/.cache/goblincakes/dashboard-wcl.json; utan WCL-nyckel
   (~/.config/goblincakes/wcl.json) eller utan länk på pullen visas bara kill/wipe.
 - Den göms av sig själv när ett annat fönster blir aktivt (som Plasmas Instrumentpanel för program).
+- Steg 3 (10 nov), vyer: SPEL (Projekt, System | WoW Stats, CS2 Stats) och JOBB (Projekt, System | Byggen, Kakan) som
+  standard, högst 3 ramar till vänster och 2 till höger, högst 6 vyer; KVOT och SPELAS NU syns i alla. Byte: prickarna
+  under mitten (tryck eller hjulet), svep i sidled, Ctrl+← →. En ram som inte finns i någon vy läses inte alls.
+  Ram saknas fast den är vald → den har inget att visa (t.ex. ingen WoW-historik), eller vyn är en annan än man tror:
+  `python3 /usr/share/goblincakes/dashboard/dash.py views`.
 Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps, top, player, quota, projects,
-`tray nätverk|ljud|bluetooth|urklipp|enheter`, bottom) – skriver det fönstret skulle visa; ramarna till höger:
+`tray nätverk|ljud|bluetooth|urklipp|enheter`, bottom, views, config) – skriver det fönstret skulle visa; ramarna till höger:
 `python3 /usr/share/goblincakes/dashboard/stats.py wow` (även wow-fetch = med Warcraft Logs, cs2, builds, reports).
 
 ## GOBLINCAKES Config

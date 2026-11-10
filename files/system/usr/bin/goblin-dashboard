@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """GOBLINCAKES Dashboard – a full-screen overview: the open programs at the top, the own programs at the
 bottom, frames with projects, the system, the quota and what is playing, and in the middle every program
-(type = search) or what was pressed in a frame. Step 1 of the dashboard (10 Nov): started by hand, nothing in
-the usual layout (top bar, dock, AppGrid) is changed.
+(type = search) or what was pressed in a frame. Step 1–3 of the dashboard (10 Nov): started by hand, nothing in
+the usual layout (top bar, dock, AppGrid) is changed. Several views (SPEL, JOBB, …), each with its own frames
+(Config → Dashboard, dashboard.json "views"); the wheel over the dots, a sideways swipe or Ctrl+← → changes view.
 
     goblin-dashboard            show it – or hide it when it is already showing (one window, kept running
                                 hidden so it comes up at once)
@@ -139,7 +140,9 @@ class Backend(QObject):
         self.kwin.answered.connect(self._windows_answer)
         self.arrived.connect(self._arrived)
         saved = dash.settings()
-        self._mid = saved.get("mid") or "apps"       # apps | system | project:<path>
+        self._views = dash.views(saved)             # SPEL, JOBB, … (Config → Dashboard)
+        self._view = dash.view_index(saved, self._views)
+        self._mid = self._views[self._view]["mid"]  # apps | system | project:<path> | raid | … – one per view
         self._tray = ""
         self.visible = False
         self.timers = [QTimer(self, interval=ms, timeout=fn) for ms, fn in (
@@ -170,18 +173,26 @@ class Backend(QObject):
             self.data[key] = text
             self.changed.emit(key)
 
+    def used(self):
+        """The frames in any view – the others are not read at all."""
+        return {f for v in self._views for f in v["left"] + v["right"]}
+
     def read_stats(self):
         """WOW STATS, CS2 STATS, BYGGEN, KAKAN (dashboard/stats.py): what is saved on the computer at once, then
-        what Warcraft Logs says about the latest raid's wipes."""
+        what Warcraft Logs says about the latest raid's wipes. Only the frames some view shows."""
         import stats  # noqa: PLC0415 – reads GoblinRecorder's code: not before the window is up
-        test = self.test
-        self.job("wow", stats.wow)
-        if not test:
-            QTimer.singleShot(1500, lambda: self.job("wowfetch", lambda: stats.wow(True), into="wow"))
-        self.job("cs2", stats.cs2)
-        self.job("builds", (lambda: stats.builds(test_runs=test["builds"])) if "builds" in test else stats.builds)
-        seen = float(dash.settings().get("reportsSeen") or 0)
-        self.job("reports", lambda: stats.reports(seen))
+        test, used = self.test, self.used()
+        if "wow" in used:
+            self.job("wow", stats.wow)
+            if not test:
+                QTimer.singleShot(1500, lambda: self.job("wowfetch", lambda: stats.wow(True), into="wow"))
+        if "cs2" in used:
+            self.job("cs2", stats.cs2)
+        if "builds" in used:
+            self.job("builds", (lambda: stats.builds(test_runs=test["builds"])) if "builds" in test else stats.builds)
+        if "reports" in used:
+            seen = float(dash.settings().get("reportsSeen") or 0)
+            self.job("reports", lambda: stats.reports(seen))
 
     def read_apps(self):
         def both():
@@ -260,6 +271,7 @@ class Backend(QObject):
         for t in self.timers:
             t.start() if on else t.stop()
         if on:
+            self.reload_views()      # Config → Dashboard may have changed them while it was hidden
             self.system = dash.System()
             self.read_all()
         elif self._tray:
@@ -269,6 +281,46 @@ class Backend(QObject):
     @Slot(str, result=str)
     def get(self, key):
         return self.data.get(key, "{}")
+
+    viewsChanged = Signal()
+
+    def reload_views(self):
+        saved = dash.settings()
+        rows = dash.views(saved)
+        if rows != self._views:
+            self._views = rows
+            self._view = dash.view_index(saved, rows)
+            self.viewsChanged.emit()
+            self._go_mid(rows[self._view]["mid"])
+
+    @Property(str, notify=viewsChanged)
+    def views(self):
+        return json.dumps(self._views, ensure_ascii=False)
+
+    @Property(int, notify=viewsChanged)
+    def view(self):
+        return self._view
+
+    @Slot(int)
+    def stepView(self, step):
+        """The next/previous view (round and round) – wheel, swipe, Ctrl+← →, the dots."""
+        if len(self._views) > 1 and step:
+            self.setView((self._view + step) % len(self._views))
+
+    @Slot(int)
+    def setView(self, index):
+        if not 0 <= index < len(self._views) or index == self._view:
+            return
+        self._view = index
+        saved = dash.settings()
+        saved["view"] = index
+        try:
+            dash.save_settings(saved)
+        except OSError:
+            pass
+        self.viewsChanged.emit()
+        mid = self._views[index]["mid"]
+        self._go_mid(mid if dash.mid_fits(mid, self._views[index]) else "apps")
 
     midChanged = Signal()
 
@@ -280,20 +332,31 @@ class Backend(QObject):
     def setMid(self, mid):
         if mid == self._mid:
             return
-        self._mid = mid
-        self.midChanged.emit()
+        # The middle opens where it was left – in each view (dashboard.json views[n].mid). Read again first:
+        # Config → Dashboard may have changed the views since they were read
+        self._views[self._view]["mid"] = mid
         saved = dash.settings()
-        saved["mid"] = mid
+        rows = dash.views(saved)
+        if [v["name"] for v in rows] == [v["name"] for v in self._views]:
+            rows[self._view]["mid"] = mid
+            saved["views"] = rows
+        else:
+            saved["views"] = self._views
+        saved["view"] = self._view
+        saved.pop("mid", None)
+        if mid == "reports":       # looked at: the next ones are the new ones
+            saved["reportsSeen"] = time.time()
         try:
             dash.save_settings(saved)
         except OSError:
             pass
-        if mid == "reports":       # looked at: the next ones are the new ones
-            saved["reportsSeen"] = time.time()
-            try:
-                dash.save_settings(saved)
-            except OSError:
-                pass
+        self._go_mid(mid)
+
+    def _go_mid(self, mid):
+        if mid == self._mid:
+            return
+        self._mid = mid
+        self.midChanged.emit()
         if mid == "system":
             self.job("top", dash.top_processes)
         elif mid.startswith("project:"):
@@ -399,6 +462,17 @@ class Backend(QObject):
             self.said.emit(why)
         else:
             self.hideWanted.emit()
+
+    @Slot()
+    def customize(self):
+        """Anpassa: GOBLINCAKES Config on the page Dashboard (the views, the frames, the programs at the bottom)."""
+        exe = USR / "bin/goblincakes-config"
+        try:
+            subprocess.Popen([str(exe) if exe.exists() else "goblincakes-config", "--tab", "dashboard"],
+                             start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as e:
+            return self.said.emit(f"Kunde inte öppna GOBLINCAKES Config: {e}")
+        self.hideWanted.emit()
 
     @Slot(str)
     def askKakan(self, question):

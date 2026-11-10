@@ -1,6 +1,7 @@
 """GOBLINCAKES Dashboard – what the window shows, read without Qt (so it can be tried from a terminal):
 
-    python3 dash.py apps|system|top|player|quota|projects|project <mapp>|tray <namn>
+    python3 dash.py apps|system|top|player|quota|projects|project <mapp>|tray <namn>|bottom|views|config
+    python3 dash.py save < {"views": [...], "apps": [...]}
 
 apps()         the programs in the menu (the same folders as Goblin AI's `program`), with icon and group
 System         CPU/GPU/temperature/RAM/disk now, with the history since the window was opened
@@ -8,6 +9,7 @@ player()       what is playing (MPRIS), music programs first; control() = previo
 quota()        what the quota widget saved (~/.cache/goblincakes/quota.json)
 projects()     the folders in Goblin AI's PROJEKT → MAPPAR (~/.config/goblincakes/ai-mappar.json – one list)
 tray(name)     the rows behind a system tray icon: nätverk, ljud, bluetooth, urklipp, enheter
+views()        the views (SPEL, JOBB, …) and which frames each shows – chosen in Config → Dashboard
 Only the standard library; every command has a short timeout and a missing program gives an empty answer.
 """
 import json
@@ -23,7 +25,7 @@ HOME = Path.home()
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "goblincakes"
 FOLDERS = CONFIG / "ai-mappar.json"       # shared with Goblin AI (PROJEKT → MAPPAR)
-SETTINGS = CONFIG / "dashboard.json"      # {"apps": [desktop files at the bottom]} – else the dock's
+SETTINGS = CONFIG / "dashboard.json"      # {"apps": [desktop files at the bottom] (else the dock's), "views", "view"}
 QUOTA = CACHE / "quota.json"
 QUOTA_HELPER = Path(__file__).resolve().parents[3] / "libexec/goblincakes-quota"
 BATTERY_HELPER = Path(__file__).resolve().parents[3] / "libexec/goblincakes-device-battery"
@@ -114,6 +116,74 @@ def settings():
 def save_settings(data):
     SETTINGS.parent.mkdir(parents=True, exist_ok=True)
     SETTINGS.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+
+
+# ── The views (step 3): which frames each view shows, chosen in GOBLINCAKES Config → Dashboard ──
+
+FRAMES = [("projects", "Projekt", "dina mappar – öppna i VS Code, Claude Code"),
+          ("system", "System", "CPU, GPU, temperatur, RAM, disk"),
+          ("wow", "WoW Stats", "karaktärer och senaste raiden (Warcraft Logs)"),
+          ("cs2", "CS2 Stats", "de senaste matcherna och kartorna"),
+          ("builds", "Byggen", "GOBLINCAKES byggen på GitHub (när repot finns på datorn)"),
+          ("reports", "Kakan", "Kakans rapporter")]
+SIDES = {"left": 3, "right": 2}           # at most this many frames on each side
+MAX_VIEWS = 6
+DEFAULT_VIEWS = [{"name": "SPEL", "left": ["projects", "system"], "right": ["wow", "cs2"]},
+                 {"name": "JOBB", "left": ["projects", "system"], "right": ["builds", "reports"]}]
+# Which frame a middle belongs to: a middle whose frame is not in the view opens as the programs
+MID_FRAME = {"system": "system", "project": "projects", "raid": "wow", "char": "wow", "cs2": "cs2",
+             "builds": "builds", "reports": "reports"}
+
+
+def mid_fits(mid, view):
+    frame = MID_FRAME.get(str(mid).split(":", 1)[0])
+    return mid == "apps" or bool(frame and frame in view.get("left", []) + view.get("right", []))
+
+
+def views(saved=None):
+    """The views, cleaned: [{name, left, right, mid}] – known frames only, each at most once per view."""
+    saved = settings() if saved is None else saved
+    rows = saved.get("views")
+    if not isinstance(rows, list) or not rows:
+        rows = [dict(v, mid=saved.get("mid") or "apps") if i == 0 else dict(v) for i, v in enumerate(DEFAULT_VIEWS)]
+    known = {f[0] for f in FRAMES}
+    out = []
+    for row in rows[:MAX_VIEWS]:
+        if not isinstance(row, dict):
+            continue
+        seen, view = set(), {"name": (str(row.get("name") or "").strip() or f"VY {len(out) + 1}")[:16]}
+        for side, most in SIDES.items():
+            ids = [i for i in row.get(side) or [] if isinstance(i, str) and i in known and i not in seen][:most]
+            seen.update(ids)
+            view[side] = ids
+        mid = row.get("mid") if isinstance(row.get("mid"), str) else "apps"
+        view["mid"] = mid if mid_fits(mid, view) else "apps"
+        out.append(view)
+    return out or [dict(v, mid="apps") for v in DEFAULT_VIEWS]
+
+
+def view_index(saved=None, rows=None):
+    saved = settings() if saved is None else saved
+    rows = views(saved) if rows is None else rows
+    try:
+        return max(0, min(len(rows) - 1, int(saved.get("view") or 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def save_views(rows, apps_ids=None):
+    """From Config: the views (and the programs at the bottom – [] = the dock's). The dashboard reads them the
+    next time it is shown."""
+    saved = settings()
+    saved["views"] = views({"views": rows})
+    saved["view"] = view_index(saved, saved["views"])
+    saved.pop("mid", None)                # from step 1–2: now one per view
+    if apps_ids is not None:
+        if apps_ids:
+            saved["apps"] = [a for a in apps_ids if isinstance(a, str)][:14]
+        else:
+            saved.pop("apps", None)
+    save_settings(saved)
 
 
 def dock_apps():
@@ -535,6 +605,20 @@ if __name__ == "__main__":
         result = tray(sys.argv[2] if len(sys.argv) > 2 else "nätverk")
     elif what == "bottom":
         result = [a["id"] for a in bottom_apps()]
+    elif what == "views":
+        result = {"view": view_index(), "views": views()}
+    elif what == "config":       # GOBLINCAKES Config → Dashboard: everything the page shows
+        saved = settings()
+        rows = apps()
+        result = {"views": views(saved), "view": view_index(saved), "maxViews": MAX_VIEWS, "sides": SIDES,
+                  "frames": [{"id": i, "name": n, "note": t} for i, n, t in FRAMES],
+                  "apps": [{k: a[k] for k in ("id", "name", "icon", "group")} for a in rows],
+                  "chosen": [i for i in saved.get("apps") or [] if isinstance(i, str)],
+                  "dock": [a["id"] for a in bottom_apps(rows)] if not saved.get("apps") else []}
+    elif what == "save":         # from Config: {"views": [...], "apps": [...]} on stdin
+        data = json.loads(sys.stdin.read() or "{}")
+        save_views(data.get("views") or [], data.get("apps"))
+        result = {"views": views(), "view": view_index()}
     else:
         sys.exit(__doc__)
     print(json.dumps(result, ensure_ascii=False, indent=1))

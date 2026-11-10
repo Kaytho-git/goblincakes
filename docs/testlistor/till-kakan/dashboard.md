@@ -1,4 +1,4 @@
-# GOBLINCAKES Dashboard steg 1 och 2 – efter nästa image
+# GOBLINCAKES Dashboard steg 1–3 – efter nästa image
 - Programmet finns i imagen
   kör: test -x /usr/bin/goblin-dashboard && test -f /usr/share/goblincakes/dashboard/Main.qml && echo finns
   väntat: finns (annars är imagen för gammal – goblin update och starta om)
@@ -52,8 +52,17 @@
 - Rapporterna
   kör: python3 /usr/share/goblincakes/dashboard/stats.py reports
   väntat: rows med dina senaste rapporter till Claude, rubriken som title
+- Vyerna
+  kör: python3 /usr/share/goblincakes/dashboard/dash.py views
+  väntat: views med SPEL (left projects, system; right wow, cs2) och JOBB (right builds, reports) – eller de vyer du själv valt i Config
 - Ramarna till höger
-  fråga: Öppna dashboarden. Syns WOW STATS, CS2 STATS, BYGGEN och KAKAN till höger ovanför Spelas nu, och får alla plats (annars: går det att rulla)?
+  fråga: Öppna dashboarden. Syns WOW STATS och CS2 STATS till höger ovanför Spelas nu i vyn SPEL, och BYGGEN och KAKAN i vyn JOBB?
+- Byta vy
+  fråga: Byt vy med hjulet över prickarna under mitten, med Ctrl+← → och (om du har pekplatta) ett svep i sidled. Byts vyn ett steg i taget, och står mitten kvar där du lämnade den när du kommer tillbaka till en vy?
+- Anpassa
+  fråga: Tryck Anpassa uppe till höger. Öppnades GOBLINCAKES Config på sidan DASHBOARD och försvann dashboarden? Har programmen i listan under + Lägg till app sina ikoner?
+- Ändra en vy
+  fråga: Byt namn på JOBB i Config, välj Ingen i höger ram 2 och lägg till ett program längst ner. Visar dashboarden det nya namnet, bara en ram till höger och programmet nederst nästa gång du öppnar den?
 - Senaste raiden
   fråga: Tryck på Senaste raiden. Stämmer bossarna, antal pulls, kill/bästa wipe och din parse med Warcraft Logs? Visar staplarna bossens hälsa per pull när du trycker på en boss?
 - Karaktären

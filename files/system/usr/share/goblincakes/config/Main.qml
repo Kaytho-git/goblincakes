@@ -50,7 +50,7 @@ Window {
     property int removeCount: 0
     property string page: "choose" // choose → install → done
     property int failedCount: 0
-    property string tab: startTab // apps | system | tweaks | graphics | update
+    property string tab: startTab // apps | system | tweaks | windows | dashboard | graphics | update
     readonly property var gpu: JSON.parse(backend.gpu)
     property string gpuMessage: ""
     readonly property var anticheat: JSON.parse(backend.anticheat) // Grafik → Easy Anti-Cheat (goblincakes-anticheat check --json)
@@ -649,6 +649,7 @@ Window {
                           ? (win.updateState === "running" ? "UPPDATERAR…" : win.updateState === "done" ? "UPPDATERAT" : "UPPDATERA")
                         : win.tab === "graphics" ? "GRAFIK"
                         : win.tab === "windows" ? "FÖNSTER"
+                        : win.tab === "dashboard" ? "DASHBOARD"
                         : win.tab === "tweaks" ? "INSTÄLLNINGAR"
                         : win.page === "choose" ? "VÄLJ DINA PROGRAM"
                         : win.page === "install" ? (win.chosenCount === 0 ? "AVINSTALLERAR…" : "INSTALLERAR…") : "KLART"
@@ -667,6 +668,8 @@ Window {
                            : "Systemet, program, VS Code, Discord, AppImages, GE-Proton och firmware – samma som goblin update.")
                         : win.tab === "windows"
                         ? "Hur fönstren ligger på skärmarna – egna rutor och vilket program som öppnas var. Byt layout med Meta+Ctrl+1–9."
+                        : win.tab === "dashboard"
+                        ? "GOBLINCAKES Dashboard: vyerna, vad ramarna till vänster och höger visar och vilka program som ligger längst ner."
                         : win.tab === "graphics"
                         ? "Drivrutiner för ditt grafikkort. Den gamla varianten finns kvar i startmenyn om något går fel."
                         : win.tab === "tweaks"
@@ -700,7 +703,7 @@ Window {
             spacing: 32
 
             Repeater {
-                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "INSTÄLLNINGAR" }, { "id": "windows", "label": "FÖNSTER" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
+                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "INSTÄLLNINGAR" }, { "id": "windows", "label": "FÖNSTER" }, { "id": "dashboard", "label": "DASHBOARD" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
 
                 Item {
                     id: tabItem
@@ -1799,6 +1802,586 @@ Window {
             cursorShape: sb.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: if (sb.enabledState) sb.clicked()
         }
+    }
+
+    // ── Dashboard: the views of GOBLINCAKES Dashboard, what each frame shows, the programs at the bottom ──
+    // Read and saved by the dashboard's own dash.py (~/.config/goblincakes/dashboard.json); the dashboard
+    // uses it the next time it is shown. Mockup: the Config board of the dashboard mockup (9 Nov).
+
+    Flickable {
+        id: dashView
+        visible: win.tab === "dashboard"
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
+        contentHeight: dashCol.height + 64
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        property var info: null
+        property int sel: 0                  // the view being changed
+        property string slot: "left"         // the frame being changed: side …
+        property int slotIndex: 0            // … and place
+        property bool adding: false          // + Lägg till app: the list of every program is open
+        property string appFilter: ""
+        property string status: ""
+        readonly property var view: viewAt(info, sel)
+        // Read straight from info: in onSelChanged the binding of `view` may not have followed yet
+        function viewAt(i, n) {
+            return i && i.views.length ? i.views[Math.min(n, i.views.length - 1)] : null;
+        }
+        function showName() {
+            const v = viewAt(info, sel);
+            nameField.text = v ? v.name : "";
+        }
+        readonly property var framesById: {
+            const m = {};
+            for (const f of (info ? info.frames : []))
+                m[f.id] = f;
+            return m;
+        }
+        readonly property var appsById: {
+            const m = {};
+            for (const a of (info ? info.apps : []))
+                m[a.id] = a;
+            return m;
+        }
+        // The programs at the bottom: the own choice, else (shown dimmed) the dock's
+        readonly property var bottomIds: info ? (info.chosen.length ? info.chosen : info.dock) : []
+        readonly property var addable: {
+            if (!info || !adding)
+                return [];
+            const words = appFilter.toLowerCase().split(/\s+/).filter(w => w);
+            return info.apps.filter(a => bottomIds.indexOf(a.id) < 0
+                                     && words.every(w => (a.name + " " + a.id).toLowerCase().indexOf(w) >= 0)).slice(0, 48);
+        }
+
+        onVisibleChanged: if (visible && !info) backend.loadDashboard()
+        Component.onCompleted: if (visible) backend.loadDashboard()   // Config started on this tab (Anpassa)
+        onSelChanged: { slot = "left"; slotIndex = 0; showName(); }
+
+        Connections {
+            target: backend
+            function onDashboardLoaded(json) {
+                try {
+                    dashView.info = JSON.parse(json);
+                    dashView.sel = dashView.info.view || 0;
+                    dashView.showName();
+                    dashView.status = "";
+                } catch (e) {
+                    dashView.status = "Kunde inte läsa dashboardens inställningar.";
+                }
+            }
+            function onDashboardSaved(ok) {
+                dashView.status = ok ? "Sparat – gäller nästa gång dashboarden öppnas." : "Kunde inte spara.";
+            }
+        }
+        Timer { id: dashSave; interval: 500; onTriggered: backend.saveDashboard(JSON.stringify({ "views": dashView.info.views, "apps": dashView.info.chosen })) }
+
+        // Every change: a copy of info, changed by fn, saved half a second later
+        function change(fn) {
+            const copy = JSON.parse(JSON.stringify(info));
+            fn(copy);
+            info = copy;
+            dashSave.restart();
+        }
+        function framesOn(side) {
+            const most = info ? info.sides[side] : 0;
+            const out = [];
+            for (let i = 0; i < most; i++)
+                out.push(view && view[side][i] ? view[side][i] : "none");
+            return out;
+        }
+        // A frame is in a view only once: choosing it moves it here
+        function pick(id) {
+            const side = slot, at = slotIndex;
+            change(c => {
+                const v = c.views[Math.min(sel, c.views.length - 1)];
+                const slots = { "left": [], "right": [] };
+                for (const s of ["left", "right"])
+                    for (let i = 0; i < c.sides[s]; i++)
+                        slots[s].push(v[s][i] || "none");
+                if (id !== "none")
+                    for (const s of ["left", "right"])
+                        slots[s] = slots[s].map(f => f === id ? "none" : f);
+                slots[side][at] = id;
+                v.left = slots.left.filter(f => f !== "none");
+                v.right = slots.right.filter(f => f !== "none");
+            });
+        }
+        function usedAt(id) {
+            for (const s of ["left", "right"]) {
+                const i = view ? view[s].indexOf(id) : -1;
+                if (i >= 0 && !(s === slot && i === slotIndex))
+                    return (s === "left" ? "vänster" : "höger") + " ram " + (i + 1);
+            }
+            return "";
+        }
+        function editApps(fn) {
+            change(c => {
+                if (!c.chosen.length)
+                    c.chosen = c.dock.slice();    // the first change makes the dock's row an own choice
+                fn(c.chosen);
+            });
+        }
+
+        Column {
+            id: dashCol
+            x: 48
+            y: 32
+            width: dashView.width - 96
+            spacing: 22
+
+            Text {
+                visible: !dashView.info
+                text: dashView.status || "Läser…"
+                color: "#8B98AD"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 15
+            }
+
+            // ── VYER ──
+            Column {
+                visible: !!dashView.info
+                width: parent.width
+                spacing: 10
+                Text {
+                    text: "VYER – BLÄDDRA MELLAN DEM I DASHBOARDEN MED HJULET ELLER CTRL+← →"
+                    color: "#8B98AD"
+                    font.family: "Chakra Petch"
+                    font.pixelSize: 13
+                    font.letterSpacing: 2
+                }
+                Flow {
+                    width: parent.width
+                    spacing: 8
+                    Repeater {
+                        model: dashView.info ? dashView.info.views : []
+                        Rectangle {
+                            required property var modelData
+                            required property int index
+                            readonly property bool on: index === dashView.sel
+                            width: viewLabel.implicitWidth + 36
+                            height: 44
+                            color: on ? "#12203A" : viewArea.containsMouse ? "#0E1420" : "transparent"
+                            border.width: on ? 2 : 1
+                            border.color: on ? accent.color : "#1E2A40"
+                            Text {
+                                id: viewLabel
+                                anchors.centerIn: parent
+                                text: modelData.name
+                                color: "#E6ECF5"
+                                font.family: "Chakra Petch"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 14
+                                font.letterSpacing: 2
+                            }
+                            MouseArea {
+                                id: viewArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: dashView.sel = index
+                            }
+                        }
+                    }
+                    Rectangle {
+                        visible: !!dashView.info && dashView.info.views.length < dashView.info.maxViews
+                        width: newViewLabel.implicitWidth + 32
+                        height: 44
+                        color: newViewArea.containsMouse ? "#0E1420" : "transparent"
+                        border.width: 1
+                        border.color: "#1E2A40"
+                        Text {
+                            id: newViewLabel
+                            anchors.centerIn: parent
+                            text: "+ Ny vy"
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 14
+                        }
+                        MouseArea {
+                            id: newViewArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                dashView.change(c => c.views.push({ "name": "VY " + (c.views.length + 1), "left": ["projects", "system"],
+                                                                    "right": [], "mid": "apps" }));
+                                dashView.sel = dashView.info.views.length - 1;
+                                dashView.showName();
+                                nameField.forceActiveFocus();
+                            }
+                        }
+                    }
+                }
+                Row {
+                    spacing: 10
+                    FlatField {
+                        id: nameField
+                        width: 260
+                        hint: "Vyns namn"
+                        onTextChanged: {
+                            const name = text.trim().toUpperCase().slice(0, 16);
+                            const v = dashView.viewAt(dashView.info, dashView.sel);
+                            if (v && name && name !== v.name)
+                                dashView.change(c => c.views[Math.min(dashView.sel, c.views.length - 1)].name = name);
+                        }
+                    }
+                    SmallButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "◀ Flytta"
+                        enabledState: dashView.sel > 0
+                        onClicked: {
+                            const i = dashView.sel;
+                            dashView.change(c => c.views.splice(i - 1, 0, c.views.splice(i, 1)[0]));
+                            dashView.sel = i - 1;
+                        }
+                    }
+                    SmallButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Flytta ▶"
+                        enabledState: !!dashView.info && dashView.sel < dashView.info.views.length - 1
+                        onClicked: {
+                            const i = dashView.sel;
+                            dashView.change(c => c.views.splice(i + 1, 0, c.views.splice(i, 1)[0]));
+                            dashView.sel = i + 1;
+                        }
+                    }
+                    SmallButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Ta bort vyn"
+                        enabledState: !!dashView.info && dashView.info.views.length > 1
+                        onClicked: {
+                            const i = dashView.sel;
+                            dashView.change(c => { c.views.splice(i, 1); c.view = Math.min(c.view, c.views.length - 1); });
+                            dashView.sel = Math.max(0, i - 1);
+                            dashView.showName();
+                        }
+                    }
+                }
+            }
+
+            // ── RAMARNA: the view's places to the left and right, and what the chosen one shows ──
+            Item {
+                visible: !!dashView.view
+                width: parent.width
+                height: Math.max(slotsCol.height, optionsPanel.height)
+
+                Column {
+                    id: slotsCol
+                    width: parent.width - optionsPanel.width - 24
+                    spacing: 14
+                    Repeater {
+                        model: [{ "side": "left", "title": "VÄNSTER · 1–3 RAMAR" }, { "side": "right", "title": "HÖGER · 1–2 RAMAR" }]
+                        Column {
+                            id: sideCol
+                            required property var modelData
+                            width: slotsCol.width
+                            spacing: 8
+                            Text {
+                                text: sideCol.modelData.title
+                                color: "#8B98AD"
+                                font.family: "Chakra Petch"
+                                font.pixelSize: 13
+                                font.letterSpacing: 2
+                            }
+                            Repeater {
+                                model: dashView.framesOn(sideCol.modelData.side)
+                                Rectangle {
+                                    required property string modelData
+                                    required property int index
+                                    readonly property bool on: dashView.slot === sideCol.modelData.side && dashView.slotIndex === index
+                                    width: sideCol.width
+                                    height: 52
+                                    color: on ? "#12203A" : slotArea.containsMouse ? "#12203A" : "#0E1420"
+                                    border.width: on ? 2 : 1
+                                    border.color: on ? accent.color : "#1E2A40"
+                                    Text {
+                                        x: 14
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "Ram " + (index + 1)
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                    Text {
+                                        x: 90
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: modelData === "none" ? "– Ingen –" : (dashView.framesById[modelData] || {}).name || modelData
+                                        color: modelData === "none" ? "#8B98AD" : "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 15
+                                    }
+                                    Text {
+                                        anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                                        text: "ändra"
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                    MouseArea {
+                                        id: slotArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: { dashView.slot = sideCol.modelData.side; dashView.slotIndex = index; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: "KVOT (nere till vänster) och SPELAS NU (nere till höger) syns i alla vyer. En ram utan något att visa "
+                              + "(t.ex. WoW Stats innan GoblinRecorder har sparat något) döljs, och mitten blir bredare. "
+                              + "Ingen ram till vänster = vänsterspalten försvinner."
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                }
+
+                Rectangle {
+                    id: optionsPanel
+                    anchors.right: parent.right
+                    width: 380
+                    height: optionsCol.height + 32
+                    color: "#0B1018"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    Column {
+                        id: optionsCol
+                        x: 16
+                        y: 16
+                        width: parent.width - 32
+                        spacing: 6
+                        Text {
+                            bottomPadding: 4
+                            text: (dashView.slot === "left" ? "VÄNSTER" : "HÖGER") + " RAM " + (dashView.slotIndex + 1) + " VISAR"
+                            color: "#8B98AD"
+                            font.family: "Chakra Petch"
+                            font.pixelSize: 13
+                            font.letterSpacing: 2
+                        }
+                        Repeater {
+                            model: dashView.info ? dashView.info.frames.concat([{ "id": "none", "name": "– Ingen –", "note": "ramen visas inte" }]) : []
+                            Rectangle {
+                                required property var modelData
+                                readonly property bool on: (dashView.framesOn(dashView.slot)[dashView.slotIndex] || "none") === modelData.id
+                                readonly property string elsewhere: modelData.id === "none" ? "" : dashView.usedAt(modelData.id)
+                                width: optionsCol.width
+                                height: 50
+                                color: on ? "#12203A" : optArea.containsMouse ? "#0E1420" : "transparent"
+                                border.width: 1
+                                border.color: on ? accent.color : "transparent"
+                                Column {
+                                    x: 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - 20
+                                    spacing: 2
+                                    Text {
+                                        text: modelData.name
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 14
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        elide: Text.ElideRight
+                                        text: elsewhere ? "flyttas hit från " + elsewhere : modelData.note
+                                        color: elsewhere ? accent.text : "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 11
+                                    }
+                                }
+                                MouseArea {
+                                    id: optArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: dashView.pick(modelData.id)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── APPARNA LÄNGST NER ──
+            Column {
+                visible: !!dashView.info
+                width: parent.width
+                spacing: 10
+                Text {
+                    text: "APPARNA LÄNGST NER"
+                    color: "#8B98AD"
+                    font.family: "Chakra Petch"
+                    font.pixelSize: 13
+                    font.letterSpacing: 2
+                }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: !dashView.info ? "" : dashView.info.chosen.length
+                          ? "Ditt eget val (högst 14). ‹ › flyttar, ✕ tar bort."
+                          : "Samma som dockan just nu. Ändrar du något här blir det ditt eget val för dashboarden."
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                }
+                Flow {
+                    width: parent.width
+                    spacing: 8
+                    Repeater {
+                        model: dashView.bottomIds
+                        Rectangle {
+                            id: dashChip
+                            required property string modelData
+                            required property int index
+                            readonly property var app: dashView.appsById[modelData] || ({ "name": modelData.replace(/\.desktop$/, ""), "icon": "" })
+                            width: dashChipRow.implicitWidth + 16
+                            height: 40
+                            color: "#0E1420"
+                            border.width: 1
+                            border.color: "#1E2A40"
+                            opacity: dashView.info.chosen.length ? 1 : 0.7
+                            Row {
+                                id: dashChipRow
+                                x: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 6
+                                Image {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 20
+                                    height: 20
+                                    sourceSize: Qt.size(40, 40)
+                                    source: dashChip.app.icon ? "image://icon/" + dashChip.app.icon : ""
+                                    asynchronous: true
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    rightPadding: 4
+                                    text: dashChip.app.name
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                }
+                                Repeater {
+                                    model: [{ "t": "‹", "d": -1 }, { "t": "›", "d": 1 }, { "t": "✕", "d": 0 }]
+                                    Rectangle {
+                                        required property var modelData
+                                        readonly property bool can: modelData.d === 0 || (dashChip.index + modelData.d >= 0
+                                                                                            && dashChip.index + modelData.d < dashView.bottomIds.length)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 26
+                                        height: 28
+                                        opacity: can ? 1 : 0.3
+                                        color: dashChipBtn.containsMouse && can ? "#1A2438" : "transparent"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: parent.modelData.t
+                                            color: "#8B98AD"
+                                            font.pixelSize: parent.modelData.d === 0 ? 12 : 16
+                                        }
+                                        MouseArea {
+                                            id: dashChipBtn
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: parent.can ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                            onClicked: {
+                                                if (!parent.can)
+                                                    return;
+                                                const i = dashChip.index, d = parent.modelData.d;
+                                                dashView.editApps(rows => d === 0 ? rows.splice(i, 1) : rows.splice(i + d, 0, rows.splice(i, 1)[0]));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Rectangle {
+                        visible: dashView.bottomIds.length < 14
+                        width: addLabel.implicitWidth + 28
+                        height: 40
+                        color: dashView.adding ? "#12203A" : addArea2.containsMouse ? "#0E1420" : "transparent"
+                        border.width: 1
+                        border.color: dashView.adding ? accent.color : "#1E2A40"
+                        Text {
+                            id: addLabel
+                            anchors.centerIn: parent
+                            text: dashView.adding ? "Klar" : "+ Lägg till app"
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                        MouseArea {
+                            id: addArea2
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { dashView.adding = !dashView.adding; if (dashView.adding) dashAppSearch.forceActiveFocus(); }
+                        }
+                    }
+                    SmallButton {
+                        visible: !!dashView.info && dashView.info.chosen.length > 0
+                        height: 40
+                        text: "Samma som dockan"
+                        onClicked: dashView.change(c => c.chosen = [])
+                    }
+                }
+                FlatField {
+                    id: dashAppSearch
+                    visible: dashView.adding
+                    width: Math.min(parent.width, 520)
+                    hint: "Sök bland programmen"
+                    onTextChanged: dashView.appFilter = text
+                }
+                Grid {
+                    visible: dashView.adding
+                    width: parent.width
+                    columns: Math.max(1, Math.floor((parent.width + 8) / 268))
+                    spacing: 8
+                    Repeater {
+                        model: dashView.addable
+                        Rectangle {
+                            required property var modelData
+                            width: 260
+                            height: 44
+                            color: pickArea.containsMouse ? "#12203A" : "#0E1420"
+                            border.width: 1
+                            border.color: "#1E2A40"
+                            Image {
+                                id: pickIcon
+                                x: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 24
+                                height: 24
+                                sourceSize: Qt.size(48, 48)
+                                source: modelData.icon ? "image://icon/" + modelData.icon : ""
+                                asynchronous: true
+                            }
+                            Text {
+                                anchors { left: pickIcon.right; leftMargin: 10; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                                elide: Text.ElideRight
+                                text: modelData.name
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 14
+                            }
+                            MouseArea {
+                                id: pickArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: dashView.editApps(rows => { if (rows.length < 14) rows.push(modelData.id); })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        FastWheel { flick: dashView }
     }
 
     Item {
@@ -3646,6 +4229,7 @@ Window {
     FlatScrollBar { flick: graphicsView }
     FlatScrollBar { flick: updateView }
     FlatScrollBar { flick: systemView }
+    FlatScrollBar { flick: dashView }
 
     // ── Footer ───────────────────────────────────────────────
 
@@ -3670,6 +4254,7 @@ Window {
                        : win.updateState === "running" ? "Uppdaterar…" : "Samma sak som goblin update i terminalen.")
                 : win.tab === "graphics" ? "Bytet frågar efter ditt lösenord."
                 : win.tab === "windows" ? "Sparas av sig själv. Använd = rutorna och fönstren på plats nu."
+                : win.tab === "dashboard" ? (dashView.status || "Sparas av sig själv. Gäller nästa gång dashboarden öppnas.")
                 : win.tab === "tweaks" ? "Ändringar gäller direkt. Systeminställningar frågar efter ditt lösenord."
                 : win.chosenCount === 0 && win.removeCount === 0 ? "Inget valt"
                 : [win.chosenCount === 0 ? "" : win.chosenCount === 1 ? "1 program valt" : win.chosenCount + " program valda",
@@ -3717,6 +4302,11 @@ Window {
                 primary: true
                 text: "Öppna hela layouten"
                 onClicked: { windowsView.status = "Ordnar fönstren och startar programmen…"; backend.useLayout(windowsView.layout.name, true); }
+            }
+            FlatButton {
+                visible: win.tab === "dashboard"
+                text: "Öppna dashboarden"
+                onClicked: backend.openDashboard()
             }
             FlatButton {
                 visible: win.tab === "system"

@@ -25,6 +25,8 @@ SOCKET_NAME = f"goblincakes-config-{os.getuid()}"
 SHARE = Path(os.environ.get("GOBLINCAKES_CONFIG_SHARE", "/usr/share/goblincakes/config"))
 HELPER = os.environ.get("GOBLINCAKES_CONFIG_HELPER", "/usr/libexec/goblincakes-config-install")
 APPS = os.environ.get("GOBLINCAKES_CONFIG_APPS", "/usr/libexec/goblincakes-apps")
+# Dashboard: the views, frames and programs at the bottom (read and saved by the dashboard's own dash.py)
+DASH = Path(os.environ.get("GOBLINCAKES_CONFIG_DASH") or SHARE.parent / "dashboard/dash.py")
 
 
 def season_logo():
@@ -277,6 +279,8 @@ class Config(QObject):
     accentsChanged = Signal()  # Utseende: the colours, which one is chosen, busy
     dockChanged = Signal()     # Utseende: the dock's size and wave (goblincakes-dock get)
     tilesLoaded = Signal(str)   # Fönster: goblincakes-tile json ("" = failed)
+    dashboardLoaded = Signal(str)  # Dashboard: dash.py config ("" = failed)
+    dashboardSaved = Signal(bool)
     tilesCaptured = Signal(str)  # Fönster: KDE's tiles now, {"screens": {connector: tree}}
     tileDone = Signal(str)      # Fönster: a layout was used – the message
     tilesSuggested = Signal(str)  # Fönster: the suggested layout from the main windows ("" = failed)
@@ -534,6 +538,37 @@ class Config(QObject):
         if stdin is not None:
             proc.write(stdin.encode())
             proc.closeWriteChannel()
+
+    # ── Dashboard: dash.py from GOBLINCAKES Dashboard reads and saves ~/.config/goblincakes/dashboard.json ──
+    def _dash_proc(self, args, done, stdin=None):
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.SeparateChannels)
+
+        def finished(*_):
+            ok = proc.exitStatus() == QProcess.NormalExit and proc.exitCode() == 0
+            done(bytes(proc.readAllStandardOutput()).decode(errors="replace") if ok else "")
+            proc.deleteLater()
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda e: (done(""), proc.deleteLater()) if e == QProcess.FailedToStart else None)
+        proc.start(sys.executable, [str(DASH), *args])
+        if stdin is not None:
+            proc.write(stdin.encode())
+            proc.closeWriteChannel()
+
+    @Slot()
+    def loadDashboard(self):
+        self._dash_proc(["config"], lambda out: self.dashboardLoaded.emit(out.strip()))
+
+    @Slot(str)
+    def saveDashboard(self, data):
+        """{"views": [...], "apps": [...]} – the dashboard uses it the next time it is shown."""
+        self._dash_proc(["save"], lambda out: self.dashboardSaved.emit(bool(out)), stdin=data)
+
+    @Slot()
+    def openDashboard(self):
+        exe = Path(__file__).resolve().parent / "goblin-dashboard"
+        subprocess.Popen([str(exe) if exe.exists() else "goblin-dashboard"], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     @Slot()
     def loadTiles(self):
@@ -1185,7 +1220,8 @@ def main():
             QFontDatabase.addApplicationFont(font)
 
     start_tab = sys.argv[sys.argv.index("--tab") + 1] if "--tab" in sys.argv[:-1] else "apps"
-    start_tab = {"graphics": "graphics", "tweaks": "tweaks", "update": "update", "system": "system", "windows": "windows"}.get(start_tab, "apps")
+    start_tab = {"graphics": "graphics", "tweaks": "tweaks", "update": "update", "system": "system", "windows": "windows",
+                 "dashboard": "dashboard"}.get(start_tab, "apps")
 
     # One window at a time: a second start (the update arrow, AppGrid, Meta+C) hands its tab to
     # the open window instead of opening another one (10 Oct). The first-run start just stops.
