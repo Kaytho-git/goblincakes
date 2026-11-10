@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- GOBLINCAKES Dashboard (10 Nov): the dashboard's own layout – a bar at the top and bottom, two side frames
+       and the big middle – in GOBLINCAKES blue, the goblin head a small mark in the corner (the icons' style
+       since 5 Nov). First proposal – the user has not chosen between variants yet. -->
+  <path d="M14 40 H106 V50 H14 Z" fill="#2F6FED"/>
+  <path d="M14 56 H36 V92 H14 Z" fill="#2F6FED"/>
+  <path d="M42 56 H78 V92 H42 Z" fill="#E6ECF5"/>
+  <path d="M84 56 H106 V92 H84 Z" fill="#2F6FED"/>
+  <path d="M14 98 H106 V108 H14 Z" fill="#2F6FED"/>
+  <path d="M48 62 H56 V70 H48 Z M60 62 H68 V70 H60 Z M48 74 H56 V82 H48 Z M60 74 H68 V82 H60 Z" fill="#07090D" opacity="0.55"/>
+  <g transform="translate(2,0) scale(0.46)">
+    <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+    <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
+    <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
+  </g>
+</svg>

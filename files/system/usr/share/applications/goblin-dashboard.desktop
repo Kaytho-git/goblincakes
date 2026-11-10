@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES Dashboard
+GenericName=Överblick i helskärm
+Comment=Öppna program, alla program med sökning, projekt, systemet, kvoten och musiken på en skärm
+Exec=goblin-dashboard
+Icon=goblincakes-dashboard
+Categories=Utility;
+Keywords=dashboard;överblick;instrumentpanel;program;sök;system;projekt;
+StartupWMClass=goblin-dashboard

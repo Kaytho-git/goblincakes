@@ -1,0 +1,464 @@
+#!/usr/bin/env python3
+"""GOBLINCAKES Dashboard – a full-screen overview: the open programs at the top, the own programs at the
+bottom, frames with projects, the system, the quota and what is playing, and in the middle every program
+(type = search) or what was pressed in a frame. Step 1 of the dashboard (10 Nov): started by hand, nothing in
+the usual layout (top bar, dock, AppGrid) is changed.
+
+    goblin-dashboard            show it – or hide it when it is already showing (one window, kept running
+                                hidden so it comes up at once)
+    goblin-dashboard --quit     end the hidden process
+
+What it shows is read by /usr/share/goblincakes/dashboard/dash.py; the open windows are asked from KWin
+(dashboard/windows.js). Window: /usr/share/goblincakes/dashboard/Main.qml
+Trying it without a desktop: GOBLINCAKES_DASHBOARD_TEST=<json> gives the windows/player/quota/bottom to show.
+"""
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+from PySide6.QtCore import ClassInfo, QObject, QSize, Qt, QTimer, QUrl, Property, Signal, Slot
+from PySide6.QtDBus import QDBusConnection
+from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuick import QQuickImageProvider, QQuickWindow
+from PySide6.QtWidgets import QApplication
+
+USR = Path(__file__).resolve().parents[1]
+SHARE = Path(os.environ.get("GOBLINCAKES_DASHBOARD_DIR") or USR / "share/goblincakes/dashboard")
+sys.path.insert(0, str(SHARE))
+import dash  # noqa: E402
+
+TEST = os.environ.get("GOBLINCAKES_DASHBOARD_TEST", "")
+
+
+def test_data():
+    try:
+        return json.loads(Path(TEST).read_text()) if TEST else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def use_accent(engine):
+    """GOBLINCAKES' accent colour as the QML property "accent", followed live (accent.py)."""
+    for d in (SHARE.parent, Path("/usr/share/goblincakes")):
+        if (d / "accent.py").exists():
+            sys.path.insert(0, str(d))
+            break
+    try:
+        import accent
+        accent.install(engine)
+    except Exception:  # noqa: BLE001 – an old or broken file must not stop the window
+        engine.rootContext().setContextProperty("accent", {
+            "color": "#2F6FED", "hover": "#4A82F0", "on": "#E6ECF5", "text": "#2F6FED",
+            "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
+
+
+class IconProvider(QQuickImageProvider):
+    """image://icon/<name or path> – a program's own icon from the icon theme; 1×1 when there is none (the
+    window then draws the program's first letter)."""
+
+    def __init__(self):
+        super().__init__(QQuickImageProvider.Pixmap)
+
+    def requestPixmap(self, name, size, requested):
+        icon = QIcon(name) if name.startswith("/") else QIcon.fromTheme(name)
+        side = max(requested.width(), requested.height(), 64)
+        pixmap = icon.pixmap(QSize(side, side)) if not icon.isNull() else QPixmap()
+        if pixmap.isNull():
+            pixmap = QPixmap(1, 1)
+            pixmap.fill(Qt.GlobalColor.transparent)
+        if size is not None:
+            size.setWidth(pixmap.width())
+            size.setHeight(pixmap.height())
+        return pixmap
+
+
+@ClassInfo({"D-Bus Interface": "org.goblincakes.win"})
+class KWinBridge(QObject):
+    """Runs dashboard/windows.js in KWin and gets its answer back over D-Bus (report on /win)."""
+    answered = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        self.service = f"org.goblincakes.dashboard.p{os.getpid()}"
+        self.count = 0
+        bus = QDBusConnection.sessionBus()
+        self.ok = bool(bus.isConnected() and bus.registerService(self.service)
+                       and bus.registerObject("/win", self, QDBusConnection.ExportAllSlots))
+
+    @Slot(str)
+    def report(self, text):
+        self.answered.emit(text)
+
+    def run(self, payload):
+        if not self.ok:
+            return
+        self.count += 1
+        name = f"goblincakes-dashboard-{os.getpid()}-{self.count}"
+        script = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp") / f"{name}.js"
+
+        def work():
+            def kwin(*args):
+                return subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/Scripting",
+                                       "org.kde.kwin.Scripting", *args], capture_output=True, text=True, timeout=5)
+            try:
+                script.write_text((SHARE / "windows.js").read_text()
+                                  .replace("__DATA__", json.dumps(dict(payload, service=self.service))))
+                if kwin("loadScript", "ss", str(script), name).returncode == 0:
+                    kwin("start")
+                    time.sleep(1.0)   # the script answers at once; then it is taken away again
+                    kwin("unloadScript", "s", name)
+            except (OSError, subprocess.SubprocessError):
+                pass
+            finally:
+                script.unlink(missing_ok=True)
+        threading.Thread(target=work, daemon=True).start()
+
+
+class Backend(QObject):
+    changed = Signal(str)            # which property (the window reads them as JSON text)
+    arrived = Signal(str, str)       # from a worker thread: key, JSON
+    said = Signal(str)               # a line to show for a moment (why something could not be started)
+    hideWanted = Signal()
+
+    KEYS = ("apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project", "trayBox", "tools")
+
+    def __init__(self):
+        super().__init__()
+        self.test = test_data()
+        self.data = {k: "[]" if k in ("apps", "bottom", "windows", "top", "projects") else "{}" for k in self.KEYS}
+        self.busy = set()
+        self.system = dash.System()
+        self.kwin = KWinBridge()
+        self.kwin.answered.connect(self._windows_answer)
+        self.arrived.connect(self._arrived)
+        saved = dash.settings()
+        self._mid = saved.get("mid") or "apps"       # apps | system | project:<path>
+        self._tray = ""
+        self.visible = False
+        self.timers = [QTimer(self, interval=ms, timeout=fn) for ms, fn in (
+            (2000, self.read_system), (1000, self.read_player), (3000, self.read_windows),
+            (30000, self.read_quota), (5000, self.read_tray))]
+
+    # ── Reading in the background ──
+    def job(self, key, fn):
+        """fn() in a thread; its result becomes the property `key` (one at a time per key)."""
+        if key in self.busy:
+            return
+        self.busy.add(key)
+
+        def work():
+            try:
+                text = json.dumps(fn(), ensure_ascii=False)
+            except Exception:  # noqa: BLE001 – a broken reading must not take the window down
+                text = ""
+            self.arrived.emit(key, text)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _arrived(self, key, text):
+        self.busy.discard(key)
+        if text and text != self.data.get(key):
+            self.data[key] = text
+            self.changed.emit(key)
+
+    def read_apps(self):
+        def both():
+            rows = dash.apps()
+            bottom = self.test.get("bottom")
+            by_id = {a["id"]: a for a in rows}
+            self.arrived.emit("bottom", json.dumps([by_id[i] for i in bottom if i in by_id] if bottom is not None
+                                                   else dash.bottom_apps(rows), ensure_ascii=False))
+            return rows
+        self.job("apps", both)
+
+    def read_system(self):
+        self.job("system", self.system.sample)
+        if self._mid == "system":
+            self.job("top", dash.top_processes)
+
+    def read_player(self):
+        self.job("player", (lambda: self.test["player"]) if "player" in self.test else dash.player)
+
+    def read_quota(self):
+        self.job("quota", (lambda: self.test["quota"]) if "quota" in self.test else dash.quota)
+
+    def read_projects(self):
+        self.job("projects", dash.projects)
+        self.job("tools", dash.project_tools)
+        if self._mid.startswith("project:"):
+            path = self._mid.split(":", 1)[1]
+            self.job("project", lambda: dash.project(path))
+
+    def read_windows(self):
+        if "windows" in self.test:
+            self._windows_answer(json.dumps({"windows": self.test["windows"]}))
+        else:
+            self.kwin.run({"mode": "list"})
+
+    def _windows_answer(self, text):
+        try:
+            rows = json.loads(text).get("windows")
+        except (ValueError, AttributeError):
+            return
+        if rows is None:
+            return
+        try:
+            apps = {a["id"]: a for a in json.loads(self.data["apps"])}
+        except ValueError:
+            apps = {}
+        out = []
+        for w in rows:
+            app = apps.get(f"{w.get('desktop')}.desktop") or next(
+                (a for a in apps.values() if Path(a["id"]).stem.lower() == str(w.get("app", "")).lower()), None)
+            out.append({"id": w.get("id", ""), "caption": w.get("caption", ""), "min": bool(w.get("min")),
+                        "name": app["name"] if app else (w.get("caption") or w.get("app") or "?"),
+                        "icon": app["icon"] if app else (w.get("desktop") or w.get("app") or "")})
+        self._arrived("windows", json.dumps(out, ensure_ascii=False))
+
+    def read_tray(self):
+        if self._tray:
+            name = self._tray
+            self.job("trayBox", lambda: dict(self.test.get("tray") or dash.tray(name), name=name))
+
+    def read_all(self):
+        self.read_apps()
+        self.read_system()
+        self.read_player()
+        self.read_quota()
+        self.read_projects()
+        QTimer.singleShot(150, self.read_windows)   # after the programs, for their names and icons
+
+    # ── Shown / hidden: nothing is read while it is hidden ──
+    @Slot(bool)
+    def setVisible(self, on):
+        if on == self.visible:
+            return
+        self.visible = on
+        for t in self.timers:
+            t.start() if on else t.stop()
+        if on:
+            self.system = dash.System()
+            self.read_all()
+        elif self._tray:
+            self.closeTray()
+
+    # ── What the window reads ──
+    @Slot(str, result=str)
+    def get(self, key):
+        return self.data.get(key, "{}")
+
+    midChanged = Signal()
+
+    @Property(str, notify=midChanged)
+    def mid(self):
+        return self._mid
+
+    @Slot(str)
+    def setMid(self, mid):
+        if mid == self._mid:
+            return
+        self._mid = mid
+        self.midChanged.emit()
+        saved = dash.settings()
+        saved["mid"] = mid
+        try:
+            dash.save_settings(saved)
+        except OSError:
+            pass
+        if mid == "system":
+            self.job("top", dash.top_processes)
+        elif mid.startswith("project:"):
+            path = mid.split(":", 1)[1]
+            self.data["project"] = json.dumps(dict(dash.project(path, 0), loading=True), ensure_ascii=False)
+            self.changed.emit("project")
+            self.job("project", lambda: dash.project(path))
+
+    @Property(str, constant=True)
+    def trayIcons(self):
+        return json.dumps([{"id": i, "name": n} for i, n in dash.TRAY], ensure_ascii=False)
+
+    trayChanged = Signal()
+
+    @Property(str, notify=trayChanged)
+    def tray(self):
+        return self._tray
+
+    @Slot(str)
+    def openTray(self, name):
+        if name == self._tray:
+            return self.closeTray()
+        self._tray = name
+        self.data["trayBox"] = json.dumps({"name": name, "title": dict(dash.TRAY).get(name, name).upper(), "rows": []},
+                                          ensure_ascii=False)
+        self.changed.emit("trayBox")
+        self.trayChanged.emit()
+        self.busy.discard("trayBox")
+        self.read_tray()
+
+    @Slot()
+    def closeTray(self):
+        self._tray = ""
+        self.trayChanged.emit()
+
+    # ── What the window does ──
+    def _later(self, fn):
+        def work():
+            why = fn()
+            if why:
+                self.said.emit(why)
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(str)
+    def launch(self, path):
+        why = dash.launch(path)
+        if why:
+            self.said.emit(why)
+        else:
+            self.hideWanted.emit()
+
+    @Slot(str)
+    def activate(self, window_id):
+        self.kwin.run({"mode": "activate", "id": window_id})
+        self.hideWanted.emit()
+
+    @Slot(str)
+    def media(self, what):
+        try:
+            name = json.loads(self.data["player"]).get("name", "")
+        except ValueError:
+            name = ""
+        if name:
+            self._later(lambda: dash.control(name, what))
+            QTimer.singleShot(300, self.read_player)
+
+    @Slot(int)
+    def setVolume(self, percent):
+        self._later(lambda: dash.set_volume(percent=percent))
+        QTimer.singleShot(250, self.read_tray)
+
+    @Slot()
+    def toggleMute(self):
+        self._later(lambda: dash.set_volume(mute="toggle"))
+        QTimer.singleShot(250, self.read_tray)
+
+    @Slot(str)
+    def copyClip(self, text):
+        self._later(lambda: dash.set_clipboard(text))
+        self.said.emit("Kopierat – klistra in med Ctrl+V")
+
+    @Slot(str)
+    def addProject(self, url):
+        path = QUrl(url).toLocalFile() if url.startswith("file:") else url
+        path = str(Path(path).expanduser()).rstrip("/") or "/"
+        rows = dash.folders()
+        if path and Path(path).is_dir() and path not in rows:
+            dash.save_folders(rows + [path])
+        self.read_projects()
+        self.setMid("project:" + path)
+
+    @Slot(str)
+    def removeProject(self, path):
+        dash.save_folders([p for p in dash.folders() if p != path])
+        self.read_projects()
+        if self._mid == "project:" + path:
+            self.setMid("apps")
+
+    @Slot(str, str)
+    def openProject(self, path, how):
+        why = dash.open_project(path, how)
+        if why:
+            self.said.emit(why)
+        else:
+            self.hideWanted.emit()
+
+    @Slot(str, result=bool)
+    def hasIcon(self, name):
+        """Whether the icon theme (or the file) has the program's icon – else the window draws its first letter."""
+        return bool(name) and (Path(name).is_file() if name.startswith("/") else QIcon.hasThemeIcon(name))
+
+    @Slot()
+    def sharpText(self):
+        """After a file dialog: Qt's own text again (KDE's dialog style switches to native text)."""
+        QQuickWindow.setTextRenderType(QQuickWindow.TextRenderType.QtTextRendering)
+
+    @Property(bool, constant=True)
+    def stays(self):
+        """Trying it out: the window does not hide when it loses the focus."""
+        return bool(TEST) or bool(os.environ.get("GOBLINCAKES_DASHBOARD_STAY"))
+
+
+def main():
+    own_scale = "QT_SCALE_FACTOR" not in os.environ
+    if own_scale:
+        os.environ["QT_SCALE_FACTOR"] = "0.9"   # 90 % as GOBLINCAKES' other windows
+    app = QApplication(sys.argv[:1])
+    if own_scale:
+        del os.environ["QT_SCALE_FACTOR"]
+    app.setApplicationName("goblin-dashboard")
+    app.setApplicationDisplayName("GOBLINCAKES Dashboard")
+    app.setDesktopFileName("goblin-dashboard")
+    app.setQuitOnLastWindowClosed(False)
+    icons = USR / "share/icons/hicolor/scalable/apps"
+    app.setWindowIcon(QIcon.fromTheme("goblincakes-dashboard", QIcon(str(icons / "goblincakes-dashboard.svg"))))
+    for font in os.environ.get("GOBLINCAKES_CONFIG_FONTS", "").split(":"):
+        if font:
+            QFontDatabase.addApplicationFont(font)
+
+    # One window: a second start shows/hides the first one (or ends it with --quit)
+    name = os.environ.get("GOBLINCAKES_DASHBOARD_INSTANCE", f"goblin-dashboard-{os.getuid()}")
+    quit_it = "--quit" in sys.argv
+    sock = QLocalSocket()
+    sock.connectToServer(name)
+    if sock.waitForConnected(300):
+        sock.write(b"quit\n" if quit_it else b"toggle\n")
+        sock.waitForBytesWritten(500)
+        return 0
+    if quit_it:
+        return 0
+    QLocalServer.removeServer(name)
+    server = QLocalServer()
+    server.listen(name)
+
+    backend = Backend()
+    engine = QQmlApplicationEngine()
+    engine.addImageProvider("icon", IconProvider())
+    engine.rootContext().setContextProperty("backend", backend)
+    engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
+        os.environ.get("GOBLINCAKES_LOGO") or str(icons / "goblincakes.svg")))
+    use_accent(engine)
+    engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
+    if not engine.rootObjects():
+        return 1
+    win = engine.rootObjects()[0]
+
+    def show():
+        win.showFullScreen()
+        win.raise_()
+        win.requestActivate()
+
+    def incoming():
+        conn = server.nextPendingConnection()
+        if not conn:
+            return
+        conn.waitForReadyRead(300)
+        word = bytes(conn.readAll()).decode().strip()
+        conn.close()
+        if word == "quit":
+            app.quit()
+        elif win.isVisible():
+            win.hide()
+        else:
+            show()
+    server.newConnection.connect(incoming)
+    backend.hideWanted.connect(win.hide)
+    show()
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

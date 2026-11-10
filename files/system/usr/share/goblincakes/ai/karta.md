@@ -116,6 +116,26 @@ Ord: docka, dockan, aktivitetsfält, appgrid, programmeny, meta+z, ikoner nere
 - Dockan = GOBLINCAKES egen widget `org.goblincakes.dock` (/usr/share/plasma/plasmoids/org.goblincakes.dock, sedan 29 okt; ersatte Plasmas icontasks – engångsfixen `goblincakes-dock` i goblincakes-refresh.sh bytte pluginnamnet i den nedre panelen) – bara fästa program (öppna program finns i toppfältet), öppen-markering i accentfärgen, ikonerna växer i en våg under musen inom ramen, flera fönster av samma program → lista. Inställningar: Config → Inställningar → Dockan, `goblin dock get` / `goblin dock set scale|zoom|zoomFactor|zoomRange <värde>` (Storlek sätter även panelens höjd = 48 × storlek + 8), eller högerklick → Konfigurera. Fästa program: `launchers` i ~/.config/plasma-org.kde.plasma.desktop-appletsrc under widgeten (Config, `goblin play dock` och terminalbytet skriver där). Panelens egen bakgrund är osynlig (temats translucent/widgets/panel-background.svg) – dockan ritar sin ram själv. Efter inloggning kikar dockan upp 1,5 s med upplyst ram = redo. Bara första ikonen svarar / dockan gömmer sig när musen går vidare → panelens mus-område fel: temats translucent/widgets/panel-background.svg måste ha `mask-*`-elementen (de synliga är genomskinliga). Fel: `journalctl --user -b -o cat _COMM=plasmashell | grep goblincakes.dock`.
 - Klick på en ikon i nya dockan gör inget/fel (t.ex. öppet program minimeras inte) → panelen tar fokus vid trycket, så programmet är redan inaktivt när klicket kommer (`task.active` falskt) → `activate(task, wasActive)` i main.qml räknar programmet som aktivt om det tappade fokus <1 s sen; kolla med `console.warn` i `activate` + `journalctl --user _COMM=plasmashell`.
 
+## GOBLINCAKES Dashboard
+Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna program, alla program, sök program
+- Steg 1 (10 nov): ett eget helskärmsfönster som startas för hand – `goblin dashboard` (samma kommando gömmer det),
+  menyposten GOBLINCAKES Dashboard. Toppfältet, dockan och AppGrid är orörda; Meta öppnar fortfarande AppGrid.
+- /usr/bin/goblin-dashboard (fönstret, kod /usr/share/goblincakes/dashboard/: Main.qml, dash.py = allt som läses,
+  windows.js = KWin-skriptet för öppna fönster). Processen ligger kvar gömd efter Esc så att den kommer upp direkt;
+  `goblin dashboard stäng` avslutar den. Inget läses medan den är gömd.
+- Inställningar: ~/.config/goblincakes/dashboard.json (`mid` = vad mitten visade sist, `apps` = egna program nederst –
+  saknas den används dockans fästa program). Projekten = samma lista som Goblin AI:s PROJEKT → MAPPAR
+  (~/.config/goblincakes/ai-mappar.json). Kvoten = ~/.cache/goblincakes/quota.json (kvot-widgetens fil).
+- Varifrån siffrorna kommer: CPU /proc/stat, minne /proc/meminfo, grafikkort /sys/class/drm/card*/device/gpu_busy_percent
+  (AMD/Intel) eller nvidia-smi, temperatur /sys/class/hwmon (k10temp/coretemp/amdgpu), disk = hemmappen + monterade
+  diskar; musiken = MPRIS via busctl; nätverk nmcli, ljud wpctl, Bluetooth bluetoothctl, urklipp Klipper (D-Bus),
+  enheter goblincakes-device-battery + lsblk.
+- Öppna program tomt fast program är öppna → KWin svarade inte: dashboarden laddar windows.js via
+  org.kde.KWin /Scripting och får svaret på D-Bus-tjänsten org.goblincakes.dashboard.p<pid>.
+- Den göms av sig själv när ett annat fönster blir aktivt (som Plasmas Instrumentpanel för program).
+Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps, top, player, quota, projects,
+`tray nätverk|ljud|bluetooth|urklipp|enheter`, bottom) – skriver det fönstret skulle visa.
+
 ## GOBLINCAKES Config
 Ord: config, inställningar, goblincakes config, program, förinstallerat, fönster, grafik, uppdatera, reglage
 - Fönstret för val och inställningar: /usr/bin/goblincakes-config, QML i /usr/share/goblincakes/config/.
