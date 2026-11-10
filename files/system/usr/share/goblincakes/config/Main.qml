@@ -1584,6 +1584,111 @@ Window {
                 }
             }
 
+            // Skrivbordets upplägg (dashboard step 4, 10 Nov): the top bar + dock (standard) or the dashboard with the
+            // desktop row – goblincakes-desktop-layout; both ways, the dock's apps and settings are kept
+            Rectangle {
+                id: layoutRow
+                width: tweakRows.width
+                height: layoutCol.height + 40
+                color: "#0E1420"
+                border.width: 1
+                border.color: "#1E2A40"
+
+                Column {
+                    id: layoutCol
+                    anchors { left: parent.left; leftMargin: 22; right: parent.right; rightMargin: 22; top: parent.top; topMargin: 20 }
+                    spacing: 14
+                    Column {
+                        width: parent.width
+                        spacing: 5
+                        Text {
+                            text: "Skrivbordets upplägg"
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                        }
+                        Text {
+                            width: parent.width
+                            text: "Toppfältet och dockan som vanligt – eller dashboarden: inget toppfält och ingen docka, Meta tar fram dashboarden och uppe i mitten av skrivbordet ligger en rad med klockan, nätverk, ljud, Discord och det som spelas (den gömmer sig bakom fönster och kommer fram när musen går mot överkanten). Du kan byta tillbaka när du vill – dockans program och inställningar sparas."
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                            wrapMode: Text.WordWrap
+                            lineHeight: 1.15
+                        }
+                    }
+                    Flow {
+                        width: parent.width
+                        spacing: 16
+                        Repeater {
+                            model: [
+                                {id: "classic", name: "Toppfält och docka", desc: "Toppfältet med öppna program och systemfältet, dockan längst ner, Meta öppnar AppGrid. GOBLINCAKES standard."},
+                                {id: "dashboard", name: "Dashboard", desc: "Inget toppfält och ingen docka. Meta tar fram dashboarden; på skrivbordet bara raden uppe i mitten."}
+                            ]
+                            Rectangle {
+                                id: layoutCard
+                                required property var modelData
+                                readonly property bool chosen: backend.desktopLayout === modelData.id
+                                width: Math.min(420, (layoutCol.width - 16) / 2)
+                                height: 104
+                                color: layoutArea.containsMouse && !chosen ? "#111A2A" : "#0E1420"
+                                border.width: 1
+                                border.color: chosen ? accent.color : layoutArea.containsMouse ? "#2A3852" : "#1E2A40"
+                                opacity: backend.desktopLayoutBusy && !chosen ? 0.5 : 1
+
+                                Column {
+                                    anchors {
+                                        left: parent.left; leftMargin: 18
+                                        right: layoutCheck.left; rightMargin: 14
+                                        verticalCenter: parent.verticalCenter
+                                    }
+                                    spacing: 5
+                                    Text {
+                                        text: layoutCard.modelData.name
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.weight: Font.DemiBold
+                                        font.pixelSize: 16
+                                    }
+                                    Text {
+                                        width: parent.width
+                                        text: layoutCard.modelData.desc
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                        wrapMode: Text.WordWrap
+                                        maximumLineCount: 3
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                                CheckSquare {
+                                    id: layoutCheck
+                                    anchors { right: parent.right; rightMargin: 18; verticalCenter: parent.verticalCenter }
+                                    checked: layoutCard.chosen
+                                }
+                                MouseArea {
+                                    id: layoutArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: layoutCard.chosen || backend.desktopLayoutBusy ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    onClicked: backend.setDesktopLayout(layoutCard.modelData.id)
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        visible: backend.desktopLayoutStatus !== ""
+                        width: parent.width
+                        text: backend.desktopLayoutStatus
+                        color: backend.desktopLayoutBusy ? accent.text : "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
             // The dock (org.goblincakes.dock): size, the wave – the same as right click →
             // Konfigurera on the dock, through goblincakes-dock get/set (the panel's height follows the size)
             Rectangle {

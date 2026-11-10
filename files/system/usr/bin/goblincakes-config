@@ -78,6 +78,7 @@ def removable(app):
 ACCENT = os.environ.get("GOBLINCAKES_CONFIG_ACCENT", "/usr/libexec/goblincakes-accent")
 TILE = os.environ.get("GOBLINCAKES_CONFIG_TILE", "/usr/libexec/goblincakes-tile")
 DOCK = os.environ.get("GOBLINCAKES_CONFIG_DOCK", "/usr/libexec/goblincakes-dock")
+DESKTOP_LAYOUT = os.environ.get("GOBLINCAKES_CONFIG_DESKTOP_LAYOUT", "/usr/libexec/goblincakes-desktop-layout")
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
 DONE_FILE = STATE / "config-done"
 OLD_DONE_FILE = STATE / "setup-done"  # from when the window was called GOBLINCAKES Setup
@@ -278,6 +279,7 @@ class Config(QObject):
     terminalChanged = Signal()
     accentsChanged = Signal()  # Utseende: the colours, which one is chosen, busy
     dockChanged = Signal()     # Utseende: the dock's size and wave (goblincakes-dock get)
+    desktopLayoutChanged = Signal()  # Utseende: Skrivbordets upplägg (goblincakes-desktop-layout)
     tilesLoaded = Signal(str)   # Fönster: goblincakes-tile json ("" = failed)
     dashboardLoaded = Signal(str)  # Dashboard: dash.py config ("" = failed)
     dashboardSaved = Signal(bool)
@@ -503,6 +505,63 @@ class Config(QObject):
         proc.finished.connect(done)
         proc.errorOccurred.connect(lambda error: done() if error == QProcess.FailedToStart else None)
         proc.start(ACCENT, ["set", accent_id])
+
+    # ── Utseende: Skrivbordets upplägg (goblincakes-desktop-layout) ──────
+
+    @Property(str, notify=desktopLayoutChanged)
+    def desktopLayout(self):
+        """classic (the top bar and the dock) or dashboard."""
+        if not hasattr(self, "_desktop_layout"):
+            code, out = run(DESKTOP_LAYOUT, ["status"])
+            self._desktop_layout = out.strip() if code == 0 and out.strip() in ("classic", "dashboard") else "classic"
+        return self._desktop_layout
+
+    @Property(bool, notify=desktopLayoutChanged)
+    def desktopLayoutBusy(self):
+        return getattr(self, "_desktop_layout_proc", None) is not None
+
+    @Property(str, notify=desktopLayoutChanged)
+    def desktopLayoutStatus(self):
+        return getattr(self, "_desktop_layout_status", "")
+
+    @Slot(str)
+    def setDesktopLayout(self, name):
+        if name not in ("classic", "dashboard") or name == self.desktopLayout or self.desktopLayoutBusy:
+            return
+        before = self._desktop_layout
+        self._desktop_layout = name
+        self._desktop_layout_status = "Byter upplägg…"
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._desktop_layout_proc = proc
+        self.desktopLayoutChanged.emit()
+        lines = []
+
+        def read():
+            for text in bytes(proc.readAllStandardOutput()).decode(errors="replace").splitlines():
+                if text.startswith("@@ "):
+                    self._desktop_layout_status = text[3:].strip()
+                    self.desktopLayoutChanged.emit()
+                elif text.strip():
+                    lines.append(text.strip())
+
+        def finished(code, exit_status):
+            read()
+            self._desktop_layout_proc = None
+            if code == 0 and exit_status == QProcess.NormalExit:
+                self._desktop_layout_status = ("Klart – tryck Meta för dashboarden." if name == "dashboard"
+                                               else "Klart – toppfältet och dockan är tillbaka.")
+            else:
+                self._desktop_layout = before
+                self._desktop_layout_status = lines[-1] if lines else "Det gick inte att byta upplägg – försök igen."
+            if hasattr(self, "_dock"):
+                del self._dock   # the dock came or went
+            self.dockChanged.emit()
+            self.desktopLayoutChanged.emit()
+            proc.deleteLater()
+        proc.readyReadStandardOutput.connect(read)
+        proc.finished.connect(finished)
+        proc.start(DESKTOP_LAYOUT, ["set", name])
 
     # ── Utseende: the dock (goblincakes-dock get/set) ──────────
 

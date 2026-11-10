@@ -339,7 +339,7 @@ COMMANDS=(
     "play|Dina Steam-spel – skriv namnet (t.ex. cs2) direkt i terminalen; eget ord: goblin play add wow.exe wow"
     "amp|GoblinAmp – liten spelare i Winamps anda: dina musikfiler och spellistor eller Spotify (Z X C V B, mellanslag = paus); goblin amp <filer|mapp> spelar dem; goblin amp hjälp = så ställer du in Spotify-listorna"
     "share|GoblinShare – skicka filer och meddelanden till datorerna och telefonerna hemma: goblin share skicka <filer> (du väljer vem i fönstret), goblin share till <namn> <filer>, goblin share text <namn> <text>, goblin share beställ <namn> <vad Goblin AI där ska göra>, goblin share beställningar [start <nr> [chatgpt]], goblin share hjälp (be om hjälp: en kod att läsa upp), goblin share terminal <namn> <kod> (terminal på den datorn med koden hen läser upp; terminal på/av = hjälp via terminal här), goblin share lista, goblin share på/av"
-    "dashboard|GOBLINCAKES Dashboard – helskärm med öppna program, alla program (skriv = sök), projekt, system, kvot och musik; samma kommando gömmer den, Esc stänger, goblin dashboard stäng avslutar den helt"
+    "dashboard|GOBLINCAKES Dashboard – helskärm med öppna program, alla program (skriv = sök), projekt, system, kvot och musik; samma kommando gömmer den, Esc stänger, goblin dashboard stäng avslutar den helt; goblin dashboard upplägg dashboard|klassiskt = inget toppfält/docka, Meta tar fram den (eller tillbaka)"
     "graph|Ljudgraf i WoW:s klassfärger till musiken – goblin graph [staplar|våg|cirkel|explosion] [alla|klass|mage …] [lås|lås upp]; goblin graph auto on = öppnas när musik spelar"
     "moonbyte|Spelar Moonbyte Drift i terminalen med grafen (mellanslag paus, ←/→ 10 s, q avslutar)"
     "moonlit|Spelar Moonlit Pixel Drift i terminalen med grafen (goblin moonlit pixel drift går också)"
@@ -845,7 +845,21 @@ HELP
         case ${1:-} in
             "") (setsid goblin-dashboard >/dev/null 2>&1 &) ;;
             stäng|stang|quit|avsluta) exec goblin-dashboard --quit ;;
-            *) echo "Använd: goblin dashboard  (visa/göm)  eller  goblin dashboard stäng" >&2; exit 2 ;;
+            # Skrivbordets upplägg (also Config → Inställningar → Utseende): the top bar + dock, or the dashboard
+            upplägg|upplagg|layout)
+                case ${2:-} in
+                    "") case $(/usr/libexec/goblincakes-desktop-layout status) in
+                            dashboard) echo "Upplägg: Dashboard (Meta tar fram dashboarden, raden uppe i mitten)." ;;
+                            *) echo "Upplägg: Toppfält och docka (standard)." ;;
+                        esac
+                        echo "Byt med: goblin dashboard upplägg dashboard  eller  goblin dashboard upplägg klassiskt" ;;
+                    dashboard|dash|på|pa|on) /usr/libexec/goblincakes-desktop-layout set dashboard | sed 's/^@@ //' \
+                        && echo "Klart – tryck Meta för dashboarden." ;;
+                    klassiskt|klassisk|vanligt|standard|toppfält|toppfalt|docka|av|off) /usr/libexec/goblincakes-desktop-layout set classic | sed 's/^@@ //' \
+                        && echo "Klart – toppfältet och dockan är tillbaka." ;;
+                    *) echo "Använd: goblin dashboard upplägg [dashboard|klassiskt]" >&2; exit 2 ;;
+                esac ;;
+            *) echo "Använd: goblin dashboard  (visa/göm),  goblin dashboard stäng  eller  goblin dashboard upplägg [dashboard|klassiskt]" >&2; exit 2 ;;
         esac ;;
     nyheter|news) shift; heading "Nytt i GOBLINCAKES"; exec /usr/libexec/goblincakes-news latest "${1:-15}" ;;
     färg|farg|color|colour) shift; cmd_farg "$@" ;;

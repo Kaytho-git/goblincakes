@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+"""GOBLINCAKES: the desktop's layout – "Toppfält och docka" (the standard) or "Dashboard" (step 4 of the
+dashboard, 10 Nov; the user's decisions 9 Nov: an option, not a replacement, and switching must work both ways
+without losing anything). Config → Inställningar → Utseende → Skrivbordets upplägg, `goblin dashboard upplägg`.
+
+    goblincakes-desktop-layout status            classic | dashboard
+    goblincakes-desktop-layout set dashboard     the top bar and the dock away, the desktop row up, Meta = dashboard
+    goblincakes-desktop-layout set classic       the desktop row away, the top bar and the dock back, Meta = AppGrid
+    goblincakes-desktop-layout apply             the chosen layout again (goblincakes-firstlogin after a new layout)
+    goblincakes-desktop-layout login             at login: the dashboard started hidden (comes up at once on Meta)
+    goblincakes-desktop-layout forget            back to the standard without touching the panels (firstlogin --reset)
+
+Dashboard: the top bar (AppGrid, open programs, tray …) and the dock are removed and one panel is added at the top
+in the middle – Steam/Discord (org.goblincakes.nowplaying part=left), the clock box (org.goblincakes.deskclock),
+Spelas nu/Kakan (part=right) and a system tray with only notifications (it has to exist: without one Plasma shows
+no notifications and programs like Discord and Steam have nowhere to put their tray icon). The panel hides when a
+window covers it and comes back at the top edge (Plasma's "dodgewindows"). Its background is see-through
+(translucent mode is invisible in our Plasma theme), so only the boxes show. Meta: kwinrc [ModifierOnlyShortcuts]
+Meta = org.goblincakes.dashboard toggle (D-Bus; /usr/share/dbus-1/services starts the dashboard if needed).
+Saved first, in ~/.config/goblincakes/desktop-layout.json: the dock's pinned apps and settings (size, the wave) and
+the old Meta value; a copy of Plasma's panel file in ~/.local/state/goblincakes/layout-backup/.
+Classic: the top bar and the dock from the look-and-feel layout (the panel part of it – the wallpaper is left
+alone), the dock's apps and settings back, the tray trimmed (systray.js), the terminal in the dock (Config).
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HOME = Path.home()
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config")
+STATE_FILE = CONFIG / "goblincakes/desktop-layout.json"
+BACKUP = HOME / ".local/state/goblincakes/layout-backup"
+APPLETSRC = CONFIG / "plasma-org.kde.plasma.desktop-appletsrc"
+SHARE = Path(os.environ.get("GOBLINCAKES_SHARE") or "/usr/share")
+LAYOUT_JS = SHARE / "plasma/look-and-feel/org.goblincakes.desktop/contents/layouts/org.kde.plasma.desktop-layout.js"
+SYSTRAY_JS = SHARE / "goblincakes/systray.js"
+META = "org.goblincakes.dashboard,/dashboard,org.goblincakes.dashboard,toggle"
+
+# Panels: ours by their widgets (own panels the user made are left alone)
+FIND = """
+function types(p) { return p.widgets().map(function (w) { return w.type; }); }
+function isRow(p) { return types(p).indexOf("org.goblincakes.deskclock") >= 0; }
+function isTopBar(p) { var t = types(p); return p.location === "top" && !isRow(p)
+    && (t.indexOf("dev.xarbit.appgrid") >= 0 || t.indexOf("org.kde.plasma.icontasks") >= 0); }
+function isDock(p) { var t = types(p); return p.location === "bottom"
+    && (t.indexOf("org.goblincakes.dock") >= 0 || t.indexOf("org.kde.plasma.icontasks") >= 0); }
+"""
+
+READ_DOCK = FIND + """
+var r = null;
+panels().forEach(function (p) {
+    if (!isDock(p) || r) return;
+    p.widgets().forEach(function (w) {
+        if (w.type !== "org.goblincakes.dock" && w.type !== "org.kde.plasma.icontasks") return;
+        w.currentConfigGroup = ["General"];
+        var l = w.readConfig("launchers", "");
+        r = { launchers: Array.isArray(l) ? l : String(l).replace(/\\\\,/g, ",").split(",").filter(function (s) { return s; }),
+              height: p.height };
+        ["scale", "zoom", "zoomFactor", "zoomRange"].forEach(function (k) {
+            var v = w.readConfig(k, "");
+            if (String(v) !== "") r[k] = String(v);
+        });
+    });
+});
+print(JSON.stringify(r));
+"""
+
+# The desktop row (the mockup "Skrivbordet utan docka"): 20 px from the top edge, the boxes 48 px, the clock box ~74 px
+ADD_ROW = """
+var row = new Panel;
+row.location = "top";
+row.height = 84;
+row.alignment = "center";
+try { row.lengthMode = "fit"; } catch (e) {}
+try { row.floating = true; } catch (e) {}
+try { row.opacity = "translucent"; } catch (e) {}
+row.hiding = "dodgewindows";
+var left = row.addWidget("org.goblincakes.nowplaying");
+left.currentConfigGroup = ["General"];
+left.writeConfig("part", "left");
+row.addWidget("org.goblincakes.deskclock");
+var right = row.addWidget("org.goblincakes.nowplaying");
+right.currentConfigGroup = ["General"];
+right.writeConfig("part", "right");
+row.addWidget("org.kde.plasma.systemtray");
+"""
+
+
+def plasma(script):
+    """Runs a script in plasmashell; its print() output, or None when Plasma didn't answer."""
+    try:
+        out = subprocess.run(["busctl", "--user", "--json=short", "call", "org.kde.plasmashell", "/PlasmaShell",
+                              "org.kde.PlasmaShell", "evaluateScript", "s", script],
+                             capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    try:
+        return json.loads(out.stdout)["data"][0]
+    except (ValueError, KeyError, IndexError):
+        return ""
+
+
+def quiet(*cmd):
+    try:
+        return subprocess.run(list(cmd), capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def load():
+    try:
+        return json.loads(STATE_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def save(state):
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+    tmp.replace(STATE_FILE)
+
+
+def current():
+    return "dashboard" if load().get("layout") == "dashboard" else "classic"
+
+
+def say(text):
+    print("@@ " + text, flush=True)   # Config shows these lines while it works
+
+
+def kwin_reconfigure():
+    quiet("busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure")
+
+
+def read_meta():
+    r = quiet("kreadconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta")
+    return r.stdout.strip() if r and r.returncode == 0 else ""
+
+
+def meta_dashboard(state):
+    old = read_meta()
+    if old != META and "metaBefore" not in state:
+        state["metaBefore"] = old
+    quiet("kwriteconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta", META)
+    kwin_reconfigure()
+
+
+def meta_back(state):
+    before = state.pop("metaBefore", "")
+    if read_meta() == META or not read_meta():
+        if before and before != META:
+            quiet("kwriteconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta", before)
+        else:
+            # Plasma's own default: Meta opens the application launcher (AppGrid behind the logo)
+            quiet("kwriteconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta", "--delete")
+        kwin_reconfigure()
+
+
+def trim_tray():
+    """systray.js once the new tray exists (its settings only appear after it has started)."""
+    if not SYSTRAY_JS.exists():
+        return
+    script = SYSTRAY_JS.read_text()
+    for _ in range(10):
+        time.sleep(2)
+        if plasma(script) is not None:
+            return
+
+
+def start_hidden():
+    subprocess.Popen(["goblin-dashboard", "--hidden"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def backup():
+    if APPLETSRC.exists():
+        BACKUP.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(APPLETSRC, BACKUP / time.strftime("plasma-appletsrc-%Y%m%d-%H%M%S"))
+        for old in sorted(BACKUP.glob("plasma-appletsrc-*"))[:-5]:   # the five latest are kept
+            old.unlink(missing_ok=True)
+
+
+def to_dashboard(state, keep_dock=False):
+    say("Sparar dockans program…")
+    dock = plasma(READ_DOCK)
+    if dock is None:
+        print("Plasma svarar inte – logga in i Plasma och försök igen.", file=sys.stderr)
+        return 1
+    try:
+        dock = json.loads(dock)
+    except ValueError:
+        dock = None
+    # After a new layout version (apply) the dock is the standard one: the saved apps are kept
+    if dock and not (keep_dock and state.get("dock")):
+        state["dock"] = dock
+    backup()
+    say("Tar bort toppfältet och dockan…")
+    had_row = plasma(FIND + 'var n = 0; panels().forEach(function (p) { if (isRow(p)) n++; }); print(n);')
+    plasma(FIND + "panels().forEach(function (p) { if (isTopBar(p) || isDock(p)) p.remove(); });"
+           + ("" if had_row and had_row.strip() not in ("", "0") else ADD_ROW))
+    state["layout"] = "dashboard"
+    meta_dashboard(state)
+    save(state)
+    start_hidden()
+    say("Ordnar systemfältet…")
+    trim_tray()
+    return 0
+
+
+def panels_part():
+    """The top bar and the dock out of the look-and-feel layout – without its wallpaper part."""
+    text = LAYOUT_JS.read_text()
+    start = text.find("// ---- Top bar")
+    return text[start:] if start >= 0 else text
+
+
+def to_classic(state):
+    if not LAYOUT_JS.exists():
+        print(f"Hittar inte {LAYOUT_JS}", file=sys.stderr)
+        return 1
+    backup()
+    say("Lägger tillbaka toppfältet och dockan…")
+    dock = state.get("dock") or {}
+    restore = ""
+    if dock.get("launchers"):
+        restore += f'tasks.writeConfig("launchers", {json.dumps(dock["launchers"])});\n'
+    for key in ("scale", "zoom", "zoomFactor", "zoomRange"):
+        if key in dock:
+            value = dock[key]
+            js = ("true" if value == "true" else "false") if key == "zoom" else json.dumps(float(value))
+            restore += f'tasks.writeConfig("{key}", {js});\n'
+    if isinstance(dock.get("height"), int):
+        restore += f"dock.height = {dock['height']};\n"
+    have = plasma(FIND + 'var n = 0; panels().forEach(function (p) { if (isTopBar(p) || isDock(p)) n++; }); print(n);')
+    if have is None:
+        print("Plasma svarar inte – logga in i Plasma och försök igen.", file=sys.stderr)
+        return 1
+    script = FIND + "panels().forEach(function (p) { if (isRow(p)) p.remove(); });\n"
+    if have.strip() in ("", "0"):
+        script += panels_part() + "\n" + restore
+    plasma(script)
+    state["layout"] = "classic"
+    meta_back(state)
+    save(state)
+    say("Ordnar systemfältet…")
+    trim_tray()
+    # Konsole or Kitty chosen as the terminal: the dock gets it (as after a new layout)
+    quiet("/usr/libexec/goblincakes-terminal", "apply")
+    return 0
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else "status"
+    state = load()
+    if cmd == "status":
+        print(current())
+        return 0
+    if cmd == "set" and len(argv) > 2 and argv[2] in ("dashboard", "classic"):
+        return to_dashboard(state) if argv[2] == "dashboard" else to_classic(state)
+    if cmd == "apply":
+        return to_dashboard(state, keep_dock=True) if current() == "dashboard" else 0
+    if cmd == "login":
+        if current() == "dashboard":
+            if read_meta() != META:
+                meta_dashboard(state)
+                save(state)
+            start_hidden()
+        return 0
+    if cmd == "forget":
+        if current() == "dashboard":
+            meta_back(state)
+        state.pop("layout", None)
+        state.pop("dock", None)
+        save(state)
+        return 0
+    print("Använd: goblincakes-desktop-layout status | set dashboard|classic | apply | login | forget", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

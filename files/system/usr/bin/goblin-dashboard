@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """GOBLINCAKES Dashboard – a full-screen overview: the open programs at the top, the own programs at the
 bottom, frames with projects, the system, the quota and what is playing, and in the middle every program
-(type = search) or what was pressed in a frame. Step 1–3 of the dashboard (10 Nov): started by hand, nothing in
-the usual layout (top bar, dock, AppGrid) is changed. Several views (SPEL, JOBB, …), each with its own frames
+(type = search) or what was pressed in a frame. Step 1–3 of the dashboard (10 Nov): started by hand or from the
+menu; step 4: the layout "Dashboard" (goblincakes-desktop-layout) takes the top bar and the dock away and Meta opens it. Several views (SPEL, JOBB, …), each with its own frames
 (Config → Dashboard, dashboard.json "views"); the wheel over the dots, a sideways swipe or Ctrl+← → changes view.
 
     goblin-dashboard            show it – or hide it when it is already showing (one window, kept running
                                 hidden so it comes up at once)
     goblin-dashboard --quit     end the hidden process
+    goblin-dashboard --hidden   start without showing (at login in the dashboard layout, and when D-Bus starts it)
+
+Step 4 (10 Nov): with the layout "Dashboard" (goblincakes-desktop-layout) Meta calls org.goblincakes.dashboard
+/dashboard toggle (kwinrc [ModifierOnlyShortcuts]); /usr/share/dbus-1/services/org.goblincakes.dashboard.service
+starts it hidden first when it isn't running. The KWin script goblincakes-windows puts it on the active screen.
 
 What it shows is read by /usr/share/goblincakes/dashboard/dash.py; the open windows are asked from KWin
 (dashboard/windows.js). Window: /usr/share/goblincakes/dashboard/Main.qml
@@ -119,6 +124,24 @@ class KWinBridge(QObject):
             finally:
                 script.unlink(missing_ok=True)
         threading.Thread(target=work, daemon=True).start()
+
+
+@ClassInfo({"D-Bus Interface": "org.goblincakes.dashboard"})
+class DashboardBus(QObject):
+    """org.goblincakes.dashboard /dashboard: toggle (Meta in the dashboard layout), show, hide."""
+    wanted = Signal(str)
+
+    @Slot()
+    def toggle(self):
+        self.wanted.emit("toggle")
+
+    @Slot()
+    def show(self):
+        self.wanted.emit("show")
+
+    @Slot()
+    def hide(self):
+        self.wanted.emit("hide")
 
 
 class Backend(QObject):
@@ -552,11 +575,13 @@ def main():
     # One window: a second start shows/hides the first one (or ends it with --quit)
     name = os.environ.get("GOBLINCAKES_DASHBOARD_INSTANCE", f"goblin-dashboard-{os.getuid()}")
     quit_it = "--quit" in sys.argv
+    hidden = "--hidden" in sys.argv
     sock = QLocalSocket()
     sock.connectToServer(name)
     if sock.waitForConnected(300):
-        sock.write(b"quit\n" if quit_it else b"toggle\n")
-        sock.waitForBytesWritten(500)
+        if not hidden:   # already running: --hidden has nothing to do
+            sock.write(b"quit\n" if quit_it else b"toggle\n")
+            sock.waitForBytesWritten(500)
         return 0
     if quit_it:
         return 0
@@ -581,6 +606,14 @@ def main():
         win.raise_()
         win.requestActivate()
 
+    def act(word):
+        if word == "quit":
+            app.quit()
+        elif word == "hide" or (word == "toggle" and win.isVisible()):
+            win.hide()
+        else:
+            show()
+
     def incoming():
         conn = server.nextPendingConnection()
         if not conn:
@@ -588,15 +621,18 @@ def main():
         conn.waitForReadyRead(300)
         word = bytes(conn.readAll()).decode().strip()
         conn.close()
-        if word == "quit":
-            app.quit()
-        elif win.isVisible():
-            win.hide()
-        else:
-            show()
+        act(word)
     server.newConnection.connect(incoming)
     backend.hideWanted.connect(win.hide)
-    show()
+
+    # The fixed D-Bus name for Meta (not in the test mode: a test must not answer the real Meta)
+    bus_obj = DashboardBus()
+    bus_obj.wanted.connect(act)
+    bus = QDBusConnection.sessionBus()
+    if not TEST and bus.isConnected() and bus.registerObject("/dashboard", bus_obj, QDBusConnection.ExportAllSlots):
+        bus.registerService("org.goblincakes.dashboard")
+    if not hidden:
+        show()
     return app.exec()
 
 

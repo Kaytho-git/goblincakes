@@ -12,5 +12,10 @@
     <entry name="deviceNames" type="Bool">
       <default>true</default>
     </entry>
+    <!-- "" = the top bar (everything in one row). The dashboard's desktop row (goblincakes-desktop-layout):
+         "left" = Steam + Discord, "right" = what is playing + Kakan, each in its own box -->
+    <entry name="part" type="String">
+      <default></default>
+    </entry>
   </group>
 </kcfg>

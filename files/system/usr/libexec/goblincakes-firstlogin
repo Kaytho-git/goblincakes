@@ -151,5 +151,15 @@ fi
 # Konsole or Kitty chosen as the terminal (Config): the new dock gets it instead of Ghostty
 ( sleep 10; /usr/libexec/goblincakes-terminal apply ) >/dev/null 2>&1 &
 
+# The dashboard layout (Config → Utseende → Skrivbordets upplägg): a new layout version brought the top bar and the
+# dock back – the desktop row again (the dock's saved apps are kept). --reset = the standard layout again.
+if [ "$mode" = all ]; then
+    if [ "$RESET" = 1 ]; then
+        /usr/libexec/goblincakes-desktop-layout forget >/dev/null 2>&1
+    else
+        /usr/libexec/goblincakes-desktop-layout apply >/dev/null 2>&1
+    fi
+fi
+
 mkdir -p "$(dirname "$MARK")"
 echo "$LAYOUT_VERSION" > "$MARK"

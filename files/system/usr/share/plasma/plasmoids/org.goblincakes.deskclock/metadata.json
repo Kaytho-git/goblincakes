@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "GOBLINCAKES"
+            }
+        ],
+        "Category": "Date and Time",
+        "Description": "The desktop row's clock box (the dashboard layout): clock, date and week, network, sound and the batteries of wireless devices",
+        "Description[sv]": "Skrivbordsradens klockruta (dashboardupplägget): klocka, datum och vecka, nätverk, ljud och batterierna i trådlösa enheter",
+        "Icon": "preferences-system-time",
+        "Id": "org.goblincakes.deskclock",
+        "License": "GPL-3.0-or-later",
+        "Name": "GOBLINCAKES Clock Box",
+        "Name[sv]": "GOBLINCAKES Klockruta"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

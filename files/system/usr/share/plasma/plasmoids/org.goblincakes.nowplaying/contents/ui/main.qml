@@ -25,6 +25,11 @@
     wireless mouse/keyboard/headset with its name and %, green/orange/red by charge; click = name on/off (saved).
     /usr/libexec/goblincakes-device-battery reads UPower every 30 s.
     Nothing to show = the widget takes no space.
+    The dashboard's desktop row (10 Nov, goblincakes-desktop-layout; config "part"): two copies of this widget
+    either side of the clock box (org.goblincakes.deskclock), each part in its own box (DeskBox.qml, after the
+    mockup): "left" = Steam (only while it works) + Discord, "right" = what is playing + Kakan (only while
+    she works). Discord and Spelas nu always show, so the row stays even on both sides; the batteries are in
+    the clock box there.
 */
 import QtQuick
 import QtQuick.Layouts
@@ -46,6 +51,9 @@ PlasmoidItem {
     readonly property color line: "#2A3852"
 
     readonly property bool editMode: Plasmoid.containment.corona?.editMode ?? false
+    // "" = the top bar; "left"/"right" = the dashboard's desktop row
+    readonly property string part: Plasmoid.configuration.part || ""
+    readonly property bool desk: part !== ""
 
     // ---- Music ----
     // Music players only (desktop entry or name contains one of these)
@@ -143,6 +151,8 @@ PlasmoidItem {
     }
 
     onDiscordWindowChanged: if (discordWindow) discordIcon = discordWindow.icon
+
+    readonly property string voiceServerName: serverNames[voiceServer] || ""
 
     readonly property var discord: {
         if (!inVoice || (!discordWindow && !discordRunning)) {
@@ -324,14 +334,132 @@ PlasmoidItem {
         id: full
         readonly property bool empty: !music.visible && !chat.visible && !steamPart.visible && !aiPart.visible
                                       && !batteryPart.visible
+        readonly property real wanted: root.desk ? deskRow.implicitWidth : row.implicitWidth
 
-        Layout.minimumWidth: row.implicitWidth
-        Layout.preferredWidth: row.implicitWidth
-        Layout.maximumWidth: row.implicitWidth
+        Layout.minimumWidth: wanted
+        Layout.preferredWidth: wanted
+        Layout.maximumWidth: wanted
         Layout.fillHeight: true
+
+        // ---- The desktop row: one box per part ----
+        Row {
+            id: deskRow
+            visible: root.desk
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 12
+            // In the order they stand on the screen; 12 px towards the clock box, like the gaps between the boxes
+            rightPadding: root.part === "left" ? 12 : 0
+            leftPadding: root.part === "left" ? 0 : 12
+
+            // Left: Steam (only while it downloads or makes shaders), farthest from the clock
+            DeskBox {
+                visible: root.part === "left" && root.steamText !== ""
+                implicitWidth: 240
+                alignRight: true
+                mark: "#66C0F4"
+                label: "STEAM · " + (root.steam.kind === "shader" ? "SHADERS" : String(root.steam.phase || "").toUpperCase())
+                text: (root.steam.name || "")
+                      + (root.steam.percent !== null && root.steam.percent !== undefined ? "  " + root.steam.percent + " %" : "")
+                      + (root.steam.rate ? "  ·  " + root.steam.rate + " Mbit/s" : "")
+                onClicked: exec.connectSource("setsid -f xdg-open steam://open/downloads >/dev/null 2>&1 < /dev/null")
+                PlasmaCore.ToolTipArea {
+                    anchors.fill: parent
+                    mainText: root.steam.kind === "shader" ? "Steam bearbetar shaders" : "Steam " + (root.steam.phase || "")
+                    subText: (root.steam.kind === "shader"
+                        ? "Gör " + root.steam.name + " redo så att spelet inte hackar. Det tar mycket processorkraft – fläktarna kan låta en stund.\n"
+                        : root.steam.name + "\n") + "Klicka för att visa Steams nedladdningar"
+                }
+            }
+
+            // Left, next to the clock: Discord – the voice channel, or that you aren't in one
+            DeskBox {
+                visible: root.part === "left"
+                alignRight: true
+                mark: "#7C8CF8"
+                dim: root.discord === null
+                label: "DISCORD" + (root.discord && root.voiceServerName ? " · " + root.voiceServerName.toUpperCase() : "")
+                text: root.discord ? "🔊 " + (root.voiceChannel || "Röstkanal")
+                    : root.discordWindow || root.discordRunning ? "Inte i en röstkanal" : "Inte igång"
+                onClicked: {
+                    if (root.discordWindow) {
+                        tasksModel.requestActivate(tasksModel.index(root.discordWindow.row, 0));
+                    } else if (root.discordRunning) {
+                        exec.connectSource(root.voiceCommand + " show");
+                    } else {
+                        exec.connectSource("setsid -f gtk-launch discord >/dev/null 2>&1 < /dev/null");
+                    }
+                }
+                PlasmaCore.ToolTipArea {
+                    anchors.fill: parent
+                    mainText: "Discord"
+                    subText: root.discordWindow || root.discordRunning ? "Klicka för att visa Discord" : "Klicka för att starta Discord"
+                }
+            }
+
+            // Right, next to the clock: what is playing – click = play/pause, wheel = next/previous
+            DeskBox {
+                visible: root.part === "right"
+                mark: "#3BD16F"
+                dim: !root.playing
+                label: root.player && !root.playing ? "SPELAS NU · PAUSAD" : "SPELAS NU"
+                text: root.player && root.player.track
+                    ? root.player.track + (root.player.artist ? " – " + root.player.artist : "")
+                    : "Inget spelas"
+                onClicked: button => {
+                    if (!root.player) {
+                        exec.connectSource("setsid -f gtk-launch goblin-amp >/dev/null 2>&1 < /dev/null");
+                    } else if (button === Qt.MiddleButton) {
+                        root.player.Raise();
+                    } else {
+                        root.player.PlayPause();
+                    }
+                }
+                onWheeled: delta => {
+                    if (root.player && delta < 0) {
+                        root.player.Next();
+                    } else if (root.player && delta > 0) {
+                        root.player.Previous();
+                    }
+                }
+                PlasmaCore.ToolTipArea {
+                    anchors.fill: parent
+                    mainText: root.player ? (root.player.track || "Spelas nu") : "Inget spelas"
+                    subText: root.player
+                        ? (root.player.artist ? root.player.artist + (root.player.album ? " · " + root.player.album : "") + "\n" : "")
+                          + "Klicka = spela/pausa, hjulet = nästa/föregående, mittenklick = visa spelaren"
+                        : "Klicka för att starta GoblinAmp"
+                }
+            }
+
+            // Right, farthest out: Kakan (Goblin AI) while she answers or draws
+            DeskBox {
+                visible: root.part === "right" && root.aiText !== ""
+                implicitWidth: 240
+                mark: Kirigami.Theme.focusColor
+                breathe: true
+                label: String(root.ai.name || "Kakan").toUpperCase() + (root.ai.kind === "image" ? " RITAR" : " ARBETAR")
+                text: {
+                    const steps = root.ai.steps || [];
+                    const now = steps.filter(s => s.state === "run").pop();
+                    return (now ? now.text : root.ai.text || "")
+                        + (root.ai.progress !== null && root.ai.progress !== undefined ? " " + root.ai.progress + " %" : "")
+                        + (root.ai.seconds >= 3 ? "  ·  " + root.ai.seconds + " s" : "");
+                }
+                onClicked: exec.connectSource("setsid -f goblin-ai >/dev/null 2>&1 < /dev/null")
+                PlasmaCore.ToolTipArea {
+                    anchors.fill: parent
+                    mainText: root.ai.kind === "image" ? root.ai.name + " ritar en bild" : root.ai.name + " arbetar på ett svar"
+                    subText: (root.aiSteps ? root.aiSteps + "\n\n" : "") + (root.ai.local
+                        ? "På din dator – grafikkortet arbetar, fläktarna kan låta en stund.\n"
+                        : "I molnet – din dator väntar bara på svaret.\n")
+                        + "Klicka för att visa Goblin AI"
+                }
+            }
+        }
 
         RowLayout {
             id: row
+            visible: !root.desk
             anchors.verticalCenter: parent.verticalCenter
             spacing: Kirigami.Units.gridUnit
 

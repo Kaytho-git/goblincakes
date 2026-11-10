@@ -119,7 +119,8 @@ Ord: docka, dockan, aktivitetsfält, appgrid, programmeny, meta+z, ikoner nere
 ## GOBLINCAKES Dashboard
 Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna program, alla program, sök program
 - Steg 1 (10 nov): ett eget helskärmsfönster som startas för hand – `goblin dashboard` (samma kommando gömmer det),
-  menyposten GOBLINCAKES Dashboard. Toppfältet, dockan och AppGrid är orörda; Meta öppnar fortfarande AppGrid.
+  menyposten GOBLINCAKES Dashboard. Med standardupplägget (toppfält och docka) öppnar Meta AppGrid; med upplägget
+  Dashboard (steg 4 nedan) tar Meta fram dashboarden.
 - /usr/bin/goblin-dashboard (fönstret, kod /usr/share/goblincakes/dashboard/: Main.qml, dash.py = allt som läses,
   windows.js = KWin-skriptet för öppna fönster). Processen ligger kvar gömd efter Esc så att den kommer upp direkt;
   `goblin dashboard stäng` avslutar den. Inget läses medan den är gömd.
@@ -150,6 +151,17 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
 Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps, top, player, quota, projects,
 `tray nätverk|ljud|bluetooth|urklipp|enheter`, bottom, views, config) – skriver det fönstret skulle visa; ramarna till höger:
 `python3 /usr/share/goblincakes/dashboard/stats.py wow` (även wow-fetch = med Warcraft Logs, cs2, builds, reports).
+- Steg 4 (10 nov), skrivbordets upplägg – ett val, standard = toppfält och docka: Config → INSTÄLLNINGAR → Utseende →
+  Skrivbordets upplägg eller `goblin dashboard upplägg dashboard|klassiskt`; hjälparen /usr/libexec/goblincakes-desktop-layout
+  (`status` = classic/dashboard). Dashboard = toppfältet och dockan borta, en panel uppe i mitten (döljs av fönster,
+  fram vid överkanten): widgetarna org.goblincakes.nowplaying (part=left: Steam + Discord, part=right: Spelas nu + Kakan),
+  org.goblincakes.deskclock (batteri, nätverk nmcli, klocka/datum/vecka, ljud wpctl, headsetbatteri) och ett litet
+  systemfält (bara notiser – behövs för notiserna och programmens systemfältsikoner). Meta = kwinrc [ModifierOnlyShortcuts]
+  Meta → D-Bus org.goblincakes.dashboard /dashboard toggle (/usr/share/dbus-1/services startar dashboarden om den inte kör;
+  vid inloggning startas den gömd). Sparat: ~/.config/goblincakes/desktop-layout.json (läget, dockans program och
+  storlek, Meta-värdet före), kopior av panelfilen i ~/.local/state/goblincakes/layout-backup/. Tillbaka till toppfält
+  och docka lägger dockans program och storlek tillbaka. Kolla: `kreadconfig6 --file kwinrc --group ModifierOnlyShortcuts --key Meta`
+  (tomt = Plasmas standard, AppGrid).
 
 ## GOBLINCAKES Config
 Ord: config, inställningar, goblincakes config, program, förinstallerat, fönster, grafik, uppdatera, reglage

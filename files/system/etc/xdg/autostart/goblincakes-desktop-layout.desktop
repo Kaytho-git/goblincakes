@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES desktop layout
+Comment=The dashboard layout: starts the dashboard hidden so Meta brings it up at once (does nothing with the top bar and dock)
+Exec=/usr/libexec/goblincakes-desktop-layout login
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2

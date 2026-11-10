@@ -534,6 +534,18 @@ function battlenetAdded(window) {
 // behind the fullscreen game and only demands attention. While a game is open, one of our
 // windows that opens or asks to be activated is activated by the script instead. A window that
 // already demands attention sends no new signal, so that is cleared whenever a game is activated.
+// GOBLINCAKES Dashboard (step 4, 10 Nov): full screen on the active screen (the one with the mouse, where Meta
+// was pressed) – Qt otherwise lets the compositor pick, and a hidden window comes back as a new one each time.
+// Never in a tile or moved by the other rules.
+const DASHBOARD = "goblin-dashboard";
+function dashboardAdded(window) {
+    const target = workspace.activeScreen;
+    if (target && window.output !== target)
+        workspace.sendClientToScreen(window, target);
+    if (!window.fullScreen)
+        window.fullScreen = true;
+}
+
 const OURS = ["goblin-recorder", "goblin-amp", "goblin-ai", "goblincakes-config"];
 const ours = [];
 function gameOpen() {
@@ -577,6 +589,10 @@ function added(window) {
     ourWindow(window, true);
     if (String(window.caption) === QUICK) {
         quickAdded(window);
+        return;
+    }
+    if (window.resourceClass === DASHBOARD && window.normalWindow) {
+        dashboardAdded(window);
         return;
     }
     if (ordinaryWindow(window))

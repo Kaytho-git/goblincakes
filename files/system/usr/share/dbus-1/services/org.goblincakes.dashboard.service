@@ -1,0 +1,5 @@
+# GOBLINCAKES Dashboard: Meta in the dashboard layout calls org.goblincakes.dashboard /dashboard toggle
+# (goblincakes-desktop-layout); D-Bus starts the dashboard hidden first when it isn't running.
+[D-BUS Service]
+Name=org.goblincakes.dashboard
+Exec=/usr/bin/goblin-dashboard --hidden

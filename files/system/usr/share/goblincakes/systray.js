@@ -32,10 +32,15 @@ var known = shown.concat([
     "org.kde.merkuro.contact.applet" // Merkuro's contact list (calendar accounts, 9 Oct)
 ]);
 
+// The dashboard's desktop row (goblincakes-desktop-layout, 10 Nov): network and sound are in its clock box,
+// so its tray shows only notifications (and the battery on laptops). The tray has to be there: without
+// one Plasma shows no notifications and Discord/Steam have nowhere to put their tray icon.
+var rowShown = ["org.kde.plasma.notifications", "org.kde.plasma.battery"];
+
 var trimmed = 0;
-function trim(target) {
+function trim(target, row) {
     target.currentConfigGroup = ["General"];
-    target.writeConfig("extraItems", shown);
+    target.writeConfig("extraItems", row ? rowShown : shown);
     target.writeConfig("knownItems", known);
     // Archon's own black icon goes behind the arrow: goblincakes-archon-tray shows a purple one
     // (24 Oct). Plasma names Electron items "<Id>@<process>". (readConfig gives the list back
@@ -51,13 +56,14 @@ function trim(target) {
     trimmed++;
 }
 panels().forEach(function (panel) {
+    var row = panel.widgets("org.goblincakes.deskclock").length > 0;
     panel.widgets("org.kde.plasma.systemtray").forEach(function (tray) {
         // Plasma before 6.7: the items live in a separate inner containment.
         // Plasma 6.7: on the tray itself ([General] extraItems/knownItems) – the inner id is
         // empty and nothing was trimmed (10 Oct)
         var id = tray.readConfig("SystrayContainmentId");
         var items = id ? desktopById(id) : null;
-        trim(items || tray);
+        trim(items || tray, row);
     });
 });
 
