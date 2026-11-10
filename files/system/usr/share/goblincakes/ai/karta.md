@@ -623,7 +623,7 @@ Ord: disk, diskar, hårddisk, usb, montera, automount, ägare, rättigheter
   goblincakes-disk-owner gör användaren till ägare av nya Linux-diskar.
 
 ## Utseende och färg
-Ord: utseende, tema, färg, accent, accentfärg, låsskärm, inloggning, sddm, ikoner, typsnitt
+Ord: utseende, tema, färg, accent, accentfärg, låsskärm, inloggning, sddm, ikoner, typsnitt, fönsterram, namnlist, aurorae
 - Accentfärgen: `goblin färg` / Config (/usr/libexec/goblincakes-accent, även inloggningsskärmen via
   goblincakes-sddm-accent). Utseendet läggs på vid första inloggningen av /usr/libexec/goblincakes-firstlogin.
 - `goblin dock reset` återställer allt utseende.
@@ -640,6 +640,10 @@ Ord: utseende, tema, färg, accent, accentfärg, låsskärm, inloggning, sddm, i
   Theme --key name`. Dockan och toppfältets widgetar (Spelas nu, kvot, uppdateringar) läser valet var 5:e s.
 - GOBLINCAKES egna fönster delar knappar, kryssrutor, reglage, textfält, rullister och ramar:
   /usr/share/goblincakes/qml/Goblin/ (FlatButton.qml m.fl.). Ser alla fönstrens knappar fel ut → där.
+- Fönsterramarna: Aurorae-temat /usr/share/aurorae/themes/goblincakes, ritat av Aurorae v2 (kwinrc
+  [org.kde.kdecoration2] library=org.kde.kwin.aurorae.v2). Death Knight: eget tema goblincakes-dk i
+  ~/.local/share/aurorae/themes (orange stäng). Kolla: `kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme`
+  och `--key library`. Genomskinlig namnlist (bara titeln syns) = v2 minns en borttagen temamapp – logga ut och in.
 
 ## Terminalen (Ghostty, Konsole, Kitty)
 Ord: terminal, ghostty, konsole, kitty, terminalval

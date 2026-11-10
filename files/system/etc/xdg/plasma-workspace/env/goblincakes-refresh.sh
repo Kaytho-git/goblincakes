@@ -45,6 +45,19 @@ if ! grep -q '^translucencyEnabled=' "$_gc_kwinrc" 2>/dev/null; then
     kwriteconfig6 --file kwinrc --group Effect-translucency --key MoveResize 75
 fi
 
+# Window frames drawn by Aurorae v2 (10 Nov, Plasma 6.8): an own kwinrc that still names the old
+# QML Aurorae for our frames is moved over (once). The /etc/xdg default is v2 already.
+_gc_flag="$_gc_state/aurorae-v2"
+if [ ! -e "$_gc_flag" ]; then
+    case "$(kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme)" in
+        ""|__aurorae__svg__goblincakes|__aurorae__svg__goblincakes-dk)
+            if [ "$(kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key library)" = org.kde.kwin.aurorae ]; then
+                kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key library org.kde.kwin.aurorae.v2
+            fi ;;
+    esac
+    mkdir -p "$_gc_state" && touch "$_gc_flag"
+fi
+
 # Meta+A belongs to Goblin AI: take it away from Plasma's "walk through activities"
 # (once; changing it back in System Settings sticks). Done here, before KWin starts
 # kglobalacceld, so it isn't overwritten.

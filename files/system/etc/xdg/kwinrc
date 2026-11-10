@@ -1,6 +1,7 @@
 [org.kde.kdecoration2]
-# GOBLINCAKES window frames (Aurorae theme in /usr/share/aurorae/themes/goblincakes)
-library=org.kde.kwin.aurorae
+# GOBLINCAKES window frames (Aurorae theme in /usr/share/aurorae/themes/goblincakes),
+# drawn by Aurorae v2 – the old QML Aurorae is on its way out (10 Nov, Plasma 6.8)
+library=org.kde.kwin.aurorae.v2
 theme=__aurorae__svg__goblincakes
 # Keep minimise, maximise and close on the right
 ButtonsOnLeft=

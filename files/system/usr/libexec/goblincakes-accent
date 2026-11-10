@@ -16,7 +16,8 @@ Where it goes (all in the home folder, the standard blue = the copies are remove
     buttons and highlights follow through ColorScheme-ButtonFocus)
   - Qt/KDE program widgets (Kvantum): ~/.config/Kvantum/GoblinCakes-Accent – read when a program starts
   - GTK programs (Quod Libet …): the copy in ~/.local/share/themes/GoblinCakes, if there is one
-  - window frames: Death Knight only – the red close button turns orange (~/.local/share/aurorae)
+  - window frames: Death Knight only – the red close button turns orange (its own Aurorae theme
+    goblincakes-dk in ~/.local/share/aurorae, chosen in kwinrc)
   - Firefox: a marked block in userChrome.css of every profile (the signed theme stays)
   - Discord: the Vencord theme, only when switched on (goblincakes-vencord theme)
   - the terminals: the cursor (and Kitty's tabs) – Kitty ~/.config/kitty/goblincakes-accent.conf
@@ -47,7 +48,10 @@ ROOT = Path(os.environ.get("GOBLINCAKES_ROOT", "/"))  # the system files (tests:
 KVANTUM_DIR = CONFIG_HOME / "Kvantum"
 KVANTUM_NAME = "GoblinCakes-Accent"
 GTK_COPY = DATA_HOME / "themes/GoblinCakes"
-AURORAE_COPY = DATA_HOME / "aurorae/themes/goblincakes"
+AURORAE_COPY = DATA_HOME / "aurorae/themes/goblincakes-dk"
+AURORAE_OLD = DATA_HOME / "aurorae/themes/goblincakes"   # until 10 Nov: the copy had the system theme's name
+THEME_STD = "__aurorae__svg__goblincakes"
+THEME_DK = "__aurorae__svg__goblincakes-dk"
 MARK = ".goblincakes-accent"
 FIREFOX_ROOTS = [HOME / ".var/app/org.mozilla.firefox/.mozilla/firefox",
                  HOME / ".var/app/org.mozilla.firefox/config/mozilla/firefox",
@@ -203,25 +207,51 @@ def apply_gtk(pal):
 
 # ── Window frames (Death Knight: the close button) ────────────────
 
+def kwin_theme():
+    r = run(["kreadconfig6", "--file", "kwinrc", "--group", "org.kde.kdecoration2", "--key", "theme"])
+    return (r.stdout.strip() if r and r.returncode == 0 else "") or THEME_STD
+
+
+def set_kwin_theme(name):
+    run(["kwriteconfig6", "--file", "kwinrc", "--group", "org.kde.kdecoration2", "--key", "theme", name])
+
+
 def apply_aurorae(pal):
-    """True when KWin must reload its window frames."""
-    wanted = pal["error"] != A.DEFAULT["error"]
-    mine = (AURORAE_COPY / MARK).exists()
-    if not wanted:
-        if mine:
-            shutil.rmtree(AURORAE_COPY, ignore_errors=True)
-            return True
-        return False
-    if AURORAE_COPY.exists() and not mine:
-        return False  # the user's own copy: leave it
-    src = sys_path("/usr/share/aurorae/themes/goblincakes")
+    """True when KWin must reload its window frames.
+
+    Death Knight's frames are a theme of their own (goblincakes-dk) that kwinrc points to – not a copy with the
+    system theme's name over it. KWin's Aurorae v2 (Plasma 6.8) looks a theme's files up once and keeps that
+    path while KWin runs: when the same-named copy was removed (DK → another colour), every frame lost its
+    background until the next login (10 Nov). So the DK copy is kept after a switch back (it is small), and
+    only kwinrc's theme changes – and only when one of our two themes is in use (another frame is left alone)."""
     changed = False
+    if (AURORAE_OLD / MARK).exists():          # the old same-named copy: away (at login, before KWin)
+        shutil.rmtree(AURORAE_OLD, ignore_errors=True)
+        changed = True
+    wanted = pal["error"] != A.DEFAULT["error"]
+    current = kwin_theme()
+    if not wanted:
+        if current == THEME_DK:
+            set_kwin_theme(THEME_STD)
+            changed = True
+        return changed
+    src = sys_path("/usr/share/aurorae/themes/goblincakes")
     for f in src.iterdir():
-        if f.is_file():
-            data = f.read_text()
-            data = data.replace(A.DEFAULT["error"], pal["error"]).replace(A.DEFAULT["errorBright"], pal["errorBright"])
-            changed |= write_if_changed(AURORAE_COPY / f.name, data)
+        if not f.is_file():
+            continue
+        data = f.read_text()
+        data = data.replace(A.DEFAULT["error"], pal["error"]).replace(A.DEFAULT["errorBright"], pal["errorBright"])
+        name = f.name
+        if name == "goblincakesrc":
+            name = "goblincakes-dkrc"
+        elif name == "metadata.desktop":
+            data = (data.replace("X-KDE-PluginInfo-Name=goblincakes\n", "X-KDE-PluginInfo-Name=goblincakes-dk\n")
+                    .replace("Name=GOBLINCAKES\n", "Name=GOBLINCAKES (Death Knight)\n"))
+        changed |= write_if_changed(AURORAE_COPY / name, data)
     (AURORAE_COPY / MARK).write_text(pal["id"] + "\n")
+    if current == THEME_STD:
+        set_kwin_theme(THEME_DK)
+        changed = True
     return changed
 
 

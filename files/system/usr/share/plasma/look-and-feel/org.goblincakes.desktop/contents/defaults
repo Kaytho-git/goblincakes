@@ -15,7 +15,7 @@ Theme=org.goblincakes.desktop
 name=goblincakes
 
 [kwinrc][org.kde.kdecoration2]
-library=org.kde.kwin.aurorae
+library=org.kde.kwin.aurorae.v2
 theme=__aurorae__svg__goblincakes
 
 [kcminputrc][Mouse]
