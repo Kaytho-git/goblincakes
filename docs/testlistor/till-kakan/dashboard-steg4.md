@@ -9,8 +9,11 @@
   fråga: Öppna GOBLINCAKES Config → INSTÄLLNINGAR → Skrivbordets upplägg och tryck Dashboard. Försvann toppfältet och dockan, och kom en rad upp i mitten av överkanten med Discord, klockan (datum och vecka under), nätverk, ljud och Spelas nu – i egna rutor, utan bakgrund mellan rutorna?
 - Meta
   fråga: Tryck Meta (bara Meta). Kommer dashboarden upp i helskärm på den skärm där musen är? Tryck Meta igen – försvinner den? Prova också med musen på den andra skärmen.
-- Meta när dashboarden är avstängd
-  fråga: Kör goblin dashboard stäng i terminalen och tryck sedan Meta. Startar dashboarden ändå (det kan ta en sekund första gången)?
+- Meta i kortkommandona
+  kör: grep -A2 '^\[goblin-dashboard\]' ~/.config/kglobalshortcutsrc; grep 'activate application launcher' ~/.config/kglobalshortcutsrc
+  väntat: under [goblin-dashboard] en rad toggle=Meta,…; startmenyns rad har bara Alt+F1 först (inte Meta)
+- Storleken på raden
+  fråga: Är raden uppe i mitten lagom stor nu (klockan och rutorna mindre än första gången)? Säg annars om den ska vara ännu mindre eller lite större.
 - Raden göms av fönster
   fråga: Öppna ett fönster och maximera det. Gömmer sig raden, och kommer den fram när du för musen mot överkanten mitt på skärmen? Syns den igen när skrivbordet är tomt?
 - Klockrutan

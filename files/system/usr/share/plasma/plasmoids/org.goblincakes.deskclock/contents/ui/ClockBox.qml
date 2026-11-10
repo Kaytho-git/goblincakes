@@ -16,6 +16,8 @@ Rectangle {
     property bool volumeShown: false                     // just changed: the % under the icon
     property var leftDevices: []                         // [{kind, name, percent, charging}]
     property var rightDevices: []
+    // The size (10 Nov, the user: the mockup's size was too big on the real desktop) – every measure below is times s
+    property real s: 0.75
 
     readonly property alias clockItem: clock
     readonly property alias netItem: netButton
@@ -39,8 +41,8 @@ Rectangle {
         return volume < 0 || muted || volume === 0 ? "sound-muted" : volume < 50 ? "sound-low" : "sound-high";
     }
 
-    implicitWidth: content.implicitWidth + 44
-    implicitHeight: content.implicitHeight + 20
+    implicitWidth: content.implicitWidth + Math.round(44 * box.s)
+    implicitHeight: content.implicitHeight + Math.round(20 * box.s)
     color: "#0B1018"
     border.width: 1
     border.color: "#1E2A40"
@@ -49,12 +51,12 @@ Rectangle {
         id: bat
         property var device
         property bool iconFirst: true
-        spacing: 6
+        spacing: Math.round(6 * box.s)
         layoutDirection: iconFirst ? Qt.LeftToRight : Qt.RightToLeft
         DeskIcon {
             anchors.verticalCenter: parent.verticalCenter
             name: bat.device.kind
-            size: 18
+            size: Math.round(18 * box.s)
             color: box.level(bat.device.percent)
         }
         Text {
@@ -62,7 +64,7 @@ Rectangle {
             text: (bat.device.charging ? "⚡" : "") + bat.device.percent + " %"
             color: box.level(bat.device.percent)
             font.family: "IBM Plex Sans"
-            font.pixelSize: 12
+            font.pixelSize: Math.round(12 * box.s)
         }
     }
 
@@ -72,15 +74,16 @@ Rectangle {
         property string below: ""
         signal clicked(int button)
         signal wheeled(int delta)
-        width: 44
-        height: 44
+        width: Math.round(44 * box.s)
+        height: Math.round(44 * box.s)
         Rectangle {
             anchors.fill: parent
             color: area.containsMouse ? "#1A2438" : "transparent"
         }
         DeskIcon {
             anchors.centerIn: parent
-            anchors.verticalCenterOffset: button.below ? -5 : 0
+            anchors.verticalCenterOffset: button.below ? -Math.round(5 * box.s) : 0
+            size: Math.round(22 * box.s)
             name: button.icon
             color: box.frost
         }
@@ -91,7 +94,7 @@ Rectangle {
             text: button.below
             color: box.dimText
             font.family: "IBM Plex Sans"
-            font.pixelSize: 10
+            font.pixelSize: Math.max(9, Math.round(10 * box.s))
         }
         MouseArea {
             id: area
@@ -107,13 +110,13 @@ Rectangle {
     Row {
         id: content
         anchors.centerIn: parent
-        spacing: 22
+        spacing: Math.round(22 * box.s)
 
         Row {
             id: leftBatteries
             visible: box.leftDevices.length > 0
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 14
+            spacing: Math.round(14 * box.s)
             Repeater {
                 model: box.leftDevices
                 Battery { required property var modelData; device: modelData; iconFirst: true }
@@ -136,14 +139,14 @@ Rectangle {
             height: implicitHeight
             Column {
                 id: clockText
-                spacing: 2
+                spacing: Math.round(2 * box.s)
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: Qt.formatTime(box.now, "HH:mm")
                     color: box.frost
                     font.family: "Chakra Petch"
                     font.weight: Font.DemiBold
-                    font.pixelSize: 34
+                    font.pixelSize: Math.round(34 * box.s)
                     lineHeight: 0.9
                 }
                 Text {
@@ -151,7 +154,7 @@ Rectangle {
                     text: Qt.locale("sv_SE").toString(box.now, "dddd d MMMM") + " · v. " + box.week
                     color: box.dimText
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 13
+                    font.pixelSize: Math.round(13 * box.s)
                 }
             }
             MouseArea {
@@ -174,7 +177,7 @@ Rectangle {
             id: rightBatteries
             visible: box.rightDevices.length > 0
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 14
+            spacing: Math.round(14 * box.s)
             Repeater {
                 model: box.rightDevices
                 Battery { required property var modelData; device: modelData; iconFirst: false }

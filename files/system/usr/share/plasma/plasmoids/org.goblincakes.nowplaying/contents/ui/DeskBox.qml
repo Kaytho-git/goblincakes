@@ -15,11 +15,13 @@ Rectangle {
     property bool alignRight: false
     property bool breathe: false      // the square breathes while something works (Kakan)
     readonly property bool hovered: area.containsMouse
+    // The size (10 Nov, the user: too big) – the same s as the clock box; main.qml's widths are times s too
+    property real s: 0.75
     signal clicked(int button)
     signal wheeled(int delta)
 
-    implicitWidth: 300
-    implicitHeight: 48
+    implicitWidth: Math.round(300 * s)
+    implicitHeight: Math.round(48 * s)
     color: "#0B1018"
     border.width: 1
     border.color: area.containsMouse ? "#2A3852" : "#1E2A40"
@@ -29,16 +31,16 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
-        spacing: 12
+        anchors.leftMargin: Math.round(16 * box.s)
+        anchors.rightMargin: Math.round(16 * box.s)
+        spacing: Math.round(12 * box.s)
         layoutDirection: box.alignRight ? Qt.RightToLeft : Qt.LeftToRight
 
         Rectangle {
             id: square
             anchors.verticalCenter: parent.verticalCenter
-            width: 10
-            height: 10
+            width: Math.round(10 * box.s)
+            height: Math.round(10 * box.s)
             color: box.mark
             opacity: box.dim ? 0.35 : 1
             SequentialAnimation on opacity {
@@ -57,7 +59,7 @@ Rectangle {
                 text: box.label
                 color: "#8B98AD"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: 11
+                font.pixelSize: Math.max(9, Math.round(11 * box.s))
                 font.letterSpacing: 1
                 elide: box.alignRight ? Text.ElideLeft : Text.ElideRight
                 horizontalAlignment: box.alignRight ? Text.AlignRight : Text.AlignLeft
@@ -67,7 +69,7 @@ Rectangle {
                 text: box.text
                 color: box.dim ? "#8B98AD" : "#E6ECF5"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: 14
+                font.pixelSize: Math.round(14 * box.s)
                 elide: Text.ElideRight
                 horizontalAlignment: box.alignRight ? Text.AlignRight : Text.AlignLeft
             }

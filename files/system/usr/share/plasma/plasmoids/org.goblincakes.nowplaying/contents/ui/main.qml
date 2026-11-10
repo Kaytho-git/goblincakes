@@ -346,15 +346,16 @@ PlasmoidItem {
             id: deskRow
             visible: root.desk
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 12
-            // In the order they stand on the screen; 12 px towards the clock box, like the gaps between the boxes
-            rightPadding: root.part === "left" ? 12 : 0
-            leftPadding: root.part === "left" ? 0 : 12
+            spacing: 9
+            // In the order they stand on the screen; 9 px towards the clock box, like the gaps between the boxes
+            // (12 in the mockup, times DeskBox's s = 0.75)
+            rightPadding: root.part === "left" ? 9 : 0
+            leftPadding: root.part === "left" ? 0 : 9
 
             // Left: Steam (only while it downloads or makes shaders), farthest from the clock
             DeskBox {
                 visible: root.part === "left" && root.steamText !== ""
-                implicitWidth: 240
+                implicitWidth: Math.round(240 * s)
                 alignRight: true
                 mark: "#66C0F4"
                 label: "STEAM · " + (root.steam.kind === "shader" ? "SHADERS" : String(root.steam.phase || "").toUpperCase())
@@ -434,7 +435,7 @@ PlasmoidItem {
             // Right, farthest out: Kakan (Goblin AI) while she answers or draws
             DeskBox {
                 visible: root.part === "right" && root.aiText !== ""
-                implicitWidth: 240
+                implicitWidth: Math.round(240 * s)
                 mark: Kirigami.Theme.focusColor
                 breathe: true
                 label: String(root.ai.name || "Kakan").toUpperCase() + (root.ai.kind === "image" ? " RITAR" : " ARBETAR")

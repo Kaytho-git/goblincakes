@@ -10,9 +10,10 @@ menu; step 4: the layout "Dashboard" (goblincakes-desktop-layout) takes the top 
     goblin-dashboard --quit     end the hidden process
     goblin-dashboard --hidden   start without showing (at login in the dashboard layout, and when D-Bus starts it)
 
-Step 4 (10 Nov): with the layout "Dashboard" (goblincakes-desktop-layout) Meta calls org.goblincakes.dashboard
-/dashboard toggle (kwinrc [ModifierOnlyShortcuts]); /usr/share/dbus-1/services/org.goblincakes.dashboard.service
-starts it hidden first when it isn't running. The KWin script goblincakes-windows puts it on the active screen.
+Step 4 (10 Nov): with the layout "Dashboard" (goblincakes-desktop-layout) Meta is the global shortcut
+goblin-dashboard/toggle (kglobalaccel – Plasma 6 no longer reads kwinrc [ModifierOnlyShortcuts]); this process
+registers the action at start and listens for it, so it has to run (started hidden at login). org.goblincakes.dashboard
+/dashboard toggle/show/hide also works (/usr/share/dbus-1/services starts it hidden first when it isn't running). The KWin script goblincakes-windows puts it on the active screen.
 
 What it shows is read by /usr/share/goblincakes/dashboard/dash.py; the open windows are asked from KWin
 (dashboard/windows.js). Window: /usr/share/goblincakes/dashboard/Main.qml
@@ -26,7 +27,7 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import ClassInfo, QObject, QSize, Qt, QTimer, QUrl, Property, Signal, Slot
+from PySide6.QtCore import SLOT, ClassInfo, QObject, QSize, Qt, QTimer, QUrl, Property, Signal, Slot
 from PySide6.QtDBus import QDBusConnection
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
@@ -128,8 +129,32 @@ class KWinBridge(QObject):
 
 @ClassInfo({"D-Bus Interface": "org.goblincakes.dashboard"})
 class DashboardBus(QObject):
-    """org.goblincakes.dashboard /dashboard: toggle (Meta in the dashboard layout), show, hide."""
+    """org.goblincakes.dashboard /dashboard: toggle, show, hide – and the global shortcut goblin-dashboard/toggle
+    (Meta in the dashboard layout, set by goblincakes-desktop-layout; changeable in System Settings → Shortcuts)."""
     wanted = Signal(str)
+    ACTION = ["goblin-dashboard", "toggle", "GOBLINCAKES Dashboard", "Visa eller göm dashboarden"]
+
+    def shortcut(self, bus):
+        """Register the action (its saved keys are loaded – none unless the layout gave it Meta) and listen."""
+        def kga(*args):
+            try:
+                return subprocess.run(["busctl", "--user", "call", "org.kde.kglobalaccel", "/kglobalaccel",
+                                       "org.kde.KGlobalAccel", *args], capture_output=True, text=True, timeout=10)
+            except (OSError, subprocess.SubprocessError):
+                return None
+        ids = [str(len(self.ACTION)), *self.ACTION]
+        kga("doRegister", "as", *ids)
+        kga("setShortcut", "asaiu", *ids, "0", "2")          # SetPresent: active, the saved keys kept
+        r = kga("getComponent", "s", self.ACTION[0])
+        path = r.stdout.split()[-1].strip('"') if r and r.returncode == 0 and r.stdout.startswith("o ") else ""
+        if path:
+            bus.connect("org.kde.kglobalaccel", path, "org.kde.kglobalaccel.Component", "globalShortcutPressed",
+                        self, SLOT("pressed(QString,QString,qlonglong)"))
+
+    @Slot(str, str, "qlonglong")
+    def pressed(self, _component, action, _timestamp):
+        if action == self.ACTION[1]:
+            self.wanted.emit("toggle")
 
     @Slot()
     def toggle(self):
@@ -632,6 +657,7 @@ def main():
     bus = QDBusConnection.sessionBus()
     if not TEST and bus.isConnected() and bus.registerObject("/dashboard", bus_obj, QDBusConnection.ExportAllSlots):
         bus.registerService("org.goblincakes.dashboard")
+        bus_obj.shortcut(bus)
     if not hidden:
         show()
     return app.exec()

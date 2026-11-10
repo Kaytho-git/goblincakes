@@ -15,10 +15,13 @@ in the middle – Steam/Discord (org.goblincakes.nowplaying part=left), the cloc
 Spelas nu/Kakan (part=right) and a system tray with only notifications (it has to exist: without one Plasma shows
 no notifications and programs like Discord and Steam have nowhere to put their tray icon). The panel hides when a
 window covers it and comes back at the top edge (Plasma's "dodgewindows"). Its background is see-through
-(translucent mode is invisible in our Plasma theme), so only the boxes show. Meta: kwinrc [ModifierOnlyShortcuts]
-Meta = org.goblincakes.dashboard toggle (D-Bus; /usr/share/dbus-1/services starts the dashboard if needed).
+(translucent mode is invisible in our Plasma theme), so only the boxes show. Meta: in Plasma 6 Meta alone is an
+ordinary global shortcut (kglobalaccel; kwinrc [ModifierOnlyShortcuts] is no longer read – the first version of
+step 4 wrote there and Meta did nothing, 10 Nov): Meta is taken from plasmashell's "activate application launcher"
+(Alt+F1 stays) and given to the action goblin-dashboard/toggle, which the running dashboard listens to
+(goblin-dashboard registers it too and is started hidden at login). Both show in System Settings → Shortcuts.
 Saved first, in ~/.config/goblincakes/desktop-layout.json: the dock's pinned apps and settings (size, the wave) and
-the old Meta value; a copy of Plasma's panel file in ~/.local/state/goblincakes/layout-backup/.
+the launcher's old keys (launcherBefore); a copy of Plasma's panel file in ~/.local/state/goblincakes/layout-backup/.
 Classic: the top bar and the dock from the look-and-feel layout (the panel part of it – the wallpaper is left
 alone), the dock's apps and settings back, the tray trimmed (systray.js), the terminal in the dock (Config).
 """
@@ -38,7 +41,13 @@ APPLETSRC = CONFIG / "plasma-org.kde.plasma.desktop-appletsrc"
 SHARE = Path(os.environ.get("GOBLINCAKES_SHARE") or "/usr/share")
 LAYOUT_JS = SHARE / "plasma/look-and-feel/org.goblincakes.desktop/contents/layouts/org.kde.plasma.desktop-layout.js"
 SYSTRAY_JS = SHARE / "goblincakes/systray.js"
-META = "org.goblincakes.dashboard,/dashboard,org.goblincakes.dashboard,toggle"
+# The step-4 kwinrc value (Plasma 5's way) – removed again where it was written
+OLD_META = "org.goblincakes.dashboard,/dashboard,org.goblincakes.dashboard,toggle"
+# kglobalaccel action ids: [component, action, component's friendly name, action's friendly name]
+LAUNCHER = ["plasmashell", "activate application launcher", "plasmashell", "Aktivera startprogram"]
+DASH_ACTION = ["goblin-dashboard", "toggle", "GOBLINCAKES Dashboard", "Visa eller göm dashboarden"]
+KEY_META = 0x01000022      # Qt::Key_Meta – Meta alone
+KEY_ALT_F1 = 0x08000030    # Alt+F1
 
 # Panels: ours by their widgets (own panels the user made are left alone)
 FIND = """
@@ -69,11 +78,11 @@ panels().forEach(function (p) {
 print(JSON.stringify(r));
 """
 
-# The desktop row (the mockup "Skrivbordet utan docka"): 20 px from the top edge, the boxes 48 px, the clock box ~74 px
+# The desktop row (the mockup "Skrivbordet utan docka", 75 % of its size since 10 Nov): the boxes 36 px, the clock box ~56 px
 ADD_ROW = """
 var row = new Panel;
 row.location = "top";
-row.height = 84;
+row.height = 64;
 row.alignment = "center";
 try { row.lengthMode = "fit"; } catch (e) {}
 try { row.floating = true; } catch (e) {}
@@ -139,28 +148,68 @@ def kwin_reconfigure():
     quiet("busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure")
 
 
-def read_meta():
+def kga(method, sig, *args):
+    """A call to kglobalaccel (busctl); the answer's numbers (an ai) as a list, None when it failed."""
+    r = quiet("busctl", "--user", "call", "org.kde.kglobalaccel", "/kglobalaccel", "org.kde.KGlobalAccel",
+              method, sig, *[str(a) for a in args])
+    if not r or r.returncode != 0:
+        return None
+    words = r.stdout.split()
+    return [int(w) for w in words[2:]] if words[:1] == ["ai"] else []
+
+
+def action_args(action):
+    return [len(action), *action]
+
+
+def launcher_keys():
+    return kga("shortcut", "as", *action_args(LAUNCHER))
+
+
+def set_keys(action, keys, own=False):
+    """own: the action is (also) registered here and its keys set and saved (SetPresent | NoAutoloading);
+    otherwise the keys of another program's action are changed (setForeignShortcut)."""
+    keys = list(keys) or [0]
+    if own:
+        kga("doRegister", "as", *action_args(action))
+        return kga("setShortcut", "asaiu", *action_args(action), len(keys), *keys, 2 | 4)
+    return kga("setForeignShortcut", "asai", *action_args(action), len(keys), *keys)
+
+
+def old_meta_away():
     r = quiet("kreadconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta")
-    return r.stdout.strip() if r and r.returncode == 0 else ""
+    if r and r.stdout.strip() == OLD_META:
+        quiet("kwriteconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta", "--delete")
+        kwin_reconfigure()
+
+
+def meta_is_dashboard():
+    keys = kga("shortcut", "as", *action_args(DASH_ACTION))
+    return bool(keys) and KEY_META in keys
 
 
 def meta_dashboard(state):
-    old = read_meta()
-    if old != META and "metaBefore" not in state:
-        state["metaBefore"] = old
-    quiet("kwriteconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta", META)
-    kwin_reconfigure()
+    old_meta_away()
+    keys = launcher_keys()
+    if keys is None:
+        say("Kortkommandona svarar inte – Meta byts vid nästa inloggning.")
+        return
+    if KEY_META in keys:
+        if "launcherBefore" not in state:
+            state["launcherBefore"] = [k for k in keys if k]
+        set_keys(LAUNCHER, [k for k in keys if k and k != KEY_META])
+    set_keys(DASH_ACTION, [KEY_META], own=True)
 
 
 def meta_back(state):
-    before = state.pop("metaBefore", "")
-    if read_meta() == META or not read_meta():
-        if before and before != META:
-            quiet("kwriteconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta", before)
-        else:
-            # Plasma's own default: Meta opens the application launcher (AppGrid behind the logo)
-            quiet("kwriteconfig6", "--file", "kwinrc", "--group", "ModifierOnlyShortcuts", "--key", "Meta", "--delete")
-        kwin_reconfigure()
+    old_meta_away()
+    before = state.pop("launcherBefore", None) or [KEY_META, KEY_ALT_F1]
+    if meta_is_dashboard():
+        set_keys(DASH_ACTION, [], own=True)
+    keys = launcher_keys()
+    if keys is not None and KEY_META not in keys:
+        # Plasma's own default: Meta opens the application launcher (AppGrid behind the logo)
+        set_keys(LAUNCHER, before)
 
 
 def trim_tray():
@@ -268,7 +317,7 @@ def main(argv):
         return to_dashboard(state, keep_dock=True) if current() == "dashboard" else 0
     if cmd == "login":
         if current() == "dashboard":
-            if read_meta() != META:
+            if not meta_is_dashboard():
                 meta_dashboard(state)
                 save(state)
             start_hidden()
