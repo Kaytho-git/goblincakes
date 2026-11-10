@@ -11,6 +11,10 @@ Uppgift: granska hela GOBLINCAKES och ta fram en prioriterad optimeringslista. �
 
 Börja med: git pull, läs CLAUDE.md. docs/anteckningar.md är stor – läs den inte hel, grep på det du granskar (t.ex. varför något gjorts på ett visst sätt – kolla det innan du föreslår att ändra det). Följ alla regler i CLAUDE.md.
 
+Vilken dator: bedöm prestanda utifrån den svagaste datorn som kör GOBLINCAKES – frugans laptop (Lenovo Legion Y520, äldre Nvidia-kort, varianten goblincakes-nvidia-legacy, Fedora 45). Min dator kör goblincakes-nvidia (Fedora 44 tills Universal Blue släpper den på 45) – skilj på vad som beror på Fedora-versionen och vad som beror på GOBLINCAKES. Föreslå inget som gör den starkare datorn sämre; tunga funktioner (lokal AI, inspelning, effekter) ska hellre anpassa sig efter hårdvaran än tas bort. Image och bygge gäller båda varianterna.
+
+Mätningar på laptopen: du körs på min dator och når laptopen via GoblinShare (Be om hjälp på laptopen → Terminal + koden här; sedan går `ssh frugans-laptop <kommando>` så länge den terminalen är öppen). Samla alla mätkommandon för laptopen i en lista och säg till när du behöver dem – jag kopplar upp först då, vi kör allt i ett svep och avslutar. Räkna bort sshd-processen i mätningarna. Mät gärna både efter en vanlig inloggning och medan ett spel kör (fråga mig när spelet är igång). Går uppkopplingen inte: skriv kommandona så jag kan köra dem på laptopen och klistra in svaren.
+
 Granska de här områdena (i den här ordningen):
 1. Prestanda i bakgrunden – tjänster, timers, autostart, pollande skript och Python-processer som drar CPU/minne, särskilt medan spel kör (spelvakten, Kakan, GoblinRecorder, toppfältet, docka, widgets).
 2. Uppstart och inloggning – vad som körs vid boot och första/varje inloggning (goblincakes-firstlogin, goblincakes-refresh.sh, plasma-workspace/env, systemd-enheter), vad som kan köras senare, parallellt eller inte alls.
