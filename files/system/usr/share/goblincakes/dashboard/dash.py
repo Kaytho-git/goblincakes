@@ -188,19 +188,15 @@ def save_views(rows, apps_ids=None):
 
 LAYOUT = CONFIG / "desktop-layout.json"   # goblincakes-desktop-layout: the dock's apps, saved while it is gone
 
-# GOBLINCAKES' own programs (10 Nov, the user's wish): in this order first, then the rest alphabetically
-OWN_FIRST = ["goblincakes-config.desktop", "goblin-ai.desktop", "goblin-recorder.desktop", "goblin-amp.desktop",
-             "goblin-share.desktop"]
+# GOBLINCAKES' own programs, small above the programs at the bottom (10 Nov, the user's choice: only these five)
+OWN_APPS = ["goblincakes-config.desktop", "goblin-ai.desktop", "goblin-recorder.desktop", "goblin-amp.desktop",
+            "goblin-share.desktop"]
 
 
 def own_apps(all_apps=None):
-    """GOBLINCAKES' own programs (goblin-*/goblincakes-* in the menu, and the ChatGPT app), shown small above the
-    programs at the bottom in every view – not the dashboard itself."""
-    rows = [a for a in (all_apps if all_apps is not None else apps())
-            if (a["id"].startswith(("goblin-", "goblincakes-")) or a["id"].lower().startswith("chatgpt"))
-            and a["id"] != "goblin-dashboard.desktop"]
-    order = {name: i for i, name in enumerate(OWN_FIRST)}
-    return sorted(rows, key=lambda a: (order.get(a["id"], len(order)), a["name"].lower()))
+    """GOBLINCAKES' own programs shown small above the programs at the bottom in every view (OWN_APPS, in that order)."""
+    by_id = {a["id"]: a for a in (all_apps if all_apps is not None else apps())}
+    return [by_id[i] for i in OWN_APPS if i in by_id]
 
 
 def saved_dock_apps():

@@ -24,6 +24,6 @@
 - Byta tillbaka
   fråga: Tryck Toppfält och docka i Config. Kom toppfältet och dockan tillbaka med dina fästa program och samma dockstorlek, och öppnar Meta AppGrid igen?
 - GOBLINCAKES egna program
-  fråga: Öppna dashboarden. Ligger GOBLINCAKES egna program (Config, Goblin AI, GoblinRecorder, GoblinAmp, GoblinShare …) med små ikoner ovanför programraden längst ner, i både SPEL och JOBB, och startar ett klick programmet?
+  fråga: Öppna dashboarden. Ligger GOBLINCAKES egna program (bara Config, Goblin AI, GoblinRecorder, GoblinAmp och GoblinShare) med små ikoner ovanför programraden längst ner, i både SPEL och JOBB, och startar ett klick programmet?
 - Dockans program i upplägget Dashboard
   fråga: Med upplägget Dashboard valt: visar programraden längst ner samma program som du hade fästa i dockan?
