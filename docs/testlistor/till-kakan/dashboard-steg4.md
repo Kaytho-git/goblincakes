@@ -14,8 +14,8 @@
   väntat: under [goblin-dashboard] en rad toggle=Meta,…; startmenyns rad har bara Alt+F1 först (inte Meta)
 - Storleken på raden
   fråga: Är raden uppe i mitten lagom stor nu (klockan och rutorna mindre än första gången)? Säg annars om den ska vara ännu mindre eller lite större.
-- Raden göms av fönster
-  fråga: Öppna ett fönster och maximera det. Gömmer sig raden, och kommer den fram när du för musen mot överkanten mitt på skärmen? Syns den igen när skrivbordet är tomt?
+- Raden är gömd
+  fråga: Är raden gömd även när skrivbordet är tomt, och kommer den fram när du för musen mot överkanten mitt på huvudskärmen? Gömmer den sig igen när musen går därifrån?
 - Klockrutan
   fråga: Tryck på klockan – öppnas kalendern med veckonummer och röda dagar? Rulla hjulet över ljudikonen – ändras ljudet och visas procenten en kort stund? Mittenklick = tyst? Visar musens/headsetets batteri rätt sida (mus till vänster, headset till höger)?
 - Discord och Spelas nu

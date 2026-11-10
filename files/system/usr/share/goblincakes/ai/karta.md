@@ -153,7 +153,7 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
 `python3 /usr/share/goblincakes/dashboard/stats.py wow` (även wow-fetch = med Warcraft Logs, cs2, builds, reports).
 - Steg 4 (10 nov), skrivbordets upplägg – ett val, standard = toppfält och docka: Config → INSTÄLLNINGAR → Utseende →
   Skrivbordets upplägg eller `goblin dashboard upplägg dashboard|klassiskt`; hjälparen /usr/libexec/goblincakes-desktop-layout
-  (`status` = classic/dashboard). Dashboard = toppfältet och dockan borta, en panel uppe i mitten (döljs av fönster,
+  (`status` = classic/dashboard). Dashboard = toppfältet och dockan borta, en panel uppe i mitten (alltid gömd – autohide,
   fram vid överkanten): widgetarna org.goblincakes.nowplaying (part=left: Steam + Discord, part=right: Spelas nu + Kakan),
   org.goblincakes.deskclock (batteri, nätverk nmcli, klocka/datum/vecka, ljud wpctl, headsetbatteri) och ett litet
   systemfält i en egen panel gömd uppe till höger (autohide; bara notiser + programmens ikoner – behövs för notiserna). Meta = Plasmas globala

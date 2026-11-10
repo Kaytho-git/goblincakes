@@ -14,8 +14,9 @@ Dashboard: the top bar (AppGrid, open programs, tray …) and the dock are remov
 in the middle – Steam/Discord (org.goblincakes.nowplaying part=left), the clock box (org.goblincakes.deskclock),
 Spelas nu/Kakan (part=right); the system tray (only notifications + the programs' icons) in a panel of its own,
 hidden top right (it has to exist: without one Plasma shows no notifications and programs like Discord and Steam
-have nowhere to put their tray icon). The panel hides when a
-window covers it and comes back at the top edge (Plasma's "dodgewindows"). Its background is see-through
+have nowhere to put their tray icon). The row is always hidden
+and comes out when the mouse touches the top edge in the middle (Plasma's "autohide"; the user 10 Nov – the first
+version only hid behind windows, "dodgewindows"). Its background is see-through
 (translucent mode is invisible in our Plasma theme), so only the boxes show. Meta: in Plasma 6 Meta alone is an
 ordinary global shortcut (kglobalaccel; kwinrc [ModifierOnlyShortcuts] is no longer read – the first version of
 step 4 wrote there and Meta did nothing, 10 Nov): Meta is taken from plasmashell's "activate application launcher"
@@ -90,7 +91,7 @@ row.alignment = "center";
 try { row.lengthMode = "fit"; } catch (e) {}
 try { row.floating = true; } catch (e) {}
 try { row.opacity = "translucent"; } catch (e) {}
-row.hiding = "dodgewindows";
+row.hiding = "autohide";
 var left = row.addWidget("org.goblincakes.nowplaying");
 left.currentConfigGroup = ["General"];
 left.writeConfig("part", "left");
@@ -272,8 +273,8 @@ def to_dashboard(state, keep_dock=False):
     had_tray = plasma(FIND + 'var n = 0; panels().forEach(function (p) { if (isTrayPanel(p)) n++; }); print(n);')
     plasma(FIND + "panels().forEach(function (p) { if (isTopBar(p) || isDock(p)) p.remove(); });"
            # a row from the first version had the tray at its end: out of the row, into its own panel
-           + 'panels().forEach(function (p) { if (isRow(p)) p.widgets("org.kde.plasma.systemtray")'
-           + '.forEach(function (w) { w.remove(); }); });'
+           + 'panels().forEach(function (p) { if (!isRow(p)) return; p.hiding = "autohide";'
+           + ' p.widgets("org.kde.plasma.systemtray").forEach(function (w) { w.remove(); }); });'
            + ("" if had_row and had_row.strip() not in ("", "0") else ADD_ROW)
            + ("" if had_tray and had_tray.strip() not in ("", "0") else ADD_TRAY))
     state["layout"] = "dashboard"
