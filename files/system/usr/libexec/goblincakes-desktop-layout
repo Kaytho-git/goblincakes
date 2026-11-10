@@ -12,8 +12,9 @@ without losing anything). Config → Inställningar → Utseende → Skrivbordet
 
 Dashboard: the top bar (AppGrid, open programs, tray …) and the dock are removed and one panel is added at the top
 in the middle – Steam/Discord (org.goblincakes.nowplaying part=left), the clock box (org.goblincakes.deskclock),
-Spelas nu/Kakan (part=right) and a system tray with only notifications (it has to exist: without one Plasma shows
-no notifications and programs like Discord and Steam have nowhere to put their tray icon). The panel hides when a
+Spelas nu/Kakan (part=right); the system tray (only notifications + the programs' icons) in a panel of its own,
+hidden top right (it has to exist: without one Plasma shows no notifications and programs like Discord and Steam
+have nowhere to put their tray icon). The panel hides when a
 window covers it and comes back at the top edge (Plasma's "dodgewindows"). Its background is see-through
 (translucent mode is invisible in our Plasma theme), so only the boxes show. Meta: in Plasma 6 Meta alone is an
 ordinary global shortcut (kglobalaccel; kwinrc [ModifierOnlyShortcuts] is no longer read – the first version of
@@ -53,6 +54,8 @@ KEY_ALT_F1 = 0x08000030    # Alt+F1
 FIND = """
 function types(p) { return p.widgets().map(function (w) { return w.type; }); }
 function isRow(p) { return types(p).indexOf("org.goblincakes.deskclock") >= 0; }
+function isTrayPanel(p) { var t = types(p); return p.location === "top" && t.length === 1
+    && t[0] === "org.kde.plasma.systemtray"; }
 function isTopBar(p) { var t = types(p); return p.location === "top" && !isRow(p)
     && (t.indexOf("dev.xarbit.appgrid") >= 0 || t.indexOf("org.kde.plasma.icontasks") >= 0); }
 function isDock(p) { var t = types(p); return p.location === "bottom"
@@ -95,7 +98,21 @@ row.addWidget("org.goblincakes.deskclock");
 var right = row.addWidget("org.goblincakes.nowplaying");
 right.currentConfigGroup = ["General"];
 right.writeConfig("part", "right");
-row.addWidget("org.kde.plasma.systemtray");
+"""
+
+# The system tray in a panel of its own, hidden top right (10 Nov, the user's choice "C, den kan ligga gömd uppe
+# till höger"): it has to exist – without a tray Plasma shows no notifications and Discord/Steam have nowhere to
+# put their icon – but not in the row. Comes out when the mouse touches the top edge at the right; notifications
+# pop up as usual.
+ADD_TRAY = """
+var trayPanel = new Panel;
+trayPanel.location = "top";
+trayPanel.height = 36;
+trayPanel.alignment = "right";
+try { trayPanel.lengthMode = "fit"; } catch (e) {}
+try { trayPanel.floating = true; } catch (e) {}
+trayPanel.hiding = "autohide";
+trayPanel.addWidget("org.kde.plasma.systemtray");
 """
 
 
@@ -252,8 +269,13 @@ def to_dashboard(state, keep_dock=False):
     backup()
     say("Tar bort toppfältet och dockan…")
     had_row = plasma(FIND + 'var n = 0; panels().forEach(function (p) { if (isRow(p)) n++; }); print(n);')
+    had_tray = plasma(FIND + 'var n = 0; panels().forEach(function (p) { if (isTrayPanel(p)) n++; }); print(n);')
     plasma(FIND + "panels().forEach(function (p) { if (isTopBar(p) || isDock(p)) p.remove(); });"
-           + ("" if had_row and had_row.strip() not in ("", "0") else ADD_ROW))
+           # a row from the first version had the tray at its end: out of the row, into its own panel
+           + 'panels().forEach(function (p) { if (isRow(p)) p.widgets("org.kde.plasma.systemtray")'
+           + '.forEach(function (w) { w.remove(); }); });'
+           + ("" if had_row and had_row.strip() not in ("", "0") else ADD_ROW)
+           + ("" if had_tray and had_tray.strip() not in ("", "0") else ADD_TRAY))
     state["layout"] = "dashboard"
     meta_dashboard(state)
     save(state)
@@ -291,7 +313,7 @@ def to_classic(state):
     if have is None:
         print("Plasma svarar inte – logga in i Plasma och försök igen.", file=sys.stderr)
         return 1
-    script = FIND + "panels().forEach(function (p) { if (isRow(p)) p.remove(); });\n"
+    script = FIND + "panels().forEach(function (p) { if (isRow(p) || isTrayPanel(p)) p.remove(); });\n"
     if have.strip() in ("", "0"):
         script += panels_part() + "\n" + restore
     plasma(script)

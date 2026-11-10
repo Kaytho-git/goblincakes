@@ -32,8 +32,8 @@ var known = shown.concat([
     "org.kde.merkuro.contact.applet" // Merkuro's contact list (calendar accounts, 9 Oct)
 ]);
 
-// The dashboard's desktop row (goblincakes-desktop-layout, 10 Nov): network and sound are in its clock box,
-// so its tray shows only notifications (and the battery on laptops). The tray has to be there: without
+// The dashboard layout (goblincakes-desktop-layout, 10 Nov): network and sound are in the row's clock box,
+// so its tray (in its own hidden panel top right) shows only notifications (and the battery on laptops). The tray has to be there: without
 // one Plasma shows no notifications and Discord/Steam have nowhere to put their tray icon.
 var rowShown = ["org.kde.plasma.notifications", "org.kde.plasma.battery"];
 
@@ -56,7 +56,9 @@ function trim(target, row) {
     trimmed++;
 }
 panels().forEach(function (panel) {
-    var row = panel.widgets("org.goblincakes.deskclock").length > 0;
+    // the dashboard layout: the row (first version) or the tray's own hidden panel top right (10 Nov)
+    var row = panel.widgets("org.goblincakes.deskclock").length > 0
+        || (panel.location === "top" && panel.widgets().length === 1 && panel.widgets("org.kde.plasma.systemtray").length === 1);
     panel.widgets("org.kde.plasma.systemtray").forEach(function (tray) {
         // Plasma before 6.7: the items live in a separate inner containment.
         // Plasma 6.7: on the tray itself ([General] extraItems/knownItems) – the inner id is

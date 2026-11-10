@@ -156,7 +156,7 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
   (`status` = classic/dashboard). Dashboard = toppfältet och dockan borta, en panel uppe i mitten (döljs av fönster,
   fram vid överkanten): widgetarna org.goblincakes.nowplaying (part=left: Steam + Discord, part=right: Spelas nu + Kakan),
   org.goblincakes.deskclock (batteri, nätverk nmcli, klocka/datum/vecka, ljud wpctl, headsetbatteri) och ett litet
-  systemfält (bara notiser – behövs för notiserna och programmens systemfältsikoner). Meta = Plasmas globala
+  systemfält i en egen panel gömd uppe till höger (autohide; bara notiser + programmens ikoner – behövs för notiserna). Meta = Plasmas globala
   kortkommando goblin-dashboard/toggle (kglobalaccel; Meta tas från plasmashells "activate application launcher", Alt+F1
   blir kvar). Dashboarden lyssnar själv på det, så den måste köra (startas gömd vid inloggning; efter
   `goblin dashboard stäng` gör Meta ingenting förrän `goblin dashboard` eller nästa inloggning). Sparat:
@@ -164,7 +164,7 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
   launcherBefore), kopior av panelfilen i ~/.local/state/goblincakes/layout-backup/. Tillbaka till toppfält och docka
   lägger dockans program och storlek och Meta på startmenyn tillbaka. Kolla: `grep -A2 '^\[goblin-dashboard\]'
   ~/.config/kglobalshortcutsrc` och `grep 'activate application launcher' ~/.config/kglobalshortcutsrc` (Meta där =
-  AppGrid). Raden är 75 % av mockupens mått (egenskapen `s` i ClockBox.qml och DeskBox.qml, panelen 64 px).
+  AppGrid). Dashboarden öppnas på huvudskärmen (KWin-skriptet goblincakes-windows, screenOrder[0]). Raden är 75 % av mockupens mått (egenskapen `s` i ClockBox.qml och DeskBox.qml, panelen 64 px).
 - Nederst i dashboarden: GOBLINCAKES egna program i en rad med små ikoner (dash.py own_apps: Config, Goblin AI,
   GoblinRecorder, GoblinAmp, GoblinShare), under dem programraden = dockans fästa program (delas åt båda hållen: Config →
   DASHBOARD → APPARNA LÄNGST NER ändrar dockan; i upplägget Dashboard listan i desktop-layout.json, som dockan får tillbaka).

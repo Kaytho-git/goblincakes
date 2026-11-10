@@ -8,7 +8,7 @@
 - Byta till dashboarden
   fråga: Öppna GOBLINCAKES Config → INSTÄLLNINGAR → Skrivbordets upplägg och tryck Dashboard. Försvann toppfältet och dockan, och kom en rad upp i mitten av överkanten med Discord, klockan (datum och vecka under), nätverk, ljud och Spelas nu – i egna rutor, utan bakgrund mellan rutorna?
 - Meta
-  fråga: Tryck Meta (bara Meta). Kommer dashboarden upp i helskärm på den skärm där musen är? Tryck Meta igen – försvinner den? Prova också med musen på den andra skärmen.
+  fråga: Tryck Meta (bara Meta). Kommer dashboarden upp i helskärm på huvudskärmen? Tryck Meta igen – försvinner den? Prova också med musen på den andra skärmen – den ska ändå komma på huvudskärmen.
 - Meta i kortkommandona
   kör: grep -A2 '^\[goblin-dashboard\]' ~/.config/kglobalshortcutsrc; grep 'activate application launcher' ~/.config/kglobalshortcutsrc
   väntat: under [goblin-dashboard] en rad toggle=Meta,…; startmenyns rad har bara Alt+F1 först (inte Meta)
@@ -23,7 +23,7 @@
 - Steam och Kakan
   fråga: Låt Steam ladda ner något eller ställ en fråga till Kakan. Kommer en Steam-ruta längst till vänster / en KAKAN ARBETAR-ruta längst till höger, och försvinner den när det är klart?
 - Notiser och systemfältsikoner
-  fråga: Längst till höger i raden ligger ett litet systemfält. Kommer notiser fram som vanligt, och finns Discords/Steams ikoner där (eller bakom pilen)?
+  fråga: Systemfältet ligger gömt uppe till höger. För musen mot överkanten längst till höger – kommer det fram, och finns Discords/Steams ikoner där (eller bakom pilen)? Kommer notiser fram som vanligt?
 - Byta tillbaka
   fråga: Tryck Toppfält och docka i Config. Kom toppfältet och dockan tillbaka med dina fästa program och samma dockstorlek, och öppnar Meta AppGrid igen?
 - GOBLINCAKES egna program
