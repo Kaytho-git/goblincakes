@@ -1,0 +1,479 @@
+<title>Levande GOBLINCAKES</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one switch (NU / LEVANDE) on top, then the desktop on its wallpaper, the dashboard, and the buttons – the same look, only motion and light differ. */
+:root {
+  --void: #07090D; --night: #0E1420; --deep: #12203A; --panel: #0B1018; --top: #05070A;
+  --frost: #E6ECF5; --dim: #8B98AD; --line: #1E2A40; --line2: #1A2438; --line-hover: #2A3852;
+  --accent: #2F6FED; --accent-rgb: 47,111,237; --good: #3FB27F; --warn: #D9822B; --bad: #E5484D;
+  --f-head: "Chakra Petch", "Segoe UI", sans-serif;
+  --f-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--void); color: var(--frost); font-family: var(--f-ui); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 44px; }
+h1, h2 { font-family: var(--f-head); font-weight: 600; letter-spacing: .04em; margin: 0; text-wrap: balance; }
+h1 { font-size: 30px; }
+h2 { font-size: 18px; text-transform: uppercase; letter-spacing: .12em; }
+p { margin: 0; color: var(--dim); max-width: 68ch; }
+.lbl { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+section { display: flex; flex-direction: column; gap: 14px; }
+
+/* ── top bar with the switch ───────────────────────── */
+.head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 18px; }
+.head .t { display: flex; flex-direction: column; gap: 6px; }
+.switch { display: flex; border: 1px solid var(--line); background: var(--panel); }
+.switch button { font: 600 13px var(--f-head); letter-spacing: .12em; color: var(--dim); background: none; border: 0; padding: 12px 22px; cursor: pointer; min-height: 44px; }
+.switch button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.switch button:focus-visible, .btn:focus-visible, .app:focus-visible, .chk:focus-visible, .char:focus-visible { outline: 2px solid var(--frost); outline-offset: 2px; }
+
+/* ── desktop ───────────────────────────────────────── */
+.desk { position: relative; aspect-ratio: 16 / 7; min-height: 300px; max-width: 100%; overflow: hidden; border: 1px solid var(--line); background: var(--void); }
+.wall { position: absolute; inset: 0; }
+.wall canvas { width: 100%; height: 100%; display: block; }
+.deskrow { position: absolute; left: 0; right: 0; top: 18px; display: flex; justify-content: center; align-items: center; gap: 12px; padding: 0 16px; flex-wrap: wrap; }
+.dbox { position: relative; display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; width: 250px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; }
+.dbox.r { flex-direction: row-reverse; text-align: right; }
+.dbox .sq { width: 10px; height: 10px; flex: none; background: var(--accent); }
+.dbox .sq.green { background: var(--good); }
+.dbox .tx { min-width: 0; display: flex; flex-direction: column; }
+.dbox .tx b { font-weight: 400; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dbox .tx span { font-size: 11px; letter-spacing: .08em; color: var(--dim); }
+.clock { width: auto; height: auto; padding: 8px 18px; gap: 16px; }
+.clock .ic { width: 40px; height: 40px; display: grid; place-items: center; color: var(--dim); }
+.clock .ic svg { width: 20px; height: 20px; }
+.clock .time { display: flex; flex-direction: column; align-items: center; padding: 0 8px; }
+.digits { font: 500 30px/1 var(--f-head); letter-spacing: .02em; display: flex; }
+.digit { position: relative; display: inline-block; width: .62em; height: 1em; overflow: hidden; text-align: center; }
+.digit i { position: absolute; left: 0; right: 0; font-style: normal; }
+.colon { width: .3em; text-align: center; }
+.clock .date { font-size: 11px; color: var(--dim); letter-spacing: .06em; margin-top: 4px; }
+.swap { transition: none; }
+
+/* ── dashboard ─────────────────────────────────────── */
+.dashscroll { overflow-x: auto; border: 1px solid var(--line); }
+.dash { position: relative; min-width: 1080px; height: 640px; background: var(--void); display: grid; grid-template-columns: 250px 1fr 270px; grid-template-rows: 54px 1fr 74px; gap: 12px; padding: 12px; }
+.dash > * { min-width: 0; }
+.dtop { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
+.dtop .lbl { margin-right: 8px; }
+.win { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 13px; }
+.win .dot { width: 8px; height: 8px; }
+.view { margin-left: auto; display: flex; gap: 0; border: 1px solid var(--line); }
+.view button { font: 600 12px var(--f-head); letter-spacing: .12em; background: var(--panel); color: var(--dim); border: 0; padding: 10px 16px; cursor: pointer; }
+.view button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.col { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.frame { position: relative; background: var(--panel); border: 1px solid var(--line); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.frame h3 { margin: 0; font: 600 13px var(--f-head); letter-spacing: .14em; color: var(--dim); }
+.proj { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; margin: 0 -10px; cursor: pointer; }
+.proj small { font-family: var(--f-mono); font-size: 11px; color: var(--dim); }
+.meter { display: grid; grid-template-columns: 44px 1fr 46px; align-items: center; gap: 10px; font-size: 12px; }
+.meter .bar { height: 6px; background: var(--line2); position: relative; overflow: hidden; }
+.meter .bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.meter .v { font-family: var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.char { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 10px; margin: 0 -10px; cursor: pointer; background: none; border: 0; color: inherit; font: inherit; text-align: left; }
+.char b { font-weight: 500; }
+.char small { color: var(--dim); font-size: 12px; }
+.char .il { font-family: var(--f-mono); font-size: 12px; text-align: right; }
+.char[aria-pressed="true"] { background: var(--deep); }
+.mid { background: var(--panel); border: 1px solid var(--line); padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.mid .ttl { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.mid .ttl h3 { margin: 0; font: 600 22px var(--f-head); letter-spacing: .08em; }
+.live { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .12em; color: var(--dim); }
+.live .sq { width: 8px; height: 8px; background: var(--good); }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { font: 500 11px var(--f-ui); letter-spacing: .12em; color: var(--dim); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 10px; border-bottom: 1px solid var(--line2); font-size: 13px; }
+td.n { font-family: var(--f-mono); }
+tbody tr { cursor: pointer; }
+.parse { font-family: var(--f-mono); font-weight: 500; }
+.p-orange { color: #FF8000; } .p-purple { color: #A335EE; } .p-blue { color: #3E8EF7; }
+.spark { height: 64px; }
+.dbot { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); }
+.app { width: 58px; height: 58px; display: grid; place-items: center; position: relative; background: none; border: 0; cursor: pointer; }
+.app .ico { width: 40px; height: 40px; display: grid; place-items: center; font: 700 15px var(--f-head); color: #fff; }
+.app .run { position: absolute; bottom: 3px; left: 50%; width: 14px; height: 2px; margin-left: -7px; background: var(--accent); }
+.tip { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); font-size: 12px; background: var(--top); border: 1px solid var(--line); padding: 4px 8px; white-space: nowrap; pointer-events: none; opacity: 0; }
+.app:hover .tip, .app:focus-visible .tip { opacity: 1; }
+
+/* ── buttons ───────────────────────────────────────── */
+.kit { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.kit .frame { gap: 14px; padding: 18px; }
+.btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { font: 600 13px var(--f-head); letter-spacing: .1em; text-transform: uppercase; min-height: 40px; padding: 0 18px; border: 1px solid var(--line); background: var(--night); color: var(--frost); cursor: pointer; }
+.btn.pri { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chk { display: flex; align-items: center; gap: 12px; background: none; border: 0; color: var(--frost); font: 14px var(--f-ui); cursor: pointer; padding: 4px 0; text-align: left; }
+.chk .box { width: 18px; height: 18px; border: 1px solid var(--line-hover); display: grid; place-items: center; flex: none; }
+.chk .box svg { width: 12px; height: 12px; opacity: 0; }
+.chk .box path { stroke: #fff; stroke-width: 2.4; fill: none; stroke-dasharray: 20; stroke-dashoffset: 0; }
+.chk[aria-checked="true"] .box { background: var(--accent); border-color: var(--accent); }
+.chk[aria-checked="true"] .box svg { opacity: 1; }
+.tog { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.slider { width: 40px; height: 20px; border: 1px solid var(--line-hover); background: var(--night); position: relative; cursor: pointer; flex: none; }
+.slider i { position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; background: var(--dim); }
+.slider[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.slider[aria-checked="true"] i { left: 23px; background: #fff; }
+
+/* ── what changes ──────────────────────────────────── */
+.list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.list .frame p { font-size: 13px; }
+.list code { font-family: var(--f-mono); font-size: 12px; color: var(--frost); }
+
+/* ════ LEVANDE: same colours and corners, plus motion and light ════ */
+.alive .dbox, .alive .frame, .alive .mid, .alive .win, .alive .dbot {
+  background-image: linear-gradient(180deg, rgba(230,236,245,.035), rgba(230,236,245,0) 46%);
+  box-shadow: inset 0 1px 0 rgba(230,236,245,.05);
+  transition: border-color 160ms ease, box-shadow 220ms ease, background-color 160ms ease;
+}
+/* the desktop: tinted glass */
+.alive .dbox {
+  background-color: rgba(11,16,24,.52);
+  backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-color: rgba(42,56,82,.75);
+  box-shadow: inset 0 1px 0 rgba(230,236,245,.08), 0 10px 30px rgba(0,0,0,.35);
+}
+.alive .dbox:hover { border-color: rgba(var(--accent-rgb), .55); box-shadow: inset 0 1px 0 rgba(230,236,245,.1), 0 10px 30px rgba(0,0,0,.35), 0 0 22px rgba(var(--accent-rgb), .22); }
+.alive .clock .ic { transition: background-color 140ms ease, color 140ms ease; }
+.alive .clock .ic:hover { background: rgba(var(--accent-rgb), .16); color: var(--frost); }
+.alive .digit i { transition: transform 420ms cubic-bezier(.2,.8,.2,1), opacity 420ms ease; }
+.alive .digit i.out { transform: translateY(-100%); opacity: 0; }
+.alive .digit i.in { transform: translateY(100%); opacity: 0; }
+.alive .swap { transition: opacity 300ms ease, transform 300ms ease; }
+.alive .swap.hide { opacity: 0; transform: translateY(4px); }
+.alive .breathe { animation: breathe 1.4s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: .3; } }
+
+/* the dashboard */
+.alive .dash { background: radial-gradient(1100px 520px at 50% 40%, var(--night), var(--void) 70%); }
+.alive .dash::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5; background-image: var(--noise); mix-blend-mode: overlay; }
+.alive .frame:hover, .alive .mid:hover { border-color: var(--line-hover); }
+.alive .frame::after, .alive .mid::after { content: ""; position: absolute; left: -1px; right: -1px; top: -1px; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), .9), transparent); opacity: 0; transition: opacity 220ms ease; }
+.alive .mid { position: relative; }
+.alive .frame:hover::after, .alive .mid:hover::after { opacity: 1; }
+.alive .win:hover { border-color: rgba(var(--accent-rgb), .55); }
+.alive .proj, .alive .char { transition: background-color 140ms ease; }
+.alive .proj:hover, .alive .char:hover { background: var(--line2); }
+.alive .char[aria-pressed="true"] { background: var(--deep); box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .45), 0 0 18px rgba(var(--accent-rgb), .18); }
+.alive .meter .bar i { transition: width 700ms cubic-bezier(.2,.8,.2,1); box-shadow: 0 0 10px rgba(var(--accent-rgb), .7); }
+.alive tbody tr { transition: background-color 120ms ease; }
+.alive tbody tr:hover { background: rgba(var(--accent-rgb), .07); }
+.alive .live .sq { animation: breathe 1.6s ease-in-out infinite; }
+.alive .app { transition: transform 160ms cubic-bezier(.2,.8,.2,1); }
+.alive .app .ico { transition: box-shadow 200ms ease; }
+.alive .app:hover { transform: translateY(-4px); }
+.alive .app:hover .ico { box-shadow: 0 8px 18px rgba(0,0,0,.45), 0 0 16px var(--glow, rgba(var(--accent-rgb), .4)); }
+.alive .app:active { transform: translateY(-1px); }
+.alive .app .run { transition: width 200ms ease, margin 200ms ease; box-shadow: 0 0 8px rgba(var(--accent-rgb), .9); }
+.alive .app:hover .run { width: 26px; margin-left: -13px; }
+.alive .tip { transition: opacity 140ms ease 250ms; }
+.alive .dash.opening > * { animation: rise 420ms cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+
+/* buttons */
+.alive .btn { transition: background-color 140ms ease, border-color 140ms ease, box-shadow 200ms ease, transform 80ms ease; }
+.alive .btn:hover { border-color: rgba(var(--accent-rgb), .7); background: #13203A; box-shadow: 0 0 18px rgba(var(--accent-rgb), .22); }
+.alive .btn.pri:hover { background: #3D7BF2; box-shadow: 0 0 22px rgba(var(--accent-rgb), .55), inset 0 1px 0 rgba(255,255,255,.18); }
+.alive .btn:active { transform: translateY(1px); box-shadow: none; filter: brightness(.9); }
+.alive .chk .box { transition: background-color 140ms ease, border-color 140ms ease, box-shadow 200ms ease; }
+.alive .chk:hover .box { border-color: rgba(var(--accent-rgb), .8); }
+.alive .chk[aria-checked="true"] .box { box-shadow: 0 0 12px rgba(var(--accent-rgb), .45); }
+.alive .chk .box svg { transition: opacity 100ms; }
+.alive .chk[aria-checked="true"] .box path { animation: draw 260ms ease-out both; }
+@keyframes draw { from { stroke-dashoffset: 20; } }
+.alive .slider, .alive .slider i { transition: left 200ms cubic-bezier(.3,1.4,.5,1), background-color 160ms ease, box-shadow 200ms ease; }
+.alive .slider[aria-checked="true"] { box-shadow: 0 0 14px rgba(var(--accent-rgb), .45); }
+
+@media (prefers-reduced-motion: reduce) {
+  .alive *, .alive *::before, .alive *::after { animation: none !important; transition-duration: 1ms !important; }
+}
+@media (max-width: 640px) {
+  .desk { aspect-ratio: auto; height: 420px; }
+  .dbox { width: 100%; }
+  .clock { width: 100%; justify-content: center; }
+}
+</style>
+
+<div class="wrap alive" id="root">
+  <div class="head">
+    <div class="t">
+      <span class="lbl">Mockup · 10 nov</span>
+      <h1>Levande GOBLINCAKES</h1>
+      <p>Samma färger, typsnitt och raka hörn som i dag. Det enda som skiljer är rörelse och ljus. Byt mellan NU och LEVANDE, hovra och klicka.</p>
+    </div>
+    <div class="switch" role="group" aria-label="Utseende">
+      <button id="bNow" aria-pressed="false">NU</button>
+      <button id="bAlive" aria-pressed="true">LEVANDE</button>
+    </div>
+  </div>
+
+  <section>
+    <h2>Skrivbordet</h2>
+    <p>Skrivbordsraden från upplägget Dashboard. I LEVANDE ligger rutorna på tonat glas, så bakgrundsbilden syns suddigt igenom. Siffrorna i klockan rullar när minuten byts, och låten i SPELAS NU tonar över (byts var sjätte sekund här).</p>
+    <div class="desk">
+      <div class="wall"><canvas id="wall" aria-hidden="true"></canvas></div>
+      <div class="deskrow">
+        <div class="dbox r" tabindex="0">
+          <span class="sq green" id="npSq"></span>
+          <div class="tx"><span>SPELAS NU</span><b class="swap" id="np">Spotify · Kalimba</b></div>
+        </div>
+        <div class="dbox clock" tabindex="0">
+          <span class="ic" title="Mus 78 %"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="5"/><path d="M12 7v3"/></svg></span>
+          <span class="ic" title="Ethernet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="5" y="8" width="14" height="10"/><path d="M9 8V5h6v3M9 18v-4M12 18v-4M15 18v-4"/></svg></span>
+          <div class="time">
+            <div class="digits" id="digits" aria-live="off"></div>
+            <div class="date" id="date"></div>
+          </div>
+          <span class="ic" title="Ljud 40 %"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></span>
+          <span class="ic" title="Headset 64 %"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6"/><rect x="17" y="14" width="4" height="6"/></svg></span>
+        </div>
+        <div class="dbox" tabindex="0">
+          <span class="sq breathe" id="kSq"></span>
+          <div class="tx"><span>KAKAN</span><b class="swap" id="kakan">Kör testlistan dashboard.md</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head">
+      <div class="t">
+        <h2>Dashboarden</h2>
+        <p>Vyn SPEL. Ramarna får ett svagt ljus upptill och en accentlinje när musen är över. Staplarna glider, programmen lyfter och raiden pulserar medan den pågår.</p>
+      </div>
+      <button class="btn" id="replay">Öppna igen (Meta)</button>
+    </div>
+    <div class="dashscroll">
+      <div class="dash" id="dash">
+        <div class="dtop" style="--i:0">
+          <span class="lbl">Öppna program</span>
+          <div class="win"><span class="dot" style="background:#148EFF"></span>World of Warcraft</div>
+          <div class="win"><span class="dot" style="background:#5865F2"></span>Discord</div>
+          <div class="win"><span class="dot" style="background:var(--accent)"></span>Goblin AI</div>
+          <div class="view" role="group" aria-label="Vy">
+            <button aria-pressed="true">SPEL</button><button aria-pressed="false">JOBB</button>
+          </div>
+        </div>
+        <div class="col" style="--i:1">
+          <div class="frame">
+            <h3>PROJEKT</h3>
+            <div class="proj"><span>GOBLINCAKES</span><small>main · 2 nya</small></div>
+            <div class="proj"><span>atrocityUI</span><small>main</small></div>
+          </div>
+          <div class="frame">
+            <h3>SYSTEM</h3>
+            <div class="meter"><span>CPU</span><span class="bar"><i id="mCpu" style="width:34%"></i></span><span class="v" id="vCpu">34 %</span></div>
+            <div class="meter"><span>GPU</span><span class="bar"><i id="mGpu" style="width:71%"></i></span><span class="v" id="vGpu">71 %</span></div>
+            <div class="meter"><span>TEMP</span><span class="bar"><i id="mTmp" style="width:62%"></i></span><span class="v" id="vTmp">62°</span></div>
+            <div class="meter"><span>RAM</span><span class="bar"><i id="mRam" style="width:48%"></i></span><span class="v" id="vRam">48 %</span></div>
+          </div>
+          <div class="frame">
+            <h3>KVOT</h3>
+            <div class="meter"><span>VECKA</span><span class="bar"><i style="width:41%"></i></span><span class="v">41 %</span></div>
+          </div>
+        </div>
+        <div class="mid" style="--i:2">
+          <div class="ttl">
+            <h3>SENASTE RAIDEN</h3>
+            <span class="live"><span class="sq"></span>PÅGÅR · MANAFORGE OMEGA · HEROIC</span>
+          </div>
+          <table>
+            <thead><tr><th>BOSS</th><th>PULLS</th><th>BÄSTA</th><th>DIN PARSE</th><th>DINA DÖDSFALL</th></tr></thead>
+            <tbody>
+              <tr><td>Plexus Sentinel</td><td class="n">3</td><td class="n">Död</td><td class="parse p-orange">96</td><td class="n">0</td></tr>
+              <tr><td>Loom'ithar</td><td class="n">5</td><td class="n">Död</td><td class="parse p-purple">83</td><td class="n">1</td></tr>
+              <tr><td>Soulbinder Naazindhri</td><td class="n">7</td><td class="n">Död</td><td class="parse p-purple">78</td><td class="n">1</td></tr>
+              <tr><td>Forgeweaver Araz</td><td class="n">11</td><td class="n">12 %</td><td class="parse p-blue">—</td><td class="n">4</td></tr>
+            </tbody>
+          </table>
+          <span class="lbl">Parse över tid</span>
+          <svg class="spark" viewBox="0 0 600 64" preserveAspectRatio="none" aria-hidden="true">
+            <defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2F6FED" stop-opacity=".35"/><stop offset="1" stop-color="#2F6FED" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0 50 L60 44 L120 47 L180 36 L240 38 L300 28 L360 31 L420 22 L480 25 L540 14 L600 12 L600 64 L0 64 Z" fill="url(#g)"/>
+            <path d="M0 50 L60 44 L120 47 L180 36 L240 38 L300 28 L360 31 L420 22 L480 25 L540 14 L600 12" fill="none" stroke="#2F6FED" stroke-width="2"/>
+            <rect x="594" y="6" width="12" height="12" fill="#2F6FED" transform="translate(-6 0)"/>
+          </svg>
+        </div>
+        <div class="col" style="--i:3">
+          <div class="frame">
+            <h3>WOW STATS</h3>
+            <button class="char" aria-pressed="true"><b>Kaytho</b><span class="il">ilvl 712</span><small>Hunter · Marksmanship</small><small class="il">snitt 84</small></button>
+            <button class="char" aria-pressed="false"><b>Kaythia</b><span class="il">ilvl 698</span><small>Priest · Holy</small><small class="il">snitt 71</small></button>
+            <button class="char" aria-pressed="false"><b>Kaythorn</b><span class="il">ilvl 684</span><small>Druid · Guardian</small><small class="il">snitt 66</small></button>
+          </div>
+          <div class="frame">
+            <h3>CS2 STATS</h3>
+            <div class="proj"><span>Mirage · 13–9</span><small>ADR 88</small></div>
+          </div>
+          <div class="frame">
+            <h3>SPELAS NU</h3>
+            <div class="proj"><span class="swap" id="np2">Kalimba</span><small>Spotify</small></div>
+          </div>
+        </div>
+        <div class="dbot" style="--i:4">
+          <button class="app" style="--glow:rgba(20,142,255,.55)"><span class="ico" style="background:#0B3A6E">W</span><span class="run"></span><span class="tip">World of Warcraft</span></button>
+          <button class="app" style="--glow:rgba(88,101,242,.55)"><span class="ico" style="background:#5865F2">D</span><span class="run"></span><span class="tip">Discord</span></button>
+          <button class="app" style="--glow:rgba(23,26,33,.9)"><span class="ico" style="background:#171A21;border:1px solid #2A3852">S</span><span class="tip">Steam</span></button>
+          <button class="app" style="--glow:rgba(255,120,0,.5)"><span class="ico" style="background:#C2410C">F</span><span class="tip">Firefox</span></button>
+          <button class="app" style="--glow:rgba(30,215,96,.5)"><span class="ico" style="background:#1DB954">♪</span><span class="tip">Spotify</span></button>
+          <button class="app"><span class="ico" style="background:var(--accent)">AI</span><span class="run"></span><span class="tip">Goblin AI</span></button>
+          <button class="app"><span class="ico" style="background:var(--deep);border:1px solid var(--line-hover)">C</span><span class="tip">GOBLINCAKES Config</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Knappar och val</h2>
+    <p>FlatButton, CheckSquare och reglaget, alltså de delar som finns kopierade i sju fönster. Här märks det mest, eftersom de används överallt.</p>
+    <div class="kit">
+      <div class="frame">
+        <h3>KNAPPAR</h3>
+        <div class="btns"><button class="btn pri">Installera</button><button class="btn">Avbryt</button></div>
+        <div class="btns"><button class="btn">Öppna mapp</button><button class="btn">Skicka till Claude</button></div>
+      </div>
+      <div class="frame">
+        <h3>KRYSSRUTOR</h3>
+        <button class="chk" role="checkbox" aria-checked="true"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5l2.6 2.6L10 3.5"/></svg></span>Spelläge när ett spel startar</button>
+        <button class="chk" role="checkbox" aria-checked="false"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5l2.6 2.6L10 3.5"/></svg></span>Spela in M+ automatiskt</button>
+      </div>
+      <div class="frame">
+        <h3>REGLAGE</h3>
+        <div class="tog"><span>Ianseo på nätverket</span><button class="slider" role="switch" aria-checked="true" aria-label="Ianseo på nätverket"><i></i></button></div>
+        <div class="tog"><span>Lokal AI för läraren</span><button class="slider" role="switch" aria-checked="false" aria-label="Lokal AI för läraren"><i></i></button></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Det här skulle ändras</h2>
+    <div class="list">
+      <div class="frame"><h3>ÖVERGÅNGAR</h3><p>Färg och ram tonar över på 120–160 ms i stället för att byta direkt, och knappar trycks ner en pixel vid klick. I QML blir det <code>Behavior on color</code> i de gemensamma komponenterna.</p></div>
+      <div class="frame"><h3>LJUS</h3><p>Ett svagt ljus i överkanten av ramarna, glöd i accentfärgen runt det som är valt eller har musen över sig, och en mjuk ton i bakgrunden från Night till Void.</p></div>
+      <div class="frame"><h3>SIFFROR SOM GLIDER</h3><p>Klockan, staplarna och procenten glider till sitt nya värde i stället för att hoppa. En <code>NumberAnimation</code> på värdet räcker.</p></div>
+      <div class="frame"><h3>TONAT GLAS</h3><p>Skrivbordsrutorna blir halvgenomskinliga med oskärpa bakom. Det görs genom att KWin suddar bakom widgeten. Det måste provas på riktiga datorn, eftersom det beror på grafikkortet och KWin.</p></div>
+      <div class="frame"><h3>ÖPPNING</h3><p>Dashboarden glider upp ram för ram, 45 ms mellan dem, när Meta trycks. Det är under en halv sekund, så den känns inte långsammare.</p></div>
+      <div class="frame"><h3>EN GEMENSAM MODUL</h3><p>Knappen och de andra delarna samlas först på ett ställe. Då får alla fönster känslan samtidigt, och det går att stänga av allt med ett reglage (Config → Utseende → Animationer).</p></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const root = document.getElementById('root');
+  const bNow = document.getElementById('bNow'), bAlive = document.getElementById('bAlive');
+  let alive = true;
+  try { const s = localStorage.getItem('gc-levande'); if (s === 'nu') alive = false; } catch (e) {}
+  function setMode(a) {
+    alive = a;
+    root.classList.toggle('alive', a);
+    bNow.setAttribute('aria-pressed', String(!a));
+    bAlive.setAttribute('aria-pressed', String(a));
+    try { localStorage.setItem('gc-levande', a ? 'levande' : 'nu'); } catch (e) {}
+  }
+  bNow.onclick = () => setMode(false);
+  bAlive.onclick = () => setMode(true);
+  setMode(alive);
+
+  // noise texture for the dashboard background
+  (function () {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const x = c.getContext('2d'), d = x.createImageData(128, 128);
+    for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i+1] = d.data[i+2] = v; d.data[i+3] = 22; }
+    x.putImageData(d, 0, 0);
+    document.documentElement.style.setProperty('--noise', 'url(' + c.toDataURL() + ')');
+  })();
+
+  // wallpaper: a night sky over hills with a blue glow, so the glass has something to blur
+  const wall = document.getElementById('wall');
+  function paint() {
+    const r = wall.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    wall.width = r.width * dpr; wall.height = r.height * dpr;
+    const g = wall.getContext('2d'); g.scale(dpr, dpr);
+    const w = r.width, h = r.height;
+    let s = g.createLinearGradient(0, 0, 0, h);
+    s.addColorStop(0, '#0B1A36'); s.addColorStop(.55, '#12203A'); s.addColorStop(1, '#07090D');
+    g.fillStyle = s; g.fillRect(0, 0, w, h);
+    let glow = g.createRadialGradient(w * .78, h * .75, 0, w * .78, h * .75, h * .9);
+    glow.addColorStop(0, 'rgba(47,111,237,.4)'); glow.addColorStop(.4, 'rgba(47,111,237,.1)'); glow.addColorStop(1, 'rgba(47,111,237,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, w, h);
+    let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    for (let i = 0; i < 140; i++) { g.fillStyle = 'rgba(230,236,245,' + (.15 + rnd() * .6) + ')'; g.fillRect(rnd() * w, rnd() * h * .6, rnd() < .1 ? 2 : 1, rnd() < .1 ? 2 : 1); }
+    const hills = [['#0E1420', .62, 50], ['#0B1018', .74, 36], ['#07090D', .86, 24]];
+    hills.forEach(([c, y, a], k) => {
+      g.fillStyle = c; g.beginPath(); g.moveTo(0, h);
+      for (let px = 0; px <= w; px += 8) g.lineTo(px, h * y - Math.sin(px / (110 + k * 40) + k) * a - Math.sin(px / 47 + k * 2) * a * .25);
+      g.lineTo(w, h); g.fill();
+    });
+  }
+  paint(); window.addEventListener('resize', paint);
+
+  // clock with rolling digits
+  const digitsEl = document.getElementById('digits'), dateEl = document.getElementById('date');
+  const slots = [];
+  [0, 1, ':', 2, 3].forEach(k => {
+    if (k === ':') { const c = document.createElement('span'); c.className = 'colon'; c.textContent = ':'; digitsEl.appendChild(c); return; }
+    const d = document.createElement('span'); d.className = 'digit'; const i = document.createElement('i'); d.appendChild(i); digitsEl.appendChild(d); slots.push(d);
+  });
+  function setDigit(slot, v) {
+    const cur = slot.lastElementChild;
+    if (cur.textContent === v) return;
+    if (!alive || !cur.textContent) { cur.textContent = v; return; }
+    const n = document.createElement('i'); n.textContent = v; n.className = 'in'; slot.appendChild(n);
+    requestAnimationFrame(() => requestAnimationFrame(() => { cur.className = 'out'; n.className = ''; }));
+    setTimeout(() => cur.remove(), 450);
+  }
+  function isoWeek(dt) { const d = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate())); const day = d.getUTCDay() || 7; d.setUTCDate(d.getUTCDate() + 4 - day); const y = new Date(Date.UTC(d.getUTCFullYear(), 0, 1)); return Math.ceil(((d - y) / 864e5 + 1) / 7); }
+  function tick() {
+    const n = new Date(), s = String(n.getHours()).padStart(2, '0') + String(n.getMinutes()).padStart(2, '0');
+    slots.forEach((sl, i) => setDigit(sl, s[i]));
+    const wd = n.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' });
+    dateEl.textContent = wd.charAt(0).toUpperCase() + wd.slice(1) + ' · v. ' + isoWeek(n);
+  }
+  tick(); setInterval(tick, 1000);
+
+  // text that changes: fade over in LEVANDE, jump in NU
+  function swapText(el, text) {
+    if (!alive) { el.textContent = text; return; }
+    el.classList.add('hide');
+    setTimeout(() => { el.textContent = text; el.classList.remove('hide'); }, 300);
+  }
+  const songs = ['Kalimba', 'Lament of the Highborne', 'Seasons of War', 'Sunwell Plateau'];
+  const tasks = ['Kör testlistan dashboard.md', 'Läser byggloggen', 'Sammanfattar raiden', 'Väntar'];
+  let si = 0;
+  setInterval(() => {
+    si = (si + 1) % songs.length;
+    swapText(document.getElementById('np'), 'Spotify · ' + songs[si]);
+    swapText(document.getElementById('np2'), songs[si]);
+    swapText(document.getElementById('kakan'), tasks[si]);
+    document.getElementById('kSq').classList.toggle('breathe', si !== 3);
+  }, 6000);
+
+  // system meters: glide in LEVANDE (CSS width transition + counting), jump in NU
+  const meters = [['Cpu', 34, ' %'], ['Gpu', 71, ' %'], ['Tmp', 62, '°'], ['Ram', 48, ' %']];
+  function count(el, from, to, unit) {
+    if (!alive) { el.textContent = to + unit; return; }
+    const t0 = performance.now();
+    (function f(t) { const p = Math.min(1, (t - t0) / 700), e = 1 - Math.pow(1 - p, 3); el.textContent = Math.round(from + (to - from) * e) + unit; if (p < 1) requestAnimationFrame(f); })(t0);
+  }
+  setInterval(() => {
+    meters.forEach(m => {
+      const next = Math.max(8, Math.min(96, m[1] + Math.round((Math.random() - .5) * 26)));
+      document.getElementById('m' + m[0]).style.width = next + '%';
+      count(document.getElementById('v' + m[0]), m[1], next, m[2]);
+      m[1] = next;
+    });
+  }, 2200);
+
+  // characters, checkboxes, switches, view buttons
+  document.querySelectorAll('.char').forEach(b => b.onclick = () => document.querySelectorAll('.char').forEach(o => o.setAttribute('aria-pressed', String(o === b))));
+  document.querySelectorAll('.chk, .slider').forEach(b => b.onclick = () => b.setAttribute('aria-checked', String(b.getAttribute('aria-checked') !== 'true')));
+  document.querySelectorAll('.view button').forEach(b => b.onclick = () => b.parentNode.querySelectorAll('button').forEach(o => o.setAttribute('aria-pressed', String(o === b))));
+
+  // reopen the dashboard
+  const dash = document.getElementById('dash');
+  document.getElementById('replay').onclick = () => { dash.classList.remove('opening'); void dash.offsetWidth; dash.classList.add('opening'); };
+})();
+</script>
