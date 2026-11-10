@@ -1949,8 +1949,10 @@ Window {
                 m[a.id] = a;
             return m;
         }
-        // The programs at the bottom: the own choice, else (shown dimmed) the dock's
-        readonly property var bottomIds: info ? (info.chosen.length ? info.chosen : info.dock) : []
+        // The programs at the bottom = the dock's pinned apps (shared both ways, 10 Nov). Sent to dash.py only when
+        // changed here – and never when Plasma didn't answer (an empty list would then empty the dock)
+        readonly property var bottomIds: info ? info.chosen : []
+        property string loadedApps: "[]"
         readonly property var addable: {
             if (!info || !adding)
                 return [];
@@ -1968,6 +1970,7 @@ Window {
             function onDashboardLoaded(json) {
                 try {
                     dashView.info = JSON.parse(json);
+                    dashView.loadedApps = JSON.stringify(dashView.info.chosen || []);
                     dashView.sel = dashView.info.view || 0;
                     dashView.showName();
                     dashView.status = "";
@@ -1979,7 +1982,19 @@ Window {
                 dashView.status = ok ? "Sparat – gäller nästa gång dashboarden öppnas." : "Kunde inte spara.";
             }
         }
-        Timer { id: dashSave; interval: 500; onTriggered: backend.saveDashboard(JSON.stringify({ "views": dashView.info.views, "apps": dashView.info.chosen })) }
+        Timer {
+            id: dashSave
+            interval: 500
+            onTriggered: {
+                const data = { "views": dashView.info.views };
+                const apps = JSON.stringify(dashView.info.chosen);
+                if (apps !== dashView.loadedApps && dashView.info.dockOk) {
+                    data.apps = dashView.info.chosen;
+                    dashView.loadedApps = apps;
+                }
+                backend.saveDashboard(JSON.stringify(data));
+            }
+        }
 
         // Every change: a copy of info, changed by fn, saved half a second later
         function change(fn) {
@@ -2021,11 +2036,7 @@ Window {
             return "";
         }
         function editApps(fn) {
-            change(c => {
-                if (!c.chosen.length)
-                    c.chosen = c.dock.slice();    // the first change makes the dock's row an own choice
-                fn(c.chosen);
-            });
+            change(c => fn(c.chosen));    // the dock's pinned apps – saved into the dock too
         }
 
         Column {
@@ -2327,9 +2338,9 @@ Window {
                 Text {
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: !dashView.info ? "" : dashView.info.chosen.length
-                          ? "Ditt eget val (högst 14). ‹ › flyttar, ✕ tar bort."
-                          : "Samma som dockan just nu. Ändrar du något här blir det ditt eget val för dashboarden."
+                    text: !dashView.info ? "" : !dashView.info.dockOk
+                          ? "Plasma svarade inte, så dockans program gick inte att läsa – ändringar här sparas inte. Öppna sidan igen om en stund."
+                          : "Samma program som i dockan – ändrar du här ändras dockan också, och tvärtom (dashboarden visar högst 14). ‹ › flyttar, ✕ tar bort."
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
                     font.pixelSize: 13
@@ -2349,7 +2360,7 @@ Window {
                             color: "#0E1420"
                             border.width: 1
                             border.color: "#1E2A40"
-                            opacity: dashView.info.chosen.length ? 1 : 0.7
+                            opacity: dashView.info.dockOk ? 1 : 0.7
                             Row {
                                 id: dashChipRow
                                 x: 10
@@ -2427,12 +2438,6 @@ Window {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: { dashView.adding = !dashView.adding; if (dashView.adding) dashAppSearch.forceActiveFocus(); }
                         }
-                    }
-                    SmallButton {
-                        visible: !!dashView.info && dashView.info.chosen.length > 0
-                        height: 40
-                        text: "Samma som dockan"
-                        onClicked: dashView.change(c => c.chosen = [])
                     }
                 }
                 FlatField {

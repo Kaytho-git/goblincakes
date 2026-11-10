@@ -25,7 +25,7 @@ HOME = Path.home()
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "goblincakes"
 FOLDERS = CONFIG / "ai-mappar.json"       # shared with Goblin AI (PROJEKT → MAPPAR)
-SETTINGS = CONFIG / "dashboard.json"      # {"apps": [desktop files at the bottom] (else the dock's), "views", "view"}
+SETTINGS = CONFIG / "dashboard.json"      # {"views", "view"} – the programs at the bottom are the dock's (shared)
 QUOTA = CACHE / "quota.json"
 QUOTA_HELPER = Path(__file__).resolve().parents[3] / "libexec/goblincakes-quota"
 BATTERY_HELPER = Path(__file__).resolve().parents[3] / "libexec/goblincakes-device-battery"
@@ -172,18 +172,17 @@ def view_index(saved=None, rows=None):
 
 
 def save_views(rows, apps_ids=None):
-    """From Config: the views (and the programs at the bottom – [] = the dock's). The dashboard reads them the
-    next time it is shown."""
+    """From Config: the views, and (when they were changed) the programs at the bottom – shared with the dock, so
+    they are written there. The dashboard reads them the next time it is shown."""
     saved = settings()
     saved["views"] = views({"views": rows})
     saved["view"] = view_index(saved, saved["views"])
     saved.pop("mid", None)                # from step 1–2: now one per view
-    if apps_ids is not None:
-        if apps_ids:
-            saved["apps"] = [a for a in apps_ids if isinstance(a, str)][:14]
-        else:
-            saved.pop("apps", None)
+    saved.pop("apps", None)               # until 10 Nov an own list for the dashboard: now shared with the dock
     save_settings(saved)
+    if apps_ids is not None:
+        return save_shared_apps([a for a in apps_ids if isinstance(a, str)])
+    return True
 
 
 LAYOUT = CONFIG / "desktop-layout.json"   # goblincakes-desktop-layout: the dock's apps, saved while it is gone
@@ -211,6 +210,41 @@ def saved_dock_apps():
     return [r.split(":", 1)[1] for r in rows if isinstance(r, str) and r.startswith("applications:")]
 
 
+DOCK_JS = ('panels().forEach(function (p) { if (p.location !== "bottom") return; '
+           'p.widgets().forEach(function (w) { if (w.type !== "org.goblincakes.dock" && '
+           'w.type !== "org.kde.plasma.icontasks") return; w.currentConfigGroup = ["General"]; %s }); });')
+
+
+def save_shared_apps(ids):
+    """The programs at the bottom = the dock's pinned apps (10 Nov, the user: the dock and the dashboard share them).
+    Written into the dock (other kinds of launchers in it are kept, last); in the layout "Dashboard", where there is
+    no dock, into the list goblincakes-desktop-layout puts back in the dock. True when it was saved."""
+    try:
+        data = json.loads(LAYOUT.read_text())
+    except (OSError, ValueError):
+        data = {}
+    if data.get("layout") == "dashboard":
+        dock = data.get("dock") if isinstance(data.get("dock"), dict) else {}
+        other = [r for r in dock.get("launchers") or [] if isinstance(r, str) and not r.startswith("applications:")]
+        dock["launchers"] = ["applications:" + i for i in ids] + other
+        data["dock"] = dock
+        tmp = LAYOUT.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        tmp.replace(LAYOUT)
+        return True
+    wanted = json.dumps(["applications:" + i for i in ids])
+    js = ('var done = false; ' + DOCK_JS % (
+        'var l = w.readConfig("launchers", []); if (typeof l === "string") l = l ? l.split(",") : []; '
+        'var keep = l.filter(function (x) { return x.indexOf("applications:") !== 0; }); '
+        'w.writeConfig("launchers", ' + wanted + '.concat(keep)); w.reloadConfig(); done = true;')
+        + ' print(done ? "done" : "none");')
+    answer = busctl("call", "org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell", "evaluateScript", "s", js)
+    try:
+        return (answer or {}).get("data", [""])[0] == "done"
+    except (IndexError, TypeError, AttributeError):
+        return False
+
+
 def dock_apps():
     """The desktop files pinned in the GOBLINCAKES dock (asked from plasmashell) – in the layout "Dashboard" the
     ones the dock had when it was taken away; [] when there is none."""
@@ -230,10 +264,25 @@ def dock_apps():
     return [r.split(":", 1)[1] for r in rows if isinstance(r, str) and r.startswith("applications:")]
 
 
+def current_dock_answers():
+    """Plasma answers and there is a dock (or the layout "Dashboard"): an empty list is then really empty."""
+    try:
+        if json.loads(LAYOUT.read_text()).get("layout") == "dashboard":
+            return True
+    except (OSError, ValueError, AttributeError):
+        pass
+    answer = busctl("call", "org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell", "evaluateScript", "s",
+                    'var n = 0; ' + DOCK_JS % 'n++;' + ' print(n);')
+    try:
+        return (answer or {}).get("data", ["0"])[0] not in ("", "0")
+    except (IndexError, TypeError, AttributeError):
+        return False
+
+
 def bottom_apps(all_apps=None):
-    """The programs along the bottom: the own choice (dashboard.json), else the dock's, else a standard row."""
+    """The programs along the bottom: the dock's (shared with it), else a standard row."""
     by_id = {a["id"]: a for a in (all_apps if all_apps is not None else apps())}
-    for ids in (settings().get("apps") or [], dock_apps(), STANDARD_APPS):
+    for ids in (dock_apps(), STANDARD_APPS):
         rows = [by_id[i] for i in ids if i in by_id]
         if rows:
             return rows[:14]
@@ -642,12 +691,13 @@ if __name__ == "__main__":
         result = {"views": views(saved), "view": view_index(saved), "maxViews": MAX_VIEWS, "sides": SIDES,
                   "frames": [{"id": i, "name": n, "note": t} for i, n, t in FRAMES],
                   "apps": [{k: a[k] for k in ("id", "name", "icon", "group")} for a in rows],
-                  "chosen": [i for i in saved.get("apps") or [] if isinstance(i, str)],
-                  "dock": [a["id"] for a in bottom_apps(rows)] if not saved.get("apps") else []}
-    elif what == "save":         # from Config: {"views": [...], "apps": [...]} on stdin
+                  # the programs at the bottom = the dock's pinned apps (shared); dockOk false = Plasma didn't answer
+                  "chosen": dock_apps(), "dock": []}
+        result["dockOk"] = bool(result["chosen"]) or current_dock_answers()
+    elif what == "save":         # from Config: {"views": [...], "apps": [...] only when changed} on stdin
         data = json.loads(sys.stdin.read() or "{}")
-        save_views(data.get("views") or [], data.get("apps"))
-        result = {"views": views(), "view": view_index()}
+        ok = save_views(data.get("views") or [], data.get("apps"))
+        result = {"views": views(), "view": view_index(), "appsSaved": ok}
     else:
         sys.exit(__doc__)
     print(json.dumps(result, ensure_ascii=False, indent=1))

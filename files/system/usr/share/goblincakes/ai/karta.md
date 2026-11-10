@@ -163,8 +163,8 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
   och docka lägger dockans program och storlek tillbaka. Kolla: `kreadconfig6 --file kwinrc --group ModifierOnlyShortcuts --key Meta`
   (tomt = Plasmas standard, AppGrid).
 - Nederst i dashboarden: GOBLINCAKES egna program i en rad med små ikoner (dash.py own_apps: Config, Goblin AI,
-  GoblinRecorder, GoblinAmp, GoblinShare), under dem programraden (egna val i dashboard.json, annars dockans fästa program – i upplägget
-  Dashboard de som sparades i desktop-layout.json när dockan togs bort).
+  GoblinRecorder, GoblinAmp, GoblinShare), under dem programraden = dockans fästa program (delas åt båda hållen: Config →
+  DASHBOARD → APPARNA LÄNGST NER ändrar dockan; i upplägget Dashboard listan i desktop-layout.json, som dockan får tillbaka).
 
 ## GOBLINCAKES Config
 Ord: config, inställningar, goblincakes config, program, förinstallerat, fönster, grafik, uppdatera, reglage

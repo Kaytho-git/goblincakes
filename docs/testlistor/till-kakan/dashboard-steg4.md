@@ -27,3 +27,5 @@
   fråga: Öppna dashboarden. Ligger GOBLINCAKES egna program (bara Config, Goblin AI, GoblinRecorder, GoblinAmp och GoblinShare) med små ikoner ovanför programraden längst ner, i både SPEL och JOBB, och startar ett klick programmet?
 - Dockans program i upplägget Dashboard
   fråga: Med upplägget Dashboard valt: visar programraden längst ner samma program som du hade fästa i dockan?
+- Dockan och dashboarden delar program
+  fråga: Lägg till ett program under APPARNA LÄNGST NER i Config → DASHBOARD. Kom det in i dockan också? Fäst sedan ett annat program i dockan – syns det längst ner i dashboarden nästa gång du öppnar den?
