@@ -10,11 +10,11 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 - [x] Område 5 – Fel och risker (punkt 20–24)
 - [x] Mätningar på frugans laptop i vila (11 nov, via GoblinShare)
 - [ ] Mätningar under spel på båda datorerna (M2, M4, M9 – användaren säger till när spelet är igång)
-- [ ] Sortering + topp 5 (görs sist)
+- [x] Sortering + topp 5 (står före Mätningar)
 
-Punkterna har fasta nummer (P1, P2 …) i den ordning de hittades, så att "Bygg punkt P3" alltid betyder samma sak. Den sorterade listan (mest värt först) och topp 5 kommer sist i filen när allt är granskat.
+Punkterna har fasta nummer (P1, P2 …) i den ordning de hittades, så att "Bygg punkt P3" alltid betyder samma sak. Den sorterade listan (mest värt först) och topp 5 står efter område 5, före Mätningar. När en punkt är byggd: bocka av den i den sorterade listan och för in "efter"-värdet under rätt M-nummer.
 
-**Datorerna:** användarens dator = 16 trådar, 32 GB, RTX (12 GB), `goblincakes-nvidia`, Fedora 44. Frugans laptop = Legion Y520, i7-7700HQ (4 kärnor/8 trådar, ungefär hälften så snabb per kärna), 16 GB, GTX 1050 Ti (4 GB), `goblincakes-nvidia-legacy`, Fedora 45. Procenttal nedan är **% av en kärna** på användarens dator om inget annat står; på laptopen blir samma arbete ungefär dubbelt så dyrt ("tror" tills M2 körts där).
+**Datorerna:** användarens dator = 16 trådar, 32 GB, RTX (12 GB), `goblincakes-nvidia`, Fedora 44. Frugans laptop = Legion Y520, i7-7700HQ (4 kärnor/8 trådar, ungefär hälften så snabb per kärna), 16 GB, GTX 1050 Ti (4 GB), `goblincakes-nvidia-legacy`, Fedora 45. Procenttal nedan är **% av en kärna** på användarens dator om inget annat står; laptopens egna värden (mätta 11 nov i vila) står vid punkterna och i Mätningar – samma arbete kostar där ungefär 1,3–2 gånger så mycket.
 
 ---
 
@@ -32,13 +32,15 @@ Mätt på användarens dator 11 nov, 15 min efter inloggning, inget spel igång,
 | Spelvakten | 0,8 % | letar spel var tredje sekund |
 | **Summa** | **ca 14 %** | |
 
-Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). På laptopens fyra kärnor är det tänkbart en kvarts kärna som spelet inte får – inte katastrof, men onödigt, och det väcker processorn ~16 gånger i sekunden (M4: 483 nya processer på 30 s) vilket också drar batteri.
+**På laptopen** (mätt i vila, upplägget Standard, utan recorder/graph/röst): widgetarnas skript 6,1–6,6 %, lokal AI-vakten 1,7 %, spelvakten 0,9 %, Archon-ikonen 0,4 % (fast Archon inte finns där) – tillsammans ca 9 % av en kärna.
+
+Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det är ingen katastrof – en tiondels kärna av laptopens fyra – men det är onödigt, det väcker processorn 5–16 gånger i sekunden (M4) och det drar batteri. Hur det ser ut **under spel** är inte mätt än.
 
 ### P1 – Widgetarna startar skript varje sekund
 - **Vad:** Toppfältets/skrivbordsradens widgetar hämtar sina uppgifter genom att starta program med jämna mellanrum. Spelas nu: Goblin AI-läget varje sekund, Discord-röst var 1–3 s, Steam var 5 s, batteri var 30 s, utseendet var 5 s (`plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml:288`, `:297`, `:306`, `:315`, `:350`). Klockan: volym varannan sekund, nätverk var 10 s, batteri var 30 s, utseendet var 5 s (`org.goblincakes.deskclock/contents/ui/main.qml:132`–`:160`). Dockan, kvoten, uppdateringspilen och Meta-tipset läser utseendet var 5:e s var för sig (`dock/…/main.qml:69`, `quota/…/main.qml:138`, `updates/…/main.qml:103` + `:176`, `metahint/…/main.qml:40`). I upplägget Dashboard finns Spelas nu **två gånger** (vänster och höger del) och båda kör alla hämtningar, även dem som bara den andra delen visar. Inget saktar ner när ett spel kör, fast widgetarna redan vet om det (`gaming`).
 - **Förslag:** (a) starta inte Python när det inte finns något att läsa – ett litet skalvillkor först (AI-mappen tom → `{}`, Discord inte igång → färdigt svar); (b) varje del kör bara sina egna hämtningar (`part` = left/right); (c) under spel 3–5 gånger glesare; (d) batteriet hämtas av en widget, inte två.
-- **Vinst:** ca 7 % av en kärna → uppskattat 1–2 %. Färre uppvaknanden (bättre batteritid på laptopen), lugnare under spel.
-- **Säkerhet:** sett/mätt – `plasma-plasmashell.service` drar 7,6 % i vila varav plasmashell själv 0,2 % (M2 + M5). Ett varv kostar: AI-läget 19 ms, Discord-röst 37 ms, Steam 67 ms, batteri 31 ms, kvoten 42 ms (M6). Hur mycket det är på laptopen: tror ungefär det dubbla – bekräftas med M2 där.
+- **Vinst:** ca 6–7 % av en kärna → uppskattat 1–2 %, på båda datorerna. Färre uppvaknanden (bättre batteritid på laptopen), lugnare under spel.
+- **Säkerhet:** sett/mätt på båda datorerna – användarens: `plasma-plasmashell.service` 7,6 % i vila varav plasmashell själv 0,2 %; laptopen: 6,6 % varav 0,4 % (M2 + M5). Ett varv kostar (användarens dator / laptopen): AI-läget 19 / 26 ms, Discord-röst 37 / 48 ms, Steam 67 / 18 ms, kvoten 42 / 59 ms, batteri 31 / 1 580 ms (M6).
 - **Risk:** låg. Det som kan gå fel: en ruta (Discord-kanalen, Kakans "tänker") dyker upp någon sekund senare, eller inte alls om villkoret skrivs fel.
 - **Storlek:** liten för (a)–(c), en widget i taget.
 - **Kan provas:** bara på riktiga datorn (Plasma-widgetar); själva kommandona kan provas i ett skal.
@@ -78,7 +80,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). På 
 - **Vad:** Spelvakten läser alla processer var 3:e s (`usr/libexec/goblincakes-gameguard:249`, `usr/share/goblincakes/gaming.py:23`–`:35`), lokal AI-vakten varje sekund (`usr/libexec/goblincakes-ollama:662`–`:679`, `gaming.py:62`–`:73`), Kakans vakt var 15:e s (`ai/reminders.py:584`), Goblin AI vid svar – plus recorderns `pgrep` (P2).
 - **Förslag steg 1 (litet):** snabbare genomläsning i `gaming.py` (`os.listdir` + `open` i stället för `pathlib`): 11,2 → 5,3 ms mätt. **Steg 2 (medel):** en del letar (spelvakten, även när Spelläge är avstängt – då bara letandet) och skriver en fil; de andra läser filen. I dag skrivs filen bara med Spelläge på – därför behövs en fil till för "ett spel kör" skild från "Spelläge gör något".
 - **Vinst:** ca 2 % → under 0,5 %. Steg 1 ensamt halverar.
-- **Säkerhet:** sett/mätt – spelvakten 0,78 %, AI-vakten 1,19 % med Ollama (M2); 11,2 mot 5,3 ms (M8).
+- **Säkerhet:** sett/mätt – användarens dator: spelvakten 0,78 %, AI-vakten 1,19 %; laptopen: 0,94 % och 1,71 % (M2); ett varv 11,2 ms mot 5,3 ms med snabbare läsning (M8).
 - **Risk:** steg 1 låg. Steg 2 medel – lokal AI ska stängas av även med Spelläge av (dagens beslut), och ett avbrott i spelvakten får inte göra att AI:n aldrig startar igen.
 - **Storlek:** steg 1 liten, steg 2 medel.
 - **Kan provas:** offscreen (attrapp-processer), sedan ett riktigt spel.
@@ -88,7 +90,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). På 
 - **Vad:** Varje eget fönster är ett helt Python + Qt-program. Verkligt minne (PSS, M3): Goblin AI 356 MB (+ dess webbdel), röstens igenkännare 348 MB, dashboarden gömd 221 MB, GoblinRecorder-fönstret 185 MB, GoblinShare-fönstret 146 MB. De små tjänsterna drar 7–31 MB styck, tillsammans ca 170 MB (nio stycken).
 - **Förslag:** (a) dashboarden startas inte vid inloggning på datorer med lite minne utan vid första Meta-trycket (D-Bus-starten finns redan) – kostar en långsammare första öppning; (b) röstens igenkännare lämnar minnet efter t.ex. 30 min utan användning på datorer under 16 GB; (c) inget byggs förrän laptopens siffror finns – med 16 GB är det troligen inget problem där.
 - **Vinst:** 200–550 MB mer till spelet på en dator med lite minne. På laptopen (16 GB): tror liten.
-- **Säkerhet:** sett/mätt på användarens dator (M3); laptopen: tror – M3 + M9 där avgör om punkten ska byggas alls.
+- **Säkerhet:** sett/mätt (M3, M9). Laptopen använder 2,4 av 15,9 GB i vila och växlar inte – där behövs punkten inte nu. Värd att bygga först om en dator med 8 GB ska köra GOBLINCAKES, eller om M9 under spel visar växling.
 - **Risk:** låg–medel (första Meta-trycket/första röstfrågan blir långsammare).
 - **Storlek:** liten per del.
 - **Kan provas:** offscreen (start/stopp), känslan bara på riktiga datorn.
@@ -100,8 +102,10 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). På 
   2. `goblincakes-start-hidden` lämnar en död process ("zombie") kvar under WoWUp hela sessionen (`usr/libexec/goblincakes-start-hidden:57`–`:63`: barnet som minimerar fönstret avslutas men ingen hämtar dess slutkod) – sett på användarens dator (`[goblincakes-sta] <defunct>`). Lagas med dubbel fork.
   3. Uppdateringspilen startar `cat` + `grep` + två `systemctl is-active` var 30:e s (`updates/…/main.qml:52`–`:54`, `:103`) – kan vara var 2:a min utom när menyn är öppen.
   4. Klockans volymavläsning varannan sekund (`deskclock/…/main.qml:139`) behövs bara medan volymen visas/ändras.
+  5. `goblincakes-archon-tray.service` går på alla datorer, även utan Archon: 0,36 % och 33 MB på laptopen (frågar systemfältet var 4:e s, `usr/libexec/goblincakes-archon-tray:41`, `:103`). Ett villkor i enheten (`ConditionPathExists` på Archons AppImage/autostart) räcker.
+  6. `goblincakes-device-battery` tar 1,6 s per varv på laptopen (0,03 s hos användaren): den väntar 0,5 s på varje Logitech-enhet på kabel som inte svarar (`usr/libexec/goblincakes-device-battery:38`–`:52`) – laptopen har G502, PRO X och en mottagare. Kom ihåg vilka som inte svarar och fråga dem inte igen förrän de kopplats om.
 - **Vinst:** liten var för sig (några MB, några uppvaknanden) – lättare att läsa `ps`, en process mindre.
-- **Säkerhet:** sett (1, 2 på användarens dator; 3, 4 läst i koden).
+- **Säkerhet:** sett (1, 2 på användarens dator; 5, 6 mätt på laptopen – M2, M6; 3, 4 läst i koden).
 - **Risk:** låg.
 - **Storlek:** liten.
 - **Kan provas:** 1–2 offscreen, 3–4 på riktiga datorn.
@@ -123,13 +127,13 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). På 
 
 ## Område 2 – Uppstart och inloggning
 
-Mätt på användarens dator (M10, M11): från strömknapp till inloggningsskärm 43 s, varav 22 s är datorns egen firmware och startmenyn (inte GOBLINCAKES), kärnan 3 s, tidig uppstart (initrd) 8 s och resten 10 s. Det mesta i uppstarten är redan genomarbetat (bakgrundsjobben väntar 20 min, mjukvarulistan/man-sidorna körs bara efter en ny image, Steam väntar på diskarna) – här finns mindre att hämta än i område 1.
+Mätt (M10, M11). Användarens dator: från strömknapp till skrivbord 43 s, varav 22 s är datorns egen firmware och startmenyn, kärnan 3 s, tidig uppstart (initrd) 8 s och resten 10 s. Laptopen: 57 s – firmware 8 s, startmenyn 16 s, kärnan 1 s, initrd 14 s, resten 17 s. Det mesta i uppstarten är redan genomarbetat (bakgrundsjobben väntar 20 min, mjukvarulistan/man-sidorna körs bara efter en ny image, Steam väntar på diskarna) – här finns mindre att hämta än i område 1.
 
 ### P9 – Inloggningen startar 14 hjälpprogram samtidigt med skrivbordet
 - **Vad:** 14 autostart-poster (`etc/xdg/autostart/goblincakes-*.desktop`) körs vid varje inloggning, nästan alla i samma ögonblick som Plasma själv startar. De flesta gör ingenting efter första gången men kostar ändå en Python-start var. Mätt (M10, varm disk): `goblincakes-wow-links` 274 ms, `goblincakes-gpu notify` 248 ms, `goblincakes-laptop` 141 ms (även på en stationär – den frågar `goblincakes-gpu hw` och startar Python två gånger för att konstatera att det inte är en laptop, `usr/libexec/goblincakes-laptop:13`–`:15`), `goblincakes-config --first-run` 134 ms (laddar hela Qt innan den tittar efter klar-filen: importerna på `usr/bin/goblincakes-config:19`–`:23`, kollen först på `:1286`), `goblincakes-tweak apply mouse-flat` 122 ms, `goblincakes-ianseo-tray` ~100 ms (laddar Qt innan den ser att Ianseo inte är utdelat, `usr/libexec/goblincakes-ianseo-tray:14`–`:16`), `desktop-layout login` 74 ms, `automount` 62 ms, `season` 27 ms, `calendar` 16 ms. Dessutom `goblincakes-webapp-icon --upgrade` 329 ms i bakgrunden från `goblincakes-refresh.sh:300`–`:302` för den som har webbappar.
 - **Förslag:** (a) titta efter flaggfilen **före** de tunga importerna i Config och Ianseo-ikonen (eller direkt i `.desktop`-filens `Exec=sh -c '[ -e … ] || exec …'`); (b) `goblincakes-laptop`: en billig koll först (finns `/sys/class/power_supply/BAT*`?); (c) det som inte brådskar (WoW-länkarna, grafikkollen, webbapp-ikonerna, årstiden) får `X-KDE-autostart-after=panel` eller startas 10–20 s senare, så de inte tävlar med skrivbordet.
 - **Vinst:** ca 1 s mindre processorarbete under inloggningen på användarens dator; på laptopen tror 2–4 s (kall disk, långsammare kärnor) – skrivbordet blir användbart tidigare.
-- **Säkerhet:** sett/mätt – tiderna ovan (M10), tillsammans ca 1,4 s. Laptopen: tror, bekräftas med M10 där.
+- **Säkerhet:** sett/mätt – tiderna ovan (M10), tillsammans ca 1,4 s på användarens dator. Laptopen: de tre som gick att köra utan att ändra något tog 1,3–1,6 gånger så lång tid (Config 185 ms, `gpu hw` 61 ms, Qt-import 124 ms); resten: tror – hela M10 körs där när hon är med.
 - **Risk:** låg. Det som kan gå fel: en hjälpare som måste gå före något annat (automount före Steam – den rörs inte; skärmarna – rörs inte) flyttas för sent.
 - **Storlek:** liten.
 - **Kan provas:** (a)–(b) offscreen; ordningen bara på riktiga datorn (logga ut/in).
@@ -139,20 +143,20 @@ Mätt på användarens dator (M10, M11): från strömknapp till inloggningsskär
 - **Vad:** `goblincakes-updates.timer` (`OnStartupSec=20s`) kör `goblincakes-updates check`: `rpm-ostree status` två gånger, `skopeo` tre gånger, `flatpak remote-ls` fyra gånger, `fwupdmgr`, ChatGPT-appen (`usr/libexec/goblincakes-updates:49`–`:108`, `:252`–`:392`). Mätt: 7,1 s (M11). Samtidigt startar `goblincakes-fedora-check` och frågar `skopeo` om samma image en gång till (`usr/libexec/goblincakes-fedora-check:27`–`:38`).
 - **Förslag:** första kollen 2–3 min efter inloggning i stället för 20 s (pilen visar under tiden det sparade svaret från förra kollen – `~/.cache/goblincakes/updates.json`), och Fedora-kollen läser samma svar i stället för att fråga själv (hör ihop med P7.1).
 - **Vinst:** lugnare första minut efter inloggning, särskilt på laptopen (nätverk + disk + processor just när programmen startar). En nätverksfråga mindre.
-- **Säkerhet:** sett/mätt – 7,1 s (M11, användarens dator).
+- **Säkerhet:** sett/mätt – 7,1 s på användarens dator, 9,3 s på laptopen (M11).
 - **Risk:** låg. Pilen kan visa gårdagens läge i två minuter.
 - **Storlek:** liten.
 - **Kan provas:** offscreen (timern) + riktiga datorn.
 - **Mät efteråt:** M11 (`goblincakes-updates.service` i `--user blame`).
 
-### P11 – Nvidia-modulerna laddas i tidig uppstart: 6 s (Universal Blue, inte GOBLINCAKES)
-- **Vad:** På Nvidia-varianterna tvingar Nvidia-paketets egen fil `/usr/lib/dracut/dracut.conf.d/99-nvidia.conf` (från `nvidia-kmod-common`, alltså Universal Blue/negativo17) in `i915 amdgpu nvidia nvidia_drm nvidia_modeset nvidia_peermem nvidia_uvm` redan i initrd. På användarens dator tar det steget (`dracut-pre-udev.service`) 6,1 s av uppstartens 43, och slutar varje gång med felet `could not insert 'nvidia_peermem': Invalid argument`. Det här beror **inte** på Fedora-versionen och inte på GOBLINCAKES egna filer – men GOBLINCAKES kan lägga en egen dracut-fil efter den. Samma sak gör troligen att initramfs är 309 MB (sett; vad som tar plats: M14).
+### P11 – Nvidia-modulerna laddas i tidig uppstart: 6 s hos användaren, 12,5 s på laptopen (Universal Blue, inte GOBLINCAKES)
+- **Vad:** På Nvidia-varianterna tvingar Nvidia-paketets egen fil `/usr/lib/dracut/dracut.conf.d/99-nvidia.conf` (från `nvidia-kmod-common`, alltså Universal Blue/negativo17) in `i915 amdgpu nvidia nvidia_drm nvidia_modeset nvidia_peermem nvidia_uvm` redan i initrd. På användarens dator tar det steget (`dracut-pre-udev.service`) 6,1 s av uppstartens 43, och slutar varje gång med felet `could not insert 'nvidia_peermem': Invalid argument`. **På laptopen tar samma steg 12,5 s (11,9 s ren processortid) av 57 s** – den enskilt största posten i hela uppstarten – och initramfs är där 400 MB, vilket troligen också förklarar att startmenyn tar 16 s (den läser in hela filen). Det här beror **inte** på Fedora-versionen och inte på GOBLINCAKES egna filer – men GOBLINCAKES kan lägga en egen dracut-fil efter den. Samma sak gör troligen att initramfs är 309 MB (sett; vad som tar plats: M14).
 - **Förslag:** (a) litet: ta bort `nvidia_peermem` ur listan (den går aldrig att ladda utan särskild nätverkshårdvara) – ett fel mindre i loggen, kanske någon tiondel; (b) större: ladda inte `nvidia_uvm`/`nvidia` i initrd utan först i det riktiga systemet. Föreslås **inte** utan prov: tidig laddning finns för att startskärmen och inloggningsskärmen ska få rätt upplösning och inte bli svarta.
-- **Vinst:** (a) renare logg. (b) upp till ~5 s snabbare uppstart – tror.
-- **Säkerhet:** sett/mätt – 6,1 s och felraden (M11, användarens dator). Hur det ser ut på laptopen (legacy-drivrutinen 580): tror samma – M11 där. Att (b) går utan svart skärm: tror inte utan prov.
+- **Vinst:** (a) renare logg. (b) upp till ~5 s snabbare uppstart hos användaren och ~10 s på laptopen (plus en mindre initramfs att läsa in) – tror.
+- **Säkerhet:** sett/mätt – 6,1 s och felraden på användarens dator, 12,5 s på laptopen (M11). Vad i steget som tar tiden (uppackning, signaturkontroll, vilken modul): vet inte – M14 visar vad som ligger i initramfs. Att (b) går utan svart skärm: tror inte utan prov.
 - **Risk:** (a) låg; (b) hög – uppstarten/inloggningsskärmen kan bli svart (rollback i startmenyn räddar).
 - **Storlek:** (a) liten, (b) medel + prov på båda Nvidia-datorerna.
-- **Kan provas:** bara på riktiga datorn (ny image, omstart).
+- **Kan provas:** bara på riktiga datorn. Går troligen att prova på **en** dator utan ny image: `rpm-ostree initramfs --enable` med egna dracut-växlar bygger en lokal initramfs och `--disable` tar bort den igen (Opus bekräftar växlarna först) – användarens dator före laptopen.
 - **Mät efteråt:** M11.
 
 **Granskat utan anmärkning (område 2):** `goblincakes-firstlogin` avslutar direkt när layouten är samma (två filläsningar); `goblincakes-refresh.sh` kostar lite (kontrollsumman över temafilerna 6 ms, `kreadconfig6` 6 ms styck, färgvalet 89 ms bara för den som valt färg); `goblincakes-disk-owner` väntar 2 s med flit; Steam-väntan har tak på 30 s; `goblincakes-variant-sync` körs bara tills den lyckats en gång. `NetworkManager-wait-online` (5,2 s) och `plasma-kded6` (3,3 s) är Fedoras/Plasmas egna och stoppar inte inloggningsskärmen. Ianseos containrar väntar på nätverket (4,5 s) – bara för den som har Ianseo.
@@ -166,9 +170,9 @@ Gäller alla tre varianterna. Läst ur bygget 11 nov 16:01 (`goblincakes-nvidia`
 **Så ser imagen ut:** 288 lager, 6,45 GB packat. 259 lager (5,10 GB) är Universal Blues bas och delas oförändrade. GOBLINCAKES egna 29 lager är 1,35 GB: 242 RPM-paket (684 MB installerat – Steam med 32-bitarsbibliotek, `scx-scheds` 140 MB, `gh` 39 MB m.fl.), demoparser 502 MB (polars 170, pyarrow 166, pandas 46 – användarens val 22 okt), initramfs 309 MB, egna filer 18 MB.
 
 ### P12 – Varje uppdatering laddar ner 1,4 GB för 117 MB nytt innehåll
-- **Vad:** Bygget kör utan cache och utan omstyckning (byggloggen: `use_cache: false`, `rechunk: false`, `build_chunked_oci: false`, `chunkah: false`; `.github/workflows/build.yml:66`–`:75` sätter inget av dem). Då får alla GOBLINCAKES 29 lager nya namn i varje bygge, även när innehållet är detsamma – och datorn måste hämta alla igen. Två byggen med tre timmars mellanrum (bara fönsterramarna ändrade) delade 260 lager (basen) men inget av de egna: 1,35 GB ny nedladdning. Systemloggen på användarens dator säger samma sak vid varje uppdatering: `layers already present: 260; layers needed: 28 (1,4 GB)` … `New objects: … totaling 116,7 MB`. Alltså 1,4 GB hämtat för 117 MB som faktiskt var nytt – varje dag, på båda datorerna (laptopen över wifi).
+- **Vad:** Bygget kör utan cache och utan omstyckning (byggloggen: `use_cache: false`, `rechunk: false`, `build_chunked_oci: false`, `chunkah: false`; `.github/workflows/build.yml:66`–`:75` sätter inget av dem). Då får alla GOBLINCAKES 29 lager nya namn i varje bygge, även när innehållet är detsamma – och datorn måste hämta alla igen. Två byggen med tre timmars mellanrum (bara fönsterramarna ändrade) delade 260 lager (basen) men inget av de egna: 1,35 GB ny nedladdning. Systemloggen på användarens dator säger samma sak vid varje uppdatering: `layers already present: 260; layers needed: 28 (1,4 GB)` … `New objects: … totaling 116,7 MB`. Alltså 1,4 GB hämtat för 117 MB som faktiskt var nytt. **På laptopen är det värre:** legacy-variantens egna lager är 2,9 GB (Nvidia-drivrutinen ligger i dem) – loggen där säger `custom layers needed: 29 (2,9 GB)` för 119 MB nytt, vid varje uppdatering, över wifi.
 - **Förslag:** slå på en av bygg-actionens omstyckningar (`rechunk: true`, `build_chunked_oci: true` eller `chunkah: true` i `build.yml`) – de delar upp den färdiga imagen i lager efter innehåll (paket för paket), så att oförändrade paket behåller sitt lager mellan byggen. Opus läser actionens README och väljer den som BlueBuild rekommenderar nu, provar först på **en** variant (legacy eller bas – inte den användaren kör) och jämför med M12.
-- **Vinst:** nedladdningen per uppdatering från 1,4 GB till uppskattat 150–400 MB (det som verkligen ändrats + initramfs). `goblin update` och de automatiska uppdateringarna går fortare, mindre skrivande på laptopens 256 GB-disk, mindre lagring på GitHub.
+- **Vinst:** nedladdningen per uppdatering från 1,4 GB (laptopen 2,9 GB) till uppskattat 150–500 MB (det som verkligen ändrats + initramfs). `goblin update` och de automatiska uppdateringarna går fortare, mindre skrivande på laptopens 256 GB-disk, mindre lagring på GitHub.
 - **Säkerhet:** sett/mätt – 1,35 GB nya lager mellan två byggen (M12), 1,4 GB mot 116,7 MB i loggen (M13); inställningarna lästa ur byggloggen. Hur stor vinsten blir efter omstyckning: tror – mäts med M12 på första bygget efter ändringen. Att initramfs (309 MB) ändå byts varje gång: tror (den byggs om i varje bygge).
 - **Risk:** medel. Bygget går en annan väg på slutet: det kan ta längre tid (tror +5–15 min), och ett fel där kan ge en image som inte startar – rollback i startmenyn räddar, och ISO-bygget (`build-iso.yml`) måste provas en gång efteråt. Första uppdateringen efter bytet hämtar allt (alla lager byter namn en gång).
 - **Storlek:** liten ändring (en–två rader), men medel med proven: ett bygge, uppdatering + omstart på båda datorerna, ISO-bygget.
@@ -239,7 +243,7 @@ Läget är bättre än väntat: alla 193 Python-, skal- och JSON-filer klarar sy
 ### P18 – Inga färdigkompilerade Python-filer i imagen
 - **Vad:** `/usr` går inte att skriva i, och imagen har inga `__pycache__` för GOBLINCAKES egna moduler (`/usr/share/goblincakes/**`) eller demoparser (`files/scripts/install-demoparser.sh:12` tar till och med bort dem). Python kompilerar därför om källkoden vid **varje** start av varje program.
 - **Förslag:** en rad sist i bygget: `python3 -m compileall -q --invalidation-mode unchecked-hash /usr/share/goblincakes /usr/lib/goblincakes` (hash-läget behövs eftersom alla filer i en atomisk image har datumet 1970), och låt bli att ta bort demoparserns.
-- **Vinst:** mätt på användarens dator (M15): demoparser-importen (varje CS2-demo) 1,3–2,0 s → 0,4 s; `goblincakes-recorder status` 117 → 73 ms; `goblin-ai` 418 → 356 ms; `goblincakes-share status` 86 → 66 ms. På laptopen ungefär dubbla vinsten (tror). Kostar ca 23 MB i imagen.
+- **Vinst:** mätt på användarens dator (M15): demoparser-importen (varje CS2-demo) 1,3–2,0 s → 0,4 s; `goblincakes-recorder status` 117 → 73 ms; `goblin-ai` 418 → 356 ms; `goblincakes-share status` 86 → 66 ms. På laptopen: `goblincakes-recorder status` 184 → 110 ms, `goblincakes-share status` 132 → 90 ms (mätt). Kostar ca 23 MB i imagen.
 - **Säkerhet:** sett/mätt (M15, med `PYTHONPYCACHEPREFIX` som låtsas-cache).
 - **Risk:** låg. Fel läge (tidsstämpel i stället för hash) ger bara att filerna inte används – inget går sönder.
 - **Storlek:** liten.
@@ -248,12 +252,12 @@ Läget är bättre än väntat: alla 193 Python-, skal- och JSON-filer klarar sy
 
 ### P19 – Städning (slås ihop)
 - **Vad:**
-  1. `goblincakes-refresh.sh` har tolv engångsfixar med flaggfil från 9–29 okt (`etc/xdg/plasma-workspace/env/goblincakes-refresh.sh:50`, `:64`, `:72`, `:87`, `:100`, `:112`, `:123`, `:132`, `:152`, `:177`, `:232`, `:296`) – ca 200 av filens 334 rader. Användarens dator har alla flaggorna (sett); laptopen installerades 3 nov med en image där felen redan var lagade. De gamla (Ghostty-storleken, dockans fästa program, klockans vikt, AppGrid-storleken, Meta-tangenten) kan tas bort – kolla först laptopens flaggor (M16).
+  1. `goblincakes-refresh.sh` har tolv engångsfixar med flaggfil från 9–29 okt (`etc/xdg/plasma-workspace/env/goblincakes-refresh.sh:50`, `:64`, `:72`, `:87`, `:100`, `:112`, `:123`, `:132`, `:152`, `:177`, `:232`, `:296`) – ca 200 av filens 334 rader. Användarens dator har alla flaggorna (sett); laptopen installerades 3 nov med en image där felen redan var lagade. De gamla (Ghostty-storleken, dockans fästa program, klockans vikt, AppGrid-storleken, Meta-tangenten) kan tas bort – laptopen har flaggorna också (M16).
   2. De "två kopiorna" kan bli en: `files/scripts/plasma-shell-overrides.sh` kan kopiera låsskärm och utloggning direkt ur look-and-feel-paketet i stället för ur en egen kopia, och de tre Chromium-policyfilerna kan skapas i bygget ur en. (Alternativt räcker kontrollen i P15.)
   3. Fem widgetar har var sin kopia av samma `lookCommand`-rad (`nowplaying/…/main.qml:60`, `dock/…/main.qml:52`, `quota/…/main.qml:121`, `updates/…/main.qml:159`, `deskclock/…/main.qml:47`, `metahint/…/main.qml:23`) – görs lämpligen samtidigt med P1.
   4. `files/scripts/example.sh` (BlueBuilds mall, används inte) och 14 oanvända småfunktioner (t.ex. `goblinai.py:2955` `receipt_text`, `:5791` `reserve_command`, `goblin-ai:1078`–`:1091` `sidePinned`, `share.py:1723` `service_active`) kan tas bort.
 - **Vinst:** kortare filer att läsa (även för Claude – mindre kvot per session), färre ställen att glömma.
-- **Säkerhet:** sett (flaggorna på användarens dator, kontrollsummorna, namnsökningen). Laptopens flaggor: M16.
+- **Säkerhet:** sett (flaggorna på båda datorerna – M16, kontrollsummorna, namnsökningen).
 - **Risk:** låg. En engångsfix som tas bort för tidigt drabbar bara en dator som inte loggat in sedan oktober – finns ingen sådan.
 - **Storlek:** liten.
 - **Kan provas:** offscreen / låtsas-hemmapp.
@@ -291,7 +295,7 @@ Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och e
 - **Vad:** Röstens Python-miljö (`~/.local/share/goblincakes-voice/venv`) pekar på systemets `/usr/bin/python3` men har sina paket i `lib/python3.14/` (sett). När en ny Fedora kommer med Python 3.15 hittar den inga paket. `installed()` (`usr/libexec/goblincakes-voice:186`–`:189`) tittar bara efter filerna, så tjänsten startar, kraschar och startas om var 10:e sekund (`Restart=on-failure`) – utan att något säger varför.
 - **Förslag:** `installed()` kollar också att miljön hör till den Python som körs (`venv/lib/pythonX.Y` finns); annars bygger `goblin update`/tjänsten om miljön (modellerna ligger kvar, bara paketen hämtas om) eller säger till med en notis.
 - **Vinst:** rösten överlever Fedora-hoppet på användarens dator (Nvidia-varianten går till 45 när Universal Blue släpper den).
-- **Säkerhet:** sett – länken och `python3.14`-mappen på användarens dator. Att Fedora 45 har en annan Python: tror – `python3 --version` på laptopen (M18) svarar.
+- **Säkerhet:** sett – länken och `python3.14`-mappen på användarens dator; Fedora 45 har Python 3.15.2 (sett på laptopen, M18). Rösten slutar alltså fungera den dag `goblincakes-nvidia` går till Fedora 45, om inget görs.
 - **Risk:** låg.
 - **Storlek:** liten.
 - **Kan provas:** offscreen (låtsas-miljö med fel versionsmapp).
@@ -300,7 +304,7 @@ Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och e
 ### P23 – Qt:s QML-cache används inte för fönstren i imagen
 - **Vad:** Qt sparar normalt färdigkompilerad QML i `~/.cache/<program>/qmlcache`, men gör det inte för filer daterade 1970 – och det är alla filer i en atomisk image. Provat (M19): med datum 1970 skrivs ingen cachefil alls, med vanligt datum gör den det. Varje fönster kompilerar alltså sin QML från början vid varje start: Goblin AI 488 ms, GoblinRecorder 178 ms, Config 154 ms, dashboarden 126 ms – mot 19, 11, 7 och 8 ms med cache. (Ingen risk för gammal kod efter en uppdatering – det provades också: ändrat innehåll med samma storlek och datum gav rätt resultat.)
 - **Förslag:** kräver en liten undersökning innan något byggs. Tänkbara vägar: (a) fönstren läser sin QML ur en kopia med riktiga datum som görs om när imagen bytts (samma kontrollsumma som `goblincakes-refresh.sh` redan räknar för temat); (b) Qt:s färdigkompilering vid bygget, om den går att få att gälla för 1970-daterade filer.
-- **Vinst:** Goblin AI öppnas ca 0,5 s fortare (laptopen tror ~1 s), de andra 0,1–0,2 s.
+- **Vinst:** Goblin AI öppnas ca 0,5 s fortare hos användaren och ca 1 s fortare på laptopen (där: ai 989 ms, recorder 359, config 305, dashboard 252 ms – mätt); de andra fönstren 0,1–0,3 s.
 - **Säkerhet:** sett/mätt (M19). Vilken lösning som fungerar: tror – måste provas.
 - **Risk:** medel för (a) – en kopia som inte följer med imagen = gamla fönster efter en uppdatering; därför kontrollsumman.
 - **Storlek:** medel.
@@ -318,6 +322,52 @@ Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och e
 - **Mät efteråt:** `rpm-ostree status` efter nästa uppdatering.
 
 **Övrigt i område 5:** den döda processen under WoWUp står i P7.2, dashboardens enhet i P8, demoparser utan låst version i P14.1. Rollback: inget konkret fel hittat – `goblincakes-firstlogin` jämför layoutversionen med "inte lika med", så en äldre image lägger tillbaka sin layout och en nyare gör om den igen (syns som att panelerna byggs om, inget går sönder); engångsfixarna i hemmappen backas inte men de äldre imagerna tål dem. Nätverk: GoblinRecorders CS2-mottagare lyssnar bara lokalt (`127.0.0.1`), GoblinShare lyssnar med flit på hela nätverket – en egen säkerhetsgranskning (`/security-review`) har inte gjorts här.
+
+---
+
+## Prioriterad lista – mest värt först
+
+Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser. Bocka av i första kolumnen när punkten är byggd och mätt.
+
+| Klar | Nr | Punkt | Märks | Risk | Storlek |
+|---|---|---|---|---|---|
+| [ ] | 1 | **P12** Uppdateringarna laddar ner 1,4–2,9 GB för ~120 MB nytt | uppdateringar på minuter i stället för en kvart på wifi | medel | liten + prov |
+| [ ] | 2 | **P1** Widgetarna startar skript varje sekund | 5 % av en kärna tillbaka, alltid, båda datorerna | låg | liten |
+| [ ] | 3 | **P2** GoblinRecorder-tjänstens `pgrep` | 2 % i vila, mer under spel (användarens dator) | låg–medel | liten |
+| [ ] | 4 | **P3** GoblinRecorder-fönstrets `flatpak info` | 1,4 % (användarens dator) | låg | liten |
+| [ ] | 5 | **P15** Kontroll före bygget | färre trasiga images, kopiorna kan inte glida isär | låg | liten |
+| [ ] | 6 | **P20** Byggstegen på rätt Fedora-bas | ingen trasig programmeny/Piper vid Fedora-hopp, snabbare Nvidia-bygge | låg | liten |
+| [ ] | 7 | **P22** Rösten och ny Python-version | rösten överlever Fedora 45 på användarens dator | låg | liten |
+| [ ] | 8 | **P18** Färdigkompilerade Python-filer | CS2-demon 1–1,5 s fortare, fönster 0,05 s fortare | låg | liten |
+| [ ] | 9 | **P5** Spelletandet (steg 1: snabbare läsning) | 1–1,5 % av en kärna, båda datorerna | låg | liten |
+| [ ] | 10 | **P4** goblin graph-vaktens `pw-dump` | 1 % + lugnare ljudserver (användarens dator) | låg | liten |
+| [ ] | 11 | **P10** Uppdateringskollen senare efter inloggning | lugnare första minut (7–9 s arbete flyttas) | låg | liten |
+| [ ] | 12 | **P9** Inloggningens hjälpprogram | 1–3 s mindre arbete vid inloggning | låg | liten |
+| [ ] | 13 | **P21** Första-inloggningen skriver "klart" vid fel | ny layout når säkert fram | låg–medel | liten |
+| [ ] | 14 | **P7** Småsaker i bakgrunden (6 st) | några MB och uppvaknanden, renare processlista | låg | liten |
+| [ ] | 15 | **P24** Fedora-hoppet kommer av sig självt | inga överraskande hopp på frugans dator (beslut) | låg | liten |
+| [ ] | 16 | **P11** Nvidia-modulerna i tidig uppstart | upp till 5–10 s snabbare start (laptopen mest) | hög | medel |
+| [ ] | 17 | **P23** QML-cachen används inte | Goblin AI öppnas 0,5–1 s fortare | medel | medel |
+| [ ] | 18 | **P16** Kopierade QML-komponenter | lättare underhåll | låg–medel | liten–medel |
+| [ ] | 19 | **P14** Småsaker i bygget | färre tysta fel, färre onödiga byggen | låg | liten |
+| [ ] | 20 | **P19** Städning | kortare filer, mindre att läsa | låg | liten |
+| [ ] | 21 | **P5** steg 2: en del letar spel, resten läser | ytterligare ~0,5 % | medel | medel |
+| [ ] | 22 | **P13** AppGrid/libratbag i eget flöde | bygget 3 min kortare (delvis löst av P20) | medel | medel |
+| [ ] | 23 | **P8** Program från dashboarden i egen enhet | rätt siffror per program | låg | liten |
+| [ ] | 24 | **P17** Gemensam startkod för fönstren | lättare underhåll | medel | medel |
+| [ ] | 25 | **P6** Fönster som ligger kvar i minnet | behövs inte med 16 GB | låg–medel | liten |
+
+## Topp 5 – börja här
+
+1. **P1 – widgetarna.** Störst vinst för minst risk, och den enda som märks på båda datorerna hela tiden. En widget i taget (Spelas nu först); M2 och M5 visar direkt om det hjälpte.
+2. **P12 – uppdateringarnas storlek.** Det användaren (och frugan på wifi) märker mest: 1,4–2,9 GB per uppdatering blir några hundra MB. Prova på legacy- eller basvarianten först, mät med M12, ta sedan Nvidia-varianten. Hög effekt men rör bygget – låt Fable bygga eller granska.
+3. **P2 + P3 – GoblinRecorder** (samma session). 3,5 % av en kärna i vila på användarens dator, och mer medan WoW kör. Litet och provbart med attrapperna.
+4. **P15 – kontrollen före bygget.** Gör alla punkter efter den säkrare att bygga (syntax, QML, kopior) och kostar en halvtimme.
+5. **P20 + P22 – före nästa Fedora-hopp.** `goblincakes-nvidia` går till Fedora 45 när Universal Blue släpper den; innan dess bör byggstegen byggas på rätt bas och rösten klara ny Python. Båda är små.
+
+Därefter i tur: P18, P5 (steg 1), P4, P10, P9 – alla små och ofarliga. **P11** (uppstarten) ger mest på laptopen (12,5 s) men är den enda med hög risk: gör M14 först och prova på användarens dator. **P24** är ett beslut, inte ett bygge.
+
+**Kvar att mäta före bygget av P1/P2/P5:** M2, M4 och M9 medan ett spel kör, på båda datorerna – det är "före"-värdet för det som märks i spel.
 
 ---
 
