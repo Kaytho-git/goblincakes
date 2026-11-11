@@ -36,6 +36,7 @@ Window {
     property var wow: ({})
     property var cs2: ({})
     property var builds: ({})
+    property var buildSteps: ({})      // the open build in BYGGEN: {id, done, jobs [{name, kind, length, steps}]}
     property var reports: ({})
     property int boss: -1              // the chosen boss in SENASTE RAIDEN (-1 = the last one pulled)
     property string csMap: ""          // the chosen map in CS2 ("" = the most played)
@@ -92,6 +93,10 @@ Window {
     function parseColor(p) {
         return p === null || p === undefined ? "#8B98AD" : p >= 100 ? "#E5CC80" : p >= 99 ? "#E268A8" : p >= 95 ? "#FF8000"
              : p >= 75 ? "#A335EE" : p >= 50 ? "#0070FF" : p >= 25 ? "#1EFF00" : "#8B98AD";
+    }
+    function jobText(job) {   // BYGGEN: a part's time, or why there is none
+        return ({"run": "pågår " + job.length, "wait": "väntar", "fail": "fel · " + job.length, "off": "hoppades över"})[job.kind]
+               || job.length;
     }
     function resultColor(kind) {
         return ({"ok": "#3BD16F", "win": "#3BD16F", "fail": "#F06B6B", "loss": "#F06B6B", "run": "#F0B232"})[kind] || "#8B98AD";
@@ -443,6 +448,25 @@ Window {
         elide: Text.ElideRight
         verticalAlignment: Text.AlignVCenter
         horizontalAlignment: Text.AlignRight
+    }
+    // BYGGEN's steps: ✓ done, ● going on, ✗ went wrong, ○ left, – skipped
+    component StepMark: Text {
+        property string kind: ""
+        property bool small: false
+        width: small ? 16 : 20
+        horizontalAlignment: Text.AlignHCenter
+        font.family: "IBM Plex Sans"
+        font.pixelSize: small ? 13 : 15
+        font.weight: Font.Bold
+        text: ({"ok": "✓", "run": "●", "fail": "✗", "wait": "○", "off": "–"})[kind] || "·"
+        color: kind === "wait" ? "#4A5870" : win.resultColor(kind)
+        SequentialAnimation on opacity {
+            running: kind === "run"
+            loops: Animation.Infinite
+            alwaysRunToEnd: true
+            NumberAnimation { to: 0.35; duration: 700 }
+            NumberAnimation { to: 1; duration: 700 }
+        }
     }
     component HeadCell: Text {
         color: "#8B98AD"
@@ -2505,25 +2529,78 @@ Window {
                     boundsBehavior: Flickable.StopAtBounds
                     model: win.builds.rows || []
                     delegate: Rectangle {
+                        id: buildRow
                         required property var modelData
+                        readonly property bool open: !!modelData.id && win.buildSteps.id === modelData.id
                         width: buildList.width
-                        height: 48
-                        color: rowHover.containsMouse ? "#101A2C" : "transparent"
+                        height: 48 + (open ? stepBox.height + 14 : 0)
+                        color: rowHover.containsMouse ? "#101A2C" : open ? "#0B1220" : "transparent"
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
-                        Cell { width: 124; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.state
+                        Cell { width: 124; height: 48; horizontalAlignment: Text.AlignLeft; text: modelData.state
                                color: win.resultColor(modelData.kind); font.weight: Font.DemiBold }
-                        Cell { x: 132; width: 90; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.hash
+                        Cell { x: 132; width: 90; height: 48; horizontalAlignment: Text.AlignLeft; text: modelData.hash
                                color: accent.text; font.family: "IBM Plex Mono"; font.pixelSize: 12 }
-                        Cell { x: 234; width: parent.width - 234 - 270; height: parent.height; horizontalAlignment: Text.AlignLeft; text: modelData.title }
-                        Cell { anchors { right: parent.right; rightMargin: 100 } width: 160; height: parent.height; text: modelData.when; color: "#8B98AD" }
-                        Cell { anchors { right: parent.right; rightMargin: 12 } width: 84; height: parent.height; text: modelData.length
+                        Cell { x: 234; width: parent.width - 234 - 270; height: 48; horizontalAlignment: Text.AlignLeft; text: modelData.title }
+                        Cell { anchors { right: parent.right; rightMargin: 100 } width: 160; height: 48; text: modelData.when; color: "#8B98AD" }
+                        Cell { anchors { right: parent.right; rightMargin: 12 } width: 84; height: 48; text: modelData.length
                                color: "#8B98AD"; font.family: "IBM Plex Mono"; font.pixelSize: 12 }
                         MouseArea {
                             id: rowHover
-                            anchors.fill: parent
+                            width: parent.width
+                            height: 48
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: backend.openUrl(modelData.url)
+                            onClicked: modelData.id ? backend.openBuild(modelData.id) : backend.openUrl(modelData.url)
+                        }
+                        // ── The open build: each part (the check, one per variant) with what is done and what is left ──
+                        Column {
+                            id: stepBox
+                            visible: buildRow.open
+                            x: 16
+                            y: 48
+                            width: parent.width - 32
+                            spacing: 4
+                            Cell {
+                                visible: !!win.buildSteps.loading || !!win.buildSteps.error
+                                width: parent.width; height: 26; horizontalAlignment: Text.AlignLeft; color: "#8B98AD"
+                                text: win.buildSteps.error || "Hämtar stegen från GitHub …"
+                            }
+                            Repeater {
+                                model: buildRow.open ? (win.buildSteps.jobs || []) : []
+                                delegate: Column {
+                                    id: jobCol
+                                    required property var modelData
+                                    // the steps of a part that is going on or went wrong – done and waiting ones are one line
+                                    readonly property bool showSteps: modelData.kind === "run" || modelData.kind === "fail"
+                                    width: stepBox.width
+                                    spacing: 2
+                                    Item {
+                                        width: parent.width
+                                        height: 26
+                                        StepMark { id: jobMark; kind: jobCol.modelData.kind; anchors.verticalCenter: parent.verticalCenter }
+                                        Cell { x: 26; width: parent.width - 26 - 140; height: parent.height; horizontalAlignment: Text.AlignLeft
+                                               text: jobCol.modelData.name; font.weight: Font.DemiBold
+                                               color: jobCol.modelData.kind === "wait" ? "#8B98AD" : "#E6ECF5" }
+                                        Cell { anchors.right: parent.right; width: 130; height: parent.height; color: "#8B98AD"
+                                               font.family: "IBM Plex Mono"; font.pixelSize: 12
+                                               text: win.jobText(jobCol.modelData) }
+                                    }
+                                    Repeater {
+                                        model: jobCol.showSteps ? jobCol.modelData.steps : []
+                                        delegate: Item {
+                                            required property var modelData
+                                            width: jobCol.width
+                                            height: 22
+                                            StepMark { x: 26; kind: modelData.kind; small: true; anchors.verticalCenter: parent.verticalCenter }
+                                            Cell { x: 48; width: parent.width - 48; height: parent.height; horizontalAlignment: Text.AlignLeft
+                                                   font.pixelSize: 13; text: modelData.name
+                                                   color: modelData.kind === "wait" ? "#8B98AD" : modelData.kind === "run" ? win.resultColor("run") : "#E6ECF5" }
+                                        }
+                                    }
+                                }
+                            }
+                            Item { width: 1; height: 4 }
+                            FlatButton { text: "Öppna bygget på GitHub"; onClicked: backend.openUrl(buildRow.modelData.url) }
                         }
                     }
                     FastWheel { flick: buildList }

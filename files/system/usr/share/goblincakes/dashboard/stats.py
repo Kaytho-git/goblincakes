@@ -27,6 +27,7 @@ CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "gobl
 WCL_CACHE = CACHE / "dashboard-wcl.json"
 BUILD_CACHE = CACHE / "dashboard-builds.json"
 BUILD_AGE = 300
+BUILD_AGE_RUNNING = 60  # while a build runs (Kakan's "bygget är klart" also removes the file: buildstatus.tell_watched)
 DAYS = ["måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag", "söndag"]
 MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
 
@@ -290,11 +291,12 @@ def builds(count=10, test_runs=None):
         if not buildstatus.builder():
             return {"builder": False}
         cache = _load(BUILD_CACHE)
-        if time.time() - cache.get("at", 0) < BUILD_AGE and cache.get("runs"):
+        running = any(r.get("status") != "completed" for r in cache.get("runs") or [])
+        if time.time() - cache.get("at", 0) < (BUILD_AGE_RUNNING if running else BUILD_AGE) and cache.get("runs"):
             runs = cache["runs"]
         else:
             try:
-                runs = [{k: r.get(k) for k in ("status", "conclusion", "head_sha", "display_title", "created_at",
+                runs = [{k: r.get(k) for k in ("id", "status", "conclusion", "head_sha", "display_title", "created_at",
                                                "run_started_at", "updated_at", "html_url", "event")}
                         for r in buildstatus.runs("build.yml", count)]
                 _save(BUILD_CACHE, {"at": time.time(), "runs": runs})
@@ -314,10 +316,51 @@ def builds(count=10, test_runs=None):
         rows.append({"state": state, "kind": kind, "sha": r.get("head_sha") or "", "hash": (r.get("head_sha") or "")[:7],
                      "title": "Dagligt bygge" if r.get("event") == "schedule" else title,
                      "when": when_text(start), "length": span_text(end - start) if start else "",
-                     "url": r.get("html_url") or ""})
+                     "url": r.get("html_url") or "",
+                     "id": str(r.get("id") or (r.get("html_url") or "").rstrip("/").rpartition("/")[2])})
     return {"builder": True, "rows": rows, "ok": sum(r["kind"] == "ok" for r in rows),
             "failed": sum(r["kind"] == "fail" for r in rows), "running": next((r for r in rows if r["kind"] == "run"), None),
             "last": rows[0] if rows else None, "url": f"https://github.com/{buildstatus.REPO}/actions/workflows/build.yml"}
+
+
+STEP_NAMES = {"Hämta repot (hela historiken)": "Hämta repot", "Nyheternas commits": "Nyheterna",
+              "BuildKit from Google's Docker Hub mirror": "Förbered byggverktyget",
+              "Build Custom Image": "Bygg imagen (det stora steget, 10–15 min)",
+              "PySide6 för QML-kollen": "Hämta Qt för kollen", "Kontrollen (tools/check.py)": "Kontrollen"}
+STEP_HIDDEN = re.compile(r"^(Set up job|Complete job|Post |Run actions/)")
+
+
+def _step_kind(status, conclusion):
+    """✓ ok, ● run, ✗ fail, ○ wait (kvar), – off (hoppades över/avbröts)."""
+    if status == "completed":
+        return {"success": "ok", "failure": "fail", "timed_out": "fail"}.get(conclusion, "off")
+    return "run" if status == "in_progress" else "wait"
+
+
+def build_steps(run_id, test_jobs=None):
+    """{id, done, jobs [{name, kind, length, steps [{name, kind}]}]} – what one build has done and what is left
+    (GitHub's jobs: the check and one per variant). The image itself is one step on GitHub ("Build Custom Image");
+    what goes on inside it is only in the log, after the variant is done."""
+    if test_jobs is None:
+        import buildstatus  # noqa: PLC0415
+        try:
+            jobs = buildstatus.get(f"/actions/runs/{int(run_id)}/jobs?per_page=30").get("jobs", [])
+        except Exception:  # noqa: BLE001 – no network, GitHub's limit
+            return {"id": str(run_id), "error": "GitHub svarade inte – försöker igen om 20 s"}
+    else:
+        jobs = test_jobs
+    import buildstatus  # noqa: PLC0415 – variant(): "Build Custom Image (recipe-nvidia.yml, …)" → the variant's name
+    out = []
+    for j in jobs:
+        name = j.get("name") or ""
+        start = _stamp(j.get("started_at") or "")
+        end = _stamp(j.get("completed_at") or "") if j.get("status") == "completed" else time.time()
+        steps = [{"name": STEP_NAMES.get(s.get("name"), s.get("name") or ""), "kind": _step_kind(s.get("status"), s.get("conclusion"))}
+                 for s in j.get("steps") or [] if not STEP_HIDDEN.match(s.get("name") or "")]
+        out.append({"name": buildstatus.variant(name) if "recipe" in name else name,
+                    "kind": _step_kind(j.get("status"), j.get("conclusion")),
+                    "length": span_text(end - start) if start and j.get("status") != "queued" else "", "steps": steps})
+    return {"id": str(run_id), "done": bool(out) and all(j["kind"] not in ("run", "wait") for j in out), "jobs": out}
 
 
 # ── Kakan's reports ───────────────────────────────────────────

@@ -272,7 +272,9 @@ def tell_watched(item, notice):
     """`bevaka bygge`: the build someone waited for is done – told either way (they asked for it)."""
     items = get(f"/actions/workflows/build.yml/runs?head_sha={item['sha']}&per_page=5").get("workflow_runs", [])
     run = next((r for r in items if r.get("conclusion") != "cancelled"), items[0] if items else None)
-    note = f"\n{item['note']}" if item.get("note") else ""
+    # The dashboard keeps GitHub's answer a while (dashboard/stats.py): gone → it asks again within its minute
+    (Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "goblincakes/dashboard-builds.json").unlink(missing_ok=True)
+    note =f"\n{item['note']}" if item.get("note") else ""
     if not run:
         notice("Bygget", f"Inget bygge på GitHub för commit {item['arg']} efter 3 timmar.{note}")
     elif run.get("conclusion") == "success":

@@ -156,7 +156,7 @@ class Backend(QObject):
     hideWanted = Signal()
 
     KEYS = ("apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project", "trayBox", "tools",
-            "wow", "cs2", "builds", "reports", "own", "browse", "batteries", "notices", "recorder")
+            "wow", "cs2", "builds", "buildSteps", "reports", "own", "browse", "batteries", "notices", "recorder")
 
     def __init__(self):
         super().__init__()
@@ -173,11 +173,13 @@ class Backend(QObject):
         self._view = dash.view_index(saved, self._views)
         self._mid = self._views[self._view]["mid"]  # apps | system | project:<path> | raid | … – one per view
         self._tray = ""
+        self._build = ""                           # BYGGEN: the build whose steps are open (GitHub's run id)
         self.visible = False
         self.timers = [QTimer(self, interval=ms, timeout=fn) for ms, fn in (
             (2000, self.read_system), (1000, self.read_player), (3000, self.read_windows),
             (30000, self.read_quota), (5000, self.read_tray), (60000, self.read_stats),
-            (30000, self.read_batteries), (5000, self.read_notices), (2000, self.read_recorder))]
+            (30000, self.read_batteries), (5000, self.read_notices), (2000, self.read_recorder),
+            (20000, self.read_build_steps))]
 
     # ── Reading in the background ──
     def job(self, key, fn, into=""):
@@ -199,6 +201,10 @@ class Backend(QObject):
         key, _, into = key.partition(">")
         self.busy.discard(key)
         key = into or key
+        if key == "buildSteps" and text and json.loads(text).get("id") != self._build:
+            if self._build:
+                self.read_build_steps(force=True)   # another build was clicked while this one was read
+            return                                  # (or it was closed)
         if text and text != self.data.get(key):
             self.data[key] = text
             self.changed.emit(key)
@@ -223,6 +229,25 @@ class Backend(QObject):
         if "reports" in used:
             seen = float(dash.settings().get("reportsSeen") or 0)
             self.job("reports", lambda: stats.reports(seen))
+
+    def read_build_steps(self, force=False):
+        """BYGGEN: the open build's steps – again every 20 s until it is done."""
+        if not self._build:
+            return
+        if not force and json.loads(self.data.get("buildSteps") or "{}").get("done"):
+            return
+        import stats  # noqa: PLC0415
+        run, test = self._build, self.test
+        self.job("buildSteps", (lambda: stats.build_steps(run, test_jobs=test["buildSteps"])) if "buildSteps" in test
+                 else lambda: stats.build_steps(run))
+
+    @Slot(str)
+    def openBuild(self, run_id):
+        """A build in BYGGEN clicked: its steps open (the same again closes them)."""
+        self._build = "" if run_id == self._build else run_id
+        self.data["buildSteps"] = json.dumps({"id": run_id, "loading": True} if self._build else {})
+        self.changed.emit("buildSteps")
+        self.read_build_steps(force=True)
 
     def read_apps(self):
         def both():
