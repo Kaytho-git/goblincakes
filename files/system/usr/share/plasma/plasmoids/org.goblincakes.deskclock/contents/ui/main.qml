@@ -42,6 +42,10 @@ PlasmoidItem {
     readonly property string netCommand: "nmcli -t -f TYPE,STATE,CONNECTION device status"
     readonly property string volumeCommand: "wpctl get-volume @DEFAULT_AUDIO_SINK@"
     readonly property string batteryCommand: "/usr/libexec/goblincakes-device-battery"
+    // Stil (Config → Utseende): Levande = tinted glass on the desktop row (Levande utseende step 6) – the file
+    // ~/.config/goblincakes/utseende (platt/levande, no file = platt), read again every 5 s
+    readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; true"
+    property bool living: false
 
     // nmcli -t: fields split by ":", a ":" inside a name written as "\:"
     function fields(line) {
@@ -105,6 +109,8 @@ PlasmoidItem {
                 const m = /Volume:\s*([0-9.]+)/.exec(out);
                 root.volume = m ? Math.round(parseFloat(m[1]) * 100) : -1;
                 root.muted = out.indexOf("[MUTED]") >= 0;
+            } else if (source === root.lookCommand) {
+                root.living = out.trim() === "levande";
             } else if (source === root.batteryCommand) {
                 try {
                     root.devices = JSON.parse(out || "[]");
@@ -149,6 +155,14 @@ PlasmoidItem {
         onTriggered: root.volumeShown = false
     }
 
+    Timer {
+        interval: 5000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.run(root.lookCommand)
+    }
+
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
     preferredRepresentation: compactRepresentation
     toolTipMainText: ""
@@ -163,6 +177,7 @@ PlasmoidItem {
         ClockBox {
             id: box
             anchors.centerIn: parent
+            glass: root.living
             now: root.now
             week: root.isoWeek(root.now)
             net: root.net

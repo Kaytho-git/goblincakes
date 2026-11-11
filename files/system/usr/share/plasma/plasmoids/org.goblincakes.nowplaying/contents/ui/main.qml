@@ -54,6 +54,10 @@ PlasmoidItem {
     // "" = the top bar; "left"/"right" = the dashboard's desktop row
     readonly property string part: Plasmoid.configuration.part || ""
     readonly property bool desk: part !== ""
+    // Stil (Config → Utseende): Levande = tinted glass on the desktop row (Levande utseende step 6) – the file
+    // ~/.config/goblincakes/utseende (platt/levande, no file = platt), read again every 5 s
+    readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; true"
+    property bool living: false
 
     // ---- Music ----
     // Music players only (desktop entry or name contains one of these)
@@ -224,6 +228,11 @@ PlasmoidItem {
         engine: "executable"
         connectedSources: []
         onNewData: (source, data) => {
+            if (source === root.lookCommand) {
+                root.living = String(data["stdout"] || "").trim() === "levande";
+                disconnectSource(source);
+                return;
+            }
             if (source === root.voiceCommand) {
                 try {
                     const state = JSON.parse(data["stdout"]);
@@ -325,6 +334,14 @@ PlasmoidItem {
     }
 
     // ---- Look ----
+    Timer {
+        interval: 5000
+        running: root.desk          // only the desktop row has glass
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: exec.connectSource(root.lookCommand)
+    }
+
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
     preferredRepresentation: fullRepresentation
     toolTipMainText: ""
@@ -346,14 +363,15 @@ PlasmoidItem {
             id: deskRow
             visible: root.desk
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 9
-            // In the order they stand on the screen; 9 px towards the clock box, like the gaps between the boxes
-            // (12 in the mockup, times DeskBox's s = 0.75)
-            rightPadding: root.part === "left" ? 9 : 0
-            leftPadding: root.part === "left" ? 0 : 9
+            spacing: 7
+            // In the order they stand on the screen; 7 px towards the clock box, like the gaps between the boxes
+            // (12 in the mockup, times DeskBox's s = 0.6)
+            rightPadding: root.part === "left" ? 7 : 0
+            leftPadding: root.part === "left" ? 0 : 7
 
             // Left: Steam (only while it downloads or makes shaders), farthest from the clock
             DeskBox {
+                glass: root.living
                 visible: root.part === "left" && root.steamText !== ""
                 implicitWidth: Math.round(240 * s)
                 alignRight: true
@@ -374,6 +392,7 @@ PlasmoidItem {
 
             // Left, next to the clock: Discord – the voice channel, or that you aren't in one
             DeskBox {
+                glass: root.living
                 visible: root.part === "left"
                 alignRight: true
                 mark: "#7C8CF8"
@@ -399,6 +418,7 @@ PlasmoidItem {
 
             // Right, next to the clock: what is playing – click = play/pause, wheel = next/previous
             DeskBox {
+                glass: root.living
                 visible: root.part === "right"
                 mark: "#3BD16F"
                 dim: !root.playing
@@ -434,6 +454,7 @@ PlasmoidItem {
 
             // Right, farthest out: Kakan (Goblin AI) while she answers or draws
             DeskBox {
+                glass: root.living
                 visible: root.part === "right" && root.aiText !== ""
                 implicitWidth: Math.round(240 * s)
                 mark: Kirigami.Theme.focusColor

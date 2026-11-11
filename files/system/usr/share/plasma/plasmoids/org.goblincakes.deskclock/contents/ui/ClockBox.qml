@@ -16,8 +16,12 @@ Rectangle {
     property bool volumeShown: false                     // just changed: the % under the icon
     property var leftDevices: []                         // [{kind, name, percent, charging}]
     property var rightDevices: []
-    // The size (10 Nov, the user: the mockup's size was too big on the real desktop) – every measure below is times s
-    property real s: 0.75
+    // The size (10 Nov, the user: the mockup's size was too big on the real desktop; 11 Nov: 20 % smaller again, both
+    // looks) – every measure below is times s
+    property real s: 0.6
+    // Stil: Levande (Levande utseende step 6, 11 Nov – the user: "ingen ram"): tinted glass instead of the dark box –
+    // #0B1018 at 62 %, no frame, a faint light line in the top edge. Platt: the dark box with its frame as before.
+    property bool glass: false
 
     readonly property alias clockItem: clock
     readonly property alias netItem: netButton
@@ -43,9 +47,15 @@ Rectangle {
 
     implicitWidth: content.implicitWidth + Math.round(44 * box.s)
     implicitHeight: content.implicitHeight + Math.round(20 * box.s)
-    color: "#0B1018"
-    border.width: 1
+    color: glass ? Qt.rgba(0.043, 0.063, 0.094, 0.62) : "#0B1018"
+    border.width: glass ? 0 : 1
     border.color: "#1E2A40"
+    Rectangle {
+        visible: box.glass
+        width: parent.width
+        height: 1
+        color: Qt.rgba(0.902, 0.925, 0.961, 0.07)
+    }
 
     component Battery: Row {
         id: bat
@@ -64,7 +74,7 @@ Rectangle {
             text: (bat.device.charging ? "⚡" : "") + bat.device.percent + " %"
             color: box.level(bat.device.percent)
             font.family: "IBM Plex Sans"
-            font.pixelSize: Math.round(12 * box.s)
+            font.pixelSize: Math.max(9, Math.round(12 * box.s))
         }
     }
 
@@ -154,7 +164,7 @@ Rectangle {
                     text: Qt.locale("sv_SE").toString(box.now, "dddd d MMMM") + " · v. " + box.week
                     color: box.dimText
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: Math.round(13 * box.s)
+                    font.pixelSize: Math.max(9, Math.round(13 * box.s))
                 }
             }
             MouseArea {

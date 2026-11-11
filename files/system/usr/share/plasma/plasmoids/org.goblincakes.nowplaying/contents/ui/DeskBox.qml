@@ -15,16 +15,26 @@ Rectangle {
     property bool alignRight: false
     property bool breathe: false      // the square breathes while something works (Kakan)
     readonly property bool hovered: area.containsMouse
-    // The size (10 Nov, the user: too big) – the same s as the clock box; main.qml's widths are times s too
-    property real s: 0.75
+    // The size (10 Nov, the user: too big; 11 Nov: 20 % smaller again, both looks) – the same s as the clock box;
+    // main.qml's widths are times s too
+    property real s: 0.6
+    // Stil: Levande (Levande utseende step 6, 11 Nov – the user: "ingen ram"): tinted glass instead of the dark box –
+    // #0B1018 at 62 %, no frame, a faint light line in the top edge. Platt: the dark box with its frame as before.
+    property bool glass: false
     signal clicked(int button)
     signal wheeled(int delta)
 
     implicitWidth: Math.round(300 * s)
     implicitHeight: Math.round(48 * s)
-    color: "#0B1018"
-    border.width: 1
+    color: glass ? Qt.rgba(0.043, 0.063, 0.094, area.containsMouse ? 0.74 : 0.62) : "#0B1018"
+    border.width: glass ? 0 : 1
     border.color: area.containsMouse ? "#2A3852" : "#1E2A40"
+    Rectangle {
+        visible: box.glass
+        width: parent.width
+        height: 1
+        color: Qt.rgba(0.902, 0.925, 0.961, box.hovered ? 0.12 : 0.07)
+    }
 
     Row {
         id: inner
@@ -69,7 +79,7 @@ Rectangle {
                 text: box.text
                 color: box.dim ? "#8B98AD" : "#E6ECF5"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: Math.round(14 * box.s)
+                font.pixelSize: Math.max(9, Math.round(14 * box.s))
                 elide: Text.ElideRight
                 horizontalAlignment: box.alignRight ? Text.AlignRight : Text.AlignLeft
             }

@@ -86,11 +86,13 @@ panels().forEach(function (p) {
 print(JSON.stringify(r));
 """
 
-# The desktop row (the mockup "Skrivbordet utan docka", 75 % of its size since 10 Nov): the boxes 36 px, the clock box ~56 px
+# The desktop row (the mockup "Skrivbordet utan docka", 75 % of its size since 10 Nov, 60 % since 11 Nov – the user:
+# "20 % mindre"): the boxes 29 px, the clock box ~45 px
+ROW_HEIGHT = 52
 ADD_ROW = """
 var row = new Panel;
 row.location = "top";
-row.height = 64;
+row.height = 52;
 row.alignment = "center";
 try { row.lengthMode = "fit"; } catch (e) {}
 try { row.floating = true; } catch (e) {}
@@ -290,7 +292,7 @@ def to_dashboard(state, keep_dock=False):
     had_tray = plasma(FIND + 'var n = 0; panels().forEach(function (p) { if (isTrayPanel(p)) n++; }); print(n);')
     plasma(FIND + "panels().forEach(function (p) { if (isTopBar(p) || isDock(p)) p.remove(); });"
            # a row from the first version had the tray at its end: out of the row, into its own panel
-           + 'panels().forEach(function (p) { if (!isRow(p)) return; p.hiding = "autohide";'
+           + 'panels().forEach(function (p) { if (!isRow(p)) return; p.hiding = "autohide"; p.height = %d;' % ROW_HEIGHT
            + ' p.widgets("org.kde.plasma.systemtray").forEach(function (w) { w.remove(); }); });'
            + ("" if had_row and had_row.strip() not in ("", "0") else ADD_ROW)
            + ("" if had_tray and had_tray.strip() not in ("", "0") else ADD_TRAY))
@@ -368,6 +370,9 @@ def main(argv):
         return to_dashboard(state, keep_dock=True) if current() == "dashboard" else 0
     if cmd == "login":
         if current() == "dashboard":
+            # the row's height follows the boxes (smaller 11 Nov) – a row made before keeps its old height otherwise
+            plasma(FIND + 'panels().forEach(function (p) { if (isRow(p) && p.height !== %d) p.height = %d; });'
+                   % (ROW_HEIGHT, ROW_HEIGHT))
             if not meta_is_dashboard():
                 meta_dashboard(state)
                 save(state)

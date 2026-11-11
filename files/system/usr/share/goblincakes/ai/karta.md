@@ -175,7 +175,9 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
   lägger dockans program och storlek och Meta på startmenyn tillbaka. Låg något kvar (raden,
   systemfältspanelen, Meta på dashboarden) tas det bort vid inloggningen (`login`). Kolla: `grep -A2 '^\[goblin-dashboard\]'
   ~/.config/kglobalshortcutsrc` och `grep 'activate application launcher' ~/.config/kglobalshortcutsrc` (Meta där =
-  AppGrid). Dashboarden öppnas på huvudskärmen (KWin-skriptet goblincakes-windows, screenOrder[0]). Raden är 75 % av mockupens mått (egenskapen `s` i ClockBox.qml och DeskBox.qml, panelen 64 px).
+  AppGrid). Dashboarden öppnas på huvudskärmen (KWin-skriptet goblincakes-windows, screenOrder[0]).
+  Storleken (11 nov): `s` 0,6 i DeskBox.qml/ClockBox.qml, panelen 52 px (goblincakes-desktop-layout ROW_HEIGHT – `login` rättar
+  höjden). Stil Levande = tonat glas utan ram (widgetarna läser ~/.config/goblincakes/utseende var 5:e s).
 - Nederst i dashboarden: GOBLINCAKES egna program i en rad med små ikoner (dash.py own_apps: Config, Goblin AI,
   GoblinRecorder, GoblinAmp, GoblinShare), under dem programraden = dockans fästa program (delas åt båda hållen: Config →
   DASHBOARD → APPARNA LÄNGST NER ändrar dockan; i upplägget Dashboard listan i desktop-layout.json, som dockan får tillbaka).
