@@ -94,6 +94,9 @@ sys.exit(1 if bad else 0)
 """
 
 
+MISSING_HERE = re.compile(r'module "org\.kde\.[^"]*" is not installed|cannot open shared object file')
+
+
 def check_qml():
     share = ROOT / "files/system/usr/share/goblincakes"
     # Our own windows (PySide6) – not the Plasma parts (lock screen, logout, widgets), which need Plasma's modules
@@ -109,8 +112,13 @@ def check_qml():
                        env=env, timeout=300)
     for line in r.stdout.splitlines():
         if line.startswith("FEL "):
-            errors.append("QML: " + line[4:].replace(str(ROOT) + "/", ""))
-    if r.returncode and not any(e.startswith("QML:") for e in errors):
+            msg = "QML: " + line[4:].replace(str(ROOT) + "/", "")
+            # The machine lacks something the image has (KDE's QML modules, a system library) – not our code
+            if MISSING_HERE.search(msg):
+                warnings.append(msg + " (finns inte på den här maskinen – filen kunde inte provas här)")
+            else:
+                errors.append(msg)
+    if r.returncode and not any(m.startswith("QML:") for m in errors + warnings):
         errors.append("QML-kollen kraschade: " + (r.stderr.strip().splitlines() or ["?"])[-1])
     print(f"  QML: {len(qml)} filer")
 
