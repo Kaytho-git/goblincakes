@@ -1,3 +1,4 @@
+2026-11-11  Dashboarden visar nu GoblinRecorders kontroller ovanför Spelas nu: om OBS är redo, om WoW kör, om stridsloggen skrivs och om något spelas in just nu. Tryck på rutan för att öppna GoblinRecorder.
 2026-11-11  Dashboarden har nu en klocka för notiser bland ikonerna under loggan. En siffra visar hur många nya notiser som kommit sedan du tittade sist; tryck för att se dem och tryck på en notis för att öppna programmet som skickade den.
 2026-11-11  Stil Levande gäller nu också toppfältet och dockan: toppfältet blir tonat glas, dockan får ett svagt ljus och en glöd bakom programmet du har musen över, och låten, Discord-kanalen och kvotstaplarna i toppfältet tonar och glider när de ändras.
 2026-11-11  Dashboarden visar nu musens (och headsetets, tangentbordets, handkontrollens) batteri uppe till höger bredvid klockan – orange under 50 %, rött vid 10 %.

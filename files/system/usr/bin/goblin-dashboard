@@ -156,7 +156,7 @@ class Backend(QObject):
     hideWanted = Signal()
 
     KEYS = ("apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project", "trayBox", "tools",
-            "wow", "cs2", "builds", "reports", "own", "browse", "batteries", "notices")
+            "wow", "cs2", "builds", "reports", "own", "browse", "batteries", "notices", "recorder")
 
     def __init__(self):
         super().__init__()
@@ -177,7 +177,7 @@ class Backend(QObject):
         self.timers = [QTimer(self, interval=ms, timeout=fn) for ms, fn in (
             (2000, self.read_system), (1000, self.read_player), (3000, self.read_windows),
             (30000, self.read_quota), (5000, self.read_tray), (60000, self.read_stats),
-            (30000, self.read_batteries), (5000, self.read_notices))]
+            (30000, self.read_batteries), (5000, self.read_notices), (2000, self.read_recorder))]
 
     # ── Reading in the background ──
     def job(self, key, fn, into=""):
@@ -250,6 +250,10 @@ class Backend(QObject):
         """NOTISER's number (11 Nov) – a small file goblincakes-notifications writes."""
         self.job("notices", (lambda: self.test["notices"]) if "notices" in self.test else dash.notices)
 
+    def read_recorder(self):
+        """GOBLINRECORDER above SPELAS NU (11 Nov) – GoblinRecorder's status file: OBS, WoW, log, recording."""
+        self.job("recorder", (lambda: self.test["recorder"]) if "recorder" in self.test else dash.recorder)
+
     def read_quota(self):
         self.job("quota", (lambda: self.test["quota"]) if "quota" in self.test else dash.quota)
 
@@ -298,6 +302,7 @@ class Backend(QObject):
         self.read_quota()
         self.read_batteries()
         self.read_notices()
+        self.read_recorder()
         self.read_projects()
         QTimer.singleShot(400, self.read_stats)     # after the first picture
         QTimer.singleShot(150, self.read_windows)   # after the programs, for their names and icons

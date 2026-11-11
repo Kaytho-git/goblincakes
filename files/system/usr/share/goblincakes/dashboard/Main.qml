@@ -28,6 +28,7 @@ Window {
     property var projects: []
     property var project: ({})
     property var trayBox: ({})
+    property var recorder: ({})        // GoblinRecorder's checks – OBS, WoW, log, recording (dash.recorder, 11 Nov)
     property var notices: ({})         // {unread, running} – the number on NOTISER (goblincakes-notifications, 11 Nov)
     property var winMenu: null         // right-click on an open program: {id, name, x, y} (Växla till / Stäng)
     property var tools: ({})
@@ -161,7 +162,7 @@ Window {
     Component.onCompleted: {
         for (const k of ["apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project",
                          "trayBox", "tools", "wow", "cs2", "builds", "reports", "own", "browse",
-                         "batteries", "notices"])
+                         "batteries", "notices", "recorder"])
             load(k);
     }
     onVisibleChanged: {
@@ -2677,7 +2678,7 @@ Window {
             }
         }
 
-        // Right: the view's frames, and SPELAS NU at the bottom
+        // Right: the view's frames, GOBLINRECORDER, and SPELAS NU at the bottom
         Item {
             id: rightCol
             readonly property var frames: win.currentView.right.filter(f => win.shows(f))
@@ -2685,19 +2686,117 @@ Window {
             width: 340
             height: parent.height
 
-            // The view's frames to the right (WOW STATS, CS2 STATS, BYGGEN, KAKAN …), SPELAS NU always
+            // The view's frames to the right (WOW STATS, CS2 STATS, BYGGEN, KAKAN …), GOBLINRECORDER and
+            // SPELAS NU always
             FrameColumn {
                 id: statsFlick
-                anchors { top: parent.top; bottom: playFrame.top; bottomMargin: 16 }
+                anchors { top: parent.top; bottom: recFrame.top; bottomMargin: 16 }
                 width: parent.width
                 frames: rightCol.frames
                 firstOrder: leftCol.frames.length + 1
             }
 
+            // GOBLINRECORDER above SPELAS NU (11 Nov, the user's wish): GoblinRecorder's own checks – the same as
+            // the chips in its window. Press = GoblinRecorder opens.
+            Frame {
+                id: recFrame
+                anchors { bottom: playFrame.top; bottomMargin: 16 }
+                G.Rise { order: leftCol.frames.length + 1 + rightCol.frames.length; trigger: win.opened }
+                width: parent.width
+                height: recColumn.implicitHeight + 32
+                readonly property var r: win.recorder
+                readonly property string hint: r.recording ? "Spelar in" + (r.what ? ": " + r.what : r.cs2 ? ": CS2" + (r.cs2Map ? " på " + r.cs2Map : "") : "")
+                                              : r.service === false ? "Inspelningstjänsten är av – tryck för GoblinRecorder"
+                                              : r.wow && !r.logging ? "Skriv /combatlog i WoW:s chatt" : ""
+                Column {
+                    id: recColumn
+                    x: 16
+                    y: 16
+                    width: parent.width - 32
+                    spacing: 4
+                    Heading { text: "GOBLINRECORDER"; bottomPadding: 6 }
+                    Grid {
+                        columns: 2
+                        columnSpacing: 16
+                        Repeater {
+                            model: {
+                                const r = recFrame.r;
+                                const green = "#3FB950", grey = "#2A3852", warn = "#D29922";
+                                return [
+                                    {"k": "OBS",
+                                     "v": ({ connected: "redo", running: "igång", stopped: "av", "no-ws": "starta om",
+                                             missing: "saknas", error: "svarar inte" })[r.obs] || "–",
+                                     "tone": r.obs === "connected" || r.obs === "running" ? green
+                                           : r.obs === "stopped" || !r.obs ? grey : warn},
+                                    {"k": "WoW", "v": r.wow === true ? "kör" : r.wow === false ? "av" : "–",
+                                     "tone": r.wow ? green : grey},
+                                    {"k": "Logg",
+                                     "v": !r.wow ? "–" : r.logging ? "skrivs" + (r.logDelay !== null && r.logDelay !== undefined
+                                                                                  ? " (" + Math.round(r.logDelay) + " s)" : "") : "av",
+                                     "tone": !r.wow ? grey : r.logging ? green : warn},
+                                    {"k": "Spelas in", "v": r.recording ? "ja" : "nej", "tone": r.recording ? "#E5534B" : grey,
+                                     "pulse": !!r.recording}
+                                ];
+                            }
+                            Item {
+                                required property var modelData
+                                width: (recColumn.width - 16) / 2
+                                height: 32
+                                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+                                Rectangle {
+                                    id: recDot
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 8
+                                    height: 8
+                                    color: modelData.tone
+                                    SequentialAnimation on opacity {
+                                        running: !!modelData.pulse && win.visible
+                                        loops: Animation.Infinite
+                                        onRunningChanged: if (!running) recDot.opacity = 1
+                                        NumberAnimation { to: 0.35; duration: 700 }
+                                        NumberAnimation { to: 1; duration: 700 }
+                                    }
+                                }
+                                Text {
+                                    x: 16
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.k
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                }
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: modelData.v
+                                    color: modelData.tone === "#2A3852" ? "#8B98AD" : modelData.tone
+                                    font.family: "IBM Plex Mono"
+                                    font.pixelSize: 12
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        visible: recFrame.hint !== ""
+                        width: parent.width
+                        topPadding: 6
+                        text: recFrame.hint
+                        elide: Text.ElideRight
+                        color: recFrame.r.recording ? "#E5534B" : recFrame.r.service === false ? "#8B98AD" : "#D29922"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: backend.launch("goblin-recorder.desktop")
+                }
+            }
+
             Frame {
                 id: playFrame
                 anchors.bottom: parent.bottom
-                G.Rise { order: leftCol.frames.length + 1 + rightCol.frames.length; trigger: win.opened }
+                G.Rise { order: leftCol.frames.length + 2 + rightCol.frames.length; trigger: win.opened }
                 width: parent.width
                 height: playColumn.implicitHeight + 32
                 readonly property bool has: !!win.player.name

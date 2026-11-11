@@ -1,6 +1,6 @@
 """GOBLINCAKES Dashboard – what the window shows, read without Qt (so it can be tried from a terminal):
 
-    python3 dash.py apps|system|top|player|quota|projects|project <mapp>|browse [mapp]|tray <namn>|notices|bottom|views|config
+    python3 dash.py apps|system|top|player|quota|projects|project <mapp>|browse [mapp]|tray <namn>|notices|recorder|bottom|views|config
     python3 dash.py save < {"views": [...], "apps": [...]}
 
 apps()         the programs in the menu (the same folders as Goblin AI's `program`), with icon and group
@@ -11,6 +11,7 @@ projects()     the folders in Goblin AI's PROJEKT → MAPPAR (~/.config/goblinca
 browse(path)   the dashboard's own folder chooser (+ in PROJEKT); power() = the logout screen
 tray(name)     the rows behind a system tray icon: nätverk, ljud, bluetooth, notiser, urklipp, enheter
 notices()      the notifications (goblincakes-notifications) and how many are unread – the NOTISER icon's number
+recorder()     GoblinRecorder's checks (OBS, WoW, the combat log, recording) – the GOBLINRECORDER frame
 views()        the views (SPEL, JOBB, …) and which frames each shows – chosen in Config → Dashboard
 Only the standard library; every command has a short timeout and a missing program gives an empty answer.
 """
@@ -34,6 +35,9 @@ BATTERY_HELPER = Path(__file__).resolve().parents[3] / "libexec/goblincakes-devi
 # Written by goblincakes-notifications (a user service listening on the session bus) – Plasma's own history
 # can't be read from outside plasmashell
 NOTICES = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / "goblincakes/notiser.json"
+# Written every few seconds by GoblinRecorder's service (libexec/goblincakes-recorder) – the GOBLINRECORDER frame
+RECORDER_STATUS = CACHE / "recorder-status.json"
+OBS_APP = "com.obsproject.Studio"
 
 DATA_DIRS = [Path(p) for p in os.environ.get("GOBLINCAKES_DASHBOARD_APPS", "").split(":") if p] or [
     Path("/usr/share/applications"), Path("/var/lib/flatpak/exports/share/applications"),
@@ -694,6 +698,32 @@ def _notice_rows():
     return [r for r in rows if isinstance(r, dict) and r.get("closed", 0) in (0, 1) and float(r.get("time") or 0) > cleared]
 
 
+def recorder():
+    """GOBLINRECORDER above SPELAS NU (11 Nov, the user's wish): GoblinRecorder's own checks – OBS, WoW, the
+    combat log and whether something is being recorded – read from the service's status file, the same as the
+    recorder window's chips. The service not running → OBS from pgrep/the Flatpak folders, the rest unknown."""
+    try:
+        st = json.loads(RECORDER_STATUS.read_text())
+    except (OSError, ValueError):
+        st = {}
+    alive = bool(st) and time.time() - float(st.get("time") or 0) < 10
+    if alive:
+        obs = st.get("obs") or ""
+    elif not any((d / OBS_APP).is_dir() for d in (Path("/var/lib/flatpak/app"), HOME / ".local/share/flatpak/app")):
+        obs = "missing"
+    else:
+        obs = "running" if run(["pgrep", "-x", "obs"]).strip() else "stopped"
+    current = (st.get("current") or {}) if alive else {}
+    what = current.get("name") or ""
+    if what and current.get("difficulty"):
+        what += f" ({current['difficulty']})"
+    return {"service": alive, "obs": obs, "wow": bool(st.get("wow")) if alive else None,
+            "logging": bool(st.get("logging")) if alive else None,
+            "logDelay": st.get("logDelay") if alive else None,
+            "recording": bool(st.get("recording")) if alive else False, "what": what,
+            "cs2": bool(st.get("cs2")) if alive else False, "cs2Map": st.get("cs2Map") or "" if alive else ""}
+
+
 def notices():
     """{"unread", "running"} – unread = newer than the last time NOTISER was opened (11 Nov). running false = the
     listener has never written anything (the service isn't running), so the box says so."""
@@ -831,6 +861,8 @@ if __name__ == "__main__":
         result = batteries()
     elif what == "notices":
         result = notices()
+    elif what == "recorder":
+        result = recorder()
     elif what == "tray":
         result = tray(sys.argv[2] if len(sys.argv) > 2 else "nätverk")
     elif what == "bottom":
