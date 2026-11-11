@@ -7,3 +7,7 @@ FlatScrollBar 1.0 FlatScrollBar.qml
 Frame 1.0 Frame.qml
 Light 1.0 Light.qml
 Backdrop 1.0 Backdrop.qml
+Glide 1.0 Glide.qml
+FadeText 1.0 FadeText.qml
+RollText 1.0 RollText.qml
+Count 1.0 Count.qml

@@ -1528,11 +1528,11 @@ Window {
                             }
                         }
                     }
-                    // What Levande does so far (steps 2–3 of 7: the transitions and the light)
+                    // What Levande does so far (steps 2–4 of 7: the transitions, the light, the gliding numbers)
                     Text {
                         visible: backend.look === "levande"
                         width: parent.width
-                        text: "Levande byggs i omgångar. Nu: knappar, kryssrutor, reglage och fält tonar mjukt, knapparna trycks ner, ramarna har ett svagt ljus uppifrån och det valda glöder. Siffror som glider och glaset kommer sedan."
+                        text: "Levande byggs i omgångar. Nu: knappar, kryssrutor, reglage och fält tonar mjukt, knapparna trycks ner, ramarna har ett svagt ljus uppifrån och det valda glöder, staplar och siffror glider, klockan rullar och text tonar över. Dashboardens öppning och glaset kommer sedan."
                         color: accent.text
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13

@@ -1626,16 +1626,18 @@ Window {
                         font.letterSpacing: 3
                     }
                     Repeater {
-                        model: [win.modelName(backend.model) + (backend.memoryUse !== "" ? " · " + backend.memoryUse : ""),
+                        id: kakanLines
+                        // a count, not the lines themselves: the rows stay (and fade over, Stil: Levande) when a line changes
+                        readonly property var lines: [win.modelName(backend.model) + (backend.memoryUse !== "" ? " · " + backend.memoryUse : ""),
                                 "minne " + kakanBox.memoryCount + " · lärdomar " + kakanBox.lessonCount,
                                 kakanBox.thinking ? (backend.status || "tänker …") : "redo"]
-                        Text {
-                            required property string modelData
+                        model: 3
+                        G.FadeText {
                             required property int index
                             width: parent.width
                             horizontalAlignment: win.portrait ? Text.AlignHCenter : Text.AlignLeft
                             elide: Text.ElideRight
-                            text: modelData
+                            value: kakanLines.lines[index]
                             color: index === 2 && kakanBox.thinking ? accent.text : "#8B98AD"
                             font.family: "IBM Plex Mono"
                             font.pixelSize: 11
@@ -2623,8 +2625,8 @@ Window {
                                 font.pixelSize: 12
                                 font.letterSpacing: 2
                             }
-                            Text {
-                                text: backend.status || "tänker …"
+                            G.FadeText {   // Stil: Levande – fades over to what she does next
+                                value: backend.status || "tänker …"
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Mono"
                                 font.pixelSize: 12
@@ -3060,6 +3062,7 @@ Window {
                                                     Rectangle {
                                                         visible: (segItem.s.fraction || -1) >= 0
                                                         width: parent.width * Math.max(0, Math.min(1, segItem.s.fraction || 0))
+                                                        G.Glide on width {}
                                                         height: parent.height
                                                         color: accent.color
                                                     }
@@ -6896,6 +6899,7 @@ Window {
                             color: "#1A2438"
                             Rectangle {
                                 width: parent.width * Math.max(0, Math.min(1, win.localFraction))
+                                G.Glide on width {}
                                 height: parent.height
                                 color: accent.color
                             }
@@ -7291,6 +7295,7 @@ Window {
                             color: "#1A2438"
                             Rectangle {
                                 width: parent.width * Math.max(0, Math.min(1, win.imageFraction))
+                                G.Glide on width {}
                                 height: parent.height
                                 color: accent.color
                             }
@@ -7682,9 +7687,9 @@ Window {
                                             font.family: "IBM Plex Mono"
                                             font.pixelSize: 11
                                         }
-                                        Text {
+                                        G.Count {   // Stil: Levande – counts to the new number
                                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                            text: quotaRow.modelData.percent + "%"
+                                            value: quotaRow.modelData.percent; suffix: "%"
                                             color: quotaRow.modelData.percent >= 90 ? accent.errorBright : "#E6ECF5"
                                             font.family: "IBM Plex Mono"
                                             font.pixelSize: 12
@@ -7696,6 +7701,7 @@ Window {
                                         color: "#1E2A40"
                                         Rectangle {
                                             width: parent.width * Math.min(100, quotaRow.modelData.percent) / 100
+                                            G.Glide on width {}
                                             height: parent.height
                                             color: quotaRow.modelData.percent >= 90 ? accent.errorBright : accent.color
                                         }

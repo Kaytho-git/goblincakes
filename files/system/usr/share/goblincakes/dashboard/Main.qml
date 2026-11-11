@@ -424,6 +424,7 @@ Window {
         color: "#1A2438"
         Rectangle {
             width: parent.width * Math.max(0, Math.min(100, parent.percent)) / 100
+            G.Glide on width {}   // Stil: Levande – the bar glides to the new value
             height: parent.height
             color: parent.warn ? "#F06B6B" : accent.color
         }
@@ -690,7 +691,7 @@ Window {
         Column {
             id: clockBox
             anchors { right: parent.right; rightMargin: 24; verticalCenter: parent.verticalCenter }
-            Text {
+            G.RollText {   // Stil: Levande – the digits roll at a new minute
                 anchors.right: parent.right
                 text: Qt.formatTime(win.now, "HH:mm")
                 color: "#E6ECF5"
@@ -897,9 +898,10 @@ Window {
                                 percent: modelData.percent
                                 warn: modelData.percent >= 90
                             }
-                            Text {
+                            G.Count {   // Stil: Levande – counts to the new number
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: modelData.percent + " %"
+                                value: modelData.percent
+                                suffix: " %"
                                 color: "#C3CCDA"
                                 font.family: "IBM Plex Mono"
                                 font.pixelSize: 12
@@ -2604,20 +2606,20 @@ Window {
                             width: parent.width - 98
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 3
-                            Text {
+                            G.FadeText {   // Stil: Levande – fades over to the next song
                                 width: parent.width
                                 elide: Text.ElideRight
-                                text: playFrame.has ? (win.player.title || "Okänd titel") : "Inget spelas"
+                                value: playFrame.has ? (win.player.title || "Okänd titel") : "Inget spelas"
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
                                 font.weight: Font.DemiBold
                                 font.pixelSize: 16
                             }
-                            Text {
+                            G.FadeText {
                                 width: parent.width
                                 elide: Text.ElideRight
                                 visible: playFrame.has
-                                text: win.player.artist || ""
+                                value: win.player.artist || ""
                                 color: "#C3CCDA"
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 13
