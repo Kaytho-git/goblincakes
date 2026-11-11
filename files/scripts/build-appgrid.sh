@@ -136,4 +136,6 @@ cmake --build "$src/build" -j"$(nproc)"
 DESTDIR=/out cmake --install "$src/build"
 mkdir -p /out/usr/share/goblincakes
 echo "square $version" > /out/usr/share/goblincakes/appgrid-build
+# Which Fedora this was built on: check-appgrid.sh stops the build if the image is another one
+rpm -E %fedora > /out/usr/share/goblincakes/appgrid-built-on
 find /out -type f | sort

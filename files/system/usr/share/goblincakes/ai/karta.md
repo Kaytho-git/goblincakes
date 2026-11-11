@@ -78,7 +78,14 @@ Ord: bygget, bygge, build, github actions, misslyckades bygget, byggloggen, ny i
   ett nyare (samma kö) följs det nyare. Claude lämnar också sådana bevakningar efter en push.
 - Felet sitter oftast hos Fedora/Universal Blue (paket som krockar, en server nere) eller i GOBLINCAKES recept/skript
   – du ändrar aldrig koden i repot: förklara och föreslå Skicka till Claude.
-- Kolla: `python3 /usr/share/goblincakes/ai/buildstatus.py`, ~/.local/state/goblincakes/byggstatus.json.
+- Fedora-versionen är låst i recepten (11 nov): recipes/recipe*.yml `image-version` (45 för goblincakes och
+  goblincakes-nvidia-legacy, 44 för goblincakes-nvidia) – en ny Fedora kommer först när användaren höjer siffran.
+  Byggstegen (AppGrid, libratbag) byggs på samma bas: recipes/common-stages.yml (kinoite-main) och
+  recipes/nvidia-stages.yml (kinoite-nvidia), raderna `from:`. Skiljer de sig från receptet stoppas bygget av
+  check-appgrid.sh / check-libratbag.sh ("was built on Fedora X, this image is Fedora Y") – då ska `from:` rättas.
+  Samma skript stoppar bygget om AppGrid inte går att ladda i imagens Qt eller om ratbagd inte startar.
+- Kolla: `python3 /usr/share/goblincakes/ai/buildstatus.py`, ~/.local/state/goblincakes/byggstatus.json;
+  vilken Fedora delarna byggdes på: `cat /usr/share/goblincakes/appgrid-built-on /usr/share/goblincakes/libratbag-built-on`.
 
 ## Kontroll efter uppdatering
 Ord: efter uppdateringen, efterkontroll, gick sönder, slutade fungera, ny image, startar inte efter uppdatering, rollback
@@ -541,6 +548,12 @@ Ord: röst, röstknappen, f8, prata, hör inte, hörde fel, uppläsning, rutan, 
 - Kolla: `systemctl --user status goblincakes-voice`, `journalctl --user -u goblincakes-voice` (raderna "Hörde",
   "Kommandon", "Svar", "Lärde mig"), `/usr/libexec/goblincakes-voice status`, prova hörseln utan knappen:
   `/usr/libexec/goblincakes-voice test 5`.
+- Ny Fedora = ny Python (44 → 45: 3.14 → 3.15): röstens miljö (venv/lib/pythonX.Y) är gjord för den gamla och
+  måste göras om – modellerna ligger kvar. Tjänsten märker det vid inloggning och visar notisen "Kakans röst
+  behöver lagas" med knappen Laga nu (inget hämtas utan knappen; stängd notis = frågar igen nästa inloggning, och
+  tjänsten är då stoppad utan fel). `goblin update` lagar det också (steget Kakans röst).
+  Kolla: `/usr/libexec/goblincakes-voice status` → "stale": true = behöver lagas; `/usr/libexec/goblincakes-voice
+  stale; echo $?` (0 = behöver lagas); laga för hand: `/usr/libexec/goblincakes-voice install`.
 Kontroll: `/usr/libexec/goblincakes-voice status`
 
 - Under spel (7 nov): en fråga som inte är ett kommando ("gear planner funkar inte, kolla det") går till Goblin AI

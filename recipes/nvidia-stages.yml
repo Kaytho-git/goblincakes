@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://schema.blue-build.org/stage-list-v1.json
+# Build stages of goblincakes-nvidia: the same two as common-stages.yml (keep them in step), built on this
+# variant's own base – the same Fedora, KDE and Qt as the image they are copied into (see common-stages.yml).
+# `from:` = recipe-nvidia.yml's base-image and image-version.
+stages:
+  # AppGrid with square corners (files/scripts/build-appgrid.sh)
+  - name: appgrid-square
+    from: ghcr.io/ublue-os/kinoite-nvidia:44
+    modules:
+      - type: script
+        scripts:
+          - build-appgrid.sh
+
+  # Newer libratbag for Piper (files/scripts/build-libratbag.sh)
+  - name: libratbag-git
+    from: ghcr.io/ublue-os/kinoite-nvidia:44
+    modules:
+      - type: script
+        scripts:
+          - build-libratbag.sh

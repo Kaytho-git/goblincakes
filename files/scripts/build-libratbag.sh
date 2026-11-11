@@ -23,6 +23,10 @@ meson setup "$src/build" "$src" --prefix=/usr --sbindir=bin --libdir=lib64 \
 ninja -C "$src/build"
 DESTDIR=/out meson install -C "$src/build"
 
+# Which Fedora this was built on: check-libratbag.sh stops the build if the image is another one
+mkdir -p /out/usr/share/goblincakes
+rpm -E %fedora > /out/usr/share/goblincakes/libratbag-built-on
+
 # Only what ratbagd and Piper need: no headers or development files
 rm -rf /out/usr/include /out/usr/lib64/pkgconfig
 ls /out/usr/share/libratbag | grep -c '\.device$'

@@ -190,6 +190,16 @@ update_ollama() {
     return "$rc"
 }
 
+update_voice() {
+    # Kakan's voice (Goblin AI → Röst): its Python environment was made for the Python of the Fedora it was
+    # installed on – after a new Fedora with a newer Python it is made again here (the models stay)
+    [ -x "${XDG_DATA_HOME:-$HOME/.local/share}/goblincakes-voice/venv/bin/python3" ] || return 0
+    /usr/libexec/goblincakes-voice stale || return 0
+    heading "Kakans röst"
+    /usr/libexec/goblincakes-voice install | sed -n 's/^@@ //p' | while IFS= read -r line; do info "$line"; done
+    return "${PIPESTATUS[0]}"
+}
+
 update_firmware() {
     command -v fwupdmgr >/dev/null || return 0
     heading "Firmware"
@@ -250,7 +260,7 @@ print(skipped)'
 }
 
 cmd_update() {
-    # --gui: lines for GOBLINCAKES Config. --only system,flatpak,appimages,vscode,chatgpt,discord,kitty,proton,ollama,firmware:
+    # --gui: lines for GOBLINCAKES Config. --only system,flatpak,appimages,vscode,chatgpt,discord,kitty,proton,ollama,voice,firmware:
     # just those parts (Config → Uppdatera updates each part on its own, 11 Oct)
     local only=""
     while [ $# -gt 0 ]; do
@@ -278,6 +288,7 @@ cmd_update() {
     part kitty && step "Kitty" update_kitty
     part proton && step "GE-Proton" update_proton
     part ollama && step "Lokal AI" update_ollama
+    part voice && step "Kakans röst" update_voice
     # GTK theme copy for Flatpak programs (Quod Libet): follow the theme in the image
     [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/themes/GoblinCakes" ] && "$config_install" gtk-theme >/dev/null 2>&1
     part firmware && step "Firmware" update_firmware

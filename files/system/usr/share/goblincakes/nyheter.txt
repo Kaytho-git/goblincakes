@@ -1,3 +1,5 @@
+2026-11-11  En ny Fedora-version kommer nu först när den är provad: GOBLINCAKES stannar på sin Fedora-version tills den höjs med flit, i stället för att byta av sig själv en dag. Säkerhetsuppdateringarna kommer som vanligt.
+2026-11-11  Kakans röst klarar att systemet får en ny Python-version (det händer med en ny Fedora): hon säger till med en notis där du trycker Laga nu, och goblin update lagar det också. Förut slutade röstknappen bara att fungera.
 2026-11-11  Dashboarden visar nu GoblinRecorders kontroller ovanför Spelas nu: om OBS är redo, om WoW kör, om stridsloggen skrivs och om något spelas in just nu. Tryck på rutan för att öppna GoblinRecorder.
 2026-11-11  Dashboarden har nu en klocka för notiser bland ikonerna under loggan. En siffra visar hur många nya notiser som kommit sedan du tittade sist; tryck för att se dem och tryck på en notis för att öppna programmet som skickade den.
 2026-11-11  Stil Levande gäller nu också toppfältet och dockan: toppfältet blir tonat glas, dockan får ett svagt ljus och en glöd bakom programmet du har musen över, och låten, Discord-kanalen och kvotstaplarna i toppfältet tonar och glider när de ändras.

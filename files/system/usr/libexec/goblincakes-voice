@@ -5,6 +5,8 @@
     goblincakes-voice install                 Python environment (faster-whisper + Piper) and the models
                                               into ~/.local/share/goblincakes-voice (~1 GB)
     goblincakes-voice uninstall               everything above
+    goblincakes-voice stale                   exit 0 when the environment was made for another Python than the
+                                              system's now (a new Fedora) – install makes it again (goblin update)
     goblincakes-voice record <wav> [seconds]  the microphone, 16 kHz mono (without seconds: until Ctrl+C/SIGTERM)
     goblincakes-voice hear <wav>              speech → text: JSON {text, load, seconds}
     goblincakes-voice test [seconds]          record (default 5 s), then hear – prints the text and the times
@@ -151,7 +153,11 @@ SAY_AS = [
 ]
 
 
+LAST_SAID = [""]   # the newest line for the window – the repair notice tells why it failed
+
+
 def say(text):
+    LAST_SAID[0] = text
     print(f"@@ {text}", flush=True)
 
 
@@ -183,8 +189,22 @@ def piper_file(name):
     return MODELS / "piper" / (PIPER_VOICES[name].rsplit("/", 1)[1] + ".onnx")
 
 
+def venv_ok():
+    """The environment belongs to the Python that runs now. Its python3 is a link to the system's and its packages
+    live in lib/pythonX.Y: after a Fedora with a newer Python (44 → 45: 3.14 → 3.15) the link runs the new one,
+    which finds none of them – the service started, crashed and was started again every 10 s, saying nothing.
+    The two packages themselves are looked for: an environment made again whose download failed is not ready."""
+    site = VENV / f"lib/python{sys.version_info[0]}.{sys.version_info[1]}/site-packages"
+    return (site / "faster_whisper").is_dir() and (site / "piper").is_dir()
+
+
+def stale():
+    """Installed, but for another Python: only the environment has to be made again (the models stay)."""
+    return PY.is_file() and not venv_ok()
+
+
 def installed():
-    return (PY.is_file() and all((whisper_dir() / f).is_file() for f in WHISPER_FILES)
+    return (PY.is_file() and venv_ok() and all((whisper_dir() / f).is_file() for f in WHISPER_FILES)
             and all(piper_file(n).is_file() and piper_file(n).with_suffix(".onnx.json").is_file()
                     for n in PIPER_VOICES))
 
@@ -216,6 +236,7 @@ def cmd_status():
     data = load()
     print(json.dumps({
         "installed": installed(),
+        "stale": stale(),   # made for another Python (a new Fedora): install makes the environment again
         "dir": str(DIR),
         "size": tree_size(DIR) if DIR.exists() else 0,
         "whisper": WHISPER,
@@ -248,12 +269,13 @@ def fetch(url, dest, what):
     tmp.replace(dest)
 
 
-def cmd_install():
+def cmd_install(restart=True):
     try:
-        if not PY.is_file():
-            say("Skapar Python-miljön…")
+        if not PY.is_file() or stale():
+            # --clear: an environment of another Python is emptied first (the models are beside it, not in it)
+            say("Python har bytt version – gör om Python-miljön…" if stale() else "Skapar Python-miljön…")
             DIR.mkdir(parents=True, exist_ok=True)
-            r = subprocess.run([sys.executable, "-m", "venv", str(VENV)], capture_output=True, text=True)
+            r = subprocess.run(["/usr/bin/python3", "-m", "venv", "--clear", str(VENV)], capture_output=True, text=True)
             if r.returncode != 0:
                 raise RuntimeError("Kunde inte skapa Python-miljön: " + r.stderr.strip()[-300:])
         say("Installerar tal till text och uppläsning (faster-whisper, Piper)…")
@@ -261,26 +283,59 @@ def cmd_install():
                            capture_output=True, text=True)
         if r.returncode != 0:
             raise RuntimeError("pip misslyckades: " + (r.stderr.strip().splitlines() or ["okänt fel"])[-1])
-        say("Hämtar den svenska taligenkänningen (KBLab)…")
+        # Said only when something is fetched: after a new Python only the environment was made again
+        said = set()
+
+        def once(text):
+            if text not in said:
+                said.add(text)
+                say(text)
         for f in WHISPER_FILES:
             if not (whisper_dir() / f).is_file():
+                once("Hämtar den svenska taligenkänningen (KBLab)…")
                 fetch(f"{HF}/{WHISPER_REPO}/resolve/main/{f}", whisper_dir() / f, WHISPER)
-        say("Hämtar den större taligenkänningen för frågor (1,5 GB)…")
         for f in WHISPER_FILES:
             if not (whisper_dir(True) / f).is_file():
+                once("Hämtar den större taligenkänningen för frågor (1,5 GB)…")
                 fetch(f"{HF}/{WHISPER_BIG_REPO}/resolve/main/{f}", whisper_dir(True) / f, WHISPER_BIG)
-        say("Hämtar rösterna…")
         for name, path in PIPER_VOICES.items():
             for ext in (".onnx", ".onnx.json"):
                 dest = piper_file(name).with_suffix(ext)
                 if not dest.is_file():
+                    once("Hämtar rösterna…")
                     fetch(f"{HF}/rhasspy/piper-voices/resolve/main/{path}{ext}", dest, name)
     except RuntimeError as e:
         say(str(e))
         return 1
-    subprocess.run(["systemctl", "--user", "restart", "goblincakes-voice.service"], capture_output=True)
+    if restart:
+        subprocess.run(["systemctl", "--user", "restart", "goblincakes-voice.service"], capture_output=True)
     say("Rösten är installerad.")
     return 0
+
+
+def offer_repair():
+    """The service found the environment made for another Python (a new Fedora). Nothing is fetched by itself: a
+    notice with a button; pressed = the environment is made again (the packages, ~250 MB – the models stay).
+    True when the voice works again. Closed without the button = asked again at the next login."""
+    version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    print(f"Röstens Python-miljö är gjord för en annan Python än {version} – frågar om den ska göras om.", flush=True)
+    try:
+        chosen = subprocess.run(
+            ["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", "-t", "0", "-A", "repair=Laga nu",
+             "Kakans röst behöver lagas",
+             f"Systemet har fått en ny Python-version ({version}) och röstens delar måste hämtas om (ca 250 MB, "
+             "tar någon minut). Röstknappen fungerar inte förrän det är gjort. Går också med goblin update."],
+            capture_output=True, text=True, check=False).stdout.strip()
+    except OSError:
+        chosen = ""
+    if chosen != "repair":
+        print("Inte lagad nu – frågar igen vid nästa inloggning (eller: goblin update).", flush=True)
+        return False
+    ok = cmd_install(restart=False) == 0 and installed()
+    notify("Kakans röst fungerar igen" if ok else "Kakans röst gick inte att laga",
+           "Håll röstknappen och prata." if ok else
+           f"{LAST_SAID[0]} Försök igen med goblin update eller Goblin AI → Inställningar → Röst.")
+    return ok
 
 
 def cmd_uninstall():
@@ -1145,6 +1200,8 @@ class Listener:
 
 def cmd_listen():
     discord_unmute()                       # left from a crash while the key was held
+    if stale() and not offer_repair():
+        return 0                           # not a failure: systemd doesn't start it again (asked at the next login)
     if not installed():
         print("Rösten är inte installerad (goblincakes-voice install).", file=sys.stderr)
         return 1
@@ -1174,6 +1231,7 @@ def main(argv):
         "status": lambda: cmd_status(),
         "install": lambda: cmd_install(),
         "uninstall": lambda: cmd_uninstall(),
+        "stale": lambda: 0 if stale() else 1,
         "record": lambda: cmd_record(rest),
         "hear": lambda: cmd_hear(rest),
         "test": lambda: cmd_test(rest),

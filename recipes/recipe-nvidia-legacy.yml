@@ -8,7 +8,11 @@ name: goblincakes-nvidia-legacy
 description: GOBLINCAKES - Fedora Kinoite with Nvidia's legacy driver (GTX 900/10), gaming, WoW and Ianseo tools
 
 base-image: ghcr.io/ublue-os/kinoite-main
-image-version: latest
+# The Fedora version is locked (11 Nov, the user's decision): a new Fedora comes when this number is
+# raised on purpose, not the day Universal Blue moves "latest". Raise it together with the `from:` lines
+# in common-stages.yml (the build stops if they differ) – goblincakes-nvidia first (the user's own computer),
+# the others when it has been tried there.
+image-version: 45
 
 stages:
   - from-file: common-stages.yml

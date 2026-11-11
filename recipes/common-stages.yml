@@ -1,10 +1,15 @@
 # yaml-language-server: $schema=https://schema.blue-build.org/stage-list-v1.json
-# Build stages shared by both variants: run separately, only their results are copied into the image
+# Build stages of goblincakes and goblincakes-nvidia-legacy (both on kinoite-main): run separately, only
+# their results are copied into the image. goblincakes-nvidia has the same two in nvidia-stages.yml, built on
+# its own base – keep the two files in step.
+# `from:` = the recipe's base-image and image-version (11 Nov: the stages were built on kinoite-main:latest
+# for every variant – Fedora 45 – while goblincakes-nvidia still was Fedora 44, so its AppGrid and ratbagd
+# were compiled on another Fedora than they ran on). The scripts write down which Fedora they were built
+# on, and check-appgrid.sh / check-libratbag.sh stop the build if the image is another one.
 stages:
-  # AppGrid with square corners (files/scripts/build-appgrid.sh). Built on the
-  # AMD/Intel base – KDE and Qt are the same in both variants.
+  # AppGrid with square corners (files/scripts/build-appgrid.sh)
   - name: appgrid-square
-    from: ghcr.io/ublue-os/kinoite-main:latest
+    from: ghcr.io/ublue-os/kinoite-main:45
     modules:
       - type: script
         scripts:
@@ -13,7 +18,7 @@ stages:
   # Newer libratbag for Piper (files/scripts/build-libratbag.sh): Logitech G502 X Plus,
   # G502 X Wireless through its receiver – not in Fedora's libratbag 0.18
   - name: libratbag-git
-    from: ghcr.io/ublue-os/kinoite-main:latest
+    from: ghcr.io/ublue-os/kinoite-main:45
     modules:
       - type: script
         scripts:

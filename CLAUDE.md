@@ -9,7 +9,7 @@ Personlig Linux-distro byggd med **BlueBuild**, Fedora Kinoite (KDE Plasma 6) vi
 - `goblincakes-nvidia-legacy` (Nvidias 580-drivrutin för GTX 900/10, `files/scripts/install-nvidia-legacy.sh`).
 Images `ghcr.io/kaytho-git/<variant>:latest`. Byte i GOBLINCAKES Config → Grafik (`goblincakes-gpu`).
 
-**Recepten:** `recipes/recipe*.yml` har bara namn/bas; innehållet i `recipes/common-modules.yml` (moduler) och `recipes/common-stages.yml` (byggsteg) – ändra där. Bygget: `.github/workflows/build.yml` (matris, cosign, dagligen 06:00 UTC; BuildKit från `mirror.gcr.io`). Kör inte om ett äldre bygge när ett nyare finns (samma concurrency-grupp). Andra flöden: `build-iso.yml` (ISO, söndagar, release `iso`), `build-usb-creator.yml` (release `usb-skaparen`), `build-firefox-theme.yml`, `build-chrome-theme.yml` (Chrome-tema, release `chrome-tema` – höj `version` i manifesten vid ändring).
+**Recepten:** `recipes/recipe*.yml` har bara namn/bas/Fedora-version; innehållet i `recipes/common-modules.yml` (moduler) och byggstegen i `recipes/common-stages.yml` (goblincakes + legacy) och `recipes/nvidia-stages.yml` (Nvidia) – håll de två i takt, `from:` = receptets bas och version. Bygget: `.github/workflows/build.yml` (matris, cosign, dagligen 06:00 UTC; BuildKit från `mirror.gcr.io`). Kör inte om ett äldre bygge när ett nyare finns (samma concurrency-grupp). Andra flöden: `build-iso.yml` (ISO, söndagar, release `iso`), `build-usb-creator.yml` (release `usb-skaparen`), `build-firefox-theme.yml`, `build-chrome-theme.yml` (Chrome-tema, release `chrome-tema` – höj `version` i manifesten vid ändring).
 
 Allt om frugans laptop: `~/.local/share/goblincakes/frugans-laptop.md` på användarens dator – **privat, aldrig i repot** (finns inte i molnsessioner; uppdatera den när något ändras på hennes dator; uppkopplad till henne → kör först dess insamlingsavsnitt om det finns kvar). Användaren kör GOBLINCAKES på riktiga datorn (Claude Code körs där – prova direkt), har VS Code, redigerar ibland på GitHub. Nybörjare på Git – förklara kort.
 
@@ -51,6 +51,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 ## Beslut (kort – motiveringar i anteckningarna)
 - Grundinstallationen enkel: resten väljs i GOBLINCAKES Config. Undantag: Steam i imagen (RPM). Inte VS Code/Wine/snapd/kalenderpaket i imagen.
 - Atomiskt, rollback ska fungera, Fedoras standardkärna, inte baserat på Bazzite.
+- Fedora-versionen är låst i recepten (`image-version`, 11 nov): höjs bara när användaren säger det – `goblincakes-nvidia` först (hens dator), de andra när det är provat där (grep "Fedora-låset" i anteckningarna).
 - Discord = Discords egen Linux-version (inte Flatpak). Ghostty standardterminal (Konsole valbar).
 - ISO: en stor live-ISO per variant (vanlig + Nvidia), installerar utan internet; USB-skaparen hämtar den från releasen.
 - Ianseo lokalt som standard; nätverk och internet (Cloudflare-tunnel + lösenord) som reglage.

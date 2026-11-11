@@ -11,6 +11,7 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 - [x] Mätningar på frugans laptop i vila (11 nov, via GoblinShare)
 - [ ] Mätningar under spel på användarens dator (M2, M4, M9 – användaren säger till när spelet är igång); laptopen har inget spel än
 - [x] Sortering + topp 5 (står före Mätningar)
+- [x] Byggt: P20, P22, P24 (11 nov, Fable – ej pushat; provas av första bygget + testlistan `fedora-las-rost.md`)
 
 Punkterna har fasta nummer (P1, P2 …) i den ordning de hittades, så att "Bygg punkt P3" alltid betyder samma sak. Den sorterade listan (mest värt först) och topp 5 står efter område 5, före Mätningar. När en punkt är byggd: bocka av den i den sorterade listan och för in "efter"-värdet under rätt M-nummer.
 
@@ -272,6 +273,7 @@ Läget är bättre än väntat: alla 193 Python-, skal- och JSON-filer klarar sy
 Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och ett sådant pågår nu (basen och legacy är på Fedora 45, `goblincakes-nvidia` på 44).
 
 ### P20 – AppGrid och libratbag byggs på Fedora 45 men läggs i Fedora 44-imagen
+- **BYGGD 11 nov (Fable, användaren: ja).** `recipes/nvidia-stages.yml` (ny, bas `kinoite-nvidia:44`) + `common-stages.yml` (`kinoite-main:45`); stegen skriver vilken Fedora de byggdes på och `check-appgrid.sh` / nya `check-libratbag.sh` stoppar bygget om imagen är en annan; AppGrid laddas på riktigt med `QPluginLoader`, ratbagd startas. Provat här mot den installerade imagen och med låtsad skillnad 45/44. **Kvar:** första bygget på GitHub efter push är det riktiga provet (testlistan `fedora-las-rost.md`). Detaljer: grep "Fedora-låset" i anteckningarna.
 - **Vad:** Byggstegen i `recipes/common-stages.yml:7` och `:16` byggs alltid på `kinoite-main:latest`, oavsett variant. Kommentaren säger "KDE and Qt are the same in both variants" – det stämmer inte under ett Fedora-hopp: i dag är `kinoite-main` Fedora 45 (kärna 7.3.3.fc45) och `kinoite-nvidia` Fedora 44 (sett med `skopeo`, M17). Användarens egen dator kör alltså AppGrid och ratbagd kompilerade på Fedora 45 i en Fedora 44-image. Just nu fungerar det (båda har Qt 6.11; ratbagd kräver högst GLIBC 2.38). Skyddet `files/scripts/check-appgrid.sh:16`–`:22` kollar bara med `ldd` att biblioteken finns – inte att Qt går med på att ladda ett tillägg byggt mot en nyare Qt (det vägrar Qt), och för libratbag finns ingen koll alls.
 - **Förslag:** bygg stegen på samma bas som varianten (en egen stages-fil för Nvidia med `from: ghcr.io/ublue-os/kinoite-nvidia:latest`). Bonus: Nvidia-bygget slipper hämta en extra basimage (213 s, se P13). Och låt kollen ladda tillägget på riktigt (`QPluginLoader` via PySide6) + köra `ratbagd --version`.
 - **Vinst:** ingen risk att toppfältet står utan programmeny eller att Piper slutar hitta musen på Nvidia-varianten den dag Fedora 45 får en nyare Qt/glibc än 44. Snabbare Nvidia-bygge.
@@ -292,6 +294,7 @@ Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och e
 - **Mät efteråt:** –
 
 ### P22 – Kakans röst slutar fungera när Fedora byter Python-version
+- **BYGGD 11 nov (Fable, användaren: ja).** Tjänsten märker en miljö gjord för en annan Python och visar notisen "Kakans röst behöver lagas" med knappen Laga nu (inget hämtas utan knappen, ingen omstartsslinga); `goblin update` lagar också (steget Kakans röst). Provat i en tillfällig mapp med en låtsas-miljö för Python 3.13: upptäckt, riktig ombyggnad med pip, `goblin update --only voice`. **Kvar:** den riktiga notisen och ett riktigt Fedora-hopp (när Nvidia-varianten höjs till 45).
 - **Vad:** Röstens Python-miljö (`~/.local/share/goblincakes-voice/venv`) pekar på systemets `/usr/bin/python3` men har sina paket i `lib/python3.14/` (sett). När en ny Fedora kommer med Python 3.15 hittar den inga paket. `installed()` (`usr/libexec/goblincakes-voice:186`–`:189`) tittar bara efter filerna, så tjänsten startar, kraschar och startas om var 10:e sekund (`Restart=on-failure`) – utan att något säger varför.
 - **Förslag:** `installed()` kollar också att miljön hör till den Python som körs (`venv/lib/pythonX.Y` finns); annars bygger `goblin update`/tjänsten om miljön (modellerna ligger kvar, bara paketen hämtas om) eller säger till med en notis.
 - **Vinst:** rösten överlever Fedora-hoppet på användarens dator (Nvidia-varianten går till 45 när Universal Blue släpper den).
@@ -312,6 +315,7 @@ Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och e
 - **Mät efteråt:** M19.
 
 ### P24 – Fedora-hoppet kommer av sig självt
+- **BESLUTAT OCH BYGGT 11 nov (användaren: "Ja, lås", "från och med 45").** `image-version: 45` i `recipe.yml` och `recipe-nvidia-legacy.yml`, `44` i `recipe-nvidia.yml` (det användarens dator kör). Hur ett hopp görs står i CLAUDE.md (Beslut) och anteckningarna ("Fedora-låset"): Nvidia-varianten först, de andra när det är provat där.
 - **Vad:** Alla tre recepten har `image-version: latest` (`recipes/recipe*.yml`), och uppdateringarna förbereds automatiskt (`AutomaticUpdates: stage`). När Universal Blue flyttar `latest` till nästa Fedora följer GOBLINCAKES med samma dag och nästa omstart startar i den – notisen (`goblincakes-fedora-check`) hinner i praktiken bara berätta det. Så gick det 9 nov: laptopen (legacy, Nvidia 580 – enligt `frugans-laptop.md` inte provad på Fedora 45) fick Fedora 45 förberett utan att någon valt det. Det är ett medvetet upplägg ("GOBLINCAKES' daily build follows"), och rollback finns – men den svagaste datorn blir först ut som provdator.
 - **Förslag (användarens beslut):** lås recepten vid en Fedora-version (`image-version: 45`/`44`) och höj med flit när användaren provat på sin egen dator – de dagliga byggena fortsätter ge säkerhetsuppdateringar inom versionen. Eller behåll `latest` men låt legacy-varianten ligga ett steg efter.
 - **Vinst:** inga överraskande Fedora-hopp på frugans dator; hoppet görs när det passar.
@@ -336,8 +340,8 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [ ] | 3 | **P2** GoblinRecorder-tjänstens `pgrep` och loggläsning | 2 % i vila (användarens dator); under spel ej mätt än | låg–medel | liten |
 | [ ] | 4 | **P3** GoblinRecorder-fönstrets `flatpak info` | 1,4 % (användarens dator) | låg | liten |
 | [ ] | 5 | **P15** Kontroll före bygget | färre trasiga images, kopiorna kan inte glida isär | låg | liten |
-| [ ] | 6 | **P20** Byggstegen på rätt Fedora-bas | ingen trasig programmeny/Piper vid Fedora-hopp, snabbare Nvidia-bygge | låg | liten |
-| [ ] | 7 | **P22** Rösten och ny Python-version | rösten överlever Fedora 45 på användarens dator | låg | liten |
+| [x] | 6 | **P20** Byggstegen på rätt Fedora-bas (byggd 11 nov) | ingen trasig programmeny/Piper vid Fedora-hopp, snabbare Nvidia-bygge | låg | liten |
+| [x] | 7 | **P22** Rösten och ny Python-version (byggd 11 nov) | rösten överlever Fedora 45 på användarens dator | låg | liten |
 | [ ] | 8 | **P18** Färdigkompilerade Python-filer | CS2-demon 1–1,5 s fortare, fönster 0,05 s fortare | låg | liten |
 | [ ] | 9 | **P5** Spelletandet (steg 1: snabbare läsning) | 1–1,5 % av en kärna, båda datorerna | låg | liten |
 | [ ] | 10 | **P4** goblin graph-vaktens `pw-dump` | 1 % + lugnare ljudserver (användarens dator) | låg | liten |
@@ -345,7 +349,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [ ] | 12 | **P9** Inloggningens hjälpprogram | 1–3 s mindre arbete vid inloggning | låg | liten |
 | [ ] | 13 | **P21** Första-inloggningen skriver "klart" vid fel | ny layout når säkert fram | låg–medel | liten |
 | [ ] | 14 | **P7** Småsaker i bakgrunden (6 st) | några MB och uppvaknanden, renare processlista | låg | liten |
-| [ ] | 15 | **P24** Fedora-hoppet kommer av sig självt | inga överraskande hopp på frugans dator (beslut) | låg | liten |
+| [x] | 15 | **P24** Fedora-hoppet kommer av sig självt (låst 11 nov) | inga överraskande hopp på frugans dator (beslut) | låg | liten |
 | [ ] | 16 | **P11** Nvidia-modulerna i tidig uppstart | upp till 5–10 s snabbare start (laptopen mest) | hög | medel |
 | [ ] | 17 | **P23** QML-cachen används inte | Goblin AI öppnas 0,5–1 s fortare | medel | medel |
 | [ ] | 18 | **P16** Kopierade QML-komponenter | lättare underhåll | låg–medel | liten–medel |

@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://schema.blue-build.org/module-list-v1.json
-# Everything both GOBLINCAKES variants have (recipe.yml = AMD/Intel, recipe-nvidia.yml = Nvidia).
+# Everything all GOBLINCAKES variants have (recipe.yml = AMD/Intel, recipe-nvidia.yml = Nvidia,
+# recipe-nvidia-legacy.yml = older Nvidia cards).
 modules:
   # Copies everything in files/system/ into the image root
   - type: files
@@ -96,6 +97,11 @@ modules:
     from: libratbag-git
     src: /out/
     dest: /
+
+  # Stops the build if ratbagd from that stage can't start in this image
+  - type: script
+    scripts:
+      - check-libratbag.sh
 
   # Fedora programs GOBLINCAKES replaces (Konsole, Discover, Welcome …) out of AppGrid –
   # still installed; "goblin apps" lists them and shows one again
