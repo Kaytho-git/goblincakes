@@ -168,6 +168,7 @@ Mätt (M10, M11). Användarens dator: från strömknapp till skrivbord 43 s, var
 - **Storlek:** (a) liten, (b) medel + prov på båda Nvidia-datorerna.
 - **Kan provas:** bara på riktiga datorn. Går troligen att prova på **en** dator utan ny image: `rpm-ostree initramfs --enable` med egna dracut-växlar bygger en lokal initramfs och `--disable` tar bort den igen (Opus bekräftar växlarna först) – användarens dator före laptopen.
 - **Mät efteråt:** M11.
+- **Byggt 12 nov – bara (a):** `files/system/usr/lib/dracut/dracut.conf.d/99-zz-goblincakes-no-peermem.conf` läses efter `99-nvidia.conf` (bokstavsordning, båda källas av dracut som bash) och tar bort just `nvidia_peermem` ur `force_drivers` (`${force_drivers//nvidia_peermem/}`) + `omit_drivers`. Resten av Universal Blues lista lämnas – ändrar de den följer den med. Utan Nvidia-filen (basvarianten) gör filen inget. Initramfs byggs om av `type: initramfs` sist i `common-modules.yml` (efter `files`). Provat: filerna källade i bash → listan utan peermem, tom utan Nvidia-filen; `check.py` 0 fel. Ej provat: riktig initramfs/uppstart – testlista `p11a-peermem.md` efter nästa image. **(b) struken** (användaren 12 nov): några sekunder är inte värda risken för svart skärm (tajmingen inloggningsskärm/drivrutin). Ta inte upp den igen om användaren inte frågar.
 
 **Granskat utan anmärkning (område 2):** `goblincakes-firstlogin` avslutar direkt när layouten är samma (två filläsningar); `goblincakes-refresh.sh` kostar lite (kontrollsumman över temafilerna 6 ms, `kreadconfig6` 6 ms styck, färgvalet 89 ms bara för den som valt färg); `goblincakes-disk-owner` väntar 2 s med flit; Steam-väntan har tak på 30 s; `goblincakes-variant-sync` körs bara tills den lyckats en gång. `NetworkManager-wait-online` (5,2 s) och `plasma-kded6` (3,3 s) är Fedoras/Plasmas egna och stoppar inte inloggningsskärmen. Ianseos containrar väntar på nätverket (4,5 s) – bara för den som har Ianseo.
 
@@ -362,7 +363,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [ ] | 13 | **P21** Första-inloggningen skriver "klart" vid fel | ny layout når säkert fram | låg–medel | liten |
 | [ ] | 14 | **P7** Småsaker i bakgrunden (6 st) | några MB och uppvaknanden, renare processlista | låg | liten |
 | [x] | 15 | **P24** Fedora-hoppet kommer av sig självt (låst 11 nov) | inga överraskande hopp på frugans dator (beslut) | låg | liten |
-| [ ] | 16 | **P11** Nvidia-modulerna i tidig uppstart | upp till 5–10 s snabbare start (laptopen mest) | hög | medel |
+| [x] | 16 | **P11** (bara (a) byggd 12 nov; (b) struken – användaren: risken för stor för några sekunder) Nvidia-modulerna i tidig uppstart | renare logg (a); (b) hade gett 5–10 s | låg | liten |
 | [ ] | 17 | **P23** QML-cachen används inte | Goblin AI öppnas 0,5–1 s fortare | medel | medel |
 | [ ] | 18 | **P16** Kopierade QML-komponenter | lättare underhåll | låg–medel | liten–medel |
 | [ ] | 19 | **P14** Småsaker i bygget | färre tysta fel, färre onödiga byggen | låg | liten |
