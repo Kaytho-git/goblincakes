@@ -8,7 +8,8 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 - [x] Område 3 – Image och bygge (punkt 12–14)
 - [x] Område 4 – Kodkvalitet och underhåll (punkt 15–19)
 - [x] Område 5 – Fel och risker (punkt 20–24)
-- [ ] Mätningar på frugans laptop (bara användarens dator är mätt hittills – se Mätningar sist)
+- [x] Mätningar på frugans laptop i vila (11 nov, via GoblinShare)
+- [ ] Mätningar under spel på båda datorerna (M2, M4, M9 – användaren säger till när spelet är igång)
 - [ ] Sortering + topp 5 (görs sist)
 
 Punkterna har fasta nummer (P1, P2 …) i den ordning de hittades, så att "Bygg punkt P3" alltid betyder samma sak. Den sorterade listan (mest värt först) och topp 5 kommer sist i filen när allt är granskat.
@@ -277,7 +278,7 @@ Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och e
 - **Mät efteråt:** M17 + `cat /usr/share/goblincakes/appgrid-build`.
 
 ### P21 – Första-inloggningen skriver "klart" även när den misslyckades
-- **Vad:** `usr/libexec/goblincakes-firstlogin` saknar felkontroll: `plasma-apply-lookandfeel` (rad 102–103) körs 3 s efter inloggning, och oavsett om det gick skrivs `LAYOUT_VERSION` till klar-filen (rad 164–165). Samma sak för systemfältet (`trim_systray`, rad 23–30: märket skrivs även om alla tio försök misslyckades). På en långsam dator (laptopen hade 7 min uppstart på hårddisken) hinner Plasma inte upp på 3 s → den nya layouten kommer aldrig, och inget syns i någon logg.
+- **Vad:** `usr/libexec/goblincakes-firstlogin` saknar felkontroll: `plasma-apply-lookandfeel` (`:92`–`:93`) körs 3 s efter inloggning (`:59`), och oavsett om det gick skrivs `LAYOUT_VERSION` till klar-filen (`:165`). Samma sak för systemfältet (`trim_systray`, `:23`–`:30`: märket skrivs även om alla tio försök misslyckades). På en långsam dator (laptopen hade 7 min uppstart på hårddisken) hinner Plasma inte upp på 3 s → den nya layouten kommer aldrig, och inget syns i någon logg.
 - **Förslag:** skriv märket bara när kommandot lyckades (annars nytt försök vid nästa inloggning), och vänta på att plasmashell svarar i stället för fasta 3 s.
 - **Vinst:** en ny layoutversion når säkert fram även på en seg start.
 - **Säkerhet:** sett (läst i koden). Att det faktiskt hänt: vet inte.
@@ -322,7 +323,13 @@ Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och e
 
 ## Mätningar
 
-Kommandona kan köras igen precis som de står. På laptopen: först `ssh frugans-laptop` (eller klistra in i hennes terminal). M1–M3 är hela block – klistra in allt mellan strecken. Räkna bort rader med `sshd` om de dyker upp.
+Kommandona kan köras igen precis som de står – i en terminal på datorn, eller från användarens dator med `ssh victoria '<kommandot>'` medan GoblinShare-terminalen till laptopen är öppen (aliaset heter `victoria`, se `~/.ssh/goblinshare.conf`). Varje block är ett enda kommando – klistra in hela. Rader med `sshd`, `bash -s` och GoblinShares hjälpsession räknas bort.
+
+**När det mättes:** användarens dator 11 nov 17:10–17:35, 15–40 min efter inloggning, inget spel, upplägget Dashboard. Laptopen 11 nov 17:39–17:45 via GoblinShare (uppkopplingen var redan öppen), 38 min efter start, inget spel, upplägget Standard.
+
+**Kvar att mäta:** M2, M4, M9 **medan ett spel kör** – på båda datorerna (helst WoW på laptopen). M10 i sin helhet och M14 på laptopen (M10 kör inloggningens hjälpprogram på riktigt, M14 kräver lösenord – görs när hon är med).
+
+**Anmärkning (ärligt):** första versionen av M15 startade `goblin-ai --help` över ssh utan skärm. Qt avbröt då programmet, och det ligger nu tre kraschposter (python3.15, SIGABRT, 17:41) i laptopens `coredumpctl` – ofarliga och rensas av sig själva, men Katsuyos efterkontroll kan nämna dem. M15 är ändrad så att den inte startar något fönsterprogram.
 
 ### M1 – CPU-tid och minne per tjänst sedan inloggningen
 ```
@@ -336,36 +343,43 @@ S=60; snap() { for u in $(systemctl --user list-units --type=service,scope --sta
 ```
 - **Användarens dator, i vila efter inloggning (11 nov 17:15):** plasmashell-enheten 7,73 % · `goblincakes-recorder.service` 2,11 % · `app-goblin-recorder@autostart` 1,44 % · `goblincakes-ollama.service` 1,19 % · `goblincakes-graph.service` 1,15 % · `goblincakes-gameguard.service` 0,78 % · share 0,13 % · kakan-vakt 0,09 % · voice 0,08 % · archon-tray 0,07 %. (Annat: dashboard-enheten 18,7 % = Goblin AI med Claude Code som arbetade, Firefox 10,5 %, kwin 8,4 %, Discord 6,5 + 3,0 %.)
 - **Under spel:** ej mätt än.
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** plasmashell-enheten 6,12 % · `goblincakes-ollama.service` 1,71 % · `goblincakes-gameguard.service` 0,94 % · `goblincakes-share.service` 0,57 % (hjälpsessionen var öppen) · `goblincakes-archon-tray.service` 0,36 % (Archon finns inte på datorn) · kakan-vakt 0,08 %. Recorder, graph och rösten är inte påslagna där.
+- **Frugans laptop under spel:** ej mätt än (se "Kvar att mäta" överst i Mätningar).
 
 ### M3 – Verkligt minne (PSS) per GOBLINCAKES-process
 ```
 for p in $(pgrep -u "$(id -u)" -f 'goblin|ollama|reminders.py'); do pss=$(awk '/^Pss:/{print $2}' /proc/$p/smaps_rollup 2>/dev/null); [ -n "$pss" ] && printf "%6d MB  %s\n" $((pss/1024)) "$(tr '\0' ' ' < /proc/$p/cmdline | cut -c1-90)"; done | grep -v 'sshd\|pgrep' | sort -rn | head -25
 ```
 - **Användarens dator, i vila:** goblin-ai 356 · röstens worker 348 · goblin-dashboard (gömd) 221 · goblin-recorder (fönstret) 185 · goblin-share (fönstret) 146 · ollama serve 37 · recorder-tjänsten 31 · archon-tray 30 · voice listen 25 · share-tjänsten 23 · kakan-vakt 21 · notifications 18 · graph-vakten 15 · ollama-vakten 13 · gameguard 7 · fedora-check 6 MB.
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** goblin-share (fönstret) 102 MB · ollama serve 34 · archon-tray 33 · share-tjänsten 20 · kakan-vakt 19 · notifications 18 · ollama-vakten 13 · gameguard 7 · fedora-check 6 MB. Inget minnesproblem (M9).
 
 ### M4 – Nya processer på 30 s (hur ofta något startas)
 ```
 a=$(awk '/^processes/{print $2}' /proc/stat); sleep 30; b=$(awk '/^processes/{print $2}' /proc/stat); echo "nya processer/30 s: $((b-a))"
 ```
 - **Användarens dator, i vila:** 483 (ca 16 per sekund; Claude Codes egna kommandon ingår med några tiotal).
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** 333 på 60 s (ca 5,5 per sekund).
 
 ### M5 – plasmashell själv mot skripten den startar (30 s)
 ```
 p=$(pgrep -x plasmashell); cpu() { awk '{print $14+$15}' /proc/$p/stat; }; cg() { systemctl --user show plasma-plasmashell.service -p CPUUsageNSec --value; }; a=$(cpu); ca=$(cg); sleep 30; b=$(cpu); cb=$(cg); echo "plasmashell själv: $(awk -v d=$((b-a)) 'BEGIN{printf "%.1f", d/30}') %  hela enheten med skripten: $(awk -v d=$((cb-ca)) 'BEGIN{printf "%.1f", d/1e9/30*100}') %"
 ```
 - **Användarens dator, i vila:** plasmashell själv 0,2 % · hela enheten 7,6 %.
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** plasmashell själv 0,4 % · hela enheten 6,6 %.
 
 ### M6 – Vad ett varv av varje hämtning kostar
 ```
 t() { n=$1; shift; s=$(date +%s%N); for i in $(seq $n); do sh -c "$*" >/dev/null 2>&1; done; e=$(date +%s%N); echo "$(( (e-s)/n/1000000 )) ms  $*" | cut -c1-110; }; t 10 /usr/libexec/goblincakes-ai-activity; t 10 /usr/libexec/goblincakes-discord-voice; t 5 'pgrep -x steam >/dev/null && /usr/libexec/goblincakes-steam-activity || echo {}'; t 5 /usr/libexec/goblincakes-device-battery; t 10 'wpctl get-volume @DEFAULT_AUDIO_SINK@'; t 5 'nmcli -t -f TYPE,STATE,CONNECTION device status'; t 5 pw-dump; t 5 'pgrep -x obs'; t 5 'flatpak info com.obsproject.Studio'; t 5 '/usr/libexec/goblincakes-quota --cached'; t 10 'python3 -c pass'; ls /proc | grep -c '^[0-9]'
 ```
 - **Användarens dator:** ai-activity 19 ms · discord-voice 37 · steam 67 · device-battery 31 · wpctl 8 · nmcli 8 · pw-dump 13 · pgrep 25 · flatpak info 13 · quota --cached 42 · tom Python 9 ms · 519 processer.
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** ai-activity 26 ms · discord-voice 48 · steam 18 (Steam inte igång) · **device-battery 1 580 ms** (väntar 0,5 s på varje Logitech-enhet som inte svarar; bara 41 ms processortid) · wpctl 20 · nmcli 18 · pw-dump 20 · pgrep 18 · flatpak info 21 · quota --cached 59 · tom Python 15 ms · 295 processer.
 
 ### M7 – Vad som är påslaget (förklarar skillnader mellan datorerna)
 ```
 ls ~/.config/goblincakes/; cat ~/.config/goblincakes/utseende 2>/dev/null; ls ~/.config/autostart/; grep -c 'plugin=org.goblincakes' ~/.config/plasma-org.kde.plasma.desktop-appletsrc; grep 'plugin=org.goblincakes' ~/.config/plasma-org.kde.plasma.desktop-appletsrc | sort | uniq -c
 ```
 - **Användarens dator:** graph-auto, recorder-on, share-on, vencord-on, ollama.json, utseende = levande; autostart: Archon, WoWUp, Discord, goblin-recorder, Raider.IO, Steam; widgetar: nowplaying × 2, deskclock, metahint (upplägget Dashboard).
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** accent, mouse-flat, ollama.json, share-on, steam-dgpu, utseende = levande; ingen egen autostart; widgetar: dock, nowplaying × 1, quota, updates, week (upplägget Standard). Inte påslaget: recorder, graph-auto, rösten, vencord.
 
 ### M8 – Spelletandet (ett varv)
 ```
@@ -376,24 +390,28 @@ def t(f,n=20):
 print('game_running: %.1f ms   processes+find_game: %.1f ms' % (t(gaming.game_running), t(lambda: gaming.find_game(gaming.processes()))))"
 ```
 - **Användarens dator:** game_running 11,2 ms · processes + find_game 23,1 ms (samma sak med `os.listdir` + `open`: 5,3 ms – provat i ett löst skript).
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** game_running 8,4 ms · processes + find_game 16,4 ms (295 processer mot 519 på användarens dator).
 
 ### M9 – Minne och växling
 ```
 free -m | sed -n 1,3p; grep -E 'pswpin|pswpout' /proc/vmstat; nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader
 ```
 - **Användarens dator, i vila:** 9 774 av 32 005 MB använt, växling 0 av 8 191 MB, grafikminne 1 237 av 12 288 MiB.
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** 2 358 av 15 866 MB använt, växling 0, grafikminne 2 av 4 096 MiB, 32 °C.
 
 ### M10 – Inloggningens hjälpprogram, ett i taget (alla är gjorda för att köras om)
 ```
 t() { s=$(date +%s%N); "$@" >/dev/null 2>&1; e=$(date +%s%N); echo "$(( (e-s)/1000000 )) ms  $*" | cut -c1-120; }; cd /tmp; t goblincakes-config --first-run; t /usr/libexec/goblincakes-gpu hw; t /usr/libexec/goblincakes-gpu notify; t /usr/libexec/goblincakes-wow-links; t /usr/libexec/goblincakes-season apply; t /usr/libexec/goblincakes-tweak apply calendar; t /usr/libexec/goblincakes-tweak apply mouse-flat; t /usr/libexec/goblincakes-laptop; t /usr/libexec/goblincakes-desktop-layout login; t /usr/libexec/goblincakes-automount; t /usr/libexec/goblincakes-webapp-icon --upgrade; t python3 -c "from PySide6.QtWidgets import QApplication"
 ```
 - **Användarens dator (varm disk):** config --first-run 134 ms · gpu hw 38 · gpu notify 248 · wow-links 274 · season 27 · calendar 16 · mouse-flat 122 · laptop 141 · desktop-layout login 74 · automount 62 · webapp-icon 329 · Qt-import 97 ms.
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** (bara de tre som inte ändrar något kördes) config --first-run 185 ms · gpu hw 61 · Qt-import 124 ms.
 
 ### M11 – Uppstarten
 ```
 systemd-analyze; systemd-analyze blame --no-pager | grep -v '\.device$' | head -12; systemd-analyze --user; systemd-analyze --user blame --no-pager | head -15; journalctl -b -o short-monotonic -u dracut-pre-udev --no-pager | tail -4
 ```
 - **Användarens dator (start 11 nov 16:57):** 11,3 s firmware + 10,7 s startmeny + 3,1 s kärna + 8,1 s initrd + 9,8 s resten = 43,0 s. Längst: `dracut-pre-udev` 6,1 s (Nvidia-modulerna, slutar med `nvidia_peermem`-felet) · `NetworkManager-wait-online` 5,2 s · `fedora-atomic-desktop-appstream-cache-refresh` 4,4 s (ny image i dag) · `bootc-update-ca-trust` 1,5 s. Användarsessionen: 8,7 s; `goblincakes-updates.service` 7,1 s · `podman-user-wait-network-online` 4,5 s (Ianseo) · `plasma-kded6` 3,3 s · `plasma-startupsound` 2,2 s · `goblincakes-disk-owner` 2,0 s (väntar med flit).
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** 7,6 s firmware + **16,0 s startmeny** + 1,4 s kärna + **14,5 s initrd** + 17,1 s resten = 56,6 s. Längst: **`dracut-pre-udev` 12,5 s** (11,9 s processortid – Nvidia-modulerna) · `NetworkManager-wait-online` 5,5 s · appstream-cache 4,7 s · `ldconfig` 3,6 s · `system-flatpak-setup` 2,3 s · `bootc-update-ca-trust` 2,1 s · `nvidia-cdi-refresh` 1,8 s. Användarsessionen: `goblincakes-updates.service` 9,3 s · `plasma-kded6` 2,6 s · `plasma-plasmashell` 2,5 s · startljudet 2,3 s · `goblincakes-disk-owner` 2,2 s. initramfs: 400 MB.
 
 ### M12 – Hur mycket en uppdatering laddar ner (lager som skiljer mellan två byggen)
 Kräver bara `skopeo` och nätverk. Byt variant i `IMG` vid behov. `OLD` = digesten för det bygge datorn kör (`rpm-ostree status | grep Digest | head -1`).
@@ -411,6 +429,7 @@ print('lager: %d, hela imagen %.2f GB, nya lager mot det du kör: %d = %.2f GB a
 journalctl -u rpm-ostreed --since "7 days ago" --no-pager | grep -E "layers needed|New objects" | tail -8
 ```
 - **Användarens dator:** 10 nov 21:51 `layers needed: 27 (1,3 GB)` → `New objects … totaling 116,7 MB` · 11 nov 16:52 `layers needed: 28 (1,4 GB)` → `totaling 116,7 MB`.
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** 10 nov 08:42 `custom layers needed: 29 (2,9 GB)` + `ostree chunk layers needed: 44 (579 MB)` = 3,5 GB → `New objects … totaling 119 MB` · 11 nov 16:51 `layers needed: 129 (4,0 GB)`. Legacy-variantens egna lager är alltså 2,9 GB (Nvidia-drivrutinen ligger i dem).
 
 ### M14 – Vad som tar plats i initramfs (kräver lösenord)
 ```
@@ -420,15 +439,17 @@ sudo lsinitrd -s /usr/lib/modules/$(uname -r)/initramfs.img | sort -k5 -n -r | h
 
 ### M15 – Starttid med och utan färdigkompilerade Python-filer
 ```
-C=$(mktemp -d); t() { s=$(date +%s%N); "$@" >/dev/null 2>&1; e=$(date +%s%N); echo "$(( (e-s)/1000000 )) ms"; }; cd /tmp; D='import sys; sys.path.insert(0,"/usr/lib/goblincakes/demoparser"); import pandas, polars, demoparser2'; a=$(t python3 -c "$D"); PYTHONPYCACHEPREFIX=$C python3 -c "$D"; echo "demoparser: som imagen är $a, med .pyc $(PYTHONPYCACHEPREFIX=$C t python3 -c "$D")"; for prog in "goblin-ai --help" "/usr/libexec/goblincakes-recorder status" "/usr/libexec/goblincakes-share status"; do a=$(t $prog); PYTHONPYCACHEPREFIX=$C $prog >/dev/null 2>&1; echo "$prog: som imagen är $a, med .pyc $(PYTHONPYCACHEPREFIX=$C t $prog)"; done; rm -rf "$C"
+C=$(mktemp -d); t() { s=$(date +%s%N); "$@" >/dev/null 2>&1; e=$(date +%s%N); echo "$(( (e-s)/1000000 )) ms"; }; cd /tmp; D='import sys; sys.path.insert(0,"/usr/lib/goblincakes/demoparser"); import pandas, polars, demoparser2'; a=$(t python3 -c "$D"); PYTHONPYCACHEPREFIX=$C python3 -c "$D"; echo "demoparser: som imagen är $a, med .pyc $(PYTHONPYCACHEPREFIX=$C t python3 -c "$D")"; I='import sys; sys.path[:0]=["/usr/share/goblincakes/ai","/usr/share/goblincakes"]; import goblinai'; a=$(t python3 -c "$I"); PYTHONPYCACHEPREFIX=$C python3 -c "$I"; echo "import goblinai: som imagen är $a, med .pyc $(PYTHONPYCACHEPREFIX=$C t python3 -c "$I")"; for prog in "/usr/libexec/goblincakes-recorder status" "/usr/libexec/goblincakes-share status"; do a=$(t $prog); PYTHONPYCACHEPREFIX=$C $prog >/dev/null 2>&1; echo "$prog: som imagen är $a, med .pyc $(PYTHONPYCACHEPREFIX=$C t $prog)"; done; rm -rf "$C"
 ```
 - **Användarens dator:** demoparser 1 321–2 013 ms → 398 ms · `goblin-ai --help` 418 → 356 ms · `goblincakes-recorder status` 117 → 73 ms · `goblincakes-share status` 86 → 66 ms.
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** `goblincakes-recorder status` 184 → 110 ms · `goblincakes-share status` 132 → 90 ms. (`goblin-ai --help` gick inte över ssh utan skärm – se anmärkningen överst i Mätningar; kommandot ovan är ändrat så att det inte händer igen.)
 
 ### M16 – Vilka engångsfixar datorn redan har
 ```
 ls ~/.local/state/goblincakes/
 ```
 - **Användarens dator:** alla tolv flaggorna finns (aurorae-v2, meta-a-freed, meta-arrows-rotate, meta-launcher, ghostty-size-added, ghostty-smaller, dock-launchers-fixed, clock-weight, appgrid-smaller, goblincakes-dock, discord-native, vscode-home).
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** samma flaggor som användarens dator utom `aurorae-v2` och `meta-freed` (aurorae-v2 skrivs vid nästa inloggning med nya imagen).
 
 ### M17 – Vilken Fedora baserna är på (byggstegen byggs på kinoite-main)
 ```
@@ -441,6 +462,7 @@ for i in kinoite-main kinoite-nvidia; do skopeo inspect --no-tags docker://ghcr.
 python3 --version; ls ~/.local/share/goblincakes-voice/venv/lib/ 2>/dev/null; systemctl --user is-active goblincakes-voice
 ```
 - **Användarens dator (Fedora 44):** Python 3.14.10 · `python3.14` · rösten kördes från repot under provet (tjänsten stoppad).
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** Python **3.15.2** · rösten är inte installerad.
 
 ### M19 – Används QML-cachen? (tid att kompilera fönstrens QML)
 ```
@@ -457,3 +479,4 @@ EOF
 F="ai config recorder dashboard amp share"; export QT_QPA_PLATFORM=offscreen XDG_CACHE_HOME=$D/cache; echo "som imagen är:"; python3 $D/t.py $(for f in $F; do echo /usr/share/goblincakes/$f/Main.qml; done) 2>/dev/null; python3 $D/t.py $(for f in $F; do echo /usr/share/goblincakes/$f/Main.qml; done) >/dev/null 2>&1; echo "cachefiler efter två körningar: $(find $D/cache -type f 2>/dev/null | wc -l) (0 = cachen används inte)"; rm -rf $D
 ```
 - **Användarens dator:** ai 488 ms · config 154 · recorder 178 · dashboard 126 · amp 55 · share 39 ms; cachefiler: 0. (Samma filer kopierade med vanligt datum, andra körningen: 19 · 7 · 11 · 8 · 5 · 7 ms.)
+- **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** ai 989 ms · config 305 · recorder 359 · dashboard 252 · amp 121 · share 78 ms; cachefiler: 0.
