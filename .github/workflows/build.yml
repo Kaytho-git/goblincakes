@@ -65,15 +65,15 @@ jobs:
         # layers by content (package by package, like Universal Blue's own images), so unchanged
         # packages keep their layer between builds and an update only downloads what changed
         # (without it every build renamed all ~29 of our layers: 1.4 GB per update, 2.9 GB for
-        # legacy). Tried on the base variant first (nobody runs it daily); the others follow
-        # when an update + reboot and the ISO build have worked with it.
+        # legacy). Tried on the base variant first (nobody runs it daily): 12 Nov 2.07 → 0.55 GB per
+        # update (M12). Legacy next (12 Nov, no ISO of its own); nvidia when the ISO build has worked.
         include:
           - recipe: recipe.yml        # goblincakes (AMD/Intel, on the ISO)
             chunkah: "true"
           - recipe: recipe-nvidia.yml # goblincakes-nvidia (switched to in GOBLINCAKES Config)
             chunkah: "false"
           - recipe: recipe-nvidia-legacy.yml # goblincakes-nvidia-legacy (GTX 900/10, Nvidia's 580 driver; switched to in Config)
-            chunkah: "false"
+            chunkah: "true"
     steps:
       # The repo with its whole history (7 Nov): the news lines get the commit they came from
       # (tools/news-commits.py → nyheter-commits.json, shown by goblin update). The action's own
