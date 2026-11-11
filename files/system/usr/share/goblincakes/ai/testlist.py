@@ -13,6 +13,9 @@ Claude Code writes the lists – what it couldn't try on the real computer – a
 
 One "- " line per point (its title), then `kör:` (a command – or a ```bash block under the point), `väntat:` (what
 the output should show; without it the exit code decides) or `fråga:` (something only the user can see).
+Write `väntat` so Kakan needs no knowledge of the computer: if the answer depends on it (variant, GPU, Fedora
+version…), let the command print that too and say what to expect for each case (11 Nov: "44 on goblincakes-nvidia,
+45 on the others" without printing the variant → she called a correct 44/44/44 FEL).
 
 In Goblin AI: /testa (the newest list), /testa <name>, /testa stopp. Each point is a message in the chat with the
 usual command card – reading commands run at once, changing ones wait for Tillåt, dangerous ones are stopped –
