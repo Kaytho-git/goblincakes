@@ -333,7 +333,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 |---|---|---|---|---|---|
 | [ ] | 1 | **P12** Uppdateringarna laddar ner 1,4–2,9 GB för ~120 MB nytt | uppdateringar på minuter i stället för en kvart på wifi | medel | liten + prov |
 | [ ] | 2 | **P1** Widgetarna startar skript varje sekund | 5 % av en kärna tillbaka, alltid, båda datorerna | låg | liten |
-| [ ] | 3 | **P2** GoblinRecorder-tjänstens `pgrep` | 2 % i vila, mer under spel (användarens dator) | låg–medel | liten |
+| [ ] | 3 | **P2** GoblinRecorder-tjänstens `pgrep` och loggläsning | 2 % i vila (användarens dator); under spel ej mätt än | låg–medel | liten |
 | [ ] | 4 | **P3** GoblinRecorder-fönstrets `flatpak info` | 1,4 % (användarens dator) | låg | liten |
 | [ ] | 5 | **P15** Kontroll före bygget | färre trasiga images, kopiorna kan inte glida isär | låg | liten |
 | [ ] | 6 | **P20** Byggstegen på rätt Fedora-bas | ingen trasig programmeny/Piper vid Fedora-hopp, snabbare Nvidia-bygge | låg | liten |
@@ -361,7 +361,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 
 1. **P1 – widgetarna.** Störst vinst för minst risk, och den enda som märks på båda datorerna hela tiden. En widget i taget (Spelas nu först); M2 och M5 visar direkt om det hjälpte.
 2. **P12 – uppdateringarnas storlek.** Det användaren (och frugan på wifi) märker mest: 1,4–2,9 GB per uppdatering blir några hundra MB. Prova på legacy- eller basvarianten först, mät med M12, ta sedan Nvidia-varianten. Hög effekt men rör bygget – låt Fable bygga eller granska.
-3. **P2 + P3 – GoblinRecorder** (samma session). 3,5 % av en kärna i vila på användarens dator, och mer medan WoW kör. Litet och provbart med attrapperna.
+3. **P2 + P3 – GoblinRecorder** (samma session). 3,5 % av en kärna i vila på användarens dator. Hur mycket det är medan WoW kör är inte mätt än – gör M2 under spel först, det är "före"-värdet. Litet och provbart med attrapperna.
 4. **P15 – kontrollen före bygget.** Gör alla punkter efter den säkrare att bygga (syntax, QML, kopior) och kostar en halvtimme.
 5. **P20 + P22 – före nästa Fedora-hopp.** `goblincakes-nvidia` går till Fedora 45 när Universal Blue släpper den; innan dess bör byggstegen byggas på rätt bas och rösten klara ny Python. Båda är små.
 
