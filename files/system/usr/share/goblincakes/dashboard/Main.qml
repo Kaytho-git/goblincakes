@@ -5,7 +5,6 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Shapes
-import QtQuick.Dialogs
 
 Window {
     id: win
@@ -71,6 +70,9 @@ Window {
     property int sel: 0                // the marked program in the grid
     property string note: ""
     property bool dialogOpen: false
+    property string box: ""            // the small box under the icons that is not the tray's: kvot (11 Nov)
+    property bool adding: false        // + in PROJEKT: the folder chooser over the middle (11 Nov)
+    property var browse: ({})
     property date now: new Date()
     readonly property string mid: backend.mid
     readonly property string midProject: mid.indexOf("project:") === 0 ? mid.slice(8) : ""
@@ -126,6 +128,10 @@ Window {
         // Esc: one step at a time – the small box/menu, the search, the middle, and last the dashboard itself
         if (winMenu)
             winMenu = null;
+        else if (box !== "")
+            box = "";
+        else if (adding)
+            adding = false;
         else if (backend.tray !== "")
             backend.closeTray();
         else if (search.text !== "")
@@ -149,12 +155,14 @@ Window {
 
     Component.onCompleted: {
         for (const k of ["apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project",
-                         "trayBox", "tools", "wow", "cs2", "builds", "reports", "own"])
+                         "trayBox", "tools", "wow", "cs2", "builds", "reports", "own", "browse"])
             load(k);
     }
     onVisibleChanged: {
         backend.setVisible(visible);
         winMenu = null;
+        box = "";
+        adding = false;
         if (visible) {
             search.text = "";
             group = "";
@@ -171,13 +179,6 @@ Window {
         target: backend
         function onChanged(key) { win.load(key); }
         function onSaid(text) { win.say(text); }
-    }
-
-    FolderDialog {
-        id: addProjectDialog
-        title: "Lägg till en projektmapp"
-        onVisibleChanged: { backend.sharpText(); win.dialogOpen = visible; }
-        onAccepted: backend.addProject(selectedFolder.toString())
     }
 
     // ── Pieces (same as GOBLINCAKES Config) ──────────────────
@@ -245,6 +246,47 @@ Window {
                 }
             }
         }
+    }
+
+    // A column of frames (left or right): each frame as tall as it needs, PROJEKT takes the room that is left and
+    // scrolls in itself (11 Nov – before, the whole column scrolled). The column itself scrolls only when even
+    // that does not fit.
+    component FrameColumn: Flickable {
+        id: fc
+        property var frames: []
+        readonly property int gap: 16
+        // the frames' own heights, PROJEKT left out
+        readonly property real fixed: {
+            let h = Math.max(0, fcRepeater.count - 1) * gap;
+            for (let i = 0; i < fcRepeater.count; i++) {
+                const l = fcRepeater.itemAt(i);
+                if (l && l.item && l.modelData !== "projects")
+                    h += l.item.implicitHeight;
+            }
+            return h;
+        }
+        contentHeight: fcColumn.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: contentHeight > height + 1
+        Column {
+            id: fcColumn
+            width: fc.width
+            spacing: fc.gap
+            Repeater {
+                id: fcRepeater
+                model: fc.frames
+                Loader {
+                    required property string modelData
+                    width: fcColumn.width
+                    height: !item ? 0
+                          : modelData === "projects" ? Math.max(item.minHeight, Math.min(item.implicitHeight, fc.height - fc.fixed))
+                          : item.implicitHeight
+                    sourceComponent: win.frameComponent(modelData)
+                }
+            }
+        }
+        FastWheel { flick: fc }
     }
 
     component FlatButton: Rectangle {
@@ -492,6 +534,33 @@ Window {
         }
     }
 
+    // An icon in the row under the logo (KVOT, the power button) – like the tray's
+    component TopIcon: Rectangle {
+        id: topIcon
+        property string path
+        property bool on: false
+        property bool warn: false
+        signal clicked()
+        width: 40
+        height: 36
+        color: on ? accent.dim : topArea.containsMouse ? "#1A2438" : "transparent"
+        border.width: 1
+        border.color: on ? accent.color : warn ? "#F06B6B" : "#1E2A40"
+        Glyph {
+            anchors.centerIn: parent
+            scale: 0.8
+            path: topIcon.path
+            stroke: topIcon.warn ? "#F06B6B" : topIcon.on ? "#E6ECF5" : "#C3CCDA"
+        }
+        MouseArea {
+            id: topArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: topIcon.clicked()
+        }
+    }
+
     readonly property var trayPaths: ({
         "nätverk": "M3 14h18v7H3zM7 14V9h10v5M12 9V3",
         "ljud": "M4 9h4l5-4v14l-5-4H4zM16 9c1.5 1.5 1.5 4.5 0 6M19 6c3 3 3 9 0 12",
@@ -513,7 +582,7 @@ Window {
             id: brand
             x: 24
             anchors.verticalCenter: parent.verticalCenter
-            width: 300
+            width: Math.max(300, trayRow.implicitWidth)
             spacing: 8
             Row {
                 spacing: 10
@@ -528,8 +597,9 @@ Window {
                     font.letterSpacing: 3
                 }
             }
-            // The system tray as icons – press for more
+            // The system tray as icons – press for more; then KVOT and the power button (11 Nov)
             Row {
+                id: trayRow
                 spacing: 4
                 Repeater {
                     model: win.trayIcons
@@ -552,9 +622,23 @@ Window {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: backend.openTray(parent.modelData.id)
+                            onClicked: { win.box = ""; backend.openTray(parent.modelData.id); }
                         }
                     }
+                }
+                Item { width: 8; height: 36 }
+                // KVOT (11 Nov – was a frame at the bottom left): red when a window is at 90 % or more
+                TopIcon {
+                    visible: (win.quota.services || []).length > 0
+                    on: win.box === "kvot"
+                    path: "M3 17a9 9 0 0 1 18 0M12 17l4-6M6 13l1 1M18 13l-1 1M12 8v1"
+                    warn: (win.quota.services || []).some(sv => (sv.windows || []).some(w => w.percent >= 90))
+                    onClicked: { backend.closeTray(); win.box = win.box === "kvot" ? "" : "kvot"; }
+                }
+                // The power button (11 Nov – the dashboard layout has no top bar): the logout screen
+                TopIcon {
+                    path: "M12 3v9M7.5 6.5a7 7 0 1 0 9 0"
+                    onClicked: { win.box = ""; backend.closeTray(); backend.power(); }
                 }
             }
         }
@@ -796,98 +880,244 @@ Window {
         }
     }
 
+    // KVOT: the small box behind its icon (11 Nov – was a frame at the bottom left)
+    Frame {
+        id: quotaPanel
+        visible: win.box === "kvot"
+        x: 24
+        y: topBar.height - 6
+        z: 5
+        width: 340
+        height: quotaColumn.implicitHeight + 28
+        border.color: accent.color
+        MouseArea { anchors.fill: parent }
+        Column {
+            id: quotaColumn
+            x: 16
+            y: 14
+            width: parent.width - 32
+            spacing: 16
+            Item {
+                width: parent.width
+                height: 20
+                Heading { anchors.verticalCenter: parent.verticalCenter; text: "KVOT" }
+                Text {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    text: "✕"
+                    color: closeQuotaArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                    font.pixelSize: 14
+                    MouseArea {
+                        id: closeQuotaArea
+                        anchors.fill: parent
+                        anchors.margins: -8
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: win.box = ""
+                    }
+                }
+            }
+            Repeater {
+                model: win.quota.services || []
+                Column {
+                    id: service
+                    required property var modelData
+                    width: quotaColumn.width
+                    spacing: 8
+                    Item {
+                        width: parent.width
+                        height: 18
+                        Heading { text: String(service.modelData.name || service.modelData.id).toUpperCase() }
+                        Text {
+                            anchors { right: parent.right; baseline: parent.children[0].baseline }
+                            readonly property var first: (service.modelData.windows || [])[0]
+                            text: service.modelData.error ? "" : first && first.resets ? "nollställs " + win.resetText(first.resets) : ""
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 11
+                        }
+                    }
+                    Repeater {
+                        model: service.modelData.windows || []
+                        Item {
+                            required property var modelData
+                            width: service.width
+                            height: 18
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.label
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Meter {
+                                x: 64
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 64 - 50
+                                percent: modelData.percent
+                                warn: modelData.percent >= 90
+                            }
+                            Text {
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                text: modelData.percent + " %"
+                                color: "#C3CCDA"
+                                font.family: "IBM Plex Mono"
+                                font.pixelSize: 12
+                            }
+                        }
+                    }
+                    Text {
+                        visible: !!service.modelData.error
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: service.modelData.error || ""
+                        color: "#F0B232"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 12
+                    }
+                }
+            }
+        }
+    }
+
     // ── The frames: each view (Config → Dashboard) picks which ones it shows, left and right ──
     // A frame with nothing to show is left out (win.shows), and the dashboard grows the middle instead.
+    // PROJEKT (11 Nov): + next to the heading opens the dashboard's own folder chooser, every project is in the
+    // list (scrolls in the frame when the column has no more room – FrameColumn), ✕ on a row takes it out
     Component {
         id: projectsFrame
         Frame {
+            id: projFrame
             width: parent.width
-            height: projectColumn.implicitHeight + 32
-            Column {
-                id: projectColumn
+            readonly property int rowHeight: 56
+            readonly property real listHeight: win.projects.length ? win.projects.length * (rowHeight + 6) - 6 : 40
+            implicitHeight: 16 + 30 + 10 + listHeight + 16
+            readonly property real minHeight: 16 + 30 + 10 + Math.min(listHeight, 2 * (rowHeight + 6) - 6) + 16
+            Item {
+                id: projHead
                 x: 16
                 y: 16
                 width: parent.width - 32
-                spacing: 6
-                Heading { text: "PROJEKT"; bottomPadding: 6 }
-                Repeater {
-                    model: win.projects.slice(0, 5)
-                    Rectangle {
-                        required property var modelData
-                        readonly property bool on: win.midProject === modelData.path
-                        width: projectColumn.width
-                        height: 56
-                        color: on ? "#12203A" : projArea.containsMouse ? "#12203A" : "#0E1420"
-                        border.width: on ? 2 : 1
-                        border.color: on ? accent.color : "#1E2A40"
-                        opacity: modelData.exists ? 1 : 0.5
-                        Glyph {
-                            x: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            path: "M3 6h7l2 3h9v10H3z"
-                            stroke: "#8B98AD"
-                        }
-                        Column {
-                            anchors { left: parent.left; leftMargin: 48; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                            spacing: 2
-                            Text {
-                                width: parent.width
-                                elide: Text.ElideRight
-                                text: modelData.name
-                                color: "#E6ECF5"
-                                font.family: "IBM Plex Sans"
-                                font.weight: Font.DemiBold
-                                font.pixelSize: 15
-                            }
-                            Text {
-                                width: parent.width
-                                elide: Text.ElideMiddle
-                                text: !modelData.exists ? "mappen finns inte längre"
-                                      : modelData.short + (modelData.changed ? " · " + modelData.changed + " ändrade" : "")
-                                color: "#8B98AD"
-                                font.family: "IBM Plex Mono"
-                                font.pixelSize: 11
-                            }
-                        }
-                        MouseArea {
-                            id: projArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: backend.setMid("project:" + modelData.path)
-                        }
-                    }
-                }
+                height: 30
+                Heading { anchors.verticalCenter: parent.verticalCenter; text: "PROJEKT" }
                 Rectangle {
-                    width: projectColumn.width
-                    height: 44
-                    color: addArea.containsMouse ? "#12203A" : "transparent"
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    width: 30
+                    height: 30
+                    color: win.adding ? accent.dim : addArea.containsMouse ? "#1A2438" : "transparent"
                     border.width: 1
-                    border.color: "#1E2A40"
-                    Text {
-                        x: 12
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "+ Lägg till projekt"
-                        color: "#8B98AD"
-                        font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
+                    border.color: win.adding || addArea.containsMouse ? accent.color : "#1E2A40"
+                    Glyph {
+                        anchors.centerIn: parent
+                        scale: 0.7
+                        path: "M12 5v14M5 12h14"
+                        stroke: addArea.containsMouse || win.adding ? "#E6ECF5" : "#8B98AD"
                     }
                     MouseArea {
                         id: addArea
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: { win.dialogOpen = true; addProjectDialog.open(); }
+                        onClicked: {
+                            win.adding = !win.adding;
+                            if (win.adding)
+                                backend.browse("");
+                        }
                     }
                 }
             }
+            Text {
+                x: 16
+                y: 56
+                width: parent.width - 32
+                visible: win.projects.length === 0
+                wrapMode: Text.WordWrap
+                text: "Inga projekt ännu – tryck på + för att lägga till en mapp"
+                color: "#5C6880"
+                font.family: "IBM Plex Sans"
+                font.pixelSize: 13
+            }
+            ListView {
+                id: projList
+                x: 16
+                y: 56
+                width: parent.width - 32
+                height: parent.height - 56 - 16
+                clip: true
+                spacing: 6
+                boundsBehavior: Flickable.StopAtBounds
+                model: win.projects
+                delegate: Rectangle {
+                    required property var modelData
+                    readonly property bool on: win.midProject === modelData.path
+                    readonly property bool hovered: projArea.containsMouse || removeArea.containsMouse
+                    width: projList.width - (projBar.visible ? 12 : 0)
+                    height: projFrame.rowHeight
+                    color: on || hovered ? "#12203A" : "#0E1420"
+                    border.width: on ? 2 : 1
+                    border.color: on ? accent.color : "#1E2A40"
+                    opacity: modelData.exists ? 1 : 0.5
+                    Glyph {
+                        x: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                        path: "M3 6h7l2 3h9v10H3z"
+                        stroke: "#8B98AD"
+                    }
+                    Column {
+                        anchors { left: parent.left; leftMargin: 48; right: parent.right; rightMargin: 36; verticalCenter: parent.verticalCenter }
+                        spacing: 2
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            text: modelData.name
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 15
+                        }
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideMiddle
+                            text: !modelData.exists ? "mappen finns inte längre"
+                                  : modelData.short + (modelData.changed ? " · " + modelData.changed + " ändrade" : "")
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 11
+                        }
+                    }
+                    MouseArea {
+                        id: projArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { win.adding = false; backend.setMid("project:" + modelData.path); }
+                    }
+                    // ✕: out of the list (the folder and its files are not touched)
+                    Text {
+                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                        visible: parent.hovered
+                        text: "✕"
+                        color: removeArea.containsMouse ? accent.errorBright : "#8B98AD"
+                        font.pixelSize: 14
+                        MouseArea {
+                            id: removeArea
+                            anchors.fill: parent
+                            anchors.margins: -8
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: backend.removeProject(modelData.path)
+                        }
+                    }
+                }
+                FastWheel { flick: projList }
+            }
+            FlatScrollBar { id: projBar; flick: projList }
         }
     }
     Component {
         id: systemFrame
         Frame {
             width: parent.width
-            height: systemColumn.implicitHeight + 32
+            implicitHeight: systemColumn.implicitHeight + 32
             color: win.mid === "system" ? "#0E1420" : "#0B1018"
             border.color: win.mid === "system" ? accent.color : "#1E2A40"
             Column {
@@ -898,7 +1128,8 @@ Window {
                 spacing: 2
                 Heading { text: "SYSTEM"; bottomPadding: 8 }
                 Repeater {
-                    model: win.system.rows || []
+                    // DISK only in the middle (press SYSTEM) – 11 Nov, the user's wish
+                    model: (win.system.rows || []).filter(r => r.id !== "disk")
                     Item {
                         required property var modelData
                         width: systemColumn.width
@@ -939,7 +1170,7 @@ Window {
         id: wowFrame
         Frame {
             width: parent.width
-            height: wowColumn.implicitHeight + 32
+            implicitHeight: wowColumn.implicitHeight + 32
             Column {
                 id: wowColumn
                 x: 16
@@ -983,7 +1214,7 @@ Window {
         id: cs2Frame
         Frame {
             width: parent.width
-            height: csColumn.implicitHeight + 32
+            implicitHeight: csColumn.implicitHeight + 32
             Column {
                 id: csColumn
                 x: 16
@@ -1040,7 +1271,7 @@ Window {
         id: buildsFrame
         Frame {
             width: parent.width
-            height: buildColumn.implicitHeight + 32
+            implicitHeight: buildColumn.implicitHeight + 32
             Column {
                 id: buildColumn
                 x: 16
@@ -1099,7 +1330,7 @@ Window {
         id: reportsFrame
         Frame {
             width: parent.width
-            height: kakanColumn.implicitHeight + 32
+            implicitHeight: kakanColumn.implicitHeight + 32
             Column {
                 id: kakanColumn
                 x: 16
@@ -1123,110 +1354,19 @@ Window {
         anchors { top: topBar.bottom; bottom: bottomBar.top; left: parent.left; right: parent.right
                   topMargin: 20; bottomMargin: 16; leftMargin: 24; rightMargin: 24 }
 
-        // Left: PROJEKT, SYSTEM, and KVOT at the bottom
+        // Left: the view's frames (PROJEKT, SYSTEM, …) – PROJEKT takes the room that is left and scrolls in itself
+        // (11 Nov); KVOT is an icon at the top now
         Item {
             id: leftCol
             readonly property var frames: win.currentView.left.filter(f => win.shows(f))
-            visible: frames.length > 0 || quotaFrame.visible
+            visible: frames.length > 0
             width: visible ? 300 : 0     // nothing chosen to the left: the middle gets the room
             height: parent.height
 
-            Flickable {
+            FrameColumn {
                 id: leftFlick
-                anchors { top: parent.top; bottom: quotaFrame.visible ? quotaFrame.top : parent.bottom
-                          bottomMargin: quotaFrame.visible ? 16 : 0 }
-                width: parent.width
-                contentHeight: leftColumn.implicitHeight
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                Column {
-                    id: leftColumn
-                    width: parent.width
-                    spacing: 16
-                    Repeater {
-                        model: leftCol.frames
-                        Loader {
-                            required property string modelData
-                            width: leftColumn.width
-                            sourceComponent: win.frameComponent(modelData)
-                        }
-                    }
-                }
-                FastWheel { flick: leftFlick }
-            }
-            Frame {
-                id: quotaFrame
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: quotaColumn.implicitHeight + 28
-                visible: (win.quota.services || []).length > 0
-                Column {
-                    id: quotaColumn
-                    x: 16
-                    y: 14
-                    width: parent.width - 32
-                    spacing: 16
-                    Repeater {
-                        model: win.quota.services || []
-                        Column {
-                            id: service
-                            required property var modelData
-                            width: quotaColumn.width
-                            spacing: 8
-                            Item {
-                                width: parent.width
-                                height: 18
-                                Heading { text: "KVOT · " + String(service.modelData.name || service.modelData.id).toUpperCase() }
-                                Text {
-                                    anchors { right: parent.right; baseline: parent.children[0].baseline }
-                                    readonly property var first: (service.modelData.windows || [])[0]
-                                    text: service.modelData.error ? "" : first && first.resets ? "nollställs " + win.resetText(first.resets) : ""
-                                    color: "#8B98AD"
-                                    font.family: "IBM Plex Sans"
-                                    font.pixelSize: 11
-                                }
-                            }
-                            Repeater {
-                                model: service.modelData.windows || []
-                                Item {
-                                    required property var modelData
-                                    width: service.width
-                                    height: 18
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: modelData.label
-                                        color: "#E6ECF5"
-                                        font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
-                                    }
-                                    Meter {
-                                        x: 64
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: parent.width - 64 - 50
-                                        percent: modelData.percent
-                                        warn: modelData.percent >= 90
-                                    }
-                                    Text {
-                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                        text: modelData.percent + " %"
-                                        color: "#C3CCDA"
-                                        font.family: "IBM Plex Mono"
-                                        font.pixelSize: 12
-                                    }
-                                }
-                            }
-                            Text {
-                                visible: !!service.modelData.error
-                                width: parent.width
-                                wrapMode: Text.WordWrap
-                                text: service.modelData.error || ""
-                                color: "#F0B232"
-                                font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
-                            }
-                        }
-                    }
-                }
+                anchors.fill: parent
+                frames: leftCol.frames
             }
         }
 
@@ -1239,6 +1379,186 @@ Window {
             border.width: 1
             border.color: "#1E2A40"
             clip: true
+
+            // ── + in PROJEKT: the dashboard's own folder chooser (11 Nov – the system's folder dialog over the
+            // full-screen dashboard added nothing). Over everything else in the middle; Esc/Avbryt closes it.
+            Rectangle {
+                id: addView
+                visible: win.adding
+                anchors.fill: parent
+                anchors.margins: 1
+                z: 20
+                color: "#0E1420"
+                readonly property var b: win.browse
+                onVisibleChanged: visible ? forceActiveFocus() : search.forceActiveFocus()
+                Keys.onEscapePressed: win.back()
+                Keys.onReturnPressed: if (b.path && !b.added) { win.adding = false; backend.addProject(b.path); }
+                Keys.onPressed: event => {
+                    if (event.key === Qt.Key_Backspace && b.parent) {
+                        backend.browse(b.parent);
+                        event.accepted = true;
+                    }
+                }
+                MouseArea { anchors.fill: parent }   // a press here is not a press on the view under it
+                Column {
+                    id: addHead
+                    x: 28
+                    y: 22
+                    width: parent.width - 56
+                    spacing: 6
+                    BigTitle { text: "LÄGG TILL PROJEKT" }
+                    SubTitle {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: "Välj en mapp. Samma lista som PROJEKT → MAPPAR i Goblin AI – mappen och filerna rörs inte."
+                    }
+                    Item { width: 1; height: 8 }
+                    // The Git folders in the home folder that are not in the list yet: one press adds
+                    Heading {
+                        visible: (addView.b.suggest || []).length > 0
+                        text: "GIT-MAPPAR I HEMMAPPEN"
+                        font.pixelSize: 12
+                    }
+                    Flow {
+                        visible: (addView.b.suggest || []).length > 0
+                        width: parent.width
+                        spacing: 8
+                        Repeater {
+                            model: addView.b.suggest || []
+                            Rectangle {
+                                required property var modelData
+                                width: suggestText.implicitWidth + 28
+                                height: 38
+                                color: suggestArea.containsMouse ? accent.dim : "#0B1018"
+                                border.width: 1
+                                border.color: suggestArea.containsMouse ? accent.color : "#1E2A40"
+                                Text {
+                                    id: suggestText
+                                    anchors.centerIn: parent
+                                    text: "+ " + modelData.name
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 14
+                                }
+                                MouseArea {
+                                    id: suggestArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: { win.adding = false; backend.addProject(modelData.path); }
+                                }
+                            }
+                        }
+                    }
+                    Item { width: 1; height: 8; visible: (addView.b.suggest || []).length > 0 }
+                    // Where the chooser is: up, the folder, and Lägg till
+                    Item {
+                        width: parent.width
+                        height: 44
+                        FlatButton {
+                            id: upButton
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !!addView.b.parent
+                            width: visible ? 96 : 0
+                            height: 36
+                            text: "↑ Upp"
+                            onClicked: backend.browse(addView.b.parent)
+                        }
+                        Text {
+                            anchors { left: upButton.right; leftMargin: upButton.visible ? 14 : 0; right: addButtons.left
+                                      rightMargin: 14; verticalCenter: parent.verticalCenter }
+                            elide: Text.ElideMiddle
+                            text: addView.b.short || ""
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 15
+                        }
+                        Row {
+                            id: addButtons
+                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                            spacing: 8
+                            FlatButton {
+                                visible: !!addView.b.path && !addView.b.added
+                                primary: true
+                                height: 36
+                                text: "Lägg till den här mappen"
+                                onClicked: { win.adding = false; backend.addProject(addView.b.path); }
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: !!addView.b.added
+                                rightPadding: 8
+                                text: "Finns redan i listan"
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            FlatButton {
+                                height: 36
+                                text: "Avbryt  (Esc)"
+                                onClicked: win.adding = false
+                            }
+                        }
+                    }
+                }
+                // The folders in it: press = go in
+                ListView {
+                    id: dirList
+                    anchors { top: addHead.bottom; topMargin: 10; left: parent.left; right: parent.right; bottom: parent.bottom
+                              leftMargin: 28; rightMargin: 20; bottomMargin: 16 }
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: addView.b.dirs || []
+                    onModelChanged: contentY = 0
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: dirList.width - 12
+                        height: 42
+                        color: dirArea.containsMouse ? "#12203A" : "transparent"
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+                        Glyph {
+                            x: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            scale: 0.8
+                            path: "M3 6h7l2 3h9v10H3z"
+                            stroke: modelData.git ? accent.text : "#8B98AD"
+                        }
+                        Text {
+                            anchors { left: parent.left; leftMargin: 44; right: gitTag.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                            elide: Text.ElideRight
+                            text: modelData.name
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 14
+                        }
+                        Text {
+                            id: gitTag
+                            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                            text: modelData.git ? "Git" : ""
+                            color: accent.text
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 11
+                        }
+                        MouseArea {
+                            id: dirArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: backend.browse(modelData.path)
+                        }
+                    }
+                    Text {
+                        visible: (addView.b.dirs || []).length === 0
+                        topPadding: 8
+                        text: addView.b.path ? "Inga fler mappar här" : "Läser …"
+                        color: "#5C6880"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+                    FastWheel { flick: dirList }
+                }
+                FlatScrollBar { flick: dirList }
+            }
 
             // The search line is always there: typing anywhere searches the programs
             Item {
@@ -2275,28 +2595,11 @@ Window {
             height: parent.height
 
             // The view's frames to the right (WOW STATS, CS2 STATS, BYGGEN, KAKAN …), SPELAS NU always
-            Flickable {
+            FrameColumn {
                 id: statsFlick
                 anchors { top: parent.top; bottom: playFrame.top; bottomMargin: 16 }
                 width: parent.width
-                contentHeight: statsColumn.implicitHeight
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                Column {
-                    id: statsColumn
-                    width: parent.width
-                    spacing: 16
-
-                    Repeater {
-                        model: rightCol.frames
-                        Loader {
-                            required property string modelData
-                            width: statsColumn.width
-                            sourceComponent: win.frameComponent(modelData)
-                        }
-                    }
-                }
-                FastWheel { flick: statsFlick }
+                frames: rightCol.frames
             }
 
             Frame {

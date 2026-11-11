@@ -134,6 +134,10 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   visas, `apps` = egna program nederst – saknas den används dockans fästa program). Ändras i GOBLINCAKES Config →
   DASHBOARD (eller knappen Anpassa i dashboarden); dashboarden läser om dem varje gång den visas. Projekten = samma lista som Goblin AI:s PROJEKT → MAPPAR
   (~/.config/goblincakes/ai-mappar.json). Kvoten = ~/.cache/goblincakes/quota.json (kvot-widgetens fil).
+- 11 nov: ikonraden under loggan = nätverk, ljud, Bluetooth, urklipp, enheter + KVOT (mätare, röd vid ≥ 90 %, tryck =
+  liten ruta) + strömknappen (D-Bus org.kde.LogoutPrompt /LogoutPrompt promptAll = avstängningsrutan). + bredvid
+  PROJEKT = dashboardens egen mappväljare i mitten (`python3 dash.py browse [mapp]`; inte systemets dialog), ✕ på
+  ett projekt = ur listan. SYSTEM-ramen utan DISK (den finns i mitten). PROJEKT tar resten av spalten och rullar själv.
 - Varifrån siffrorna kommer: CPU /proc/stat, minne /proc/meminfo, grafikkort /sys/class/drm/card*/device/gpu_busy_percent
   (AMD/Intel) eller nvidia-smi, temperatur /sys/class/hwmon (k10temp/coretemp/amdgpu), disk = hemmappen + monterade
   diskar; musiken = MPRIS via busctl; nätverk nmcli, ljud wpctl, Bluetooth bluetoothctl, urklipp Klipper (D-Bus),

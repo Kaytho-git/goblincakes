@@ -156,7 +156,7 @@ class Backend(QObject):
     hideWanted = Signal()
 
     KEYS = ("apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project", "trayBox", "tools",
-            "wow", "cs2", "builds", "reports", "own")
+            "wow", "cs2", "builds", "reports", "own", "browse")
 
     def __init__(self):
         super().__init__()
@@ -476,13 +476,27 @@ class Backend(QObject):
 
     @Slot(str)
     def addProject(self, url):
+        """+ in PROJEKT → the dashboard's own folder chooser (the middle "addproject") → Lägg till."""
         path = QUrl(url).toLocalFile() if url.startswith("file:") else url
+        why = dash.add_folder(path)
+        if why:
+            self.said.emit(why)
+            return
         path = str(Path(path).expanduser()).rstrip("/") or "/"
-        rows = dash.folders()
-        if path and Path(path).is_dir() and path not in rows:
-            dash.save_folders(rows + [path])
         self.read_projects()
         self.setMid("project:" + path)
+
+    @Slot(str)
+    def browse(self, path):
+        """The folder chooser's list (dash.browse) – "" = the home folder, with suggestions."""
+        self.busy.discard("browse")
+        self.job("browse", lambda: dash.browse(path))
+
+    @Slot()
+    def power(self):
+        """The power button: the logout screen (Logga ut, Starta om, Stäng av, Avbryt)."""
+        self.hideWanted.emit()
+        self._later(dash.power)
 
     @Slot(str)
     def removeProject(self, path):

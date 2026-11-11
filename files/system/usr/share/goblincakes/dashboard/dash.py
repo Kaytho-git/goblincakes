@@ -1,6 +1,6 @@
 """GOBLINCAKES Dashboard – what the window shows, read without Qt (so it can be tried from a terminal):
 
-    python3 dash.py apps|system|top|player|quota|projects|project <mapp>|tray <namn>|bottom|views|config
+    python3 dash.py apps|system|top|player|quota|projects|project <mapp>|browse [mapp]|tray <namn>|bottom|views|config
     python3 dash.py save < {"views": [...], "apps": [...]}
 
 apps()         the programs in the menu (the same folders as Goblin AI's `program`), with icon and group
@@ -8,6 +8,7 @@ System         CPU/GPU/temperature/RAM/disk now, with the history since the wind
 player()       what is playing (MPRIS), music programs first; control() = previous/play-pause/next
 quota()        what the quota widget saved (~/.cache/goblincakes/quota.json)
 projects()     the folders in Goblin AI's PROJEKT → MAPPAR (~/.config/goblincakes/ai-mappar.json – one list)
+browse(path)   the dashboard's own folder chooser (+ in PROJEKT); power() = the logout screen
 tray(name)     the rows behind a system tray icon: nätverk, ljud, bluetooth, urklipp, enheter
 views()        the views (SPEL, JOBB, …) and which frames each shows – chosen in Config → Dashboard
 Only the standard library; every command has a short timeout and a missing program gives an empty answer.
@@ -572,6 +573,64 @@ def open_project(path, how):
     return ""
 
 
+def browse(path=""):
+    """The dashboard's own folder chooser (+ in PROJEKT; 11 Nov – the system's folder dialog over the full-screen
+    dashboard added nothing): {path, short, parent, dirs: [{name, path, git}], added, suggest: [{name, path, short}]}.
+    Hidden folders are left out; suggest (in the home folder) = Git folders two levels down not yet in the list."""
+    target = Path(path).expanduser() if path else HOME
+    if not target.is_dir():
+        target = HOME
+    target = target.resolve()
+    rows = folders()
+    dirs = []
+    try:
+        for child in sorted(target.iterdir(), key=lambda c: c.name.lower()):
+            if child.name.startswith(".") or not child.is_dir():
+                continue
+            dirs.append({"name": child.name, "path": str(child), "git": (child / ".git").exists()})
+    except OSError:
+        pass
+    suggest = []
+    if target == HOME.resolve():
+        seen = set(rows)
+        for depth in ("*/.git", "*/*/.git"):
+            for git in sorted(HOME.glob(depth)):
+                folder = str(git.parent)
+                if folder not in seen and not any(part.startswith(".") for part in git.parent.relative_to(HOME).parts):
+                    seen.add(folder)
+                    suggest.append({"name": git.parent.name, "path": folder, "short": short_path(folder)})
+                if len(suggest) >= 8:
+                    break
+    return {"path": str(target), "short": short_path(str(target)),
+            "parent": str(target.parent) if target != target.parent else "",
+            "dirs": dirs[:300], "added": str(target) in rows, "suggest": suggest}
+
+
+def add_folder(path):
+    """Into PROJEKT (the same list as Goblin AI's PROJEKT → MAPPAR). "" or why not."""
+    path = str(Path(path).expanduser()).rstrip("/") or "/"
+    if not path.startswith("/") or not Path(path).is_dir():
+        return "Mappen finns inte"
+    rows = folders()
+    if path not in rows:
+        save_folders(rows + [path])
+    return ""
+
+
+def power():
+    """The power button: Plasma's logout screen (GOBLINCAKES' own – Logga ut, Starta om, Stäng av, Avbryt).
+    "" or why not."""
+    for cmd in (["qdbus6", "org.kde.LogoutPrompt", "/LogoutPrompt", "org.kde.LogoutPrompt.promptAll"],
+                ["gdbus", "call", "--session", "--dest", "org.kde.LogoutPrompt", "--object-path", "/LogoutPrompt",
+                 "--method", "org.kde.LogoutPrompt.promptAll"]):
+        try:
+            if subprocess.run(cmd, capture_output=True, timeout=5).returncode == 0:
+                return ""
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return "Avstängningsrutan gick inte att öppna"
+
+
 def project_tools():
     """Which of the ways to open a project exist here."""
     has = lambda n: bool(shutil.which(n)) or (HOME / ".local/bin" / n).is_file()  # noqa: E731
@@ -679,6 +738,8 @@ if __name__ == "__main__":
         result = projects()
     elif what == "project":
         result = project(sys.argv[2] if len(sys.argv) > 2 else os.getcwd())
+    elif what == "browse":
+        result = browse(sys.argv[2] if len(sys.argv) > 2 else "")
     elif what == "tray":
         result = tray(sys.argv[2] if len(sys.argv) > 2 else "nätverk")
     elif what == "bottom":
