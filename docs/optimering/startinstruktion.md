@@ -7,6 +7,8 @@ Tre delar: **1. Fable granskar** (rapport), **2. Opus bygger** punkterna du väl
 2. Klistra in texten i rutan nedan.
 3. Gå sedan igenom rapporten och välj vilka punkter som ska byggas (del 2).
 
+Tar kvoten slut mitt i: rapporten sparas efter varje område. När kvoten återställts – starta Fable igen och skriv "Fortsätt granskningen i docs/optimering/granskning.md enligt docs/optimering/startinstruktion.md del 1".
+
 ```
 Uppgift: granska hela GOBLINCAKES och ta fram en prioriterad optimeringslista. ÄNDRA INGEN KOD i den här uppgiften – bara läs, mät där det går och rapportera. Jag bestämmer sedan vad som byggs. UX (fönstrens utseende och texter) ingår inte – den granskas vid ett annat tillfälle.
 
@@ -23,7 +25,9 @@ Granska de här områdena (i den här ordningen):
 4. Kodkvalitet och underhåll – kopierad kod mellan fönstren (FlatButton/CheckSquare/FlatScrollBar/FlatField m.fl.), döda filer/funktioner, saker som görs på två olika sätt, ställen där en ändring lätt glöms på ena stället (de "två kopiorna" i CLAUDE.md), skript utan felhantering.
 5. Fel och risker du hittar på vägen – buggar, race conditions, saker som kan gå sönder vid Fedora-uppgradering eller rollback.
 
-Leverans: skriv rapporten till docs/optimering/granskning.md och committa bara den filen (ingen push). För varje punkt:
+Spara längs vägen (kvoten kan ta slut): skriv in varje område i docs/optimering/granskning.md och committa filen så fort området är klart – vänta inte till slutet. Mätresultaten förs in i avsnittet Mätningar direkt när de körts. Överst i filen: vilka områden som är klara och vilket som är nästa, så en ny session kan fortsätta där du slutade. Sorteringen och topp 5 görs sist.
+
+Leverans: rapporten i docs/optimering/granskning.md; committa bara den filen (ingen push). För varje punkt:
 - Vad: kort beskrivning + filer (fil:rad)
 - Vinst: vad jag märker (snabbare, mindre minne, färre fel, lättare underhåll) och ungefär hur mycket
 - Säkerhet: "sett/mätt" (med siffran) eller "tror" (och hur man bekräftar det)
