@@ -1518,11 +1518,11 @@ Window {
                             }
                         }
                     }
-                    // Until the movement and light are built (steps 2–7), Levande looks like Platt
+                    // What Levande does so far (step 2 of 7: the transitions)
                     Text {
                         visible: backend.look === "levande"
                         width: parent.width
-                        text: "Levande byggs i omgångar – än så länge ser allt ut som Platt."
+                        text: "Levande byggs i omgångar. Nu: knappar, kryssrutor, reglage och fält tonar mjukt och knapparna trycks ner. Ljuset och glaset kommer sedan."
                         color: accent.text
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13

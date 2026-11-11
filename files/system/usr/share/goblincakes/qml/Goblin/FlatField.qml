@@ -14,11 +14,14 @@ Rectangle {
     property string hintFamily: fontFamily
     property int hintSize: fontSize
     signal edited()
+    // Levande (Config → Utseende → Stil) and no game running: the frame fades to the accent (Levande utseende step 2)
+    readonly property bool moving: typeof look !== "undefined" && !!look && look.motion === true
     signal accepted()
     height: 44
     color: "#07090D"
     border.width: 1
     border.color: input.activeFocus ? accent.color : "#2A3852"
+    Behavior on border.color { enabled: fieldBox.moving; ColorAnimation { duration: 140 } }
     TextInput {
         id: input
         anchors { fill: parent; leftMargin: 14; rightMargin: 14 }

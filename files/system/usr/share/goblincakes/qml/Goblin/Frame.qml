@@ -4,7 +4,12 @@
 import QtQuick
 
 Rectangle {
+    id: frame
+    // Levande (Config → Utseende → Stil) and no game running: a frame that changes (chosen, under the mouse) fades (Levande utseende step 2)
+    readonly property bool moving: typeof look !== "undefined" && !!look && look.motion === true
     color: "#0B1018"
     border.width: 1
     border.color: "#1E2A40"
+    Behavior on color { enabled: frame.moving; ColorAnimation { duration: 160 } }
+    Behavior on border.color { enabled: frame.moving; ColorAnimation { duration: 160 } }
 }

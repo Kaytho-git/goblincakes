@@ -9,6 +9,8 @@ Item {
     property int endMargin: margin       // above and below (the Dashboard: 0)
     property color trackColor: "#0E1420"
     property bool trackClick: false
+    // Levande (Config → Utseende → Stil) and no game running: the changes glide (Levande utseende step 2)
+    readonly property bool moving: typeof look !== "undefined" && !!look && look.motion === true
     readonly property bool needed: flick.visible && flick.contentHeight > flick.height + 1
     anchors { right: flick.right; rightMargin: margin; top: flick.top; topMargin: endMargin; bottom: flick.bottom; bottomMargin: endMargin }
     width: 8
@@ -34,6 +36,7 @@ Item {
         y: bar.flick.visibleArea.yPosition / Math.max(0.0001, 1 - bar.flick.visibleArea.heightRatio)
            * (bar.height - height)
         color: handleArea.pressed ? accent.color : handleArea.containsMouse ? "#8B98AD" : "#2A3852"
+        Behavior on color { enabled: bar.moving; ColorAnimation { duration: 120 } }
         MouseArea {
             id: handleArea
             anchors.fill: parent

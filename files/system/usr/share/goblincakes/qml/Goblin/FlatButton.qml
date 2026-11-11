@@ -26,6 +26,8 @@ Rectangle {
     readonly property bool hovered: area.containsMouse && enabledState
     readonly property bool pressed: area.pressed && enabledState
     signal clicked()
+    // Levande (Config → Utseende → Stil) and no game running: the changes glide (Levande utseende step 2)
+    readonly property bool moving: typeof look !== "undefined" && !!look && look.motion === true
 
     width: Math.max(small ? smallMinWidth : minWidth, label.implicitWidth + (small ? smallPadding : padding))
     height: small ? smallHeight : normalHeight
@@ -35,6 +37,10 @@ Rectangle {
          : hovered ? (danger ? "#3A1418" : "#1A2438") : "transparent"
     border.width: primary ? 0 : 1
     border.color: danger && !dangerFill && hovered ? accent.error : borderColor
+    // Levande: the colours fade (140 ms) and the button is pressed down 1 px while held
+    Behavior on color { enabled: btn.moving; ColorAnimation { duration: 140 } }
+    Behavior on border.color { enabled: btn.moving; ColorAnimation { duration: 140 } }
+    transform: Translate { y: btn.moving && btn.pressed ? 1 : 0 }
 
     Text {
         id: label

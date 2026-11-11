@@ -11,7 +11,9 @@ Avinstallera, goblin graph), which show it through the QML context property "acc
     accent.error / accent.errorBright   errors and close buttons (orange for Death Knight)
 and the look (Config → Utseende → Stil, 11 Nov) through the context property "look":
     look.living    Levande chosen (standard Platt = exactly the flat look from before)
-    look.motion    things may move: Levande, and Plasma's animations are not turned off
+    look.motion    things may move: Levande, Plasma's animations are not turned off, and no game runs
+                   (the game guard's $XDG_RUNTIME_DIR/goblincakes-gaming – nothing that costs power during a game)
+    look.gaming    a game runs
 The shared pieces (FlatButton, CheckSquare, ToggleSwitch, FlatField, FlatScrollBar, Frame) are the QML
 module in qml/Goblin next to this file: `import "../qml/Goblin" as G`.
 Only the standard library (the apps import it before Qt is involved).
@@ -92,9 +94,24 @@ def _plasma_animations():
         return True
 
 
+RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+GAMING = RUNTIME / "goblincakes-gaming"   # goblincakes-gameguard: exists (and is touched every 3 s) while a game runs
+
+
+def gaming():
+    """A game runs – the game guard's file, not older than a minute (a crash can leave it)."""
+    import time
+    try:
+        return time.time() - GAMING.stat().st_mtime < 60
+    except OSError:
+        return False
+
+
 def look():
     living = look_id() == "levande"
-    return {"id": look_id(), "living": living, "motion": living and _plasma_animations()}
+    game = gaming()
+    return {"id": look_id(), "living": living, "gaming": game,
+            "motion": living and not game and _plasma_animations()}
 
 
 # ── Colour arithmetic ────────────────────────────────────────────
@@ -210,28 +227,41 @@ def recolor(text, target):
 
 def install(engine):
     """GOBLINCAKES' own windows: the QML context properties "accent" and "look" (see the top of this file),
-    changed live when another colour or look is chosen (Config, goblin färg). Call before engine.load()."""
-    from PySide6.QtCore import QFileSystemWatcher
+    changed live when another colour or look is chosen (Config, goblin färg), when a game starts or ends and
+    when Plasma's animations are turned off or on. Call before engine.load()."""
+    from PySide6.QtCore import QFileSystemWatcher, QTimer
     ctx = engine.rootContext()
     ctx.setContextProperty("accent", current())
     ctx.setContextProperty("look", look())
     CONFIG.mkdir(parents=True, exist_ok=True)
-    watcher = QFileSystemWatcher([str(CONFIG)], engine)
+    kdeglobals = CONFIG.parent / "kdeglobals"
+    dirs = [str(CONFIG)] + ([str(RUNTIME)] if RUNTIME.is_dir() else [])
+    watcher = QFileSystemWatcher(dirs, engine)
     shown = {"accent": current(), "look": look()}
+    # While a game runs: looked at again every 30 s too (the file is only touched then, which no watcher sees)
+    again = QTimer(engine, interval=30000)
 
     def changed(*_):
-        for f in (PALETTE, LOOK):
+        for f in (PALETTE, LOOK, kdeglobals):
             if f.exists() and str(f) not in watcher.files():
                 watcher.addPath(str(f))
         for name, now in (("accent", current()), ("look", look())):
             if now != shown[name]:
                 shown[name] = now
                 ctx.setContextProperty(name, now)
+        if shown["look"]["gaming"]:
+            again.start()
+        else:
+            again.stop()
 
-    for f in (PALETTE, LOOK):
+    for f in (PALETTE, LOOK, kdeglobals):
         if f.exists():
             watcher.addPath(str(f))
     watcher.directoryChanged.connect(changed)
     watcher.fileChanged.connect(changed)
+    again.timeout.connect(changed)
+    if shown["look"]["gaming"]:
+        again.start()
     engine.setProperty("goblincakesAccentWatcher", watcher)  # keeps it alive with the engine
+    engine.setProperty("goblincakesLookTimer", again)
     return watcher
