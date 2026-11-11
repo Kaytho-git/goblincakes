@@ -188,6 +188,7 @@ Gäller alla tre varianterna. Läst ur bygget 11 nov 16:01 (`goblincakes-nvidia`
 - **Storlek:** liten ändring (en–två rader), men medel med proven: ett bygge, uppdatering + omstart på båda datorerna, ISO-bygget.
 - **Kan provas:** bara på riktigt (GitHub-bygget + en riktig uppdatering).
 - **Mät efteråt:** M12 (två byggen i följd) och M13.
+- **Byggt 11 nov (Opus, Fable granskar):** `chunkah: true` för **bara basvarianten** (`recipe.yml`) via matrisens `include` i `build.yml` (`chunkah: ${{ matrix.chunkah }}`). Valet: actionen v1.13 har tre sätt; `rechunk` ska tas bort och kan ge fel filrättigheter, Universal Blues egna images (ublue-os/main, vår bas) styckas med chunkah. CLI:t byter själv till podman när chunkah är på (`build.rs`), max 128 lager (standard). Etiketterna (`org.opencontainers.image.*`, som `goblincakes-updates` och `goblincakes-fedora-check` läser) följer med via `--config` – kolla med `skopeo inspect` efter första bygget. Nästa: två byggen i följd → M12 på basvarianten; ISO-bygget (söndag, eller kör det för hand) startar och installerar; sedan nvidia-legacy (frugans laptop, mest att vinna) och sist nvidia.
 
 ### P13 – AppGrid och libratbag byggs från källkod tre gånger i varje bygge
 - **Vad:** Byggstegen i `recipes/common-stages.yml:6`–`:20` körs en gång per variant (tre gånger per bygge), och varje gång hämtas dessutom en hel extra basimage (`kinoite-main`, 213 s) bara för att bygga dem. AppGrid tar 174 s att bygga, libratbag 25 s. Resten av ett bygge: hämta basen 226 s, Steam 131 s, dnf-paketen 85 s, initramfs 54 s, ladda upp 69 s.

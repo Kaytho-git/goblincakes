@@ -34,11 +34,19 @@ jobs:
     strategy:
       fail-fast: false # stop GH from cancelling all matrix builds if one fails
       matrix:
-        recipe:
-          # !! Add your recipes here
-          - recipe.yml        # goblincakes (AMD/Intel, on the ISO)
-          - recipe-nvidia.yml # goblincakes-nvidia (switched to in GOBLINCAKES Config)
-          - recipe-nvidia-legacy.yml # goblincakes-nvidia-legacy (GTX 900/10, Nvidia's 580 driver; switched to in Config)
+        # chunkah (P12 in docs/optimering/granskning.md, 11 Nov): splits the finished image into
+        # layers by content (package by package, like Universal Blue's own images), so unchanged
+        # packages keep their layer between builds and an update only downloads what changed
+        # (without it every build renamed all ~29 of our layers: 1.4 GB per update, 2.9 GB for
+        # legacy). Tried on the base variant first (nobody runs it daily); the others follow
+        # when an update + reboot and the ISO build have worked with it.
+        include:
+          - recipe: recipe.yml        # goblincakes (AMD/Intel, on the ISO)
+            chunkah: "true"
+          - recipe: recipe-nvidia.yml # goblincakes-nvidia (switched to in GOBLINCAKES Config)
+            chunkah: "false"
+          - recipe: recipe-nvidia-legacy.yml # goblincakes-nvidia-legacy (GTX 900/10, Nvidia's 580 driver; switched to in Config)
+            chunkah: "false"
     steps:
       # The repo with its whole history (7 Nov): the news lines get the commit they came from
       # (tools/news-commits.py → nyheter-commits.json, shown by goblin update). The action's own
@@ -73,6 +81,7 @@ jobs:
           registry_token: ${{ github.token }}
           pr_event_number: ${{ github.event.number }}
           skip_checkout: "true" # checked out above, with the news commits
+          chunkah: ${{ matrix.chunkah }} # see the matrix above
 
           # enabled by default, disable if your image is small and you want faster builds
           maximize_build_space: true

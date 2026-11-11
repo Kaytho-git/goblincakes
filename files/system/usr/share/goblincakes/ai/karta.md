@@ -76,6 +76,8 @@ Ord: bygget, bygge, build, github actions, misslyckades bygget, byggloggen, ny i
   misslyckats – inget när det lyckas.
 - "Säg till när bygget är klart": `bevaka bygge [commit]` – säger till både lyckat och misslyckat. Avbryts bygget av
   ett nyare (samma kö) följs det nyare. Claude lämnar också sådana bevakningar efter en push.
+- Basvarianten (goblincakes) styckas om efter innehåll i slutet av bygget (chunkah, 11 nov) – steget "Running Chunkah"
+  tar några minuter extra; fel där = byggsteget, inte receptet.
 - Felet sitter oftast hos Fedora/Universal Blue (paket som krockar, en server nere) eller i GOBLINCAKES recept/skript
   – du ändrar aldrig koden i repot: förklara och föreslå Skicka till Claude.
 - Fedora-versionen är låst i recepten (11 nov): recipes/recipe*.yml `image-version` (45 för goblincakes och
