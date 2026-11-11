@@ -1056,7 +1056,22 @@ Window {
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 12
                     }
+                    Text {   // 12 Nov: only if Anthropic lets Claude Code see the button (goblincakes-quota free_reset)
+                        visible: service.modelData.freeReset === true
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: "Reset for free finns – tryck på knappen på claude.ai"
+                        color: accent.text
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 12
+                    }
                 }
+            }
+            // The website's usage page: the "Reset for free" button is only shown there
+            FlatButton {
+                text: "Användning på claude.ai"
+                onClicked: backend.openUrl("https://claude.ai/settings/usage")
             }
         }
     }

@@ -6,7 +6,7 @@ quota widget in the top bar (org.goblincakes.quota).
     goblincakes-quota --cached  only print the saved file (nothing fetched)
 
 {"updated": epoch, "services": [{"id": "claude"|"codex", "name", "plan", "error", "source",
- "stale", "windows": [{"label": "5 h"|"Vecka", "percent", "resets": epoch}]}]}
+ "stale", "windows": [{"label": "5 h"|"Vecka", "percent", "resets": epoch}], "freeReset" (Claude)}]}
 
 Both use unofficial ways that the official programs themselves use, so they may change: then the
 service gets an "error" ("kunde inte läsas …") and the last good values are kept with "stale".
@@ -19,6 +19,7 @@ Tokens are only sent to the services they belong to and never printed.
 """
 import json
 import os
+import subprocess
 import sys
 import time
 import urllib.error
@@ -71,6 +72,23 @@ def offers(data):
     return found
 
 
+def free_reset(data):
+    """The "Reset for free" button on claude.ai → Usage (field cedar_ember). 12 Nov: with Claude Code's login it
+    says eligible false, ineligible_reason "surface" and no grants even while the button is on the website – so
+    this is only true if Anthropic one day lets Claude Code see it."""
+    part = data.get("cedar_ember")
+    return isinstance(part, dict) and bool(part.get("eligible") or part.get("grants"))
+
+
+def tell_free_reset():
+    try:
+        subprocess.Popen(["notify-send", "--app-name=GOBLINCAKES", "--icon=goblincakes", "Reset for free finns",
+                          "Claude: gratis återställning av kvoten – tryck på knappen på claude.ai → Användning."],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        pass
+
+
 def claude():
     service = {"id": "claude", "name": "Claude", "plan": "", "error": "", "source": "live", "windows": []}
     try:
@@ -83,7 +101,8 @@ def claude():
         service["error"] = "inloggningen har gått ut – starta Claude Code"
         return service
     try:
-        data = get_json("https://api.anthropic.com/api/oauth/usage",
+        # cedar_ember=1 (12 Nov, seen in claude.ai's own usage page): the "Reset for free" button's data
+        data = get_json("https://api.anthropic.com/api/oauth/usage?cedar_ember=1",
                         {"Authorization": "Bearer " + login["accessToken"],
                          "anthropic-beta": "oauth-2025-04-20"})
         for label, key in (("5 h", "five_hour"), ("Vecka", "seven_day")):
@@ -94,6 +113,7 @@ def claude():
         if not service["windows"]:
             service["error"] = "svaret gick inte att läsa"
         service["offers"] = offers(data)
+        service["freeReset"] = free_reset(data)
     except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as error:
         service["error"] = http_error(error)
     return service
@@ -179,6 +199,8 @@ def main():
             service["stale"] = previous.get("stale") or previous.get("updated") or 0
         else:
             service["updated"] = int(time.time())
+        if service.get("freeReset") and not (previous or {}).get("freeReset"):
+            tell_free_reset()   # once, when it appears
         services.append(service)
     result = {"updated": int(time.time()), "services": services}
     CACHE.parent.mkdir(parents=True, exist_ok=True)
