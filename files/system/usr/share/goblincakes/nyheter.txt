@@ -1,3 +1,4 @@
+2026-11-11  Stil Levande gäller nu också toppfältet och dockan: toppfältet blir tonat glas, dockan får ett svagt ljus och en glöd bakom programmet du har musen över, och låten, Discord-kanalen och kvotstaplarna i toppfältet tonar och glider när de ändras.
 2026-11-11  Dashboarden visar nu musens (och headsetets, tangentbordets, handkontrollens) batteri uppe till höger bredvid klockan – orange under 50 %, rött vid 10 %.
 2026-11-11  Upplägget Dashboard: de första gångerna står det längst ner på skrivbordet att du trycker Meta för dashboarden. Tipset försvinner av sig självt när du har öppnat dashboarden tre gånger.
 2026-11-11  Upplägget Dashboard: raden uppe i mitten av skrivbordet (klockan, Discord, Spelas nu) är 20 % mindre. Med Stil Levande är rutorna tonat glas utan ram, så bakgrundsbilden skymtar igenom.

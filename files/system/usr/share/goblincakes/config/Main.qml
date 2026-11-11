@@ -1528,11 +1528,11 @@ Window {
                             }
                         }
                     }
-                    // What Levande does so far (steps 2–6 of 7: the transitions, the light, the gliding numbers, the dashboard, the glass)
+                    // What Levande also does (step 7): the Plasma theme
                     Text {
                         visible: backend.look === "levande"
                         width: parent.width
-                        text: "Levande byggs i omgångar. Nu: knappar, kryssrutor, reglage och fält tonar mjukt, knapparna trycks ner, ramarna har ett svagt ljus uppifrån och det valda glöder, staplar och siffror glider, klockan rullar, text tonar över och dashboardens ramar glider fram när den öppnas, och raden uppe på skrivbordet (upplägget Dashboard) är tonat glas. Toppfältet och dockan kommer sedan."
+                        text: "Levande byter också Plasma-temat till GOBLINCAKES Levande: toppfältet blir tonat glas och dockan får ljus och glöd. Inget rör sig medan ett spel kör."
                         color: accent.text
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13

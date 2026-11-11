@@ -622,6 +622,10 @@ Ord: utseende, tema, färg, accent, accentfärg, låsskärm, inloggning, sddm, i
   inget spel kör ($XDG_RUNTIME_DIR/goblincakes-gaming från goblincakes-gameguard) och Plasmas animationer inte är
   avstängda (kdeglobals AnimationDurationFactor). Ljuset i ramarna (qml/Goblin/Light.qml) och bakgrunden (Backdrop.qml)
   syns med Levande, även under spel. Kolla: `python3 -c "import sys; sys.path.insert(0,'/usr/share/goblincakes'); import accent; print(accent.look())"`.
+- Stil Levande byter Plasma-temat till goblincakes-levande (toppfältet som tonat glas; byggs i imagen av
+  files/scripts/desktoptheme-levande.sh från goblincakes-temat), Platt tillbaka till goblincakes – bara om ett av de två
+  används. Vid inloggning rättar goblincakes-refresh.sh temat efter valet. Kolla: `kreadconfig6 --file plasmarc --group
+  Theme --key name`. Dockan och toppfältets widgetar (Spelas nu, kvot, uppdateringar) läser valet var 5:e s.
 - GOBLINCAKES egna fönster delar knappar, kryssrutor, reglage, textfält, rullister och ramar:
   /usr/share/goblincakes/qml/Goblin/ (FlatButton.qml m.fl.). Ser alla fönstrens knappar fel ut → där.
 

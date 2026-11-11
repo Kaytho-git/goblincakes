@@ -70,7 +70,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav; beredskapsplan om kärnkrav: grep "Beredskapsplan").
 - [ ] **GoblinRecorder för CS2** – byggt, deathmatch provat på riktigt. Kvar: en riktig Premier/Competitive + nedladdad demo (siffror mot Leetify, klippen, servernamnet "Valve") – grep "Leetify".
 - [ ] **Offhand – WoW över två skärmar** – provat i Retail 9 nov (med flyttad EllesmereUI-profil): kändes för ovant; nästa: prova i Forever (profilen atrocityUI Offhand får ligga kvar) (grep "Offhand" i anteckningarna).
-- [ ] **Levande utseende** – samma stil + rörelse, ljus, tonat glas på skrivbordet; ett val Platt (standard) / Levande i Config → Utseende → Stil. Steg 1 (modul + valet), 2 (övergångar, av under spel) 3 (ljus: `G.Light` i ramarna, `G.Backdrop`) 4 (`G.Glide`/`FadeText`/`RollText`/`Count`) och 5 (dashboarden: `G.Rise`, lyft + glöd i programmets färg, `G.LiveTag` PÅGÅR) och 6 (skrivbordsraden 20 % mindre i båda stilarna + tonat glas utan ram med Levande) byggda 11 nov, nästa: steg 7 toppfältet och dockan (grep "Levande utseende" i anteckningarna).
+- [ ] **Levande utseende** – ett val Platt (standard) / Levande i Config → Utseende → Stil; alla 7 stegen byggda 11 nov (modul `qml/Goblin`, övergångar, ljus, glidande siffror, dashboarden, skrivbordsraden 20 % mindre + glas, toppfältet via temat `goblincakes-levande` + dockan); bara provat i molnet – testlistor `levande-steg1.md`…`levande-steg7.md` (grep "Levande utseende" i anteckningarna).
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer
