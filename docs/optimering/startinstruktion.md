@@ -1,13 +1,14 @@
 # Startinstruktion – optimeringsgranskning med Fable
 
-Så här kör du den:
-1. Starta Claude Code i repot, välj Fable med `/model` och sätt `/effort high`.
+Tre delar: **1. Fable granskar** (rapport), **2. Opus bygger** punkterna du väljer, **3. UX** – en egen granskning vid ett annat tillfälle.
+
+## 1. Granskningen (Fable)
+1. Starta Claude Code i repot på din dator, välj Fable med `/model` och sätt `/effort high`.
 2. Klistra in texten i rutan nedan.
-3. Om kvoten är viktig: stryk punkt 6 (UX) och kör den som en egen session efteråt.
-4. Gå sedan igenom rapporten och säg vilka punkter som ska byggas. Det kan göras med Opus, en eller några punkter per session.
+3. Gå sedan igenom rapporten och välj vilka punkter som ska byggas (del 2).
 
 ```
-Uppgift: granska hela GOBLINCAKES och ta fram en prioriterad optimeringslista. ÄNDRA INGEN KOD i den här uppgiften – bara läs, mät där det går och rapportera. Jag bestämmer sedan vad som byggs.
+Uppgift: granska hela GOBLINCAKES och ta fram en prioriterad optimeringslista. ÄNDRA INGEN KOD i den här uppgiften – bara läs, mät där det går och rapportera. Jag bestämmer sedan vad som byggs. UX (fönstrens utseende och texter) ingår inte – den granskas vid ett annat tillfälle.
 
 Börja med: git pull, läs CLAUDE.md. docs/anteckningar.md är stor – läs den inte hel, grep på det du granskar (t.ex. varför något gjorts på ett visst sätt – kolla det innan du föreslår att ändra det). Följ alla regler i CLAUDE.md.
 
@@ -21,21 +22,43 @@ Granska de här områdena (i den här ordningen):
 3. Image och bygge – recipes/common-modules.yml, common-stages.yml, build.yml: onödiga paket, lager som kan slås ihop, cachning, byggtid, imagens storlek. Inga beslut i CLAUDE.md får brytas (t.ex. Steam i imagen, inte Bazzite, Fedoras kärna).
 4. Kodkvalitet och underhåll – kopierad kod mellan fönstren (FlatButton/CheckSquare/FlatScrollBar/FlatField m.fl.), döda filer/funktioner, saker som görs på två olika sätt, ställen där en ändring lätt glöms på ena stället (de "två kopiorna" i CLAUDE.md), skript utan felhantering.
 5. Fel och risker du hittar på vägen – buggar, race conditions, saker som kan gå sönder vid Fedora-uppgradering eller rollback.
-6. UX – gå igenom våra egna fönster (Config, Goblin AI, Dashboard, GoblinAmp, GoblinShare m.fl.):
-   - Avvikelser från designen (https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt) och Configs stil: färger, typsnitt, avstånd, knappar, raka hörn, accent.color.
-   - Inkonsekvenser mellan fönstren (samma sak gjord/benämnd olika).
-   - Texter: otydliga, tekniska, felstavade, blandad svenska/engelska.
-   - Flöden: onödiga steg, saknad återkoppling (laddar/klart/fel), saker som är svåra att hitta.
-   - Rendera fönstren offscreen med attrapper och titta på skärmdumparna där det går. Skriv vad som är sett på bild och vad som bara är läst i koden.
-   Lägg UX-punkterna i ett eget avsnitt i rapporten.
 
 Leverans: skriv rapporten till docs/optimering/granskning.md och committa bara den filen (ingen push). För varje punkt:
 - Vad: kort beskrivning + filer (fil:rad)
 - Vinst: vad jag märker (snabbare, mindre minne, färre fel, lättare underhåll) och ungefär hur mycket
+- Säkerhet: "sett/mätt" (med siffran) eller "tror" (och hur man bekräftar det)
 - Risk: låg/medel/hög + vad som kan gå sönder
 - Storlek: liten (< 1 h), medel, stor (flera sessioner)
 - Kan provas: offscreen/i molnet, eller bara på riktiga datorn
-Sortera efter vinst delat med risk och storlek – mest värt först. Max ~30 punkter (UX-avsnittet räknas för sig); slå ihop småsaker. Skriv på vanlig svenska, kort. Avsluta med en topp 5 som du rekommenderar att börja med.
+- Mät efteråt: vilket kommando i avsnittet Mätningar som visar om ändringen hjälpte (om det finns ett)
+Sortera efter vinst delat med risk och storlek – mest värt först. Max ~30 punkter; slå ihop småsaker. Skriv på vanlig svenska, kort. Avsluta med en topp 5 som du rekommenderar att börja med.
+
+Avsnittet Mätningar (sist i rapporten): alla kommandon du körde på laptopen (och min dator), numrerade, exakt som de ska skrivas, med när de kördes (efter inloggning / under spel) och resultatet i korthet. Det är "före"-värdena – samma kommandon körs igen när punkterna är byggda, så de ska gå att köra igen utan att du är med.
 
 Gissa inte: skilj på "har sett/mätt" och "tror". Om något kräver att man mäter på riktiga datorn, skriv vilket kommando jag ska köra.
+```
+
+## 2. Bygga punkterna (Opus)
+En eller några punkter per session. Klistra in och fyll i numren:
+
+```
+Bygg punkt <nr> (och <nr>) i docs/optimering/granskning.md. Börja med git pull och läs CLAUDE.md.
+Står det "tror" under Säkerhet: bekräfta först (läs koden eller be mig köra kommandot) innan du ändrar något. Visar det sig inte stämma – säg det och bygg inget.
+När det är byggt: skriv vilka kommandon i avsnittet Mätningar jag ska köra igen (laptopen via GoblinShare eller min dator), och för in "efter"-värdena i rapporten när jag kört dem. Bocka av punkten i rapporten.
+```
+
+Punkter med **hög risk** eller storlek **stor** (t.ex. uppstarten, bygget eller något som rör rollback): låt hellre Fable bygga dem, eller låt Fable granska det Opus byggt, om kvoten räcker.
+
+## 3. UX (vid ett annat tillfälle, Fable)
+Egen session. Klistra in:
+
+```
+Uppgift: granska UX i GOBLINCAKES egna fönster (Config, Goblin AI, Dashboard, GoblinAmp, GoblinShare m.fl.). ÄNDRA INGEN KOD – bara granska och rapportera. Börja med git pull, läs CLAUDE.md; grep i docs/anteckningar.md i stället för att läsa den hel. Följ alla regler i CLAUDE.md.
+- Avvikelser från designen (https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt) och Configs stil: färger, typsnitt, avstånd, knappar, raka hörn, accent.color.
+- Inkonsekvenser mellan fönstren (samma sak gjord/benämnd olika).
+- Texter: otydliga, tekniska, felstavade, blandad svenska/engelska.
+- Flöden: onödiga steg, saknad återkoppling (laddar/klart/fel), saker som är svåra att hitta.
+- Rendera fönstren offscreen med attrapper och titta på skärmdumparna där det går. Skriv vad som är sett på bild och vad som bara är läst i koden.
+Både Platt och Levande utseende (Config → Utseende → Stil).
+Leverans: docs/optimering/ux.md, committa bara den filen (ingen push). Per punkt: vad (fil:rad), vinst, risk, storlek, sett på bild eller bara läst i koden. Mest värt först, max ~30 punkter, vanlig svenska, kort, topp 5 sist.
 ```
