@@ -8,6 +8,7 @@ import QtQuick.Window
 import QtQuick.Shapes
 
 Window {
+    G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
     title: "GOBLINCAKES Dashboard"
     color: "#07090D"
@@ -288,6 +289,7 @@ Window {
             visible: has && status === Image.Ready
         }
         Rectangle {
+            G.Light {}
             anchors.fill: parent
             visible: !img.visible
             color: "#12203A"
@@ -332,6 +334,7 @@ Window {
 
     // A row in a side frame that shows something in the middle
     component SideCard: Rectangle {
+        G.Light { hovered: cardArea.containsMouse }
         id: card
         property bool on: false
         property string title
@@ -596,6 +599,7 @@ Window {
             boundsBehavior: Flickable.StopAtBounds
             model: win.windows
             delegate: Rectangle {
+                G.Light { hovered: chipArea.containsMouse }
                 required property var modelData
                 required property int index
                 width: Math.min(260, chipRow.implicitWidth + 24)
@@ -984,6 +988,7 @@ Window {
                 boundsBehavior: Flickable.StopAtBounds
                 model: win.projects
                 delegate: Rectangle {
+                    G.Light {}
                     required property var modelData
                     readonly property bool on: win.midProject === modelData.path
                     readonly property bool hovered: projArea.containsMouse || removeArea.containsMouse
@@ -1160,6 +1165,7 @@ Window {
                 spacing: 10
                 Heading { text: "CS2 STATS" }
                 Rectangle {
+                    G.Light { hovered: csArea.containsMouse }
                     width: parent.width
                     height: csInner.implicitHeight + 20
                     color: win.mid === "cs2" || csArea.containsMouse ? "#12203A" : "#0E1420"
@@ -1217,6 +1223,7 @@ Window {
                 spacing: 10
                 Heading { text: "BYGGEN" }
                 Rectangle {
+                    G.Light { hovered: buildArea.containsMouse }
                     width: parent.width
                     height: buildInner.implicitHeight + 20
                     color: win.mid === "builds" || buildArea.containsMouse ? "#12203A" : "#0E1420"
@@ -1309,6 +1316,7 @@ Window {
 
         // The middle: every program (type = search), or what was pressed in a frame
         Rectangle {
+            G.Light {}
             id: middle
             anchors { left: leftCol.right; leftMargin: leftCol.visible ? 16 : 0; right: rightCol.left; rightMargin: 16
                       top: parent.top; bottom: viewStrip.visible ? viewStrip.top : parent.bottom }
@@ -1363,6 +1371,7 @@ Window {
                         Repeater {
                             model: addView.b.suggest || []
                             Rectangle {
+                                G.Light { hovered: suggestArea.containsMouse }
                                 required property var modelData
                                 width: suggestText.implicitWidth + 28
                                 height: 38
@@ -2569,6 +2578,7 @@ Window {
                         width: parent.width
                         spacing: 14
                         Rectangle {
+                            G.Light {}
                             width: 84
                             height: 84
                             color: "#12203A"

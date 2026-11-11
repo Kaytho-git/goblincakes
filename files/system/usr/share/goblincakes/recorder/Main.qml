@@ -7,6 +7,7 @@ import QtQuick.Window
 import QtMultimedia
 
 Window {
+    G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
 
     width: 1320
@@ -503,6 +504,7 @@ Window {
                         ["STRAFE", win.pct(ds.s.strafe), "Counter-strafe: första skottet avlossat så stilla att det var träffsäkert "
                          + "(under 34 % av vapnets fart)."]]
                 Rectangle {
+                    G.Light {}
                     required property var modelData
                     width: 84
                     height: 46
@@ -803,6 +805,7 @@ Window {
     }
 
     component Choice: Rectangle {
+        G.Light { hovered: chArea.containsMouse }
         id: ch
         property string text
         property string sub
@@ -1254,6 +1257,7 @@ Window {
         }
         // While ticking: how many and how much, Ta bort and Avbryt
         Rectangle {
+            G.Light {}
             id: pickFoot
             visible: win.pickMode && win.videos.length > 0
             anchors { left: parent.left; bottom: parent.bottom; leftMargin: 24; bottomMargin: 20 }
@@ -1291,6 +1295,7 @@ Window {
             model: win.videos
 
             delegate: Rectangle {
+                G.Light { hovered: cardArea.containsMouse }
                 id: card
                 required property var modelData
                 readonly property bool active: win.selected && (win.selected.path === modelData.path
@@ -1571,6 +1576,7 @@ Window {
                     Repeater {
                         model: card.stats && card.stats.players ? win.roleGroups(card.stats.players) : []
                         Rectangle {
+                            G.Light {}
                             id: group
                             required property var modelData
                             width: statsCol.width
@@ -1842,6 +1848,7 @@ Window {
                             onClicked: win.realPlayer().position = Math.max(0, mark.modelData.t - 5) * 1000
                         }
                         Rectangle {
+                            G.Light {}
                             visible: markArea.containsMouse
                             y: -32
                             x: -width / 2
@@ -2198,6 +2205,7 @@ Window {
     // Put together from what is already here: WoW from your own history (each recorded pull with
     // your row of its Warcraft Logs numbers), CS2 from the read demos. No calls of their own.
     component StatTile: Rectangle {
+        G.Light {}
         id: tile
         property string label
         property string value
@@ -2607,6 +2615,7 @@ Window {
                     Repeater {
                         model: win.missing
                         Rectangle {
+                            G.Light { hovered: missArea.containsMouse }
                             id: missRow
                             required property var modelData
                             readonly property bool on: !!win.missingTicked[modelData.id]
@@ -3576,6 +3585,7 @@ Window {
             Row {
                 spacing: 12
                 Rectangle {
+                    G.Light {}
                     width: Math.min(620, settingsCol.width - 360)
                     height: 40
                     color: "#0E1420"
@@ -3648,6 +3658,7 @@ Window {
                 height: width * 9 / 16
 
                 Rectangle {
+                    G.Light {}
                     anchors.fill: parent
                     color: "#0E1420"
                     border.width: 1

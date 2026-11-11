@@ -6,6 +6,7 @@ import QtQuick.Window
 import QtQuick.Dialogs
 
 Window {
+    G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
 
     width: 1320 * uiScale
@@ -56,6 +57,7 @@ Window {
     // What a small mark under an answer does (♥, 👎): floats above it, outside the row's layout – a text that grew
     // on hover made the wrapping row jump away from the mouse and back (30 Oct)
     component HoverHint: Rectangle {
+        G.Light {}
         property bool shown
         property alias text: hintText.text
         visible: shown
@@ -1407,6 +1409,7 @@ Window {
 
         // A box: a header in small capitals with a mark in the accent and a note to the right, the content under it
         component Panel: Rectangle {
+            G.Light {}
             id: panel
             property string title
             property string mark
@@ -1575,6 +1578,7 @@ Window {
                 note: thinking ? "tänker…" : "redo"
 
                 Rectangle {
+                    G.Light {}
                     id: kakanAvatar
                     readonly property string picture: kakanBox.thinking && backend.avatarThinking !== "" ? backend.avatarThinking : backend.avatar
                     x: win.portrait ? (parent.width - width) / 2 : 12
@@ -1878,6 +1882,7 @@ Window {
 
         // ── The big box: the tabs SVAR · CHATTAR · LÄR DIG KODA · INSTÄLLNINGAR, the view under them ──
         Rectangle {
+            G.Light {}
             id: mainBox
             x: win.portrait ? win.gap : sidePanel.x + sidePanel.width + win.gap
             y: win.portrait ? sidePanel.y + sidePanel.height + win.gap : win.gap
@@ -3914,6 +3919,7 @@ Window {
 
             // ── The list above the input: /commands, their choices, Ctrl+R ──
             Rectangle {
+                G.Light {}
                 id: cmdPopup
                 visible: win.popupItems.length > 0 && input.activeFocus
                 z: 20
@@ -3985,6 +3991,7 @@ Window {
                 onClicked: shotMenu.visible = false
             }
             Rectangle {
+                G.Light {}
                 id: shotMenu
                 visible: false
                 z: 20
@@ -4051,6 +4058,7 @@ Window {
                 onClicked: modelMenu.visible = false
             }
             Rectangle {
+                G.Light {}
                 id: modelMenu
                 visible: false
                 z: 20
@@ -4162,6 +4170,7 @@ Window {
         // ── Learning mode: "Lär dig koda" (view "learn") ────────
 
         component Pick: Rectangle {
+            G.Light { hovered: pickArea.containsMouse }
             id: pick
             property string title
             property string sub
@@ -4577,6 +4586,7 @@ Window {
                             model: win.learnModule && win.learnModule.tasks
                                    ? (win.testTask ? win.learnModule.tasks.filter(t => t.id === win.testTask) : win.learnModule.tasks) : []
                             Rectangle {
+                                G.Light {}
                                 id: taskCard
                                 required property var modelData
                                 readonly property var run: win.learnRuns[modelData.id] || null
@@ -5131,6 +5141,7 @@ Window {
 
                 // ── The AI's own name (16 Oct) ──
                 Rectangle {
+                    G.Light {}
                     id: setName
                     width: settingsCol.width
                     height: nameCol.height + 36
@@ -5230,6 +5241,7 @@ Window {
 
                 // ── The AI's avatar (20 Oct): own picture or one it draws ──
                 Rectangle {
+                    G.Light {}
                     id: setAvatar
                     width: settingsCol.width
                     height: avatarCol.height + 36
@@ -5409,6 +5421,7 @@ Window {
 
                 // ── The memory (16 Oct): what the AI always knows ──
                 Rectangle {
+                    G.Light {}
                     id: memCard
                     property bool open: false
                     width: settingsCol.width
@@ -5524,6 +5537,7 @@ Window {
 
                 // ── The lessons (21 Oct): what the ♥ under good answers saved ──
                 Rectangle {
+                    G.Light {}
                     id: lessonCard
                     property bool open: false
                     width: settingsCol.width
@@ -5686,6 +5700,7 @@ Window {
                                                     Repeater {
                                                         model: lessonCard.categories
                                                         Rectangle {
+                                                            G.Light { hovered: catChoiceArea.containsMouse }
                                                             id: catChoice
                                                             required property var modelData
                                                             property bool current: modelData.id === lessonRow.modelData.category
@@ -5768,6 +5783,7 @@ Window {
 
                 // ── Körda kommandon (25 Oct): everything run from the chat, with Ångra; reading commands at once on/off ──
                 Rectangle {
+                    G.Light {}
                     id: cmdLogCard
                     property bool open: false
                     width: settingsCol.width
@@ -5952,6 +5968,7 @@ Window {
 
                 // ── Egna verktyg (1 Nov, the user): Kakan's own tools without a /command, what they do ──
                 Rectangle {
+                    G.Light {}
                     id: ownToolsCard
                     property bool open: false
                     readonly property var items: JSON.parse(backend.ownTools)
@@ -6022,6 +6039,7 @@ Window {
 
                 // ── MCP-servrar (punkt 8, 28 Oct): ready-made tools from outside, in podman containers ──
                 Rectangle {
+                    G.Light {}
                     id: mcpCard
                     property bool open: false
                     property var items: JSON.parse(backend.mcpServers)
@@ -6303,6 +6321,7 @@ Window {
 
                 // ── Own buttons (20 Oct): above the input, a new chat with the instruction and its model ──
                 Rectangle {
+                    G.Light {}
                     id: dailyCard
                     property bool open: false
                     width: settingsCol.width
@@ -6514,6 +6533,7 @@ Window {
 
                 // ── Local AI (15 Oct): Ollama on this computer ──
                 Rectangle {
+                    G.Light {}
                     id: setLocal
                     width: settingsCol.width
                     height: localCol.height + 36
@@ -6591,6 +6611,7 @@ Window {
                             Repeater {
                                 model: win.local.places || []
                                 Rectangle {
+                                    G.Light { hovered: placeArea.containsMouse }
                                     id: placeRow
                                     required property var modelData
                                     readonly property bool chosen: (win.localPlace || (win.local.places || [{}])[0].path) === modelData.path
@@ -6687,6 +6708,7 @@ Window {
                             Repeater {
                                 model: (win.local.recommend || {}).roles || []
                                 Rectangle {
+                                    G.Light {}
                                     id: roleRow
                                     required property var modelData
                                     readonly property var have: (win.localStatus.models || []).map(m => m.name.replace(/:latest$/, ""))
@@ -6726,6 +6748,7 @@ Window {
                                             Repeater {
                                                 model: roleRow.modelData.options || []
                                                 Rectangle {
+                                                    G.Light { hovered: optionArea.containsMouse }
                                                     id: optionChip
                                                     required property var modelData
                                                     readonly property bool chosen: roleRow.picked === modelData.model
@@ -6891,6 +6914,7 @@ Window {
 
                 // ── Skicka vidare (2 Nov): who gets Kakan's reports – Claude Code, Codex or an own program ──
                 Rectangle {
+                    G.Light {}
                     id: setHelper
                     width: settingsCol.width
                     height: helperCol.height + 36
@@ -7018,6 +7042,7 @@ Window {
 
                 // ── Pictures (16 Oct): drawn on this computer, else in the cloud ──
                 Rectangle {
+                    G.Light {}
                     id: setImage
                     width: settingsCol.width
                     height: imageCol.height + 36
@@ -7080,6 +7105,7 @@ Window {
                             Repeater {
                                 model: win.local.places || []
                                 Rectangle {
+                                    G.Light { hovered: imagePlaceArea.containsMouse }
                                     id: imagePlaceRow
                                     required property var modelData
                                     readonly property bool chosen: (win.imagePlace || (win.local.places || [{}])[0].path) === modelData.path
@@ -7133,6 +7159,7 @@ Window {
                             Repeater {
                                 model: win.imageStatus.models || []
                                 Rectangle {
+                                    G.Light {}
                                     id: imageModelRow
                                     required property var modelData
                                     readonly property bool used: win.imageStatus.model === modelData.id
@@ -7174,6 +7201,7 @@ Window {
                                             Repeater {
                                                 model: imageModelRow.modelData.variants
                                                 Rectangle {
+                                                    G.Light { hovered: variantArea.containsMouse }
                                                     id: variantChip
                                                     required property var modelData
                                                     readonly property bool chosen: imageModelRow.picked === modelData.file
@@ -7281,6 +7309,7 @@ Window {
 
                 // Kakan's voice (step 9 E, 5 Nov): hold the key and talk – install, try, what she has learned
                 Rectangle {
+                    G.Light {}
                     id: setVoice
                     width: settingsCol.width
                     height: voiceCol.height + 36
@@ -7385,6 +7414,7 @@ Window {
                         Repeater {
                             model: win.voiceStatus.learned || []
                             Rectangle {
+                                G.Light {}
                                 id: learnedRow
                                 required property var modelData
                                 required property int index
@@ -7430,6 +7460,7 @@ Window {
                     model: JSON.parse(backend.providers)
 
                     Rectangle {
+                        G.Light {}
                         id: prov
                         required property var modelData
                         width: settingsCol.width
@@ -7553,6 +7584,7 @@ Window {
                 return "nollställs " + ["sön", "mån", "tis", "ons", "tor", "fre", "lör"][d.getDay()] + " " + hm;
             }
             Rectangle {
+                G.Light {}
                 anchors.centerIn: parent
                 width: 420
                 height: quotaCol.height + 2
@@ -7695,6 +7727,7 @@ Window {
         // ── Short messages at the bottom ─────────────────────────
 
         Rectangle {
+            G.Light {}
             id: toast
             property string text
             function show(t) {

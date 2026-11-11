@@ -6,6 +6,7 @@ import "../qml/Goblin" as G
 import QtQuick.Window
 
 Window {
+    G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
 
     width: 1180
@@ -100,6 +101,7 @@ Window {
     component CheckSquare: G.CheckSquare {}
 
     component Monogram: Rectangle {
+        G.Light {}
         property string name
         width: 48
         height: 48
@@ -289,6 +291,7 @@ Window {
                     model: win.apps
 
                     Rectangle {
+                        G.Light { hovered: cardArea.containsMouse }
                         id: card
                         required property var modelData
                         readonly property bool checked: !!win.toRemove[modelData.package]
@@ -390,6 +393,7 @@ Window {
                 model: win.removed
 
                 Rectangle {
+                    G.Light { hovered: rowArea.containsMouse }
                     id: row
                     required property var modelData
                     readonly property bool restoring: modelData.state === "restoring"

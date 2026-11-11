@@ -615,7 +615,8 @@ Ord: utseende, tema, färg, accent, accentfärg, låsskärm, inloggning, sddm, i
   (`look()`) och följs direkt av GOBLINCAKES egna fönster (QML-egenskapen `look`). Levande byggs i omgångar.
   Med Levande tonar knappar/kryssrutor/reglage/fält och knappar trycks ner 1 px (steg 2) – men bara när `look.motion`:
   inget spel kör ($XDG_RUNTIME_DIR/goblincakes-gaming från goblincakes-gameguard) och Plasmas animationer inte är
-  avstängda (kdeglobals AnimationDurationFactor). Kolla: `python3 -c "import sys; sys.path.insert(0,'/usr/share/goblincakes'); import accent; print(accent.look())"`.
+  avstängda (kdeglobals AnimationDurationFactor). Ljuset i ramarna (qml/Goblin/Light.qml) och bakgrunden (Backdrop.qml)
+  syns med Levande, även under spel. Kolla: `python3 -c "import sys; sys.path.insert(0,'/usr/share/goblincakes'); import accent; print(accent.look())"`.
 - GOBLINCAKES egna fönster delar knappar, kryssrutor, reglage, textfält, rullister och ramar:
   /usr/share/goblincakes/qml/Goblin/ (FlatButton.qml m.fl.). Ser alla fönstrens knappar fel ut → där.
 

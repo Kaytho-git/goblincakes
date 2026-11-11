@@ -5,6 +5,7 @@ import "../qml/Goblin" as G
 import QtQuick.Window
 
 Window {
+    G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: root
     width: 470
     height: 690
@@ -41,6 +42,7 @@ Window {
     // One graph: up to two lines (main in the accent, the other muted) over the last `span` seconds,
     // red ticks at the top where `bad` is true, a red line at every "laggar nu"
     component Graph: Rectangle {
+        G.Light {}
         id: g
         property string name
         property string value

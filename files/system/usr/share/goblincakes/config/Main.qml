@@ -5,6 +5,7 @@ import "../qml/Goblin" as G
 import QtQuick.Window
 
 Window {
+    G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
 
     // Everything is drawn at "zoom": 94 % at the start size or smaller, 104 % maximized, evenly between (5 Nov, the
@@ -444,6 +445,7 @@ Window {
 
     // Initials on a square tile, instead of icons (most apps aren't installed yet)
     component Monogram: Rectangle {
+        G.Light {}
         property string name
         width: 48
         height: 48
@@ -663,6 +665,7 @@ Window {
                             {id: "kitty", name: "Kitty", desc: "Snabb, med flikar och delade fönster. Hämtas när du väljer den."}
                         ]
                         Rectangle {
+                            G.Light { hovered: termArea.containsMouse }
                             id: termCard
                             required property var modelData
                             readonly property bool chosen: backend.terminal === modelData.id
@@ -812,6 +815,7 @@ Window {
 
                     // Category header: click to open/close (closed from the start)
                     Rectangle {
+                        G.Light { hovered: headerArea.containsMouse }
                         width: section.width
                         height: 52
                         color: headerArea.containsMouse ? "#111A2A" : "#0E1420"
@@ -1010,6 +1014,7 @@ Window {
                 Repeater {
                     model: win.webapps
                     Rectangle {
+                        G.Light {}
                         required property var modelData
                         width: sections.width
                         height: 52
@@ -1093,6 +1098,7 @@ Window {
                 model: progressModel
 
                 Rectangle {
+                    G.Light {}
                     id: row
                     required property string name
                     required property string status
@@ -1260,6 +1266,7 @@ Window {
                     }
 
                 Rectangle {
+                    G.Light {}
                     width: parent.width
                     height: Math.max(92, tweakText.height + 36)
                     color: "#0E1420"
@@ -1334,6 +1341,7 @@ Window {
             // The accent colour: buttons, frames, switches, ticks, scroll bars and highlights in
             // Plasma, KDE programs, these windows, Firefox and the login screen (goblincakes-accent).
             Rectangle {
+                G.Light {}
                 id: colourRow
                 readonly property var list: JSON.parse(backend.accents)
                 readonly property var chosen: list.find(a => a.chosen) || ({ "name": "GOBLINCAKES blå" })
@@ -1429,6 +1437,7 @@ Window {
             // Stil (Levande utseende, 11 Nov – the user: one choice, Platt as standard): Platt = exactly the flat look;
             // Levande = movement, light and tinted glass together (accent.py look, followed live by every window)
             Rectangle {
+                G.Light {}
                 id: styleRow
                 width: tweakRows.width
                 height: styleCol.height + 40
@@ -1469,6 +1478,7 @@ Window {
                                 {id: "levande", name: "Levande", desc: "Knappar och ramar som tonar och lyser svagt, siffror som glider och tonat glas på skrivbordet. Rörelserna stannar medan ett spel kör."}
                             ]
                             Rectangle {
+                                G.Light { hovered: styleArea.containsMouse }
                                 id: styleCard
                                 required property var modelData
                                 readonly property bool chosen: backend.look === modelData.id
@@ -1518,11 +1528,11 @@ Window {
                             }
                         }
                     }
-                    // What Levande does so far (step 2 of 7: the transitions)
+                    // What Levande does so far (steps 2–3 of 7: the transitions and the light)
                     Text {
                         visible: backend.look === "levande"
                         width: parent.width
-                        text: "Levande byggs i omgångar. Nu: knappar, kryssrutor, reglage och fält tonar mjukt och knapparna trycks ner. Ljuset och glaset kommer sedan."
+                        text: "Levande byggs i omgångar. Nu: knappar, kryssrutor, reglage och fält tonar mjukt, knapparna trycks ner, ramarna har ett svagt ljus uppifrån och det valda glöder. Siffror som glider och glaset kommer sedan."
                         color: accent.text
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 13
@@ -1534,6 +1544,7 @@ Window {
             // Skrivbordets upplägg (dashboard step 4, 10 Nov): the top bar + dock (standard) or the dashboard with the
             // desktop row – goblincakes-desktop-layout; both ways, the dock's apps and settings are kept
             Rectangle {
+                G.Light {}
                 id: layoutRow
                 width: tweakRows.width
                 height: layoutCol.height + 40
@@ -1574,6 +1585,7 @@ Window {
                                 {id: "dashboard", name: "Dashboard", desc: "Inget toppfält och ingen docka. Meta tar fram dashboarden; på skrivbordet bara raden uppe i mitten."}
                             ]
                             Rectangle {
+                                G.Light { hovered: layoutArea.containsMouse }
                                 id: layoutCard
                                 required property var modelData
                                 readonly property bool chosen: backend.desktopLayout === modelData.id
@@ -1639,6 +1651,7 @@ Window {
             // The dock (org.goblincakes.dock): size, the wave – the same as right click →
             // Konfigurera on the dock, through goblincakes-dock get/set (the panel's height follows the size)
             Rectangle {
+                G.Light {}
                 id: dockRow
                 readonly property var d: backend.dock ? JSON.parse(backend.dock) : null
                 visible: d !== null
@@ -1757,6 +1770,7 @@ Window {
             // The whole GOBLINCAKES look back (goblincakes-firstlogin --reset = `goblin dock reset`).
             // Other themes are fine – this is only the way back. Asks once before doing anything.
             Rectangle {
+                G.Light {}
                 id: lookRow
                 property string state_: "idle"  // idle | confirm | done
                 width: tweakRows.width
@@ -1828,6 +1842,7 @@ Window {
 
     // A small flat button (templates, tile tools)
     component SmallButton: Rectangle {
+        G.Light { hovered: sbArea.containsMouse }
         id: sb
         property string text
         property bool on: false
@@ -2019,6 +2034,7 @@ Window {
                     Repeater {
                         model: dashView.info ? dashView.info.views : []
                         Rectangle {
+                            G.Light { hovered: viewArea.containsMouse }
                             required property var modelData
                             required property int index
                             readonly property bool on: index === dashView.sel
@@ -2047,6 +2063,7 @@ Window {
                         }
                     }
                     Rectangle {
+                        G.Light { hovered: newViewArea.containsMouse }
                         visible: !!dashView.info && dashView.info.views.length < dashView.info.maxViews
                         width: newViewLabel.implicitWidth + 32
                         height: 44
@@ -2150,6 +2167,7 @@ Window {
                             Repeater {
                                 model: dashView.framesOn(sideCol.modelData.side)
                                 Rectangle {
+                                    G.Light { hovered: slotArea.containsMouse }
                                     required property string modelData
                                     required property int index
                                     readonly property bool on: dashView.slot === sideCol.modelData.side && dashView.slotIndex === index
@@ -2205,6 +2223,7 @@ Window {
                 }
 
                 Rectangle {
+                    G.Light {}
                     id: optionsPanel
                     anchors.right: parent.right
                     width: 380
@@ -2298,6 +2317,7 @@ Window {
                     Repeater {
                         model: dashView.bottomIds
                         Rectangle {
+                            G.Light {}
                             id: dashChip
                             required property string modelData
                             required property int index
@@ -2364,6 +2384,7 @@ Window {
                         }
                     }
                     Rectangle {
+                        G.Light { hovered: addArea2.containsMouse }
                         visible: dashView.bottomIds.length < 14
                         width: addLabel.implicitWidth + 28
                         height: 40
@@ -2402,6 +2423,7 @@ Window {
                     Repeater {
                         model: dashView.addable
                         Rectangle {
+                            G.Light { hovered: pickArea.containsMouse }
                             required property var modelData
                             width: 260
                             height: 44
@@ -2783,6 +2805,7 @@ Window {
                     Repeater {
                         model: windowsView.info.layouts
                         Rectangle {
+                            G.Light { hovered: chipArea.containsMouse }
                             id: chip
                             required property var modelData
                             required property int index
@@ -2885,6 +2908,7 @@ Window {
 
                 // Main windows → a suggested layout (15 Oct, the user's idea)
                 Rectangle {
+                    G.Light {}
                     visible: windowsView.loaded
                     width: parent.width
                     height: suggestCol.implicitHeight + 28
@@ -3091,6 +3115,7 @@ Window {
                                 Repeater {
                                     model: scr.flat.leaves
                                     Rectangle {
+                                        G.Light { hovered: leafArea.containsMouse }
                                         id: leaf
                                         required property var modelData
                                         readonly property bool chosen: windowsView.selScreen === scr.conn && windowsView.samePath(windowsView.selPath, modelData.path)
@@ -3129,6 +3154,7 @@ Window {
                                             Repeater {
                                                 model: leaf.modelData.apps
                                                 Rectangle {
+                                                    G.Light {}
                                                     id: appChip
                                                     required property string modelData
                                                     readonly property var app: windowsView.appsById[modelData] || { "name": modelData, "icon": "" }
@@ -3286,6 +3312,7 @@ Window {
 
         // ── Right: the programs to drag into the tiles ──
         Rectangle {
+            G.Light {}
             id: appPane
             visible: windowsView.loaded
             anchors { right: parent.right; rightMargin: 48; top: parent.top; topMargin: 28; bottom: parent.bottom; bottomMargin: 20 }
@@ -3525,6 +3552,7 @@ Window {
             Repeater {
                 model: win.gpu.cards || []
                 Rectangle {
+                    G.Light {}
                     required property var modelData
                     width: gfxCol.width
                     height: 72
@@ -3550,6 +3578,7 @@ Window {
 
             // Laptop with two cards: which one does what
             Rectangle {
+                G.Light {}
                 visible: !!win.gpu.hybrid
                 width: gfxCol.width
                 height: hybridText.height + 36
@@ -3586,6 +3615,7 @@ Window {
             }
 
             Rectangle {
+                G.Light {}
                 width: gfxCol.width
                 height: driverCol.height + 40
                 color: "#0E1420"
@@ -3699,6 +3729,7 @@ Window {
 
             // Secure Boot: Nvidia's and the Xbox controllers' drivers need Universal Blue's key, confirmed once
             Rectangle {
+                G.Light {}
                 visible: !!win.gpu.secureBoot && !win.gpu.keyEnrolled
                 width: gfxCol.width
                 height: sbCol.height + 40
@@ -3739,6 +3770,7 @@ Window {
 
             // Easy Anti-Cheat Linux v2 (Fortnite …): Epic's requirements, checked by goblincakes-anticheat
             Rectangle {
+                G.Light {}
                 id: acCard
                 readonly property var checks: win.anticheat.checks || []
                 readonly property bool checked: checks.length > 0
@@ -3950,6 +3982,7 @@ Window {
                 model: win.systemApps.filter(a => !win.appFilter
                     || (a.name + " " + a.comment + " " + a.source).toLowerCase().includes(win.appFilter.toLowerCase()))
                 Rectangle {
+                    G.Light {}
                     id: appRow
                     required property var modelData
                     property bool shown: modelData.visible
@@ -4049,6 +4082,7 @@ Window {
 
             // Uppdatera och stäng av: what it does right now
             Rectangle {
+                G.Light {}
                 visible: win.poweroffShown
                 width: updCol.width
                 height: poweroffLabel.height + 28
@@ -4075,6 +4109,7 @@ Window {
 
             // Result of "Kolla efter uppdateringar"
             Rectangle {
+                G.Light {}
                 visible: win.updateState === "idle" && win.checkState !== ""
                 width: updCol.width
                 // Whole pixels + antialiasing: at the start zoom (94 %) the 1 px bottom edge fell between two pixel
@@ -4100,6 +4135,7 @@ Window {
             Repeater {
                 model: win.updateState === "idle" && win.checkState === "done" ? checkParts : null
                 Rectangle {
+                    G.Light {}
                     required property string part
                     required property string title
                     required property string detail
@@ -4150,6 +4186,7 @@ Window {
                 font.letterSpacing: 2.5
             }
             Rectangle {
+                G.Light {}
                 visible: win.updateState !== "idle"
                 width: updCol.width
                 height: 12
@@ -4190,6 +4227,7 @@ Window {
             Repeater {
                 model: updateResults
                 Rectangle {
+                    G.Light {}
                     required property string name
                     required property bool ok
                     required property string summary
@@ -4240,6 +4278,7 @@ Window {
                 font.letterSpacing: 2.5
             }
             Rectangle {
+                G.Light {}
                 visible: updateNews.count > 0
                 width: updCol.width
                 height: newsCol.height + 32

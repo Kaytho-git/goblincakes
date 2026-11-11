@@ -6,6 +6,7 @@ import "../qml/Goblin" as G
 import QtQuick.Window
 
 Window {
+    G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
 
     width: 1080
@@ -338,6 +339,7 @@ Window {
                 width: list.width - list.leftMargin - list.rightMargin
                 height: bubble.height + stamp.height + 4
                 Rectangle {
+                    G.Light { hovered: bubbleArea.containsMouse }
                     id: bubble
                     anchors { right: m.out ? parent.right : undefined; left: m.out ? undefined : parent.left }
                     width: Math.min(m.width * 0.8, body.implicitWidth + 28)
@@ -404,6 +406,7 @@ Window {
         FlatScrollBar { flick: list }
 
         Rectangle {
+            G.Light {}
             id: writeBox
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 16 }
             height: Math.min(140, Math.max(46, input.contentHeight + 24))
@@ -682,6 +685,7 @@ Window {
                     Repeater {
                         model: win.orders
                         Rectangle {
+                            G.Light {}
                             id: ord
                             required property var modelData
                             readonly property bool busy: modelData.state === "pågår"
@@ -861,6 +865,7 @@ Window {
                     Repeater {
                         model: win.transfers
                         Rectangle {
+                            G.Light {}
                             id: tr
                             required property var modelData
                             readonly property bool active: modelData.state === "skickar" || modelData.state === "tar emot"
@@ -927,6 +932,7 @@ Window {
 
                 // No one found yet
                 Rectangle {
+                    G.Light {}
                     visible: win.peers.length === 0
                     width: parent.width
                     height: emptyCol.height + 48
@@ -959,6 +965,7 @@ Window {
                     Repeater {
                         model: win.peers
                         Rectangle {
+                            G.Light { hovered: cardArea.containsMouse }
                             id: card
                             required property var modelData
                             readonly property color tone: modelData.goblincakes ? (modelData.accent || "#2F6FED") : "#8B98AD"
@@ -1145,6 +1152,7 @@ Window {
                 }
             }
             delegate: Rectangle {
+                G.Light {}
                 id: h
                 required property var modelData
                 readonly property bool isText: modelData.kind === "text" || modelData.kind === "order"
@@ -1387,6 +1395,7 @@ Window {
             z: 11
             MouseArea { anchors.fill: parent; onClicked: win.codeTo = null }
             Rectangle {
+                G.Light {}
                 anchors.centerIn: parent
                 width: Math.min(520, stage.width - 80)
                 height: codeCol.height + 48
@@ -1442,6 +1451,7 @@ Window {
             z: 10
             MouseArea { anchors.fill: parent; onClicked: win.textTo = null }
             Rectangle {
+                G.Light {}
                 anchors.centerIn: parent
                 width: Math.min(560, stage.width - 80)
                 height: textCol.height + 48
