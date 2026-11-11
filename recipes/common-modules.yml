@@ -138,6 +138,11 @@ modules:
     snippets:
       - "python3 -c 'from PySide6 import QtCore, QtGui, QtWidgets, QtQml, QtQuick, QtDBus, QtNetwork; print(\"PySide6\", QtCore.qVersion())'"
 
+  # Our Python modules + demoparser compiled once (P18) – after every module that adds Python files
+  - type: script
+    scripts:
+      - compile-python.sh
+
   # GOBLINCAKES typefaces (downloaded from Google Fonts at build time)
   - type: fonts
     fonts:

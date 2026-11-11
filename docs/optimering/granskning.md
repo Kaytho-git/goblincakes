@@ -261,6 +261,7 @@ Läget är bättre än väntat: alla 193 Python-, skal- och JSON-filer klarar sy
 - **Storlek:** liten.
 - **Kan provas:** i bygget; effekten på riktiga datorn efter nästa image.
 - **Mät efteråt:** M15 (första talet på varje rad ska bli som det andra).
+- **Byggt 12 nov (Opus):** `files/scripts/compile-python.sh` (modul i `common-modules.yml` direkt efter PySide6-kollen – inga Python-filer läggs till efter den): `compileall -q -f -j 0 --invalidation-mode checked-hash` på `/usr/share/goblincakes` + `/usr/lib/goblincakes`; `-f` skriver om pips tidsstämpelfiler i demoparser (dess `rm __pycache__` får stå kvar). Stoppar aldrig bygget. Provat här på en kopia: 48 filer, ~0,9 MB (utan demoparser), datum satta till 1970 → Python säger "matches" och använder filen; två översättningar ger byte för byte samma filer (bra för chunkah). **checked-hash, inte unchecked** (användaren: "ingen ny millenniebugg"): ingen tid i filerna, och en källa ändrad under `usroverlay` översätts på nytt (provat) i stället för att en gammal fil används; kostar ~1 ms (dash: 0,7 ms mot 9 ms utan fil). Ej provat: bygget och M15 på riktiga datorn efter nästa image.
 
 ### P19 – Städning (slås ihop)
 - **Vad:**
@@ -353,7 +354,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 5 | **P15** (byggd 11 nov) Kontroll före bygget | färre trasiga images, kopiorna kan inte glida isär | låg | liten |
 | [x] | 6 | **P20** Byggstegen på rätt Fedora-bas (byggd 11 nov) | ingen trasig programmeny/Piper vid Fedora-hopp, snabbare Nvidia-bygge | låg | liten |
 | [x] | 7 | **P22** Rösten och ny Python-version (byggd 11 nov) | rösten överlever Fedora 45 på användarens dator | låg | liten |
-| [ ] | 8 | **P18** Färdigkompilerade Python-filer | CS2-demon 1–1,5 s fortare, fönster 0,05 s fortare | låg | liten |
+| [x] | 8 | **P18** (byggd 12 nov) Färdigkompilerade Python-filer | CS2-demon 1–1,5 s fortare, fönster 0,05 s fortare | låg | liten |
 | [ ] | 9 | **P5** Spelletandet (steg 1: snabbare läsning) | 1–1,5 % av en kärna, båda datorerna | låg | liten |
 | [x] | 10 | **P4** (byggd 11 nov) goblin graph-vaktens `pw-dump` | 1 % i vila, 2,2 % medan WoW kör + lugnare ljudserver (användarens dator) | låg | liten |
 | [ ] | 11 | **P10** Uppdateringskollen senare efter inloggning | lugnare första minut (7–9 s arbete flyttas) | låg | liten |
