@@ -13,6 +13,7 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 - [x] Sortering + topp 5 (står före Mätningar)
 - [x] Byggt: P20, P22, P24 (11 nov, Fable – ej pushat; provas av första bygget + testlistan `fedora-las-rost.md`)
 - [x] Byggt: P1 (11 nov, Opus) – testkopia provad i Plasma; Discord-hjälparens del först efter nästa image; testlista `p1-widgetar.md`
+- [x] Byggt: P2 + P3 (11 nov, Opus) – repots tjänst och fönster körda på riktigt (i vila, utan spel); testlista `p2-p3-recorder.md`
 
 Punkterna har fasta nummer (P1, P2 …) i den ordning de hittades, så att "Bygg punkt P3" alltid betyder samma sak. Den sorterade listan (mest värt först) och topp 5 står efter område 5, före Mätningar. När en punkt är byggd: bocka av den i den sorterade listan och för in "efter"-värdet under rätt M-nummer.
 
@@ -60,6 +61,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 - **Storlek:** liten.
 - **Kan provas:** offscreen med attrapperna (`GOBLINCAKES_RECORDER_WOW`), sedan en riktig WoW-start på datorn.
 - **Mät efteråt:** M2 (raden `goblincakes-recorder.service`), i vila och under spel.
+- **Byggt 11 nov (Opus):** `recorder.processes(max_age)` läser `/proc` en gång (comm `obs`/`cs2`, WoW-mönstret på hela kommandoraden – samma träffar som de tre pgrep, provat sida vid sida med låtsasprocesser för båda WoW-formerna, OBS och CS2), ~9 ms. Tjänsten: WoW och CS2 delar samma läsning var 5:e s (`max_age=1`), OBS startad för hand märks inom 5 s (`max_age=5`, förut varje varv). OBS-loggen: bara de sista 128 kB (`obs_log_lines`). **Efter, i vila (11 nov 19:05):** 1,90 % → 0,20 %. Under spel: ej mätt än.
 
 ### P3 – GoblinRecorder-fönstret kör `flatpak info` varje sekund
 - **Vad:** Fönstret (som ligger kvar i systemfältet) frågar varje sekund om OBS-tillägget är installerat (`flatpak info`, 13 ms) och läser CS2-kopplingen – i fönstrets egen tråd, även när fönstret är gömt (`usr/bin/goblin-recorder:65`–`:67`, `:96`–`:106`; `recorder.py:147`–`:152`).
@@ -69,6 +71,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 - **Risk:** låg. "Installera tillägget"-knappen kan visa gammalt läge i upp till 30 s om man inte uppdaterar direkt efter installationen.
 - **Storlek:** liten.
 - **Kan provas:** offscreen.
+- **Byggt 11 nov (Opus):** tillägget och CS2-filen kollas när fönstret visas, efter Koppla in/Koppla bort/Installera och annars var 30:e s (`Backend.recheck`). **Efter, i vila (11 nov 19:05, fönstret öppet på skärmen):** 1,38 % → 0,46 %.
 - **Mät efteråt:** M2.
 
 ### P4 – goblin graph-vakten kör `pw-dump` varannan sekund
@@ -341,8 +344,8 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 |---|---|---|---|---|---|
 | [ ] | 1 | **P12** Uppdateringarna laddar ner 1,4–2,9 GB för ~120 MB nytt | uppdateringar på minuter i stället för en kvart på wifi | medel | liten + prov |
 | [x] | 2 | **P1** (byggd 11 nov) Widgetarna startar skript varje sekund | 5 % av en kärna tillbaka, alltid, båda datorerna | låg | liten |
-| [ ] | 3 | **P2** GoblinRecorder-tjänstens `pgrep` och loggläsning | 2 % i vila, 1,4 % medan WoW kör (användarens dator) | låg–medel | liten |
-| [ ] | 4 | **P3** GoblinRecorder-fönstrets `flatpak info` | 1,4 % (användarens dator) | låg | liten |
+| [x] | 3 | **P2** (byggd 11 nov) GoblinRecorder-tjänstens `pgrep` och loggläsning | 2 % i vila, 1,4 % medan WoW kör (användarens dator) | låg–medel | liten |
+| [x] | 4 | **P3** (byggd 11 nov) GoblinRecorder-fönstrets `flatpak info` | 1,4 % (användarens dator) | låg | liten |
 | [ ] | 5 | **P15** Kontroll före bygget | färre trasiga images, kopiorna kan inte glida isär | låg | liten |
 | [x] | 6 | **P20** Byggstegen på rätt Fedora-bas (byggd 11 nov) | ingen trasig programmeny/Piper vid Fedora-hopp, snabbare Nvidia-bygge | låg | liten |
 | [x] | 7 | **P22** Rösten och ny Python-version (byggd 11 nov) | rösten överlever Fedora 45 på användarens dator | låg | liten |
@@ -403,6 +406,7 @@ S=60; snap() { for u in $(systemctl --user list-units --type=service,scope --sta
 - **Användarens dator medan WoW kör (11 nov 18:28, inloggad på en karaktär, ingen strid och ingen stridslogg, OBS igång men spelar inte in, 535 processer):** WoW 273 % · plasmashell-enheten 9,17 % · `goblincakes-graph.service` 2,19 % · `app-goblin-recorder@autostart` 1,70 % · `goblincakes-recorder.service` 1,40 % · `goblincakes-ollama.service` 1,30 % (Ollama är stoppad – det är bara vakten som letar) · `goblincakes-gameguard.service` 0,96 % · share 0,14 % · voice 0,10 % · kakan-vakt 0,09 % · archon-tray 0,09 %. GOBLINCAKES egna delar tillsammans ca 17 % av en kärna. (Annat: kwin 16,4 %, OBS 10,3 %, Discord 9,6 + 5,4 %, pipewire-pulse 1,5 %, pipewire 1,3 %, dashboard-enheten 13,6 % = Goblin AI med Claude Code.)
 - **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** plasmashell-enheten 6,12 % · `goblincakes-ollama.service` 1,71 % · `goblincakes-gameguard.service` 0,94 % · `goblincakes-share.service` 0,57 % (hjälpsessionen var öppen) · `goblincakes-archon-tray.service` 0,36 % (Archon finns inte på datorn) · kakan-vakt 0,08 %. Recorder, graph och rösten är inte påslagna där.
 - **Frugans laptop under spel:** ej mätt än (se "Kvar att mäta" överst i Mätningar).
+- **Efter P2 + P3, användarens dator i vila (11 nov 19:05, repots tjänst och fönster):** recorder-tjänsten 1,90 → 0,20 % · fönstret 1,38 → 0,46 % (öppet på skärmen; förut gömt).
 
 ### M3 – Verkligt minne (PSS) per GOBLINCAKES-process
 ```

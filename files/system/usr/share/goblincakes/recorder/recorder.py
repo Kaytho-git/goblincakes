@@ -152,8 +152,42 @@ def audio_plugin_installed():
     return subprocess.run(["flatpak", "info", OBS_AUDIO_PLUGIN], capture_output=True).returncode == 0
 
 
-def obs_running():
-    return subprocess.run(["pgrep", "-x", "obs"], capture_output=True).returncode == 0
+# Optimization P2 (11 Nov): one look through /proc answers "WoW? CS2? OBS?" – three pgrep (25 ms each, the
+# service asked ~once a second) became one read of ~5 ms; the service reuses it for a few seconds (max_age).
+# Same matches as the pgreps before: comm "obs"/"cs2" (pgrep -x), the WoW pattern on the whole command line
+# (pgrep -if), all users' processes.
+WOW_EXE = re.compile(r"[/\\]_[a-z_]+_[/\\]wow[a-z]*\.exe", re.IGNORECASE)
+_processes = (0.0, frozenset())
+
+
+def processes(max_age=0.0):
+    """{"obs", "cs2", "wow"} – the ones that run (read at most max_age seconds ago)."""
+    global _processes
+    now = time.monotonic()
+    if max_age and now - _processes[0] <= max_age:
+        return _processes[1]
+    found = set()
+    me = os.getpid()
+    for name in os.listdir("/proc"):
+        if not name.isdigit() or int(name) == me:
+            continue
+        try:
+            with open(f"/proc/{name}/comm", "rb") as f:
+                comm = f.read().strip()
+            if comm in (b"obs", b"cs2"):
+                found.add(comm.decode())
+            with open(f"/proc/{name}/cmdline", "rb") as f:
+                cmd = f.read()
+        except OSError:
+            continue
+        if b".exe" in cmd.lower() and WOW_EXE.search(cmd.replace(b"\0", b" ").decode("utf-8", "replace")):
+            found.add("wow")
+    _processes = (now, frozenset(found))
+    return _processes[1]
+
+
+def obs_running(max_age=0.0):
+    return "obs" in processes(max_age)
 
 
 def ws_settings():
@@ -242,18 +276,26 @@ def screen_chosen_live(obs):
 SCREEN_STATE = re.compile(r'^(\d\d):(\d\d):(\d\d)\.\d+: \[pipewire\] Stream \S+ state: "(\w+)"')
 
 
+def obs_log_lines():
+    """The last 128 kB of OBS's newest log (P2, 11 Nov: the whole file was read every few seconds while a game
+    runs, and it grows during a raid night) – the lines looked for are always near the end."""
+    logs = sorted((OBS_CONFIG / "logs").glob("*.txt"), key=lambda p: p.stat().st_mtime)
+    if not logs:
+        return None, []
+    try:
+        with open(logs[-1], "rb") as f:
+            f.seek(max(0, f.seek(0, 2) - 128 * 1024))
+            return logs[-1], f.read().decode("utf-8", "replace").splitlines()
+    except OSError:
+        return None, []
+
+
 def screen_stalled():
     """Has OBS's screen capture stopped getting pictures? When the screens go away for a
     moment (sleep, switched off) KWin pauses the stream and it never comes back – the
     video stays on the last picture of the desktop. Seen in OBS's newest log: the last
     state of the screen stream is "paused" (and has been for 10 s)."""
-    logs = sorted((OBS_CONFIG / "logs").glob("*.txt"), key=lambda p: p.stat().st_mtime)
-    if not logs:
-        return False
-    try:
-        lines = logs[-1].read_text(errors="replace").splitlines()
-    except OSError:
-        return False
+    _log, lines = obs_log_lines()
     for line in reversed(lines):
         m = SCREEN_STATE.match(line)
         if m:
@@ -271,13 +313,9 @@ def screen_asking():
     OBS's first start after a login: the portal's stream said "target not found" and the
     choice box came up; the next start picked the screen by itself in 10 ms. The newest log's
     name when it has asked for > 4 s without "source selected", else ""."""
-    logs = sorted((OBS_CONFIG / "logs").glob("*.txt"), key=lambda p: p.stat().st_mtime)
-    if not logs or not screen_chosen():
+    if not screen_chosen():
         return ""
-    try:
-        lines = logs[-1].read_text(errors="replace").splitlines()
-    except OSError:
-        return ""
+    log_file, lines = obs_log_lines()
     asked = next((line for line in reversed(lines) if "[pipewire] Asking for" in line
                   or "[pipewire] source selected" in line), "")
     m = re.match(r"^(\d\d):(\d\d):(\d\d)", asked)
@@ -285,7 +323,7 @@ def screen_asking():
         return ""
     t = time.localtime()
     age = (t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec - (int(m[1]) * 3600 + int(m[2]) * 60 + int(m[3]))) % 86400
-    return logs[-1].name if age > 4 else ""
+    return log_file.name if age > 4 else ""
 
 
 def pick_screen(obs):
@@ -905,13 +943,12 @@ def newest_log():
     return max(files, key=lambda p: p.stat().st_mtime) if files else None
 
 
-def wow_running():
+def wow_running(max_age=0.0):
     if os.environ.get("GOBLINCAKES_RECORDER_WOW"):  # tests: pretend WoW runs
         return True
     # Started from Battle.net the game is "Z:\\…\\_retail_\\WoW.exe" – backslashes and a capital W (7 Nov: no
     # recording since the user began starting it that way; the Steam shortcut gave "/_retail_/Wow.exe")
-    return subprocess.run(["pgrep", "-if", r"[/\\]_[a-z_]+_[/\\]wow[a-z]*\.exe"],
-                          capture_output=True).returncode == 0
+    return "wow" in processes(max_age)
 
 
 # ---------------------------------------------------------------- Counter-Strike 2
@@ -1024,10 +1061,10 @@ def cs2_disconnect():
     return ""
 
 
-def cs2_running():
+def cs2_running(max_age=0.0):
     if os.environ.get("GOBLINCAKES_RECORDER_CS2"):  # tests: pretend CS2 runs
         return True
-    return subprocess.run(["pgrep", "-x", "cs2"], capture_output=True).returncode == 0
+    return "cs2" in processes(max_age)
 
 
 def cs2_map_name(raw):

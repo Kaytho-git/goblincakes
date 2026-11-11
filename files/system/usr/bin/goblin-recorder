@@ -62,6 +62,8 @@ class Backend(QObject):
         self.refreshLater.connect(self.refreshVideos)
         self._openLink.connect(self.openUrl)  # the browser from the main thread
         self._yt_cancel = False
+        self._checked_at = 0.0
+        self._checks = {}
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll)
         self.timer.start(1000)
@@ -93,6 +95,11 @@ class Backend(QObject):
     def status(self):
         return self._status
 
+    def recheck(self):
+        """The plugin and CS2's file at once (window shown, after Connect/Install)."""
+        self._checked_at = 0.0
+        self.poll()
+
     def poll(self):
         st = R.read_status()
         alive = bool(st) and time.time() - st.get("time", 0) < 10
@@ -101,8 +108,12 @@ class Backend(QObject):
             st["obs"] = ("missing" if not R.obs_installed() else
                          "stopped" if not R.obs_running() else
                          "connected" if R.ws_settings().get("server_enabled") else "no-ws")
-        st["audioPlugin"] = R.audio_plugin_installed()
-        st["cs2Gsi"] = R.cs2_state()
+        # Optimization P3 (11 Nov): the plugin (flatpak info, 13 ms) and CS2's file were checked every second,
+        # also with the window hidden – now when the window is shown, after the buttons, and every 30 s
+        if time.time() - self._checked_at > 30:
+            self._checked_at = time.time()
+            self._checks = {"audioPlugin": R.audio_plugin_installed(), "cs2Gsi": R.cs2_state()}
+        st.update(self._checks)
         text = json.dumps(st, ensure_ascii=False)
         if text != self._status:
             self._status = text
@@ -167,20 +178,21 @@ class Backend(QObject):
         """Valve's way (Game State Integration): our file in CS2's cfg folder – CS2 reads it at start."""
         err = R.cs2_connect()
         self.message.emit(err or "CS2 är inkopplat – starta om CS2 om det redan är igång.")
-        self.poll()
+        self.recheck()
 
     @Slot()
     def cs2Disconnect(self):
         err = R.cs2_disconnect()
         self.message.emit(err or "CS2 är bortkopplat – filen i spelmappen är borttagen.")
-        self.poll()
+        self.recheck()
 
     @Slot()
     def installAudioPlugin(self):
         self.message.emit("Hämtar ljudtillägget till OBS …")
         proc = QProcess(self)
-        proc.finished.connect(lambda code, _s: self.message.emit(
-            "Ljudtillägget är installerat – starta om OBS." if code == 0 else "Kunde inte hämta ljudtillägget."))
+        proc.finished.connect(lambda code, _s: (self.message.emit(
+            "Ljudtillägget är installerat – starta om OBS." if code == 0 else "Kunde inte hämta ljudtillägget."),
+            self.recheck()))
         proc.start("flatpak", ["install", "--user", "-y", "--noninteractive", "flathub", R.OBS_AUDIO_PLUGIN])
 
     # ---------------------------------------------------------- settings
@@ -789,6 +801,7 @@ def main():
     if not engine.rootObjects():
         return 1
     win = engine.rootObjects()[0]
+    win.visibleChanged.connect(lambda shown: backend.recheck() if shown else None)
     # The window's ✕ asks (or does what was chosen): hide in the system tray or close –
     # Main.qml's onClosing; the tray menu always closes for real
     tray = make_tray(app, win, backend, app_icon) if has_tray else None

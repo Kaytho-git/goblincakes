@@ -907,12 +907,12 @@ class Service:
                     self.obs_error = str(e)
         if now - self.wow_seen > 5:
             self.wow_seen = now
-            running = R.wow_running()
+            running = R.wow_running(max_age=1)
             if running and not self.wow:
                 log("WoW started")
                 self.set_game("wow")
                 self.obs_close_at = 0
-                if self.cfg["autoStartObs"] and not R.obs_running():
+                if self.cfg["autoStartObs"] and not R.obs_running(max_age=1):
                     R.start_obs()
                     self.obs_ours = True
             if not running and self.wow:
@@ -923,7 +923,7 @@ class Service:
             self.wow = running
         if now - self.cs2_seen > 5:
             self.cs2_seen = now
-            running = R.cs2_running()
+            running = R.cs2_running(max_age=1)  # the same look as WoW's just above
             if running and not self.cs2:
                 log("CS2 started")
                 self.set_game("cs2")
@@ -933,7 +933,7 @@ class Service:
                     notify(f"{n} CS2-match{'er' if n > 1 else ''} väntar på demon",
                            "Ladda ner i CS2: Watch → Your Matches. GoblinRecorder läser den själv.")
                 self.obs_close_at = 0
-                if self.cfg["autoStartObs"] and self.cfg.get("cs2") and not R.obs_running():
+                if self.cfg["autoStartObs"] and self.cfg.get("cs2") and not R.obs_running(max_age=1):
                     R.start_obs()
                     self.obs_ours = True
             if not running and self.cs2:
@@ -956,7 +956,8 @@ class Service:
         self.wcl_check()
         self.demo_check()
         self.season_check()
-        if self.wow or self.cs2 or self.current or self.test_wait or R.obs_running():
+        # OBS started by hand is noticed within 5 s (P2, 11 Nov: the look was every round, every other second)
+        if self.wow or self.cs2 or self.current or self.test_wait or R.obs_running(max_age=5):
             self.connect()
             if self.obs and not self.screen_ok and now - self.screen_check > 5:
                 self.screen_check = now
