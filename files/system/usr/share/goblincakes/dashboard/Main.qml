@@ -6,6 +6,7 @@ import QtQuick
 import "../qml/Goblin" as G
 import QtQuick.Window
 import QtQuick.Shapes
+import QtQuick.Effects
 
 Window {
     G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
@@ -297,45 +298,51 @@ Window {
             y: appIcon.living && appIcon.lifted ? -4 : 0
             G.Glide on y { duration: 160 }
         }
-        Repeater {
-            model: 3
-            Rectangle {
-                required property int index
-                readonly property int out: 2 + index * 3
-                x: -out
-                y: -out
-                width: appIcon.width + 2 * out
-                height: appIcon.height + 2 * out
-                color: "transparent"
-                border.width: 2
-                border.color: appIcon.tone
-                opacity: appIcon.living && appIcon.lifted ? [0.30, 0.14, 0.06][index] : 0
-                Behavior on opacity { enabled: typeof look !== "undefined" && !!look && look.motion === true; NumberAnimation { duration: 160 } }
+        // The glow: the icon's own shape, blurred and in its colour, behind the icon (Levande, under the mouse) –
+        // follows round icons too (12 Nov – the three square rings looked like a double frame)
+        MultiEffect {
+            source: face
+            anchors.fill: face
+            visible: appIcon.living
+            opacity: appIcon.lifted ? 1 : 0
+            Behavior on opacity { enabled: typeof look !== "undefined" && !!look && look.motion === true; NumberAnimation { duration: 180 } }
+            autoPaddingEnabled: true
+            blurMax: 32
+            shadowEnabled: true
+            shadowColor: appIcon.tone
+            shadowOpacity: 1
+            shadowBlur: 1
+            shadowScale: 1.12
+            shadowHorizontalOffset: 0
+            shadowVerticalOffset: 0
+        }
+        Item {
+            id: face
+            anchors.fill: parent
+            Image {
+                id: img
+                anchors.fill: parent
+                readonly property bool has: backend.hasIcon(appIcon.icon)
+                source: has ? "image://icon/" + appIcon.icon : ""
+                sourceSize: Qt.size(appIcon.side * 2, appIcon.side * 2)
+                smooth: true
+                visible: has && status === Image.Ready
             }
-        }
-        Image {
-            id: img
-            anchors.fill: parent
-            readonly property bool has: backend.hasIcon(appIcon.icon)
-            source: has ? "image://icon/" + appIcon.icon : ""
-            sourceSize: Qt.size(appIcon.side * 2, appIcon.side * 2)
-            smooth: true
-            visible: has && status === Image.Ready
-        }
-        Rectangle {
-            G.Light {}
-            anchors.fill: parent
-            visible: !img.visible
-            color: "#12203A"
-            border.width: 1
-            border.color: "#1E2A40"
-            Text {
-                anchors.centerIn: parent
-                text: appIcon.name.charAt(0).toUpperCase()
-                color: "#E6ECF5"
-                font.family: "Chakra Petch"
-                font.weight: Font.Bold
-                font.pixelSize: Math.round(appIcon.side * 0.42)
+            Rectangle {
+                G.Light {}
+                anchors.fill: parent
+                visible: !img.visible
+                color: "#12203A"
+                border.width: 1
+                border.color: "#1E2A40"
+                Text {
+                    anchors.centerIn: parent
+                    text: appIcon.name.charAt(0).toUpperCase()
+                    color: "#E6ECF5"
+                    font.family: "Chakra Petch"
+                    font.weight: Font.Bold
+                    font.pixelSize: Math.round(appIcon.side * 0.42)
+                }
             }
         }
     }

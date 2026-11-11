@@ -254,8 +254,11 @@ class Backend(QObject):
         """GOBLINRECORDER above SPELAS NU (11 Nov) – GoblinRecorder's status file: OBS, WoW, log, recording."""
         self.job("recorder", (lambda: self.test["recorder"]) if "recorder" in self.test else dash.recorder)
 
-    def read_quota(self):
-        self.job("quota", (lambda: self.test["quota"]) if "quota" in self.test else dash.quota)
+    def read_quota(self, fresh=120):
+        """Every 30 s from the saved file; older than `fresh` s → fetched anew first (every 2 min while the
+        dashboard is open, and when it opens if older than a minute – the numbers move fast under heavy use)."""
+        self.job("quota", (lambda: self.test["quota"]) if "quota" in self.test
+                 else lambda: dash.quota(refresh_after=fresh, wait=True))
 
     def read_projects(self):
         self.job("projects", dash.projects)
@@ -299,7 +302,7 @@ class Backend(QObject):
         self.read_apps()
         self.read_system()
         self.read_player()
-        self.read_quota()
+        self.read_quota(fresh=60)
         self.read_batteries()
         self.read_notices()
         self.read_recorder()

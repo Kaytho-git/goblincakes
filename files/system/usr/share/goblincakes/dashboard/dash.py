@@ -474,18 +474,25 @@ def control(name, what):
 
 # ── The quota ─────────────────────────────────────────────────
 
-def quota(refresh_after=600):
+def quota(refresh_after=600, wait=False):
     """The quota widget's file as it is; older than `refresh_after` s (the widget is not running – the dashboard
-    layout has no top bar) → the helper is started in the background, the next reading has the new values."""
-    try:
-        data = json.loads(QUOTA.read_text())
-    except (OSError, ValueError):
-        data = {}
+    layout has no top bar) → the helper fetches anew. `wait` (the dashboard, which reads in a thread): wait for it
+    and return the new values at once; otherwise it runs in the background and the next reading has them."""
+    def load():
+        try:
+            return json.loads(QUOTA.read_text())
+        except (OSError, ValueError):
+            return {}
+    data = load()
     if time.time() - float(data.get("updated") or 0) > refresh_after and QUOTA_HELPER.exists():
         try:
-            subprocess.Popen([str(QUOTA_HELPER)], start_new_session=True,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except OSError:
+            if wait:
+                subprocess.run([str(QUOTA_HELPER)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=40)
+                data = load()
+            else:
+                subprocess.Popen([str(QUOTA_HELPER)], start_new_session=True,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired):
             pass
     return data
 

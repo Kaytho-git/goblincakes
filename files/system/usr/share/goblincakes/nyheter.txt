@@ -1,3 +1,5 @@
+2026-11-12  Dashboardens kvot hämtar nya siffror när den öppnas och varannan minut medan den är öppen, så den stämmer bättre när du använder mycket.
+2026-11-12  I Levande utseende lyser programmens ikoner nu med ett mjukt sken bakom sig när musen är över dem, i stället för fyrkantiga ramar.
 2026-11-11  Notiserna dyker nu upp nere till höger. Uppe till höger hamnade halva notisen utanför skärmen. Du kan välja en annan plats i Systeminställningar → Notiser.
 2026-11-11  goblin graph drar mindre av processorn och stör inte ljudet medan du spelar. Staplarna öppnas några sekunder efter att musiken startat, i stället för direkt.
 2026-11-11  GoblinRecorder drar mycket mindre av processorn när den väntar på att du startar WoW eller CS2.
