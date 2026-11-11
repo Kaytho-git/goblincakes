@@ -206,7 +206,10 @@ PlasmoidItem {
         : steam.name + "  ·  " + (steam.kind === "shader" ? "shaders" : steam.phase)
           + (steam.percent !== null && steam.percent !== undefined ? " " + steam.percent + " %" : "")
           + (steam.rate ? "  ·  " + steam.rate + " Mbit/s" : "")
-    readonly property string steamCommand: "pgrep -x steam >/dev/null && /usr/libexec/goblincakes-steam-activity || echo '{}'"
+    // Steam's own pid file first (P1, 11 Nov: pgrep reads all of /proc, 25 ms); pgrep only without one (Flatpak)
+    readonly property string steamCommand: "p=$(cat \"$HOME/.steam/steam.pid\" 2>/dev/null); "
+        + "if [ -n \"$p\" ]; then [ \"$(cat /proc/$p/comm 2>/dev/null)\" = steam ]; else pgrep -x steam >/dev/null; fi "
+        + "&& exec /usr/libexec/goblincakes-steam-activity; echo '{}'"
 
     // ---- Goblin AI ----
     property var ai: ({})             // {kind: "ask"|"image"|"", name, text, local, progress, seconds, steps}
@@ -214,7 +217,10 @@ PlasmoidItem {
         : ai.name + " " + ai.text
           + (ai.progress !== null && ai.progress !== undefined ? " " + ai.progress + " %" : "")
           + (ai.seconds >= 3 ? "  ·  " + ai.seconds + " s" : "")
-    readonly property string aiCommand: "/usr/libexec/goblincakes-ai-activity"
+    // Optimization P1 (11 Nov): no Python while nothing is under way – goblinai.py writes a file in the folder
+    // for each question/picture, the helper only runs when there is one (it also removes files left by a crash)
+    readonly property string aiCommand: "set -- \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}\"/goblincakes-ai/*.json; "
+        + "[ -e \"$1\" ] && exec /usr/libexec/goblincakes-ai-activity; echo '{}'"
     // The work loop's steps (25 Oct, the user's wish – it only said "tänker"): one line each in the tooltip
     readonly property string aiSteps: (ai.steps || []).map(function (s, i) {
         return (s.state === "run" ? "▸ " : s.state === "ok" ? "✓ " : "✗ ") + s.text
@@ -281,39 +287,49 @@ PlasmoidItem {
         }
     }
 
+    // Optimization P1 (11 Nov): each part of the desktop row only reads what it shows ("left" = Steam + Discord,
+    // "right" = music + Kakan; the top bar = all), the batteries are in the clock box there, and while a game
+    // runs (the look file's "spel") the reads are three times sparser – the game covers the bar anyway.
+    readonly property int slow: gaming ? 3 : 1
+    readonly property bool readsLeft: part !== "right"
+    readonly property bool readsRight: part !== "left"
+
     // Every second while Discord's window is open (the helper takes ~0.02 s and reads only
     // the new lines of the log), so the channel shows up right after you join; every third
-    // second otherwise – Discord may be running in the system tray without a window
+    // second while it runs in the system tray without a window; every tenth when it isn't
+    // running (P1, 11 Nov – a window that opens shortens the interval at once)
     Timer {
-        interval: root.discordWindow !== null ? 1000 : 3000
-        running: true
+        interval: (root.discordWindow !== null ? 1000 : root.discordRunning ? 3000 : 10000) * root.slow
+        running: root.readsLeft
         repeat: true
         triggeredOnStart: true
         onTriggered: exec.connectSource(root.voiceCommand)
     }
 
-    // Steam's progress changes by the second; without Steam only a pgrep
+    // Steam's progress changes by the second; without Steam only a pid check
     Timer {
-        interval: 5000
-        running: true
+        interval: 5000 * root.slow
+        running: root.readsLeft
         repeat: true
         triggeredOnStart: true
         onTriggered: exec.connectSource(root.steamCommand)
     }
 
-    // A file read (~0.03 s); every second so the indicator comes and goes with the answer
+    // A glob in the shell (Python only while something is under way); every second so the indicator
+    // comes and goes with the answer – every other while a game runs (Meta+§ in a game still shows it soon)
     Timer {
-        interval: 1000
-        running: true
+        interval: root.gaming ? 2000 : 1000
+        running: root.readsRight
         repeat: true
         triggeredOnStart: true
         onTriggered: exec.connectSource(root.aiCommand)
     }
 
-    // A battery changes slowly; a mouse switched on shows up within half a minute
+    // A battery changes slowly; a mouse switched on shows up within half a minute.
+    // Not in the desktop row – the clock box reads the batteries there
     Timer {
-        interval: 30000
-        running: true
+        interval: 30000 * root.slow
+        running: !root.desk
         repeat: true
         triggeredOnStart: true
         onTriggered: exec.connectSource(root.batteryCommand)

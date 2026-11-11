@@ -1,3 +1,4 @@
+2026-11-11  Toppfältet och skrivbordsraden drar mindre av processorn, särskilt medan ett spel kör – Spelas nu och klockan läser bara det de visar, och mer sällan under spel.
 2026-11-11  En ny Fedora-version kommer nu först när den är provad: GOBLINCAKES stannar på sin Fedora-version tills den höjs med flit, i stället för att byta av sig själv en dag. Säkerhetsuppdateringarna kommer som vanligt.
 2026-11-11  Kakans röst klarar att systemet får en ny Python-version (det händer med en ny Fedora): hon säger till med en notis där du trycker Laga nu, och goblin update lagar det också. Förut slutade röstknappen bara att fungera.
 2026-11-11  Dashboarden visar nu GoblinRecorders kontroller ovanför Spelas nu: om OBS är redo, om WoW kör, om stridsloggen skrivs och om något spelas in just nu. Tryck på rutan för att öppna GoblinRecorder.

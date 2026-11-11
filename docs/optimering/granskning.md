@@ -12,6 +12,7 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 - [x] Mätningar under spel på användarens dator (11 nov 18:28, WoW utan strid); laptopen har inget spel än
 - [x] Sortering + topp 5 (står före Mätningar)
 - [x] Byggt: P20, P22, P24 (11 nov, Fable – ej pushat; provas av första bygget + testlistan `fedora-las-rost.md`)
+- [x] Byggt: P1 (11 nov, Opus) – testkopia provad i Plasma; Discord-hjälparens del först efter nästa image; testlista `p1-widgetar.md`
 
 Punkterna har fasta nummer (P1, P2 …) i den ordning de hittades, så att "Bygg punkt P3" alltid betyder samma sak. Den sorterade listan (mest värt först) och topp 5 står efter område 5, före Mätningar. När en punkt är byggd: bocka av den i den sorterade listan och för in "efter"-värdet under rätt M-nummer.
 
@@ -48,6 +49,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 - **Storlek:** liten för (a)–(c), en widget i taget.
 - **Kan provas:** bara på riktiga datorn (Plasma-widgetar); själva kommandona kan provas i ett skal.
 - **Mät efteråt:** M2 (raden `plasma-plasmashell.service`) och M4.
+- **Byggt 11 nov (Opus):** (a) Kakan-läsningen startar Python bara när mappen `goblincakes-ai/` har en fil (skalets glob, 1 ms); Steam via `~/.steam/steam.pid` i stället för `pgrep` (pgrep bara utan pid-fil, t.ex. Flatpak). (b) Skrivbordsradens delar läser bara sitt: vänster Steam + Discord, höger Kakan, inga batterier (klockrutan har dem). (c) Under spel 3 gånger glesare: Discord, Steam, batteri, och i klockan volym/nätverk/batteri (klockan läser nu också `goblincakes-gaming`); Kakan varannan sekund. Discord var 10:e s när den inte är igång. Därtill `goblincakes-discord-voice`: moduler som bara behövs ibland läses in först när de behövs, och Discords pid sparas (`~/.cache/goblincakes/discord-voice.pid`) – 35 → 22 ms per varv. Kvar under (a): dockan/kvoten/uppdateringspilen/Meta-tipset läser utseendet var 5:e s var för sig (bara `cat`, 1 ms) – inte värt det.
 
 ### P2 – GoblinRecorder-tjänsten kör pgrep hela tiden
 - **Vad:** Tjänsten tittar efter WoW och CS2 var 5:e s med `pgrep` (`usr/libexec/goblincakes-recorder:910`, `:926`; `usr/share/goblincakes/recorder/recorder.py:908`–`:914`, `:1027`–`:1030`) och – när inget spel kör – efter OBS **varje varv**, alltså varannan sekund (`goblincakes-recorder:959`, `recorder.py:155`). Varje `pgrep` tar 25 ms (M6) eftersom den läser alla ~520 processer. Under spel faller OBS-frågan bort (villkoret på rad 959 kortsluts), men då går varvet fyra gånger i sekunden (`:1039`) och OBS:s hela loggfil läses om varannan och var femte sekund för att se om skärmfångsten frusit eller frågar efter skärm (`recorder.py:245`–`:290`, anropas från `goblincakes-recorder:965`–`:985`) – loggen växer under en raidkväll.
@@ -338,7 +340,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | Klar | Nr | Punkt | Märks | Risk | Storlek |
 |---|---|---|---|---|---|
 | [ ] | 1 | **P12** Uppdateringarna laddar ner 1,4–2,9 GB för ~120 MB nytt | uppdateringar på minuter i stället för en kvart på wifi | medel | liten + prov |
-| [ ] | 2 | **P1** Widgetarna startar skript varje sekund | 5 % av en kärna tillbaka, alltid, båda datorerna | låg | liten |
+| [x] | 2 | **P1** (byggd 11 nov) Widgetarna startar skript varje sekund | 5 % av en kärna tillbaka, alltid, båda datorerna | låg | liten |
 | [ ] | 3 | **P2** GoblinRecorder-tjänstens `pgrep` och loggläsning | 2 % i vila, 1,4 % medan WoW kör (användarens dator) | låg–medel | liten |
 | [ ] | 4 | **P3** GoblinRecorder-fönstrets `flatpak info` | 1,4 % (användarens dator) | låg | liten |
 | [ ] | 5 | **P15** Kontroll före bygget | färre trasiga images, kopiorna kan inte glida isär | låg | liten |
@@ -422,6 +424,7 @@ a=$(awk '/^processes/{print $2}' /proc/stat); sleep 30; b=$(awk '/^processes/{pr
 p=$(pgrep -x plasmashell); cpu() { awk '{print $14+$15}' /proc/$p/stat; }; cg() { systemctl --user show plasma-plasmashell.service -p CPUUsageNSec --value; }; a=$(cpu); ca=$(cg); sleep 30; b=$(cpu); cb=$(cg); echo "plasmashell själv: $(awk -v d=$((b-a)) 'BEGIN{printf "%.1f", d/30}') %  hela enheten med skripten: $(awk -v d=$((cb-ca)) 'BEGIN{printf "%.1f", d/1e9/30*100}') %"
 ```
 - **Användarens dator, i vila:** plasmashell själv 0,2 % · hela enheten 7,6 %.
+- **Efter P1, användarens dator i vila (11 nov 18:58, testkopia av widgetarna, upplägget Dashboard, Discord + Steam igång, Discord-hjälparen ännu den gamla):** före 7,4 % (mätt 18:52) → efter 5,5 %. Väntat efter nästa image (snabbare Discord-hjälpare): ca 4 %.
 - **Användarens dator medan WoW kör:** plasmashell själv 0,3 % · hela enheten 9,1 %.
 - **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** plasmashell själv 0,4 % · hela enheten 6,6 %.
 

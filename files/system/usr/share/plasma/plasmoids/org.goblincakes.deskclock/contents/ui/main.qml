@@ -44,8 +44,12 @@ PlasmoidItem {
     readonly property string batteryCommand: "/usr/libexec/goblincakes-device-battery"
     // Stil (Config → Utseende): Levande = tinted glass on the desktop row (Levande utseende step 6) – the file
     // ~/.config/goblincakes/utseende (platt/levande, no file = platt), read again every 5 s
-    readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; true"
+    readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; "
+        + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; true"
     property bool living: false
+    // Optimization P1 (11 Nov): while a game runs the reads are three times sparser – the game covers the row
+    property bool gaming: false
+    readonly property int slow: gaming ? 3 : 1
 
     // nmcli -t: fields split by ":", a ":" inside a name written as "\:"
     function fields(line) {
@@ -110,7 +114,9 @@ PlasmoidItem {
                 root.volume = m ? Math.round(parseFloat(m[1]) * 100) : -1;
                 root.muted = out.indexOf("[MUTED]") >= 0;
             } else if (source === root.lookCommand) {
-                root.living = out.trim() === "levande";
+                const lines = out.split("\n").map(l => l.trim());
+                root.living = lines[0] === "levande";
+                root.gaming = lines.indexOf("spel") >= 0;
             } else if (source === root.batteryCommand) {
                 try {
                     root.devices = JSON.parse(out || "[]");
@@ -129,21 +135,21 @@ PlasmoidItem {
         onTriggered: root.now = new Date()
     }
     Timer {
-        interval: 10000
+        interval: 10000 * root.slow
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: root.run(root.netCommand)
     }
     Timer {
-        interval: 2000
+        interval: 2000 * root.slow
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: root.run(root.volumeCommand)
     }
     Timer {
-        interval: 30000
+        interval: 30000 * root.slow
         running: true
         repeat: true
         triggeredOnStart: true
