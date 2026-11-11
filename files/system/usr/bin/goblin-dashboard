@@ -32,7 +32,7 @@ from pathlib import Path
 
 from PySide6.QtCore import ClassInfo, QObject, QSize, Qt, QTimer, QUrl, Property, Signal, Slot
 from PySide6.QtDBus import QDBusConnection
-from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap
+from PySide6.QtGui import QColor, QFontDatabase, QGuiApplication, QIcon, QPixmap
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider, QQuickWindow
@@ -570,6 +570,34 @@ class Backend(QObject):
     def hasIcon(self, name):
         """Whether the icon theme (or the file) has the program's icon – else the window draws its first letter."""
         return bool(name) and (Path(name).is_file() if name.startswith("/") else QIcon.hasThemeIcon(name))
+
+    @Slot(str, result=str)
+    def iconColor(self, name):
+        """A program's own colour (Stil: Levande – the glow under the mouse): the average of its icon's coloured
+        pixels, lightened a little when it is dark; "" without an icon. Worked out once per icon."""
+        cache = self.__dict__.setdefault("_icon_colors", {})
+        if name in cache:
+            return cache[name]
+        icon = QIcon(name) if name.startswith("/") else QIcon.fromTheme(name) if name else QIcon()
+        color = ""
+        if not icon.isNull():
+            img = icon.pixmap(QSize(24, 24)).toImage()
+            r = g = b = n = 0
+            for y in range(img.height()):
+                for x in range(img.width()):
+                    c = img.pixelColor(x, y)
+                    if c.alpha() < 160:
+                        continue
+                    h, sat, v, _ = c.getHsv()
+                    weight = 1 + 3 * sat / 255       # coloured pixels count more than white/grey/black ones
+                    r, g, b, n = r + c.red() * weight, g + c.green() * weight, b + c.blue() * weight, n + weight
+            if n:
+                avg = QColor(int(r / n), int(g / n), int(b / n))
+                h, sat, v, _ = avg.getHsv()
+                avg.setHsv(max(0, h), min(255, int(sat * 1.15)), max(150, v))
+                color = avg.name()
+        cache[name] = color
+        return color
 
     @Slot()
     def sharpText(self):

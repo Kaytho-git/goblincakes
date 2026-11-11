@@ -72,6 +72,7 @@ Window {
     property int sel: 0                // the marked program in the grid
     property string note: ""
     property bool dialogOpen: false
+    property int opened: 0             // + 1 each time the dashboard is shown: the frames glide up (G.Rise, Stil: Levande)
     property string box: ""            // the small box under the icons that is not the tray's: kvot (11 Nov)
     property bool adding: false        // + in PROJEKT: the folder chooser over the middle (11 Nov)
     property var browse: ({})
@@ -161,6 +162,8 @@ Window {
             load(k);
     }
     onVisibleChanged: {
+        if (visible)
+            opened++;
         backend.setVisible(visible);
         winMenu = null;
         box = "";
@@ -221,6 +224,7 @@ Window {
     component FrameColumn: Flickable {
         id: fc
         property var frames: []
+        property int firstOrder: 0         // where its frames come in the dashboard's opening (G.Rise)
         readonly property int gap: 16
         // the frames' own heights, PROJEKT left out
         readonly property real fixed: {
@@ -250,6 +254,8 @@ Window {
                           : modelData === "projects" ? Math.max(item.minHeight, Math.min(item.implicitHeight, fc.height - fc.fixed))
                           : item.implicitHeight
                     sourceComponent: win.frameComponent(modelData)
+                    required property int index
+                    G.Rise { order: fc.firstOrder + index; trigger: win.opened }
                 }
             }
         }
@@ -277,8 +283,32 @@ Window {
         property string icon
         property string name
         property int side: 52
+        // Stil: Levande (step 5): under the mouse the program lifts 4 px and glows in its own colour
+        property bool lifted: false
+        readonly property bool living: typeof look !== "undefined" && !!look && look.living === true
+        readonly property string tone: living && lifted ? (backend.iconColor(icon) || accent.color) : accent.color
         width: side
         height: side
+        transform: Translate {
+            y: appIcon.living && appIcon.lifted ? -4 : 0
+            G.Glide on y { duration: 160 }
+        }
+        Repeater {
+            model: 3
+            Rectangle {
+                required property int index
+                readonly property int out: 2 + index * 3
+                x: -out
+                y: -out
+                width: appIcon.width + 2 * out
+                height: appIcon.height + 2 * out
+                color: "transparent"
+                border.width: 2
+                border.color: appIcon.tone
+                opacity: appIcon.living && appIcon.lifted ? [0.30, 0.14, 0.06][index] : 0
+                Behavior on opacity { enabled: typeof look !== "undefined" && !!look && look.motion === true; NumberAnimation { duration: 160 } }
+            }
+        }
         Image {
             id: img
             anchors.fill: parent
@@ -342,6 +372,7 @@ Window {
         property color titleColor: "#E6ECF5"
         property string side
         property bool big: false
+        property bool live: false      // ● PÅGÅR to the right (tonight's raid is still on)
         signal clicked()
         width: parent ? parent.width : 0
         height: 56
@@ -349,7 +380,7 @@ Window {
         border.width: on ? 2 : 1
         border.color: on ? accent.color : "#1E2A40"
         Column {
-            anchors { left: parent.left; leftMargin: 12; right: rightText.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; leftMargin: 12; right: rightText.left; rightMargin: card.live ? 80 : 8; verticalCenter: parent.verticalCenter }
             spacing: 2
             Text {
                 width: parent.width
@@ -369,6 +400,11 @@ Window {
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 12
             }
+        }
+        G.LiveTag {
+            visible: card.live
+            anchors { right: rightText.left; rightMargin: card.side !== "" ? 8 : 0; verticalCenter: parent.verticalCenter }
+            tone: accent.text
         }
         Text {
             id: rightText
@@ -1126,6 +1162,7 @@ Window {
                     visible: !!win.wow.raid
                     on: win.mid === "raid"
                     title: "Senaste raiden"
+                    live: !!(win.wow.raid && win.wow.raid.live)
                     line: win.wow.raid ? win.wow.raid.short + " · " + win.wow.raid.difficulty + " · "
                                          + win.wow.raid.killed + "/" + win.wow.raid.bosses.length + " bossar" : ""
                     onClicked: backend.setMid("raid")
@@ -1237,6 +1274,9 @@ Window {
                         y: 10
                         width: parent.width - 24
                         spacing: 6
+                        G.LiveTag {   // a build is running
+                            visible: (win.builds.last || {}).kind === "run"
+                        }
                         Text {
                             readonly property var last: win.builds.last || ({})
                             text: "Senaste bygget " + (last.state || "")
@@ -1322,6 +1362,8 @@ Window {
             id: middle
             anchors { left: leftCol.right; leftMargin: leftCol.visible ? 16 : 0; right: rightCol.left; rightMargin: 16
                       top: parent.top; bottom: viewStrip.visible ? viewStrip.top : parent.bottom }
+            // Stil: Levande (step 5): the frames glide up one at a time when the dashboard opens – left, middle, right
+            G.Rise { order: leftCol.frames.length; trigger: win.opened }
             color: "#0E1420"
             border.width: 1
             border.color: "#1E2A40"
@@ -1642,6 +1684,7 @@ Window {
                         AppIcon {
                             y: 14
                             anchors.horizontalCenter: parent.horizontalCenter
+                            lifted: cellArea.containsMouse
                             side: 52
                             icon: cell.modelData.icon
                             name: cell.modelData.name
@@ -1967,6 +2010,11 @@ Window {
                     Row {
                         spacing: 14
                         BigTitle { id: raidTitle; text: "SENASTE RAIDEN" }
+                        G.LiveTag {
+                            visible: !!raidView.r.live
+                            anchors.verticalCenter: raidTitle.verticalCenter
+                            tone: accent.text
+                        }
                         SubTitle {
                             anchors.baseline: raidTitle.baseline
                             text: [raidView.r.name, raidView.r.difficulty, raidView.r.day, raidView.r.length].filter(t => t).join(" · ")
@@ -2548,11 +2596,13 @@ Window {
                 anchors { top: parent.top; bottom: playFrame.top; bottomMargin: 16 }
                 width: parent.width
                 frames: rightCol.frames
+                firstOrder: leftCol.frames.length + 1
             }
 
             Frame {
                 id: playFrame
                 anchors.bottom: parent.bottom
+                G.Rise { order: leftCol.frames.length + 1 + rightCol.frames.length; trigger: win.opened }
                 width: parent.width
                 height: playColumn.implicitHeight + 32
                 readonly property bool has: !!win.player.name
@@ -2809,6 +2859,7 @@ Window {
                     AppIcon {
                         y: 4
                         anchors.horizontalCenter: parent.horizontalCenter
+                        lifted: ownArea.containsMouse
                         side: 30
                         icon: modelData.icon
                         name: modelData.name
@@ -2849,6 +2900,7 @@ Window {
                     AppIcon {
                         y: 6
                         anchors.horizontalCenter: parent.horizontalCenter
+                        lifted: dockArea.containsMouse
                         side: 52
                         icon: modelData.icon
                         name: modelData.name

@@ -164,6 +164,8 @@ def latest_raid(entries, fetch=False):
         "killed": sum(b["kill"] for b in rows), "bosses": rows, "pulls": len(pulls),
         "bestParse": max(parses) if parses else None, "deaths": sum(b["deaths"] for b in rows),
         "url": f"{r.WCL}/reports/{next(iter(codes))}" if codes else "", "wcl": bool(codes),
+        # PÅGÅR (Levande utseende step 5): the last pull ended less than 30 minutes ago – the raid is still on
+        "live": time.time() - (last["started"] + (last.get("fight") or 0)) < 30 * 60,
     }
 
 
