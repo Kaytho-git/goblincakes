@@ -6,8 +6,8 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 - [x] Område 1 – Prestanda i bakgrunden (punkt 1–8)
 - [x] Område 2 – Uppstart och inloggning (punkt 9–11)
 - [x] Område 3 – Image och bygge (punkt 12–14)
-- [ ] Område 4 – Kodkvalitet och underhåll ← **nästa**
-- [ ] Område 5 – Fel och risker
+- [x] Område 4 – Kodkvalitet och underhåll (punkt 15–19)
+- [ ] Område 5 – Fel och risker ← **nästa**
 - [ ] Mätningar på frugans laptop (bara användarens dator är mätt hittills – se Mätningar sist)
 - [ ] Sortering + topp 5 (görs sist)
 
@@ -201,6 +201,67 @@ Gäller alla tre varianterna. Läst ur bygget 11 nov 16:01 (`goblincakes-nvidia`
 
 ---
 
+## Område 4 – Kodkvalitet och underhåll
+
+Läget är bättre än väntat: alla 193 Python-, skal- och JSON-filer klarar syntaxkollen, alla 25 QML-filer i egna fönster kompilerar offscreen, bara 47 rader Python är oanvända (14 små funktioner), inga döda filer av betydelse (bara BlueBuilds mall `files/scripts/example.sh`), och alla "två kopior" i CLAUDE.md är i takt just nu (låsskärmen identisk, utloggningen skiljer bara på en kommentar, de tre Chromium-policyerna identiska, `fitTileToWindow` identisk på båda ställena). Det som finns att göra handlar om att **hålla** det så.
+
+### P15 – Ingen kontroll före bygget
+- **Vad:** Ett stavfel i ett skript upptäcks i dag först när det redan ligger i imagen på båda datorerna (uppdateringarna förbereds automatiskt). Bygget (`.github/workflows/build.yml`) kontrollerar bara att PySide6 går att ladda (`recipes/common-modules.yml:135`–`:137`). Reglerna i CLAUDE.md ("ändra båda kopiorna", "höj `LAYOUT_VERSION`", "höj `version` i manifesten") vilar helt på att ingen glömmer.
+- **Förslag:** ett litet kontrollskript (`tools/check.sh`) som körs som första steg i bygget och som Claude kör före commit: (1) syntax för alla Python-/skal-/JSON-filer, (2) alla fönsters QML kompilerar offscreen, (3) kopiorna är lika (låsskärm, utloggning, tre policyfiler, `fitTileToWindow`), (4) `tools/learn-validate.py`, (5) varning om layoutfilerna ändrats utan att `LAYOUT_VERSION` höjts, och om Chrome-temat ändrats utan ny `version`. Faller kontrollen stoppas bygget innan något byggs.
+- **Vinst:** färre trasiga images (ett fel i t.ex. spelvakten ger i dag en tjänst som tyst inte startar), och reglerna om kopior behöver inte kommas ihåg.
+- **Säkerhet:** sett – allt i (1)–(3) går igenom i dag, provkört här: syntaxkollen tog några sekunder, QML-kollen (25 filer) likaså.
+- **Risk:** låg. En för sträng kontroll kan stoppa ett bygge i onödan – varningar (5) ska inte stoppa.
+- **Storlek:** liten.
+- **Kan provas:** i molnet/offscreen.
+- **Mät efteråt:** –
+
+### P16 – Samma QML-komponenter kopierade i flera fönster
+- **Vad:** `FastWheel` finns som egen kopia i sju fönster (`ai/Main.qml:1240`, `config/Main.qml:377`, `recorder/Main.qml:390`, `dashboard/Main.qml:195`, `amp/Main.qml:540`, `share/Main.qml:89`, `remove/Main.qml:73`) – fem är identiska, **dashboardens och GoblinAmps har redan glidit isär**. `SectionTitle` och `Note` är identiska i tre fönster (`recorder/Main.qml:452`/`:460`, `share/Main.qml:122`/`:130`, `remove/Main.qml:148`/`:156`), `Monogram` i två (`config/Main.qml:447`, `remove/Main.qml:103`). USB-skaparen har egna kopior av allt (`usb-skaparen/Main.qml:70`–`:223`) – den byggs för sig och får vara så.
+- **Förslag:** flytta `FastWheel`, `SectionTitle`, `Note` och `Monogram` till `share/goblincakes/qml/Goblin` som de andra, och låt fönstren använda dem (dashboardens/Amps skillnader blir egenskaper).
+- **Vinst:** en ändring av rullningen görs på ett ställe i stället för sju; ca 250 rader mindre.
+- **Säkerhet:** sett – jämfört med kontrollsumma.
+- **Risk:** låg–medel. Rullningen i dashboarden/Amp kan bete sig lite annorlunda om skillnaderna inte förs över rätt.
+- **Storlek:** liten–medel (ett fönster i taget).
+- **Kan provas:** offscreen (kompilerar) + rulla i varje fönster på riktiga datorn.
+- **Mät efteråt:** –
+
+### P17 – Fönstrens startkod kopierad i tio program
+- **Vad:** Varje fönster sätter själv skalan (`QT_SCALE_FACTOR` 0.9 och tar bort den igen), laddar typsnitten, ordnar "ett fönster i taget" (QLocalServer/QLocalSocket), kopplar in färgvalet och sätter ikon – samma ~40 rader i `usr/bin/goblin-recorder:749`–`:780`, `goblin-share:390`–`:420`, `goblin-dashboard:661`–`:705`, `goblincakes-config:1285`–`:1320`, `goblin-ai:3414`–`:3485`, `goblin-amp:1935`–`:1960`, `goblin-graph:806`–`:845`, `usr/libexec/goblincakes-lagmeter:761`–`:785`, `goblincakes-voice:615`–`:630` (+ Avinstallera). De skiljer redan: GoblinAmp och goblin graph sätter ingen skala, och GoblinAmps fyra fildialoger saknar `sharpText` (`amp/Main.qml:2168`–`:2187`) som regeln i CLAUDE.md kräver.
+- **Förslag:** en gemensam modul bredvid `accent.py` (t.ex. `goblinapp.py`: `start(namn, ikon)` → app + motor, `single_instance(namn, visa)`), ett fönster i taget enligt användarens regel om stora ändringar.
+- **Vinst:** lättare underhåll – nästa ändring av skalan/typsnitten görs en gång; nya fönster blir rätt från början.
+- **Säkerhet:** sett (läst i koden). Om GoblinAmps avvikelser är avsiktliga: vet inte – kolla "GoblinAmp" i anteckningarna före ändring.
+- **Risk:** medel – rör alla fönster; fel i den gemensamma modulen = inget fönster startar. P15 (QML-/syntaxkollen) bör byggas först.
+- **Storlek:** medel (en session, ett fönster i taget).
+- **Kan provas:** offscreen per fönster + start på riktiga datorn.
+- **Mät efteråt:** –
+
+### P18 – Inga färdigkompilerade Python-filer i imagen
+- **Vad:** `/usr` går inte att skriva i, och imagen har inga `__pycache__` för GOBLINCAKES egna moduler (`/usr/share/goblincakes/**`) eller demoparser (`files/scripts/install-demoparser.sh:12` tar till och med bort dem). Python kompilerar därför om källkoden vid **varje** start av varje program.
+- **Förslag:** en rad sist i bygget: `python3 -m compileall -q --invalidation-mode unchecked-hash /usr/share/goblincakes /usr/lib/goblincakes` (hash-läget behövs eftersom alla filer i en atomisk image har datumet 1970), och låt bli att ta bort demoparserns.
+- **Vinst:** mätt på användarens dator (M15): demoparser-importen (varje CS2-demo) 1,3–2,0 s → 0,4 s; `goblincakes-recorder status` 117 → 73 ms; `goblin-ai` 418 → 356 ms; `goblincakes-share status` 86 → 66 ms. På laptopen ungefär dubbla vinsten (tror). Kostar ca 23 MB i imagen.
+- **Säkerhet:** sett/mätt (M15, med `PYTHONPYCACHEPREFIX` som låtsas-cache).
+- **Risk:** låg. Fel läge (tidsstämpel i stället för hash) ger bara att filerna inte används – inget går sönder.
+- **Storlek:** liten.
+- **Kan provas:** i bygget; effekten på riktiga datorn efter nästa image.
+- **Mät efteråt:** M15 (första talet på varje rad ska bli som det andra).
+
+### P19 – Städning (slås ihop)
+- **Vad:**
+  1. `goblincakes-refresh.sh` har tolv engångsfixar med flaggfil från 9–29 okt (`etc/xdg/plasma-workspace/env/goblincakes-refresh.sh:50`, `:64`, `:72`, `:87`, `:100`, `:112`, `:123`, `:132`, `:152`, `:177`, `:232`, `:296`) – ca 200 av filens 334 rader. Användarens dator har alla flaggorna (sett); laptopen installerades 3 nov med en image där felen redan var lagade. De gamla (Ghostty-storleken, dockans fästa program, klockans vikt, AppGrid-storleken, Meta-tangenten) kan tas bort – kolla först laptopens flaggor (M16).
+  2. De "två kopiorna" kan bli en: `files/scripts/plasma-shell-overrides.sh` kan kopiera låsskärm och utloggning direkt ur look-and-feel-paketet i stället för ur en egen kopia, och de tre Chromium-policyfilerna kan skapas i bygget ur en. (Alternativt räcker kontrollen i P15.)
+  3. Fem widgetar har var sin kopia av samma `lookCommand`-rad (`nowplaying/…/main.qml:60`, `dock/…/main.qml:52`, `quota/…/main.qml:121`, `updates/…/main.qml:159`, `deskclock/…/main.qml:47`, `metahint/…/main.qml:23`) – görs lämpligen samtidigt med P1.
+  4. `files/scripts/example.sh` (BlueBuilds mall, används inte) och 14 oanvända småfunktioner (t.ex. `goblinai.py:2955` `receipt_text`, `:5791` `reserve_command`, `goblin-ai:1078`–`:1091` `sidePinned`, `share.py:1723` `service_active`) kan tas bort.
+- **Vinst:** kortare filer att läsa (även för Claude – mindre kvot per session), färre ställen att glömma.
+- **Säkerhet:** sett (flaggorna på användarens dator, kontrollsummorna, namnsökningen). Laptopens flaggor: M16.
+- **Risk:** låg. En engångsfix som tas bort för tidigt drabbar bara en dator som inte loggat in sedan oktober – finns ingen sådan.
+- **Storlek:** liten.
+- **Kan provas:** offscreen / låtsas-hemmapp.
+- **Mät efteråt:** –
+
+**Granskat utan anmärkning (område 4):** skalskripten har felhantering (`set -u`/`-e` + `pipefail`) utom `goblincakes-firstlogin` (se P21) och `goblincakes-steam-wait-libraries` (ska aldrig stoppa Steam); tjänsterna har `Restart=on-failure`; inställningar sparas genomgående med temporärfil + byte. De stora filerna (`ai/Main.qml` 7 768 rader, `goblinai.py` 7 122, `config/Main.qml` 4 454, `recorder/Main.qml` 3 984, `recorder.py` 3 692) vore lättare att arbeta i uppdelade, men det är en stor och riskabel omflyttning utan att användaren märker något – föreslås inte nu.
+
+---
+
 ## Mätningar
 
 Kommandona kan köras igen precis som de står. På laptopen: först `ssh frugans-laptop` (eller klistra in i hennes terminal). M1–M3 är hela block – klistra in allt mellan strecken. Räkna bort rader med `sshd` om de dyker upp.
@@ -298,3 +359,15 @@ journalctl -u rpm-ostreed --since "7 days ago" --no-pager | grep -E "layers need
 sudo lsinitrd -s /usr/lib/modules/$(uname -r)/initramfs.img | sort -k5 -n -r | head -25; ls -la /boot/ostree/*/initramfs*
 ```
 - **Användarens dator:** filen är 309 MB (sett); innehållet ej läst (kräver sudo).
+
+### M15 – Starttid med och utan färdigkompilerade Python-filer
+```
+C=$(mktemp -d); t() { s=$(date +%s%N); "$@" >/dev/null 2>&1; e=$(date +%s%N); echo "$(( (e-s)/1000000 )) ms"; }; cd /tmp; D='import sys; sys.path.insert(0,"/usr/lib/goblincakes/demoparser"); import pandas, polars, demoparser2'; a=$(t python3 -c "$D"); PYTHONPYCACHEPREFIX=$C python3 -c "$D"; echo "demoparser: som imagen är $a, med .pyc $(PYTHONPYCACHEPREFIX=$C t python3 -c "$D")"; for prog in "goblin-ai --help" "/usr/libexec/goblincakes-recorder status" "/usr/libexec/goblincakes-share status"; do a=$(t $prog); PYTHONPYCACHEPREFIX=$C $prog >/dev/null 2>&1; echo "$prog: som imagen är $a, med .pyc $(PYTHONPYCACHEPREFIX=$C t $prog)"; done; rm -rf "$C"
+```
+- **Användarens dator:** demoparser 1 321–2 013 ms → 398 ms · `goblin-ai --help` 418 → 356 ms · `goblincakes-recorder status` 117 → 73 ms · `goblincakes-share status` 86 → 66 ms.
+
+### M16 – Vilka engångsfixar datorn redan har
+```
+ls ~/.local/state/goblincakes/
+```
+- **Användarens dator:** alla tolv flaggorna finns (aurorae-v2, meta-a-freed, meta-arrows-rotate, meta-launcher, ghostty-size-added, ghostty-smaller, dock-launchers-fixed, clock-weight, appgrid-smaller, goblincakes-dock, discord-native, vscode-home).
