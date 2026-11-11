@@ -156,7 +156,7 @@ class Backend(QObject):
     hideWanted = Signal()
 
     KEYS = ("apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project", "trayBox", "tools",
-            "wow", "cs2", "builds", "reports", "own", "browse", "batteries")
+            "wow", "cs2", "builds", "reports", "own", "browse", "batteries", "notices")
 
     def __init__(self):
         super().__init__()
@@ -177,7 +177,7 @@ class Backend(QObject):
         self.timers = [QTimer(self, interval=ms, timeout=fn) for ms, fn in (
             (2000, self.read_system), (1000, self.read_player), (3000, self.read_windows),
             (30000, self.read_quota), (5000, self.read_tray), (60000, self.read_stats),
-            (30000, self.read_batteries))]
+            (30000, self.read_batteries), (5000, self.read_notices))]
 
     # ── Reading in the background ──
     def job(self, key, fn, into=""):
@@ -246,6 +246,10 @@ class Backend(QObject):
     def read_batteries(self):
         self.job("batteries", (lambda: self.test["batteries"]) if "batteries" in self.test else dash.batteries)
 
+    def read_notices(self):
+        """NOTISER's number (11 Nov) – a small file goblincakes-notifications writes."""
+        self.job("notices", (lambda: self.test["notices"]) if "notices" in self.test else dash.notices)
+
     def read_quota(self):
         self.job("quota", (lambda: self.test["quota"]) if "quota" in self.test else dash.quota)
 
@@ -293,6 +297,7 @@ class Backend(QObject):
         self.read_player()
         self.read_quota()
         self.read_batteries()
+        self.read_notices()
         self.read_projects()
         QTimer.singleShot(400, self.read_stats)     # after the first picture
         QTimer.singleShot(150, self.read_windows)   # after the programs, for their names and icons
@@ -422,7 +427,24 @@ class Backend(QObject):
         self.changed.emit("trayBox")
         self.trayChanged.emit()
         self.busy.discard("trayBox")
+        if name == "notiser" and not self.test:
+            self._seen_notices()
         self.read_tray()
+
+    def _seen_notices(self, clear=False):
+        """NOTISER opened (or Rensa): read – the number goes away at once, the file is written in the background."""
+        try:
+            now = dict(json.loads(self.data["notices"] or "{}"), unread=0)
+        except ValueError:
+            now = {"unread": 0}
+        self._arrived("notices", json.dumps(now))
+        self._later(lambda: dash.mark_notices(clear))
+
+    @Slot()
+    def clearNotices(self):
+        if not self.test:
+            self._seen_notices(clear=True)
+            QTimer.singleShot(300, self.read_tray)
 
     @Slot()
     def closeTray(self):

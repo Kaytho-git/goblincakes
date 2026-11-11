@@ -1,6 +1,6 @@
 """GOBLINCAKES Dashboard – what the window shows, read without Qt (so it can be tried from a terminal):
 
-    python3 dash.py apps|system|top|player|quota|projects|project <mapp>|browse [mapp]|tray <namn>|bottom|views|config
+    python3 dash.py apps|system|top|player|quota|projects|project <mapp>|browse [mapp]|tray <namn>|notices|bottom|views|config
     python3 dash.py save < {"views": [...], "apps": [...]}
 
 apps()         the programs in the menu (the same folders as Goblin AI's `program`), with icon and group
@@ -9,7 +9,8 @@ player()       what is playing (MPRIS), music programs first; control() = previo
 quota()        what the quota widget saved (~/.cache/goblincakes/quota.json)
 projects()     the folders in Goblin AI's PROJEKT → MAPPAR (~/.config/goblincakes/ai-mappar.json – one list)
 browse(path)   the dashboard's own folder chooser (+ in PROJEKT); power() = the logout screen
-tray(name)     the rows behind a system tray icon: nätverk, ljud, bluetooth, urklipp, enheter
+tray(name)     the rows behind a system tray icon: nätverk, ljud, bluetooth, notiser, urklipp, enheter
+notices()      the notifications (goblincakes-notifications) and how many are unread – the NOTISER icon's number
 views()        the views (SPEL, JOBB, …) and which frames each shows – chosen in Config → Dashboard
 Only the standard library; every command has a short timeout and a missing program gives an empty answer.
 """
@@ -30,6 +31,9 @@ SETTINGS = CONFIG / "dashboard.json"      # {"views", "view"} – the programs a
 QUOTA = CACHE / "quota.json"
 QUOTA_HELPER = Path(__file__).resolve().parents[3] / "libexec/goblincakes-quota"
 BATTERY_HELPER = Path(__file__).resolve().parents[3] / "libexec/goblincakes-device-battery"
+# Written by goblincakes-notifications (a user service listening on the session bus) – Plasma's own history
+# can't be read from outside plasmashell
+NOTICES = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / "goblincakes/notiser.json"
 
 DATA_DIRS = [Path(p) for p in os.environ.get("GOBLINCAKES_DASHBOARD_APPS", "").split(":") if p] or [
     Path("/usr/share/applications"), Path("/var/lib/flatpak/exports/share/applications"),
@@ -115,8 +119,12 @@ def settings():
 
 
 def save_settings(data):
+    """Whole or not at all (a reading at the same moment – NOTISER is marked read in a thread – must never see half
+    a file, take it for empty and write the views away)."""
     SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    SETTINGS.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    tmp = SETTINGS.with_name(f".{SETTINGS.name}.{os.getpid()}")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    os.replace(tmp, SETTINGS)
 
 
 # ── The views (step 3): which frames each view shows, chosen in GOBLINCAKES Config → Dashboard ──
@@ -640,8 +648,8 @@ def project_tools():
 
 # ── The system tray's icons ───────────────────────────────────
 
-TRAY = [("nätverk", "Nätverk"), ("ljud", "Ljud"), ("bluetooth", "Bluetooth"), ("urklipp", "Urklipp"),
-        ("enheter", "Enheter")]
+TRAY = [("nätverk", "Nätverk"), ("ljud", "Ljud"), ("bluetooth", "Bluetooth"), ("notiser", "Notiser"),
+        ("urklipp", "Urklipp"), ("enheter", "Enheter")]
 NM_STATES = {"connected": "ansluten", "disconnected": "inte ansluten", "unavailable": "av", "unmanaged": "sköts inte",
              "connecting": "ansluter …"}
 NM_TYPES = {"ethernet": "Ethernet", "wifi": "Wi-Fi", "bluetooth": "Bluetooth", "wireguard": "VPN", "tun": "VPN"}
@@ -674,6 +682,44 @@ def clipboard():
 def set_clipboard(text):
     run(["busctl", "--user", "call", "org.kde.klipper", "/klipper", "org.kde.klipper.klipper",
          "setClipboardContents", "s", text])
+
+
+def _notice_rows():
+    """The notifications still in Plasma's list (not dismissed or closed by the program), after Rensa."""
+    try:
+        rows = json.loads(NOTICES.read_text()).get("rows", [])
+    except (OSError, ValueError, AttributeError):
+        return []
+    cleared = float(settings().get("noticesCleared") or 0)
+    return [r for r in rows if isinstance(r, dict) and r.get("closed", 0) in (0, 1) and float(r.get("time") or 0) > cleared]
+
+
+def notices():
+    """{"unread", "running"} – unread = newer than the last time NOTISER was opened (11 Nov). running false = the
+    listener has never written anything (the service isn't running), so the box says so."""
+    seen = float(settings().get("noticesSeen") or 0)
+    return {"unread": sum(1 for r in _notice_rows() if float(r.get("time") or 0) > seen), "running": NOTICES.exists()}
+
+
+def mark_notices(clear=False):
+    """NOTISER opened: all are read. Rensa: the box is emptied (the listener's file is left alone – it's its)."""
+    saved = settings()
+    saved["noticesSeen"] = time.time()
+    if clear:
+        saved["noticesCleared"] = time.time()
+    save_settings(saved)
+
+
+def clock(stamp):
+    """A notification's time: 14:32 today, igår 14:32, 9 nov."""
+    t = time.localtime(float(stamp or 0))
+    now = time.localtime()
+    if t[:3] == now[:3]:
+        return time.strftime("%H:%M", t)
+    if time.strftime("%Y%m%d", t) == time.strftime("%Y%m%d", time.localtime(time.time() - 86400)):
+        return time.strftime("igår %H:%M", t)
+    months = ("jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec")
+    return f"{t.tm_mday} {months[t.tm_mon - 1]}"
 
 
 def batteries():
@@ -728,6 +774,18 @@ def tray(name):
             if len(parts) == 3 and parts[0] == "Device":
                 rows.append({"a": parts[2], "b": "ansluten"})
         rows = rows or [{"a": "Bluetooth", "b": "på – inget anslutet" if powered else "av"}]
+    elif name == "notiser":
+        for r in _notice_rows()[:12]:
+            app = r.get("app") or r.get("entry") or ""
+            app = app[:1].upper() + app[1:]
+            body = r.get("body") or ""
+            rows.append({"a": r.get("summary") or body or app, "b": clock(r.get("time")),
+                         "c": " · ".join(x for x in (app, body if r.get("summary") else "") if x),
+                         "act": "open" if r.get("entry") else "", "text": r.get("entry") or ""})
+        if not rows:
+            rows = [{"a": "Inga notiser", "b": ""}] if NOTICES.exists() else [
+                {"a": "Notiserna läses inte", "b": "", "c": "Tjänsten goblincakes-notifications kör inte"}]
+        return {"title": "NOTISER", "notices": True, "rows": rows}
     elif name == "urklipp":
         rows = [{"a": " ".join(t.split())[:60], "b": "", "act": "copy", "text": t} for t in clipboard()]
         rows = rows or [{"a": "Urklippet är tomt", "b": ""}]
@@ -771,6 +829,8 @@ if __name__ == "__main__":
         result = browse(sys.argv[2] if len(sys.argv) > 2 else "")
     elif what == "batteries":
         result = batteries()
+    elif what == "notices":
+        result = notices()
     elif what == "tray":
         result = tray(sys.argv[2] if len(sys.argv) > 2 else "nätverk")
     elif what == "bottom":

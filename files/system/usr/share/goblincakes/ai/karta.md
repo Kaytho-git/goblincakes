@@ -138,6 +138,15 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   liten ruta) + strömknappen (D-Bus org.kde.LogoutPrompt /LogoutPrompt promptAll = avstängningsrutan). + bredvid
   PROJEKT = dashboardens egen mappväljare i mitten (`python3 dash.py browse [mapp]`; inte systemets dialog), ✕ på
   ett projekt = ur listan. SYSTEM-ramen utan DISK (den finns i mitten). PROJEKT tar resten av spalten och rullar själv.
+- NOTISER (11 nov, klockan bland ikonerna under loggan, siffra = olästa sedan rutan öppnades senast): Plasmas egen
+  notishistorik går inte att läsa utanför plasmashell, så användartjänsten goblincakes-notifications.service
+  (/usr/libexec/goblincakes-notifications watch – en D-Bus-monitor på sessionsbussen som bara läser Notify-anropen,
+  svaren och NotificationClosed) sparar de 40 senaste i ~/.local/state/goblincakes/notiser.json (bara läsbar för
+  användaren). Rutan visar de som fortfarande finns i Plasmas lista (inte bortklickade eller stängda av programmet);
+  tryck på en = öppna programmet (desktop-entry), Rensa = tömmer rutan (dashboard.json `noticesCleared`; `noticesSeen`
+  = när den öppnades). Kolla: `systemctl --user status goblincakes-notifications`, `/usr/libexec/goblincakes-notifications list`,
+  `python3 /usr/share/goblincakes/dashboard/dash.py notices`. "Notiserna läses inte" i rutan = filen saknas (tjänsten
+  har aldrig kört). Prova: `notify-send Test hej` – ska komma överst i rutan.
 - Varifrån siffrorna kommer: CPU /proc/stat, minne /proc/meminfo, grafikkort /sys/class/drm/card*/device/gpu_busy_percent
   (AMD/Intel) eller nvidia-smi, temperatur /sys/class/hwmon (k10temp/coretemp/amdgpu), disk = hemmappen + monterade
   diskar; musiken = MPRIS via busctl; nätverk nmcli, ljud wpctl, Bluetooth bluetoothctl, urklipp Klipper (D-Bus),

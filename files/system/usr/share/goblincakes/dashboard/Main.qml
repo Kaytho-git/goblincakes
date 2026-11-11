@@ -28,6 +28,7 @@ Window {
     property var projects: []
     property var project: ({})
     property var trayBox: ({})
+    property var notices: ({})         // {unread, running} – the number on NOTISER (goblincakes-notifications, 11 Nov)
     property var winMenu: null         // right-click on an open program: {id, name, x, y} (Växla till / Stäng)
     property var tools: ({})
     property var wow: ({})
@@ -160,7 +161,7 @@ Window {
     Component.onCompleted: {
         for (const k of ["apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project",
                          "trayBox", "tools", "wow", "cs2", "builds", "reports", "own", "browse",
-                         "batteries"])
+                         "batteries", "notices"])
             load(k);
     }
     onVisibleChanged: {
@@ -544,6 +545,7 @@ Window {
         "nätverk": "M3 14h18v7H3zM7 14V9h10v5M12 9V3",
         "ljud": "M4 9h4l5-4v14l-5-4H4zM16 9c1.5 1.5 1.5 4.5 0 6M19 6c3 3 3 9 0 12",
         "bluetooth": "M7 7l10 10-5 5V2l5 5L7 17",
+        "notiser": "M6 16V10a6 6 0 0 1 12 0v6l2 2H4zM10 21h4",
         "urklipp": "M8 3h8v4H8zM8 5H4v16h16V5h-4M8 12h8M8 16h5",
         "enheter": "M10 2h4v6h-4zM7 8h10v6l-3 4v4h-4v-4l-3-4z"
     })
@@ -595,6 +597,24 @@ Window {
                             scale: 0.8
                             path: win.trayPaths[parent.modelData.id] || ""
                             stroke: parent.on ? "#E6ECF5" : "#C3CCDA"
+                        }
+                        // NOTISER: how many are unread (since the box was last opened), like Plasma's bell
+                        Rectangle {
+                            readonly property int count: parent.modelData.id === "notiser" ? (win.notices.unread || 0) : 0
+                            visible: count > 0
+                            anchors { right: parent.right; top: parent.top; margins: -4 }
+                            width: Math.max(16, badgeText.implicitWidth + 8)
+                            height: 16
+                            color: accent.color
+                            Text {
+                                id: badgeText
+                                anchors.centerIn: parent
+                                text: parent.count > 99 ? "99+" : parent.count
+                                color: accent.on
+                                font.family: "IBM Plex Sans"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 10
+                            }
                         }
                         MouseArea {
                             id: trayArea
@@ -802,7 +822,7 @@ Window {
         x: 24
         y: topBar.height - 6
         z: 5
-        width: 340
+        width: win.trayBox.notices ? 420 : 340
         height: trayColumn.implicitHeight + 28
         border.color: accent.color
         MouseArea { anchors.fill: parent }   // a press in the box is not a press on what lies under it
@@ -836,20 +856,35 @@ Window {
                 Rectangle {
                     required property var modelData
                     width: trayColumn.width
-                    height: 40
+                    height: modelData.c ? 54 : 40
                     color: rowArea.containsMouse && modelData.act ? "#1A2438" : "transparent"
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
-                    Text {
+                    Column {
                         anchors { left: parent.left; right: rowRight.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                        elide: Text.ElideRight
-                        text: modelData.a
-                        color: "#E6ECF5"
-                        font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
+                        spacing: 2
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            text: modelData.a
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 14
+                        }
+                        // NOTISER: the program and the text under the heading
+                        Text {
+                            visible: !!modelData.c
+                            width: parent.width
+                            elide: Text.ElideRight
+                            text: modelData.c || ""
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 12
+                        }
                     }
                     Text {
                         id: rowRight
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        anchors { right: parent.right; top: modelData.c ? parent.top : undefined; topMargin: 9
+                                  verticalCenter: modelData.c ? undefined : parent.verticalCenter }
                         text: modelData.b
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
@@ -861,7 +896,8 @@ Window {
                         hoverEnabled: true
                         enabled: !!modelData.act
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: backend.copyClip(modelData.text)
+                        // urklipp: copy; notiser: open the program that sent it
+                        onClicked: modelData.act === "open" ? backend.launch(modelData.text) : backend.copyClip(modelData.text)
                     }
                 }
             }
@@ -897,6 +933,15 @@ Window {
                     text: win.trayBox.volume && win.trayBox.volume.muted ? "Ljud på" : "Tyst"
                     onClicked: backend.toggleMute()
                 }
+            }
+            // NOTISER: empty the box (Plasma's own list is left as it is)
+            FlatButton {
+                visible: !!win.trayBox.notices && (win.trayBox.rows || []).some(r => r.b)
+                anchors.right: parent.right
+                width: 96
+                height: 34
+                text: "Rensa"
+                onClicked: backend.clearNotices()
             }
             Text {
                 visible: (win.trayBox.rows || []).length === 0

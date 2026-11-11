@@ -1,0 +1,12 @@
+[Unit]
+Description=GOBLINCAKES Dashboard's NOTISER – keeps the newest notifications (listens on the session bus, only reads)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/libexec/goblincakes-notifications watch
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,170 @@
+#!/usr/bin/python3
+"""The notifications for GOBLINCAKES Dashboard's NOTISER (11 Nov, the user: "Bygg notiser i dashboarden också").
+
+Plasma keeps its notification history inside plasmashell – nothing outside it can read it. So this listens
+on the session bus as a D-Bus monitor (like dbus-monitor; only reads, never sends) for the calls programs make
+to org.freedesktop.Notifications (Notify), Plasma's answers (the notification's id) and NotificationClosed,
+and keeps the newest ones in a small file the dashboard reads:
+
+    goblincakes-notifications watch    listen (the user service goblincakes-notifications.service)
+    goblincakes-notifications list     the saved notifications as JSON, newest first
+
+File: ~/.local/state/goblincakes/notiser.json (only readable by you): {"rows": [{id, app, entry, icon,
+summary, body, time, closed}]} – at most KEEP rows. closed: 0 still shown/in Plasma's list, 1 timed out (still
+in Plasma's history), 2 dismissed by you, 3 closed by the program. Transient notifications (the hint
+"transient", e.g. volume changes) are not kept – Plasma doesn't keep them either. What is unread and what was
+cleared is the dashboard's (dashboard.json "noticesSeen"/"noticesCleared"), so this is the only writer here.
+"""
+import html
+import json
+import os
+import re
+import sys
+import time
+from pathlib import Path
+
+STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "goblincakes"
+FILE = STATE / "notiser.json"
+KEEP = 40
+IFACE = "org.freedesktop.Notifications"
+
+
+def load():
+    try:
+        rows = json.loads(FILE.read_text()).get("rows", [])
+        return [r for r in rows if isinstance(r, dict)]
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
+def save(rows):
+    STATE.mkdir(parents=True, exist_ok=True)
+    tmp = FILE.with_suffix(".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump({"rows": rows[:KEEP]}, f, ensure_ascii=False)
+    os.replace(tmp, FILE)
+
+
+def plain(text):
+    """The body without Plasma's markup (<b>, <a href>, <img>, &amp; …), on one line."""
+    text = re.sub(r"<br\s*/?>", " ", text or "", flags=re.I)
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", "", text)).split())[:400]
+
+
+class Log:
+    """What the monitor saw, turned into rows. Notify's reply (the id) comes as a separate message, matched by
+    the call's serial; a Notify with replaces_id updates that row (e.g. a download's progress)."""
+
+    def __init__(self):
+        self.rows = load()
+        self.waiting = {}        # (sender, serial) → the row whose id Plasma has not answered yet
+
+    def notify(self, sender, serial, args):
+        app, replaces, icon, summary, body, _actions, hints, _timeout = args
+        hints = hints or {}
+        if hints.get("transient") or not (summary or body):
+            return False
+        row = {"id": 0, "app": app or "", "entry": str(hints.get("desktop-entry") or ""), "icon": icon or "",
+               "summary": plain(summary)[:160], "body": plain(body), "time": round(time.time(), 1), "closed": 0}
+        if replaces:
+            row["id"] = replaces
+            self.rows = [r for r in self.rows if r.get("id") != replaces]
+        else:
+            self.waiting[(sender, serial)] = row
+            if len(self.waiting) > 50:   # answers that never came
+                self.waiting.pop(next(iter(self.waiting)))
+        self.rows.insert(0, row)
+        del self.rows[KEEP:]
+        return True
+
+    def answer(self, destination, reply_serial, args):
+        row = self.waiting.pop((destination, reply_serial), None)
+        if row is None or not args:
+            return False
+        row["id"] = args[0]
+        return True
+
+    def closed(self, args):
+        nid, reason = (list(args) + [0, 0])[:2]
+        for r in self.rows:
+            if r.get("id") == nid and nid:
+                r["closed"] = reason
+                return True
+        return False
+
+
+def become(conn, rules):
+    from gi.repository import Gio, GLib
+    conn.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Monitoring",
+                   "BecomeMonitor", GLib.Variant("(asu)", (rules, 0)), None, Gio.DBusCallFlags.NONE, -1, None)
+
+
+def watch():
+    from gi.repository import Gio, GLib
+
+    log = Log()
+    loop = GLib.MainLoop()
+    address = Gio.dbus_address_get_for_bus_sync(Gio.BusType.SESSION, None)
+    conn = Gio.DBusConnection.new_for_address_sync(
+        address, Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
+        None, None)
+    rules = [f"type='method_call',interface='{IFACE}',member='Notify'",
+             f"type='method_return',sender='{IFACE}'",
+             f"type='signal',interface='{IFACE}',member='NotificationClosed'"]
+
+    def handle(kind, sender, destination, serial, reply_serial, member, body):
+        try:
+            if kind == Gio.DBusMessageType.METHOD_CALL and member == "Notify":
+                changed = log.notify(sender, serial, body)
+            elif kind == Gio.DBusMessageType.METHOD_RETURN:
+                changed = log.answer(destination, reply_serial, body)
+            elif kind == Gio.DBusMessageType.SIGNAL and member == "NotificationClosed":
+                changed = log.closed(body)
+            else:
+                changed = False
+            if changed:
+                save(log.rows)
+        except (ValueError, TypeError, OSError) as e:
+            print(f"goblincakes-notifications: {e}", file=sys.stderr)
+        return False
+
+    def on_message(_conn, message, _incoming):
+        # GDBus' worker thread: copy what is needed and hand it to the main loop. Returning None swallows the
+        # message – a monitor must never answer (the bus would drop it), and nothing here is for us.
+        body = message.get_body()
+        GLib.idle_add(handle, message.get_message_type(), message.get_sender(), message.get_destination(),
+                      message.get_serial(), message.get_reply_serial(), message.get_member(),
+                      body.unpack() if body is not None else ())
+        return None
+
+    def on_closed(*_args):
+        print("goblincakes-notifications: the session bus went away", file=sys.stderr)
+        loop.quit()
+
+    conn.connect("closed", on_closed)
+    try:
+        become(conn, rules)
+    except GLib.Error as e:
+        # A bus that doesn't take a well-known name as the answers' sender: the notifications are still kept,
+        # only without Plasma's id (then "dismissed" and "updated" are not seen)
+        print(f"goblincakes-notifications: {e.message} – without the answers", file=sys.stderr)
+        become(conn, [r for r in rules if "method_return" not in r])
+    conn.add_filter(on_message)
+    save(log.rows)   # the file exists from the start: the dashboard can tell "no notifications" from "not listening"
+    loop.run()
+    return 1   # the service restarts it
+
+
+def main():
+    what = sys.argv[1] if len(sys.argv) > 1 else "list"
+    if what == "watch":
+        return watch()
+    if what == "list":
+        print(json.dumps(load(), ensure_ascii=False, indent=1))
+        return 0
+    sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
