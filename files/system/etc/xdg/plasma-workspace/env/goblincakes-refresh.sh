@@ -8,6 +8,7 @@
 _gc_state="${XDG_STATE_HOME:-$HOME/.local/state}/goblincakes"
 _gc_cache="${XDG_CACHE_HOME:-$HOME/.cache}"
 _gc_sum=$(find /usr/share/plasma/desktoptheme/goblincakes \
+               /usr/share/plasma/desktoptheme/goblincakes-levande \
                /usr/share/plasma/look-and-feel/org.goblincakes.desktop \
                /usr/share/aurorae/themes/goblincakes \
                /usr/share/wallpapers/goblincakes \
@@ -21,6 +22,20 @@ if [ "$_gc_sum" != "$(cat "$_gc_state/theme-sum" 2>/dev/null)" ]; then
     mkdir -p "$_gc_state"
     printf '%s\n' "$_gc_sum" > "$_gc_state/theme-sum"
 fi
+
+# Stil (Config → Utseende): Levande = the Plasma theme goblincakes-levande (the top bar as glass), Platt =
+# goblincakes. Kept in step at every login (a new layout or `goblin dock reset` puts goblincakes back) – only
+# when one of the two is in use, so a theme the user chose themselves is left alone.
+_gc_look=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/utseende" 2>/dev/null)
+_gc_theme=$(kreadconfig6 --file plasmarc --group Theme --key name 2>/dev/null)
+case "${_gc_theme:-goblincakes}" in
+    goblincakes|goblincakes-levande)
+        _gc_want=goblincakes
+        [ "$_gc_look" = levande ] && [ -e /usr/share/plasma/desktoptheme/goblincakes-levande/metadata.json ] \
+            && _gc_want=goblincakes-levande
+        [ "${_gc_theme:-goblincakes}" != "$_gc_want" ] && kwriteconfig6 --file plasmarc --group Theme --key name "$_gc_want"
+        ;;
+esac
 
 # See-through windows while dragging: also switch it on in the user's own
 # kwinrc (only if they haven't chosen anything themselves).
@@ -303,4 +318,4 @@ if [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/steam.desktop" ]; then
     /usr/libexec/goblincakes-tweak apply steam-desktop >/dev/null 2>&1 || :
 fi
 
-unset _gc_auto _gc_was _gc_now _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets
+unset _gc_look _gc_theme _gc_want _gc_auto _gc_was _gc_now _gc_flag _gc_state _gc_cache _gc_sum _gc_kwinrc _gc_ghostty _gc_applets

@@ -121,6 +121,11 @@ modules:
     scripts:
       - plasma-shell-overrides.sh
 
+  # The Plasma theme for Stil: Levande (goblincakes-levande = the GOBLINCAKES theme with a glass top bar)
+  - type: script
+    scripts:
+      - desktoptheme-levande.sh
+
   # Qt for Python must load (Fedora rebuilds it for every new Qt) – otherwise GOBLINCAKES
   # Config, Goblin AI, GoblinRecorder and goblin graph wouldn't start; stop the build instead
   - type: script

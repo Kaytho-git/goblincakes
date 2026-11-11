@@ -54,10 +54,20 @@ PlasmoidItem {
     // "" = the top bar; "left"/"right" = the dashboard's desktop row
     readonly property string part: Plasmoid.configuration.part || ""
     readonly property bool desk: part !== ""
-    // Stil (Config → Utseende): Levande = tinted glass on the desktop row (Levande utseende step 6) – the file
-    // ~/.config/goblincakes/utseende (platt/levande, no file = platt), read again every 5 s
-    readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; true"
+    // Stil (Config → Utseende): Levande = tinted glass on the desktop row (Levande utseende step 6) and, in the top
+    // bar, text that fades in when it changes (step 7) – the file ~/.config/goblincakes/utseende (platt/levande, no
+    // file = platt) and the game guard's file (no fades during a game), read again every 5 s
+    readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; "
+        + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; true"
     property bool living: false
+    property bool gaming: false
+    readonly property bool moving: living && !gaming && Kirigami.Units.longDuration > 1
+    // A line of text that fades in when it changes (Stil Levande, step 7)
+    component FadeLabel: Text {
+        id: fadeLabel
+        onTextChanged: if (root.moving && visible) fadeIn.restart()
+        NumberAnimation { id: fadeIn; target: fadeLabel; property: "opacity"; from: 0.15; to: 1; duration: 260; easing.type: Easing.OutQuad }
+    }
 
     // ---- Music ----
     // Music players only (desktop entry or name contains one of these)
@@ -229,7 +239,9 @@ PlasmoidItem {
         connectedSources: []
         onNewData: (source, data) => {
             if (source === root.lookCommand) {
-                root.living = String(data["stdout"] || "").trim() === "levande";
+                const lines = String(data["stdout"] || "").split("\n").map(l => l.trim());
+                root.living = lines[0] === "levande";
+                root.gaming = lines.indexOf("spel") >= 0;
                 disconnectSource(source);
                 return;
             }
@@ -336,7 +348,7 @@ PlasmoidItem {
     // ---- Look ----
     Timer {
         interval: 5000
-        running: root.desk          // only the desktop row has glass
+        running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: exec.connectSource(root.lookCommand)
@@ -513,7 +525,7 @@ PlasmoidItem {
                         font.pixelSize: root.playing ? Kirigami.Theme.defaultFont.pixelSize * 1.15 : Kirigami.Theme.defaultFont.pixelSize * 0.7
                         Layout.alignment: Qt.AlignVCenter
                     }
-                    Text {
+                    FadeLabel {
                         text: root.songText
                         color: root.playing ? root.frost : root.muted
                         font: Kirigami.Theme.defaultFont
@@ -579,7 +591,7 @@ PlasmoidItem {
                         implicitHeight: Kirigami.Units.iconSizes.small
                         Layout.alignment: Qt.AlignVCenter
                     }
-                    Text {
+                    FadeLabel {
                         text: root.discord ? root.discord.place : ""
                         color: root.frost
                         font: Kirigami.Theme.defaultFont
@@ -630,7 +642,7 @@ PlasmoidItem {
                         implicitHeight: Kirigami.Units.iconSizes.small
                         Layout.alignment: Qt.AlignVCenter
                     }
-                    Text {
+                    FadeLabel {
                         text: root.steamText
                         color: root.muted
                         font: Kirigami.Theme.defaultFont
@@ -690,7 +702,7 @@ PlasmoidItem {
                             NumberAnimation { to: 1.0; duration: 700; easing.type: Easing.InOutSine }
                         }
                     }
-                    Text {
+                    FadeLabel {
                         text: root.aiText
                         color: root.ai.local ? root.frost : root.muted
                         font: Kirigami.Theme.defaultFont

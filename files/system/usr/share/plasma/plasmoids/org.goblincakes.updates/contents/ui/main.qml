@@ -153,6 +153,33 @@ PlasmoidItem {
         return lines.join("\n");
     }
 
+
+    // Stil (Config → Utseende → Stil, Levande utseende step 7, 11 Nov): Levande = a glow under the pointer and the mark's colour fades;
+    // moving = Levande, no game running and Plasma's animations on. Read every 5 s.
+    readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; "
+        + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; true"
+    property bool living: false
+    property bool gaming: false
+    readonly property bool moving: living && !gaming && Kirigami.Units.longDuration > 1
+    P5Support.DataSource {
+        id: lookSource
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            const lines = String(data["stdout"] || "").split("\n").map(l => l.trim());
+            root.living = lines[0] === "levande";
+            root.gaming = lines.indexOf("spel") >= 0;
+            disconnectSource(source);
+        }
+    }
+    Timer {
+        interval: 5000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: lookSource.connectSource(root.lookCommand)
+    }
+
     fullRepresentation: Item {
         readonly property bool shown: root.available || root.editMode
         Layout.minimumWidth: shown ? arrow.width + Kirigami.Units.smallSpacing * 2 : 0
@@ -161,6 +188,18 @@ PlasmoidItem {
         Layout.fillHeight: true
         visible: shown
 
+        // Stil Levande: a glow in the accent under the pointer
+        Rectangle {
+            anchors.centerIn: arrow
+            width: arrow.width + 8
+            height: arrow.height + 8
+            color: Qt.rgba(Kirigami.Theme.focusColor.r, Kirigami.Theme.focusColor.g, Kirigami.Theme.focusColor.b, 0.14)
+            border.width: 1
+            border.color: Qt.rgba(Kirigami.Theme.focusColor.r, Kirigami.Theme.focusColor.g, Kirigami.Theme.focusColor.b, 0.5)
+            opacity: root.living && arrowArea.containsMouse ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { enabled: root.moving; NumberAnimation { duration: 160 } }
+        }
         // A square frame with a check in it, in the colour of what is waiting – drawn, flat and
         // square like the rest of GOBLINCAKES (no icon theme needed)
         Canvas {
@@ -169,6 +208,7 @@ PlasmoidItem {
             width: Kirigami.Units.iconSizes.small
             height: width
             opacity: root.available ? 1 : 0.4  // edit mode without updates: dimmed placeholder
+            Behavior on opacity { enabled: root.moving; NumberAnimation { duration: 200 } }
             readonly property color colour: root.markColor
             onColourChanged: requestPaint()
             onPaint: {
@@ -197,8 +237,10 @@ PlasmoidItem {
         }
 
         MouseArea {
+            id: arrowArea
             anchors.fill: parent
             enabled: root.available
+            hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: root.openUpdate()
         }

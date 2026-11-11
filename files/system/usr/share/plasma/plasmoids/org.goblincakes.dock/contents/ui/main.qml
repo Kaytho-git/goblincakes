@@ -27,6 +27,7 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.taskmanager as TaskManager
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.plasma5support as P5Support
 
 PlasmoidItem {
     id: root
@@ -44,6 +45,33 @@ PlasmoidItem {
     readonly property real zoomRange: Math.max(0.5, Plasmoid.configuration.zoomRange)
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
+
+    // Stil (Config → Utseende → Stil, Levande utseende step 7, 11 Nov): Levande = light in the frame's top edge and a
+    // glow behind the icon under the pointer; moving = Levande, no game running and Plasma's animations on.
+    // ~/.config/goblincakes/utseende and the game guard's file, read every 5 s.
+    readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; "
+        + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; true"
+    property bool living: false
+    property bool gaming: false
+    readonly property bool moving: living && !gaming && Kirigami.Units.longDuration > 1
+    P5Support.DataSource {
+        id: lookSource
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            const lines = String(data["stdout"] || "").split("\n").map(l => l.trim());
+            root.living = lines[0] === "levande";
+            root.gaming = lines.indexOf("spel") >= 0;
+            disconnectSource(source);
+        }
+    }
+    Timer {
+        interval: 5000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: lookSource.connectSource(root.lookCommand)
+    }
 
     // Ready after login (29 Oct, the user's wish – it took a few seconds before the dock answered):
     // once the pinned apps are in, the dock peeks up for 1.5 s with its frame lit. "Needs
@@ -221,6 +249,18 @@ PlasmoidItem {
             border.color: root.accent
             border.width: 1
             visible: dock.count > 0
+            // Stil Levande: a faint light along the frame's inside top edge
+            Rectangle {
+                visible: root.living
+                x: 1
+                y: 1
+                width: parent.width - 2
+                height: Math.max(4, Math.round(parent.height * 0.4))
+                gradient: Gradient {
+                    GradientStop { position: 0; color: Qt.rgba(0.902, 0.925, 0.961, 0.06) }
+                    GradientStop { position: 1; color: Qt.rgba(0.902, 0.925, 0.961, 0) }
+                }
+            }
             // Lit while peeking up after login: the accent shines through, then fades back
             Rectangle {
                 anchors.fill: parent
@@ -255,6 +295,20 @@ PlasmoidItem {
                 Behavior on x { enabled: dock.dragging; NumberAnimation { duration: 120 } }
                 height: dock.height
 
+                // Stil Levande: a glow in the accent behind the icon under the pointer (the wave already lifts it)
+                Rectangle {
+                    readonly property real grow: Math.round(task.size * 0.12)
+                    x: icon.x - grow
+                    y: icon.y - grow
+                    width: icon.width + 2 * grow
+                    height: icon.height + 2 * grow
+                    color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.16)
+                    border.width: 1
+                    border.color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.45)
+                    opacity: root.living && mouse.containsMouse && !dock.dragging ? 1 : 0
+                    visible: opacity > 0
+                    Behavior on opacity { enabled: root.moving; NumberAnimation { duration: 160 } }
+                }
                 Kirigami.Icon {
                     id: icon
                     width: task.size

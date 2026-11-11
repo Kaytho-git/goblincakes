@@ -76,11 +76,36 @@ def look_id():
     return value if value in LOOKS else "platt"
 
 
+PLASMA_THEMES = {"platt": "goblincakes", "levande": "goblincakes-levande"}   # Levande utseende step 7: the top bar
+
+
+def plasma_theme():
+    """The Plasma theme now (~/.config/plasmarc [Theme] name; none = the look-and-feel's, i.e. goblincakes)."""
+    import configparser
+    cfg = configparser.ConfigParser(interpolation=None, strict=False)
+    try:
+        cfg.read(CONFIG.parent / "plasmarc", encoding="utf-8")
+        return cfg.get("Theme", "name", fallback="goblincakes")
+    except (configparser.Error, OSError):
+        return "goblincakes"
+
+
 def set_look(name):
+    """Platt or Levande: the file the windows follow, and the Plasma theme (the top bar's glass) – but only when
+    one of GOBLINCAKES' two themes is in use (another theme the user chose is left alone)."""
     if name not in LOOKS:
         raise ValueError(name)
     CONFIG.mkdir(parents=True, exist_ok=True)
     LOOK.write_text(name + "\n")
+    want = PLASMA_THEMES[name]
+    if plasma_theme() in PLASMA_THEMES.values() and plasma_theme() != want \
+            and Path(f"/usr/share/plasma/desktoptheme/{want}/metadata.json").exists():
+        import subprocess
+        try:
+            subprocess.Popen(["plasma-apply-desktoptheme", want], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+        except OSError:
+            pass
 
 
 def _plasma_animations():

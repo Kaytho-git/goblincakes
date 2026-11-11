@@ -115,12 +115,51 @@ PlasmoidItem {
         return (s.id === "codex" ? "ChatGPT" : s.name) + ": " + (p < 0 ? "kunde inte läsas" : p + " %");
     }).join("\n")
 
+
+    // Stil (Config → Utseende → Stil, Levande utseende step 7, 11 Nov): Levande = a glow under the pointer and the bars glide to new values;
+    // moving = Levande, no game running and Plasma's animations on. Read every 5 s.
+    readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; "
+        + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; true"
+    property bool living: false
+    property bool gaming: false
+    readonly property bool moving: living && !gaming && Kirigami.Units.longDuration > 1
+    P5Support.DataSource {
+        id: lookSource
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            const lines = String(data["stdout"] || "").split("\n").map(l => l.trim());
+            root.living = lines[0] === "levande";
+            root.gaming = lines.indexOf("spel") >= 0;
+            disconnectSource(source);
+        }
+    }
+    Timer {
+        interval: 5000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: lookSource.connectSource(root.lookCommand)
+    }
+
     compactRepresentation: Item {
         Layout.minimumWidth: bars.width + Kirigami.Units.smallSpacing * 2
         Layout.preferredWidth: Layout.minimumWidth
         Layout.maximumWidth: Layout.minimumWidth
         Layout.fillHeight: true
 
+        // Stil Levande: a glow in the accent under the pointer
+        Rectangle {
+            anchors.centerIn: bars
+            width: bars.width + 8
+            height: bars.height + 8
+            color: Qt.rgba(Kirigami.Theme.focusColor.r, Kirigami.Theme.focusColor.g, Kirigami.Theme.focusColor.b, 0.14)
+            border.width: 1
+            border.color: Qt.rgba(Kirigami.Theme.focusColor.r, Kirigami.Theme.focusColor.g, Kirigami.Theme.focusColor.b, 0.5)
+            opacity: root.living && barsArea.containsMouse ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { enabled: root.moving; NumberAnimation { duration: 160 } }
+        }
         Row {
             id: bars
             anchors.centerIn: parent
@@ -144,13 +183,16 @@ PlasmoidItem {
                         anchors.margins: 2
                         height: Math.round((parent.height - 4) * Math.min(100, Math.max(0, parent.p)) / 100)
                         color: root.colourFor(parent.p)
+                        Behavior on height { enabled: root.moving; NumberAnimation { duration: 450; easing.type: Easing.OutCubic } }
                     }
                 }
             }
         }
 
         MouseArea {
+            id: barsArea
             anchors.fill: parent
+            hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: root.expanded = !root.expanded
         }
