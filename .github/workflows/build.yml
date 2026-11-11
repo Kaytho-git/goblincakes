@@ -24,8 +24,35 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 jobs:
+  # P15 (docs/optimering/granskning.md, 11 Nov): syntax, QML, the copies – a typo stops here, before
+  # an image is built and staged on the computers. Warnings (versions to bump) never stop anything.
+  check:
+    name: Kontroll före bygget
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the warnings compare with the previous push
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14" # as new as the images' Python, so new syntax isn't called an error
+      # Without PySide6 the QML check is skipped with a warning (a PyPI hiccup must not stop the build)
+      - name: PySide6 för QML-kollen
+        continue-on-error: true
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
+          python -m pip install -q "PySide6>=6.11,<6.12"
+      - name: Kontrollen (tools/check.py)
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: python tools/check.py "${BEFORE:-HEAD~1}"
+
   bluebuild:
     name: Build Custom Image
+    needs: check
     runs-on: ubuntu-latest
     permissions:
       contents: read

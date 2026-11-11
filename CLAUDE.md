@@ -42,6 +42,7 @@ Kör `git pull`, svara med vilket steg hen är på (första ej avbockade i Statu
 - Plasma-temats SVG:er genereras av `tools/plasma-frames.py`; Plymouth-bilder av `tools/plymouth-render.js`; lärlägets kurser av `tools/learn-src/` (validera med `tools/learn-validate.py`).
 - KWin-skriptet `files/system/usr/share/kwin/scripts/goblincakes-windows/` sköter fönsterplacering (Config i mitten, spel/regler till skärm, rutor, webbappar, AppGrid, goblin graph/GoblinAmp-platser). `tile/apply.js` delar `fitTileToWindow` med det – ändra båda.
 - **Kakans karta** `files/system/usr/share/goblincakes/ai/karta.md`: ny eller ändrad del → uppdatera dess `##`-avsnitt (filer, hjälpprogram, tjänster, hur man kollar). Kakan läser även docs/ – skriv aldrig facit till hennes prov där.
+- **Före varje commit: `python3 tools/check.py`** (syntax, QML, kopiorna; går också först i bygget och stoppar det vid fel).
 - Testa fönster offscreen och med attrapper; skriv i CLAUDE.md/anteckningar vad som är provat på riktigt och vad som inte är det.
 - **Ej provat på riktiga datorn → testlista åt Kakan** i `~/.local/share/goblincakes/testlistor/<namn>.md` – från en molnsession i repots `docs/testlistor/till-kakan/` (hämtas efter `git pull` vid nästa /testa) – (format överst i `ai/testlist.py`), användaren kör `/testa` i Goblin AI. Resultat och Kakans rapporter: MCP-verktyget `rapporter`; hennes kända lösningar/lärdomar: `losningar` (spara: `ai/solutions.py add`) (eller `~/.local/share/goblincakes/till-claude/`).
 

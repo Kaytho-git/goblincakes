@@ -78,6 +78,9 @@ Ord: bygget, bygge, build, github actions, misslyckades bygget, byggloggen, ny i
   ett nyare (samma kö) följs det nyare. Claude lämnar också sådana bevakningar efter en push.
 - Basvarianten (goblincakes) styckas om efter innehåll i slutet av bygget (chunkah, 11 nov) – steget "Running Chunkah"
   tar några minuter extra; fel där = byggsteget, inte receptet.
+- Före bygget går jobbet "Kontroll före bygget" (tools/check.py, 11 nov): syntax i Python/skal/JSON, att fönstrens
+  QML kompilerar och att kopiorna (låsskärm, utloggning, webbläsarpolicyerna, fitTileToWindow) är lika. Faller det
+  byggs ingen variant (de visas som överhoppade) – orsaken är raden med FEL/::error:: i loggen, felet är i repot.
 - Felet sitter oftast hos Fedora/Universal Blue (paket som krockar, en server nere) eller i GOBLINCAKES recept/skript
   – du ändrar aldrig koden i repot: förklara och föreslå Skicka till Claude.
 - Fedora-versionen är låst i recepten (11 nov): recipes/recipe*.yml `image-version` (45 för goblincakes och

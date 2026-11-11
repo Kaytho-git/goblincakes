@@ -845,3 +845,6 @@ Vad som är byggt och nästa steg: `docs/optimering/granskning.md` under P12. Ko
 
 ## Notisernas plats (11 nov)
 Plasmas standard (CloseToWidget) och TopRight lade notisen centrerad under systemfältspanelen (top, right, autohide, 254×36) utan att hålla den på skärmen: 3537,36 336×83 på HDMI-A-1 (slutar 3840) = 33 px utanför. Mätt med provnotiser + ett tillfälligt KWin-skript som läser `frameGeometry` för `w.notification` (skickade svaret som notis, `print` syns inte): BottomRight 3468,961, TopLeft 1956,36, TopCenter 2676,36 – alla hela. Användarens val: BottomRight i `/etc/xdg/plasmanotifyrc`. OBS `kwriteconfig6 --notify` behövs för att plasmashell ska läsa om utan omstart.
+
+## Kontrollen före bygget (P15 – 11 nov)
+`tools/check.py [bas]` – vad den kollar, hur den är provad och hur den ligger i bygget: `docs/optimering/granskning.md` under P15. Kort: fel (syntax, QML, kopiorna, kurserna) stoppar bygget i jobbet `check`; varningar (LAYOUT_VERSION/SYSTRAY_VERSION/Chrome-temats version inte höjda) stoppar aldrig. Ny "kopia" eller ny regel om versionshöjning → lägg till den i `check_copies`/`check_versions`.

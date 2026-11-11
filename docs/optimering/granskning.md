@@ -230,6 +230,7 @@ Läget är bättre än väntat: alla 193 Python-, skal- och JSON-filer klarar sy
 - **Storlek:** liten.
 - **Kan provas:** i molnet/offscreen.
 - **Mät efteråt:** –
+- **Byggt 11 nov (Opus):** `tools/check.py` (Python i stället för skal – lättare att hålla rätt) – (1)–(5) som förslaget; (4) bara när kursfilerna ändrats och php/node/lua5.1 finns, annars varning. Eget jobb `check` ("Kontroll före bygget") i `build.yml` som `bluebuild` väntar på (`needs`): Python 3.14, PySide6 6.11 från PyPI (faller installationen = QML-kollen hoppas över med varning), varningarna jämför med förra pushen (`github.event.before`, annars `HEAD~1`). Provat här: 0 fel på dagens repo (2 s), och i en kopia med ett påhittat fel av varje sort (Python, skal, JSON, QML-egenskap, policyfil, fitTileToWindow, layoutfil) – alla sex fel + varningen hittades. Mot HEAD~30 kommer en äkta varning (Aurorae v2 i `defaults` 59ec341 utan ny LAYOUT_VERSION – löst med engångsfix, alltså rätt att det bara är en varning). Ej provat på GitHub än.
 
 ### P16 – Samma QML-komponenter kopierade i flera fönster
 - **Vad:** `FastWheel` finns som egen kopia i sju fönster (`ai/Main.qml:1240`, `config/Main.qml:377`, `recorder/Main.qml:390`, `dashboard/Main.qml:195`, `amp/Main.qml:540`, `share/Main.qml:89`, `remove/Main.qml:73`) – fem är identiska, **dashboardens och GoblinAmps har redan glidit isär**. `SectionTitle` och `Note` är identiska i tre fönster (`recorder/Main.qml:452`/`:460`, `share/Main.qml:122`/`:130`, `remove/Main.qml:148`/`:156`), `Monogram` i två (`config/Main.qml:447`, `remove/Main.qml:103`). USB-skaparen har egna kopior av allt (`usb-skaparen/Main.qml:70`–`:223`) – den byggs för sig och får vara så.
@@ -349,7 +350,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 2 | **P1** (byggd 11 nov) Widgetarna startar skript varje sekund | 5 % av en kärna tillbaka, alltid, båda datorerna | låg | liten |
 | [x] | 3 | **P2** (byggd 11 nov) GoblinRecorder-tjänstens `pgrep` och loggläsning | 2 % i vila, 1,4 % medan WoW kör (användarens dator) | låg–medel | liten |
 | [x] | 4 | **P3** (byggd 11 nov) GoblinRecorder-fönstrets `flatpak info` | 1,4 % (användarens dator) | låg | liten |
-| [ ] | 5 | **P15** Kontroll före bygget | färre trasiga images, kopiorna kan inte glida isär | låg | liten |
+| [x] | 5 | **P15** (byggd 11 nov) Kontroll före bygget | färre trasiga images, kopiorna kan inte glida isär | låg | liten |
 | [x] | 6 | **P20** Byggstegen på rätt Fedora-bas (byggd 11 nov) | ingen trasig programmeny/Piper vid Fedora-hopp, snabbare Nvidia-bygge | låg | liten |
 | [x] | 7 | **P22** Rösten och ny Python-version (byggd 11 nov) | rösten överlever Fedora 45 på användarens dator | låg | liten |
 | [ ] | 8 | **P18** Färdigkompilerade Python-filer | CS2-demon 1–1,5 s fortare, fönster 0,05 s fortare | låg | liten |
