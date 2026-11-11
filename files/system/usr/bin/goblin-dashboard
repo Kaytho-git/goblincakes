@@ -156,12 +156,13 @@ class Backend(QObject):
     hideWanted = Signal()
 
     KEYS = ("apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project", "trayBox", "tools",
-            "wow", "cs2", "builds", "reports", "own", "browse")
+            "wow", "cs2", "builds", "reports", "own", "browse", "batteries")
 
     def __init__(self):
         super().__init__()
         self.test = test_data()
-        self.data = {k: "[]" if k in ("apps", "bottom", "windows", "top", "projects", "own") else "{}" for k in self.KEYS}
+        self.data = {k: "[]" if k in ("apps", "bottom", "windows", "top", "projects", "own", "batteries") else "{}"
+                     for k in self.KEYS}
         self.busy = set()
         self.system = dash.System()
         self.kwin = KWinBridge()
@@ -175,7 +176,8 @@ class Backend(QObject):
         self.visible = False
         self.timers = [QTimer(self, interval=ms, timeout=fn) for ms, fn in (
             (2000, self.read_system), (1000, self.read_player), (3000, self.read_windows),
-            (30000, self.read_quota), (5000, self.read_tray), (60000, self.read_stats))]
+            (30000, self.read_quota), (5000, self.read_tray), (60000, self.read_stats),
+            (30000, self.read_batteries))]
 
     # ── Reading in the background ──
     def job(self, key, fn, into=""):
@@ -241,6 +243,9 @@ class Backend(QObject):
     def read_player(self):
         self.job("player", (lambda: self.test["player"]) if "player" in self.test else dash.player)
 
+    def read_batteries(self):
+        self.job("batteries", (lambda: self.test["batteries"]) if "batteries" in self.test else dash.batteries)
+
     def read_quota(self):
         self.job("quota", (lambda: self.test["quota"]) if "quota" in self.test else dash.quota)
 
@@ -287,6 +292,7 @@ class Backend(QObject):
         self.read_system()
         self.read_player()
         self.read_quota()
+        self.read_batteries()
         self.read_projects()
         QTimer.singleShot(400, self.read_stats)     # after the first picture
         QTimer.singleShot(150, self.read_windows)   # after the programs, for their names and icons
@@ -300,6 +306,8 @@ class Backend(QObject):
         for t in self.timers:
             t.start() if on else t.stop()
         if on:
+            if not self.test:
+                dash.count_shown()   # the desktop's Meta hint goes away after the first few times
             self.reload_views()      # Config → Dashboard may have changed them while it was hidden
             self.system = dash.System()
             self.read_all()

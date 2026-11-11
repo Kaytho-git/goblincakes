@@ -76,6 +76,7 @@ Window {
     property string box: ""            // the small box under the icons that is not the tray's: kvot (11 Nov)
     property bool adding: false        // + in PROJEKT: the folder chooser over the middle (11 Nov)
     property var browse: ({})
+    property var batteries: []        // the wireless mouse's (keyboard's, controller's, headset's) battery – next to the clock
     property date now: new Date()
     readonly property string mid: backend.mid
     readonly property string midProject: mid.indexOf("project:") === 0 ? mid.slice(8) : ""
@@ -158,7 +159,8 @@ Window {
 
     Component.onCompleted: {
         for (const k of ["apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project",
-                         "trayBox", "tools", "wow", "cs2", "builds", "reports", "own", "browse"])
+                         "trayBox", "tools", "wow", "cs2", "builds", "reports", "own", "browse",
+                         "batteries"])
             load(k);
     }
     onVisibleChanged: {
@@ -692,7 +694,7 @@ Window {
         // Anpassa: Config → Dashboard (the views, what each frame shows, the programs at the bottom)
         Rectangle {
             id: customizeButton
-            anchors { right: clockBox.left; rightMargin: 20; verticalCenter: parent.verticalCenter }
+            anchors { right: batteryRow.visible ? batteryRow.left : clockBox.left; rightMargin: 20; verticalCenter: parent.verticalCenter }
             width: customizeRow.implicitWidth + 28
             height: 44
             color: customizeArea.containsMouse ? "#1A2438" : "transparent"
@@ -722,6 +724,54 @@ Window {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: backend.customize()
+            }
+        }
+        // The mouse's battery (and the keyboard's, controller's, headset's) – 11 Nov, the user: "vår musladdnings widget
+        // synlig i dashboard med"; the same reading and colours as the desktop row: orange under 50 %, red at 10 % and below
+        Row {
+            id: batteryRow
+            anchors { right: clockBox.left; rightMargin: 24; verticalCenter: parent.verticalCenter }
+            visible: win.batteries.length > 0
+            spacing: 18
+            readonly property var paths: ({
+                "mouse": "M6 3h12v18H6z M12 3v6",
+                "keyboard": "M2 6h20v12H2z M6 10h1 M10 10h1 M14 10h1 M18 10h1 M7 14h10",
+                "gaming-input": "M2 8h20v10H2z M7 11v4 M5 13h4 M15 12h1 M18 14h1",
+                "headset": "M4 15v-3a8 8 0 0 1 16 0v3 M3 14h4v6H3z M17 14h4v6h-4z",
+                "headphones": "M4 15v-3a8 8 0 0 1 16 0v3 M3 14h4v6H3z M17 14h4v6h-4z",
+                "speakers": "M6 3h12v18H6z M10 8h4 M12 13a2 2 0 1 0 0.01 0"
+            })
+            Repeater {
+                model: win.batteries
+                Row {
+                    id: battery
+                    required property var modelData
+                    readonly property color tone: modelData.percent <= 10 ? "#E5484D" : modelData.percent < 50 ? "#D9822B" : "#C3CCDA"
+                    spacing: 7
+                    Glyph {
+                        anchors.verticalCenter: parent.verticalCenter
+                        path: batteryRow.paths[battery.modelData.kind] || batteryRow.paths["mouse"]
+                        stroke: battery.tone
+                    }
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+                        G.Count {
+                            value: battery.modelData.percent
+                            suffix: battery.modelData.charging ? " % ⚡" : " %"
+                            color: battery.tone
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 14
+                        }
+                        Text {
+                            width: Math.min(implicitWidth, 120)
+                            elide: Text.ElideRight
+                            text: battery.modelData.name || ""
+                            color: "#5C6880"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 10
+                        }
+                    }
+                }
             }
         }
         Column {

@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "GOBLINCAKES"
+            }
+        ],
+        "Category": "Utilities",
+        "Description": "The dashboard layout's hint on the desktop: press Meta for the dashboard (only the first few times)",
+        "Description[sv]": "Tipset på skrivbordet i upplägget Dashboard: tryck Meta för dashboarden (bara de första gångerna)",
+        "Icon": "help-hint",
+        "Id": "org.goblincakes.metahint",
+        "License": "GPL-3.0-or-later",
+        "Name": "GOBLINCAKES Meta hint",
+        "Name[sv]": "GOBLINCAKES Meta-tips"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

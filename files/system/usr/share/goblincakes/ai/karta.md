@@ -178,6 +178,9 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
   AppGrid). Dashboarden öppnas på huvudskärmen (KWin-skriptet goblincakes-windows, screenOrder[0]).
   Storleken (11 nov): `s` 0,6 i DeskBox.qml/ClockBox.qml, panelen 52 px (goblincakes-desktop-layout ROW_HEIGHT – `login` rättar
   höjden). Stil Levande = tonat glas utan ram (widgetarna läser ~/.config/goblincakes/utseende var 5:e s).
+  Meta-tipset längst ner på skrivbordet (11 nov): widgeten org.goblincakes.metahint, läggs dit/tas bort av
+  goblincakes-desktop-layout (`login`); borta när dashboarden visats 3 gånger (~/.local/state/goblincakes/dashboard-shown).
+  Dashboardens batterirad uppe till höger: goblincakes-device-battery (`python3 dash.py batteries`).
 - Nederst i dashboarden: GOBLINCAKES egna program i en rad med små ikoner (dash.py own_apps: Config, Goblin AI,
   GoblinRecorder, GoblinAmp, GoblinShare), under dem programraden = dockans fästa program (delas åt båda hållen: Config →
   DASHBOARD → APPARNA LÄNGST NER ändrar dockan; i upplägget Dashboard listan i desktop-layout.json, som dockan får tillbaka).

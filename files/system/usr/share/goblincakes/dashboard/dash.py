@@ -676,6 +676,35 @@ def set_clipboard(text):
          "setClipboardContents", "s", text])
 
 
+def batteries():
+    """The wireless mouse's, keyboard's, controller's and headset's battery (goblincakes-device-battery, like the
+    desktop row and the top bar): [{kind, name, percent, charging}] – [] without any (11 Nov, the user: the mouse's
+    battery visible in the dashboard too)."""
+    try:
+        rows = json.loads(run([str(BATTERY_HELPER)], timeout=5) or "[]")
+    except ValueError:
+        return []
+    return [d for d in rows if isinstance(d, dict) and isinstance(d.get("percent"), (int, float))]
+
+
+SHOWN = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / "goblincakes/dashboard-shown"
+
+
+def count_shown():
+    """The dashboard was shown once more – the desktop's Meta hint (org.goblincakes.metahint) stops after 3."""
+    try:
+        n = int(SHOWN.read_text().strip() or 0)
+    except (OSError, ValueError):
+        n = 0
+    if n >= 99:
+        return
+    try:
+        SHOWN.parent.mkdir(parents=True, exist_ok=True)
+        SHOWN.write_text(f"{n + 1}\n")
+    except OSError:
+        pass
+
+
 def tray(name):
     """{"title", "rows": [{a, b, act?}], "volume"?} – the small box under the icons."""
     rows = []
@@ -740,6 +769,8 @@ if __name__ == "__main__":
         result = project(sys.argv[2] if len(sys.argv) > 2 else os.getcwd())
     elif what == "browse":
         result = browse(sys.argv[2] if len(sys.argv) > 2 else "")
+    elif what == "batteries":
+        result = batteries()
     elif what == "tray":
         result = tray(sys.argv[2] if len(sys.argv) > 2 else "nätverk")
     elif what == "bottom":

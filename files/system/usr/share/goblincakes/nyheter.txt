@@ -1,3 +1,5 @@
+2026-11-11  Dashboarden visar nu musens (och headsetets, tangentbordets, handkontrollens) batteri uppe till höger bredvid klockan – orange under 50 %, rött vid 10 %.
+2026-11-11  Upplägget Dashboard: de första gångerna står det längst ner på skrivbordet att du trycker Meta för dashboarden. Tipset försvinner av sig självt när du har öppnat dashboarden tre gånger.
 2026-11-11  Upplägget Dashboard: raden uppe i mitten av skrivbordet (klockan, Discord, Spelas nu) är 20 % mindre. Med Stil Levande är rutorna tonat glas utan ram, så bakgrundsbilden skymtar igenom.
 2026-11-11  Stil Levande: när dashboarden öppnas glider ramarna fram en i taget, programmen lyfter lite och glöder i sin egen färg när du för musen över dem, och en pulserande PÅGÅR-markering visar när kvällens raid eller ett bygge pågår.
 2026-11-11  Stil Levande: dashboardens klocka rullar fram nästa minut, staplar och procent glider till sina nya värden, och låten i Spelas nu och det Kakan gör i Goblin AI tonar över när de byts. Inget rör sig medan ett spel kör.

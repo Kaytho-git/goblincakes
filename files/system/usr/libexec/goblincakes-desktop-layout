@@ -107,6 +107,39 @@ right.currentConfigGroup = ["General"];
 right.writeConfig("part", "right");
 """
 
+# The Meta hint (11 Nov, the user: the mockup's "tryck Meta för dashboarden", only the first few times): a desktop
+# widget low in the middle of the main screen; it hides itself once the dashboard has been shown HINT_ENOUGH times
+# (goblin-dashboard counts in ~/.local/state/goblincakes/dashboard-shown) and `login` takes it away then
+HINT_TYPE = "org.goblincakes.metahint"
+HINT_ENOUGH = 3
+SHOWN = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "goblincakes/dashboard-shown"
+ADD_HINT = """
+var already = false;
+desktops().forEach(function (d) { if (d.widgets("%(type)s").length > 0) already = true; });
+if (!already && desktops().length > 0) {
+    var ds = desktops(), d = ds[0];
+    for (var i = 0; i < ds.length; i++) if (ds[i].screen === 0) d = ds[i];
+    var g = screenGeometry(d.screen), w = 460, h = 48;
+    d.addWidget("%(type)s", Math.round((g.width - w) / 2), g.height - h - 48, w, h);
+}
+""" % {"type": HINT_TYPE}
+REMOVE_HINT = """
+desktops().forEach(function (d) { d.widgets("%s").forEach(function (w) { w.remove(); }); });
+""" % HINT_TYPE
+
+
+def shown_times():
+    try:
+        return int(SHOWN.read_text().strip() or 0)
+    except (OSError, ValueError):
+        return 0
+
+
+def hint():
+    """The Meta hint on the desktop while the dashboard is new, away after that."""
+    plasma(ADD_HINT if shown_times() < HINT_ENOUGH else REMOVE_HINT)
+
+
 # The system tray in a panel of its own, hidden top right (10 Nov, the user's choice "C, den kan ligga gömd uppe
 # till höger"): it has to exist – without a tray Plasma shows no notifications and Discord/Steam have nowhere to
 # put their icon – but not in the row. Comes out when the mouse touches the top edge at the right; notifications
@@ -299,6 +332,7 @@ def to_dashboard(state, keep_dock=False):
     state["layout"] = "dashboard"
     meta_dashboard(state)
     save(state)
+    hint()
     start_hidden()
     say("Ordnar systemfältet…")
     trim_tray()
@@ -333,7 +367,8 @@ def to_classic(state):
     if have is None:
         print("Plasma svarar inte – logga in i Plasma och försök igen.", file=sys.stderr)
         return 1
-    script = FIND + "panels().forEach(function (p) { if (isRow(p) || isTrayPanel(p)) p.remove(); });\n"
+    script = (FIND + "panels().forEach(function (p) { if (isRow(p) || isTrayPanel(p)) p.remove(); });\n"
+              + REMOVE_HINT)
     if have.strip() in ("", "0"):
         script += panels_part() + "\n" + restore
     plasma(script)
@@ -352,7 +387,7 @@ def classic_leftovers(state):
     the top bar with its own tray is there) and Meta on the dashboard. Happens when the switch back was made by an
     older helper that didn't know them (10 Nov: Config from the image, the repo's dashboard steps)."""
     plasma(FIND + "var bar = panels().some(isTopBar);\n"
-           "panels().forEach(function (p) { if (isRow(p) || (bar && isTrayPanel(p))) p.remove(); });")
+           "panels().forEach(function (p) { if (isRow(p) || (bar && isTrayPanel(p))) p.remove(); });" + REMOVE_HINT)
     if meta_is_dashboard():
         meta_back(state)
         save(state)
@@ -376,6 +411,7 @@ def main(argv):
             if not meta_is_dashboard():
                 meta_dashboard(state)
                 save(state)
+            hint()
             start_hidden()
         else:
             classic_leftovers(state)
