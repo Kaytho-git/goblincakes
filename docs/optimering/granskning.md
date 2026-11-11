@@ -4,8 +4,8 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 
 ## Läget (för en ny session som fortsätter)
 - [x] Område 1 – Prestanda i bakgrunden (punkt 1–8)
-- [ ] Område 2 – Uppstart och inloggning ← **nästa**
-- [ ] Område 3 – Image och bygge
+- [x] Område 2 – Uppstart och inloggning (punkt 9–11)
+- [ ] Område 3 – Image och bygge ← **nästa**
 - [ ] Område 4 – Kodkvalitet och underhåll
 - [ ] Område 5 – Fel och risker
 - [ ] Mätningar på frugans laptop (bara användarens dator är mätt hittills – se Mätningar sist)
@@ -120,6 +120,44 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). På 
 
 ---
 
+## Område 2 – Uppstart och inloggning
+
+Mätt på användarens dator (M10, M11): från strömknapp till inloggningsskärm 43 s, varav 22 s är datorns egen firmware och startmenyn (inte GOBLINCAKES), kärnan 3 s, tidig uppstart (initrd) 8 s och resten 10 s. Det mesta i uppstarten är redan genomarbetat (bakgrundsjobben väntar 20 min, mjukvarulistan/man-sidorna körs bara efter en ny image, Steam väntar på diskarna) – här finns mindre att hämta än i område 1.
+
+### P9 – Inloggningen startar 14 hjälpprogram samtidigt med skrivbordet
+- **Vad:** 14 autostart-poster (`etc/xdg/autostart/goblincakes-*.desktop`) körs vid varje inloggning, nästan alla i samma ögonblick som Plasma själv startar. De flesta gör ingenting efter första gången men kostar ändå en Python-start var. Mätt (M10, varm disk): `goblincakes-wow-links` 274 ms, `goblincakes-gpu notify` 248 ms, `goblincakes-laptop` 141 ms (även på en stationär – den frågar `goblincakes-gpu hw` och startar Python två gånger för att konstatera att det inte är en laptop, `usr/libexec/goblincakes-laptop:13`–`:15`), `goblincakes-config --first-run` 134 ms (laddar hela Qt innan den tittar efter klar-filen: importerna på `usr/bin/goblincakes-config:19`–`:23`, kollen först på `:1286`), `goblincakes-tweak apply mouse-flat` 122 ms, `goblincakes-ianseo-tray` ~100 ms (laddar Qt innan den ser att Ianseo inte är utdelat, `usr/libexec/goblincakes-ianseo-tray:14`–`:16`), `desktop-layout login` 74 ms, `automount` 62 ms, `season` 27 ms, `calendar` 16 ms. Dessutom `goblincakes-webapp-icon --upgrade` 329 ms i bakgrunden från `goblincakes-refresh.sh:300`–`:302` för den som har webbappar.
+- **Förslag:** (a) titta efter flaggfilen **före** de tunga importerna i Config och Ianseo-ikonen (eller direkt i `.desktop`-filens `Exec=sh -c '[ -e … ] || exec …'`); (b) `goblincakes-laptop`: en billig koll först (finns `/sys/class/power_supply/BAT*`?); (c) det som inte brådskar (WoW-länkarna, grafikkollen, webbapp-ikonerna, årstiden) får `X-KDE-autostart-after=panel` eller startas 10–20 s senare, så de inte tävlar med skrivbordet.
+- **Vinst:** ca 1 s mindre processorarbete under inloggningen på användarens dator; på laptopen tror 2–4 s (kall disk, långsammare kärnor) – skrivbordet blir användbart tidigare.
+- **Säkerhet:** sett/mätt – tiderna ovan (M10), tillsammans ca 1,4 s. Laptopen: tror, bekräftas med M10 där.
+- **Risk:** låg. Det som kan gå fel: en hjälpare som måste gå före något annat (automount före Steam – den rörs inte; skärmarna – rörs inte) flyttas för sent.
+- **Storlek:** liten.
+- **Kan provas:** (a)–(b) offscreen; ordningen bara på riktiga datorn (logga ut/in).
+- **Mät efteråt:** M10, och `systemd-analyze --user blame | head -25` (M11).
+
+### P10 – Uppdateringskollen går 20 s efter inloggning och tar 7 s
+- **Vad:** `goblincakes-updates.timer` (`OnStartupSec=20s`) kör `goblincakes-updates check`: `rpm-ostree status` två gånger, `skopeo` tre gånger, `flatpak remote-ls` fyra gånger, `fwupdmgr`, ChatGPT-appen (`usr/libexec/goblincakes-updates:49`–`:108`, `:252`–`:392`). Mätt: 7,1 s (M11). Samtidigt startar `goblincakes-fedora-check` och frågar `skopeo` om samma image en gång till (`usr/libexec/goblincakes-fedora-check:27`–`:38`).
+- **Förslag:** första kollen 2–3 min efter inloggning i stället för 20 s (pilen visar under tiden det sparade svaret från förra kollen – `~/.cache/goblincakes/updates.json`), och Fedora-kollen läser samma svar i stället för att fråga själv (hör ihop med P7.1).
+- **Vinst:** lugnare första minut efter inloggning, särskilt på laptopen (nätverk + disk + processor just när programmen startar). En nätverksfråga mindre.
+- **Säkerhet:** sett/mätt – 7,1 s (M11, användarens dator).
+- **Risk:** låg. Pilen kan visa gårdagens läge i två minuter.
+- **Storlek:** liten.
+- **Kan provas:** offscreen (timern) + riktiga datorn.
+- **Mät efteråt:** M11 (`goblincakes-updates.service` i `--user blame`).
+
+### P11 – Nvidia-modulerna laddas i tidig uppstart: 6 s (Universal Blue, inte GOBLINCAKES)
+- **Vad:** På Nvidia-varianterna tvingar Nvidia-paketets egen fil `/usr/lib/dracut/dracut.conf.d/99-nvidia.conf` (från `nvidia-kmod-common`, alltså Universal Blue/negativo17) in `i915 amdgpu nvidia nvidia_drm nvidia_modeset nvidia_peermem nvidia_uvm` redan i initrd. På användarens dator tar det steget (`dracut-pre-udev.service`) 6,1 s av uppstartens 43, och slutar varje gång med felet `could not insert 'nvidia_peermem': Invalid argument`. Det här beror **inte** på Fedora-versionen och inte på GOBLINCAKES egna filer – men GOBLINCAKES kan lägga en egen dracut-fil efter den.
+- **Förslag:** (a) litet: ta bort `nvidia_peermem` ur listan (den går aldrig att ladda utan särskild nätverkshårdvara) – ett fel mindre i loggen, kanske någon tiondel; (b) större: ladda inte `nvidia_uvm`/`nvidia` i initrd utan först i det riktiga systemet. Föreslås **inte** utan prov: tidig laddning finns för att startskärmen och inloggningsskärmen ska få rätt upplösning och inte bli svarta.
+- **Vinst:** (a) renare logg. (b) upp till ~5 s snabbare uppstart – tror.
+- **Säkerhet:** sett/mätt – 6,1 s och felraden (M11, användarens dator). Hur det ser ut på laptopen (legacy-drivrutinen 580): tror samma – M11 där. Att (b) går utan svart skärm: tror inte utan prov.
+- **Risk:** (a) låg; (b) hög – uppstarten/inloggningsskärmen kan bli svart (rollback i startmenyn räddar).
+- **Storlek:** (a) liten, (b) medel + prov på båda Nvidia-datorerna.
+- **Kan provas:** bara på riktiga datorn (ny image, omstart).
+- **Mät efteråt:** M11.
+
+**Granskat utan anmärkning (område 2):** `goblincakes-firstlogin` avslutar direkt när layouten är samma (två filläsningar); `goblincakes-refresh.sh` kostar lite (kontrollsumman över temafilerna 6 ms, `kreadconfig6` 6 ms styck, färgvalet 89 ms bara för den som valt färg); `goblincakes-disk-owner` väntar 2 s med flit; Steam-väntan har tak på 30 s; `goblincakes-variant-sync` körs bara tills den lyckats en gång. `NetworkManager-wait-online` (5,2 s) och `plasma-kded6` (3,3 s) är Fedoras/Plasmas egna och stoppar inte inloggningsskärmen. Ianseos containrar väntar på nätverket (4,5 s) – bara för den som har Ianseo.
+
+---
+
 ## Mätningar
 
 Kommandona kan köras igen precis som de står. På laptopen: först `ssh frugans-laptop` (eller klistra in i hennes terminal). M1–M3 är hela block – klistra in allt mellan strecken. Räkna bort rader med `sshd` om de dyker upp.
@@ -182,3 +220,15 @@ print('game_running: %.1f ms   processes+find_game: %.1f ms' % (t(gaming.game_ru
 free -m | sed -n 1,3p; grep -E 'pswpin|pswpout' /proc/vmstat; nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader
 ```
 - **Användarens dator, i vila:** 9 774 av 32 005 MB använt, växling 0 av 8 191 MB, grafikminne 1 237 av 12 288 MiB.
+
+### M10 – Inloggningens hjälpprogram, ett i taget (alla är gjorda för att köras om)
+```
+t() { s=$(date +%s%N); "$@" >/dev/null 2>&1; e=$(date +%s%N); echo "$(( (e-s)/1000000 )) ms  $*" | cut -c1-120; }; cd /tmp; t goblincakes-config --first-run; t /usr/libexec/goblincakes-gpu hw; t /usr/libexec/goblincakes-gpu notify; t /usr/libexec/goblincakes-wow-links; t /usr/libexec/goblincakes-season apply; t /usr/libexec/goblincakes-tweak apply calendar; t /usr/libexec/goblincakes-tweak apply mouse-flat; t /usr/libexec/goblincakes-laptop; t /usr/libexec/goblincakes-desktop-layout login; t /usr/libexec/goblincakes-automount; t /usr/libexec/goblincakes-webapp-icon --upgrade; t python3 -c "from PySide6.QtWidgets import QApplication"
+```
+- **Användarens dator (varm disk):** config --first-run 134 ms · gpu hw 38 · gpu notify 248 · wow-links 274 · season 27 · calendar 16 · mouse-flat 122 · laptop 141 · desktop-layout login 74 · automount 62 · webapp-icon 329 · Qt-import 97 ms.
+
+### M11 – Uppstarten
+```
+systemd-analyze; systemd-analyze blame --no-pager | grep -v '\.device$' | head -12; systemd-analyze --user; systemd-analyze --user blame --no-pager | head -15; journalctl -b -o short-monotonic -u dracut-pre-udev --no-pager | tail -4
+```
+- **Användarens dator (start 11 nov 16:57):** 11,3 s firmware + 10,7 s startmeny + 3,1 s kärna + 8,1 s initrd + 9,8 s resten = 43,0 s. Längst: `dracut-pre-udev` 6,1 s (Nvidia-modulerna, slutar med `nvidia_peermem`-felet) · `NetworkManager-wait-online` 5,2 s · `fedora-atomic-desktop-appstream-cache-refresh` 4,4 s (ny image i dag) · `bootc-update-ca-trust` 1,5 s. Användarsessionen: 8,7 s; `goblincakes-updates.service` 7,1 s · `podman-user-wait-network-online` 4,5 s (Ianseo) · `plasma-kded6` 3,3 s · `plasma-startupsound` 2,2 s · `goblincakes-disk-owner` 2,0 s (väntar med flit).
