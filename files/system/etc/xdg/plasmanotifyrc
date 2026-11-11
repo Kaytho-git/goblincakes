@@ -1,0 +1,6 @@
+# GOBLINCAKES: notifications pop up in the bottom-right corner (11 Nov, the user's choice).
+# Plasma's own placement under the system tray panel (top right, autohide) put half of every
+# notification outside the screen – it centres the popup under the tray and doesn't keep it on
+# the screen. Changeable in System Settings → Notifications.
+[Notifications]
+PopupPosition=BottomRight

@@ -154,6 +154,9 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   = när den öppnades). Kolla: `systemctl --user status goblincakes-notifications`, `/usr/libexec/goblincakes-notifications list`,
   `python3 /usr/share/goblincakes/dashboard/dash.py notices`. "Notiserna läses inte" i rutan = filen saknas (tjänsten
   har aldrig kört). Prova: `notify-send Test hej` – ska komma överst i rutan.
+- Notisrutorna (Plasmas egna) dyker upp nere till höger: /etc/xdg/plasmanotifyrc `PopupPosition=BottomRight` (11 nov –
+  uppe till höger hamnade halva rutan utanför skärmen under systemfältspanelen). Användarens eget val i
+  ~/.config/plasmanotifyrc går före. Kolla: `kreadconfig6 --file plasmanotifyrc --group Notifications --key PopupPosition`.
 - Varifrån siffrorna kommer: CPU /proc/stat, minne /proc/meminfo, grafikkort /sys/class/drm/card*/device/gpu_busy_percent
   (AMD/Intel) eller nvidia-smi, temperatur /sys/class/hwmon (k10temp/coretemp/amdgpu), disk = hemmappen + monterade
   diskar; musiken = MPRIS via busctl; nätverk nmcli, ljud wpctl, Bluetooth bluetoothctl, urklipp Klipper (D-Bus),

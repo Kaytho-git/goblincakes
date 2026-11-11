@@ -839,3 +839,6 @@ Provat: ny läsning mot pgrep sida vid sida (låtsasprocesser via `Popen(executa
 
 ## Optimeringsgranskningen: goblin graph-vakten (P4 – 11 nov)
 Vad som är byggt: `docs/optimering/granskning.md` under P4 (`WATCH_EVERY`, `game_running()` i `watch()` och `Linker.run`). Provat: `watch()` med attrapp för `music_playing` och spelfilen – 0 frågor under spel, var 5:e s annars; gamla mot nya vakten 30 s var (1,2 → 0,5 %); repots vakt körd via `systemd-run --user --unit=gc-graph-prov` till utloggning (imagens `goblincakes-graph` stoppad). Ej provat: musik som startar (staplarna ska öppnas inom ~5 s) och under WoW – testlista `p4-graph.md`.
+
+## Notisernas plats (11 nov)
+Plasmas standard (CloseToWidget) och TopRight lade notisen centrerad under systemfältspanelen (top, right, autohide, 254×36) utan att hålla den på skärmen: 3537,36 336×83 på HDMI-A-1 (slutar 3840) = 33 px utanför. Mätt med provnotiser + ett tillfälligt KWin-skript som läser `frameGeometry` för `w.notification` (skickade svaret som notis, `print` syns inte): BottomRight 3468,961, TopLeft 1956,36, TopCenter 2676,36 – alla hela. Användarens val: BottomRight i `/etc/xdg/plasmanotifyrc`. OBS `kwriteconfig6 --notify` behövs för att plasmashell ska läsa om utan omstart.
