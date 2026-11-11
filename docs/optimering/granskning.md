@@ -9,7 +9,7 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 - [x] Område 4 – Kodkvalitet och underhåll (punkt 15–19)
 - [x] Område 5 – Fel och risker (punkt 20–24)
 - [x] Mätningar på frugans laptop i vila (11 nov, via GoblinShare)
-- [ ] Mätningar under spel på båda datorerna (M2, M4, M9 – användaren säger till när spelet är igång)
+- [ ] Mätningar under spel på användarens dator (M2, M4, M9 – användaren säger till när spelet är igång); laptopen har inget spel än
 - [x] Sortering + topp 5 (står före Mätningar)
 
 Punkterna har fasta nummer (P1, P2 …) i den ordning de hittades, så att "Bygg punkt P3" alltid betyder samma sak. Den sorterade listan (mest värt först) och topp 5 står efter område 5, före Mätningar. När en punkt är byggd: bocka av den i den sorterade listan och för in "efter"-värdet under rätt M-nummer.
@@ -193,7 +193,7 @@ Gäller alla tre varianterna. Läst ur bygget 11 nov 16:01 (`goblincakes-nvidia`
 - **Vad:**
   1. `install-demoparser.sh` hämtar "senaste" demoparser2 + awpy utan låst version och avslutar alltid med 0 (`files/scripts/install-demoparser.sh:10`–`:18`): en ny version som ändrat sig, eller ett misslyckat `pip`, ger en image där CS2-siffrorna tyst slutar fungera. Förslag: lås versionerna (höjs med flit), och låt bygget skriva en tydlig varningsrad som `buildstatus.py`/Kakan kan läsa.
   2. `remove-extras.sh` säger "a smaller image" (`recipes/common-modules.yml:105`) – paketen ligger kvar i basens lager, så nedladdningen blir inte mindre, bara disken hos användaren. Bara kommentaren är fel; inget att bygga.
-  3. `scx-scheds` (140 MB) följer med för ett reglage som är avstängt som standard (`files/scripts/install-scx.sh`). Behålls om reglaget används; annars 140 MB mindre.
+  3. `scx-scheds` (140 MB) följer med för reglaget "Spelschemaläggare (scx_lavd)" i Config → Inställningar → Prestanda, avstängt som standard (`files/scripts/install-scx.sh`) och avstängt på användarens dator (sett 11 nov). Efter P12 laddas paketet inte ner om varje gång – då kostar det bara 140 MB disk och kan lika gärna vara kvar.
   4. Bygget startar för ändringar som inte påverkar imagen: `tools/**`, `.claude/**`, `LICENSE`, `.github/dependabot.yml` saknas i `paths-ignore` (`.github/workflows/build.yml:8`–`:18`).
 - **Vinst:** färre tysta fel (1), färre onödiga byggen (4), ev. 140 MB (3).
 - **Säkerhet:** sett (läst i filerna). Att reglaget för `scx` inte används: vet inte – användaren avgör.
@@ -315,7 +315,7 @@ Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och e
 - **Vad:** Alla tre recepten har `image-version: latest` (`recipes/recipe*.yml`), och uppdateringarna förbereds automatiskt (`AutomaticUpdates: stage`). När Universal Blue flyttar `latest` till nästa Fedora följer GOBLINCAKES med samma dag och nästa omstart startar i den – notisen (`goblincakes-fedora-check`) hinner i praktiken bara berätta det. Så gick det 9 nov: laptopen (legacy, Nvidia 580 – enligt `frugans-laptop.md` inte provad på Fedora 45) fick Fedora 45 förberett utan att någon valt det. Det är ett medvetet upplägg ("GOBLINCAKES' daily build follows"), och rollback finns – men den svagaste datorn blir först ut som provdator.
 - **Förslag (användarens beslut):** lås recepten vid en Fedora-version (`image-version: 45`/`44`) och höj med flit när användaren provat på sin egen dator – de dagliga byggena fortsätter ge säkerhetsuppdateringar inom versionen. Eller behåll `latest` men låt legacy-varianten ligga ett steg efter.
 - **Vinst:** inga överraskande Fedora-hopp på frugans dator; hoppet görs när det passar.
-- **Säkerhet:** sett – recepten, `rpm-ostree status` (stage), anteckningen från 9 nov.
+- **Säkerhet:** sett – recepten, `rpm-ostree status` (stage), anteckningen från 9 nov. Universal Blue har taggarna `43`, `44` och `45` för både `kinoite-main` och `kinoite-nvidia` (sett 11 nov med `skopeo list-tags`) – `kinoite-nvidia:45` finns alltså redan, så `latest` kan flytta dit vilken dag som helst.
 - **Risk:** låg tekniskt; kostnaden är att någon måste komma ihåg att höja versionen (en påminnelse hos Kakan räcker).
 - **Storlek:** liten.
 - **Kan provas:** på GitHub (ett bygge).
@@ -367,7 +367,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 
 Därefter i tur: P18, P5 (steg 1), P4, P10, P9 – alla små och ofarliga. **P11** (uppstarten) ger mest på laptopen (12,5 s) men är den enda med hög risk: gör M14 först och prova på användarens dator. **P24** är ett beslut, inte ett bygge.
 
-**Kvar att mäta före bygget av P1/P2/P5:** M2, M4 och M9 medan ett spel kör, på båda datorerna – det är "före"-värdet för det som märks i spel.
+**Kvar att mäta före bygget av P1/P2/P5:** M2, M4 och M9 medan ett spel kör på användarens dator – det är "före"-värdet för det som märks i spel. (Laptopen har inget spel installerat än.)
 
 ---
 
@@ -377,7 +377,7 @@ Kommandona kan köras igen precis som de står – i en terminal på datorn, ell
 
 **När det mättes:** användarens dator 11 nov 17:10–17:35, 15–40 min efter inloggning, inget spel, upplägget Dashboard. Laptopen 11 nov 17:39–17:45 via GoblinShare (uppkopplingen var redan öppen), 38 min efter start, inget spel, upplägget Standard.
 
-**Kvar att mäta:** M2, M4, M9 **medan ett spel kör** – på båda datorerna (helst WoW på laptopen). M10 i sin helhet och M14 på laptopen (M10 kör inloggningens hjälpprogram på riktigt, M14 kräver lösenord – görs när hon är med).
+**Kvar att mäta:** M2, M4, M9 **medan ett spel kör** – på användarens dator (WoW eller CS2). Laptopen har inget spel installerat än (bara Tux Paint, 11 nov) – mäts där när ett spel finns. M10 i sin helhet och M14 på laptopen (M10 kör inloggningens hjälpprogram på riktigt, M14 kräver lösenord – görs när hon är med).
 
 **Anmärkning (ärligt):** första versionen av M15 startade `goblin-ai --help` över ssh utan skärm. Qt avbröt då programmet, och det ligger nu tre kraschposter (python3.15, SIGABRT, 17:41) i laptopens `coredumpctl` – ofarliga och rensas av sig själva, men Katsuyos efterkontroll kan nämna dem. M15 är ändrad så att den inte startar något fönsterprogram.
 
