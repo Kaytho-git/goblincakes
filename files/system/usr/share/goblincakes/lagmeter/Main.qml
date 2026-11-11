@@ -1,6 +1,7 @@
 // GOBLINCAKES lagmätare: live graphs while it measures (28 Oct, the user's wish) – on the screen the
 // game isn't on (KWin's goblincakes-windows script), never on top of the game.
 import QtQuick
+import "../qml/Goblin" as G
 import QtQuick.Window
 
 Window {
@@ -35,34 +36,7 @@ Window {
         function onRaiseWindow() { root.show(); root.raise(); root.requestActivate() }
     }
 
-    component FlatButton: Rectangle {
-        id: btn
-        property string text
-        property bool primary: false
-        signal clicked()
-        width: Math.max(130, label.implicitWidth + 40)
-        height: 40
-        color: primary ? (area.containsMouse ? accent.hover : accent.color)
-                       : (area.containsMouse ? "#1A2438" : "transparent")
-        border.width: primary ? 0 : 1
-        border.color: "#2A3852"
-        Text {
-            id: label
-            anchors.centerIn: parent
-            text: btn.text
-            color: btn.primary ? accent.on : "#E6ECF5"
-            font.family: "IBM Plex Sans"
-            font.weight: Font.Medium
-            font.pixelSize: 14
-        }
-        MouseArea {
-            id: area
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: btn.clicked()
-        }
-    }
+    component FlatButton: G.FlatButton { minWidth: 130; padding: 40; normalHeight: 40; fontSize: 14 }   // shared (qml/Goblin)
 
     // One graph: up to two lines (main in the accent, the other muted) over the last `span` seconds,
     // red ticks at the top where `bad` is true, a red line at every "laggar nu"

@@ -2,6 +2,7 @@
 // Backend: /usr/libexec/goblincakes-remove-apps ("backend"). Pieces (buttons, check boxes …)
 // are copies of the ones in config/Main.qml – change both.
 import QtQuick
+import "../qml/Goblin" as G
 import QtQuick.Window
 
 Window {
@@ -93,66 +94,10 @@ Window {
         }
     }
 
-    component FlatButton: Rectangle {
-        id: btn
-        property string text
-        property bool primary: false
-        property bool enabledState: true
-        signal clicked()
-
-        width: Math.max(150, label.implicitWidth + 48)
-        height: 44
-        opacity: enabledState ? 1 : 0.4
-        color: primary ? (area.containsMouse && enabledState ? accent.hover : accent.color)
-                       : (area.containsMouse && enabledState ? "#1A2438" : "transparent")
-        border.width: primary ? 0 : 1
-        border.color: "#2A3852"
-
-        Text {
-            id: label
-            anchors.centerIn: parent
-            text: btn.text
-            color: btn.primary ? accent.on : "#E6ECF5"
-            font.family: "IBM Plex Sans"
-            font.weight: Font.Medium
-            font.pixelSize: 15
-        }
-        MouseArea {
-            id: area
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: btn.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: if (btn.enabledState) btn.clicked()
-        }
-    }
+    component FlatButton: G.FlatButton {}   // the shared pieces (qml/Goblin)
 
     // Square check box, filled blue with a check mark when on
-    component CheckSquare: Rectangle {
-        property bool checked
-        width: 22
-        height: 22
-        color: checked ? accent.color : "transparent"
-        border.width: checked ? 0 : 1
-        border.color: "#2A3852"
-        property color mark: accent.on // the tick: dark on light accent colours
-        Canvas {
-            anchors.fill: parent
-            visible: parent.checked
-            property color mark: parent.mark
-            onMarkChanged: requestPaint()
-            onPaint: {
-                const ctx = getContext("2d");
-                ctx.reset();
-                ctx.strokeStyle = mark;
-                ctx.lineWidth = 2.5;
-                ctx.beginPath();
-                ctx.moveTo(5.5, 11.5);
-                ctx.lineTo(9.5, 15.5);
-                ctx.lineTo(16.5, 7);
-                ctx.stroke();
-            }
-        }
-    }
+    component CheckSquare: G.CheckSquare {}
 
     component Monogram: Rectangle {
         property string name
@@ -175,57 +120,7 @@ Window {
     }
 
     // Flat, square scroll bar along the right edge of a list – only when it doesn't fit
-    component FlatScrollBar: Item {
-        id: bar
-        required property Flickable flick
-        readonly property bool needed: flick.visible && flick.contentHeight > flick.height + 1
-        anchors { right: flick.right; rightMargin: 6; top: flick.top; topMargin: 6; bottom: flick.bottom; bottomMargin: 6 }
-        width: 8
-        visible: needed
-        z: 2
-
-        Rectangle {
-            anchors.fill: parent
-            color: "#0E1420"
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            onPressed: mouse => {
-                const ratio = Math.max(0, Math.min(1, (mouse.y - handle.height / 2) / (bar.height - handle.height)));
-                bar.flick.contentY = ratio * (bar.flick.contentHeight - bar.flick.height);
-            }
-        }
-
-        Rectangle {
-            id: handle
-            width: parent.width
-            height: Math.max(32, bar.flick.visibleArea.heightRatio * bar.height)
-            y: bar.flick.visibleArea.yPosition / Math.max(0.0001, 1 - bar.flick.visibleArea.heightRatio)
-               * (bar.height - height)
-            color: handleArea.pressed ? accent.color : handleArea.containsMouse ? "#8B98AD" : "#2A3852"
-
-            MouseArea {
-                id: handleArea
-                anchors.fill: parent
-                hoverEnabled: true
-                property real startY
-                property real startContentY
-                onPressed: mouse => {
-                    startY = mapToItem(bar, 0, mouse.y).y;
-                    startContentY = bar.flick.contentY;
-                }
-                onPositionChanged: mouse => {
-                    if (!pressed)
-                        return;
-                    const dy = mapToItem(bar, 0, mouse.y).y - startY;
-                    const span = bar.flick.contentHeight - bar.flick.height;
-                    const y = startContentY + dy * span / Math.max(1, bar.height - handle.height);
-                    bar.flick.contentY = Math.max(0, Math.min(span, y));
-                }
-            }
-        }
-    }
+    component FlatScrollBar: G.FlatScrollBar { trackClick: true }
 
     // The program's own icon, or its initials when the icon theme doesn't have one
     component AppIcon: Item {

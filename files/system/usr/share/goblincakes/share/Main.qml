@@ -2,6 +2,7 @@
 // GOBLINCAKES Config. Backend: /usr/bin/goblin-share ("backend"). Pieces (buttons, switches, scroll bar …)
 // are copies of the ones in config/Main.qml – change both.
 import QtQuick
+import "../qml/Goblin" as G
 import QtQuick.Window
 
 Window {
@@ -107,165 +108,15 @@ Window {
         }
     }
 
-    component FlatField: Rectangle {
-        property alias text: input.text
-        property alias field: input
-        signal edited()
-        signal accepted()
-        property string hint
-        height: 40
-        color: "#07090D"
-        border.width: 1
-        border.color: input.activeFocus ? accent.color : "#2A3852"
-        TextInput {
-            id: input
-            anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
-            verticalAlignment: TextInput.AlignVCenter
-            color: "#E6ECF5"
-            selectionColor: accent.color
-            font.family: "IBM Plex Sans"
-            font.pixelSize: 14
-            clip: true
-            selectByMouse: true
-            onTextEdited: parent.edited()
-            onAccepted: parent.accepted()
-        }
-        Text {
-            anchors { fill: input }
-            verticalAlignment: Text.AlignVCenter
-            visible: !input.text && !input.activeFocus
-            text: parent.hint
-            color: "#5C6880"
-            font.family: "IBM Plex Sans"
-            font.pixelSize: 14
-            elide: Text.ElideRight
-        }
-    }
+    component FlatField: G.FlatField { height: 40; fontSize: 14 }
 
-    component FlatButton: Rectangle {
-        id: btn
-        property string text
-        property bool primary: false
-        property bool danger: false
-        property bool enabledState: true
-        property bool small: false
-        signal clicked()
+    component FlatButton: G.FlatButton { minWidth: 96; padding: 32; normalHeight: 34; fontSize: 13 }   // shared (qml/Goblin)
 
-        width: Math.max(small ? 60 : 96, label.implicitWidth + (small ? 22 : 32))
-        height: small ? 28 : 34
-        opacity: enabledState ? 1 : 0.4
-        color: primary ? (area.containsMouse && enabledState ? accent.hover : accent.color)
-                       : (area.containsMouse && enabledState ? (danger ? "#3A1418" : "#1A2438") : "transparent")
-        border.width: primary ? 0 : 1
-        border.color: danger && area.containsMouse ? accent.error : "#2A3852"
+    component ToggleSwitch: G.ToggleSwitch {}
 
-        Text {
-            id: label
-            anchors.centerIn: parent
-            text: btn.text
-            color: btn.primary ? accent.on : "#E6ECF5"
-            font.family: "IBM Plex Sans"
-            font.weight: Font.Medium
-            font.pixelSize: btn.small ? 12 : 13
-        }
-        MouseArea {
-            id: area
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: btn.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: if (btn.enabledState) btn.clicked()
-        }
-    }
+    component CheckSquare: G.CheckSquare { size: 18 }
 
-    component ToggleSwitch: Rectangle {
-        id: sw
-        property bool on
-        property bool enabledState: true
-        signal toggled()
-        width: 48
-        height: 26
-        color: on ? accent.color : "transparent"
-        border.width: on ? 0 : 1
-        border.color: "#2A3852"
-        opacity: enabledState ? 1 : 0.35
-        Rectangle {
-            width: 18
-            height: 18
-            anchors.verticalCenter: parent.verticalCenter
-            x: sw.on ? parent.width - width - 4 : 4
-            color: sw.on ? accent.on : "#8B98AD"
-            Behavior on x { NumberAnimation { duration: 120 } }
-        }
-        MouseArea {
-            anchors.fill: parent
-            cursorShape: sw.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: if (sw.enabledState) sw.toggled()
-        }
-    }
-
-    component CheckSquare: Rectangle {
-        property bool checked
-        width: 18
-        height: 18
-        color: checked ? accent.color : "transparent"
-        border.width: checked ? 0 : 1
-        border.color: "#2A3852"
-        property color mark: accent.on
-        Canvas {
-            anchors.fill: parent
-            visible: parent.checked
-            property color mark: parent.mark
-            onMarkChanged: requestPaint()
-            onPaint: {
-                const ctx = getContext("2d");
-                ctx.reset();
-                ctx.strokeStyle = mark;
-                ctx.lineWidth = 2.2;
-                ctx.beginPath();
-                ctx.moveTo(4.5, 9.5);
-                ctx.lineTo(7.8, 12.8);
-                ctx.lineTo(13.5, 5.8);
-                ctx.stroke();
-            }
-        }
-    }
-
-    component FlatScrollBar: Item {
-        id: bar
-        required property Flickable flick
-        readonly property bool needed: flick.visible && flick.contentHeight > flick.height + 1
-        anchors { right: flick.right; rightMargin: 4; top: flick.top; topMargin: 4; bottom: flick.bottom; bottomMargin: 4 }
-        width: 8
-        visible: needed
-        z: 2
-        Rectangle { anchors.fill: parent; color: "#0E1420" }
-        Rectangle {
-            id: handle
-            width: parent.width
-            height: Math.max(32, bar.flick.visibleArea.heightRatio * bar.height)
-            y: bar.flick.visibleArea.yPosition / Math.max(0.0001, 1 - bar.flick.visibleArea.heightRatio)
-               * (bar.height - height)
-            color: handleArea.pressed ? accent.color : handleArea.containsMouse ? "#8B98AD" : "#2A3852"
-            MouseArea {
-                id: handleArea
-                anchors.fill: parent
-                hoverEnabled: true
-                property real startY
-                property real startContentY
-                onPressed: mouse => {
-                    startY = mapToItem(bar, 0, mouse.y).y;
-                    startContentY = bar.flick.contentY;
-                }
-                onPositionChanged: mouse => {
-                    if (!pressed)
-                        return;
-                    const dy = mapToItem(bar, 0, mouse.y).y - startY;
-                    const span = bar.flick.contentHeight - bar.flick.height;
-                    bar.flick.contentY = Math.max(0, Math.min(span, startContentY + dy * span / Math.max(1, bar.height - handle.height)));
-                }
-            }
-        }
-    }
+    component FlatScrollBar: G.FlatScrollBar { margin: 4 }
 
     component SectionTitle: Text {
         color: "#8B98AD"

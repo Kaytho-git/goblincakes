@@ -1,0 +1,7 @@
+module Goblin
+FlatButton 1.0 FlatButton.qml
+CheckSquare 1.0 CheckSquare.qml
+ToggleSwitch 1.0 ToggleSwitch.qml
+FlatField 1.0 FlatField.qml
+FlatScrollBar 1.0 FlatScrollBar.qml
+Frame 1.0 Frame.qml

@@ -610,6 +610,11 @@ Ord: utseende, tema, färg, accent, accentfärg, låsskärm, inloggning, sddm, i
 - Accentfärgen: `goblin färg` / Config (/usr/libexec/goblincakes-accent, även inloggningsskärmen via
   goblincakes-sddm-accent). Utseendet läggs på vid första inloggningen av /usr/libexec/goblincakes-firstlogin.
 - `goblin dock reset` återställer allt utseende.
+- Stil (11 nov): Config → Inställningar → Utseende → Stil = Platt (standard) eller Levande; valet i
+  ~/.config/goblincakes/utseende (`platt`/`levande`, ingen fil = platt), läses av /usr/share/goblincakes/accent.py
+  (`look()`) och följs direkt av GOBLINCAKES egna fönster (QML-egenskapen `look`). Levande byggs i omgångar.
+- GOBLINCAKES egna fönster delar knappar, kryssrutor, reglage, textfält, rullister och ramar:
+  /usr/share/goblincakes/qml/Goblin/ (FlatButton.qml m.fl.). Ser alla fönstrens knappar fel ut → där.
 
 ## Terminalen (Ghostty, Konsole, Kitty)
 Ord: terminal, ghostty, konsole, kitty, terminalval

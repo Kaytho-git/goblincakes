@@ -280,6 +280,7 @@ class Config(QObject):
     accentsChanged = Signal()  # Utseende: the colours, which one is chosen, busy
     dockChanged = Signal()     # Utseende: the dock's size and wave (goblincakes-dock get)
     desktopLayoutChanged = Signal()  # Utseende: Skrivbordets upplägg (goblincakes-desktop-layout)
+    lookChanged = Signal()  # Utseende: Stil – Platt / Levande (accent.py, ~/.config/goblincakes/utseende)
     tilesLoaded = Signal(str)   # Fönster: goblincakes-tile json ("" = failed)
     dashboardLoaded = Signal(str)  # Dashboard: dash.py config ("" = failed)
     dashboardSaved = Signal(bool)
@@ -505,6 +506,27 @@ class Config(QObject):
         proc.finished.connect(done)
         proc.errorOccurred.connect(lambda error: done() if error == QProcess.FailedToStart else None)
         proc.start(ACCENT, ["set", accent_id])
+
+    # ── Utseende: Stil – Platt (standard) / Levande (Levande utseende, 11 Nov) ──────
+    # One choice for all of it (the user's decision): Levande = movement, light and tinted glass together.
+    # The windows follow it live (accent.install's context property "look").
+
+    @Property(str, notify=lookChanged)
+    def look(self):
+        try:
+            import accent  # noqa: PLC0415 – use_accent put its folder on the path
+            return accent.look_id()
+        except Exception:  # noqa: BLE001
+            return "platt"
+
+    @Slot(str)
+    def setLook(self, name):
+        try:
+            import accent  # noqa: PLC0415
+            accent.set_look(name)
+        except Exception:  # noqa: BLE001 – an old accent.py: nothing to choose
+            return
+        self.lookChanged.emit()
 
     # ── Utseende: Skrivbordets upplägg (goblincakes-desktop-layout) ──────
 

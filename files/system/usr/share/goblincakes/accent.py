@@ -9,6 +9,11 @@ Avinstallera, goblin graph), which show it through the QML context property "acc
     accent.text    small text in the accent colour on the dark background (lighter if needed)
     accent.dim     a dark tile in the accent colour (chosen buttons, the active program)
     accent.error / accent.errorBright   errors and close buttons (orange for Death Knight)
+and the look (Config → Utseende → Stil, 11 Nov) through the context property "look":
+    look.living    Levande chosen (standard Platt = exactly the flat look from before)
+    look.motion    things may move: Levande, and Plasma's animations are not turned off
+The shared pieces (FlatButton, CheckSquare, ToggleSwitch, FlatField, FlatScrollBar, Frame) are the QML
+module in qml/Goblin next to this file: `import "../qml/Goblin" as G`.
 Only the standard library (the apps import it before Qt is involved).
 """
 import json
@@ -20,6 +25,8 @@ ACCENTS_FILE = HERE / "accents.json"
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes"
 CHOICE = CONFIG / "accent"          # the chosen id, one line
 PALETTE = CONFIG / "accent.json"    # the worked-out colours, read by the windows
+LOOK = CONFIG / "utseende"          # platt (standard) or levande, one line
+LOOKS = ("platt", "levande")
 
 STANDARD = "#2F6FED"
 BACKGROUND = "#0E1420"   # cards and lists – where small accent text sits
@@ -57,6 +64,37 @@ def chosen_id():
     except OSError:
         return "standard"
     return value if find(value) else "standard"
+
+
+def look_id():
+    try:
+        value = LOOK.read_text().strip().lower()
+    except OSError:
+        return "platt"
+    return value if value in LOOKS else "platt"
+
+
+def set_look(name):
+    if name not in LOOKS:
+        raise ValueError(name)
+    CONFIG.mkdir(parents=True, exist_ok=True)
+    LOOK.write_text(name + "\n")
+
+
+def _plasma_animations():
+    """False when Plasma's animations are turned off (Systeminställningar → Animationshastighet → Direkt)."""
+    import configparser
+    cfg = configparser.ConfigParser(interpolation=None, strict=False)
+    try:
+        cfg.read(CONFIG.parent / "kdeglobals", encoding="utf-8")
+        return float(cfg.get("KDE", "AnimationDurationFactor", fallback="1")) > 0
+    except (configparser.Error, ValueError, OSError):
+        return True
+
+
+def look():
+    living = look_id() == "levande"
+    return {"id": look_id(), "living": living, "motion": living and _plasma_animations()}
 
 
 # ── Colour arithmetic ────────────────────────────────────────────
@@ -171,21 +209,28 @@ def recolor(text, target):
 
 
 def install(engine):
-    """GOBLINCAKES' own windows: the QML context property "accent" (see the top of this file),
-    changed live when another colour is chosen (Config, goblin färg). Call before engine.load()."""
+    """GOBLINCAKES' own windows: the QML context properties "accent" and "look" (see the top of this file),
+    changed live when another colour or look is chosen (Config, goblin färg). Call before engine.load()."""
     from PySide6.QtCore import QFileSystemWatcher
     ctx = engine.rootContext()
     ctx.setContextProperty("accent", current())
+    ctx.setContextProperty("look", look())
     CONFIG.mkdir(parents=True, exist_ok=True)
     watcher = QFileSystemWatcher([str(CONFIG)], engine)
+    shown = {"accent": current(), "look": look()}
 
     def changed(*_):
-        if PALETTE.exists() and str(PALETTE) not in watcher.files():
-            watcher.addPath(str(PALETTE))
-        ctx.setContextProperty("accent", current())
+        for f in (PALETTE, LOOK):
+            if f.exists() and str(f) not in watcher.files():
+                watcher.addPath(str(f))
+        for name, now in (("accent", current()), ("look", look())):
+            if now != shown[name]:
+                shown[name] = now
+                ctx.setContextProperty(name, now)
 
-    if PALETTE.exists():
-        watcher.addPath(str(PALETTE))
+    for f in (PALETTE, LOOK):
+        if f.exists():
+            watcher.addPath(str(f))
     watcher.directoryChanged.connect(changed)
     watcher.fileChanged.connect(changed)
     engine.setProperty("goblincakesAccentWatcher", watcher)  # keeps it alive with the engine

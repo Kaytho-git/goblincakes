@@ -1,6 +1,7 @@
 // Goblin AI: chat with free AI services. Flat, square, in the GOBLINCAKES palette.
 // Backend: /usr/bin/goblin-ai ("backend").
 import QtQuick
+import "../qml/Goblin" as G
 import QtQuick.Window
 import QtQuick.Dialogs
 
@@ -1302,40 +1303,10 @@ Window {
             }
         }
 
-        component FlatButton: Rectangle {
-            id: btn
-            property string text
-            property bool primary: false
-            property bool danger: false  // STOPP
-            property bool enabledState: true
-            property bool small: false
-            signal clicked()
-
-            width: Math.max(small ? 70 : 120, label.implicitWidth + (small ? 24 : 40))
-            height: small ? 30 : 40
-            opacity: enabledState ? 1 : 0.4
-            color: danger ? (area.containsMouse ? accent.errorBright : accent.error)
-                 : primary ? (area.containsMouse && enabledState ? accent.hover : accent.color)
-                           : (area.containsMouse && enabledState ? "#1A2438" : "transparent")
-            border.width: primary ? 0 : 1
-            border.color: "#2A3852"
-
-            Text {
-                id: label
-                anchors.centerIn: parent
-                text: btn.text
-                color: btn.primary && !btn.danger ? accent.on : "#E6ECF5"
-                font.family: "IBM Plex Sans"
-                font.weight: Font.Medium
-                font.pixelSize: btn.small ? 13 : 14
-            }
-            MouseArea {
-                id: area
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: btn.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
-                onClicked: if (btn.enabledState) btn.clicked()
-            }
+        component FlatButton: G.FlatButton {   // shared (qml/Goblin); danger = STOPP, filled red
+            dangerFill: true
+            minWidth: 120; padding: 40; normalHeight: 40; fontSize: 14
+            smallMinWidth: 70; smallPadding: 24; smallHeight: 30; smallFontSize: 13
         }
 
         // The inputs' cursor (26 Oct): a blinking block in the accent, the letter under it in accent.on – like a terminal
