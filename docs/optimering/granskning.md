@@ -5,8 +5,8 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 ## Läget (för en ny session som fortsätter)
 - [x] Område 1 – Prestanda i bakgrunden (punkt 1–8)
 - [x] Område 2 – Uppstart och inloggning (punkt 9–11)
-- [ ] Område 3 – Image och bygge ← **nästa**
-- [ ] Område 4 – Kodkvalitet och underhåll
+- [x] Område 3 – Image och bygge (punkt 12–14)
+- [ ] Område 4 – Kodkvalitet och underhåll ← **nästa**
 - [ ] Område 5 – Fel och risker
 - [ ] Mätningar på frugans laptop (bara användarens dator är mätt hittills – se Mätningar sist)
 - [ ] Sortering + topp 5 (görs sist)
@@ -145,7 +145,7 @@ Mätt på användarens dator (M10, M11): från strömknapp till inloggningsskär
 - **Mät efteråt:** M11 (`goblincakes-updates.service` i `--user blame`).
 
 ### P11 – Nvidia-modulerna laddas i tidig uppstart: 6 s (Universal Blue, inte GOBLINCAKES)
-- **Vad:** På Nvidia-varianterna tvingar Nvidia-paketets egen fil `/usr/lib/dracut/dracut.conf.d/99-nvidia.conf` (från `nvidia-kmod-common`, alltså Universal Blue/negativo17) in `i915 amdgpu nvidia nvidia_drm nvidia_modeset nvidia_peermem nvidia_uvm` redan i initrd. På användarens dator tar det steget (`dracut-pre-udev.service`) 6,1 s av uppstartens 43, och slutar varje gång med felet `could not insert 'nvidia_peermem': Invalid argument`. Det här beror **inte** på Fedora-versionen och inte på GOBLINCAKES egna filer – men GOBLINCAKES kan lägga en egen dracut-fil efter den.
+- **Vad:** På Nvidia-varianterna tvingar Nvidia-paketets egen fil `/usr/lib/dracut/dracut.conf.d/99-nvidia.conf` (från `nvidia-kmod-common`, alltså Universal Blue/negativo17) in `i915 amdgpu nvidia nvidia_drm nvidia_modeset nvidia_peermem nvidia_uvm` redan i initrd. På användarens dator tar det steget (`dracut-pre-udev.service`) 6,1 s av uppstartens 43, och slutar varje gång med felet `could not insert 'nvidia_peermem': Invalid argument`. Det här beror **inte** på Fedora-versionen och inte på GOBLINCAKES egna filer – men GOBLINCAKES kan lägga en egen dracut-fil efter den. Samma sak gör troligen att initramfs är 309 MB (sett; vad som tar plats: M14).
 - **Förslag:** (a) litet: ta bort `nvidia_peermem` ur listan (den går aldrig att ladda utan särskild nätverkshårdvara) – ett fel mindre i loggen, kanske någon tiondel; (b) större: ladda inte `nvidia_uvm`/`nvidia` i initrd utan först i det riktiga systemet. Föreslås **inte** utan prov: tidig laddning finns för att startskärmen och inloggningsskärmen ska få rätt upplösning och inte bli svarta.
 - **Vinst:** (a) renare logg. (b) upp till ~5 s snabbare uppstart – tror.
 - **Säkerhet:** sett/mätt – 6,1 s och felraden (M11, användarens dator). Hur det ser ut på laptopen (legacy-drivrutinen 580): tror samma – M11 där. Att (b) går utan svart skärm: tror inte utan prov.
@@ -155,6 +155,49 @@ Mätt på användarens dator (M10, M11): från strömknapp till inloggningsskär
 - **Mät efteråt:** M11.
 
 **Granskat utan anmärkning (område 2):** `goblincakes-firstlogin` avslutar direkt när layouten är samma (två filläsningar); `goblincakes-refresh.sh` kostar lite (kontrollsumman över temafilerna 6 ms, `kreadconfig6` 6 ms styck, färgvalet 89 ms bara för den som valt färg); `goblincakes-disk-owner` väntar 2 s med flit; Steam-väntan har tak på 30 s; `goblincakes-variant-sync` körs bara tills den lyckats en gång. `NetworkManager-wait-online` (5,2 s) och `plasma-kded6` (3,3 s) är Fedoras/Plasmas egna och stoppar inte inloggningsskärmen. Ianseos containrar väntar på nätverket (4,5 s) – bara för den som har Ianseo.
+
+---
+
+## Område 3 – Image och bygge
+
+Gäller alla tre varianterna. Läst ur bygget 11 nov 16:01 (`goblincakes-nvidia`, 12,5 min) och jämfört med bygget tre timmar tidigare (M12, M13).
+
+**Så ser imagen ut:** 288 lager, 6,45 GB packat. 259 lager (5,10 GB) är Universal Blues bas och delas oförändrade. GOBLINCAKES egna 29 lager är 1,35 GB: 242 RPM-paket (684 MB installerat – Steam med 32-bitarsbibliotek, `scx-scheds` 140 MB, `gh` 39 MB m.fl.), demoparser 502 MB (polars 170, pyarrow 166, pandas 46 – användarens val 22 okt), initramfs 309 MB, egna filer 18 MB.
+
+### P12 – Varje uppdatering laddar ner 1,4 GB för 117 MB nytt innehåll
+- **Vad:** Bygget kör utan cache och utan omstyckning (byggloggen: `use_cache: false`, `rechunk: false`, `build_chunked_oci: false`, `chunkah: false`; `.github/workflows/build.yml:66`–`:75` sätter inget av dem). Då får alla GOBLINCAKES 29 lager nya namn i varje bygge, även när innehållet är detsamma – och datorn måste hämta alla igen. Två byggen med tre timmars mellanrum (bara fönsterramarna ändrade) delade 260 lager (basen) men inget av de egna: 1,35 GB ny nedladdning. Systemloggen på användarens dator säger samma sak vid varje uppdatering: `layers already present: 260; layers needed: 28 (1,4 GB)` … `New objects: … totaling 116,7 MB`. Alltså 1,4 GB hämtat för 117 MB som faktiskt var nytt – varje dag, på båda datorerna (laptopen över wifi).
+- **Förslag:** slå på en av bygg-actionens omstyckningar (`rechunk: true`, `build_chunked_oci: true` eller `chunkah: true` i `build.yml`) – de delar upp den färdiga imagen i lager efter innehåll (paket för paket), så att oförändrade paket behåller sitt lager mellan byggen. Opus läser actionens README och väljer den som BlueBuild rekommenderar nu, provar först på **en** variant (legacy eller bas – inte den användaren kör) och jämför med M12.
+- **Vinst:** nedladdningen per uppdatering från 1,4 GB till uppskattat 150–400 MB (det som verkligen ändrats + initramfs). `goblin update` och de automatiska uppdateringarna går fortare, mindre skrivande på laptopens 256 GB-disk, mindre lagring på GitHub.
+- **Säkerhet:** sett/mätt – 1,35 GB nya lager mellan två byggen (M12), 1,4 GB mot 116,7 MB i loggen (M13); inställningarna lästa ur byggloggen. Hur stor vinsten blir efter omstyckning: tror – mäts med M12 på första bygget efter ändringen. Att initramfs (309 MB) ändå byts varje gång: tror (den byggs om i varje bygge).
+- **Risk:** medel. Bygget går en annan väg på slutet: det kan ta längre tid (tror +5–15 min), och ett fel där kan ge en image som inte startar – rollback i startmenyn räddar, och ISO-bygget (`build-iso.yml`) måste provas en gång efteråt. Första uppdateringen efter bytet hämtar allt (alla lager byter namn en gång).
+- **Storlek:** liten ändring (en–två rader), men medel med proven: ett bygge, uppdatering + omstart på båda datorerna, ISO-bygget.
+- **Kan provas:** bara på riktigt (GitHub-bygget + en riktig uppdatering).
+- **Mät efteråt:** M12 (två byggen i följd) och M13.
+
+### P13 – AppGrid och libratbag byggs från källkod tre gånger i varje bygge
+- **Vad:** Byggstegen i `recipes/common-stages.yml:6`–`:20` körs en gång per variant (tre gånger per bygge), och varje gång hämtas dessutom en hel extra basimage (`kinoite-main`, 213 s) bara för att bygga dem. AppGrid tar 174 s att bygga, libratbag 25 s. Resten av ett bygge: hämta basen 226 s, Steam 131 s, dnf-paketen 85 s, initramfs 54 s, ladda upp 69 s.
+- **Förslag:** bygg de två delarna i ett eget flöde (vid ändring av byggskripten och t.ex. en gång per dygn före 06:00) till en liten egen image, och låt recepten bara kopiera ur den (`type: copy` finns redan). `check-appgrid.sh` stoppar redan bygget om AppGrid inte laddar – den kollen blir kvar som skydd när Plasma/Qt bytt version.
+- **Vinst:** byggtiden ca 12,5 → 9 min per variant, och ett bygge som inte längre faller på att AppGrids eller libratbags källkod/nedladdning strular just då.
+- **Säkerhet:** sett/mätt – tiderna ur byggloggen 11 nov. Att förbyggd AppGrid alltid passar dagens Plasma: tror inte alltid – därför behövs kollen och en reservväg (bygg om direkt när kollen faller).
+- **Risk:** medel. En AppGrid byggd mot gårdagens Qt kan vägra ladda efter en Qt-uppdatering → bygget stoppas (inte en trasig image) tills delarna byggts om.
+- **Storlek:** medel.
+- **Kan provas:** bara på GitHub.
+- **Mät efteråt:** byggtiden: `gh run list --workflow build.yml --limit 5`.
+
+### P14 – Småsaker i bygget (slås ihop)
+- **Vad:**
+  1. `install-demoparser.sh` hämtar "senaste" demoparser2 + awpy utan låst version och avslutar alltid med 0 (`files/scripts/install-demoparser.sh:7`–`:18`): en ny version som ändrat sig, eller ett misslyckat `pip`, ger en image där CS2-siffrorna tyst slutar fungera. Förslag: lås versionerna (höjs med flit), och låt bygget skriva en tydlig varningsrad som `buildstatus.py`/Kakan kan läsa.
+  2. `remove-extras.sh` säger "a smaller image" (`recipes/common-modules.yml:104`) – paketen ligger kvar i basens lager, så nedladdningen blir inte mindre, bara disken hos användaren. Bara kommentaren är fel; inget att bygga.
+  3. `scx-scheds` (140 MB) följer med för ett reglage som är avstängt som standard (`files/scripts/install-scx.sh`). Behålls om reglaget används; annars 140 MB mindre.
+  4. Bygget startar för ändringar som inte påverkar imagen: `tools/**`, `.claude/**`, `LICENSE`, `.github/dependabot.yml` saknas i `paths-ignore` (`.github/workflows/build.yml:8`–`:18`).
+- **Vinst:** färre tysta fel (1), färre onödiga byggen (4), ev. 140 MB (3).
+- **Säkerhet:** sett (läst i filerna). Att reglaget för `scx` inte används: vet inte – användaren avgör.
+- **Risk:** låg.
+- **Storlek:** liten.
+- **Kan provas:** på GitHub (ett bygge).
+- **Mät efteråt:** –
+
+**Granskat utan anmärkning (område 3):** Firefox finns både som RPM (341 MB med språkpaket) och som Flatpak – RPM:en behövs för live-ISO:n och för en nyinstallerad dator utan internet, så den ska vara kvar. Ordningen på modulerna (egna filer först) spelar ingen roll så länge bygget kör utan cache, och inte heller efter P12. Besluten i CLAUDE.md (Steam i imagen, Fedoras kärna, inte Bazzite) berörs inte av någon punkt. Byggskripten har `set -e`/`-u` där ett fel ska stoppa bygget och saknar det med flit där bygget ska gå vidare (Xbox-moduler, goverlay, scx, demoparser). initramfs är 309 MB (sett: `/boot/ostree/…/initramfs…img`) – hör ihop med P11 (Nvidia-modulerna i tidig uppstart); vad som tar plats i den kräver `sudo lsinitrd -s` (M14).
 
 ---
 
@@ -232,3 +275,26 @@ t() { s=$(date +%s%N); "$@" >/dev/null 2>&1; e=$(date +%s%N); echo "$(( (e-s)/10
 systemd-analyze; systemd-analyze blame --no-pager | grep -v '\.device$' | head -12; systemd-analyze --user; systemd-analyze --user blame --no-pager | head -15; journalctl -b -o short-monotonic -u dracut-pre-udev --no-pager | tail -4
 ```
 - **Användarens dator (start 11 nov 16:57):** 11,3 s firmware + 10,7 s startmeny + 3,1 s kärna + 8,1 s initrd + 9,8 s resten = 43,0 s. Längst: `dracut-pre-udev` 6,1 s (Nvidia-modulerna, slutar med `nvidia_peermem`-felet) · `NetworkManager-wait-online` 5,2 s · `fedora-atomic-desktop-appstream-cache-refresh` 4,4 s (ny image i dag) · `bootc-update-ca-trust` 1,5 s. Användarsessionen: 8,7 s; `goblincakes-updates.service` 7,1 s · `podman-user-wait-network-online` 4,5 s (Ianseo) · `plasma-kded6` 3,3 s · `plasma-startupsound` 2,2 s · `goblincakes-disk-owner` 2,0 s (väntar med flit).
+
+### M12 – Hur mycket en uppdatering laddar ner (lager som skiljer mellan två byggen)
+Kräver bara `skopeo` och nätverk. Byt variant i `IMG` vid behov. `OLD` = digesten för det bygge datorn kör (`rpm-ostree status | grep Digest | head -1`).
+```
+IMG=ghcr.io/kaytho-git/goblincakes-nvidia; OLD=$(rpm-ostree status | awk '/Digest:/{print $2; exit}'); skopeo inspect docker://$IMG:latest > /tmp/ny.json; skopeo inspect docker://$IMG@$OLD > /tmp/gammal.json; python3 -c "
+import json
+n=[(l['Digest'],l['Size']) for l in json.load(open('/tmp/ny.json'))['LayersData']]; o={l['Digest'] for l in json.load(open('/tmp/gammal.json'))['LayersData']}
+ny=[s for d,s in n if d not in o]
+print('lager: %d, hela imagen %.2f GB, nya lager mot det du kör: %d = %.2f GB att ladda ner' % (len(n), sum(s for _,s in n)/1e9, len(ny), sum(ny)/1e9))"
+```
+- **11 nov (bygget 16:12 mot bygget 13:17, bara fönsterramarna ändrade):** 288 lager, 6,45 GB; 28 nya lager = 1,35 GB att ladda ner. Basen (259 lager, 5,10 GB) delades helt.
+
+### M13 – Vad uppdateringarna faktiskt hämtade (systemloggen)
+```
+journalctl -u rpm-ostreed --since "7 days ago" --no-pager | grep -E "layers needed|New objects" | tail -8
+```
+- **Användarens dator:** 10 nov 21:51 `layers needed: 27 (1,3 GB)` → `New objects … totaling 116,7 MB` · 11 nov 16:52 `layers needed: 28 (1,4 GB)` → `totaling 116,7 MB`.
+
+### M14 – Vad som tar plats i initramfs (kräver lösenord)
+```
+sudo lsinitrd -s /usr/lib/modules/$(uname -r)/initramfs.img | sort -k5 -n -r | head -25; ls -la /boot/ostree/*/initramfs*
+```
+- **Användarens dator:** filen är 309 MB (sett); innehållet ej läst (kräver sudo).
