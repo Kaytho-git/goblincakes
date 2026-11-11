@@ -1636,6 +1636,37 @@ Window {
                             }
                         }
                     }
+                    // The dashboard layout's clock row: always hidden (standard) or out on an empty desktop
+                    Row {
+                        visible: backend.desktopLayout === "dashboard"
+                        width: parent.width
+                        spacing: 14
+                        ToggleSwitch {
+                            id: rowSwitch
+                            anchors.verticalCenter: parent.verticalCenter
+                            on: backend.rowHiding === "empty"
+                            onToggled: backend.setRowHiding(on ? "hidden" : "empty")
+                        }
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - rowSwitch.width - 14
+                            spacing: 3
+                            Text {
+                                text: "Visa klockraden när skrivbordet är tomt"
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 14
+                            }
+                            Text {
+                                width: parent.width
+                                text: "Av: raden är alltid gömd och kommer fram när musen går mot överkanten i mitten. På: den syns tills ett program ligger där – bakom program kommer den fram vid överkanten som vanligt."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
                     Text {
                         visible: backend.desktopLayoutStatus !== ""
                         width: parent.width

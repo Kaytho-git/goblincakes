@@ -1,3 +1,4 @@
+2026-11-12  Med Dashboard-upplägget kan klockraden visas hela tiden när skrivbordet är tomt – reglaget finns i Config → Inställningar → Skrivbordets upplägg. Bakom program är den gömd och kommer fram vid överkanten som förut.
 2026-11-12  Tryck på ett bygge under BYGGEN i dashboarden så ser du vad som är klart och vad som är kvar, och listan uppdateras direkt när Kakan säger att bygget är klart.
 2026-11-12  GOBLINCAKES egna program startar lite fortare, och en CS2-demo läses in ungefär en sekund snabbare i GoblinRecorder.
 2026-11-12  KVOT i dashboarden har en knapp till användningssidan på claude.ai, där knappen Reset for free finns när Anthropic bjuder på en återställning.

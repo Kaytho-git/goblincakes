@@ -136,6 +136,10 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
 - /usr/bin/goblin-dashboard (fönstret, kod /usr/share/goblincakes/dashboard/: Main.qml, dash.py = allt som läses,
   windows.js = KWin-skriptet för öppna fönster – växla till och stänga via högerklick). Processen ligger kvar gömd
   efter Esc så att den kommer upp direkt; `goblin dashboard stäng` avslutar den. Inget läses medan den är gömd.
+- Klockraden (12 nov): gömd som standard (Plasmas autohide, fram vid överkanten i mitten) eller framme på tomt skrivbord
+  (Config → Utseende → "Visa klockraden när skrivbordet är tomt" = dodgewindows; gömmer sig bara för det AKTIVA
+  fönstret – raden över ett program när man klickat på andra skärmen är väntat). `goblincakes-desktop-layout row`
+  visar läget, `row hidden|empty` byter; sparat som rowHiding i ~/.config/goblincakes/desktop-layout.json.
 - Meta i upplägget Dashboard = KWin-skriptet goblincakes-windows (kortkommandot "GOBLINCAKES Dashboard" under
   KWin i Systeminställningar → Genvägar) som anropar D-Bus org.goblincakes.dashboard /dashboard toggle; D-Bus startar
   dashboarden (/usr/share/dbus-1/services/org.goblincakes.dashboard.service, egen enhet

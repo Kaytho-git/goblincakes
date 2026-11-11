@@ -9,6 +9,7 @@ without losing anything). Config → Inställningar → Utseende → Skrivbordet
     goblincakes-desktop-layout apply             the chosen layout again (goblincakes-firstlogin after a new layout)
     goblincakes-desktop-layout login             at login: the dashboard started hidden (comes up at once on Meta)
     goblincakes-desktop-layout forget            back to the standard without touching the panels (firstlogin --reset)
+    goblincakes-desktop-layout row [hidden|empty]  the row: always hidden (standard) | out on an empty desktop
 
 Dashboard: the top bar (AppGrid, open programs, tray …) and the dock are removed and one panel is added at the top
 in the middle – Steam/Discord (org.goblincakes.nowplaying part=left), the clock box (org.goblincakes.deskclock),
@@ -16,7 +17,10 @@ Spelas nu/Kakan (part=right); the system tray (only notifications + the programs
 hidden top right (it has to exist: without one Plasma shows no notifications and programs like Discord and Steam
 have nowhere to put their tray icon). The row is always hidden
 and comes out when the mouse touches the top edge in the middle (Plasma's "autohide"; the user 10 Nov – the first
-version only hid behind windows, "dodgewindows"). Its background is see-through
+version only hid behind windows, "dodgewindows"). Since 12 Nov a choice (Config, the user: "välja om man vill ha
+automatisk döljning … eller om man vill ha den framme hela tiden", hidden behind programs and out at the top edge):
+`row empty` = "dodgewindows" – Plasma 6 hides it only for the *active* window (known since the dock, Oct; the user
+chose this small way first, a KWin-script way can come later). Saved as rowHiding. Its background is see-through
 (translucent mode is invisible in our Plasma theme), so only the boxes show. Meta: in Plasma 6 Meta alone is an
 ordinary global shortcut (kglobalaccel; kwinrc [ModifierOnlyShortcuts] is no longer read – the first version of
 step 4 wrote there and Meta did nothing, 10 Nov): Meta is taken from plasmashell's "activate application launcher"
@@ -193,6 +197,27 @@ def save(state):
     tmp.replace(STATE_FILE)
 
 
+ROW_MODES = {"hidden": "autohide", "empty": "dodgewindows"}
+
+
+def row_hiding(state):
+    """Plasma's hiding for the row: autohide (standard) or dodgewindows."""
+    mode = state.get("rowHiding")
+    return mode if mode in ROW_MODES.values() else "autohide"
+
+
+def set_row(state, word):
+    """`row hidden|empty`: saved, and the row changed at once when the dashboard layout is on."""
+    state["rowHiding"] = ROW_MODES[word]
+    save(state)
+    if current() == "dashboard":
+        if plasma(FIND + 'panels().forEach(function (p) { if (isRow(p)) p.hiding = %s; });'
+                  % json.dumps(ROW_MODES[word])) is None:
+            print("Plasma svarar inte – valet är sparat och gäller vid nästa inloggning.", file=sys.stderr)
+            return 1
+    return 0
+
+
 def current():
     return "dashboard" if load().get("layout") == "dashboard" else "classic"
 
@@ -325,9 +350,11 @@ def to_dashboard(state, keep_dock=False):
     had_tray = plasma(FIND + 'var n = 0; panels().forEach(function (p) { if (isTrayPanel(p)) n++; }); print(n);')
     plasma(FIND + "panels().forEach(function (p) { if (isTopBar(p) || isDock(p)) p.remove(); });"
            # a row from the first version had the tray at its end: out of the row, into its own panel
-           + 'panels().forEach(function (p) { if (!isRow(p)) return; p.hiding = "autohide"; p.height = %d;' % ROW_HEIGHT
+           + 'panels().forEach(function (p) { if (!isRow(p)) return; p.hiding = %s; p.height = %d;'
+           % (json.dumps(row_hiding(state)), ROW_HEIGHT)
            + ' p.widgets("org.kde.plasma.systemtray").forEach(function (w) { w.remove(); }); });'
-           + ("" if had_row and had_row.strip() not in ("", "0") else ADD_ROW)
+           + ("" if had_row and had_row.strip() not in ("", "0")
+              else ADD_ROW.replace('row.hiding = "autohide";', f"row.hiding = {json.dumps(row_hiding(state))};"))
            + ("" if had_tray and had_tray.strip() not in ("", "0") else ADD_TRAY))
     state["layout"] = "dashboard"
     meta_dashboard(state)
@@ -416,14 +443,20 @@ def main(argv):
         else:
             classic_leftovers(state)
         return 0
+    if cmd == "row":
+        if len(argv) > 2 and argv[2] in ROW_MODES:
+            return set_row(state, argv[2])
+        print(next(k for k, v in ROW_MODES.items() if v == row_hiding(state)))
+        return 0
     if cmd == "forget":
         if current() == "dashboard":
             meta_back(state)
         state.pop("layout", None)
         state.pop("dock", None)
+        state.pop("rowHiding", None)
         save(state)
         return 0
-    print("Använd: goblincakes-desktop-layout status | set dashboard|classic | apply | login | forget", file=sys.stderr)
+    print("Använd: goblincakes-desktop-layout status | set dashboard|classic | apply | login | forget | row [hidden|empty]", file=sys.stderr)
     return 2
 
 

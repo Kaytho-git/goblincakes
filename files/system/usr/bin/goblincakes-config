@@ -585,6 +585,29 @@ class Config(QObject):
         proc.finished.connect(finished)
         proc.start(DESKTOP_LAYOUT, ["set", name])
 
+    @Property(str, notify=desktopLayoutChanged)
+    def rowHiding(self):
+        """The dashboard layout's desktop row: hidden (always, out at the top edge) or empty (out on an empty
+        desktop, hidden behind the active window – Plasma's dodgewindows)."""
+        if not hasattr(self, "_row_hiding"):
+            code, out = run(DESKTOP_LAYOUT, ["row"])
+            self._row_hiding = out.strip() if code == 0 and out.strip() in ("hidden", "empty") else "hidden"
+        return self._row_hiding
+
+    @Slot(str)
+    def setRowHiding(self, word):
+        if word not in ("hidden", "empty") or word == self.rowHiding:
+            return
+        code, _ = run(DESKTOP_LAYOUT, ["row", word])
+        if code == 0:
+            self._row_hiding = word
+            self._desktop_layout_status = ("Klockraden syns när skrivbordet är tomt." if word == "empty"
+                                           else "Klockraden är gömd – dra musen mot överkanten i mitten.")
+        else:
+            self._desktop_layout_status = "Plasma svarade inte – valet gäller vid nästa inloggning."
+            self._row_hiding = word
+        self.desktopLayoutChanged.emit()
+
     # ── Utseende: the dock (goblincakes-dock get/set) ──────────
 
     @Property(str, notify=dockChanged)
