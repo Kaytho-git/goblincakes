@@ -7,7 +7,7 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 - [x] Område 2 – Uppstart och inloggning (punkt 9–11)
 - [x] Område 3 – Image och bygge (punkt 12–14)
 - [x] Område 4 – Kodkvalitet och underhåll (punkt 15–19)
-- [ ] Område 5 – Fel och risker ← **nästa**
+- [x] Område 5 – Fel och risker (punkt 20–24)
 - [ ] Mätningar på frugans laptop (bara användarens dator är mätt hittills – se Mätningar sist)
 - [ ] Sortering + topp 5 (görs sist)
 
@@ -262,6 +262,64 @@ Läget är bättre än väntat: alla 193 Python-, skal- och JSON-filer klarar sy
 
 ---
 
+## Område 5 – Fel och risker
+
+Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och ett sådant pågår nu (basen och legacy är på Fedora 45, `goblincakes-nvidia` på 44).
+
+### P20 – AppGrid och libratbag byggs på Fedora 45 men läggs i Fedora 44-imagen
+- **Vad:** Byggstegen i `recipes/common-stages.yml:7` och `:16` byggs alltid på `kinoite-main:latest`, oavsett variant. Kommentaren säger "KDE and Qt are the same in both variants" – det stämmer inte under ett Fedora-hopp: i dag är `kinoite-main` Fedora 45 (kärna 7.3.3.fc45) och `kinoite-nvidia` Fedora 44 (sett med `skopeo`, M17). Användarens egen dator kör alltså AppGrid och ratbagd kompilerade på Fedora 45 i en Fedora 44-image. Just nu fungerar det (båda har Qt 6.11; ratbagd kräver högst GLIBC 2.38). Skyddet `files/scripts/check-appgrid.sh:16`–`:22` kollar bara med `ldd` att biblioteken finns – inte att Qt går med på att ladda ett tillägg byggt mot en nyare Qt (det vägrar Qt), och för libratbag finns ingen koll alls.
+- **Förslag:** bygg stegen på samma bas som varianten (en egen stages-fil för Nvidia med `from: ghcr.io/ublue-os/kinoite-nvidia:latest`). Bonus: Nvidia-bygget slipper hämta en extra basimage (213 s, se P13). Och låt kollen ladda tillägget på riktigt (`QPluginLoader` via PySide6) + köra `ratbagd --version`.
+- **Vinst:** ingen risk att toppfältet står utan programmeny eller att Piper slutar hitta musen på Nvidia-varianten den dag Fedora 45 får en nyare Qt/glibc än 44. Snabbare Nvidia-bygge.
+- **Säkerhet:** sett – Fedora-versionerna (M17), byggloggen (`FROM ghcr.io/ublue-os/kinoite-main:latest` i steget för `goblincakes-nvidia`), `ldd`-kollen läst. Att Qt vägrar nyare tillägg: tror (Qt:s vanliga regel) – syns först när versionerna skiljer.
+- **Risk:** låg (bygget blir rättare, inte annorlunda för bas/legacy).
+- **Storlek:** liten.
+- **Kan provas:** på GitHub (ett bygge av Nvidia-varianten) + menyn och Piper på användarens dator.
+- **Mät efteråt:** M17 + `cat /usr/share/goblincakes/appgrid-build`.
+
+### P21 – Första-inloggningen skriver "klart" även när den misslyckades
+- **Vad:** `usr/libexec/goblincakes-firstlogin` saknar felkontroll: `plasma-apply-lookandfeel` (rad 102–103) körs 3 s efter inloggning, och oavsett om det gick skrivs `LAYOUT_VERSION` till klar-filen (rad 164–165). Samma sak för systemfältet (`trim_systray`, rad 23–30: märket skrivs även om alla tio försök misslyckades). På en långsam dator (laptopen hade 7 min uppstart på hårddisken) hinner Plasma inte upp på 3 s → den nya layouten kommer aldrig, och inget syns i någon logg.
+- **Förslag:** skriv märket bara när kommandot lyckades (annars nytt försök vid nästa inloggning), och vänta på att plasmashell svarar i stället för fasta 3 s.
+- **Vinst:** en ny layoutversion når säkert fram även på en seg start.
+- **Säkerhet:** sett (läst i koden). Att det faktiskt hänt: vet inte.
+- **Risk:** låg–medel. Skrivs märket aldrig (ett fel som alltid ger felkod) byggs panelerna om vid **varje** inloggning – därför högst t.ex. tre försök.
+- **Storlek:** liten.
+- **Kan provas:** offscreen med låtsas-hemmapp + en riktig inloggning.
+- **Mät efteråt:** –
+
+### P22 – Kakans röst slutar fungera när Fedora byter Python-version
+- **Vad:** Röstens Python-miljö (`~/.local/share/goblincakes-voice/venv`) pekar på systemets `/usr/bin/python3` men har sina paket i `lib/python3.14/` (sett). När en ny Fedora kommer med Python 3.15 hittar den inga paket. `installed()` (`usr/libexec/goblincakes-voice:186`–`:189`) tittar bara efter filerna, så tjänsten startar, kraschar och startas om var 10:e sekund (`Restart=on-failure`) – utan att något säger varför.
+- **Förslag:** `installed()` kollar också att miljön hör till den Python som körs (`venv/lib/pythonX.Y` finns); annars bygger `goblin update`/tjänsten om miljön (modellerna ligger kvar, bara paketen hämtas om) eller säger till med en notis.
+- **Vinst:** rösten överlever Fedora-hoppet på användarens dator (Nvidia-varianten går till 45 när Universal Blue släpper den).
+- **Säkerhet:** sett – länken och `python3.14`-mappen på användarens dator. Att Fedora 45 har en annan Python: tror – `python3 --version` på laptopen (M18) svarar.
+- **Risk:** låg.
+- **Storlek:** liten.
+- **Kan provas:** offscreen (låtsas-miljö med fel versionsmapp).
+- **Mät efteråt:** M18.
+
+### P23 – Qt:s QML-cache används inte för fönstren i imagen
+- **Vad:** Qt sparar normalt färdigkompilerad QML i `~/.cache/<program>/qmlcache`, men gör det inte för filer daterade 1970 – och det är alla filer i en atomisk image. Provat (M19): med datum 1970 skrivs ingen cachefil alls, med vanligt datum gör den det. Varje fönster kompilerar alltså sin QML från början vid varje start: Goblin AI 488 ms, GoblinRecorder 178 ms, Config 154 ms, dashboarden 126 ms – mot 19, 11, 7 och 8 ms med cache. (Ingen risk för gammal kod efter en uppdatering – det provades också: ändrat innehåll med samma storlek och datum gav rätt resultat.)
+- **Förslag:** kräver en liten undersökning innan något byggs. Tänkbara vägar: (a) fönstren läser sin QML ur en kopia med riktiga datum som görs om när imagen bytts (samma kontrollsumma som `goblincakes-refresh.sh` redan räknar för temat); (b) Qt:s färdigkompilering vid bygget, om den går att få att gälla för 1970-daterade filer.
+- **Vinst:** Goblin AI öppnas ca 0,5 s fortare (laptopen tror ~1 s), de andra 0,1–0,2 s.
+- **Säkerhet:** sett/mätt (M19). Vilken lösning som fungerar: tror – måste provas.
+- **Risk:** medel för (a) – en kopia som inte följer med imagen = gamla fönster efter en uppdatering; därför kontrollsumman.
+- **Storlek:** medel.
+- **Kan provas:** offscreen (M19 visar direkt om cachen används).
+- **Mät efteråt:** M19.
+
+### P24 – Fedora-hoppet kommer av sig självt
+- **Vad:** Alla tre recepten har `image-version: latest` (`recipes/recipe*.yml`), och uppdateringarna förbereds automatiskt (`AutomaticUpdates: stage`). När Universal Blue flyttar `latest` till nästa Fedora följer GOBLINCAKES med samma dag och nästa omstart startar i den – notisen (`goblincakes-fedora-check`) hinner i praktiken bara berätta det. Så gick det 9 nov: laptopen (legacy, Nvidia 580 – enligt `frugans-laptop.md` inte provad på Fedora 45) fick Fedora 45 förberett utan att någon valt det. Det är ett medvetet upplägg ("GOBLINCAKES' daily build follows"), och rollback finns – men den svagaste datorn blir först ut som provdator.
+- **Förslag (användarens beslut):** lås recepten vid en Fedora-version (`image-version: 45`/`44`) och höj med flit när användaren provat på sin egen dator – de dagliga byggena fortsätter ge säkerhetsuppdateringar inom versionen. Eller behåll `latest` men låt legacy-varianten ligga ett steg efter.
+- **Vinst:** inga överraskande Fedora-hopp på frugans dator; hoppet görs när det passar.
+- **Säkerhet:** sett – recepten, `rpm-ostree status` (stage), anteckningen från 9 nov.
+- **Risk:** låg tekniskt; kostnaden är att någon måste komma ihåg att höja versionen (en påminnelse hos Kakan räcker).
+- **Storlek:** liten.
+- **Kan provas:** på GitHub (ett bygge).
+- **Mät efteråt:** `rpm-ostree status` efter nästa uppdatering.
+
+**Övrigt i område 5:** den döda processen under WoWUp står i P7.2, dashboardens enhet i P8, demoparser utan låst version i P14.1. Rollback: inget konkret fel hittat – `goblincakes-firstlogin` jämför layoutversionen med "inte lika med", så en äldre image lägger tillbaka sin layout och en nyare gör om den igen (syns som att panelerna byggs om, inget går sönder); engångsfixarna i hemmappen backas inte men de äldre imagerna tål dem. Nätverk: GoblinRecorders CS2-mottagare lyssnar bara lokalt (`127.0.0.1`), GoblinShare lyssnar med flit på hela nätverket – en egen säkerhetsgranskning (`/security-review`) har inte gjorts här.
+
+---
+
 ## Mätningar
 
 Kommandona kan köras igen precis som de står. På laptopen: först `ssh frugans-laptop` (eller klistra in i hennes terminal). M1–M3 är hela block – klistra in allt mellan strecken. Räkna bort rader med `sshd` om de dyker upp.
@@ -371,3 +429,31 @@ C=$(mktemp -d); t() { s=$(date +%s%N); "$@" >/dev/null 2>&1; e=$(date +%s%N); ec
 ls ~/.local/state/goblincakes/
 ```
 - **Användarens dator:** alla tolv flaggorna finns (aurorae-v2, meta-a-freed, meta-arrows-rotate, meta-launcher, ghostty-size-added, ghostty-smaller, dock-launchers-fixed, clock-weight, appgrid-smaller, goblincakes-dock, discord-native, vscode-home).
+
+### M17 – Vilken Fedora baserna är på (byggstegen byggs på kinoite-main)
+```
+for i in kinoite-main kinoite-nvidia; do skopeo inspect --no-tags docker://ghcr.io/ublue-os/$i:latest | python3 -c 'import json,sys; l=json.load(sys.stdin)["Labels"]; print(sys.argv[1], l.get("org.opencontainers.image.version"), l.get("ostree.linux"))' $i; done
+```
+- **11 nov:** kinoite-main 45.20261111.2 (kärna 7.3.3-300.fc45) · kinoite-nvidia 44.20261107.1 (kärna 7.2.15-200.fc44).
+
+### M18 – Python-versionen och röstens miljö
+```
+python3 --version; ls ~/.local/share/goblincakes-voice/venv/lib/ 2>/dev/null; systemctl --user is-active goblincakes-voice
+```
+- **Användarens dator (Fedora 44):** Python 3.14.10 · `python3.14` · rösten kördes från repot under provet (tjänsten stoppad).
+
+### M19 – Används QML-cachen? (tid att kompilera fönstrens QML)
+```
+D=$(mktemp -d); cat > $D/t.py <<'EOF'
+import sys, time
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtQml import QQmlEngine, QQmlComponent
+app = QGuiApplication(sys.argv); app.setApplicationName("qmlcachetest")
+for f in sys.argv[1:]:
+    e = QQmlEngine(); t = time.perf_counter(); c = QQmlComponent(e, QUrl.fromLocalFile(f))
+    print("%5.0f ms  %s" % ((time.perf_counter()-t)*1000, "/".join(f.split("/")[-2:])))
+EOF
+F="ai config recorder dashboard amp share"; export QT_QPA_PLATFORM=offscreen XDG_CACHE_HOME=$D/cache; echo "som imagen är:"; python3 $D/t.py $(for f in $F; do echo /usr/share/goblincakes/$f/Main.qml; done) 2>/dev/null; python3 $D/t.py $(for f in $F; do echo /usr/share/goblincakes/$f/Main.qml; done) >/dev/null 2>&1; echo "cachefiler efter två körningar: $(find $D/cache -type f 2>/dev/null | wc -l) (0 = cachen används inte)"; rm -rf $D
+```
+- **Användarens dator:** ai 488 ms · config 154 · recorder 178 · dashboard 126 · amp 55 · share 39 ms; cachefiler: 0. (Samma filer kopierade med vanligt datum, andra körningen: 19 · 7 · 11 · 8 · 5 · 7 ms.)
