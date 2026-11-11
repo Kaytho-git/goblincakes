@@ -14,6 +14,7 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 - [x] Byggt: P20, P22, P24 (11 nov, Fable – ej pushat; provas av första bygget + testlistan `fedora-las-rost.md`)
 - [x] Byggt: P1 (11 nov, Opus) – testkopia provad i Plasma; Discord-hjälparens del först efter nästa image; testlista `p1-widgetar.md`
 - [x] Byggt: P2 + P3 (11 nov, Opus) – repots tjänst och fönster körda på riktigt (i vila, utan spel); testlista `p2-p3-recorder.md`
+- [x] Byggt: P4 (11 nov, Opus) – repots vakt körs på riktigt (i vila, utan spel); testlista `p4-graph.md`
 
 Punkterna har fasta nummer (P1, P2 …) i den ordning de hittades, så att "Bygg punkt P3" alltid betyder samma sak. Den sorterade listan (mest värt först) och topp 5 står efter område 5, före Mätningar. När en punkt är byggd: bocka av den i den sorterade listan och för in "efter"-värdet under rätt M-nummer.
 
@@ -83,6 +84,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 - **Storlek:** liten (glesare + vila under spel); medel om den ska lyssna på händelser.
 - **Kan provas:** bara på riktiga datorn (ljud).
 - **Mät efteråt:** M2 (raden `goblincakes-graph.service`).
+- **Byggt 11 nov:** vakten var 5:e s (`WATCH_EVERY`) och inte alls medan spelvaktens fil är färsk (`game_running()`, flyttad före `watch()`); fönstrets länkare (`Linker.run`, pw-dump varannan s) vilar också under spel – länkar som redan finns blir kvar. Gäller bara med Spelläge på (som stillastående staplar förut). Inte byggt: `pactl subscribe`.
 
 ### P5 – Fyra delar letar efter spel var för sig
 - **Vad:** Spelvakten läser alla processer var 3:e s (`usr/libexec/goblincakes-gameguard:256`, `usr/share/goblincakes/gaming.py:23`–`:35`), lokal AI-vakten varje sekund (`usr/libexec/goblincakes-ollama:662`–`:679`, `gaming.py:62`–`:73`), Kakans vakt var 15:e s (`ai/reminders.py:584`), Goblin AI vid svar – plus recorderns `pgrep` (P2).
@@ -351,7 +353,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 7 | **P22** Rösten och ny Python-version (byggd 11 nov) | rösten överlever Fedora 45 på användarens dator | låg | liten |
 | [ ] | 8 | **P18** Färdigkompilerade Python-filer | CS2-demon 1–1,5 s fortare, fönster 0,05 s fortare | låg | liten |
 | [ ] | 9 | **P5** Spelletandet (steg 1: snabbare läsning) | 1–1,5 % av en kärna, båda datorerna | låg | liten |
-| [ ] | 10 | **P4** goblin graph-vaktens `pw-dump` | 1 % i vila, 2,2 % medan WoW kör + lugnare ljudserver (användarens dator) | låg | liten |
+| [x] | 10 | **P4** (byggd 11 nov) goblin graph-vaktens `pw-dump` | 1 % i vila, 2,2 % medan WoW kör + lugnare ljudserver (användarens dator) | låg | liten |
 | [ ] | 11 | **P10** Uppdateringskollen senare efter inloggning | lugnare första minut (7–9 s arbete flyttas) | låg | liten |
 | [ ] | 12 | **P9** Inloggningens hjälpprogram | 1–3 s mindre arbete vid inloggning | låg | liten |
 | [ ] | 13 | **P21** Första-inloggningen skriver "klart" vid fel | ny layout når säkert fram | låg–medel | liten |
@@ -407,6 +409,7 @@ S=60; snap() { for u in $(systemctl --user list-units --type=service,scope --sta
 - **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** plasmashell-enheten 6,12 % · `goblincakes-ollama.service` 1,71 % · `goblincakes-gameguard.service` 0,94 % · `goblincakes-share.service` 0,57 % (hjälpsessionen var öppen) · `goblincakes-archon-tray.service` 0,36 % (Archon finns inte på datorn) · kakan-vakt 0,08 %. Recorder, graph och rösten är inte påslagna där.
 - **Frugans laptop under spel:** ej mätt än (se "Kvar att mäta" överst i Mätningar).
 - **Efter P2 + P3, användarens dator i vila (11 nov 19:05, repots tjänst och fönster):** recorder-tjänsten 1,90 → 0,20 % · fönstret 1,38 → 0,46 % (öppet på skärmen; förut gömt).
+- **Efter P4, användarens dator i vila (11 nov kväll, repots vakt, ingen musik):** graph-vakten 1,15 → 0,44 %. Under spel tittar den inte alls (väntat ~0 %; ej mätt med WoW än).
 
 ### M3 – Verkligt minne (PSS) per GOBLINCAKES-process
 ```

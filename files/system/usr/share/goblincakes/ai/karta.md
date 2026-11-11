@@ -470,7 +470,7 @@ Kontroll: `journalctl --user -u goblincakes-share -n 30 --no-pager`
 ## goblin graph
 Ord: graph, ljudgraf, staplar, visualisering
 - /usr/bin/goblin-graph (QML i /usr/share/goblincakes/graph/), tjänsten goblincakes-graph öppnar den när musik
-  spelas om `goblin graph auto on`. Inställningar ~/.config/goblincakes/graph.json. Vilar under spel.
+  spelas om `goblin graph auto on` (tittar var 5:e s, inte alls under spel med Spelläge på – staplarna öppnas därför några sekunder efter att musiken startat). Inställningar ~/.config/goblincakes/graph.json. Vilar under spel.
 
 ## Spelläget
 Ord: spelläge, gamemode, spel, prestanda, lagg, fps, wowup stängs, battle.net agent, akonadi, baloo, fläktar, fläktboost, lenovo

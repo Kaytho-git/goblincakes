@@ -139,12 +139,33 @@ def in_amp():
         return False
 
 
+# A game runs: GOBLINCAKES Spelläge (goblincakes-gameguard) keeps this file fresh while one does.
+# The graph stands still then (the user's wish 22 Oct: less load while playing) and starts again
+# when the game is closed. The watcher and the linker rest too (P4, 11 Nov: pw-dump every 2 s
+# cost 2 % of a core while WoW ran, and the sound server had to answer). Spelläge switched off in Config = the graph keeps running.
+GAMING = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-gaming"
+
+
+def game_running():
+    try:
+        return time.time() - GAMING.stat().st_mtime < 30
+    except OSError:
+        return False
+
+
+WATCH_EVERY = 5.0    # seconds between the watcher's looks (P4, 11 Nov: was 2 – pw-dump is 239 kB)
+
+
 def watch():
-    """Every 2 s: music playing and no window of ours → start one; music gone 15 s → close the
-    one we started. Closed by hand while the music plays = stays closed until the music stops
-    and starts again. Not while GoblinAmp shows the graph (in_amp)."""
+    """Every WATCH_EVERY s: music playing and no window of ours → start one; music gone 15 s →
+    close the one we started. Closed by hand while the music plays = stays closed until the music
+    stops and starts again. Not while GoblinAmp shows the graph (in_amp). While a game runs it
+    doesn't look at all – everything stays as it was until the game is closed."""
     child, dismissed, quiet = None, False, 0.0
     while True:
+        if game_running():
+            time.sleep(WATCH_EVERY)
+            continue
         try:
             playing = music_playing() and not in_amp()
         except Exception:
@@ -161,7 +182,7 @@ def watch():
                                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                          stderr=subprocess.DEVNULL, start_new_session=True)
         else:
-            quiet += 2
+            quiet += WATCH_EVERY
             if quiet >= 15:
                 dismissed = False
                 if child is not None:
@@ -171,7 +192,7 @@ def watch():
                     except subprocess.TimeoutExpired:
                         child.kill()
                     child = None
-        time.sleep(2)
+        time.sleep(WATCH_EVERY)
 
 
 if __name__ == "__main__" and sys.argv[1:2] == ["--watch"]:
@@ -189,19 +210,6 @@ CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "g
 CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "goblincakes/graph-class"
 WOW_LOGS = Path.home() / "Games/WoW"  # <Version>/Logs (goblincakes-wow-links)
 SOCKET = f"goblin-graph-{os.getuid()}"
-
-# A game runs: GOBLINCAKES Spelläge (goblincakes-gameguard) keeps this file fresh while one does.
-# The graph stands still then (the user's wish 22 Oct: less load while playing) and starts again
-# when the game is closed. Spelläge switched off in Config = the graph keeps running.
-GAMING = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-gaming"
-
-
-def game_running():
-    try:
-        return time.time() - GAMING.stat().st_mtime < 30
-    except OSError:
-        return False
-
 
 # World of Warcraft Retail's class colours, in the game's own (alphabetical) order
 CLASSES = [
@@ -335,6 +343,9 @@ class Linker(threading.Thread):
 
     def run(self):
         while self.alive:
+            if game_running():  # the bars stand still – links already made stay (P4)
+                time.sleep(LINK_EVERY)
+                continue
             try:
                 self.link_music()
             except Exception:

@@ -1,3 +1,4 @@
+2026-11-11  goblin graph drar mindre av processorn och stör inte ljudet medan du spelar. Staplarna öppnas några sekunder efter att musiken startat, i stället för direkt.
 2026-11-11  GoblinRecorder drar mycket mindre av processorn när den väntar på att du startar WoW eller CS2.
 2026-11-11  Toppfältet och skrivbordsraden drar mindre av processorn, särskilt medan ett spel kör – Spelas nu och klockan läser bara det de visar, och mer sällan under spel.
 2026-11-11  En ny Fedora-version kommer nu först när den är provad: GOBLINCAKES stannar på sin Fedora-version tills den höjs med flit, i stället för att byta av sig själv en dag. Säkerhetsuppdateringarna kommer som vanligt.
