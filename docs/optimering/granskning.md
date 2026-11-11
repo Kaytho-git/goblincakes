@@ -9,7 +9,7 @@ Gjord av Fable 11 nov 2026 enligt `docs/optimering/startinstruktion.md` del 1. I
 - [x] Område 4 – Kodkvalitet och underhåll (punkt 15–19)
 - [x] Område 5 – Fel och risker (punkt 20–24)
 - [x] Mätningar på frugans laptop i vila (11 nov, via GoblinShare)
-- [ ] Mätningar under spel på användarens dator (M2, M4, M9 – användaren säger till när spelet är igång); laptopen har inget spel än
+- [x] Mätningar under spel på användarens dator (11 nov 18:28, WoW utan strid); laptopen har inget spel än
 - [x] Sortering + topp 5 (står före Mätningar)
 - [x] Byggt: P20, P22, P24 (11 nov, Fable – ej pushat; provas av första bygget + testlistan `fedora-las-rost.md`)
 
@@ -35,7 +35,9 @@ Mätt på användarens dator 11 nov, 15 min efter inloggning, inget spel igång,
 
 **På laptopen** (mätt i vila, upplägget Standard, utan recorder/graph/röst): widgetarnas skript 6,1–6,6 %, lokal AI-vakten 1,7 %, spelvakten 0,9 %, Archon-ikonen 0,4 % (fast Archon inte finns där) – tillsammans ca 9 % av en kärna.
 
-Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det är ingen katastrof – en tiondels kärna av laptopens fyra – men det är onödigt, det väcker processorn 5–16 gånger i sekunden (M4) och det drar batteri. Hur det ser ut **under spel** är inte mätt än.
+Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det är ingen katastrof – en tiondels kärna av laptopens fyra – men det är onödigt, det väcker processorn 5–16 gånger i sekunden (M4) och det drar batteri.
+
+**Medan WoW kör** (användarens dator, mätt 11 nov – M2) blir det inte mindre utan mer: widgetarnas skript 8,8 % (Discord-fönstret är öppet, så röstkollen går varje sekund), graph-vakten 2,2 %, recorder-fönstret 1,7 %, recorder-tjänsten 1,4 %, lokal AI-vakten 1,3 % (fast AI:n är avstängd under spel – vakten letar vidare varje sekund), spelvakten 1,0 % – tillsammans ca 17 % av en kärna, medan WoW själv använder 2,7 kärnor.
 
 ### P1 – Widgetarna startar skript varje sekund
 - **Vad:** Toppfältets/skrivbordsradens widgetar hämtar sina uppgifter genom att starta program med jämna mellanrum. Spelas nu: Goblin AI-läget varje sekund, Discord-röst var 1–3 s, Steam var 5 s, batteri var 30 s, utseendet var 5 s (`plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml:288`, `:297`, `:306`, `:315`, `:350`). Klockan: volym varannan sekund, nätverk var 10 s, batteri var 30 s, utseendet var 5 s (`org.goblincakes.deskclock/contents/ui/main.qml:132`–`:160`). Dockan, kvoten, uppdateringspilen och Meta-tipset läser utseendet var 5:e s var för sig (`dock/…/main.qml:69`, `quota/…/main.qml:138`, `updates/…/main.qml:103` + `:176`, `metahint/…/main.qml:40`). I upplägget Dashboard finns Spelas nu **två gånger** (vänster och höger del) och båda kör alla hämtningar, även dem som bara den andra delen visar. Inget saktar ner när ett spel kör, fast widgetarna redan vet om det (`gaming`).
@@ -50,8 +52,8 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 ### P2 – GoblinRecorder-tjänsten kör pgrep hela tiden
 - **Vad:** Tjänsten tittar efter WoW och CS2 var 5:e s med `pgrep` (`usr/libexec/goblincakes-recorder:910`, `:926`; `usr/share/goblincakes/recorder/recorder.py:908`–`:914`, `:1027`–`:1030`) och – när inget spel kör – efter OBS **varje varv**, alltså varannan sekund (`goblincakes-recorder:959`, `recorder.py:155`). Varje `pgrep` tar 25 ms (M6) eftersom den läser alla ~520 processer. Under spel faller OBS-frågan bort (villkoret på rad 959 kortsluts), men då går varvet fyra gånger i sekunden (`:1039`) och OBS:s hela loggfil läses om varannan och var femte sekund för att se om skärmfångsten frusit eller frågar efter skärm (`recorder.py:245`–`:290`, anropas från `goblincakes-recorder:965`–`:985`) – loggen växer under en raidkväll.
 - **Förslag:** en enda genomläsning av `/proc` var 5:e s inne i tjänsten (som `gaming.py` gör, ~5 ms) som svarar på alla tre frågorna; OBS-svaret återanvänds mellan varven; av OBS-loggen läses bara slutet (de sista kilobyten) i stället för hela filen.
-- **Vinst:** 2,1 % → ca 0,1 % i vila. Under spel: okänt tills det mätts (M2 medan WoW kör) – `pgrep`-delen är där ca 1 %, loggläsningen tillkommer.
-- **Säkerhet:** sett/mätt – 2,11 % i vila (M2), vilket stämmer med 0,9 `pgrep` i sekunden à 25 ms. Under spel: bara läst i koden – tror.
+- **Vinst:** 2,1 % → ca 0,1 % i vila; 1,4 % → uppskattat 0,3 % medan WoW kör utan strid (mätt 11 nov). Under en strid med inspelning är det inte mätt.
+- **Säkerhet:** sett/mätt – 2,11 % i vila (stämmer med 0,9 `pgrep` i sekunden à 25 ms) och 1,40 % medan WoW kör utan strid (M2). Under strid/inspelning: bara läst i koden – tror.
 - **Risk:** låg–medel. WoW-igenkänningen är känslig (7 nov: Battle.nets `WoW.exe` med bakåtsnedstreck kändes inte igen) – samma mönster måste gälla efteråt.
 - **Storlek:** liten.
 - **Kan provas:** offscreen med attrapperna (`GOBLINCAKES_RECORDER_WOW`), sedan en riktig WoW-start på datorn.
@@ -71,7 +73,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 - **Vad:** Vakten som öppnar staplarna när musik spelar frågar PipeWire efter **allt** (239 kB text) varannan sekund och tolkar det (`usr/bin/goblin-graph:66`–`:75`, `:142`–`:174`). Den fortsätter under spel, fast staplarna då ändå står still.
 - **Förslag:** under spel (spelvaktens fil finns) – titta inte alls; annars var 5:e s, eller lyssna på ändringar (`pactl subscribe`) i stället för att fråga.
 - **Vinst:** 1,15 % → ~0,2 %, och PipeWire slipper svara (ljudet är det sista man vill störa under spel).
-- **Säkerhet:** sett/mätt – 1,15 % (M2). Gäller bara den som har `goblin graph auto` på (användarens dator; laptopen: M7 visar det).
+- **Säkerhet:** sett/mätt – 1,15 % i vila och **2,19 % medan WoW kör** (M2; samtidigt går pipewire/pipewire-pulse från 0,4 % till 2,8 %, delvis spelets ljud). Gäller bara den som har `goblin graph auto` på (användarens dator; inte laptopen).
 - **Risk:** låg. Staplarna öppnas några sekunder senare efter att musiken startat.
 - **Storlek:** liten (glesare + vila under spel); medel om den ska lyssna på händelser.
 - **Kan provas:** bara på riktiga datorn (ljud).
@@ -81,7 +83,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 - **Vad:** Spelvakten läser alla processer var 3:e s (`usr/libexec/goblincakes-gameguard:256`, `usr/share/goblincakes/gaming.py:23`–`:35`), lokal AI-vakten varje sekund (`usr/libexec/goblincakes-ollama:662`–`:679`, `gaming.py:62`–`:73`), Kakans vakt var 15:e s (`ai/reminders.py:584`), Goblin AI vid svar – plus recorderns `pgrep` (P2).
 - **Förslag steg 1 (litet):** snabbare genomläsning i `gaming.py` (`os.listdir` + `open` i stället för `pathlib`): 11,2 → 5,3 ms mätt. **Steg 2 (medel):** en del letar (spelvakten, även när Spelläge är avstängt – då bara letandet) och skriver en fil; de andra läser filen. I dag skrivs filen bara med Spelläge på – därför behövs en fil till för "ett spel kör" skild från "Spelläge gör något".
 - **Vinst:** ca 2 % → under 0,5 %. Steg 1 ensamt halverar.
-- **Säkerhet:** sett/mätt – användarens dator: spelvakten 0,78 %, AI-vakten 1,19 %; laptopen: 0,94 % och 1,71 % (M2); ett varv 11,2 ms mot 5,3 ms med snabbare läsning (M8).
+- **Säkerhet:** sett/mätt – användarens dator i vila: spelvakten 0,78 %, AI-vakten 1,19 %; medan WoW kör: 0,96 % och 1,30 % (AI:n är då stoppad, bara vakten går); laptopen: 0,94 % och 1,71 % (M2); ett varv 11,2 ms mot 5,3 ms med snabbare läsning (M8).
 - **Risk:** steg 1 låg. Steg 2 medel – lokal AI ska stängas av även med Spelläge av (dagens beslut), och ett avbrott i spelvakten får inte göra att AI:n aldrig startar igen.
 - **Storlek:** steg 1 liten, steg 2 medel.
 - **Kan provas:** offscreen (attrapp-processer), sedan ett riktigt spel.
@@ -337,14 +339,14 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 |---|---|---|---|---|---|
 | [ ] | 1 | **P12** Uppdateringarna laddar ner 1,4–2,9 GB för ~120 MB nytt | uppdateringar på minuter i stället för en kvart på wifi | medel | liten + prov |
 | [ ] | 2 | **P1** Widgetarna startar skript varje sekund | 5 % av en kärna tillbaka, alltid, båda datorerna | låg | liten |
-| [ ] | 3 | **P2** GoblinRecorder-tjänstens `pgrep` och loggläsning | 2 % i vila (användarens dator); under spel ej mätt än | låg–medel | liten |
+| [ ] | 3 | **P2** GoblinRecorder-tjänstens `pgrep` och loggläsning | 2 % i vila, 1,4 % medan WoW kör (användarens dator) | låg–medel | liten |
 | [ ] | 4 | **P3** GoblinRecorder-fönstrets `flatpak info` | 1,4 % (användarens dator) | låg | liten |
 | [ ] | 5 | **P15** Kontroll före bygget | färre trasiga images, kopiorna kan inte glida isär | låg | liten |
 | [x] | 6 | **P20** Byggstegen på rätt Fedora-bas (byggd 11 nov) | ingen trasig programmeny/Piper vid Fedora-hopp, snabbare Nvidia-bygge | låg | liten |
 | [x] | 7 | **P22** Rösten och ny Python-version (byggd 11 nov) | rösten överlever Fedora 45 på användarens dator | låg | liten |
 | [ ] | 8 | **P18** Färdigkompilerade Python-filer | CS2-demon 1–1,5 s fortare, fönster 0,05 s fortare | låg | liten |
 | [ ] | 9 | **P5** Spelletandet (steg 1: snabbare läsning) | 1–1,5 % av en kärna, båda datorerna | låg | liten |
-| [ ] | 10 | **P4** goblin graph-vaktens `pw-dump` | 1 % + lugnare ljudserver (användarens dator) | låg | liten |
+| [ ] | 10 | **P4** goblin graph-vaktens `pw-dump` | 1 % i vila, 2,2 % medan WoW kör + lugnare ljudserver (användarens dator) | låg | liten |
 | [ ] | 11 | **P10** Uppdateringskollen senare efter inloggning | lugnare första minut (7–9 s arbete flyttas) | låg | liten |
 | [ ] | 12 | **P9** Inloggningens hjälpprogram | 1–3 s mindre arbete vid inloggning | låg | liten |
 | [ ] | 13 | **P21** Första-inloggningen skriver "klart" vid fel | ny layout når säkert fram | låg–medel | liten |
@@ -365,13 +367,13 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 
 1. **P1 – widgetarna.** Störst vinst för minst risk, och den enda som märks på båda datorerna hela tiden. En widget i taget (Spelas nu först); M2 och M5 visar direkt om det hjälpte.
 2. **P12 – uppdateringarnas storlek.** Det användaren (och frugan på wifi) märker mest: 1,4–2,9 GB per uppdatering blir några hundra MB. Prova på legacy- eller basvarianten först, mät med M12, ta sedan Nvidia-varianten. Hög effekt men rör bygget – låt Fable bygga eller granska.
-3. **P2 + P3 – GoblinRecorder** (samma session). 3,5 % av en kärna i vila på användarens dator. Hur mycket det är medan WoW kör är inte mätt än – gör M2 under spel först, det är "före"-värdet. Litet och provbart med attrapperna.
+3. **P2 + P3 – GoblinRecorder** (samma session). 3,5 % av en kärna i vila på användarens dator och 3,1 % medan WoW kör (mätt). Litet och provbart med attrapperna.
 4. **P15 – kontrollen före bygget.** Gör alla punkter efter den säkrare att bygga (syntax, QML, kopior) och kostar en halvtimme.
 5. **P20 + P22 – före nästa Fedora-hopp.** `goblincakes-nvidia` går till Fedora 45 när Universal Blue släpper den; innan dess bör byggstegen byggas på rätt bas och rösten klara ny Python. Båda är små.
 
 Därefter i tur: P18, P5 (steg 1), P4, P10, P9 – alla små och ofarliga. **P11** (uppstarten) ger mest på laptopen (12,5 s) men är den enda med hög risk: gör M14 först och prova på användarens dator. **P24** är ett beslut, inte ett bygge.
 
-**Kvar att mäta före bygget av P1/P2/P5:** M2, M4 och M9 medan ett spel kör på användarens dator – det är "före"-värdet för det som märks i spel. (Laptopen har inget spel installerat än.)
+**"Före"-värdena under spel är mätta** (11 nov, WoW på användarens dator – se M2, M4, M5, M9). Efter spelmätningen är **P4** värd att ta tidigare än plats 10: graph-vakten drar mer under spel (2,2 %) än i vila, och lagningen är liten. Laptopen har inget spel installerat än.
 
 ---
 
@@ -381,7 +383,7 @@ Kommandona kan köras igen precis som de står – i en terminal på datorn, ell
 
 **När det mättes:** användarens dator 11 nov 17:10–17:35, 15–40 min efter inloggning, inget spel, upplägget Dashboard. Laptopen 11 nov 17:39–17:45 via GoblinShare (uppkopplingen var redan öppen), 38 min efter start, inget spel, upplägget Standard.
 
-**Kvar att mäta:** M2, M4, M9 **medan ett spel kör** – på användarens dator (WoW eller CS2). Laptopen har inget spel installerat än (bara Tux Paint, 11 nov) – mäts där när ett spel finns. M10 i sin helhet och M14 på laptopen (M10 kör inloggningens hjälpprogram på riktigt, M14 kräver lösenord – görs när hon är med).
+**Under spel:** mätt på användarens dator 11 nov 18:28 med WoW igång (inloggad på en karaktär, ingen strid, ingen stridslogg, OBS igång utan inspelning) – M2, M4, M5, M9. **Kvar att mäta:** samma under en riktig strid med inspelning (raid/nyckel) om P2 ska bedömas fullt ut, och på laptopen när den har ett spel (bara Tux Paint 11 nov). M10 i sin helhet och M14 på laptopen (M10 kör inloggningens hjälpprogram på riktigt, M14 kräver lösenord – görs när hon är med).
 
 **Anmärkning (ärligt):** första versionen av M15 startade `goblin-ai --help` över ssh utan skärm. Qt avbröt då programmet, och det ligger nu tre kraschposter (python3.15, SIGABRT, 17:41) i laptopens `coredumpctl` – ofarliga och rensas av sig själva, men Katsuyos efterkontroll kan nämna dem. M15 är ändrad så att den inte startar något fönsterprogram.
 
@@ -396,7 +398,7 @@ now=$(awk '{print $1}' /proc/uptime); for u in $(systemctl --user list-units --t
 S=60; snap() { for u in $(systemctl --user list-units --type=service,scope --state=running --no-legend --plain | awk '{print $1}'); do c=$(systemctl --user show "$u" -p CPUUsageNSec --value); case "$c" in ''|*[!0-9]*) continue;; esac; echo "$u $c"; done; }; a=$(snap); sleep $S; b=$(snap); awk -v S=$S 'NR==FNR{a[$1]=$2; next} ($1 in a){d=($2-a[$1])/1e9; if(d>0.005) printf "%6.2f%%  %6.2fs  %s\n", d/S*100, d, $1}' <(echo "$a") <(echo "$b") | sort -rn | head -30
 ```
 - **Användarens dator, i vila efter inloggning (11 nov 17:15):** plasmashell-enheten 7,73 % · `goblincakes-recorder.service` 2,11 % · `app-goblin-recorder@autostart` 1,44 % · `goblincakes-ollama.service` 1,19 % · `goblincakes-graph.service` 1,15 % · `goblincakes-gameguard.service` 0,78 % · share 0,13 % · kakan-vakt 0,09 % · voice 0,08 % · archon-tray 0,07 %. (Annat: dashboard-enheten 18,7 % = Goblin AI med Claude Code som arbetade, Firefox 10,5 %, kwin 8,4 %, Discord 6,5 + 3,0 %.)
-- **Under spel:** ej mätt än.
+- **Användarens dator medan WoW kör (11 nov 18:28, inloggad på en karaktär, ingen strid och ingen stridslogg, OBS igång men spelar inte in, 535 processer):** WoW 273 % · plasmashell-enheten 9,17 % · `goblincakes-graph.service` 2,19 % · `app-goblin-recorder@autostart` 1,70 % · `goblincakes-recorder.service` 1,40 % · `goblincakes-ollama.service` 1,30 % (Ollama är stoppad – det är bara vakten som letar) · `goblincakes-gameguard.service` 0,96 % · share 0,14 % · voice 0,10 % · kakan-vakt 0,09 % · archon-tray 0,09 %. GOBLINCAKES egna delar tillsammans ca 17 % av en kärna. (Annat: kwin 16,4 %, OBS 10,3 %, Discord 9,6 + 5,4 %, pipewire-pulse 1,5 %, pipewire 1,3 %, dashboard-enheten 13,6 % = Goblin AI med Claude Code.)
 - **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** plasmashell-enheten 6,12 % · `goblincakes-ollama.service` 1,71 % · `goblincakes-gameguard.service` 0,94 % · `goblincakes-share.service` 0,57 % (hjälpsessionen var öppen) · `goblincakes-archon-tray.service` 0,36 % (Archon finns inte på datorn) · kakan-vakt 0,08 %. Recorder, graph och rösten är inte påslagna där.
 - **Frugans laptop under spel:** ej mätt än (se "Kvar att mäta" överst i Mätningar).
 
@@ -412,6 +414,7 @@ for p in $(pgrep -u "$(id -u)" -f 'goblin|ollama|reminders.py'); do pss=$(awk '/
 a=$(awk '/^processes/{print $2}' /proc/stat); sleep 30; b=$(awk '/^processes/{print $2}' /proc/stat); echo "nya processer/30 s: $((b-a))"
 ```
 - **Användarens dator, i vila:** 483 (ca 16 per sekund; Claude Codes egna kommandon ingår med några tiotal).
+- **Användarens dator medan WoW kör:** 958 på 60 s (ca 16 per sekund – lika många som i vila).
 - **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** 333 på 60 s (ca 5,5 per sekund).
 
 ### M5 – plasmashell själv mot skripten den startar (30 s)
@@ -419,6 +422,7 @@ a=$(awk '/^processes/{print $2}' /proc/stat); sleep 30; b=$(awk '/^processes/{pr
 p=$(pgrep -x plasmashell); cpu() { awk '{print $14+$15}' /proc/$p/stat; }; cg() { systemctl --user show plasma-plasmashell.service -p CPUUsageNSec --value; }; a=$(cpu); ca=$(cg); sleep 30; b=$(cpu); cb=$(cg); echo "plasmashell själv: $(awk -v d=$((b-a)) 'BEGIN{printf "%.1f", d/30}') %  hela enheten med skripten: $(awk -v d=$((cb-ca)) 'BEGIN{printf "%.1f", d/1e9/30*100}') %"
 ```
 - **Användarens dator, i vila:** plasmashell själv 0,2 % · hela enheten 7,6 %.
+- **Användarens dator medan WoW kör:** plasmashell själv 0,3 % · hela enheten 9,1 %.
 - **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** plasmashell själv 0,4 % · hela enheten 6,6 %.
 
 ### M6 – Vad ett varv av varje hämtning kostar
@@ -451,6 +455,7 @@ print('game_running: %.1f ms   processes+find_game: %.1f ms' % (t(gaming.game_ru
 free -m | sed -n 1,3p; grep -E 'pswpin|pswpout' /proc/vmstat; nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader
 ```
 - **Användarens dator, i vila:** 9 774 av 32 005 MB använt, växling 0 av 8 191 MB, grafikminne 1 237 av 12 288 MiB.
+- **Användarens dator medan WoW kör:** 17 265 av 32 005 MB använt, växling 0 av 8 191 MB (pswpin 103, pswpout 347 sedan start), grafikminne 5 476 av 12 288 MiB.
 - **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** 2 358 av 15 866 MB använt, växling 0, grafikminne 2 av 4 096 MiB, 32 °C.
 
 ### M10 – Inloggningens hjälpprogram, ett i taget (alla är gjorda för att köras om)
