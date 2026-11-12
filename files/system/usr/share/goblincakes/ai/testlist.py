@@ -167,7 +167,7 @@ def verdict_of(answer):
     """Kakan's judgement line → (verdict, note); OKLART when she didn't start with one."""
     line = next((l.strip() for l in (answer or "").splitlines() if l.strip()), "")
     line = re.sub(r"^[*_#\s]+", "", line)
-    m = re.match(r"^(OKLART|OK|FEL)\b[*_\s]*[–—:\-.]*\s*(.*)$", line, re.I)
+    m = re.match(r"^(OKLART|OK|FEL)\b[*_\s]*[–—:\-.,;]*\s*(.*)$", line, re.I)  # "OK, …" too (13 Nov)
     if not m:
         return "OKLART", ("hennes svar: " + line)[:300]
     return m.group(1).upper(), m.group(2).strip()[:300]
