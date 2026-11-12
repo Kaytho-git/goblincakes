@@ -101,7 +101,7 @@ Ord: bygget, bygge, build, github actions, misslyckades bygget, byggloggen, ny i
 Ord: efter uppdateringen, efterkontroll, gick sönder, slutade fungera, ny image, startar inte efter uppdatering, rollback
 - En gång per start, 3 min efter inloggningen (när inget spel kör), tittar vakt-tjänsten (goblincakes-kakan-vakt,
   ai/aftercheck.py) på GOBLINCAKES påslagna tjänster, misslyckade tjänster, toppfältet och widgetarnas fel
-  (org.goblincakes.*), Ollama. Resultatet sparas per image i ~/.local/state/goblincakes/efterkontroll.json.
+  (org.goblincakes.*), Ollama, GoblinRecorders CS2-demoläsare (demoparser2/awpy, bara med GoblinRecorder på). Resultatet sparas per image i ~/.local/state/goblincakes/efterkontroll.json.
 - Efter en ny image jämförs med förra imagen: bara det som fungerade före och är trasigt nu ger en notis
   ("Efter uppdateringen: N saker gick sönder", knappen Fråga Kakan). Allt bra = ingen notis.
 - Var trasigt redan före = inte uppdateringens fel. Kända ofarliga fel (systemd-remount-fs, nvidia-settings-load)

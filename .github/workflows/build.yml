@@ -16,6 +16,10 @@ on:
       - ".github/workflows/build-chrome-theme.yml"
       - "usb-skaparen/**"
       - ".github/workflows/build-usb-creator.yml"
+      - "tools/**" # the checks and generators run here and before a commit; their output is in files/ (P14.4)
+      - ".claude/**"
+      - "LICENSE"
+      - ".github/dependabot.yml"
 
   pull_request:
   workflow_dispatch: # allow manually triggering builds

@@ -118,9 +118,24 @@ def ollama():
     return {"ollama": (bool(models), f"svarar, {len(models)} modeller" if models else "svarar men har inga modeller")}
 
 
+def demoparser():
+    """GoblinRecorder's CS2 demo reader still loads (P14.1, 12 Nov): the image takes the newest demoparser2/awpy
+    on purpose (a CS2 update that changes the demo format is fixed by the next image), so a new version that
+    breaks is seen here, after the update – only with GoblinRecorder switched on."""
+    if not (Path.home() / ".config/goblincakes/recorder-on").exists():
+        return {}
+    code = "import sys; sys.path.insert(0, '/usr/lib/goblincakes/demoparser'); import demoparser2, awpy"
+    try:
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return {"demoparser": (False, f"gick inte att starta ({e})")}
+    last = (r.stderr.strip().splitlines() or [""])[-1][:200]
+    return {"demoparser": (r.returncode == 0, "läses in" if r.returncode == 0 else f"läses inte in: {last}")}
+
+
 def look():
     found = {}
-    for part in (own_units, failed, top_bar, ollama):
+    for part in (own_units, failed, top_bar, ollama, demoparser):
         try:
             for key, value in part().items():
                 if not (key.startswith("misslyckad:") and f"tjänst:{key.split(':', 1)[1]}" in found):
@@ -191,7 +206,7 @@ def name(key):
     kind, _, what = key.partition(":")
     what = what.replace("\\x2d", "-")
     return {"tjänst": what, "misslyckad": what, "widget": f"widgeten {what}", "toppfältet": "toppfältet",
-            "ollama": "lokala AI:n (Ollama)"}.get(kind, what or kind)
+            "ollama": "lokala AI:n (Ollama)", "demoparser": "GoblinRecorders CS2-demoläsare (demoparser2/awpy)"}.get(kind, what or kind)
 
 
 def tell(update):
