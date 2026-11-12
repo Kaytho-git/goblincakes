@@ -314,7 +314,8 @@ fi
 # Web apps whose icon came from a small picture (blurry in AppGrid): a sharper one may
 # be in the browser's cache by now, once the site has been opened (no network used)
 if ls "$HOME"/.local/share/applications/goblincakes-webapp-*.desktop >/dev/null 2>&1; then
-    setsid /usr/libexec/goblincakes-webapp-icon --upgrade >/dev/null 2>&1 </dev/null &
+    # Lowest priority: it is not needed while the desktop starts (P9, 12 Nov)
+    setsid nice -n 19 ionice -c 3 /usr/libexec/goblincakes-webapp-icon --upgrade >/dev/null 2>&1 </dev/null &
 fi
 
 # The accent colour (Config → Utseende): its copies of the Kvantum, GTK and window frame

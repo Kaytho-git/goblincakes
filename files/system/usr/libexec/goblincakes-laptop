@@ -10,8 +10,18 @@ set -uo pipefail
 state="${XDG_STATE_HOME:-$HOME/.local/state}/goblincakes"
 mkdir -p "$state"
 
+# A quick look first (P9, 12 Nov): a desktop with one graphics card stops here without starting
+# Python. The same rules as goblincakes-gpu's is_laptop()/hybrid – change both.
+maybe=false
+case "$(cat /sys/class/dmi/id/chassis_type 2>/dev/null)" in 8|9|10|11|14|30|31|32) maybe=true ;; esac
+for p in /sys/class/power_supply/*; do
+    [ "$(cat "$p/type" 2>/dev/null)" = Battery ] && [ "$(cat "$p/scope" 2>/dev/null)" != Device ] && maybe=true
+done
+[ "$(grep -l '^0x03' /sys/bus/pci/devices/*/class 2>/dev/null | wc -l)" -ge 2 ] && maybe=true
+[ "$maybe" = true ] || exit 0
+
 hw=$(/usr/libexec/goblincakes-gpu hw 2>/dev/null) || exit 0
-get() { echo "$hw" | python3 -c 'import json,sys; print(str(json.load(sys.stdin).get(sys.argv[1])).lower())' "$1"; }
+get() { case "$hw" in *"\"$1\": true"*) echo true ;; *) echo false ;; esac; }
 [ "$(get laptop)" = true ] || [ "$(get hybrid)" = true ] || exit 0
 
 variant=$(cat /usr/share/goblincakes/variant 2>/dev/null || echo base)

@@ -15,6 +15,13 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+# The login start (--first-run) after the first time: stop before Qt is loaded (P9, 12 Nov –
+# 134 ms at every login). Same files as DONE_FILE/OLD_DONE_FILE below.
+if "--first-run" in sys.argv:
+    _state = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
+    if (_state / "config-done").exists() or (_state / "setup-done").exists():
+        sys.exit(0)
+
 from PySide6.QtCore import QObject, QProcess, QSize, Qt, QTimer, QUrl, Property, Signal, Slot
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap
 from PySide6.QtNetwork import QLocalServer, QLocalSocket

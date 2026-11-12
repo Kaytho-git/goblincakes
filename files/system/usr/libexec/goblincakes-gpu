@@ -83,8 +83,16 @@ def is_laptop():
             return True
     except OSError:
         pass
-    return any((p / "type").read_text().strip() == "Battery"
-               for p in Path("/sys/class/power_supply").glob("*") if (p / "type").exists())
+    # The computer's own battery – not a wireless mouse's or headset's (scope "Device", e.g.
+    # Logitech's hidpp_battery_0: the user's desktop counted as a laptop, 12 Nov)
+    def own_battery(p):
+        try:
+            if (p / "type").read_text().strip() != "Battery":
+                return False
+            return (p / "scope").read_text().strip() != "Device" if (p / "scope").exists() else True
+        except OSError:
+            return False
+    return any(own_battery(p) for p in Path("/sys/class/power_supply").glob("*"))
 
 
 def hardware():

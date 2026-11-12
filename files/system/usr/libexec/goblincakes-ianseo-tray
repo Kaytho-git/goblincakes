@@ -11,10 +11,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
-
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
 POD = CONFIG / "containers/systemd/ianseo.pod"
 TUNNEL = CONFIG / "containers/systemd/ianseo-tunnel.container"
@@ -68,6 +64,11 @@ except OSError:
     sys.exit(0)
 if not (network_on() or internet_on()):
     sys.exit(0)
+
+# Qt only now: at most logins Ianseo isn't shared and the icon stops above (P9, 12 Nov)
+from PySide6.QtCore import QTimer  # noqa: E402
+from PySide6.QtGui import QAction, QIcon  # noqa: E402
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon  # noqa: E402
 
 app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)

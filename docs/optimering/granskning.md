@@ -149,6 +149,7 @@ Mätt (M10, M11). Användarens dator: från strömknapp till skrivbord 43 s, var
 - **Storlek:** liten.
 - **Kan provas:** (a)–(b) offscreen; ordningen bara på riktiga datorn (logga ut/in).
 - **Mät efteråt:** M10, och `systemd-analyze --user blame | head -25` (M11).
+- **Byggt 12 nov:** (a) Config `--first-run` tittar efter klar-filen före Qt (131 → 32 ms), Ianseo-ikonen laddar Qt först när Ianseo är utdelat (106 → 23 ms); båda provade åt andra hållet också (startar och kör offscreen utan klar-fil / med nätverket på). (b) `goblincakes-laptop`: snabb bash-koll (chassi, eget batteri, antal grafikkort i `/sys/bus/pci`) före `gpu hw`, och `gpu hw` läses med `case` i stället för 2–4 Python-starter: 125 → 8 ms på användarens dator. **Fel hittat:** `is_laptop()` räknade den trådlösa musens batteri (`hidpp_battery_0`, scope Device) – användarens stationära var "laptop" och letade pekplattor vid varje inloggning; lagat i `goblincakes-gpu`. (c) bara webbapp-ikonerna med `nice -n 19 ionice -c 3`: `nice` på WoW-länkarna/grafikkollen skulle ärvas av WowUp/Config (de startar dem) och kan inte höjas igen utan root, och en fördröjning skulle alltid lägga WoW-länkarna efter Raider.IO/WowUp (de hoppar över Raider.IO när det kör) – därför orörda. Inte provat: en riktig inloggning och frugans laptop (testlista `p9-inloggningen.md`).
 
 ### P10 – Uppdateringskollen går 20 s efter inloggning och tar 7 s
 - **Vad:** `goblincakes-updates.timer` (`OnStartupSec=20s`) kör `goblincakes-updates check`: `rpm-ostree status` två gånger, `skopeo` tre gånger, `flatpak remote-ls` fyra gånger, `fwupdmgr`, ChatGPT-appen (`usr/libexec/goblincakes-updates:49`–`:108`, `:252`–`:392`). Mätt: 7,1 s (M11). Samtidigt startar `goblincakes-fedora-check` och frågar `skopeo` om samma image en gång till (`usr/libexec/goblincakes-fedora-check:27`–`:38`).
@@ -361,7 +362,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 9 | **P5** (steg 1 byggd 12 nov) Spelletandet (steg 1: snabbare läsning) | 1–1,5 % av en kärna, båda datorerna | låg | liten |
 | [x] | 10 | **P4** (byggd 11 nov) goblin graph-vaktens `pw-dump` | 1 % i vila, 2,2 % medan WoW kör + lugnare ljudserver (användarens dator) | låg | liten |
 | [x] | 11 | **P10** (byggd 12 nov) Uppdateringskollen senare efter inloggning | lugnare första minut (7–9 s arbete flyttas) | låg | liten |
-| [ ] | 12 | **P9** Inloggningens hjälpprogram | 1–3 s mindre arbete vid inloggning | låg | liten |
+| [x] | 12 | **P9** (byggd 12 nov, (c) bara webbapp-ikonerna) Inloggningens hjälpprogram | 1–3 s mindre arbete vid inloggning | låg | liten |
 | [ ] | 13 | **P21** Första-inloggningen skriver "klart" vid fel | ny layout når säkert fram | låg–medel | liten |
 | [ ] | 14 | **P7** Småsaker i bakgrunden (6 st) | några MB och uppvaknanden, renare processlista | låg | liten |
 | [x] | 15 | **P24** Fedora-hoppet kommer av sig självt (låst 11 nov) | inga överraskande hopp på frugans dator (beslut) | låg | liten |

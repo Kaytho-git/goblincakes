@@ -712,7 +712,7 @@ Ord: tangentbord, dubbla tryck, två tryck, studsar, studsande tangenter, key ch
 
 ## Laptop
 Ord: laptop, bärbar, batteri laptop, dubbla grafikkort
-- /usr/libexec/goblincakes-laptop körs vid inloggning (gör inget på stationära).
+- /usr/libexec/goblincakes-laptop körs vid inloggning (gör inget på stationära). Laptop = chassityp eller eget batteri (inte musens/headsetets) – kolla: `/usr/libexec/goblincakes-gpu hw` ("laptop", "hybrid").
 - Prestanda (strömmenyn/Config → Prestandaläge) = tuned-profilen goblincakes-performance (/usr/lib/tuned/profiles/,
   vald i /etc/tuned/ppd.conf): Fedoras throughput-performance men med liten skrivbuffert (dirty 10 %/3 % i stället
   för 40 %) – annars frös en hårddisk i flera sekunder. Kolla: `tuned-adm active`, `cat /proc/sys/vm/dirty_ratio`.
