@@ -12,6 +12,10 @@ Ord: felsöka, fungerar inte, syns inte, trasig, slutat, system, atomiskt, rollb
   för /usr/share/plasma/plasmoids/<id>/, ett KWin-skript i ~/.local/share/kwin/scripts/ före /usr/share/kwin/scripts/,
   en tjänst i ~/.config/systemd/user/ före /usr/lib/systemd/user/. Finns en egen kopia är det den som gäller – och
   den som kan vara fel. Jämför den med systemets: `diff /usr/share/... ~/.local/share/...`.
+- GOBLINCAKES egna fönster (Config, Goblin AI, GoblinRecorder, Dashboard, GoblinAmp, GoblinShare, goblin graph,
+  Avinstallera, lagmätaren, röstrutan) laddar sin QML från en kopia i ~/.cache/goblincakes/qml-src/<nyckel>/ (görs
+  om av sig själv när imagen ändrats – /usr/share/goblincakes/qmlcache.py). Ett fönster som ser gammalt/trasigt ut
+  efter en uppdatering: ta bort ~/.cache/goblincakes/qml-src och öppna fönstret igen (det är bara en kopia).
 - Inställningar: ~/.config/goblincakes/ (en fil per program). Tillstånd och flaggor: ~/.local/state/goblincakes/.
   Data: ~/.local/share/goblincakes/.
 - Hjälpprogrammen /usr/libexec/goblincakes-* går att köra för hand för att se vad de svarar.

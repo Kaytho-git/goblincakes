@@ -331,6 +331,7 @@ Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och e
 - **Storlek:** medel.
 - **Kan provas:** offscreen (M19 visar direkt om cachen används).
 - **Mät efteråt:** M19.
+- **Byggt 12 nov – väg (a):** Qt:s egna val hjälper inte (`QML_FORCE_DISK_CACHE=1`, `QML_DISK_CACHE=qmlc`: fortfarande 0 cachefiler med 1970-filer – provat). `usr/share/goblincakes/qmlcache.py` (`local(path)`): mapparna med QML (ai, amp, config, dashboard, graph, lagmeter, plasma-shell, qml, recorder, remove, share, voice – hittas själv) kopieras utan `.py` (43 filer, 1,9 MB) till `~/.cache/goblincakes/qml-src/<nyckel>/` med vanliga datum (`shutil.copyfile`); nyckeln = sha1 av sökväg + inode + storlek för varje fil (2,8 ms) – i ostree är en ändrad fil alltid ett nytt objekt = ny inode; andra nycklars kopior tas bort; kopian görs i `.new-*` och döps om (två fönster samtidigt går bra). Utanför `/usr/share/goblincakes` (repot) och vid alla fel: originalfilen. De tio fönstren (goblin-ai, -config, -recorder, -dashboard, -amp, -share, -graph, remove-apps, lagmeter, rösten) har `cached_qml()` som läser in `qmlcache.py` bredvid sin QML (parents[1]) – fel = som förut. Mätt med en kopia av imagens filer: ai 495 → 20 ms, config 156 → 10, recorder 180 → 13, dashboard 137 → 11, amp 63 → 7, share 38 → 8 ms (första starten efter en uppdatering: +17 ms för kopian). Provat: alla tio QML-filer kompilerar från kopian i en låtsas-image (1970-datum); ändrad fil → ny kopia, gamla borta; skrivskyddad cache → originalet. Inte provat: fönstren i imagen (imagen har inte modulen än) – testlista `p23-qmlcache.md`.
 
 ### P24 – Fedora-hoppet kommer av sig självt
 - **BESLUTAT OCH BYGGT 11 nov (användaren: "Ja, lås", "från och med 45").** `image-version: 45` i `recipe.yml` och `recipe-nvidia-legacy.yml`, `44` i `recipe-nvidia.yml` (det användarens dator kör). Hur ett hopp görs står i CLAUDE.md (Beslut) och anteckningarna ("Fedora-låset"): Nvidia-varianten först, de andra när det är provat där.
@@ -369,7 +370,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 14 | **P7** (byggd 12 nov, alla 6) Småsaker i bakgrunden (6 st) | några MB och uppvaknanden, renare processlista | låg | liten |
 | [x] | 15 | **P24** Fedora-hoppet kommer av sig självt (låst 11 nov) | inga överraskande hopp på frugans dator (beslut) | låg | liten |
 | [x] | 16 | **P11** (bara (a) byggd 12 nov; (b) struken – användaren: risken för stor för några sekunder) Nvidia-modulerna i tidig uppstart | renare logg (a); (b) hade gett 5–10 s | låg | liten |
-| [ ] | 17 | **P23** QML-cachen används inte | Goblin AI öppnas 0,5–1 s fortare | medel | medel |
+| [x] | 17 | **P23** (byggd 12 nov, väg (a)) QML-cachen används inte | Goblin AI öppnas 0,5–1 s fortare | medel | medel |
 | [ ] | 18 | **P16** Kopierade QML-komponenter | lättare underhåll | låg–medel | liten–medel |
 | [ ] | 19 | **P14** Småsaker i bygget | färre tysta fel, färre onödiga byggen | låg | liten |
 | [ ] | 20 | **P19** Städning | kortare filer, mindre att läsa | låg | liten |

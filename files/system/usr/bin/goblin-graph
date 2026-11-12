@@ -809,6 +809,19 @@ def use_accent(engine):
             "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
 
 
+def cached_qml(path):
+    """The window's QML from a copy Qt's QML cache works for (share/goblincakes/qmlcache.py, P23 12 Nov:
+    image files are dated 1970 and were compiled again at every start) – or the file itself."""
+    try:
+        import importlib.util  # noqa: PLC0415
+        spec = importlib.util.spec_from_file_location("qmlcache", Path(path).resolve().parents[1] / "qmlcache.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.local(path)
+    except Exception:  # noqa: BLE001 – anything wrong: load the file as before
+        return str(path)
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] in ("-h", "--help", "help"):
@@ -896,7 +909,7 @@ def main():
         {"w": 320, "h": 320} if graph.shape == "round" else {})
     engine.rootContext().setContextProperty("saved", saved)
     use_accent(engine)
-    engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
+    engine.load(QUrl.fromLocalFile(cached_qml(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1
     tray = make_tray(app, graph)  # kept alive until exit

@@ -664,6 +664,19 @@ def cmd_forget(args):
     return 0
 
 
+def cached_qml(path):
+    """The window's QML from a copy Qt's QML cache works for (share/goblincakes/qmlcache.py, P23 12 Nov:
+    image files are dated 1970 and were compiled again at every start) – or the file itself."""
+    try:
+        import importlib.util  # noqa: PLC0415
+        spec = importlib.util.spec_from_file_location("qmlcache", Path(path).resolve().parents[1] / "qmlcache.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.local(path)
+    except Exception:  # noqa: BLE001 – anything wrong: load the file as before
+        return str(path)
+
+
 def cmd_box():
     """Kakan's box (step 9 D1, 5 Nov): one window, shown and hidden by the listener through stdin.
     Its own process, so a broken box never stops the voice (the listener falls back to Plasma's OSD)."""
@@ -725,7 +738,7 @@ def cmd_box():
         accent.install(engine)
     except Exception:  # noqa: BLE001 – an old or broken file must not stop the box
         engine.rootContext().setContextProperty("accent", {"color": "#2F6FED", "text": "#2F6FED"})
-    engine.load(QUrl.fromLocalFile(str(BOX_QML)))
+    engine.load(QUrl.fromLocalFile(cached_qml(BOX_QML)))
     if not engine.rootObjects():
         return 1
     print("ready", flush=True)

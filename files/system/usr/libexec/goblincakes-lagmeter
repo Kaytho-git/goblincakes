@@ -757,6 +757,19 @@ def open_window():
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def cached_qml(path):
+    """The window's QML from a copy Qt's QML cache works for (share/goblincakes/qmlcache.py, P23 12 Nov:
+    image files are dated 1970 and were compiled again at every start) – or the file itself."""
+    try:
+        import importlib.util  # noqa: PLC0415
+        spec = importlib.util.spec_from_file_location("qmlcache", Path(path).resolve().parents[1] / "qmlcache.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.local(path)
+    except Exception:  # noqa: BLE001 – anything wrong: load the file as before
+        return str(path)
+
+
 def window():
     own_scale = "QT_SCALE_FACTOR" not in os.environ
     if own_scale:
@@ -855,7 +868,7 @@ def window():
         engine.rootContext().setContextProperty("accent", {
             "color": "#2F6FED", "hover": "#4A82F0", "on": "#E6ECF5", "text": "#2F6FED",
             "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
-    engine.load(QUrl.fromLocalFile(str(QML)))
+    engine.load(QUrl.fromLocalFile(cached_qml(QML)))
     if not engine.rootObjects():
         return 1
     signal.signal(signal.SIGTERM, lambda *_: app.quit())

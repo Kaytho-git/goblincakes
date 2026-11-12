@@ -758,6 +758,19 @@ def make_tray(app, win, backend, base):
     return tray
 
 
+def cached_qml(path):
+    """The window's QML from a copy Qt's QML cache works for (share/goblincakes/qmlcache.py, P23 12 Nov:
+    image files are dated 1970 and were compiled again at every start) – or the file itself."""
+    try:
+        import importlib.util  # noqa: PLC0415
+        spec = importlib.util.spec_from_file_location("qmlcache", Path(path).resolve().parents[1] / "qmlcache.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.local(path)
+    except Exception:  # noqa: BLE001 – anything wrong: load the file as before
+        return str(path)
+
+
 def main():
     own_scale = "QT_SCALE_FACTOR" not in os.environ
     if own_scale:
@@ -797,7 +810,7 @@ def main():
     use_accent(engine)
     has_tray = QSystemTrayIcon.isSystemTrayAvailable()
     engine.rootContext().setContextProperty("hasTray", has_tray)
-    engine.load(QUrl.fromLocalFile(str(SHARE / "Main.qml")))
+    engine.load(QUrl.fromLocalFile(cached_qml(SHARE / "Main.qml")))
     if not engine.rootObjects():
         return 1
     win = engine.rootObjects()[0]
