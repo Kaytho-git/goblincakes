@@ -1,6 +1,6 @@
 # Startinstruktion – optimeringsgranskning med Fable
 
-Tre delar: **1. Fable granskar** (rapport), **2. Opus bygger** punkterna du väljer, **3. UX** – en egen granskning vid ett annat tillfälle.
+Tre delar: **1. Fable granskar** (rapport), **2. Opus bygger** punkterna du väljer, **3. UX** – egen granskning (1080p/1440p, fönstren som ett system): Opus samlar underlaget, Fable granskar, Opus bygger.
 
 ## 1. Granskningen (Fable)
 1. Starta Claude Code i repot på din dator, välj Fable med `/model` och sätt `/effort high`.
@@ -53,16 +53,52 @@ När det är byggt: skriv vilka kommandon i avsnittet Mätningar jag ska köra i
 
 Punkter med **hög risk** eller storlek **stor** (t.ex. uppstarten, bygget eller något som rör rollback): låt hellre Fable bygga dem, eller låt Fable granska det Opus byggt, om kvoten räcker.
 
-## 3. UX (vid ett annat tillfälle, Fable)
-Egen session. Klistra in:
+## 3. UX – 1080p och 1440p, fönstren som ett system (Opus + Fable)
+Kända problem (användaren 12 nov): ramar försvinner när fönster görs mindre, maximerade fönster känns jättestora, saker som borde vara centrerade ligger vid sidan så det blir svårt att läsa.
+
+Kör alla stegen i Claude Code **på din riktiga dator** (inte i molnet) – där kan Claude öppna de riktiga fönstren på dina skärmar och ta skärmbilder. Grovjobbet (bilder, inventering) gör Opus, så att Fables kvot går till bedömningen.
+
+**Steg A – Opus samlar underlaget** (`/model opus`). Klistra in:
 
 ```
-Uppgift: granska UX i GOBLINCAKES egna fönster (Config, Goblin AI, Dashboard, GoblinAmp, GoblinShare m.fl.). ÄNDRA INGEN KOD – bara granska och rapportera. Börja med git pull, läs CLAUDE.md; grep i docs/anteckningar.md i stället för att läsa den hel. Följ alla regler i CLAUDE.md.
-- Avvikelser från designen (https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt) och Configs stil: färger, typsnitt, avstånd, knappar, raka hörn, accent.color.
-- Inkonsekvenser mellan fönstren (samma sak gjord/benämnd olika).
-- Texter: otydliga, tekniska, felstavade, blandad svenska/engelska.
-- Flöden: onödiga steg, saknad återkoppling (laddar/klart/fel), saker som är svåra att hitta.
-- Rendera fönstren offscreen med attrapper och titta på skärmdumparna där det går. Skriv vad som är sett på bild och vad som bara är läst i koden.
-Både Platt och Levande utseende (Config → Utseende → Stil).
-Leverans: docs/optimering/ux.md, committa bara den filen (ingen push). Per punkt: vad (fil:rad), vinst, risk, storlek, sett på bild eller bara läst i koden. Mest värt först, max ~30 punkter, vanlig svenska, kort, topp 5 sist.
+Uppgift: förbered en UX-granskning som Fable ska göra sedan. ÄNDRA INGEN KOD. Börja med git pull, läs CLAUDE.md; grep i docs/anteckningar.md i stället för att läsa den hel.
+
+1. Skärmarna: kör kscreen-doctor -o och skriv upp varje skärm – upplösning, skalning, fysisk storlek och ppi.
+2. Inventering i docs/ux/inventering.md – per eget fönster (Config, Goblin AI, Dashboard + skrivbordsraden, GoblinAmp, GoblinShare, GoblinRecorder, goblin graph, lagmätaren, Avinstallera, röstfönstret, toppfältet/dockan, låsskärm/utloggning): startfil, QT_SCALE_FACTOR/uiScale, start- och minsta storlek (fast i px eller efter skärmen?), största bredd på innehållet (finns någon?), hur innehållet är förankrat (anchors.left/fill/centerIn, Layout-fyllnad), vilka komponenter som kommer från qml/Goblin och vilka som är egna kopior, textstorlekar, marginaler, knapp-/radhöjder. Ange fil:rad.
+3. Skärmbilder (spectacle) i ~/.local/share/goblincakes/ux-bilder/, namn <fönster>-<1080|1440>-<storlek>-<platt|levande>.png. Per fönster, Platt, på båda upplösningarna: minsta storlek, startstorlek, halva skärmen (rutad) och maximerat. Levande bara för fönster där Levande ändrar något, i startstorlek och maximerat. Upplösning jag inte har en skärm för: fråga mig innan du ändrar något på mina skärmar – annars en kapslad kwin_wayland --virtual i den storleken.
+4. Sist: lista över bildfilerna och vilka som inte gick att ta (och varför).
+Committa bara inventering.md (ingen push). Bilderna stannar på datorn.
 ```
+
+**Steg B – Fable granskar** (`/model` Fable, `/effort high`). Klistra in:
+
+```
+Uppgift: UX-granskning av GOBLINCAKES egna fönster med fokus på 1080p och 1440p och på att fönstren ska se ut och kännas som ett och samma system. ÄNDRA INGEN KOD – bara granska och föreslå. Börja med git pull, läs CLAUDE.md och docs/ux/inventering.md (underlaget, gjort av Opus); bilderna ligger i ~/.local/share/goblincakes/ux-bilder/. Läs inte docs/anteckningar.md hel – grep när du behöver veta varför något gjorts (t.ex. QT_SCALE_FACTOR 0.9, Goblin AI:s uiScale) innan du föreslår att ändra det. Designen: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt. Följ alla regler i CLAUDE.md.
+
+Kända problem som jag själv sett – börja med dessa, hitta orsaken i koden (fil:rad) och kolla vilka fönster som har dem:
+A. Ramar försvinner när fönstret görs mindre (klipps, hamnar utanför, göms, eller ritas inte?).
+B. Maximerade fönster känns jättestora – innehållet sträcks ut över hela skärmen, rader blir för långa, tomrum.
+C. Saker som borde vara centrerade ligger vid sidan, så det blir svårt att läsa.
+Jag misstänker att A–C har samma rot: ingen gemensam regel för hur innehållet beter sig när fönstret ändrar storlek. Bekräfta eller avfärda det.
+
+Det här vill jag ha ut, i den här ordningen:
+1. En UI-norm (docs/ux/norm.md): textskala, avståndsraster, knapp-/rad-/fälthöjder, ramar, startstorlek på 1080p resp. 1440p, hur skalningen ska fungera (en gemensam regel i stället för per fönster) – och särskilt en regel för storleksändring: största läsbredd på innehållet, vad som centreras och vad som får fylla bredden, vad som händer under minsta storlek (rulla, bryta om, gömma – aldrig klippa ramar). Gärna som en gemensam komponent i qml/Goblin som alla fönster kan använda. Utgå från det som fungerar bäst (Config är förebilden), inte från noll.
+2. Avvikelser per fönster mot normen (docs/ux/granskning.md): A–C ovan, storlek/skalning på 1080p och 1440p, känsla (animationer, hover, återkoppling, öppna/stänga), egna kopior av komponenter, texter.
+3. Förslagen, mest värt först, max ~30. Per punkt: vad (fil:rad), vinst (vad jag märker), risk, storlek (liten/medel/stor), sett på bild eller bara läst i koden, och om Opus kan bygga den utifrån normen.
+4. Topp 5 sist, med en enkel före/efter-skiss (en artifact för alla fem).
+
+Spara längs vägen: committa norm.md så fort den är klar, sedan granskning.md efter varje fönster. Överst i granskning.md: vilka fönster som är klara och vilket som är nästa. Ingen push.
+Gissa inte: säg vad du sett på bild och vad du bara läst i koden. Saknas en bild – be mig ta den hellre än att gissa.
+```
+
+Tar kvoten slut mitt i: starta Fable igen och skriv "Fortsätt UX-granskningen i docs/ux/granskning.md enligt docs/optimering/startinstruktion.md del 3 – nästa fönster står överst."
+
+**Steg C – Opus bygger** punkterna du väljer, en eller några per session:
+
+```
+Bygg punkt <nr> (och <nr>) i docs/ux/granskning.md och följ docs/ux/norm.md. Börja med git pull och läs CLAUDE.md.
+Står det "bara läst i koden": bekräfta först (skärmbild eller läs koden) innan du ändrar något. Stämmer det inte – säg det och bygg inget.
+När det är byggt: skärmbilder före/efter på 1080p och 1440p, bocka av punkten i granskning.md, testlista åt Kakan för det som inte provats på riktigt.
+```
+
+Stora punkter (t.ex. en gemensam skalningsregel för alla fönster): låt hellre Fable bygga dem, eller granska det Opus byggt, om kvoten räcker.
