@@ -1,3 +1,4 @@
+2026-11-13  Goblin AI: när ett kommando kör visar kortet hur många sekunder det har gått och en glidande stapel – du ser att Kakan väntar och inte har hängt sig.
 2026-11-13  Klockrutan på skrivbordet visar nu längst till höger om Kakan är laddad (blå cupcake = redo). Klicka på den så laddas hon, Goblin AI öppnas och hon hälsar när hon är redo.
 2026-11-12  Uppdateringarna laddar ner ungefär tre gånger mindre än förut, så de går mycket fortare. Nästa uppdatering hämtar allt en gång (ungefär 5 GB), sedan blir de små.
 2026-11-12  Under NOTISER i dashboarden går nu Goblin AI:s notiser att trycka på – Goblin AI öppnas. Batteriernas ruta i klockraden visar namnen när musen står på dem, och den falska notisen "1 sak gick sönder" om klockan kommer inte längre. "Bygget är klart" kommer en gång per bygge, inte en gång per commit.

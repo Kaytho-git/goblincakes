@@ -3256,8 +3256,44 @@ Window {
                                                 onClicked: segItem.showCode = !segItem.showCode
                                             }
                                         }
+                                        // While it runs: the seconds tick and a bar slides – a quiet command (a 60 s measurement)
+                                        // looked like nothing happened (13 Nov)
+                                        Column {
+                                            visible: segItem.s.type === "command" && segItem.s.state === "running"
+                                            width: parent.width
+                                            spacing: 8
+                                            property real now: Date.now() / 1000
+                                            Timer {
+                                                interval: 1000
+                                                repeat: true
+                                                running: parent.visible
+                                                onTriggered: parent.now = Date.now() / 1000
+                                            }
+                                            Text {
+                                                text: "Kör… " + (segItem.s.started ? Math.max(0, Math.floor(parent.now - segItem.s.started)) + " s" : "")
+                                                color: "#E6ECF5"
+                                                font.family: "IBM Plex Sans"
+                                                font.pixelSize: 14
+                                            }
+                                            Rectangle {
+                                                width: Math.min(parent.width, 360)
+                                                height: 4
+                                                color: "#1A2438"
+                                                clip: true
+                                                Rectangle {
+                                                    width: 60
+                                                    height: parent.height
+                                                    color: accent.color
+                                                    SequentialAnimation on x {
+                                                        running: segItem.s.type === "command" && segItem.s.state === "running"
+                                                        loops: Animation.Infinite
+                                                        NumberAnimation { from: -60; to: 360; duration: 1300; easing.type: Easing.InOutQuad }
+                                                    }
+                                                }
+                                            }
+                                        }
                                         Text {
-                                            visible: segItem.s.type === "command" && segItem.s.state !== "new"
+                                            visible: segItem.s.type === "command" && segItem.s.state !== "new" && segItem.s.state !== "running"
                                             text: segItem.s.state === "running" ? "Kör…"
                                                 : segItem.s.state === "skipped" ? (segItem.s.level === "change" ? "Inte tillåtet" : "Hoppades över")
                                                 : "Klart" + (segItem.s.code_result !== undefined && segItem.s.code_result !== null && segItem.s.code_result !== 0 ? " (fel " + segItem.s.code_result + ")" : "")

@@ -877,6 +877,7 @@ class Backend(QObject):
             self.commandLogChanged.emit()
             return self._command_done(index, ran_in_terminal=True)
         part["state"] = "running"
+        part["started"] = time.time()  # the card counts the seconds while it runs (13 Nov)
         if auto:
             part["auto"] = True
         self._update(index)

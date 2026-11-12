@@ -11,7 +11,7 @@ Claude Code writes the lists – what it couldn't try on the real computer – a
     - Graffönstret
       fråga: Tryck Meta+Shift+L medan WoW kör. Syns graferna på den andra skärmen?
 
-One "- " line per point (its title), then `kör:` (a command – or a ```bash block under the point), `väntat:` (what
+One "- " line per point (its title – a step that takes long says so: "Processorn (tar 1 min, vänta)", 13 Nov), then `kör:` (a command – or a ```bash block under the point), `väntat:` (what
 the output should show; without it the exit code decides) or `fråga:` (something only the user can see).
 Write `väntat` so Kakan needs no knowledge of the computer: if the answer depends on it (variant, GPU, Fedora
 version…), let the command print that too and say what to expect for each case (11 Nov: "44 on goblincakes-nvidia,
