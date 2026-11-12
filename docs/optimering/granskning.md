@@ -348,7 +348,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 
 | Klar | Nr | Punkt | Märks | Risk | Storlek |
 |---|---|---|---|---|---|
-| [ ] | 1 | **P12** Uppdateringarna laddar ner 1,4–2,9 GB för ~120 MB nytt | uppdateringar på minuter i stället för en kvart på wifi | medel | liten + prov |
+| [x] | 1 | **P12** (byggd 12 nov, alla tre varianterna; nvidia ej mätt än) Uppdateringarna laddar ner 1,4–2,9 GB för ~120 MB nytt | uppdateringar på minuter i stället för en kvart på wifi | medel | liten + prov |
 | [x] | 2 | **P1** (byggd 11 nov) Widgetarna startar skript varje sekund | 5 % av en kärna tillbaka, alltid, båda datorerna | låg | liten |
 | [x] | 3 | **P2** (byggd 11 nov) GoblinRecorder-tjänstens `pgrep` och loggläsning | 2 % i vila, 1,4 % medan WoW kör (användarens dator) | låg–medel | liten |
 | [x] | 4 | **P3** (byggd 11 nov) GoblinRecorder-fönstrets `flatpak info` | 1,4 % (användarens dator) | låg | liten |
@@ -498,6 +498,7 @@ print('lager: %d, hela imagen %.2f GB, nya lager mot det du kör: %d = %.2f GB a
 - **11 nov (bygget 16:12 mot bygget 13:17, bara fönsterramarna ändrade):** 288 lager, 6,45 GB; 28 nya lager = 1,35 GB att ladda ner. Basen (259 lager, 5,10 GB) delades helt.
 - **12 nov, basvarianten `goblincakes` (taggarna `<commit>-45`):** före chunkah 5f5c0ff mot c937a37: 289 lager, 5,49 GB, 29 nya = **2,07 GB**. Första chunkah-bygget 47c86f5: 128 lager, 4,13 GB, allt nytt (väntat, engångs). **Chunkah mot chunkah, da1a54b mot 47c86f5** (ändrat: bara tools/check.py + build.yml, inget i imagen): 7 nya lager = **0,55 GB** (−73 %); största 258, 97, 76, 48, 40, 22, 8 MB – troligen demoparser/initramfs/rpm-databasen (se P12). Hela imagen 5,49 → 4,13 GB.
 - **12 nov, `goblincakes-nvidia-legacy` (frugans laptop, taggarna `<commit>-45`):** före chunkah 8f79eaa mot da1a54b: 290 lager, 6,36 GB, 29 nya = **2,12 GB**. Chunkah mot chunkah: 9ff9a37 mot 3a86abc (6 filer ändrade) 7 nya lager = **0,75 GB** (−65 %); 3a86abc mot 4ead22c (2 filer i repot, men troligen nya paket i Universal Blues bas samma dygn) 20 nya = **1,21 GB**. Största lagret 422 MB kommer med varje gång (troligen Nvidia 580-modulerna/initramfs – samma sorts lager som 258 MB på basen). Hela imagen 6,36 → 4,98 GB.
+- **12 nov: chunkah på för `goblincakes-nvidia` också** (användaren: ja) – alla tre varianterna har den nu. Kolla efter första bygget: skopeo-kollen (128 lager, etiketterna) + diskutrymmet; efter andra bygget M12; ISO-bygget på söndag är första Nvidia-ISO:n från en chunkah-image.
 
 ### M13 – Vad uppdateringarna faktiskt hämtade (systemloggen)
 ```
