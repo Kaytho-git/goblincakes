@@ -1,0 +1,11 @@
+[Unit]
+Description=GOBLINCAKES: a notice when GOBLINCAKES has moved to a new Fedora version
+# Started by goblincakes-updates.service after each check (P7.1, 12 Nov – before, its own
+# process slept in the session for 12 hours at a time)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/goblincakes-fedora-check
+Nice=10
+# The notice waits for its button (notify-send --wait)
+TimeoutStartSec=infinity

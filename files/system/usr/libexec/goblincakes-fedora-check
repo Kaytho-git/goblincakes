@@ -2,8 +2,8 @@
 # GOBLINCAKES: a notice when GOBLINCAKES has moved to a new Fedora version (e.g. 44 → 45),
 # that is when `goblin update` would bring it. Universal Blue switches its "latest" images
 # a few weeks after Fedora's release, and GOBLINCAKES' daily build follows.
-# Started at login; checks 3 minutes later (after goblincakes-updates' first check, P10) and
-# every 12 hours. One notice per Fedora version
+# Run by goblincakes-fedora-check.service, which goblincakes-updates.service starts after each
+# of its checks (2.5 min after login and every 4 hours – P7.1, 12 Nov). One notice per Fedora version
 # (and one more, "restart", once the update is installed but not started yet).
 import json
 import re
@@ -101,6 +101,5 @@ def check():
     return True
 
 
-time.sleep(180)
-while True:
-    time.sleep(12 * 3600 if check() else 600)
+if __name__ == "__main__":
+    check()

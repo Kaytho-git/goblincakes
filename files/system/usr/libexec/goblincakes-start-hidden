@@ -54,11 +54,16 @@ def main():
     if len(args) < 3 or args[1] != "--":
         sys.exit(__doc__.split("\n\n")[1])
     cls, command = args[0], args[2:]
-    if os.fork() == 0:
-        # the child watches; the parent becomes the program (stays in the same unit)
+    # The grandchild watches, the parent becomes the program (stays in the same unit). Two forks:
+    # the child exits at once and is reaped here – with one fork the watcher stayed a dead
+    # process (zombie) under WowUp for the whole session, since WowUp never asks about it (P7.2)
+    child = os.fork()
+    if child == 0:
         os.setsid()
-        minimize_first(cls)
+        if os.fork() == 0:
+            minimize_first(cls)
         os._exit(0)
+    os.waitpid(child, 0)
     os.execvp(command[0], command)
 
 

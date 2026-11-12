@@ -32,6 +32,11 @@ KINDS = {"mouse", "keyboard", "headset", "headphones", "gaming-input", "touchpad
 LEVELS = {"full": 100, "high": 80, "normal": 55, "low": 20, "critical": 5}
 STATE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "goblincakes/device-battery.json"
 FLOOR = 50  # below this the device's own percent is shown (the green/orange line)
+# Logitech interfaces that didn't answer HID++ (each costs 0.5 s – 1.6 s per round on her laptop with a
+# G502, a PRO X and a receiver, P7.6): not asked again until plugged in anew (a new HID instance in
+# /sys, e.g. 0003:046D:C08B.0005 → .0006) or after ASK_AGAIN s, in case one was only busy
+SILENT = STATE.with_name("device-battery-silent.json")
+ASK_AGAIN = 600
 
 
 def _hidpp(fd, feature, function, params=b""):
@@ -53,15 +58,26 @@ def _hidpp(fd, feature, function, params=b""):
 def wired_logitech():
     """Logitech mice/keyboards on their cable: [{kind, name, percent, charging}] read over HID++."""
     found = []
+    try:
+        silent = json.loads(SILENT.read_text())
+    except (OSError, ValueError):
+        silent = {}
+    now = time.time()
+    still = {}
     for raw in sorted(Path("/sys/class/hidraw").glob("hidraw*")):
         try:
             uevent = (raw / "device/uevent").read_text()
+            instance = os.path.basename(os.path.realpath(raw / "device"))
         except OSError:
             continue
         if ":0000046D:" not in uevent.upper() or "HID_NAME=" not in uevent:
             continue
         name = re.search(r"HID_NAME=(.*)", uevent).group(1).strip()
         if any(d["name"] == name for d in found):
+            continue
+        key = f"{raw.name} {instance}"
+        if key in silent and now - silent[key] < ASK_AGAIN:
+            still[key] = silent[key]
             continue
         try:
             fd = os.open(f"/dev/{raw.name}", os.O_RDWR | os.O_NONBLOCK)
@@ -72,11 +88,20 @@ def wired_logitech():
             status = _hidpp(fd, index[4], 1) if index and index[4] else None
         finally:
             os.close(fd)
+        if not status:
+            still[key] = now
         if status:
             # state of charge, level, charging status (1/2 = charging, 3 = full), external power
             found.append({"kind": "keyboard" if "keyboard" in name.lower() else "mouse",
                           "name": re.sub(r"^Logitech\s+", "", name), "percent": status[4],
                           "charging": status[6] in (1, 2, 3), "full": status[6] == 3})
+    # Only the interfaces still plugged in are kept
+    if still != silent:
+        try:
+            SILENT.parent.mkdir(parents=True, exist_ok=True)
+            SILENT.write_text(json.dumps(still))
+        except OSError:
+            pass
     return found
 
 

@@ -3,6 +3,9 @@ Description=Archon's icon in the system tray in purple (the black one can't be s
 After=graphical-session.target
 # Started with the desktop, not at login: before Plasma the session has no screen yet
 PartOf=graphical-session.target
+# Only where Archon is installed (P7.5, 12 Nov: 0.36 % and 33 MB on her laptop without it);
+# GOBLINCAKES Config starts the service after installing Archon
+ConditionPathExists=%h/AppImages/Archon.AppImage
 
 [Service]
 ExecStart=/usr/libexec/goblincakes-archon-tray

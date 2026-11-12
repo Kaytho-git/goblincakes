@@ -63,6 +63,7 @@ Ord: uppdatering, uppdatera, update, grön pil, pilen, goblin update, automatisk
   -mandb-update) byggs bara om när imagen ändrats ("Skipped due to 'exec-condition'" i journalen = rätt). Tilläggsfilerna:
   /usr/lib/systemd/{system,user}/<tjänst>.d/goblincakes-*.conf. Kolla: `systemctl list-timers`, `systemd-analyze blame`.
 - Kolla: `rpm-ostree status` (vilken version, väntar en på omstart?), `journalctl --user -u goblincakes-updates`.
+- Notisen "GOBLINCAKES finns nu på Fedora N": goblincakes-fedora-check.service, startas efter varje uppdateringskoll. Kolla: `journalctl --user -u goblincakes-fedora-check`, `cat ~/.local/state/goblincakes/fedora-notified`.
 Kontroll: `cat ~/.cache/goblincakes/updates.json`
 
 ## Byggstatus (GOBLINCAKES byggen på GitHub)

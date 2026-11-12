@@ -98,9 +98,10 @@ PlasmoidItem {
         }
     }
 
-    // The file changes at most every few hours – reading it twice a minute is plenty
+    // The file changes at most every few hours: every 2 minutes (P7.3, 12 Nov – was every 30 s),
+    // every 30 s while the automatic update is fetching, and at once when the pointer comes over
     Timer {
-        interval: 30000
+        interval: root.fetching ? 30000 : 120000
         running: true
         repeat: true
         triggeredOnStart: true
@@ -243,6 +244,7 @@ PlasmoidItem {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: root.openUpdate()
+            onContainsMouseChanged: if (containsMouse) exec.connectSource(root.readCommand)
         }
     }
 }

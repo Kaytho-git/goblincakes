@@ -119,6 +119,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 - **Säkerhet:** sett (1, 2 på användarens dator; 5, 6 mätt på laptopen – M2, M6; 3, 4 läst i koden).
 - **Risk:** låg.
 - **Storlek:** liten.
+- **Byggt 12 nov:** (1) `goblincakes-fedora-check.service` (oneshot, ingen loop) startas av `goblincakes-updates.service` (`ExecStartPost=-systemctl --user start --no-block …`), autostartposten borttagen (även ur ISO:ns lista) – körd på riktigt: 1,1 s, ingen notis (nvidia låst på 44). (2) dubbel fork i `goblincakes-start-hidden` – provat: den gamla lämnar `python3 <defunct>`, den nya inget. (3) uppdateringsrutan var 2:a min (30 s medan automatiska uppdateringen hämtar) + läsning när musen kommer över. (4) **granskningen hade fel:** ljudikonen visar nivån hela tiden, så volymen behövs även utan klick – nu var 6:e s (var 18:e under spel) + läsning vid hovring; ikonen kan ligga efter högst 6 s när volymen ändras någon annanstans. (5) `ConditionPathExists=%h/AppImages/Archon.AppImage`, Config startar tjänsten efter att Archon installerats – villkoret provat med en provenhet. (6) tysta HID++-gränssnitt i `~/.cache/goblincakes/device-battery-silent.json` (nyckel hidraw + HID-instans, ny vid omkoppling), frågas igen efter 10 min – provat med attrapp (4 frågor → 0 → 4 efter 10 min); användarens dator har inga tysta (0,02 s före och efter). Inte provat: laptopen (5, 6) och widgetarna i panelen (3, 4) – testlista `p7-smasaker.md`.
 - **Kan provas:** 1–2 offscreen, 3–4 på riktiga datorn.
 - **Mät efteråt:** M3 (processen borta), `ps -eo stat,comm | grep '^Z'`.
 
@@ -365,7 +366,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 11 | **P10** (byggd 12 nov) Uppdateringskollen senare efter inloggning | lugnare första minut (7–9 s arbete flyttas) | låg | liten |
 | [x] | 12 | **P9** (byggd 12 nov, (c) bara webbapp-ikonerna) Inloggningens hjälpprogram | 1–3 s mindre arbete vid inloggning | låg | liten |
 | [x] | 13 | **P21** (byggd 12 nov) Första-inloggningen skriver "klart" vid fel | ny layout når säkert fram | låg–medel | liten |
-| [ ] | 14 | **P7** Småsaker i bakgrunden (6 st) | några MB och uppvaknanden, renare processlista | låg | liten |
+| [x] | 14 | **P7** (byggd 12 nov, alla 6) Småsaker i bakgrunden (6 st) | några MB och uppvaknanden, renare processlista | låg | liten |
 | [x] | 15 | **P24** Fedora-hoppet kommer av sig självt (låst 11 nov) | inga överraskande hopp på frugans dator (beslut) | låg | liten |
 | [x] | 16 | **P11** (bara (a) byggd 12 nov; (b) struken – användaren: risken för stor för några sekunder) Nvidia-modulerna i tidig uppstart | renare logg (a); (b) hade gett 5–10 s | låg | liten |
 | [ ] | 17 | **P23** QML-cachen används inte | Goblin AI öppnas 0,5–1 s fortare | medel | medel |

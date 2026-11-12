@@ -291,7 +291,7 @@ for f in /usr/lib/systemd/system/*flatpak*setup* /usr/lib/systemd/system/*flatpa
         *) systemctl disable "$unit" 2>/dev/null || : ;;
     esac
 done
-for name in config automount gpu-check fedora-check wow-links ianseo-tray laptop screens mouse tv-cleanup; do
+for name in config automount gpu-check wow-links ianseo-tray laptop screens mouse tv-cleanup; do
     rm -f "/etc/xdg/autostart/goblincakes-$name.desktop"
 done
 mkdir -p /etc/skel/.config

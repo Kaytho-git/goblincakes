@@ -6,7 +6,7 @@
     The look is ClockBox.qml/DeskIcon.qml (plain Qt Quick); this file reads the values and does the clicks:
       clock    click = the calendar (Plasma's month view, week numbers, Swedish holidays)
       network  nmcli every 10 s; click = System Settings → Wi-Fi & Internet
-      sound    wpctl every 2 s; wheel = ±5 %, middle click = mute, click = System Settings → Sound
+      sound    wpctl every 6 s and when the pointer comes over it; wheel = ±5 %, middle click = mute, click = System Settings → Sound
       battery  /usr/libexec/goblincakes-device-battery every 30 s (like the top bar's Spelas nu), the names in
                the tooltip; headset/headphones/speakers right of the sound, everything else left of the network
 */
@@ -141,8 +141,10 @@ PlasmoidItem {
         triggeredOnStart: true
         onTriggered: root.run(root.netCommand)
     }
+    // Every 6 s (P7.4, 12 Nov – was 2 s): the icon shows the level, so it is read without a click too;
+    // after a change here and on hover at once
     Timer {
-        interval: 2000 * root.slow
+        interval: 6000 * root.slow
         running: true
         repeat: true
         triggeredOnStart: true
@@ -222,6 +224,7 @@ PlasmoidItem {
             parent: box.soundItem
             anchors.fill: parent
             mainText: root.volume < 0 ? "Inget ljud" : "Ljud " + root.volume + " %" + (root.muted ? " (tyst)" : "")
+            onContainsMouseChanged: if (containsMouse) root.run(root.volumeCommand)
             subText: "Hjulet = högre/lägre, mittenklick = tyst av/på\nKlicka för ljudinställningarna"
         }
         PlasmaCore.ToolTipArea {
