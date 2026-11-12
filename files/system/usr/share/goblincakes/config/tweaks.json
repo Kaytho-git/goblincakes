@@ -1,7 +1,6 @@
 {
   "tweaks": [
     {"section":"Prestanda","id":"performance","root":false,"name":"Prestandaläge","desc":"Energiprofilen Prestanda i stället för Balanserad: högre klockfrekvens, men mer ström och värme. Samma som i ström-menyn i toppfältet.","laptopNote":"På en laptop drar det mer batteri – bäst när datorn sitter i laddaren."},
-    {"section":"Prestanda","id":"scx-lavd","root":true,"name":"Spelschemaläggare (scx_lavd)","desc":"CachyOS schemaläggare som prioriterar spel och skrivbordet för jämnare bildfrekvens. Stänger av irqbalance under tiden."},
     {"section":"Prestanda","id":"max-map-count","root":true,"name":"Fler minnesområden för spel","desc":"Höjer vm.max_map_count. Vissa stora eller moddade spel (ofta via Proton) kraschar annars."},
     {"section":"Prestanda","id":"split-lock","root":true,"name":"Ingen split-lock-broms","desc":"Kärnan saktar annars ner program som använder ”split locks”. Vissa Windows-spel gör det och hackar då."},
     {"section":"Spel","id":"gameguard","root":false,"name":"Spelläge (automatiskt)","desc":"Medan ett spel kör får det mer av datorn: GameMode slås på för spelet (processorn i prestandaläge, högre prioritet) utan att du skriver något i startalternativen, automatiska uppdateringar väntar tills spelet är stängt, kalenderns bakgrundstjänst (Akonadi) och filsökningen vilar, WoWUp stängs medan WoW kör, och goblin graph pausar. Allt startar igen när spelet stängs. Kalenderpåminnelser kommer då efter spelet."},

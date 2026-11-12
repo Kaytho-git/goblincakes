@@ -116,11 +116,6 @@ modules:
     snippets:
       - "ln -sf /usr/lib/systemd/system/sddm.service /etc/systemd/system/display-manager.service"
 
-  # scx_lavd game scheduler for the Optimering tab, if it can be found (off until switched on there)
-  - type: script
-    scripts:
-      - install-scx.sh
-
   # GOBLINCAKES lock screen + logout screen over Plasma's shell package – after every
   # module that installs RPMs, so a Plasma update during the build can't overwrite them
   - type: script

@@ -470,27 +470,6 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
             set) powerprofilesctl set "$([ "$value" = on ] && echo performance || echo balanced)" ;;
         esac ;;
 
-    scx-lavd)
-        # sched_ext scheduler from the CachyOS project, tuned for games and the desktop
-        if ! command -v scx_lavd >/dev/null || ! systemctl cat scx.service >/dev/null 2>&1; then
-            [ "$cmd" = status ] && echo unavailable
-            exit 0
-        fi
-        case $cmd in
-            status) systemctl is-active --quiet scx.service && echo on || echo off ;;
-            set)
-                if [ "$value" = on ]; then
-                    mkdir -p /etc/default
-                    printf 'SCX_SCHEDULER=scx_lavd\nSCX_FLAGS=\n' > /etc/default/scx
-                    # irqbalance fights with sched_ext and causes stutter
-                    systemctl disable --now irqbalance.service 2>/dev/null || true
-                    systemctl enable --now scx.service
-                else
-                    systemctl disable --now scx.service
-                    systemctl enable --now irqbalance.service 2>/dev/null || true
-                fi ;;
-        esac ;;
-
     dgpu-games)
         # Laptops with two graphics cards: the desktop stays on the frugal built-in card,
         # games from Steam, Lutris and Heroic start on the powerful one (PRIME render offload).
