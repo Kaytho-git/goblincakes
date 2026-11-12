@@ -1,6 +1,6 @@
 /*
     The desktop row's line icons, drawn like the mockup "Skrivbordet utan docka" (24-unit grid, 2 px line,
-    square ends): ethernet, wifi, offline, sound (high/low/muted), mouse, keyboard, gaming controller, headset.
+    square ends): ethernet, wifi, offline, sound (high/low/muted), mouse, keyboard, gaming controller, headset, Kakan (the logo's cupcake – fluted when loaded).
     Plain Qt Quick, so the clock box can be tried without a desktop.
 */
 import QtQuick
@@ -26,6 +26,8 @@ Item {
         "gaming-input": "M2 8h20v10H2z M7 11v4 M5 13h4 M15 12h1 M18 14h1",
         "headset": "M4 15v-3a8 8 0 0 1 16 0v3 M3 14h4v6H3z M17 14h4v6h-4z",
         "headphones": "M4 15v-3a8 8 0 0 1 16 0v3 M3 14h4v6H3z M17 14h4v6h-4z",
+        "cupcake": "M5 12h14l-2 9H7z M5 12a7 7 0 0 1 14 0 M10 12l0.6 9 M14 12l-0.6 9",
+        "cupcake-off": "M5 12h14l-2 9H7z M5 12a7 7 0 0 1 14 0",
         "speakers": "M6 3h12v18H6z M10 8h4 M12 13a2 2 0 1 0 0.01 0"
     })
 

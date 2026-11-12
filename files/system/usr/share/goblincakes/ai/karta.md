@@ -201,7 +201,7 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
   Skrivbordets upplägg eller `goblin dashboard upplägg dashboard|klassiskt`; hjälparen /usr/libexec/goblincakes-desktop-layout
   (`status` = classic/dashboard). Dashboard = toppfältet och dockan borta, en panel uppe i mitten (alltid gömd – autohide,
   fram vid överkanten): widgetarna org.goblincakes.nowplaying (part=left: Steam + Discord, part=right: Spelas nu + Kakan),
-  org.goblincakes.deskclock (batteri, nätverk nmcli, klocka/datum/vecka, ljud wpctl, headsetbatteri) och ett litet
+  org.goblincakes.deskclock (batteri, nätverk nmcli, klocka/datum/vecka, ljud wpctl, headsetbatteri, Kakan längst till höger: cupcaken Redo/Laddar/Ej laddad/Vilar – läser Ollamas /api/ps, klick = goblincakes-ollama wake) och ett litet
   systemfält i en egen panel gömd uppe till höger (autohide; bara notiser + programmens ikoner – behövs för notiserna). Meta = Plasmas globala
   kortkommando goblin-dashboard/toggle (kglobalaccel; Meta tas från plasmashells "activate application launcher", Alt+F1
   blir kvar). Dashboarden lyssnar själv på det, så den måste köra (startas gömd vid inloggning; efter
@@ -402,6 +402,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne
 - Tjänsten goblincakes-ollama (/usr/libexec/goblincakes-ollama serve), inställningar ~/.config/goblincakes/ollama.json.
 - Stängs medan ett spel kör (frigör grafikminnet) och startar igen efteråt.
+- `goblincakes-ollama wake` (klick på cupcaken i klockrutan): öppnar Goblin AI, laddar vardagsmodellen för 1 h och hälsar med rösten (notis utan röst). Under spel: bara Goblin AI + "jag vilar". Kolla laddad modell: `curl -s localhost:11434/api/ps`.
 - Minnet (kontexten): 64k tokens med ett grafikkort på 12 GB eller mer, annars 32k (context_length() i
   goblincakes-ollama). Bildmodellen qwen3-vl får inte plats helt på kortet med 64k – bildfrågor går lite långsammare.
   Kolla: `curl -s localhost:11434/api/ps` (context_length).

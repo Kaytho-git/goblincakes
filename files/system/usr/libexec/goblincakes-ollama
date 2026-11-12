@@ -14,6 +14,8 @@
     goblincakes-ollama order <local-first|cloud-first|local-only|cloud-only>
     goblincakes-ollama recommend              JSON: suggested models for this computer's graphics memory
     goblincakes-ollama unload                 empty the graphics memory now
+    goblincakes-ollama wake                   (the clock box's Kakan) Goblin AI opens, the everyday model is
+                                              loaded for the hour and she greets aloud when it is in memory
     goblincakes-ollama serve                  the service: Ollama + games watch (models out when a game runs)
 
 Nothing goes into the image: Ollama's package (the program and its CUDA/Vulkan parts, ~2 GB)
@@ -683,6 +685,66 @@ def cmd_serve():
     return 0
 
 
+def first_name():
+    """The account's name (the GECOS field), else the login name – as ai/voicecmd.py."""
+    import pwd
+    try:
+        entry = pwd.getpwuid(os.getuid())
+        name = entry.pw_gecos.split(",")[0].split()
+        return name[0] if name else entry.pw_name.capitalize()
+    except (KeyError, OSError):
+        return ""
+
+
+def greet(text):
+    """Aloud with Kakan's voice when Röst is installed (the man's voice when the AI is "han"), else a notice."""
+    config = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes"
+    try:
+        name = (config / "ai-name").read_text().strip() or "Kakan"
+    except OSError:
+        name = "Kakan"
+    try:
+        voice = "man" if (config / "ai-gender").read_text().strip() == "han" else "kvinna"
+    except OSError:
+        voice = "kvinna"
+    if (DEFAULT_PARENT / "goblincakes-voice/venv").is_dir():
+        if subprocess.run(["/usr/libexec/goblincakes-voice", "say", text, "--voice", voice],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            return
+    subprocess.run(["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", name, text],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def cmd_wake():
+    """The clock box's Kakan (13 Nov, the user): a click opens Goblin AI and loads the everyday model – for the
+    hour, like a question (the user's rule 24 Oct: 1 h after a question, 10 min after a game) – and when it is in
+    memory she says so and greets. Already loaded: only Goblin AI. A game running: Goblin AI (the cloud answers)
+    and a notice – the model stays out until the game has closed."""
+    goblin_ai = "/usr/bin/goblin-ai" if Path("/usr/bin/goblin-ai").exists() else "goblin-ai"
+    # Its own unit (as the dashboard should – P8), not the desktop's
+    subprocess.Popen(["systemd-run", "--user", "--scope", "--quiet", "--collect", goblin_ai],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    model = load().get("roles", {}).get("vardag")
+    if PAUSED.exists():
+        greet("Jag vilar medan spelet kör. Jag är tillbaka när spelet är stängt.")
+        return 0
+    if not model or not running():
+        greet("Den lokala AI:n är inte igång just nu.")
+        return 1
+    if model in loaded():
+        return 0
+    try:
+        api("/api/generate", {"model": model, "keep_alive": "1h"}, timeout=300)
+    except (OSError, ValueError):
+        if PAUSED.exists():
+            return 0  # a game started meanwhile
+        greet("Jag kunde inte starta just nu.")
+        return 1
+    name = first_name()
+    greet(f"Hej{' ' + name if name else ''}! Nu är jag redo.")
+    return 0
+
+
 def main(argv):
     cmd = argv[0] if argv else "status"
     rest = argv[1:]
@@ -699,6 +761,7 @@ def main(argv):
         "role": lambda: cmd_role(rest),
         "recommend": lambda: print(json.dumps(recommend(), ensure_ascii=False)) or 0,
         "unload": lambda: unload() or 0,
+        "wake": lambda: cmd_wake(),
         "serve": lambda: cmd_serve(),
     }
     if cmd not in commands:

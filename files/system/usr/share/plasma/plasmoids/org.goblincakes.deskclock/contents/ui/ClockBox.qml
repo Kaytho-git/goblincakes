@@ -1,6 +1,7 @@
 /*
     The clock box of the desktop row, after the mockup "Skrivbordet utan docka" (9 Nov): the mouse's (keyboard's,
-    controller's) battery – ethernet – the clock with the date and week under it – sound – the headset's battery.
+    controller's) battery – ethernet – the clock with the date and week under it – sound – the headset's battery –
+    Kakan (13 Nov).
     Only the look; main.qml gives it the values and does what the clicks ask. Plain Qt Quick (no Plasma imports),
     so it can be tried without a desktop.
 */
@@ -16,6 +17,11 @@ Rectangle {
     property bool volumeShown: false                     // just changed: the % under the icon
     property var leftDevices: []                         // [{kind, name, percent, charging}]
     property var rightDevices: []
+    // Kakan, farthest right (13 Nov, the user: something on the right as big as the mouse's battery – "a check for
+    // Kakan, loaded or not", drawn like the mouse icon, the cupcake chosen): "" = no local AI (hidden), ready /
+    // loading / idle (not in memory) / resting (a game runs) / off (Ollama not answering)
+    property string kakan: ""
+    property color accent: "#2F6FED"
     // The size (10 Nov, the user: the mockup's size was too big on the real desktop; 11 Nov: 20 % smaller again, both
     // looks) – every measure below is times s
     property real s: 0.6
@@ -28,11 +34,13 @@ Rectangle {
     readonly property alias soundItem: soundButton
     readonly property alias leftItem: leftBatteries
     readonly property alias rightItem: rightBatteries
+    readonly property alias kakanItem: kakanButton
 
     signal clockClicked()
     signal netClicked()
     signal soundClicked(int button)
     signal soundWheeled(int delta)
+    signal kakanClicked()
 
     readonly property color frost: "#E6ECF5"
     readonly property color dimText: "#8B98AD"
@@ -205,6 +213,57 @@ Rectangle {
                     model: box.rightDevices
                     Battery { required property var modelData; device: modelData; iconFirst: false }
                 }
+            }
+        }
+
+        Item {
+            id: kakanButton
+            visible: box.kakan !== ""
+            anchors.verticalCenter: parent.verticalCenter
+            width: kakanRow.implicitWidth + Math.round(12 * box.s)
+            height: Math.round(44 * box.s)
+            readonly property color tint: box.kakan === "ready" ? box.accent
+                                          : box.kakan === "resting" || box.kakan === "off" ? Qt.darker(box.dimText, 1.6) : box.dimText
+            Rectangle {
+                anchors.fill: parent
+                color: kakanArea.containsMouse ? "#1A2438" : "transparent"
+            }
+            Row {
+                id: kakanRow
+                anchors.centerIn: parent
+                spacing: Math.round(6 * box.s)
+                DeskIcon {
+                    id: cupcake
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: box.kakan === "ready" ? "cupcake" : "cupcake-off"
+                    size: Math.round(18 * box.s)
+                    color: kakanButton.tint
+                    // Loading: breathes until she is in memory
+                    SequentialAnimation on opacity {
+                        running: box.kakan === "loading"
+                        loops: Animation.Infinite
+                        onRunningChanged: if (!running) cupcake.opacity = 1
+                        NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 1; duration: 700; easing.type: Easing.InOutSine }
+                    }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    // As wide as the longest word, so the clock doesn't move when her state changes
+                    width: Math.ceil(longest.advanceWidth)
+                    TextMetrics { id: longest; font: parent.font; text: "Ej laddad" }
+                    text: ({ ready: "Redo", loading: "Laddar", idle: "Ej laddad", resting: "Vilar", off: "Av" })[box.kakan] || ""
+                    color: kakanButton.tint
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: Math.max(9, Math.round(12 * box.s))
+                }
+            }
+            MouseArea {
+                id: kakanArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: box.kakanClicked()
             }
         }
     }

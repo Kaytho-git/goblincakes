@@ -9,6 +9,9 @@
       sound    wpctl every 6 s and when the pointer comes over it; wheel = ±5 %, middle click = mute, click = System Settings → Sound
       battery  /usr/libexec/goblincakes-device-battery every 30 s (like the top bar's Spelas nu), the names in
                the tooltip; headset/headphones/speakers right of the sound, everything else left of the network
+      Kakan    (13 Nov) Ollama's /api/ps every 10 s straight over HTTP (no process), not at all while a game has
+               stopped her (goblincakes-ollama-paused, watched); hidden without local AI (no ollama.json);
+               click = goblincakes-ollama wake: Goblin AI opens, the everyday model is loaded, she greets aloud
 */
 import QtQuick
 import QtQuick.Layouts
@@ -47,11 +50,63 @@ PlasmoidItem {
     // Stil (Config → Utseende): Levande = tinted glass on the desktop row (Levande utseende step 6) – the file
     // ~/.config/goblincakes/utseende (platt/levande, no file = platt), read again when it changes
     readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; "
-        + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; true"
+        + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; "
+        + "echo \"namn=$(head -c 40 \"$HOME/.config/goblincakes/ai-name\" 2>/dev/null)\"; true"
     property bool living: false
+    property string aiName: "Kakan"       // Goblin AI → name (ai-name)
     // Optimization P1 (11 Nov): while a game runs the reads are three times sparser – the game covers the row
     property bool gaming: false
     readonly property int slow: gaming ? 3 : 1
+
+    // Kakan (local AI): installed = ~/.config/goblincakes/ollama.json, paused = the service stopped her for a game
+    property bool kakanInstalled: false
+    property bool kakanPaused: false
+    property bool kakanAnswers: false
+    property var kakanModels: []          // [{name, expires_at, size_vram}] from /api/ps
+    property bool kakanWaking: false      // clicked: "Laddar" until she is in memory (at most 5 min)
+    readonly property string kakan: !kakanInstalled ? ""
+        : kakanPaused ? "resting"
+        : kakanModels.length > 0 ? "ready"
+        : kakanWaking ? "loading"
+        : kakanAnswers ? "idle" : "off"
+    function readKakan() {
+        const xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== XMLHttpRequest.DONE) {
+                return;
+            }
+            let models = [];
+            try {
+                models = xhr.status === 200 ? (JSON.parse(xhr.responseText).models || []) : [];
+            } catch (e) {
+                models = [];
+            }
+            root.kakanAnswers = xhr.status === 200;
+            root.kakanModels = models;
+            if (models.length > 0) {
+                root.kakanWaking = false;
+            }
+        };
+        xhr.open("GET", "http://127.0.0.1:11434/api/ps");
+        xhr.timeout = 3000;
+        xhr.send();
+    }
+    function kakanTip() {
+        if (kakan === "resting") {
+            return "Vilar medan spelet kör – laddas in igen när spelet är stängt\nKlicka för Goblin AI";
+        }
+        if (kakan === "ready") {
+            return kakanModels.map(m => m.name + " i minnet till "
+                + Qt.formatTime(new Date(m.expires_at), "HH:mm")).join("\n") + "\nKlicka för Goblin AI";
+        }
+        if (kakan === "loading") {
+            return "Laddas in i grafikminnet …";
+        }
+        if (kakan === "idle") {
+            return "Inte i minnet – första svaret tar en stund\nKlicka för att ladda henne och öppna Goblin AI";
+        }
+        return "Den lokala AI:n svarar inte\nKlicka för Goblin AI";
+    }
 
     // nmcli -t: fields split by ":", a ":" inside a name written as "\:"
     function fields(line) {
@@ -119,6 +174,8 @@ PlasmoidItem {
                 const lines = out.split("\n").map(l => l.trim());
                 root.living = lines[0] === "levande";
                 root.gaming = lines.indexOf("spel") >= 0;
+                const named = lines.find(l => l.indexOf("namn=") === 0);
+                root.aiName = named && named.length > 5 ? named.slice(5) : "Kakan";
             } else if (source === root.batteryCommand) {
                 try {
                     root.devices = JSON.parse(out || "[]");
@@ -160,6 +217,18 @@ PlasmoidItem {
         onTriggered: root.run(root.batteryCommand)
     }
     Timer {
+        interval: (root.kakanWaking ? 2000 : 10000) * root.slow
+        running: root.kakanInstalled && !root.kakanPaused
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.readKakan()
+    }
+    Timer {
+        id: wakingTimer
+        interval: 300000
+        onTriggered: root.kakanWaking = false
+    }
+    Timer {
         id: shownTimer
         interval: 1500
         onTriggered: root.volumeShown = false
@@ -186,6 +255,23 @@ PlasmoidItem {
         nameFilters: ["goblincakes-gaming"]
         showDirs: false
         onCountChanged: root.run(root.lookCommand)
+    }
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation) + "/goblincakes"
+        nameFilters: ["ollama.json"]
+        showDirs: false
+        onCountChanged: root.kakanInstalled = count > 0
+    }
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.RuntimeLocation)
+        nameFilters: ["goblincakes-ollama-paused"]
+        showDirs: false
+        onCountChanged: {
+            root.kakanPaused = count > 0;
+            if (count === 0) {
+                root.readKakan();
+            }
+        }
     }
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
@@ -223,6 +309,15 @@ PlasmoidItem {
                 }
             }
             onSoundWheeled: delta => root.changeVolume(delta)
+            kakan: root.kakan
+            accent: Kirigami.Theme.focusColor   // the accent chosen in Config → Utseende
+            onKakanClicked: {
+                if (root.kakan === "idle") {
+                    root.kakanWaking = true;
+                    wakingTimer.restart();
+                }
+                root.run("setsid -f /usr/libexec/goblincakes-ollama wake >/dev/null 2>&1 < /dev/null");
+            }
         }
 
         PlasmaCore.ToolTipArea {
@@ -249,6 +344,13 @@ PlasmoidItem {
             anchors.fill: parent
             mainText: "Batteri"
             subText: root.leftDevices.map(d => d.name + ": " + d.percent + " %" + (d.charging ? " (laddar)" : "")).join("\n")
+        }
+        PlasmaCore.ToolTipArea {
+            parent: box.kakanItem
+            anchors.fill: parent
+            mainText: root.aiName
+            subText: root.kakanTip()
+            onContainsMouseChanged: if (containsMouse && root.kakan !== "" && root.kakan !== "resting") root.readKakan()
         }
         PlasmaCore.ToolTipArea {
             parent: box.rightItem
