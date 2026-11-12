@@ -387,30 +387,7 @@ Window {
 
     // ── Pieces (same as GOBLINCAKES Config) ──────────────────
 
-    component FastWheel: WheelHandler {
-        required property Flickable flick
-        target: null
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: event => {
-            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
-            event.accepted = true;
-            // At its end (or with nothing to scroll) the list around it scrolls instead –
-            // otherwise a code box or editor under the pointer stops the whole page
-            for (let f = flick; f; ) {
-                const top = f.originY, bottom = top + Math.max(0, f.contentHeight - f.height);
-                const y = Math.max(top, Math.min(bottom, f.contentY - delta));
-                if (y !== f.contentY) {
-                    f.cancelFlick();
-                    f.contentY = y;
-                    return;
-                }
-                let p = f.parent;
-                while (p && (p.cancelFlick === undefined || p.contentY === undefined))
-                    p = p.parent;
-                f = p;
-            }
-        }
-    }
+    component FastWheel: G.FastWheel {}   // shared (qml/Goblin, P16)
 
     component FlatField: G.FlatField { height: 40; fontFamily: "IBM Plex Mono"; fontSize: 13; hintFamily: "IBM Plex Sans" }
 
@@ -449,21 +426,9 @@ Window {
 
     component FlatScrollBar: G.FlatScrollBar { margin: 4 }
 
-    component SectionTitle: Text {
-        color: "#8B98AD"
-        font.family: "Chakra Petch"
-        font.weight: Font.DemiBold
-        font.pixelSize: 14
-        font.letterSpacing: 2.5
-    }
+    component SectionTitle: G.SectionTitle {}
 
-    component Note: Text {
-        color: "#8B98AD"
-        font.family: "IBM Plex Sans"
-        font.pixelSize: 13
-        wrapMode: Text.WordWrap
-        lineHeight: 1.15
-    }
+    component Note: G.Note {}
 
     // CS2 step 2: what the demo said about your match – the numbers, each round, the guns,
     // utility and money, and the last 10 matches (ADR) to see how it goes over time

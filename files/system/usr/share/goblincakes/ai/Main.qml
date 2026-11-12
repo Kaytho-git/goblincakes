@@ -1237,30 +1237,7 @@ Window {
 
         // Mouse wheel: each notch moves the list a fixed step at once (Flickable's own wheel
         // handling only gives it a small push that slows down – sluggish on a real computer)
-        component FastWheel: WheelHandler {
-            required property Flickable flick
-            target: null
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: event => {
-                const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
-                event.accepted = true;
-                // At its end (or with nothing to scroll) the list around it scrolls instead –
-                // otherwise a code box or editor under the pointer stops the whole page
-                for (let f = flick; f; ) {
-                    const top = f.originY, bottom = top + Math.max(0, f.contentHeight - f.height);
-                    const y = Math.max(top, Math.min(bottom, f.contentY - delta));
-                    if (y !== f.contentY) {
-                        f.cancelFlick();
-                        f.contentY = y;
-                        return;
-                    }
-                    let p = f.parent;
-                    while (p && (p.cancelFlick === undefined || p.contentY === undefined))
-                        p = p.parent;
-                    f = p;
-                }
-            }
-        }
+        component FastWheel: G.FastWheel {}   // shared (qml/Goblin, P16)
 
         // Two lessons maybe about the same thing (28 Oct, the user's idea): the AI found them, the user chooses –
         // the new one, the old one, or both (different things). Under a ♥/👎 answer and in Lärdomar.

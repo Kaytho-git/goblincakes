@@ -86,28 +86,7 @@ Window {
 
     // ── Pieces (same as GOBLINCAKES Config) ──────────────────
 
-    component FastWheel: WheelHandler {
-        required property Flickable flick
-        target: null
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: event => {
-            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
-            event.accepted = true;
-            for (let f = flick; f; ) {
-                const top = f.originY, bottom = top + Math.max(0, f.contentHeight - f.height);
-                const y = Math.max(top, Math.min(bottom, f.contentY - delta));
-                if (y !== f.contentY) {
-                    f.cancelFlick();
-                    f.contentY = y;
-                    return;
-                }
-                let p = f.parent;
-                while (p && (p.cancelFlick === undefined || p.contentY === undefined))
-                    p = p.parent;
-                f = p;
-            }
-        }
-    }
+    component FastWheel: G.FastWheel {}   // shared (qml/Goblin, P16)
 
     component FlatField: G.FlatField { height: 40; fontSize: 14 }
 
@@ -119,21 +98,9 @@ Window {
 
     component FlatScrollBar: G.FlatScrollBar { margin: 4 }
 
-    component SectionTitle: Text {
-        color: "#8B98AD"
-        font.family: "Chakra Petch"
-        font.weight: Font.DemiBold
-        font.pixelSize: 14
-        font.letterSpacing: 2.5
-    }
+    component SectionTitle: G.SectionTitle {}
 
-    component Note: Text {
-        color: "#8B98AD"
-        font.family: "IBM Plex Sans"
-        font.pixelSize: 13
-        wrapMode: Text.WordWrap
-        lineHeight: 1.15
-    }
+    component Note: G.Note {}
 
     // A computer or a phone, drawn flat (no font glyphs)
     component DeviceGlyph: Canvas {

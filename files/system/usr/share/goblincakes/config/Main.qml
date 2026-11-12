@@ -374,30 +374,7 @@ Window {
     // Flat text field with a grey hint while empty
     // Mouse wheel: each notch moves the list a fixed step at once (Flickable's own wheel
     // handling only gives it a small push that slows down – sluggish on a real computer)
-    component FastWheel: WheelHandler {
-        required property Flickable flick
-        target: null
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: event => {
-            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
-            event.accepted = true;
-            // At its end (or with nothing to scroll) the list around it scrolls instead –
-            // otherwise a code box or editor under the pointer stops the whole page
-            for (let f = flick; f; ) {
-                const top = f.originY, bottom = top + Math.max(0, f.contentHeight - f.height);
-                const y = Math.max(top, Math.min(bottom, f.contentY - delta));
-                if (y !== f.contentY) {
-                    f.cancelFlick();
-                    f.contentY = y;
-                    return;
-                }
-                let p = f.parent;
-                while (p && (p.cancelFlick === undefined || p.contentY === undefined))
-                    p = p.parent;
-                f = p;
-            }
-        }
-    }
+    component FastWheel: G.FastWheel {}   // shared (qml/Goblin, P16)
 
     component FlatField: G.FlatField {}
 
@@ -444,26 +421,7 @@ Window {
     }
 
     // Initials on a square tile, instead of icons (most apps aren't installed yet)
-    component Monogram: Rectangle {
-        G.Light {}
-        property string name
-        width: 48
-        height: 48
-        color: "#12203A"
-        border.width: 1
-        border.color: "#1E2A40"
-        Text {
-            anchors.centerIn: parent
-            text: {
-                const words = parent.name.replace(/[^A-Za-z0-9 .-]/g, "").split(/[ .-]+/).filter(w => w.length);
-                return (words.length > 1 ? words[0][0] + words[1][0] : parent.name.slice(0, 2)).toUpperCase();
-            }
-            color: "#E6ECF5"
-            font.family: "Chakra Petch"
-            font.weight: Font.Bold
-            font.pixelSize: 18
-        }
-    }
+    component Monogram: G.Monogram {}
 
     // Flat, square scroll bar along the right edge of a list – only when it doesn't fit.
     // Drag the handle, or click the track to jump there (the mouse wheel works as well).

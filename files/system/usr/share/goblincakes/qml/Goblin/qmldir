@@ -13,3 +13,7 @@ RollText 1.0 RollText.qml
 Count 1.0 Count.qml
 Rise 1.0 Rise.qml
 LiveTag 1.0 LiveTag.qml
+FastWheel 1.0 FastWheel.qml
+SectionTitle 1.0 SectionTitle.qml
+Note 1.0 Note.qml
+Monogram 1.0 Monogram.qml

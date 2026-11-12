@@ -246,6 +246,7 @@ Läget är bättre än väntat: alla 193 Python-, skal- och JSON-filer klarar sy
 - **Storlek:** liten–medel (ett fönster i taget).
 - **Kan provas:** offscreen (kompilerar) + rulla i varje fönster på riktiga datorn.
 - **Mät efteråt:** –
+- **Byggt 12 nov:** `qml/Goblin/FastWheel.qml` (egenskaper `step` – Amp 0.5, `chain` – Amp av, `takeSideways` + signalen `sideways` – dashboarden → `win.nudgeView`), `SectionTitle.qml`, `Note.qml`, `Monogram.qml`; fönstren har kvar en rad `component X: G.X { … }` (som FlatButton), så användningarna är orörda; GoblinAmp fick `import "../qml/Goblin" as G`. 217 rader mindre i sju fönster. Provat: riktiga hjulhändelser offscreen mot gamla kopiorna från git och nya – samma resultat för vanliga (inre lista till slutet, sedan den yttre), Amp (halvt steg, ingen fortsättning) och dashboarden (sidled → vy); alla sju fönstren kompilerar. Inte provat: rulla i fönstren på riktiga datorn (testlista `p16-rullning.md`).
 
 ### P17 – Fönstrens startkod kopierad i tio program
 - **Vad:** Varje fönster sätter själv skalan (`QT_SCALE_FACTOR` 0.9 och tar bort den igen), laddar typsnitten, ordnar "ett fönster i taget" (QLocalServer/QLocalSocket), kopplar in färgvalet och sätter ikon – samma ~40 rader i `usr/bin/goblin-recorder:749`–`:780`, `goblin-share:390`–`:420`, `goblin-dashboard:661`–`:705`, `goblincakes-config:1285`–`:1320`, `goblin-ai:3414`–`:3485`, `goblin-amp:1935`–`:1960`, `goblin-graph:806`–`:845`, `usr/libexec/goblincakes-lagmeter:761`–`:785`, `goblincakes-voice:615`–`:630` (+ Avinstallera). De skiljer redan: GoblinAmp och goblin graph sätter ingen skala, och GoblinAmps fyra fildialoger saknar `sharpText` (`amp/Main.qml:2168`–`:2187`) som regeln i CLAUDE.md kräver.
@@ -371,7 +372,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 15 | **P24** Fedora-hoppet kommer av sig självt (låst 11 nov) | inga överraskande hopp på frugans dator (beslut) | låg | liten |
 | [x] | 16 | **P11** (bara (a) byggd 12 nov; (b) struken – användaren: risken för stor för några sekunder) Nvidia-modulerna i tidig uppstart | renare logg (a); (b) hade gett 5–10 s | låg | liten |
 | [x] | 17 | **P23** (byggd 12 nov, väg (a)) QML-cachen används inte | Goblin AI öppnas 0,5–1 s fortare | medel | medel |
-| [ ] | 18 | **P16** Kopierade QML-komponenter | lättare underhåll | låg–medel | liten–medel |
+| [x] | 18 | **P16** (byggd 12 nov) Kopierade QML-komponenter | lättare underhåll | låg–medel | liten–medel |
 | [ ] | 19 | **P14** Småsaker i bygget | färre tysta fel, färre onödiga byggen | låg | liten |
 | [ ] | 20 | **P19** Städning | kortare filer, mindre att läsa | låg | liten |
 | [ ] | 21 | **P5** steg 2: en del letar spel, resten läser | ytterligare ~0,5 % | medel | medel |

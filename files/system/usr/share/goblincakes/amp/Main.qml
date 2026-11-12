@@ -7,6 +7,7 @@
 import QtQuick
 import QtQuick.Dialogs
 import "../graph" as GG
+import "../qml/Goblin" as G
 
 Window {
     id: win
@@ -537,17 +538,9 @@ Window {
 
     // ── The playlist (PL): Spotify's lists, liked songs and the queue (Winamp's PL window) ──
 
-    component FastWheel: WheelHandler {
-        required property Flickable flick
-        target: null
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: event => {
-            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 2;
-            event.accepted = true;
-            const top = flick.originY, bottom = top + Math.max(0, flick.contentHeight - flick.height);
-            flick.cancelFlick();
-            flick.contentY = Math.max(top, Math.min(bottom, flick.contentY - delta));
-        }
+    component FastWheel: G.FastWheel {   // shared (qml/Goblin, P16); half a step, no scrolling on to the list around
+        step: 0.5
+        chain: false
     }
 
     component SmallLink: Text {

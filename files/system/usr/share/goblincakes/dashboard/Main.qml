@@ -198,32 +198,9 @@ Window {
 
     // ── Pieces (same as GOBLINCAKES Config) ──────────────────
 
-    component FastWheel: WheelHandler {
-        required property Flickable flick
-        target: null
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: event => {
-            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
-            const side = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x;
-            if (Math.abs(side) > Math.abs(delta)) {     // sideways: changes the view (win.nudgeView)
-                win.nudgeView(side);
-                return;
-            }
-            event.accepted = true;
-            for (let f = flick; f; ) {
-                const top = f.originY, bottom = top + Math.max(0, f.contentHeight - f.height);
-                const y = Math.max(top, Math.min(bottom, f.contentY - delta));
-                if (y !== f.contentY) {
-                    f.cancelFlick();
-                    f.contentY = y;
-                    return;
-                }
-                let p = f.parent;
-                while (p && (p.cancelFlick === undefined || p.contentY === undefined))
-                    p = p.parent;
-                f = p;
-            }
-        }
+    component FastWheel: G.FastWheel {   // shared (qml/Goblin, P16); sideways = another view
+        takeSideways: true
+        onSideways: amount => win.nudgeView(amount)
     }
 
     component FlatScrollBar: G.FlatScrollBar { margin: 2; endMargin: 0; trackColor: "#0B1018" }
