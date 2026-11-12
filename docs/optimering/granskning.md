@@ -95,6 +95,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 - **Storlek:** steg 1 liten, steg 2 medel.
 - **Kan provas:** offscreen (attrapp-processer), sedan ett riktigt spel.
 - **Mät efteråt:** M2 (`goblincakes-gameguard.service`, `goblincakes-ollama.service`), M8.
+- **Steg 1 byggt 12 nov:** `gaming.py` läser `/proc` med `os.listdir` + `open` (binärt). M8 på användarens dator med repots fil: game_running 10,4 → 4,7 ms, processes + find_game 21,8 → 10,2 ms; samma processlista (513 st, namn och föräldrar lika). Provat med attrapper (`Wow.exe` hittas, `Battle.net.exe` räknas inte, `)` i namnet går bra). Inte provat: M2 efter nästa image och ett riktigt spel – testlista `p5-spelletandet.md`.
 
 ### P6 – Fönster som ligger kvar i minnet
 - **Vad:** Varje eget fönster är ett helt Python + Qt-program. Verkligt minne (PSS, M3): Goblin AI 356 MB (+ dess webbdel), röstens igenkännare 348 MB, dashboarden gömd 221 MB, GoblinRecorder-fönstret 185 MB, GoblinShare-fönstret 146 MB. De små tjänsterna drar 7–31 MB styck, tillsammans ca 170 MB (nio stycken).
@@ -356,7 +357,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 6 | **P20** Byggstegen på rätt Fedora-bas (byggd 11 nov) | ingen trasig programmeny/Piper vid Fedora-hopp, snabbare Nvidia-bygge | låg | liten |
 | [x] | 7 | **P22** Rösten och ny Python-version (byggd 11 nov) | rösten överlever Fedora 45 på användarens dator | låg | liten |
 | [x] | 8 | **P18** (byggd 12 nov) Färdigkompilerade Python-filer | CS2-demon 1–1,5 s fortare, fönster 0,05 s fortare | låg | liten |
-| [ ] | 9 | **P5** Spelletandet (steg 1: snabbare läsning) | 1–1,5 % av en kärna, båda datorerna | låg | liten |
+| [x] | 9 | **P5** (steg 1 byggd 12 nov) Spelletandet (steg 1: snabbare läsning) | 1–1,5 % av en kärna, båda datorerna | låg | liten |
 | [x] | 10 | **P4** (byggd 11 nov) goblin graph-vaktens `pw-dump` | 1 % i vila, 2,2 % medan WoW kör + lugnare ljudserver (användarens dator) | låg | liten |
 | [ ] | 11 | **P10** Uppdateringskollen senare efter inloggning | lugnare första minut (7–9 s arbete flyttas) | låg | liten |
 | [ ] | 12 | **P9** Inloggningens hjälpprogram | 1–3 s mindre arbete vid inloggning | låg | liten |
@@ -462,6 +463,7 @@ def t(f,n=20):
 print('game_running: %.1f ms   processes+find_game: %.1f ms' % (t(gaming.game_running), t(lambda: gaming.find_game(gaming.processes()))))"
 ```
 - **Användarens dator:** game_running 11,2 ms · processes + find_game 23,1 ms (samma sak med `os.listdir` + `open`: 5,3 ms – provat i ett löst skript).
+- **Användarens dator efter P5 steg 1 (12 nov, repots fil):** game_running 4,7 ms · processes + find_game 10,2 ms (före samma stund: 10,4 · 21,8).
 - **Frugans laptop (11 nov 17:40, 38 min efter start, i vila, inget spel, upplägget Standard, Fedora 45):** game_running 8,4 ms · processes + find_game 16,4 ms (295 processer mot 519 på användarens dator).
 
 ### M9 – Minne och växling

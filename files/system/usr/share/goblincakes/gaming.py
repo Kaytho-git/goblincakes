@@ -7,8 +7,8 @@ not Wine's own helpers and not the launchers: Battle.net (and Blizzard's Agent.e
 used to update the game, World of Warcraft is Wow.exe (the user's words 22 Oct).
 Only the standard library.
 """
+import os
 import re
-from pathlib import Path
 
 GAME = re.compile(r"^(reaper|.*\.exe|gamescope|wine.*preloader)$", re.I)
 # Wine's own helpers and the launchers – a Battle.net left open is not a game
@@ -18,16 +18,28 @@ NOT_GAMES = {"steamwebhelper.exe", "explorer.exe", "services.exe", "winedevice.e
 WOW = re.compile(r"^wow[a-z]*\.exe$", re.I)
 
 
+def _comm(pid):
+    """The process's name, or None when it is gone. os.listdir + open, not pathlib: half the time
+    (P5 step 1, 12 Nov – the watchers ask every 1–3 s)."""
+    try:
+        with open(f"/proc/{pid}/comm", "rb") as f:
+            return f.read().decode(errors="replace").strip()
+    except OSError:
+        return None
+
+
 def processes():
     """(pid, comm, rss kB, parent) of every process."""
     out = []
-    for p in Path("/proc").iterdir():
-        if not p.name.isdigit():
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
             continue
         try:
-            comm = (p / "comm").read_text().strip()
-            stat = (p / "stat").read_text().rsplit(")", 1)[1].split()
-            out.append((int(p.name), comm, int(stat[21]) * 4, int(stat[1])))
+            with open(f"/proc/{name}/comm", "rb") as f:
+                comm = f.read().decode(errors="replace").strip()
+            with open(f"/proc/{name}/stat", "rb") as f:
+                stat = f.read().rsplit(b")", 1)[1].split()
+            out.append((int(name), comm, int(stat[21]) * 4, int(stat[1])))
         except (OSError, IndexError, ValueError):
             continue
     return out
@@ -55,15 +67,12 @@ def find_game(procs=None):
 
 
 def game_running():
-    """Same answer as find_game() is not None, from the names only: 7 ms instead of 23 (24 Oct) – the
-    local AI's watcher asks every second."""
-    for p in Path("/proc").iterdir():
-        if not p.name.isdigit():
+    """Same answer as find_game() is not None, from the names only – the local AI's watcher asks
+    every second."""
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
             continue
-        try:
-            comm = (p / "comm").read_text().strip()
-        except OSError:
-            continue
-        if GAME.match(comm) and comm.lower() not in NOT_GAMES:
+        comm = _comm(name)
+        if comm and GAME.match(comm) and comm.lower() not in NOT_GAMES:
             return True
     return False
