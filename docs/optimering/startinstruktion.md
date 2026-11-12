@@ -65,7 +65,7 @@ Uppgift: förbered en UX-granskning som Fable ska göra sedan. ÄNDRA INGEN KOD.
 
 1. Skärmarna: kör kscreen-doctor -o och skriv upp varje skärm – upplösning, skalning, fysisk storlek och ppi.
 2. Inventering i docs/ux/inventering.md – per eget fönster (Config, Goblin AI, Dashboard + skrivbordsraden, GoblinAmp, GoblinShare, GoblinRecorder, goblin graph, lagmätaren, Avinstallera, röstfönstret, toppfältet/dockan, låsskärm/utloggning): startfil, QT_SCALE_FACTOR/uiScale, start- och minsta storlek (fast i px eller efter skärmen?), största bredd på innehållet (finns någon?), hur innehållet är förankrat (anchors.left/fill/centerIn, Layout-fyllnad), vilka komponenter som kommer från qml/Goblin och vilka som är egna kopior, textstorlekar, marginaler, knapp-/radhöjder. Ange fil:rad.
-3. Skärmbilder (spectacle) i ~/.local/share/goblincakes/ux-bilder/, namn <fönster>-<1080|1440>-<storlek>-<platt|levande>.png. Per fönster, Platt, på båda upplösningarna: minsta storlek, startstorlek, halva skärmen (rutad) och maximerat. Levande bara för fönster där Levande ändrar något, i startstorlek och maximerat. Upplösning jag inte har en skärm för: fråga mig innan du ändrar något på mina skärmar – annars en kapslad kwin_wayland --virtual i den storleken.
+3. Skärmbilder (spectacle) i ~/.local/share/goblincakes/ux-bilder/, namn <fönster>-<1080|1440>-<storlek>-<platt|levande>.png. Per fönster, Platt, på båda upplösningarna: minsta storlek, startstorlek, halva skärmen (rutad) och maximerat. Levande bara för fönster där Levande ändrar något, i startstorlek och maximerat. Jag har ingen 1440p-skärm: ta 1440p-bilderna i en kapslad kwin_wayland --virtual på 2560×1440. Ändra aldrig mina riktiga skärmar (upplösning, skalning).
 4. Sist: lista över bildfilerna och vilka som inte gick att ta (och varför).
 Committa bara inventering.md (ingen push). Bilderna stannar på datorn.
 ```
@@ -80,6 +80,8 @@ A. Ramar försvinner när fönstret görs mindre (klipps, hamnar utanför, göms
 B. Maximerade fönster känns jättestora – innehållet sträcks ut över hela skärmen, rader blir för långa, tomrum.
 C. Saker som borde vara centrerade ligger vid sidan, så det blir svårt att läsa.
 Jag misstänker att A–C har samma rot: ingen gemensam regel för hur innehållet beter sig när fönstret ändrar storlek. Bekräfta eller avfärda det.
+
+Jag har ingen 1440p-skärm – 1440p-bilderna kommer från en virtuell skärm, så pixlarna stämmer men inte den fysiska storleken. Räkna med att en 1440p-skärm oftast är 27 tum (ca 109 ppi) mot 24 tum för 1080p (ca 92 ppi), dvs. samma text ser ca 15 % mindre ut. Gör normen så att den fungerar på alla storlekar (1080p, 1440p, ultrawide, halva skärmen), inte bara de två. Skriv i en egen lista vad som inte kan bedömas utan en riktig 1440p-skärm (t.ex. hur stor texten känns).
 
 Det här vill jag ha ut, i den här ordningen:
 1. En UI-norm (docs/ux/norm.md): textskala, avståndsraster, knapp-/rad-/fälthöjder, ramar, startstorlek på 1080p resp. 1440p, hur skalningen ska fungera (en gemensam regel i stället för per fönster) – och särskilt en regel för storleksändring: största läsbredd på innehållet, vad som centreras och vad som får fylla bredden, vad som händer under minsta storlek (rulla, bryta om, gömma – aldrig klippa ramar). Gärna som en gemensam komponent i qml/Goblin som alla fönster kan använda. Utgå från det som fungerar bäst (Config är förebilden), inte från noll.
@@ -98,7 +100,7 @@ Tar kvoten slut mitt i: starta Fable igen och skriv "Fortsätt UX-granskningen i
 ```
 Bygg punkt <nr> (och <nr>) i docs/ux/granskning.md och följ docs/ux/norm.md. Börja med git pull och läs CLAUDE.md.
 Står det "bara läst i koden": bekräfta först (skärmbild eller läs koden) innan du ändrar något. Stämmer det inte – säg det och bygg inget.
-När det är byggt: skärmbilder före/efter på 1080p och 1440p, bocka av punkten i granskning.md, testlista åt Kakan för det som inte provats på riktigt.
+När det är byggt: skärmbilder före/efter på 1080p och 1440p (1440p i en kapslad kwin_wayland --virtual – jag har ingen 1440p-skärm), bocka av punkten i granskning.md, testlista åt Kakan för det som inte provats på riktigt.
 ```
 
 Stora punkter (t.ex. en gemensam skalningsregel för alla fönster): låt hellre Fable bygga dem, eller granska det Opus byggt, om kvoten räcker.
