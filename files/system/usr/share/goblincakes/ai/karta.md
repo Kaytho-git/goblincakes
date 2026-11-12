@@ -50,7 +50,7 @@ Kontroll: `grep -n 'Command:' /usr/share/plasma/plasmoids/org.goblincakes.nowpla
 Ord: uppdatering, uppdatera, update, grön pil, pilen, goblin update, automatiska uppdateringar, ny version, stäng av, rpm-ostree, flatpak
 - Grön pil i toppfältet = något nytt (ny GOBLINCAKES-version, en som hämtas, en som väntar på omstart, Flatpaks).
   Widget: /usr/share/plasma/plasmoids/org.goblincakes.updates. Den läser ~/.cache/goblincakes/updates.json som
-  /usr/libexec/goblincakes-updates check skriver (tjänsten/timern goblincakes-updates, vid inloggning och var 4:e timme).
+  /usr/libexec/goblincakes-updates check skriver (tjänsten/timern goblincakes-updates, 2,5 min efter inloggning och var 4:e timme – tills dess visar pilen förra svaret).
 - `goblin update` uppdaterar allt (systemet, Flatpaks, AppImages, Discord, Proton, firmware); `--only <del>` en del.
   Firmware som datorn redan nekat (fwupdmgr get-history: misslyckad, samma version) hoppas över tyst – t.ex. Lenovos
   som vägrar Microsofts nya Secure Boot-nyckel (KEK 2023); en ny version provas igen. Kolla: `fwupdmgr get-history`.

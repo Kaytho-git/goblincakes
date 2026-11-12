@@ -2,9 +2,10 @@
 Description=GOBLINCAKES: look for updates right after login and every 4 hours
 
 [Timer]
-# Soon after login: the arrow otherwise showed the last result (e.g. "restart") for 2 minutes
-# after the restart had already happened (10 Oct)
-OnStartupSec=20s
+# 2.5 min after login (P10, 12 Nov): the check takes 7–9 s of network, disk and processor –
+# not while the desktop starts. A stale "restart" no longer shows meanwhile: the arrow looks at
+# /run/ostree/staged-deployment itself (11 Oct); until then it shows the last saved result.
+OnStartupSec=150s
 OnUnitActiveSec=4h
 # No RandomizedDelaySec: it delayed the check after login by up to 10 minutes too
 

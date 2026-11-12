@@ -159,6 +159,7 @@ Mätt (M10, M11). Användarens dator: från strömknapp till skrivbord 43 s, var
 - **Storlek:** liten.
 - **Kan provas:** offscreen (timern) + riktiga datorn.
 - **Mät efteråt:** M11 (`goblincakes-updates.service` i `--user blame`).
+- **Byggt 12 nov:** timern `OnStartupSec=150s` (pilen läser `/run/ostree/staged-deployment` själv sedan 11 okt, så ett gammalt "starta om" syns inte under väntan – skälet till 20 s finns inte kvar). `goblincakes-fedora-check` väntar 3 min och frågar inte skopeo när `updates.json` är högst 15 min gammal med `system: ""`. Provat: `up_to_date()` med fem låtsasfiler, `systemd-analyze verify`. Inte provat: en riktig inloggning (testlista `p10-uppdateringskollen.md`). Kvar för P7.1: Fedora-kollen som egen process hela sessionen. Känd svaghet: misslyckas systemdelen av kollen (inget nät) men resten lyckas, står `system` kvar från förra gången med ny `checked` – Fedora-notisen kan då komma upp till 12 h senare.
 
 ### P11 – Nvidia-modulerna laddas i tidig uppstart: 6 s hos användaren, 12,5 s på laptopen (Universal Blue, inte GOBLINCAKES)
 - **Vad:** På Nvidia-varianterna tvingar Nvidia-paketets egen fil `/usr/lib/dracut/dracut.conf.d/99-nvidia.conf` (från `nvidia-kmod-common`, alltså Universal Blue/negativo17) in `i915 amdgpu nvidia nvidia_drm nvidia_modeset nvidia_peermem nvidia_uvm` redan i initrd. På användarens dator tar det steget (`dracut-pre-udev.service`) 6,1 s av uppstartens 43, och slutar varje gång med felet `could not insert 'nvidia_peermem': Invalid argument`. **På laptopen tar samma steg 12,5 s (11,9 s ren processortid) av 57 s** – den enskilt största posten i hela uppstarten – och initramfs är där 400 MB, vilket troligen också förklarar att startmenyn tar 16 s (den läser in hela filen). Det här beror **inte** på Fedora-versionen och inte på GOBLINCAKES egna filer – men GOBLINCAKES kan lägga en egen dracut-fil efter den. Samma sak gör troligen att initramfs är 309 MB (sett; vad som tar plats: M14).
@@ -359,7 +360,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 8 | **P18** (byggd 12 nov) Färdigkompilerade Python-filer | CS2-demon 1–1,5 s fortare, fönster 0,05 s fortare | låg | liten |
 | [x] | 9 | **P5** (steg 1 byggd 12 nov) Spelletandet (steg 1: snabbare läsning) | 1–1,5 % av en kärna, båda datorerna | låg | liten |
 | [x] | 10 | **P4** (byggd 11 nov) goblin graph-vaktens `pw-dump` | 1 % i vila, 2,2 % medan WoW kör + lugnare ljudserver (användarens dator) | låg | liten |
-| [ ] | 11 | **P10** Uppdateringskollen senare efter inloggning | lugnare första minut (7–9 s arbete flyttas) | låg | liten |
+| [x] | 11 | **P10** (byggd 12 nov) Uppdateringskollen senare efter inloggning | lugnare första minut (7–9 s arbete flyttas) | låg | liten |
 | [ ] | 12 | **P9** Inloggningens hjälpprogram | 1–3 s mindre arbete vid inloggning | låg | liten |
 | [ ] | 13 | **P21** Första-inloggningen skriver "klart" vid fel | ny layout når säkert fram | låg–medel | liten |
 | [ ] | 14 | **P7** Småsaker i bakgrunden (6 st) | några MB och uppvaknanden, renare processlista | låg | liten |
