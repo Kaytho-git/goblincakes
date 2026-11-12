@@ -470,6 +470,30 @@ def fire(item, late=False):
         notice("Säg till när …", what[:1].upper() + what[1:] + (f"\n{item['note']}" if item.get("note") else ""))
 
 
+def _same_build(items, gone, changed):
+    """`bevaka bygge` for several pushed commits: the older builds are cancelled by the newest push and every
+    watch then follows the same build (12 Nov: three "Bygget är klart" for 4ead22c after a game). One watch per
+    build is kept – the others are dropped silently, their notes moved to it. Returns the dropped ones (gone
+    loses them too)."""
+    def sha(i):
+        return changed.get(i["id"], {}).get("sha", i.get("sha"))
+    keep, silent = {}, []
+    # a watch that fires now wins, so its notice carries every note
+    for item in sorted((i for i in items if i["kind"] == "bygge"), key=lambda i: i not in gone):
+        first = keep.setdefault(sha(item), item)
+        if first is item:
+            continue
+        silent.append(item)
+        if item.get("note"):
+            first["note"] = "\n".join(n for n in (first.get("note"), item["note"]) if n)
+            changed.setdefault(first["id"], {})["note"] = first["note"]
+    for item in silent:
+        if item in gone:
+            gone.remove(item)
+        changed.pop(item["id"], None)
+    return silent
+
+
 def due(item, gaming_now, now):
     """(fire?, changed fields) for one item."""
     kind = item["kind"]
@@ -600,10 +624,11 @@ def run():
                     gone.append(item)
                 elif fields:
                     changed[item["id"]] = fields
-            if gone or changed:
+            silent = _same_build(items, gone, changed)
+            if gone or changed or silent:
                 with _locked():  # Goblin AI may have added one in between: only these ids are touched
                     fresh = load()
-                    ids = {i["id"] for i in gone}
+                    ids = {i["id"] for i in gone + silent}
                     _save([{**i, **changed.get(i["id"], {})} for i in fresh if i["id"] not in ids])
                 for item in gone:
                     try:

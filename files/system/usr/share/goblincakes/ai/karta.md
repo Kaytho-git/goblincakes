@@ -75,7 +75,7 @@ Ord: bygget, bygge, build, github actions, misslyckades bygget, byggloggen, ny i
 - Vakt-tjänsten tittar var 10:e minut (bara på en dator med repot, inte under spel) och ger en notis när ett bygge
   misslyckats – inget när det lyckas.
 - "Säg till när bygget är klart": `bevaka bygge [commit]` – säger till både lyckat och misslyckat. Avbryts bygget av
-  ett nyare (samma kö) följs det nyare. Claude lämnar också sådana bevakningar efter en push.
+  ett nyare (samma kö) följs det nyare; flera bevakningar som hamnar på samma bygge blir en (`_same_build`). Claude lämnar också sådana bevakningar efter en push.
 - Basvarianten (goblincakes) styckas om efter innehåll i slutet av bygget (chunkah, 11 nov) – steget "Running Chunkah"
   tar några minuter extra; fel där = byggsteget, inte receptet.
 - Före bygget går jobbet "Kontroll före bygget" (tools/check.py, 11 nov): syntax i Python/skal/JSON, att fönstrens
@@ -159,7 +159,8 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   (/usr/libexec/goblincakes-notifications watch – en D-Bus-monitor på sessionsbussen som bara läser Notify-anropen,
   svaren och NotificationClosed) sparar de 40 senaste i ~/.local/state/goblincakes/notiser.json (bara läsbar för
   användaren). Rutan visar de som fortfarande finns i Plasmas lista (inte bortklickade eller stängda av programmet);
-  tryck på en = öppna programmet (desktop-entry), Rensa = tömmer rutan (dashboard.json `noticesCleared`; `noticesSeen`
+  tryck på en = öppna programmet (desktop-entry; Goblin AI:s egna
+  notiser saknar den → `NOTICE_ENTRY` i dash.py öppnar goblin-ai), Rensa = tömmer rutan (dashboard.json `noticesCleared`; `noticesSeen`
   = när den öppnades). Kolla: `systemctl --user status goblincakes-notifications`, `/usr/libexec/goblincakes-notifications list`,
   `python3 /usr/share/goblincakes/dashboard/dash.py notices`. "Notiserna läses inte" i rutan = filen saknas (tjänsten
   har aldrig kört). Prova: `notify-send Test hej` – ska komma överst i rutan.

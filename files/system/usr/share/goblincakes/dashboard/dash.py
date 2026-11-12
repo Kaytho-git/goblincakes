@@ -103,6 +103,10 @@ def apps():
     return sorted(found.values(), key=lambda a: a["name"].lower())
 
 
+# NOTISER: senders without a desktop entry in the notice → the program a click opens
+NOTICE_ENTRY = {"Goblin AI": "goblin-ai"}
+
+
 def launch(path_or_id):
     """Starts a program from its desktop file (detached). "" or why not."""
     stem = Path(path_or_id).stem if path_or_id.endswith(".desktop") else path_or_id
@@ -813,12 +817,14 @@ def tray(name):
         rows = rows or [{"a": "Bluetooth", "b": "på – inget anslutet" if powered else "av"}]
     elif name == "notiser":
         for r in _notice_rows()[:12]:
+            # Goblin AI's notices (notify-send/reminders) carry no desktop entry – a click opens Goblin AI anyway
+            entry = r.get("entry") or NOTICE_ENTRY.get(r.get("app") or "", "")
             app = r.get("app") or r.get("entry") or ""
             app = app[:1].upper() + app[1:]
             body = r.get("body") or ""
             rows.append({"a": r.get("summary") or body or app, "b": clock(r.get("time")),
                          "c": " · ".join(x for x in (app, body if r.get("summary") else "") if x),
-                         "act": "open" if r.get("entry") else "", "text": r.get("entry") or ""})
+                         "act": "open" if entry else "", "text": entry})
         if not rows:
             rows = [{"a": "Inga notiser", "b": ""}] if NOTICES.exists() else [
                 {"a": "Notiserna läses inte", "b": "", "c": "Tjänsten goblincakes-notifications kör inte"}]

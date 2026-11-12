@@ -122,14 +122,21 @@ Rectangle {
         anchors.centerIn: parent
         spacing: Math.round(22 * box.s)
 
-        Row {
+        // An Item around the Row: main.qml puts a ToolTipArea (anchors.fill) in leftItem – inside a Row that
+        // warned "Cannot specify … anchors for items inside Row" and the tooltip didn't cover the batteries
+        Item {
             id: leftBatteries
             visible: box.leftDevices.length > 0
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Math.round(14 * box.s)
-            Repeater {
-                model: box.leftDevices
-                Battery { required property var modelData; device: modelData; iconFirst: true }
+            width: leftRow.implicitWidth
+            height: leftRow.implicitHeight
+            Row {
+                id: leftRow
+                spacing: Math.round(14 * box.s)
+                Repeater {
+                    model: box.leftDevices
+                    Battery { required property var modelData; device: modelData; iconFirst: true }
+                }
             }
         }
 
@@ -183,14 +190,21 @@ Rectangle {
             onWheeled: delta => box.soundWheeled(delta)
         }
 
-        Row {
+        // An Item around the Row: main.qml puts a ToolTipArea (anchors.fill) in rightItem – inside a Row that
+        // warned "Cannot specify … anchors for items inside Row" and the tooltip didn't cover the batteries
+        Item {
             id: rightBatteries
             visible: box.rightDevices.length > 0
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Math.round(14 * box.s)
-            Repeater {
-                model: box.rightDevices
-                Battery { required property var modelData; device: modelData; iconFirst: false }
+            width: rightRow.implicitWidth
+            height: rightRow.implicitHeight
+            Row {
+                id: rightRow
+                spacing: Math.round(14 * box.s)
+                Repeater {
+                    model: box.rightDevices
+                    Battery { required property var modelData; device: modelData; iconFirst: false }
+                }
             }
         }
     }
