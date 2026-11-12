@@ -308,6 +308,7 @@ Det som hittades på vägen. Tre av punkterna gäller just Fedora-hopp – och e
 - **Storlek:** liten.
 - **Kan provas:** offscreen med låtsas-hemmapp + en riktig inloggning.
 - **Mät efteråt:** –
+- **Byggt 12 nov:** `goblincakes-firstlogin` väntar efter 3 s tills plasmashell svarar på `evaluateScript` (högst 2 min till); märket (`firstlogin-done`, `systray-done`) skrivs bara när `plasma-apply-lookandfeel` resp. systray.js lyckades; annars `<märke>.tries` ("version antal") och en rad i journalen ("… misslyckades (försök n av 3)"), nytt försök vid nästa inloggning, efter 3:e försöket skrivs märket ändå. Provat med attrapper och låtsas-hemmapp: lyckas, fyra misslyckanden i rad (ger upp efter 3), misslyckas–lyckas, Plasma svarar aldrig, gammal version i märket. Riktigt prov: nästa gång LAYOUT_VERSION höjs – `journalctl --user -b | grep firstlogin` ska vara tom och märket ha nya numret.
 
 ### P22 – Kakans röst slutar fungera när Fedora byter Python-version
 - **BYGGD 11 nov (Fable, användaren: ja).** Tjänsten märker en miljö gjord för en annan Python och visar notisen "Kakans röst behöver lagas" med knappen Laga nu (inget hämtas utan knappen, ingen omstartsslinga); `goblin update` lagar också (steget Kakans röst). Provat i en tillfällig mapp med en låtsas-miljö för Python 3.13: upptäckt, riktig ombyggnad med pip, `goblin update --only voice`. **Kvar:** den riktiga notisen och ett riktigt Fedora-hopp (när Nvidia-varianten höjs till 45).
@@ -363,7 +364,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 10 | **P4** (byggd 11 nov) goblin graph-vaktens `pw-dump` | 1 % i vila, 2,2 % medan WoW kör + lugnare ljudserver (användarens dator) | låg | liten |
 | [x] | 11 | **P10** (byggd 12 nov) Uppdateringskollen senare efter inloggning | lugnare första minut (7–9 s arbete flyttas) | låg | liten |
 | [x] | 12 | **P9** (byggd 12 nov, (c) bara webbapp-ikonerna) Inloggningens hjälpprogram | 1–3 s mindre arbete vid inloggning | låg | liten |
-| [ ] | 13 | **P21** Första-inloggningen skriver "klart" vid fel | ny layout når säkert fram | låg–medel | liten |
+| [x] | 13 | **P21** (byggd 12 nov) Första-inloggningen skriver "klart" vid fel | ny layout når säkert fram | låg–medel | liten |
 | [ ] | 14 | **P7** Småsaker i bakgrunden (6 st) | några MB och uppvaknanden, renare processlista | låg | liten |
 | [x] | 15 | **P24** Fedora-hoppet kommer av sig självt (låst 11 nov) | inga överraskande hopp på frugans dator (beslut) | låg | liten |
 | [x] | 16 | **P11** (bara (a) byggd 12 nov; (b) struken – användaren: risken för stor för några sekunder) Nvidia-modulerna i tidig uppstart | renare logg (a); (b) hade gett 5–10 s | låg | liten |

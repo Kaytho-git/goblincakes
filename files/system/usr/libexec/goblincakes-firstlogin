@@ -20,13 +20,34 @@ RESET=0
 plasma_js() {
     busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$1"
 }
+# Marks are written only when it worked (P21, 12 Nov – before, "done" was written either way and
+# a slow start never got the new layout). A failure is tried again at the next login, at most
+# 3 times per version – so a step that always fails can't rebuild the panels at every login.
+mark_done() { # mark_done <mark> <version>
+    mkdir -p "$(dirname "$1")"
+    echo "$2" > "$1"
+    rm -f "$1.tries"
+}
+give_up() { # give_up <mark> <version> <what>: counts a failed try; true after the 3rd
+    n=1
+    if [ -f "$1.tries" ] && read -r v c < "$1.tries" && [ "$v" = "$2" ]; then
+        n=$((c + 1))
+    fi
+    mkdir -p "$(dirname "$1")"
+    echo "$2 $n" > "$1.tries"
+    echo "goblincakes-firstlogin: $3 misslyckades (försök $n av 3)" >&2
+    [ "$n" -ge 3 ]
+}
 trim_systray() { # waits for the tray to exist, then trims it (systray.js)
     for _ in 1 2 3 4 5 6 7 8 9 10; do
         sleep 2
-        plasma_js "$(cat /usr/share/goblincakes/systray.js)" >/dev/null 2>&1 && break
+        if plasma_js "$(cat /usr/share/goblincakes/systray.js)" >/dev/null 2>&1; then
+            mark_done "$SYSTRAY_MARK" "$SYSTRAY_VERSION"
+            return 0
+        fi
     done
-    mkdir -p "$(dirname "$SYSTRAY_MARK")"
-    echo "$SYSTRAY_VERSION" > "$SYSTRAY_MARK"
+    give_up "$SYSTRAY_MARK" "$SYSTRAY_VERSION" "systemfältet" && mark_done "$SYSTRAY_MARK" "$SYSTRAY_VERSION"
+    return 1
 }
 
 if [ "$RESET" = 0 ] && [ "$(cat "$MARK" 2>/dev/null)" = "$LAYOUT_VERSION" ]; then
@@ -56,7 +77,15 @@ else
     mode=none  # the user picked another theme: leave it be
 fi
 
-[ "$RESET" = 0 ] && sleep 3
+if [ "$RESET" = 0 ]; then
+    sleep 3
+    # Plasma must answer before the look is applied: up to 2 more minutes on a slow start
+    # (her laptop on a hard disk took minutes, P21) instead of only a fixed 3 s
+    for _ in $(seq 60); do
+        plasma_js 'print("")' >/dev/null 2>&1 && break
+        sleep 2
+    done
+fi
 
 # A new layout version keeps the apps the user pinned in the dock (a full reset doesn't)
 pinned=""
@@ -88,9 +117,10 @@ if [ "$RESET" = 1 ]; then
     [ -x "$HOME/.local/kitty.app/bin/kitty" ] && /usr/libexec/goblincakes-terminal kitty-config --reset
 fi
 
+ok=1
 case $mode in
-    all)  plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout ;;
-    look) plasma-apply-lookandfeel --apply org.goblincakes.desktop ;;
+    all)  plasma-apply-lookandfeel --apply org.goblincakes.desktop --resetLayout || ok=0 ;;
+    look) plasma-apply-lookandfeel --apply org.goblincakes.desktop || ok=0 ;;
 esac
 [ "$mode" != none ] && plasma-apply-colorscheme GoblinCakes
 # The accent colour (Config → Inställningar → Utseende): blue again with --reset, otherwise
@@ -161,5 +191,6 @@ if [ "$mode" = all ]; then
     fi
 fi
 
-mkdir -p "$(dirname "$MARK")"
-echo "$LAYOUT_VERSION" > "$MARK"
+if [ "$ok" = 1 ] || give_up "$MARK" "$LAYOUT_VERSION" "utseendet (plasma-apply-lookandfeel)"; then
+    mark_done "$MARK" "$LAYOUT_VERSION"
+fi
