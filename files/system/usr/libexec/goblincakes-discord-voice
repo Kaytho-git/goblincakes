@@ -214,10 +214,12 @@ PID_FILE = HOME / ".cache/goblincakes/discord-voice.pid"
 
 
 def discord_running():
+    """Discord's main process id ("" = not running)."""
     # The pid found last time first (P1, 11 Nov: the whole /proc took 7 ms of each read every second)
     try:
-        if Path(f"/proc/{int(PID_FILE.read_text())}/comm").read_text().strip() in DISCORD_PROCESSES:
-            return True
+        pid = PID_FILE.read_text().strip()
+        if Path(f"/proc/{int(pid)}/comm").read_text().strip() in DISCORD_PROCESSES:
+            return pid
     except (OSError, ValueError):
         pass
     for proc in Path("/proc").iterdir():
@@ -229,10 +231,10 @@ def discord_running():
                         PID_FILE.write_text(proc.name)
                     except OSError:
                         pass
-                    return True
+                    return proc.name
             except OSError:
                 pass
-    return False
+    return ""
 
 
 def show_discord():
@@ -268,7 +270,9 @@ def show_discord():
     return 0
 
 
-def voice_state():
+def voice_state(pid=None):
+    """pid = the Discord running now: a join made by an earlier Discord doesn't count – quitting from the system
+    tray writes no "Destroy" line, so the old channel stayed until the next join (13 Nov)."""
     log = newest_log()
     if not log:
         return dict(EMPTY)
@@ -296,6 +300,7 @@ def voice_state():
             c = CHANNEL.search(line) if connected else None
             state["channel"] = c.group(1) if c else ""
             state["joined"] = f"{log}:{st.st_ino}:{state['offset']}:{line[:23]}" if connected else ""
+            state["pid"] = (pid or "") if connected else ""
             continue
         m = VIEW.search(line)
         if m:
@@ -310,6 +315,8 @@ def voice_state():
     except OSError:
         pass
     out = {k: state.get(k, v) for k, v in EMPTY.items()}
+    if pid and state.get("voice") and state.get("pid") and state["pid"] != pid:
+        out.update(voice=False, guild="", channel="")
     out["joined"] = state.get("joined", "")
     out["asked"] = state.get("asked", "")
     return out
@@ -369,8 +376,9 @@ def main():
             for k, v in names.items():
                 print(f"  {v or '(fråga inte)'}  ({k})")
         return 0
-    state = voice_state()
-    state["running"] = discord_running()
+    pid = discord_running()
+    state = voice_state(pid)
+    state["running"] = bool(pid)
     if not state["running"]:
         state.update(voice=False, guild="", channel="")
     channel = state["channel"] if state["voice"] else ""
