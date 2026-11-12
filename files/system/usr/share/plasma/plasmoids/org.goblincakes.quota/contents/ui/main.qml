@@ -11,6 +11,8 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
+import QtCore
+import Qt.labs.folderlistmodel
 
 PlasmoidItem {
     id: root
@@ -117,7 +119,7 @@ PlasmoidItem {
 
 
     // Stil (Config → Utseende → Stil, Levande utseende step 7, 11 Nov): Levande = a glow under the pointer and the bars glide to new values;
-    // moving = Levande, no game running and Plasma's animations on. Read every 5 s.
+    // moving = Levande, no game running and Plasma's animations on. Read when it changes.
     readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; "
         + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; true"
     property bool living: false
@@ -134,12 +136,27 @@ PlasmoidItem {
             disconnectSource(source);
         }
     }
+    // Read when the style file or the game guard's file changes (the folders are watched – no process), and every
+    // 60 s in case a change was missed (12 Nov – was a process every 5 s in each widget)
     Timer {
-        interval: 5000
+        interval: 60000
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: lookSource.connectSource(root.lookCommand)
+    }
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation) + "/goblincakes"
+        nameFilters: ["utseende"]
+        showDirs: false
+        onCountChanged: lookSource.connectSource(root.lookCommand)
+        onDataChanged: lookSource.connectSource(root.lookCommand)
+    }
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.RuntimeLocation)
+        nameFilters: ["goblincakes-gaming"]
+        showDirs: false
+        onCountChanged: lookSource.connectSource(root.lookCommand)
     }
 
     compactRepresentation: Item {

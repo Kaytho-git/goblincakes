@@ -38,6 +38,8 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.plasma.private.mpris as Mpris
+import QtCore
+import Qt.labs.folderlistmodel
 import org.kde.taskmanager as TaskManager
 import org.kde.kirigami as Kirigami
 
@@ -56,7 +58,7 @@ PlasmoidItem {
     readonly property bool desk: part !== ""
     // Stil (Config → Utseende): Levande = tinted glass on the desktop row (Levande utseende step 6) and, in the top
     // bar, text that fades in when it changes (step 7) – the file ~/.config/goblincakes/utseende (platt/levande, no
-    // file = platt) and the game guard's file (no fades during a game), read again every 5 s
+    // file = platt) and the game guard's file (no fades during a game), read again when it changes
     readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; "
         + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; true"
     property bool living: false
@@ -362,12 +364,27 @@ PlasmoidItem {
     }
 
     // ---- Look ----
+    // Read when the style file or the game guard's file changes (the folders are watched – no process), and every
+    // 60 s in case a change was missed (12 Nov – was a process every 5 s in each widget)
     Timer {
-        interval: 5000
+        interval: 60000
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: exec.connectSource(root.lookCommand)
+    }
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation) + "/goblincakes"
+        nameFilters: ["utseende"]
+        showDirs: false
+        onCountChanged: exec.connectSource(root.lookCommand)
+        onDataChanged: exec.connectSource(root.lookCommand)
+    }
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.RuntimeLocation)
+        nameFilters: ["goblincakes-gaming"]
+        showDirs: false
+        onCountChanged: exec.connectSource(root.lookCommand)
     }
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground

@@ -209,7 +209,7 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
   ~/.config/kglobalshortcutsrc` och `grep 'activate application launcher' ~/.config/kglobalshortcutsrc` (Meta där =
   AppGrid). Dashboarden öppnas på huvudskärmen (KWin-skriptet goblincakes-windows, screenOrder[0]).
   Storleken (11 nov): `s` 0,6 i DeskBox.qml/ClockBox.qml, panelen 52 px (goblincakes-desktop-layout ROW_HEIGHT – `login` rättar
-  höjden). Stil Levande = tonat glas utan ram (widgetarna läser ~/.config/goblincakes/utseende var 5:e s).
+  höjden). Stil Levande = tonat glas utan ram (widgetarna bevakar ~/.config/goblincakes/utseende och spelvaktens fil – läser vid ändring, annars var 60:e s).
   Meta-tipset längst ner på skrivbordet (11 nov): widgeten org.goblincakes.metahint, läggs dit/tas bort av
   goblincakes-desktop-layout (`login`); borta när dashboarden visats 3 gånger (~/.local/state/goblincakes/dashboard-shown).
   Dashboardens batterirad uppe till höger: goblincakes-device-battery (`python3 dash.py batteries`).
@@ -666,7 +666,7 @@ Ord: utseende, tema, färg, accent, accentfärg, låsskärm, inloggning, sddm, i
 - Stil Levande byter Plasma-temat till goblincakes-levande (toppfältet som tonat glas; byggs i imagen av
   files/scripts/desktoptheme-levande.sh från goblincakes-temat), Platt tillbaka till goblincakes – bara om ett av de två
   används. Vid inloggning rättar goblincakes-refresh.sh temat efter valet. Kolla: `kreadconfig6 --file plasmarc --group
-  Theme --key name`. Dockan och toppfältets widgetar (Spelas nu, kvot, uppdateringar) läser valet var 5:e s.
+  Theme --key name`. Dockan och toppfältets widgetar (Spelas nu, kvot, uppdateringar, klockraden) läser valet när filen byts (FolderListModel), annars var 60:e s.
 - GOBLINCAKES egna fönster delar knappar, kryssrutor, reglage, textfält, rullister och ramar:
   /usr/share/goblincakes/qml/Goblin/ (FlatButton.qml m.fl.). Ser alla fönstrens knappar fel ut → där.
 - Fönsterramarna: Aurorae-temat /usr/share/aurorae/themes/goblincakes, ritat av Aurorae v2 (kwinrc

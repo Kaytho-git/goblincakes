@@ -16,6 +16,8 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
+import QtCore
+import Qt.labs.folderlistmodel
 
 PlasmoidItem {
     id: root
@@ -43,7 +45,7 @@ PlasmoidItem {
     readonly property string volumeCommand: "wpctl get-volume @DEFAULT_AUDIO_SINK@"
     readonly property string batteryCommand: "/usr/libexec/goblincakes-device-battery"
     // Stil (Config → Utseende): Levande = tinted glass on the desktop row (Levande utseende step 6) – the file
-    // ~/.config/goblincakes/utseende (platt/levande, no file = platt), read again every 5 s
+    // ~/.config/goblincakes/utseende (platt/levande, no file = platt), read again when it changes
     readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; "
         + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; true"
     property bool living: false
@@ -163,12 +165,27 @@ PlasmoidItem {
         onTriggered: root.volumeShown = false
     }
 
+    // Read when the style file or the game guard's file changes (the folders are watched – no process), and every
+    // 60 s in case a change was missed (12 Nov – was a process every 5 s in each widget)
     Timer {
-        interval: 5000
+        interval: 60000
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: root.run(root.lookCommand)
+    }
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation) + "/goblincakes"
+        nameFilters: ["utseende"]
+        showDirs: false
+        onCountChanged: root.run(root.lookCommand)
+        onDataChanged: root.run(root.lookCommand)
+    }
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.RuntimeLocation)
+        nameFilters: ["goblincakes-gaming"]
+        showDirs: false
+        onCountChanged: root.run(root.lookCommand)
     }
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground

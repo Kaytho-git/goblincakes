@@ -28,6 +28,8 @@ import org.kde.plasma.extras as PlasmaExtras
 import org.kde.taskmanager as TaskManager
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.plasma5support as P5Support
+import QtCore
+import Qt.labs.folderlistmodel
 
 PlasmoidItem {
     id: root
@@ -48,7 +50,7 @@ PlasmoidItem {
 
     // Stil (Config → Utseende → Stil, Levande utseende step 7, 11 Nov): Levande = light in the frame's top edge and a
     // glow behind the icon under the pointer; moving = Levande, no game running and Plasma's animations on.
-    // ~/.config/goblincakes/utseende and the game guard's file, read every 5 s.
+    // ~/.config/goblincakes/utseende and the game guard's file, read when they change.
     readonly property string lookCommand: "cat \"$HOME/.config/goblincakes/utseende\" 2>/dev/null; "
         + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; true"
     property bool living: false
@@ -65,12 +67,27 @@ PlasmoidItem {
             disconnectSource(source);
         }
     }
+    // Read when the style file or the game guard's file changes (the folders are watched – no process), and every
+    // 60 s in case a change was missed (12 Nov – was a process every 5 s in each widget)
     Timer {
-        interval: 5000
+        interval: 60000
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: lookSource.connectSource(root.lookCommand)
+    }
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation) + "/goblincakes"
+        nameFilters: ["utseende"]
+        showDirs: false
+        onCountChanged: lookSource.connectSource(root.lookCommand)
+        onDataChanged: lookSource.connectSource(root.lookCommand)
+    }
+    FolderListModel {
+        folder: StandardPaths.writableLocation(StandardPaths.RuntimeLocation)
+        nameFilters: ["goblincakes-gaming"]
+        showDirs: false
+        onCountChanged: lookSource.connectSource(root.lookCommand)
     }
 
     // Ready after login (29 Oct, the user's wish – it took a few seconds before the dock answered):

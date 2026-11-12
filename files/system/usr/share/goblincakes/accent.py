@@ -96,7 +96,11 @@ def set_look(name):
     if name not in LOOKS:
         raise ValueError(name)
     CONFIG.mkdir(parents=True, exist_ok=True)
-    LOOK.write_text(name + "\n")
+    # Written beside and moved in place: the top bar's widgets watch the folder (FolderListModel), which
+    # sees a file replaced but not one rewritten in place (12 Nov – they read it every 5 s before)
+    tmp = LOOK.with_name(".utseende.tmp")
+    tmp.write_text(name + "\n")
+    tmp.replace(LOOK)
     want = PLASMA_THEMES[name]
     if plasma_theme() in PLASMA_THEMES.values() and plasma_theme() != want \
             and Path(f"/usr/share/plasma/desktoptheme/{want}/metadata.json").exists():
