@@ -396,7 +396,11 @@ PlasmoidItem {
         id: full
         readonly property bool empty: !music.visible && !chat.visible && !steamPart.visible && !aiPart.visible
                                       && !batteryPart.visible
-        readonly property real wanted: root.desk ? deskRow.implicitWidth : row.implicitWidth
+        // The desktop row keeps room for both its boxes (Steam/Kakan come and go): the panel is centred and as
+        // wide as its widgets, so a box that appeared pushed the clock sideways (13 Nov, the user: "grow outwards").
+        // The two sides are equally wide – the clock stays in the middle; the empty room is see-through.
+        readonly property real deskWidth: Math.round(240 * 0.6) + Math.round(300 * 0.6) + 2 * deskRow.spacing
+        readonly property real wanted: root.desk ? deskWidth : row.implicitWidth
 
         Layout.minimumWidth: wanted
         Layout.preferredWidth: wanted
@@ -408,6 +412,9 @@ PlasmoidItem {
             id: deskRow
             visible: root.desk
             anchors.verticalCenter: parent.verticalCenter
+            // Against the clock box: the left part grows to the left, the right part to the right
+            anchors.right: root.part === "left" ? parent.right : undefined
+            anchors.left: root.part === "left" ? undefined : parent.left
             spacing: 7
             // In the order they stand on the screen; 7 px towards the clock box, like the gaps between the boxes
             // (12 in the mockup, times DeskBox's s = 0.6)

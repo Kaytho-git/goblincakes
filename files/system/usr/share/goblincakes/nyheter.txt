@@ -1,3 +1,4 @@
+2026-11-13  Skrivbordsraden (upplägget Dashboard): klockan står still i mitten – Steam- och Kakan-rutorna växer utåt i stället för att knuffa klockan åt sidan.
 2026-11-13  Spelas nu: stänger du Discord medan du är i en röstkanal och startar den igen, ligger den gamla kanalen inte kvar längre.
 2026-11-13  Goblin AI: när ett kommando kör visar kortet hur många sekunder det har gått och en glidande stapel – du ser att Kakan väntar och inte har hängt sig.
 2026-11-13  Klockrutan på skrivbordet visar nu längst till höger om Kakan är laddad (blå cupcake = redo). Klicka på den så laddas hon, Goblin AI öppnas och hon hälsar när hon är redo.
