@@ -6528,11 +6528,6 @@ def read_cwd(cwd_file, fallback):
     return folder if folder and Path(folder).is_dir() else fallback
 
 
-def code_blocks(text):
-    """The ```bash blocks in an answer: the commands to offer."""
-    return [b.strip() for b in re.findall(r"```(?:bash|sh|shell|console)\s*\n(.*?)```", text, re.S) if b.strip()]
-
-
 # Clickable links in the answers (25 Oct, the user's wish): web addresses open in the browser, folders in the file
 # manager, files are shown selected in their folder (goblin-show: → goblin-ai's showInFolder). Only paths that
 # exist become links – a made-up path stays plain text.

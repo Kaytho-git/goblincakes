@@ -241,8 +241,6 @@ något fel väljer man förra versionen i startmenyn.
 write_track("bash", M)
 
 G = []
-def git_files():
-    return {}
 G.append({"id": "git-forsta", "title": "Git: spara versioner", "requires": ["bash-kommandon"],
  "summary": "`git init`, `git add fil`/`git add -A`, `git commit -m \"text\"`, `git log --oneline`; namn och e-post med `git config`.",
  "lesson_md": """

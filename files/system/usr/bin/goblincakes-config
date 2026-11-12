@@ -1146,10 +1146,6 @@ class Config(QObject):
     # goblin update --only names, in the same order
     UPDATE_PARTS = ["system", "flatpak", "appimages", "vscode", "chatgpt", "discord", "kitty", "proton", "ollama", "firmware"]
 
-    @Property(bool, notify=updateBusyChanged)
-    def updateBusy(self):
-        return self._update_proc is not None
-
     @Slot(str)
     def startUpdate(self, parts=""):
         """parts: "" = everything, else goblin update --only (e.g. "discord" from one row in Uppdatera)."""

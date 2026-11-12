@@ -282,6 +282,7 @@ Läget är bättre än väntat: alla 193 Python-, skal- och JSON-filer klarar sy
 - **Storlek:** liten.
 - **Kan provas:** offscreen / låtsas-hemmapp.
 - **Mät efteråt:** –
+- **Byggt 12 nov (delvis):** (1) sju engångsfixar ur `goblincakes-refresh.sh` (335 → 213 rader): meta-launcher, ghostty-size-added, ghostty-smaller, dock-launchers-fixed, clock-weight, appgrid-smaller, goblincakes-dock – de lagade bara hemmappar från oktober; nya användare får samma värden ur look-and-feel-layouten (`fontWeight 600`, `org.goblincakes.dock`, AppGrid `iconSize 0`). Kvar (behövs även för nya användare eller är nya): aurorae-v2, meta-a-freed, meta-arrows-rotate, autoscroll, Discord-, VS Code-, AppImage-autostartfixarna. Provat: skriptet körs med låtsas-hemmapp före/efter – rc 0, inga kvarlämnade variabler, bara de sju flaggorna saknas. (2) inte gjort – frågat användaren (kontrollen P15 håller kopiorna i takt). (3) inte gjort: de fem widgetarnas `lookCommand` + bevakning är fortfarande kopior (12 nov ändrade till bevakning) – en gemensam fil går inte att importera säkert i plasmoider. (4) `files/scripts/example.sh` bort; av de 14 oanvända funktionerna fanns bara fyra kvar – `code_blocks` (goblinai.py), `short_image` (fakepodman.py), `git_files` (tools/learn-src/bash.py), egenskapen `updateBusy` (goblincakes-config, används inte i QML) – borttagna; de andra med en enda förekomst är metoder Python själv anropar (`handle_data`, `redirect_request` …). Kurserna genererade om utan skillnad.
 
 **Granskat utan anmärkning (område 4):** skalskripten har felhantering (`set -u`/`-e` + `pipefail`) utom `goblincakes-firstlogin` (se P21) och `goblincakes-steam-wait-libraries` (ska aldrig stoppa Steam); tjänsterna har `Restart=on-failure`; inställningar sparas genomgående med temporärfil + byte. De stora filerna (`ai/Main.qml` 7 768 rader, `goblinai.py` 7 122, `config/Main.qml` 4 454, `recorder/Main.qml` 3 984, `recorder.py` 3 692) vore lättare att arbeta i uppdelade, men det är en stor och riskabel omflyttning utan att användaren märker något – föreslås inte nu.
 
@@ -374,8 +375,8 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 16 | **P11** (bara (a) byggd 12 nov; (b) struken – användaren: risken för stor för några sekunder) Nvidia-modulerna i tidig uppstart | renare logg (a); (b) hade gett 5–10 s | låg | liten |
 | [x] | 17 | **P23** (byggd 12 nov, väg (a)) QML-cachen används inte | Goblin AI öppnas 0,5–1 s fortare | medel | medel |
 | [x] | 18 | **P16** (byggd 12 nov) Kopierade QML-komponenter | lättare underhåll | låg–medel | liten–medel |
-| [ ] | 19 | **P14** Småsaker i bygget | färre tysta fel, färre onödiga byggen | låg | liten |
-| [ ] | 20 | **P19** Städning | kortare filer, mindre att läsa | låg | liten |
+| [x] | 19 | **P14** (delvis 12 nov: 1 som efterkontroll, 4; 2 behövs inte; 3 frågat) Småsaker i bygget | färre tysta fel, färre onödiga byggen | låg | liten |
+| [x] | 20 | **P19** (delvis 12 nov: 1, 4; 2 frågat) Städning | kortare filer, mindre att läsa | låg | liten |
 | [ ] | 21 | **P5** steg 2: en del letar spel, resten läser | ytterligare ~0,5 % | medel | medel |
 | [ ] | 22 | **P13** AppGrid/libratbag i eget flöde | bygget 3 min kortare (delvis löst av P20) | medel | medel |
 | [ ] | 23 | **P8** Program från dashboarden i egen enhet | rätt siffror per program | låg | liten |

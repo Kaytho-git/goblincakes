@@ -398,10 +398,6 @@ def status_text(c):
     return "Created"
 
 
-def short_image(ref):
-    return ref
-
-
 def fmt(template, fields):
     template = template.replace("\\t", "\t").replace("\\n", "\n")
     table = template.startswith("table ")
