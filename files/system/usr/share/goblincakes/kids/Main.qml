@@ -62,15 +62,16 @@ Window {
     Item {
         id: board
         anchors.fill: parent
+        // The lower part of the screen – the middle and the top are left to the background (the user 13 Nov)
         anchors.leftMargin: parent.width * 0.06
         anchors.rightMargin: parent.width * 0.06
-        anchors.topMargin: parent.height * 0.1
-        anchors.bottomMargin: parent.height * 0.14
+        anchors.topMargin: parent.height * 0.58
+        anchors.bottomMargin: parent.height * 0.05
         visible: win.ready
 
         readonly property int gap: Math.max(24, width * 0.025)
         readonly property real ratio: 1.5      // Steam's covers: 600 × 900
-        readonly property real minW: 170
+        readonly property real minW: 140
         // The biggest pictures that fit; under minW they keep minW and the board scrolls
         readonly property var fit: {
             const n = Math.max(1, win.items.length);
@@ -81,7 +82,7 @@ Window {
                 if (w > best.w)
                     best = { cols: cols, w: w };
             }
-            best.w = Math.min(best.w, height * 0.9 / ratio, 420);
+            best.w = Math.min(best.w, (height - 24) / ratio, 200);   // not so big (the user 13 Nov)
             if (best.w < minW) {
                 best.cols = Math.max(1, Math.floor((width + gap) / (minW + gap)));
                 best.w = minW;
@@ -94,17 +95,17 @@ Window {
             G.FastWheel { flick: flick }
             anchors.fill: parent
             contentWidth: width
-            contentHeight: Math.max(height, grid.height)
+            contentHeight: Math.max(height, grid.height + 24)
             boundsBehavior: Flickable.StopAtBounds
-            clip: true
-            interactive: contentHeight > height
+            clip: interactive     // only when it scrolls – the bobbing and the glow may go outside
+            interactive: contentHeight > height + 1
 
             Grid {
                 id: grid
                 columns: board.fit.cols
                 spacing: board.gap
                 x: (flick.width - width) / 2
-                y: Math.max(0, (flick.height - height) / 2)
+                y: Math.max(12, flick.height - height - 12)   // standing on the bottom
                 Repeater {
                     model: win.items
                     Tile {
@@ -295,6 +296,9 @@ Window {
             NumberAnimation { target: body; property: "rotation"; to: 0; duration: 90 }
         }
         Timer { id: startingTimer; interval: 8000; onTriggered: tile.starting = false }
+        // The mouse resting on it a moment: Cori says the name (not while the mouse just passes over)
+        Timer { id: nameTimer; interval: 400; onTriggered: backend.sayName(tile.number) }
+        onHoverChanged: hover ? nameTimer.restart() : nameTimer.stop()
 
         MouseArea {
             id: area
@@ -312,11 +316,11 @@ Window {
         }
     }
 
-    // ── the background button (bottom left): his own choice of picture
+    // ── the background button (top left – the games are at the bottom): his own choice of picture
     Item {
         id: bgButton
         visible: win.ready
-        anchors { left: parent.left; bottom: parent.bottom; margins: Math.max(20, parent.height * 0.03) }
+        anchors { left: parent.left; top: parent.top; margins: Math.max(20, parent.height * 0.03) }
         width: Math.max(96, win.height * 0.11); height: width * 0.75
         scale: bgArea.containsMouse ? 1.08 : 1
         Behavior on scale { NumberAnimation { duration: 180 } }

@@ -45,25 +45,30 @@ RULE = "goblincakes-kids"                      # kwinrulesrc group: no global sh
 VOLUMES = (0, 40, 60, 80)                       # 0 = no cap
 BUILTIN = [{"id": "natt", "name": "Natthimmel"}, {"id": "hav", "name": "Havet"},
            {"id": "regnbage", "name": "Regnbåge"}, {"id": "solnedgang", "name": "Solnedgång"}]
-# Tux Paint started for a small child: whole screen, no quit button (nor Esc), no printing
-TUXPAINT_ARGS = ["--fullscreen", "--native", "--noquit", "--noprint"]
+# Tux Paint started for a small child: whole screen, no printing. Its own quit button stays (13 Nov): with --noquit
+# there was no way out of it at all (Alt+F4 is blocked in Barnläge) – quitting it takes him back to his games.
+TUXPAINT_ARGS = ["--fullscreen", "--native", "--noprint"]
 TUXPAINT_SAVED = [HOME / ".tuxpaint/saved", HOME / ".var/app/org.tuxpaint.Tuxpaint/.tuxpaint/saved",
                   HOME / ".var/app/org.tuxpaint.Tuxpaint/data/tuxpaint/saved"]
 PICTURE_TYPES = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif")
 
 
 # ───────────────────────────────────────────── settings
-def load():
+def load_raw():
     try:
         data = json.loads(CONFIG.read_text())
     except (OSError, ValueError):
         data = {}
-    if not isinstance(data, dict):
-        data = {}
+    return data if isinstance(data, dict) else {}
+
+
+def load():
+    """The settings; keys this version doesn't know (e.g. "chatterbox", namnljud.py) are kept."""
+    data = load_raw()
     items = [i for i in data.get("items") or [] if isinstance(i, dict) and i.get("kind") in ("steam", "app") and i.get("id")]
     volume = data.get("volume") if data.get("volume") in VOLUMES else 60
-    return {"items": items, "pin": str(data.get("pin") or ""), "volume": volume,
-            "background": str(data.get("background") or "natt")}
+    return dict(data, items=items, pin=str(data.get("pin") or ""), volume=volume,
+                background=str(data.get("background") or "natt"))
 
 
 def save(settings):
@@ -498,7 +503,10 @@ def sound(name):
 
 
 def play(name):
-    path = sound(name)
+    play_file(sound(name))
+
+
+def play_file(path):
     for player in (["pw-play", path], ["paplay", path]):
         try:
             subprocess.Popen(player, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
@@ -695,16 +703,19 @@ def running_pid():
 # ───────────────────────────────────────────── for Config
 def info(download=False):
     settings = load()
+    import namnljud  # noqa: PLC0415
     chosen = []
     for item in settings["items"]:
         pic = picture_for(item, download)
         entry = dict(item, **pic)
+        entry["say"] = item.get("say") or namnljud.spoken(item.get("name", ""))
+        entry["sound"] = namnljud.sound_for(item)
         if item["kind"] == "steam":
             entry["overlay"] = overlay_on(item["id"])
         chosen.append(entry)
     return {"items": chosen, "hasPin": bool(settings["pin"]), "volume": settings["volume"],
             "pictures": pictures(), "drawings": len(drawings()), "steamRunning": steam_running(),
-            "active": bool(running_pid())}
+            "active": bool(running_pid()), "voice": namnljud.engine()}
 
 
 if __name__ == "__main__":

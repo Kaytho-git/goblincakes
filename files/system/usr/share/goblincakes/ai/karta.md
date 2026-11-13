@@ -780,4 +780,7 @@ Ord: barnläge, barn, sandlåda, kids, PIN-kod barnläge, goblin barn
   Ctrl+Alt+F3, logga in, `goblin barn stopp`.
 - Steam-spel startas med `goblincakes-games run-id <appid> --kids` (som goblin play). Steam-överlägget per spel:
   OverlayAppEnable i Steams userdata/<id>/config/localconfig.vdf (kopia .goblincakes-bak när Config ändrat den).
+- Namnen (Cori säger spelets namn när musen vilar på det): ljuden i ~/.local/share/goblincakes/kids/namn/, görs av
+  `python3 /usr/share/goblincakes/kids/namnljud.py make` (Chatterbox om mappen finns, annars Piper-Cori i
+  ~/.local/share/goblincakes-voice). Vilken röst: `python3 /usr/share/goblincakes/kids/namnljud.py engine`.
 

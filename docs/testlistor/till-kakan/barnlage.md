@@ -13,12 +13,16 @@
   fråga: Är den andra skärmen täckt av en lugn natthimmel, och är dina egna fönster borta?
 - Kortkommandona är spärrade
   fråga: Tryck Meta, Alt+Tab, Alt+F4 och Ctrl+Alt+Del i barnläget (och en gång medan Bluey är igång). Händer det ingenting?
+- Namnen med Coris röst
+  fråga: Står det under varje spel i Config → BARNLÄGE vad Cori säger (t.ex. "Bluey"), och spelar ▶ upp det? Ändra texten för ett spel – kommer ett nytt ljud? Syns "Chatterbox" eller "Piper" i texten över korten?
+- Namnet när musen vilar på spelet
+  fråga: Håll musen still över Bluey i barnläget en halv sekund. Säger Cori "Bluey"? Dra musen snabbt över spelen – blir det tyst (ska inte prata hela tiden)?
 - Bluey
   fråga: Klicka på Bluey. Startar spelet på huvudskärmen utan att Steams fönster syns? Kommer Steam-överlägget med Shift+Tab? (Det ska inte komma.) Avsluta spelet från dess meny – kommer barnläget tillbaka?
 - Tux Paint
-  fråga: Klicka på Tux Paint. Startar det i helskärm utan avsluta-knapp? Rita något och spara. Stäng det (finns inget sätt – bra), och kolla sedan att teckningen finns i bildknappen nere till vänster efter att du gått ut och in i barnläget.
+  fråga: Klicka på Tux Paint. Startar det i helskärm? Rita något och spara, avsluta med Tux Paints egen Avsluta-knapp – kommer spelbilderna tillbaka? Finns teckningen i bildknappen uppe till vänster efter att du gått ut och in i barnläget?
 - Bakgrunden
-  fråga: Byt bakgrund med bildknappen nere till vänster. Byts den, och är samma bakgrund kvar nästa gång barnläget startar?
+  fråga: Byt bakgrund med bildknappen uppe till vänster. Byts den, och är samma bakgrund kvar nästa gång barnläget startar?
 - Strömknappen och notiserna
   fråga: Tryck kort på datorns strömknapp i barnläget. Händer ingenting? (Skicka gärna ett Discord-meddelande till dig själv – syns ingen notis?)
 - Volymtaket

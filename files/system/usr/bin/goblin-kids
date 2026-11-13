@@ -147,7 +147,10 @@ def main():
         def __init__(self):
             super().__init__()
             self.settings = settings
-            self._items = [dict(i, **K.picture_for(i, download=False)) for i in settings["items"]]
+            import namnljud  # noqa: PLC0415
+            self._items = [dict(i, sound=namnljud.sound_for(i), **K.picture_for(i, download=False))
+                           for i in settings["items"]]
+            self._said = (-1, 0.0)
             self._backgrounds = K.backgrounds()
             ids = [b["id"] for b in self._backgrounds]
             self._background = settings["background"] if settings["background"] in ids else "natt"
@@ -202,6 +205,18 @@ def main():
             item = self._items[index]
             threading.Thread(target=K.launch, args=(item,), daemon=True).start()
             return True
+
+        @Slot(int)
+        def sayName(self, index):
+            """The game's name in Cori's voice (made by Config, namnljud.py) – not the same one again within 4 s."""
+            if not 0 <= index < len(self._items) or not self._items[index].get("sound"):
+                return
+            last, when = self._said
+            if last == index and time.time() - when < 4:
+                return
+            self._said = (index, time.time())
+            path = self._items[index]["sound"]
+            threading.Thread(target=K.play_file, args=(path,), daemon=True).start()
 
         @Slot(str)
         def sound(self, which):
