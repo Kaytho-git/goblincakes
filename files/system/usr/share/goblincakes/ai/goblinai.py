@@ -6782,6 +6782,8 @@ text som ska synas i bilden inom citattecken. Valfri första rad i blocket: Form
 Format: 16:9
 A small green goblin baking blue cupcakes in a cozy cave, warm candle light, detailed digital painting
 ```
+Pixelart (pixelkonst, 8-/16-bit, SNES, retrospel): lägg raden Stil: pixelart direkt efter Format-raden – då ritar
+datorn med sitt pixelart-tillägg. Beskriv då bara motivet, färgerna och kompositionen (inte orden "pixel art").
 Bilden skapas automatiskt av Goblin AI och visas under svaret – skriv aldrig att du inte kan skapa bilder.
 ```bild är bara för bilder med motiv. Sammanställningar, rapporter, analyser, tabeller och listor "som bild/png"
 görs ALDRIG med ```bild (bildmodellen kan inte skriva exakt text eller siffror) – använd ```rapport.
@@ -6795,17 +6797,33 @@ porträtt eller en figur mitt i bilden mot en enkel bakgrund (den visas liten oc
 att knappen "Använd som avatar" under bilden gör den till din avatar, och att "Gör en till" ger ett nytt förslag."""
 
 
+STYLE_LINE = re.compile(r"\s*(stil|style)\s*:\s*(pixel\w*|16-?bit|snes)\s*\.?\s*", re.I)
+PIXEL_CLOUD = ", 16-bit SNES-era pixel art, crisp square pixels on an even grid, limited palette, no anti-aliasing"
+
+
 def image_request(code):
-    """(English description, format) from a ```bild block; an optional first line "Format: 16:9"."""
+    """(English description, format) from a ```bild block; optional first lines "Format: 16:9" and
+    "Stil: pixelart" (13 Nov) – the style stays at the start of the description as "Stil: pixelart"."""
     lines = code.strip().splitlines()
-    fmt = "1:1"
-    if lines:
+    fmt, style = "1:1", False
+    for _ in range(2):
+        if not lines:
+            break
         m = re.match(r"\s*(format|storlek|size)\s*:\s*(.+)$", lines[0], re.I)
         if m:
             value = m.group(2).strip().lower()
             fmt = value if value in FORMATS else FORMAT_WORDS.get(value.split()[0], "1:1")
             lines = lines[1:]
-    return " ".join(" ".join(lines).split()), fmt
+        elif STYLE_LINE.fullmatch(lines[0]):
+            style, lines = True, lines[1:]
+    prompt = " ".join(" ".join(lines).split())
+    return ("Stil: pixelart " + prompt if style else prompt), fmt
+
+
+def split_style(prompt):
+    """("pixelart" or "", the description without the style)."""
+    m = STYLE_LINE.match(prompt)
+    return ("pixelart", prompt[m.end():]) if m else ("", prompt)
 
 
 def local_image_status():
@@ -6928,6 +6946,7 @@ def make_image(prompt, fmt, keys, project=None, status=None, notice=None, progre
 
 def _make_image(prompt, fmt, keys, project=None, status=None, notice=None, progress=None):
     folder = pictures_folder(project)
+    style, prompt = split_style(prompt)
     errors = []
     sources = image_sources(keys, (project or {}).get("order"))
     for source in sources:
@@ -6935,11 +6954,11 @@ def _make_image(prompt, fmt, keys, project=None, status=None, notice=None, progr
             continue
         try:
             if source == "local":
-                return local_image(prompt, fmt, folder, status, progress)
+                return local_image(prompt, fmt, folder, status, progress, style)
             activity("image", f"ritar en bild · {IMAGE_NAMES[source]}")
             if status:
                 status(f"Ritar bilden hos {IMAGE_NAMES[source]}…")
-            data, model = CLOUD_DRAW[source](prompt, fmt, keys)
+            data, model = CLOUD_DRAW[source](prompt + (PIXEL_CLOUD if style else ""), fmt, keys)
             return save_picture(data, folder, prompt), f"{IMAGE_NAMES[source]} · {model}"
         except ServiceError as e:
             errors.append(f"{'Din dator' if source == 'local' else IMAGE_NAMES[source]}: {e}")
@@ -6962,15 +6981,16 @@ EXHAUSTED_IMAGES = set()
 IMAGE_NAMES = {"cloudflare": "Cloudflare", "gemini": "Google Gemini", "openai": "OpenAI", "xai": "Grok"}
 
 
-def local_image(prompt, fmt, folder, status=None, progress=None):
+def local_image(prompt, fmt, folder, status=None, progress=None, style=""):
     width, height = FORMATS.get(fmt, FORMATS["1:1"])
     path = image_path(folder, prompt)
-    model = local_image_status()["model"]
+    model = "z-image-turbo" if style == "pixelart" else local_image_status()["model"]
     names = {"z-image-turbo": "Z-Image-Turbo", "flux2-klein-4b": "FLUX.2 klein 4B", "flux2-klein-9b": "FLUX.2 klein 9B"}
     activity("image", "ritar en bild · din dator", True)
     if status:
         status("Ritar bilden på din dator…")
-    proc = subprocess.Popen([IMAGE_HELPER, "generate", str(path), str(width), str(height)],
+    proc = subprocess.Popen([IMAGE_HELPER, "generate", str(path), str(width), str(height)]
+                            + (["--style", style] if style else []),
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     proc.stdin.write(prompt)
     proc.stdin.close()
@@ -6989,7 +7009,7 @@ def local_image(prompt, fmt, folder, status=None, progress=None):
     err = proc.stderr.read().strip()
     if proc.wait() != 0 or not path.is_file():
         raise ServiceError((err.splitlines() or ["bilden blev inte klar"])[-1])
-    return path, f"Din dator · {names.get(model, model)}"
+    return path, f"Din dator · {names.get(model, model)}" + (" · pixelart" if style else "")
 
 
 def post(url, headers, body, timeout=300, raw_body=None):

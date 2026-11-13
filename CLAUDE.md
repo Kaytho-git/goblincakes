@@ -75,7 +75,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 - [ ] **Offhand – WoW över två skärmar** – provat i Retail 9 nov (med flyttad EllesmereUI-profil): kändes för ovant; nästa: prova i Forever (profilen atrocityUI Offhand får ligga kvar) (grep "Offhand" i anteckningarna).
 - [ ] **Levande utseende** – ett val Platt (standard) / Levande i Config → Utseende → Stil; alla 7 stegen byggda 11 nov (modul `qml/Goblin`, övergångar, ljus, glidande siffror, dashboarden, skrivbordsraden 20 % mindre + glas, toppfältet via temat `goblincakes-levande` + dockan); bara provat i molnet – testlistor `levande-steg1.md`…`levande-steg7.md` (grep "Levande utseende" i anteckningarna).
 - [ ] **Barnläge** – byggt 13 nov: sandlåda i egen session för sonen (3 år) – `goblin-kids`/`goblin barn`, Config → BARNLÄGE, splash, en skärm, PIN-kod på X:et; bara provat i molnet – testlista `barnlage.md` (grep "Barnläge" i anteckningarna).
-- [ ] **Barnläget i pixelart** – mockup med tre stilar 13 nov (https://claude.ai/artifact/2uTGMNMGcgpvMtheVi4qbY); valt B (Super Nintendo); ritverktyget inte valt (Codex / Retro Diffusion / lokalt med Kakan) (grep "Pixelart" i anteckningarna).
+- [ ] **Barnläget i pixelart** – mockup med tre stilar 13 nov (https://claude.ai/artifact/2uTGMNMGcgpvMtheVi4qbY); valt B (Super Nintendo); provritning byggd 13 nov: `goblin pixelart kakan|chatgpt|jämför` (Kakans bildprogram + pixelart-tillägget mot Codex, användaren väljer), `Stil: pixelart` i Goblin AI; bara provat i molnet – testlista `pixelart.md` (grep "Pixelart" i anteckningarna).
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer

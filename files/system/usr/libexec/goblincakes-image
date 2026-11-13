@@ -11,7 +11,8 @@ AI-tjänster → Skapa bilder). stable-diffusion.cpp with Z-Image-Turbo or FLUX.
     goblincakes-image use <model>
     goblincakes-image rm <model>
     goblincakes-image uninstall [--models]
-    goblincakes-image generate <out> <width> <height> [model]   the description on stdin
+    goblincakes-image generate <out> <width> <height> [model] [--style pixelart]   the description on stdin
+    goblincakes-image pull-style <style>      download a style (pixelart) – generate --style fetches it itself too
 
 Nothing stays in the graphics memory: every picture is its own sd-cli run (loads the model, draws,
 quits). Not while a game runs (exit 3) – and a game that starts while drawing stops it. Vulkan for
@@ -92,6 +93,15 @@ MODELS = {
 }
 DEFAULT_MODEL = "z-image-turbo"
 
+# Styles = LoRAs on top of a model (13 Nov, the user: Barnläge in pixel art, "Kakan ritar"). Pixel art: tarn59's
+# LoRA for Z-Image-Turbo, described as SNES-style retro pixel art (strength 0.6 = more detail, 1.0 = the
+# classic look); trigger "Pixel art style." – the description should only say what is in the picture.
+STYLES = {
+    "pixelart": {"name": "Pixelart (16-bit)", "model": "z-image-turbo",
+                 "repo": "tarn59/pixel_art_style_lora_z_image_turbo", "path": "pixel_art_style_z_image_turbo.safetensors",
+                 "trigger": "Pixel art style.", "weight": 0.9},
+}
+
 
 def say(text):
     print(f"@@ {text}", flush=True)
@@ -169,6 +179,29 @@ def model_ready(model_id, data):
         (b / "models" / local_name(f[1])).is_file() for f in model_files(model_id, data))
 
 
+def style_file(data, sid):
+    return base(data) / "loras" / local_name(STYLES[sid]["path"])
+
+
+def style_ready(data, sid):
+    return bool(base(data)) and style_file(data, sid).is_file()
+
+
+def pull_style(data, sid):
+    """Downloads a style's LoRA (small) next to the models. Returns an error text or ""."""
+    st = STYLES[sid]
+    dest = style_file(data, sid)
+    if dest.is_file():
+        return ""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    say(f"Hämtar stilen {st['name']}…")
+    try:
+        fetch(f"{HF}/{st['repo']}/resolve/main/{st['path']}", dest, local_name(st["path"]))
+    except (OSError, urllib.error.URLError) as e:
+        return f"stilen kunde inte hämtas ({getattr(e, 'reason', e)})"
+    return ""
+
+
 def game_running():
     return bool(O and (O.PAUSED.exists() or O.game_running()))
 
@@ -193,7 +226,9 @@ def cmd_status():
         (m["id"] for m in models if m["ready"]), "")
     print(json.dumps({"installed": installed(data), "dir": data.get("dir", ""), "version": data.get("version", ""),
                       "latest": data.get("latest", ""), "waiting": bool(b) and not b.exists(),
-                      "models": models, "model": model, "game": game_running(), "vram": vram()},
+                      "models": models, "model": model, "game": game_running(), "vram": vram(),
+                      "styles": [{"id": k, "name": v["name"], "model": v["model"], "ready": style_ready(data, k)}
+                                 for k, v in STYLES.items()]},
                      ensure_ascii=False))
     return 0
 
@@ -384,20 +419,51 @@ def cmd_uninstall(args):
     return 0
 
 
+def cmd_pull_style(args):
+    data = load()
+    if not args or args[0] not in STYLES:
+        print("Använd: goblincakes-image pull-style " + "|".join(STYLES), file=sys.stderr)
+        return 2
+    if not installed(data):
+        print("Installera bildprogrammet först", file=sys.stderr)
+        return 1
+    err = pull_style(data, args[0])
+    if err:
+        print(err, file=sys.stderr)
+        return 1
+    say(f"Klart: {STYLES[args[0]]['name']}")
+    return 0
+
+
 def cmd_generate(args):
     """Draws one picture: exit 0 = done, 3 = a game runs, 1 = error (the reason on stderr)."""
     data = load()
+    style = None
+    if "--style" in args:
+        i = args.index("--style")
+        style = args[i + 1] if i + 1 < len(args) else ""
+        args = args[:i] + args[i + 2:]
+        if style not in STYLES:
+            print("okänd stil: " + style + " (" + ", ".join(STYLES) + ")", file=sys.stderr)
+            return 2
     if len(args) < 3:
-        print("Använd: goblincakes-image generate <fil> <bredd> <höjd> [modell]  (beskrivningen på stdin)", file=sys.stderr)
+        print("Använd: goblincakes-image generate <fil> <bredd> <höjd> [modell] [--style pixelart]  "
+              "(beskrivningen på stdin)", file=sys.stderr)
         return 2
     out, width, height = Path(args[0]), int(args[1]), int(args[2])
     mid = args[3] if len(args) > 3 and args[3] in MODELS else data.get("model") or DEFAULT_MODEL
     prompt = sys.stdin.read().strip()
+    if style:
+        mid = STYLES[style]["model"]  # a LoRA belongs to its model
     if not installed(data):
         print("bildprogrammet är inte installerat", file=sys.stderr)
         return 1
     if not base(data).exists():
         print(f"disken med bildprogrammet är inte inkopplad ({base(data)})", file=sys.stderr)
+        return 1
+    if style and not model_ready(mid, data):
+        print(f"stilen {STYLES[style]['name']} kräver {MODELS[mid]['name']} – hämta den under "
+              "AI-tjänster → Skapa bilder", file=sys.stderr)
         return 1
     if not model_ready(mid, data):
         mid = next((m for m in MODELS if model_ready(m, data)), "")
@@ -412,11 +478,20 @@ def cmd_generate(args):
     folder = base(data) / "models"
     diff, llm, vae = (folder / local_name(f[1]) for f in model_files(mid, data))
     out.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [str(cli(data)), "--diffusion-model", str(diff), "--llm", str(llm), "--vae", str(vae),
+    extra = []
+    if style:
+        err = pull_style(data, style)
+        if err:
+            print(err, file=sys.stderr)
+            return 1
+        st = STYLES[style]
+        prompt = f"<lora:{Path(st['path']).stem}:{st['weight']}> {st['trigger']} {prompt}"
+        extra = ["--lora-model-dir", str(style_file(data, style).parent)]
+    cmd = [str(cli(data)), "--diffusion-model", str(diff), "--llm", str(llm), "--vae", str(vae), *extra,
            "-p", prompt, "--cfg-scale", "1.0", "--steps", str(MODELS[mid]["steps"]),
            "-W", str(width), "-H", str(height), "-s", str(int.from_bytes(os.urandom(4), "big") >> 1),
            "-o", str(out)]
-    say(f"Ritar med {MODELS[mid]['name']}…")
+    say(f"Ritar med {MODELS[mid]['name']}" + (f" · {STYLES[style]['name']}" if style else "") + "…")
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             env=dict(os.environ, LD_LIBRARY_PATH=str(cli(data).parent)), start_new_session=True)
     os.set_blocking(proc.stdout.fileno(), False)
@@ -470,6 +545,7 @@ def main(argv):
         "status": cmd_status, "install": lambda: cmd_install(rest), "update": cmd_update,
         "pull": lambda: cmd_pull(rest), "use": lambda: cmd_use(rest), "rm": lambda: cmd_rm(rest),
         "uninstall": lambda: cmd_uninstall(rest), "generate": lambda: cmd_generate(rest),
+        "pull-style": lambda: cmd_pull_style(rest),
     }
     if cmd not in commands:
         print(__doc__, file=sys.stderr)

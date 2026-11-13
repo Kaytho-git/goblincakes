@@ -336,6 +336,7 @@ COMMANDS=(
     "ai setup|Ställ in gratis AI-tjänster (Gemini, OpenRouter, Tavily-sökning)"
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
     "barn|Barnläge: bara spelen du valt i Config → Barnläge, en skärm, PIN-kod för att gå ut. goblin barn stopp = avsluta utan PIN (glömd kod: Ctrl+Alt+F3, logga in, skriv det)"
+    "pixelart|Barnlägets bilder i pixelart: Kakan och ChatGPT ritar samma, du väljer – goblin pixelart kakan saturnus, goblin pixelart chatgpt saturnus, goblin pixelart jämför; bara goblin pixelart = listan"
     "discord|Namnge röstkanalen du sitter i just nu (visas i toppfältet): goblin discord namn <kanalens namn>, t.ex. goblin discord namn Raid (goblin discord Raid går också); bara goblin discord = listan med namngivna kanaler"
     "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
     "färg|GOBLINCAKES färg – blått eller en WoW-klassfärg: goblin färg dk (också i Config → Inställningar)"
@@ -780,6 +781,7 @@ HELP
             stopp|stop) exec goblin-kids --stop ;;
             *) exec goblin-kids ;;
         esac ;;
+    pixelart|pixel) shift; exec /usr/libexec/goblincakes-pixelart "$@" ;;
     discord) shift
         case ${1:-} in
             namn|name) shift; exec /usr/libexec/goblincakes-discord-voice name "$@" ;;

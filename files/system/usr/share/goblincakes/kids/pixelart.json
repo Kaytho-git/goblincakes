@@ -1,0 +1,21 @@
+{
+ "_om": "Barnlägets bilder i pixelart (13 nov, stil B = Super Nintendo). goblin pixelart ritar dem med Kakan (din dator, pixelart-tillägget) och ChatGPT (Codex) – du väljer. size = pixlarna i den färdiga bilden (förstoras skarpt i barnläget); format = vad som ritas innan den städas. prompt = till Kakans ritprogram (engelska, bara motivet); order = till Codex (stilen står i ~/.codex/AGENTS.md).",
+ "colors": 32,
+ "items": [
+  {"id": "saturnus", "name": "Saturnus", "kind": "figur", "size": [96, 96], "format": "1:1",
+   "prompt": "A cute golden planet like Saturn with soft cream and amber bands and a wide tilted ring, lit from the upper left, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Saturnus – en gyllene planet med band i krämvitt och bärnsten och en bred ring som lutar lite. Bara planeten."},
+  {"id": "regnbage", "name": "Regnbåge (bakgrund)", "kind": "bakgrund", "size": [256, 144], "format": "16:9",
+   "prompt": "A cheerful landscape for a small child: a bright blue sky, a big rainbow arching from the left to the middle, rolling green hills at the bottom with small pink and yellow flowers, no sun and no clouds",
+   "order": "rita bakgrunden Regnbåge – en klarblå himmel, en stor regnbåge från vänster till mitten, böljande gröna kullar längst ner med små rosa och gula blommor. Ingen sol och inga moln (de kommer som egna figurer)."},
+  {"id": "natthimmel", "name": "Natthimmel (bakgrund)", "kind": "bakgrund", "size": [256, 144], "format": "16:9",
+   "prompt": "A calm night sky for a small child: deep blue to violet, many small twinkling stars, a soft purple nebula, dark blue hills at the very bottom, no moon",
+   "order": "rita bakgrunden Natthimmel – djupblått till lila, många små stjärnor, en mjuk lila nebulosa, mörkblå kullar längst ner. Ingen måne (den kommer som egen figur)."},
+  {"id": "moln", "name": "Moln", "kind": "figur", "size": [64, 40], "format": "16:9",
+   "prompt": "One fluffy white cartoon cloud with light blue shading underneath, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Moln – ett fluffigt vitt moln med ljusblå skugga på undersidan. Bara molnet."},
+  {"id": "sol", "name": "Sol", "kind": "figur", "size": [56, 56], "format": "1:1",
+   "prompt": "A round smiling yellow sun with short orange rays, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Sol – en rund, glad gul sol med korta orange strålar. Bara solen."}
+ ]
+}

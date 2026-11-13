@@ -1,0 +1,431 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: Barnläge's pictures in pixel art (13 Nov, the user: "Super Nintendo … peak grafik" – Kakan draws
+on this computer and ChatGPT draws the same, the user picks what they like best). The list:
+/usr/share/goblincakes/kids/pixelart.json. Everything lands in ~/Bilder/Barnläge/pixelart/<kakan|chatgpt>/.
+
+    goblincakes-pixelart [lista]                  the pictures and which are drawn
+    goblincakes-pixelart kakan [id …|alla]        Kakan draws them (goblincakes-image, the pixel art style)
+    goblincakes-pixelart chatgpt [id …|alla]      Codex in the ChatGPT app draws them (press Enter in the app)
+    goblincakes-pixelart jämför [id …]            a picture with all of them side by side, opened
+    goblincakes-pixelart städa <in> <ut> <bredd> <höjd> [--figur] [--färger N]
+    goblincakes-pixelart codex-stil               puts the style in ~/.codex/AGENTS.md (chatgpt does it itself)
+
+Every drawn picture is cleaned: down to its exact pixel size (the most common colour in the middle of each
+square), the colours locked to one palette (median cut, 32), and for figures the magenta background made
+transparent. Saved as <id>.png (the real pixels), <id>-stor.png (×6, to look at) and <id>-rå.png (as drawn).
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HOME = Path.home()
+LIST = Path(os.environ.get("GOBLINCAKES_PIXELART_LIST", "/usr/share/goblincakes/kids/pixelart.json"))
+IMAGE = os.environ.get("GOBLINCAKES_IMAGE_HELPER", "/usr/libexec/goblincakes-image")
+CHATGPT = os.environ.get("GOBLINCAKES_CHATGPT_HELPER", "/usr/libexec/goblincakes-chatgpt")
+CODEX_HOME = Path(os.environ.get("CODEX_HOME") or HOME / ".codex")
+FORMATS = {"1:1": (1024, 1024), "16:9": (1280, 720)}
+SOURCES = ("kakan", "chatgpt")
+SOURCE_NAMES = {"kakan": "Kakan (din dator)", "chatgpt": "ChatGPT (Codex)"}
+PREVIEW = 6
+
+START = "<!-- goblincakes-pixelart: början (goblin pixelart skriver om det här avsnittet) -->"
+END = "<!-- goblincakes-pixelart: slut -->"
+CODEX_STYLE = START + """
+## Pixelart till GOBLINCAKES barnläge
+
+Gäller bara när en uppgift börjar med "Barnläget:" eller nämner GOBLINCAKES pixelart.
+Bilderna är till en treåring: glada, enkla och lätta att känna igen.
+
+Stil: mjuk 16-bit, som ett Super Nintendo-spel.
+- Riktig pixelart: varje pixel är en tydlig fyrkant i ett jämnt rutnät. Ingen kantutjämning,
+  ingen suddighet. Övergångar görs med rutmönster (dithering), aldrig med mjuka övertoningar.
+- Pixelstorlek: bakgrunder 256 × 144 pixlar och figurer 32–96 pixlar, uppförstorade så att
+  varje pixel blir en stor fyrkant.
+- Ungefär 32 färger. Varje yta har 3–4 toner: skugga, grund, ljus. Ljuset kommer uppifrån vänster.
+- Konturer i en mörkare ton av ytans egen färg, inte svart.
+- Ingen text, inga loggor, inga kända figurer.
+- Figurer: ensamma mitt i bilden på helt magentafärgad bakgrund (#FF00FF), så att bakgrunden
+  kan tas bort. Bakgrunder fyller hela bilden.
+- Fråga inte efter filnamn – det står i uppgiften. Rita bilden direkt.
+""" + END
+
+
+def pictures():
+    try:
+        pics = subprocess.run(["xdg-user-dir", "PICTURES"], capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pics = ""
+    return Path(pics if pics and pics != str(HOME) else HOME / "Bilder")
+
+
+OUT = Path(os.environ.get("GOBLINCAKES_PIXELART_OUT") or pictures() / "Barnläge" / "pixelart")
+
+
+def load_list():
+    data = json.loads(LIST.read_text())
+    return data, {it["id"]: it for it in data["items"]}
+
+
+def pick(ids, items):
+    if not ids or ids == ["alla"]:
+        return list(items.values())
+    bad = [i for i in ids if i not in items]
+    if bad:
+        sys.exit(f"Finns inte i listan: {', '.join(bad)} (goblin pixelart lista)")
+    return [items[i] for i in ids]
+
+
+# ── Cleaning ──────────────────────────────────────────────────────
+
+def _qt():
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtGui import QGuiApplication, QImage  # noqa: PLC0415
+    if QGuiApplication.instance() is None:
+        _qt.app = QGuiApplication([])
+    return QImage
+
+
+def read_rgba(path):
+    QImage = _qt()
+    img = QImage(str(path))
+    if img.isNull():
+        raise SystemExit(f"Kan inte läsa bilden: {path}")
+    img = img.convertToFormat(QImage.Format.Format_RGBA8888)
+    w, h, bpl = img.width(), img.height(), img.bytesPerLine()
+    raw = bytes(img.constBits())[: bpl * h]
+    px = [None] * (w * h)
+    for y in range(h):
+        row = y * bpl
+        for x in range(w):
+            i = row + x * 4
+            px[y * w + x] = (raw[i], raw[i + 1], raw[i + 2], raw[i + 3])
+    return w, h, px
+
+
+def is_key(p):
+    """The magenta background, and the edge where the drawing blended it into the figure (red ≈ blue, far above
+    green) – pink like #F25CB4 (red well above blue) and lilac (green high) stay."""
+    r, g, b, a = p
+    return a < 128 or (g < min(r, b) - 60 and abs(r - b) < 50)
+
+
+def bbox(w, h, px):
+    xs = [i % w for i, p in enumerate(px) if p is not None]
+    ys = [i // w for i, p in enumerate(px) if p is not None]
+    if not xs:
+        return 0, 0, w, h
+    return min(xs), min(ys), max(xs) + 1, max(ys) + 1
+
+
+def cells(w, h, px, box, tw, th, figure):
+    """The picture (box of it) → tw × th cells: the most common colour in the middle of each square."""
+    x0, y0, x1, y1 = box
+    bw, bh = x1 - x0, y1 - y0
+    if figure:  # keep the shape: fit the box inside tw × th, the rest transparent
+        k = min(tw / bw, th / bh)
+        uw, uh = max(1, round(bw * k)), max(1, round(bh * k))
+        ox, oy = (tw - uw) // 2, (th - uh) // 2
+    else:
+        uw, uh, ox, oy = tw, th, 0, 0
+    out = [None] * (tw * th)
+    for cy in range(uh):
+        sy0, sy1 = y0 + bh * cy / uh, y0 + bh * (cy + 1) / uh
+        for cx in range(uw):
+            sx0, sx1 = x0 + bw * cx / uw, x0 + bw * (cx + 1) / uw
+            mx, my = (sx1 - sx0) * 0.2, (sy1 - sy0) * 0.2
+            counts, sums, empty, n = {}, {}, 0, 0
+            for y in range(int(sy0 + my), max(int(sy0 + my) + 1, int(sy1 - my))):
+                for x in range(int(sx0 + mx), max(int(sx0 + mx) + 1, int(sx1 - mx))):
+                    p = px[min(y, h - 1) * w + min(x, w - 1)]
+                    n += 1
+                    if p is None:
+                        empty += 1
+                        continue
+                    key = (p[0] >> 4, p[1] >> 4, p[2] >> 4)
+                    counts[key] = counts.get(key, 0) + 1
+                    s = sums.setdefault(key, [0, 0, 0])
+                    s[0] += p[0]; s[1] += p[1]; s[2] += p[2]
+            if not counts or empty * 2 > n:
+                continue
+            key = max(counts, key=counts.get)
+            c = counts[key]
+            out[(oy + cy) * tw + ox + cx] = tuple(round(v / c) for v in sums[key])
+    return out
+
+
+def median_cut(colours, n):
+    boxes = [list(colours)]
+    while len(boxes) < n:
+        boxes.sort(key=lambda b: -max(max(c[i] for c in b) - min(c[i] for c in b) for i in range(3)) if len(b) > 1 else 0)
+        b = boxes[0]
+        if len(b) < 2:
+            break
+        ch = max(range(3), key=lambda i: max(c[i] for c in b) - min(c[i] for c in b))
+        b.sort(key=lambda c: c[ch])
+        mid = len(b) // 2
+        boxes[0:1] = [b[:mid], b[mid:]]
+    return [tuple(round(sum(c[i] for c in b) / len(b)) for i in range(3)) for b in boxes if b]
+
+
+def nearest(c, palette):
+    return min(palette, key=lambda p: (p[0] - c[0]) ** 2 * 3 + (p[1] - c[1]) ** 2 * 4 + (p[2] - c[2]) ** 2 * 2)
+
+
+def save(path, tw, th, out, scale=1):
+    QImage = _qt()
+    img = QImage(tw * scale, th * scale, QImage.Format.Format_RGBA8888)
+    img.fill(0)
+    for y in range(th):
+        for x in range(tw):
+            c = out[y * tw + x]
+            if c is None:
+                continue
+            v = 0xFF000000 | (c[0] << 16) | (c[1] << 8) | c[2]
+            for dy in range(scale):
+                for dx in range(scale):
+                    img.setPixel(x * scale + dx, y * scale + dy, v)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not img.save(str(path)):
+        raise SystemExit(f"Kunde inte spara {path}")
+
+
+def clean(src, dest, tw, th, figure=False, colours=32):
+    """src (as drawn) → dest (tw × th, the real pixels) + dest-stor.png. Returns the number of colours."""
+    w, h, px = read_rgba(src)
+    if figure:
+        px = [None if is_key(p) else p for p in px]
+        # The figure's outermost source pixels carry a little magenta – peel off about a third of a square
+        x0, y0, x1, y1 = bbox(w, h, px)
+        k = max(1, round(min((x1 - x0) / tw, (y1 - y0) / th) * 0.3))
+        for _ in range(k):
+            edge = [i for i, p in enumerate(px) if p is not None and (
+                i % w == 0 or px[i - 1] is None or i % w == w - 1 or px[i + 1] is None or
+                i < w or px[i - w] is None or i >= w * (h - 1) or px[i + w] is None)]
+            for i in edge:
+                px[i] = None
+    else:
+        px = [p if p[3] >= 128 else None for p in px]
+    out = cells(w, h, px, bbox(w, h, px) if figure else (0, 0, w, h), tw, th, figure)
+    used = [c for c in out if c is not None]
+    if not used:
+        raise SystemExit(f"Ingenting kvar i {src} efter att bakgrunden togs bort")
+    palette = median_cut(sorted(set(used)), colours)
+    memo = {}
+    out = [None if c is None else memo.setdefault(c, nearest(c, palette)) for c in out]
+    save(dest, tw, th, out)
+    save(dest.with_name(dest.stem + "-stor.png"), tw, th, out, PREVIEW)
+    return len(set(c for c in out if c is not None))
+
+
+# ── Drawing ───────────────────────────────────────────────────────
+
+def paths(source, it):
+    folder = OUT / source
+    return folder / f"{it['id']}-rå.png", folder / f"{it['id']}.png"
+
+
+def finish(source, it, data):
+    raw, dest = paths(source, it)
+    tw, th = it["size"]
+    n = clean(raw, dest, tw, th, it["kind"] == "figur", data.get("colors", 32))
+    print(f"  ✓ {it['name']}: {dest} ({tw} × {th}, {n} färger)")
+
+
+def cmd_kakan(ids):
+    data, items = load_list()
+    failed = 0
+    for it in pick(ids, items):
+        raw, _ = paths("kakan", it)
+        w, h = FORMATS.get(it["format"], FORMATS["1:1"])
+        print(f"Kakan ritar {it['name']}…", flush=True)
+        try:
+            proc = subprocess.Popen([IMAGE, "generate", str(raw), str(w), str(h), "--style", "pixelart"],
+                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        except OSError:
+            sys.exit(f"Kakans ritprogram saknas ({IMAGE})")
+        proc.stdin.write(it["prompt"])
+        proc.stdin.close()
+        last = 0.0
+        for line in proc.stdout:
+            if line.startswith("@@progress ") and time.time() - last > 2:
+                last = time.time()
+                try:
+                    ev = json.loads(line[11:])
+                    if ev.get("what") == "steps":
+                        print(f"  steg {ev['completed']} av {ev['total']}", flush=True)
+                except ValueError:
+                    pass
+            elif line.startswith("@@ "):
+                print("  " + line[3:].strip(), flush=True)
+        err = proc.stderr.read().strip()
+        code = proc.wait()
+        if code == 3:
+            sys.exit("Ett spel kör – Kakan ritar inte medan du spelar. Försök igen efteråt.")
+        if code != 0 or not raw.is_file():
+            print(f"  ✗ {it['name']}: {(err.splitlines() or ['bilden blev inte klar'])[-1]}")
+            failed += 1
+            continue
+        finish("kakan", it, data)
+    return 1 if failed else 0
+
+
+def codex_style():
+    """The style section in ~/.codex/AGENTS.md (replaced if there, else added last). True when changed."""
+    f = CODEX_HOME / "AGENTS.md"
+    text = f.read_text() if f.is_file() else ""
+    if START in text and END in text:
+        new = text[: text.index(START)] + CODEX_STYLE + text[text.index(END) + len(END):]
+    else:
+        new = text.rstrip() + ("\n\n" if text.strip() else "") + CODEX_STYLE + "\n"
+    if new == text:
+        return False
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(new)
+    return True
+
+
+def cmd_codex_style():
+    print(("Stilen är inlagd i " if codex_style() else "Stilen fanns redan i ") + str(CODEX_HOME / "AGENTS.md"))
+    return 0
+
+
+def cmd_chatgpt(ids):
+    data, items = load_list()
+    if codex_style():
+        print(f"Pixelartstilen är inlagd i {CODEX_HOME / 'AGENTS.md'} (Codex läser den varje gång).")
+    failed = 0
+    for it in pick(ids, items):
+        raw, _ = paths("chatgpt", it)
+        raw.unlink(missing_ok=True)
+        raw.parent.mkdir(parents=True, exist_ok=True)
+        print(f"ChatGPT ritar {it['name']} – tryck Enter i ChatGPT-appen när den öppnas…", flush=True)
+        text = f"Barnläget: {it['order']} Filnamn: {it['id']}.png"
+        try:
+            proc = subprocess.run([CHATGPT, "image", text, "--out", str(raw)], capture_output=True, text=True)
+        except OSError:
+            sys.exit(f"ChatGPT-hjälparen saknas ({CHATGPT})")
+        lines = [l for l in proc.stdout.splitlines() if l.strip()]
+        if proc.returncode != 0 or not raw.is_file():
+            reason = next((l[3:] for l in reversed(lines) if l.startswith("@@ ")), "") or \
+                (proc.stderr.strip().splitlines() or ["ingen bild"])[-1]
+            print(f"  ✗ {it['name']}: {reason}")
+            failed += 1
+            continue
+        finish("chatgpt", it, data)
+    return 1 if failed else 0
+
+
+def cmd_list():
+    data, items = load_list()
+    print(f"Barnlägets pixelart – {OUT}\n")
+    for it in items.values():
+        done = [SOURCE_NAMES[s].split(" ")[0] for s in SOURCES if paths(s, it)[1].is_file()]
+        print(f"  {it['id']:<12} {it['name']:<24} {it['size'][0]}×{it['size'][1]:<5} "
+              + ("ritad av " + " och ".join(done) if done else "inte ritad"))
+    print("\n  goblin pixelart kakan saturnus · goblin pixelart chatgpt saturnus · goblin pixelart jämför")
+    return 0
+
+
+def cmd_compare(ids):
+    data, items = load_list()
+    rows = [it for it in pick(ids, items) if any(paths(s, it)[1].is_file() for s in SOURCES)]
+    if not rows:
+        sys.exit("Inget ritat än – goblin pixelart kakan saturnus / goblin pixelart chatgpt saturnus")
+    QImage = _qt()
+    from PySide6.QtCore import QRect, Qt  # noqa: PLC0415
+    from PySide6.QtGui import QColor, QFont, QPainter  # noqa: PLC0415
+    cols = [(s, kind) for s in SOURCES for kind in ("rå", "städad")]
+    cw, pad, head, label = 380, 20, 56, 30
+    heights = []
+    for it in rows:
+        tw, th = it["size"]
+        heights.append(round(cw * th / tw))
+    W = pad + len(cols) * (cw + pad)
+    H = head + sum(h + label + pad for h in heights) + pad
+    img = QImage(W, H, QImage.Format.Format_RGB32)
+    img.fill(QColor("#07090D"))
+    p = QPainter(img)
+    f = QFont("IBM Plex Sans")
+    f.setPixelSize(17)
+    f.setBold(True)
+    p.setFont(f)
+    for i, (s, kind) in enumerate(cols):
+        p.setPen(QColor("#E6ECF5" if kind == "städad" else "#8B98AD"))
+        p.drawText(QRect(pad + i * (cw + pad), 0, cw, head), Qt.AlignmentFlag.AlignCenter,
+                   f"{SOURCE_NAMES[s]} – {kind}")
+    y = head
+    f.setBold(False)
+    f.setPixelSize(15)
+    for it, h in zip(rows, heights):
+        p.setFont(f)
+        p.setPen(QColor("#8B98AD"))
+        p.drawText(QRect(pad, y, W, label), Qt.AlignmentFlag.AlignVCenter, it["name"])
+        y += label
+        for i, (s, kind) in enumerate(cols):
+            raw, dest = paths(s, it)
+            box = QRect(pad + i * (cw + pad), y, cw, h)
+            p.fillRect(box, QColor("#0E1420"))
+            src = dest if kind == "städad" else raw
+            if not src.is_file():
+                p.setPen(QColor("#3A4A68"))
+                p.drawText(box, Qt.AlignmentFlag.AlignCenter, "inte ritad")
+                continue
+            pic = QImage(str(src))
+            if it["kind"] == "figur":  # a checkerboard shows what is transparent
+                for cy in range(box.top(), box.bottom(), 16):
+                    for cx in range(box.left(), box.right(), 16):
+                        if ((cx - box.left()) // 16 + (cy - box.top()) // 16) % 2:
+                            p.fillRect(QRect(cx, cy, 16, 16).intersected(box), QColor("#141C2C"))
+            mode = Qt.TransformationMode.FastTransformation if kind == "städad" else Qt.TransformationMode.SmoothTransformation
+            pic = pic.scaled(box.size(), Qt.AspectRatioMode.KeepAspectRatio, mode)
+            p.drawImage(box.left() + (cw - pic.width()) // 2, y + (h - pic.height()) // 2, pic)
+        y += h + pad
+    p.end()
+    out = OUT / "jämförelse.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.save(str(out))
+    print(out)
+    if os.environ.get("GOBLINCAKES_PIXELART_NOOPEN") != "1":
+        subprocess.Popen(["xdg-open", str(out)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+    return 0
+
+
+def cmd_clean(args):
+    figure = "--figur" in args
+    args = [a for a in args if a != "--figur"]
+    colours = 32
+    if "--färger" in args:
+        i = args.index("--färger")
+        colours = int(args[i + 1])
+        args = args[:i] + args[i + 2:]
+    if len(args) != 4:
+        sys.exit("Använd: goblin pixelart städa <in> <ut> <bredd> <höjd> [--figur] [--färger N]")
+    n = clean(Path(args[0]).expanduser(), Path(args[1]).expanduser(), int(args[2]), int(args[3]), figure, colours)
+    print(f"{args[1]} ({args[2]} × {args[3]}, {n} färger)")
+    return 0
+
+
+def main(argv):
+    cmd, rest = (argv[0], argv[1:]) if argv else ("lista", [])
+    if cmd in ("lista", "list"):
+        return cmd_list()
+    if cmd == "kakan":
+        return cmd_kakan(rest)
+    if cmd == "chatgpt":
+        return cmd_chatgpt(rest)
+    if cmd in ("jämför", "jamfor", "compare"):
+        return cmd_compare(rest)
+    if cmd in ("städa", "stada", "clean"):
+        return cmd_clean(rest)
+    if cmd == "codex-stil":
+        return cmd_codex_style()
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
