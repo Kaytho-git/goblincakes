@@ -64,8 +64,14 @@ PlasmoidItem {
     property bool kakanAnswers: false
     property var kakanModels: []          // [{name, expires_at, size_vram}] from /api/ps
     property bool kakanWaking: false      // clicked: "Laddar" until she is in memory (at most 5 min)
+    // Goblin AI answers right now ($XDG_RUNTIME_DIR/goblincakes-ai/*.json, goblinai.activity) – while the local AI
+    // rests for a game that goes to a cloud service: "Molnet" instead of "Vilar" (13 Nov, the user's wish)
+    property bool kakanBusy: false
+    // The folder is made by the first question after login – made here first, then watched (a missing folder isn't)
+    readonly property string aiFolderCommand: "mkdir -p \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-ai\"; echo ok"
+    property string aiFolder: ""
     readonly property string kakan: !kakanInstalled ? ""
-        : kakanPaused ? "resting"
+        : kakanPaused ? (kakanBusy ? "cloud" : "resting")
         : kakanModels.length > 0 ? "ready"
         : kakanWaking ? "loading"
         : kakanAnswers ? "idle" : "off"
@@ -92,6 +98,9 @@ PlasmoidItem {
         xhr.send();
     }
     function kakanTip() {
+        if (kakan === "cloud") {
+            return "Den lokala AI:n vilar medan spelet kör – " + aiName + " svarar via en molntjänst just nu\nKlicka för Goblin AI";
+        }
         if (kakan === "resting") {
             return "Vilar medan spelet kör – laddas in igen när spelet är stängt\nKlicka för Goblin AI";
         }
@@ -176,6 +185,8 @@ PlasmoidItem {
                 root.gaming = lines.indexOf("spel") >= 0;
                 const named = lines.find(l => l.indexOf("namn=") === 0);
                 root.aiName = named && named.length > 5 ? named.slice(5) : "Kakan";
+            } else if (source === root.aiFolderCommand) {
+                root.aiFolder = StandardPaths.writableLocation(StandardPaths.RuntimeLocation) + "/goblincakes-ai";
             } else if (source === root.batteryCommand) {
                 try {
                     root.devices = JSON.parse(out || "[]");
@@ -270,6 +281,18 @@ PlasmoidItem {
             root.kakanPaused = count > 0;
             if (count === 0) {
                 root.readKakan();
+            }
+        }
+    }
+    FolderListModel {
+        folder: root.aiFolder
+        nameFilters: ["*.json"]
+        showDirs: false
+        onCountChanged: {
+            root.kakanBusy = count > 0;
+            // A file left by a Goblin AI that crashed: the helper removes it (and nothing else)
+            if (count > 0 && root.kakanPaused) {
+                root.run("/usr/libexec/goblincakes-ai-activity >/dev/null; true");
             }
         }
     }
@@ -372,5 +395,8 @@ PlasmoidItem {
         }
     }
 
-    Component.onCompleted: Plasmoid.removeInternalAction("configure")
+    Component.onCompleted: {
+        Plasmoid.removeInternalAction("configure");
+        root.run(root.aiFolderCommand);
+    }
 }

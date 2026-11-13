@@ -256,6 +256,7 @@ Rectangle {
             height: Math.round(44 * box.s)
             readonly property color tint: box.kakan === "ready" ? box.accent
                                           : box.kakan === "resting" || box.kakan === "off" ? Qt.darker(box.dimText, 1.6) : box.dimText
+            // "cloud" = the local AI rests for a game but she answers through a cloud service (dim, breathing)
             Rectangle {
                 anchors.fill: parent
                 color: kakanArea.hot ? "#1A2438" : "transparent"
@@ -267,12 +268,12 @@ Rectangle {
                 DeskIcon {
                     id: cupcake
                     anchors.verticalCenter: parent.verticalCenter
-                    name: box.kakan === "ready" ? "cupcake" : "cupcake-off"
+                    name: box.kakan === "ready" || box.kakan === "cloud" ? "cupcake" : "cupcake-off"
                     size: Math.round(18 * box.s)
                     color: kakanButton.tint
                     // Loading: breathes until she is in memory
                     SequentialAnimation on opacity {
-                        running: box.kakan === "loading"
+                        running: box.kakan === "loading" || box.kakan === "cloud"
                         loops: Animation.Infinite
                         onRunningChanged: if (!running) cupcake.opacity = 1
                         NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
@@ -285,7 +286,7 @@ Rectangle {
                     // As wide as the longest word, so the clock doesn't move when her state changes
                     width: Math.ceil(longest.advanceWidth)
                     TextMetrics { id: longest; font: kakanText.font; text: "Ej laddad" }
-                    text: ({ ready: "Redo", loading: "Laddar", idle: "Ej laddad", resting: "Vilar", off: "Av" })[box.kakan] || ""
+                    text: ({ ready: "Redo", loading: "Laddar", idle: "Ej laddad", resting: "Vilar", cloud: "Molnet", off: "Av" })[box.kakan] || ""
                     color: kakanButton.tint
                     font.family: "IBM Plex Sans"
                     font.pixelSize: Math.max(9, Math.round(12 * box.s))

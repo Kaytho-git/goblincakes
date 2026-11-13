@@ -1,3 +1,4 @@
+2026-11-13  Klockrutan: när Kakan svarar via molnet medan ett spel kör står det "Molnet" i stället för "Vilar".
 2026-11-13  Klockrutan: klockan står mitt i rutan, och markeringen på ethernet, ljudet och Kakan släcks när du har klickat (låg förut kvar). Samma för rutorna i Spelas nu.
 2026-11-13  Spelläge: Battle.net öppet utan spel räknas inte längre som att du spelar – Kakan och uppdateringarna vilar bara när ett spel faktiskt kör.
 2026-11-13  Skrivbordsraden (upplägget Dashboard): klockan står still i mitten – Steam- och Kakan-rutorna växer utåt i stället för att knuffa klockan åt sidan.
