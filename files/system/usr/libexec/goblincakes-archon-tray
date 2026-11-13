@@ -35,7 +35,7 @@ if not os.environ.get("WAYLAND_DISPLAY") and not os.environ.get("DISPLAY"):
     sys.exit(1)  # no screen yet – the service tries again
 
 from PySide6.QtCore import QTimer                                     # noqa: E402
-from PySide6.QtGui import QCursor, QIcon, QImage, QPixmap             # noqa: E402
+from PySide6.QtGui import QCursor, QIcon                              # noqa: E402
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon    # noqa: E402
 
 SNI = "org.kde.StatusNotifierItem"
@@ -52,6 +52,8 @@ APPS = {
     "raiderio-client": ("Raider.IO", "", "RaiderIO.AppImage"),
     "wowup-cf": ("WowUp", "", "WowUp.AppImage"),
 }
+# Not Battle.net (13 Nov, tried and taken out – the user: too tricky): its icon is Wine's old X11 kind through KDE's
+# xembedsniproxy and wants a double click; a copy of ours needed the mouse's position, which Wayland hides.
 APPIMAGES = os.path.expanduser("~/AppImages")
 
 
@@ -90,6 +92,7 @@ def find_items(wanted):
     return found
 
 
+
 def entries(node):
     """A program's menu as [(id, label, enabled, separator)] – one level, like theirs."""
     out = []
@@ -103,21 +106,45 @@ def entries(node):
     return out
 
 
-def own_picture(item):
-    """The program's own tray picture (IconPixmap: [w, h, ARGB32 in network byte order]) as a QIcon, or None."""
-    data = busctl("get-property", *item, SNI, "IconPixmap")
-    best = None
-    for w, h, raw in (data or {}).get("data", []):
-        if len(raw) == w * h * 4 and (not best or w > best[0]):
-            best = (w, h, raw)
-    if not best:
+# Run in a process of its own: WowUp's picture is 1024×1024 – read as JSON numbers it kept ~120 MB in this
+# program for good (13 Nov). The child picks the largest picture, shrinks it to at most 64 px and writes a PNG.
+_PICTURE = r"""
+import json, struct, subprocess, sys, zlib
+out = subprocess.run(["busctl", "--user", "--json=short", "get-property", sys.argv[1], sys.argv[2],
+                      "org.kde.StatusNotifierItem", "IconPixmap"], capture_output=True, text=True, timeout=5).stdout
+best = None
+for w, h, raw in json.loads(out)["data"]:
+    if len(raw) == w * h * 4 and (not best or w > best[0]):
+        best = (w, h, raw)
+w, h, raw = best
+step = max(1, (max(w, h) + 63) // 64)
+W, H = w // step, h // step
+rows = bytearray()
+for y in range(H):
+    rows.append(0)
+    for x in range(W):
+        i = ((y * step) * w + x * step) * 4
+        a, r, g, b = raw[i:i + 4]
+        rows += bytes((r, g, b, a))
+chunk = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d))
+png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", W, H, 8, 6, 0, 0, 0))
+       + chunk(b"IDAT", zlib.compress(bytes(rows))) + chunk(b"IEND", b""))
+open(sys.argv[3], "wb").write(png)
+"""
+PICTURES = os.path.expanduser("~/.cache/goblincakes/tray-icons")
+
+
+def own_picture(item, name):
+    """The program's own tray picture (IconPixmap) as a QIcon, or None."""
+    os.makedirs(PICTURES, exist_ok=True)
+    path = os.path.join(PICTURES, name + ".png")
+    try:
+        subprocess.run([sys.executable, "-c", _PICTURE, item[0], item[1], path], capture_output=True, timeout=10,
+                       check=True)
+    except Exception:  # noqa: BLE001 – no picture: the icon stays empty and hidden
         return None
-    w, h, raw = best
-    argb = bytearray(raw)
-    # A R G B in network order → QImage's ARGB32 is B G R A in memory (little-endian)
-    argb[0::4], argb[1::4], argb[2::4], argb[3::4] = argb[3::4], argb[2::4], argb[1::4], argb[0::4]
-    image = QImage(bytes(argb), w, h, w * 4, QImage.Format.Format_ARGB32).copy()
-    return QIcon(QPixmap.fromImage(image))
+    icon = QIcon(path)
+    return None if icon.isNull() else icon
 
 
 class Proxy:
@@ -140,7 +167,7 @@ class Proxy:
         if item != self.item:
             self.item, self.menu_path = item, None
             if item and not self.icon_file:
-                picture = own_picture(item)
+                picture = own_picture(item, self.process)
                 if picture:
                     self.tray.setIcon(picture)
             if item:

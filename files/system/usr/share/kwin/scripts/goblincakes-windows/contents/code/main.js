@@ -474,7 +474,7 @@ function spotifyAdded(window) {
 // Battle.net (8 Nov, changed 13 Nov): maximized under Wine/Proton the clicks land beside the buttons (CEF counts
 // from the wrong place – still so in the Dashboard layout, the user 13 Nov); a plain window is right. So a
 // maximize (its own button, a double click on the title bar, Meta+Up) becomes a plain window that fills the
-// screen. Only that – no forced size when it opens (the user wanted to make it smaller), and only its first
+// screen. Only that – no forced size when it opens (the user wanted to make it smaller), and only its main
 // window: its menus are windows of their own with the same caption and went full screen too.
 function isBattlenet(window) {
     return window.normalWindow && !window.transient && /^Battle\.net$/.test(String(window.caption));
@@ -484,12 +484,16 @@ const battlenets = [];
 function battlenetWatch(window) {
     if (battlenets.indexOf(window) >= 0)
         return;
-    if (battlenets.some(function (w) { return w.pid === window.pid; })) {
-        // One of its menus (the tray icon's right click …): focus at once – without it KWin's focus stealing
-        // prevention left it unfocused, so it took two clicks and never closed when you clicked elsewhere (13 Nov)
+    // One of its menus (the tray icon's right click …): not in the task bar, fixed size – told apart by that, not by
+    // being opened after the main window (with the main window closed to the tray, the menu came first and was taken
+    // for it). Focused at once – without it KWin's focus stealing prevention left it unfocused, so it took two clicks
+    // and never closed when you clicked elsewhere (13 Nov)
+    if (window.skipTaskbar || !window.resizeable) {
         workspace.activeWindow = window;
         return;
     }
+    if (battlenets.some(function (w) { return w.pid === window.pid; }))
+        return;
     battlenets.push(window);
     // Maximize again while it fills the screen = back to the size before (13 Nov, the user: "kan inte förminska" –
     // it is a plain window, so the button only maximized again). Remembered here, not read from the geometry:
