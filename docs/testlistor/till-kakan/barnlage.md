@@ -8,7 +8,7 @@
 - Config-fliken
   fråga: Öppna GOBLINCAKES Config → BARNLÄGE. Lägg till Bluey och Tux Paint med + Lägg till, och spara en PIN-kod. Syns Blueys omslag, och står det "Steam-spel" (inte "Steam-överlägget är PÅ") under Bluey? Om det står PÅ: stäng Steam och tryck "Stäng av överlägget" – försvinner det?
 - Splashen
-  fråga: Tryck Starta barnläget. Kommer stjärnsplashen med ljud (stjärnor, gnistor som snurrar in, ett ljussken, en regnbåge) och sedan två stora bilder? Hackar den?
+  fråga: Tryck Starta barnläget. Kommer stjärnsplashen med ljud (stjärnor, gnistor som snurrar in, ett ljussken, en planet som Saturnus som kommer inifrån rymden) och sedan två stora bilder? Hackar den?
 - Bara en skärm
   fråga: Är den andra skärmen täckt av en lugn natthimmel, och är dina egna fönster borta?
 - Kortkommandona är spärrade

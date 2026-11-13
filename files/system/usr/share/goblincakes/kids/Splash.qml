@@ -1,6 +1,6 @@
 // Barnläge's splash (13 Nov, the user: "något som fångar uppmärksamhet och förundran, magiskt"): in the dark the
 // stars light up one by one, sparkles in every colour spiral into the middle, gather into a glowing orb that bursts
-// in a flash of stars, a rainbow draws itself – then his games appear. ~5 s, with the sound "magi" (kids.py).
+// in a flash of stars, a planet like Saturn comes in from far away (13 Nov – the rainbow before) – then his games appear. ~5 s, with the sound "magi" (kids.py).
 // A click after the first moment skips to the end.
 import QtQuick
 
@@ -27,7 +27,7 @@ Item {
     }
 
     NumberAnimation on t { id: clock; from: 0; to: 6; duration: 6000; running: true }
-    onTChanged: if (t >= 4.5) finish()
+    onTChanged: if (t >= 5.0) finish()   // a moment to look at the planet
 
     Rectangle { anchors.fill: parent; color: "#02030A" }
 
@@ -162,14 +162,18 @@ Item {
         }
     }
 
-    // ── a rainbow draws itself over the middle (2.8 → 4.0 s)
-    Rainbow {
-        anchors.fill: parent
-        centerY: splash.cy + Math.min(splash.width, splash.height) * 0.22
-        radiusFactor: Math.min(0.3, 0.3 * splash.height / Math.max(1, splash.width) * 1.6)
-        bandFactor: radiusFactor * 0.07
-        progress: 1 - Math.pow(1 - splash.phase(2.75, 1.1), 2)
-        opacity: 1 - splash.phase(4.1, 0.5) * 0.3
+    // ── a planet like Saturn comes in from far away (2.6 → 4.4 s), turning a little as it nears
+    Saturn {
+        readonly property real p: splash.phase(2.6, 1.8)
+        readonly property real eased: 1 - Math.pow(1 - p, 3)
+        width: Math.min(splash.width, splash.height) * 0.9
+        height: width
+        x: splash.cx - width / 2
+        y: splash.cy - height / 2 - (1 - eased) * splash.height * 0.08
+        scale: 0.02 + eased * 0.98 + splash.phase(4.4, 1.0) * 0.06
+        rotation: -12 * (1 - eased)
+        opacity: Math.min(1, p * 4)
+        visible: p > 0
     }
 
     // the flash
