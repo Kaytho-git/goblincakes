@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GOBLINCAKES Barnläge restore
+Comment=After a crash in Barnläge: your windows, shortcuts and power button back (nothing to do = nothing happens)
+Exec=/usr/bin/goblin-kids --restore
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2

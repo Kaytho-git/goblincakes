@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Barnläge
+GenericName=En sandlåda för barnen
+Comment=Bara spelen och programmen du valt i GOBLINCAKES Config → Barnläge, på en skärm. PIN-kod för att gå ut.
+Exec=goblin-kids
+Icon=goblincakes-kids
+Categories=Game;
+Keywords=barn;barnläge;kids;sandlåda;föräldrar;spel;

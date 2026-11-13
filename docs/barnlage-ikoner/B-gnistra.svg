@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Barnläge (13 Nov), variant B: a big golden sparkle with small ones around it – the goblin head small in the corner -->
+  <circle cx="64" cy="68" r="34" fill="#FFD93D" opacity="0.18"/>
+    <path d="M64 26 Q69.88 62.12 106 68 Q69.88 73.88 64 110 Q58.12 73.88 22 68 Q58.12 62.12 64 26 Z" fill="#FFD93D"/>
+    <path d="M64 56 Q65.68 66.32 76 68 Q65.68 69.68 64 80 Q62.32 69.68 52 68 Q62.32 66.32 64 56 Z" fill="#FFF8DC"/>
+    <path d="M100 21 Q101.26 28.74 109 30 Q101.26 31.26 100 39 Q98.74 31.26 91 30 Q98.74 28.74 100 21 Z" fill="#FF7EB6"/>
+    <path d="M28 92 Q29.12 98.88 36 100 Q29.12 101.12 28 108 Q26.88 101.12 20 100 Q26.88 98.88 28 92 Z" fill="#7FE3FF"/>
+    <path d="M104 94 Q104.84 99.16 110 100 Q104.84 100.84 104 106 Q103.16 100.84 98 100 Q103.16 99.16 104 94 Z" fill="#B69CFF"/>
+  <g transform="translate(2,0) scale(0.46)">
+    <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+    <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
+    <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
+  </g>
+</svg>

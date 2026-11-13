@@ -43,6 +43,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - **Spelmätning:** `goblin frames` visar hur jämnt spelet flöt – snitt-fps, 1 % low, ryck och frysningar med klockslag – och ger råd. En notis sammanfattar passet när du stänger spelet.
 - **Handkontroller:** Xbox via dongel, USB och Bluetooth (xone, xpadneo), plus de vanliga PlayStation- och Switch-reglerna.
 - **TV-läge:** Steam Big Picture i helskärm, som en Steam Deck – välj det vid inloggningen eller starta det från appmenyn.
+- **Barnläge:** en sandlåda för små barn i din egen session – bara spelen och programmen du valt, stora bilder på en skärm, egen bakgrund, och en PIN-kod för att gå ut.
 - **Emulatorer:** RetroDECK (Super Nintendo, Mega Drive, N64, PlayStation, GameCube, Switch med flera) och Steam ROM Manager, som lägger in spelen i Steam och TV-läget.
 - **Snabbare:** NTSYNC för Windows-spel och snabbare förberedelse av shaders i Steam.
 - **Flera skärmar:** den snabbaste skärmen blir huvudskärm, och spelen öppnas där.

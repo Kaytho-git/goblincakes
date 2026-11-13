@@ -335,6 +335,7 @@ COMMANDS=(
     "ai [fråga]|En fråga direkt här – kommandon som ändrar något körs bara om du säger ja"
     "ai setup|Ställ in gratis AI-tjänster (Gemini, OpenRouter, Tavily-sökning)"
     "tv|TV-läge: Steam Big Picture i helskärm, som en Steam Deck"
+    "barn|Barnläge: bara spelen du valt i Config → Barnläge, en skärm, PIN-kod för att gå ut. goblin barn stopp = avsluta utan PIN (glömd kod: Ctrl+Alt+F3, logga in, skriv det)"
     "discord|Namnge röstkanalen du sitter i just nu (visas i toppfältet): goblin discord namn <kanalens namn>, t.ex. goblin discord namn Raid (goblin discord Raid går också); bara goblin discord = listan med namngivna kanaler"
     "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
     "färg|GOBLINCAKES färg – blått eller en WoW-klassfärg: goblin färg dk (också i Config → Inställningar)"
@@ -774,6 +775,11 @@ HELP
     moonbyte) exec /usr/libexec/goblincakes-song "/usr/share/goblincakes/songs/Moonbyte Drift.mp3" ;;
     moonlit) exec /usr/libexec/goblincakes-song "/usr/share/goblincakes/songs/Moonlit Pixel Drift.mp3" ;;
     tv) exec goblincakes-tv ;;
+    barn|barnläge|kids) shift
+        case ${1:-} in
+            stopp|stop) exec goblin-kids --stop ;;
+            *) exec goblin-kids ;;
+        esac ;;
     discord) shift
         case ${1:-} in
             namn|name) shift; exec /usr/libexec/goblincakes-discord-voice name "$@" ;;

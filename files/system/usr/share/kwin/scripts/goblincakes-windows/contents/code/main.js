@@ -648,6 +648,9 @@ function added(window) {
         dashboardAdded(window);
         return;
     }
+    // Barnläge (13 Nov): its own script (/usr/share/goblincakes/kids/kwin-on.js) places its windows
+    if (window.resourceClass === "goblin-kids")
+        return;
     if (ordinaryWindow(window))
         watchDrag(window);
     if (isAppGrid(window)) {

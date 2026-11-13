@@ -476,6 +476,7 @@ Window {
                         : win.tab === "graphics" ? "GRAFIK"
                         : win.tab === "windows" ? "FÖNSTER"
                         : win.tab === "dashboard" ? "DASHBOARD"
+                        : win.tab === "kids" ? "BARNLÄGE"
                         : win.tab === "tweaks" ? "INSTÄLLNINGAR"
                         : win.page === "choose" ? "VÄLJ DINA PROGRAM"
                         : win.page === "install" ? (win.chosenCount === 0 ? "AVINSTALLERAR…" : "INSTALLERAR…") : "KLART"
@@ -496,6 +497,8 @@ Window {
                         ? "Hur fönstren ligger på skärmarna – egna rutor och vilket program som öppnas var. Byt layout med Meta+Ctrl+1–9."
                         : win.tab === "dashboard"
                         ? "GOBLINCAKES Dashboard: vyerna, vad ramarna till vänster och höger visar och vilka program som ligger längst ner."
+                        : win.tab === "kids"
+                        ? "En sandlåda för barnen i din egen session: bara spelen och programmen du väljer här, en skärm, PIN-kod för att gå ut."
                         : win.tab === "graphics"
                         ? "Drivrutiner för ditt grafikkort. Den gamla varianten finns kvar i startmenyn om något går fel."
                         : win.tab === "tweaks"
@@ -526,10 +529,10 @@ Window {
         // Tabs
         Row {
             anchors { left: parent.left; leftMargin: 48; bottom: parent.bottom }
-            spacing: 32
+            spacing: 22   // 32 until Barnläge made the eighth tab (13 Nov)
 
             Repeater {
-                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "INSTÄLLNINGAR" }, { "id": "windows", "label": "FÖNSTER" }, { "id": "dashboard", "label": "DASHBOARD" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
+                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "INSTÄLLNINGAR" }, { "id": "windows", "label": "FÖNSTER" }, { "id": "dashboard", "label": "DASHBOARD" }, { "id": "kids", "label": "BARNLÄGE" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
 
                 Item {
                     id: tabItem
@@ -1863,6 +1866,13 @@ Window {
     // ── Dashboard: the views of GOBLINCAKES Dashboard, what each frame shows, the programs at the bottom ──
     // Read and saved by the dashboard's own dash.py (~/.config/goblincakes/dashboard.json); the dashboard
     // uses it the next time it is shown. Mockup: the Config board of the dashboard mockup (9 Nov).
+
+    // ── Barnläge (13 Nov): config/KidsView.qml
+    KidsView {
+        id: kidsView
+        visible: win.tab === "kids"
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
+    }
 
     Flickable {
         id: dashView
@@ -4397,6 +4407,8 @@ Window {
                 : win.tab === "graphics" ? "Bytet frågar efter ditt lösenord."
                 : win.tab === "windows" ? "Sparas av sig själv. Använd = rutorna och fönstren på plats nu."
                 : win.tab === "dashboard" ? (dashView.status || "Sparas av sig själv. Gäller nästa gång dashboarden öppnas.")
+                : win.tab === "kids" ? (kidsView.status || (kidsView.canStart ? "Sparas av sig själv. Starta med knappen, goblin barn eller Barnläge i AppGrid."
+                                                            : "Lägg till spel och en PIN-kod – sedan kan barnläget startas."))
                 : win.tab === "tweaks" ? "Ändringar gäller direkt. Systeminställningar frågar efter ditt lösenord."
                 : win.chosenCount === 0 && win.removeCount === 0 ? "Inget valt"
                 : [win.chosenCount === 0 ? "" : win.chosenCount === 1 ? "1 program valt" : win.chosenCount + " program valda",
@@ -4451,6 +4463,13 @@ Window {
                 onClicked: backend.openDashboard()
             }
             FlatButton {
+                visible: win.tab === "kids"
+                primary: true
+                enabledState: kidsView.canStart
+                text: "Starta barnläget"
+                onClicked: { backend.startKids(); win.finish(); }
+            }
+            FlatButton {
                 visible: win.tab === "system"
                 text: "Avinstallera program…"
                 onClicked: backend.openRemover()
@@ -4489,7 +4508,7 @@ Window {
             }
             FlatButton {
                 visible: win.tab !== "apps"
-                primary: win.tab !== "update"
+                primary: win.tab !== "update" && win.tab !== "kids"
                 // Not while apps are installing or the system is updating
                 enabledState: win.page !== "install" && win.updateState !== "running"
                 text: "Stäng"

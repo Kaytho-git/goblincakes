@@ -765,3 +765,19 @@ Ord: laptop, bärbar, batteri laptop, dubbla grafikkort
 ## ChatGPT-appen
 Ord: chatgpt, openai-appen
 - OpenAIs app uppackad i hemmappen, startas med /usr/libexec/goblincakes-chatgpt; uppdateras med goblin update.
+
+## Barnläge
+Ord: barnläge, barn, sandlåda, kids, PIN-kod barnläge, goblin barn
+- Fönstret: /usr/bin/goblin-kids (PySide6) + /usr/share/goblincakes/kids/ (Main.qml, Splash.qml, Scene.qml, kids.py,
+  kwin-on.js/kwin-off.js). Start: `goblin barn`, AppGrid "Barnläge" eller Config → BARNLÄGE → Starta barnläget.
+- Inställningar: ~/.config/goblincakes/kids.json (spelen i ordning, PIN-koden som pbkdf2-hash – aldrig i klartext,
+  volym, bakgrund). Föräldrens bilder: ~/.local/share/goblincakes/kids/bilder/. Omslag och ljud: ~/.cache/goblincakes/kids/.
+- Medan det är på: ~/.local/state/goblincakes/kids-active.json (vad som ska tillbaka). KWin-skriptet goblincakes-kids
+  laddat, fönsterregeln goblincakes-kids i ~/.config/kwinrulesrc (inga globala kortkommandon), PowerButtonAction 0 i
+  ~/.config/powerdevilrc, "no_display" under raden "# goblincakes-barnläge …" i ~/.config/MangoHud/MangoHud.conf.
+- Kolla om det är på: `cat ~/.local/state/goblincakes/kids-active.json` (pid). Fast på / kortkommandon döda efter en
+  krasch: `goblin barn stopp` (eller `goblin-kids --restore`, körs också vid varje inloggning). Glömd PIN:
+  Ctrl+Alt+F3, logga in, `goblin barn stopp`.
+- Steam-spel startas med `goblincakes-games run-id <appid> --kids` (som goblin play). Steam-överlägget per spel:
+  OverlayAppEnable i Steams userdata/<id>/config/localconfig.vdf (kopia .goblincakes-bak när Config ändrat den).
+
