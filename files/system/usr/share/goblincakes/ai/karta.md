@@ -526,7 +526,10 @@ Ord: wow, world of warcraft, battle.net, tillägg, addon, addons, bugsack, lua-f
 - WoW:s funktioner: verktyget wowapi slår upp en funktion, händelse eller ramtyp för spelet just nu, och `kolla <mapp>` jämför ett tilläggs .toc och .lua med spelet (påhittade namn, fel .toc-namn, Interface-raden). Datan: ~/.local/share/goblincakes/wowapi/index.json (hämtas igen efter en vecka; `python3 /usr/share/goblincakes/ai/wowapi.py hämta`). Efter varje ändring i ett tilläggs fil kör Goblin AI kontrollen själv. Kontrollen läser också Lua-koden med `luajit` (samma Lua som WoW): "Lua-fel" = WoW laddar inte filen alls. Den ser även fel antal argument till C_-funktioner och `.fält` på en funktion som ger tillbaka tal. Och variabler som används men aldrig får ett värde (en `local` som försvann). Den ser inte om tillägget gör rätt sak – det provas i spelet (/reload). En `sed` som inte hittade texten säger ändå OK – Goblin AI säger till efteråt.
 - Bara användarens egna tillägg får ändras (git-klonerna i AddOns, eller listan ~/.config/goblincakes/egna-tillagg) – andras (BigWigs, EllesmereUI, RaiderIO …) stoppas; förklara felet och föreslå WoWUp eller att säga till den som gjort det. Committa aldrig – användaren sparar ändringen själv.
 - Ändra aldrig spelets egna filer – bara tilläggens filer och inställningar.
-- WoWUp uppdaterar tilläggen; Archons ikon i systemfältet: tjänsten goblincakes-archon-tray.
+- WoWUp uppdaterar tilläggen. Ikonerna för Archon, Raider.IO och WowUp i systemfältet är våra (tjänsten
+  goblincakes-archon-tray): deras egna ligger bakom pilen (systray.js), eftersom vänsterklick på dem inte gör något
+  (Electron) – vårt vänsterklick väljer programmets "Open …"/"Show" i dess meny. Öppnas inget fönster: kör tjänsten?
+  (systemctl --user status goblincakes-archon-tray)
 
 ## Lagmätaren
 Ord: lagg, laggar, ping, laggknappen, meta+shift+l, lagmätning, hackar, nätet, paketförlust

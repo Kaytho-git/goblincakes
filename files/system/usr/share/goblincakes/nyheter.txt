@@ -1,3 +1,4 @@
+2026-11-13  Systemfältet: vänsterklick på Raider.IO och WowUp öppnar nu programmen (förut gjorde det ingenting – bara högerklick fungerade).
 2026-11-13  Battle.net: högerklicksmenyn på ikonen i systemfältet fungerar med ett klick och stänger sig när du klickar utanför.
 2026-11-13  Archon-ikonen i systemfältet: vänsterklick öppnar Archon igen även när ikonen startade före Archon vid inloggningen.
 2026-11-13  Klockrutan (upplägget Dashboard): mittenklick på klockan visar systemfältet uppe till höger i 8 sekunder – du behöver inte längre föra musen ända upp i hörnet.

@@ -437,8 +437,11 @@ DESKTOP
         status "Lägger till $label i AppGrid…"
         integrate_appimage "$file" "$label"
         echo "$url" > "$release_file"
-        # Archon's purple tray icon only runs where Archon is (ConditionPathExists, P7.5)
-        [ "$label" = Archon ] && systemctl --user start goblincakes-archon-tray.service 2>/dev/null
+        # Our tray icons for Archon, Raider.IO and WowUp only run where one of them is (ConditionPathExists, P7.5);
+        # restarted, so a new one is picked up (13 Nov)
+        case "$label" in
+            Archon|RaiderIO|WowUp) systemctl --user restart goblincakes-archon-tray.service 2>/dev/null ;;
+        esac
         status "$label installerad (${name})"
         ;;
 

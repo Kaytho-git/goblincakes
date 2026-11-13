@@ -1,10 +1,13 @@
 #!/usr/bin/python3
-"""Archon's icon in the system tray, light enough to see on the dark top bar (24 Oct, the user's
-wish). On Linux Archon (Electron) shows its black macOS template picture, and only as pixels, so
-Plasma can't swap it. This shows our purple copy instead while Archon runs: left click = Archon's
-own "activate", right click = Archon's own menu (read from its dbusmenu, the click sent back).
-Archon's own item is hidden in the tray by systray.js (chrome_status_icon_1@archon). Archon's files
-and storage are not touched. Run by goblincakes-archon-tray.service.
+"""Our own tray icons for Electron programs whose left click does nothing (Archon 24 Oct; Raider.IO and WowUp
+13 Nov, the user: "raiderio funkar med högerklick men inte vänster … samma med wowup"). Electron ignores the
+tray's Activate on Linux – only its menu works. So while such a program runs, its own item is hidden in the tray
+(systray.js, "<Id>@<process>") and this shows one in its place: left click = the program's own "Open …"/"Show"
+menu entry (Activate only when there is none), right click = the program's own menu (read from its dbusmenu, the
+click sent back), middle click = SecondaryActivate. Archon's icon is our purple copy (its own is a black macOS
+template, only pixels, can't be seen on the dark top bar); the others show their own picture (IconPixmap).
+The programs' files and storage are not touched. Run by goblincakes-archon-tray.service (the name from when it was
+only Archon).
 """
 import json
 import os
@@ -32,21 +35,28 @@ if not os.environ.get("WAYLAND_DISPLAY") and not os.environ.get("DISPLAY"):
     sys.exit(1)  # no screen yet – the service tries again
 
 from PySide6.QtCore import QTimer                                     # noqa: E402
-from PySide6.QtGui import QCursor, QIcon                              # noqa: E402
+from PySide6.QtGui import QCursor, QIcon, QImage, QPixmap             # noqa: E402
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon    # noqa: E402
 
-PROCESS = "archon"
 SNI = "org.kde.StatusNotifierItem"
 MENU = "com.canonical.dbusmenu"
 POLL_MS = 4000
 HERE = os.path.dirname(os.path.realpath(__file__))
 # Next to /usr/libexec in the image, or in the repo (files/system/usr/…)
-ICON = os.path.join(HERE, "..", "share", "icons", "hicolor", "scalable", "apps",
-                    "goblincakes-archon-tray.svg")
+ICONS = os.path.join(HERE, "..", "share", "icons", "hicolor", "scalable", "apps")
+# The process name (comm, at most 15 characters) → the name shown, our own icon file ("" = the program's own
+# picture), its AppImage (only installed ones are looked for). The hidden items in systray.js and the service's
+# conditions follow this list.
+APPS = {
+    "archon": ("Archon", "goblincakes-archon-tray.svg", "Archon.AppImage"),
+    "raiderio-client": ("Raider.IO", "", "RaiderIO.AppImage"),
+    "wowup-cf": ("WowUp", "", "WowUp.AppImage"),
+}
+APPIMAGES = os.path.expanduser("~/AppImages")
 
 
 def busctl(*args):
-    """busctl --user --json=short …; None when it fails (Archon gone)."""
+    """busctl --user --json=short …; None when it fails (the program gone)."""
     try:
         out = subprocess.run(["busctl", "--user", "--json=short", *args], capture_output=True,
                              text=True, timeout=3)
@@ -60,8 +70,10 @@ def busctl(*args):
         return None
 
 
-def find_archon():
-    """(service, path) of Archon's tray item, or None."""
+def find_items(wanted):
+    """{process: (service, path)} for the tray items of the wanted programs – one pass over the tray (our own
+    icons are python3 and never match)."""
+    found = {}
     items = busctl("get-property", "org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher",
                    "org.kde.StatusNotifierWatcher", "RegisteredStatusNotifierItems")
     for item in (items or {}).get("data", []):
@@ -70,15 +82,16 @@ def find_archon():
                      "GetConnectionUnixProcessID", "s", service)
         try:
             with open(f"/proc/{pid['data'][0]}/comm") as f:
-                if f.read().strip() == PROCESS:
-                    return service, "/" + (path or "StatusNotifierItem")
+                comm = f.read().strip()
         except (OSError, TypeError, KeyError, IndexError):
             continue
-    return None
+        if comm in wanted and comm not in found:
+            found[comm] = (service, "/" + (path or "StatusNotifierItem"))
+    return found
 
 
 def entries(node):
-    """Archon's menu as [(id, label, enabled, separator)] – one level, like Archon's own."""
+    """A program's menu as [(id, label, enabled, separator)] – one level, like theirs."""
     out = []
     for child in node[2]:
         cid, props = child["data"][0], child["data"][1]
@@ -90,54 +103,76 @@ def entries(node):
     return out
 
 
-class ArchonTray:
-    def __init__(self, app):
+def own_picture(item):
+    """The program's own tray picture (IconPixmap: [w, h, ARGB32 in network byte order]) as a QIcon, or None."""
+    data = busctl("get-property", *item, SNI, "IconPixmap")
+    best = None
+    for w, h, raw in (data or {}).get("data", []):
+        if len(raw) == w * h * 4 and (not best or w > best[0]):
+            best = (w, h, raw)
+    if not best:
+        return None
+    w, h, raw = best
+    argb = bytearray(raw)
+    # A R G B in network order → QImage's ARGB32 is B G R A in memory (little-endian)
+    argb[0::4], argb[1::4], argb[2::4], argb[3::4] = argb[3::4], argb[2::4], argb[1::4], argb[0::4]
+    image = QImage(bytes(argb), w, h, w * 4, QImage.Format.Format_ARGB32).copy()
+    return QIcon(QPixmap.fromImage(image))
+
+
+class Proxy:
+    """One program's icon of ours."""
+
+    def __init__(self, app, process, name, icon_file):
+        self.process, self.name = process, name
         self.item = None
         self.menu_path = None
+        self.icon_file = os.path.join(ICONS, icon_file) if icon_file else ""
         # The file itself: fromTheme() shortens a missing name to "goblincakes" (the logo)
-        self.tray = QSystemTrayIcon(QIcon(ICON), app)
+        self.tray = QSystemTrayIcon(QIcon(self.icon_file) if self.icon_file else QIcon(), app)
         self.menu = QMenu()
         self.menu.aboutToShow.connect(self.fill_menu)
         self.tray.setContextMenu(self.menu)
         self.tray.activated.connect(self.clicked)
-        self.timer = QTimer(interval=POLL_MS, timeout=self.poll)
-        self.timer.start()
-        self.poll()
 
-    def poll(self):
+    def update(self, item):
+        """item = the program's tray item now (None = not found)."""
+        if item != self.item:
+            self.item, self.menu_path = item, None
+            if item and not self.icon_file:
+                picture = own_picture(item)
+                if picture:
+                    self.tray.setIcon(picture)
+            if item:
+                self.fill_menu()
         if self.item:
             tip = busctl("get-property", *self.item, SNI, "ToolTip")
             if tip is None:
                 self.item = None
             else:
-                self.tray.setToolTip(tip["data"][2] or "Archon")
-        if not self.item:
-            self.item = find_archon()
-            if self.item:
-                self.menu_path = None
-                self.fill_menu()
-                return self.poll()
-        self.tray.setVisible(bool(self.item))
+                self.tray.setToolTip(tip["data"][2] or self.name)
+        self.tray.setVisible(bool(self.item) and not self.tray.icon().isNull())
 
     def menu_ready(self):
-        """Archon's menu path, read again while it is missing: at login this started before Archon had its menu,
-        the path stayed empty and a left click fell back to Activate, which Archon ignores (13 Nov – the icon
-        "didn't open Archon")."""
+        """The program's menu path, read again while it is missing: at login this started before Archon had its
+        menu, the path stayed empty and a left click fell back to Activate, which Archon ignores (13 Nov)."""
         if not self.menu_path and self.item:
             menu = busctl("get-property", *self.item, SNI, "Menu")
             self.menu_path = menu["data"] if menu else None
         return self.menu_path
+
+    def layout(self):
+        service = self.item[0]
+        busctl("call", service, self.menu_path, MENU, "AboutToShow", "i", "0")
+        layout = busctl("call", service, self.menu_path, MENU, "GetLayout", "iias", "--", "0", "-1", "0")
+        return entries(layout["data"][1]) if layout else []
 
     def fill_menu(self):
         self.menu.clear()
         if not self.item or not self.menu_ready():
             return
         service = self.item[0]
-        busctl("call", service, self.menu_path, MENU, "AboutToShow", "i", "0")
-        layout = busctl("call", service, self.menu_path, MENU, "GetLayout", "iias", "--", "0", "-1", "0")
-        if not layout:
-            return
-        for cid, label, enabled, separator in entries(layout["data"][1]):
+        for cid, label, enabled, separator in self.layout():
             if separator:
                 self.menu.addSeparator()
                 continue
@@ -148,15 +183,12 @@ class ArchonTray:
                 str(cid), "clicked", "s", "", "0"))
 
     def open_from_menu(self):
-        """Click Archon's own "Open …" menu entry; False when there is none."""
+        """Click the program's own "Open …"/"Show" menu entry; False when there is none."""
         if not self.menu_ready():
             return False
-        service = self.item[0]
-        busctl("call", service, self.menu_path, MENU, "AboutToShow", "i", "0")
-        layout = busctl("call", service, self.menu_path, MENU, "GetLayout", "iias", "--", "0", "-1", "0")
-        for cid, label, enabled, separator in entries(layout["data"][1]) if layout else []:
+        for cid, label, enabled, separator in self.layout():
             if not separator and enabled and label.lower().startswith(("open", "show", "öppna", "visa")):
-                busctl("call", service, self.menu_path, MENU, "Event", "isvu", "--",
+                busctl("call", self.item[0], self.menu_path, MENU, "Event", "isvu", "--",
                        str(cid), "clicked", "s", "", "0")
                 return True
         return False
@@ -166,8 +198,8 @@ class ArchonTray:
             return
         if reason in (QSystemTrayIcon.ActivationReason.Trigger,
                       QSystemTrayIcon.ActivationReason.DoubleClick):
-            # Archon ignores Activate (8 Nov: nothing happened on a left click) – its menu's
-            # "Open Archon App" opens the window; Activate only when the menu has no such entry
+            # Electron ignores Activate (Archon 8 Nov, Raider.IO and WowUp 13 Nov) – the menu's "Open …"/"Show"
+            # opens the window; Activate only when the menu has no such entry
             if not self.open_from_menu():
                 pos = QCursor.pos()
                 busctl("call", *self.item, SNI, "Activate", "ii", str(pos.x()), str(pos.y()))
@@ -175,12 +207,28 @@ class ArchonTray:
             busctl("call", *self.item, SNI, "SecondaryActivate", "ii", "0", "0")
 
 
+class Trays:
+    def __init__(self, app):
+        self.proxies = [Proxy(app, process, name, icon) for process, (name, icon, appimage) in APPS.items()
+                        if os.path.exists(os.path.join(APPIMAGES, appimage))]
+        self.timer = QTimer(interval=POLL_MS, timeout=self.poll)
+        self.timer.start()
+        self.poll()
+
+    def poll(self):
+        # The whole tray is only looked through while one of them isn't found (light when they all run)
+        missing = {p.process for p in self.proxies if not p.item}
+        found = find_items(missing) if missing else {}
+        for p in self.proxies:
+            p.update(p.item or found.get(p.process))
+
+
 def main():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("goblincakes-archon-tray")
     app.setDesktopFileName("appimage-archon")
-    _keep = ArchonTray(app)  # noqa: F841
+    _keep = Trays(app)  # noqa: F841
     sys.exit(app.exec())
 
 

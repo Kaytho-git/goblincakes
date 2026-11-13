@@ -42,15 +42,23 @@ function trim(target, row) {
     target.currentConfigGroup = ["General"];
     target.writeConfig("extraItems", row ? rowShown : shown);
     target.writeConfig("knownItems", known);
-    // Archon's own black icon goes behind the arrow: goblincakes-archon-tray shows a purple one
-    // (24 Oct). Plasma names Electron items "<Id>@<process>". (readConfig gives the list back
-    // as one comma-separated string; a first try on 24 Oct glued "obs" to a wrong name.)
-    var archon = "chrome_status_icon_1@archon";
+    // Electron programs' own icons go behind the arrow: goblincakes-archon-tray shows its own in their place
+    // (Archon purple 24 Oct; Raider.IO and WowUp 13 Nov – a left click on theirs did nothing). Plasma names
+    // Chromium's generic ids "chrome_status_icon_N@<process>"; ids of their own (Raider.IO, WowUp) as they are.
+    // (readConfig gives the list back as one comma-separated string; a first try on 24 Oct glued "obs" to a wrong
+    // name.) Follows APPS in goblincakes-archon-tray.
+    var ours = ["chrome_status_icon_1@archon", "RaiderIO_status_icon_1", "WowUpCf_status_icon_1"];
     var hidden = String(target.readConfig("hiddenItems") || "").split(",").map(function (item) {
         return item === "obschrome_status_icon_1" ? "obs" : item;
-    }).filter(function (item) { return item && item !== "chrome_status_icon_1"; });
-    if (hidden.indexOf(archon) < 0)
-        hidden.push(archon);
+    }).filter(function (item) {
+        // a wrong first try (13 Nov) and a plain Chromium id
+        return item && item !== "chrome_status_icon_1" && item.indexOf("_status_icon_1@raiderio") < 0
+            && item.indexOf("_status_icon_1@wowup") < 0;
+    });
+    ours.forEach(function (item) {
+        if (hidden.indexOf(item) < 0)
+            hidden.push(item);
+    });
     target.writeConfig("hiddenItems", hidden);
     target.reloadConfig();
     trimmed++;

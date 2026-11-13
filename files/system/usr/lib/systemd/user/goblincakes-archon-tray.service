@@ -1,11 +1,13 @@
 [Unit]
-Description=Archon's icon in the system tray in purple (the black one can't be seen on the top bar)
+Description=Tray icons for Archon, Raider.IO and WowUp (purple Archon; left click opens the window)
 After=graphical-session.target
 # Started with the desktop, not at login: before Plasma the session has no screen yet
 PartOf=graphical-session.target
-# Only where Archon is installed (P7.5, 12 Nov: 0.36 % and 33 MB on her laptop without it);
-# GOBLINCAKES Config starts the service after installing Archon
-ConditionPathExists=%h/AppImages/Archon.AppImage
+# Only where one of them is installed (P7.5, 12 Nov: 0.36 % and 33 MB on her laptop without them; "|" = any of
+# them); GOBLINCAKES Config starts the service after installing one
+ConditionPathExists=|%h/AppImages/Archon.AppImage
+ConditionPathExists=|%h/AppImages/RaiderIO.AppImage
+ConditionPathExists=|%h/AppImages/WowUp.AppImage
 
 [Service]
 ExecStart=/usr/libexec/goblincakes-archon-tray
