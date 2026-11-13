@@ -16,6 +16,8 @@ the output should show; without it the exit code decides) or `fråga:` (somethin
 Write `väntat` so Kakan needs no knowledge of the computer: if the answer depends on it (variant, GPU, Fedora
 version…), let the command print that too and say what to expect for each case (11 Nov: "44 on goblincakes-nvidia,
 45 on the others" without printing the variant → she called a correct 44/44/44 FEL).
+`pgrep -f`/`pgrep -fc` matches the shell running the command too: write the pattern with brackets,
+`pgrep -fc '[f]edora-check'` (13 Nov: three false FEL – "processer: 1" was the shell itself).
 
 In Goblin AI: /testa (the newest list), /testa <name>, /testa stopp. Each point is a message in the chat with the
 usual command card – reading commands run at once, changing ones wait for Tillåt, dangerous ones are stopped –
