@@ -10,6 +10,7 @@ without losing anything). Config → Inställningar → Utseende → Skrivbordet
     goblincakes-desktop-layout login             at login: the dashboard started hidden (comes up at once on Meta)
     goblincakes-desktop-layout forget            back to the standard without touching the panels (firstlogin --reset)
     goblincakes-desktop-layout row [hidden|empty]  the row: always hidden (standard) | out on an empty desktop
+    goblincakes-desktop-layout tray              the tray panel out for 8 s (the clock box's arrow, 13 Nov)
 
 Dashboard: the top bar (AppGrid, open programs, tray …) and the dock are removed and one panel is added at the top
 in the middle – Steam/Discord (org.goblincakes.nowplaying part=left), the clock box (org.goblincakes.deskclock),
@@ -420,6 +421,41 @@ def classic_leftovers(state):
         save(state)
 
 
+TRAY_SHOWN = 8  # seconds the tray panel stays out after the arrow (the user 13 Nov)
+TRAY_PANEL = ('function trayPanels() { return panels().filter(function (p) { return '
+              'p.widgets("org.kde.plasma.systemtray").length > 0 && p.widgets("org.goblincakes.deskclock").length === 0; }); }')
+
+
+def open_tray():
+    """The clock box's arrow (13 Nov, the user: the hidden tray panel at the top right came out over programs' buttons
+    at the top edge): the tray panel out for TRAY_SHOWN seconds, then hidden again as before – with the mouse on it
+    Plasma keeps it out until the mouse leaves. Only the panel, not the tray's box (its global shortcut opened that,
+    with the hidden icons and the settings – not what the user wanted). A newer click wins (the stamp)."""
+    was = plasma(TRAY_PANEL + 'trayPanels().forEach(function (p) { print(p.hiding); if (p.hiding !== "none") '
+                 'p.hiding = "none"; });')
+    if not was:
+        say("Hittade ingen panel med systemfältet.")
+        return 1
+    hiding = was.split()[0] if was.split()[0] in ("autohide", "dodgewindows", "windowsgobelow") else "autohide"
+    stamp = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "goblincakes-tray-shown"
+    mine = str(time.time())
+    try:
+        stamp.write_text(mine)
+    except OSError:
+        pass
+    if os.fork() == 0:  # the widget's call returns at once; the hiding comes later
+        os.setsid()
+        time.sleep(TRAY_SHOWN)
+        try:
+            newer = stamp.read_text() != mine
+        except OSError:
+            newer = False
+        if not newer:
+            plasma(TRAY_PANEL + 'trayPanels().forEach(function (p) { p.hiding = "%s"; });' % hiding)
+        os._exit(0)
+    return 0
+
+
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else "status"
     state = load()
@@ -448,6 +484,8 @@ def main(argv):
             return set_row(state, argv[2])
         print(next(k for k, v in ROW_MODES.items() if v == row_hiding(state)))
         return 0
+    if cmd == "tray":
+        return open_tray()
     if cmd == "forget":
         if current() == "dashboard":
             meta_back(state)
@@ -456,7 +494,7 @@ def main(argv):
         state.pop("rowHiding", None)
         save(state)
         return 0
-    print("Använd: goblincakes-desktop-layout status | set dashboard|classic | apply | login | forget | row [hidden|empty]", file=sys.stderr)
+    print("Använd: goblincakes-desktop-layout status | set dashboard|classic | apply | login | forget | row [hidden|empty] | tray", file=sys.stderr)
     return 2
 
 

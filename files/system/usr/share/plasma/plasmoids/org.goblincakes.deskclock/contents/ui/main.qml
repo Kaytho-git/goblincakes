@@ -322,6 +322,7 @@ PlasmoidItem {
             rightDevices: root.rightDevices
             onClockClicked: root.expanded = !root.expanded
             onNetClicked: root.run("setsid -f systemsettings kcm_networkmanagement >/dev/null 2>&1 < /dev/null")
+            onTrayClicked: root.run("/usr/libexec/goblincakes-desktop-layout tray >/dev/null 2>&1; true")
             onSoundClicked: button => {
                 if (button === Qt.MiddleButton) {
                     root.run("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && " + root.volumeCommand);
@@ -347,7 +348,7 @@ PlasmoidItem {
             parent: box.clockItem
             anchors.fill: parent
             mainText: Qt.locale("sv_SE").toString(root.now, "dddd d MMMM yyyy")
-            subText: "Vecka " + root.isoWeek(root.now) + "\nKlicka för kalendern"
+            subText: "Vecka " + root.isoWeek(root.now) + "\nKlicka för kalendern\nMittenklick visar systemfältet uppe till höger"
         }
         PlasmaCore.ToolTipArea {
             parent: box.netItem

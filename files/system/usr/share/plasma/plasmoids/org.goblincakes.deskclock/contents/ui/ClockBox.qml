@@ -38,6 +38,7 @@ Rectangle {
 
     signal clockClicked()
     signal netClicked()
+    signal trayClicked()
     signal soundClicked(int button)
     signal soundWheeled(int delta)
     signal kakanClicked()
@@ -207,7 +208,9 @@ Rectangle {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: box.clockClicked()
+                // Middle click = the hidden tray panel out for 8 s (13 Nov, the user – an arrow made the box too wide)
+                acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+                onClicked: mouse => mouse.button === Qt.MiddleButton ? box.trayClicked() : box.clockClicked()
             }
         }
 
