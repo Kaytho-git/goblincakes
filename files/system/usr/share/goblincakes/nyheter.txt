@@ -1,3 +1,4 @@
+2026-11-13  Battle.net: startar i sin egen storlek, maximeraknappen växlar mellan hela skärmen och mindre, och menyerna (t.ex. högerklick på ikonen i systemfältet) blir inte längre helskärm.
 2026-11-13  Klockrutan: när Kakan svarar via molnet medan ett spel kör står det "Molnet" i stället för "Vilar".
 2026-11-13  Klockrutan: klockan står mitt i rutan, och markeringen på ethernet, ljudet och Kakan släcks när du har klickat (låg förut kvar). Samma för rutorna i Spelas nu.
 2026-11-13  Spelläge: Battle.net öppet utan spel räknas inte längre som att du spelar – Kakan och uppdateringarna vilar bara när ett spel faktiskt kör.

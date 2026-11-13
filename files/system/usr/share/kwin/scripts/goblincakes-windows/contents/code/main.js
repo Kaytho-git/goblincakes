@@ -471,51 +471,93 @@ function spotifyAdded(window) {
     return true;
 }
 
-// Battle.net (8 Nov, the user's wish): maximized under Wine/Proton the clicks land beside the buttons
-// (CEF counts from the wrong place); full screen and a plain window are right. So Battle.net always
-// fills the screen below the top bar as a plain window – never maximized: a maximize (its own button,
-// a double click on its title bar, Meta+Up) becomes the same. No restoring (the user: always like this).
+// Battle.net (8 Nov, changed 13 Nov): maximized under Wine/Proton the clicks land beside the buttons (CEF counts
+// from the wrong place – still so in the Dashboard layout, the user 13 Nov); a plain window is right. So a
+// maximize (its own button, a double click on the title bar, Meta+Up) becomes a plain window that fills the
+// screen. Only that – no forced size when it opens (the user wanted to make it smaller), and only its first
+// window: its menus are windows of their own with the same caption and went full screen too.
 function isBattlenet(window) {
     return window.normalWindow && !window.transient && /^Battle\.net$/.test(String(window.caption));
 }
 
-function battlenetFill(window) {
-    if (window.fullScreen)
-        return;
-    if (window.maximizeMode !== 0)
-        window.setMaximize(false, false);
-    const a = workspace.clientArea(KWin.MaximizeArea, window);
-    const g = window.frameGeometry;
-    if (g.x !== a.x || g.y !== a.y || g.width !== a.width || g.height !== a.height)
-        window.frameGeometry = { x: a.x, y: a.y, width: a.width, height: a.height };
-}
-
 const battlenets = [];
 function battlenetWatch(window) {
-    if (battlenets.indexOf(window) >= 0)
+    if (battlenets.indexOf(window) >= 0 || battlenets.some(function (w) { return w.pid === window.pid; }))
         return;
     battlenets.push(window);
-    battlenetFill(window);
-    window.maximizedChanged.connect(function () {
-        if (window.maximizeMode !== 0)
-            battlenetFill(window);
-    });
-    // Battle.net puts back its own last size just after it opens
-    const start = Date.now();
+    // Maximize again while it fills the screen = back to the size before (13 Nov, the user: "kan inte förminska" –
+    // it is a plain window, so the button only maximized again). Remembered here, not read from the geometry:
+    // Battle.net's own button first makes the window bigger than the screen (y −30, 1928×1114) and only then
+    // asks to be maximized. The size before = the last one you dragged or it opened with; else a usual size.
+    let filled = false;
+    let before = null;
+    let filledAt = 0;
+    let putBack = 0;
+    // One pixel short of the screen: a window without a frame that covers the whole screen is taken for full screen
+    // by Wine (no top bar in the Dashboard layout – 13 Nov: it flipped to full screen and back, the buttons moved
+    // under the mouse)
+    const area = function () {
+        const a = workspace.clientArea(KWin.MaximizeArea, window);
+        return { x: a.x, y: a.y, width: a.width, height: a.height - 1 };
+    };
+    const near = function (g, a) {
+        return Math.abs(g.x - a.x) < 24 && Math.abs(g.y - a.y) < 24 && Math.abs(g.width - a.width) < 24
+            && Math.abs(g.height - a.height) < 24;
+    };
+    const start = window.frameGeometry;
+    filled = near(start, area());
+    if (!filled)
+        before = { x: start.x, y: start.y, width: start.width, height: start.height };
+    // After each change the window is held at its new size for 2 s: Wine sends an old size just after (back to
+    // the screen's size a moment after it was made smaller, 13 Nov) and Battle.net moves itself 8 px down
+    let target = null;
+    const set = function (g) {
+        target = g;
+        filledAt = Date.now();
+        putBack = 0;
+        window.frameGeometry = g;
+    };
+    const fill = function () {
+        if (window.maximizeMode === 0 || window.fullScreen)
+            return;
+        window.setMaximize(false, false);
+        const a = area();
+        if (filled) {
+            const w = Math.min(1400, a.width - 100), h = Math.min(900, a.height - 100);
+            filled = false;
+            set(before || { x: a.x + Math.round((a.width - w) / 2), y: a.y + Math.round((a.height - h) / 2),
+                            width: w, height: h });
+            return;
+        }
+        filled = true;
+        set(a);
+    };
     window.frameGeometryChanged.connect(function () {
-        if (Date.now() - start < 8000)
-            battlenetFill(window);
+        if (!target || window.maximizeMode !== 0 || window.move || window.resize || Date.now() - filledAt > 2000)
+            return;
+        const g = window.frameGeometry;
+        if (g.x === target.x && g.y === target.y && g.width === target.width && g.height === target.height)
+            return;
+        if (++putBack > 6)
+            return;
+        window.frameGeometry = target;
     });
+    window.interactiveMoveResizeFinished.connect(function () {
+        const g = window.frameGeometry;
+        filled = near(g, area());
+        if (!filled)
+            before = { x: g.x, y: g.y, width: g.width, height: g.height };
+    });
+    fill();
+    window.maximizedChanged.connect(fill);
     window.closed.connect(function () {
         battlenets.splice(battlenets.indexOf(window), 1);
     });
 }
 
 function battlenetAdded(window) {
-    if (isBattlenet(window)) {
-        battlenetWatch(window);
-        return;
-    }
+    if (isBattlenet(window))
+        return battlenetWatch(window);
     if (!window.normalWindow || window.transient)
         return;
     // the caption can come a moment after the window
@@ -617,8 +659,6 @@ function added(window) {
         return;
     }
     battlenetAdded(window);
-    if (isBattlenet(window))
-        return;
     const tiled = window.normalWindow && !window.transient && !isGame(window) ? ruleTile(window) : null;
     const ruled = window.normalWindow ? ruleScreen(window) : null;
     if (CENTERED.indexOf(window.resourceClass) >= 0) {
