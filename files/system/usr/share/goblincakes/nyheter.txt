@@ -1,3 +1,4 @@
+2026-11-13  Barnläge finns nu med bland GOBLINCAKES egna program längst ner i dashboarden.
 2026-11-13  Barnläget: en musikbild sist bland spelen – där kan barnet lyssna på GOBLINCAKES egna låtar med stora Start- och Stopp-knappar. Musiken stannar när ett spel startar. Ljudtaket är nu 80 % som standard (ändras i Config → Barnläge).
 2026-11-13  Barnläget: i splashen kommer nu en planet som ser ut som Saturnus inifrån rymden i stället för regnbågen.
 2026-11-13  Barnläget: Cori säger spelets namn när barnet håller musen still över det (ljuden görs en gång i Config → Barnläge, där du också kan ändra vad hon säger). Spelbilderna är mindre och ligger längst ner så att bakgrunden syns, bildknappen sitter uppe till vänster, och Tux Paint går att avsluta med sin egen knapp – då kommer spelbilderna tillbaka.

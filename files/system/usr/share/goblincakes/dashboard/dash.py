@@ -244,9 +244,10 @@ def save_views(rows, apps_ids=None, start=None):
 
 LAYOUT = CONFIG / "desktop-layout.json"   # goblincakes-desktop-layout: the dock's apps, saved while it is gone
 
-# GOBLINCAKES' own programs, small above the programs at the bottom (10 Nov, the user's choice: only these five)
+# GOBLINCAKES' own programs, small above the programs at the bottom (10 Nov, the user's choice: only these five;
+# 13 Nov, the user: Barnläge too)
 OWN_APPS = ["goblincakes-config.desktop", "goblin-ai.desktop", "goblin-recorder.desktop", "goblin-amp.desktop",
-            "goblin-share.desktop"]
+            "goblin-share.desktop", "goblin-kids.desktop"]
 
 
 def own_apps(all_apps=None):

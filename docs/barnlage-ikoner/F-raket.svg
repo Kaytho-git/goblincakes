@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Barnläge (13 Nov), variant F: a little rocket with a flame (space, like the splash) – the symbol big in the program's own colour (pink), the goblin head small in the corner -->
+  <path d="M62 22 Q84 42 80 86 H44 Q40 42 62 22 Z" fill="#F25CB4"/>
+  <circle cx="62" cy="54" r="10" fill="#E6ECF5"/>
+  <circle cx="62" cy="54" r="5" fill="#07090D" opacity="0.4"/>
+  <path d="M44 66 L30 94 L44 88 Z" fill="#F25CB4"/>
+  <path d="M80 66 L94 94 L80 88 Z" fill="#F25CB4"/>
+  <path d="M50 86 H74 Q70 104 62 114 Q54 104 50 86 Z" fill="#FFD93D"/>
+  <path d="M56 86 H68 Q66 96 62 102 Q58 96 56 86 Z" fill="#E6ECF5"/>
+  <path d="M100 30 Q101 37 108 38 Q101 39 100 46 Q99 39 92 38 Q99 37 100 30 Z" fill="#E6ECF5"/>
+  <g transform="translate(2,0) scale(0.46)">
+    <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+    <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
+    <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
+  </g>
+</svg>

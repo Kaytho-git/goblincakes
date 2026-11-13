@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Barnläge (13 Nov), variant C: Saturn, as in the splash – the symbol big in the program's own colour (pink), the goblin head small in the corner -->
+  <ellipse cx="64" cy="74" rx="46" ry="13" transform="rotate(-18 64 74)" fill="none" stroke="#E6ECF5" stroke-width="5"/>
+  <circle cx="64" cy="74" r="26" fill="#F25CB4"/>
+  <path d="M42 62 Q64 56 86 62" fill="none" stroke="#07090D" stroke-opacity="0.25" stroke-width="4"/>
+  <path d="M39 80 Q64 74 89 80" fill="none" stroke="#07090D" stroke-opacity="0.25" stroke-width="4"/>
+  <path d="M20.7 88.4 A46 13 -18 0 0 107.3 59.6" transform="rotate(0)" fill="none" stroke="#E6ECF5" stroke-width="5"/>
+  <path d="M100 14 Q101.4 22.6 110 24 Q101.4 25.4 100 34 Q98.6 25.4 90 24 Q98.6 22.6 100 14 Z" fill="#E6ECF5"/>
+  <g transform="translate(2,0) scale(0.46)">
+    <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
+    <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
+    <path d="M77 45 L65 50 L68 55 Z" fill="#07090D"/>
+  </g>
+</svg>
