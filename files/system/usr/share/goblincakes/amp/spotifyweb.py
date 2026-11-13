@@ -236,7 +236,18 @@ def track_row(item):
     return {"uri": item.get("uri", ""), "title": item.get("name", ""),
             "artist": ", ".join(a.get("name", "") for a in artists if a),
             "seconds": round((item.get("duration_ms") or 0) / 1000),
-            "local": bool(item.get("is_local"))}
+            "local": bool(item.get("is_local")),
+            # for the right-click's "Gå till artisten/albumet" (an album's own tracks have no album)
+            "artists": [{"uri": a["uri"], "name": a.get("name", "")} for a in artists if a and a.get("uri")],
+            "onAlbum": _album_ref(item.get("album"))}
+
+
+def _album_ref(album):
+    """A track's album as a found album (as the search gives it) – or None."""
+    if not album or not album.get("uri"):
+        return None
+    return {"kind": "album", "uri": album["uri"], "title": album.get("name", ""), "artist": _artists(album),
+            "count": album.get("total_tracks", 0), "seconds": 0, "image": _cover(album)}
 
 
 def list_entry(p, me):
@@ -546,11 +557,7 @@ class Library:
 
     def playing_album(self):
         """The album of what Spotify plays now, as a found album – or None."""
-        album = (self.client.get("/me/player/currently-playing").get("item") or {}).get("album")
-        if not album or not album.get("uri"):
-            return None
-        return {"kind": "album", "uri": album["uri"], "title": album.get("name", ""), "artist": _artists(album),
-                "count": album.get("total_tracks", 0), "seconds": 0, "image": _cover(album)}
+        return _album_ref((self.client.get("/me/player/currently-playing").get("item") or {}).get("album"))
 
     @staticmethod
     def album_entry(row):

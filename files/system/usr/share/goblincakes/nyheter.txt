@@ -1,3 +1,4 @@
+2026-11-13  GoblinAmp: högerklicka på en Spotify-låt och välj Gå till artisten eller Gå till albumet.
 2026-11-13  Goblin AI kan rita pixelart på din dator – be om en bild "i pixelart". Med goblin pixelart ritar Kakan och ChatGPT samma bilder till barnläget så du kan välja den finaste.
 2026-11-13  Barnläget: Rita med Tux (Tux Paint) startar igen.
 2026-11-13  Barnläget: skärmens hörn och kanter gör ingenting medan barnläget är på – förut öppnade musen i ett hörn översikten, och då kom man ut.

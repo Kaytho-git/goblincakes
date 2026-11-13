@@ -926,11 +926,20 @@ class Amp(QObject):
     def openAlbum(self, index):
         """A found album: open it with its tracks (◀ goes back to the search)."""
         rows = self._pl["rows"]
-        if not (0 <= index < len(rows)) or rows[index].get("kind") != "album":
-            return
+        if 0 <= index < len(rows) and rows[index].get("kind") == "album":
+            self._open_album_row(rows[index])
+
+    @Slot(int)
+    def openTrackAlbum(self, index):
+        """Right-click on a track → Gå till albumet (◀ back to where it was)."""
+        rows = self._pl["rows"]
+        if 0 <= index < len(rows) and rows[index].get("onAlbum"):
+            self._open_album_row(rows[index]["onAlbum"])
+
+    def _open_album_row(self, row):
         if self._pl["busy"]:
             return
-        entry = SW.Library.album_entry(rows[index])
+        entry = SW.Library.album_entry(row)
         self._push()
         self._pl_update(list=entry, rows=[], message="")
         self._pl_job("Hämtar albumet…", lambda: {"rows": self.library.tracks(entry)})
@@ -1031,10 +1040,18 @@ class Amp(QObject):
     @Slot(int)
     def openArtist(self, index):
         rows = self._pl["rows"]
-        if not (0 <= index < len(rows)) or rows[index].get("kind") != "artist":
-            return
-        artist = rows[index]
+        if 0 <= index < len(rows) and rows[index].get("kind") == "artist":
+            self._open_artist(rows[index])
 
+    @Slot(int, int)
+    def openTrackArtist(self, index, which):
+        """Right-click on a track → Gå till artisten (the which:th of its artists; ◀ back)."""
+        rows = self._pl["rows"]
+        artists = rows[index].get("artists") or [] if 0 <= index < len(rows) else []
+        if 0 <= which < len(artists):
+            self._open_artist(SW.artist_row({"uri": artists[which]["uri"], "name": artists[which]["name"]}))
+
+    def _open_artist(self, artist):
         def work():
             albums, singles = self.library.artist_albums(artist)
             out = [_plain("head", f"ALBUM ({len(albums)})")] + albums if albums else []

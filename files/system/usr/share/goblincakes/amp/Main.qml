@@ -1219,6 +1219,18 @@ Window {
                 if (!r.kind || r.kind === "track") {
                     if (!r.local) {
                         items.push({ text: "Lägg i kön", act: () => amp.spEnqueue(JSON.stringify([r.uri])) });
+                        // where the track comes from (◀ back here); not the artist/album already open
+                        const artists = (r.artists || []).slice(0, 3);
+                        const goTo = [];
+                        artists.forEach((a, k) => {
+                            if (!(entry.artistView && entry.uri === a.uri))
+                                goTo.push({ text: artists.length > 1 ? "Gå till " + a.name : "Gå till artisten",
+                                            act: () => { plFilter.text = ""; amp.openTrackArtist(i, k); } });
+                        });
+                        if (r.onAlbum && !(entry.album && entry.uri === r.onAlbum.uri))
+                            goTo.push({ text: "Gå till albumet", act: () => { plFilter.text = ""; amp.openTrackAlbum(i); } });
+                        if (goTo.length)
+                            items.push({ sep: true }, ...goTo);
                         items.push({ sep: true });
                         for (const l of targets())
                             items.push({ text: "Lägg till i " + l.name, act: () => amp.spAddTo(l.id, JSON.stringify([r.uri])) });
