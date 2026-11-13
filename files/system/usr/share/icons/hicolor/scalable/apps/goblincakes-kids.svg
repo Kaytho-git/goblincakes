@@ -1,13 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
-  <!-- Barnläge (13 Nov), variant A: a rainbow with a sparkle – the splash's rainbow; the goblin head small in the corner -->
-    <path d="M10 100 A50 50 0 0 1 110 100" fill="none" stroke="#FF5A5F" stroke-width="6.4"/>
-    <path d="M16 100 A44 44 0 0 1 104 100" fill="none" stroke="#FF9F43" stroke-width="6.4"/>
-    <path d="M22 100 A38 38 0 0 1 98 100" fill="none" stroke="#FFD93D" stroke-width="6.4"/>
-    <path d="M28 100 A32 32 0 0 1 92 100" fill="none" stroke="#5CD65C" stroke-width="6.4"/>
-    <path d="M34 100 A26 26 0 0 1 86 100" fill="none" stroke="#3FA7F5" stroke-width="6.4"/>
-    <path d="M40 100 A20 20 0 0 1 80 100" fill="none" stroke="#7A5AF8" stroke-width="6.4"/>
-    <path d="M92 26 Q93.96 38.04 106 40 Q93.96 41.96 92 54 Q90.04 41.96 78 40 Q90.04 38.04 92 26 Z" fill="#FFD93D"/>
-    <path d="M76 16 Q76.84 21.16 82 22 Q76.84 22.84 76 28 Q75.16 22.84 70 22 Q75.16 21.16 76 16 Z" fill="#FFF4CF"/>
+  <!-- Barnläge (13 Nov), the user chose C, Saturn as in the splash – the symbol big in the program's own colour (pink), the goblin head small in the corner -->
+  <ellipse cx="64" cy="74" rx="46" ry="13" transform="rotate(-18 64 74)" fill="none" stroke="#E6ECF5" stroke-width="5"/>
+  <circle cx="64" cy="74" r="26" fill="#F25CB4"/>
+  <path d="M42 62 Q64 56 86 62" fill="none" stroke="#07090D" stroke-opacity="0.25" stroke-width="4"/>
+  <path d="M39 80 Q64 74 89 80" fill="none" stroke="#07090D" stroke-opacity="0.25" stroke-width="4"/>
+  <path d="M20.7 88.4 A46 13 -18 0 0 107.3 59.6" transform="rotate(0)" fill="none" stroke="#E6ECF5" stroke-width="5"/>
+  <path d="M100 14 Q101.4 22.6 110 24 Q101.4 25.4 100 34 Q98.6 25.4 90 24 Q98.6 22.6 100 14 Z" fill="#E6ECF5"/>
   <g transform="translate(2,0) scale(0.46)">
     <path d="M28 66 C22 58 16 48 10 38 C22 42 30 46 34 50 C38 34 48 24 60 24 C72 24 82 34 86 50 C90 46 98 42 110 38 C104 48 98 58 92 66 Z" fill="#E6ECF5"/>
     <path d="M43 45 L55 50 L52 55 Z" fill="#07090D"/>
