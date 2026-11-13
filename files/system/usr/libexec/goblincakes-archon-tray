@@ -114,15 +114,23 @@ class ArchonTray:
         if not self.item:
             self.item = find_archon()
             if self.item:
-                menu = busctl("get-property", *self.item, SNI, "Menu")
-                self.menu_path = menu["data"] if menu else None
+                self.menu_path = None
                 self.fill_menu()
                 return self.poll()
         self.tray.setVisible(bool(self.item))
 
+    def menu_ready(self):
+        """Archon's menu path, read again while it is missing: at login this started before Archon had its menu,
+        the path stayed empty and a left click fell back to Activate, which Archon ignores (13 Nov – the icon
+        "didn't open Archon")."""
+        if not self.menu_path and self.item:
+            menu = busctl("get-property", *self.item, SNI, "Menu")
+            self.menu_path = menu["data"] if menu else None
+        return self.menu_path
+
     def fill_menu(self):
         self.menu.clear()
-        if not self.item or not self.menu_path:
+        if not self.item or not self.menu_ready():
             return
         service = self.item[0]
         busctl("call", service, self.menu_path, MENU, "AboutToShow", "i", "0")
@@ -141,7 +149,7 @@ class ArchonTray:
 
     def open_from_menu(self):
         """Click Archon's own "Open …" menu entry; False when there is none."""
-        if not self.menu_path:
+        if not self.menu_ready():
             return False
         service = self.item[0]
         busctl("call", service, self.menu_path, MENU, "AboutToShow", "i", "0")
