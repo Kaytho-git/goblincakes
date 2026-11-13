@@ -96,7 +96,7 @@ Rectangle {
         height: Math.round(44 * box.s)
         Rectangle {
             anchors.fill: parent
-            color: area.containsMouse ? "#1A2438" : "transparent"
+            color: area.hot ? "#1A2438" : "transparent"
         }
         DeskIcon {
             anchors.centerIn: parent
@@ -120,7 +120,14 @@ Rectangle {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             acceptedButtons: Qt.LeftButton | Qt.MiddleButton
-            onClicked: mouse => button.clicked(mouse.button)
+            // After a click the window it opens takes the mouse and no "exited" comes – the mark stayed lit (13 Nov):
+            // dark after a click until the mouse moves over it again
+            property bool stale: false
+            property double clickedAt: 0
+            readonly property bool hot: containsMouse && !stale
+            onPositionChanged: if (Date.now() - clickedAt > 400) stale = false
+            onExited: stale = false
+            onClicked: mouse => { stale = true; clickedAt = Date.now(); button.clicked(mouse.button); }
             onWheel: wheel => button.wheeled(wheel.angleDelta.y)
         }
     }
@@ -129,6 +136,19 @@ Rectangle {
         id: content
         anchors.centerIn: parent
         spacing: Math.round(22 * box.s)
+        // Both sides as wide as the wider one, so the clock stands in the middle of the box (13 Nov, the user:
+        // "more symmetric") – the left side against the clock, the right side too
+        readonly property real sideWidth: Math.max(leftSide.implicitWidth, rightSide.implicitWidth)
+
+        Item {
+            anchors.verticalCenter: parent.verticalCenter
+            width: content.sideWidth
+            height: leftSide.implicitHeight
+            Row {
+                id: leftSide
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: content.spacing
 
         // An Item around the Row: main.qml puts a ToolTipArea (anchors.fill) in leftItem – inside a Row that
         // warned "Cannot specify … anchors for items inside Row" and the tooltip didn't cover the batteries
@@ -153,6 +173,8 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             icon: box.net.kind || "offline"
             onClicked: box.netClicked()
+        }
+            }
         }
 
         Item {
@@ -188,6 +210,16 @@ Rectangle {
                 onClicked: box.clockClicked()
             }
         }
+
+        Item {
+            anchors.verticalCenter: parent.verticalCenter
+            width: content.sideWidth
+            height: rightSide.implicitHeight
+            Row {
+                id: rightSide
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: content.spacing
 
         IconButton {
             id: soundButton
@@ -226,7 +258,7 @@ Rectangle {
                                           : box.kakan === "resting" || box.kakan === "off" ? Qt.darker(box.dimText, 1.6) : box.dimText
             Rectangle {
                 anchors.fill: parent
-                color: kakanArea.containsMouse ? "#1A2438" : "transparent"
+                color: kakanArea.hot ? "#1A2438" : "transparent"
             }
             Row {
                 id: kakanRow
@@ -248,10 +280,11 @@ Rectangle {
                     }
                 }
                 Text {
+                    id: kakanText
                     anchors.verticalCenter: parent.verticalCenter
                     // As wide as the longest word, so the clock doesn't move when her state changes
                     width: Math.ceil(longest.advanceWidth)
-                    TextMetrics { id: longest; font: parent.font; text: "Ej laddad" }
+                    TextMetrics { id: longest; font: kakanText.font; text: "Ej laddad" }
                     text: ({ ready: "Redo", loading: "Laddar", idle: "Ej laddad", resting: "Vilar", off: "Av" })[box.kakan] || ""
                     color: kakanButton.tint
                     font.family: "IBM Plex Sans"
@@ -263,7 +296,16 @@ Rectangle {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: box.kakanClicked()
+                // After a click the window it opens takes the mouse and no "exited" comes – the mark stayed lit (13 Nov):
+                // dark after a click until the mouse moves over it again
+                property bool stale: false
+                property double clickedAt: 0
+                readonly property bool hot: containsMouse && !stale
+                onPositionChanged: if (Date.now() - clickedAt > 400) stale = false
+                onExited: stale = false
+                onClicked: { stale = true; clickedAt = Date.now(); box.kakanClicked(); }
+            }
+        }
             }
         }
     }

@@ -14,7 +14,7 @@ Rectangle {
     property bool dim: false          // nothing going on: the text and the square muted
     property bool alignRight: false
     property bool breathe: false      // the square breathes while something works (Kakan)
-    readonly property bool hovered: area.containsMouse
+    readonly property bool hovered: area.hot
     // The size (10 Nov, the user: too big; 11 Nov: 20 % smaller again, both looks) – the same s as the clock box;
     // main.qml's widths are times s too
     property real s: 0.6
@@ -26,9 +26,9 @@ Rectangle {
 
     implicitWidth: Math.round(300 * s)
     implicitHeight: Math.round(48 * s)
-    color: glass ? Qt.rgba(0.043, 0.063, 0.094, area.containsMouse ? 0.74 : 0.62) : "#0B1018"
+    color: glass ? Qt.rgba(0.043, 0.063, 0.094, area.hot ? 0.74 : 0.62) : "#0B1018"
     border.width: glass ? 0 : 1
-    border.color: area.containsMouse ? "#2A3852" : "#1E2A40"
+    border.color: area.hot ? "#2A3852" : "#1E2A40"
     Rectangle {
         visible: box.glass
         width: parent.width
@@ -92,7 +92,14 @@ Rectangle {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
-        onClicked: mouse => box.clicked(mouse.button)
+        // After a click the window it opens takes the mouse and no "exited" comes – the mark stayed lit (13 Nov):
+        // dark after a click until the mouse moves over it again
+        property bool stale: false
+        property double clickedAt: 0
+        readonly property bool hot: containsMouse && !stale
+        onPositionChanged: if (Date.now() - clickedAt > 400) stale = false
+        onExited: stale = false
+        onClicked: mouse => { stale = true; clickedAt = Date.now(); box.clicked(mouse.button); }
         onWheel: wheel => box.wheeled(wheel.angleDelta.y)
     }
 }
