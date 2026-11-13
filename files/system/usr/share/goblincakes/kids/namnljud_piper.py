@@ -13,6 +13,7 @@ def main():
     cfg = SynthesisConfig(length_scale=1.05)
     pairs = sys.argv[2:]
     for out, text in zip(pairs[0::2], pairs[1::2]):
+        text = text[3:] if text.startswith(("sv:", "en:")) else text
         with wave.open(out, "wb") as w:
             w.setframerate(voice.config.sample_rate)
             w.setsampwidth(2)

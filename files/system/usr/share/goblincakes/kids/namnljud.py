@@ -11,7 +11,7 @@ Voices, best first:
      hub/ in it. Uses the graphics card for a few seconds while Config makes the sounds – never in Barnläge.
   2. Piper's Cori (en_GB-cori-high, LibriVox = public domain) in Kakan's voice environment (goblincakes-voice);
      the model is fetched (~110 MB) the first time.
-The game's name is said in English (most names are); with å/ä/ö in it Chatterbox says it in Swedish.
+The game's name is said in English (most names are); with å/ä/ö in it, or "sv:" first, Chatterbox says it in Swedish.
 """
 import hashlib
 import json
@@ -135,9 +135,15 @@ def make(jobs, said=print):
     return sum(1 for _, p in jobs if Path(p).is_file())
 
 
+MUSIC_SAY = "sv:Musik"      # the music picture – said in Swedish ("sv:" = the language for Chatterbox)
+
+
 def missing():
     jobs = []
-    for item in K.load()["items"]:
+    settings = K.load()
+    if settings["music"] and not path_for(MUSIC_SAY).is_file():
+        jobs.append((MUSIC_SAY, path_for(MUSIC_SAY)))
+    for item in settings["items"]:
         text = item.get("say") or spoken(item.get("name", ""))
         p = path_for(text)
         if text and not p.is_file():

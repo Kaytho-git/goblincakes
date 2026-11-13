@@ -140,6 +140,7 @@ def main():
 
     class Backend(QObject):
         itemsChanged = Signal()
+        playingChanged = Signal()
         backgroundChanged = Signal()
         backgroundsChanged = Signal()
         leaving = Signal()
@@ -151,6 +152,13 @@ def main():
             self._items = [dict(i, sound=namnljud.sound_for(i), **K.picture_for(i, download=False))
                            for i in settings["items"]]
             self._said = (-1, 0.0)
+            self._songs = K.songs() if settings["music"] else []
+            self._music_sound = str(namnljud.path_for(namnljud.MUSIC_SAY)) \
+                if namnljud.path_for(namnljud.MUSIC_SAY).is_file() else ""
+            self.music = K.Music()
+            self._playing = ""
+            self._music_timer = QTimer(self, interval=1000, timeout=self._check_music)
+            self._music_timer.start()
             self._backgrounds = K.backgrounds()
             ids = [b["id"] for b in self._backgrounds]
             self._background = settings["background"] if settings["background"] in ids else "natt"
@@ -173,6 +181,40 @@ def main():
         @Property(str, notify=itemsChanged)
         def items(self):
             return json.dumps(self._items, ensure_ascii=False)
+
+        # ── GOBLINCAKES' songs (the music picture)
+        @Property(str, constant=True)
+        def songs(self):
+            return json.dumps(self._songs, ensure_ascii=False)
+
+        @Property(str, notify=playingChanged)
+        def playing(self):
+            return self._playing
+
+        def _check_music(self):
+            now = self.music.playing()
+            if now != self._playing:
+                self._playing = now
+                self.playingChanged.emit()
+
+        @Slot(str)
+        def playSong(self, path):
+            if path in [s["path"] for s in self._songs]:
+                self.music.play(path)
+                self._check_music()
+
+        @Slot()
+        def stopSong(self):
+            self.music.stop()
+            self._check_music()
+
+        @Slot()
+        def sayMusic(self):
+            last, when = self._said
+            if not self._music_sound or (last == -2 and time.time() - when < 4):
+                return
+            self._said = (-2, time.time())
+            threading.Thread(target=K.play_file, args=(self._music_sound,), daemon=True).start()
 
         @Property(str, notify=backgroundsChanged)
         def backgrounds(self):
@@ -202,6 +244,7 @@ def main():
             if now - self._last_launch.get(index, 0) < 8:    # small hands click many times
                 return False
             self._last_launch[index] = now
+            self.stopSong()               # the game's own sound instead
             item = self._items[index]
             threading.Thread(target=K.launch, args=(item,), daemon=True).start()
             return True
@@ -228,6 +271,7 @@ def main():
 
         @Slot()
         def leave(self):
+            self.music.stop()
             self.unlock()
             self.leaving.emit()
             QTimer.singleShot(150, app.quit)

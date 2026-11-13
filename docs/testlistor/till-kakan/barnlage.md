@@ -23,10 +23,12 @@
   fråga: Klicka på Tux Paint. Startar det i helskärm? Rita något och spara, avsluta med Tux Paints egen Avsluta-knapp – kommer spelbilderna tillbaka? Finns teckningen i bildknappen uppe till vänster efter att du gått ut och in i barnläget?
 - Bakgrunden
   fråga: Byt bakgrund med bildknappen uppe till vänster. Byts den, och är samma bakgrund kvar nästa gång barnläget startar?
+- Musiken
+  fråga: Klicka på musikbilden (sist bland spelen). Kommer två låtar? Spelar ▶ Start låten, dansar staplarna, och tystnar den med ■ Stopp? Starta en låt och sedan Bluey – tystnar musiken?
 - Strömknappen och notiserna
   fråga: Tryck kort på datorns strömknapp i barnläget. Händer ingenting? (Skicka gärna ett Discord-meddelande till dig själv – syns ingen notis?)
 - Volymtaket
-  fråga: Höj volymen till max i barnläget. Stannar den på 60 % (eller det du valt i Config)?
+  fråga: Höj volymen till max i barnläget. Stannar den på 80 % (eller det du valt i Config)?
 - Avsluta med PIN-koden
   fråga: Klicka på X uppe till höger, skriv fel kod en gång (skakar rutan?) och sedan rätt. Kommer dina fönster, den andra skärmen, Meta och strömknappen tillbaka som förut?
 - Allt är återställt efteråt

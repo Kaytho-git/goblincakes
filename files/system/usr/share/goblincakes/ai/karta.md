@@ -783,4 +783,6 @@ Ord: barnläge, barn, sandlåda, kids, PIN-kod barnläge, goblin barn
 - Namnen (Cori säger spelets namn när musen vilar på det): ljuden i ~/.local/share/goblincakes/kids/namn/, görs av
   `python3 /usr/share/goblincakes/kids/namnljud.py make` (Chatterbox om mappen finns, annars Piper-Cori i
   ~/.local/share/goblincakes-voice). Vilken röst: `python3 /usr/share/goblincakes/kids/namnljud.py engine`.
+- Musikbilden: GOBLINCAKES låtar (/usr/share/goblincakes/songs) spelas med ffmpeg | pw-cat (egen processgrupp,
+  Stopp = TERM sedan KILL). Hörs inget: `pgrep -a pw-cat` medan en låt ska spela. Av/på i kids.json "music".
 

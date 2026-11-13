@@ -20,6 +20,10 @@ Window {
 
     readonly property var items: JSON.parse(backend.items)
     readonly property var backgrounds: JSON.parse(backend.backgrounds)
+    readonly property var songs: JSON.parse(backend.songs)
+    // His games, and last the music picture (GOBLINCAKES' songs) when there are songs and it is chosen in Config
+    readonly property var tiles: songs.length ? items.concat([{ "kind": "music", "name": "Musik" }]) : items
+    property bool listening: false        // the music box
     property bool ready: false            // the splash is over
     property bool leaving: false
     property bool choosing: false         // the picture chooser
@@ -74,7 +78,7 @@ Window {
         readonly property real minW: 140
         // The biggest pictures that fit; under minW they keep minW and the board scrolls
         readonly property var fit: {
-            const n = Math.max(1, win.items.length);
+            const n = Math.max(1, win.tiles.length);
             let best = { cols: 1, w: 0 };
             for (let cols = 1; cols <= n; cols++) {
                 const rows = Math.ceil(n / cols);
@@ -107,7 +111,7 @@ Window {
                 x: (flick.width - width) / 2
                 y: Math.max(12, flick.height - height - 12)   // standing on the bottom
                 Repeater {
-                    model: win.items
+                    model: win.tiles
                     Tile {
                         required property var modelData
                         required property int index
@@ -189,7 +193,7 @@ Window {
                 // A program: its icon big in a soft spotlight, its name under
                 Item {
                     anchors.fill: parent
-                    visible: !tile.item.cover
+                    visible: !tile.item.cover && tile.item.kind !== "music"
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: 4
@@ -242,6 +246,14 @@ Window {
                         fontSizeMode: Text.Fit
                         minimumPixelSize: 12
                     }
+                }
+                // The music picture: notes on purple, and dancing bars while a song plays
+                MusicArt {
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    visible: tile.item.kind === "music"
+                    seed: 0
+                    dancing: backend.playing !== ""
                 }
                 // Starting: dimmed, with a ring of sparkles turning
                 Rectangle {
@@ -297,7 +309,7 @@ Window {
         }
         Timer { id: startingTimer; interval: 8000; onTriggered: tile.starting = false }
         // The mouse resting on it a moment: Cori says the name (not while the mouse just passes over)
-        Timer { id: nameTimer; interval: 400; onTriggered: backend.sayName(tile.number) }
+        Timer { id: nameTimer; interval: 400; onTriggered: tile.item.kind === "music" ? backend.sayMusic() : backend.sayName(tile.number) }
         onHoverChanged: hover ? nameTimer.restart() : nameTimer.stop()
 
         MouseArea {
@@ -306,6 +318,12 @@ Window {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: {
+                if (tile.item.kind === "music") {
+                    backend.sound("pling");
+                    press.restart();
+                    win.listening = true;
+                    return;
+                }
                 if (tile.starting || !backend.launch(tile.number))
                     return;
                 backend.sound("pling");
@@ -409,6 +427,105 @@ Window {
             }
         }
         Timer { id: closeChooser; interval: 350; onTriggered: win.choosing = false }
+    }
+
+    // ── the music box: a big picture per song with ▶ Start and ■ Stopp
+    Item {
+        anchors.fill: parent
+        visible: win.listening
+        Rectangle { anchors.fill: parent; color: "#02030A"; opacity: 0.8 }
+        MouseArea { anchors.fill: parent; onClicked: win.listening = false }
+        Row {
+            id: songRow
+            anchors.centerIn: parent
+            spacing: Math.max(28, win.width * 0.03)
+            readonly property real side: Math.min(300, (win.width * 0.8 - spacing * (win.songs.length - 1)) / Math.max(1, win.songs.length),
+                                                  win.height * 0.42)
+            Repeater {
+                model: win.listening ? win.songs : []
+                Column {
+                    id: song
+                    required property var modelData
+                    required property int index
+                    readonly property bool on: backend.playing === modelData.path
+                    spacing: 18
+                    Item {
+                        width: songRow.side; height: songRow.side
+                        scale: song.on ? 1.04 : 1
+                        Behavior on scale { NumberAnimation { duration: 250 } }
+                        Rectangle {
+                            anchors.fill: parent; anchors.margins: -8
+                            color: "transparent"; border.width: 6; border.color: accent.color
+                            opacity: song.on ? 0.8 : 0
+                            Behavior on opacity { NumberAnimation { duration: 250 } }
+                        }
+                        MusicArt { anchors.fill: parent; seed: song.index + 1; dancing: song.on }
+                        Rectangle { anchors.fill: parent; color: "transparent"; border.width: 3; border.color: song.on ? "#FFF4CF" : "#2A3852" }
+                        MouseArea {   // the picture itself starts it too
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: song.on ? backend.stopSong() : backend.playSong(song.modelData.path)
+                        }
+                    }
+                    Text {
+                        width: songRow.side
+                        text: song.modelData.name
+                        color: "#E6ECF5"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.Bold
+                        font.pixelSize: Math.max(16, songRow.side * 0.075)
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
+                    }
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 16
+                        BigButton {
+                            label: "▶"
+                            fill: "#2FA36B"
+                            lit: song.on
+                            onClicked: backend.playSong(song.modelData.path)
+                        }
+                        BigButton {
+                            label: "■"
+                            fill: "#D9485F"
+                            lit: false
+                            dim: !song.on
+                            onClicked: backend.stopSong()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    component BigButton: Rectangle {
+        id: big
+        property string label
+        property color fill
+        property bool lit: false
+        property bool dim: false
+        signal clicked()
+        width: Math.max(84, win.height * 0.085); height: width
+        color: fill
+        opacity: dim ? 0.35 : 1
+        scale: bigArea.pressed ? 0.92 : bigArea.containsMouse ? 1.08 : 1
+        Behavior on scale { NumberAnimation { duration: 120 } }
+        border.width: lit ? 5 : 0
+        border.color: "#FFF4CF"
+        Text {
+            anchors.centerIn: parent
+            text: big.label
+            color: "white"
+            font.pixelSize: big.width * 0.48
+        }
+        MouseArea {
+            id: bigArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: { backend.sound("pling"); big.clicked(); }
+        }
     }
 
     // ── the PIN code (for the parent)

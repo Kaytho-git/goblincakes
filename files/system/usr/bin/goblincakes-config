@@ -708,7 +708,8 @@ class Config(QObject):
             items = [dict({"kind": i["kind"], "id": i["id"], "name": i.get("name", "")},
                           **({"say": i["say"].strip()} if i.get("say", "").strip() else {}))
                      for i in d.get("items", []) if i.get("kind") in ("steam", "app") and i.get("id")]
-            k.update(items=items, volume=d.get("volume") if d.get("volume") in k.VOLUMES else 60)
+            k.update(items=items, volume=d.get("volume") if d.get("volume") in k.VOLUMES else 80,
+                     music=d.get("music") is not False)
             self.kidsMessage.emit("Sparat – gäller nästa gång barnläget startar.")
         except (ValueError, OSError, KeyError, TypeError):
             self.kidsMessage.emit("Kunde inte spara.")

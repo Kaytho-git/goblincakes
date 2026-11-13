@@ -66,9 +66,9 @@ def load():
     """The settings; keys this version doesn't know (e.g. "chatterbox", namnljud.py) are kept."""
     data = load_raw()
     items = [i for i in data.get("items") or [] if isinstance(i, dict) and i.get("kind") in ("steam", "app") and i.get("id")]
-    volume = data.get("volume") if data.get("volume") in VOLUMES else 60
+    volume = data.get("volume") if data.get("volume") in VOLUMES else 80   # 80 % on master (the user 13 Nov)
     return dict(data, items=items, pin=str(data.get("pin") or ""), volume=volume,
-                background=str(data.get("background") or "natt"))
+                background=str(data.get("background") or "natt"), music=data.get("music") is not False)
 
 
 def save(settings):
@@ -515,6 +515,55 @@ def play_file(path):
             continue
 
 
+# ───────────────────────────────────────────── GOBLINCAKES' own songs (the music picture, 13 Nov)
+SONGS = HERE.parent / "songs"
+
+
+def songs():
+    """Every song in /usr/share/goblincakes/songs – new ones come along by themselves."""
+    if not SONGS.is_dir():
+        return []
+    return [{"path": str(p), "name": p.stem} for p in sorted(SONGS.iterdir())
+            if p.suffix.lower() in (".mp3", ".ogg", ".flac", ".opus", ".wav")]
+
+
+class Music:
+    """One song at a time: ffmpeg → pw-cat (as goblincakes-song), in its own process group so Stopp ends both."""
+    def __init__(self):
+        self.proc = None
+        self.path = ""
+
+    def play(self, path):
+        self.stop()
+        cmd = ("ffmpeg -v quiet -i \"$1\" -f s16le -ac 2 -ar 48000 - | "
+               "pw-cat --playback --raw --format s16 --rate 48000 --channels 2 -")
+        try:
+            self.proc = subprocess.Popen(["sh", "-c", cmd, "sh", path], start_new_session=True,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.path = path
+        except OSError:
+            self.proc, self.path = None, ""
+
+    def stop(self):
+        if self.proc:
+            # TERM first; ffmpeg waiting on a full pipe ignores it, so the whole group is KILLed after a moment
+            for sig, wait in ((15, 0.3), (9, 1.0)):
+                try:
+                    os.killpg(self.proc.pid, sig)
+                except OSError:
+                    break
+                try:
+                    self.proc.wait(timeout=wait)
+                except subprocess.TimeoutExpired:
+                    pass
+        self.proc, self.path = None, ""
+
+    def playing(self):
+        if self.proc and self.proc.poll() is not None:
+            self.proc, self.path = None, ""
+        return self.path
+
+
 # ───────────────────────────────────────────── the volume cap
 def volume_now():
     r = subprocess.run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"], capture_output=True, text=True)
@@ -714,6 +763,7 @@ def info(download=False):
             entry["overlay"] = overlay_on(item["id"])
         chosen.append(entry)
     return {"items": chosen, "hasPin": bool(settings["pin"]), "volume": settings["volume"],
+            "music": settings["music"], "songs": songs(),
             "pictures": pictures(), "drawings": len(drawings()), "steamRunning": steam_running(),
             "active": bool(running_pid()), "voice": namnljud.engine()}
 

@@ -57,7 +57,7 @@ Flickable {
         const copy = JSON.parse(JSON.stringify(info));
         fn(copy);
         info = copy;
-        backend.saveKids(JSON.stringify({ "items": copy.items, "volume": copy.volume }));
+        backend.saveKids(JSON.stringify({ "items": copy.items, "volume": copy.volume, "music": copy.music }));
     }
 
     FileDialog {
@@ -447,12 +447,58 @@ Flickable {
             }
         }
 
+        // ── GOBLINCAKES' songs: the music picture last among the games
+        Column {
+            visible: !!kidsView.info
+            width: parent.width
+            spacing: 12
+            Heading { text: "MUSIK – GOBLINCAKES LÅTAR" }
+            Body {
+                width: parent.width
+                text: !kidsView.info ? "" : !kidsView.info.songs.length ? "Inga låtar hittades."
+                      : "En musikbild sist bland spelen: han trycker ▶ Start och ■ Stopp på låtarna ("
+                        + kidsView.info.songs.map(s => s.name).join(", ") + "). Musiken stannar när ett spel startar. Nya GOBLINCAKES-låtar kommer med av sig själva."
+            }
+            Row {
+                spacing: 8
+                Repeater {
+                    model: [{ v: true, t: "Med musikbilden" }, { v: false, t: "Utan" }]
+                    Rectangle {
+                        id: mus
+                        required property var modelData
+                        G.Light { hovered: musArea.containsMouse }
+                        readonly property bool on: !!kidsView.info && kidsView.info.music === modelData.v
+                        width: musText.implicitWidth + 36
+                        height: 44
+                        color: on ? "#12203A" : musArea.containsMouse ? "#0E1420" : "transparent"
+                        border.width: on ? 2 : 1
+                        border.color: on ? accent.color : "#1E2A40"
+                        Text {
+                            id: musText
+                            anchors.centerIn: parent
+                            text: mus.modelData.t
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 14
+                        }
+                        MouseArea {
+                            id: musArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: kidsView.change(c => c.music = mus.modelData.v)
+                        }
+                    }
+                }
+            }
+        }
+
         // ── the volume
         Column {
             visible: !!kidsView.info
             width: parent.width
             spacing: 12
-            Heading { text: "HÖGSTA LJUDNIVÅ I BARNLÄGET" }
+            Heading { text: "HÖGSTA LJUDNIVÅ I BARNLÄGET (HUVUDVOLYMEN)" }
             Row {
                 spacing: 8
                 Repeater {

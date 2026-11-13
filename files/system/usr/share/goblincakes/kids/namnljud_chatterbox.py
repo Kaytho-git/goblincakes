@@ -23,6 +23,8 @@ def main():
     model = ChatterboxMultilingualTTS.from_pretrained(device=device)
     for out, text in zip(pairs[0::2], pairs[1::2]):
         lang = "sv" if re.search(r"[åäöÅÄÖ]", text) else "en"
+        if text.startswith(("sv:", "en:")):
+            lang, text = text[:2], text[3:]
         wav = model.generate(text + "!", language_id=lang, audio_prompt_path=ref,
                              cfg_weight=0.3, exaggeration=0.65)
         torchaudio.save(out, wav.cpu(), model.sr)
