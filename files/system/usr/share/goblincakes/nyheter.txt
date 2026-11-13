@@ -1,3 +1,4 @@
+2026-11-13  Barnläget: det mörka täcket på den andra skärmen ligger nu kvar – förut försvann det efter en stund så att man kunde klicka på skrivbordet där.
 2026-11-13  Barnläget har fått en ny ikon: en rosa Saturnus, som i splashen.
 2026-11-13  Barnläge finns nu med bland GOBLINCAKES egna program längst ner i dashboarden.
 2026-11-13  Barnläget: en musikbild sist bland spelen – där kan barnet lyssna på GOBLINCAKES egna låtar med stora Start- och Stopp-knappar. Musiken stannar när ett spel startar. Ljudtaket är nu 80 % som standard (ändras i Config → Barnläge).

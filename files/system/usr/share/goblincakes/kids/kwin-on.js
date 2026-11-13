@@ -11,6 +11,9 @@ const OWN = "goblin-kids";
 const IFACE = "org.goblincakes.kids";
 
 function low(v) { return String(v || "").toLowerCase(); }
+// The window's own title: KWin shows the caption with " — Barnläge" (the program's name) after it (13 Nov: the
+// cover was not recognised and went to the main screen, behind the main window)
+function title(w) { return String(w.caption).replace(/ [\u2014\u2013-] [^\u2014\u2013]*$/, ""); }
 function ours(w) { return low(w.resourceClass) === OWN || low(w.desktopFileName) === OWN; }
 function game(w) {
     const c = low(w.resourceClass);
@@ -37,14 +40,14 @@ function screenFor(w) {
     const order = workspace.screenOrder;
     if (!order.length)
         return w.output;
-    const m = /^GOBLINCAKES barnläge (\d+)$/.exec(String(w.caption));
+    const m = /^GOBLINCAKES barnläge (\d+)$/.exec(title(w));
     const n = m ? parseInt(m[1], 10) - 1 : 0;
     return order[Math.min(n, order.length - 1)];
 }
 function mainWindow() {
     const list = workspace.windowList();
     for (let i = 0; i < list.length; i++)
-        if (ours(list[i]) && String(list[i].caption) === "GOBLINCAKES barnläge")
+        if (ours(list[i]) && title(list[i]) === "GOBLINCAKES barnläge")
             return list[i];
     return null;
 }
@@ -72,7 +75,7 @@ function place(w) {
             workspace.sendClientToScreen(w, target);
         if (!w.fullScreen)
             w.fullScreen = true;
-        w.keepAbove = String(w.caption) !== "GOBLINCAKES barnläge";   // the covers over everything on their screens
+        w.keepAbove = title(w) !== "GOBLINCAKES barnläge";   // the covers over everything on their screens
         w.skipTaskbar = true;
         w.skipSwitcher = true;
         return;
@@ -126,7 +129,7 @@ workspace.windowActivated.connect(function (w) {
                 workspace.activeWindow = back;
             return;
         }
-        if (ours(w) && String(w.caption) !== "GOBLINCAKES barnläge") {
+        if (ours(w) && title(w) !== "GOBLINCAKES barnläge") {
             // A click on a cover screen: back to what he was doing
             const back = lastPlay || mainWindow();
             if (back && back !== w)
