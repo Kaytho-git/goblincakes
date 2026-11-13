@@ -673,6 +673,10 @@ def screen_edges(off, old=None):
             value = (old or {}).get(name, "")
             _quiet("kwriteconfig6", *base, *(["--delete"] if not value else [value]))
     _quiet("busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure")
+    # The effects (the Overview …) read their own edges only when they are told to
+    for effect in ("overview", "windowview", "cube", "desktopgrid"):
+        _quiet("busctl", "--user", "call", "org.kde.KWin", "/Effects", "org.kde.kwin.Effects", "reconfigureEffect",
+               "s", effect)
     return saved
 
 
