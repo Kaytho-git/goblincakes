@@ -1,0 +1,461 @@
+<title>Barnläge i pixelart</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&family=Press+Start+2P&family=Pixelify+Sans:wght@500;700&family=Silkscreen&display=swap">
+<style>
+/* Layout: GOBLINCAKES-mörkt, en spalt – jämförelse överst, sedan tre stilkort med samma två scener, sist planen och Codex-texten */
+:root {
+  --void: #07090D; --night: #0E1420; --panel: #0B1018; --line: #1E2A40; --line2: #1A2438;
+  --frost: #E6ECF5; --muted: #8B98AD; --accent: #2F6FED; --pink: #F25CB4; --gold: #FFD93D;
+  --f-head: "Chakra Petch", "IBM Plex Sans", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--void); color: var(--frost); font-family: var(--f-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 64px; }
+main { max-width: 1080px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--f-head); text-wrap: balance; margin: 0; letter-spacing: .02em; }
+h1 { font-size: clamp(26px, 4vw, 38px); }
+h2 { font-size: 22px; }
+h3 { font-size: 17px; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+.lead { color: var(--muted); }
+header { display: grid; gap: 10px; }
+.pixel-title { font-family: "Press Start 2P", monospace; font-size: clamp(11px, 1.6vw, 14px); color: var(--gold); letter-spacing: 0; }
+
+.scenebar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.scenebar button { font: 600 13px var(--f-body); color: var(--frost); background: var(--panel); border: 1px solid var(--line); padding: 8px 14px; cursor: pointer; }
+.scenebar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+.scenebar button:focus-visible, .pick:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cards { display: grid; gap: 28px; }
+.card { background: var(--night); border: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); }
+.card .stage { position: relative; background: var(--panel); display: flex; align-items: center; border-right: 1px solid var(--line); }
+.card canvas, .compare canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; aspect-ratio: 16 / 9; }
+.compare canvas.smooth { image-rendering: auto; }
+.card .info { padding: 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.tag { display: inline-block; font-family: var(--f-mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line); padding: 2px 8px; margin-right: 6px; }
+.letter { font-family: var(--f-head); font-weight: 700; color: var(--gold); margin-right: 8px; }
+.sample { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.tile { width: 96px; flex: none; }
+.tile canvas { width: 96px; height: 128px; aspect-ratio: auto; image-rendering: pixelated; display: block; }
+.fontline { font-size: 18px; line-height: 1.5; }
+.font-a { font-family: "Press Start 2P", monospace; font-size: 13px; }
+.font-b { font-family: "Pixelify Sans", monospace; font-weight: 700; font-size: 22px; }
+.font-c { font-family: "Silkscreen", monospace; font-size: 20px; }
+.pal { display: flex; flex-wrap: wrap; gap: 3px; }
+.pal span { width: 14px; height: 14px; display: block; }
+ul { margin: 0; padding-left: 18px; color: var(--muted); }
+li { margin: 2px 0; }
+li b { color: var(--frost); font-weight: 600; }
+.cap { font-size: 13px; color: var(--muted); padding: 8px 2px 0; }
+
+section.plan { display: grid; gap: 16px; }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.step { background: var(--night); border: 1px solid var(--line); padding: 16px; display: grid; gap: 6px; align-content: start; }
+.step .n { font-family: "Press Start 2P", monospace; font-size: 11px; color: var(--pink); }
+.inv { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.inv div { border-left: 3px solid var(--line); padding: 4px 0 4px 12px; }
+.inv h3 { margin-bottom: 4px; }
+pre { background: var(--panel); border: 1px solid var(--line2); padding: 14px 16px; font: 13px/1.6 var(--f-mono); color: var(--frost); white-space: pre-wrap; overflow-x: auto; margin: 0; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.pick { font: 600 13px var(--f-body); color: var(--frost); background: var(--panel); border: 1px solid var(--line); padding: 6px 12px; cursor: pointer; }
+.pick[aria-pressed="true"] { border-color: var(--pink); color: var(--pink); }
+.choose { background: var(--panel); border: 1px solid var(--pink); padding: 18px 20px; display: grid; gap: 6px; }
+
+@media (max-width: 760px) {
+  .card { grid-template-columns: 1fr; }
+  .card .stage { border-right: 0; border-bottom: 1px solid var(--line); }
+  .compare { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .motion-note { display: none; } }
+</style>
+
+<main>
+  <header>
+    <span class="pixel-title">GOBLINCAKES · BARNLÄGE</span>
+    <h1>Barnläge i pixelart</h1>
+    <p class="lead">Tre stilar att välja mellan, ritade på samma två scener: bakgrunden Regnbåge och splashens Saturnus. Det här är mina egna enkla pixelbilder. De riktiga bilderna ritas sedan av Codex efter den stil du väljer och blir mer detaljerade.</p>
+  </header>
+
+  <section style="display:grid;gap:12px">
+    <div class="scenebar" role="group" aria-label="Scen">
+      <button type="button" id="sc-day" aria-pressed="true">Regnbåge</button>
+      <button type="button" id="sc-night" aria-pressed="false">Saturnus (splash)</button>
+      <span class="cap motion-note" style="padding:0 0 0 6px">Molnen glider och stjärnorna blinkar, som i barnläget i dag.</span>
+    </div>
+    <div class="compare">
+      <div><canvas id="today" class="smooth" width="640" height="360"></canvas><div class="cap">I dag: raka former ritade i kod.</div></div>
+      <div><canvas id="preview" width="160" height="90"></canvas><div class="cap" id="previewcap">Samma scen i pixelart (stil C).</div></div>
+    </div>
+  </section>
+
+  <section class="cards" id="cards"></section>
+
+  <section class="plan">
+    <span class="eyebrow">Vad som byts</span>
+    <h2>Allt i barnläget som ritas i dag</h2>
+    <div class="inv">
+      <div><h3>Splashen</h3><ul><li>Stjärnhimmel med nebulosor</li><li>Gnistor som spiralar in</li><li>Ljusklotet som brister</li><li><b>Saturnus</b>, stor bild</li></ul></div>
+      <div><h3>Bakgrunderna</h3><ul><li><b>Natthimmel</b> med månen</li><li><b>Havet</b> med bubblor</li><li><b>Regnbåge</b> med sol och moln</li><li><b>Solnedgång</b> över vattnet</li></ul></div>
+      <div><h3>Rutorna och knapparna</h3><ul><li>Ramen runt spelens omslag</li><li>Musikbilden och ▶ / ■</li><li>Bildknappen och bildväljaren</li><li>X:et och PIN-rutans siffror</li></ul></div>
+      <div><h3>Det som rör sig</h3><ul><li>Moln, stjärnor och bubblor blir små bilder som rör sig som i dag</li><li>Bakgrunderna i lager: himmel, långt bort, nära</li><li>Spelens omslag förblir Steams egna bilder</li></ul></div>
+    </div>
+  </section>
+
+  <section class="plan">
+    <span class="eyebrow">Arbetsgången</span>
+    <h2>Från val till färdigt barnläge</h2>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><h3>Du väljer stil</h3><p class="lead">A, B eller C här ovanför, eller en blandning.</p></div>
+      <div class="step"><span class="n">2</span><h3>Stilen sparas hos Codex</h3><p class="lead">Texten nedan läggs i <code>~/.codex/AGENTS.md</code>. Då ritar Codex i samma stil varje gång, och varje bildbeställning blir kort.</p></div>
+      <div class="step"><span class="n">3</span><h3>Codex ritar</h3><p class="lead">Claude Code på datorn skickar en bild i taget via ChatGPT-appen. Du trycker Enter. Det dras från ChatGPT-abonnemanget.</p></div>
+      <div class="step"><span class="n">4</span><h3>Claude städar och bygger in</h3><p class="lead">Varje bild räknas ner till ett exakt rutnät och stilens färger, och bakgrunden blir genomskinlig. Sedan byts de raka formerna ut.</p></div>
+    </div>
+  </section>
+
+  <section class="plan">
+    <span class="eyebrow">Till Codex</span>
+    <h2>Stilen i AGENTS.md</h2>
+    <p class="lead">Codex läser <code>~/.codex/AGENTS.md</code> vid varje uppgift, och din regel om att spara bilder i Bilder ligger redan där. Avsnittet nedan läggs till under den och gäller bara när en bild till GOBLINCAKES barnläge beställs. Bilderna ritas stora och städas sedan av oss, eftersom bildmodeller inte håller ett exakt rutnät själva.</p>
+    <div class="tabs" role="group" aria-label="Stil för texten">
+      <button type="button" class="pick" data-s="A" aria-pressed="false">Stil A</button>
+      <button type="button" class="pick" data-s="B" aria-pressed="false">Stil B</button>
+      <button type="button" class="pick" data-s="C" aria-pressed="true">Stil C</button>
+    </div>
+    <pre id="agents"></pre>
+    <h3 style="margin-top:8px">Så ser en beställning ut sen</h3>
+    <pre id="order"></pre>
+  </section>
+
+  <div class="choose">
+    <h2>Ditt val</h2>
+    <p class="lead">Svara i chatten med en bokstav, till exempel "C", eller en blandning, som "B:s himmel med C:s färger". Säg också om typsnittet ska följa med.</p>
+  </div>
+</main>
+
+<script>
+(() => {
+// ── helpers
+const hex = c => [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)];
+const BAYER = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+function rnd(i, seed) { const v = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); }
+function bands(stops, t, x, y, dither) {          // stops: colours top→bottom, t in 0..1
+  const f = Math.max(0, Math.min(0.9999, t)) * (stops.length - 1);
+  const i = Math.floor(f), r = f - i;
+  if (!dither) return stops[Math.round(f)];
+  return r * 16 > BAYER[y & 3][x & 3] + 0.5 ? stops[i + 1] : stops[i];
+}
+
+// ── the three styles
+const STYLES = {
+  A: {
+    name: "Knubbig 8-bit", W: 128, H: 72, font: "font-a",
+    blurb: "Stora pixlar, få färger och svarta konturer runt allt. Tydligt och lekfullt, som ett gammalt tv-spel.",
+    tags: ["128 × 72", "16 färger", "svarta konturer", "ingen skuggning"],
+    sky: ["#3CBCFC", "#3CBCFC", "#A4E4FC"], dither: false, skyNight: ["#0B0B3B"],
+    outline: () => "#111122",
+    sun: ["#FCE020", "#FCE020"], cloud: ["#FCFCFC", "#FCFCFC"],
+    rainbow: ["#E40058", "#F87858", "#F8D878", "#58D854", "#3CBCFC", "#9878F8"],
+    hill: ["#00A800", "#58D854"], hillBack: ["#007800", "#00A800"], flower: ["#F878F8", "#FCE020"],
+    saturn: ["#AC7C00", "#F8B800", "#FCE0A8"], bandsDark: "#AC7C00", ring: ["#BCBCBC", "#FCFCFC"],
+    stars: ["#FCFCFC", "#FCE020"], shades: 2,
+    font: "font-a", fontText: "SPELA!",
+  },
+  B: {
+    name: "Mjuk 16-bit", W: 240, H: 135, font: "font-b",
+    blurb: "Fler färger, mjuka övergångar med rutmönster och skuggor som ger djup. Konturerna är en mörkare ton av färgen i stället för svart.",
+    tags: ["240 × 135", "ca 32 färger", "rutmönster i himlen", "ljus och skugga"],
+    sky: ["#2E6FD8", "#4B95EC", "#79B9F4", "#B5DDFA"], dither: true, skyNight: ["#05060F", "#0C1236", "#1B2565", "#3A2F7A"],
+    outline: c => shade(c, 0.55),
+    sun: ["#FFC93C", "#FFF1A6"], cloud: ["#C9D8F0", "#FFFFFF"],
+    rainbow: ["#E8424E", "#F59A3A", "#F7D84A", "#5BC45B", "#3E8FE0", "#8A5BD6"],
+    hill: ["#2F8F46", "#54C25E", "#8EE07A"], hillBack: ["#25704A", "#3D9A5C"], flower: ["#FF7EB6", "#FFD93D"],
+    saturn: ["#6E4A1E", "#B07A34", "#E2B160", "#F7DE9C"], bandsDark: "#9A6A2C", ring: ["#8E7A5A", "#D9C49A", "#F2E6C4"],
+    stars: ["#FFFFFF", "#FFE7A8", "#7FE3FF"], shades: 4,
+    fontText: "Spela!",
+  },
+  C: {
+    name: "Pastell-saga", W: 160, H: 90, font: "font-c",
+    blurb: "Godisfärger med barnlägets rosa, mjuka former och färgade konturer. Lugnare än A, enklare än B, och ser ut som en bilderbok.",
+    tags: ["160 × 90", "ca 20 pastellfärger", "färgade konturer", "lite skuggning"],
+    sky: ["#9ED8FF", "#C3E6FF", "#FFD6EC"], dither: false, skyNight: ["#1E1748", "#241B55", "#2B2062", "#33266E"],
+    outline: c => shade(c, 0.72),
+    sun: ["#FFD66B", "#FFF0B0"], cloud: ["#F3E9FF", "#FFFFFF"],
+    rainbow: ["#FF8FA3", "#FFB98A", "#FFE58A", "#9EE6A0", "#8CC8FF", "#C6A6FF"],
+    hill: ["#7FCF8E", "#A8E6A3"], hillBack: ["#6BB59A", "#8FD3B0"], flower: ["#F25CB4", "#FFE58A"],
+    saturn: ["#D98A6A", "#F2B48A", "#FFD9B0"], bandsDark: "#E89A80", ring: ["#C6A6FF", "#E9DCFF"],
+    stars: ["#FFFFFF", "#FFD6F0", "#D6F6FF"], shades: 3,
+    fontText: "Spela!",
+  },
+};
+STYLES.A.font = "font-a"; STYLES.B.font = "font-b"; STYLES.C.font = "font-c";
+function shade(c, k) { const [r,g,b] = hex(c); return "#" + [r,g,b].map(v => Math.round(v * k).toString(16).padStart(2, "0")).join(""); }
+
+// ── a layered pixel renderer: each layer = mask + fill + optional outline
+function paint(canvas, W, H, layers) {
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(W, H);
+  const buf = new Array(W * H).fill("#000000");
+  for (const L of layers) {
+    const m = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (L.mask(x, y)) m[y * W + x] = 1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x; if (!m[i]) continue;
+      let edge = false;
+      if (L.outline) edge = (x > 0 && !m[i-1]) || (x < W-1 && !m[i+1]) || (y > 0 && !m[i-W]) || (y < H-1 && !m[i+W]);
+      const c = L.fill(x, y);
+      buf[i] = edge ? (typeof L.outline === "function" ? L.outline(c) : L.outline) : c;
+    }
+  }
+  for (let i = 0; i < W * H; i++) { const [r,g,b] = hex(buf[i]); img.data.set([r, g, b, 255], i * 4); }
+  ctx.putImageData(img, 0, 0);
+}
+
+function dayLayers(S, t) {
+  const { W, H } = S, s = W / 128;
+  const L = [];
+  L.push({ mask: () => true, fill: (x, y) => bands(S.sky, y / (H * 0.8), x, y, S.dither) });
+  // sun
+  const sx = W * 0.83, sy = H * 0.2, sr = 8 * s;
+  L.push({ mask: (x, y) => Math.hypot(x - sx, y - sy) < sr, outline: S.outline,
+           fill: (x, y) => (S.shades > 2 && Math.hypot(x - sx + sr*0.3, y - sy + sr*0.3) < sr * 0.45) ? S.sun[1] : S.sun[0] });
+  // rainbow
+  const rx = W * 0.42, ry = H * 0.98, r0 = 34 * s, bw = 3 * s;
+  L.push({ mask: (x, y) => { const d = Math.hypot(x - rx, y - ry); return y < ry && d >= r0 && d < r0 + bw * 6; }, outline: S === STYLES.A ? S.outline : null,
+           fill: (x, y) => S.rainbow[5 - Math.min(5, Math.floor((Math.hypot(x - rx, y - ry) - r0) / bw))] });
+  // clouds (drift with t)
+  const clouds = [[0.18, 0.2, 1], [0.6, 0.12, 0.8], [1.02, 0.3, 0.9]];
+  for (const [cx0, cy0, k] of clouds) {
+    const cx = ((cx0 * W + t * 2.2 * s * k) % (W * 1.3)) - W * 0.15, cy = cy0 * H, u = 6 * s * k;
+    const parts = [[0, 0.7, 1.2], [-1.3, 1.1, 0.85], [1.3, 1.1, 0.9], [-0.4, 0, 0.9], [0.8, 0.3, 0.8]];
+    const inC = (x, y) => parts.some(([px, py, pr]) => Math.hypot(x - (cx + px * u), y - (cy + py * u)) < pr * u) && y < cy + 1.7 * u;
+    L.push({ mask: inC, outline: S.outline, fill: (x, y) => (S.shades > 2 && y > cy + 1.0 * u) ? S.cloud[0] : S.cloud[1] });
+  }
+  // hills
+  const back = x => H * 0.72 + Math.sin(x / (14 * s) + 1) * 3 * s;
+  const front = x => H * 0.82 + Math.sin(x / (20 * s) + 3.4) * 4 * s;
+  L.push({ mask: (x, y) => y > back(x), outline: S.outline, fill: (x, y) => S.hillBack[(S.shades > 2 && y < back(x) + 3 * s) ? 1 : 0] });
+  L.push({ mask: (x, y) => y > front(x), outline: S.outline,
+           fill: (x, y) => { const d = y - front(x); return S.hill.length > 2 ? S.hill[d < 2*s ? 2 : d < 6*s ? 1 : 0] : S.hill[d < 3*s ? 1 : 0]; } });
+  // flowers
+  L.push({ mask: (x, y) => { for (let i = 0; i < 9; i++) { const fx = Math.round(W * (0.06 + i * 0.11 + rnd(i, 3) * 0.04)); const fy = Math.round(front(fx) + 5 * s + rnd(i, 5) * 6 * s); if (Math.abs(x - fx) + Math.abs(y - fy) <= Math.max(1, Math.round(s))) return true; } return false; },
+           fill: (x, y) => S.flower[(x + y) % 2 ? 0 : (S === STYLES.A ? 0 : 1)] });
+  return L;
+}
+
+function nightLayers(S, t) {
+  const { W, H } = S, s = W / 128;
+  const L = [];
+  L.push({ mask: () => true, fill: (x, y) => bands(S.skyNight, y / H, x, y, S.dither) });
+  const stars = [];
+  for (let i = 0; i < 70; i++) stars.push([Math.floor(rnd(i, 1) * W), Math.floor(rnd(i, 2) * H), i]);
+  L.push({ mask: (x, y) => stars.some(([sx, sy, i]) => sx === x && sy === y && Math.sin(t * 1.7 + i) > -0.4)
+                       || stars.some(([sx, sy, i]) => i % 9 === 0 && s >= 1.2 && Math.abs(sx - x) + Math.abs(sy - y) === 1 && Math.sin(t * 1.7 + i) > 0.3),
+           fill: (x, y) => S.stars[(x * 7 + y) % S.stars.length] });
+  // Saturn
+  const cx = W * 0.56, cy = H * 0.47, R = 15 * s, a = 31 * s, b = 8.5 * s, ang = -0.28;
+  const ringAt = (x, y) => { const dx = x - cx, dy = y - cy; const u = dx * Math.cos(ang) + dy * Math.sin(ang), v = -dx * Math.sin(ang) + dy * Math.cos(ang);
+                             const e = (u / a) ** 2 + (v / b) ** 2; return { e, v }; };
+  const inRing = (x, y) => { const { e } = ringAt(x, y); return (e > 0.42 && e < 0.7) || (e > 0.77 && e < 1); };
+  const ringFill = (x, y) => { const { e } = ringAt(x, y); return S.ring[e > 0.77 ? S.ring.length - 1 : (S.ring.length > 2 ? 1 : 0)] ; };
+  L.push({ mask: (x, y) => inRing(x, y) && ringAt(x, y).v < 0, fill: ringFill, outline: S === STYLES.A ? S.outline : null });
+  L.push({ mask: (x, y) => Math.hypot(x - cx, y - cy) < R, outline: S.outline, fill: (x, y) => {
+    const nx = (x - cx) / R, ny = (y - cy) / R;
+    const light = Math.max(0, Math.min(0.999, 0.55 - nx * 0.45 - ny * 0.45));
+    let c = S.saturn[Math.floor(light * S.saturn.length)];
+    const band = Math.floor((y - cy + R) / (4 * s));
+    if (band % 2 === 1 && light > 0.3) c = S.bandsDark;
+    return c;
+  } });
+  L.push({ mask: (x, y) => inRing(x, y) && ringAt(x, y).v >= 0, fill: ringFill, outline: S === STYLES.A ? S.outline : null });
+  return L;
+}
+
+// a game tile: pixel frame with cut corners and a music note
+function tileLayers(S) {
+  const W = 24, H = 32;
+  const frame = S === STYLES.A ? "#111122" : S === STYLES.B ? "#3A4A78" : "#C6A6FF";
+  const fillTop = S === STYLES.A ? "#3CBCFC" : S === STYLES.B ? "#2E6FD8" : "#9ED8FF";
+  const fillBot = S === STYLES.A ? "#0058F8" : S === STYLES.B ? "#1B2E5A" : "#FFD6EC";
+  const note = S === STYLES.A ? "#FCE020" : S === STYLES.B ? "#FFD93D" : "#F25CB4";
+  const corner = (x, y) => (x + y < 2) || (W - 1 - x + y < 2) || (x + H - 1 - y < 2) || (W - 1 - x + H - 1 - y < 2);
+  return { W, H, layers: [
+    { mask: () => true, fill: () => "#07090D" },
+    { mask: (x, y) => !corner(x, y), fill: (x, y) => bands([fillTop, fillBot], y / H, x, y, S === STYLES.B), outline: () => frame },
+    { mask: (x, y) => (Math.hypot(x - 9, y - 20) < 3.2) || (Math.hypot(x - 16, y - 18) < 3.2) || (x >= 11 && x <= 12 && y >= 9 && y <= 20) || (x >= 18 && x <= 19 && y >= 7 && y <= 18) || (y >= 7 && y <= 9 && x >= 11 && x <= 19 && y <= 9 - (x - 11) * 0.25 + 1.5),
+      fill: () => note, outline: S === STYLES.A ? () => "#111122" : c => shade(c, 0.6) },
+  ] };
+}
+
+// ── "today": smooth shapes, like Scene.qml
+function drawToday(cv, scene, t) {
+  const ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+  if (scene === "day") {
+    const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#5EB8F2"); g.addColorStop(1, "#CDEFFF");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#FFE066"; ctx.beginPath(); ctx.arc(W * 0.83, H * 0.2, W * 0.06, 0, 7); ctx.fill();
+    const cols = ["#E8424E", "#F59A3A", "#F7D84A", "#5BC45B", "#3E8FE0", "#8A5BD6"];
+    ctx.lineWidth = W * 0.024;
+    cols.forEach((c, i) => { ctx.strokeStyle = c; ctx.beginPath(); ctx.arc(W * 0.42, H * 0.98, W * 0.27 + (5 - i) * W * 0.023 + ctx.lineWidth / 2, Math.PI, 2 * Math.PI); ctx.stroke(); });
+    ctx.fillStyle = "#fff";
+    [[0.18, 0.2, 1], [0.6, 0.12, 0.8], [1.02, 0.3, 0.9]].forEach(([x0, y0, k]) => {
+      const x = ((x0 * W + t * 11 * k) % (W * 1.3)) - W * 0.15, y = y0 * H, u = W * 0.045 * k;
+      ctx.beginPath(); ctx.roundRect(x - 1.8 * u, y + 0.5 * u, 3.6 * u, 1.2 * u, 0.6 * u); ctx.fill();
+      ctx.beginPath(); ctx.arc(x - 0.3 * u, y + 0.3 * u, 0.9 * u, 0, 7); ctx.arc(x + 0.7 * u, y + 0.2 * u, 0.8 * u, 0, 7); ctx.fill();
+    });
+    ctx.fillStyle = "#3D9A5C"; ctx.fillRect(0, H * 0.74, W, H);
+    ctx.fillStyle = "#54C25E"; ctx.fillRect(0, H * 0.84, W, H);
+  } else {
+    ctx.fillStyle = "#02030A"; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 70; i++) { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 1.7 + i); ctx.fillStyle = "#E6ECF5"; ctx.beginPath(); ctx.arc(rnd(i, 1) * W, rnd(i, 2) * H, 1.4, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    const cx = W * 0.56, cy = H * 0.47, R = W * 0.117;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.28);
+    ctx.strokeStyle = "#D9C49A"; ctx.lineWidth = W * 0.012;
+    ctx.beginPath(); ctx.ellipse(0, 0, W * 0.2, W * 0.05, 0, Math.PI, 2 * Math.PI); ctx.stroke();
+    ctx.restore();
+    const g = ctx.createRadialGradient(cx - R * 0.4, cy - R * 0.4, R * 0.1, cx, cy, R);
+    g.addColorStop(0, "#F7DE9C"); g.addColorStop(1, "#8A5A24");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.28);
+    ctx.strokeStyle = "#D9C49A"; ctx.lineWidth = W * 0.012; ctx.beginPath(); ctx.ellipse(0, 0, W * 0.2, W * 0.05, 0, 0, Math.PI); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ── AGENTS.md text per style
+const AGENTS = {
+  A: `## Pixelart till GOBLINCAKES barnläge
+
+Gäller bara när jag ber om en bild till "barnläget" eller "GOBLINCAKES pixelart".
+Bilderna är till en treåring: glada, enkla och lätta att känna igen.
+
+Stil: knubbig 8-bit, som ett NES-spel.
+- Riktig pixelart: varje pixel är en tydlig fyrkant i ett jämnt rutnät.
+  Inga mjuka kanter, ingen kantutjämning, inga övertoningar, ingen suddighet.
+- Pixelstorlek: helbilder 128 × 72 pixlar, uppförstorade 8 gånger.
+  Figurer 32 × 32 eller 16 × 16 pixlar.
+- Högst 16 färger. Starka, rena färger.
+- Svart kontur (#111122), 1 pixel tjock, runt varje figur.
+- Ingen skuggning: en ljus ton i varje yta, högst.
+- Ingen text, inga loggor, inga kända figurer.
+- Figurer: ensamma på helt magentafärgad bakgrund (#FF00FF) så att
+  bakgrunden kan tas bort.
+- Spara i ~/Bilder/Barnläge/ med det filnamn jag anger.`,
+  B: `## Pixelart till GOBLINCAKES barnläge
+
+Gäller bara när jag ber om en bild till "barnläget" eller "GOBLINCAKES pixelart".
+Bilderna är till en treåring: glada, enkla och lätta att känna igen.
+
+Stil: mjuk 16-bit, som ett SNES-spel.
+- Riktig pixelart: varje pixel är en tydlig fyrkant i ett jämnt rutnät.
+  Ingen kantutjämning, ingen suddighet. Övergångar görs med
+  rutmönster (dithering), aldrig med mjuka övertoningar.
+- Pixelstorlek: helbilder 240 × 135 pixlar, uppförstorade 8 gånger.
+  Figurer 64 × 64 eller 32 × 32 pixlar.
+- Ungefär 32 färger. Varje yta har 3–4 toner: skugga, grund, ljus.
+- Ljuset kommer uppifrån vänster.
+- Konturer i en mörkare ton av ytans egen färg, inte svart.
+- Ingen text, inga loggor, inga kända figurer.
+- Figurer: ensamma på helt magentafärgad bakgrund (#FF00FF) så att
+  bakgrunden kan tas bort.
+- Spara i ~/Bilder/Barnläge/ med det filnamn jag anger.`,
+  C: `## Pixelart till GOBLINCAKES barnläge
+
+Gäller bara när jag ber om en bild till "barnläget" eller "GOBLINCAKES pixelart".
+Bilderna är till en treåring: glada, enkla och lätta att känna igen.
+
+Stil: pastell-saga, som en bilderbok i pixelart.
+- Riktig pixelart: varje pixel är en tydlig fyrkant i ett jämnt rutnät.
+  Ingen kantutjämning, inga övertoningar, ingen suddighet.
+- Pixelstorlek: helbilder 160 × 90 pixlar, uppförstorade 12 gånger.
+  Figurer 32 × 32 pixlar.
+- Ungefär 20 färger, mjuka pastellfärger: himmelsblått #9ED8FF,
+  rosa #F25CB4 och #FFD6EC, mintgrönt #A8E6A3, smörgult #FFE58A,
+  lavendel #C6A6FF. Ingen svart.
+- Konturer i en mörkare ton av ytans egen färg, 1 pixel tjock.
+- Lite skuggning: 2–3 toner per yta, ljuset uppifrån vänster.
+- Runda, knubbiga former. Glada ansikten är okej på sol och moln.
+- Ingen text, inga loggor, inga kända figurer.
+- Figurer: ensamma på helt magentafärgad bakgrund (#FF00FF) så att
+  bakgrunden kan tas bort.
+- Spara i ~/Bilder/Barnläge/ med det filnamn jag anger.`,
+};
+const ORDER = s => `Barnläget: rita bakgrunden Regnbåge – en blå himmel, en regnbåge
+från vänster till mitten, gröna kullar längst ner med några blommor.
+Ingen sol och inga moln (de kommer som egna figurer).
+Filnamn: regnbage-himmel.png
+
+Barnläget: rita figuren Saturnus – en gyllene planet med band
+och en ring som lutar lite. Bara planeten, inget annat.
+Filnamn: saturnus.png`;
+
+// ── build the cards
+const cards = document.getElementById("cards");
+const views = [];
+for (const k of ["A", "B", "C"]) {
+  const S = STYLES[k];
+  const card = document.createElement("article");
+  card.className = "card";
+  card.innerHTML = `
+    <div class="stage"><canvas aria-label="Stil ${k} – ${S.name}"></canvas></div>
+    <div class="info">
+      <h2><span class="letter">${k}</span>${S.name}</h2>
+      <p class="lead">${S.blurb}</p>
+      <div>${S.tags.map(t => `<span class="tag">${t}</span>`).join("")}</div>
+      <div class="sample">
+        <div class="tile"><canvas aria-label="Musikbilden i stil ${k}"></canvas></div>
+        <div style="display:grid;gap:8px;min-width:0">
+          <span class="fontline ${S.font}">${S.fontText}</span>
+          <div class="pal">${[...new Set([...S.sky, ...S.rainbow, ...S.hill, ...S.saturn, ...S.ring])].map(c => `<span style="background:${c}" title="${c}"></span>`).join("")}</div>
+          <span class="cap" style="padding:0">Typsnitt, ruta och färger</span>
+        </div>
+      </div>
+    </div>`;
+  cards.appendChild(card);
+  const [main, tile] = card.querySelectorAll("canvas");
+  const tl = tileLayers(S); paint(tile, tl.W, tl.H, tl.layers);
+  views.push({ S, cv: main });
+}
+
+let scene = "day";
+const preview = document.getElementById("preview"), today = document.getElementById("today");
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function frame(t) {
+  for (const v of views) paint(v.cv, v.S.W, v.S.H, scene === "day" ? dayLayers(v.S, t) : nightLayers(v.S, t));
+  const P = STYLES[chosen];
+  paint(preview, P.W, P.H, scene === "day" ? dayLayers(P, t) : nightLayers(P, t));
+  drawToday(today, scene, t);
+}
+let chosen = "C";
+const t0 = performance.now();
+const now = () => reduce ? 4 : (performance.now() - t0) / 1000;
+frame(now());
+if (!reduce) setInterval(() => frame(now()), 250);
+
+for (const [id, sc] of [["sc-day", "day"], ["sc-night", "night"]]) {
+  document.getElementById(id).addEventListener("click", e => {
+    scene = sc;
+    document.querySelectorAll(".scenebar button").forEach(b => b.setAttribute("aria-pressed", String(b === e.currentTarget)));
+    frame(now());
+  });
+}
+const agents = document.getElementById("agents"), order = document.getElementById("order"), cap = document.getElementById("previewcap");
+function pick(s) {
+  chosen = s;
+  agents.textContent = AGENTS[s]; order.textContent = ORDER(s);
+  cap.textContent = `Samma scen i pixelart (stil ${s}, ${STYLES[s].name}).`;
+  document.querySelectorAll(".pick").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.s === s)));
+  frame(now());
+}
+document.querySelectorAll(".pick").forEach(b => b.addEventListener("click", () => pick(b.dataset.s)));
+pick("C");
+})();
+</script>
