@@ -59,6 +59,33 @@ class Terminals(QObject):
                 pass
         self.request(folder, "")
 
+    @Slot(int, result=str)
+    def claudeFolder(self, sid):
+        """The folder Claude Code runs in, in this tab ("" when none runs there) – the map beside TERMINAL
+        follows that session (13 Nov)."""
+        s = self._sessions.get(sid)
+        if not s:
+            return ""
+        todo, seen = [s.pid], 0
+        while todo and seen < 200:
+            pid = todo.pop(0)
+            seen += 1
+            try:
+                argv = open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0")
+                comm = open(f"/proc/{pid}/comm").read().strip()   # Claude Code names itself claude
+                with open(f"/proc/{pid}/task/{pid}/children") as fh:
+                    todo += [int(c) for c in fh.read().split()]
+            except (OSError, ValueError):
+                continue
+            names = [os.path.basename(a.decode(errors="replace")) for a in argv[:2]]
+            if pid != s.pid and (comm == "claude" or "claude" in names or any(n.startswith("claude") and n.endswith((".js", ".mjs"))
+                                                           for n in names)):
+                try:
+                    return os.readlink(f"/proc/{pid}/cwd")
+                except OSError:
+                    return ""
+        return ""
+
     @Slot(result=str)
     def ready(self):
         """The page has loaded: what to open first ([] = one plain shell in the home folder)."""

@@ -142,14 +142,15 @@ FRAMES = [("projects", "Projekt", "dina mappar – öppna i VS Code, Claude Code
           ("wow", "WoW Stats", "karaktärer och senaste raiden (Warcraft Logs)"),
           ("cs2", "CS2 Stats", "de senaste matcherna och kartorna"),
           ("builds", "Byggen", "GOBLINCAKES byggen på GitHub (när repot finns på datorn)"),
-          ("reports", "Kakan", "Kakans rapporter")]
+          ("reports", "Kakan", "Kakans rapporter"),
+          ("claude", "Claude Code", "vad Claude Code gör just nu – kartan i mitten")]
 SIDES = {"left": 3, "right": 2}           # at most this many frames on each side
 MAX_VIEWS = 6
 DEFAULT_VIEWS = [{"name": "SPEL", "left": ["projects", "system"], "right": ["wow", "cs2"]},
-                 {"name": "JOBB", "left": ["projects", "system"], "right": ["builds", "reports"]}]
+                 {"name": "JOBB", "left": ["projects", "system", "claude"], "right": ["builds", "reports"]}]
 # Which frame a middle belongs to: a middle whose frame is not in the view opens as the programs
 MID_FRAME = {"system": "system", "project": "projects", "raid": "wow", "char": "wow", "cs2": "cs2",
-             "builds": "builds", "reports": "reports"}
+             "builds": "builds", "reports": "reports", "claude": "claude"}
 
 
 def mid_fits(mid, view):
@@ -177,6 +178,28 @@ def views(saved=None):
         view["mid"] = mid if mid_fits(mid, view) else "apps"
         out.append(view)
     return out or [dict(v, mid="apps") for v in DEFAULT_VIEWS]
+
+
+def claude_frame_once(saved):
+    """CLAUDE CODE (13 Nov) into an existing JOBB view once – where there is room (Config → Dashboard moves it).
+    Returns True when the views were changed (and saved)."""
+    if saved.get("claudeFrame") or not isinstance(saved.get("views"), list):
+        return False
+    saved["claudeFrame"] = True
+    rows = views(saved)
+    if not any("claude" in v["left"] + v["right"] for v in rows):
+        work = [v for v in rows if v["name"] == "JOBB"] + [v for v in rows if v["name"] != "JOBB"]
+        for v in work:
+            side = next((k for k in ("left", "right") if len(v[k]) < SIDES[k]), None)
+            if side:
+                v[side].append("claude")
+                break
+        saved["views"] = rows
+    try:
+        save_settings(saved)
+    except OSError:
+        pass
+    return True
 
 
 def view_index(saved=None, rows=None):

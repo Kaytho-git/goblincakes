@@ -169,6 +169,7 @@ class Backend(QObject):
         self.kwin.answered.connect(self._windows_answer)
         self.arrived.connect(self._arrived)
         saved = dash.settings()
+        dash.claude_frame_once(saved)               # CLAUDE CODE (13 Nov) into JOBB once
         self._views = dash.views(saved)             # SPEL, JOBB, … (Config → Dashboard)
         self._view = dash.view_index(saved, self._views)
         self._mid = self._views[self._view]["mid"]  # apps | system | project:<path> | raid | … – one per view
@@ -747,6 +748,11 @@ def main():
     engine = QQmlApplicationEngine()
     engine.addImageProvider("icon", IconProvider())
     engine.rootContext().setContextProperty("backend", backend)
+    # CLAUDE CODE (13 Nov): the map in the middle and the frame – claudemap.py next to accent.py, read only while shown
+    sys.path.insert(0, str(SHARE.parent))
+    import claudefeed  # noqa: PLC0415
+    claude_feed = claudefeed.ClaudeFeed(app)
+    engine.rootContext().setContextProperty("claudeFeed", claude_feed)
     engine.rootContext().setContextProperty("logoUrl", QUrl.fromLocalFile(
         os.environ.get("GOBLINCAKES_LOGO") or str(icons / "goblincakes.svg")))
     use_accent(engine)

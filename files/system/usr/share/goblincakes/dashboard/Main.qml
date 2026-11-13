@@ -38,6 +38,16 @@ Window {
     property var builds: ({})
     property var buildSteps: ({})      // the open build in BYGGEN: {id, done, jobs [{name, kind, length, steps}]}
     property var reports: ({})
+    // CLAUDE CODE (13 Nov): what Claude Code does – claudefeed.py, read every ½ s only while the frame or the middle shows
+    readonly property var claude: {
+        try {
+            return JSON.parse(claudeFeed.state);
+        } catch (e) {
+            return ({});
+        }
+    }
+    readonly property bool claudeWanted: visible && (mid === "claude" || currentView.left.concat(currentView.right).indexOf("claude") >= 0)
+    onClaudeWantedChanged: claudeFeed.active = claudeWanted
     property int boss: -1              // the chosen boss in SENASTE RAIDEN (-1 = the last one pulled)
     property string csMap: ""          // the chosen map in CS2 ("" = the most played)
     readonly property var trayIcons: JSON.parse(backend.trayIcons)
@@ -46,11 +56,11 @@ Window {
     readonly property var currentView: views[backend.view] || ({ "left": [], "right": [] })
     function frameComponent(id) {
         return ({ "projects": projectsFrame, "system": systemFrame, "wow": wowFrame, "cs2": cs2Frame,
-                  "builds": buildsFrame, "reports": reportsFrame })[id] || null;
+                  "builds": buildsFrame, "reports": reportsFrame, "claude": claudeFrame })[id] || null;
     }
     // A frame is shown only when it has something to show (projects and the system always have)
     function shows(id) {
-        return id === "projects" || id === "system" ? true
+        return id === "projects" || id === "system" || id === "claude" ? true
              : id === "wow" ? (wow.players || []).length > 0
              : id === "cs2" ? !!cs2.count
              : id === "builds" ? !!builds.builder && (builds.rows || []).length > 0
@@ -1453,6 +1463,30 @@ Window {
         }
     }
 
+    Component {
+        id: claudeFrame
+        Frame {
+            width: parent.width
+            implicitHeight: claudeColumn.implicitHeight + 32
+            Column {
+                id: claudeColumn
+                x: 16
+                y: 16
+                width: parent.width - 32
+                spacing: 10
+                Heading { text: "CLAUDE CODE" }
+                SideCard {
+                    on: win.mid === "claude"
+                    live: !!win.claude.busy
+                    title: win.claude.none ? "Ingen session ännu" : (win.claude.folder || "Claude Code")
+                    line: win.claude.none ? "kartan visar Claude Code när det körs" : (win.claude.now || "")
+                    side: win.claude.context ? win.claude.context + " %" : ""
+                    onClicked: backend.setMid(win.mid === "claude" ? "apps" : "claude")
+                }
+            }
+        }
+    }
+
     // ── The middle part ───────────────────────────────────────
     Item {
         id: body
@@ -2640,6 +2674,29 @@ Window {
                     FastWheel { flick: reportList }
                 }
                 FlatScrollBar { flick: reportList }
+            }
+
+            // ── CLAUDE CODE: the map (qml/Goblin/ClaudeMap.qml) ──
+            Item {
+                id: claudeView
+                visible: win.mid === "claude"
+                anchors { top: searchRow.bottom; topMargin: 20; left: parent.left; right: parent.right; bottom: parent.bottom
+                          leftMargin: 28; rightMargin: 28; bottomMargin: 20 }
+                Row {
+                    id: claudeHead
+                    spacing: 14
+                    BigTitle { id: claudeTitle; text: "CLAUDE CODE" }
+                    SubTitle {
+                        anchors.baseline: claudeTitle.baseline
+                        text: "vad Claude gör just nu" + (win.claude.idle > 1800 && !win.claude.busy ? " · senaste sessionen" : "")
+                    }
+                }
+                G.ClaudeMap {
+                    anchors { top: claudeHead.bottom; topMargin: 16; left: parent.left; right: parent.right; bottom: parent.bottom }
+                    info: win.claude
+                    rowsMax: 24
+                    onPicked: id => claudeFeed.pick(id)
+                }
             }
 
             // A line for a moment (why something could not be started)

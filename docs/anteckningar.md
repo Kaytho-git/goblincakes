@@ -808,6 +808,49 @@ Idén och besluten: grep "GOBLINCAKES Dashboard – en utökad AppGrid" (Framtid
    **Sex ändringar 11 nov (molnsession, användaren: "Allt som kommer rör bara dashboard").** (1) **Strömknapp** – i upplägget Dashboard finns inget toppfält: ikon längst till höger i ikonraden under loggan (`TopIcon`), `backend.power()` gömmer dashboarden och kör `dash.power()` = `qdbus6`/`gdbus` `org.kde.LogoutPrompt /LogoutPrompt promptAll` → GOBLINCAKES egna avstängningsruta (Logga ut, Starta om, Stäng av, Avbryt – bekräftelse ingår, inget stängs av direkt). (2) **Lägg till/ta bort projekt:** systemets `FolderDialog` öppnades men inget lades till (orsaken inte säkert utredd – troligen dialogen ovanpå helskärmsfönstret/fokusgömningen på Wayland; Python-sidan var rätt). Ersatt med en **egen mappväljare** i mitten (`win.adding`, ruta `addView` ovanpå mittenvyerna, z 20): `dash.browse(path)` = mapparna (dolda utelämnas, högst 300) + i hemmappen förslag = Git-mappar två nivåer ner som inte finns i listan; ↑ Upp/Backspace, Enter/"Lägg till den här mappen" → `backend.addProject` → `dash.add_folder` (samma `ai-mappar.json` som Goblin AI), sedan öppnas projektet i mitten. Esc/Avbryt stänger. **Ta bort:** ✕ till höger på en projektrad vid hovring (`backend.removeProject`; "Ta bort ur listan" i mitten finns kvar). QtQuick.Dialogs borttaget ur dashboarden. (3) **+ som liten ikon** bredvid rubriken PROJEKT (30×30, accent när väljaren är öppen) i stället för raden "+ Lägg till projekt". (4) **DISK** bortfiltrerad ur SYSTEM-ramen (`id !== "disk"`), finns kvar i mitten (SYSTEMET). (5) **KVOT** = mätarikon i ikonraden (röd ram/streck när något fönster ≥ 90 %), tryck = liten ruta `quotaPanel` (`win.box === "kvot"`) med samma innehåll som den gamla ramen; kvotramen nere till vänster borta. Esc stänger rutan först. (6) **Spalterna** = `FrameColumn` (vänster och höger): ramarna har `implicitHeight`, PROJEKT får det som blir över (minst två rader, högst alla) och rullar själv (ListView + FastWheel + FlatScrollBar, alla projekt – förut bara 5); hela spalten rullar bara om inte ens det får plats. **Provat (molnsession, offscreen 1920×1080 och 1600×820 med skärmbilder, låtsas-hemmapp med 14 projekt):** spalterna (PROJEKT rullar, SYSTEM står still), kvotrutan, mappväljaren med förslag, lägg till (sparas i ai-mappar.json, öppnas i mitten), ta bort via backend, `dash.py browse`. **Ej provat på riktigt:** strömknappen mot riktiga Plasma (LogoutPrompt), ✕ med riktig mus, mappväljaren i riktiga hemmappen – testlista `docs/testlistor/till-kakan/dashboard-11nov.md`.
 - **Felnotisen om klockan (12 nov):** efterkollen sa "1 sak gick sönder" (widgeten org.goblincakes.deskclock, ClockBox.qml:125 "Cannot specify … anchors for items inside Row") – main.qml lägger ToolTipArea med anchors.fill i `leftItem`/`rightItem`, som var Row:er → varningen vid varje ändring i batterilistan och batteriernas tooltip täckte inte. Nu är leftBatteries/rightBatteries ett Item runt en Row. Provat offscreen (gammal varnar, ny tyst, överlägg täcker batterierna) och på riktiga datorn (kopian i ~/.local/share/plasma/plasmoids, plasmashell omstartad: ingen varning). Tooltipen med musen ej provad. NOTISER: rader utan desktop-entry från "Goblin AI" öppnar goblin-ai (`NOTICE_ENTRY` i dash.py).
 
+## CLAUDE CODE-kartan (13 nov, användaren: lot-map – "Är det något vi skulle kunna göra själv?" → "Bygg det i dashboarden och bredvid terminalen i Goblin AI")
+Idén från modden lot-map (github.com/alexeyw/lot-map, MIT): en karta över vad Claude Code gör. Vi byggde en egen i
+GOBLINCAKES stil i stället för att installera modden: den kräver Claude Codes mod-stöd, ritar i en terminal bara text
+eller en bild via kitty/iTerm2-protokollet – Goblin AI:s TERMINAL (xterm.js utan bildtillägget, TERM_PROGRAM=goblin-ai)
+visar ingen bild. Ingen kod är kopierad.
+- **Datan:** `share/goblincakes/claudemap.py` (bara standardbiblioteket) läser loggen Claude Code skriver ändå –
+  `~/.claude/projects/<mapp>/<session>.jsonl` (+ `<session>/subagents/*.jsonl` för agenternas egna anrop; `CLAUDE_CONFIG_DIR`
+  följs). Inga hooks, inget installeras i Claude Code. Läser bara det nya sedan förra gången (offset); en nyvald session:
+  de sista 2 MB (en lång session är 80 MB), utan pulser. `python3 claudemap.py [mapp]` = läget som JSON för hand.
+  Stationer: DU (dina meddelanden, AskUserQuestion), MODELL (ett steg per message-id; komprimering; modellbyte ◆),
+  MINNE (filer under ~/.claude/…/memory, MCP-servrar med memory i namnet, Kakans `losningar`/`rapporter`), FILER
+  (Read/Write/Edit/Grep/Glob + skalkommandon som bara rör filer), SKAL (övriga), NÄTVERK (WebFetch/WebSearch, övriga
+  MCP, curl/gh/ssh/git push…/dnf install…; text i citattecken och heredocs räknas inte), WEBBLÄSARE (MCP med
+  browser/chrome/playwright), AGENTER (Agent/Task/Workflow), SKILLS (Skill, ToolSearch), HOOKS (stop_hook_summary,
+  "Stop hook feedback", hook-fel i ett verktygssvar). Kontexten = senaste svarets input+cache-tokens / 200 000 (1 M när
+  modellen har [1m] eller sessionen gått över 200 000). Sessionen: den nyaste som skrivits de senaste 30 min (annars
+  den senaste alls); Goblin AI väljer först sessionen i mappen där Claude Code kör i fliken som visas
+  (`Terminals.claudeFolder(sid)` i ptyterm.py: processen `claude` under skalet → dess cwd); flera sessioner igång =
+  knappar ovanför kartan (AUTO = tillbaka till automatiskt). Obesvarade anrop släpps efter 15 min utan nya rader.
+- **Qt-delen:** `share/goblincakes/claudefeed.py` (`ClaudeFeed`: läser var ½ s i en tråd medan `active`; `folder`,
+  `pick(id)`, `pane` = rutan i Goblin AI visad/dold, sparad i `~/.config/goblincakes/claude-karta`).
+- **Ritningen:** `qml/Goblin/ClaudeMap.qml` (`info` = läget; `info`, inte `data` – data är Items standardegenskap och
+  barnen hamnade där). Canvas: ekrar som blir tjockare av användning, rutten mellan de senaste stationerna (40 s + 20 s
+  tonar), klockbågar runt en station som kör (inre = 1 min, yttre = 10 min), röd prick vid fel tills ditt nästa
+  meddelande, ×n när flera kör, prickar runt AGENTER per agent som arbetar, kontextringen (gul ≥ 70 %, röd ≥ 90 %).
+  Stil: Levande (`look.motion`) – pulser ut och tillbaka, ring ut när svaret är klart, gul ring vid modellbyte; Platt
+  och under spel – stationen lyser bara upp. Bred yta (dashboarden) = raderna bredvid kartan, smal = under. Raderna:
+  ● kör, · klart, ✕ fel, ◆ modellbyte, ○ svaret klart (med turens längd); efterföljande klara anrop på samma station
+  slås ihop (+n); tryck på en avkortad rad = hela.
+- **Dashboarden:** ramen `claude` ("Claude Code" i Config → Dashboard, `dash.FRAMES`), mitten `claude` (`MID_FRAME`).
+  Nya användare har den i JOBB (vänster); befintliga får den en gång i JOBB där det finns plats (`dash.claude_frame_once`,
+  flaggan `claudeFrame` i dashboard.json). Läses bara medan dashboarden syns och ramen finns i vyn eller mitten är kartan.
+- **Goblin AI:** rutan till höger i TERMINAL (320–420 px, döljs när fliken är smalare än 700 px), knappen KARTA i
+  flikraden. Läses bara medan TERMINAL syns och rutan är på.
+- **Provat (molnsession):** läsaren mot den här sessionens riktiga logg (12 000 rader, 0,1 s första gången) och mot en
+  påhittad session som skrevs medan kartan visades (agent med egen logg, hook-fel, modellbyte opus → fable, fel i
+  skalet, MINNE) – skärmbilder i Levande; dashboarden offscreen 1728×972 med kartan i mitten och ramen i JOBB
+  (flytten in i en sparad JOBB-vy provad); Goblin AI offscreen med rutan bredvid TERMINAL (fönstret 796 px brett).
+  `tools/check.py` utan fel. **Ej provat på riktigt (testlista `docs/testlistor/till-kakan/claude-karta.md`):** Claude
+  Code på datorn (att `claude`-processen hittas i fliken och rätt session väljs), pulserna i riktig takt, att
+  terminalen inte hackar medan kartan ritas, Platt, under spel, flera sessioner samtidigt, bakgrundskommandon (visas
+  som klara när de startat – lot-maps "lyser tills de är klara" är inte byggt).
+
 ## Levande utseende – rörelse och ljus (10 nov – planerat; alla 7 stegen BYGGDA 11 nov, bara provade i molnet)
 **Bakgrund:** användaren tyckte att GOBLINCAKES såg lite "AI"/sterilt ut – "strukturerat och lite sterilt", alla ramar lika, inget rör sig. Inte kritik av funktionerna eller layouten (hen är mycket nöjd med dem). Beslut: **samma utseende** (palett, typsnitt, raka hörn, platt) – det levande ska komma från **rörelse och ljus**, inte ny stil. Skrivbordsrutorna ska ha **tonat glas** bakom. Mockup (godkänd: "så mycket bättre, samma känsla och utseende men naturligt"): https://claude.ai/artifact/DjWpN5mPchnvoHcopV9YFL – kopia i `docs/mockups/levande.html` (NU/LEVANDE-växlare). Månen bakom klockan i mockupens påhittade bakgrund gillades inte ("en liten sol") – borttagen; den var bara mockupens bakgrund.
 **Lärdom:** när användaren inte säger något om utseendet följer Claude designreglerna rakt av (ramar överallt, samma tyngd) – fråga om utseendet när något nytt som syns byggs.

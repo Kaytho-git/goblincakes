@@ -1,3 +1,4 @@
+2026-11-13  Claude Code-kartan: se vad Claude gör medan det jobbar – filer, kommandon, nätet, agenter och hur full kontexten är lyser upp på en karta. Finns i dashboarden (ramen CLAUDE CODE i vyn JOBB) och bredvid terminalen i Goblin AI (knappen KARTA visar och döljer den).
 2026-11-13  Systemfältet: vänsterklick på Raider.IO och WowUp öppnar nu programmen (förut gjorde det ingenting – bara högerklick fungerade).
 2026-11-13  Battle.net: högerklicksmenyn på ikonen i systemfältet fungerar med ett klick och stänger sig när du klickar utanför.
 2026-11-13  Archon-ikonen i systemfältet: vänsterklick öppnar Archon igen även när ikonen startade före Archon vid inloggningen.

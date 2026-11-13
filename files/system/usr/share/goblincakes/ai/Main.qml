@@ -2119,9 +2119,43 @@ Window {
                         }
                     }
                 }
+                // KARTA: the CLAUDE CODE map beside the terminal shown or hidden (13 Nov, remembered – claudefeed.py)
+                Item {
+                    id: mapToggle
+                    anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+                    width: mapToggleText.implicitWidth + 28
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.topMargin: 6
+                        color: claudeFeed.pane ? "#12203A" : mapToggleArea.containsMouse ? "#0E1420" : "transparent"
+                    }
+                    Text {
+                        id: mapToggleText
+                        anchors { centerIn: parent; verticalCenterOffset: 3 }
+                        text: "KARTA"
+                        color: claudeFeed.pane ? "#E6ECF5" : mapToggleArea.containsMouse ? accent.text : "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 11
+                        font.letterSpacing: 1
+                    }
+                    Rectangle {
+                        visible: claudeFeed.pane
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                        height: 2
+                        color: accent.color
+                    }
+                    MouseArea {
+                        id: mapToggleArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: claudeFeed.pane = !claudeFeed.pane
+                    }
+                }
                 Text {
-                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter; verticalCenterOffset: 3 }
-                    visible: parent.width - termRow.width > 420
+                    anchors { right: mapToggle.left; rightMargin: 14; verticalCenter: parent.verticalCenter; verticalCenterOffset: 3 }
+                    visible: parent.width - termRow.width - mapToggle.width > 420
                     text: "ctrl+shift+c/v kopiera/klistra · högerklick · ctrl+shift+t/w ny/stäng"
                     color: "#5C6880"
                     font.family: "IBM Plex Mono"
@@ -2136,8 +2170,39 @@ Window {
             Loader {
                 id: termLoader
                 active: false
-                anchors { left: parent.left; right: parent.right; top: termStrip.bottom; bottom: parent.bottom }
+                anchors { left: parent.left; right: claudePane.visible ? claudePane.left : parent.right; top: termStrip.bottom; bottom: parent.bottom }
                 source: "TerminalView.qml"
+            }
+            // ── The CLAUDE CODE map beside the terminal (13 Nov): the session in the current tab's folder first ──
+            Rectangle {
+                id: claudePane
+                visible: claudeFeed.pane && parent.width >= 700   // a narrow window: the terminal gets the room
+                anchors { right: parent.right; top: termStrip.bottom; bottom: parent.bottom }
+                width: Math.min(420, Math.max(320, parent.width * 0.3))
+                color: "#0B1018"
+                Rectangle { width: 1; height: parent.height; color: "#1A2438" }
+                readonly property bool wanted: claudeFeed.pane && terminalView.visible && win.visible && terminalView.width >= 700
+                onWantedChanged: claudeFeed.active = wanted
+                Component.onCompleted: claudeFeed.active = wanted
+                Timer {   // which folder Claude Code runs in, in the tab shown
+                    interval: 2000
+                    running: claudeFeed.active
+                    repeat: true
+                    triggeredOnStart: true
+                    onTriggered: claudeFeed.folder = terminals.claudeFolder(zoomRoot.termCurrent)
+                }
+                G.ClaudeMap {
+                    anchors { fill: parent; leftMargin: 15; rightMargin: 14; topMargin: 12; bottomMargin: 8 }
+                    info: {
+                        try {
+                            return JSON.parse(claudeFeed.state);
+                        } catch (e) {
+                            return ({});
+                        }
+                    }
+                    rowsMax: 14
+                    onPicked: id => claudeFeed.pick(id)
+                }
             }
             Column {
                 visible: termTabs.count === 0 && termLoader.status === Loader.Ready

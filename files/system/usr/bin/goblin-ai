@@ -3526,6 +3526,11 @@ def main():
     terminals = ptyterm.Terminals()
     app.aboutToQuit.connect(terminals.close_all)
     engine.rootContext().setContextProperty("terminals", terminals)
+    # The CLAUDE CODE map beside TERMINAL (13 Nov) – claudemap.py next to accent.py, read only while it shows
+    sys.path.insert(0, str(SHARE.parent))
+    import claudefeed  # noqa: PLC0415
+    claude_feed = claudefeed.ClaudeFeed(app)
+    engine.rootContext().setContextProperty("claudeFeed", claude_feed)
     engine.rootContext().setContextProperty("hasWeb", web)
     engine.rootContext().setContextProperty("uiScale", ui_scale)
     engine.rootContext().setContextProperty("startQuick", quick)

@@ -246,6 +246,23 @@ Ord: config, inställningar, goblincakes config, program, förinstallerat, föns
 Ord: goblin, kommando, terminal, goblin help
 - /usr/bin/goblin (bash): `goblin help` listar alla. Hjälpprogrammen ligger i /usr/libexec/goblincakes-*.
 
+## CLAUDE CODE-kartan
+Ord: kartan, claude-kartan, claude code-kartan, KARTA, vad claude gör, stationer, kontexten
+- En karta över vad Claude Code gör just nu (13 nov): i dashboarden (ramen CLAUDE CODE, tryck = kartan i mitten) och
+  till höger om TERMINAL i Goblin AI (knappen KARTA i flikraden visar/döljer; döljs själv när fliken är under 700 px).
+- Läser Claude Codes egen logg: ~/.claude/projects/<mapp>/<session>.jsonl (agenter: <session>/subagents/*.jsonl).
+  Inget installeras i Claude Code. Kod: /usr/share/goblincakes/claudemap.py (läsaren), claudefeed.py (Qt),
+  qml/Goblin/ClaudeMap.qml (ritningen).
+- Kolla för hand: `python3 /usr/share/goblincakes/claudemap.py` (nyaste sessionen) eller `… claudemap.py ~/projekt`
+  (den sessionen i mappen) – ger JSON med model, context (%), busy, running, rows. `{"none": true}` = ingen logg alls
+  (Claude Code aldrig kört, eller CLAUDE_CONFIG_DIR pekar någon annanstans).
+- Visar fel session i Goblin AI: den väljer sessionen i mappen där processen `claude` kör i fliken som visas; kolla
+  `pgrep -a claude` och `readlink /proc/<pid>/cwd`. Knapparna ovanför kartan väljer för hand, AUTO = tillbaka.
+- Rutan i Goblin AI dold/visad sparas i ~/.config/goblincakes/claude-karta (dold/visad). Ramen i dashboarden väljs i
+  Config → Dashboard ("Claude Code").
+- Kontexten räknas mot 200 000 tokens (1 000 000 när sessionen gått över 200 000 eller modellen har [1m]) – kan visa
+  för mycket i början av en 1M-session.
+
 ## Goblin AI (du själv)
 Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, körda kommandon, ångra
 - Fönstret /usr/bin/goblin-ai (Meta+A, goblin ai app), koden i /usr/share/goblincakes/ai/ (goblinai.py m.fl.).

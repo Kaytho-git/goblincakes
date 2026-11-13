@@ -130,6 +130,7 @@ Fråga om datorn eller vad som helst – i ett eget fönster (**Meta+A**), i en 
 - **Söker på nätet** själv när du frågar om något nytt (gratis Tavily-nyckel).
 - **Läser och skapar:** PDF:er, bilder och skärmbilder; ritar bilder (på datorn eller gratis via Cloudflare); sparar svar som PDF, Word eller bild.
 - **Hjälper med datorn och spelet:** hittar fel i systemloggarna och föreslår lösningar steg för steg, läser WoW-tilläggens felmeddelanden och analyserar dina Warcraft Logs (dödsfall, cooldowns, förmågor) och dina CS2-matcher.
+- **Kartan över Claude Code** bredvid terminalen (och i dashboarden): vad Claude gör just nu – filer, kommandon, nätet, agenter, fel och hur full kontexten är – läst ur Claude Codes egen logg, inget installeras i Claude Code.
 - **Projekt** med egna instruktioner, filer och modeller, ett **minne**, avatar och namn. ♥ under ett bra svar lär den att göra likadant nästa gång, 👎 att undvika det.
 - **Egna knappar** ovanför rutan: ett tryck ger t.ex. det senaste om ditt lag (tabell och matcher hämtas direkt) eller sammanfattar en sida du länkar.
 - **Ger inte upp:** är en modell överbelastad tar den nästa modell eller tjänst, och den lokala AI:n sist. Svar kan kopieras med formateringen kvar.
