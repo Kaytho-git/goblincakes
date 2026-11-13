@@ -207,6 +207,7 @@ Gäller alla tre varianterna. Läst ur bygget 11 nov 16:01 (`goblincakes-nvidia`
 - **Storlek:** medel.
 - **Kan provas:** bara på GitHub.
 - **Mät efteråt:** byggtiden: `gh run list --workflow build.yml --limit 5`.
+- **Struken 13 nov (användarens beslut):** kollat före bygget – (1) Universal Blue bygger om basen varje natt (`kinoite-main:45` 13 nov 03:10) och AppGrid byggs mot Qts interna delar (`qt6-qtbase-private-devel`), så en förbyggd AppGrid skulle behöva byggas om nästan varje gång; (2) basens extra nedladdning (213 s) försvann redan med P20 – kvar ca 3 min kompilering; (3) varianterna byggs samtidigt: hela bygget 13–15 min → ca 12 min, ingen väntar på det (06:00, gratis minuter). Ett nytt sätt för bygget att stanna är inte värt det. Ta inte upp den igen om inte byggtiden blir ett problem.
 
 ### P14 – Småsaker i bygget (slås ihop)
 - **Vad:**
@@ -381,7 +382,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 19 | **P14** (12 nov: 1 som efterkontroll, olåst; 2 behövs inte; 3 scx borttaget; 4) Småsaker i bygget | färre tysta fel, färre onödiga byggen | låg | liten |
 | [x] | 20 | **P19** (12 nov: 1, 4; 2 struken; 3 kvar som kopior) Städning | kortare filer, mindre att läsa | låg | liten |
 | [x] | 21 | **P5** steg 2 (byggd 13 nov): en del letar spel, resten läser | ytterligare ~0,5 % | medel | medel |
-| [ ] | 22 | **P13** AppGrid/libratbag i eget flöde | bygget 3 min kortare (delvis löst av P20) | medel | medel |
+| [–] | 22 | ~~**P13** AppGrid/libratbag i eget flöde~~ (struken 13 nov – se P13) | bygget 3 min kortare (delvis löst av P20) | medel | medel |
 | [ ] | 23 | **P8** Program från dashboarden i egen enhet | rätt siffror per program | låg | liten |
 | [ ] | 24 | **P17** Gemensam startkod för fönstren | lättare underhåll | medel | medel |
 | [ ] | 25 | **P6** Fönster som ligger kvar i minnet | behövs inte med 16 GB | låg–medel | liten |
