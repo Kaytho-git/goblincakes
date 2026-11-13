@@ -722,6 +722,11 @@ def lock(settings, service):
     state = {"pid": os.getpid(), "started": time.time(), "hidden": [], "allowed": allowed_names(settings),
              "power": {}, "parts": []}
     write_state(state)
+    # The window script first (13 Nov): until it has placed the windows the main screen may be uncovered,
+    # and the tray panel could be reached from the top edge
+    if kwin_load(KWIN_SCRIPT, "kwin-on.js", {"service": service, "allowed": state["allowed"]}):
+        state["parts"].append("kwin")
+    write_state(state)
     kwin_rule(True)
     state["parts"].append("rule")
     block_shortcuts(True)
@@ -735,9 +740,6 @@ def lock(settings, service):
     write_state(state)
     overlays(True)
     state["parts"].append("overlays")
-    write_state(state)
-    if kwin_load(KWIN_SCRIPT, "kwin-on.js", {"service": service, "allowed": state["allowed"]}):
-        state["parts"].append("kwin")
     write_state(state)
     if any(i["kind"] == "steam" for i in settings["items"]):
         start_steam_quietly()

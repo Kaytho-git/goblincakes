@@ -15,6 +15,7 @@ Window {
     flags: Qt.FramelessWindowHint
     width: 1280
     height: 800
+    screen: mainScreen
     visibility: testMode ? Window.Windowed : Window.FullScreen
     visible: true
 

@@ -338,6 +338,9 @@ def main():
     engine.addImageProvider("icon", IconProvider())
     engine.rootContext().setContextProperty("backend", backend)
     engine.rootContext().setContextProperty("testMode", NOLOCK)
+    # The main window straight onto the main screen (13 Nov: it opened where the mouse was, and the main screen
+    # stayed uncovered until the KWin script moved it)
+    engine.rootContext().setContextProperty("mainScreen", app.primaryScreen())
     use_accent(engine)
     engine.load(QUrl.fromLocalFile(cached_qml(KIDS / "Main.qml")))
     if not engine.rootObjects():
@@ -364,7 +367,7 @@ def main():
     server.newConnection.connect(incoming)
 
     # The locks once the window covers the screen (the splash is already showing)
-    QTimer.singleShot(400, backend.lock)
+    QTimer.singleShot(100, backend.lock)
     app.aboutToQuit.connect(backend.unlock)
     # Ended from outside (logout, kill): everything back first
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
