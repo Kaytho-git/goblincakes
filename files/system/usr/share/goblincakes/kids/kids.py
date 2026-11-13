@@ -47,7 +47,7 @@ BUILTIN = [{"id": "natt", "name": "Natthimmel"}, {"id": "hav", "name": "Havet"},
            {"id": "regnbage", "name": "Regnbåge"}, {"id": "solnedgang", "name": "Solnedgång"}]
 # Tux Paint started for a small child: whole screen, no printing. Its own quit button stays (13 Nov): with --noquit
 # there was no way out of it at all (Alt+F4 is blocked in Barnläge) – quitting it takes him back to his games.
-TUXPAINT_ARGS = ["--fullscreen", "--native", "--noprint"]
+TUXPAINT_ARGS = ["--fullscreen=native", "--noprint"]   # 0.9.35: --fullscreen needs a value (13 Nov: it did not start)
 TUXPAINT_SAVED = [HOME / ".tuxpaint/saved", HOME / ".var/app/org.tuxpaint.Tuxpaint/.tuxpaint/saved",
                   HOME / ".var/app/org.tuxpaint.Tuxpaint/data/tuxpaint/saved"]
 PICTURE_TYPES = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif")

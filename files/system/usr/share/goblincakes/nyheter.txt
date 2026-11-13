@@ -1,3 +1,4 @@
+2026-11-13  Barnläget: Rita med Tux (Tux Paint) startar igen.
 2026-11-13  Barnläget: skärmens hörn och kanter gör ingenting medan barnläget är på – förut öppnade musen i ett hörn översikten, och då kom man ut.
 2026-11-13  Barnläget: goblin graph öppnas inte längre när barnläget startar eller spelar sina ljud och låtar.
 2026-11-13  Barnläget: det mörka täcket på den andra skärmen ligger nu kvar – förut försvann det efter en stund så att man kunde klicka på skrivbordet där.
