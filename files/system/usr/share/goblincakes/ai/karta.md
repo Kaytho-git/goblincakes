@@ -497,6 +497,9 @@ Ord: graph, ljudgraf, staplar, visualisering
 Ord: spelläge, gamemode, spel, prestanda, lagg, fps, wowup stängs, battle.net agent, akonadi, baloo, fläktar, fläktboost, lenovo
 - Tjänsten goblincakes-gameguard (/usr/libexec/goblincakes-gameguard run) ser var 3:e sekund om ett spel kör:
   GameMode, uppdateringar väntar, Akonadi/Baloo vilar, WoWUp stängs medan WoW kör. Allt återställs efter spelet.
+- Vad som är ett spel: /usr/share/goblincakes/gaming.py (samma regel för Spelläge och lokala AI:n). Battle.net ensamt är inget
+  spel, inte heller när det startas från Steam (en reaper med bara Battle.net/Wine-hjälpare under sig). Kolla:
+  python3 -c "import sys; sys.path.insert(0,'/usr/share/goblincakes'); import gaming; print(gaming.game_running(), gaming.find_game())"
 - Battle.nets Agent (nedladdningstjänsten, blir kvar när appen avslutats helt) stängs en gång en minut efter att WoW startat –
   bara om Battle.net-appen själv inte är öppen. Journalen: "Battle.nets Agent stängd". Battle.net startar den igen.
 - Vad som räknas som spel: /usr/share/goblincakes/gaming.py. Reglage: Config → Inställningar → Spel.

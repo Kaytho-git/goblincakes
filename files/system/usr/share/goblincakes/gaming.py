@@ -5,16 +5,21 @@ Spelläge's state file goblin graph and GoblinAmp's bars.
 A game = Steam's game wrapper (reaper), a Windows program in Wine/Proton, or gamescope –
 not Wine's own helpers and not the launchers: Battle.net (and Blizzard's Agent.exe) is only
 used to update the game, World of Warcraft is Wow.exe (the user's words 22 Oct).
+A reaper that runs Proton counts only when a real Windows game runs under it (13 Nov): Battle.net
+started from Steam sits under a reaper of its own, so Battle.net alone turned Spelläge on.
 Only the standard library.
 """
 import os
 import re
+import time
 
 GAME = re.compile(r"^(reaper|.*\.exe|gamescope|wine.*preloader)$", re.I)
 # Wine's own helpers and the launchers – a Battle.net left open is not a game
 NOT_GAMES = {"steamwebhelper.exe", "explorer.exe", "services.exe", "winedevice.exe", "plugplay.exe",
              "svchost.exe", "rpcss.exe", "conhost.exe", "start.exe", "tabtip.exe", "battle.net.exe",
+             "xalia.exe",  # Proton's screen-reader helper (13 Nov: it counted as a game)
              "agent.exe", "steam.exe", "rundll32.exe", "regedit.exe", "wineboot.exe", "winemenubuilder"}
+_REAPER_ANSWER = {}  # game_running(): {key: the reapers' pids, at, game}
 WOW = re.compile(r"^wow[a-z]*\.exe$", re.I)
 
 
@@ -45,6 +50,45 @@ def processes():
     return out
 
 
+def _exe(pid):
+    """The Windows program's own name from the command line ("wow.exe"), "" for other programs –
+    comm is cut at 15 characters ("Cyberpunk2077.e"), argv[0] isn't."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            first = f.read().split(b"\0", 1)[0].decode(errors="replace")
+    except OSError:
+        return ""
+    name = first.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return name if name.endswith(".exe") else ""
+
+
+def _subtree(root, kids):
+    tree, todo = set(), [root]
+    while todo:
+        pid = todo.pop()
+        if pid not in tree:
+            tree.add(pid)
+            todo += kids.get(pid, [])
+    return tree
+
+
+def _launcher_only(reaper, procs, kids):
+    """True when the reaper runs Proton but nothing under it is a game – only Wine's helpers and
+    launchers (Battle.net from Steam, 13 Nov). A reaper without Proton (CS2) is always a game."""
+    tree = _subtree(reaper, kids)
+    comms = {p[0]: p[1] for p in procs if p[0] in tree}
+    if "wineserver" not in comms.values():
+        return False
+    for pid in tree:
+        name = _exe(pid)
+        if name and name not in NOT_GAMES:
+            return False
+        if not name and GAME.match(comms.get(pid, "")) and comms[pid] != "reaper" \
+                and comms[pid].lower() not in NOT_GAMES:
+            return False  # gone between the reads, or a name only comm has: count it
+    return True
+
+
 def find_game(procs=None):
     """The game's process: the biggest under Steam's reaper or gamescope, or the Windows game
     itself. None when no game runs."""
@@ -55,6 +99,9 @@ def find_game(procs=None):
     kids = {}
     for pid, _, _, parent in procs:
         kids.setdefault(parent, []).append(pid)
+    hits = [p for p in hits if p[1] != "reaper" or not _launcher_only(p[0], procs, kids)]
+    if not hits:
+        return None
     rss = {p[0]: p[2] for p in procs}
     tree = set()
     todo = [p[0] for p in hits]
@@ -68,11 +115,24 @@ def find_game(procs=None):
 
 def game_running():
     """Same answer as find_game() is not None, from the names only – the local AI's watcher asks
-    every second."""
+    every second. Only a reaper alone (Battle.net from Steam, or a Steam game) costs the whole
+    process list."""
+    reapers = []
     for name in os.listdir("/proc"):
         if not name.isdigit():
             continue
         comm = _comm(name)
         if comm and GAME.match(comm) and comm.lower() not in NOT_GAMES:
-            return True
-    return False
+            if comm != "reaper":
+                return True
+            reapers.append(name)
+    if not reapers:
+        return False
+    # The whole list is ~15 ms: the answer for the same reapers holds 10 s (Wow.exe under Battle.net
+    # is seen by its own name at once)
+    key = tuple(sorted(reapers))
+    if _REAPER_ANSWER.get("key") == key and time.monotonic() - _REAPER_ANSWER["at"] < 10:
+        return _REAPER_ANSWER["game"]
+    game = find_game() is not None
+    _REAPER_ANSWER.update(key=key, at=time.monotonic(), game=game)
+    return game
