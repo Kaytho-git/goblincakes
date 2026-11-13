@@ -482,8 +482,14 @@ function isBattlenet(window) {
 
 const battlenets = [];
 function battlenetWatch(window) {
-    if (battlenets.indexOf(window) >= 0 || battlenets.some(function (w) { return w.pid === window.pid; }))
+    if (battlenets.indexOf(window) >= 0)
         return;
+    if (battlenets.some(function (w) { return w.pid === window.pid; })) {
+        // One of its menus (the tray icon's right click …): focus at once – without it KWin's focus stealing
+        // prevention left it unfocused, so it took two clicks and never closed when you clicked elsewhere (13 Nov)
+        workspace.activeWindow = window;
+        return;
+    }
     battlenets.push(window);
     // Maximize again while it fills the screen = back to the size before (13 Nov, the user: "kan inte förminska" –
     // it is a plain window, so the button only maximized again). Remembered here, not read from the geometry:
