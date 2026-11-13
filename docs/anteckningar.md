@@ -944,6 +944,9 @@ Vad som är byggt: `docs/optimering/granskning.md` under P4 (`WATCH_EVERY`, `gam
 ## Optimeringsgranskningen: spelletandet steg 2 (P5 – 13 nov)
 Vad som är byggt: `docs/optimering/granskning.md` under P5 ("Steg 2 byggt"). Kort: `goblincakes-gameguard` är ensam om att leta (varje sekund, även med Spelläge av – tjänsten körs alltid) och skriver `$XDG_RUNTIME_DIR/goblincakes-game` ("1"/"0"); `gaming.game_running()` läser den om den är yngre än 5 s, annars letar den själv (`scan_running()`). Användaren 13 nov: risken (lokala AI:n startar inte om vakten stannar) är ok – i värsta fall startar hen Kakan själv; reserven (gammal fil → leta själv) gör att det inte ska hända. Provat med attrapper; på riktigt efter image – testlista `p5-steg2.md`.
 
+## Optimeringsgranskningen: program från dashboarden (P8 – 13 nov)
+Vad som är byggt: `docs/optimering/granskning.md` under P8 ("Byggt 13 nov"). Kort: allt dashboarden startar går genom `dash.start()` → egen `app-goblincakes-<namn>-<slump>.scope` (systemd-run --scope). Provat med provprogram; riktiga program efter image – testlista `p8-dashboard-enhet.md`.
+
 ## Optimeringsgranskningen: uppdateringarnas storlek (P12 – 11 nov)
 Vad som är byggt och nästa steg: `docs/optimering/granskning.md` under P12. Kort: chunkah (omstyckning efter innehåll) på alla tre varianterna i `build.yml`-matrisen (bas 11 nov, legacy och nvidia 12 nov). M12: bas 2,07 → 0,55 GB, legacy 2,12 → 0,75 GB per uppdatering; nvidia ej mätt än.
 

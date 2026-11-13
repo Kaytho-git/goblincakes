@@ -598,8 +598,7 @@ class Backend(QObject):
         """Anpassa: GOBLINCAKES Config on the page Dashboard (the views, the frames, the programs at the bottom)."""
         exe = USR / "bin/goblincakes-config"
         try:
-            subprocess.Popen([str(exe) if exe.exists() else "goblincakes-config", "--tab", "dashboard"],
-                             start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            dash.start([str(exe) if exe.exists() else "goblincakes-config", "--tab", "dashboard"], "goblincakes-config")
         except OSError as e:
             return self.said.emit(f"Kunde inte öppna GOBLINCAKES Config: {e}")
         self.hideWanted.emit()
@@ -609,16 +608,14 @@ class Backend(QObject):
         """A new chat in Goblin AI with the question (goblin-ai --ask, as GoblinRecorder's Fråga Kakan)."""
         exe = USR / "bin/goblin-ai"
         try:
-            subprocess.Popen([str(exe) if exe.exists() else "goblin-ai", "--ask", question], start_new_session=True,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            dash.start([str(exe) if exe.exists() else "goblin-ai", "--ask", question], "goblin-ai")
         except OSError as e:
             return self.said.emit(f"Kunde inte starta Goblin AI: {e}")
         self.hideWanted.emit()
 
     def _open(self, target):
         try:
-            subprocess.Popen(["xdg-open", target], start_new_session=True,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            dash.start(["xdg-open", target], "xdg-open")
         except OSError as e:
             return self.said.emit(f"Kunde inte öppna: {e}")
         self.hideWanted.emit()

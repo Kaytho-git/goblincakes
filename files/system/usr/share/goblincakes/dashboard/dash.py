@@ -107,12 +107,24 @@ def apps():
 NOTICE_ENTRY = {"Goblin AI": "goblin-ai"}
 
 
+def start(cmd, name, cwd=None):
+    """Starts a program detached in a systemd unit of its own (P8, 13 Nov): started straight from the dashboard it
+    stayed in the dashboard's unit (dbus-…-org.goblincakes.dashboard@0.service) – Goblin AI, GoblinAmp, terminals
+    counted as the dashboard in CPU/memory, and the memory guard (systemd-oomd) saw them as one. A scope keeps the
+    dashboard's environment (as before); app-<name>-<random>.scope like KDE's own. OSError as before."""
+    if shutil.which("systemd-run"):
+        unit = "app-goblincakes-" + re.sub(r"[^A-Za-z0-9_.-]", "_", name)[:60] + "-" + os.urandom(4).hex()
+        cmd = ["systemd-run", "--user", "--scope", "--quiet", "--collect", "--slice=app.slice",
+               f"--unit={unit}", "--", *cmd]
+    subprocess.Popen(cmd, cwd=cwd, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def launch(path_or_id):
     """Starts a program from its desktop file (detached). "" or why not."""
     stem = Path(path_or_id).stem if path_or_id.endswith(".desktop") else path_or_id
     cmd = ["gtk-launch", stem] if shutil.which("gtk-launch") else ["gio", "launch", path_or_id]
     try:
-        subprocess.Popen(cmd, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        start(cmd, stem)
     except OSError as e:
         return f"Kunde inte starta: {e}"
     return ""
@@ -631,7 +643,7 @@ def open_project(path, how):
         quote = lambda s: "'" + s.replace("'", "'\\''") + "'"  # noqa: E731
         cmd = ["/usr/libexec/goblincakes-terminal", "run", "bash", "-c", f"cd {quote(path)} && {quote(tool)}; exec bash"]
     try:
-        subprocess.Popen(cmd, cwd=path, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        start(cmd, how, cwd=path)
     except OSError as e:
         return f"Kunde inte starta: {e}"
     return ""

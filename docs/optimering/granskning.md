@@ -135,6 +135,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 - **Storlek:** liten.
 - **Kan provas:** på riktiga datorn (`systemd-cgls --user` efter start från dashboarden).
 - **Mät efteråt:** M1.
+- **Byggt 13 nov:** `dash.start(cmd, namn, cwd)` = `systemd-run --user --scope --quiet --collect --slice=app.slice --unit=app-goblincakes-<namn>-<8 hex> -- cmd` (scope: dashboardens miljö följer med som förut; utan systemd-run som förut). Används av `dash.launch` (programmen, gtk-launch/gio), `dash.open_project` (VS Code, Claude Code/Codex i terminalen, mappen) och i `goblin-dashboard` av `customize` (Config), `askKakan` (Goblin AI --ask) och `_open` (xdg-open: länkar, filer). Kvotens hjälpare (`QUOTA_HELPER`) är kvar i dashboardens enhet (kort bakgrundsjobb). Bekräftat före bygget: Goblin AI, GoblinAmp och Goblin AI:s webbdel låg i `dbus-:1.3-org.goblincakes.dashboard@0.service` (systemd-cgls). Provat: `dash.start` med ett provprogram → egen `app-goblincakes-p8-prov-….scope`, WAYLAND_DISPLAY och cwd följde med. Ej provat: riktiga program från repots dashboard – testlista `p8-dashboard-enhet.md` efter image.
 
 **Granskat utan anmärkning (område 1):** dashboarden stannar sina timers när den är gömd (`goblin-dashboard:312`–`:317`); KWin-skriptet är händelsestyrt (enda timern går bara medan dockan visas med Meta+Z); notistjänsten, GoblinShare-tjänsten, Kakans vakt, Archon-ikonen och rösten (lyssnar) drar 0,05–0,13 % var; rösten använder inget grafikminne (`device="cpu"`); lagmätaren och prewarm går bara på begäran / en gång; Ianseo-backupen är inte påslagen för den som inte har Ianseo.
 
@@ -383,7 +384,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 20 | **P19** (12 nov: 1, 4; 2 struken; 3 kvar som kopior) Städning | kortare filer, mindre att läsa | låg | liten |
 | [x] | 21 | **P5** steg 2 (byggd 13 nov): en del letar spel, resten läser | ytterligare ~0,5 % | medel | medel |
 | [–] | 22 | ~~**P13** AppGrid/libratbag i eget flöde~~ (struken 13 nov – se P13) | bygget 3 min kortare (delvis löst av P20) | medel | medel |
-| [ ] | 23 | **P8** Program från dashboarden i egen enhet | rätt siffror per program | låg | liten |
+| [x] | 23 | **P8** (byggd 13 nov) Program från dashboarden i egen enhet | rätt siffror per program | låg | liten |
 | [ ] | 24 | **P17** Gemensam startkod för fönstren | lättare underhåll | medel | medel |
 | [ ] | 25 | **P6** Fönster som ligger kvar i minnet | behövs inte med 16 GB | låg–medel | liten |
 

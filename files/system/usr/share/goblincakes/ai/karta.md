@@ -141,6 +141,9 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
 - /usr/bin/goblin-dashboard (fönstret, kod /usr/share/goblincakes/dashboard/: Main.qml, dash.py = allt som läses,
   windows.js = KWin-skriptet för öppna fönster – växla till och stänga via högerklick). Processen ligger kvar gömd
   efter Esc så att den kommer upp direkt; `goblin dashboard stäng` avslutar den. Inget läses medan den är gömd.
+- Program som startas från dashboarden (program, projekt, Fråga Kakan, Anpassa, länkar) får en egen enhet
+  app-goblincakes-<namn>-<slump>.scope (dash.start via systemd-run --scope) – inte dashboardens. Kolla:
+  systemctl --user list-units 'app-goblincakes-*'
 - Klockraden (12 nov): gömd som standard (Plasmas autohide, fram vid överkanten i mitten) eller framme på tomt skrivbord
   (Config → Utseende → "Visa klockraden när skrivbordet är tomt" = dodgewindows; gömmer sig bara för det AKTIVA
   fönstret – raden över ett program när man klickat på andra skärmen är väntat). `goblincakes-desktop-layout row`
