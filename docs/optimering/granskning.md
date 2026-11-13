@@ -264,6 +264,7 @@ Läget är bättre än väntat: alla 193 Python-, skal- och JSON-filer klarar sy
 - **Storlek:** medel (en session, ett fönster i taget).
 - **Kan provas:** offscreen per fönster + start på riktiga datorn.
 - **Mät efteråt:** –
+- **Flyttad till UX-optimeringen 13 nov (användarens beslut):** byggs inte för sig – UX-normens gemensamma skalningsregel ska ligga i `goblinapp.py`, och då flyttas resten av startkoden dit samtidigt (fönstren öppnas och provas ändå). Inskrivet i `startinstruktion.md` del 3 steg B. Bakgrund: startkoden ändrades i alla fönster 5 nov (skalan) och 12 nov (P23) – ingen vinst att märka, bara underhåll. Kartlagt 13 nov: `cached_qml` 11 kopior, `use_accent` 9, skalan 5 (Config och Goblin AI skalar i QML, GoblinAmp/goblin graph 100 % – med flit), typsnitten 7, `QLocalServer` 11 (olika meddelanden – stannar), säsongsloggan 4.
 
 ### P18 – Inga färdigkompilerade Python-filer i imagen
 - **Vad:** `/usr` går inte att skriva i, och imagen har inga `__pycache__` för GOBLINCAKES egna moduler (`/usr/share/goblincakes/**`) eller demoparser (`files/scripts/install-demoparser.sh:11` tar till och med bort dem). Python kompilerar därför om källkoden vid **varje** start av varje program.
@@ -386,7 +387,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [x] | 21 | **P5** steg 2 (byggd 13 nov): en del letar spel, resten läser | ytterligare ~0,5 % | medel | medel |
 | [–] | 22 | ~~**P13** AppGrid/libratbag i eget flöde~~ (struken 13 nov – se P13) | bygget 3 min kortare (delvis löst av P20) | medel | medel |
 | [x] | 23 | **P8** (byggd 13 nov) Program från dashboarden i egen enhet | rätt siffror per program | låg | liten |
-| [ ] | 24 | **P17** Gemensam startkod för fönstren | lättare underhåll | medel | medel |
+| [→] | 24 | **P17** (görs med UX-optimeringen – se P17) Gemensam startkod för fönstren | lättare underhåll | medel | medel |
 | [–] | 25 | ~~**P6** Fönster som ligger kvar i minnet~~ (struken 13 nov – se P6) | behövs inte med 16 GB | låg–medel | liten |
 
 ## Topp 5 – börja här
