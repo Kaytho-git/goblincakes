@@ -647,6 +647,35 @@ def power_button(off, old=None):
     return saved
 
 
+# The screen edges and corners (13 Nov, the user: the mouse in a corner opened the Overview – out of Barnläge on
+# the other screen, where no window is active and fullscreen, so KWin does not block the edges). KWin's
+# ElectricNone is 9; "None" for the plain actions in [ElectricBorders].
+EDGE_KEYS = ([("ElectricBorders", k, "None") for k in
+              ("Top", "TopRight", "Right", "BottomRight", "Bottom", "BottomLeft", "Left", "TopLeft")]
+             + [(g, k, "9") for g in ("Effect-overview", "Effect-windowview", "Effect-cube", "Effect-desktopgrid")
+                for k in ("BorderActivate", "BorderActivateAll", "BorderActivateClass", "TouchBorderActivate",
+                          "TouchBorderActivateAll", "TouchBorderActivateClass")]
+             + [("TabBox", "BorderActivate", "9"), ("TabBox", "BorderAlternativeActivate", "9"),
+                ("TabBox", "TouchBorderActivate", "9"), ("TabBox", "TouchBorderAlternativeActivate", "9"),
+                ("Windows", "ElectricBorders", "0")])
+
+
+def screen_edges(off, old=None):
+    """No action at the screen edges and corners while Barnläge is on. Returns the old values ("" = not set)."""
+    saved = {}
+    for group, key, none in EDGE_KEYS:
+        base = ["--file", "kwinrc", "--group", group, "--key", key]
+        name = group + "/" + key
+        if off:
+            saved[name] = _quiet("kreadconfig6", *base).stdout.strip()
+            _quiet("kwriteconfig6", *base, none)
+        else:
+            value = (old or {}).get(name, "")
+            _quiet("kwriteconfig6", *base, *(["--delete"] if not value else [value]))
+    _quiet("busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure")
+    return saved
+
+
 def overlays(hide):
     """Our own overlays in the games (MangoHud, goblin frames) – through the games script, as the user wished."""
     _quiet(str(GAMES), "kids-overlays", "on" if hide else "off")
@@ -697,6 +726,9 @@ def lock(settings, service):
     state["power"] = power_button(True)
     state["parts"].append("power")
     write_state(state)
+    state["edges"] = screen_edges(True)
+    state["parts"].append("edges")
+    write_state(state)
     overlays(True)
     state["parts"].append("overlays")
     write_state(state)
@@ -716,7 +748,7 @@ def remember_hidden(window_id):
 
 
 def restore(state=None):
-    """Everything back as it was: windows, shortcuts, the power button, the overlays. Safe to run twice."""
+    """Everything back as it was: windows, shortcuts, the power button, the screen edges, the overlays. Safe to run twice."""
     state = state or read_state()
     if state is None:
         return False
@@ -729,6 +761,8 @@ def restore(state=None):
     block_shortcuts(False)
     if "power" in (state.get("parts") or []):
         power_button(False, state.get("power"))
+    if "edges" in (state.get("parts") or []):
+        screen_edges(False, state.get("edges"))
     overlays(False)
     STATE.unlink(missing_ok=True)
     return True
