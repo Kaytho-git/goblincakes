@@ -11,7 +11,7 @@ Item {
     readonly property real cx: width / 2
     readonly property real cy: height * 0.46
     readonly property real reach: Math.max(width, height) * 0.62
-    readonly property var palette: ["#FFD93D", "#FF7EB6", "#7FE3FF", "#B69CFF", "#8CFFB0", "#FFFFFF", "#FFB86B"]
+    readonly property var starColours: ["#FFD93D", "#FF7EB6", "#7FE3FF", "#B69CFF", "#8CFFB0", "#FFFFFF", "#FFB86B"]
     property bool finishing: false
 
     function rnd(i, seed) {
@@ -100,7 +100,7 @@ Item {
             readonly property real a: splash.rnd(index, 9) * Math.PI * 2 + eased * Math.PI * 1.7
             readonly property real r: splash.reach * (1 - eased)
             size: 10 + splash.rnd(index, 10) * 22
-            color: splash.palette[index % splash.palette.length]
+            color: splash.starColours[index % splash.starColours.length]
             x: splash.cx + Math.cos(a) * r - size / 2
             y: splash.cy + Math.sin(a) * r - size / 2
             rotation: eased * 360
@@ -154,7 +154,7 @@ Item {
             readonly property real a: splash.rnd(index, 13) * Math.PI * 2
             readonly property real r: splash.reach * (0.25 + splash.rnd(index, 14) * 0.85) * (1 - Math.pow(1 - p, 3))
             size: 14 + splash.rnd(index, 15) * 30
-            color: splash.palette[(index + 3) % splash.palette.length]
+            color: splash.starColours[(index + 3) % splash.starColours.length]
             x: splash.cx + Math.cos(a) * r - size / 2
             y: splash.cy + Math.sin(a) * r - size / 2 + p * p * splash.height * 0.12   // they sink a little
             rotation: p * 540

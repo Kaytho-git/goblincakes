@@ -507,7 +507,8 @@ def play(name):
 
 
 def play_file(path):
-    for player in (["pw-play", path], ["paplay", path]):
+    # Marked as a game's sound: pw-play's own default is "Music", and goblin graph opens its bars for music (13 Nov)
+    for player in (["pw-play", "--media-role", "Game", path], ["paplay", "--property=media.role=game", path]):
         try:
             subprocess.Popen(player, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
             return
@@ -528,7 +529,7 @@ def songs():
 
 
 class Music:
-    """One song at a time: ffmpeg → pw-cat (as goblincakes-song), in its own process group so Stopp ends both."""
+    """One song at a time: ffmpeg → pw-cat (role Game, not Music: goblin graph stays shut in Barnläge), in its own process group so Stopp ends both."""
     def __init__(self):
         self.proc = None
         self.path = ""
@@ -536,7 +537,7 @@ class Music:
     def play(self, path):
         self.stop()
         cmd = ("ffmpeg -v quiet -i \"$1\" -f s16le -ac 2 -ar 48000 - | "
-               "pw-cat --playback --raw --format s16 --rate 48000 --channels 2 -")
+               "pw-cat --playback --media-role Game --raw --format s16 --rate 48000 --channels 2 -")
         try:
             self.proc = subprocess.Popen(["sh", "-c", cmd, "sh", path], start_new_session=True,
                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
