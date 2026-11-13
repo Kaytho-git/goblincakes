@@ -143,7 +143,7 @@ FRAMES = [("projects", "Projekt", "dina mappar – öppna i VS Code, Claude Code
           ("cs2", "CS2 Stats", "de senaste matcherna och kartorna"),
           ("builds", "Byggen", "GOBLINCAKES byggen på GitHub (när repot finns på datorn)"),
           ("reports", "Kakan", "Kakans rapporter"),
-          ("claude", "Claude Code", "vad Claude Code gör just nu – kartan i mitten")]
+          ("claude", "AI-kartan", "vad Claude Code, Codex eller Kakan gör just nu – kartan i mitten")]
 SIDES = {"left": 3, "right": 2}           # at most this many frames on each side
 MAX_VIEWS = 6
 DEFAULT_VIEWS = [{"name": "SPEL", "left": ["projects", "system"], "right": ["wow", "cs2"]},

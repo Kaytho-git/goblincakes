@@ -851,6 +851,40 @@ visar ingen bild. Ingen kod är kopierad.
   terminalen inte hackar medan kartan ritas, Platt, under spel, flera sessioner samtidigt, bakgrundskommandon (visas
   som klara när de startat – lot-maps "lyser tills de är klara" är inte byggt).
 
+- **Codex och Kakan (13 nov, användaren: "Bygg det, både Kakan och Codex"):** kartan heter AI-kartan i Config och
+  ramen (rubriken AI-KARTAN; mitten och kärnan säger CLAUDE CODE/CODEX/KAKAN). `claudemap.py` har tre läsare med samma
+  bas (`Session.start_call/end_call/model_step/said/stopped`): **Codex** `CodexSession` – `$CODEX_HOME/sessions/ÅÅÅÅ/MM/DD/
+  rollout-*.jsonl` (bara de tre senaste dagmapparna läses av), raderna `{timestamp, type, payload}`: session_meta/
+  turn_context (cwd, model), event_msg (user_message, token_count → kontexten = senaste input+output mot
+  model_context_window, task_started, task_complete, turn_aborted), response_item (reasoning/assistant-message = ett
+  modellsteg, function_call/custom_tool_call/local_shell_call/web_search_call och deras _output). Verktygen i `codex_call`
+  (shell med `bash -lc` → kommandot, apply_patch → FILER med filnamnen ur patchen, mcp-namn med `__`/`.` → som Claude
+  Codes MCP). Fel = exit_code ≠ 0, success false, "Exit code: N" i texten eller "rejected/aborted". Den äldre formen
+  (raderna utan payload) läses också. **Formatet är skrivet efter hur Codex sparade 2025 – inte provat mot en riktig
+  Codex** (finns inte i molnet). **Kakan** `KakanSession` – Goblin AI skriver `~/.local/state/goblincakes/kakan-karta.jsonl`
+  (`goblinai.kakan_log`, flyttas till .1 vid 2 MB): `user` (i `ask()`, frågan + projektet), `model` (varje `chat()` –
+  modell, tjänst, lokal), `start`/`end` (`Steps.start(text, tool=…)`/`done`; verktygsnyckeln med när den finns),
+  `answer`/`stopped`/`failed` (slutet av `ask()`), och kommandokorten (`goblin-ai` `_run_command`, `tool="kommando"`).
+  Hennes stationer har egna namn (`KakanSession.NAMES`): KOMMANDON, NÄTET (sök/sida/sport/wiki), SPEL (warcraftlogs,
+  wowstats, cs2, wowapi, wowfel), DATORN (systemfel, lagg, byggstatus, goblincakes, leta), SKRIVBORDET (skrivbord,
+  kalender), FILER (byt, Läser filerna), MINNE (losningar/rapporter, "minne/lärdom"), KONTROLL (Kontrollerar svaret,
+  Kollar att …, Samma sak igen, Slutar hämta); övriga steg = MODELL. Ingen kontextring för henne. Ringen krymper så
+  att långa namn (SKRIVBORDET) får plats i den smala rutan. Valet: den nyaste som skrivits de senaste 30 min av alla
+  tre; Goblin AI:s terminalruta tar först sessionen i mappen där `claude` eller `codex` kör i fliken
+  (`Terminals.claudeFolder`); knapparna ovanför kartan visar "Kakan", "codex · mapp" eller bara mappen (Claude Code).
+  **Provat (molnsession):** påhittade loggar för Codex (sökning, patch, misslyckat kommando, webbsökning, git push
+  pågår, 34 % kontext) och Kakan (lagmätningen, sökning, kontroll, svaret, ett misslyckat kommando) – rätt stationer,
+  rader och val per mapp; skärmbilder bred/smal och i dashboarden; Claude Code mot den riktiga loggen som förut.
+  **Ej provat:** en riktig Codex, Kakans logg från riktiga Goblin AI (att raderna skrivs vid varje steg och kort).
+- **Bilder i Goblin AI:s terminal (13 nov, undersökt – inte byggt):** Claude Code (2.1.32x, läst ur programmet) ritar
+  bilder med kittys grafikprotokoll med *Unicode-platshållare* (`a=T,U=1`, virtuella placeringar) och frågar först
+  terminalen (`a=q`); iTerm2-sättet (`OSC 1337;File`) bara om terminalen svarar på XTVERSION att den är iTerm2 ≥ 3.5;
+  `CLAUDE_CODE_FORCE_TERMINAL_IMAGES` tvingar kitty-vägen. xterm.js: `@xterm/addon-image` 0.9 (stabil) kan sixel +
+  iTerm2-bilder, inte kitty → Claude Code ritar ingen bild. 0.10-betan (kräver xterm 6.1-beta, vi har 6.0) har kitty
+  men **inte U=1-platshållarna** – den svarar OK på frågan, så Claude Code skulle skicka bilder som syns som skräptecken.
+  Slutsats: inte nu; Ghostty (GOBLINCAKES standardterminal) kan U=1. Kolla igen när addon-image har Unicode-platshållare
+  (sök "placeholder"/"U=1" i dess src/kitty).
+
 ## Levande utseende – rörelse och ljus (10 nov – planerat; alla 7 stegen BYGGDA 11 nov, bara provade i molnet)
 **Bakgrund:** användaren tyckte att GOBLINCAKES såg lite "AI"/sterilt ut – "strukturerat och lite sterilt", alla ramar lika, inget rör sig. Inte kritik av funktionerna eller layouten (hen är mycket nöjd med dem). Beslut: **samma utseende** (palett, typsnitt, raka hörn, platt) – det levande ska komma från **rörelse och ljus**, inte ny stil. Skrivbordsrutorna ska ha **tonat glas** bakom. Mockup (godkänd: "så mycket bättre, samma känsla och utseende men naturligt"): https://claude.ai/artifact/DjWpN5mPchnvoHcopV9YFL – kopia i `docs/mockups/levande.html` (NU/LEVANDE-växlare). Månen bakom klockan i mockupens påhittade bakgrund gillades inte ("en liten sol") – borttagen; den var bara mockupens bakgrund.
 **Lärdom:** när användaren inte säger något om utseendet följer Claude designreglerna rakt av (ramar överallt, samma tyngd) – fråga om utseendet när något nytt som syns byggs.

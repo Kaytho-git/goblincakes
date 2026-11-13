@@ -20,7 +20,9 @@ Item {
 
     readonly property bool moving: typeof look !== "undefined" && !!look && look.motion === true
     readonly property var order: ["you", "model", "memory", "files", "shell", "net", "browser", "agents", "skills", "hooks"]
-    readonly property var names: ({ you: "DU", model: "MODELL", memory: "MINNE", files: "FILER", shell: "SKAL",
+    // Kakan's stations have names of their own (claudemap.KakanSession.NAMES: KOMMANDON, NÄTET, SPEL, DATORN …)
+    readonly property var names: info.names ? info.names : defaultNames
+    readonly property var defaultNames: ({ you: "DU", model: "MODELL", memory: "MINNE", files: "FILER", shell: "SKAL",
                                     net: "NÄTVERK", browser: "WEBBLÄSARE", agents: "AGENTER", skills: "SKILLS",
                                     hooks: "HOOKS" })
     readonly property color memoryColor: "#A78BFA"
@@ -135,7 +137,10 @@ Item {
         readonly property real size: Math.min(width, height)
         readonly property real cx: width / 2
         readonly property real cy: height / 2
-        readonly property real ring: size * 0.36
+        // Room for the names left and right of the ring (Kakan's SKRIVBORDET is longer than SKILLS)
+        readonly property real longest: Math.max(...map.order.map(k => String(map.names[k] || "").length))
+        readonly property real ring: Math.max(size * 0.22, Math.min(size * 0.36, width / 2 - dot - 22 - longest * labelChar))
+        readonly property real labelChar: Math.max(9, Math.min(11, size / 44)) * 0.72
         readonly property real core: Math.max(26, size * 0.12)
         readonly property real dot: Math.max(9, size * 0.034)
         function angle(i) { return -Math.PI / 2 + i * 2 * Math.PI / map.order.length; }
@@ -324,7 +329,7 @@ Item {
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: map.coreName
+                text: map.info.core || map.coreName
                 color: "#E6ECF5"
                 font.family: "Chakra Petch"
                 font.weight: Font.Bold

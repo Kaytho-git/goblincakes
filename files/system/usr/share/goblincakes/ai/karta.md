@@ -246,8 +246,8 @@ Ord: config, inställningar, goblincakes config, program, förinstallerat, föns
 Ord: goblin, kommando, terminal, goblin help
 - /usr/bin/goblin (bash): `goblin help` listar alla. Hjälpprogrammen ligger i /usr/libexec/goblincakes-*.
 
-## CLAUDE CODE-kartan
-Ord: kartan, claude-kartan, claude code-kartan, KARTA, vad claude gör, stationer, kontexten
+## CLAUDE CODE-kartan (AI-kartan)
+Ord: kartan, ai-kartan, claude-kartan, claude code-kartan, KARTA, vad claude gör, codex, kakans karta, stationer, kontexten
 - En karta över vad Claude Code gör just nu (13 nov): i dashboarden (ramen CLAUDE CODE, tryck = kartan i mitten) och
   till höger om TERMINAL i Goblin AI (knappen KARTA i flikraden visar/döljer; döljs själv när fliken är under 700 px).
 - Läser Claude Codes egen logg: ~/.claude/projects/<mapp>/<session>.jsonl (agenter: <session>/subagents/*.jsonl).
@@ -260,6 +260,10 @@ Ord: kartan, claude-kartan, claude code-kartan, KARTA, vad claude gör, statione
   `pgrep -a claude` och `readlink /proc/<pid>/cwd`. Knapparna ovanför kartan väljer för hand, AUTO = tillbaka.
 - Rutan i Goblin AI dold/visad sparas i ~/.config/goblincakes/claude-karta (dold/visad). Ramen i dashboarden väljs i
   Config → Dashboard ("Claude Code").
+- Visar även **Codex** (~/.codex/sessions/ÅÅÅÅ/MM/DD/rollout-*.jsonl) och **dig själv** (~/.local/state/goblincakes/
+  kakan-karta.jsonl – en rad per fråga, modellanrop, steg och kommandokort, skrivs av goblinai.kakan_log). Din karta har
+  egna stationer: KOMMANDON, NÄTET, SPEL, DATORN, SKRIVBORDET, FILER, MINNE, KONTROLL. Kolla: `tail -5 ~/.local/state/
+  goblincakes/kakan-karta.jsonl` (ska ha nya rader efter en fråga).
 - Kontexten räknas mot 200 000 tokens (1 000 000 när sessionen gått över 200 000 eller modellen har [1m]) – kan visa
   för mycket i början av en 1M-session.
 

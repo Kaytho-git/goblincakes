@@ -1474,12 +1474,13 @@ Window {
                 y: 16
                 width: parent.width - 32
                 spacing: 10
-                Heading { text: "CLAUDE CODE" }
+                Heading { text: "AI-KARTAN" }
                 SideCard {
                     on: win.mid === "claude"
                     live: !!win.claude.busy
-                    title: win.claude.none ? "Ingen session ännu" : (win.claude.folder || "Claude Code")
-                    line: win.claude.none ? "kartan visar Claude Code när det körs" : (win.claude.now || "")
+                    title: win.claude.none ? "Ingen session ännu"
+                         : ({ claude: "Claude Code", codex: "Codex", kakan: "Kakan" })[win.claude.tool] + (win.claude.tool !== "kakan" && win.claude.folder ? " · " + win.claude.folder : "")
+                    line: win.claude.none ? "Claude Code, Codex eller Kakan när de jobbar" : (win.claude.now || "")
                     side: win.claude.context ? win.claude.context + " %" : ""
                     onClicked: backend.setMid(win.mid === "claude" ? "apps" : "claude")
                 }
@@ -2685,10 +2686,11 @@ Window {
                 Row {
                     id: claudeHead
                     spacing: 14
-                    BigTitle { id: claudeTitle; text: "CLAUDE CODE" }
+                    BigTitle { id: claudeTitle; text: win.claude.title || "AI-KARTAN" }
                     SubTitle {
                         anchors.baseline: claudeTitle.baseline
-                        text: "vad Claude gör just nu" + (win.claude.idle > 1800 && !win.claude.busy ? " · senaste sessionen" : "")
+                        text: "vad " + (({ claude: "Claude", codex: "Codex", kakan: "Kakan" })[win.claude.tool] || "AI:n") + " gör just nu"
+                              + (win.claude.idle > 1800 && !win.claude.busy ? " · senaste sessionen" : "")
                     }
                 }
                 G.ClaudeMap {

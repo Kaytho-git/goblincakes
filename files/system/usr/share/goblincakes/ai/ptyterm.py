@@ -61,8 +61,8 @@ class Terminals(QObject):
 
     @Slot(int, result=str)
     def claudeFolder(self, sid):
-        """The folder Claude Code runs in, in this tab ("" when none runs there) – the map beside TERMINAL
-        follows that session (13 Nov)."""
+        """The folder Claude Code (or Codex) runs in, in this tab ("" when none runs there) – the map beside
+        TERMINAL follows that session (13 Nov)."""
         s = self._sessions.get(sid)
         if not s:
             return ""
@@ -78,8 +78,9 @@ class Terminals(QObject):
             except (OSError, ValueError):
                 continue
             names = [os.path.basename(a.decode(errors="replace")) for a in argv[:2]]
-            if pid != s.pid and (comm == "claude" or "claude" in names or any(n.startswith("claude") and n.endswith((".js", ".mjs"))
-                                                           for n in names)):
+            # Claude Code or Codex (OpenAI's, 13 Nov) – the map follows either
+            if pid != s.pid and (comm in ("claude", "codex") or {"claude", "codex"} & set(names)
+                                 or any(n.startswith(("claude", "codex")) and n.endswith((".js", ".mjs")) for n in names)):
                 try:
                     return os.readlink(f"/proc/{pid}/cwd")
                 except OSError:

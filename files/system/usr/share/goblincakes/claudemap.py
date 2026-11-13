@@ -59,6 +59,8 @@ def epoch(stamp):
 
 def short_model(name):
     """claude-opus-5-5 → opus 5.5, claude-sonnet-4-5-20250929 → sonnet 4.5."""
+    if not str(name or "").startswith("claude"):
+        return str(name or "")             # gpt-5-codex, gemma4:12b · din dator – as they are
     s = re.sub(r"^claude-", "", str(name or "")).replace("[1m]", "")
     s = re.sub(r"-\d{8}$", "", s)
     m = re.match(r"([a-z]+)-(\d+)(?:-(\d+))?", s)
@@ -106,6 +108,12 @@ def shell_station(command):
     return "files" if kinds == {"files"} else "shell"
 
 
+def command_label(command):
+    """A command's row: without a leading cd <folder> && (Claude and Codex start many commands so), the first line."""
+    cmd = re.sub(r"^(cd\s+(\"[^\"]*\"|'[^']*'|\S+)\s*(&&|;)\s*)+", "", str(command or "").strip()).splitlines()
+    return re.sub(r"\s+", " ", cmd[0]) if cmd else ""
+
+
 def is_memory_path(path):
     p = str(path or "")
     return "/.claude/" in p and "/memory" in p or p.endswith("/MEMORY.md")
@@ -117,10 +125,7 @@ def classify(name, args):
     path = args.get("file_path") or args.get("notebook_path") or args.get("path") or ""
     short = lambda p: str(p).rstrip("/").rsplit("/", 1)[-1] or str(p)  # noqa: E731
     if name in ("Bash", "PowerShell", "BashOutput"):
-        cmd = str(args.get("command") or "").strip()
-        # The label: without a leading cd <folder> && (Claude starts many commands so), the first line
-        cmd = re.sub(r"^(cd\s+(\"[^\"]*\"|'[^']*'|\S+)\s*(&&|;)\s*)+", "", cmd).splitlines()
-        cmd = re.sub(r"\s+", " ", cmd[0]) if cmd else name
+        cmd = command_label(args.get("command")) or name
         return shell_station(args.get("command")) if name != "BashOutput" else "shell", cmd
     if name in ("Read", "Write", "Edit", "MultiEdit", "NotebookEdit"):
         verb = {"Read": "läser", "Write": "skriver", "Edit": "ändrar", "MultiEdit": "ändrar",
@@ -169,7 +174,8 @@ def result_text(content):
 
 
 class Session:
-    """One transcript being followed."""
+    """One transcript being followed – Claude Code's (the others below change entry() and what they are called)."""
+    TOOL, CORE, TITLE, NAMES = "claude", "CLAUDE", "CLAUDE CODE", None
 
     def __init__(self, path, quiet=True):
         self.path = Path(path)
@@ -231,6 +237,58 @@ class Session:
         else:
             self.route.append([st, t])
             del self.route[:-6]
+
+    # ── the same for every source (Codex and Kakan use these) ──
+    def start_call(self, cid, st, label, t, src="core"):
+        if cid in self.calls or cid in self.done_ids:
+            return
+        self.calls[cid] = {"st": st, "label": label, "start": t, "src": src, "bg": False}
+        self.count[st] += 1
+        self.go(st, t)
+        self.pulse(st, "out", src)
+        self.row(st, label, t, key=cid)["src"] = src
+
+    def end_call(self, cid, t, err=False):
+        call = self.calls.pop(cid, None)
+        if not call:
+            return
+        self.done_ids.add(cid)
+        if err:
+            self.errors[call["st"]] += 1
+        self.pulse(call["st"], "err" if err else "back", call["src"])
+        self.finish_row(cid, t, "err" if err else "ok")
+
+    def model_step(self, t, model=""):
+        if model and model != self.model:
+            if self.model:
+                self.row("model", f"{short_model(self.model)} → {short_model(model)}", t, "switch", end=t)
+                self.pulse("model", "switch")
+            self.model = model
+        self.count["model"] += 1
+        self.pulse("model", "flash")
+        self.busy = True
+
+    def said(self, label, t):
+        """Your message: the red dots go, a new turn starts."""
+        self.drop_calls(t)
+        self.count["you"] += 1
+        for s in self.errors:
+            self.errors[s] = 0
+        self.go("you", t)
+        self.pulse("you", "in")
+        self.row("you", re.sub(r"\s+", " ", label), t, "ok", end=t)["fold"] = False
+        self.busy = True
+        self.turn_start = t
+
+    def drop_calls(self, t):
+        for cid in list(self.calls):
+            self.finish_row(cid, t, "err")
+            self.calls.pop(cid)
+
+    def stopped(self, t, label="avbrutet"):
+        self.drop_calls(t)
+        self.busy = False
+        self.row("you", label, t, "err", end=t)
 
     # ── reading ──
     def read(self):
@@ -425,50 +483,274 @@ class Session:
                 for r in self.rows[-ROWS:]]
         now_line = (running[-1]["label"] if running else "tänker…" if self.busy else
                     "väntar på dig" if idle < ACTIVE_FOR else "ingen aktivitet")
-        return {"session": self.id, "cwd": self.cwd, "folder": Path(self.cwd).name if self.cwd else "",
-                "model": short_model(self.model), "context": round(100 * self.tokens / self.window()),
+        return {"tool": self.TOOL, "core": self.CORE, "title": self.TITLE, "names": self.NAMES,
+                "session": self.id, "cwd": self.cwd, "folder": Path(self.cwd).name if self.cwd else "",
+                "model": short_model(self.model), "context": round(100 * self.tokens / self.window()) if self.window() else 0,
                 "busy": self.busy or bool(running), "running": running, "stations": stations, "rows": rows,
                 "route": self.route, "events": self.events, "now": now_line, "agents":
-                sum(1 for r in running if r["st"] == "agents"), "answered": self.answered, "idle": round(idle)}
+                sum(1 for r in running if r["st"] == "agents") if self.TOOL != "kakan" else 0,
+                "answered": self.answered, "idle": round(idle)}
+
+
+# ── Codex (OpenAI's Claude Code, 13 Nov): ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl ──
+
+def codex_root():
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "sessions"
+
+
+def codex_call(name, args):
+    """A Codex tool call → (station, label)."""
+    args = args if isinstance(args, dict) else {"input": args}
+    if name in ("shell", "container.exec", "shell_command", "exec_command", "local_shell", "unified_exec"):
+        cmd = args.get("command", args.get("cmd", ""))
+        if isinstance(cmd, list):
+            cmd = cmd[2] if len(cmd) >= 3 and Path(str(cmd[0])).name in ("bash", "sh", "zsh") \
+                and cmd[1] in ("-lc", "-c") else " ".join(map(str, cmd))
+        return shell_station(cmd), command_label(cmd) or name
+    if name == "apply_patch":
+        files = re.findall(r"\*\*\* (?:Update|Add|Delete) File: (\S+)", str(args.get("input") or args.get("patch") or ""))
+        return "files", "ändrar " + (", ".join(Path(f).name for f in files[:3]) if files else "filer")
+    if name in ("read_file", "list_dir", "grep_files", "view_image"):
+        return "files", {"read_file": "läser", "list_dir": "listar", "grep_files": "söker", "view_image": "tittar på"}[name] \
+            + " " + Path(str(args.get("path") or args.get("file_path") or args.get("pattern") or "")).name
+    if name in ("web_search", "web.run"):
+        return "net", f"söker på nätet \"{args.get('query', '')}\""
+    if name == "write_stdin":
+        return "shell", "skriver till kommandot"
+    if name == "update_plan":
+        return "model", "planerar"
+    if "__" in name or "." in name:
+        server, _, tool = name.replace("__", ".").partition(".")
+        return classify(f"mcp__{server}__{tool}", args)
+    return "model", name
+
+
+def codex_failed(output):
+    """Did a Codex call fail? Its output is JSON ({output, metadata: {exit_code}}), {content, success} or text."""
+    if isinstance(output, dict):
+        if output.get("success") is False:
+            return True
+        output = output.get("content", "")
+    text = str(output or "")
+    try:
+        d = json.loads(text)
+        if isinstance(d, dict):
+            code = (d.get("metadata") or {}).get("exit_code")
+            return (code not in (None, 0)) or d.get("success") is False
+    except ValueError:
+        pass
+    m = re.search(r"(?:Exit code|Process exited with code):?\s*(-?\d+)", text[:300])
+    if m:
+        return m.group(1) != "0"
+    return bool(re.match(r"(?i)\s*(?:exec command rejected|aborted|error:)", text[:200]))
+
+
+class CodexSession(Session):
+    TOOL, CORE, TITLE = "codex", "CODEX", "CODEX"
+
+    def __init__(self, path, quiet=True):
+        super().__init__(path, quiet)
+        self.context_window = 0
+
+    def read(self):
+        self.read_file(self.path, False)
+        self.quiet = False
+
+    def window(self):
+        return self.context_window or 272_000
+
+    def entry(self, d, side):
+        t = epoch(d["timestamp"]) if d.get("timestamp") else time.time()
+        kind, p = d.get("type"), d.get("payload")
+        if not isinstance(p, dict):          # the older format: the items themselves, one per line
+            p, kind = d, ("session_meta" if "instructions" in d and "id" in d else "response_item")
+        if kind in ("session_meta", "turn_context"):
+            self.cwd = p.get("cwd") or self.cwd
+            if p.get("model") and p["model"] != self.model:
+                if self.model:
+                    self.model_step(t, p["model"])
+                else:
+                    self.model = p["model"]
+        elif kind == "compacted":
+            self.row("model", "kontexten komprimerad", t, "ok", end=t)
+            self.pulse("model", "flash")
+        elif kind == "event_msg":
+            self.event(p, t)
+        elif kind == "response_item":
+            self.item(p, t)
+
+    def event(self, p, t):
+        e = p.get("type")
+        if e == "user_message":
+            text = str(p.get("message") or "").strip()
+            if text and not text.startswith("<"):
+                self.said(text, t)
+        elif e == "token_count":
+            info = p.get("info") or {}
+            last = info.get("last_token_usage") or {}
+            used = int(last.get("input_tokens") or 0) + int(last.get("output_tokens") or 0)
+            if used:
+                self.tokens = used
+            self.context_window = int(info.get("model_context_window") or self.context_window or 0)
+        elif e == "task_started":
+            self.context_window = int(p.get("model_context_window") or self.context_window or 0)
+            self.busy = True
+        elif e == "task_complete":
+            self.drop_calls(t)
+            self.end_turn(t)
+        elif e == "turn_aborted":
+            self.stopped(t)
+
+    def item(self, p, t):
+        it = p.get("type")
+        if it == "reasoning" or (it == "message" and p.get("role") == "assistant"):
+            self.model_step(t)
+        elif it in ("function_call", "custom_tool_call"):
+            raw = p.get("arguments") if it == "function_call" else p.get("input")
+            try:
+                args = json.loads(raw) if isinstance(raw, str) and it == "function_call" else raw
+            except ValueError:
+                args = {"input": raw}
+            st, label = codex_call(str(p.get("name") or ""), args if isinstance(args, dict) else {"input": args})
+            self.start_call(p.get("call_id") or p.get("id"), st, label, t)
+        elif it == "local_shell_call":
+            cmd = ((p.get("action") or {}).get("command")) or []
+            st, label = codex_call("shell", {"command": cmd})
+            self.start_call(p.get("call_id") or p.get("id"), st, label, t)
+        elif it == "web_search_call":
+            q = ((p.get("action") or {}).get("query")) or ""
+            cid = p.get("id") or f"ws-{t}"
+            self.start_call(cid, "net", f"söker på nätet \"{q}\"" if q else "söker på nätet", t)
+            self.end_call(cid, t)
+        elif it in ("function_call_output", "custom_tool_call_output"):
+            self.end_call(p.get("call_id"), t, codex_failed(p.get("output")))
+
+
+# ── Kakan (Goblin AI, 13 Nov): ~/.local/state/goblincakes/kakan-karta.jsonl, written by goblinai.kakan_log ──
+
+KAKAN_LOG = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "goblincakes/kakan-karta.jsonl"
+KAKAN_TOOLS = {"sök": "net", "sida": "net", "sport": "net", "wiki": "net",
+               "warcraftlogs": "browser", "wowstats": "browser", "cs2": "browser", "wowapi": "browser",
+               "wowfel": "browser", "systemfel": "agents", "lagg": "agents", "byggstatus": "agents",
+               "goblincakes": "agents", "leta": "agents", "skrivbord": "skills", "kalender": "skills",
+               "byt": "files", "kommando": "shell", "losningar": "memory", "rapporter": "memory"}
+KAKAN_TEXT = [(r"^(Kontrollerar|Kollar|Samma sak igen|Slutar hämta)", "hooks"),
+              (r"^(Söker på nätet|Läser webbsidan|Slår upp på Wikipedia)", "net"),
+              (r"^Letar i datorn", "agents"), (r"^(Läser filerna|Läser i delar|Byter text)", "files"),
+              (r"^(Kalendern|Skriver kalenderraden)", "skills"), (r"WoW|tillägget|Warcraft|CS2", "browser"),
+              (r"(?i)minne|lärdom", "memory")]
+
+
+def kakan_station(tool, text):
+    if tool in KAKAN_TOOLS:
+        return KAKAN_TOOLS[tool]
+    for pattern, st in KAKAN_TEXT:
+        if re.search(pattern, text or ""):
+            return st
+    return "model"
+
+
+class KakanSession(Session):
+    TOOL, CORE, TITLE = "kakan", "KAKAN", "KAKAN"
+    NAMES = {"you": "DU", "model": "MODELL", "memory": "MINNE", "files": "FILER", "shell": "KOMMANDON",
+             "net": "NÄTET", "browser": "SPEL", "agents": "DATORN", "skills": "SKRIVBORDET", "hooks": "KONTROLL"}
+
+    def __init__(self, path, quiet=True):
+        super().__init__(path, quiet)
+        self.id = "kakan"
+        self.cwd = ""
+        self.project = ""
+
+    def read(self):
+        self.read_file(self.path, False)
+        self.quiet = False
+
+    def window(self):
+        return 0                       # her context is not counted here
+
+    def entry(self, d, side):
+        t, e = float(d.get("t") or time.time()), d.get("e")
+        if e == "user":
+            self.project = d.get("project") or ""
+            self.said(d.get("text") or "fråga", t)
+        elif e == "model":
+            model = str(d.get("model") or "")
+            self.model_step(t, model + (" · din dator" if d.get("local") else f" · {d.get('service')}" if d.get("service") else ""))
+        elif e == "start":
+            st = kakan_station(d.get("tool") or "", d.get("text") or "")
+            self.start_call(d.get("id"), st, d.get("text") or st, t)
+        elif e == "end":
+            self.end_call(d.get("id"), t, d.get("state") in ("fel", "stopp"))
+        elif e == "answer":
+            self.drop_calls(t)
+            self.end_turn(t)
+        elif e == "stopped":
+            self.stopped(t, "stoppat")
+        elif e == "failed":
+            self.stopped(t, "gick inte – ingen tjänst svarade")
+
+    def state(self, now):
+        out = super().state(now)
+        out["folder"] = self.project or "Goblin AI"
+        out["model"] = self.model
+        return out
 
 
 class Watcher:
-    """Picks the session to show and keeps it read. prefer_cwd: the folder a terminal stands in (Goblin AI)."""
+    """Picks the session to show and keeps it read – Claude Code's, Codex's or Kakan's, the newest going on.
+    prefer_cwd: the folder Claude Code/Codex runs in, in the terminal tab shown (Goblin AI) – its session first."""
+    KINDS = {"claude": Session, "codex": CodexSession, "kakan": KakanSession}
 
-    def __init__(self, root=None):
+    def __init__(self, root=None, codex=None, kakan=None):
         self.root = Path(root) if root else projects_dir()
+        self.codex = Path(codex) if codex else codex_root()
+        self.kakan = Path(kakan) if kakan else KAKAN_LOG
         self.sessions = {}
         self.pick = ""            # a session chosen by hand (the chips over the map)
         self.scanned = 0.0
         self.found = []
         self.cwds = {}
 
+    @staticmethod
+    def sid(path, kind):
+        return "kakan" if kind == "kakan" else path.stem
+
+    def files(self):
+        """Every session file there is: (path, kind)."""
+        out = []
+        try:
+            out += [(f, "claude") for f in self.root.glob("*/*.jsonl")]
+        except OSError:
+            pass
+        try:   # the last three days' folders (YYYY/MM/DD) – months of sessions would be slow to look through
+            days = sorted(d for d in self.codex.glob("*/*/*") if d.is_dir())[-3:]
+            out += [(f, "codex") for d in days for f in d.glob("rollout-*.jsonl")]
+        except OSError:
+            pass
+        if self.kakan.is_file():
+            out.append((self.kakan, "kakan"))
+        return out
+
     def scan(self, now):
         if now - self.scanned < 3 and self.found:
             return self.found
         self.scanned = now
-        out = []
-        try:
-            for f in self.root.glob("*/*.jsonl"):
-                try:
-                    m = f.stat().st_mtime
-                except OSError:
-                    continue
-                if now - m < ACTIVE_FOR or f.stem == self.pick:
-                    out.append((m, f))
-        except OSError:
-            pass
-        if not out:   # nothing going on: the newest at all, so the map shows the last session
+        stamped = []
+        for f, kind in self.files():
             try:
-                newest = max(((f.stat().st_mtime, f) for f in self.root.glob("*/*.jsonl")), default=None)
+                stamped.append((f.stat().st_mtime, f, kind))
             except OSError:
-                newest = None
-            out = [newest] if newest else []
-        self.found = sorted(out, reverse=True)
+                continue
+        out = [x for x in stamped if now - x[0] < ACTIVE_FOR or self.sid(x[1], x[2]) == self.pick]
+        if not out and stamped:   # nothing going on: the newest at all, so the map shows the last session
+            out = [max(stamped, key=lambda x: x[0])]
+        self.found = sorted(out, key=lambda x: x[0], reverse=True)
         return self.found
 
-    def folder_of(self, path):
+    def folder_of(self, path, kind="claude"):
         """The session's folder, from the cwd its lines carry (cached; the folder name in projects/ is lossy)."""
+        if kind == "kakan":
+            return ""
         if path not in self.cwds:
             cwd = ""
             try:
@@ -488,34 +770,39 @@ class Watcher:
 
     def choose(self, found, prefer_cwd):
         if self.pick:
-            for _, f in found:
-                if f.stem == self.pick:
-                    return f
+            for x in found:
+                if self.sid(x[1], x[2]) == self.pick:
+                    return x
         if prefer_cwd:
-            key = folder_key(prefer_cwd.rstrip("/"))
-            for _, f in found:
-                if f.parent.name == key:
-                    return f
-        return found[0][1] if found else None
+            want = prefer_cwd.rstrip("/")
+            for x in found:
+                if x[2] != "kakan" and (self.folder_of(x[1], x[2]).rstrip("/") == want
+                                        or (x[2] == "claude" and x[1].parent.name == folder_key(want))):
+                    return x
+        return found[0] if found else None
 
     def state(self, prefer_cwd=""):
         now = time.time()
         found = self.scan(now)
-        path = self.choose(found, prefer_cwd)
-        if path is None:
+        chosen = self.choose(found, prefer_cwd)
+        if chosen is None:
             return {"none": True, "sessions": []}
+        _, path, kind = chosen
         s = self.sessions.get(path)
         if s is None:
-            s = self.sessions[path] = Session(path)
+            s = self.sessions[path] = self.KINDS[kind](path)
         s.read()
         for other in list(self.sessions):      # sessions no longer shown are forgotten
-            if other != path and other not in {f for _, f in found}:
+            if other != path and other not in {x[1] for x in found}:
                 del self.sessions[other]
         out = s.state(now)
-        out["cwd"] = self.folder_of(path) or out["cwd"]     # the folder it was started in (not where it cd'd)
-        out["folder"] = Path(out["cwd"]).name if out["cwd"] else path.parent.name
-        out["sessions"] = [{"id": f.stem, "folder": Path(self.folder_of(f)).name or f.parent.name,
-                            "active": now - m < 120, "on": f == path} for m, f in found[:6]]
+        if kind != "kakan":
+            out["cwd"] = self.folder_of(path, kind) or out["cwd"]   # the folder it was started in (not where it cd'd)
+            out["folder"] = Path(out["cwd"]).name if out["cwd"] else path.parent.name
+        names = {"claude": "", "codex": "codex · ", "kakan": ""}
+        out["sessions"] = [{"id": self.sid(f, k), "tool": k,
+                            "folder": "Kakan" if k == "kakan" else names[k] + (Path(self.folder_of(f, k)).name or f.parent.name),
+                            "active": now - m < 120, "on": f == path} for m, f, k in found[:6]]
         out["picked"] = bool(self.pick)
         return out
 

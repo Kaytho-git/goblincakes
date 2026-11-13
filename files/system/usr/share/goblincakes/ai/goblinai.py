@@ -262,6 +262,24 @@ def activity(kind, text, local=None, progress=None, steps=None):
         pass
 
 
+# AI-kartan (13 Nov): what Kakan does, one line per event, read by /usr/share/goblincakes/claudemap.py (the map in the
+# dashboard and beside TERMINAL) – user (a question), model (one model call), start/end (a step or a command card),
+# answer/stopped/failed (the question is over). Moved to .1 at 2 MB.
+KAKAN_LOG = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "goblincakes/kakan-karta.jsonl"
+
+
+def kakan_log(event, **fields):
+    try:
+        KAKAN_LOG.parent.mkdir(parents=True, exist_ok=True)
+        if KAKAN_LOG.exists() and KAKAN_LOG.stat().st_size > 2_000_000:
+            KAKAN_LOG.replace(KAKAN_LOG.with_name(KAKAN_LOG.name + ".1"))
+        line = json.dumps({"t": round(time.time(), 3), "e": event, **fields}, ensure_ascii=False)
+        with open(KAKAN_LOG, "a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
+    except OSError:
+        pass
+
+
 def thinking_text(provider):
     """"tänker · steg 3 · din dator" – which step the work loop is on, for the top bar."""
     steps = getattr(LAST, "steps", None)
@@ -2104,6 +2122,9 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     LAST.laga = laga_on(messages)
     LAST.stop = steps.stop if steps else None  # request() closes the local AI's connection on STOPP
     activity("ask", "tänker", steps=[])
+    last_user = next((m for m in reversed(messages) if m["role"] == "user"), {})
+    kakan_log("user", text=" ".join(asked_text(last_user.get("content")).split())[:200],
+              project=(project or {}).get("name") or "")
     messages = [{**m, "content": m["content"].replace("\n\n" + FROM_MEMORY, "")}
                 if m["role"] == "assistant" and isinstance(m.get("content"), str) else m for m in messages]
     try:
@@ -2111,6 +2132,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         messages = with_summary(messages, keys, project, choice, steps)
     except Stopped:
         activity_done()
+        kakan_log("stopped")
         raise
     messages = with_guides(with_lessons(with_done(messages), project))
     failed = failed_card(messages)
@@ -2127,9 +2149,16 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
             answer, service = ask_once(messages, keys, status, notice, project, choice)
         else:
             answer, service = _ask(messages, keys, status, notice, project, choice, steps)
+    except Stopped:
+        kakan_log("stopped")
+        raise
+    except Exception:
+        kakan_log("failed")
+        raise
     finally:
         QUICK.on = False
         activity_done()
+    kakan_log("answer")
     # A tool that needs Tillåt (closing a window, goblin update) answers with a ```bash card – gemma4 said "Jag
     # startar uppdateringen nu" without it (28 Oct), so no card came. The card is added here when it is missing.
     cards = list(dict.fromkeys([c for _, _, text in getattr(LAST, "done", [])
@@ -2728,10 +2757,11 @@ class Steps:
         if self.stop is not None and self.stop.is_set():
             raise Stopped()
 
-    def start(self, text):
+    def start(self, text, tool=""):
         self.check()
         self.done()
         self.items.append({"text": text, "state": "run", "t": time.time()})
+        kakan_log("start", id=f"{id(self)}-{len(self.items)}", text=text[:160], tool=tool)
         self._send()
         LAST.steps = self
         activity("ask", text[0].lower() + text[1:] if text else "arbetar", steps=self.brief())
@@ -2741,6 +2771,7 @@ class Steps:
         if self.items and self.items[-1]["state"] == "run":
             step = self.items[-1]
             step.update(state=state, secs=round(time.time() - step["t"], 1))
+            kakan_log("end", id=f"{id(self)}-{len(self.items)}", state=state)
             if note:
                 step["note"] = " ".join(str(note).split())[:160]
             self._send()
@@ -3229,7 +3260,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         activity("ask", name[0].lower() + name[1:])
         if status:
             status(f"{name}: {query}…")
-        steps.start(f"{name}: {query}")
+        steps.start(f"{name}: {query}", tool=tool)
         try:
             text, _ = tools[tool]["run"](query)
             steps.done()
@@ -3513,7 +3544,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         if status:
             status(f"{name}{': ' + query if query else ''}…")
         # What she does, in plain words ("Läser recorder.json") – the chat and the top bar's tooltip (25 Oct)
-        steps.start(tool_label(tool, query, tools))
+        steps.start(tool_label(tool, query, tools), tool=tool)
         try:
             text, found = run(query)
             # A tool that answered "couldn't" is a step that failed – the receipt shows where she got stuck (31 Oct)
@@ -4202,6 +4233,7 @@ def chat(provider, key, model, messages, tools=None):
     code block in the text, see tool_call_block), else their prompts go into the system prompt.
     LAST.native says which it was (the tool's guide then comes with its answer)."""
     LAST.native = False
+    kakan_log("model", model=str(model), service=provider.get("name", ""), local=bool(provider.get("local")))
     if not provider.get("local") and not getattr(QUICK, "on", False):
         USAGE["tokens"] = 0  # a cloud service answers: the counter is the local AI's only
     blocks = "".join(t["prompt"] for t in (tools or {}).values())

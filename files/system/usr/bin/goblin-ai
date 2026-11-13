@@ -873,11 +873,16 @@ class Backend(QObject):
             QProcess.startDetached("/usr/libexec/goblincakes-terminal", ["run", "bash", "-c", script])
             part.update(state="done", output="Körs i ett terminalfönster (behöver ditt lösenord eller svar).")
             part["log"] = cmdlevel.log(code, lvl, by, None, "(i ett terminalfönster)", plan, self._id)
+            goblinai.kakan_log("start", id=f"cmd-{id(part)}", text=code.strip().splitlines()[0][:160] if code.strip() else "",
+                               tool="kommando")
+            goblinai.kakan_log("end", id=f"cmd-{id(part)}", state="ok")
             self._update(index)
             self.commandLogChanged.emit()
             return self._command_done(index, ran_in_terminal=True)
         part["state"] = "running"
         part["started"] = time.time()  # the card counts the seconds while it runs (13 Nov)
+        goblinai.kakan_log("start", id=f"cmd-{id(part)}", text=code.strip().splitlines()[0][:160] if code.strip() else "",
+                           tool="kommando")  # AI-kartan
         if auto:
             part["auto"] = True
         self._update(index)
@@ -907,6 +912,7 @@ class Backend(QObject):
             if plan and plan["trash"]:
                 plan["undo"] = cmdlevel.trash_restore(plan["trash"]) + plan["undo"]
             part = self._display[index]["segments"][seg]
+            goblinai.kakan_log("end", id=f"cmd-{id(part)}", state="ok" if exit_code == 0 else "fel")
             part.update(state="done", output=out.strip(), code_result=exit_code)
             if exit_code == 0 and "flatpak" in code:
                 apps = goblinai.installed_apps(code)
