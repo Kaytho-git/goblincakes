@@ -519,8 +519,12 @@ Ord: graph, ljudgraf, staplar, visualisering
 
 ## Spelläget
 Ord: spelläge, gamemode, spel, prestanda, lagg, fps, wowup stängs, battle.net agent, akonadi, baloo, fläktar, fläktboost, lenovo
-- Tjänsten goblincakes-gameguard (/usr/libexec/goblincakes-gameguard run) ser var 3:e sekund om ett spel kör:
+- Tjänsten goblincakes-gameguard (/usr/libexec/goblincakes-gameguard run) ser varje sekund om ett spel kör:
   GameMode, uppdateringar väntar, Akonadi/Baloo vilar, WoWUp stängs medan WoW kör. Allt återställs efter spelet.
+- Den är ensam om att leta efter spel och kör även med Spelläge av (då letar den bara): svaret står i
+  $XDG_RUNTIME_DIR/goblincakes-game (1 = spel, 0 = inget, rörs varje sekund). Lokala AI:n, Kakans vakt och Goblin AI läser
+  den; är filen äldre än 5 s (tjänsten stannad/kraschad) letar de själva som förut. Kolla: systemctl --user status
+  goblincakes-gameguard; stat -c %y $XDG_RUNTIME_DIR/goblincakes-game
 - Vad som är ett spel: /usr/share/goblincakes/gaming.py (samma regel för Spelläge och lokala AI:n). Battle.net ensamt är inget
   spel, inte heller när det startas från Steam (en reaper med bara Battle.net/Wine-hjälpare under sig). Kolla:
   python3 -c "import sys; sys.path.insert(0,'/usr/share/goblincakes'); import gaming; print(gaming.game_running(), gaming.find_game())"

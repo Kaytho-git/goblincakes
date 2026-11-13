@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 """GOBLINCAKES Spelläge: more of the computer for the game while one runs (22 Oct, the user's wish).
 
-    goblincakes-gameguard run         the user service: looks for a game every 3 s
+    goblincakes-gameguard run         the user service: looks for a game every second
     goblincakes-gameguard status      on / off (Config → Inställningar → Spel)
-    goblincakes-gameguard set on|off  the switch (off = a flag file, the service stops and undoes)
+    goblincakes-gameguard set on|off  the switch (off = a flag file: the service undoes and only looks)
     goblincakes-gameguard wait        root's update units (ExecStartPre): wait while a game runs
 
 While a game runs (Steam's game wrapper reaper, a Windows game in Wine/Proton, gamescope –
@@ -22,8 +22,11 @@ not the launchers themselves):
     ideapad_laptop has fan_mode (a udev rule makes it writable), switch: fan-boost-off
   - $XDG_RUNTIME_DIR/goblincakes-gaming exists (touched every look): goblin graph and
     GoblinAmp's bars rest, root's wait() sees it
-Everything is undone when the game is closed, and when the service stops (logout, switch off).
-The local AI has its own watcher (goblincakes-ollama) and stops also with Spelläge off.
+Everything is undone when the game is closed, when Spelläge is switched off and when the service stops.
+The only part that looks for games (P5 step 2, 13 Nov): every second – also with Spelläge off – it
+writes gaming.GAME_FILE, which the local AI's watcher (goblincakes-ollama, stops also with Spelläge
+off), Kakan and Goblin AI read through gaming.game_running(); the full look (GameMode, WoWUp,
+Agent) every 3 s while a game runs.
 """
 import os
 import re
@@ -36,7 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(os.environ.get("GOBLINCAKES_SHARE") or
                             Path(__file__).resolve().parents[1] / "share/goblincakes")))
-from gaming import WOW, find_game, processes  # noqa: E402 – one rule for what a game is
+from gaming import WOW, find_game, processes, scan_running, write_game_file  # noqa: E402 – one rule for what a game is
 
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "goblincakes"
 OFF = CONFIG / "gameguard-off"
@@ -45,7 +48,7 @@ FAN_BOOST = "4"
 RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
 STATE = RUNTIME / "goblincakes-gaming"
 FRESH = 30          # seconds: an older state file is left over from a crash
-LOOK = 3
+LOOK = 3            # seconds between the full looks while a game runs (the quick check is every second)
 AGENT_AFTER = 60    # seconds of WoW before Agent closes: the launch login is long done
 
 def log(*a):
@@ -253,9 +256,13 @@ class Guard:
         self.fan_back()
         STATE.unlink(missing_ok=True)
 
-    def look(self):
-        procs = processes()
-        pid = find_game(procs)
+    def active(self):
+        return STATE.exists() or self.game or self.akonadi or self.baloo or self.wowup or self.fan
+
+    def look(self, running=True):
+        """The full look. running=False (the quick check found no game): no process list needed."""
+        procs = processes() if running else []
+        pid = find_game(procs) if running else None
         if pid is None:
             if STATE.exists():
                 self.gone += 1
@@ -284,15 +291,23 @@ def serve():
         stop["now"] = True
     signal.signal(signal.SIGTERM, quit_)
     signal.signal(signal.SIGINT, quit_)
+    tick = 0
     try:
         while not stop["now"]:
-            guard.look()
-            for _ in range(LOOK * 4):
+            running = scan_running()
+            write_game_file(running)
+            if OFF.exists():   # Spelläge off: only the answer for the others
+                if guard.active():
+                    guard.stop()
+            elif tick % LOOK == 0 or (running and not STATE.exists()):
+                guard.look(running)   # a game that just started is handled at once
+            tick += 1
+            for _ in range(4):
                 if stop["now"]:
                     break
                 time.sleep(0.25)
     finally:
-        if STATE.exists() or guard.game or guard.akonadi or guard.baloo or guard.wowup:
+        if guard.active():
             guard.stop()
 
 
@@ -303,13 +318,13 @@ def main():
     elif cmd == "status":
         print("off" if OFF.exists() else "on")
     elif cmd == "set" and sys.argv[2:3] in (["on"], ["off"]):
+        # The service keeps running either way (it looks for the others) and reads the flag every second
         if sys.argv[2] == "on":
             OFF.unlink(missing_ok=True)
-            run("systemctl", "--user", "start", "goblincakes-gameguard.service")
         else:
             CONFIG.mkdir(parents=True, exist_ok=True)
             OFF.touch()
-            run("systemctl", "--user", "stop", "goblincakes-gameguard.service")
+        run("systemctl", "--user", "start", "goblincakes-gameguard.service")
     elif cmd == "wait":
         # Root, before an automatic update: never in the middle of a game
         said = False

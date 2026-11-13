@@ -7,6 +7,9 @@ not Wine's own helpers and not the launchers: Battle.net (and Blizzard's Agent.e
 used to update the game, World of Warcraft is Wow.exe (the user's words 22 Oct).
 A reaper that runs Proton counts only when a real Windows game runs under it (13 Nov): Battle.net
 started from Steam sits under a reaper of its own, so Battle.net alone turned Spelläge on.
+Only one part looks (P5 step 2, 13 Nov): goblincakes-gameguard checks every second – also with
+Spelläge off – and keeps GAME_FILE fresh ("1" a game runs, "0" none). game_running() reads it while
+it is fresh; a stopped or crashed watcher leaves it stale and every caller looks for itself again.
 Only the standard library.
 """
 import os
@@ -20,6 +23,9 @@ NOT_GAMES = {"steamwebhelper.exe", "explorer.exe", "services.exe", "winedevice.e
              "xalia.exe",  # Proton's screen-reader helper (13 Nov: it counted as a game)
              "agent.exe", "steam.exe", "rundll32.exe", "regedit.exe", "wineboot.exe", "winemenubuilder"}
 _REAPER_ANSWER = {}  # game_running(): {key: the reapers' pids, at, game}
+RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+GAME_FILE = os.path.join(RUNTIME, "goblincakes-game")
+GAME_FILE_FRESH = 5  # seconds: the watcher touches it every second
 WOW = re.compile(r"^wow[a-z]*\.exe$", re.I)
 
 
@@ -114,9 +120,42 @@ def find_game(procs=None):
 
 
 def game_running():
-    """Same answer as find_game() is not None, from the names only – the local AI's watcher asks
-    every second. Only a reaper alone (Battle.net from Steam, or a Steam game) costs the whole
-    process list."""
+    """Is a game running? The watcher's answer (GAME_FILE) while it is fresh, else scan_running()."""
+    try:
+        if time.time() - os.stat(GAME_FILE).st_mtime < GAME_FILE_FRESH:
+            with open(GAME_FILE, "rb") as f:
+                answer = f.read().strip()
+            if answer in (b"1", b"0"):
+                return answer == b"1"
+    except OSError:
+        pass
+    return scan_running()
+
+
+def write_game_file(running):
+    """The watcher (goblincakes-gameguard) only: the answer for everyone else – rewritten (atomically)
+    when it changes, otherwise only touched."""
+    want = b"1\n" if running else b"0\n"
+    try:
+        with open(GAME_FILE, "rb") as f:
+            same = f.read() == want
+    except OSError:
+        same = False
+    try:
+        if same:
+            os.utime(GAME_FILE)
+        else:
+            tmp = f"{GAME_FILE}.{os.getpid()}"
+            with open(tmp, "wb") as f:
+                f.write(want)
+            os.replace(tmp, GAME_FILE)
+    except OSError:
+        pass
+
+
+def scan_running():
+    """Same answer as find_game() is not None, from the names only – the watcher asks every second.
+    Only a reaper alone (Battle.net from Steam, or a Steam game) costs the whole process list."""
     reapers = []
     for name in os.listdir("/proc"):
         if not name.isdigit():

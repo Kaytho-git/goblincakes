@@ -1,8 +1,8 @@
 [Unit]
 Description=GOBLINCAKES Spelläge (GameMode, updates wait, Akonadi/Baloo/WoWUp rest while a game runs)
 ConditionKernelCommandLine=!rd.live.image
-# Switched off in Config → Inställningar → Spel
-ConditionPathExists=!%h/.config/goblincakes/gameguard-off
+# Runs also with Spelläge off (Config → Inställningar → Spel, the flag gameguard-off): then it only
+# looks for games for the local AI and Kakan (gaming.GAME_FILE, P5 step 2)
 
 [Service]
 ExecStart=/usr/libexec/goblincakes-gameguard run
