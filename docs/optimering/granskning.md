@@ -109,6 +109,7 @@ Allt detta fortsätter medan ett spel kör (utom lokal AI, som stängs av). Det 
 - **Storlek:** liten per del.
 - **Kan provas:** offscreen (start/stopp), känslan bara på riktiga datorn.
 - **Mät efteråt:** M3, M9.
+- **Struken 13 nov (användarens beslut):** förslagen gäller bara datorer under 16 GB – användarens dator har 32 GB, laptopen 16 GB (2,4 GB använt i vila), så koden skulle aldrig köras på någon av dem. Tas upp igen bara om en dator med 8 GB ska köra GOBLINCAKES.
 
 ### P7 – Småsaker i bakgrunden (slås ihop)
 - **Vad:**
@@ -386,7 +387,7 @@ Sorterad efter vinst delat med risk och storlek. "Märks" = vad användaren ser.
 | [–] | 22 | ~~**P13** AppGrid/libratbag i eget flöde~~ (struken 13 nov – se P13) | bygget 3 min kortare (delvis löst av P20) | medel | medel |
 | [x] | 23 | **P8** (byggd 13 nov) Program från dashboarden i egen enhet | rätt siffror per program | låg | liten |
 | [ ] | 24 | **P17** Gemensam startkod för fönstren | lättare underhåll | medel | medel |
-| [ ] | 25 | **P6** Fönster som ligger kvar i minnet | behövs inte med 16 GB | låg–medel | liten |
+| [–] | 25 | ~~**P6** Fönster som ligger kvar i minnet~~ (struken 13 nov – se P6) | behövs inte med 16 GB | låg–medel | liten |
 
 ## Topp 5 – börja här
 
