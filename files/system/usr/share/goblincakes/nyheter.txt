@@ -1,3 +1,4 @@
+2026-11-13  Dashboarden öppnar nu på AI-kartan – står det VILANDE jobbar ingen AI just nu. Börjar du skriva kommer programmen, och ramarna byter som vanligt. Vill du hellre börja på programmen eller där du var senast väljer du det i Config → Dashboard.
 2026-11-13  AI-kartan visar nu också Codex (OpenAI:s motsvarighet till Claude Code) och Kakan i Goblin AI: vad hon gör steg för steg – söker på nätet, läser datorns fel, WoW-siffror, kör kommandon. Den som jobbar senast visas; flera samtidigt = knappar ovanför kartan.
 2026-11-13  Claude Code-kartan: se vad Claude gör medan det jobbar – filer, kommandon, nätet, agenter och hur full kontexten är lyser upp på en karta. Finns i dashboarden (ramen CLAUDE CODE i vyn JOBB) och bredvid terminalen i Goblin AI (knappen KARTA visar och döljer den).
 2026-11-13  Systemfältet: vänsterklick på Raider.IO och WowUp öppnar nu programmen (förut gjorde det ingenting – bara högerklick fungerade).

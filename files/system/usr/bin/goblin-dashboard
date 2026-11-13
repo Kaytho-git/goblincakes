@@ -174,6 +174,9 @@ class Backend(QObject):
         self._view = dash.view_index(saved, self._views)
         self._mid = self._views[self._view]["mid"]  # apps | system | project:<path> | raid | … – one per view
         self._tray = ""
+        self._start = dash.start_mid(saved)
+        if self._start != "last":
+            self._mid = self._start
         self._build = ""                           # BYGGEN: the build whose steps are open (GitHub's run id)
         self.visible = False
         self.timers = [QTimer(self, interval=ms, timeout=fn) for ms, fn in (
@@ -348,6 +351,13 @@ class Backend(QObject):
             if not self.test:
                 dash.count_shown()   # the desktop's Meta hint goes away after the first few times
             self.reload_views()      # Config → Dashboard may have changed them while it was hidden
+            # Where the middle starts (Config → Dashboard, 13 Nov): the AI map (standard), the programs, or where it was
+            start = dash.start_mid()
+            if start != self._start:
+                self._start = start
+                self.startChanged.emit()
+            if start != "last":
+                self._go_mid(start)
             self.system = dash.System()
             self.read_all()
         elif self._tray:
@@ -359,6 +369,12 @@ class Backend(QObject):
         return self.data.get(key, "{}")
 
     viewsChanged = Signal()
+    startChanged = Signal()
+
+    @Property(str, notify=startChanged)
+    def startMid(self):
+        """Where Esc goes back to: the AI map when the dashboard opens on it, else the programs."""
+        return "claude" if self._start == "claude" else "apps"
 
     def reload_views(self):
         saved = dash.settings()

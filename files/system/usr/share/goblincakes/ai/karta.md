@@ -258,6 +258,9 @@ Ord: kartan, ai-kartan, claude-kartan, claude code-kartan, KARTA, vad claude gö
   (Claude Code aldrig kört, eller CLAUDE_CONFIG_DIR pekar någon annanstans).
 - Visar fel session i Goblin AI: den väljer sessionen i mappen där processen `claude` kör i fliken som visas; kolla
   `pgrep -a claude` och `readlink /proc/<pid>/cwd`. Knapparna ovanför kartan väljer för hand, AUTO = tillbaka.
+- Dashboarden öppnar på AI-kartan som standard (VILANDE när ingen jobbar). Ändras i Config → Dashboard överst
+  ("När dashboarden öppnas"): AI-kartan / Program / Där du var senast – sparat som `start` i ~/.config/goblincakes/
+  dashboard.json. Esc går tillbaka till kartan, Esc igen gömmer dashboarden.
 - Rutan i Goblin AI dold/visad sparas i ~/.config/goblincakes/claude-karta (dold/visad). Ramen i dashboarden väljs i
   Config → Dashboard ("Claude Code").
 - Visar även **Codex** (~/.codex/sessions/ÅÅÅÅ/MM/DD/rollout-*.jsonl) och **dig själv** (~/.local/state/goblincakes/

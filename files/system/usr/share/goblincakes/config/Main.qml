@@ -1937,7 +1937,7 @@ Window {
             id: dashSave
             interval: 500
             onTriggered: {
-                const data = { "views": dashView.info.views };
+                const data = { "views": dashView.info.views, "start": dashView.info.start };
                 const apps = JSON.stringify(dashView.info.chosen);
                 if (apps !== dashView.loadedApps && dashView.info.dockOk) {
                     data.apps = dashView.info.chosen;
@@ -2003,6 +2003,63 @@ Window {
                 color: "#8B98AD"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: 15
+            }
+
+            // ── NÄR DASHBOARDEN ÖPPNAS (13 Nov, the user): the AI map (standard), the programs or where you were ──
+            Column {
+                visible: !!dashView.info && !!dashView.info.starts
+                width: parent.width
+                spacing: 10
+                Text {
+                    text: "NÄR DASHBOARDEN ÖPPNAS (META) VISAS I MITTEN"
+                    color: "#8B98AD"
+                    font.family: "Chakra Petch"
+                    font.pixelSize: 13
+                    font.letterSpacing: 2
+                }
+                Flow {
+                    width: parent.width
+                    spacing: 8
+                    Repeater {
+                        model: dashView.info && dashView.info.starts ? dashView.info.starts : []
+                        Rectangle {
+                            G.Light { hovered: startArea.containsMouse }
+                            required property var modelData
+                            readonly property bool on: dashView.info.start === modelData.id
+                            width: Math.max(startName.implicitWidth, startNote.implicitWidth) + 36
+                            height: 60
+                            color: on ? "#12203A" : startArea.containsMouse ? "#0E1420" : "transparent"
+                            border.width: on ? 2 : 1
+                            border.color: on ? accent.color : "#1E2A40"
+                            Column {
+                                anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+                                spacing: 3
+                                Text {
+                                    id: startName
+                                    text: modelData.name
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.weight: Font.DemiBold
+                                    font.pixelSize: 14
+                                }
+                                Text {
+                                    id: startNote
+                                    text: modelData.note
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                }
+                            }
+                            MouseArea {
+                                id: startArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: dashView.change(c => c.start = parent.modelData.id)
+                            }
+                        }
+                    }
+                }
             }
 
             // ── VYER ──

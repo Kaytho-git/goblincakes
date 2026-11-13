@@ -158,8 +158,8 @@ Window {
             backend.closeTray();
         else if (search.text !== "")
             search.text = "";
-        else if (mid !== "apps")
-            showApps();
+        else if (mid !== backend.startMid)
+            backend.startMid === "claude" ? backend.setMid("claude") : showApps();   // back to where it opens
         else
             win.hide();
     }
@@ -1760,7 +1760,7 @@ Window {
                     visible: win.mid !== "apps"
                     width: visible ? 150 : 0
                     height: 34
-                    text: "Alla program  (Esc)"
+                    text: backend.startMid === "claude" ? "Alla program" : "Alla program  (Esc)"   // Esc goes back to the AI map then
                     onClicked: win.showApps()
                 }
             }
@@ -2686,11 +2686,15 @@ Window {
                 Row {
                     id: claudeHead
                     spacing: 14
-                    BigTitle { id: claudeTitle; text: win.claude.title || "AI-KARTAN" }
+                    // VILANDE when no AI works (13 Nov, the user) – the map shows the latest session, calm
+                    readonly property string who: ({ claude: "Claude Code", codex: "Codex", kakan: "Kakan" })[win.claude.tool] || ""
+                    BigTitle { id: claudeTitle; text: win.claude.busy ? (win.claude.title || "AI-KARTAN") : "VILANDE" }
                     SubTitle {
                         anchors.baseline: claudeTitle.baseline
-                        text: "vad " + (({ claude: "Claude", codex: "Codex", kakan: "Kakan" })[win.claude.tool] || "AI:n") + " gör just nu"
-                              + (win.claude.idle > 1800 && !win.claude.busy ? " · senaste sessionen" : "")
+                        text: win.claude.busy ? "vad " + ({ claude: "Claude", codex: "Codex", kakan: "Kakan" })[win.claude.tool] + " gör just nu"
+                            : win.claude.none || !claudeHead.who ? "ingen AI jobbar just nu"
+                            : "ingen AI jobbar just nu · senast " + claudeHead.who
+                              + (win.claude.tool !== "kakan" && win.claude.folder ? " i " + win.claude.folder : "")
                     }
                 }
                 G.ClaudeMap {

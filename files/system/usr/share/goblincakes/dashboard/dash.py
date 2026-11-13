@@ -153,7 +153,22 @@ MID_FRAME = {"system": "system", "project": "projects", "raid": "wow", "char": "
              "builds": "builds", "reports": "reports", "claude": "claude"}
 
 
+# What the middle shows when the dashboard opens (Meta) – Config → Dashboard (13 Nov, the user: the AI map as standard,
+# "låt användaren bestämma i config"). "last" = where it was left, per view (as before 13 Nov).
+STARTS = [("claude", "AI-kartan", "vad Claude Code, Codex eller Kakan gör – VILANDE när ingen jobbar"),
+          ("apps", "Program", "alla program och sökningen"),
+          ("last", "Där du var senast", "det du tittade på sist i vyn")]
+
+
+def start_mid(saved=None):
+    saved = settings() if saved is None else saved
+    start = saved.get("start")
+    return start if start in {s[0] for s in STARTS} else "claude"
+
+
 def mid_fits(mid, view):
+    if mid == "claude":                   # the AI map is there in every view (it may be where it opens)
+        return True
     frame = MID_FRAME.get(str(mid).split(":", 1)[0])
     return mid == "apps" or bool(frame and frame in view.get("left", []) + view.get("right", []))
 
@@ -211,7 +226,7 @@ def view_index(saved=None, rows=None):
         return 0
 
 
-def save_views(rows, apps_ids=None):
+def save_views(rows, apps_ids=None, start=None):
     """From Config: the views, and (when they were changed) the programs at the bottom – shared with the dock, so
     they are written there. The dashboard reads them the next time it is shown."""
     saved = settings()
@@ -219,6 +234,8 @@ def save_views(rows, apps_ids=None):
     saved["view"] = view_index(saved, saved["views"])
     saved.pop("mid", None)                # from step 1–2: now one per view
     saved.pop("apps", None)               # until 10 Nov an own list for the dashboard: now shared with the dock
+    if start in {s[0] for s in STARTS}:
+        saved["start"] = start
     save_settings(saved)
     if apps_ids is not None:
         return save_shared_apps([a for a in apps_ids if isinstance(a, str)])
@@ -909,6 +926,7 @@ if __name__ == "__main__":
         saved = settings()
         rows = apps()
         result = {"views": views(saved), "view": view_index(saved), "maxViews": MAX_VIEWS, "sides": SIDES,
+                  "start": start_mid(saved), "starts": [{"id": i, "name": n, "note": t} for i, n, t in STARTS],
                   "frames": [{"id": i, "name": n, "note": t} for i, n, t in FRAMES],
                   "apps": [{k: a[k] for k in ("id", "name", "icon", "group")} for a in rows],
                   # the programs at the bottom = the dock's pinned apps (shared); dockOk false = Plasma didn't answer
@@ -916,7 +934,7 @@ if __name__ == "__main__":
         result["dockOk"] = bool(result["chosen"]) or current_dock_answers()
     elif what == "save":         # from Config: {"views": [...], "apps": [...] only when changed} on stdin
         data = json.loads(sys.stdin.read() or "{}")
-        ok = save_views(data.get("views") or [], data.get("apps"))
+        ok = save_views(data.get("views") or [], data.get("apps"), data.get("start"))
         result = {"views": views(), "view": view_index(), "appsSaved": ok}
     else:
         sys.exit(__doc__)

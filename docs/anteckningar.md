@@ -876,6 +876,16 @@ visar ingen bild. Ingen kod är kopierad.
   pågår, 34 % kontext) och Kakan (lagmätningen, sökning, kontroll, svaret, ett misslyckat kommando) – rätt stationer,
   rader och val per mapp; skärmbilder bred/smal och i dashboarden; Claude Code mot den riktiga loggen som förut.
   **Ej provat:** en riktig Codex, Kakans logg från riktiga Goblin AI (att raderna skrivs vid varje steg och kort).
+- **Dashboarden öppnar på AI-kartan (13 nov, användaren: alternativ 1 – "låt användaren bestämma i config"):**
+  Config → Dashboard överst: "När dashboarden öppnas (Meta) visas i mitten" = AI-kartan (standard) / Program / Där du
+  var senast (`dash.STARTS`, `start_mid()`, dashboard.json `start`; sparas med vyerna via `dash.py save` {"start"}).
+  `goblin-dashboard` `setVisible(True)` → `_go_mid(start)` (utom "last" = per vy som förut); `backend.startMid` = dit Esc
+  går tillbaka (claude eller apps) – knappen heter då bara "Alla program". Mitten `claude` passar i alla vyer
+  (`mid_fits`). Ingen AI jobbar → rubriken **VILANDE** och "ingen AI jobbar just nu · senast Kakan / Claude Code i mapp",
+  kartan visar den senaste sessionen. Att skriva → programmen; ramarna byter mitten som vanligt. **Provat (molnsession):**
+  dashboarden offscreen i vyn SPEL med sparad mitt "system" → öppnar på VILANDE med Kakans senaste fråga; Config-sidan
+  offscreen med de tre valen; `dash.py save` med start. **Ej provat:** Meta på riktigt, Esc-stegen, att valet följer
+  efter ändring i Config.
 - **Bilder i Goblin AI:s terminal (13 nov, undersökt – inte byggt):** Claude Code (2.1.32x, läst ur programmet) ritar
   bilder med kittys grafikprotokoll med *Unicode-platshållare* (`a=T,U=1`, virtuella placeringar) och frågar först
   terminalen (`a=q`); iTerm2-sättet (`OSC 1337;File`) bara om terminalen svarar på XTVERSION att den är iTerm2 ≥ 3.5;

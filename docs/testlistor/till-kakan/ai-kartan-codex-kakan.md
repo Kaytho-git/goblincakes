@@ -13,3 +13,7 @@
   väntat: sökvägen till codex och mappen sessions – står det "codex finns inte" är resten OKLART (Codex är inte installerat)
 - Codex på kartan
   fråga: Starta codex i ett projekt i Goblin AI:s TERMINAL och ge det en uppgift. Står det CODEX i mitten av kartan till höger, med projektets namn och modellen ovanför raderna? Lyser SKAL/FILER när det jobbar?
+- Dashboarden öppnar på kartan
+  fråga: Tryck Meta när ingen AI jobbar. Står det VILANDE i mitten med kartan och "senast …"? Börja skriva ett programnamn – kommer programmen? Tryck Esc två gånger – tillbaka till kartan och sedan göms dashboarden?
+- Valet i Config
+  fråga: Välj "Program" i Config → Dashboard (överst) och tryck Meta. Öppnar den på programmen? Välj "AI-kartan" igen.
