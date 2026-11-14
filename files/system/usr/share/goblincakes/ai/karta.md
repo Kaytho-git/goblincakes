@@ -797,7 +797,8 @@ Ord: barnläge, barn, sandlåda, kids, PIN-kod barnläge, goblin barn
 - Pixelart (14 nov): de fyra bakgrunderna visas i dina pixelbilder (du ritade alla 15, användaren godkände dem):
   /usr/share/goblincakes/kids/pixelart/<id>.png, Scene.qml → PixelScene.qml (Pix.qml = skarp hel förstoring);
   den gamla ritade versionen = DrawnScene.qml, väljs med "pixelart": false i kids.json. Splashen (Splash.qml,
-  Glint.qml; färgade gnistor = tools/pixelart-tint.py) också; rutorna är inte bytta än. Rita om: `goblin pixelart` →
+  Glint.qml; färgade gnistor = tools/pixelart-tint.py), rutorna/knapparna (PixelFrame.qml, PixelGlyph.qml, MusicArt.qml)
+  och typsnittet Pixelify Sans (kids/fonts/) också. Rita om: `goblin pixelart` →
   /usr/libexec/goblincakes-pixelart, listan /usr/share/goblincakes/kids/pixelart.json. `kakan <id>` = du ritar med
   bildprogrammet (`goblincakes-image generate … --style pixelart`: Z-Image-Turbo + pixelart-tillägget i
   <bildmappen>/loras/, hämtas första gången), `chatgpt <id>` = Codex i ChatGPT-appen (användaren trycker Enter; stilen

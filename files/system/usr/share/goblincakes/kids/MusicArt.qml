@@ -1,5 +1,7 @@
 // Barnläge's music picture (13 Nov): two notes on a coloured background (seed = a colour per song), and bars dancing
 // along the bottom while a song plays. The music picture among the games, and each song in the music box.
+// 14 Nov, pixel art: Kakan's notes (whole-number scale, hopping in pixel steps instead of swaying), the colour in
+// six bands instead of a smooth gradient, the bars on the pixel grid, no soft circles.
 import QtQuick
 
 Item {
@@ -9,16 +11,42 @@ Item {
     readonly property var colors: [["#6A3FD6", "#C2449F"], ["#1F7FBF", "#2FA39B"], ["#D9485F", "#F29A3C"],
                                    ["#3F5BD6", "#7A5AF8"], ["#2E8B57", "#B5C94A"]]
     readonly property var pair: colors[seed % colors.length]
+    property bool pixel: false
+    property int unit: 3                    // pixel art: one pixel in screen pixels
     clip: true
+    function mix(a, b, t) {
+        const ch = (h, i) => parseInt(h.substr(1 + i * 2, 2), 16) / 255;
+        return Qt.rgba(ch(a, 0) * (1 - t) + ch(b, 0) * t, ch(a, 1) * (1 - t) + ch(b, 1) * t, ch(a, 2) * (1 - t) + ch(b, 2) * t, 1);
+    }
     Rectangle {
+        visible: !art.pixel
         anchors.fill: parent
         gradient: Gradient {
             GradientStop { position: 0.0; color: art.pair[0] }
             GradientStop { position: 1.0; color: art.pair[1] }
         }
     }
+    Column {     // pixel art: six bands
+        visible: art.pixel
+        anchors.fill: parent
+        Repeater {
+            model: 6
+            Rectangle {
+                required property int index
+                width: art.width; height: Math.ceil(art.height / 6)
+                color: art.mix(art.pair[0], art.pair[1], index / 5)
+            }
+        }
+    }
+    Pix {
+        visible: art.pixel
+        name: art.pixel ? "noter" : ""
+        unit: Math.max(1, Math.floor(art.width * 0.55 / 64))
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: Math.round(art.height * 0.12 / art.unit) * art.unit - (art.dancing && notes.sway > 0 ? 2 * art.unit : 0)
+    }
     Repeater {   // soft circles of light
-        model: 3
+        model: art.pixel ? 0 : 3
         Rectangle {
             required property int index
             x: art.width * [0.62, 0.08, 0.45][index]; y: art.height * [0.05, 0.5, 0.62][index]
@@ -29,6 +57,7 @@ Item {
     // the notes (two beamed eighths)
     Item {
         id: notes
+        visible: !art.pixel
         width: art.width * 0.5; height: width
         anchors.horizontalCenter: parent.horizontalCenter
         y: art.height * 0.16
@@ -61,9 +90,9 @@ Item {
             Rectangle {
                 id: bar
                 required property int index
-                width: art.width * 0.07
+                width: art.pixel ? Math.max(1, Math.round(art.width * 0.07 / art.unit)) * art.unit : art.width * 0.07
                 property real level: art.dancing ? 0.3 : 0.12
-                height: art.height * 0.24 * level
+                height: art.pixel ? Math.max(1, Math.round(art.height * 0.24 * level / art.unit)) * art.unit : art.height * 0.24 * level
                 anchors.bottom: parent.bottom
                 color: "white"
                 opacity: 0.85

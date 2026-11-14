@@ -2,6 +2,8 @@
 // (Config → BARNLÄGE), a picture button for the background and an X (top right) that asks for the PIN code.
 // The other screens get a calm night sky ("GOBLINCAKES barnläge 2" …, placed by kwin-on.js).
 // Backend: /usr/bin/goblin-kids ("backend"). Only the mouse – no gamepad (the user's choice).
+// 14 Nov: in Kakan's pixel art (kids.json "pixelart", off = drawn as before) – her sparkles and notes, PixelFrame
+// around the pictures, ▶ ■ ✕ of square pixels (PixelGlyph) and Pixelify Sans (fonts/, OFL) wherever there is text.
 import QtQuick
 import QtQuick.Window
 import QtQml
@@ -29,6 +31,12 @@ Window {
     property bool leaving: false
     property bool choosing: false         // the picture chooser
     property bool asking: false           // the PIN code
+    readonly property bool pixel: backend.pixelart !== false
+    // one pixel of the pixel art's figures in screen pixels (as PixelScene: a quarter of the background's)
+    readonly property int fu: Math.max(1, Math.round(Math.ceil(Math.max(width / 160, height / 90)) / 4))
+    readonly property string heading: pixel ? pixelFont.name : "Chakra Petch"
+    readonly property string body: pixel ? pixelFont.name : "IBM Plex Sans"
+    FontLoader { id: pixelFont; source: Qt.resolvedUrl("fonts/PixelifySans.ttf") }
 
     onClosing: close => { close.accepted = win.leaving; }
 
@@ -47,11 +55,14 @@ Window {
     Scene { anchors.fill: parent; kind: backend.background }
     Repeater {
         model: 18
-        Sparkle {
+        Glint {
             id: drift
             required property int index
             property real p: win.rnd(index, 31)
             size: 8 + win.rnd(index, 32) * 14
+            pixel: win.pixel
+            star: index % 2 === 0
+            unit: Math.max(1, Math.round(win.fu * (0.25 + win.rnd(index, 32) * 0.4)))
             color: ["#FFF4CF", "#FFD6F0", "#D6F6FF"][index % 3]
             x: win.rnd(index, 33) * win.width + Math.sin(p * 6.28 * 2 + index) * 30
             y: win.height * (1.05 - p * 1.15)
@@ -175,9 +186,10 @@ Window {
                 }
             }
             Rectangle {
+                id: face
                 anchors.fill: parent
                 color: "#0E1420"
-                border.width: 4
+                border.width: win.pixel ? 0 : 4
                 border.color: tile.hover ? "#FFF4CF" : "#2A3852"
                 Behavior on border.color { ColorAnimation { duration: 200 } }
                 clip: true
@@ -204,7 +216,7 @@ Window {
                         }
                     }
                     Repeater {
-                        model: 3
+                        model: win.pixel ? 0 : 3
                         Rectangle {
                             required property int index
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -214,13 +226,15 @@ Window {
                         }
                     }
                     // No icon (or a game without a cover): a big turning sparkle instead
-                    Sparkle {
+                    Glint {
                         anchors.horizontalCenter: parent.horizontalCenter
                         y: parent.height * 0.38 - height / 2
                         size: parent.width * 0.45
+                        pixel: win.pixel
+                        unit: Math.max(1, Math.round(parent.width * 0.45 / 32))
                         color: "#FFD93D"
                         visible: iconImage.status !== Image.Ready || iconImage.implicitWidth <= 1
-                        RotationAnimation on rotation { from: 0; to: 360; duration: 9000; loops: Animation.Infinite }
+                        RotationAnimation on rotation { running: !win.pixel; from: 0; to: 360; duration: 9000; loops: Animation.Infinite }
                     }
                     Image {
                         id: iconImage
@@ -237,7 +251,7 @@ Window {
                         height: parent.height * 0.28
                         text: tile.item.name || ""
                         color: "#E6ECF5"
-                        font.family: "Chakra Petch"
+                        font.family: win.heading
                         font.weight: Font.Bold
                         font.pixelSize: Math.max(16, tile.width * 0.1)
                         font.letterSpacing: 1
@@ -253,6 +267,8 @@ Window {
                     anchors.fill: parent
                     anchors.margins: 4
                     visible: tile.item.kind === "music"
+                    pixel: win.pixel
+                    unit: win.fu
                     seed: 0
                     dancing: backend.playing !== ""
                 }
@@ -264,36 +280,48 @@ Window {
                     Behavior on opacity { NumberAnimation { duration: 300 } }
                 }
                 Item {
+                    id: ring
                     anchors.centerIn: parent
                     width: parent.width * 0.5; height: width
                     visible: tile.starting
-                    RotationAnimation on rotation { running: tile.starting; from: 0; to: 360; duration: 1800; loops: Animation.Infinite }
+                    // pixel art: the sparkles go round, upright (turned pixels look broken); drawn: the ring turns
+                    property real turn: 0
+                    rotation: win.pixel ? 0 : turn * 360
+                    NumberAnimation on turn { running: tile.starting; from: 0; to: 1; duration: 1800; loops: Animation.Infinite }
                     Repeater {
                         model: 8
-                        Sparkle {
+                        Glint {
                             required property int index
+                            readonly property real a: (index / 8 + (win.pixel ? ring.turn : 0)) * Math.PI * 2
                             size: 18 + (index % 3) * 6
+                            pixel: win.pixel
+                            star: index % 2 === 1
+                            unit: Math.max(1, win.fu - 1)
                             color: ["#FFD93D", "#FF7EB6", "#7FE3FF", "#B69CFF"][index % 4]
-                            x: parent.width / 2 + Math.cos(index / 8 * Math.PI * 2) * parent.width / 2 - size / 2
-                            y: parent.height / 2 + Math.sin(index / 8 * Math.PI * 2) * parent.height / 2 - size / 2
+                            x: parent.width / 2 + Math.cos(a) * parent.width / 2 - width / 2
+                            y: parent.height / 2 + Math.sin(a) * parent.height / 2 - height / 2
                         }
                     }
                 }
             }
+            PixelFrame { visible: win.pixel; anchors.fill: face; p: win.fu; color: tile.hover ? "#FFF4CF" : "#2A3852" }
         }
 
         // the burst when clicked
         Repeater {
             model: 14
-            Sparkle {
+            Glint {
                 required property int index
                 readonly property real a: index / 14 * Math.PI * 2
                 property real p: 0
                 size: 16 + (index % 4) * 6
+                pixel: win.pixel
+                star: index % 2 === 0
+                unit: Math.max(1, win.fu - 1)
                 color: ["#FFD93D", "#FF7EB6", "#7FE3FF", "#B69CFF", "#8CFFB0"][index % 5]
-                x: tile.width / 2 + Math.cos(a) * tile.width * 0.8 * p - size / 2
-                y: tile.height / 2 + Math.sin(a) * tile.height * 0.6 * p - size / 2
-                rotation: p * 360
+                x: tile.width / 2 + Math.cos(a) * tile.width * 0.8 * p - width / 2
+                y: tile.height / 2 + Math.sin(a) * tile.height * 0.6 * p - height / 2
+                rotation: win.pixel ? 0 : p * 360
                 opacity: p > 0 && p < 1 ? 1 - p : 0
                 NumberAnimation on p { id: fly; running: false; from: 0; to: 1; duration: 900; easing.type: Easing.OutCubic }
                 Connections {
@@ -343,11 +371,19 @@ Window {
         width: Math.max(96, win.height * 0.11); height: width * 0.75
         scale: bgArea.containsMouse ? 1.08 : 1
         Behavior on scale { NumberAnimation { duration: 180 } }
-        Rectangle { anchors.fill: parent; anchors.margins: -6; color: "transparent"; border.width: 4; border.color: "#FFF4CF"; opacity: bgArea.containsMouse ? 0.5 : 0.18 }
+        Rectangle { visible: !win.pixel; anchors.fill: parent; anchors.margins: -6; color: "transparent"; border.width: 4; border.color: "#FFF4CF"; opacity: bgArea.containsMouse ? 0.5 : 0.18 }
         Scene { anchors.fill: parent; kind: backend.background; small: true; still: true }
-        Rectangle { anchors.fill: parent; color: "transparent"; border.width: 3; border.color: "#E6ECF5" }
-        Sparkle { size: parent.width * 0.32; x: parent.width - size * 0.7; y: -size * 0.3; color: "#FFD93D"
-            RotationAnimation on rotation { from: 0; to: 360; duration: 6000; loops: Animation.Infinite } }
+        Rectangle { visible: !win.pixel; anchors.fill: parent; color: "transparent"; border.width: 3; border.color: "#E6ECF5" }
+        PixelFrame { visible: win.pixel; anchors.fill: parent; p: Math.max(2, win.fu - 1); color: bgArea.containsMouse ? "#FFF4CF" : "#E6ECF5" }
+        Glint { size: parent.width * 0.32; x: parent.width - width * 0.7; y: -height * 0.3; color: "#FFD93D"
+            pixel: win.pixel; unit: Math.max(1, win.fu - 1)
+            RotationAnimation on rotation { running: !win.pixel; from: 0; to: 360; duration: 6000; loops: Animation.Infinite }
+            SequentialAnimation on opacity {   // pixel art: twinkles instead of turning
+                running: win.pixel; loops: Animation.Infinite
+                NumberAnimation { to: 0.45; duration: 900; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 1; duration: 900; easing.type: Easing.InOutSine }
+            }
+        }
         MouseArea {
             id: bgArea
             anchors.fill: parent
@@ -367,7 +403,7 @@ Window {
         border.color: closeArea.containsMouse ? "#2A3852" : "transparent"
         opacity: closeArea.containsMouse ? 1 : 0.45
         Repeater {
-            model: [45, -45]
+            model: win.pixel ? [] : [45, -45]
             Rectangle {
                 required property var modelData
                 anchors.centerIn: parent
@@ -376,6 +412,7 @@ Window {
                 color: "#E6ECF5"
             }
         }
+        PixelGlyph { visible: win.pixel; anchors.centerIn: parent; shape: "x"; size: 21; color: "#E6ECF5" }
         MouseArea {
             id: closeArea
             anchors.fill: parent
@@ -413,9 +450,10 @@ Window {
                         width: picFlow.w; height: picFlow.w * 0.62
                         scale: picArea.containsMouse ? 1.06 : 1
                         Behavior on scale { NumberAnimation { duration: 160 } }
-                        Rectangle { anchors.fill: parent; anchors.margins: -8; color: "transparent"; border.width: 5; border.color: accent.color; visible: pic.on }
+                        Rectangle { anchors.fill: parent; anchors.margins: -8; color: "transparent"; border.width: 5; border.color: accent.color; visible: pic.on && !win.pixel }
                         Scene { anchors.fill: parent; kind: pic.modelData.id; small: true; still: true }
-                        Rectangle { anchors.fill: parent; color: "transparent"; border.width: 3; border.color: pic.on ? "#FFF4CF" : "#2A3852" }
+                        Rectangle { visible: !win.pixel; anchors.fill: parent; color: "transparent"; border.width: 3; border.color: pic.on ? "#FFF4CF" : "#2A3852" }
+                        PixelFrame { visible: win.pixel; anchors.fill: parent; p: win.fu; color: pic.on ? "#FFF4CF" : picArea.containsMouse ? "#8B98AD" : "#2A3852" }
                         MouseArea {
                             id: picArea
                             anchors.fill: parent
@@ -457,11 +495,12 @@ Window {
                         Rectangle {
                             anchors.fill: parent; anchors.margins: -8
                             color: "transparent"; border.width: 6; border.color: accent.color
-                            opacity: song.on ? 0.8 : 0
+                            opacity: song.on && !win.pixel ? 0.8 : 0
                             Behavior on opacity { NumberAnimation { duration: 250 } }
                         }
-                        MusicArt { anchors.fill: parent; seed: song.index + 1; dancing: song.on }
-                        Rectangle { anchors.fill: parent; color: "transparent"; border.width: 3; border.color: song.on ? "#FFF4CF" : "#2A3852" }
+                        MusicArt { anchors.fill: parent; seed: song.index + 1; dancing: song.on; pixel: win.pixel; unit: win.fu }
+                        Rectangle { visible: !win.pixel; anchors.fill: parent; color: "transparent"; border.width: 3; border.color: song.on ? "#FFF4CF" : "#2A3852" }
+                        PixelFrame { visible: win.pixel; anchors.fill: parent; p: win.fu; color: song.on ? "#FFF4CF" : "#2A3852" }
                         MouseArea {   // the picture itself starts it too
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
@@ -472,7 +511,7 @@ Window {
                         width: songRow.side
                         text: song.modelData.name
                         color: "#E6ECF5"
-                        font.family: "Chakra Petch"
+                        font.family: win.heading
                         font.weight: Font.Bold
                         font.pixelSize: Math.max(16, songRow.side * 0.075)
                         horizontalAlignment: Text.AlignHCenter
@@ -483,12 +522,14 @@ Window {
                         spacing: 16
                         BigButton {
                             label: "▶"
+                            shape: "play"
                             fill: "#2FA36B"
                             lit: song.on
                             onClicked: backend.playSong(song.modelData.path)
                         }
                         BigButton {
                             label: "■"
+                            shape: "stop"
                             fill: "#D9485F"
                             lit: false
                             dim: !song.on
@@ -503,6 +544,7 @@ Window {
     component BigButton: Rectangle {
         id: big
         property string label
+        property string shape: "play"   // pixel art: PixelGlyph's shape instead of the label
         property color fill
         property bool lit: false
         property bool dim: false
@@ -512,9 +554,12 @@ Window {
         opacity: dim ? 0.35 : 1
         scale: bigArea.pressed ? 0.92 : bigArea.containsMouse ? 1.08 : 1
         Behavior on scale { NumberAnimation { duration: 120 } }
-        border.width: lit ? 5 : 0
+        border.width: lit && !win.pixel ? 5 : 0
         border.color: "#FFF4CF"
+        PixelFrame { visible: win.pixel; anchors.fill: parent; p: win.fu; color: big.lit ? "#FFF4CF" : Qt.darker(big.fill, 1.6) }
+        PixelGlyph { visible: win.pixel; anchors.centerIn: parent; shape: big.shape; size: big.width * 0.5; color: "white" }
         Text {
+            visible: !win.pixel
             anchors.centerIn: parent
             text: big.label
             color: "white"
@@ -594,8 +639,9 @@ Window {
             width: 380; height: col.height + 64
             scale: Math.max(1, win.height / 820)
             color: "#0B1018"
-            border.width: 1
+            border.width: win.pixel ? 0 : 1
             border.color: "#1E2A40"
+            PixelFrame { visible: win.pixel; anchors.fill: parent; p: 3; color: "#2A3852" }
             SequentialAnimation {
                 id: shake
                 NumberAnimation { target: panel; property: "anchors.horizontalCenterOffset"; to: -14; duration: 50 }
@@ -611,7 +657,7 @@ Window {
                 Text {
                     text: "AVSLUTA BARNLÄGET"
                     color: "#E6ECF5"
-                    font.family: "Chakra Petch"
+                    font.family: win.heading
                     font.weight: Font.Bold
                     font.pixelSize: 20
                     font.letterSpacing: 3
@@ -620,8 +666,8 @@ Window {
                     width: parent.width
                     text: pin.note || "Skriv PIN-koden."
                     color: pin.note ? accent.errorBright : "#8B98AD"
-                    font.family: "IBM Plex Sans"
-                    font.pixelSize: 14
+                    font.family: win.body
+                    font.pixelSize: win.pixel ? 16 : 14
                     wrapMode: Text.WordWrap
                 }
                 Row {
@@ -648,16 +694,16 @@ Window {
                             required property string modelData
                             width: (col.width - 20) / 3; height: 60
                             color: keyArea.pressed ? "#12203A" : keyArea.containsMouse ? "#0E1420" : "transparent"
-                            border.width: 1
-                            border.color: modelData === "OK" ? accent.color : "#1E2A40"
+                            border.width: win.pixel ? 2 : 1
+                            border.color: modelData === "OK" ? accent.color : win.pixel ? "#2A3852" : "#1E2A40"
                             opacity: pin.locked ? 0.4 : 1
                             Text {
                                 anchors.centerIn: parent
                                 text: key.modelData
                                 color: "#E6ECF5"
-                                font.family: key.modelData === "OK" ? "Chakra Petch" : "IBM Plex Mono"
+                                font.family: win.pixel ? pixelFont.name : key.modelData === "OK" ? "Chakra Petch" : "IBM Plex Mono"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 22
+                                font.pixelSize: win.pixel ? 26 : 22
                             }
                             MouseArea {
                                 id: keyArea
@@ -669,9 +715,25 @@ Window {
                     }
                 }
                 G.FlatButton {
+                    visible: !win.pixel
                     width: parent.width
                     text: "Avbryt"
                     onClicked: win.asking = false
+                }
+                Rectangle {   // pixel art: the same button in the pixel font (FlatButton's font is fixed)
+                    visible: win.pixel
+                    width: parent.width; height: 44
+                    color: cancelArea.pressed ? "#12203A" : cancelArea.containsMouse ? "#0E1420" : "transparent"
+                    border.width: 2
+                    border.color: cancelArea.containsMouse ? "#8B98AD" : "#2A3852"
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Avbryt"
+                        color: "#E6ECF5"
+                        font.family: pixelFont.name
+                        font.pixelSize: 18
+                    }
+                    MouseArea { id: cancelArea; anchors.fill: parent; hoverEnabled: true; onClicked: win.asking = false }
                 }
             }
         }
