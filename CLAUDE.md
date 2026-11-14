@@ -67,7 +67,7 @@ Palett: Void #07090D, Night #0E1420, Deep #12203A, Accent #2F6FED, Frost #E6ECF5
 
 ## Att göra
 - [ ] **Kakan självgående – veckans plan, punkt 0–23** – allt klart utom punkt 18 (defensiva sidan i WoW-analyserna) (ordning, vad som är byggt och vad som är kvar: grep "veckans plan" i anteckningarna).
-- [ ] **GOBLINCAKES Dashboard** – alla 4 stegen byggda 10 nov (`goblin dashboard`, vyer SPEL/JOBB, Config → DASHBOARD, upplägget Dashboard med skrivbordsraden + Meta i Config → Utseende); bara provat offscreen/attrapper – testlistor `dashboard.md`, `dashboard-steg4.md`, `dashboard-11nov.md` (ström, projekt, kvot, ramarna), `dashboard-meta.md` (Meta via KWin-skriptet + högerklick Stäng, 10 nov kväll), `dashboard-notiser.md` (NOTISER, 11 nov), `dashboard-recorder.md` (GOBLINRECORDER-ramen, 11 nov) (grep "Dashboard – bygget").
+- [ ] **GOBLINCAKES Dashboard** – alla 4 stegen byggda 10 nov (`goblin dashboard`, vyer SPEL/JOBB, Config → DASHBOARD, upplägget Dashboard med skrivbordsraden + Meta i Config → Utseende); provat på riktigt 14 nov (användaren bockade av 7 av 9 testlistor). Kvar: `dashboard-notiser.md` (NOTISER) och `dashboard-sken-kvot.md` (ikonernas sken + kvoten) (grep "Dashboard – bygget").
 - [ ] **Kakans samtal och kunskapsminne** – planeras, byggs inte förrän användaren säger det (grep "kunskapsminne" i anteckningarna).
 - [ ] **Epics launcher i Config** (väntar på paketformatet; Fortnite/EAC-krav; beredskapsplan om kärnkrav: grep "Beredskapsplan").
 - [ ] **GoblinRecorder för CS2** – byggt, deathmatch provat på riktigt. Kvar: en riktig Premier/Competitive + nedladdad demo (siffror mot Leetify, klippen, servernamnet "Valve") – grep "Leetify".
