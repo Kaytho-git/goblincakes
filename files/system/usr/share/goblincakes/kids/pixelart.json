@@ -2,7 +2,7 @@
  "_om": "Barnlägets bilder i pixelart (13 nov, stil B = Super Nintendo). goblin pixelart ritar dem med Kakan (din dator, pixelart-tillägget) och ChatGPT (Codex) – du väljer. size = pixlarna i den färdiga bilden (förstoras skarpt i barnläget); format = vad som ritas innan den städas. prompt = till Kakans ritprogram (engelska, bara motivet); order = till Codex (stilen står i ~/.codex/AGENTS.md).",
  "colors": 32,
  "items": [
-  {"id": "saturnus", "name": "Saturnus", "kind": "figur", "size": [96, 96], "format": "1:1",
+  {"id": "saturnus", "name": "Saturnus", "kind": "figur", "size": [128, 128], "format": "1:1",
    "prompt": "A cute golden planet like Saturn with soft cream and amber bands and a wide tilted ring, lit from the upper left, alone in the middle of a plain solid magenta (#FF00FF) background",
    "order": "rita figuren Saturnus – en gyllene planet med band i krämvitt och bärnsten och en bred ring som lutar lite. Bara planeten."},
   {"id": "regnbage", "name": "Regnbåge (bakgrund)", "kind": "bakgrund", "size": [256, 144], "format": "16:9",

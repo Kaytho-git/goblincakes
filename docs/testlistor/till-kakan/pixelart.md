@@ -7,7 +7,7 @@
   väntat: sista raden "@@ Klart: Pixelart (16-bit)" och kod 0
 - Kakan ritar Saturnus i pixelart (tar 1–3 min, vänta)
   kör: goblin pixelart kakan saturnus
-  väntat: en rad "✓ Saturnus: …/Bilder/Barnläge/pixelart/kakan/saturnus.png (96 × 96, … färger)". "Ett spel kör" = avsluta spelet och försök igen.
+  väntat: en rad "✓ Saturnus: …/Bilder/Barnläge/pixelart/kakan/saturnus.png (128 × 128, … färger)". "Ett spel kör" = avsluta spelet och försök igen.
 - ChatGPT ritar Saturnus
   fråga: Kör `goblin pixelart chatgpt saturnus` i en terminal. ChatGPT-appen öppnas i Codex med texten ifylld – tryck Enter där. Kom det en rad "✓ Saturnus: …/chatgpt/saturnus.png" efter att bilden ritats? (Står inte Codex vald i appens rullgardin: välj Codex och försök igen.)
 - Stilen ligger i Codex AGENTS.md
