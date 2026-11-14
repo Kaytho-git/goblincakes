@@ -814,6 +814,8 @@ Idén och besluten: grep "GOBLINCAKES Dashboard – en utökad AppGrid" (Framtid
 ## CLAUDE CODE-kartan (13 nov, användaren: lot-map – "Är det något vi skulle kunna göra själv?" → "Bygg det i dashboarden och bredvid terminalen i Goblin AI")
 
 **Provat på riktiga datorn 14 nov:** Claude Code, Codex och Kakan fungerar i kartan – användaren nöjd, avbockad i CLAUDE.md.
+
+**"KONTEXT" vid procenten (14 nov, användaren trodde det var kvoten):** ClaudeMap.qml liten text KONTEXT över procenten i mitten (Chakra Petch, core*0.17), dashboardens AI-KARTAN-kort "kontext 75 %". Procenten = senaste anropets tokens / fönstret (claudemap.py `window()`: 200k, 1M med [1m] eller > 200k sett). Provat: offscreen-rendering (texten får plats); ej sett på riktiga skärmen.
 Idén från modden lot-map (github.com/alexeyw/lot-map, MIT): en karta över vad Claude Code gör. Vi byggde en egen i
 GOBLINCAKES stil i stället för att installera modden: den kräver Claude Codes mod-stöd, ritar i en terminal bara text
 eller en bild via kitty/iTerm2-protokollet – Goblin AI:s TERMINAL (xterm.js utan bildtillägget, TERM_PROGRAM=goblin-ai)

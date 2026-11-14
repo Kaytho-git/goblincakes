@@ -319,6 +319,16 @@ Item {
         // outside its dot with what it has done (and its errors, and ×n while several run)
         Column {
             anchors.centerIn: parent
+            // "KONTEXT" over the per cent (14 Nov, the user took it for the quota): how full this session is
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: map.context > 0
+                text: "KONTEXT"
+                color: "#8B98AD"
+                font.family: "Chakra Petch"
+                font.pixelSize: Math.max(8, drawing.core * 0.17)
+                font.letterSpacing: 1
+            }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 visible: map.context > 0

@@ -1484,7 +1484,7 @@ Window {
                     title: win.claude.none ? "Ingen session ännu"
                          : ({ claude: "Claude Code", codex: "Codex", kakan: "Kakan" })[win.claude.tool] + (win.claude.tool !== "kakan" && win.claude.folder ? " · " + win.claude.folder : "")
                     line: win.claude.none ? "Claude Code, Codex eller Kakan när de jobbar" : (win.claude.now || "")
-                    side: win.claude.context ? win.claude.context + " %" : ""
+                    side: win.claude.context ? "kontext " + win.claude.context + " %" : ""
                     onClicked: backend.setMid(win.mid === "claude" ? "apps" : "claude")
                 }
             }
