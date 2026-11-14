@@ -899,6 +899,8 @@ visar ingen bild. Ingen kod är kopierad.
   (sök "placeholder"/"U=1" i dess src/kitty).
 
 ## Levande utseende – rörelse och ljus (10 nov – planerat; alla 7 stegen BYGGDA 11 nov, bara provade i molnet)
+
+**Provat på riktigt 14 nov:** användaren kör Levande i upplägget Dashboard och frun i Standard – båda nöjda, avbockad i CLAUDE.md. Lite zoomproblem i fönstren → tas i UX-optimeringen.
 **Bakgrund:** användaren tyckte att GOBLINCAKES såg lite "AI"/sterilt ut – "strukturerat och lite sterilt", alla ramar lika, inget rör sig. Inte kritik av funktionerna eller layouten (hen är mycket nöjd med dem). Beslut: **samma utseende** (palett, typsnitt, raka hörn, platt) – det levande ska komma från **rörelse och ljus**, inte ny stil. Skrivbordsrutorna ska ha **tonat glas** bakom. Mockup (godkänd: "så mycket bättre, samma känsla och utseende men naturligt"): https://claude.ai/artifact/DjWpN5mPchnvoHcopV9YFL – kopia i `docs/mockups/levande.html` (NU/LEVANDE-växlare). Månen bakom klockan i mockupens påhittade bakgrund gillades inte ("en liten sol") – borttagen; den var bara mockupens bakgrund.
 **Lärdom:** när användaren inte säger något om utseendet följer Claude designreglerna rakt av (ramar överallt, samma tyngd) – fråga om utseendet när något nytt som syns byggs.
 **Vad som ska byggas (ordning):**
