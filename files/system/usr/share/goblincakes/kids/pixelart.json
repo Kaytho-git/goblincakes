@@ -1,21 +1,186 @@
 {
- "_om": "Barnlägets bilder i pixelart (13 nov, stil B = Super Nintendo). goblin pixelart ritar dem med Kakan (din dator, pixelart-tillägget) och ChatGPT (Codex) – du väljer. size = pixlarna i den färdiga bilden (förstoras skarpt i barnläget); format = vad som ritas innan den städas. prompt = till Kakans ritprogram (engelska, bara motivet); order = till Codex (stilen står i ~/.codex/AGENTS.md).",
+ "_om": "Barnlägets bilder i pixelart (13 nov, stil B = Super Nintendo). goblin pixelart ritar dem med Kakan (din dator, pixelart-tillägget) och ChatGPT (Codex) – du väljer. size = pixlarna i den färdiga bilden (förstoras skarpt i barnläget); format = vad som ritas innan den städas. prompt = till Kakans ritprogram (engelska, bara motivet); order = till Codex (stilen står i ~/.codex/AGENTS.md). 14 nov: Kakan ritar allt (användaren valde hennes); bakgrunder 160×90 (×12 = 1920×1080 exakt, ≈ Kakans eget rutnät). Figurer ska inte vara rosa/lila (bakgrunden tas bort). Ramar, ▶/■, X, bildknappen och PIN-siffrorna görs i koden, inte här.",
  "colors": 32,
  "items": [
-  {"id": "saturnus", "name": "Saturnus", "kind": "figur", "size": [128, 128], "format": "1:1",
+  {
+   "id": "saturnus",
+   "name": "Saturnus",
+   "kind": "figur",
+   "size": [
+    128,
+    128
+   ],
+   "format": "1:1",
    "prompt": "A cute golden planet like Saturn with soft cream and amber bands and a wide tilted ring, lit from the upper left, alone in the middle of a plain solid magenta (#FF00FF) background",
-   "order": "rita figuren Saturnus – en gyllene planet med band i krämvitt och bärnsten och en bred ring som lutar lite. Bara planeten."},
-  {"id": "regnbage", "name": "Regnbåge (bakgrund)", "kind": "bakgrund", "size": [256, 144], "format": "16:9",
-   "prompt": "A cheerful landscape for a small child: a bright blue sky, a big rainbow arching from the left to the middle, rolling green hills at the bottom with small pink and yellow flowers, no sun and no clouds",
-   "order": "rita bakgrunden Regnbåge – en klarblå himmel, en stor regnbåge från vänster till mitten, böljande gröna kullar längst ner med små rosa och gula blommor. Ingen sol och inga moln (de kommer som egna figurer)."},
-  {"id": "natthimmel", "name": "Natthimmel (bakgrund)", "kind": "bakgrund", "size": [256, 144], "format": "16:9",
+   "order": "rita figuren Saturnus – en gyllene planet med band i krämvitt och bärnsten och en bred ring som lutar lite. Bara planeten."
+  },
+  {
+   "id": "splash",
+   "name": "Rymden (splashen)",
+   "kind": "bakgrund",
+   "size": [
+    160,
+    90
+   ],
+   "format": "16:9",
+   "prompt": "Deep dark space for a small child: almost black blue, soft glowing nebulae in violet, teal and rose, many tiny stars, nothing in the middle",
+   "order": "rita bakgrunden Rymden – nästan svart blå rymd, mjuka nebulosor i lila, turkos och rosa, många små stjärnor, tomt i mitten."
+  },
+  {
+   "id": "natthimmel",
+   "name": "Natthimmel (bakgrund)",
+   "kind": "bakgrund",
+   "size": [
+    160,
+    90
+   ],
+   "format": "16:9",
    "prompt": "A calm night sky for a small child: deep blue to violet, many small twinkling stars, a soft purple nebula, dark blue hills at the very bottom, no moon",
-   "order": "rita bakgrunden Natthimmel – djupblått till lila, många små stjärnor, en mjuk lila nebulosa, mörkblå kullar längst ner. Ingen måne (den kommer som egen figur)."},
-  {"id": "moln", "name": "Moln", "kind": "figur", "size": [64, 40], "format": "16:9",
-   "prompt": "One fluffy white cartoon cloud with light blue shading underneath, alone in the middle of a plain solid magenta (#FF00FF) background",
-   "order": "rita figuren Moln – ett fluffigt vitt moln med ljusblå skugga på undersidan. Bara molnet."},
-  {"id": "sol", "name": "Sol", "kind": "figur", "size": [56, 56], "format": "1:1",
+   "order": "rita bakgrunden Natthimmel – djupblått till lila, många små stjärnor, en mjuk lila nebulosa, mörkblå kullar längst ner. Ingen måne (den kommer som egen figur)."
+  },
+  {
+   "id": "havet",
+   "name": "Havet (bakgrund)",
+   "kind": "bakgrund",
+   "size": [
+    160,
+    90
+   ],
+   "format": "16:9",
+   "prompt": "Under the sea for a small child: clear blue water getting darker towards the bottom, soft rays of light from the surface, green seaweed and smooth stones along the sandy bottom, no fish and no bubbles",
+   "order": "rita bakgrunden Havet – klarblått vatten som mörknar nedåt, ljusstrimmor uppifrån, gröna sjögräs och stenar på sandbotten. Inga fiskar eller bubblor."
+  },
+  {
+   "id": "regnbage",
+   "name": "Regnbåge (bakgrund)",
+   "kind": "bakgrund",
+   "size": [
+    160,
+    90
+   ],
+   "format": "16:9",
+   "prompt": "A cheerful landscape for a small child: a bright blue sky, a big rainbow arching from the left to the middle, rolling green hills at the bottom with small pink and yellow flowers, no sun and no clouds",
+   "order": "rita bakgrunden Regnbåge – en klarblå himmel, en stor regnbåge från vänster till mitten, böljande gröna kullar längst ner med små rosa och gula blommor. Ingen sol och inga moln (de kommer som egna figurer)."
+  },
+  {
+   "id": "solnedgang",
+   "name": "Solnedgång (bakgrund)",
+   "kind": "bakgrund",
+   "size": [
+    160,
+    90
+   ],
+   "format": "16:9",
+   "prompt": "A calm sunset over the sea for a small child: the sky from deep violet at the top through pink to warm orange at the horizon, a calm dark blue sea in the lower third, no sun",
+   "order": "rita bakgrunden Solnedgång – himlen från djuplila överst via rosa till varm orange vid horisonten, ett lugnt mörkblått hav i nedre tredjedelen. Ingen sol (den kommer som egen figur)."
+  },
+  {
+   "id": "sol",
+   "name": "Sol",
+   "kind": "figur",
+   "size": [
+    56,
+    56
+   ],
+   "format": "1:1",
    "prompt": "A round smiling yellow sun with short orange rays, alone in the middle of a plain solid magenta (#FF00FF) background",
-   "order": "rita figuren Sol – en rund, glad gul sol med korta orange strålar. Bara solen."}
+   "order": "rita figuren Sol – en rund, glad gul sol med korta orange strålar. Bara solen."
+  },
+  {
+   "id": "solnedgangssol",
+   "name": "Solnedgångssol",
+   "kind": "figur",
+   "size": [
+    64,
+    64
+   ],
+   "format": "1:1",
+   "prompt": "A big round warm orange-red setting sun with a soft golden edge, no face, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Solnedgångssol – en stor rund varm orangeröd sol med mjuk guldkant. Bara solen."
+  },
+  {
+   "id": "mane",
+   "name": "Måne",
+   "kind": "figur",
+   "size": [
+    64,
+    64
+   ],
+   "format": "1:1",
+   "prompt": "A friendly pale yellow crescent moon with a few soft craters, no face, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Måne – en vänlig ljusgul månskära med några mjuka kratrar. Bara månen."
+  },
+  {
+   "id": "moln",
+   "name": "Moln",
+   "kind": "figur",
+   "size": [
+    64,
+    40
+   ],
+   "format": "16:9",
+   "prompt": "One fluffy white cartoon cloud with light blue shading underneath, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Moln – ett fluffigt vitt moln med ljusblå skugga på undersidan. Bara molnet."
+  },
+  {
+   "id": "bubbla",
+   "name": "Bubbla",
+   "kind": "figur",
+   "size": [
+    24,
+    24
+   ],
+   "format": "1:1",
+   "prompt": "One round light blue water bubble with a small white shine at the upper left, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Bubbla – en rund ljusblå vattenbubbla med en liten vit glans uppe till vänster. Bara bubblan."
+  },
+  {
+   "id": "stjarna",
+   "name": "Stjärna",
+   "kind": "figur",
+   "size": [
+    24,
+    24
+   ],
+   "format": "1:1",
+   "prompt": "One small twinkling white and pale yellow four-pointed star, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Stjärna – en liten blinkande vit och ljusgul fyruddig stjärna. Bara stjärnan."
+  },
+  {
+   "id": "gnista",
+   "name": "Gnista",
+   "kind": "figur",
+   "size": [
+    32,
+    32
+   ],
+   "format": "1:1",
+   "prompt": "One bright golden sparkle with a white center and short rays, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Gnista – en klar guldgnista med vit mitt och korta strålar. Bara gnistan."
+  },
+  {
+   "id": "ljusklot",
+   "name": "Ljusklotet",
+   "kind": "figur",
+   "size": [
+    64,
+    64
+   ],
+   "format": "1:1",
+   "prompt": "A glowing ball of warm white and golden light with small sparkles around it, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Ljusklotet – ett lysande klot av varmt vitt och guldigt ljus med små gnistor runt. Bara klotet."
+  },
+  {
+   "id": "noter",
+   "name": "Musiknoter",
+   "kind": "figur",
+   "size": [
+    64,
+    64
+   ],
+   "format": "1:1",
+   "prompt": "Two joined white music notes (beamed eighth notes) with a dark outline, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Musiknoter – två sammanbundna vita åttondelsnoter med mörk kontur. Bara noterna."
+  }
  ]
 }
