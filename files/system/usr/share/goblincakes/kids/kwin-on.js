@@ -93,13 +93,14 @@ function place(w) {
     if (w.minimized)
         w.minimized = false;
     // RetroArch (data.late, 14 Nov): its small first window is not shown – it appears once it fills the screen.
-    // Not when KWin says "full screen", nor by frameGeometry – both change at once when place() asks for full
-    // screen (tried 14 Nov: the small window and the desktop row's clock showed). bufferGeometry is what the
-    // program has really drawn: shown when that covers the screen
+    // Shown when it is really in full screen AND has drawn the whole screen (bufferGeometry = what the program
+    // drew). Measured 14 Nov with a logging script: when place() asks for full screen, RetroArch first draws
+    // 1920x1080 as an ordinary window with KWin's frame (1928x1122), and only ~0.9 s later goes full screen –
+    // frameGeometry or the buffer alone let the framed window and the desktop row's clock show
     const fills = function () {
         const g = w.bufferGeometry || w.frameGeometry;
         const o = w.output ? w.output.geometry : null;
-        return !!o && !!g && g.width >= o.width - 1 && g.height >= o.height - 1;
+        return w.fullScreen && !!o && !!g && g.width >= o.width - 1 && g.height >= o.height - 1;
     };
     if (isLate(w) && !w.fullScreen && w.fullScreenable && w.opacity > 0 && !fills()) {
         w.opacity = 0;
@@ -118,6 +119,7 @@ function place(w) {
                 main.keepAbove = false;
         };
         (w.bufferGeometryChanged || w.frameGeometryChanged).connect(function () { if (fills()) show(); });
+        w.fullScreenChanged.connect(function () { if (fills()) show(); });
         w.closed.connect(show);
     }
     // Over the panels (DockLayer) even when a game is in a window
