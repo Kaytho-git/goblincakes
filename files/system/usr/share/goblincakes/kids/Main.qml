@@ -461,7 +461,9 @@ Window {
                         Rectangle { anchors.fill: parent; anchors.margins: -8; color: "transparent"; border.width: 5; border.color: accent.color; visible: pic.on && !win.pixel }
                         Scene { anchors.fill: parent; kind: pic.modelData.id; small: true; still: true }
                         Rectangle { visible: !win.pixel; anchors.fill: parent; color: "transparent"; border.width: 3; border.color: pic.on ? "#FFF4CF" : "#2A3852" }
-                        PixelFrame { visible: win.pixel; anchors.fill: parent; p: win.fu; color: pic.on ? "#FFF4CF" : picArea.containsMouse ? "#8B98AD" : "#2A3852" }
+                        // Kakan's steel frame as on the cards; the chosen picture (or the one under the mouse) full strength
+                        CardFrame { visible: win.pixel; anchors.fill: parent; anchors.margins: -outside; unit: Math.max(1, win.fu - 1)
+                                    opacity: pic.on || picArea.containsMouse ? 1 : 0.6 }
                         MouseArea {
                             id: picArea
                             anchors.fill: parent
@@ -508,7 +510,8 @@ Window {
                         }
                         MusicArt { anchors.fill: parent; seed: song.index + 1; dancing: song.on; pixel: win.pixel; unit: win.fu }
                         Rectangle { visible: !win.pixel; anchors.fill: parent; color: "transparent"; border.width: 3; border.color: song.on ? "#FFF4CF" : "#2A3852" }
-                        PixelFrame { visible: win.pixel; anchors.fill: parent; p: win.fu; color: song.on ? "#FFF4CF" : "#2A3852" }
+                        CardFrame { visible: win.pixel; anchors.fill: parent; anchors.margins: -outside; unit: Math.max(1, win.fu - 1)
+                                    opacity: song.on ? 1 : 0.75 }
                         MouseArea {   // the picture itself starts it too
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
