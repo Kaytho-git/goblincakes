@@ -1,4 +1,4 @@
-2026-11-14  Barnläget: de fyra bakgrunderna (Natthimmel, Havet, Regnbåge, Solnedgång) är nu i pixelart som Kakan har ritat – med stjärnor, bubblor, moln och sol som rör sig.
+2026-11-14  Barnläget: bakgrunderna (Natthimmel, Havet, Regnbåge, Solnedgång) och den magiska starten är nu i pixelart som Kakan har ritat – med stjärnor, gnistor i alla färger, bubblor, moln och Saturnus.
 2026-11-14  AI-kartan: KONTEXT-procenten räknas rätt för Opus 5.5 – den visade ungefär fem gånger för mycket.
 2026-11-14  AI-kartan: det står KONTEXT över procenten i mitten – den visar hur full sessionen är, inte kvoten. Hög siffra = bra läge för /clear.
 2026-11-14  Dashboarden i Levande: ikonerna lyser när musen är över dem, utan den mörka fyrkanten runt.

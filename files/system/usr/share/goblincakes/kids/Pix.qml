@@ -5,7 +5,7 @@ import QtQuick
 Image {
     property string name
     property int unit: 1
-    source: name ? "pixelart/" + name + ".png" : ""
+    source: name ? Qt.resolvedUrl("pixelart/" + name + ".png") : ""   // from this folder, wherever it is used
     smooth: false
     mipmap: false
     width: implicitWidth * unit
