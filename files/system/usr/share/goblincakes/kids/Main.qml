@@ -1,7 +1,9 @@
 // GOBLINCAKES Barnläge (13 Nov): the whole main screen – the splash, then big pictures of his games and programs
 // (Config → BARNLÄGE), a picture button for the background and an X (top right) that asks for the PIN code.
 // The other screens get a calm night sky ("GOBLINCAKES barnläge 2" …, placed by kwin-on.js).
-// Backend: /usr/bin/goblin-kids ("backend"). Only the mouse – no gamepad (the user's choice).
+// Backend: /usr/bin/goblin-kids ("backend"). The mouse, and since 14 Nov the gamepad too (backend.pad: the stick or
+// D-pad moves the marking card to card, A = click, B = back) – only while this window is active (not during a game);
+// the X and the PIN code only with the mouse/keyboard. A soft "blipp" when a card is reached (Cori's names are gone).
 // 14 Nov: RetroDECK's games ticked in Config (only if the parent turned them on) – the "Spel" box: his covers in a
 // box of their own, a click starts the game in RetroDECK (Xbox pad; Start+Select twice = back here).
 // 14 Nov: in Kakan's pixel art (kids.json "pixelart", off = drawn as before) – her sparkles and notes, PixelFrame
@@ -36,6 +38,76 @@ Window {
     property bool leaving: false
     property bool choosing: false         // the picture chooser
     property bool asking: false           // the PIN code
+    // ── the gamepad: the marked card in the open view; padActive = the pad was used last (else the mouse shows it)
+    property int sel: -1
+    property bool padActive: false
+    property int tileSel: 0               // the card a box was opened from – marked again when it closes
+    signal padPress(string view, int index)
+    readonly property string view: gaming ? "games" : listening ? "songs" : choosing ? "pics" : "tiles"
+    onViewChanged: sel = view === "tiles" ? tileSel : (padActive ? 0 : -1)
+    onSelChanged: if (view === "tiles" && sel >= 0) tileSel = sel
+    function viewCount() {
+        return view === "games" ? retro.length : view === "songs" ? songs.length
+             : view === "pics" ? backgrounds.length : tiles.length;
+    }
+    function padButton(b) {
+        if (!win.active || !ready || leaving || asking)
+            return;
+        if (b === "b") {
+            gaming = false;
+            listening = false;
+            choosing = false;
+            return;
+        }
+        const n = viewCount();
+        if (!n)
+            return;
+        if (sel < 0 || sel >= n) {        // the first press only shows where he is
+            padActive = true;
+            sel = 0;
+            return;
+        }
+        const was = padActive;
+        padActive = true;
+        if (b === "a") {
+            padPress(view, sel);
+            return;
+        }
+        if (!was && b !== "a")            // from the mouse: the marking appears where the mouse was
+            return;
+        let next = sel;
+        if (b === "left")
+            next = sel - 1;
+        else if (b === "right")
+            next = sel + 1;
+        else if (view === "games")
+            next = gameRowStep(sel, b === "up" ? -1 : 1);
+        else if (view === "tiles" || view === "pics")
+            next = sel + (b === "up" ? -1 : 1) * (view === "tiles" ? board.fit.cols : picFlow.cols);
+        if (next >= 0 && next < n)
+            sel = next;
+    }
+    function gameRowStep(i, dir) {
+        const rows = gamesFlow.rows;
+        for (let r = 0; r < rows.length; r++) {
+            const at = rows[r].indexOf(i);
+            if (at >= 0) {
+                const to = rows[r + dir];
+                return to ? to[Math.min(at, to.length - 1)] : i;
+            }
+        }
+        return i;
+    }
+    // Scrolls a Flickable so the marked card is seen
+    function showIn(flick, item) {
+        const p = item.mapToItem(flick.contentItem, 0, 0);
+        let y = flick.contentY;
+        if (p.y < y)
+            y = p.y - 24;
+        else if (p.y + item.height > y + flick.height)
+            y = p.y + item.height - flick.height + 24;
+        flick.contentY = Math.max(0, Math.min(y, flick.contentHeight - flick.height));
+    }
     readonly property bool pixel: backend.pixelart !== false
     // one pixel of the pixel art's figures in screen pixels (as PixelScene: a quarter of the background's)
     readonly property int fu: Math.max(1, Math.round(Math.ceil(Math.max(width / 160, height / 90)) / 4))
@@ -49,6 +121,7 @@ Window {
     Connections {
         target: backend
         function onLeaving() { win.leaving = true; }
+        function onPad(b) { win.padButton(b); }
     }
 
     function rnd(i, seed) {
@@ -149,7 +222,8 @@ Window {
         property int number
         property bool shown: false
         property bool starting: false
-        readonly property bool hover: area.containsMouse && !starting
+        readonly property bool marked: win.view === "tiles" && win.sel === number
+        readonly property bool hover: (win.padActive ? marked : area.containsMouse) && !starting
         property real bob: 0
         property real pop: 0
         z: hover ? 2 : 1
@@ -378,37 +452,40 @@ Window {
             NumberAnimation { target: body; property: "rotation"; to: 0; duration: 90 }
         }
         Timer { id: startingTimer; interval: 8000; onTriggered: tile.starting = false }
-        // The mouse resting on it a moment: Cori says the name (not while the mouse just passes over)
-        Timer { id: nameTimer; interval: 400
-                onTriggered: tile.item.kind === "music" ? backend.sayMusic() : tile.item.kind === "games" ? backend.sayGames()
-                             : backend.sayName(tile.number) }
-        onHoverChanged: hover ? nameTimer.restart() : nameTimer.stop()
+        // Reached (mouse or pad): the blipp; with the pad the board scrolls to it
+        onHoverChanged: if (hover) { backend.hover(); if (win.padActive) win.showIn(flick, tile); }
+        Connections {
+            target: win
+            function onPadPress(view, index) { if (view === "tiles" && index === tile.number) tile.activate(); }
+        }
 
         MouseArea {
             id: area
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: {
-                if (tile.item.kind === "music") {
-                    backend.sound("pling");
-                    press.restart();
-                    win.listening = true;
-                    return;
-                }
-                if (tile.item.kind === "games") {
-                    backend.sound("pling");
-                    press.restart();
-                    win.gaming = true;
-                    return;
-                }
-                if (tile.starting || !backend.launch(tile.number))
-                    return;
+            onEntered: { win.padActive = false; win.sel = tile.number; }
+            onClicked: tile.activate()
+        }
+        function activate() {
+            if (tile.item.kind === "music") {
                 backend.sound("pling");
-                tile.starting = true;
                 press.restart();
-                startingTimer.restart();
+                win.listening = true;
+                return;
             }
+            if (tile.item.kind === "games") {
+                backend.sound("pling");
+                press.restart();
+                win.gaming = true;
+                return;
+            }
+            if (tile.starting || !backend.launch(tile.number))
+                return;
+            backend.sound("pling");
+            tile.starting = true;
+            press.restart();
+            startingTimer.restart();
         }
     }
 
@@ -489,6 +566,7 @@ Window {
                 width: pics.width
                 spacing: 28
                 readonly property real w: Math.max(200, Math.min(340, (pics.width - 3 * 28) / 4))
+                readonly property int cols: Math.max(1, Math.floor((width + spacing) / (w + spacing)))
                 Repeater {
                     model: win.choosing ? win.backgrounds : []
                     Item {
@@ -496,21 +574,29 @@ Window {
                         required property var modelData
                         required property int index
                         readonly property bool on: backend.background === modelData.id
+                        readonly property bool hover: win.padActive ? win.view === "pics" && win.sel === index : picArea.containsMouse
+                        onHoverChanged: if (hover) { backend.hover(); if (win.padActive) win.showIn(pics, pic); }
+                        function activate() { backend.setBackground(pic.modelData.id); backend.sound("pling"); closeChooser.restart(); }
+                        Connections {
+                            target: win
+                            function onPadPress(view, index) { if (view === "pics" && index === pic.index) pic.activate(); }
+                        }
                         width: picFlow.w; height: picFlow.w * 0.62
-                        scale: picArea.containsMouse ? 1.06 : 1
+                        scale: pic.hover ? 1.06 : 1
                         Behavior on scale { NumberAnimation { duration: 160 } }
                         Rectangle { anchors.fill: parent; anchors.margins: -8; color: "transparent"; border.width: 5; border.color: accent.color; visible: pic.on && !win.pixel }
                         Scene { anchors.fill: parent; kind: pic.modelData.id; small: true; still: true }
                         Rectangle { visible: !win.pixel; anchors.fill: parent; color: "transparent"; border.width: 3; border.color: pic.on ? "#FFF4CF" : "#2A3852" }
                         // Kakan's steel frame as on the cards; the chosen picture (or the one under the mouse) full strength
                         CardFrame { visible: win.pixel; anchors.fill: parent; anchors.margins: -outside; unit: Math.max(1, win.fu - 1)
-                                    opacity: pic.on || picArea.containsMouse ? 1 : 0.6 }
+                                    opacity: pic.on || pic.hover ? 1 : 0.6 }
                         MouseArea {
                             id: picArea
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: { backend.setBackground(pic.modelData.id); backend.sound("pling"); closeChooser.restart(); }
+                            onEntered: { win.padActive = false; win.sel = pic.index; }
+                            onClicked: pic.activate()
                         }
                     }
                 }
@@ -538,10 +624,17 @@ Window {
                     required property var modelData
                     required property int index
                     readonly property bool on: backend.playing === modelData.path
+                    readonly property bool hover: win.padActive ? win.view === "songs" && win.sel === index : songArea.containsMouse
+                    onHoverChanged: if (hover) backend.hover()
+                    function activate() { backend.sound("pling"); song.on ? backend.stopSong() : backend.playSong(song.modelData.path); }
+                    Connections {
+                        target: win
+                        function onPadPress(view, index) { if (view === "songs" && index === song.index) song.activate(); }
+                    }
                     spacing: 18
                     Item {
                         width: songRow.side; height: songRow.side
-                        scale: song.on ? 1.04 : 1
+                        scale: song.hover ? 1.07 : song.on ? 1.04 : 1
                         Behavior on scale { NumberAnimation { duration: 250 } }
                         Rectangle {
                             anchors.fill: parent; anchors.margins: -8
@@ -552,10 +645,13 @@ Window {
                         MusicArt { anchors.fill: parent; seed: song.index + 1; dancing: song.on; pixel: win.pixel; unit: win.fu }
                         Rectangle { visible: !win.pixel; anchors.fill: parent; color: "transparent"; border.width: 3; border.color: song.on ? "#FFF4CF" : "#2A3852" }
                         CardFrame { visible: win.pixel; anchors.fill: parent; anchors.margins: -outside; unit: Math.max(1, win.fu - 1)
-                                    opacity: song.on ? 1 : 0.75 }
+                                    opacity: song.on || song.hover ? 1 : 0.75 }
                         MouseArea {   // the picture itself starts it too
+                            id: songArea
                             anchors.fill: parent
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
+                            onEntered: { win.padActive = false; win.sel = song.index; }
                             onClicked: song.on ? backend.stopSong() : backend.playSong(song.modelData.path)
                         }
                     }
@@ -648,7 +744,8 @@ Window {
                                 readonly property int index: modelData
                                 readonly property var info: win.retro[modelData]
                                 property bool starting: false
-                                readonly property bool hover: gameArea.containsMouse && !starting
+                                readonly property bool hover: (win.padActive ? win.view === "games" && win.sel === game.index
+                                                                             : gameArea.containsMouse) && !starting
                                 height: gamesFlow.h
                                 width: height * Math.min(1.6, game.info.aspect || 0.72)
                                 scale: hover ? 1.06 : 1
@@ -694,20 +791,25 @@ Window {
                                 CardFrame { visible: win.pixel; anchors.fill: parent; anchors.margins: -outside; unit: Math.max(1, win.fu - 1)
                                             opacity: game.hover ? 1 : 0.8 }
                                 Timer { id: gameStarting; interval: 8000; onTriggered: game.starting = false }
-                                Timer { id: gameName; interval: 400; onTriggered: backend.sayRetro(game.index) }
-                                onHoverChanged: hover ? gameName.restart() : gameName.stop()
+                                onHoverChanged: if (hover) { backend.hover(); if (win.padActive) win.showIn(gamesFlick, game); }
+                                Connections {
+                                    target: win
+                                    function onPadPress(view, index) { if (view === "games" && index === game.index) game.activate(); }
+                                }
+                                function activate() {
+                                    if (game.starting || !backend.launchRetro(game.index))
+                                        return;
+                                    backend.sound("pling");
+                                    game.starting = true;
+                                    gameStarting.restart();
+                                }
                                 MouseArea {
                                     id: gameArea
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (game.starting || !backend.launchRetro(game.index))
-                                            return;
-                                        backend.sound("pling");
-                                        game.starting = true;
-                                        gameStarting.restart();
-                                    }
+                                    onEntered: { win.padActive = false; win.sel = game.index; }
+                                    onClicked: game.activate()
                                 }
                             }
                         }

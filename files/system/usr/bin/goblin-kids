@@ -144,21 +144,17 @@ def main():
         backgroundChanged = Signal()
         backgroundsChanged = Signal()
         leaving = Signal()
+        pad = Signal(str)          # the gamepad: "left" "right" "up" "down" "a" "b" (kids.pad_events, own thread)
 
         def __init__(self):
             super().__init__()
             self.settings = settings
-            import namnljud  # noqa: PLC0415
-            self._items = [dict(i, sound=namnljud.sound_for(i), **K.picture_for(i, download=False))
-                           for i in settings["items"]]
-            self._said = (-1, 0.0)
+            self._items = [dict(i, **K.picture_for(i, download=False)) for i in settings["items"]]
             # RetroDECK's games ticked in Config (14 Nov) – the "Spel" box; [] when turned off or the disk is missing
-            self._retro = [dict(g, sound=namnljud.sound_for(g)) for g in K.retro_games(settings)]
-            self._games_sound = str(namnljud.path_for(namnljud.GAMES_SAY)) \
-                if self._retro and namnljud.path_for(namnljud.GAMES_SAY).is_file() else ""
+            self._retro = K.retro_games(settings)
             self._songs = K.songs() if settings["music"] else []
-            self._music_sound = str(namnljud.path_for(namnljud.MUSIC_SAY)) \
-                if namnljud.path_for(namnljud.MUSIC_SAY).is_file() else ""
+            self._blipped = 0.0
+            self._blipp = K.sound("blipp")
             self.music = K.Music()
             self._playing = ""
             self._music_timer = QTimer(self, interval=1000, timeout=self._check_music)
@@ -172,6 +168,7 @@ def main():
             self._stop = threading.Event()
             self._last_launch = {}
             threading.Thread(target=self._fetch_covers, daemon=True).start()
+            threading.Thread(target=self.read_pad, daemon=True).start()
 
         def _fetch_covers(self):
             changed = False
@@ -215,14 +212,6 @@ def main():
         def stopSong(self):
             self.music.stop()
             self._check_music()
-
-        @Slot()
-        def sayMusic(self):
-            last, when = self._said
-            if not self._music_sound or (last == -2 and time.time() - when < 4):
-                return
-            self._said = (-2, time.time())
-            threading.Thread(target=K.play_file, args=(self._music_sound,), daemon=True).start()
 
         @Property(str, notify=backgroundsChanged)
         def backgrounds(self):
@@ -275,32 +264,15 @@ def main():
             return True
 
         @Slot()
-        def sayGames(self):
-            self._say(("games",), self._games_sound)
-
-        @Slot(int)
-        def sayRetro(self, index):
-            if 0 <= index < len(self._retro):
-                self._say(("retro", index), self._retro[index].get("sound"))
-
-        def _say(self, key, path):
-            last, when = self._said
-            if not path or (last == key and time.time() - when < 4):
+        def hover(self):
+            """The mouse or the pad came onto a card: a soft blipp (14 Nov – instead of Cori saying the names)."""
+            if time.time() - self._blipped < 0.06:
                 return
-            self._said = (key, time.time())
-            threading.Thread(target=K.play_file, args=(path,), daemon=True).start()
+            self._blipped = time.time()
+            threading.Thread(target=K.play_file, args=(self._blipp,), daemon=True).start()
 
-        @Slot(int)
-        def sayName(self, index):
-            """The game's name in Cori's voice (made by Config, namnljud.py) – not the same one again within 4 s."""
-            if not 0 <= index < len(self._items) or not self._items[index].get("sound"):
-                return
-            last, when = self._said
-            if last == index and time.time() - when < 4:
-                return
-            self._said = (index, time.time())
-            path = self._items[index]["sound"]
-            threading.Thread(target=K.play_file, args=(path,), daemon=True).start()
+        def read_pad(self):
+            K.pad_events(self.pad.emit, self._stop)
 
         @Slot(str)
         def sound(self, which):

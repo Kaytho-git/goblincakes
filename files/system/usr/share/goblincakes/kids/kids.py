@@ -65,7 +65,7 @@ def load_raw():
 
 
 def load():
-    """The settings; keys this version doesn't know (e.g. "chatterbox", namnljud.py) are kept."""
+    """The settings; keys this version doesn't know are kept."""
     data = load_raw()
     items = [i for i in data.get("items") or [] if isinstance(i, dict) and i.get("kind") in ("steam", "app") and i.get("id")]
     volume = data.get("volume") if data.get("volume") in VOLUMES else 80   # 80 % on master (the user 13 Nov)
@@ -685,19 +685,20 @@ def _bell(samples, rate, start, freq, length, loud):
         samples[first + i] += v * env * loud
 
 
-def _write(path, samples, rate):
+def _write(path, samples, rate, loud=0.7):
     peak = max(1e-6, max(abs(s) for s in samples))
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(rate)
-        w.writeframes(b"".join(struct.pack("<h", int(s / peak * 0.7 * 32767)) for s in samples))
+        w.writeframes(b"".join(struct.pack("<h", int(s / peak * loud * 32767)) for s in samples))
 
 
 def sound(name):
-    """The path of a sound: "magi" (the splash: a rising sparkle of bells, a chord when the stars burst)
-    or "pling" (a game chosen). Made once and kept in the cache."""
+    """The path of a sound: "magi" (the splash: a rising sparkle of bells, a chord when the stars burst),
+    "pling" (a game chosen) or "blipp" (the mouse or the pad comes onto a card – 14 Nov, instead of Cori saying
+    the names). Made once and kept in the cache."""
     path = CACHE / f"{name}-1.wav"
     if path.is_file():
         return str(path)
@@ -711,6 +712,16 @@ def sound(name):
             _bell(samples, rate, 2.55, f, 2.4, 0.32)
         for n in range(14):                                                                # the shimmer after
             _bell(samples, rate, 2.7 + n * 0.11, 2093.0 * (1.5 if n % 2 else 1.25) ** (n % 3), 0.7, 0.10)
+    elif name == "blipp":
+        # a soft little drop: a short rising sine, quiet (it is heard often), no ring after
+        samples = [0.0] * int(rate * 0.16)
+        for i in range(len(samples)):
+            t = i / rate
+            freq = 660 + 440 * min(1.0, t / 0.06)
+            env = min(1.0, t * 300) * math.exp(-t * 26)
+            samples[i] = math.sin(2 * math.pi * freq * t) * env
+        _write(path, samples, rate, loud=0.32)
+        return str(path)
     else:
         samples = [0.0] * int(rate * 0.9)
         _bell(samples, rate, 0.0, 1568.0, 0.8, 0.5)
@@ -731,6 +742,65 @@ def play_file(path):
             return
         except OSError:
             continue
+
+
+# ───────────────────────────────────────────── the gamepad (14 Nov, the user: "choose with the pad, not only the mouse")
+# Every pad's joystick device (/dev/input/js*, the logged-in user may read them), read in a thread of goblin-kids:
+# the stick or the D-pad = "left"/"right"/"up"/"down" (once per push, no repeat), A = "a", B = "b". Barnläge acts
+# on them only while its own window is active – never while a game has the pad.
+JOYSTICKS = os.environ.get("GOBLINCAKES_KIDS_JOYSTICKS") or "/dev/input/js*"   # tests: a FIFO
+JS_EVENT = struct.Struct("<IhBB")           # time, value, type (1 button, 2 axis, 0x80 = the start state), number
+PAD_BUTTONS = {0: "a", 1: "b"}               # Xbox (xpad): 0 A, 1 B
+PAD_AXES = {0: ("left", "right"), 1: ("up", "down"), 6: ("left", "right"), 7: ("up", "down")}  # stick, D-pad
+PAD_PUSH = 20000                            # of 32767 – a clear push, not a resting stick
+
+
+def pad_events(said, stop):
+    """Calls said(<word>) for each press until stop (a threading.Event) is set. New pads are found every 2 s."""
+    import glob  # noqa: PLC0415
+    import select  # noqa: PLC0415
+    open_fds, state, looked = {}, {}, 0.0
+    while not stop.is_set():
+        if time.time() - looked > 2:
+            looked = time.time()
+            for path in glob.glob(JOYSTICKS):
+                if path not in open_fds:
+                    try:
+                        open_fds[path] = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+                    except OSError:
+                        pass
+        if not open_fds:
+            stop.wait(1)
+            continue
+        ready, _, _ = select.select(list(open_fds.values()), [], [], 0.5)
+        for fd in ready:
+            path = next(p for p, f in open_fds.items() if f == fd)
+            try:
+                data = os.read(fd, JS_EVENT.size * 32)
+            except BlockingIOError:
+                continue
+            except OSError:
+                data = b""
+            if not data:                    # unplugged (or the FIFO's writer gone)
+                os.close(fd)
+                del open_fds[path]
+                continue
+            for off in range(0, len(data) - JS_EVENT.size + 1, JS_EVENT.size):
+                _, value, kind, number = JS_EVENT.unpack_from(data, off)
+                if kind & 0x80:             # the state when opened, not a press
+                    if kind & 0x02:
+                        state[(path, number)] = (value > PAD_PUSH) - (value < -PAD_PUSH)
+                    continue
+                if kind == 0x01 and value == 1 and number in PAD_BUTTONS:
+                    said(PAD_BUTTONS[number])
+                elif kind == 0x02 and number in PAD_AXES:
+                    way = (value > PAD_PUSH) - (value < -PAD_PUSH)
+                    if way and way != state.get((path, number), 0):
+                        said(PAD_AXES[number][0 if way < 0 else 1])
+                    if way or abs(value) < PAD_PUSH // 2:   # back to the middle (with a little slack)
+                        state[(path, number)] = way
+    for fd in open_fds.values():
+        os.close(fd)
 
 
 # ───────────────────────────────────────────── GOBLINCAKES' own songs (the music picture, 13 Nov)
@@ -1012,28 +1082,21 @@ def running_pid():
 # ───────────────────────────────────────────── for Config
 def info(download=False):
     settings = load()
-    import namnljud  # noqa: PLC0415
     chosen = []
     for item in settings["items"]:
         pic = picture_for(item, download)
         entry = dict(item, **pic)
-        entry["say"] = item.get("say") or namnljud.spoken(item.get("name", ""))
-        entry["sound"] = namnljud.sound_for(item)
         if item["kind"] == "steam":
             entry["overlay"] = overlay_on(item["id"])
         chosen.append(entry)
-    retro = []
-    for game in retro_games(settings) if settings["retro"] else []:
-        game["say"] = namnljud.spoken(game["name"])
-        game["sound"] = namnljud.sound_for(game)
-        retro.append(game)
+    retro = retro_games(settings) if settings["retro"] else []
     paths = retrodeck_paths()
     return {"items": chosen, "hasPin": bool(settings["pin"]), "volume": settings["volume"],
             "retrodeck": bool(paths), "retro": settings["retro"], "retroGames": retro,
             "retroChosen": settings["retro_games"],
             "music": settings["music"], "songs": songs(),
             "pictures": pictures(), "drawings": len(drawings()), "steamRunning": steam_running(),
-            "active": bool(running_pid()), "voice": namnljud.engine()}
+            "active": bool(running_pid())}
 
 
 if __name__ == "__main__":

@@ -706,8 +706,7 @@ class Config(QObject):
         try:
             d = json.loads(data)
             k = self._kids()
-            items = [dict({"kind": i["kind"], "id": i["id"], "name": i.get("name", "")},
-                          **({"say": i["say"].strip()} if i.get("say", "").strip() else {}))
+            items = [{"kind": i["kind"], "id": i["id"], "name": i.get("name", "")}
                      for i in d.get("items", []) if i.get("kind") in ("steam", "app") and i.get("id")]
             # RetroDECK's games (14 Nov): off until the parent turns them on; only the ticked ones
             retro = [{"system": str(g["system"]), "rom": str(g["rom"]), "name": str(g.get("name") or g["rom"])}
@@ -741,49 +740,6 @@ class Config(QObject):
         why = self._kids().overlay_off(appid)
         self.kidsMessage.emit(why or "Steam-överlägget är avstängt för spelet.")
         self.loadKids()
-
-    @Slot()
-    def makeKidsSounds(self):
-        """The games' names in Cori's voice (namnljud.py make – Chatterbox, else Piper); the footer follows along."""
-        if getattr(self, "_kids_sounds", None) is not None:
-            return
-        proc = QProcess(self)
-        self._kids_sounds = proc
-        proc.setProcessChannelMode(QProcess.SeparateChannels)
-
-        def line():
-            while proc.canReadLine():
-                try:
-                    d = json.loads(bytes(proc.readLine()).decode(errors="replace"))
-                except ValueError:
-                    continue
-                if d.get("state") == "making":
-                    who = "Chatterbox" if d.get("voice") == "chatterbox" else "Piper"
-                    self.kidsMessage.emit(f"Cori säger namnen ({who})… {d.get('count')} st")
-                elif d.get("state") == "fallback":
-                    self.kidsMessage.emit("Chatterbox gick inte – provar Piper…")
-                elif d.get("state") == "error":
-                    self.kidsMessage.emit(d.get("why") or "Kunde inte göra namnljuden.")
-                elif d.get("state") == "done":
-                    if not d.get("voice"):
-                        self.kidsMessage.emit("Ingen röst hittades – slå på Röst i Goblin AI (Piper) eller lägg Chatterbox-mappen på plats.")
-                    elif d.get("wanted"):
-                        ok = d.get("made") == d.get("wanted")
-                        self.kidsMessage.emit("Namnljuden är klara." if ok else f"{d.get('made')} av {d.get('wanted')} namnljud blev klara.")
-
-        def finished(*_):
-            self._kids_sounds = None
-            proc.deleteLater()
-            self.loadKids()
-        proc.readyReadStandardOutput.connect(line)
-        proc.finished.connect(finished)
-        proc.start(sys.executable, [str(KIDS_DIR / "namnljud.py"), "make"])
-
-    @Slot(str)
-    def playKidsSound(self, path):
-        if path:
-            subprocess.Popen(["pw-play", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                             start_new_session=True)
 
     @Slot()
     def startKids(self):

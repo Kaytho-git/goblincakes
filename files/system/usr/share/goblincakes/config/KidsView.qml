@@ -20,7 +20,6 @@ Flickable {
     property var info: null
     property string status: ""
     property bool adding: false
-    property string soundsTried: ""
     property string filter: ""
     readonly property var items: info ? info.items : []
     readonly property bool canStart: !!info && info.hasPin && (items.length > 0 || info.retroGames.length > 0)
@@ -71,12 +70,6 @@ Flickable {
                 return;
             }
             kidsView.info = JSON.parse(json);
-            // Name sounds missing: Cori makes them (once per set of names – not again if a voice is missing)
-            const want = kidsView.items.concat(kidsView.info.retroGames).filter(i => !i.sound).map(i => i.say).join("|");
-            if (want && kidsView.info.voice && want !== kidsView.soundsTried) {
-                kidsView.soundsTried = want;
-                backend.makeKidsSounds();
-            }
         }
         function onKidsMessage(text) { kidsView.status = text; }
     }
@@ -96,7 +89,7 @@ Flickable {
             else
                 c.retroChosen.push({ "system": g.system, "rom": g.rom, "name": g.name });
         });
-        retroReload.restart();   // Cori's names for the new ones – once the ticking stops
+        retroReload.restart();   // the "Spel" box's covers – once the ticking stops
     }
 
     Timer { id: retroReload; interval: 2500; onTriggered: backend.loadKids() }
@@ -172,14 +165,6 @@ Flickable {
                 width: parent.width
                 text: "Bara det som ligger här går att starta i barnläget. Steam-spel startas som med goblin play. Starta ett nytt spel en gång själv först – Steam kan fråga något första gången."
             }
-            Body {
-                width: parent.width
-                text: !kidsView.info ? "" : kidsView.info.voice === "chatterbox"
-                      ? "Namnen: Cori säger spelets namn när han håller musen över det (Chatterbox gör ljuden här, en gång). Ändra vad hon säger i rutan under namnet."
-                      : kidsView.info.voice === "piper"
-                      ? "Namnen: Cori säger spelets namn när han håller musen över det (Piper – Chatterbox-mappen hittades inte). Ändra vad hon säger i rutan under namnet."
-                      : "Namnen: ingen röst hittades. Slå på Röst i Goblin AI (Piper), eller sätt Chatterbox-mappen på plats – sedan säger Cori spelens namn."
-            }
             Flow {
                 width: parent.width
                 spacing: 12
@@ -191,7 +176,7 @@ Flickable {
                         required property int index
                         G.Light { hovered: cardArea.containsMouse }
                         width: 168
-                        height: 372
+                        height: 320
                         color: "#0E1420"
                         border.width: 1
                         border.color: "#1E2A40"
@@ -240,40 +225,6 @@ Flickable {
                             font.pixelSize: 12
                             elide: Text.ElideRight
                         }
-                        // What Cori says when he holds the mouse over it – ▶ plays it, the text can be changed
-                        Row {
-                            x: 12; y: cardName.y + 40
-                            spacing: 6
-                            Small {
-                                text: "▶"
-                                visible: !!card.modelData.sound
-                                onClicked: backend.playKidsSound(card.modelData.sound)
-                            }
-                            Rectangle {
-                                width: 144 - (card.modelData.sound ? 34 : 0); height: 26
-                                color: "#0B1018"
-                                border.width: 1
-                                border.color: sayInput.activeFocus ? accent.color : "#1E2A40"
-                                TextInput {
-                                    id: sayInput
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 8; anchors.rightMargin: 8
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    text: card.modelData.say || ""
-                                    color: "#E6ECF5"
-                                    font.family: "IBM Plex Sans"
-                                    font.pixelSize: 12
-                                    clip: true
-                                    selectByMouse: true
-                                    onEditingFinished: {
-                                        const t = text.trim();
-                                        if (t && t !== card.modelData.say)
-                                            kidsView.change(c => { c.items[card.index].say = t; c.items[card.index].sound = ""; });
-                                        backend.loadKids();
-                                    }
-                                }
-                            }
-                        }
                         Row {
                             x: 12
                             anchors.bottom: parent.bottom
@@ -307,7 +258,7 @@ Flickable {
                 Rectangle {
                     G.Light { hovered: addArea.containsMouse }
                     width: 168
-                    height: 372
+                    height: 320
                     color: addArea.containsMouse ? "#0E1420" : "transparent"
                     border.width: 1
                     border.color: kidsView.adding ? accent.color : "#1E2A40"

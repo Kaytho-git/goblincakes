@@ -1,3 +1,4 @@
+2026-11-14  Barnläget går att styra med handkontrollen: spaken eller styrkorset flyttar mellan korten, A väljer och B går tillbaka. Ett mjukt ljud hörs när ett kort markeras – Coris uppläsning av namnen är borttagen.
 2026-11-14  Barnläget kan visa spel från RetroDECK om du vill: slå på det i Config → BARNLÄGE och bocka i vilka spel som ska synas. Barnet får en ruta Spel med omslagen, spelar med handkontroll och kommer tillbaka med Start+Select två gånger.
 2026-11-14  AI-kartan: en ny rosa station KAKAN lyser när Claude eller Codex låter Kakan rita eller tänka åt dem.
 2026-11-14  Barnläget: spelkorten, bildväljaren och musiklådan har fått Kakans grå stålram med stora ädelstenar.

@@ -792,9 +792,11 @@ Ord: barnläge, barn, sandlåda, kids, PIN-kod barnläge, goblin barn
   Ctrl+Alt+F3, logga in, `goblin barn stopp`.
 - Steam-spel startas med `goblincakes-games run-id <appid> --kids` (som goblin play). Steam-överlägget per spel:
   OverlayAppEnable i Steams userdata/<id>/config/localconfig.vdf (kopia .goblincakes-bak när Config ändrat den).
-- Namnen (Cori säger spelets namn när musen vilar på det): ljuden i ~/.local/share/goblincakes/kids/namn/, görs av
-  `python3 /usr/share/goblincakes/kids/namnljud.py make` (Chatterbox om mappen finns, annars Piper-Cori i
-  ~/.local/share/goblincakes-voice). Vilken röst: `python3 /usr/share/goblincakes/kids/namnljud.py engine`.
+- Kontrollen (14 nov): barnläget läser alla handkontroller via /dev/input/js* (kids.pad_events i en tråd): spak/
+  styrkors flyttar markeringen, A = klick, B = tillbaka – bara när barnlägets fönster är aktivt (inte under ett spel).
+  Svarar inte kontrollen: `ls -l /dev/input/js*` (finns den, och har användaren läsrätt – ACL "+"?). Ett mjukt
+  "blipp" när musen eller kontrollen når ett kort (kids.sound("blipp"), ~/.cache/goblincakes/kids/blipp-1.wav).
+  Coris uppläsning av namnen är borttagen (14 nov) – gamla ljud kan ligga kvar i ~/.local/share/goblincakes/kids/namn/.
 - Musikbilden: GOBLINCAKES låtar (/usr/share/goblincakes/songs) spelas med ffmpeg | pw-cat (egen processgrupp,
   Stopp = TERM sedan KILL). Hörs inget: `pgrep -a pw-cat` medan en låt ska spela. Av/på i kids.json "music".
 - RetroDECK-spelen (14 nov, bara om föräldern slagit på dem): kids.json "retro": true + "retro_games"
