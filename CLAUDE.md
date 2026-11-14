@@ -28,8 +28,8 @@ Allt om frugans laptop: `~/.local/share/goblincakes/frugans-laptop.md` på anvä
 - README: bara funktioner av allmänt intresse – inget om användarens dator (skärmar, mus, tangentbord), inga självklarheter.
 
 ## När användaren hälsar ("hej" o.d.) i en ny session
-Kör `git pull`, svara med vilket steg hen är på (första ej avbockade i Status) och visa steglistan med status (klart / pågår / kvar). Kort, på svenska.
-- **Påminnelse (9 nov, användaren bad om det):** frugans laptop (Lenovo Legion Y520) har trasig skärm – fråga om hen har kollat skärmmodellen via GoblinShare och visa kommandot, köpställen och bytessteg (frugans-laptop.md, "Reparationer"). Ta bort raden när skärmen är beställd.
+Billigt (användarens beslut 14 nov): **ett** anrop, `tools/hej.sh` (pull, Pågår ur senast-gjort.txt, Fedora-kollen M17) – läs inget annat. Svara kort på svenska: vilket steg hen är på (första ej avbockade i Status), Fedora-läget (`kinoite-nvidia` 45 → säg till och fråga om hoppet) och det som väntar på hen. Hela steglistan bara när hen ber om den.
+- **Påminnelse (9 nov, användaren bad om det):** frugans laptop (Lenovo Legion Y520) har trasig skärm – fråga kort om hen har kollat skärmmodellen via GoblinShare; kommando, köpställen och bytessteg (frugans-laptop.md, "Reparationer") först när hen svarar. Ta bort raden när skärmen är beställd.
 
 ## Konventioner i koden
 - **Egna fönster** = PySide6 + QML i Configs stil (platt, raka hörn, egna komponenter utan Qt Quick Controls: FlatButton/CheckSquare/ToggleSwitch/FlatField/FlatScrollBar/Frame/FastWheel/SectionTitle/Note/Monogram ligger i `share/goblincakes/qml/Goblin` (+ `G.Light {}` först i nya ramar, `G.Backdrop {}` först i nya fönster) – `import "../qml/Goblin" as G` + en rad `component FlatButton: G.FlatButton { … }` med fönstrets mått; ändra stilen där, inte i fönstren). Varje Flickable/ListView får `FastWheel { flick: <id> }`. Varje FileDialog/FolderDialog: `onVisibleChanged: backend.sharpText()`. `QT_SCALE_FACTOR=0.9` för våra fönster, Goblin AI och Config har egen zoom (grep "Skalningen i våra fönster"). Ett fönster i taget via QLocalServer.
