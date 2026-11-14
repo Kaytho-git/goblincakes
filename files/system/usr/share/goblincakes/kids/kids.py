@@ -68,7 +68,8 @@ def load():
     items = [i for i in data.get("items") or [] if isinstance(i, dict) and i.get("kind") in ("steam", "app") and i.get("id")]
     volume = data.get("volume") if data.get("volume") in VOLUMES else 80   # 80 % on master (the user 13 Nov)
     return dict(data, items=items, pin=str(data.get("pin") or ""), volume=volume,
-                background=str(data.get("background") or "natt"), music=data.get("music") is not False)
+                background=str(data.get("background") or "natt"), music=data.get("music") is not False,
+                pixelart=data.get("pixelart") is not False)   # 14 Nov: Kakan's pixel art; "pixelart": false = drawn as before
 
 
 def save(settings):

@@ -794,7 +794,10 @@ Ord: barnläge, barn, sandlåda, kids, PIN-kod barnläge, goblin barn
 - Musikbilden: GOBLINCAKES låtar (/usr/share/goblincakes/songs) spelas med ffmpeg | pw-cat (egen processgrupp,
   Stopp = TERM sedan KILL). Hörs inget: `pgrep -a pw-cat` medan en låt ska spela. Av/på i kids.json "music".
 
-- Pixelart (13 nov, inte inbyggt i barnläget än – bilderna provritas): `goblin pixelart` →
+- Pixelart (14 nov): de fyra bakgrunderna visas i dina pixelbilder (du ritade alla 15, användaren godkände dem):
+  /usr/share/goblincakes/kids/pixelart/<id>.png, Scene.qml → PixelScene.qml (Pix.qml = skarp hel förstoring);
+  den gamla ritade versionen = DrawnScene.qml, väljs med "pixelart": false i kids.json. Splashen och rutorna
+  är inte bytta än. Rita om: `goblin pixelart` →
   /usr/libexec/goblincakes-pixelart, listan /usr/share/goblincakes/kids/pixelart.json. `kakan <id>` = du ritar med
   bildprogrammet (`goblincakes-image generate … --style pixelart`: Z-Image-Turbo + pixelart-tillägget i
   <bildmappen>/loras/, hämtas första gången), `chatgpt <id>` = Codex i ChatGPT-appen (användaren trycker Enter; stilen

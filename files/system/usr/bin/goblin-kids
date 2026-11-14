@@ -183,6 +183,10 @@ def main():
             return json.dumps(self._items, ensure_ascii=False)
 
         # ── GOBLINCAKES' songs (the music picture)
+        @Property(bool, constant=True)
+        def pixelart(self):
+            return bool(self.settings.get("pixelart", True))
+
         @Property(str, constant=True)
         def songs(self):
             return json.dumps(self._songs, ensure_ascii=False)
