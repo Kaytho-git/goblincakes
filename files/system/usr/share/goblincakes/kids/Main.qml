@@ -304,13 +304,13 @@ Window {
                     }
                 }
             }
-            // Kakan's gold frame (förslag 3, the user's choice 14 Nov), lighter while the mouse is on the card
+            // Kakan's grey steel frame with gems (the user's choice 14 Nov), lighter while the mouse is on the card
             CardFrame {
                 id: cardFrame
                 visible: win.pixel
                 anchors.fill: face
                 anchors.margins: -outside
-                unit: win.fu
+                unit: Math.max(1, win.fu - 1)
                 opacity: tile.hover ? 1 : 0.9
             }
         }
