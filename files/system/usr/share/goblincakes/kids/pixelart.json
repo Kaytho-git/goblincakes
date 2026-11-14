@@ -23,7 +23,7 @@
     90
    ],
    "format": "16:9",
-   "prompt": "Deep dark space for a small child: almost black blue, soft glowing nebulae in violet, teal and rose, many tiny stars, nothing in the middle",
+   "prompt": "Deep dark space filling the whole picture: almost black blue, a few soft round glowing clouds of violet and teal nebula near the edges, many tiny white stars, the middle dark and empty",
    "order": "rita bakgrunden Rymden – nästan svart blå rymd, mjuka nebulosor i lila, turkos och rosa, många små stjärnor, tomt i mitten."
   },
   {
@@ -35,7 +35,7 @@
     90
    ],
    "format": "16:9",
-   "prompt": "A calm night sky for a small child: deep blue to violet, many small twinkling stars, a soft purple nebula, dark blue hills at the very bottom, no moon",
+   "prompt": "A calm night sky filling the whole picture edge to edge, no border: deep blue at the top to violet at the horizon, many small twinkling stars, dark blue rolling hills along the bottom, no moon, no planet",
    "order": "rita bakgrunden Natthimmel – djupblått till lila, många små stjärnor, en mjuk lila nebulosa, mörkblå kullar längst ner. Ingen måne (den kommer som egen figur)."
   },
   {
@@ -59,7 +59,7 @@
     90
    ],
    "format": "16:9",
-   "prompt": "A cheerful landscape for a small child: a bright blue sky, a big rainbow arching from the left to the middle, rolling green hills at the bottom with small pink and yellow flowers, no sun and no clouds",
+   "prompt": "A cheerful landscape filling the whole picture: a bright blue sky with one single big clean rainbow arching from the left side to the middle, rolling green hills at the bottom with small pink and yellow flowers, no sun and no clouds",
    "order": "rita bakgrunden Regnbåge – en klarblå himmel, en stor regnbåge från vänster till mitten, böljande gröna kullar längst ner med små rosa och gula blommor. Ingen sol och inga moln (de kommer som egna figurer)."
   },
   {
@@ -95,7 +95,7 @@
     64
    ],
    "format": "1:1",
-   "prompt": "A big round warm orange-red setting sun with a soft golden edge, no face, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "prompt": "A big round warm orange and red sun with a dark red outline, no face, no stripes, alone in the middle of a plain solid magenta (#FF00FF) background",
    "order": "rita figuren Solnedgångssol – en stor rund varm orangeröd sol med mjuk guldkant. Bara solen."
   },
   {
@@ -167,7 +167,7 @@
     64
    ],
    "format": "1:1",
-   "prompt": "A glowing ball of warm white and golden light with small sparkles around it, alone in the middle of a plain solid magenta (#FF00FF) background",
+   "prompt": "A small round ball of warm white and golden light with a crisp dark golden outline and a few tiny sparkles touching it, no glow spreading into the background, alone in the middle of a plain solid magenta (#FF00FF) background",
    "order": "rita figuren Ljusklotet – ett lysande klot av varmt vitt och guldigt ljus med små gnistor runt. Bara klotet."
   },
   {
