@@ -112,6 +112,27 @@ def is_key(p):
     return a < 128 or (g < min(r, b) - 60 and abs(r - b) < 50)
 
 
+def is_halo(p):
+    """Glow that blended into the background (pinkish/purple: red and blue both above green) – only removed where
+    it is reached from the background without crossing the figure's outline."""
+    r, g, b = p[:3]
+    return r - g > 25 and b - g > 5
+
+
+def strip_halo(w, h, px):
+    todo = [i for i, p in enumerate(px) if p is None]
+    while todo:
+        nxt = []
+        for i in todo:
+            x = i % w
+            for j in (i - w if i >= w else -1, i + w if i < w * (h - 1) else -1,
+                      i - 1 if x > 0 else -1, i + 1 if x < w - 1 else -1):
+                if j >= 0 and px[j] is not None and is_halo(px[j]):
+                    px[j] = None
+                    nxt.append(j)
+        todo = nxt
+
+
 def bbox(w, h, px):
     xs = [i % w for i, p in enumerate(px) if p is not None]
     ys = [i // w for i, p in enumerate(px) if p is not None]
@@ -197,6 +218,7 @@ def clean(src, dest, tw, th, figure=False, colours=32):
     w, h, px = read_rgba(src)
     if figure:
         px = [None if is_key(p) else p for p in px]
+        strip_halo(w, h, px)
         # The figure's outermost source pixels carry a little magenta – peel off about a third of a square
         x0, y0, x1, y1 = bbox(w, h, px)
         k = max(1, round(min((x1 - x0) / tw, (y1 - y0) / th) * 0.3))
