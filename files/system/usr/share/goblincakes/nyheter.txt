@@ -1,3 +1,4 @@
+2026-11-14  AI-kartan: KONTEXT-procenten räknas rätt för Opus 5.5 – den visade ungefär fem gånger för mycket.
 2026-11-14  AI-kartan: det står KONTEXT över procenten i mitten – den visar hur full sessionen är, inte kvoten. Hög siffra = bra läge för /clear.
 2026-11-14  Dashboarden i Levande: ikonerna lyser när musen är över dem, utan den mörka fyrkanten runt.
 2026-11-14  Dashboarden: tryck på en notis som inte kommer från ett vanligt program (byggen, påminnelser, krascher, systemmeddelanden) så kollar Kakan vad den betyder. Notiser från Discord, Steam med flera öppnar programmet som förut.

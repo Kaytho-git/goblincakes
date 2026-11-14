@@ -467,7 +467,10 @@ class Session:
         self.turn_start = t
 
     def window(self):
-        return 1_000_000 if "[1m]" in self.model or self.max_tokens > 200_000 else 200_000
+        # Opus/Sonnet 5+ have 1M as standard without "[1m]" in the name (14 Nov: the map showed 24 % instead of 5 %)
+        m = re.match(r"claude-(opus|sonnet)-(\d+)", str(self.model or ""))
+        big = "[1m]" in str(self.model or "") or self.max_tokens > 200_000 or (m and int(m.group(2)) >= 5)
+        return 1_000_000 if big else 200_000
 
     def state(self, now):
         running = [dict(st=c["st"], label=c["label"], since=c["start"], src=c["src"], bg=c["bg"])
