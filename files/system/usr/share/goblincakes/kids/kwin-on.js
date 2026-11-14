@@ -32,6 +32,7 @@ function allowed(w) {
             return true;
     return !!(w.transient && w.transientFor && w.transientFor !== w && allowed(w.transientFor));
 }
+const waiting = [];     // RetroArch windows hidden until they fill the screen (place)
 function isLate(w) {
     const names = [w.desktopFileName, w.resourceClass, w.resourceName].map(function (n) {
         return low(n).replace(/\.desktop$/, "");
@@ -104,23 +105,32 @@ function place(w) {
     };
     if (isLate(w) && !w.fullScreen && w.fullScreenable && w.opacity > 0 && !fills()) {
         w.opacity = 0;
-        // Meanwhile Barnläge's own full-screen window is not the active one and drops under the panels: it is kept
-        // above until the game covers the screen (or closes)
+        // Barnläge's main window stays above and the active one meanwhile (the user 14 Nov: the desktop row's clock
+        // showed for ~0.9 s – that row shows itself when the active window doesn't cover it, and an active
+        // full-screen window is above the panels); the game is made active once it is shown
         const main = mainWindow();
-        if (main)
+        if (main) {
             main.keepAbove = true;
+            workspace.activeWindow = main;
+        }
+        waiting.push(w);
         let shown = false;
-        const show = function () {
+        const show = function (closing) {
             if (shown)
                 return;
             shown = true;
+            const at = waiting.indexOf(w);
+            if (at >= 0)
+                waiting.splice(at, 1);
             w.opacity = 1;
             if (main)
                 main.keepAbove = false;
+            if (!closing)
+                workspace.activeWindow = w;
         };
-        (w.bufferGeometryChanged || w.frameGeometryChanged).connect(function () { if (fills()) show(); });
-        w.fullScreenChanged.connect(function () { if (fills()) show(); });
-        w.closed.connect(show);
+        (w.bufferGeometryChanged || w.frameGeometryChanged).connect(function () { if (fills()) show(false); });
+        w.fullScreenChanged.connect(function () { if (fills()) show(false); });
+        w.closed.connect(function () { show(true); });
     }
     // Over the panels (DockLayer) even when a game is in a window
     w.keepAbove = true;
@@ -147,7 +157,7 @@ workspace.windowAdded.connect(function (w) {
     whenOn(function () {
         if (allowed(w)) {
             place(w);
-            if (!ours(w) && w.normalWindow)
+            if (!ours(w) && w.normalWindow && waiting.indexOf(w) < 0)
                 workspace.activeWindow = w;
         } else {
             hide(w);
@@ -161,6 +171,12 @@ workspace.windowAdded.connect(function (w) {
 workspace.windowActivated.connect(function (w) {
     if (!w)
         return;
+    if (waiting.indexOf(w) >= 0) {        // a hidden RetroArch window: Barnläge stays in front until it is shown
+        const main = mainWindow();
+        if (main)
+            workspace.activeWindow = main;
+        return;
+    }
     whenOn(function () {
         if (!allowed(w)) {
             hide(w);
