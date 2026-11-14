@@ -167,8 +167,9 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   (/usr/libexec/goblincakes-notifications watch – en D-Bus-monitor på sessionsbussen som bara läser Notify-anropen,
   svaren och NotificationClosed) sparar de 40 senaste i ~/.local/state/goblincakes/notiser.json (bara läsbar för
   användaren). Rutan visar de som fortfarande finns i Plasmas lista (inte bortklickade eller stängda av programmet);
-  tryck på en = öppna programmet (desktop-entry; Goblin AI:s egna
-  notiser saknar den → `NOTICE_ENTRY` i dash.py öppnar goblin-ai), Rensa = tömmer rutan (dashboard.json `noticesCleared`; `noticesSeen`
+  tryck på en = öppna programmet om det har ett eget fönster (synlig desktop-entry:
+  Discord, ChatGPT, Steam), annars får du notisen som fråga (`goblin-ai --ask`, `notice_question` i dash.py) – byggen,
+  påminnelser, krascher, systemnotiser – och kollar vad den innebär), Rensa = tömmer rutan (dashboard.json `noticesCleared`; `noticesSeen`
   = när den öppnades). Kolla: `systemctl --user status goblincakes-notifications`, `/usr/libexec/goblincakes-notifications list`,
   `python3 /usr/share/goblincakes/dashboard/dash.py notices`. "Notiserna läses inte" i rutan = filen saknas (tjänsten
   har aldrig kört). Prova: `notify-send Test hej` – ska komma överst i rutan.

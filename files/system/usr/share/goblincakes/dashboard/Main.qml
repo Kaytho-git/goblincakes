@@ -915,8 +915,9 @@ Window {
                         hoverEnabled: true
                         enabled: !!modelData.act
                         cursorShape: Qt.PointingHandCursor
-                        // urklipp: copy; notiser: open the program that sent it
-                        onClicked: modelData.act === "open" ? backend.launch(modelData.text) : backend.copyClip(modelData.text)
+                        // urklipp: copy; notiser: open the program that sent it, or Kakan checks what it means
+                        onClicked: modelData.act === "open" ? backend.launch(modelData.text)
+                                   : modelData.act === "ask" ? backend.askKakan(modelData.text) : backend.copyClip(modelData.text)
                     }
                 }
             }

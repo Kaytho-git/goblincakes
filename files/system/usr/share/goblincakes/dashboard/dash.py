@@ -103,8 +103,14 @@ def apps():
     return sorted(found.values(), key=lambda a: a["name"].lower())
 
 
-# NOTISER: senders without a desktop entry in the notice → the program a click opens
-NOTICE_ENTRY = {"Goblin AI": "goblin-ai"}
+# NOTISER (14 Nov, the user: "Kakan skulle kolla vad notisen innebar"): a notice from a program with a window of its
+# own (Discord, ChatGPT, Steam – a shown desktop entry) opens that program; every other one (Goblin AI's builds and
+# reminders, crashes, Flatpak, kded6's system notices) goes to Kakan as a question – goblin-ai --ask.
+def notice_question(app, summary, body, when):
+    text = " – ".join(x for x in (summary, body) if x)
+    return (f"Jag tryckte på en notis i dashboarden (från {app or 'okänt program'}, {when}):\n\"{text}\"\n\n"
+            "Kolla vad den innebär med dina verktyg (byggstatus för byggen, systemfel och loggen för krascher och "
+            "systemmeddelanden) och förklara kort på vanlig svenska vad den betyder och om jag behöver göra något.")
 
 
 def start(cmd, name, cwd=None):
@@ -869,15 +875,17 @@ def tray(name):
                 rows.append({"a": parts[2], "b": "ansluten"})
         rows = rows or [{"a": "Bluetooth", "b": "på – inget anslutet" if powered else "av"}]
     elif name == "notiser":
+        shown = {a["id"] for a in apps()}
         for r in _notice_rows()[:12]:
-            # Goblin AI's notices (notify-send/reminders) carry no desktop entry – a click opens Goblin AI anyway
-            entry = r.get("entry") or NOTICE_ENTRY.get(r.get("app") or "", "")
-            app = r.get("app") or r.get("entry") or ""
+            entry = r.get("entry") or ""
+            app = r.get("app") or entry
             app = app[:1].upper() + app[1:]
             body = r.get("body") or ""
+            own = entry + ".desktop" in shown
             rows.append({"a": r.get("summary") or body or app, "b": clock(r.get("time")),
                          "c": " · ".join(x for x in (app, body if r.get("summary") else "") if x),
-                         "act": "open" if entry else "", "text": entry})
+                         "act": "open" if own else "ask",
+                         "text": entry if own else notice_question(app, r.get("summary") or "", body, clock(r.get("time")))})
         if not rows:
             rows = [{"a": "Inga notiser", "b": ""}] if NOTICES.exists() else [
                 {"a": "Notiserna läses inte", "b": "", "c": "Tjänsten goblincakes-notifications kör inte"}]

@@ -518,6 +518,16 @@ class Backend(QObject):
             self.hideWanted.emit()
 
     @Slot(str)
+    def askKakan(self, question):
+        """NOTISER: a notice without a program of its own → Kakan checks what it means (a new chat, goblin-ai --ask)."""
+        try:
+            dash.start(["goblin-ai", "--ask", question], "goblin-ai")
+        except OSError as e:
+            self.said.emit(f"Kunde inte starta Goblin AI: {e}")
+            return
+        self.hideWanted.emit()
+
+    @Slot(str)
     def activate(self, window_id):
         self.kwin.run({"mode": "activate", "id": window_id})
         self.hideWanted.emit()
