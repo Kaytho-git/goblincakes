@@ -95,7 +95,22 @@ function place(w) {
     // RetroArch (data.late, 14 Nov): its small first window is not shown – it appears once it fills the screen
     if (isLate(w) && !w.fullScreen && w.fullScreenable && w.opacity > 0) {
         w.opacity = 0;
-        w.fullScreenChanged.connect(function () { if (w.fullScreen) w.opacity = 1; });
+        // Meanwhile Barnläge's own full-screen window is not the active one, so it drops under the panels – the
+        // clock showed (the user 14 Nov): it is kept above until the game fills the screen (or closes)
+        const main = mainWindow();
+        if (main)
+            main.keepAbove = true;
+        let shown = false;
+        const show = function () {
+            if (shown)
+                return;
+            shown = true;
+            w.opacity = 1;
+            if (main)
+                main.keepAbove = false;
+        };
+        w.fullScreenChanged.connect(function () { if (w.fullScreen) show(); });
+        w.closed.connect(show);
     }
     // Over the panels (DockLayer) even when a game is in a window
     w.keepAbove = true;
