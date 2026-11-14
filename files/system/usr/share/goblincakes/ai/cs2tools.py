@@ -14,17 +14,18 @@ sys.path.insert(0, os.environ.get("GOBLINCAKES_RECORDER_SHARE", "/usr/share/gobl
 import recorder as R  # noqa: E402
 
 DEFAULT_COUNT = 10
-# Rough guide values for an ordinary matchmaking player (not Leetify's – TTD and sikte are our own
-# approximate measures and not exactly comparable with other sites)
+# Rough guide values for an ordinary matchmaking player (not Leetify's). Compared with Leetify on two
+# Premier matches 15 Nov: K/D, ADR, KAST, HS match; TTD and sikte (mean) land near Leetify's level;
+# first shot, spray and counter-strafe are measured differently (ours lower) – compare over time only
 GUIDE = """Ungefärliga riktvärden för en vanlig matchmaking-spelare (inte exakta, bara för jämförelse):
 - K/D ~1,0 · ADR ~75 (80+ bra, 90+ mycket bra) · KAST ~70 % (75+ bra) · HS ~40–50 %
 - Entry: ungefär lika många vunna som förlorade är normalt
 - TTD (time to damage, GOBLINCAKES egen uppskattning) ~500–650 ms, under 450 ms snabbt
-- Sikte (crosshair placement, grader från huvudet när fienden syntes, egen uppskattning) ~5–8°, under 4° bra
+- Sikte (crosshair placement, snitt av grader från huvudet när fienden syntes, egen uppskattning) ~8–12°, under 7° bra
 - Reaktion (från att fienden syns till första skottet, egen uppskattning) ~400–500 ms, under 350 ms snabbt
-- Första skottet träffar (när en fiende syns, egen uppskattning) ~20–35 %, 40+ bra
-- Spray (kula 4 och framåt som träffar, gevär/k-pistar, egen uppskattning) ~15–25 %, 30+ bra
-- Counter-strafe (första skottet avlossat nästan stilla) ~60–75 %, 80+ bra
+- Första skottet, spray och counter-strafe är GOBLINCAKES egen mätning och blir lägre än på Leetify –
+  jämför dem bara med användarens egna tidigare matcher (bättre eller sämre än snittet), inte med riktvärden
+  eller Leetify. Ungefär: första skottet ~20–30 %, spray ~15–25 %, counter-strafe ~40–60 %
 - Träffsäkerhet med gevär (AK-47/M4) ~15–25 % (allt skjutande räknas, även spray)
 - Flash: några bländade fiender per match är bra; många bländade lagkamrater = kasta om"""
 

@@ -458,16 +458,16 @@ Window {
                          "Time to damage: från att du kunde se fienden till din första skada på honom (median av "
                          + (ds.s.ttdCount || 0) + " gånger). Ungefärligt: väggar och smokes räknas, inte flashar."],
                         ["SIKTE", ds.s.cp === undefined || ds.s.cp === null ? "–" : win.num(ds.s.cp) + "°",
-                         "Crosshair placement: hur långt från fiendens huvud siktet var när du kunde se honom (median av "
+                         "Crosshair placement: hur långt från fiendens huvud siktet var när du kunde se honom (snitt av "
                          + (ds.s.cpCount || 0) + " gånger) – lägre är bättre. Ungefärligt: väggar och smokes räknas, inte flashar."],
                         ["REAKTION", win.ms(ds.s.reaction), "Från att du kunde se fienden till ditt första skott (median av "
                          + (ds.s.reactionCount || 0) + " gånger) – lägre är bättre."],
                         ["1:A SKOTTET", win.pct(ds.s.firstShot), "Första kulan träffar – av " + (ds.s.firstShots || 0)
-                         + " första skott när en fiende syntes."],
+                         + " första skott när en fiende syntes. Egen mätning – jämför med dig själv över tid, inte med Leetify."],
                         ["SPRAY", win.pct(ds.s.spray), "Spray control: kula 4 och framåt som träffar (gevär/k-pistar) – av "
-                         + (ds.s.sprayShots || 0) + " skott."],
+                         + (ds.s.sprayShots || 0) + " skott. Egen mätning – jämför med dig själv över tid, inte med Leetify."],
                         ["STRAFE", win.pct(ds.s.strafe), "Counter-strafe: första skottet avlossat så stilla att det var träffsäkert "
-                         + "(under 34 % av vapnets fart)."]]
+                         + "(under 34 % av vapnets fart). Egen mätning – jämför med dig själv över tid, inte med Leetify."]]
                 Rectangle {
                     G.Light {}
                     required property var modelData
@@ -2995,9 +2995,9 @@ Window {
                 StatTile { label: "TTD"; value: parent.a.ttd ? Math.round(parent.a.ttd) + " ms" : "–"; now: parent.n.ttd; before: parent.b.ttd; lowerBetter: true; tip: "Time to damage (ungefärlig), snitt av matchernas median (demon) – lägre är bättre." }
                 StatTile { label: "SIKTE"; value: parent.a.cp ? win.num(parent.a.cp.toFixed(1)) + "°" : "–"; now: parent.n.cp; before: parent.b.cp; lowerBetter: true; tip: "Crosshair placement (ungefärlig, demon) – lägre är bättre." }
                 StatTile { label: "REAKTION"; value: win.ms(parent.a.reaction); now: parent.n.reaction; before: parent.b.reaction; lowerBetter: true; tip: "Från att du kunde se fienden till ditt första skott (demon) – lägre är bättre." }
-                StatTile { label: "1:A SKOTTET"; value: win.pct(parent.a.firstShot); now: parent.n.firstShot; before: parent.b.firstShot; tip: "Första kulan träffar när en fiende syns (demon)." }
-                StatTile { label: "SPRAY"; value: win.pct(parent.a.spray); now: parent.n.spray; before: parent.b.spray; tip: "Spray control: kula 4 och framåt som träffar, gevär och k-pistar (demon)." }
-                StatTile { label: "COUNTER-STRAFE"; value: win.pct(parent.a.strafe); now: parent.n.strafe; before: parent.b.strafe; tip: "Första skottet avlossat så stilla att det var träffsäkert, under 34 % av vapnets fart (demon)." }
+                StatTile { label: "1:A SKOTTET"; value: win.pct(parent.a.firstShot); now: parent.n.firstShot; before: parent.b.firstShot; tip: "Första kulan träffar när en fiende syns (demon). Egen mätning – jämför med dig själv över tid, inte med Leetify." }
+                StatTile { label: "SPRAY"; value: win.pct(parent.a.spray); now: parent.n.spray; before: parent.b.spray; tip: "Spray control: kula 4 och framåt som träffar, gevär och k-pistar (demon). Egen mätning – jämför med dig själv över tid, inte med Leetify." }
+                StatTile { label: "COUNTER-STRAFE"; value: win.pct(parent.a.strafe); now: parent.n.strafe; before: parent.b.strafe; tip: "Första skottet avlossat så stilla att det var träffsäkert, under 34 % av vapnets fart (demon). Egen mätning – jämför med dig själv över tid, inte med Leetify." }
                 StatTile { label: "ENTRY / MATCH"; value: win.num(parent.p.entryWon) + "–" + win.num(parent.p.entryLost); now: parent.n.entryWon; before: parent.b.entryWon; tip: "Rundans första kill: vunna–förlorade per match (demon). Pilen: vunna." }
                 StatTile { label: "TRADES / MATCH"; value: win.num(parent.p.trades); now: parent.n.trades; before: parent.b.trades; tip: "Du hämnades en lagkamrat inom 5 s (demon)." }
                 StatTile { label: "CLUTCH / MATCH"; value: win.num(parent.p.clutchWon) + "/" + win.num(parent.p.clutches); now: parent.n.clutchWon; before: parent.b.clutchWon; tip: "1vX vunna av alla, per match (demon). Pilen: vunna." }

@@ -65,7 +65,6 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - [ ] **GOBLINCAKES Dashboard** – byggd och provad 14 nov; kvar testlistorna `dashboard-notiser.md` och `dashboard-sken-kvot.md` (grep "Dashboard – bygget").
 - [ ] **Kakans samtal och kunskapsminne** – planeras, byggs inte förrän användaren säger det (grep "kunskapsminne").
 - [ ] **Epics launcher i Config** – väntar på paketformatet (grep "Beredskapsplan").
-- [ ] **GoblinRecorder för CS2** – kvar: en riktig Premier/Competitive + nedladdad demo (grep "Leetify").
 - [ ] **Offhand – WoW över två skärmar** – nästa: prova i Forever (grep "Offhand").
 - [ ] **Barnläge** – byggt 13 nov, testlista `barnlage.md` (grep "Barnläge").
 - [ ] **RetroDECK i barnläget** – byggt 14 nov (valfritt i Config), testlista `barnlage-retrodeck.md` (grep "RetroDECK i barnläget").

@@ -1800,7 +1800,8 @@ def _seg_dist(a, b, c):
 
 
 def cs2_demo_aim(dem, raw, a, me):
-    """{"ttd": ms (median), "cp": degrees (median), and how many encounters each} or {}."""
+    """{"ttd": ms (median), "cp": degrees (mean – 15 Nov, compared with Leetify on two Premier matches:
+    the median came out ~5° for everyone, the mean is close to Leetify's level), and how many encounters each} or {}."""
     official = raw["map"] and not raw["map"].startswith("workshop/")
     mesh = (cs2_map_mesh(raw["map"]) if official else None) or cs2_workshop_mesh(raw.get("addons", ""), raw["map"])
     if not mesh:
@@ -1888,7 +1889,7 @@ def cs2_demo_aim(dem, raw, a, me):
     if cur is not None:
         tick_done(cur, rows)
     return {"ttd": round(statistics.median(ttd)) if ttd else None, "ttdCount": len(ttd),
-            "cp": round(statistics.median(cp), 1) if cp else None, "cpCount": len(cp),
+            "cp": round(statistics.fmean(cp), 1) if cp else None, "cpCount": len(cp),
             "reaction": round(statistics.median(react)) if react else None, "reactionCount": len(react),
             **cs2_demo_shots(raw, me, fight)}
 
