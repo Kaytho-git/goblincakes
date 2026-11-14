@@ -92,11 +92,18 @@ function place(w) {
     }
     if (w.minimized)
         w.minimized = false;
-    // RetroArch (data.late, 14 Nov): its small first window is not shown – it appears once it fills the screen
-    if (isLate(w) && !w.fullScreen && w.fullScreenable && w.opacity > 0) {
+    // RetroArch (data.late, 14 Nov): its small first window is not shown – it appears once it fills the screen.
+    // Not when KWin says "full screen" (that is at once, place() asks for it) – when the window really covers its
+    // screen: RetroArch takes a moment to grow, and until then its small window and the panel's clock showed (14 Nov)
+    const fills = function () {
+        const g = w.frameGeometry;
+        const o = w.output ? w.output.geometry : null;
+        return !!o && g.width >= o.width && g.height >= o.height;
+    };
+    if (isLate(w) && !w.fullScreen && w.fullScreenable && w.opacity > 0 && !fills()) {
         w.opacity = 0;
-        // Meanwhile Barnläge's own full-screen window is not the active one, so it drops under the panels – the
-        // clock showed (the user 14 Nov): it is kept above until the game fills the screen (or closes)
+        // Meanwhile Barnläge's own full-screen window is not the active one and drops under the panels: it is kept
+        // above until the game covers the screen (or closes)
         const main = mainWindow();
         if (main)
             main.keepAbove = true;
@@ -109,7 +116,7 @@ function place(w) {
             if (main)
                 main.keepAbove = false;
         };
-        w.fullScreenChanged.connect(function () { if (w.fullScreen) show(); });
+        w.frameGeometryChanged.connect(function () { if (fills()) show(); });
         w.closed.connect(show);
     }
     // Over the panels (DockLayer) even when a game is in a window
