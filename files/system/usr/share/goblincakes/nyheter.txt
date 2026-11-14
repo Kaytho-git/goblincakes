@@ -1,3 +1,4 @@
+2026-11-14  Dashboarden i Levande: ikonerna lyser när musen är över dem, utan den mörka fyrkanten runt.
 2026-11-14  Dashboarden: tryck på en notis som inte kommer från ett vanligt program (byggen, påminnelser, krascher, systemmeddelanden) så kollar Kakan vad den betyder. Notiser från Discord, Steam med flera öppnar programmet som förut.
 2026-11-13  GoblinAmp: högerklicka på en Spotify-låt och välj Gå till artisten eller Gå till albumet.
 2026-11-13  Goblin AI kan rita pixelart på din dator – be om en bild "i pixelart". Med goblin pixelart ritar Kakan och ChatGPT samma bilder till barnläget så du kan välja den finaste.

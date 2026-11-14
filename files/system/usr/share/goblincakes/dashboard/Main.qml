@@ -13,6 +13,8 @@ Window {
     id: win
     title: "GOBLINCAKES Dashboard"
     color: "#07090D"
+    // Stil: Levande – the icons glow under the mouse instead of the hover square (14 Nov: the square looked like a frame round the glow)
+    readonly property bool living: typeof look !== "undefined" && !!look && look.living === true
     flags: Qt.Window | Qt.FramelessWindowHint
     width: 1920
     height: 1080
@@ -1832,7 +1834,7 @@ Window {
                             anchors.fill: parent
                             anchors.margins: 3
                             readonly property bool marked: cell.index === win.sel && search.text !== ""
-                            color: cellArea.containsMouse || marked ? "#12203A" : "transparent"
+                            color: (cellArea.containsMouse && !win.living) || marked ? "#12203A" : "transparent"
                             border.width: marked ? 1 : 0
                             border.color: accent.color
                         }
@@ -3189,7 +3191,7 @@ Window {
                     required property var modelData
                     width: 72
                     height: 56
-                    color: ownArea.containsMouse ? "#12203A" : "transparent"
+                    color: ownArea.containsMouse && !win.living ? "#12203A" : "transparent"
                     AppIcon {
                         y: 4
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -3230,7 +3232,7 @@ Window {
                     required property var modelData
                     width: 84
                     height: 88
-                    color: dockArea.containsMouse ? "#12203A" : "transparent"
+                    color: dockArea.containsMouse && !win.living ? "#12203A" : "transparent"
                     AppIcon {
                         y: 6
                         anchors.horizontalCenter: parent.horizontalCenter
