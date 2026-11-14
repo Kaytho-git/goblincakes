@@ -810,6 +810,8 @@ Idén och besluten: grep "GOBLINCAKES Dashboard – en utökad AppGrid" (Framtid
 - **Felnotisen om klockan (12 nov):** efterkollen sa "1 sak gick sönder" (widgeten org.goblincakes.deskclock, ClockBox.qml:125 "Cannot specify … anchors for items inside Row") – main.qml lägger ToolTipArea med anchors.fill i `leftItem`/`rightItem`, som var Row:er → varningen vid varje ändring i batterilistan och batteriernas tooltip täckte inte. Nu är leftBatteries/rightBatteries ett Item runt en Row. Provat offscreen (gammal varnar, ny tyst, överlägg täcker batterierna) och på riktiga datorn (kopian i ~/.local/share/plasma/plasmoids, plasmashell omstartad: ingen varning). Tooltipen med musen ej provad. NOTISER: rader utan desktop-entry från "Goblin AI" öppnar goblin-ai (`NOTICE_ENTRY` i dash.py).
 
 ## CLAUDE CODE-kartan (13 nov, användaren: lot-map – "Är det något vi skulle kunna göra själv?" → "Bygg det i dashboarden och bredvid terminalen i Goblin AI")
+
+**Provat på riktiga datorn 14 nov:** Claude Code, Codex och Kakan fungerar i kartan – användaren nöjd, avbockad i CLAUDE.md.
 Idén från modden lot-map (github.com/alexeyw/lot-map, MIT): en karta över vad Claude Code gör. Vi byggde en egen i
 GOBLINCAKES stil i stället för att installera modden: den kräver Claude Codes mod-stöd, ritar i en terminal bara text
 eller en bild via kitty/iTerm2-protokollet – Goblin AI:s TERMINAL (xterm.js utan bildtillägget, TERM_PROGRAM=goblin-ai)
