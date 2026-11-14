@@ -181,6 +181,18 @@
    "format": "1:1",
    "prompt": "Two joined white music notes (beamed eighth notes) with a dark outline, alone in the middle of a plain solid magenta (#FF00FF) background",
    "order": "rita figuren Musiknoter – två sammanbundna vita åttondelsnoter med mörk kontur. Bara noterna."
+  },
+  {
+   "id": "ram",
+   "name": "Ram runt spelkorten",
+   "kind": "figur",
+   "size": [
+    128,
+    128
+   ],
+   "format": "1:1",
+   "prompt": "A square ornate picture frame for a video game menu, a thick shiny golden border with a dark outline and a small round gem in each of the four corners (blue, green, red and yellow), simple and symmetrical, straight even sides, the whole inside of the frame empty and filled with plain solid magenta (#FF00FF), alone in the middle of a plain solid magenta (#FF00FF) background",
+   "order": "rita figuren Ram – en kvadratisk guldram till en spelmeny med mörk kontur och en liten rund ädelsten i varje hörn (blå, grön, röd, gul), raka jämna sidor, insidan tom (magenta)."
   }
  ]
 }

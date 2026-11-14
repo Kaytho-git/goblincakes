@@ -85,7 +85,7 @@ Window {
         anchors.bottomMargin: parent.height * 0.05
         visible: win.ready
 
-        readonly property int gap: Math.max(24, width * 0.025)
+        readonly property int gap: Math.max(24, width * 0.025) + (win.pixel ? Math.round(10 * win.fu * 0.9) : 0)   // + the gold frames reaching out
         readonly property real ratio: 1.5      // Steam's covers: 600 × 900
         readonly property real minW: 140
         // The biggest pictures that fit; under minW they keep minW and the board scrolls
@@ -304,7 +304,15 @@ Window {
                     }
                 }
             }
-            PixelFrame { visible: win.pixel; anchors.fill: face; p: win.fu; color: tile.hover ? "#FFF4CF" : "#2A3852" }
+            // Kakan's gold frame (förslag 3, the user's choice 14 Nov), lighter while the mouse is on the card
+            CardFrame {
+                id: cardFrame
+                visible: win.pixel
+                anchors.fill: face
+                anchors.margins: -outside
+                unit: win.fu
+                opacity: tile.hover ? 1 : 0.9
+            }
         }
 
         // the burst when clicked
