@@ -32,6 +32,16 @@ function allowed(w) {
             return true;
     return !!(w.transient && w.transientFor && w.transientFor !== w && allowed(w.transientFor));
 }
+function isLate(w) {
+    const names = [w.desktopFileName, w.resourceClass, w.resourceName].map(function (n) {
+        return low(n).replace(/\.desktop$/, "");
+    });
+    const late = data.late || [];
+    for (let i = 0; i < late.length; i++)
+        if (names.indexOf(late[i]) >= 0)
+            return true;
+    return false;
+}
 // Windows a child could use: ordinary windows and dialogs (not panels, the desktop, notifications, OSDs)
 function managed(w) {
     return !!w && (w.normalWindow || w.dialog) && !w.desktopWindow && !w.dock;
@@ -82,6 +92,11 @@ function place(w) {
     }
     if (w.minimized)
         w.minimized = false;
+    // RetroArch (data.late, 14 Nov): its small first window is not shown – it appears once it fills the screen
+    if (isLate(w) && !w.fullScreen && w.fullScreenable && w.opacity > 0) {
+        w.opacity = 0;
+        w.fullScreenChanged.connect(function () { if (w.fullScreen) w.opacity = 1; });
+    }
     // Over the panels (DockLayer) even when a game is in a window
     w.keepAbove = true;
     if (target && w.output !== target && !w.transient)

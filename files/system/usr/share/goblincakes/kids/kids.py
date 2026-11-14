@@ -283,7 +283,18 @@ ES_SYSTEMS = "retrodeck/components/es-de/share/es-de/resources/systems/linux/es_
 # Barnläge, the whole screen, and nothing saved into the parent's RetroArch settings
 RETRO_SETTINGS = {"kiosk_mode_enable": "true", "config_save_on_exit": "false", "video_fullscreen": "true",
                   "input_menu_toggle_gamepad_combo": "0", "input_menu_toggle": "nul",
-                  "input_quit_gamepad_combo": "4", "quit_press_twice": "true"}
+                  "input_quit_gamepad_combo": "4", "quit_press_twice": "true",
+                  # 14 Nov: none of RetroArch's corner messages ("X-Box pad not configured …"). Its small first
+                  # window (the user: "you have time to see RetroDECK's window") is hidden by kwin-on.js ("late") –
+                  # video_window_show_decorations false did nothing on Wayland (tried)
+                  "notification_show_autoconfig": "false",
+                  "notification_show_autoconfig_fails": "false", "notification_show_config_override_load": "false",
+                  "notification_show_remap_load": "false", "notification_show_refresh_rate": "false",
+                  "notification_show_patch_applied": "false", "notification_show_cheats_applied": "false",
+                  "notification_show_fast_forward": "false", "notification_show_disk_control": "false",
+                  "notification_show_set_initial_disk": "false", "notification_show_save_state": "false",
+                  "notification_show_screenshot": "false"}
+RETROARCH_CFG = HOME / ".var/app/net.retrodeck.retrodeck/config/retroarch/retroarch.cfg"
 GENRES = {"platform": "Plattform", "role playing game": "Rollspel", "action rpg": "Rollspel", "tactical rpg": "Rollspel",
           "strategy": "Strategi", "adventure": "Äventyr", "puzzle": "Pussel", "thinking": "Pussel", "racing": "Racing",
           "racing tpv": "Racing", "sports": "Sport", "fighting": "Fighting", "beat'em up": "Beat 'em up",
@@ -460,6 +471,15 @@ def retro_command(game):
                 or (system["commands"][0][1] if system["commands"] else ""))
     if not template:
         return ["flatpak", "run", RETRODECK_ID, str(rom)]
+    # run_game.sh leaves %CORE_RETROARCH% empty on the command line ("-L /snes9x_libretro.so" – RetroArch then
+    # hunts for the core itself): RetroArch's own core folder from its settings instead
+    if "%CORE_RETROARCH%" in template:
+        try:
+            m = re.search(r'^libretro_directory\s*=\s*"([^"]+)"', RETROARCH_CFG.read_text(errors="replace"), re.M)
+        except OSError:
+            m = None
+        if m:
+            template = template.replace("%CORE_RETROARCH%", m.group(1))
     if template.startswith("%EMULATOR_RETROARCH%"):
         RETRO_CFG.parent.mkdir(parents=True, exist_ok=True)
         RETRO_CFG.write_text("".join(f'{k} = "{v}"\n' for k, v in RETRO_SETTINGS.items()))
@@ -1013,7 +1033,9 @@ def lock(settings, service):
     write_state(state)
     # The window script first (13 Nov): until it has placed the windows the main screen may be uncovered,
     # and the tray panel could be reached from the top edge
-    if kwin_load(KWIN_SCRIPT, "kwin-on.js", {"service": service, "allowed": state["allowed"]}):
+    # RetroArch's window is shown only once it fills the screen (its small first window flashed by – 14 Nov)
+    late = RETRO_WINDOWS if retro_games(settings, with_pictures=False) else []
+    if kwin_load(KWIN_SCRIPT, "kwin-on.js", {"service": service, "allowed": state["allowed"], "late": late}):
         state["parts"].append("kwin")
     write_state(state)
     kwin_rule(True)

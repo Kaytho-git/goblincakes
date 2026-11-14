@@ -23,6 +23,8 @@ for (let i = 0; i < list.length; i++) {
     }
     if (played(w) && w.keepAbove)
         w.keepAbove = false;
+    if (played(w) && w.opacity === 0)       // RetroArch hidden until full screen (kwin-on.js) – seen again
+        w.opacity = 1;
 }
 if (last)
     workspace.activeWindow = last;
