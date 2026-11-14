@@ -1,3 +1,5 @@
+2026-11-14  AI-kartan: en ny rosa station KAKAN lyser när Claude eller Codex låter Kakan rita eller tänka åt dem.
+2026-11-14  Barnläget: spelkorten, bildväljaren och musiklådan har fått Kakans grå stålram med stora ädelstenar.
 2026-11-14  Barnläget är nu i pixelart som Kakan har ritat: bakgrunderna, den magiska starten, rutorna, musiken och knapparna – med stjärnor, gnistor i alla färger, bubblor, moln, Saturnus och pixeltypsnitt.
 2026-11-14  AI-kartan: KONTEXT-procenten räknas rätt för Opus 5.5 – den visade ungefär fem gånger för mycket.
 2026-11-14  AI-kartan: det står KONTEXT över procenten i mitten – den visar hur full sessionen är, inte kvoten. Hög siffra = bra läge för /clear.

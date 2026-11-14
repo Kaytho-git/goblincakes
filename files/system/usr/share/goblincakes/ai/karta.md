@@ -257,6 +257,10 @@ Ord: kartan, ai-kartan, claude-kartan, claude code-kartan, KARTA, vad claude gö
 - Läser Claude Codes egen logg: ~/.claude/projects/<mapp>/<session>.jsonl (agenter: <session>/subagents/*.jsonl).
   Inget installeras i Claude Code. Kod: /usr/share/goblincakes/claudemap.py (läsaren), claudefeed.py (Qt),
   qml/Goblin/ClaudeMap.qml (ritningen).
+- Stationen KAKAN (rosa, 14 nov) på Claudes och Codex karta = när de använder dig: ditt bildprogram
+  (`goblin pixelart kakan …`, `goblincakes-image generate/pull-style`), din modell via Ollama (`ollama run`,
+  localhost:11434/api/…) och dina MCP-verktyg (utom rapporter/losningar = MINNE). Inte på din egen karta.
+  Igenkänningen: `kakan_use()` i claudemap.py (text inom citattecken räknas inte).
 - Kolla för hand: `python3 /usr/share/goblincakes/claudemap.py` (nyaste sessionen) eller `… claudemap.py ~/projekt`
   (den sessionen i mappen) – ger JSON med model, context (%), busy, running, rows. `{"none": true}` = ingen logg alls
   (Claude Code aldrig kört, eller CLAUDE_CONFIG_DIR pekar någon annanstans).

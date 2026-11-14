@@ -17,9 +17,33 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-STATIONS = ["you", "model", "memory", "files", "shell", "net", "browser", "agents", "skills", "hooks"]
+# "kakan" (14 Nov, the user: "att det visas i kartan när hon jobbar för dig"): Claude or Codex using Kakan – her picture
+# program, her model through Ollama, her MCP tools. Not on Kakan's own map (KakanSession.ORDER).
+STATIONS = ["you", "model", "memory", "files", "shell", "net", "browser", "agents", "kakan", "skills", "hooks"]
 NAMES = {"you": "DU", "model": "MODELL", "memory": "MINNE", "files": "FILER", "shell": "SKAL", "net": "NÄTVERK",
-         "browser": "WEBBLÄSARE", "agents": "AGENTER", "skills": "SKILLS", "hooks": "HOOKS"}
+         "browser": "WEBBLÄSARE", "agents": "AGENTER", "kakan": "KAKAN", "skills": "SKILLS", "hooks": "HOOKS"}
+KAKAN_CMDS = [   # a command that has Kakan work → its row on the map
+    (r"\bgoblin(?:cakes-pixelart|\s+pixelart)\s+kakan\b((?:\s+[a-zåäö][\w-]*)*)", lambda m: "Kakan ritar " + (
+        " ".join(m.group(1).split()) or "pixelart")),
+    (r"\bgoblincakes-image\s+generate\b", lambda m: "Kakan ritar en bild"),
+    (r"\bgoblincakes-image\s+pull-style\b", lambda m: "Kakan hämtar en ritstil"),
+    (r"\bollama\s+(?:run|generate)\b", lambda m: "Kakan tänker (Ollama)"),
+    (r"(?:localhost|127\.0\.0\.1):11434/api/(?:generate|chat)", lambda m: "Kakan tänker (Ollama)"),
+]
+
+
+def kakan_use(command):
+    """The row for a command that has Kakan work, or "" (a plain command). Text isn't a command: a heredoc's body
+    and '…'/"…" are left out first, as in shell_station (python3 -c "… goblin pixelart kakan …" is no drawing)."""
+    text = str(command or "")
+    text = re.sub(r"<<-?\s*['\"]?(\w+)['\"]?.*?\n.*?\n\1\b", " ", text, flags=re.S)
+    text = re.sub(r"'[^']*'", "''", text)
+    text = re.sub(r'"(?:[^"\\$]|\\.)*"', '""', text)
+    for pattern, label in KAKAN_CMDS:
+        m = re.search(pattern, text)
+        if m:
+            return label(m)
+    return ""
 ACTIVE_FOR = 30 * 60        # a session written to within this long counts as going on (chosen among)
 TAIL = 2 * 1024 * 1024      # a newly chosen session: only its last 2 MB is read (a long one is 80 MB)
 ROWS = 16
@@ -125,6 +149,9 @@ def classify(name, args):
     path = args.get("file_path") or args.get("notebook_path") or args.get("path") or ""
     short = lambda p: str(p).rstrip("/").rsplit("/", 1)[-1] or str(p)  # noqa: E731
     if name in ("Bash", "PowerShell", "BashOutput"):
+        kakan = kakan_use(args.get("command")) if name != "BashOutput" else ""
+        if kakan:
+            return "kakan", kakan
         cmd = command_label(args.get("command")) or name
         return shell_station(args.get("command")) if name != "BashOutput" else "shell", cmd
     if name in ("Read", "Write", "Edit", "MultiEdit", "NotebookEdit"):
@@ -157,6 +184,8 @@ def classify(name, args):
             return "browser", f"{server} · {tool}"
         if "memory" in low or tool in ("losningar", "rapporter"):
             return "memory", f"{server} · {tool}"
+        if server == "kakan":
+            return "kakan", f"Kakan · {tool}"
         return "net", f"{server} · {tool}"
     if name in ("Artifact",):
         return "net", "artifact"
@@ -176,6 +205,7 @@ def result_text(content):
 class Session:
     """One transcript being followed – Claude Code's (the others below change entry() and what they are called)."""
     TOOL, CORE, TITLE, NAMES = "claude", "CLAUDE", "CLAUDE CODE", None
+    ORDER = STATIONS
 
     def __init__(self, path, quiet=True):
         self.path = Path(path)
@@ -480,13 +510,13 @@ class Session:
         if idle > 15 * 60:
             running, self.busy = [], False
         stations = {s: {"n": self.count[s], "err": self.errors[s],
-                        "run": sum(1 for r in running if r["st"] == s)} for s in STATIONS}
+                        "run": sum(1 for r in running if r["st"] == s)} for s in self.ORDER}
         stations["memory"]["hook"] = self.mem_hook
         rows = [{k: r.get(k) for k in ("st", "label", "start", "end", "state", "n", "took", "src")}
                 for r in self.rows[-ROWS:]]
         now_line = (running[-1]["label"] if running else "tänker…" if self.busy else
                     "väntar på dig" if idle < ACTIVE_FOR else "ingen aktivitet")
-        return {"tool": self.TOOL, "core": self.CORE, "title": self.TITLE, "names": self.NAMES,
+        return {"tool": self.TOOL, "core": self.CORE, "title": self.TITLE, "names": self.NAMES, "order": self.ORDER,
                 "session": self.id, "cwd": self.cwd, "folder": Path(self.cwd).name if self.cwd else "",
                 "model": short_model(self.model), "context": round(100 * self.tokens / self.window()) if self.window() else 0,
                 "busy": self.busy or bool(running), "running": running, "stations": stations, "rows": rows,
@@ -509,7 +539,8 @@ def codex_call(name, args):
         if isinstance(cmd, list):
             cmd = cmd[2] if len(cmd) >= 3 and Path(str(cmd[0])).name in ("bash", "sh", "zsh") \
                 and cmd[1] in ("-lc", "-c") else " ".join(map(str, cmd))
-        return shell_station(cmd), command_label(cmd) or name
+        kakan = kakan_use(cmd)
+        return ("kakan", kakan) if kakan else (shell_station(cmd), command_label(cmd) or name)
     if name == "apply_patch":
         files = re.findall(r"\*\*\* (?:Update|Add|Delete) File: (\S+)", str(args.get("input") or args.get("patch") or ""))
         return "files", "ändrar " + (", ".join(Path(f).name for f in files[:3]) if files else "filer")
@@ -655,6 +686,7 @@ def kakan_station(tool, text):
 
 class KakanSession(Session):
     TOOL, CORE, TITLE = "kakan", "KAKAN", "KAKAN"
+    ORDER = [s for s in STATIONS if s != "kakan"]
     NAMES = {"you": "DU", "model": "MODELL", "memory": "MINNE", "files": "FILER", "shell": "KOMMANDON",
              "net": "NÄTET", "browser": "SPEL", "agents": "DATORN", "skills": "SKRIVBORDET", "hooks": "KONTROLL"}
 

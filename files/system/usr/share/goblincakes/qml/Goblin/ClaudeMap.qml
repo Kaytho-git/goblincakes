@@ -19,13 +19,17 @@ Item {
     signal picked(string id)
 
     readonly property bool moving: typeof look !== "undefined" && !!look && look.motion === true
-    readonly property var order: ["you", "model", "memory", "files", "shell", "net", "browser", "agents", "skills", "hooks"]
+    // the stations clockwise from the top – claudemap sends them (KAKAN only on Claude's and Codex's maps, 14 Nov)
+    readonly property var order: info.order ? info.order
+                                            : ["you", "model", "memory", "files", "shell", "net", "browser", "agents", "kakan", "skills", "hooks"]
     // Kakan's stations have names of their own (claudemap.KakanSession.NAMES: KOMMANDON, NÄTET, SPEL, DATORN …)
     readonly property var names: info.names ? info.names : defaultNames
     readonly property var defaultNames: ({ you: "DU", model: "MODELL", memory: "MINNE", files: "FILER", shell: "SKAL",
-                                    net: "NÄTVERK", browser: "WEBBLÄSARE", agents: "AGENTER", skills: "SKILLS",
-                                    hooks: "HOOKS" })
+                                    net: "NÄTVERK", browser: "WEBBLÄSARE", agents: "AGENTER", kakan: "KAKAN",
+                                    skills: "SKILLS", hooks: "HOOKS" })
     readonly property color memoryColor: "#A78BFA"
+    readonly property color kakanColor: "#F25CB4"      // Kakan working for Claude/Codex
+    function tint(st, acc) { return st === "memory" ? Qt.color(memoryColor) : st === "kakan" ? Qt.color(kakanColor) : acc; }
     readonly property color amber: "#F0B232"
     readonly property color red: typeof accent !== "undefined" ? accent.errorBright : "#F06B6B"
     readonly property var stations: info.stations || ({})
@@ -60,7 +64,7 @@ Item {
         canvas.requestPaint();
     }
     function ringColor(p) { return p >= 90 ? red : p >= 70 ? amber : accent.color; }
-    function stColor(st) { return st === "memory" ? memoryColor : accent.color; }
+    function stColor(st) { return st === "memory" ? memoryColor : st === "kakan" ? kakanColor : accent.color; }
     function length(sec) {
         if (sec === null || sec === undefined || sec < 0.05)
             return "–";
@@ -173,7 +177,7 @@ Item {
                         ctx.moveTo(cx, cy);
                         ctx.lineTo(x, y);
                         ctx.lineWidth = Math.min(6, 1 + Math.log(1 + n) / Math.log(2) * 0.8);
-                        ctx.strokeStyle = rgba(s === "memory" ? Qt.color(map.memoryColor) : acc, Math.min(0.55, 0.12 + n / 60));
+                        ctx.strokeStyle = rgba(map.tint(s, acc), Math.min(0.55, 0.12 + n / 60));
                         ctx.stroke();
                     }
                 }
@@ -224,7 +228,7 @@ Item {
                             ctx.beginPath();
                             ctx.arc(x, y, sr + 3 + e * 8, 0, 2 * Math.PI);
                             ctx.lineWidth = 2;
-                            ctx.strokeStyle = rgba(p.st === "memory" ? Qt.color(map.memoryColor) : acc, 0.6 * (1 - k));
+                            ctx.strokeStyle = rgba(map.tint(p.st, acc), 0.6 * (1 - k));
                             ctx.stroke();
                             continue;
                         }
@@ -234,7 +238,7 @@ Item {
                         const fy = p.kind === "in" || p.kind === "hollow" ? cy + (y - cy) * f : oy + (y - oy) * f;
                         ctx.beginPath();
                         ctx.arc(fx, fy, 3.5, 0, 2 * Math.PI);
-                        const c = p.kind === "err" ? Qt.color(map.red) : p.st === "memory" ? Qt.color(map.memoryColor) : acc;
+                        const c = p.kind === "err" ? Qt.color(map.red) : map.tint(p.st, acc);
                         if (p.kind === "hollow") {
                             ctx.lineWidth = 1.5;
                             ctx.strokeStyle = rgba(c, 1);
@@ -271,7 +275,7 @@ Item {
                         lit[p.st] = true;
                 for (const s of map.order) {
                     const o = st[s] || {}, x = d.px(s), y = d.py(s);
-                    const c = s === "memory" ? Qt.color(map.memoryColor) : acc;
+                    const c = map.tint(s, acc);
                     const on = (o.run || 0) > 0;
                     ctx.beginPath();
                     ctx.arc(x, y, sr, 0, 2 * Math.PI);
