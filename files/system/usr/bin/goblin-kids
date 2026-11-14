@@ -92,7 +92,7 @@ def main():
         return 0
 
     settings = K.load()
-    if not settings["pin"] or not settings["items"]:
+    if not settings["pin"] or not K.has_games(settings):
         print("Välj spel och en PIN-kod först: GOBLINCAKES Config → BARNLÄGE.", file=sys.stderr)
         open_config()
         return 1
@@ -152,6 +152,10 @@ def main():
             self._items = [dict(i, sound=namnljud.sound_for(i), **K.picture_for(i, download=False))
                            for i in settings["items"]]
             self._said = (-1, 0.0)
+            # RetroDECK's games ticked in Config (14 Nov) – the "Spel" box; [] when turned off or the disk is missing
+            self._retro = [dict(g, sound=namnljud.sound_for(g)) for g in K.retro_games(settings)]
+            self._games_sound = str(namnljud.path_for(namnljud.GAMES_SAY)) \
+                if self._retro and namnljud.path_for(namnljud.GAMES_SAY).is_file() else ""
             self._songs = K.songs() if settings["music"] else []
             self._music_sound = str(namnljud.path_for(namnljud.MUSIC_SAY)) \
                 if namnljud.path_for(namnljud.MUSIC_SAY).is_file() else ""
@@ -252,6 +256,39 @@ def main():
             item = self._items[index]
             threading.Thread(target=K.launch, args=(item,), daemon=True).start()
             return True
+
+        # ── RetroDECK's games (the "Spel" box)
+        @Property(str, constant=True)
+        def retroGames(self):
+            return json.dumps(self._retro, ensure_ascii=False)
+
+        @Slot(int, result=bool)
+        def launchRetro(self, index):
+            if not 0 <= index < len(self._retro):
+                return False
+            now = time.time()
+            if now - self._last_launch.get(("retro", index), 0) < 8:
+                return False
+            self._last_launch[("retro", index)] = now
+            self.stopSong()
+            threading.Thread(target=K.launch, args=(self._retro[index],), daemon=True).start()
+            return True
+
+        @Slot()
+        def sayGames(self):
+            self._say(("games",), self._games_sound)
+
+        @Slot(int)
+        def sayRetro(self, index):
+            if 0 <= index < len(self._retro):
+                self._say(("retro", index), self._retro[index].get("sound"))
+
+        def _say(self, key, path):
+            last, when = self._said
+            if not path or (last == key and time.time() - when < 4):
+                return
+            self._said = (key, time.time())
+            threading.Thread(target=K.play_file, args=(path,), daemon=True).start()
 
         @Slot(int)
         def sayName(self, index):

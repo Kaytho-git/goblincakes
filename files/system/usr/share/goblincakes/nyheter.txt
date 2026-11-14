@@ -1,3 +1,4 @@
+2026-11-14  Barnläget kan visa spel från RetroDECK om du vill: slå på det i Config → BARNLÄGE och bocka i vilka spel som ska synas. Barnet får en ruta Spel med omslagen, spelar med handkontroll och kommer tillbaka med Start+Select två gånger.
 2026-11-14  AI-kartan: en ny rosa station KAKAN lyser när Claude eller Codex låter Kakan rita eller tänka åt dem.
 2026-11-14  Barnläget: spelkorten, bildväljaren och musiklådan har fått Kakans grå stålram med stora ädelstenar.
 2026-11-14  Barnläget är nu i pixelart som Kakan har ritat: bakgrunderna, den magiska starten, rutorna, musiken och knapparna – med stjärnor, gnistor i alla färger, bubblor, moln, Saturnus och pixeltypsnitt.

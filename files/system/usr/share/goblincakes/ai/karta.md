@@ -797,6 +797,16 @@ Ord: barnläge, barn, sandlåda, kids, PIN-kod barnläge, goblin barn
   ~/.local/share/goblincakes-voice). Vilken röst: `python3 /usr/share/goblincakes/kids/namnljud.py engine`.
 - Musikbilden: GOBLINCAKES låtar (/usr/share/goblincakes/songs) spelas med ffmpeg | pw-cat (egen processgrupp,
   Stopp = TERM sedan KILL). Hörs inget: `pgrep -a pw-cat` medan en låt ska spela. Av/på i kids.json "music".
+- RetroDECK-spelen (14 nov, bara om föräldern slagit på dem): kids.json "retro": true + "retro_games"
+  [{system, rom, name}] (Config → BARNLÄGE → SPEL FRÅN RETRODECK). Rutan "Spel" i barnläget → spelmeny. Ett spel
+  startas med `flatpak run net.retrodeck.retrodeck -e "<RetroDECKs kommando för systemet> --appendconfig …" -s
+  <system> <rom>`; låsinställningarna (ingen meny, Start+Select två gånger = tillbaka, inget sparas) ligger i
+  ~/.cache/goblincakes/kids/retroarch-barnlage.cfg och gäller bara den starten – RetroArchs egen retroarch.cfg rörs
+  inte. Var spelen och omslagen ligger: ~/.var/app/net.retrodeck.retrodeck/config/retrodeck/retrodeck.json
+  (roms_path, downloaded_media_path/<system>/covers/). Kolla vad barnläget ser:
+  `python3 -c "import sys; sys.path.insert(0,'/usr/share/goblincakes/kids'); import kids as K; print(K.retro_games(K.load()))"`
+  – tom lista = avslaget, inga valda eller disken med spelen inte monterad. Spelet startar inte: kör kommandot ur
+  `K.retro_command(spel)` i en terminal och läs felet.
 
 - Pixelart (14 nov): de fyra bakgrunderna visas i dina pixelbilder (du ritade alla 15, användaren godkände dem):
   /usr/share/goblincakes/kids/pixelart/<id>.png, Scene.qml → PixelScene.qml (Pix.qml = skarp hel förstoring);

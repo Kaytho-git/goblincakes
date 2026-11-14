@@ -1,5 +1,6 @@
 // GOBLINCAKES Config → BARNLÄGE (13 Nov): which games and programs are in Barnläge and in what order, the PIN code
-// that ends it, the parent's pictures for the backgrounds and the highest volume. Backend: goblincakes-config's
+// that ends it, the parent's pictures for the backgrounds and the highest volume. 14 Nov: SPEL FRÅN RETRODECK (only
+// when RetroDECK is installed, off until turned on): the parent ticks which of its games are in the "Spel" box. Backend: goblincakes-config's
 // loadKids/saveKids/setKidsPin/… (kids.py). Barnläge itself: /usr/bin/goblin-kids.
 import QtQuick
 import QtQuick.Dialogs
@@ -22,7 +23,34 @@ Flickable {
     property string soundsTried: ""
     property string filter: ""
     readonly property var items: info ? info.items : []
-    readonly property bool canStart: !!info && info.hasPin && items.length > 0
+    readonly property bool canStart: !!info && info.hasPin && (items.length > 0 || info.retroGames.length > 0)
+    // RetroDECK's games: the search, the console and the genre, and how many rows are shown
+    property string retroFilter: ""
+    property string retroSystem: ""
+    property string retroGenre: ""
+    property bool retroOnlyChosen: false
+    property int retroShown: 60
+    readonly property var retroChosenKeys: info ? info.retroChosen.map(g => g.system + "/" + g.rom) : []
+    readonly property var retroMatches: {
+        if (!info || !info.retro)
+            return [];
+        const words = retroFilter.toLowerCase().split(/\s+/).filter(w => w);
+        const keys = retroChosenKeys;
+        return info.retroLibrary.filter(g => (!retroSystem || g.system === retroSystem)
+                                         && (!retroGenre || g.genre === retroGenre)
+                                         && (!retroOnlyChosen || keys.indexOf(g.system + "/" + g.rom) >= 0)
+                                         && words.every(w => g.name.toLowerCase().indexOf(w) >= 0));
+    }
+    function retroCounts(field) {      // [{v, n}] – the consoles or genres with how many games, most first
+        const counts = {};
+        for (const g of (info ? info.retroLibrary : []))
+            counts[g[field]] = (counts[g[field]] || 0) + 1;
+        return Object.keys(counts).filter(k => k).map(k => ({ "v": k, "n": counts[k] })).sort((a, b) => b.n - a.n);
+    }
+    onRetroFilterChanged: retroShown = 60
+    onRetroSystemChanged: retroShown = 60
+    onRetroGenreChanged: retroShown = 60
+    onRetroOnlyChosenChanged: retroShown = 60
     readonly property var addable: {
         if (!info || !adding)
             return [];
@@ -44,7 +72,7 @@ Flickable {
             }
             kidsView.info = JSON.parse(json);
             // Name sounds missing: Cori makes them (once per set of names – not again if a voice is missing)
-            const want = kidsView.items.filter(i => !i.sound).map(i => i.say).join("|");
+            const want = kidsView.items.concat(kidsView.info.retroGames).filter(i => !i.sound).map(i => i.say).join("|");
             if (want && kidsView.info.voice && want !== kidsView.soundsTried) {
                 kidsView.soundsTried = want;
                 backend.makeKidsSounds();
@@ -57,8 +85,21 @@ Flickable {
         const copy = JSON.parse(JSON.stringify(info));
         fn(copy);
         info = copy;
-        backend.saveKids(JSON.stringify({ "items": copy.items, "volume": copy.volume, "music": copy.music }));
+        backend.saveKids(JSON.stringify({ "items": copy.items, "volume": copy.volume, "music": copy.music,
+                                          "retro": copy.retro, "retro_games": copy.retroChosen }));
     }
+    function toggleRetro(g) {
+        change(c => {
+            const at = c.retroChosen.findIndex(x => x.system === g.system && x.rom === g.rom);
+            if (at >= 0)
+                c.retroChosen.splice(at, 1);
+            else
+                c.retroChosen.push({ "system": g.system, "rom": g.rom, "name": g.name });
+        });
+        retroReload.restart();   // Cori's names for the new ones – once the ticking stops
+    }
+
+    Timer { id: retroReload; interval: 2500; onTriggered: backend.loadKids() }
 
     FileDialog {
         id: picDialog
@@ -344,6 +385,179 @@ Flickable {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // ── RetroDECK's games: only when RetroDECK is installed, and only the games the parent ticks
+        Column {
+            visible: !!kidsView.info && kidsView.info.retrodeck
+            width: parent.width
+            spacing: 12
+            Heading { text: "SPEL FRÅN RETRODECK" }
+            Body {
+                width: parent.width
+                text: "RetroDECK är installerat. Vill du kan några av dess spel finnas i barnläget: då får barnläget en ruta Spel med de spel du bockar i här. "
+                      + "De spelas med handkontroll, och Start+Select två gånger tar barnet tillbaka till barnläget. RetroArchs meny är avstängd medan barnläget kör ett spel – RetroDECK:s egna inställningar ändras inte."
+            }
+            Row {
+                spacing: 8
+                Repeater {
+                    model: [{ v: true, t: "Visa valda spel" }, { v: false, t: "Inga spel från RetroDECK" }]
+                    Rectangle {
+                        id: rd
+                        required property var modelData
+                        G.Light { hovered: rdArea.containsMouse }
+                        readonly property bool on: !!kidsView.info && kidsView.info.retro === modelData.v
+                        width: rdText.implicitWidth + 36
+                        height: 44
+                        color: on ? "#12203A" : rdArea.containsMouse ? "#0E1420" : "transparent"
+                        border.width: on ? 2 : 1
+                        border.color: on ? accent.color : "#1E2A40"
+                        Text {
+                            id: rdText
+                            anchors.centerIn: parent
+                            text: rd.modelData.t
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 14
+                        }
+                        MouseArea {
+                            id: rdArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { kidsView.change(c => c.retro = rd.modelData.v); backend.loadKids(); }
+                        }
+                    }
+                }
+            }
+            Column {
+                visible: !!kidsView.info && kidsView.info.retro
+                width: parent.width
+                spacing: 10
+                Body {
+                    width: parent.width
+                    readonly property int chosen: kidsView.info ? kidsView.info.retroChosen.length : 0
+                    readonly property int found: kidsView.info ? kidsView.info.retroGames.length : 0
+                    text: !kidsView.info ? "" : !kidsView.info.retroLibrary.length
+                          ? "Hittar inga spel i RetroDECK:s spelmapp just nu – är disken med spelen inkopplad?"
+                          : (chosen ? chosen + (chosen === 1 ? " spel valt" : " spel valda") : "Inga spel valda än – bocka i dem som ska synas.")
+                            + (found < chosen ? " " + (chosen - found) + " av dem hittas inte just nu (är disken inkopplad?)." : "")
+                            + "  " + kidsView.info.retroLibrary.length + " spel i RetroDECK."
+                    color: kidsView.info && kidsView.info.retroGames.length < kidsView.info.retroChosen.length ? accent.errorBright : "#8B98AD"
+                }
+                FlatField {
+                    id: retroField
+                    width: Math.min(420, parent.width)
+                    hint: "Sök bland RetroDECK:s spel…"
+                    onTextChanged: kidsView.retroFilter = text
+                }
+                // The console, the genre and "only the chosen" – a click again turns it off
+                Flow {
+                    width: parent.width
+                    spacing: 6
+                    Small {
+                        text: "Bara valda (" + kidsView.retroChosenKeys.length + ")"
+                        color: kidsView.retroOnlyChosen ? "#12203A" : "transparent"
+                        border.color: kidsView.retroOnlyChosen ? accent.color : "#2A3852"
+                        onClicked: kidsView.retroOnlyChosen = !kidsView.retroOnlyChosen
+                    }
+                    Item { width: 12; height: 26 }
+                    Repeater {
+                        model: kidsView.info && kidsView.info.retro ? kidsView.retroCounts("system") : []
+                        Small {
+                            required property var modelData
+                            readonly property bool on: kidsView.retroSystem === modelData.v
+                            text: modelData.v.toUpperCase() + " (" + modelData.n + ")"
+                            color: on ? "#12203A" : "transparent"
+                            border.color: on ? accent.color : "#2A3852"
+                            onClicked: kidsView.retroSystem = on ? "" : modelData.v
+                        }
+                    }
+                    Item { width: 12; height: 26 }
+                    Repeater {
+                        model: kidsView.info && kidsView.info.retro ? kidsView.retroCounts("genre") : []
+                        Small {
+                            required property var modelData
+                            readonly property bool on: kidsView.retroGenre === modelData.v
+                            text: modelData.v + " (" + modelData.n + ")"
+                            color: on ? "#12203A" : "transparent"
+                            border.color: on ? accent.color : "#2A3852"
+                            onClicked: kidsView.retroGenre = on ? "" : modelData.v
+                        }
+                    }
+                }
+                Flow {
+                    width: parent.width
+                    spacing: 6
+                    Repeater {
+                        model: kidsView.retroMatches.slice(0, kidsView.retroShown)
+                        Rectangle {
+                            id: rrow
+                            required property var modelData
+                            readonly property bool on: kidsView.retroChosenKeys.indexOf(modelData.system + "/" + modelData.rom) >= 0
+                            width: Math.min(360, (kidsCol.width - 12) / 3)
+                            height: 56
+                            color: rrowArea.containsMouse ? "#12203A" : "#0E1420"
+                            border.width: 1
+                            border.color: on ? accent.color : "#1E2A40"
+                            G.CheckSquare {
+                                x: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                checked: rrow.on
+                            }
+                            Rectangle {
+                                id: rcover
+                                x: 42
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 44; height: 44
+                                color: "#12203A"
+                                Image {
+                                    anchors.fill: parent
+                                    source: rrow.modelData.cover ? "file://" + rrow.modelData.cover : ""
+                                    fillMode: Image.PreserveAspectFit
+                                    asynchronous: true
+                                    sourceSize.height: 88
+                                }
+                            }
+                            Column {
+                                x: rcover.x + rcover.width + 10
+                                width: parent.width - x - 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
+                                Text {
+                                    width: parent.width
+                                    text: rrow.modelData.name
+                                    color: "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 13
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: [rrow.modelData.system.toUpperCase(), rrow.modelData.genre,
+                                           rrow.modelData.players ? rrow.modelData.players + " spelare" : ""].filter(t => t).join(" · ")
+                                    color: "#8B98AD"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 12
+                                    elide: Text.ElideRight
+                                }
+                            }
+                            MouseArea {
+                                id: rrowArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: kidsView.toggleRetro(rrow.modelData)
+                            }
+                        }
+                    }
+                }
+                Small {
+                    visible: kidsView.retroMatches.length > kidsView.retroShown
+                    text: "Visa fler (" + (kidsView.retroMatches.length - kidsView.retroShown) + " till)"
+                    onClicked: kidsView.retroShown += 60
                 }
             }
         }

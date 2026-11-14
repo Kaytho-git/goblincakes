@@ -694,6 +694,7 @@ class Config(QObject):
                 k = self._kids()
                 data = k.info(download=True)
                 data["available"] = k.available()
+                data["retroLibrary"] = k.retro_library() if data.get("retrodeck") else []
                 self.kidsLoaded.emit(json.dumps(data, ensure_ascii=False))
             except Exception:  # noqa: BLE001
                 self.kidsLoaded.emit("")
@@ -701,15 +702,18 @@ class Config(QObject):
 
     @Slot(str)
     def saveKids(self, data):
-        """{"items": [...], "volume": n} – Barnläge uses it the next time it starts."""
+        """{"items": [...], "volume": n, "music", "retro", "retro_games"} – Barnläge uses it the next time it starts."""
         try:
             d = json.loads(data)
             k = self._kids()
             items = [dict({"kind": i["kind"], "id": i["id"], "name": i.get("name", "")},
                           **({"say": i["say"].strip()} if i.get("say", "").strip() else {}))
                      for i in d.get("items", []) if i.get("kind") in ("steam", "app") and i.get("id")]
+            # RetroDECK's games (14 Nov): off until the parent turns them on; only the ticked ones
+            retro = [{"system": str(g["system"]), "rom": str(g["rom"]), "name": str(g.get("name") or g["rom"])}
+                     for g in d.get("retro_games") or [] if isinstance(g, dict) and g.get("system") and g.get("rom")]
             k.update(items=items, volume=d.get("volume") if d.get("volume") in k.VOLUMES else 80,
-                     music=d.get("music") is not False)
+                     music=d.get("music") is not False, retro=d.get("retro") is True, retro_games=retro)
             self.kidsMessage.emit("Sparat – gäller nästa gång barnläget startar.")
         except (ValueError, OSError, KeyError, TypeError):
             self.kidsMessage.emit("Kunde inte spara.")

@@ -136,6 +136,7 @@ def make(jobs, said=print):
 
 
 MUSIC_SAY = "sv:Musik"      # the music picture – said in Swedish ("sv:" = the language for Chatterbox)
+GAMES_SAY = "sv:Spel"       # the box with RetroDECK's games (14 Nov)
 
 
 def missing():
@@ -143,7 +144,10 @@ def missing():
     settings = K.load()
     if settings["music"] and not path_for(MUSIC_SAY).is_file():
         jobs.append((MUSIC_SAY, path_for(MUSIC_SAY)))
-    for item in settings["items"]:
+    retro = K.retro_games(settings, with_pictures=False)
+    if retro and not path_for(GAMES_SAY).is_file():
+        jobs.append((GAMES_SAY, path_for(GAMES_SAY)))
+    for item in settings["items"] + retro:
         text = item.get("say") or spoken(item.get("name", ""))
         p = path_for(text)
         if text and not p.is_file():

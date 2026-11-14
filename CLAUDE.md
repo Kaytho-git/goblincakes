@@ -68,6 +68,7 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - [ ] **GoblinRecorder för CS2** – kvar: en riktig Premier/Competitive + nedladdad demo (grep "Leetify").
 - [ ] **Offhand – WoW över två skärmar** – nästa: prova i Forever (grep "Offhand").
 - [ ] **Barnläge** – byggt 13 nov, testlista `barnlage.md` (grep "Barnläge").
+- [ ] **RetroDECK i barnläget** – byggt 14 nov (valfritt i Config), testlista `barnlage-retrodeck.md` (grep "RetroDECK i barnläget").
 - [ ] **Barnläget i pixelart** – Kakans bilder inbyggda överallt 14 nov (bara offscreen-provat); användaren provar på riktigt (grep "Pixelart").
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 

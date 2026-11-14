@@ -5,12 +5,14 @@ Shared by the window (/usr/bin/goblin-kids) and Config → BARNLÄGE (goblincake
 the KWin and D-Bus parts are busctl/kwriteconfig6 calls, so `goblin-kids --restore` works without a window.
 
     ~/.config/goblincakes/kids.json        {"items": [{"kind": "steam"|"app", "id", "name"}], "pin": "pbkdf2$…",
-                                            "volume": 0|40|60|80, "background": "<id>"}
+                                            "volume": 0|40|60|80, "background": "<id>",
+                                            "retro": bool, "retro_games": [{"system", "rom", "name"}]}
     ~/.local/share/goblincakes/kids/bilder the parent's pictures (Config copies them here)
     ~/.cache/goblincakes/kids/             the games' cover pictures and the sounds
     ~/.local/state/goblincakes/kids-active.json  while Barnläge is on: what to put back (also after a crash)
 
-Steam games start through goblincakes-games (run-id, like goblin play); programs from their menu entry.
+Steam games start through goblincakes-games (run-id, like goblin play); programs from their menu entry;
+RetroDECK's games (only if the parent turns them on) through RetroDECK's own command.
 """
 import hashlib
 import importlib.machinery
@@ -69,7 +71,12 @@ def load():
     volume = data.get("volume") if data.get("volume") in VOLUMES else 80   # 80 % on master (the user 13 Nov)
     return dict(data, items=items, pin=str(data.get("pin") or ""), volume=volume,
                 background=str(data.get("background") or "natt"), music=data.get("music") is not False,
-                pixelart=data.get("pixelart") is not False)   # 14 Nov: Kakan's pixel art; "pixelart": false = drawn as before
+                pixelart=data.get("pixelart") is not False,   # 14 Nov: Kakan's pixel art; "pixelart": false = drawn as before
+                retro=data.get("retro") is True,                # 14 Nov: RetroDECK's games – off until the parent says
+                retro_games=[{"system": str(g["system"]), "rom": str(g["rom"]), "name": str(g.get("name") or g["rom"])}
+                             for g in data.get("retro_games") or []
+                             if isinstance(g, dict) and g.get("system") and g.get("rom")
+                             and "/" not in str(g["system"]) and ".." not in str(g["rom"])])
 
 
 def save(settings):
@@ -246,6 +253,8 @@ def start_steam_quietly():
 def launch(item):
     if item["kind"] == "steam":
         args = [str(GAMES), "run-id", item["id"], "--kids"]
+    elif item["kind"] == "retro":
+        args = retro_command(item)
     else:
         args = command(item["id"])
     if not args:
@@ -255,6 +264,213 @@ def launch(item):
     except OSError:
         return False
     return True
+
+
+# ───────────────────────────────────────────── RetroDECK's games (14 Nov)
+# Only when the parent wants it: Config → BARNLÄGE → SPEL FRÅN RETRODECK is off until it is turned on (kids.json
+# "retro": true), and only the games ticked there ("retro_games") are in Barnläge's "Spel" box. Nothing of RetroDECK's
+# own is changed: each game starts with RetroDECK's own command for its system (run_game.sh fills in %ROM%, also
+# names with ' like Demon's Crest), plus our kiosk settings for that one start (RetroArch's --appendconfig;
+# config_save_on_exit off, so they are never written into retroarch.cfg). Where RetroDECK keeps its things:
+# retrodeck.json, never hard-coded.
+RETRODECK_ID = "net.retrodeck.retrodeck"
+RETRODECK_JSON = Path(os.environ.get("GOBLINCAKES_KIDS_RETRODECK_JSON")
+                      or HOME / ".var/app/net.retrodeck.retrodeck/config/retrodeck/retrodeck.json")
+RETRO_CFG = CACHE / "retroarch-barnlage.cfg"
+RETRO_WINDOWS = ["net.retrodeck.retrodeck", "retroarch"]   # the game's window (SDL_VIDEO_WAYLAND_WMCLASS, RetroArch)
+ES_SYSTEMS = "retrodeck/components/es-de/share/es-de/resources/systems/linux/es_systems.xml"
+# For a small child: no menu (L3+R3 and the M key off, kiosk if it opens anyway), Start+Select twice = back to
+# Barnläge, the whole screen, and nothing saved into the parent's RetroArch settings
+RETRO_SETTINGS = {"kiosk_mode_enable": "true", "config_save_on_exit": "false", "video_fullscreen": "true",
+                  "input_menu_toggle_gamepad_combo": "0", "input_menu_toggle": "nul",
+                  "input_quit_gamepad_combo": "4", "quit_press_twice": "true"}
+GENRES = {"platform": "Plattform", "role playing game": "Rollspel", "action rpg": "Rollspel", "tactical rpg": "Rollspel",
+          "strategy": "Strategi", "adventure": "Äventyr", "puzzle": "Pussel", "thinking": "Pussel", "racing": "Racing",
+          "racing tpv": "Racing", "sports": "Sport", "fighting": "Fighting", "beat'em up": "Beat 'em up",
+          "shoot'em up": "Shoot 'em up", "shooter": "Skjutspel", "lightgun shooter": "Skjutspel", "action": "Action",
+          "simulation": "Simulering", "build and management": "Simulering", "board game": "Brädspel",
+          "pinball": "Flipper", "fishing": "Fiske", "music": "Musik", "educational": "Lärospel"}
+SKIP_SYSTEMS = {"portmaster"}   # RetroDECK's own tools, not games
+_retro_files = None
+_es_systems = None
+
+
+def retrodeck_files():
+    """The Flatpak's files folder (where es_systems.xml is), or None when RetroDECK isn't installed."""
+    global _retro_files
+    if _retro_files is None:
+        found = os.environ.get("GOBLINCAKES_KIDS_RETRODECK_FILES")
+        if not found:
+            r = _quiet("flatpak", "info", "--show-location", RETRODECK_ID)
+            found = r.stdout.strip() + "/files" if r.returncode == 0 and r.stdout.strip() else ""
+        _retro_files = Path(found) if found and Path(found).is_dir() else False
+    return _retro_files or None
+
+
+def retrodeck_paths():
+    """{"home", "roms", "media"} from RetroDECK's own settings, or None (not installed or not set up)."""
+    if not retrodeck_files():
+        return None
+    try:
+        data = json.loads(RETRODECK_JSON.read_text())
+    except (OSError, ValueError):
+        return None
+    paths = data.get("paths", data) if isinstance(data, dict) else {}
+    out = {"home": paths.get("rd_home_path"), "roms": paths.get("roms_path"), "media": paths.get("downloaded_media_path")}
+    return out if out["roms"] else None
+
+
+def es_systems():
+    """RetroDECK's systems: {name: {"fullname", "extensions", "commands": [(label, command)]}}."""
+    global _es_systems
+    if _es_systems is None:
+        _es_systems = {}
+        files = retrodeck_files()
+        import xml.etree.ElementTree as ET  # noqa: PLC0415
+        try:
+            root = ET.parse(files / ES_SYSTEMS).getroot() if files else None
+        except (OSError, ET.ParseError):
+            root = None
+        for s in root.iter("system") if root is not None else []:
+            name = (s.findtext("name") or "").strip()
+            if name:
+                _es_systems[name] = {
+                    "fullname": (s.findtext("fullname") or name).strip(),
+                    "extensions": {e.lower() for e in (s.findtext("extension") or "").split()},
+                    "commands": [(c.get("label") or "", (c.text or "").strip()) for c in s.findall("command")]}
+    return _es_systems
+
+
+def _gamelist(paths, system):
+    """ES-DE's gamelist for a system (the scraper's names): ({rom: {name, genre, players, alt}}, the system's emulator)."""
+    import xml.etree.ElementTree as ET  # noqa: PLC0415
+    games, chosen = {}, ""
+    try:
+        root = ET.parse(Path(paths["home"] or "") / "ES-DE/gamelists" / system / "gamelist.xml").getroot()
+    except (OSError, ET.ParseError, TypeError):
+        return games, chosen
+    chosen = (root.findtext("alternativeEmulator/label") or "").strip()
+    for g in root.iter("game"):
+        rom = (g.findtext("path") or "").strip()
+        if rom.startswith("./"):
+            rom = rom[2:]
+        if rom and (g.findtext("hidden") or "").strip() != "true":
+            games[rom] = {"name": (g.findtext("name") or "").strip(), "genre": (g.findtext("genre") or "").strip(),
+                          "players": (g.findtext("players") or "").strip(), "alt": (g.findtext("altemulator") or "").strip()}
+    return games, chosen
+
+
+def genre(text):
+    """The main genre in Swedish where we know it ("Shoot'em Up / Vertical" → "Shoot 'em up")."""
+    main = re.split(r"\s*[/,]\s*", text or "")[0].strip()
+    low = main.lower()
+    if low in GENRES:
+        return GENRES[low]
+    if "rpg" in low.split():
+        return "Rollspel"
+    if "race" in low or "racing" in low:
+        return "Racing"
+    return {"mahjong": "Brädspel", "casino": "Brädspel"}.get(low, main or "Övrigt")
+
+
+def retro_cover(paths, system, rom):
+    stem = rom.rsplit(".", 1)[0]
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        p = Path(paths["media"] or "") / system / "covers" / (stem + ext)
+        if paths["media"] and p.is_file():
+            return str(p)
+    return ""
+
+
+def retro_library():
+    """Every game in RetroDECK's roms folder (the systems it knows), with the scraper's name, genre and cover."""
+    paths = retrodeck_paths()
+    if not paths:
+        return []
+    out = []
+    systems = es_systems()
+    roms = Path(paths["roms"])
+    for system in sorted(systems):
+        folder = roms / system
+        if system in SKIP_SYSTEMS or not folder.is_dir():
+            continue
+        exts = systems[system]["extensions"]
+        files = sorted(str(p.relative_to(folder)) for p in folder.rglob("*")
+                       if p.is_file() and p.suffix.lower() in exts and not p.name.startswith("."))
+        if not files:
+            continue
+        listed, _ = _gamelist(paths, system)
+        for rom in files:
+            g = listed.get(rom) or {}
+            name = g.get("name") or re.sub(r"\s*[(\[].*$", "", Path(rom).stem) or Path(rom).stem
+            out.append({"kind": "retro", "system": system, "rom": rom, "name": name, "genre": genre(g.get("genre")),
+                        "players": g.get("players", ""), "systemName": systems[system]["fullname"],
+                        "cover": retro_cover(paths, system, rom)})
+    out.sort(key=lambda g: g["name"].lower())
+    return out
+
+
+def picture_aspect(path):
+    """Width / height from a PNG's or JPEG's header (no image library), or 0.72 (a tall box) when unknown."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(64 * 1024)
+    except OSError:
+        return 0.72
+    if head[:8] == b"\x89PNG\r\n\x1a\n" and len(head) >= 24:
+        w, h = struct.unpack(">II", head[16:24])
+        return round(w / h, 3) if w and h else 0.72
+    i = 2
+    while head[:2] == b"\xff\xd8" and i + 9 < len(head):
+        if head[i] != 0xFF:
+            break
+        marker, size = head[i + 1], struct.unpack(">H", head[i + 2:i + 4])[0]
+        if marker in (0xC0, 0xC1, 0xC2):
+            h, w = struct.unpack(">HH", head[i + 5:i + 9])
+            return round(w / h, 3) if w and h else 0.72
+        i += 2 + size
+    return 0.72
+
+
+def retro_games(settings, with_pictures=True):
+    """The games ticked in Config, when RetroDECK's games are turned on and the files are there (the disk mounted)."""
+    paths = retrodeck_paths() if settings.get("retro") else None
+    if not paths:
+        return []
+    out = []
+    for g in settings.get("retro_games") or []:
+        if (Path(paths["roms"]) / g["system"] / g["rom"]).is_file():
+            cover = retro_cover(paths, g["system"], g["rom"]) if with_pictures else ""
+            out.append(dict(g, kind="retro", cover=cover, aspect=picture_aspect(cover) if cover else 0.72))
+    return out
+
+
+def retro_command(game):
+    """flatpak run net.retrodeck.retrodeck -e <RetroDECK's own command for the system> -s <system> <rom>."""
+    paths = retrodeck_paths()
+    if not paths:
+        return []
+    rom = Path(paths["roms"]) / game["system"] / game["rom"]
+    if not rom.is_file():
+        return []
+    system = es_systems().get(game["system"]) or {"commands": []}
+    listed, chosen = _gamelist(paths, game["system"])
+    by_label = dict(system["commands"])
+    template = (by_label.get((listed.get(game["rom"]) or {}).get("alt", "")) or by_label.get(chosen)
+                or (system["commands"][0][1] if system["commands"] else ""))
+    if not template:
+        return ["flatpak", "run", RETRODECK_ID, str(rom)]
+    if template.startswith("%EMULATOR_RETROARCH%"):
+        RETRO_CFG.parent.mkdir(parents=True, exist_ok=True)
+        RETRO_CFG.write_text("".join(f'{k} = "{v}"\n' for k, v in RETRO_SETTINGS.items()))
+        template = template.replace("%EMULATOR_RETROARCH%",
+                                    "%EMULATOR_RETROARCH% --appendconfig " + shlex.quote(str(RETRO_CFG)), 1)
+    return ["flatpak", "run", RETRODECK_ID, "-e", template, "-s", game["system"], str(rom)]
+
+
+def has_games(settings):
+    """Something to play: a game or program, or a RetroDECK game."""
+    return bool(settings["items"]) or bool(retro_games(settings, with_pictures=False))
 
 
 # ───────────────────────────────────────────── pictures: the games' covers
@@ -690,6 +906,8 @@ def allowed_names(settings):
     names = set()
     for item in settings["items"]:
         names.update(window_names(item))
+    if retro_games(settings, with_pictures=False):
+        names.update(RETRO_WINDOWS)
     return sorted(names)
 
 
@@ -804,7 +1022,15 @@ def info(download=False):
         if item["kind"] == "steam":
             entry["overlay"] = overlay_on(item["id"])
         chosen.append(entry)
+    retro = []
+    for game in retro_games(settings) if settings["retro"] else []:
+        game["say"] = namnljud.spoken(game["name"])
+        game["sound"] = namnljud.sound_for(game)
+        retro.append(game)
+    paths = retrodeck_paths()
     return {"items": chosen, "hasPin": bool(settings["pin"]), "volume": settings["volume"],
+            "retrodeck": bool(paths), "retro": settings["retro"], "retroGames": retro,
+            "retroChosen": settings["retro_games"],
             "music": settings["music"], "songs": songs(),
             "pictures": pictures(), "drawings": len(drawings()), "steamRunning": steam_running(),
             "active": bool(running_pid()), "voice": namnljud.engine()}

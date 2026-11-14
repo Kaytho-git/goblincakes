@@ -2,6 +2,8 @@
 // (Config → BARNLÄGE), a picture button for the background and an X (top right) that asks for the PIN code.
 // The other screens get a calm night sky ("GOBLINCAKES barnläge 2" …, placed by kwin-on.js).
 // Backend: /usr/bin/goblin-kids ("backend"). Only the mouse – no gamepad (the user's choice).
+// 14 Nov: RetroDECK's games ticked in Config (only if the parent turned them on) – the "Spel" box: his covers in a
+// box of their own, a click starts the game in RetroDECK (Xbox pad; Start+Select twice = back here).
 // 14 Nov: in Kakan's pixel art (kids.json "pixelart", off = drawn as before) – her sparkles and notes, PixelFrame
 // around the pictures, ▶ ■ ✕ of square pixels (PixelGlyph) and Pixelify Sans (fonts/, OFL) wherever there is text.
 import QtQuick
@@ -24,9 +26,12 @@ Window {
     readonly property var items: JSON.parse(backend.items)
     readonly property var backgrounds: JSON.parse(backend.backgrounds)
     readonly property var songs: JSON.parse(backend.songs)
-    // His games, and last the music picture (GOBLINCAKES' songs) when there are songs and it is chosen in Config
-    readonly property var tiles: songs.length ? items.concat([{ "kind": "music", "name": "Musik" }]) : items
+    readonly property var retro: JSON.parse(backend.retroGames)
+    // His games, the "Spel" box (RetroDECK's games) and last the music picture (GOBLINCAKES' songs) when chosen in Config
+    readonly property var tiles: items.concat(retro.length ? [{ "kind": "games", "name": "Spel" }] : [])
+                                      .concat(songs.length ? [{ "kind": "music", "name": "Musik" }] : [])
     property bool listening: false        // the music box
+    property bool gaming: false           // the "Spel" box
     property bool ready: false            // the splash is over
     property bool leaving: false
     property bool choosing: false         // the picture chooser
@@ -206,7 +211,7 @@ Window {
                 // A program: its icon big in a soft spotlight, its name under
                 Item {
                     anchors.fill: parent
-                    visible: !tile.item.cover && tile.item.kind !== "music"
+                    visible: !tile.item.cover && tile.item.kind !== "music" && tile.item.kind !== "games"
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: 4
@@ -260,6 +265,34 @@ Window {
                         wrapMode: Text.WordWrap
                         fontSizeMode: Text.Fit
                         minimumPixelSize: 12
+                    }
+                }
+                // The "Spel" box: the first covers of his RetroDECK games, four together (one alone fills it)
+                Grid {
+                    id: collage
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    visible: tile.item.kind === "games"
+                    readonly property int n: Math.min(4, win.retro.length)
+                    columns: n > 1 ? 2 : 1
+                    spacing: 3
+                    Repeater {
+                        model: collage.visible ? Math.max(1, collage.n > 1 ? 4 : 1) : 0
+                        Rectangle {
+                            required property int index
+                            readonly property var game: win.retro[index % Math.max(1, collage.n)]
+                            width: collage.columns > 1 ? (collage.width - 3) / 2 : collage.width
+                            height: collage.columns > 1 ? (collage.height - 3) / 2 : collage.height
+                            color: "#12203A"
+                            clip: true
+                            Image {
+                                anchors.fill: parent
+                                source: parent.game && parent.game.cover ? "file://" + parent.game.cover : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                sourceSize.height: 450
+                            }
+                        }
                     }
                 }
                 // The music picture: notes on purple, and dancing bars while a song plays
@@ -346,7 +379,9 @@ Window {
         }
         Timer { id: startingTimer; interval: 8000; onTriggered: tile.starting = false }
         // The mouse resting on it a moment: Cori says the name (not while the mouse just passes over)
-        Timer { id: nameTimer; interval: 400; onTriggered: tile.item.kind === "music" ? backend.sayMusic() : backend.sayName(tile.number) }
+        Timer { id: nameTimer; interval: 400
+                onTriggered: tile.item.kind === "music" ? backend.sayMusic() : tile.item.kind === "games" ? backend.sayGames()
+                             : backend.sayName(tile.number) }
         onHoverChanged: hover ? nameTimer.restart() : nameTimer.stop()
 
         MouseArea {
@@ -359,6 +394,12 @@ Window {
                     backend.sound("pling");
                     press.restart();
                     win.listening = true;
+                    return;
+                }
+                if (tile.item.kind === "games") {
+                    backend.sound("pling");
+                    press.restart();
+                    win.gaming = true;
                     return;
                 }
                 if (tile.starting || !backend.launch(tile.number))
@@ -545,6 +586,130 @@ Window {
                             lit: false
                             dim: !song.on
                             onClicked: backend.stopSong()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── the "Spel" box: his RetroDECK games, each cover as it is (SNES wide, Mega Drive tall) in Kakan's steel frame
+    Item {
+        anchors.fill: parent
+        visible: win.gaming
+        Rectangle { anchors.fill: parent; color: "#02030A"; opacity: 0.8 }
+        MouseArea { anchors.fill: parent; onClicked: win.gaming = false }
+        Flickable {
+            id: gamesFlick
+            G.FastWheel { flick: gamesFlick }
+            anchors.fill: parent
+            anchors.margins: parent.width * 0.06
+            contentHeight: Math.max(height, gamesFlow.height + 40)
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            Column {
+                id: gamesFlow
+                width: gamesFlick.width
+                y: Math.max(20, (gamesFlick.height - height) / 2)   // in the middle while it fits
+                readonly property int gap: Math.max(36, win.width * 0.03) + (win.pixel ? Math.round(10 * win.fu * 0.9) : 0)
+                spacing: gap
+                // the covers' height: as big as fits (smaller when there are many), not too big
+                readonly property real h: Math.min(win.height * 0.34, Math.max(170, win.height * (win.retro.length > 8 ? 0.24 : 0.3)))
+                // the games in rows that fit the width, each row centred (the covers keep their own shape)
+                readonly property var rows: {
+                    const out = [];
+                    let row = [], used = 0;
+                    for (let i = 0; i < win.retro.length; i++) {
+                        const w = h * Math.min(1.6, win.retro[i].aspect || 0.72);
+                        if (row.length && used + gap + w > width) {
+                            out.push(row);
+                            row = [];
+                            used = 0;
+                        }
+                        used += (row.length ? gap : 0) + w;
+                        row.push(i);
+                    }
+                    if (row.length)
+                        out.push(row);
+                    return out;
+                }
+                Repeater {
+                    model: win.gaming ? gamesFlow.rows : []
+                    Row {
+                        id: gameRow
+                        required property var modelData
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: gamesFlow.gap
+                        Repeater {
+                            model: gameRow.modelData
+                            Item {
+                                id: game
+                                required property int modelData          // the game's place in win.retro
+                                readonly property int index: modelData
+                                readonly property var info: win.retro[modelData]
+                                property bool starting: false
+                                readonly property bool hover: gameArea.containsMouse && !starting
+                                height: gamesFlow.h
+                                width: height * Math.min(1.6, game.info.aspect || 0.72)
+                                scale: hover ? 1.06 : 1
+                                Behavior on scale { NumberAnimation { duration: 160 } }
+                                Rectangle { anchors.fill: parent; color: "#0E1420" }
+                                Image {
+                                    id: coverImage
+                                    anchors.fill: parent
+                                    source: game.info.cover ? "file://" + game.info.cover : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    sourceSize.height: Math.round(gamesFlow.h * 1.5)
+                                }
+                                // No cover: the name big, as for a program
+                                Text {
+                                    anchors.fill: parent
+                                    anchors.margins: 12
+                                    visible: !game.info.cover
+                                    text: game.info.name
+                                    color: "#E6ECF5"
+                                    font.family: win.heading
+                                    font.weight: Font.Bold
+                                    font.pixelSize: 22
+                                    wrapMode: Text.WordWrap
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    fontSizeMode: Text.Fit
+                                    minimumPixelSize: 12
+                                }
+                                Rectangle { anchors.fill: parent; color: "#02030A"; opacity: game.starting ? 0.55 : 0
+                                            Behavior on opacity { NumberAnimation { duration: 300 } } }
+                                Glint {
+                                    anchors.centerIn: parent
+                                    visible: game.starting
+                                    size: parent.height * 0.3
+                                    pixel: win.pixel
+                                    unit: Math.max(1, win.fu)
+                                    color: "#FFD93D"
+                                    RotationAnimation on rotation { running: game.starting && !win.pixel; from: 0; to: 360; duration: 1800; loops: Animation.Infinite }
+                                }
+                                Rectangle { visible: !win.pixel; anchors.fill: parent; color: "transparent"; border.width: 4
+                                            border.color: game.hover ? "#FFF4CF" : "#2A3852" }
+                                CardFrame { visible: win.pixel; anchors.fill: parent; anchors.margins: -outside; unit: Math.max(1, win.fu - 1)
+                                            opacity: game.hover ? 1 : 0.8 }
+                                Timer { id: gameStarting; interval: 8000; onTriggered: game.starting = false }
+                                Timer { id: gameName; interval: 400; onTriggered: backend.sayRetro(game.index) }
+                                onHoverChanged: hover ? gameName.restart() : gameName.stop()
+                                MouseArea {
+                                    id: gameArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (game.starting || !backend.launchRetro(game.index))
+                                            return;
+                                        backend.sound("pling");
+                                        game.starting = true;
+                                        gameStarting.restart();
+                                    }
+                                }
+                            }
                         }
                     }
                 }
