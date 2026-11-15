@@ -16,6 +16,7 @@ var redigerar := false
 var red_kamera := Vector2(480, 270)
 var red_verktyg := 1  ## 0 = suddet, 1 = mark
 var red_senast := Vector3i(-1, -1, 0)
+var red_meny := true  ## redigerarens panel till vänster öppen
 var red_historik: Array[String] = []
 ## I barnläget (-- --barnlage, menyfilen från tools/barnspelet-installera.sh): ingen redigerare, ingen
 ## tidtagare – barnet ska inte kunna ändra något. Back + Start på kontrollen avslutar (tillbaka till barnläget).

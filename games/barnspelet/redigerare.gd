@@ -3,7 +3,7 @@ extends Node2D
 ## E i spelet → här: spelet står still, rutnät, en meny med bilder längst ner.
 ##   vänsterklick/dra = lägg ut det valda   högerklick/dra = ta bort   Ctrl+Z = ångra
 ##   A/D, pilarna, mushjulet = flytta (Shift = fortare), W/S = upp/ner   1–9, 0 = välj i menyn
-##   E = spela härifrån   Enter = spela från början   Esc = avsluta
+##   Tab = visa/göm menyn   E = spela härifrån   Enter = spela från början   Esc = avsluta
 ## Varje ändring sparas direkt i banor/<namn>.txt och banan byggs om (samma bygge som när man spelar).
 ## Bara för den vuxne – barnet ser aldrig det här (inga ord i själva spelet).
 
@@ -30,13 +30,15 @@ const VERKTYG := [
 	["B", "Bur", ["bur", ""]],
 	["P", "Start", ["pojken", "sta"]],
 ]
-const ENSAM := ["P", "O"]
-const PER_RAD := 10       ## menyn i två rader – allt syns utan att skrolla (användaren 15 nov)
-const MENY_HOJD := 112.0  ## finns bara en gång – den gamla tas bort
+const ENSAM := ["P", "O"]  ## finns bara en gång – den gamla tas bort
+## Menyn = en panel till vänster som fälls in/ut (knappen i hörnet eller Tab) och skrollas med hjulet
+## (användaren 15 nov: raden längst ner skymde)
+const PANEL_BREDD := 156.0
 
 var bana: Node2D
 var _knappar: Array[Button] = []
-var _meny: PanelContainer
+var _panel: PanelContainer
+var _fall: Button
 
 
 func _ready() -> void:
@@ -44,25 +46,29 @@ func _ready() -> void:
 	var lager := CanvasLayer.new()
 	lager.layer = 10
 	add_child(lager)
-	_meny = PanelContainer.new()
+	_panel = PanelContainer.new()
 	var stil := StyleBoxFlat.new()
-	stil.bg_color = Color(0.08, 0.06, 0.12, 0.88)
+	stil.bg_color = Color(0.08, 0.06, 0.12, 0.9)
 	stil.set_content_margin_all(6)
-	_meny.add_theme_stylebox_override("panel", stil)
-	_meny.position = Vector2(0, 540 - MENY_HOJD)
-	_meny.size = Vector2(960, MENY_HOJD)
-	lager.add_child(_meny)
+	stil.content_margin_top = 40
+	_panel.add_theme_stylebox_override("panel", stil)
+	_panel.position = Vector2.ZERO
+	_panel.size = Vector2(PANEL_BREDD, 540)
+	lager.add_child(_panel)
+	var rull := ScrollContainer.new()
+	rull.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_panel.add_child(rull)
 	var rad := GridContainer.new()
-	rad.columns = PER_RAD
+	rad.columns = 2
 	rad.add_theme_constant_override("h_separation", 4)
 	rad.add_theme_constant_override("v_separation", 4)
-	_meny.add_child(rad)
+	rull.add_child(rad)
 	for i in VERKTYG.size():
 		var v: Array = VERKTYG[i]
 		var b := Button.new()
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(64, 46)
+		b.custom_minimum_size = Vector2(66, 52)
 		b.tooltip_text = "%s (%s)" % [v[1], _tangent(i)]
 		b.icon = _ikon(v[2][0], v[2][1])
 		b.expand_icon = true
@@ -70,12 +76,41 @@ func _ready() -> void:
 		b.pressed.connect(_valj.bind(i))
 		rad.add_child(b)
 		_knappar.append(b)
+	_fall = Button.new()
+	_fall.focus_mode = Control.FOCUS_NONE
+	_fall.position = Vector2(6, 6)
+	_fall.custom_minimum_size = Vector2(40, 28)
+	_fall.icon = _pil()
+	_fall.tooltip_text = "Visa/göm menyn (Tab)"
+	_fall.pressed.connect(_falla)
+	lager.add_child(_fall)
+	_visa_panel()
 	_valj(Spel.red_verktyg)
-	# hela banans nederkant ovanför menyn (annars gick markraden inte att klicka på)
-	bana.kamera.limit_bottom = int(bana.hojd * RUTA + MENY_HOJD)
-	Spel.red_kamera.y = clampf(Spel.red_kamera.y, 270.0, _lagst()) if Spel.red_kamera.y > 270.0 else _lagst()
+	bana.kamera.limit_bottom = int(bana.hojd * RUTA)
+	Spel.red_kamera.y = clampf(Spel.red_kamera.y, 270.0, _lagst())
 	bana.kamera.position = Spel.red_kamera
 	bana.kamera.reset_smoothing()
+
+
+func _falla() -> void:
+	Spel.red_meny = not Spel.red_meny
+	_visa_panel()
+
+
+func _visa_panel() -> void:
+	_panel.visible = Spel.red_meny
+	_fall.icon = _pil()
+
+
+## En liten pil ritad här (◀ när menyn är öppen, ▶ när den är gömd)
+func _pil() -> ImageTexture:
+	var img := Image.create(12, 14, false, Image.FORMAT_RGBA8)
+	for y in 14:
+		var w := 7 - absi(y - 7) if y < 14 else 0
+		for x in range(w):
+			var px := (11 - x - 2) if Spel.red_meny else (x + 2)
+			img.set_pixel(clampi(px, 0, 11), y, Color(1, 1, 1))
+	return ImageTexture.create_from_image(img)
 
 
 func _tangent(i: int) -> String:
@@ -134,7 +169,8 @@ func _process(dt: float) -> void:
 	# måla
 	var mus := get_global_mouse_position()
 	var c := Vector2i(floori(mus.x / RUTA), floori(mus.y / RUTA))
-	var over_menyn := get_viewport().get_mouse_position().y > 540 - MENY_HOJD
+	var mp := get_viewport().get_mouse_position()
+	var over_menyn := (Spel.red_meny and mp.x < PANEL_BREDD) or (mp.x < 50 and mp.y < 40)
 	if not over_menyn and c.y >= 0 and c.y < bana.hojd and c.x >= 0:
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Spel.red_senast != Vector3i(c.x, c.y, 1):
 			Spel.red_senast = Vector3i(c.x, c.y, 1)
@@ -149,7 +185,7 @@ func _process(dt: float) -> void:
 
 ## Kamerans lägsta läge: banans botten precis ovanför menyn
 func _lagst() -> float:
-	return bana.hojd * RUTA - (540.0 - MENY_HOJD) + 270.0
+	return bana.hojd * RUTA - 270.0
 
 
 func _flytta(d: float) -> void:
@@ -164,7 +200,9 @@ func _unhandled_input(e: InputEvent) -> void:
 		elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_flytta(RUTA * 2.0)
 	if e is InputEventKey and e.pressed and not e.echo:
-		if e.keycode == KEY_Z and e.ctrl_pressed:
+		if e.keycode == KEY_TAB:
+			_falla()
+		elif e.keycode == KEY_Z and e.ctrl_pressed:
 			_angra()
 		elif e.keycode >= KEY_0 and e.keycode <= KEY_9:
 			var i: int = (e.keycode - KEY_0 + 9) % 10
