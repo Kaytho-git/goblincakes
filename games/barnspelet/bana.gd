@@ -9,6 +9,11 @@ extends Node2D
 ##   P  start
 
 const RUTA := 48
+const MARKYTA := 9 * 48.0  ## markens vanliga höjd (rad 9)
+## Markrutorna ritas så här mycket högre än där man står: gräset är ~15 px tjockt (rad 5–20 i rutan) och
+## fötterna ska stå mitt i det – annars ser allt ut att sväva på grästopparna (användaren 15 nov)
+const MARK_UPP := 12.0
+const VATTEN_NER := 20.0  ## vattenytan ligger en bit ner i gropen, inte i höjd med gräset (användaren 15 nov)
 const KAKEL := ["gras_v", "gras", "gras_h", "jord_v", "jord", "jord_h", "planka_v", "planka", "planka_h",
 		"vattenyta", "vatten", "vattenyta2"]
 
@@ -91,17 +96,32 @@ func _rutor(rader: PackedStringArray) -> void:
 			td.set_collision_polygon_one_way(0, 0, true)
 		else:
 			td.set_collision_polygon_points(0, 0, PackedVector2Array([Vector2(-h, -h), Vector2(h, -h), Vector2(h, h), Vector2(-h, h)]))
+	# två lager: det man står på (osynligt, på rutnätet) och det som syns (MARK_UPP högre, ingen krock)
 	var lager := TileMapLayer.new()
 	lager.tile_set = ts
+	lager.modulate = Color(1, 1, 1, 0)
 	add_child(lager)
+	var syns := TileMapLayer.new()
+	syns.tile_set = ts
+	syns.collision_enabled = false
+	syns.position.y = -MARK_UPP
+	add_child(syns)
 	for c in _fast:
 		var topp := not _fast.has(c + Vector2i.UP)
-		lager.set_cell(c, sid, Vector2i((0 if topp else 3) + _kant(_fast, c), 0))
+		var ruta := Vector2i((0 if topp else 3) + _kant(_fast, c), 0)
+		lager.set_cell(c, sid, ruta)
+		syns.set_cell(c, sid, ruta)
+		if c.y == hojd - 1:  # en rad till under: den synliga marken är MARK_UPP högre och ska nå skärmens nederkant
+			syns.set_cell(c + Vector2i.DOWN, sid, ruta)
 	for c in _plankor:
-		lager.set_cell(c, sid, Vector2i(6 + _kant(_plankor, c), 0))
+		var ruta := Vector2i(6 + _kant(_plankor, c), 0)
+		lager.set_cell(c, sid, ruta)
+		syns.set_cell(c, sid, ruta)
 	if antal >= 11:
 		var vatten := TileMapLayer.new()  # framför pojken och krokodilen
 		vatten.tile_set = ts
+		vatten.position.y = VATTEN_NER
+		vatten.collision_enabled = false
 		vatten.z_index = 8
 		vatten.modulate = Color(1, 1, 1, 0.92)
 		add_child(vatten)
@@ -142,7 +162,7 @@ func _figurer(rader: PackedStringArray) -> void:
 				"p":
 					ny_fiende("papegoja", mitt)
 				"c":
-					ny_fiende("krokodil", Vector2(golv.x, y * RUTA + 6.0))
+					ny_fiende("krokodil", Vector2(golv.x, y * RUTA + VATTEN_NER + 6.0))
 				"o":
 					ny_fiende("kokos", golv)
 				"b":
@@ -229,7 +249,7 @@ func _physics_process(_dt: float) -> void:
 	if pojke.position.y > botten + 60.0:
 		pojke.do()
 		return
-	if _vatten.has(Vector2i(floori(pojke.position.x / RUTA), floori((pojke.position.y - 10.0) / RUTA))):
+	if _vatten.has(Vector2i(floori(pojke.position.x / RUTA), floori((pojke.position.y - 10.0 - VATTEN_NER) / RUTA))):
 		pojke.do()  # i vattnet
 		return
 	var pr: Rect2 = pojke.rect()
@@ -449,7 +469,9 @@ func _bakgrund() -> void:
 		s.texture = tex
 		s.centered = false
 		s.scale = Vector2(2, 2)  # bakgrunden ritad grövre (480 × 300 per halva)
-		s.position = Vector2(0, botten - tex.get_height() * 2.0)  # nederkanten i banans botten (syns i groparna)
+		# nederkanten 200 px under markytan: Kakans blomrad längst ner hamnar bakom marken (den såg ut som
+		# saker att plocka – "halva bananer", användaren 15 nov)
+		s.position = Vector2(0, MARKYTA + 200.0 - tex.get_height() * 2.0)
 		p.add_child(s)
 		add_child(p)
 		return

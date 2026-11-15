@@ -214,7 +214,7 @@ func _kor_djungel() -> void:
 	var R := 48.0
 	var finns := func(skript: String) -> Array:
 		return bana.fiender.filter(func(f): return is_instance_valid(f) and f.get_script().resource_path.ends_with(skript))
-	_koll("djungelns fiender finns", finns.call("gangare.gd").size() == 5 and finns.call("papegoja.gd").size() == 3
+	_koll("djungelns fiender finns", finns.call("gangare.gd").size() == 4 and finns.call("papegoja.gd").size() == 3
 			and finns.call("krokodil.gd").size() == 2 and finns.call("kokos.gd").size() == 3 and bana.boss != null)
 	# vattnet
 	await _flytta(77 * R + 24.0, 300.0)

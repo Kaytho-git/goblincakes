@@ -17,6 +17,8 @@ Prov="*res://prov.gd"
 
 window/size/viewport_width=960
 window/size/viewport_height=540
+; helskärm: i ett fönster blev det bara ×1 (titelraden tar plats från 1080)
+window/size/mode=3
 window/size/window_width_override=1920
 window/size/window_height_override=1080
 window/stretch/mode="viewport"
