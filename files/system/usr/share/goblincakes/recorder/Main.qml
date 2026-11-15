@@ -2884,13 +2884,13 @@ Window {
                 spacing: 8
                 Choice {
                     text: "CS2 STATS"
-                    sub: "Premier och Competitive på Valves servrar – dina riktiga siffror"
+                    sub: "Premier och Competitive på Valves servrar (när Valves demo är läst) – dina riktiga siffror"
                     chosen: !win.cs2Private
                     onPicked: { win.cs2Private = false; win.cs2Season = ""; win.cs2Open = 0; }
                 }
                 Choice {
                     text: "PRIVAT" + (!win.cs2Private && cs2Page.d.other ? " (" + cs2Page.d.other + ")" : "")
-                    sub: "Privata servrar och workshop-kartor – räknas inte in i CS2 Stats"
+                    sub: "Privata servrar, workshop-kartor och matcher utan Valves demo – räknas inte in i CS2 Stats"
                     chosen: win.cs2Private
                     onPicked: { win.cs2Private = true; win.cs2Season = ""; win.cs2Open = 0; }
                 }

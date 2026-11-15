@@ -3621,7 +3621,8 @@ def cs2_history_add(metas):
 
 # Your real numbers = Premier/Competitive on Valve's servers (24 Oct, the user: Saturdays on
 # friends' private server – other maps, for fun, not always sober – gave a crooked picture). Private
-# servers are under PRIVAT in CS2 Stats: a demo from another server, your own `record`, a workshop map.
+# servers are under PRIVAT in CS2 Stats: a demo from another server, your own `record`, a workshop map,
+# and (15 Nov, the user) every Competitive/Premier match until Valve's demo has been read.
 # Everything else on Valve's servers (casual, rush, wingman, deathmatch …) is in neither (31 Oct, the
 # user). A match can be moved by hand (the match unfolded → Flytta till …).
 OFFICIAL_MODES = ("competitive", "premier")
@@ -3642,7 +3643,11 @@ def cs2_private(e, hist=None):
         return True
     if "workshop" in (e.get("map") or "").lower():
         return True
-    return False if mode in OFFICIAL_MODES else None
+    if mode not in OFFICIAL_MODES:
+        return None
+    # 15 Nov, the user: only a Valve server counts – friends' servers say "competitive" too and play MR12
+    # like Valve, so without Valve's demo (Watch → Your Matches) a match is PRIVAT until the demo is read
+    return not (server or demo_dir == "replays")
 
 
 def cs2_set_private(started, private):
