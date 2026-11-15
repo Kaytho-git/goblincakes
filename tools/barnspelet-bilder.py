@@ -147,26 +147,34 @@ class Drawing:
         return tw, th, pa.cells(self.w, self.h, px, self.boxes[i], tw, th, False)
 
 
-def is_leg(c):
+def is_leg(c, boots=False):
     r, g, b = c[:3]
+    if boots and r > 100 and b < 80 and 0.35 * r < g < 0.65 * r:  # the winter boots (brown)
+        return True
     return (b > r + 40 and b > g + 10) or (r > 150 and g > 150 and b > 170)  # trousers or sneakers
 
 
-def darken_leg(img, side):
+def darken_leg(img, side, winter=False):
     """The far leg darker: below the hoodie's hem, on one side of the thinnest column between the legs."""
     w, h = img.size
     red = [y for y in range(h) for x in range(w)
-           if (lambda c: c[3] and c[0] > 150 and c[1] < 110 and c[2] < 110)(img.getpixel((x, y)))]
+           if (lambda c: c[3] and c[0] > 150 and c[1] < 110 and c[2] < 110 and c[1] < 0.38 * c[0])(img.getpixel((x, y)))]
+    # (green < 0.38 × red: the winter boots and the hair are brown, g/r 0.44–0.55 – they counted as the hem)
     y0 = max(red) - 2
-    cols = [sum(1 for y in range(y0 + 4, h) if img.getpixel((x, y))[3] and is_leg(img.getpixel((x, y)))) for x in range(w)]
+    # (winter: the blue mittens hang a few pixels below the jacket and counted as legs – look further down)
+    cols = [sum(1 for y in range(y0 + (12 if winter else 4), h) if img.getpixel((x, y))[3] and is_leg(img.getpixel((x, y))))
+            for x in range(w)]
     xs = [x for x in range(w) if cols[x]]
     mid = (xs[0] + xs[-1]) // 2
     split = min(range(mid - 8, mid + 9), key=lambda x: (cols[x], abs(x - mid)))
     for y in range(y0, h):
         for x in range(w):
             c = img.getpixel((x, y))
-            if c[3] and is_leg(c) and ((x < split) if side == "left" else (x >= split)):
-                img.putpixel((x, y), (round(c[0] * .62), round(c[1] * .62), round(c[2] * .74), 255))
+            if c[3] and is_leg(c, winter) and ((x < split) if side == "left" else (x >= split)):
+                # winter (15 Nov, the user: "always the same leg"): the snow pants are dark already and the boots
+                # were not darkened at all – boots too, and darker
+                k = (.5, .5, .6) if winter else (.62, .62, .74)
+                img.putpixel((x, y), (round(c[0] * k[0]), round(c[1] * k[1]), round(c[2] * k[2]), 255))
 
 
 def sheet(name, cuts, names, colours=32, pad=4, bottom=True, fixed=None):
@@ -202,44 +210,84 @@ def save(name, cells, size, names):
 
 # ── The parts ────────────────────────────────────────────────────
 
-def figur():
+def figur(klader=""):
     """The boy, 96 px: stå, kliv, mellan (far leg swings, behind), kliv, mellan (near leg swings, in front),
-    hopp, oj."""
-    std = Drawing("pojken-prov1.png")                 # stå, gång, gång, hopp (only stå and hopp used)
-    walk = Drawing("pojken-gangcykel-prov3.png")      # kliv, (mellan), kliv, (mellan)
-    pass_far = Drawing("pojken-mellansteg-prov4.png")  # far leg swings
-    pass_near = Drawing("pojken-mellansteg-nara-prov5.png")
-    oj = Drawing("pojken-oj-prov.png")
-    run = Drawing("pojken-spring-prov.png")   # push, flight, push, flight – near leg always in front
-    fall = Drawing("pojken-fall-prov.png")    # fall, bromsa
-    idle = Drawing("pojken-idle-prov.png")    # stå, andas in, tittar på oss, tittar upp (fötterna stilla)
-    duck = Drawing("pojken-duck-prov.png")    # ducka, glida (huvudet lika stort som när han står → 68 px hög)
-    s = std.scale_for(0, 96)
-    pass_h = round((walk.boxes[1][3] - walk.boxes[1][1]) / s)
-    s_far, s_near = pass_far.scale_for(0, pass_h), pass_near.scale_for(0, pass_h)
-    s_oj = oj.scale_for(0, 96)
+    hopp, oj … + kryp1–4 (on hands and knees, 46 px – fits under a block one tile up).
+    klader "-vinter" = the same drawings redrawn by Codex in winter clothes (pojken-…-vinter-prov….png) →
+    the sheet pojken-vinter (the level's json "pojke")."""
+    def D(namn):
+        return Drawing(namn.replace("-prov", klader + "-prov"))
+    std = D("pojken-prov1.png")                 # stå, gång, gång, hopp (only stå and hopp used)
+    walk = D("pojken-gangcykel-prov3.png")      # kliv, (mellan), kliv, (mellan)
+    if klader:
+        # winter: both passing steps in one picture, drawn by Codex from the regular sheet's FIXED passing frames
+        # (dark far leg) – darkening afterwards found the wrong leg when the legs touch (15 Nov)
+        pass_far = pass_near = D("pojken-mellan-prov.png")
+    else:
+        pass_far = D("pojken-mellansteg-prov4.png")  # far leg swings
+        pass_near = D("pojken-mellansteg-nara-prov5.png")
+    near_i = 1 if klader else 0
+    oj = D("pojken-oj-prov.png")
+    run = D("pojken-spring-prov.png")   # push, flight, push, flight – near leg always in front
+    fall = D("pojken-fall-prov.png")    # fall, bromsa
+    idle = D("pojken-idle-prov.png")    # stå, andas in, tittar på oss, tittar upp (fötterna stilla)
+    duck = D("pojken-duck-prov.png")    # ducka, glida (huvudet lika stort som när han står → 68 px hög)
+    try:
+        kryp = D("pojken-kryp-prov.png")  # krypa: 4 bilder (höger hand+vänster knä, mellan, vänster+höger, mellan)
+        if len(kryp.boxes) != 4:
+            print(f"  – kryp: hittade {len(kryp.boxes)} figurer, inte 4 – utan krypbilder")
+            kryp = None
+    except FileNotFoundError:
+        kryp = None
+    if klader:  # the winter drawings: same canvas, same body size as the regular ones → the regular scales
+        # (scaling each by its own height made the boy smaller under the hat)
+        bas = {k: Drawing(n) for k, n in (("std", "pojken-prov1.png"), ("walk", "pojken-gangcykel-prov3.png"),
+               ("oj", "pojken-oj-prov.png"),
+               ("fall", "pojken-fall-prov.png"), ("idle", "pojken-idle-prov.png"), ("duck", "pojken-duck-prov.png"),
+               ("kryp", "pojken-kryp-prov.png"))}
+        bas["duck"].common_ground()
+        bas["kryp"].common_ground()
+    else:
+        bas = {"std": std, "walk": walk, "oj": oj, "fall": fall, "idle": idle,
+               "duck": duck, "kryp": kryp}
+    s = bas["std"].scale_for(0, 96)
+    pass_h = round((bas["walk"].boxes[1][3] - bas["walk"].boxes[1][1]) / s)
+    s_far, s_near = pass_far.scale_for(0, pass_h), pass_near.scale_for(near_i, pass_h)
+    s_oj = bas["oj"].scale_for(0, 96)
     s_run = s * ((run.boxes[0][3] - run.boxes[0][1]) / (walk.boxes[0][3] - walk.boxes[0][1])) ** 0  # same canvas as the walk
-    s_fall = fall.scale_for(0, 96)
-    s_idle = idle.scale_for(0, 96)
+    s_fall = bas["fall"].scale_for(0, 96)
+    s_idle = bas["idle"].scale_for(0, 96)
     duck.common_ground()
-    s_duck = duck.scale_for(0, 68)
-    for d, k in ((std, s), (walk, s), (pass_far, s_far), (pass_near, s_near), (oj, s_oj), (run, s_run), (fall, s_fall),
+    s_duck = bas["duck"].scale_for(0, 68)
+    if pass_near is pass_far:
+        pass_far.common_ground()
+    for d, k in ((std, s), (walk, s), (pass_far, s_far), (pass_near, s_near if pass_near is not pass_far else None), (oj, s_oj), (run, s_run), (fall, s_fall),
                  (idle, s_idle), (duck, s_duck)):
-        d.peel(k)
+        if k:  # (one picture for both passing steps: peeled once)
+            d.peel(k)
     run.common_ground()
     idle.common_ground()
-    cuts = [std.cut(0, s), walk.cut(0, s), pass_far.cut(0, s_far), walk.cut(2, s), pass_near.cut(0, s_near),
+    if kryp:
+        kryp.common_ground()
+        s_kryp = max(b[3] - b[1] for b in bas["kryp"].boxes) / 46
+        kryp.peel(s_kryp)
+    cuts = [std.cut(0, s), walk.cut(0, s), pass_far.cut(0, s_far), walk.cut(2, s), pass_near.cut(near_i, s_near),
             std.cut(3, s), oj.cut(0, s_oj)] + [run.cut(i, s_run) for i in range(4)] + [fall.cut(0, s_fall), fall.cut(1, s_fall)] + \
         [idle.cut(i, s_idle) for i in range(4)] + [duck.cut(0, s_duck), duck.cut(1, s_duck)]
     names = ["sta", "kliv1", "mellan1", "kliv2", "mellan2", "hopp", "oj", "spring1", "spring2", "spring3", "spring4",
              "fall", "bromsa", "idle1", "idle2", "idle3", "idle4", "duck", "glid"]
-    cells, size = sheet("pojken", cuts, names)
+    if kryp:
+        cuts += [kryp.cut(i, s_kryp) for i in range(4)]
+        names += ["kryp1", "kryp2", "kryp3", "kryp4"]
+    cells, size = sheet("pojken" + klader, cuts, names)
     # The far leg darker – walk: kliv1, mellan1, kliv2; run (15 Nov: Codex drew the alternation right, but its
     # dark blue was too close to the light one, the user saw "the same leg up every time"): push 1 and flight 1 =
     # far knee forward (right), push 2 and flight 2 = far leg planted/behind (left)
     for i, side in ((1, "left"), (2, "left"), (3, "right"), (7, "right"), (8, "right"), (9, "left"), (10, "left")):
-        darken_leg(cells[i], side)
-    save("pojken", cells, size, names)
+        if klader == "-vinter" and i == 2:
+            continue  # Codex drew the winter passing steps with the dark far leg already
+        darken_leg(cells[i], side, klader == "-vinter")
+    save("pojken" + klader, cells, size, names)
 
 
 def triumf():
@@ -437,7 +485,7 @@ def sno():
     save("bur-pingvin", cells, size, ["bur"])
 
 
-PARTS = {"sno": sno, "sno-bakgrund": lambda: bakgrund("1", "sno"), "modig": modig, "block": block, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
+PARTS = {"figur-vinter": lambda: figur("-vinter"), "sno": sno, "sno-bakgrund": lambda: bakgrund("1", "sno"), "modig": modig, "block": block, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
 
 if __name__ == "__main__":
     for part in sys.argv[1:] or PARTS:

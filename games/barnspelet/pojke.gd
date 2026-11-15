@@ -61,7 +61,13 @@ func _ready() -> void:
 	floor_snap_length = 16.0                # följer marken nerför backar i full fart
 	floor_max_angle = deg_to_rad(50.0)      # backarna är 45°
 	_sprite = AnimatedSprite2D.new()
-	_sprite.sprite_frames = Bilder.ramar("pojken", {
+	# kläderna efter banan (json "pojke": snön = pojken-vinter; användaren 15 nov) – annars de vanliga
+	var bana_nod: Node = get_parent()
+	var meta: Dictionary = bana_nod._meta if bana_nod != null and bana_nod.get("_meta") is Dictionary else {}
+	var blad: String = meta.get("pojke", "pojken")
+	if not FileAccess.file_exists("res://bilder/%s.json" % blad):
+		blad = "pojken"
+	var anims := {
 		"sta": [["idle1", "idle2"], 1.4, true],  # andas
 		"titta": [["idle3"], 1.0, false],         # tittar på oss
 		"upp": [["idle4"], 1.0, false],           # tittar upp i himlen
@@ -73,14 +79,16 @@ func _ready() -> void:
 		"duck": [["duck"], 1.0, false],
 		"glid": [["glid"], 1.0, false],
 		"oj": [["oj"], 1.0, false],
-	})
+	}
+	if Bilder.info(blad)["frames"].has("kryp1"):  # krypa på knä och händer (ducka + åt sidan)
+		anims["kryp"] = [["kryp1", "kryp2", "kryp3", "kryp4"], 7.0, true]
+	_sprite.sprite_frames = Bilder.ramar(blad, anims)
 	_sprite.centered = false
-	var cell: Vector2 = Bilder.cell("pojken")
+	var cell: Vector2 = Bilder.cell(blad)
 	_sprite.offset = Vector2(-cell.x / 2.0, -cell.y)
 	_sprite.play("sta")
 	add_child(_sprite)
-	var b: Node = get_parent()
-	_andas = b != null and b.get("_meta") is Dictionary and b._meta.get("andedrakt", false)
+	_andas = meta.get("andedrakt", false)
 
 
 ## Andedräkten i kylan (banans json "andedrakt": true – snön; användaren 15 nov): ett litet vitt moln
@@ -230,9 +238,12 @@ func _bild() -> void:
 	if glider and _sprite.sprite_frames.has_animation("glid"):
 		_sprite.flip_h = velocity.x < 0.0
 		_sprite.play("glid")
+	elif ducker and fart > 10.0 and _sprite.sprite_frames.has_animation("kryp"):
+		_sprite.play("kryp")
+		_sprite.speed_scale = clampf(fart / KRYP, 0.5, 1.2)
 	elif ducker and _sprite.sprite_frames.has_animation("duck"):
 		_sprite.play("duck")
-		# kryper: gungar lite upp och ner (tills en egen krypbild finns)
+		# kryper utan krypbilder: gungar lite upp och ner
 		_sprite.position.y = -2.0 if fart > 10.0 and int(Time.get_ticks_msec() / 140) % 2 == 0 else 0.0
 	elif not is_on_floor():
 		_sprite.play("hopp" if velocity.y < 0.0 else "fall")

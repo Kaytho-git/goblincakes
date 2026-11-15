@@ -631,24 +631,35 @@ func _kor_sno() -> void:
 
 # ── Banväljaren (-- --meny) ──
 
+## Väntar tills scenbytet är klart (högst 2 s): namnet "namn", eller vad som helst utom "inte"
+func _scen(namn: String, inte := "") -> void:
+	for i in 120:
+		var c := get_tree().current_scene
+		if c != null and (c.name == namn if namn != "" else c.name != inte):
+			return
+		await get_tree().process_frame
+
+
 func _kor_meny() -> void:
 	await _rutor(2)
 	get_tree().change_scene_to_file("res://meny.tscn")
-	await _rutor(5)
+	await _scen("Meny")
 	var m: Control = get_tree().current_scene
 	_koll("banväljaren visar tio banor", m.name == "Meny" and m.kort.size() == 10)
 	var med_grund: Array = m.kort.filter(func(k): return k["grund"])
 	_koll("bara banor med grund går att välja", med_grund.size() >= 2 and m.kort[0]["grund"] and m.kort[1]["grund"]
 			and not m.kort[9]["grund"] and m.kort[9]["redigera"] == null, "%d med grund" % med_grund.size())
 	m.kort[0]["spela"].pressed.emit()
+	await _scen("", "Meny")
 	await _rutor(10)
 	var b: Node = get_tree().current_scene
 	_koll("Spela startar banan", b.name != "Meny" and Spel.bana == "1" and not Spel.redigerar and b.pojke.visible)
 	Spel.till_menyn()
-	await _rutor(5)
+	await _scen("Meny")
 	m = get_tree().current_scene
 	_koll("tillbaka till banväljaren", m.name == "Meny")
 	m.kort[0]["redigera"].pressed.emit()
+	await _scen("", "Meny")
 	await _rutor(10)
 	b = get_tree().current_scene
 	_koll("Redigera öppnar redigeraren", Spel.bana == "1" and Spel.redigerar and not b.pojke.visible)
