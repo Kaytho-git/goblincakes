@@ -407,10 +407,34 @@ func _sak(typ: String, pos: Vector2, svavar: bool, bild := "") -> Dictionary:
 	s.position = pos
 	s.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # guppar i _process
 	add_child(s)
+	if typ == "snoklot":
+		var g := Sprite2D.new()
+		g.texture = _glitter()
+		g.modulate.a = 0.0
+		s.add_child(g)
 	var r := Rect2(pos - c / 2.0, c) if svavar else Rect2(pos - Vector2(c.x / 2.0, c.y), c)
 	var sak := {"typ": typ, "nod": s, "rect": r, "y": pos.y, "svavar": svavar}
 	saker.append(sak)
 	return sak
+
+
+## Ett litet glitter (fyruddig stjärna, ritad här)
+var _glitter_bild: ImageTexture
+
+
+func _glitter() -> ImageTexture:
+	if _glitter_bild == null:
+		var img := Image.create(9, 9, false, Image.FORMAT_RGBA8)
+		for i in 9:
+			var a := 1.0 - absf(i - 4) / 5.0
+			img.set_pixel(i, 4, Color(1, 0.93, 0.45, a))  # ljusgult – vitt syntes inte mot snön
+			img.set_pixel(4, i, Color(1, 0.93, 0.45, a))
+		img.set_pixel(3, 3, Color(1, 1, 0.8, 0.8))
+		img.set_pixel(5, 5, Color(1, 1, 0.8, 0.8))
+		img.set_pixel(3, 5, Color(1, 1, 0.8, 0.8))
+		img.set_pixel(5, 3, Color(1, 1, 0.8, 0.8))
+		_glitter_bild = ImageTexture.create_from_image(img)
+	return _glitter_bild
 
 
 func ny_fiende(skript: String, pos: Vector2, egenskaper := {}) -> Node2D:
@@ -618,6 +642,15 @@ func _process(dt: float) -> void:
 	for s in saker:
 		if s["svavar"]:  # knappar och hjärtan guppar
 			s["nod"].position.y = s["y"] + roundf(sin(_tid * 3.0 + s["nod"].position.x * 0.05) * 2.0)
+		elif s["typ"] == "snoklot":  # studsar lite och glittrar – inte samma som de rullande snöbollarna (användaren 15 nov)
+			var fas: float = _tid * 3.0 + s["nod"].position.x * 0.05
+			s["nod"].position.y = s["y"] - roundf(absf(sin(fas)) * 5.0)
+			var g: Sprite2D = s["nod"].get_child(0)
+			var blink := fmod(_tid * 1.4 + s["nod"].position.x * 0.013, 1.0)  # ett glitter per varv, på ett nytt ställe
+			var n := int(_tid * 1.4 + s["nod"].position.x * 0.013) % 3
+			g.position = Vector2([-9.0, 8.0, -2.0][n], [-26.0, -18.0, -10.0][n])
+			g.modulate.a = clampf(1.0 - absf(blink - 0.5) * 4.0, 0.0, 1.0)
+			g.rotation = blink * 1.5
 	_hud_uppdatera()
 
 
