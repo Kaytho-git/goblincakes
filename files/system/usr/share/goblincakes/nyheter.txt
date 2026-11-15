@@ -1,3 +1,4 @@
+2026-11-15  CS2: flyttar du en match till Privat slutar den vänta på demo, precis som Klar utan demo – hela filmen tas bort, klippen blir kvar.
 2026-11-15  CS2 Stats hämtar dina matcher från Leetify: en match som finns där räknas som officiell direkt (ingen demo behövs för det), och TTD, sikte, spray och counter-strafe visar Leetifys egna värden, märkta med ett litet L. Matcher på privata servrar ligger under PRIVAT. Lägg din Leetify-nyckel i ~/.config/goblincakes/leetify.key.
 2026-11-15  CS2 Stats räknas mer som Leetify: counter-strafe och spray räknar nu bara gevär som Leetify gör (counter-strafe stämmer nästan exakt), och SIKTE är ett snitt. Första skottet är märkt som egen mätning. Hagelgevärens träffsäkerhet visar inte längre över 100 %.
 2026-11-14  Barnläget går att styra med handkontrollen: spaken eller styrkorset flyttar mellan korten, A väljer och B går tillbaka. Ett mjukt ljud hörs när ett kort markeras – Coris uppläsning av namnen är borttagen.

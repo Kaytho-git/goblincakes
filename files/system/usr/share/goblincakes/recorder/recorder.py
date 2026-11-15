@@ -3826,6 +3826,16 @@ def cs2_set_private(started, private):
     tmp = CS2_HISTORY.with_suffix(".tmp")
     tmp.write_text(json.dumps(hist, ensure_ascii=False))
     tmp.replace(CS2_HISTORY)
+    # 15 Nov, the user: moved to PRIVAT = a friends' server, no Valve demo is coming – the same as
+    # Klar utan demo (the whole video goes, the clips and the card stay; Välj demo … still works)
+    if private and hist[key].get("file"):
+        meta = (Path(load_config()["folder"]) / hist[key]["file"]).with_suffix(".json")
+        try:
+            waiting = json.loads(meta.read_text()).get("demo") == "waiting"
+        except (OSError, ValueError):
+            waiting = False
+        if waiting:
+            cs2_demo_skip(meta)
     return True
 
 
