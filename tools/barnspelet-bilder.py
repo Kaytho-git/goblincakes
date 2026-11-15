@@ -355,6 +355,17 @@ def djungel():
         save(n, cells, size, [n])
 
 
+def block():
+    """The jungle's blocks (X stone, L crate) – each level's json names its own ("block"), so the blocks follow
+    the theme (the user, 15 Nov)."""
+    d = Drawing("djungel-block-prov.png", grid=True)
+    if len(d.boxes) != 2:
+        sys.exit(f"djungel-block: hittade {len(d.boxes)} block, inte 2")
+    names = ["sten", "lada"]
+    cells, size = sheet("djungel-block", [d.cut(i, 1, (48, 48)) for i in range(2)], names, pad=0, fixed=(48, 48))
+    save("djungel-block", cells, size, names)
+
+
 def orangutang():
     d = Drawing("orangutang-prov.png")
     if len(d.boxes) != 4:
@@ -367,7 +378,7 @@ def orangutang():
     save("orangutang", cells, size, names)
 
 
-PARTS = {"modig": modig, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
+PARTS = {"modig": modig, "block": block, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
 
 if __name__ == "__main__":
     for part in sys.argv[1:] or PARTS:

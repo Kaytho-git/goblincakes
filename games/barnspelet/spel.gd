@@ -159,7 +159,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			ny_runda()
 		else:
 			redigerar = true
-			red_kamera = bana.kamera.get_screen_center_position()
+			red_kamera = Vector2(bana.kamera.get_screen_center_position().x, 9999.0)  # = längst ner (redigeraren)
 		get_tree().reload_current_scene()
 	elif event.keycode == KEY_ENTER and redigerar:
 		redigerar = false

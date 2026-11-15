@@ -2,6 +2,7 @@ extends Node2D
 ## En bana ur banor/<namn>.txt – en rad per rutrad (48 × 48 spelpixlar) – och banor/<namn>.json
 ## ({"mark": blad med rutorna, "bakgrund": bild}, valfri):
 ##   .  luft          G  markyta (allt under fylls med jord)    =  planka/gren (hoppa upp underifrån)
+##   X  stenblock    L  trälåda   (block: fasta åt alla håll, staplas, fyller inte under sig)
 ##   W  vattenyta (vatten fylls under – i vattnet blir det "oj")   c  krokodil i vattnet (räknas som W)
 ##   k  knapp         h  hjärta (ett liv)        b  banan (bärs, kastas med B)   u  bananbuske (nya bananer)
 ##   r  racerbil      s  orm      p  papegoja    o  palm med kokosnöt             O  bossen (orangutangen)
@@ -36,6 +37,8 @@ var rader: PackedStringArray
 
 var _fast := {}
 var _plankor := {}
+var _mark := {}    ## bara marken (G och jorden under) – gräset ritas där inget mark ligger ovanför
+var _block := {}   ## Vector2i → 0 sten, 1 trälåda
 var _vatten := {}  ## Vector2i → true för ytan, false under
 var _meta := {}
 var _kastade: Array = []  ## {"nod", "v", "studsad"}
@@ -126,6 +129,10 @@ func _rutor(rader: PackedStringArray) -> void:
 				"G":
 					for yy in range(y, hojd):
 						_fast[Vector2i(x, yy)] = true
+						_mark[Vector2i(x, yy)] = true
+				"X", "L":
+					_fast[Vector2i(x, y)] = true
+					_block[Vector2i(x, y)] = 0 if rader[y][x] == "X" else 1
 				"=":
 					_plankor[Vector2i(x, y)] = true
 				"W", "c":
@@ -163,9 +170,9 @@ func _rutor(rader: PackedStringArray) -> void:
 	syns.collision_enabled = false
 	syns.position.y = -MARK_UPP
 	add_child(syns)
-	for c in _fast:
-		var topp := not _fast.has(c + Vector2i.UP)
-		var ruta := Vector2i((0 if topp else 3) + _kant(_fast, c), 0)
+	for c in _mark:
+		var topp := not _mark.has(c + Vector2i.UP)
+		var ruta := Vector2i((0 if topp else 3) + _kant(_mark, c), 0)
 		lager.set_cell(c, sid, ruta)
 		syns.set_cell(c, sid, ruta)
 		if c.y == hojd - 1:  # en rad till under: den synliga marken är MARK_UPP högre och ska nå skärmens nederkant
@@ -174,6 +181,26 @@ func _rutor(rader: PackedStringArray) -> void:
 		var ruta := Vector2i(6 + _kant(_plankor, c), 0)
 		lager.set_cell(c, sid, ruta)
 		syns.set_cell(c, sid, ruta)
+	# blocken följer banans tema (banor/<namn>.json "block" – djungeln: djungel-block), krock i det osynliga lagret,
+	# syns utan MARK_UPP (inget gräs att sjunka ner i)
+	var bblad: String = _meta.get("block", "")
+	if not _block.is_empty() and FileAccess.file_exists("res://bilder/%s.json" % bblad):
+		var bsrc := TileSetAtlasSource.new()
+		bsrc.texture = Bilder.textur(bblad)
+		bsrc.texture_region_size = Vector2i(RUTA, RUTA)
+		var bid := ts.add_source(bsrc)
+		for i in Bilder.info(bblad)["frames"].size():
+			bsrc.create_tile(Vector2i(i, 0))
+			var td := bsrc.get_tile_data(Vector2i(i, 0), 0)
+			td.add_collision_polygon(0)
+			td.set_collision_polygon_points(0, 0, PackedVector2Array([Vector2(-h, -h), Vector2(h, -h), Vector2(h, h), Vector2(-h, h)]))
+		var blocksyns := TileMapLayer.new()
+		blocksyns.tile_set = ts
+		blocksyns.collision_enabled = false
+		add_child(blocksyns)
+		for c in _block:
+			lager.set_cell(c, bid, Vector2i(_block[c], 0))
+			blocksyns.set_cell(c, bid, Vector2i(_block[c], 0))
 	if antal >= 11:
 		var vatten := TileMapLayer.new()  # framför pojken och krokodilen
 		vatten.tile_set = ts

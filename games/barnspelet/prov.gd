@@ -353,6 +353,12 @@ func _kor_red() -> void:
 	await _rutor(5)
 	b = get_tree().current_scene
 	_koll("ändring utanför spelet skrivs inte över", b.rader[8][12] == "k" and b.rader[9][39] == "W", b.rader[9].substr(30, 12))
+	# block: fast, fyller inte under sig
+	red = b.get_children().filter(func(c): return c.get_script() and c.get_script().resource_path.ends_with("redigerare.gd"))[0]
+	red._satt(Vector2i(15, 6), "X")
+	await _rutor(5)
+	b = get_tree().current_scene
+	_koll("block är fast men fyller inte under sig", b.fast(Vector2(15 * 48 + 24, 6 * 48 + 24)) and not b.fast(Vector2(15 * 48 + 24, 7 * 48 + 24)))
 	DirAccess.remove_absolute(fil)
 	print("PROV REDIGERAREN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
 	get_tree().quit(1 if _fel else 0)

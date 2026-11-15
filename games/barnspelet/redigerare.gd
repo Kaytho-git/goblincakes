@@ -2,7 +2,7 @@ extends Node2D
 ## Redigeraren (användaren 15 nov: "jag startar editering och lägger in fienderna och plattformar").
 ## E i spelet → här: spelet står still, rutnät, en meny med bilder längst ner.
 ##   vänsterklick/dra = lägg ut det valda   högerklick/dra = ta bort   Ctrl+Z = ångra
-##   A/D, pilarna, mushjulet = flytta (Shift = fortare)   1–9, 0 = välj i menyn
+##   A/D, pilarna, mushjulet = flytta (Shift = fortare), W/S = upp/ner   1–9, 0 = välj i menyn
 ##   E = spela härifrån   Enter = spela från början   Esc = avsluta
 ## Varje ändring sparas direkt i banor/<namn>.txt och banan byggs om (samma bygge som när man spelar).
 ## Bara för den vuxne – barnet ser aldrig det här (inga ord i själva spelet).
@@ -13,6 +13,8 @@ const VERKTYG := [
 	[".", "Sudd – ta bort (eller högerklick)", ["sudd", ""]],
 	["G", "Mark", ["mark", "gras"]],
 	["=", "Gren", ["mark", "planka"]],
+	["X", "Block 1 (följer banans tema)", ["block", "sten"]],
+	["L", "Block 2 (följer banans tema)", ["block", "lada"]],
 	["W", "Vatten", ["mark", "vattenyta"]],
 	["k", "Knapp", ["knapp", ""]],
 	["h", "Hjärta", ["hjarta", ""]],
@@ -28,7 +30,9 @@ const VERKTYG := [
 	["B", "Bur", ["bur", ""]],
 	["P", "Start", ["pojken", "sta"]],
 ]
-const ENSAM := ["P", "O"]  ## finns bara en gång – den gamla tas bort
+const ENSAM := ["P", "O"]
+const PER_RAD := 10       ## menyn i två rader – allt syns utan att skrolla (användaren 15 nov)
+const MENY_HOJD := 112.0  ## finns bara en gång – den gamla tas bort
 
 var bana: Node2D
 var _knappar: Array[Button] = []
@@ -45,18 +49,20 @@ func _ready() -> void:
 	stil.bg_color = Color(0.08, 0.06, 0.12, 0.88)
 	stil.set_content_margin_all(6)
 	_meny.add_theme_stylebox_override("panel", stil)
-	_meny.position = Vector2(0, 540 - 74)
-	_meny.size = Vector2(960, 74)
+	_meny.position = Vector2(0, 540 - MENY_HOJD)
+	_meny.size = Vector2(960, MENY_HOJD)
 	lager.add_child(_meny)
-	var rad := HBoxContainer.new()
-	rad.add_theme_constant_override("separation", 4)
+	var rad := GridContainer.new()
+	rad.columns = PER_RAD
+	rad.add_theme_constant_override("h_separation", 4)
+	rad.add_theme_constant_override("v_separation", 4)
 	_meny.add_child(rad)
 	for i in VERKTYG.size():
 		var v: Array = VERKTYG[i]
 		var b := Button.new()
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(54, 62)
+		b.custom_minimum_size = Vector2(64, 46)
 		b.tooltip_text = "%s (%s)" % [v[1], _tangent(i)]
 		b.icon = _ikon(v[2][0], v[2][1])
 		b.expand_icon = true
@@ -65,6 +71,11 @@ func _ready() -> void:
 		rad.add_child(b)
 		_knappar.append(b)
 	_valj(Spel.red_verktyg)
+	# hela banans nederkant ovanför menyn (annars gick markraden inte att klicka på)
+	bana.kamera.limit_bottom = int(bana.hojd * RUTA + MENY_HOJD)
+	Spel.red_kamera.y = clampf(Spel.red_kamera.y, 270.0, _lagst()) if Spel.red_kamera.y > 270.0 else _lagst()
+	bana.kamera.position = Spel.red_kamera
+	bana.kamera.reset_smoothing()
 
 
 func _tangent(i: int) -> String:
@@ -79,6 +90,12 @@ func _ikon(blad: String, ruta: String) -> Texture2D:
 				img.set_pixel(clampi(i + d, 0, 15), i, Color(0.95, 0.3, 0.3))
 				img.set_pixel(clampi(15 - i + d, 0, 15), i, Color(0.95, 0.3, 0.3))
 		return ImageTexture.create_from_image(img)
+	if blad == "block":  # banans egna block (banor/<namn>.json "block"), första/andra rutan
+		var bb: String = bana._meta.get("block", "")
+		if bb == "" or not FileAccess.file_exists("res://bilder/%s.json" % bb):
+			return null
+		var bf: Array = Bilder.info(bb)["frames"]
+		return Bilder.bild(bb, bf[0 if ruta == "sten" else mini(1, bf.size() - 1)])
 	if blad == "mark":
 		var m: String = bana._meta.get("mark", "mark")
 		var frames: Array = Bilder.info(m)["frames"]
@@ -106,10 +123,18 @@ func _process(dt: float) -> void:
 		dx += 1.0
 	if dx != 0.0:
 		_flytta(dx * fart * dt)
+	var dy := 0.0
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		dy -= 1.0
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		dy += 1.0
+	if dy != 0.0:
+		Spel.red_kamera.y = clampf(Spel.red_kamera.y + dy * fart * dt, 270.0, _lagst())
+		bana.kamera.position = Spel.red_kamera
 	# måla
 	var mus := get_global_mouse_position()
 	var c := Vector2i(floori(mus.x / RUTA), floori(mus.y / RUTA))
-	var over_menyn := get_viewport().get_mouse_position().y > 540 - 74
+	var over_menyn := get_viewport().get_mouse_position().y > 540 - MENY_HOJD
 	if not over_menyn and c.y >= 0 and c.y < bana.hojd and c.x >= 0:
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Spel.red_senast != Vector3i(c.x, c.y, 1):
 			Spel.red_senast = Vector3i(c.x, c.y, 1)
@@ -120,6 +145,11 @@ func _process(dt: float) -> void:
 	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		Spel.red_senast = Vector3i(-1, -1, 0)
 	queue_redraw()
+
+
+## Kamerans lägsta läge: banans botten precis ovanför menyn
+func _lagst() -> float:
+	return bana.hojd * RUTA - (540.0 - MENY_HOJD) + 270.0
 
 
 func _flytta(d: float) -> void:
