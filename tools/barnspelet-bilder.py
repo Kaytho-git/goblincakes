@@ -275,16 +275,21 @@ def bakgrund(nr="1"):
     out = pa.cells(w, h, px, (0, 0, w, h), tw, th, False)
     pal = pa.median_cut(sorted({c[:3] for c in out if c}), 48)
     memo = {}
-    img = Image.new("RGBA", (tw * 2, th))
+    # TOPP extra rader överst = de översta raderna spegelvända uppåt: kameran går upp i höga hopp, och
+    # bakgrunden ligger lågt (blomraden bakom marken) – annars syntes en ljus rand överst (användaren 15 nov)
+    top = 40
+    img = Image.new("RGBA", (tw * 2, th + top))
     for y in range(th):
         for x in range(tw):
             c = memo.setdefault(out[y * tw + x][:3], pa.nearest(out[y * tw + x][:3], pal))
-            img.putpixel((x, y), (*c, 255))
-            img.putpixel((tw * 2 - 1 - x, y), (*c, 255))
+            for yy in ((y + top,) + ((top - 1 - y,) if y < top else ())):
+                img.putpixel((x, yy), (*c, 255))
+                img.putpixel((tw * 2 - 1 - x, yy), (*c, 255))
+    th += top
     OUT.mkdir(parents=True, exist_ok=True)
     img.save(OUT / "djungel-bakgrund.png")
     (OUT / "djungel-bakgrund.json").write_text(json.dumps({"cell": [tw * 2, th], "frames": ["bakgrund"]}) + "\n")
-    print(f"  ✓ djungel-bakgrund: {tw * 2}×{th} (spegelvänd, upprepas utan skarv)")
+    print(f"  ✓ djungel-bakgrund: {tw * 2}×{th} (spegelvänd, upprepas utan skarv, {top} rader extra överst)")
 
 
 def djungel():

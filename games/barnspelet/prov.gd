@@ -14,6 +14,11 @@ func _ready() -> void:
 		Spel.prov = true
 		Spel.bana = "prov"
 		_kor.call_deferred()
+	elif "--prov-red" in args:
+		Spel.prov = true
+		Spel.bana = "provred-tillfallig"
+		Spel.redigerar = true
+		_kor_red.call_deferred()
 	elif "--prov-djungel" in args:
 		Spel.prov = true
 		Spel.bana = "1"
@@ -32,7 +37,7 @@ func _bild(fil: String, vanta: float) -> void:
 		await get_tree().process_frame
 		var b: Node2D = get_tree().current_scene
 		b.pojke.position.x = float(args[args.find("--fran") + 1]) * 48.0 + 24.0
-		b.pojke.position.y = 300.0
+		b.pojke.position.y = float(args[args.find("--hojd") + 1]) if "--hojd" in args else 300.0
 		b.kamera.position = b.pojke.position
 		b.kamera.reset_smoothing()
 		if "--stilla" in args:
@@ -278,4 +283,36 @@ func _kor_djungel() -> void:
 	Spel.prov_x = 0.0
 	_koll("buren öppnas när bossen sover", bana.klar)
 	print("PROV DJUNGELN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
+	get_tree().quit(1 if _fel else 0)
+
+
+## Redigeraren: -- --prov-red (en tillfällig bana som tas bort efteråt)
+func _kor_red() -> void:
+	await _rutor(3)
+	var b: Node2D = get_tree().current_scene
+	var fil: String = b.fil()
+	_koll("ny bana skapas", FileAccess.file_exists(fil) and b.rader.size() == 12)
+	var red: Node2D = b.get_children().filter(func(c): return c.get_script() and c.get_script().resource_path.ends_with("redigerare.gd"))[0]
+	red._satt(Vector2i(10, 8), "s")
+	await _rutor(5)
+	b = get_tree().current_scene
+	_koll("lägga ut en orm sparas och syns", b.rader[8][10] == "s" and b.fiender.size() == 1, b.rader[8])
+	red = b.get_children().filter(func(c): return c.get_script() and c.get_script().resource_path.ends_with("redigerare.gd"))[0]
+	red._satt(Vector2i(50, 9), "G")
+	await _rutor(5)
+	b = get_tree().current_scene
+	_koll("banan blir längre när man lägger till höger", b.bredd == 51, "bredd %d" % b.bredd)
+	red = b.get_children().filter(func(c): return c.get_script() and c.get_script().resource_path.ends_with("redigerare.gd"))[0]
+	red._satt(Vector2i(5, 8), "P")
+	await _rutor(5)
+	b = get_tree().current_scene
+	_koll("bara en start", "\n".join(b.rader).count("P") == 1 and b.rader[8][5] == "P")
+	red = b.get_children().filter(func(c): return c.get_script() and c.get_script().resource_path.ends_with("redigerare.gd"))[0]
+	red._angra()
+	await _rutor(5)
+	b = get_tree().current_scene
+	_koll("ångra", b.rader[8][2] == "P" and b.rader[8][5] != "P")
+	_koll("pojken står still i redigeraren", not b.pojke.visible and not b.pojke.is_physics_processing())
+	DirAccess.remove_absolute(fil)
+	print("PROV REDIGERAREN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
 	get_tree().quit(1 if _fel else 0)

@@ -26,6 +26,7 @@ var fiender: Array = []
 var boss: Node2D
 var saker: Array = []  ## {"typ", "nod", "rect", "y"}
 var klar := false
+var rader: PackedStringArray
 
 var _fast := {}
 var _plankor := {}
@@ -40,10 +41,12 @@ var _tid := 0.0
 
 func _ready() -> void:
 	Spel.bananer = 0
-	var text := FileAccess.get_file_as_string("res://banor/%s.txt" % Spel.bana)
+	if not FileAccess.file_exists(fil()):
+		_ny_bana()
+	var text := FileAccess.get_file_as_string(fil())
 	if FileAccess.file_exists("res://banor/%s.json" % Spel.bana):
 		_meta = JSON.parse_string(FileAccess.get_file_as_string("res://banor/%s.json" % Spel.bana))
-	var rader := text.strip_edges(false, true).split("\n")
+	rader = text.strip_edges(false, true).split("\n")
 	hojd = rader.size()
 	for r in rader:
 		bredd = maxi(bredd, r.length())
@@ -51,9 +54,55 @@ func _ready() -> void:
 	_bakgrund()
 	_rutor(rader)
 	_figurer(rader)
+	_testa_harifran()
 	_ny_pojke()
 	_ny_kamera()
 	_hud()
+	if Spel.redigerar:
+		_redigera()
+
+
+func fil() -> String:
+	return ProjectSettings.globalize_path("res://banor/%s.txt" % Spel.bana)
+
+
+## En ny bana (-- --bana <namn> som inte finns): mark hela vägen, start till vänster
+func _ny_bana() -> void:
+	var r := []
+	for y in 12:
+		r.append(("..P" + ".".repeat(37)) if y == 8 else ("G".repeat(40) if y == 9 else ".".repeat(40)))
+	var f := FileAccess.open(fil(), FileAccess.WRITE)
+	f.store_string("\n".join(r) + "\n")
+	f.close()
+
+
+## "Spela härifrån" (E i redigeraren): på marken i den kolumn man tittade på
+func _testa_harifran() -> void:
+	if Spel.redigerar or Spel.test_start == Vector2.ZERO:
+		return
+	var x := clampi(floori(Spel.test_start.x / RUTA), 0, bredd - 1)
+	for y in hojd:
+		if _fast.has(Vector2i(x, y)) or _plankor.has(Vector2i(x, y)):
+			_start = Vector2(x * RUTA + RUTA / 2.0, y * RUTA)
+			return
+
+
+func _redigera() -> void:
+	pojke.visible = false
+	pojke.set_physics_process(false)
+	for f in fiender:
+		f.process_mode = Node.PROCESS_MODE_DISABLED
+	kamera.position_smoothing_enabled = false
+	kamera.limit_right += 20 * RUTA
+	kamera.position = Spel.red_kamera
+	kamera.reset_smoothing()
+	for c in get_children():
+		if c is CanvasLayer:
+			c.visible = false  # inga hjärtan/knappar medan man redigerar
+	var r := Node2D.new()
+	r.set_script(load("res://redigerare.gd"))
+	r.bana = self
+	add_child(r)
 
 
 func fast(p: Vector2) -> bool:
@@ -239,6 +288,8 @@ func _ny_kamera() -> void:
 # ── Varje bildruta ───────────────────────────────────────────────
 
 func _physics_process(_dt: float) -> void:
+	if Spel.redigerar:
+		return
 	if not pojke.dod:
 		kamera.position = Vector2(pojke.position.x, pojke.position.y - 90.0)
 	if pojke.dod or klar:

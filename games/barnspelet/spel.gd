@@ -11,6 +11,14 @@ var bana := "1"  ## banor/<namn>.txt – "prov" = provbanan; välj med -- --bana
 var flagga := -1.0  ## x där man börjar om efter flaggan (-1 = från start)
 var bananer := 0  ## som pojken bär (kastas med B)
 
+## Redigeraren (redigerare.gd) – E växlar
+var redigerar := false
+var red_kamera := Vector2(480, 270)
+var red_verktyg := 0
+var red_senast := Vector3i(-1, -1, 0)
+var red_historik: Array[String] = []
+var test_start := Vector2.ZERO  ## "spela härifrån" – gäller tills man spelar från början
+
 ## Proven (prov.gd) styr pojken i stället för kontrollen
 var prov := false
 var prov_x := 0.0
@@ -27,6 +35,8 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	if "--bana" in args and args.find("--bana") + 1 < args.size():
 		bana = args[args.find("--bana") + 1]
+	if "--redigera" in args:  # börja i redigeraren
+		redigerar = true
 	_knappar()
 	_gor_ljud()
 	for i in 6:
@@ -81,6 +91,22 @@ func _knappar() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("sluta"):
 		get_tree().quit()
+	if prov or not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	var bana := get_tree().current_scene
+	if event.keycode == KEY_E:
+		if redigerar:  # spela härifrån
+			redigerar = false
+			test_start = Vector2(red_kamera.x, -1.0)
+		else:
+			redigerar = true
+			red_kamera = bana.kamera.get_screen_center_position()
+		get_tree().reload_current_scene()
+	elif event.keycode == KEY_ENTER and redigerar:
+		redigerar = false
+		test_start = Vector2.ZERO
+		flagga = -1.0
+		get_tree().reload_current_scene()
 
 
 # ── Det pojken frågar efter (proven kan ta över) ─────────────────
