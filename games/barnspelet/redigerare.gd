@@ -199,7 +199,7 @@ func _process(dt: float) -> void:
 		Spel.red_kamera.y += dy * fart * dt / Spel.red_zoom
 		_flytta(0.0)
 	# måla
-	var mus := get_global_mouse_position()
+	var mus := _mus()
 	var c := Vector2i(floori(mus.x / RUTA), floori(mus.y / RUTA))
 	var mp := get_viewport().get_mouse_position()
 	var over_menyn := (Spel.red_meny and mp.x < PANEL_BREDD) or (mp.x < 50 and mp.y < 40)
@@ -213,6 +213,15 @@ func _process(dt: float) -> void:
 	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		Spel.red_senast = Vector3i(-1, -1, 0)
 	queue_redraw()
+
+
+## Musen i banan – räknad här ur redigerarens eget kameraläge och zoom, inte ur kameran: efter varje ändring
+## byggs banan om, och första bildrutan efter det stod kameran (fysikens mjuka rörelse) någon annanstans –
+## med knappen nedtryckt hamnade saken där, banan byggdes om igen … "lägger ut samma sak lite överallt"
+## (användaren 15 nov)
+func _mus() -> Vector2:
+	var vp := get_viewport()
+	return Spel.red_kamera + (vp.get_mouse_position() - vp.get_visible_rect().size / 2.0) / Spel.red_zoom
 
 
 ## Kamerans lägsta läge: banans botten precis ovanför menyn
@@ -256,7 +265,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		elif e.keycode == KEY_Z and e.ctrl_pressed:
 			_angra()
 		elif e.keycode == KEY_INSERT or e.keycode == KEY_DELETE:
-			_kolumn(e.keycode == KEY_INSERT, floori(get_global_mouse_position().x / RUTA))
+			_kolumn(e.keycode == KEY_INSERT, floori(_mus().x / RUTA))
 		elif e.keycode >= KEY_0 and e.keycode <= KEY_9:
 			var i: int = (e.keycode - KEY_0 + 9) % 10
 			if i < _synliga.size():
@@ -347,7 +356,7 @@ func _draw() -> void:
 				var t := Bilder.bild("pojken", "sta")
 				draw_texture(t, Vector2(x * RUTA + 24 - t.get_width() / 2.0, (y + 1) * RUTA - t.get_height()), Color(1, 1, 1, 0.7))
 	# rutan under musen
-	var mus := get_global_mouse_position()
+	var mus := _mus()
 	var c := Vector2i(floori(mus.x / RUTA), floori(mus.y / RUTA))
 	if c.y >= 0 and c.y < bana.hojd:
 		draw_rect(Rect2(c * RUTA, Vector2(RUTA, RUTA)), Color(1, 0.85, 0.2, 0.9), false, 2.0)

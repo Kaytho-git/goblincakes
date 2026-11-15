@@ -119,6 +119,7 @@ func _redigera() -> void:
 	kamera.limit_right += 20 * RUTA
 	kamera.position = Spel.red_kamera
 	kamera.reset_smoothing()
+	kamera.reset_physics_interpolation()  # inte glida dit från förra läget
 	for c in get_children():
 		if c is CanvasLayer:
 			c.visible = false  # inga hjärtan/knappar medan man redigerar

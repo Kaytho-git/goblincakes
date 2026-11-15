@@ -19,6 +19,14 @@ func _ready() -> void:
 		Spel.bana = "provred-tillfallig"
 		Spel.redigerar = true
 		_kor_red.call_deferred()
+	elif "--prov-klick" in args:
+		Spel.prov = true
+		Spel.redigerar = true
+		Spel.bana = "provklick-tillfallig"
+		var f := FileAccess.open(ProjectSettings.globalize_path("res://banor/provklick-tillfallig.txt"), FileAccess.WRITE)
+		f.store_string(FileAccess.get_file_as_string("res://banor/1.txt"))
+		f.close()
+		_kor_klick.call_deferred()
 	elif "--prov-meny" in args:
 		Spel.prov = true
 		_kor_meny.call_deferred()
@@ -570,4 +578,42 @@ func _kor_meny() -> void:
 	_koll("redigeraren visar bara banans tema", "s" in tecken and "W" in tecken and not "q" in tecken and not "I" in tecken
 			and "G" in tecken and "O" in tecken, "".join(tecken))
 	print("PROV BANVÄLJAREN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
+	get_tree().quit(1 if _fel else 0)
+
+
+# ── Ett riktigt musklick i redigeraren (användaren 15 nov: "lägger ut samma sak lite överallt") ──
+# Knappen hålls nere i 20 bildrutor (banan byggs om efter första rutan) – bara en ruta får ändras,
+# med och utan zoom, längst till vänster och längre in i banan.
+
+func _kor_klick() -> void:
+	await _rutor(3)
+	var fil := ProjectSettings.globalize_path("res://banor/provklick-tillfallig.txt")
+	for fall in [[1.0, 480.0], [1.0, 2400.0], [0.6, 2400.0], [0.4, 3000.0]]:
+		Spel.red_zoom = fall[0]
+		Spel.red_kamera = Vector2(fall[1], 9999.0)
+		Spel.red_verktyg = 10  # knappen
+		get_tree().reload_current_scene()
+		await _rutor(5)
+		var fore := FileAccess.get_file_as_string(fil)
+		var e := InputEventMouseButton.new()
+		e.button_index = MOUSE_BUTTON_LEFT
+		e.pressed = true
+		e.position = Vector2(600, 470)
+		e.global_position = e.position
+		get_viewport().warp_mouse(e.position)
+		Input.parse_input_event(e)
+		for i in 20:
+			await get_tree().process_frame
+		var u: InputEventMouseButton = e.duplicate()
+		u.pressed = false
+		Input.parse_input_event(u)
+		await _rutor(5)
+		var efter := FileAccess.get_file_as_string(fil)
+		var n := absi(efter.length() - fore.length())
+		for i in mini(fore.length(), efter.length()):
+			if fore[i] != efter[i]:
+				n += 1
+		_koll("ett klick = en ruta (zoom %d %%, x %d)" % [int(fall[0] * 100), int(fall[1])], n == 1, "%d rutor ändrade" % n)
+	DirAccess.remove_absolute(fil)
+	print("PROV KLICKET: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
 	get_tree().quit(1 if _fel else 0)
