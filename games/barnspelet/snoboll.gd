@@ -1,6 +1,6 @@
 extends Node2D
 ## En snöboll som rullar (ur en snöhög): fart åt ett håll, fortare nerför backar, långsammare uppför.
-## Hoppa över den – den går inte att trampa på. Spricker mot en vägg; försvinner ner i en grop.
+## Hoppa över den eller trampa på den (användaren 15 nov) – den spricker. Spricker mot en vägg; försvinner ner i en grop.
 
 const FART := 170.0    ## på plan mark
 const BACKE := 520.0   ## extra fart per sekund nerför (mindre uppför)
@@ -10,7 +10,8 @@ const HALV := 22.0
 var bana: Node2D
 var riktning := -1.0
 var platt := false
-var trampbar := false
+var trampbar := true
+var raknas := false  ## inte med i målets räkning (de kommer hela tiden)
 var _vx := 0.0
 var _vy := 0.0
 var _liv := 0.0
@@ -61,4 +62,5 @@ func rect() -> Rect2:
 
 
 func platta() -> void:
-	pass  # går inte att trampa på
+	if not platt:
+		_spricka()

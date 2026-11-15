@@ -24,7 +24,8 @@ const STUDS := 560.0        ## efter att ha trampat på en fiende (A nedtryckt: 
 const GLID_FART := 200.0    ## minst så här fort för att glida i stället för att ducka
 const GLID_BROMS := 420.0
 const GLID_TID := 0.75
-const LAG := 50.0           ## höjden när han duckar/glider
+const LAG := 40.0           ## höjden när han duckar/glider – under ett block en ruta upp (48) får han plats
+const KRYP := 110.0         ## under ett tak: glidningen tar inte slut, och utan fart kryper han ut
 ## Isplattorna (bana 2): halt – farten kommer långsamt och han glider vidare när spaken släpps
 const IS_ACC := 300.0
 const IS_BROMS := 120.0
@@ -95,10 +96,13 @@ func _physics_process(dt: float) -> void:
 
 	# ducka / glida
 	var ner := Spel.ner_nere() and is_on_floor()
+	var tak := not _plats_att_sta()
 	if glider:
 		_glid_tid += dt
 		velocity.x = move_toward(velocity.x, 0.0, GLID_BROMS * dt)
-		if _glid_tid > GLID_TID or absf(velocity.x) < 60.0 or not is_on_floor():
+		if tak:  # under ett block: glider vidare ut på andra sidan (användaren 15 nov)
+			velocity.x = signf(velocity.x) * maxf(absf(velocity.x), KRYP * 1.5)
+		elif _glid_tid > GLID_TID or absf(velocity.x) < 60.0 or not is_on_floor():
 			glider = false
 			ducker = ner
 	elif ner and not ducker:
@@ -117,6 +121,8 @@ func _physics_process(dt: float) -> void:
 	var mal := x * (SPRING if spring else GA)
 	if ducker or glider:
 		mal = 0.0  # står still när han duckar; glidningen bromsar själv
+		if ducker and tak:
+			mal = x * KRYP  # fast under ett tak: kryper (man ska aldrig fastna)
 	var acc := LUFT_ACC
 	if not is_on_floor() and x != 0.0 and velocity.x != 0.0 and signf(x) != signf(velocity.x):
 		acc = LUFT_VAND

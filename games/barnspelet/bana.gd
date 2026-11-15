@@ -68,9 +68,10 @@ func _ready() -> void:
 	if FileAccess.file_exists("res://banor/%s.json" % Spel.bana):
 		_meta = JSON.parse_string(FileAccess.get_file_as_string("res://banor/%s.json" % Spel.bana))
 	rader = text.strip_edges(false, true).split("\n")
-	hojd = rader.size()
 	for r in rader:
 		bredd = maxi(bredd, r.length())
+	_hogre()
+	hojd = rader.size()
 	botten = hojd * RUTA
 	_bakgrund()
 	_rutor(rader)
@@ -87,6 +88,24 @@ func _ready() -> void:
 
 func fil() -> String:
 	return ProjectSettings.globalize_path("res://banor/%s.txt" % Spel.bana)
+
+
+## Utzoomade banor (snön): tomma rader överst ända upp till skärmens överkant, så att man kan bygga
+## uppåt (användaren 15 nov: "nu är det 12 block djupt, hela vägen upp till toppen av skärmen").
+## I redigeraren skrivs de in i filen (redigeraren räknar rutorna ur filen).
+func _hogre() -> void:
+	var mal := ceili(540.0 / zoom() / RUTA)
+	if rader.size() >= mal:
+		return
+	var nya := PackedStringArray()
+	for i in mal - rader.size():
+		nya.append(".".repeat(bredd))
+	nya.append_array(rader)
+	rader = nya
+	if Spel.redigerar:
+		var f := FileAccess.open(fil(), FileAccess.WRITE)
+		f.store_string("\n".join(rader) + "\n")
+		f.close()
 
 
 ## En ny bana (-- --bana <namn> som inte finns): mark hela vägen, start till vänster
@@ -147,6 +166,16 @@ func vagg(p: Vector2) -> bool:
 ## Halt under fötterna (isplattorna)
 func halt(p: Vector2) -> bool:
 	return _is.has(Vector2i(floori(p.x / RUTA), floori((p.y + 2.0) / RUTA)))
+
+
+## En backe vid x någonstans från y och djup px ner (det som går på marken: backen nedåt är ingen kant)
+func backe_under(p: Vector2, djup: float) -> bool:
+	var y := p.y
+	while y <= p.y + djup:
+		if _backar.has(Vector2i(floori(p.x / RUTA), floori(y / RUTA))):
+			return true
+		y += RUTA / 2.0
+	return false
 
 
 ## Lutningen där man står: 1 = backe upp åt höger, -1 = ner åt höger, 0 = plant
@@ -239,19 +268,25 @@ func _rutor(rader: PackedStringArray) -> void:
 	var yta := _mark.duplicate()  # backarna räknas som mark när kanterna väljs (inget kantgräs mot en backe)
 	yta.merge(_backar)
 	var kantnamn := ["_v", "", "_h"]
+	var ismossa := []  ## isrutor som får snö ovanpå: [ruta, kant]
 	for c in _mark:
 		var topp := not _mark.has(c + Vector2i.UP) and not _backar.has(c + Vector2i.UP)
 		var ruta := Vector2i(nr.call(("gras" if topp else "jord") + kantnamn[_kant(yta, c)]), 0)
 		if _is.has(c) and namn.has("is"):
-			# isen syns utan MARK_UPP (ingen snö att sjunka ner i) – i eget lager framför marken
+			# isen syns utan MARK_UPP (blocket i höjd med marken) – i eget lager framför marken, med
+			# markens snö ovanpå (MARK_UPP, i jämnhöjd med snön bredvid – användaren 15 nov)
 			ruta = Vector2i(nr.call("is" + kantnamn[_kant(_is, c)]), 0)
 			lager.set_cell(c, sid, ruta)
 			isyns.set_cell(c, sid, ruta)
+			if topp:
+				ismossa.append([c, _kant(yta, c)])
 			continue
 		lager.set_cell(c, sid, ruta)
 		syns.set_cell(c, sid, ruta)
 		if c.y == hojd - 1:  # en rad till under: den synliga marken är MARK_UPP högre och ska nå skärmens nederkant
 			syns.set_cell(c + Vector2i.DOWN, sid, ruta)
+	if not ismossa.is_empty():
+		_snotacke(ts, mark, ismossa)
 	for c in _plankor:
 		var ruta := Vector2i(nr.call("planka" + kantnamn[_kant(_plankor, c)]), 0)
 		lager.set_cell(c, sid, ruta)
@@ -334,6 +369,78 @@ func _backar_lager(ts: TileSet, mark: String, lager: TileMapLayer, syns: TileMap
 		var ruta := Vector2i(0 if _backar[c] > 0 else 1, 0)
 		lager.set_cell(c, id, ruta)
 		syns.set_cell(c, id, ruta)
+	# foten: rutan under backen får resten av snön och gräsjorden (annars klipps den av vid rutans
+	# nederkant och jordrutan under syns med rak överkant – användaren 15 nov: "konstiga klipp")
+	var fsrc := TileSetAtlasSource.new()
+	var fimg := Image.create(RUTA * 2, RUTA, false, Image.FORMAT_RGBA8)
+	for i in 2:
+		fimg.blit_rect(_backe_fot(1 if i == 0 else -1), Rect2i(0, 0, RUTA, RUTA), Vector2i(i * RUTA, 0))
+	fsrc.texture = ImageTexture.create_from_image(fimg)
+	fsrc.texture_region_size = Vector2i(RUTA, RUTA)
+	var fts := TileSet.new()
+	fts.tile_size = Vector2i(RUTA, RUTA)
+	var fid := fts.add_source(fsrc)
+	for i in 2:
+		fsrc.create_tile(Vector2i(i, 0))
+	var fot := TileMapLayer.new()
+	fot.tile_set = fts
+	fot.collision_enabled = false
+	fot.position.y = -MARK_UPP
+	add_child(fot)
+	for c in _backar:
+		if _mark.has(c + Vector2i.DOWN):
+			fot.set_cell(c + Vector2i.DOWN, fid, Vector2i(0 if _backar[c] > 0 else 1, 0))
+
+
+## Rutan under en backe: gräsrutans rader som inte fick plats i backrutan (genomskinligt under dem)
+func _backe_fot(r: int) -> Image:
+	var mark: String = _meta.get("mark", "mark")
+	var namn: Array = Bilder.info(mark)["frames"]
+	var blad := Bilder.textur(mark).get_image()
+	blad.decompress()
+	var gras := blad.get_region(Rect2i(maxi(0, namn.find("gras")) * RUTA, 0, RUTA, RUTA))
+	var img := Image.create(RUTA, RUTA, false, Image.FORMAT_RGBA8)
+	for x in RUTA:
+		var ner := (RUTA - 1 - x) if r > 0 else x
+		for y in ner:
+			img.set_pixel(x, y, gras.get_pixel(x, y + RUTA - ner))
+	return img
+
+
+## Isen: markens snö (gräsrutans översta del, bara snön) ovanpå isblocken
+func _snotacke(ts: TileSet, mark: String, rutor: Array) -> void:
+	var namn: Array = Bilder.info(mark)["frames"]
+	var blad := Bilder.textur(mark).get_image()
+	blad.decompress()
+	var img := Image.create(RUTA * 3, RUTA, false, Image.FORMAT_RGBA8)
+	for i in 3:
+		var gras := blad.get_region(Rect2i(maxi(0, namn.find("gras" + ["_v", "", "_h"][i])) * RUTA, 0, RUTA, RUTA))
+		for x in RUTA:
+			var sista := -1  # snöns understa pixel i kolumnen (ljus och blåvit, inte brun jord)
+			for y in RUTA / 2 + 6:
+				var p := gras.get_pixel(x, y)
+				if p.a > 0.5 and p.b >= p.r and p.get_luminance() > 0.45:
+					sista = y
+			for y in mini(sista + 2, RUTA):  # + konturen under
+				var p := gras.get_pixel(x, y)
+				if y > sista and p.b < p.r:
+					break
+				img.set_pixel(i * RUTA + x, y, p)
+	var src := TileSetAtlasSource.new()
+	src.texture = ImageTexture.create_from_image(img)
+	src.texture_region_size = Vector2i(RUTA, RUTA)
+	var sts := TileSet.new()
+	sts.tile_size = Vector2i(RUTA, RUTA)
+	var id := sts.add_source(src)
+	for i in 3:
+		src.create_tile(Vector2i(i, 0))
+	var l := TileMapLayer.new()
+	l.tile_set = sts
+	l.collision_enabled = false
+	l.position.y = -MARK_UPP
+	add_child(l)
+	for t in rutor:
+		l.set_cell(t[0], id, Vector2i(t[1], 0))
 
 
 ## 0 = vänsterkant, 1 = mitten, 2 = högerkant
@@ -520,7 +627,7 @@ func _physics_process(_dt: float) -> void:
 			Spel.ljud("trampa")
 		elif b.trampbar and pojke.velocity.y > 0.0 and pojke.position.y < r.position.y + 22.0:
 			b.platta()
-			utslagna += 1 if b.platt else 0
+			utslagna += 1 if b.platt and b.get("raknas") != false else 0
 			pojke.studsa()
 		else:
 			pojke.do()
@@ -900,7 +1007,7 @@ func _bakgrund() -> void:
 		s.scale = Vector2(2, 2)  # bakgrunden ritad grövre (480 × 300 per halva)
 		# överkanten i banans överkant (kameran går aldrig högre) och resten så långt ner det går: Kakans
 		# blomrad längst ner ska ligga bakom marken (den såg ut som saker att plocka – "halva bananer")
-		s.position = Vector2(0, 0)
+		s.position = Vector2(0, (hojd - 12) * RUTA)  # högre banor (tomma rader överst): bilden nere vid marken
 		p.add_child(s)
 		add_child(p)
 		return

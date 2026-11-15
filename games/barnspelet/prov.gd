@@ -423,7 +423,7 @@ const SNO_BANA := [
 	"......................................................................",
 	"......................................................................",
 	"......................................................................",
-	"......................................................................",
+	"......LL..............................................................",
 	"..P.................../GGGG\\......m.....q.......n.....d.d.d.......O..B..",
 	"GGGGGGGGGGIIIIIIGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
 	"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
@@ -450,48 +450,79 @@ func _kor_sno() -> void:
 	bana = get_tree().current_scene
 	pojke = bana.pojke
 	var R := 48.0
+	var U: float = (bana.hojd - SNO_BANA.size()) * R  # tomma rader överst (utzoomad bana)
 	var finns := func(skript: String) -> Array:
 		return bana.fiender.filter(func(f): return is_instance_valid(f) and f.get_script().resource_path.ends_with(skript))
 	var gangare: Array = finns.call("gangare.gd")
 	var plog: Array = gangare.filter(func(g): return g.typ == "plog")
 	var pulka: Array = gangare.filter(func(g): return g.typ == "pulka")
 	_koll("snön i 60 % (banans egen zoom)", is_equal_approx(bana.kamera.zoom.x, 0.6), "zoom %.2f" % bana.kamera.zoom.x)
+	_koll("tomma rader överst ända upp till skärmens kant", bana.hojd * R >= 540.0 / 0.6 and U > 0.0, "%d rader" % bana.hojd)
 	_koll("snöns saker finns", plog.size() == 1 and pulka.size() == 1 and finns.call("snohog.gd").size() == 1
 			and bana.boss != null and bana.boss.get_script().resource_path.ends_with("snogubbe.gd"))
 	# halkan: samma fart på marken och på isen, släpp spaken – på isen glider han långt
-	await _flytta(5.0 * R, 9.0 * R)
+	await _flytta(5.0 * R, (9.0 * R + U))
 	pojke.velocity.x = 250.0
 	await _rutor(20)
 	var mark_fart := pojke.velocity.x
-	await _flytta(10.5 * R, 9.0 * R)
+	await _flytta(10.5 * R, (9.0 * R + U))
 	pojke.velocity.x = 250.0
 	await _rutor(20)
 	_koll("halt på isen (glider vidare)", mark_fart < 1.0 and pojke.velocity.x > 150.0, "marken %.0f, isen %.0f px/s" % [mark_fart, pojke.velocity.x])
 	# backen upp (kolumn 22, toppen rad 8) och ner igen
-	await _flytta(19.0 * R, 9.0 * R)
+	await _flytta(19.0 * R, (9.0 * R + U))
 	Spel.prov_x = 1.0
 	var uppe := false
 	for i in 90:
 		await get_tree().physics_frame
-		if pojke.position.x > 23.0 * R and pojke.position.x < 27.0 * R and absf(pojke.position.y - 8.0 * R) < 3.0 and pojke.is_on_floor():
+		if pojke.position.x > 23.0 * R and pojke.position.x < 27.0 * R and absf(pojke.position.y - (8.0 * R + U)) < 3.0 and pojke.is_on_floor():
 			uppe = true
 	_koll("går uppför backen", uppe, "x %.0f y %.0f" % [pojke.position.x, pojke.position.y])
 	for i in 60:
 		await get_tree().physics_frame
-	_koll("och ner igen", pojke.position.x > 28.0 * R and absf(pojke.position.y - 9.0 * R) < 3.0 and pojke.is_on_floor() and not pojke.dod,
+	_koll("och ner igen", pojke.position.x > 28.0 * R and absf(pojke.position.y - (9.0 * R + U)) < 3.0 and pojke.is_on_floor() and not pojke.dod,
 			"x %.0f y %.0f" % [pojke.position.x, pojke.position.y])
 	Spel.prov_x = 0.0
 	# pulkan går uppför backen
 	var p: Node2D = pulka[0]
-	p.position = Vector2(20.5 * R, 9.0 * R)
+	p.position = Vector2(20.5 * R, (9.0 * R + U))
 	p.riktning = 1.0
 	p.vaken = true
-	await _flytta(10.0 * R, 9.0 * R)
-	var p_hogst := 9.0 * R
+	await _flytta(10.0 * R, (9.0 * R + U))
+	var p_hogst: float = (9.0 * R + U)
 	for i in 80:
 		await get_tree().physics_frame
 		p_hogst = minf(p_hogst, p.position.y)
-	_koll("pulkan går uppför backen", absf(p_hogst - 8.0 * R) < 3.0, "högst y %.0f" % p_hogst)
+	_koll("pulkan går uppför backen", absf(p_hogst - (8.0 * R + U)) < 3.0, "högst y %.0f" % p_hogst)
+	# pulkan åker nerför backen (\\ vid kolumn 27) – fortare än på plan mark
+	p.position = Vector2(26.5 * R, 8.0 * R + U)
+	p.riktning = 1.0
+	var p_x0: float = p.position.x
+	await _rutor(30)
+	_koll("pulkan åker nerför backen (fort)", p.riktning > 0.0 and p.position.x - p_x0 > 110.0 * 0.5 * 1.5,
+			"%.0f px på 0,5 s, riktning %d" % [p.position.x - p_x0, p.riktning])
+	await _rutor(30)
+	_koll("och kommer ner till marken", absf(p.position.y - (9.0 * R + U)) < 3.0 and p.position.x > 28.0 * R, "x %.0f y %.0f" % [p.position.x, p.position.y])
+	p.queue_free()
+	# glida under blocken (rad 7, kolumn 6–7: 48 px luft) och ut på andra sidan
+	await _flytta(2.5 * R, 9.0 * R + U)
+	pojke.velocity.x = 400.0
+	Spel.prov_ner = true
+	await _rutor(2)
+	Spel.prov_ner = false
+	var under := false
+	for i in 120:
+		await get_tree().physics_frame
+		under = under or (pojke.position.x > 6.2 * R and pojke.position.x < 7.8 * R)
+	_koll("glider under blocken och ut", under and pojke.position.x > 8.0 * R and not pojke.glider and not pojke.ducker and pojke.is_on_floor(),
+			"x %.0f, glider %s duckar %s" % [pojke.position.x, pojke.glider, pojke.ducker])
+	# duckar under blocken: kryper ut
+	await _flytta(6.5 * R, 9.0 * R + U)
+	pojke.ducker = true
+	Spel.prov_x = 1.0
+	await _rutor(60)
+	Spel.prov_x = 0.0
+	_koll("kryper ut under blocken", pojke.position.x > 8.0 * R, "x %.0f" % pojke.position.x)
 	# snöplogen tål ett tramp
 	var pl: Node2D = plog[0]
 	pl.platta()
@@ -501,7 +532,7 @@ func _kor_sno() -> void:
 	_koll("snöplogen: två tramp", pl.platt)
 	# snöhögen: en snöboll rullar ut mot pojken
 	var hog: Node2D = finns.call("snohog.gd")[0]
-	await _flytta(hog.position.x - 6.0 * R, 9.0 * R)
+	await _flytta(hog.position.x - 6.0 * R, (9.0 * R + U))
 	var boll: Node2D = null
 	for i in 240:
 		await get_tree().physics_frame
@@ -513,9 +544,16 @@ func _kor_sno() -> void:
 	await _rutor(30)
 	_koll("snöhögen: en snöboll rullar mot pojken", boll != null and is_instance_valid(boll) and boll.position.x < x0 - 40.0)
 	# snöbollen rullar fortare nerför backen (\\ vid kolumn 27, upp åt vänster = nerför åt höger)
-	var ner: Node2D = bana.ny_fiende("snoboll", Vector2(27.2 * R, 8.3 * R), {"riktning": 1.0})
+	var ner: Node2D = bana.ny_fiende("snoboll", Vector2(27.2 * R, (8.3 * R + U)), {"riktning": 1.0})
 	await _rutor(12)
 	_koll("snöbollen rullar fortare nerför", is_instance_valid(ner) and ner._vx > 230.0, "%.0f px/s" % (ner._vx if is_instance_valid(ner) else 0.0))
+	# trampa på en snöboll: den spricker, pojken studsar
+	var tb: Node2D = bana.ny_fiende("snoboll", Vector2(12.0 * R, 9.0 * R + U), {"riktning": 1.0})
+	await _flytta(12.0 * R, 9.0 * R + U - 60.0)
+	pojke.velocity.y = 300.0
+	await _rutor(10)
+	_koll("trampa på en snöboll", (not is_instance_valid(tb) or tb.platt) and not pojke.dod and bana.utslagna == 0,
+			"utslagna %d" % bana.utslagna)
 	for f in bana.fiender:
 		if is_instance_valid(f) and f.get_script().resource_path.ends_with("snoboll.gd"):
 			f.queue_free()
@@ -523,7 +561,7 @@ func _kor_sno() -> void:
 	# bära: ta ett snöklot, B långt från snögubben = läggs ner igen
 	var klot := func() -> Array:
 		return bana.saker.filter(func(s): return s["typ"] == "snoklot")
-	await _flytta(klot.call()[0]["nod"].position.x, 9.0 * R)
+	await _flytta(klot.call()[0]["nod"].position.x, (9.0 * R + U))
 	_koll("tar upp ett snöklot", bana._bar != null and klot.call().size() == 2)
 	pojke.position.x -= 3.0 * R
 	Spel.prov_special = true
@@ -535,15 +573,15 @@ func _kor_sno() -> void:
 	var boss: Node2D = bana.boss
 	_koll("buren är låst medan snögubben är ledsen", not boss.sover)
 	for i in 3:
-		await _flytta(klot.call()[0]["nod"].position.x, 9.0 * R)
-		await _flytta(boss.kompis_x(), 9.0 * R)
+		await _flytta(klot.call()[0]["nod"].position.x, (9.0 * R + U))
+		await _flytta(boss.kompis_x(), (9.0 * R + U))
 		Spel.prov_special = true
 		await _rutor(2)
 		Spel.prov_special = false
 		await _rutor(2)
 	_koll("tre klot = kompisen klar, snögubben glad", boss.delar == 3 and boss.sover, "%d delar" % boss.delar)
 	_koll("kameran utzoomad vid snögubben (minst snögubbens 80 %)", bana.kamera.zoom.x <= 0.81, "zoom %.2f" % bana.kamera.zoom.x)
-	await _flytta(boss.position.x + 3.0 * R, 9.0 * R)
+	await _flytta(boss.position.x + 3.0 * R, (9.0 * R + U))
 	await _rutor(10)
 	_koll("buren öppnas", bana.klar)
 	DirAccess.remove_absolute(_sno_fil("txt"))

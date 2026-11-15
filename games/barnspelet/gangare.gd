@@ -50,12 +50,19 @@ func _physics_process(dt: float) -> void:
 	_stum = maxf(0.0, _stum - dt)
 	var halv: float = _t["halv"]
 	var fart: float = 0.0 if _stum > 0.0 else _t["fart"]
+	if typ == "pulka":  # pulkan åker fort nerför backar, sakta uppför (användaren 15 nov)
+		var b: int = bana.backe(position)
+		if b != 0:
+			fart *= 2.6 if b == -int(riktning) else 0.6
 	var nx: float = position.x + riktning * fart * dt
 	var fram: float = nx + riktning * halv
 	# vägg = fast i knähöjd en bit fram (en backe är lägre där – den går man uppför);
 	# kant = inget att stå på en bit ner (en backe nedåt är 36 px, en avsats 48)
 	var vagg: bool = bana.vagg(Vector2(fram, position.y - 44.0))
-	var kant: bool = bana.fast(Vector2(position.x, position.y + 2.0)) and not bana.fast(Vector2(fram, position.y + 40.0))
+	# (i en backe ligger marken framför längre ner – där räknas 64 px, och en backe framför är ingen kant)
+	var djup := 64.0 if bana.backe(position) != 0 else 40.0
+	var kant: bool = bana.fast(Vector2(position.x, position.y + 2.0)) and not bana.fast(Vector2(fram, position.y + djup)) \
+			and not bana.backe_under(Vector2(fram, position.y), 60.0)
 	if vagg or kant:
 		riktning = -riktning
 	else:
