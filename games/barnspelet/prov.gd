@@ -544,12 +544,30 @@ func _kor_sno() -> void:
 	Spel.prov_x = 0.0
 	Spel.prov_ner = false
 	# snöplogen tål ett tramp
+	# (på riktigt: pojken faller ner på den – första gången lågt, på skopan, 34 px under taket;
+	# förut dog han ofta av studsen, han låg kvar i träffrutan ett par bildrutor)
 	var pl: Node2D = plog[0]
-	pl.platta()
-	_koll("snöplogen: ett tramp räcker inte", not pl.platt and pl.liv == 1)
-	await _rutor(70)
-	pl.platta()
-	_koll("snöplogen: två tramp", pl.platt)
+	pl.vaken = true
+	var landa := func(under_taket: float, dx: float) -> void:
+		var r: Rect2 = pl.rect()
+		await _flytta(pl.position.x + dx, r.position.y + under_taket)
+		pojke.velocity.y = 500.0
+		await _rutor(20)
+	await landa.call(34.0, -30.0)
+	_koll("snöplogen: ett tramp (lågt, på skopan) räcker inte – och pojken lever", not pl.platt and pl.liv == 1 and not pojke.dod,
+			"liv %d, död %s" % [pl.liv, pojke.dod])
+	pl._stum = 1.0  # (bildrutorna i provet går inte i takt med fysiken – bedöva den på nytt)
+	await landa.call(10.0, 0.0)
+	_koll("bedövad snöplog är ofarlig", pl.liv == 1 and not pojke.dod)
+	pl._stum = 0.0
+	await landa.call(4.0, 20.0)
+	_koll("snöplogen: två tramp", (not is_instance_valid(pl) or pl.platt) and not pojke.dod and bana.utslagna == 1, "utslagna %d" % bana.utslagna)
+	await _flytta(20.0 * R, 9.0 * R + U)
+	var pl2: Node2D = bana.ny_fiende("gangare", Vector2(pojke.position.x + 2.0 * R, 9.0 * R + U), {"typ": "plog"})
+	pl2.vaken = true
+	await _rutor(60)
+	_koll("snöplogen från sidan = oj", pojke.dod)
+	pl2.queue_free()
 	# snöhögen: en snöboll rullar ut mot pojken
 	var hog: Node2D = finns.call("snohog.gd")[0]
 	await _flytta(hog.position.x - 6.0 * R, (9.0 * R + U))
@@ -568,11 +586,12 @@ func _kor_sno() -> void:
 	await _rutor(12)
 	_koll("snöbollen rullar fortare nerför", is_instance_valid(ner) and ner._vx > 230.0, "%.0f px/s" % (ner._vx if is_instance_valid(ner) else 0.0))
 	# trampa på en snöboll: den spricker, pojken studsar
+	var utslagna_fore: int = bana.utslagna
 	var tb: Node2D = bana.ny_fiende("snoboll", Vector2(12.0 * R, 9.0 * R + U), {"riktning": 1.0})
 	await _flytta(12.0 * R, 9.0 * R + U - 60.0)
 	pojke.velocity.y = 300.0
 	await _rutor(10)
-	_koll("trampa på en snöboll", (not is_instance_valid(tb) or tb.platt) and not pojke.dod and bana.utslagna == 0,
+	_koll("trampa på en snöboll", (not is_instance_valid(tb) or tb.platt) and not pojke.dod and bana.utslagna == utslagna_fore,
 			"utslagna %d" % bana.utslagna)
 	for f in bana.fiender:
 		if is_instance_valid(f) and f.get_script().resource_path.ends_with("snoboll.gd"):

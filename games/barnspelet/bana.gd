@@ -621,11 +621,20 @@ func _physics_process(_dt: float) -> void:
 		# uppifrån och på väg ner = trampa (om den går att trampa på); en glidning slår ut det som går på
 		# marken (ormar, bilar); annars "oj"
 		# (snöplogen tål ett tramp – den räknas som utslagen först när den är platt)
+		# snällt för barn (användaren 15 nov: "ibland träffar man rätt, ibland dör man direkt"): övre 60 % räknas
+		# som tramp (snöplogens skopa sitter lågt), en bedövad snöplog är ofarlig, och den som nyss studsat
+		# (på väg upp ur den) dör inte – förut låg pojken kvar i träffrutan ett par bildrutor efter studsen
+		var zon := maxf(22.0, r.size.y * 0.6)
+		var bedovad: bool = b.get("_stum") != null and b._stum > 0.0
+		if bedovad or (b.trampbar and pojke.velocity.y < 0.0 and pojke.position.y < r.position.y + zon):
+			if bedovad and pojke.velocity.y > 0.0 and pojke.position.y < r.position.y + zon:
+				pojke.studsa()  # landar på den bedövade: studsar igen (inget nytt tramp)
+			continue
 		if b.trampbar and pojke.glider and b.get_script().resource_path.ends_with("gangare.gd"):
 			b.platta()
 			utslagna += 1 if b.platt else 0
 			Spel.ljud("trampa")
-		elif b.trampbar and pojke.velocity.y > 0.0 and pojke.position.y < r.position.y + 22.0:
+		elif b.trampbar and pojke.velocity.y >= 0.0 and pojke.position.y < r.position.y + zon:
 			b.platta()
 			utslagna += 1 if b.platt and b.get("raknas") != false else 0
 			pojke.studsa()
