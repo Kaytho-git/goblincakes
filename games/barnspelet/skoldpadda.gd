@@ -1,7 +1,7 @@
 extends Node2D
 ## Sandens boss (användaren 15 nov): en sur gammal sköldpadda som gömmer sig i skalet mitt i banan och spärrar
-## vägen in till gossedjuret. Pojken fyller hinken vid sanddynorna (3 dynor = full hink) och springer hit –
-## varje full hink blir en del av ett sandslott bredvid den. Tre delar (9 dynor): sköldpaddan blir glad, går
+## vägen in till gossedjuret. Pojken fyller hinken vid sanddynorna (3 dynor = full hink), springer hit och
+## häller ut den med B vid markeringen – varje full hink blir en del av ett sandslott bredvid den. Tre delar (9 dynor): sköldpaddan blir glad, går
 ## till slottet och leker där, och vägen är fri. ("sover" = klar, som de andra bossarna.)
 
 signal somnade

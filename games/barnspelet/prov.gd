@@ -66,6 +66,13 @@ func _bild(fil: String, vanta: float) -> void:
 		b.kamera.reset_smoothing()
 		if "--stilla" in args:
 			Spel.prov_x = 0.0
+	if "--ner" in args:  # duckar (med --stilla) eller kryper: ner när han står på marken
+		var px := Spel.prov_x
+		Spel.prov_x = 0.0
+		await get_tree().create_timer(0.8).timeout
+		Spel.prov_ner = true
+		await get_tree().create_timer(0.2).timeout
+		Spel.prov_x = px
 	await get_tree().create_timer(vanta).timeout
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(fil)
@@ -573,9 +580,15 @@ func _kor_sand() -> void:
 			await _flytta(dynor.call()[0]["nod"].position.x, G)
 		if del == 0:
 			_koll("tre dynor = full hink", bana._hink == 3, "%d" % bana._hink)
-		await _flytta(boss.position.x - 150.0, G)
+		await _flytta(boss.kompis_x(), G)
 		if del == 0:
-			_koll("full hink vid sköldpaddan = en del av slottet", boss.delar == 1 and bana._hink == 0)
+			_koll("att springa förbi bygger inget (B behövs)", boss.delar == 0 and bana._hink == 3)
+		Spel.prov_special = true
+		await _rutor(2)
+		Spel.prov_special = false
+		await _rutor(70)
+		if del == 0:
+			_koll("B vid markeringen: hinken hälls ut = en del av slottet", boss.delar == 1 and bana._hink == 0)
 	_koll("tre delar (9 dynor) = sköldpaddan glad", boss.delar == 3 and boss.sover and not boss.kropp().has_area())
 	await _rutor(180)
 	_koll("den går till slottet", boss._framme and boss.position.x < 80.0 * R - 100.0, "x %.0f" % boss.position.x)

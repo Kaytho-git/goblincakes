@@ -723,10 +723,6 @@ func _physics_process(_dt: float) -> void:
 		if pr.intersects(k):
 			pojke.position.x = k.position.x - pojke.BREDD / 2.0 if pojke.position.x < k.get_center().x else k.end.x + pojke.BREDD / 2.0
 			pojke.velocity.x = 0.0
-	if _hink >= 3 and boss and not boss.sover and boss.has_method("fyll") and absf(pojke.position.x - boss.position.x) < 200.0:
-		_hink = 0  # full hink vid sköldpaddan: en del av slottet
-		boss.fyll()
-		_hink_bild()
 	if kvicksand(pojke.position) > 64.0:  # sjönk för djupt
 		pojke.do()
 		return
@@ -794,6 +790,9 @@ func _bananer(dt: float) -> void:
 	_special_slapp = _special_slapp or not b
 	if b and not _special_forra and _bar != null:
 		_lamna()
+	elif b and not _special_forra and _hink >= 3 and boss and boss.has_method("fyll") and not boss.sover \
+			and absf(pojke.position.x - boss.kompis_x()) < 140.0 and not _haller:
+		_hall_ut()  # full hink vid slottets markering: B häller ut sanden (som snöklotet i snön)
 	elif b and not _special_forra and Spel.bananer > 0:
 		Spel.bananer -= 1
 		var n := Sprite2D.new()
@@ -903,9 +902,58 @@ func _hink_bild() -> void:
 		_hink_sprite.z_index = 1
 		pojke.add_child(_hink_sprite)
 	_hink_sprite.texture = Bilder.bild("hink", "full" if _hink > 0 else "tom")
-	_hink_sprite.position.x = 20.0 if pojke._vand > 0.0 else -20.0
+	_hink_plats()
 	for i in _hink_fack.size():
 		_hink_fack[i].color = Color(0.95, 0.78, 0.35) if i < _hink else Color(1, 1, 1, 0.15)
+
+
+## I handen när han står/går/hoppar; när han duckar, glider eller kryper står den på marken framför honom
+## (användaren 15 nov: "svävar vid ansiktet" när man kryper)
+func _hink_plats() -> void:
+	if _hink_sprite == null or _haller:
+		return
+	var v := 1.0 if pojke._vand > 0.0 else -1.0
+	if pojke.ducker or pojke.glider:
+		_hink_sprite.position = Vector2(v * 40.0, -15.0)
+	else:
+		_hink_sprite.position = Vector2(v * 12.0, -26.0)
+
+
+## B vid markeringen: hinken tippas, sanden rinner ut mot slottet, sedan växer slottet
+var _haller := false
+
+
+func _hall_ut() -> void:
+	_haller = true
+	var mot := signf(boss.kompis_x() - pojke.position.x)
+	if mot == 0.0:
+		mot = 1.0
+	_hink_sprite.position = Vector2(mot * 18.0, -40.0)
+	var t := _hink_sprite.create_tween()
+	t.tween_property(_hink_sprite, "rotation", mot * 2.0, 0.25)
+	var kant := _hink_sprite.global_position + Vector2(mot * 12.0, 4.0)
+	var mal := Vector2(boss.kompis_x(), boss.position.y - 10.0)
+	for i in 24:  # sandkorn som rinner ut i en båge
+		var k := ColorRect.new()
+		k.color = [Color(0.95, 0.78, 0.35), Color(0.88, 0.66, 0.26), Color(1.0, 0.86, 0.5)][i % 3]
+		k.size = Vector2(4, 4)
+		k.position = kant
+		k.z_index = 7
+		k.modulate.a = 0.0
+		add_child(k)
+		var kt := k.create_tween()
+		kt.tween_interval(0.2 + i * 0.025)
+		kt.tween_property(k, "modulate:a", 1.0, 0.01)
+		var slut := mal + Vector2(randf_range(-30.0, 30.0), randf_range(-6.0, 6.0))
+		kt.tween_method(func(f: float): k.position = kant.lerp(slut, f) + Vector2(0, -sin(f * PI) * 30.0), 0.0, 1.0, 0.45)
+		kt.tween_callback(k.queue_free)
+	Spel.ljud("kasta")
+	await get_tree().create_timer(0.95).timeout
+	_hink = 0
+	boss.fyll()
+	_hink_sprite.rotation = 0.0
+	_haller = false
+	_hink_bild()
 
 
 func _ta_bort(s: Dictionary) -> void:
@@ -1122,8 +1170,7 @@ var _visat_liv := -1
 
 
 func _hud_uppdatera() -> void:
-	if _hink_sprite:
-		_hink_sprite.position.x = 20.0 if pojke._vand > 0.0 else -20.0
+	_hink_plats()
 	_hud_tid.visible = Spel.visa_tid and not klar
 	if _hud_tid.visible:
 		_hud_tid.text = Spel.tid_text(Spel.tid)
