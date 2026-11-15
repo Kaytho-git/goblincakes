@@ -45,7 +45,10 @@ func _ready() -> void:
 	_sprite.sprite_frames = Bilder.ramar("pojken", {
 		"sta": [["sta"], 1.0, false],
 		"ga": [["kliv1", "mellan1", "kliv2", "mellan2"], 8.0, true],
+		"spring": [["spring1", "spring2", "spring3", "spring4"], 12.0, true],
 		"hopp": [["hopp"], 1.0, false],
+		"fall": [["fall"], 1.0, false],
+		"bromsa": [["bromsa"], 1.0, false],
 		"oj": [["oj"], 1.0, false],
 	})
 	_sprite.centered = false
@@ -94,15 +97,29 @@ func _physics_process(dt: float) -> void:
 	_bild()
 
 
+## Vilken rörelse som syns. Spring från 320 px/s (gång 250, spring 400); bromsa = spaken åt andra hållet
+## med fart kvar (han tittar dit han var på väg); fall = på väg ner.
 func _bild() -> void:
-	_sprite.flip_h = _vand < 0.0
+	var x := Spel.styr_x()
+	var fart := absf(velocity.x)
+	var bromsar := is_on_floor() and x != 0.0 and fart > 150.0 and signf(x) != signf(velocity.x)
+	_sprite.flip_h = (velocity.x < 0.0) if bromsar else (_vand < 0.0)
+	_sprite.position.y = 0.0
+	_sprite.speed_scale = 1.0
 	if not is_on_floor():
-		_sprite.play("hopp")
-	elif absf(velocity.x) > 20.0:
+		_sprite.play("hopp" if velocity.y < 0.0 else "fall")
+	elif bromsar:
+		_sprite.play("bromsa")
+	elif fart > 320.0:
+		_sprite.play("spring")
+		_sprite.speed_scale = clampf(fart / SPRING, 0.8, 1.3)
+	elif fart > 20.0:
 		_sprite.play("ga")
-		_sprite.speed_scale = clampf(absf(velocity.x) / GA, 0.6, 1.8)
+		_sprite.speed_scale = clampf(fart / GA, 0.6, 1.3)
 	else:
 		_sprite.play("sta")
+		# andas: en pixel upp och ner när han står still
+		_sprite.position.y = -1.0 if fmod(Time.get_ticks_msec() / 1000.0, 1.2) < 0.6 else 0.0
 
 
 ## Trampat på en fiende: studsa upp (högre om A hålls)

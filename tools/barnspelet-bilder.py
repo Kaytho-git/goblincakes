@@ -71,6 +71,12 @@ class Drawing:
         rows = [any(px[y * w + x] is not None for x in range(0, w, 2)) for y in range(self.h)]
         return [b for y0, y1 in self._runs(rows, 30) for b in self._columns(y0, y1)]
 
+    def common_ground(self):
+        """All frames stand on the same ground line (the lowest foot) – frames with both feet in the air
+        (the run's flight) keep their height above it instead of being put on the ground."""
+        y1 = max(b[3] for b in self.boxes)
+        self.boxes = [(x0, y0, x1, y1) for x0, y0, x1, _ in self.boxes]
+
     def scale_for(self, i, game_height):
         x0, y0, x1, y1 = self.boxes[i]
         return (y1 - y0) / game_height
@@ -155,15 +161,21 @@ def figur():
     pass_far = Drawing("pojken-mellansteg-prov4.png")  # far leg swings
     pass_near = Drawing("pojken-mellansteg-nara-prov5.png")
     oj = Drawing("pojken-oj-prov.png")
+    run = Drawing("pojken-spring-prov.png")   # push, flight, push, flight – near leg always in front
+    fall = Drawing("pojken-fall-prov.png")    # fall, bromsa
     s = std.scale_for(0, 96)
     pass_h = round((walk.boxes[1][3] - walk.boxes[1][1]) / s)
     s_far, s_near = pass_far.scale_for(0, pass_h), pass_near.scale_for(0, pass_h)
     s_oj = oj.scale_for(0, 96)
-    for d, k in ((std, s), (walk, s), (pass_far, s_far), (pass_near, s_near), (oj, s_oj)):
+    s_run = s * ((run.boxes[0][3] - run.boxes[0][1]) / (walk.boxes[0][3] - walk.boxes[0][1])) ** 0  # same canvas as the walk
+    s_fall = fall.scale_for(0, 96)
+    for d, k in ((std, s), (walk, s), (pass_far, s_far), (pass_near, s_near), (oj, s_oj), (run, s_run), (fall, s_fall)):
         d.peel(k)
+    run.common_ground()
     cuts = [std.cut(0, s), walk.cut(0, s), pass_far.cut(0, s_far), walk.cut(2, s), pass_near.cut(0, s_near),
-            std.cut(3, s), oj.cut(0, s_oj)]
-    names = ["sta", "kliv1", "mellan1", "kliv2", "mellan2", "hopp", "oj"]
+            std.cut(3, s), oj.cut(0, s_oj)] + [run.cut(i, s_run) for i in range(4)] + [fall.cut(0, s_fall), fall.cut(1, s_fall)]
+    names = ["sta", "kliv1", "mellan1", "kliv2", "mellan2", "hopp", "oj", "spring1", "spring2", "spring3", "spring4",
+             "fall", "bromsa"]
     cells, size = sheet("pojken", cuts, names)
     for i, side in ((1, "left"), (2, "left"), (3, "right")):
         darken_leg(cells[i], side)
