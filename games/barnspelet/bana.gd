@@ -684,10 +684,10 @@ func _physics_process(_dt: float) -> void:
 		pojke.position.x = Pojke_halv()
 		pojke.velocity.x = maxf(0.0, pojke.velocity.x)
 	if pojke.position.y > botten + 60.0:
-		pojke.do()
+		_ramla()
 		return
 	if _vatten.has(Vector2i(floori(pojke.position.x / RUTA), floori((pojke.position.y - 10.0 - VATTEN_NER) / RUTA))):
-		pojke.do()  # i vattnet
+		_ramla()  # i vattnet
 		return
 	var pr: Rect2 = pojke.rect()
 	fiender = fiender.filter(func(b): return is_instance_valid(b))
@@ -715,16 +715,17 @@ func _physics_process(_dt: float) -> void:
 			b.platta()
 			utslagna += 1 if b.platt and b.get("raknas") != false else 0
 			pojke.studsa()
-		else:
-			pojke.do()
-			return
+		elif pojke.skydd <= 0.0:
+			_traff(b)
+			if pojke.dod:
+				return
 	if boss and not boss.sover:  # den vakna bossen går inte att gå igenom
 		var k: Rect2 = boss.kropp()
 		if pr.intersects(k):
 			pojke.position.x = k.position.x - pojke.BREDD / 2.0 if pojke.position.x < k.get_center().x else k.end.x + pojke.BREDD / 2.0
 			pojke.velocity.x = 0.0
 	if kvicksand(pojke.position) > 64.0:  # sjönk för djupt
-		pojke.do()
+		_ramla()
 		return
 	_zooma(_dt)
 	_bananer(_dt)
@@ -965,11 +966,26 @@ func _ta_bort(s: Dictionary) -> void:
 	s["nod"].queue_free()
 
 
+## Träffad av en fiende: ett hjärta mindre och spela vidare (slut på hjärtan = "oj")
+func _traff(b: Node2D) -> void:
+	Spel.skada()
+	if Spel.liv <= 0:
+		pojke.do()
+	else:
+		pojke.traffad(b.position.x)
+
+
+## Ramlat ner (grop, vatten, kvicksand): ett hjärta mindre och "oj"
+func _ramla() -> void:
+	Spel.skada()
+	pojke.do()
+
+
 func _dog() -> void:
 	if Spel.prov:
 		return
 	await get_tree().create_timer(2.0).timeout
-	Spel.forlorat()  # sista livet: alla liv tillbaka, från början (steg 2: tillbaka till kartan)
+	Spel.forlorat()  # slut på hjärtan: alla tillbaka – alltid vid senaste flaggan
 	get_tree().reload_current_scene()
 
 

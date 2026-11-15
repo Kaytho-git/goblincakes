@@ -2,7 +2,7 @@ extends Node
 ## Det som gäller hela spelet: kontrollen, liven, knapparna, var man börjar om, ljuden.
 ## Kontrollen (användarens val 15 nov, Xbox): A hoppa, håll X springa, Y kraft (senare), B special (senare).
 
-const LIV_START := 5
+const LIV_START := 3  ## hjärtan = hur många träffar man tål (användaren 15 nov: "ett hjärta är en del av livet")
 const KNAPPAR_PER_LIV := 100
 
 var liv := LIV_START
@@ -233,15 +233,17 @@ func nytt_liv() -> void:
 	ljud("liv")
 
 
-## Efter "oj": ett liv mindre. Slut på liv → alla liv tillbaka och banan från början
-## (beslut 15 nov: tillbaka till kartan, klarade banor kvar – kartan kommer i steg 2).
+## Hjärtana (användaren 15 nov, för en treåring): en träff av en fiende = ett hjärta mindre och man spelar
+## vidare (bana.gd _traff); ramla ner (grop, vatten, kvicksand) = ett hjärta mindre och "oj"; slut på hjärtan =
+## "oj". Efter ett "oj" börjar man vid senaste flaggan – slut på hjärtan: med fulla hjärtan igen.
+func skada() -> void:
+	liv = maxi(0, liv - 1)
+
+
+## Efter "oj" (banan laddas om vid flaggan): slut på hjärtan → alla tillbaka. true = de tog slut.
 func forlorat() -> bool:
-	liv -= 1
 	if liv <= 0:
 		liv = LIV_START
-		knappar = 0
-		flagga = -1.0
-		ny_runda()
 		return true
 	return false
 
@@ -262,6 +264,7 @@ func _gor_ljud() -> void:
 	_ljud["hopp"] = _ton([[330.0, 660.0, 0.12]], 0.18)
 	_ljud["knapp"] = _ton([[988.0, 988.0, 0.05], [1319.0, 1319.0, 0.12]], 0.16)
 	_ljud["trampa"] = _ton([[520.0, 180.0, 0.12]], 0.22)
+	_ljud["aj"] = _ton([[700.0, 380.0, 0.14]], 0.2)  # träffad – ett hjärta mindre
 	_ljud["oj"] = _ton([[660.0, 620.0, 0.12], [520.0, 480.0, 0.12], [400.0, 200.0, 0.35]], 0.22)
 	_ljud["liv"] = _ton([[523.0, 523.0, 0.08], [659.0, 659.0, 0.08], [784.0, 784.0, 0.08], [1047.0, 1047.0, 0.2]], 0.18)
 	_ljud["kasta"] = _ton([[500.0, 900.0, 0.1]], 0.14)

@@ -51,7 +51,8 @@ var _hopp_forra := false
 var _sprite: AnimatedSprite2D
 var _dod_tid := 0.0
 var _kvick := -1.0  ## djupet i kvicksanden (px), −1 = inte i den
-var blad := "pojken"  ## bildbladet (kläderna; pojken-safari-hink = bär hinken)
+var blad := "pojken"
+var skydd := 0.0  ## efter en träff: blinkar och kan inte träffas igen (sekunder kvar)  ## bildbladet (kläderna; pojken-safari-hink = bär hinken)
 
 
 func _ready() -> void:
@@ -142,6 +143,9 @@ func _physics_process(dt: float) -> void:
 			velocity.y = minf(velocity.y + TYNGD * 0.6 * dt, MAX_FALL)
 			position += velocity * dt
 		return
+	if skydd > 0.0:  # blinkar efter en träff
+		skydd = maxf(0.0, skydd - dt)
+		_sprite.visible = skydd == 0.0 or int(skydd * 12.0) % 2 == 0
 	var x := Spel.styr_x()
 	var spring := Spel.spring_nere()
 	var hopp := Spel.hopp_nere()
@@ -300,6 +304,17 @@ func _idle() -> void:
 	_sprite.play(_blick if _blick != "" else "sta")
 
 
+## Träffad av en fiende (ett hjärta mindre, bana.gd): studsar bakåt bort från den, blinkar 1,5 s
+func traffad(fran_x: float) -> void:
+	skydd = 1.5
+	var bort := signf(position.x - fran_x)
+	if bort == 0.0:
+		bort = -_vand
+	velocity = Vector2(bort * 320.0, -380.0)
+	glider = false
+	Spel.ljud("aj")
+
+
 ## Trampat på en fiende: studsa upp (högre om A hålls)
 func studsa() -> void:
 	velocity.y = -(HOPP if Spel.hopp_nere() else STUDS)
@@ -312,6 +327,8 @@ func do() -> void:
 		return
 	dod = true
 	_dod_tid = 0.0
+	skydd = 0.0
+	_sprite.visible = true
 	velocity = Vector2(0, -700)
 	collision_mask = 0
 	_sprite.flip_h = false

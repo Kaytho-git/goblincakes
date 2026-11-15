@@ -94,6 +94,8 @@ func _flytta(x: float, y: float) -> void:
 	pojke.position = Vector2(x, y)
 	pojke.velocity = Vector2.ZERO
 	pojke.dod = false
+	pojke.skydd = 0.0
+	Spel.liv = 1  # proven från före hjärtana (15 nov) väntar sig "oj" vid en träff – sista hjärtat
 	pojke.collision_mask = 1
 	pojke.visible = true
 	pojke.ducker = false
@@ -263,10 +265,28 @@ func _kor() -> void:
 	await _rutor(40)
 	_koll("buren = Björnen räddad", bana.klar)
 
-	# liven
-	Spel.liv = 1
+	# hjärtana (användaren 15 nov): en träff = ett hjärta mindre och man spelar vidare
+	bana.klar = false  # (buren ovan avslutade banan – spela vidare)
+	pojke.set_physics_process(true)
+	await _flytta(900.0, 432.0)
+	Spel.liv = 3
+	bil = bana.ny_bil(Vector2(1000.0, 432.0))
+	Spel.prov_x = 1.0
+	await _rutor(40)
+	_koll("träff = ett hjärta mindre, spelar vidare", Spel.liv == 2 and not pojke.dod, "liv %d" % Spel.liv)
+	_koll("blinkar och tål ingen ny träff direkt", pojke.skydd > 0.0 and Spel.liv == 2)
+	await _rutor(120)
+	Spel.prov_x = 0.0
+	bil.queue_free()
+	await _flytta(744.0, 300.0)
+	Spel.liv = 3
+	await _rutor(90)
+	_koll("ramla i gropen = ett hjärta mindre och oj", pojke.dod and Spel.liv == 2, "liv %d" % Spel.liv)
+	Spel.flagga = 47 * 48 + 24.0
+	Spel.liv = 0
 	var slut := Spel.forlorat()
-	_koll("sista livet → alla liv tillbaka", slut and Spel.liv == Spel.LIV_START and Spel.flagga < 0.0)
+	_koll("slut på hjärtan → alla tillbaka, vid flaggan", slut and Spel.liv == Spel.LIV_START and Spel.flagga > 0.0)
+	_koll("tre hjärtan i början", Spel.LIV_START == 3)
 
 	print("PROV: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
 	get_tree().quit(1 if _fel else 0)
@@ -516,12 +536,11 @@ func _kor_sand() -> void:
 	await _rutor(15)
 	_koll("vinden knuffar bakåt", pojke.position.x < vx0 - 20.0, "%.0f px" % (vx0 - pojke.position.x))
 	# skatten: ducka på glittret = ett hjärta
-	Spel.liv = 3
 	await _flytta(20.0 * R + 24.0, G)
 	Spel.prov_ner = true
 	await _rutor(10)
 	Spel.prov_ner = false
-	_koll("skatten: ducka = ett hjärta", Spel.liv == 4 and bana.saker.filter(func(x): return x["typ"] == "skatt").is_empty(), "liv %d" % Spel.liv)
+	_koll("skatten: ducka = ett hjärta", Spel.liv == 2 and bana.saker.filter(func(x): return x["typ"] == "skatt").is_empty(), "liv %d" % Spel.liv)
 	# skorpionen: svansen uppe = oj, nere = tramp
 	var sk: Node2D = typ.call("skorpion")[0]
 	sk.process_mode = Node.PROCESS_MODE_INHERIT
