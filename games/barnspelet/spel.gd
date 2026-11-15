@@ -14,7 +14,7 @@ var bananer := 0  ## som pojken bär (kastas med B)
 ## Redigeraren (redigerare.gd) – E växlar
 var redigerar := false
 var red_kamera := Vector2(480, 270)
-var red_verktyg := 0
+var red_verktyg := 1  ## 0 = suddet, 1 = mark
 var red_senast := Vector3i(-1, -1, 0)
 var red_historik: Array[String] = []
 var test_start := Vector2.ZERO  ## "spela härifrån" – gäller tills man spelar från början

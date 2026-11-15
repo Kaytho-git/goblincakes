@@ -10,6 +10,7 @@ extends Node2D
 const RUTA := 48
 ## [tecken, namn, bild (blad, ruta)] – ordningen = menyn
 const VERKTYG := [
+	[".", "Sudd – ta bort (eller högerklick)", ["sudd", ""]],
 	["G", "Mark", ["mark", "gras"]],
 	["=", "Gren", ["mark", "planka"]],
 	["W", "Vatten", ["mark", "vattenyta"]],
@@ -71,6 +72,13 @@ func _tangent(i: int) -> String:
 
 
 func _ikon(blad: String, ruta: String) -> Texture2D:
+	if blad == "sudd":  # ett rött kryss
+		var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+		for i in 16:
+			for d in [-1, 0, 1]:
+				img.set_pixel(clampi(i + d, 0, 15), i, Color(0.95, 0.3, 0.3))
+				img.set_pixel(clampi(15 - i + d, 0, 15), i, Color(0.95, 0.3, 0.3))
+		return ImageTexture.create_from_image(img)
 	if blad == "mark":
 		var m: String = bana._meta.get("mark", "mark")
 		var frames: Array = Bilder.info(m)["frames"]
