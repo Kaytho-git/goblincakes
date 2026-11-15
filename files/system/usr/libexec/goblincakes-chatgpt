@@ -12,9 +12,11 @@ chatgpt package from its repodata (checksum checked) and unpacks it the same way
   goblincakes-chatgpt check                prints the newer version (nothing = none or can't tell)
   goblincakes-chatgpt status               JSON {installed, version, desktop, repo}
   goblincakes-chatgpt open [text]          starts the app; with text: a new chat with the text written in
-  goblincakes-chatgpt image text [--out F] a new Codex chat with the text, waits (10 min) for the picture the app
-                                           draws, copies it to F (default: the app's own copy in ~/Bilder), prints the path and
-                                           closes the app
+  goblincakes-chatgpt image text [--out F] [--ref BILD …]
+                                           draws the picture with Codex in the terminal (codex exec, no Enter
+                                           needed; --ref = pictures to follow, e.g. the approved figure), else
+                                           a new Codex chat in the app with the text (press Enter there); copies
+                                           it to F (default: ~/Bilder), prints the path
   goblincakes-chatgpt uninstall            removes the app (your ChatGPT settings stay)
 
 Lines that start with "@@ " are for GOBLINCAKES Config (status). Only the standard library.
@@ -489,18 +491,69 @@ def close_app():
                 pass
 
 
+def codex_cli():
+    found = shutil.which("codex") or str(HOME / ".local/bin/codex")
+    return found if os.access(found, os.X_OK) else None
+
+
+def draw_with_cli(text, refs, old):
+    """Codex in the terminal draws it (15 Nov, the user: "mycket bättre" than pressing Enter in the app):
+    `codex exec` with the text on stdin (-i takes several files and would swallow it), read-only – it only
+    draws. The picture lands in ~/.codex/generated_images like the app's. None = failed (then the app)."""
+    codex = codex_cli()
+    if not codex:
+        return None
+    started = time.time()
+    status("Codex ritar bilden (ingen Enter behövs)…")
+    cmd = [codex, "exec", "--skip-git-repo-check", "-s", "read-only"]
+    for ref in refs:
+        cmd += ["-i", str(ref)]
+    env = {k: v for k, v in os.environ.items() if k != "ELECTRON_RUN_AS_NODE"}
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            subprocess.run(cmd + ["-"], input="Generate the picture with your image generation tool (do not write "
+                           "code or files):\n" + text, text=True, cwd=tmp, env=env, timeout=IMAGE_WAIT,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+    found = [f for f in newest_images(started, old) if f.parent != PICTURES]
+    return found[-1] if found else None
+
+
+def deliver(pic, out, folder):
+    if out is None or folder:
+        out = (out or PICTURES) / time.strftime("chatgpt-%Y-%m-%d-%H%M%S.png")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(pic, out)
+    print(out)
+
+
 def cmd_image(args):
-    out, folder = None, False
+    out, folder, refs = None, False, []
     if "--out" in args:
         i = args.index("--out")
         if i + 1 < len(args):
             out = Path(args[i + 1]).expanduser()
             folder = args[i + 1].endswith("/") or out.is_dir()
         args = args[:i] + args[i + 2:]
+    while "--ref" in args:
+        i = args.index("--ref")
+        if i + 1 < len(args):
+            ref = Path(args[i + 1]).expanduser()
+            if not ref.is_file():
+                fail(f"Hittar inte förlagan: {ref}")
+            refs.append(ref.resolve())
+        args = args[:i] + args[i + 2:]
     text = " ".join(args).strip()
     if not text:
         fail("Skriv vad bilden ska föreställa")
     old = drawn_before()
+    pic = draw_with_cli(text, refs, old)
+    if pic:
+        deliver(pic, out, folder)
+        return
+    if refs:
+        status("Codex i terminalen gick inte – appen får inte förlagan, lägg till den själv i chatten")
     started = time.time()
     to_clipboard(text)
     cmd_open(text, NEW_CODEX)
