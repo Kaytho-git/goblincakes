@@ -69,6 +69,7 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - [ ] **Barnläge** – byggt 13 nov, testlista `barnlage.md` (grep "Barnläge").
 - [ ] **RetroDECK i barnläget** – byggt 14 nov (valfritt i Config), testlista `barnlage-retrodeck.md` (grep "RetroDECK i barnläget").
 - [ ] **Barnläget i pixelart** – Kakans bilder inbyggda överallt 14 nov (bara offscreen-provat); användaren provar på riktigt (grep "Pixelart").
+- [ ] **Barnspelet** – plattformsspel i barnläget, planeras (grep "Barnspelet – planen").
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer
