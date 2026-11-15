@@ -12,7 +12,12 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	if "--prov" in args:
 		Spel.prov = true
+		Spel.bana = "prov"
 		_kor.call_deferred()
+	elif "--prov-djungel" in args:
+		Spel.prov = true
+		Spel.bana = "1"
+		_kor_djungel.call_deferred()
 	elif "--bild" in args:
 		var i := args.find("--bild")
 		var vanta := float(args[i + 2]) if args.size() > i + 2 else 3.0
@@ -22,6 +27,16 @@ func _ready() -> void:
 func _bild(fil: String, vanta: float) -> void:
 	Spel.prov = true
 	Spel.prov_x = 1.0
+	var args := OS.get_cmdline_user_args()
+	if "--fran" in args:  # börja vid ruta x (för skärmbilder mitt i en bana)
+		await get_tree().process_frame
+		var b: Node2D = get_tree().current_scene
+		b.pojke.position.x = float(args[args.find("--fran") + 1]) * 48.0 + 24.0
+		b.pojke.position.y = 300.0
+		b.kamera.position = b.pojke.position
+		b.kamera.reset_smoothing()
+		if "--stilla" in args:
+			Spel.prov_x = 0.0
 	await get_tree().create_timer(vanta).timeout
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(fil)
@@ -44,6 +59,7 @@ func _flytta(x: float, y: float) -> void:
 	pojke.velocity = Vector2.ZERO
 	pojke.dod = false
 	pojke.collision_mask = 1
+	pojke.visible = true
 	Spel.prov_x = 0.0
 	Spel.prov_hopp = false
 	Spel.prov_spring = false
@@ -54,9 +70,9 @@ func _kor() -> void:
 	await _rutor(2)
 	bana = get_tree().current_scene
 	pojke = bana.pojke
-	for b in bana.bilar:
+	for b in bana.fiender:
 		b.queue_free()
-	bana.bilar.clear()
+	bana.fiender.clear()
 	await _rutor(30)
 	_koll("står på marken vid start", pojke.is_on_floor() and absf(pojke.position.y - 9 * 48.0) < 0.5,
 			"y = %.1f" % pojke.position.y)
@@ -187,4 +203,79 @@ func _kor() -> void:
 	_koll("sista livet → alla liv tillbaka", slut and Spel.liv == Spel.LIV_START and Spel.flagga < 0.0)
 
 	print("PROV: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
+	get_tree().quit(1 if _fel else 0)
+
+
+## Djungeln (bana 1): -- --prov-djungel
+func _kor_djungel() -> void:
+	await _rutor(2)
+	bana = get_tree().current_scene
+	pojke = bana.pojke
+	var R := 48.0
+	var finns := func(skript: String) -> Array:
+		return bana.fiender.filter(func(f): return is_instance_valid(f) and f.get_script().resource_path.ends_with(skript))
+	_koll("djungelns fiender finns", finns.call("gangare.gd").size() == 5 and finns.call("papegoja.gd").size() == 3
+			and finns.call("krokodil.gd").size() == 2 and finns.call("kokos.gd").size() == 3 and bana.boss != null)
+	# vattnet
+	await _flytta(77 * R + 24.0, 300.0)
+	await _rutor(60)
+	_koll("oj i vattnet", pojke.dod)
+	# krokodilen hoppar upp inom 3 s när man är nära
+	await _flytta(74 * R, 432.0)
+	var krok: Node2D = finns.call("krokodil.gd")[0]
+	var sett := false
+	for i in 200:
+		await get_tree().physics_frame
+		if krok.rect().has_area():
+			sett = true
+			break
+	_koll("krokodilen hoppar upp ur vattnet", sett)
+	# kokosnöten faller när man går under palmen
+	await _flytta(35 * R, 432.0)
+	var kokos: Node2D = finns.call("kokos.gd")[0]
+	Spel.prov_x = 1.0
+	await _rutor(25)
+	Spel.prov_x = 0.0
+	var foll := false
+	for i in 90:
+		await get_tree().physics_frame
+		if kokos._lage in ["faller", "sprucken"]:
+			foll = true
+	_koll("kokosnöten ramlar när man kommer nära", foll, kokos._lage)
+	# trampa på en papegoja
+	var pap: Node2D = finns.call("papegoja.gd")[0]
+	await _flytta(pap.position.x, 432.0)
+	pojke.position = pap.position + Vector2(0, -90)
+	pojke.velocity = Vector2(0, 300)
+	await _rutor(20)
+	_koll("trampar på papegojan", not is_instance_valid(pap) or pap.platt)
+	# bossen: buren låst, bananer i munnen, somnar, buren öppen
+	var boss: Node2D = bana.boss
+	await _flytta(boss.position.x + 7.0 * R - 10.0 + 0.0, 432.0)
+	pojke.position.x = 125 * R + 24.0 - 30.0
+	await _rutor(20)
+	_koll("buren är låst medan bossen är vaken", not bana.klar)
+	await _flytta(boss.position.x - 4.0 * R, 432.0)
+	Spel.bananer = 5
+	pojke._vand = 1.0
+	var kast := 0
+	for forsok in 12:
+		while boss._lage != "gapar" and not boss.sover:
+			await get_tree().physics_frame
+		if boss.sover:
+			break
+		Spel.prov_special = true
+		await _rutor(2)
+		Spel.prov_special = false
+		kast += 1
+		await _rutor(30)
+		await _rutor(40)
+	_koll("bananer i munnen → bossen somnar", boss.sover, "%d kast, mätt %d" % [kast, boss.mattnad])
+	# bananbusken: inga bananer kvar och inga på marken → en ny dyker upp (bossen vaken) – provas på en ny boss
+	await _flytta(boss.position.x + 4.0 * R, 432.0)
+	Spel.prov_x = 1.0
+	await _rutor(60)
+	Spel.prov_x = 0.0
+	_koll("buren öppnas när bossen sover", bana.klar)
+	print("PROV DJUNGELN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
 	get_tree().quit(1 if _fel else 0)

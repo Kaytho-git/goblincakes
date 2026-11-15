@@ -35,13 +35,14 @@ _loader.exec_module(pa)
 class Drawing:
     """One drawn picture: the figures in it (cut out by the magenta key), in reading order."""
 
-    def __init__(self, name, grid=False):
+    def __init__(self, name, grid=False, join=0):
+        self.join = join  # gaps narrower than this (px) inside one figure are kept together
         im = Image.open(SRC / name).convert("RGBA")
         self.w, self.h = im.size
         get = im.get_flattened_data if hasattr(im, "get_flattened_data") else im.getdata
         # strip_halo is not used: the red hoodie (blue a little above green) counted as glow
         self.px = [None if pa.is_key(p) else p for p in get()]
-        self.boxes = self._grid() if grid else self._columns(0, self.h)
+        self.boxes = self._grid() if grid == True else (self._parts() if grid == "delar" else self._columns(0, self.h))
 
     def _used_cols(self, y0, y1):
         w, px = self.w, self.px
@@ -61,10 +62,44 @@ class Drawing:
 
     def _columns(self, y0, y1):
         boxes = []
+        runs = []
         for s, e in self._runs(self._used_cols(y0, y1), 30):
+            if runs and s - runs[-1][1] < self.join:  # one figure in pieces (a cracked coconut) – keep it together
+                runs[-1] = (runs[-1][0], e)
+            else:
+                runs.append((s, e))
+        for s, e in runs:
             ys = [y for y in range(y0, y1) if any(self.px[y * self.w + x] is not None for x in range(s, e, 2))]
             boxes.append((s, ys[0], e, ys[-1] + 1))
         return boxes
+
+    def _parts(self, step=4):
+        """Figures as connected pieces (on a coarse grid) – for pictures where one figure reaches over
+        another's columns (the palm's leaves over the banana). Left to right."""
+        w, h, px = self.w, self.h, self.px
+        gw, gh = w // step, h // step
+        on = [[px[(y * step) * w + x * step] is not None for x in range(gw)] for y in range(gh)]
+        seen = [[False] * gw for _ in range(gh)]
+        boxes = []
+        for y in range(gh):
+            for x in range(gw):
+                if not on[y][x] or seen[y][x]:
+                    continue
+                stack, x0, y0, x1, y1, n = [(x, y)], x, y, x, y, 0
+                seen[y][x] = True
+                while stack:
+                    cx, cy = stack.pop()
+                    n += 1
+                    x0, y0, x1, y1 = min(x0, cx), min(y0, cy), max(x1, cx), max(y1, cy)
+                    for dx in (-1, 0, 1):
+                        for dy in (-1, 0, 1):
+                            nx, ny = cx + dx, cy + dy
+                            if 0 <= nx < gw and 0 <= ny < gh and on[ny][nx] and not seen[ny][nx]:
+                                seen[ny][nx] = True
+                                stack.append((nx, ny))
+                if n > 40:
+                    boxes.append((x0 * step, y0 * step, (x1 + 1) * step, (y1 + 1) * step))
+        return sorted(boxes)
 
     def _grid(self):
         w, px = self.w, self.px
@@ -228,7 +263,68 @@ def mark():
     save("mark", cells, size, names)
 
 
-PARTS = {"figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
+def bakgrund(nr="1"):
+    """Kakan's jungle background (goblincakes-image, pixel art style, 1280×720): the middle without the dark
+    frame and its own ground, on a grid of 480 × 300 (shown ×2 in the game, a background may be coarser than
+    the figures), then the picture + its mirror image side by side – repeats without a seam."""
+    im = Image.open(SRC / f"djungel-bakgrund-{nr}.png").convert("RGBA").crop((160, 0, 1120, 600))
+    w, h = im.size
+    get = im.get_flattened_data if hasattr(im, "get_flattened_data") else im.getdata
+    px = list(get())
+    tw, th = 480, 300
+    out = pa.cells(w, h, px, (0, 0, w, h), tw, th, False)
+    pal = pa.median_cut(sorted({c[:3] for c in out if c}), 48)
+    memo = {}
+    img = Image.new("RGBA", (tw * 2, th))
+    for y in range(th):
+        for x in range(tw):
+            c = memo.setdefault(out[y * tw + x][:3], pa.nearest(out[y * tw + x][:3], pal))
+            img.putpixel((x, y), (*c, 255))
+            img.putpixel((tw * 2 - 1 - x, y), (*c, 255))
+    OUT.mkdir(parents=True, exist_ok=True)
+    img.save(OUT / "djungel-bakgrund.png")
+    (OUT / "djungel-bakgrund.json").write_text(json.dumps({"cell": [tw * 2, th], "frames": ["bakgrund"]}) + "\n")
+    print(f"  ✓ djungel-bakgrund: {tw * 2}×{th} (spegelvänd, upprepas utan skarv)")
+
+
+def djungel():
+    """The jungle: tiles (3 × 4: ground, soil, branch, water), enemies (one sheet each), palm, banana, bush."""
+    d = Drawing("djungel-mark-prov.png", grid=True)
+    if len(d.boxes) != 12:
+        sys.exit(f"djungel-mark: hittade {len(d.boxes)} rutor, inte 12")
+    names = ["gras_v", "gras", "gras_h", "jord_v", "jord", "jord_h", "planka_v", "planka", "planka_h",
+             "vattenyta", "vatten", "vattenyta2"]
+    cells, size = sheet("djungel-mark", [d.cut(i, 1, (48, 48)) for i in range(12)], names, pad=0, fixed=(48, 48))
+    save("djungel-mark", cells, size, names)
+    f = Drawing("djungel-fiender-prov.png", grid=True, join=40)
+    if len(f.boxes) != 8:
+        sys.exit(f"djungel-fiender: hittade {len(f.boxes)} figurer, inte 8")
+    for n, (i, h) in {"orm": (0, 26), "papegoja": (2, 46), "krokodil": (4, 96), "kokos": (6, 26)}.items():
+        k = f.scale_for(i, h)
+        cells, size = sheet(n, [f.cut(i, k), f.cut(i + 1, k)], [n + "1", n + "2"])
+        save(n, cells, size, [n + "1", n + "2"])
+    p = Drawing("djungel-palm-prov.png", grid="delar")
+    if len(p.boxes) != 3:
+        sys.exit(f"djungel-palm: hittade {len(p.boxes)} figurer, inte 3")
+    for n, i, h in (("palm", 0, 240), ("banan", 1, 22), ("buske", 2, 96)):
+        k = p.scale_for(i, h)
+        cells, size = sheet(n, [p.cut(i, k)], [n], pad=0)
+        save(n, cells, size, [n])
+
+
+def orangutang():
+    d = Drawing("orangutang-prov.png")
+    if len(d.boxes) != 4:
+        sys.exit(f"orangutang: hittade {len(d.boxes)} figurer, inte 4")
+    d.common_ground()
+    k = d.scale_for(0, 190)
+    d.peel(k)
+    names = ["hungrig", "gapar", "tuggar", "sover"]
+    cells, size = sheet("orangutang", [d.cut(i, k) for i in range(4)], names)
+    save("orangutang", cells, size, names)
+
+
+PARTS = {"bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
 
 if __name__ == "__main__":
     for part in sys.argv[1:] or PARTS:

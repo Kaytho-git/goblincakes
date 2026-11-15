@@ -7,14 +7,16 @@ const KNAPPAR_PER_LIV := 100
 
 var liv := LIV_START
 var knappar := 0
-var bana := "1-1"
+var bana := "1"  ## banor/<namn>.txt – "prov" = provbanan; välj med -- --bana <namn>
 var flagga := -1.0  ## x där man börjar om efter flaggan (-1 = från start)
+var bananer := 0  ## som pojken bär (kastas med B)
 
 ## Proven (prov.gd) styr pojken i stället för kontrollen
 var prov := false
 var prov_x := 0.0
 var prov_hopp := false
 var prov_spring := false
+var prov_special := false
 
 var _ljud := {}
 var _spelare: Array[AudioStreamPlayer] = []
@@ -22,6 +24,9 @@ var _spelare: Array[AudioStreamPlayer] = []
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	var args := OS.get_cmdline_user_args()
+	if "--bana" in args and args.find("--bana") + 1 < args.size():
+		bana = args[args.find("--bana") + 1]
 	_knappar()
 	_gor_ljud()
 	for i in 6:
@@ -95,6 +100,10 @@ func spring_nere() -> bool:
 	return prov_spring if prov else Input.is_action_pressed("spring")
 
 
+func special_nere() -> bool:
+	return prov_special if prov else Input.is_action_pressed("special")
+
+
 # ── Liv och knappar ──────────────────────────────────────────────
 
 func ta_knapp() -> void:
@@ -140,6 +149,8 @@ func _gor_ljud() -> void:
 	_ljud["trampa"] = _ton([[520.0, 180.0, 0.12]], 0.22)
 	_ljud["oj"] = _ton([[660.0, 620.0, 0.12], [520.0, 480.0, 0.12], [400.0, 200.0, 0.35]], 0.22)
 	_ljud["liv"] = _ton([[523.0, 523.0, 0.08], [659.0, 659.0, 0.08], [784.0, 784.0, 0.08], [1047.0, 1047.0, 0.2]], 0.18)
+	_ljud["kasta"] = _ton([[500.0, 900.0, 0.1]], 0.14)
+	_ljud["mums"] = _ton([[220.0, 260.0, 0.08], [200.0, 240.0, 0.08], [240.0, 280.0, 0.1]], 0.2)
 	_ljud["flagga"] = _ton([[659.0, 659.0, 0.08], [880.0, 880.0, 0.16]], 0.16)
 	_ljud["raddad"] = _ton([[523.0, 523.0, 0.12], [659.0, 659.0, 0.12], [784.0, 784.0, 0.12],
 			[1047.0, 1047.0, 0.12], [784.0, 784.0, 0.12], [1047.0, 1047.0, 0.4]], 0.18)

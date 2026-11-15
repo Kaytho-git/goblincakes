@@ -1,29 +1,43 @@
 extends Node2D
-## En bana ur banor/<namn>.txt – en rad per rutrad (48 × 48 spelpixlar):
-##   .  luft          G  gräsyta (allt under fylls med jord)    =  planka (hoppa upp underifrån)
-##   k  knapp         h  hjärta (ett liv)                       r  racerbil
-##   F  flagga (börja om här)    B  buren med gossedjuret (mål)    P  start
+## En bana ur banor/<namn>.txt – en rad per rutrad (48 × 48 spelpixlar) – och banor/<namn>.json
+## ({"mark": blad med rutorna, "bakgrund": bild}, valfri):
+##   .  luft          G  markyta (allt under fylls med jord)    =  planka/gren (hoppa upp underifrån)
+##   W  vattenyta (vatten fylls under – i vattnet blir det "oj")   c  krokodil i vattnet (räknas som W)
+##   k  knapp         h  hjärta (ett liv)        b  banan (bärs, kastas med B)   u  bananbuske (nya bananer)
+##   r  racerbil      s  orm      p  papegoja    o  palm med kokosnöt             O  bossen (orangutangen)
+##   F  flagga (börja om här)    B  buren med gossedjuret (mål; med en boss: öppen först när den sover)
+##   P  start
 
 const RUTA := 48
-const KAKEL := ["gras_v", "gras", "gras_h", "jord_v", "jord", "jord_h", "planka_v", "planka", "planka_h"]
+const KAKEL := ["gras_v", "gras", "gras_h", "jord_v", "jord", "jord_h", "planka_v", "planka", "planka_h",
+		"vattenyta", "vatten", "vattenyta2"]
 
 var bredd := 0
 var hojd := 0
 var botten := 0.0
 var pojke: CharacterBody2D
 var kamera: Camera2D
-var bilar: Array = []
+var fiender: Array = []
+var boss: Node2D
 var saker: Array = []  ## {"typ", "nod", "rect", "y"}
 var klar := false
 
 var _fast := {}
 var _plankor := {}
+var _vatten := {}  ## Vector2i → true för ytan, false under
+var _meta := {}
+var _kastade: Array = []  ## {"nod", "v", "studsad"}
+var _buskar: Array = []
+var _busk_tid := 0.0
 var _start := Vector2.ZERO
 var _tid := 0.0
 
 
 func _ready() -> void:
+	Spel.bananer = 0
 	var text := FileAccess.get_file_as_string("res://banor/%s.txt" % Spel.bana)
+	if FileAccess.file_exists("res://banor/%s.json" % Spel.bana):
+		_meta = JSON.parse_string(FileAccess.get_file_as_string("res://banor/%s.json" % Spel.bana))
 	var rader := text.strip_edges(false, true).split("\n")
 	hojd = rader.size()
 	for r in rader:
@@ -52,17 +66,24 @@ func _rutor(rader: PackedStringArray) -> void:
 						_fast[Vector2i(x, yy)] = true
 				"=":
 					_plankor[Vector2i(x, y)] = true
+				"W", "c":
+					for yy in range(y, hojd):
+						_vatten[Vector2i(x, yy)] = yy == y
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(RUTA, RUTA)
 	ts.add_physics_layer()
 	ts.set_physics_layer_collision_layer(0, 1)
 	var src := TileSetAtlasSource.new()
-	src.texture = Bilder.textur("mark")
+	var mark: String = _meta.get("mark", "mark")
+	src.texture = Bilder.textur(mark)
+	var antal: int = Bilder.info(mark)["frames"].size()
 	src.texture_region_size = Vector2i(RUTA, RUTA)
 	var sid := ts.add_source(src)
 	var h := RUTA / 2.0
-	for i in KAKEL.size():
+	for i in mini(KAKEL.size(), antal):
 		src.create_tile(Vector2i(i, 0))
+		if i >= 9:
+			continue  # vattnet: ingen krock
 		var td := src.get_tile_data(Vector2i(i, 0), 0)
 		td.add_collision_polygon(0)
 		if i >= 6:  # plankan: bara överkanten, och bara uppifrån
@@ -78,6 +99,14 @@ func _rutor(rader: PackedStringArray) -> void:
 		lager.set_cell(c, sid, Vector2i((0 if topp else 3) + _kant(_fast, c), 0))
 	for c in _plankor:
 		lager.set_cell(c, sid, Vector2i(6 + _kant(_plankor, c), 0))
+	if antal >= 11:
+		var vatten := TileMapLayer.new()  # framför pojken och krokodilen
+		vatten.tile_set = ts
+		vatten.z_index = 8
+		vatten.modulate = Color(1, 1, 1, 0.92)
+		add_child(vatten)
+		for c in _vatten:
+			vatten.set_cell(c, sid, Vector2i(9 if _vatten[c] else 10, 0))
 
 
 ## 0 = vänsterkant, 1 = mitten, 2 = högerkant
@@ -107,7 +136,30 @@ func _figurer(rader: PackedStringArray) -> void:
 				"B":
 					_sak("bur", golv, false)
 				"r":
-					ny_bil(golv)
+					ny_fiende("gangare", golv, {"typ": "racerbil"})
+				"s":
+					ny_fiende("gangare", golv, {"typ": "orm"})
+				"p":
+					ny_fiende("papegoja", mitt)
+				"c":
+					ny_fiende("krokodil", Vector2(golv.x, y * RUTA + 6.0))
+				"o":
+					ny_fiende("kokos", golv)
+				"b":
+					_sak("banan", golv, false)
+				"u":
+					var b := Sprite2D.new()
+					b.texture = Bilder.textur("buske")
+					var c: Vector2 = Bilder.cell("buske")
+					b.centered = false
+					b.offset = Vector2(-c.x / 2.0, -c.y)
+					b.position = golv
+					b.z_index = -2
+					add_child(b)
+					_buskar.append(golv)
+				"O":
+					boss = ny_fiende("orangutang", golv)
+					boss.somnade.connect(func(): Spel.ljud("raddad"))
 
 
 func _sak(typ: String, pos: Vector2, svavar: bool) -> Dictionary:
@@ -125,14 +177,20 @@ func _sak(typ: String, pos: Vector2, svavar: bool) -> Dictionary:
 	return sak
 
 
+func ny_fiende(skript: String, pos: Vector2, egenskaper := {}) -> Node2D:
+	var f := Node2D.new()
+	f.set_script(load("res://%s.gd" % skript))
+	f.bana = self
+	f.position = pos
+	for k in egenskaper:
+		f.set(k, egenskaper[k])
+	add_child(f)
+	fiender.append(f)
+	return f
+
+
 func ny_bil(golv: Vector2) -> Node2D:
-	var b := Node2D.new()
-	b.set_script(load("res://racerbil.gd"))
-	b.bana = self
-	b.position = golv
-	add_child(b)
-	bilar.append(b)
-	return b
+	return ny_fiende("gangare", golv, {"typ": "racerbil"})
 
 
 func _ny_pojke() -> void:
@@ -171,18 +229,28 @@ func _physics_process(_dt: float) -> void:
 	if pojke.position.y > botten + 60.0:
 		pojke.do()
 		return
+	if _vatten.has(Vector2i(floori(pojke.position.x / RUTA), floori((pojke.position.y - 10.0) / RUTA))):
+		pojke.do()  # i vattnet
+		return
 	var pr: Rect2 = pojke.rect()
-	bilar = bilar.filter(func(b): return is_instance_valid(b))
-	for b in bilar:
-		if b.platt or not pr.intersects(b.rect()):
+	fiender = fiender.filter(func(b): return is_instance_valid(b))
+	for b in fiender:
+		var r: Rect2 = b.rect()
+		if b.platt or not r.has_area() or not pr.intersects(r):
 			continue
-		# uppifrån och på väg ner = trampa; annars "oj"
-		if pojke.velocity.y > 0.0 and pojke.position.y < b.rect().position.y + 22.0:
+		# uppifrån och på väg ner = trampa (om den går att trampa på); annars "oj"
+		if b.trampbar and pojke.velocity.y > 0.0 and pojke.position.y < r.position.y + 22.0:
 			b.platta()
 			pojke.studsa()
 		else:
 			pojke.do()
 			return
+	if boss and not boss.sover:  # den vakna bossen går inte att gå igenom
+		var k: Rect2 = boss.kropp()
+		if pr.intersects(k):
+			pojke.position.x = k.position.x - pojke.BREDD / 2.0 if pojke.position.x < k.get_center().x else k.end.x + pojke.BREDD / 2.0
+			pojke.velocity.x = 0.0
+	_bananer(_dt)
 	for s in saker.duplicate():
 		if not pr.intersects(s["rect"]):
 			continue
@@ -193,13 +261,60 @@ func _physics_process(_dt: float) -> void:
 			"hjarta":
 				Spel.nytt_liv()
 				_ta_bort(s)
+			"banan":
+				Spel.bananer += 1
+				Spel.ljud("knapp")
+				_ta_bort(s)
 			"flagga":
 				if not is_equal_approx(Spel.flagga, s["nod"].position.x):
 					Spel.flagga = s["nod"].position.x
 					s["nod"].modulate = Color(1, 1, 0.6)
 					Spel.ljud("flagga")
 			"bur":
-				_raddad(s)
+				if not boss or boss.sover:
+					_raddad(s)
+
+
+## Bananerna: B kastar (i en båge framåt), träff i bossens öppna mun = mat; bananbuskar ger nya
+## när man inte har några och inga ligger framme (man ska aldrig kunna fastna)
+var _special_forra := false
+
+
+func _bananer(dt: float) -> void:
+	var b := Spel.special_nere()
+	if b and not _special_forra and Spel.bananer > 0:
+		Spel.bananer -= 1
+		var n := Sprite2D.new()
+		n.texture = Bilder.textur("banan")
+		var vand := -1.0 if pojke._vand < 0.0 else 1.0
+		n.position = pojke.position + Vector2(vand * 24.0, -64.0)
+		n.z_index = 6
+		add_child(n)
+		_kastade.append({"nod": n, "v": Vector2(vand * 430.0, -420.0), "studsad": false})
+		Spel.ljud("kasta")
+	_special_forra = b
+	for k in _kastade.duplicate():
+		var n: Sprite2D = k["nod"]
+		k["v"].y += 1400.0 * dt
+		n.position += k["v"] * dt
+		n.rotation += 12.0 * dt * signf(k["v"].x)
+		var r := Rect2(n.position - Vector2(12, 12), Vector2(24, 24))
+		var bort := fast(n.position) or n.position.y > botten
+		if not bort and boss and not boss.sover and not k["studsad"]:
+			if boss.mun().has_area() and r.intersects(boss.mun()):
+				boss.mata()
+				bort = true
+			elif r.intersects(boss.kropp()):
+				k["v"] = Vector2(-k["v"].x * 0.35, -200.0)  # studsar bort från den stängda munnen
+				k["studsad"] = true
+		if bort:
+			_kastade.erase(k)
+			n.queue_free()
+	_busk_tid += dt
+	if _busk_tid > 3.0 and not _buskar.is_empty() and Spel.bananer == 0 and boss and not boss.sover:
+		_busk_tid = 0.0
+		if not saker.any(func(s): return s["typ"] == "banan"):
+			_sak("banan", _buskar[0] + Vector2(56.0, 0.0), false)
 
 
 func Pojke_halv() -> float:
@@ -280,6 +395,10 @@ func _hud() -> void:
 	ram.custom_minimum_size = Vector2(10 * 12 + 6, 22)
 	ram.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	rad.add_child(ram)
+	_hud_bananer = HBoxContainer.new()
+	_hud_bananer.position = Vector2(20, 84)
+	_hud_bananer.add_theme_constant_override("separation", 2)
+	lager.add_child(_hud_bananer)
 	for i in 10:
 		var fack := ColorRect.new()
 		fack.position = Vector2(4 + i * 12, 4)
@@ -289,6 +408,8 @@ func _hud() -> void:
 
 
 var _hud_hjartan: HBoxContainer
+var _hud_bananer: HBoxContainer
+var _visade_bananer := -1
 var _hud_fack: Array[ColorRect] = []
 var _visat_liv := -1
 
@@ -302,6 +423,14 @@ func _hud_uppdatera() -> void:
 			var h := TextureRect.new()
 			h.texture = Bilder.textur("hjarta")
 			_hud_hjartan.add_child(h)
+	if _visade_bananer != Spel.bananer:
+		_visade_bananer = Spel.bananer
+		for c in _hud_bananer.get_children():
+			c.queue_free()
+		for i in mini(Spel.bananer, 10):
+			var b := TextureRect.new()
+			b.texture = Bilder.textur("banan")
+			_hud_bananer.add_child(b)
 	var fulla := Spel.knappar / 10
 	for i in 10:
 		_hud_fack[i].color = Color(1.0, 0.8, 0.2) if i < fulla else Color(1, 1, 1, 0.15)
@@ -309,6 +438,21 @@ func _hud_uppdatera() -> void:
 
 ## Himmel (klar färg i project.godot), moln och kullar som rör sig långsammare än banan
 func _bakgrund() -> void:
+	if _meta.has("bakgrund"):
+		var p := Parallax2D.new()
+		p.scroll_scale = Vector2(0.3, 1.0)
+		var tex := Bilder.textur(_meta["bakgrund"])
+		p.repeat_size = Vector2(tex.get_width() * 2.0, 0)
+		p.repeat_times = 3
+		p.z_index = -30
+		var s := Sprite2D.new()
+		s.texture = tex
+		s.centered = false
+		s.scale = Vector2(2, 2)  # bakgrunden ritad grövre (480 × 300 per halva)
+		s.position = Vector2(0, botten - tex.get_height() * 2.0)  # nederkanten i banans botten (syns i groparna)
+		p.add_child(s)
+		add_child(p)
+		return
 	var kullar := Parallax2D.new()
 	kullar.scroll_scale = Vector2(0.45, 0.2)
 	kullar.repeat_size = Vector2(960, 0)
