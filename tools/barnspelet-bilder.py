@@ -147,6 +147,14 @@ class Drawing:
         return tw, th, pa.cells(self.w, self.h, px, self.boxes[i], tw, th, False)
 
 
+def hair_width(d, i):
+    """The brown hair's width in frame i (upper 60 %) – the head's size, whatever the pose."""
+    x0, y0, x1, y1 = d.boxes[i]
+    xs = [x for y in range(y0, y0 + (y1 - y0) * 6 // 10) for x in range(x0, x1)
+          if (p := d.px[y * d.w + x]) and 120 < p[0] < 210 and 50 < p[1] < 120 and p[2] < 70]
+    return max(xs) - min(xs)
+
+
 def is_leg(c, boots=False):
     r, g, b = c[:3]
     if boots and r > 100 and b < 80 and 0.35 * r < g < 0.65 * r:  # the winter boots (brown)
@@ -212,7 +220,7 @@ def save(name, cells, size, names):
 
 def figur(klader=""):
     """The boy, 96 px: stå, kliv, mellan (far leg swings, behind), kliv, mellan (near leg swings, in front),
-    hopp, oj … + kryp1–4 (on hands and knees, 46 px – fits under a block one tile up).
+    hopp, oj … + kryp1–4 (on hands and knees, the head as big as standing – ~60 px).
     klader "-vinter" = the same drawings redrawn by Codex in winter clothes (pojken-…-vinter-prov….png) →
     the sheet pojken-vinter (the level's json "pojke")."""
     def D(namn):
@@ -269,7 +277,8 @@ def figur(klader=""):
     idle.common_ground()
     if kryp:
         kryp.common_ground()
-        s_kryp = max(b[3] - b[1] for b in bas["kryp"].boxes) / 46
+        # the head as big as when he stands (15 Nov, the user: 46 px high "shrinks a lot") → ~60 px high
+        s_kryp = s * hair_width(bas["kryp"], 0) / hair_width(bas["std"], 0)
         kryp.peel(s_kryp)
     cuts = [std.cut(0, s), walk.cut(0, s), pass_far.cut(0, s_far), walk.cut(2, s), pass_near.cut(near_i, s_near),
             std.cut(3, s), oj.cut(0, s_oj)] + [run.cut(i, s_run) for i in range(4)] + [fall.cut(0, s_fall), fall.cut(1, s_fall)] + \
