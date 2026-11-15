@@ -3,35 +3,39 @@ extends Node2D
 ## E i spelet → här: spelet står still, rutnät, en meny med bilder längst ner.
 ##   vänsterklick/dra = lägg ut det valda   högerklick/dra = ta bort   Ctrl+Z = ångra
 ##   A/D, pilarna, mushjulet = flytta (Shift = fortare), W/S = upp/ner   1–9, 0 = välj i menyn
+##   Ctrl+hjulet eller +/− = zooma ut/in (mer av banan syns; 40–100 %)
+##   Insert/Delete = tom kolumn in/ut där musen är
 ##   Tab = visa/göm menyn   E = spela härifrån   Enter = spela från början   Esc = avsluta
 ## Varje ändring sparas direkt i banor/<namn>.txt och banan byggs om (samma bygge som när man spelar).
 ## Bara för den vuxne – barnet ser aldrig det här (inga ord i själva spelet).
 
 const RUTA := 48
-## [tecken, namn, bild (blad, ruta)] – ordningen = menyn
+## [tecken, namn, bild (blad, ruta), (när det visas)] – ordningen = menyn. Det fjärde: ett tema (banans json
+## "tema") – bara på de banorna (användaren 15 nov: "jag behöver inte kunna se djungeltema grejer" i snön);
+## "bild:<ruta>" = bara när banans markblad har den rutan (vatten, is). Utan = på alla banor.
 const VERKTYG := [
 	[".", "Sudd – ta bort (eller högerklick)", ["sudd", ""]],
 	["G", "Mark", ["mark", "gras"]],
 	["=", "Gren", ["mark", "planka"]],
 	["X", "Block 1 (följer banans tema)", ["block", "sten"]],
 	["L", "Block 2 (följer banans tema)", ["block", "lada"]],
-	["W", "Vatten", ["mark", "vattenyta"]],
-	["I", "Is – halt (snön)", ["mark", "is"]],
+	["W", "Vatten", ["mark", "vattenyta"], "bild:vattenyta"],
+	["I", "Is – halt", ["mark", "is"], "bild:is"],
 	["/", "Backe upp", ["backe", "1"]],
 	["\\", "Backe ner", ["backe", "-1"]],
 	["k", "Knapp", ["knapp", ""]],
 	["h", "Hjärta", ["hjarta", ""]],
 	["r", "Racerbil", ["racerbil", "kor1"]],
-	["s", "Orm", ["orm", "orm1"]],
-	["p", "Papegoja", ["papegoja", "papegoja1"]],
-	["c", "Krokodil", ["krokodil", "krokodil1"]],
-	["o", "Palm", ["palm", ""]],
-	["b", "Banan", ["banan", ""]],
-	["u", "Bananbuske", ["buske", ""]],
-	["q", "Pulka", ["pulka", "pulka1"]],
-	["m", "Snöplog (trampa två gånger)", ["plog", "plog1"]],
-	["n", "Snöhög (snöbollar rullar ut)", ["snohog", ""]],
-	["d", "Snöklot (till snögubbens kompis)", ["snoklot", ""]],
+	["s", "Orm", ["orm", "orm1"], "djungel"],
+	["p", "Papegoja", ["papegoja", "papegoja1"], "djungel"],
+	["c", "Krokodil", ["krokodil", "krokodil1"], "djungel"],
+	["o", "Palm", ["palm", ""], "djungel"],
+	["b", "Banan", ["banan", ""], "djungel"],
+	["u", "Bananbuske", ["buske", ""], "djungel"],
+	["q", "Pulka", ["pulka", "pulka1"], "sno"],
+	["m", "Snöplog (trampa två gånger)", ["plog", "plog1"], "sno"],
+	["n", "Snöhög (snöbollar rullar ut)", ["snohog", ""], "sno"],
+	["d", "Snöklot (till snögubbens kompis)", ["snoklot", ""], "sno"],
 	["O", "Boss (följer banan)", ["boss", ""]],
 	["F", "Flagga", ["flagga", ""]],
 	["B", "Bur", ["bur", ""]],
@@ -44,6 +48,7 @@ const PANEL_BREDD := 156.0
 
 var bana: Node2D
 var _knappar: Array[Button] = []
+var _synliga: Array[int] = []  ## VERKTYG-index som visas på den här banan (1–9, 0 väljer bland dem)
 var _panel: PanelContainer
 var _fall: Button
 
@@ -71,12 +76,16 @@ func _ready() -> void:
 	rad.add_theme_constant_override("v_separation", 4)
 	rull.add_child(rad)
 	for i in VERKTYG.size():
+		if _visas(VERKTYG[i]):
+			_synliga.append(i)
+	for i in VERKTYG.size():
 		var v: Array = VERKTYG[i]
 		var b := Button.new()
+		b.visible = i in _synliga
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(66, 52)
-		b.tooltip_text = "%s (%s)" % [v[1], _tangent(i)]
+		b.tooltip_text = "%s (%s)" % [v[1], _tangent(_synliga.find(i))]
 		b.icon = _ikon(v[2][0], v[2][1])
 		b.expand_icon = true
 		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -92,10 +101,9 @@ func _ready() -> void:
 	_fall.pressed.connect(_falla)
 	lager.add_child(_fall)
 	_visa_panel()
-	_valj(Spel.red_verktyg)
+	_valj(Spel.red_verktyg if Spel.red_verktyg in _synliga else 1)  # ett gömt verktyg (annan bana) → marken
 	bana.kamera.limit_bottom = int(bana.hojd * RUTA)
-	Spel.red_kamera.y = clampf(Spel.red_kamera.y, 270.0, _lagst())
-	bana.kamera.position = Spel.red_kamera
+	_zooma(0.0)
 	bana.kamera.reset_smoothing()
 
 
@@ -121,7 +129,19 @@ func _pil() -> ImageTexture:
 
 
 func _tangent(i: int) -> String:
-	return str((i + 1) % 10) if i < 10 else "–"
+	return str((i + 1) % 10) if i >= 0 and i < 10 else "–"
+
+
+## Visas verktyget på den här banan? (banor utan "tema" – provbanan – visar allt)
+func _visas(v: Array) -> bool:
+	if v.size() < 4:
+		return true
+	var villkor: String = v[3]
+	if villkor.begins_with("bild:"):
+		var m: String = bana._meta.get("mark", "mark")
+		return villkor.substr(5) in Bilder.info(m)["frames"]
+	var tema: String = bana._meta.get("tema", "")
+	return tema == "" or tema == villkor
 
 
 func _ikon(blad: String, ruta: String) -> Texture2D:
@@ -169,15 +189,15 @@ func _process(dt: float) -> void:
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
 		dx += 1.0
 	if dx != 0.0:
-		_flytta(dx * fart * dt)
+		_flytta(dx * fart * dt / Spel.red_zoom)
 	var dy := 0.0
 	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
 		dy -= 1.0
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
 		dy += 1.0
 	if dy != 0.0:
-		Spel.red_kamera.y = clampf(Spel.red_kamera.y + dy * fart * dt, 270.0, _lagst())
-		bana.kamera.position = Spel.red_kamera
+		Spel.red_kamera.y += dy * fart * dt / Spel.red_zoom
+		_flytta(0.0)
 	# måla
 	var mus := get_global_mouse_position()
 	var c := Vector2i(floori(mus.x / RUTA), floori(mus.y / RUTA))
@@ -197,31 +217,50 @@ func _process(dt: float) -> void:
 
 ## Kamerans lägsta läge: banans botten precis ovanför menyn
 func _lagst() -> float:
-	return bana.hojd * RUTA - 270.0
+	return bana.hojd * RUTA - 270.0 / Spel.red_zoom
+
+
+## Zooma (steg: −0,1 = ut). Kameran håller sig inom banan; är banan lägre än det som syns ligger den
+## i nederkanten och himlen syns ovanför.
+func _zooma(steg: float) -> void:
+	Spel.red_zoom = clampf(snappedf(Spel.red_zoom + steg, 0.1), 0.4, 1.0)
+	var z := Spel.red_zoom
+	bana.kamera.zoom = Vector2(z, z)
+	bana.kamera.limit_top = mini(0, int(bana.hojd * RUTA - 540.0 / z))
+	_flytta(0.0)
+	bana.kamera.reset_smoothing()
 
 
 func _flytta(d: float) -> void:
-	Spel.red_kamera.x = clampf(Spel.red_kamera.x + d, 480.0, (bana.bredd + 20) * RUTA - 480.0)
+	var halv := 480.0 / Spel.red_zoom
+	Spel.red_kamera.x = clampf(Spel.red_kamera.x + d, halv, maxf(halv, (bana.bredd + 20) * RUTA - halv))
+	Spel.red_kamera.y = clampf(Spel.red_kamera.y, minf(270.0 / Spel.red_zoom, _lagst()), _lagst())
 	bana.kamera.position = Spel.red_kamera
 
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventMouseButton and e.pressed:
-		if e.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_flytta(-RUTA * 2.0)
+		if e.ctrl_pressed and e.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			_zooma(0.1 if e.button_index == MOUSE_BUTTON_WHEEL_UP else -0.1)
+		elif e.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_flytta(-RUTA * 2.0 / Spel.red_zoom)
 		elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_flytta(RUTA * 2.0)
+			_flytta(RUTA * 2.0 / Spel.red_zoom)
 	if e is InputEventKey and e.pressed and not e.echo:
 		if e.keycode == KEY_TAB:
 			_falla()
+		elif e.keycode in [KEY_MINUS, KEY_KP_SUBTRACT]:
+			_zooma(-0.1)
+		elif e.keycode in [KEY_PLUS, KEY_KP_ADD, KEY_EQUAL]:
+			_zooma(0.1)
 		elif e.keycode == KEY_Z and e.ctrl_pressed:
 			_angra()
 		elif e.keycode == KEY_INSERT or e.keycode == KEY_DELETE:
 			_kolumn(e.keycode == KEY_INSERT, floori(get_global_mouse_position().x / RUTA))
 		elif e.keycode >= KEY_0 and e.keycode <= KEY_9:
 			var i: int = (e.keycode - KEY_0 + 9) % 10
-			if i < VERKTYG.size():
-				_valj(i)
+			if i < _synliga.size():
+				_valj(_synliga[i])
 
 
 ## Lägg tecknet i rutan, spara, bygg om banan
@@ -288,8 +327,8 @@ func _spara(text: String) -> void:
 
 func _draw() -> void:
 	var kam: Vector2 = bana.kamera.get_screen_center_position()
-	var x0 := floori((kam.x - 480.0) / RUTA)
-	var x1 := ceili((kam.x + 480.0) / RUTA)
+	var x0 := floori((kam.x - 480.0 / Spel.red_zoom) / RUTA)
+	var x1 := ceili((kam.x + 480.0 / Spel.red_zoom) / RUTA)
 	var linje := Color(1, 1, 1, 0.22)
 	for x in range(x0, x1 + 1):
 		draw_line(Vector2(x * RUTA, 0), Vector2(x * RUTA, bana.hojd * RUTA), linje)

@@ -14,6 +14,7 @@ var bananer := 0  ## som pojken bär (kastas med B)
 ## Redigeraren (redigerare.gd) – E växlar
 var redigerar := false
 var red_kamera := Vector2(480, 270)
+var red_zoom := 1.0  ## redigerarens zoom (användaren 15 nov: "zooma ut om jag vill ha mer utrymme") – 1 = som i spelet
 var red_verktyg := 1  ## 0 = suddet, 1 = mark
 var red_senast := Vector3i(-1, -1, 0)
 var red_meny := true  ## redigerarens panel till vänster öppen

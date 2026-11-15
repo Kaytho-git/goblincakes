@@ -41,6 +41,9 @@ func _bild(fil: String, vanta: float) -> void:
 	Spel.prov = true
 	Spel.prov_x = 1.0
 	var args := OS.get_cmdline_user_args()
+	if "--zoom" in args:  # redigerarens zoom (skärmbild av en utzoomad redigerare)
+		Spel.red_zoom = float(args[args.find("--zoom") + 1])
+		get_tree().reload_current_scene()
 	if "--fran" in args:  # börja vid ruta x (för skärmbilder mitt i en bana)
 		await get_tree().process_frame
 		var b: Node2D = get_tree().current_scene
@@ -381,6 +384,20 @@ func _kor_red() -> void:
 	await _rutor(5)
 	b = get_tree().current_scene
 	_koll("Delete = kolumnen bort, resten tillbaka", b.rader[8] == fore, b.rader[8].substr(0, 16))
+	# zooma ut: kameran visar mer, och zoomen finns kvar när banan byggs om efter en ändring
+	red = b.get_children().filter(func(c): return c.get_script() and c.get_script().resource_path.ends_with("redigerare.gd"))[0]
+	for i in 4:
+		red._zooma(-0.1)
+	red._satt(Vector2i(14, 8), "k")
+	await _rutor(5)
+	b = get_tree().current_scene
+	_koll("zooma ut (och zoomen finns kvar efter en ändring)", is_equal_approx(b.kamera.zoom.x, 0.6) and b.kamera.limit_top < 0,
+			"zoom %.2f, överkant %d" % [b.kamera.zoom.x, b.kamera.limit_top])
+	red = b.get_children().filter(func(c): return c.get_script() and c.get_script().resource_path.ends_with("redigerare.gd"))[0]
+	for i in 9:
+		red._zooma(-0.1)
+	_koll("zoomen stannar på 40 %", is_equal_approx(Spel.red_zoom, 0.4))
+	Spel.red_zoom = 1.0
 	DirAccess.remove_absolute(fil)
 	print("PROV REDIGERAREN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
 	get_tree().quit(1 if _fel else 0)
@@ -547,5 +564,10 @@ func _kor_meny() -> void:
 	await _rutor(10)
 	b = get_tree().current_scene
 	_koll("Redigera öppnar redigeraren", Spel.bana == "1" and Spel.redigerar and not b.pojke.visible)
+	# verktygen följer temat: djungeln visar ormen, inte pulkan; ingen is (djungelns markblad har ingen)
+	var red: Node = b.get_children().filter(func(c): return c.get_script() and c.get_script().resource_path.ends_with("redigerare.gd"))[0]
+	var tecken: Array = red._synliga.map(func(i): return red.VERKTYG[i][0])
+	_koll("redigeraren visar bara banans tema", "s" in tecken and "W" in tecken and not "q" in tecken and not "I" in tecken
+			and "G" in tecken and "O" in tecken, "".join(tecken))
 	print("PROV BANVÄLJAREN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
 	get_tree().quit(1 if _fel else 0)
