@@ -127,10 +127,20 @@ class Drawing:
                 px[i] = None
 
     def cut(self, i, scale, size=None):
-        """Frame i → (tw, th, cells). size = exact (tw, th) (tiles); else the box divided by the scale."""
+        """Frame i → (tw, th, cells). size = exact (tw, th) (tiles); else the box divided by the scale.
+        Other figures' boxes inside this one are blanked first – the palm's box reached over the banana
+        lying next to it, and half a banana stood at every palm (the user, 15 Nov)."""
         x0, y0, x1, y1 = self.boxes[i]
         tw, th = size or (max(1, round((x1 - x0) / scale)), max(1, round((y1 - y0) / scale)))
-        return tw, th, pa.cells(self.w, self.h, self.px, self.boxes[i], tw, th, False)
+        px = self.px
+        others = [b for j, b in enumerate(self.boxes) if j != i and b[0] < x1 and b[2] > x0 and b[1] < y1 and b[3] > y0]
+        if others:
+            px = list(px)
+            for bx0, by0, bx1, by1 in others:
+                for y in range(max(by0, y0), min(by1, y1)):
+                    for x in range(max(bx0, x0), min(bx1, x1)):
+                        px[y * self.w + x] = None
+        return tw, th, pa.cells(self.w, self.h, px, self.boxes[i], tw, th, False)
 
 
 def is_leg(c):
@@ -235,6 +245,20 @@ def triumf():
     d.peel(s)
     cells, size = sheet("triumf", [d.cut(0, s)], ["triumf"], pad=0)
     save("triumf", cells, size, ["triumf"])
+
+
+def modig():
+    """The boy standing bravely (barnläge's tile for the game – the user, 15 Nov), 150 px tall: an icon is
+    shown big, so more detail than in the game."""
+    d = Drawing("pojken-modig-prov.png", grid="delar")
+    i = max(range(len(d.boxes)), key=lambda j: (d.boxes[j][2] - d.boxes[j][0]) * (d.boxes[j][3] - d.boxes[j][1]))
+    x0 = min(b[0] for b in d.boxes); y0 = min(b[1] for b in d.boxes)
+    x1 = max(b[2] for b in d.boxes); y1 = max(b[3] for b in d.boxes)
+    d.boxes = [(x0, y0, x1, y1)]  # the sparkles belong to the picture
+    s = d.scale_for(0, 150)
+    d.peel(s)
+    cells, size = sheet("modig", [d.cut(0, s)], ["modig"], pad=0, colours=48)
+    save("modig", cells, size, ["modig"])
 
 
 def racerbil():
@@ -343,7 +367,7 @@ def orangutang():
     save("orangutang", cells, size, names)
 
 
-PARTS = {"bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
+PARTS = {"modig": modig, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
 
 if __name__ == "__main__":
     for part in sys.argv[1:] or PARTS:

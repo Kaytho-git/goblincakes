@@ -17,6 +17,9 @@ var red_kamera := Vector2(480, 270)
 var red_verktyg := 1  ## 0 = suddet, 1 = mark
 var red_senast := Vector3i(-1, -1, 0)
 var red_historik: Array[String] = []
+## I barnläget (-- --barnlage, menyfilen från tools/barnspelet-installera.sh): ingen redigerare, ingen
+## tidtagare – barnet ska inte kunna ändra något. Back + Start på kontrollen avslutar (tillbaka till barnläget).
+var barnlage := false
 var test_start := Vector2.ZERO  ## "spela härifrån" – gäller tills man spelar från början
 
 ## Tiden (användaren 15 nov: "man ska kunna se hur snabbt man klarat banan … Speedruns incoming!"):
@@ -84,6 +87,9 @@ func _ready() -> void:
 		bana = args[args.find("--bana") + 1]
 	if "--redigera" in args:  # börja i redigeraren
 		redigerar = true
+	if "--barnlage" in args:
+		barnlage = true
+		redigerar = false
 	_knappar()
 	_gor_ljud()
 	for i in 6:
@@ -138,7 +144,10 @@ func _knappar() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("sluta"):
 		get_tree().quit()
-	if prov or not (event is InputEventKey) or not event.pressed or event.echo:
+	if event is InputEventJoypadButton and event.pressed and event.button_index in [JOY_BUTTON_BACK, JOY_BUTTON_START]:
+		if Input.is_joy_button_pressed(event.device, JOY_BUTTON_BACK) and Input.is_joy_button_pressed(event.device, JOY_BUTTON_START):
+			get_tree().quit()
+	if prov or barnlage or not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 	var bana := get_tree().current_scene
 	if event.keycode == KEY_T:
