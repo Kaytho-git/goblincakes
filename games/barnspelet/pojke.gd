@@ -25,7 +25,7 @@ const GLID_FART := 200.0    ## minst så här fort för att glida i stället fö
 const GLID_BROMS := 420.0
 const GLID_TID := 0.75
 const LAG := 40.0           ## höjden när han duckar/glider – under ett block en ruta upp (48) får han plats
-const KRYP := 110.0         ## under ett tak: glidningen tar inte slut, och utan fart kryper han ut
+const KRYP := 110.0         ## duckar = kryper i den farten; under ett tak tar glidningen inte slut förrän den stannar
 ## Isplattorna (bana 2): halt – farten kommer långsamt och han glider vidare när spaken släpps
 const IS_ACC := 300.0
 const IS_BROMS := 120.0
@@ -137,11 +137,12 @@ func _physics_process(dt: float) -> void:
 	if glider:
 		_glid_tid += dt
 		velocity.x = move_toward(velocity.x, 0.0, GLID_BROMS * dt)
-		if tak:  # under ett block: glider vidare ut på andra sidan (användaren 15 nov)
+		if tak and absf(velocity.x) > KRYP:  # under ett block: glider vidare ut på andra sidan (användaren 15 nov)
 			velocity.x = signf(velocity.x) * maxf(absf(velocity.x), KRYP * 1.5)
-		elif _glid_tid > GLID_TID or absf(velocity.x) < 60.0 or not is_on_floor():
+		elif tak or _glid_tid > GLID_TID or absf(velocity.x) < 60.0 or not is_on_floor():
+			# stopp (en vägg under taket) = duckar/kryper vidare – fastnade förut i glidläget utan styrning
 			glider = false
-			ducker = ner
+			ducker = ner or tak
 	elif ner and not ducker:
 		if absf(velocity.x) >= GLID_FART:
 			glider = true
@@ -158,8 +159,8 @@ func _physics_process(dt: float) -> void:
 	var mal := x * (SPRING if spring else GA)
 	if ducker or glider:
 		mal = 0.0  # står still när han duckar; glidningen bromsar själv
-		if ducker and tak:
-			mal = x * KRYP  # fast under ett tak: kryper (man ska aldrig fastna)
+		if ducker:
+			mal = x * KRYP  # duckar = kryper sakta (användaren 15 nov: "crouch walk"; man ska aldrig fastna)
 	var acc := LUFT_ACC
 	if not is_on_floor() and x != 0.0 and velocity.x != 0.0 and signf(x) != signf(velocity.x):
 		acc = LUFT_VAND
@@ -224,12 +225,15 @@ func _bild() -> void:
 	var fart := absf(velocity.x)
 	var bromsar := is_on_floor() and x != 0.0 and fart > 150.0 and signf(x) != signf(velocity.x)
 	_sprite.flip_h = (velocity.x < 0.0) if bromsar else (_vand < 0.0)
+	_sprite.position.y = 0.0
 	_sprite.speed_scale = 1.0
 	if glider and _sprite.sprite_frames.has_animation("glid"):
 		_sprite.flip_h = velocity.x < 0.0
 		_sprite.play("glid")
 	elif ducker and _sprite.sprite_frames.has_animation("duck"):
 		_sprite.play("duck")
+		# kryper: gungar lite upp och ner (tills en egen krypbild finns)
+		_sprite.position.y = -2.0 if fart > 10.0 and int(Time.get_ticks_msec() / 140) % 2 == 0 else 0.0
 	elif not is_on_floor():
 		_sprite.play("hopp" if velocity.y < 0.0 else "fall")
 	elif bromsar:

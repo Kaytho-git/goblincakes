@@ -523,6 +523,26 @@ func _kor_sno() -> void:
 	await _rutor(60)
 	Spel.prov_x = 0.0
 	_koll("kryper ut under blocken", pojke.position.x > 8.0 * R, "x %.0f" % pojke.position.x)
+	# glidningen stannar under blocken (t.ex. mot en vägg): duckar då, och kryper ut – fastnade förut i glidläget
+	await _flytta(6.5 * R, 9.0 * R + U)
+	pojke.glider = true
+	pojke._glid_tid = 0.0
+	await _rutor(5)
+	_koll("glidning som stannar under block = duckar", not pojke.glider and pojke.ducker, "glider %s duckar %s" % [pojke.glider, pojke.ducker])
+	Spel.prov_x = -1.0
+	await _rutor(60)
+	Spel.prov_x = 0.0
+	_koll("och kryper ut åt andra hållet", pojke.position.x < 5.6 * R, "x %.0f" % pojke.position.x)
+	# kryper på öppen mark (ner + åt sidan)
+	await _flytta(30.0 * R, 9.0 * R + U)
+	Spel.prov_ner = true
+	await _rutor(5)
+	Spel.prov_x = 1.0
+	await _rutor(30)
+	_koll("kryper på öppen mark", pojke.ducker and not pojke.glider and pojke.position.x > 30.0 * R + 40.0 and absf(pojke.velocity.x) <= pojke.KRYP + 1.0,
+			"x +%.0f, %.0f px/s" % [pojke.position.x - 30.0 * R, pojke.velocity.x])
+	Spel.prov_x = 0.0
+	Spel.prov_ner = false
 	# snöplogen tål ett tramp
 	var pl: Node2D = plog[0]
 	pl.platta()
