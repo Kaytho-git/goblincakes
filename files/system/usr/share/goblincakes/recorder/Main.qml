@@ -151,6 +151,29 @@ Window {
     function num(x) { return x === undefined || x === null ? "–" : String(x).replace(".", ","); }
     function pct(x) { return x === undefined || x === null ? "–" : Math.round(x) + " %"; }
     function ms(x) { return x === undefined || x === null ? "–" : Math.round(x) + " ms"; }
+    // One value per measure (15 Nov, the user): Leetify's TTD, sikte, spray and counter-strafe when the
+    // match is on Leetify, else ours – the same as recorder.cs2_leetify_shown (CS2 Stats, Kakan)
+    function leetifyShown(s, lt) {
+        const L = lt && lt.stats ? lt.stats : null;
+        const out = Object.assign({}, s || {});
+        out.leetifyKeys = [];
+        out.own = {};
+        if (!L)
+            return out;
+        for (const [ours, theirs, mul, nd] of [["ttd", "reaction_time", 1000, 0], ["cp", "preaim", 1, 1],
+                                              ["spray", "spray_accuracy", 100, 0], ["strafe", "counter_strafing_shots_good_ratio", 100, 0]]) {
+            const x = L[theirs];
+            if (typeof x !== "number")
+                continue;
+            out.own[ours] = out[ours];
+            out[ours] = nd ? Math.round(x * mul * 10) / 10 : Math.round(x * mul);
+            out.leetifyKeys.push(ours);
+        }
+        return out;
+    }
+    function fromLeetify(s, key) { return !!(s && s.leetifyKeys && s.leetifyKeys.indexOf(key) >= 0); }
+    // the hover text of a value Leetify gave: what it is, and our own measure behind it
+    function leetifyTip(what, own) { return what + " – Leetifys värde (L). GOBLINCAKES egen mätning: " + own + "."; }
     // the matches with a read demo up to this one, the last 10 – how it goes over time
     function cs2Trend(v) {
         return videos.filter(o => o.kind === "cs2" && o.demoStats && o.started <= v.started)
@@ -435,7 +458,7 @@ Window {
     component DemoStats: Column {
         id: ds
         property var v
-        readonly property var s: v && v.demoStats ? v.demoStats : ({})
+        readonly property var s: v && v.demoStats ? win.leetifyShown(v.demoStats, v.leetify) : ({})
         readonly property var trend: v ? win.cs2Trend(v) : []
         readonly property real maxAdr: Math.max(1, ...trend.map(o => o.demoStats.adr))
         readonly property var cols: [width - 4 * 56, 56, 56, 56, 56]
@@ -455,19 +478,23 @@ Window {
                         ["TRADE", String(ds.s.trades), "Du dödade den som just dödat en lagkamrat (inom 5 s)"],
                         ["CLUTCH", ds.s.clutchWon + "/" + ds.s.clutches, "1vX: vunna av alla gånger du var ensam kvar"],
                         ["TTD", ds.s.ttd === undefined || ds.s.ttd === null ? "–" : ds.s.ttd + " ms",
-                         "Time to damage: från att du kunde se fienden till din första skada på honom (median av "
-                         + (ds.s.ttdCount || 0) + " gånger). Ungefärligt: väggar och smokes räknas, inte flashar."],
+                         win.fromLeetify(ds.s, "ttd") ? win.leetifyTip("Time to damage", win.ms(ds.s.own.ttd))
+                         : "Time to damage: från att du kunde se fienden till din första skada på honom (median av "
+                         + (ds.s.ttdCount || 0) + " gånger). Ungefärligt: väggar och smokes räknas, inte flashar.", win.fromLeetify(ds.s, "ttd")],
                         ["SIKTE", ds.s.cp === undefined || ds.s.cp === null ? "–" : win.num(ds.s.cp) + "°",
-                         "Crosshair placement: hur långt från fiendens huvud siktet var när du kunde se honom (snitt av "
-                         + (ds.s.cpCount || 0) + " gånger) – lägre är bättre. Ungefärligt: väggar och smokes räknas, inte flashar."],
+                         win.fromLeetify(ds.s, "cp") ? win.leetifyTip("Crosshair placement – lägre är bättre", win.num(ds.s.own.cp) + "°")
+                         : "Crosshair placement: hur långt från fiendens huvud siktet var när du kunde se honom (snitt av "
+                         + (ds.s.cpCount || 0) + " gånger) – lägre är bättre. Ungefärligt: väggar och smokes räknas, inte flashar.", win.fromLeetify(ds.s, "cp")],
                         ["REAKTION", win.ms(ds.s.reaction), "Från att du kunde se fienden till ditt första skott (median av "
                          + (ds.s.reactionCount || 0) + " gånger) – lägre är bättre."],
                         ["1:A SKOTTET", win.pct(ds.s.firstShot), "Första kulan träffar – av " + (ds.s.firstShots || 0)
                          + " första skott när en fiende syntes. Egen mätning – jämför med dig själv över tid, inte med Leetify."],
-                        ["SPRAY", win.pct(ds.s.spray), "Spray accuracy: skotten i sprayer på 3+ skott som träffar, bara gevär – av "
-                         + (ds.s.sprayShots || 0) + " skott. Som Leetify räknar, men träffarna räknas lite olika – ungefärligt."],
-                        ["STRAFE", win.pct(ds.s.strafe), "Counter-strafe: gevärsskott avlossade så stilla att de var träffsäkra (under 34 % "
-                         + "av vapnets fart), hukade skott räknas inte – av " + (ds.s.strafeShots || 0) + " skott. Som Leetify räknar."]]
+                        ["SPRAY", win.pct(ds.s.spray), win.fromLeetify(ds.s, "spray") ? win.leetifyTip("Spray accuracy", win.pct(ds.s.own.spray))
+                         : "Spray accuracy: skotten i sprayer på 3+ skott som träffar, bara gevär – av "
+                         + (ds.s.sprayShots || 0) + " skott. Som Leetify räknar, men träffarna räknas lite olika – ungefärligt.", win.fromLeetify(ds.s, "spray")],
+                        ["STRAFE", win.pct(ds.s.strafe), win.fromLeetify(ds.s, "strafe") ? win.leetifyTip("Counter-strafe", win.pct(ds.s.own.strafe))
+                         : "Counter-strafe: gevärsskott avlossade så stilla att de var träffsäkra (under 34 % "
+                         + "av vapnets fart), hukade skott räknas inte – av " + (ds.s.strafeShots || 0) + " skott. Som Leetify räknar.", win.fromLeetify(ds.s, "strafe")]]
                 Rectangle {
                     G.Light {}
                     required property var modelData
@@ -477,6 +504,7 @@ Window {
                     border.width: 1
                     border.color: "#1E2A40"
                     HoverTip { tip: parent.modelData[2] }
+                    LeetifyMark { visible: !!parent.modelData[3] }
                     Column {
                         anchors.centerIn: parent
                         spacing: 1
@@ -2169,9 +2197,20 @@ Window {
     // ── WoW Stats / CS2 Stats (22 Oct, the user's wish) ─────
     // Put together from what is already here: WoW from your own history (each recorded pull with
     // your row of its Warcraft Logs numbers), CS2 from the read demos. No calls of their own.
+    // A small "L" in a tile's corner: the value is Leetify's (15 Nov)
+    component LeetifyMark: Text {
+        anchors { top: parent.top; right: parent.right; topMargin: 2; rightMargin: 4 }
+        text: "L"
+        color: accent.text
+        font.family: "Chakra Petch"
+        font.weight: Font.Bold
+        font.pixelSize: 10
+    }
+
     component StatTile: Rectangle {
         G.Light {}
         id: tile
+        property bool leetify: false // the value is Leetify's: an "L" in the corner
         property string label
         property string value
         property color valueColor: "#E6ECF5"
@@ -2189,6 +2228,7 @@ Window {
         border.width: 1
         border.color: "#1E2A40"
         HoverTip { tip: tile.tip + (tile.dir ? "\nFörut: " + tile.beforeText + (tile.dir === 1 ? " – har gått upp" : " – har gått ner") : "") }
+        LeetifyMark { visible: tile.leetify }
         Column {
             anchors.centerIn: parent
             spacing: 2
@@ -2992,12 +3032,12 @@ Window {
                 StatTile { label: "HS"; value: parent.a.hs === null || parent.a.hs === undefined ? "–" : Math.round(parent.a.hs) + " %"; now: parent.n.hs; before: parent.b.hs; tip: "Kills med huvudskott." }
                 StatTile { label: "ADR"; value: win.num(parent.a.adr); now: parent.n.adr; before: parent.b.adr; tip: "Skada per runda, snitt (demon)." }
                 StatTile { label: "KAST"; value: parent.a.kast === null || parent.a.kast === undefined ? "–" : Math.round(parent.a.kast) + " %"; now: parent.n.kast; before: parent.b.kast; tip: "Rundor med kill, assist, överlevt eller trade (demon)." }
-                StatTile { label: "TTD"; value: parent.a.ttd ? Math.round(parent.a.ttd) + " ms" : "–"; now: parent.n.ttd; before: parent.b.ttd; lowerBetter: true; tip: "Time to damage (ungefärlig), snitt av matchernas median (demon) – lägre är bättre." }
-                StatTile { label: "SIKTE"; value: parent.a.cp ? win.num(parent.a.cp.toFixed(1)) + "°" : "–"; now: parent.n.cp; before: parent.b.cp; lowerBetter: true; tip: "Crosshair placement (ungefärlig, demon) – lägre är bättre." }
+                StatTile { label: "TTD"; value: parent.a.ttd ? Math.round(parent.a.ttd) + " ms" : "–"; now: parent.n.ttd; before: parent.b.ttd; lowerBetter: true; leetify: !win.cs2Private; tip: win.cs2Private ? "Time to damage (ungefärlig, GOBLINCAKES egen mätning), snitt av matchernas median (demon) – lägre är bättre." : "Time to damage – Leetifys värde (L) per match, snitt; GOBLINCAKES egen mätning för matcher Leetify inte har – lägre är bättre." }
+                StatTile { label: "SIKTE"; value: parent.a.cp ? win.num(parent.a.cp.toFixed(1)) + "°" : "–"; now: parent.n.cp; before: parent.b.cp; lowerBetter: true; leetify: !win.cs2Private; tip: win.cs2Private ? "Crosshair placement (ungefärlig, GOBLINCAKES egen mätning, demon) – lägre är bättre." : "Crosshair placement – Leetifys värde (L) per match, snitt; GOBLINCAKES egen mätning för matcher Leetify inte har – lägre är bättre." }
                 StatTile { label: "REAKTION"; value: win.ms(parent.a.reaction); now: parent.n.reaction; before: parent.b.reaction; lowerBetter: true; tip: "Från att du kunde se fienden till ditt första skott (demon) – lägre är bättre." }
                 StatTile { label: "1:A SKOTTET"; value: win.pct(parent.a.firstShot); now: parent.n.firstShot; before: parent.b.firstShot; tip: "Första kulan träffar när en fiende syns (demon). Egen mätning – jämför med dig själv över tid, inte med Leetify." }
-                StatTile { label: "SPRAY"; value: win.pct(parent.a.spray); now: parent.n.spray; before: parent.b.spray; tip: "Spray accuracy: skotten i sprayer på 3+ skott som träffar, bara gevär (demon). Som Leetify räknar, ungefärligt." }
-                StatTile { label: "COUNTER-STRAFE"; value: win.pct(parent.a.strafe); now: parent.n.strafe; before: parent.b.strafe; tip: "Gevärsskott avlossade under 34 % av vapnets fart, hukade skott räknas inte (demon). Som Leetify räknar." }
+                StatTile { label: "SPRAY"; value: win.pct(parent.a.spray); now: parent.n.spray; before: parent.b.spray; leetify: !win.cs2Private; tip: win.cs2Private ? "Spray accuracy: skotten i sprayer på 3+ skott som träffar, bara gevär (demon, som Leetify räknar, ungefärligt)." : "Spray accuracy – Leetifys värde (L) per match, snitt; GOBLINCAKES egen mätning för matcher Leetify inte har." }
+                StatTile { label: "COUNTER-STRAFE"; value: win.pct(parent.a.strafe); now: parent.n.strafe; before: parent.b.strafe; leetify: !win.cs2Private; tip: win.cs2Private ? "Gevärsskott avlossade under 34 % av vapnets fart, hukade skott räknas inte (demon, som Leetify räknar)." : "Counter-strafe – Leetifys värde (L) per match, snitt; GOBLINCAKES egen mätning för matcher Leetify inte har." }
                 StatTile { label: "ENTRY / MATCH"; value: win.num(parent.p.entryWon) + "–" + win.num(parent.p.entryLost); now: parent.n.entryWon; before: parent.b.entryWon; tip: "Rundans första kill: vunna–förlorade per match (demon). Pilen: vunna." }
                 StatTile { label: "TRADES / MATCH"; value: win.num(parent.p.trades); now: parent.n.trades; before: parent.b.trades; tip: "Du hämnades en lagkamrat inom 5 s (demon)." }
                 StatTile { label: "CLUTCH / MATCH"; value: win.num(parent.p.clutchWon) + "/" + win.num(parent.p.clutches); now: parent.n.clutchWon; before: parent.b.clutchWon; tip: "1vX vunna av alla, per match (demon). Pilen: vunna." }
@@ -3130,12 +3170,12 @@ Window {
                                 StatTile { label: "HS"; value: win.pct(mrow.s.hs); now: mrow.s.hs; before: mrow.a.hs; tip: "Snittet: " + win.pct(mrow.a.hs) }
                                 StatTile { label: "ADR"; value: win.num(mrow.s.adr); now: mrow.s.adr; before: mrow.a.adr; tip: "Snittet: " + win.num(mrow.a.adr) }
                                 StatTile { label: "KAST"; value: win.pct(mrow.s.kast); now: mrow.s.kast; before: mrow.a.kast; tip: "Snittet: " + win.pct(mrow.a.kast) }
-                                StatTile { label: "TTD"; value: win.ms(mrow.s.ttd); now: mrow.s.ttd; before: mrow.a.ttd; lowerBetter: true; tip: "Snittet: " + win.ms(mrow.a.ttd) }
-                                StatTile { label: "SIKTE"; value: mrow.s.cp ? win.num(mrow.s.cp) + "°" : "–"; now: mrow.s.cp; before: mrow.a.cp; lowerBetter: true; tip: "Snittet: " + win.num(mrow.a.cp) + "°" }
+                                StatTile { leetify: win.fromLeetify(mrow.s, "ttd"); label: "TTD"; value: win.ms(mrow.s.ttd); now: mrow.s.ttd; before: mrow.a.ttd; lowerBetter: true; tip: "Snittet: " + win.ms(mrow.a.ttd) }
+                                StatTile { leetify: win.fromLeetify(mrow.s, "cp"); label: "SIKTE"; value: mrow.s.cp ? win.num(mrow.s.cp) + "°" : "–"; now: mrow.s.cp; before: mrow.a.cp; lowerBetter: true; tip: "Snittet: " + win.num(mrow.a.cp) + "°" }
                                 StatTile { label: "REAKTION"; value: win.ms(mrow.s.reaction); now: mrow.s.reaction; before: mrow.a.reaction; lowerBetter: true; tip: "Snittet: " + win.ms(mrow.a.reaction) }
                                 StatTile { label: "1:A SKOTTET"; value: win.pct(mrow.s.firstShot); now: mrow.s.firstShot; before: mrow.a.firstShot; tip: "Snittet: " + win.pct(mrow.a.firstShot) }
-                                StatTile { label: "SPRAY"; value: win.pct(mrow.s.spray); now: mrow.s.spray; before: mrow.a.spray; tip: "Snittet: " + win.pct(mrow.a.spray) }
-                                StatTile { label: "COUNTER-STRAFE"; value: win.pct(mrow.s.strafe); now: mrow.s.strafe; before: mrow.a.strafe; tip: "Snittet: " + win.pct(mrow.a.strafe) }
+                                StatTile { leetify: win.fromLeetify(mrow.s, "spray"); label: "SPRAY"; value: win.pct(mrow.s.spray); now: mrow.s.spray; before: mrow.a.spray; tip: "Snittet: " + win.pct(mrow.a.spray) }
+                                StatTile { leetify: win.fromLeetify(mrow.s, "strafe"); label: "COUNTER-STRAFE"; value: win.pct(mrow.s.strafe); now: mrow.s.strafe; before: mrow.a.strafe; tip: "Snittet: " + win.pct(mrow.a.strafe) }
                                 StatTile { label: "ENTRY"; value: mrow.s.entryWon === undefined ? "–" : mrow.s.entryWon + "–" + mrow.s.entryLost; tip: "Rundans första kill: vunna–förlorade" }
                                 StatTile { label: "TRADES"; value: win.num(mrow.s.trades); tip: "Du hämnades en lagkamrat inom 5 s" }
                                 StatTile {
@@ -3166,7 +3206,7 @@ Window {
                                         TableRow {
                                             required property var modelData
                                             cols: teamCol.cols
-                                            tip: modelData.me ? "Du – bara dina siffror räknas i snitten" : ""
+                                            tip: modelData.me ? "Du – bara dina siffror räknas i snitten" + ((modelData.leetifyKeys || []).length ? ". TTD, sikte, spray och counter-strafe är Leetifys värden (de andra nio: GOBLINCAKES egen mätning)" : "") : ""
                                             cells: [modelData.name, modelData.kills + "–" + modelData.deaths + "–" + modelData.assists,
                                                     win.num(modelData.adr), win.pct(modelData.kast), win.pct(modelData.hs),
                                                     win.ms(modelData.ttd), modelData.cp ? win.num(modelData.cp) + "°" : null,

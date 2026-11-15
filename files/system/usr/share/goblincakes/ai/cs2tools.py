@@ -16,8 +16,10 @@ import recorder as R  # noqa: E402
 DEFAULT_COUNT = 10
 # Rough guide values for an ordinary matchmaking player (not Leetify's). Compared with Leetify on two
 # Premier matches 15 Nov: K/D, ADR, KAST, HS and counter-strafe (Leetify's definition) match; TTD, sikte
-# (mean) and spray land near Leetify's level; first shot is our own measure – compare over time only
-GUIDE = """Ungefärliga riktvärden för en vanlig matchmaking-spelare (inte exakta, bara för jämförelse):
+# (mean) and spray land near Leetify's level; first shot is our own measure – compare over time only.
+# A match on Leetify shows Leetify's TTD, sikte, spray and counter-strafe (marked "(Leetify)")
+GUIDE = """Ungefärliga riktvärden för en vanlig matchmaking-spelare (inte exakta, bara för jämförelse).
+Värden märkta (Leetify) är Leetifys egna – samma som användaren ser på leetify.com:
 - K/D ~1,0 · ADR ~75 (80+ bra, 90+ mycket bra) · KAST ~70 % (75+ bra) · HS ~40–50 %
 - Entry: ungefär lika många vunna som förlorade är normalt
 - TTD (time to damage, GOBLINCAKES egen uppskattning) ~500–650 ms, under 450 ms snabbt
@@ -36,7 +38,8 @@ def matches(private=False):
     (friends' servers, workshop: CS2 Stats → PRIVAT)."""
     folder = R.load_config()["folder"]
     hist = R.cs2_history()
-    out = [v for v in R.video_files(folder) if v.get("kind") == "cs2" and v.get("demoStats")
+    out = [dict(v, demoStats=R.cs2_leetify_shown(v["demoStats"], v.get("leetify")))  # Leetify's values where it has them
+           for v in R.video_files(folder) if v.get("kind") == "cs2" and v.get("demoStats")
            and R.cs2_private(v, hist) == private]
     return sorted(out, key=lambda v: v.get("started", 0))
 
@@ -56,6 +59,11 @@ def _title(v):
            f"({ {'win': 'vinst', 'loss': 'förlust', 'tie': 'oavgjort'}.get(v.get('result'), 'avbruten') }) {_when(v)}"
 
 
+def _src(s, key, count, unit):
+    """Where a value comes from: Leetify, or our own measure and how many it rests on."""
+    return " (Leetify)" if key in (s.get("leetifyKeys") or []) else f" ({count} {unit})"
+
+
 def match_text(v):
     s = v["demoStats"]
     t = s.get("thrown", {})
@@ -64,9 +72,11 @@ def match_text(v):
              f"KAST {s['kast']} % · HS {s['hs']} %",
              f"Entry vunna–förlorade {s['entryWon']}–{s['entryLost']} · trades {s['trades']} · blev hämnad {s['traded']} gånger · "
              f"clutchar vunna {s['clutchWon']} av {s['clutches']} · " + " ".join(f"{k} {n}" for k, n in s["multi"].items() if n),
-             f"TTD {_n(s.get('ttd'))} ms ({s.get('ttdCount', 0)} gånger) · sikte {_n(s.get('cp'), 1)}° ({s.get('cpCount', 0)} gånger)",
+             f"TTD {_n(s.get('ttd'))} ms{_src(s, 'ttd', s.get('ttdCount', 0), 'gånger')} · "
+             f"sikte {_n(s.get('cp'), 1)}°{_src(s, 'cp', s.get('cpCount', 0), 'gånger')}",
              f"Reaktion {_n(s.get('reaction'))} ms · första skottet {_n(s.get('firstShot'))} % ({s.get('firstShots', 0)} skott) · "
-             f"spray {_n(s.get('spray'))} % ({s.get('sprayShots', 0)} skott) · counter-strafe {_n(s.get('strafe'))} %",
+             f"spray {_n(s.get('spray'))} %{_src(s, 'spray', s.get('sprayShots', 0), 'skott')} · "
+             f"counter-strafe {_n(s.get('strafe'))} %{_src(s, 'strafe', s.get('strafeShots', 0), 'skott')}",
              "Vapen: " + "; ".join(f"{w['name']} {w['kills']} kills, {w['hs']} HS, träff {_n(w['acc'])} % av {w['shots']} skott"
                                    for w in s.get("weapons", [])),
              f"Granater: {t.get('flash', 0)} flash ({s.get('flashed', 0)} fiender och {s.get('teamFlashed', 0)} lagkamrater bländade, "
@@ -76,6 +86,11 @@ def match_text(v):
                  f"{name} {b['rounds']} rundor ({b['won']} vunna, {b['kills']} kills)"
                  for name, b in (("fullköp", s["buys"].get("full")), ("halvköp", s["buys"].get("force")), ("eco", s["buys"].get("eco")))
                  if b and b["rounds"])]
+    lt = (v.get("leetify") or {}).get("stats") or {}
+    if lt:
+        pct = lambda key: _n(100 * lt[key]) if isinstance(lt.get(key), (int, float)) else "–"  # noqa: E731
+        lines.append(f"Leetify: huvudträffar {pct('accuracy_head')} % av träffarna · träff när fienden syntes "
+                     f"{pct('accuracy_enemy_spotted')} %")
     rounds = v.get("demoRounds") or []
     if rounds:
         lines.append("Rundor (V/F, kills, skada, dog?): " + " ".join(

@@ -3597,13 +3597,20 @@ def cs2_history_add(metas):
         aces = sum(m.get("kind") == "kill" and m.get("text", "").startswith("ACE") for m in v.get("markers") or [])
         st = dict(st, aces=aces or (st.get("multi") or {}).get("ACE", 0))
         e = {k: v.get(k) for k in ("file", "name", "difficulty", "score", "result", "started", "map", "mode")}
+        st = cs2_leetify_shown(st, v.get("leetify"))
         e["stats"] = st  # only yours – the averages
         if v.get("demoPlayers"):
-            e["players"] = v["demoPlayers"]  # everyone, shown under the match
+            e["players"] = [cs2_leetify_shown(p, v.get("leetify"), keep=False) if p.get("me") else p
+                            for p in v["demoPlayers"]]  # everyone, shown under the match
         key = str(int(v.get("started", 0)))
         if v.get("demoServer") or v.get("demoFile"):
             e["server"] = v.get("demoServer") or ""
             e["demoDir"] = Path(v.get("demoFile") or "").parent.name
+        if v.get("leetify"):
+            lt = v["leetify"]
+            e["leetify"] = {"none": True} if lt.get("none") else \
+                {"id": lt.get("id"), "source": lt.get("source"),
+                 "stats": {k: (lt.get("stats") or {}).get(k) for k in LEETIFY_SHORT}}
         if (hist.get(key) or {}).get("manual") is not None:
             e["manual"] = hist[key]["manual"]
         if cs2_private(e, hist) is None:  # casual, rush, wingman … on Valve's servers – not kept
@@ -3622,7 +3629,7 @@ def cs2_history_add(metas):
 # Your real numbers = Premier/Competitive on Valve's servers (24 Oct, the user: Saturdays on
 # friends' private server – other maps, for fun, not always sober – gave a crooked picture). Private
 # servers are under PRIVAT in CS2 Stats: a demo from another server, your own `record`, a workshop map,
-# and (15 Nov, the user) every Competitive/Premier match until Valve's demo has been read.
+# and (15 Nov, the user) every Competitive/Premier match until Valve's demo has been read or Leetify has it.
 # Everything else on Valve's servers (casual, rush, wingman, deathmatch …) is in neither (31 Oct, the
 # user). A match can be moved by hand (the match unfolded → Flytta till …).
 OFFICIAL_MODES = ("competitive", "premier")
@@ -3646,8 +3653,167 @@ def cs2_private(e, hist=None):
     if mode not in OFFICIAL_MODES:
         return None
     # 15 Nov, the user: only a Valve server counts – friends' servers say "competitive" too and play MR12
-    # like Valve, so without Valve's demo (Watch → Your Matches) a match is PRIVAT until the demo is read
-    return not (server or demo_dir == "replays")
+    # like Valve, so a match is PRIVAT until Valve's demo (Watch → Your Matches) has been read or
+    # Leetify (Valve's matches only) has it
+    return not (server or demo_dir == "replays" or (e.get("leetify") or {}).get("id"))
+
+
+# ---------------------------------------------------------------- Leetify (15 Nov, the user's wish)
+# Leetify's public API (api-public-docs.cs-prod.leetify.com; the user's own key in LEETIFY_KEY, 600):
+# /v3/profile/matches has only Valve's matches (Premier = "matchmaking", Competitive, Wingman), about
+# the last 100. A recording found there is official without a demo (friends' servers play
+# "competitive" MR12 too) and gets Leetify's own numbers for you – the site's Time to Damage is
+# `reaction_time` (s), Crosshair Placement `preaim` (°). finished_at is about when the match began.
+# One call covers every waiting match; asked LEETIFY_STEPS after each match ends, then given up.
+LEETIFY_API = "https://api-public.cs-prod.leetify.com"
+LEETIFY_KEY = CONFIG_DIR / "leetify.key"
+LEETIFY_STATE = CACHE_DIR / "leetify.json"  # {"last": the last call}
+LEETIFY_STEPS = (3 * 60, 15 * 60, 3600, 3 * 3600, 12 * 3600, 24 * 3600, 48 * 3600)  # Leetify needs Valve's demo first
+LEETIFY_PAIR = 45 * 60  # finished_at vs. our start (after the warmup)
+LEETIFY_SHORT = ("leetify_rating", "reaction_time", "preaim", "spray_accuracy", "counter_strafing_shots_good_ratio",
+                 "accuracy_head", "accuracy_enemy_spotted")  # kept in the CS2 Stats history
+
+
+# One value per measure (15 Nov, the user: ours and Leetify's side by side was too much): where the
+# match is on Leetify, its TTD, sikte, spray and counter-strafe replace ours (ours stays in "own");
+# the same in the window (Main.qml leetifyShown) and for Kakan (ai/cs2tools.py)
+LEETIFY_SHOWN = (("ttd", "reaction_time", 1000, 0), ("cp", "preaim", 1, 1),
+                 ("spray", "spray_accuracy", 100, 0), ("strafe", "counter_strafing_shots_good_ratio", 100, 0))
+
+
+def cs2_leetify_shown(stats, leetify, keep=True):
+    """stats with Leetify's values where it has them; "leetifyKeys" = those, "own" = ours (keep)."""
+    lt = (leetify or {}).get("stats") or {}
+    out = dict(stats or {})
+    keys, own = [], {}
+    for ours, theirs, mul, nd in LEETIFY_SHOWN:
+        val = lt.get(theirs)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            own[ours] = out.get(ours)
+            out[ours] = round(val * mul, nd) if nd else round(val * mul)
+            keys.append(ours)
+    if keys:
+        out["leetifyKeys"] = keys
+        if keep:
+            out["own"] = own
+    return out
+
+
+def leetify_key():
+    try:
+        return LEETIFY_KEY.read_text().strip() or None
+    except OSError:
+        return None
+
+
+def leetify_matches(steamid):
+    """Your latest Valve matches on Leetify (a list), None without a key. Raises on network errors."""
+    key = leetify_key()
+    if not key or not steamid:
+        return None
+    import urllib.parse  # noqa: PLC0415
+    req = urllib.request.Request(f"{LEETIFY_API}/v3/profile/matches?steam64_id={urllib.parse.quote(str(steamid))}",
+                                 headers={"_leetify_key": key, "Accept": "application/json",
+                                          "User-Agent": "GOBLINCAKES-recorder"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        data = json.loads(r.read())
+    return data if isinstance(data, list) else (data.get("matches") or [])
+
+
+def _leetify_time(m):
+    try:
+        return datetime.fromisoformat(str(m.get("finished_at")).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def leetify_pair(meta, matches):
+    """The Leetify match that is this recording, or None: the same map, the same score when the
+    recording saw the end, and the closest start within LEETIFY_PAIR."""
+    best = None
+    ours = sorted(map(int, re.findall(r"\d+", meta.get("score") or ""))) if meta.get("result") in ("win", "loss", "tie") else []
+    for m in matches:
+        t = _leetify_time(m)
+        if m.get("map_name") != meta.get("map") or t is None:
+            continue
+        d = abs(t - meta.get("started", 0))
+        if d > LEETIFY_PAIR:
+            continue
+        if ours and ours != sorted(int(ts.get("score") or 0) for ts in m.get("team_scores") or []):
+            continue
+        if best is None or d < best[0]:
+            best = (d, m)
+    return best[1] if best else None
+
+
+def leetify_entry(m, steamid):
+    """What a match keeps from Leetify: the match and your numbers."""
+    stats = m.get("stats") or []
+    me = next((p for p in stats if str(p.get("steam64_id")) == str(steamid)), None) or (stats[0] if len(stats) == 1 else {})
+    return {"id": m.get("id"), "source": m.get("data_source"), "code": m.get("data_source_match_id"),
+            "started": _leetify_time(m), "stats": {k: v for k, v in me.items() if k not in ("name", "steam64_id")}}
+
+
+def leetify_waiting(folder):
+    """The recorded Premier/Competitive matches not yet looked up (no "leetify"), oldest first –
+    not the ones a demo already showed were on another server."""
+    out = []
+    for v in video_files(folder):
+        if v.get("kind") != "cs2" or "leetify" in v or (v.get("mode") or "").lower() not in OFFICIAL_MODES:
+            continue
+        server = v.get("demoServer")
+        if server and not re.match(r"valve\b", server, re.I):
+            continue
+        out.append(v)
+    return sorted(out, key=lambda v: v.get("started", 0))
+
+
+def leetify_due(waiting, now, last):
+    """True when one of the waiting matches has passed a step in LEETIFY_STEPS since the last call."""
+    for v in waiting:
+        end = v.get("started", 0) + (v.get("duration") or 0)
+        if any(last < end + step <= now for step in LEETIFY_STEPS) or (last == 0 and now > end + LEETIFY_STEPS[0]):
+            return True
+    return False
+
+
+def leetify_check(folder, now=None, force=False):
+    """Looks the waiting matches up (when due, or force): found → "leetify" in the match's .json
+    and CS2 Stats; still missing 48 h after the end → {"none": true} (PRIVAT, not asked again).
+    Returns {"found": [files], "none": [files]} or {"error": text}; {} when nothing was due."""
+    now = now or time.time()
+    waiting = leetify_waiting(folder)
+    try:
+        state = json.loads(LEETIFY_STATE.read_text())
+    except (OSError, ValueError):
+        state = {}
+    if not waiting or not leetify_key() or not (force or leetify_due(waiting, now, state.get("last", 0))):
+        return {}
+    steamid = next((v["steamid"] for v in reversed(waiting) if v.get("steamid")), "")
+    if not steamid:
+        steamid = next((v["steamid"] for v in reversed(video_files(folder)) if v.get("kind") == "cs2" and v.get("steamid")), "")
+    state["last"] = now
+    LEETIFY_STATE.parent.mkdir(parents=True, exist_ok=True)
+    LEETIFY_STATE.write_text(json.dumps(state))
+    try:
+        matches = leetify_matches(steamid)
+    except Exception as e:  # noqa: BLE001 – no network, Leetify down, a wrong key: the next step tries again
+        return {"error": str(e)}
+    if matches is None:
+        return {}
+    found, gone = [], []
+    for v in waiting:
+        m = leetify_pair(v, matches)
+        end = v.get("started", 0) + (v.get("duration") or 0)
+        if not m and now - end < LEETIFY_STEPS[-1]:
+            continue
+        path = Path(v["path"]).with_suffix(".json")
+        data = json.loads(path.read_text())
+        data["leetify"] = leetify_entry(m, steamid) if m else {"none": True}
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+        cs2_history_add([data])
+        (found if m else gone).append(v["file"])
+    return {"found": found, "none": gone}
 
 
 def cs2_set_private(started, private):

@@ -8,6 +8,7 @@ goblincakes-recorder.service). The window is /usr/bin/goblin-recorder.
   goblincakes-recorder status     what the service sees right now (JSON)
   goblincakes-recorder cs2-clips <video>  the 2K–ACE clips and the reel of a CS2 match again
   goblincakes-recorder cs2-demo <demo> [<video>]  read a CS2 demo into its match (step 2)
+  goblincakes-recorder leetify    look the waiting CS2 matches up on Leetify now
 
 Raid: every boss pull becomes its own video. Mythic+: the whole key. Arena (also Solo
 Shuffle): the whole match. Counter-Strike 2: the match from the end of the warm-up to the end,
@@ -167,6 +168,8 @@ class Service:
         self.gs = {}  # what the last messages said: own team, kills this round, health, phases
         self.demo_next = time.time() + 20
         self.demo_busy = False
+        self.leetify_busy = False
+        self.leetify_next = time.time() + 30
         self.season_next = time.time() + 60
 
     @staticmethod
@@ -858,6 +861,30 @@ class Service:
         finally:
             self.demo_busy = False
 
+    # ------------------------------------------------------------ Leetify (15 Nov)
+    def leetify_check(self):
+        """Recorded Premier/Competitive matches looked up on Leetify a few times after they end
+        (recorder.leetify_check: found = official + Leetify's numbers). Not while recording."""
+        now = time.time()
+        if self.leetify_busy or now < self.leetify_next or self.current or self.closing or not R.leetify_key():
+            return
+        self.leetify_next = now + 60  # whether a step is due; the call itself only at LEETIFY_STEPS
+        self.leetify_busy = True
+        threading.Thread(target=self.leetify_run, daemon=True).start()
+
+    def leetify_run(self):
+        try:
+            res = R.leetify_check(self.cfg["folder"])
+            if res.get("error"):
+                log("Leetify:", res["error"])
+            elif res.get("found") or res.get("none"):
+                log("Leetify:", res)
+                self.last_video = f"leetify {time.time()}"
+        except Exception as e:  # noqa: BLE001
+            log("Leetify:", e)
+        finally:
+            self.leetify_busy = False
+
     # ------------------------------------------------------------ seasons
     def season_check(self):
         """CS2's news once a day (a new Premier season), and a notice for every new season – WoW's
@@ -955,6 +982,7 @@ class Service:
         self.closing = [m for m in self.closing if m["_until"] > now]
         self.wcl_check()
         self.demo_check()
+        self.leetify_check()
         self.season_check()
         # OBS started by hand is noticed within 5 s (P2, 11 Nov: the look was every round, every other second)
         if self.wow or self.cs2 or self.current or self.test_wait or R.obs_running(max_age=5):
@@ -1059,6 +1087,8 @@ def main():
                                      keep_match=bool(R.load_config().get("cs2KeepMatch")))
         print("\n".join(made) or "inga klipp", err, sep="\n" if err else "")
         sys.exit(1 if err else 0)
+    elif cmd == "leetify":  # by hand: goblincakes-recorder leetify
+        print(json.dumps(R.leetify_check(R.load_config()["folder"], force=True), ensure_ascii=False))
     elif cmd == "status":
         print(json.dumps(R.read_status(), ensure_ascii=False, indent=1))
     else:

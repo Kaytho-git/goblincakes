@@ -457,6 +457,10 @@ Ord: goblinrecorder, recorder, inspelning, spela in, obs, film, raid, mythic, m+
   ~/.cache/goblincakes/awpy/ (Valves kartor); workshop-kartor görs ur kartans .vpk med Source 2 Viewer
   (~/.cache/goblincakes/source2viewer/, hämtas första gången) → ~/.cache/goblincakes/awpy/workshop/<id>-*.mesh.
   Gick det inte: en .failed bredvid (nytt försök efter ett dygn). Egen demo (record) saknar motståndarnas namn.
+- Leetify: tjänsten slår upp Premier/Competitive-matcher hos Leetify (3 min–48 h efter matchen, nyckeln
+  ~/.config/goblincakes/leetify.key – visa den aldrig). Hittad = officiell i CS2 Stats + Leetifys TTD/sikte/spray/
+  counter-strafe (L i rutan); inte hittad efter 48 h = PRIVAT. För hand: `goblincakes-recorder leetify`;
+  journalen skriver "Leetify:" vid träff eller fel. Senaste anropet: ~/.cache/goblincakes/leetify.json.
 Kontroll: `systemctl --user is-active goblincakes-recorder`
 Kontroll: `journalctl --user -u goblincakes-recorder -n 15 --no-pager`
 
