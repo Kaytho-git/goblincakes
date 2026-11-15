@@ -343,6 +343,16 @@ func _kor_red() -> void:
 	b = get_tree().current_scene
 	_koll("ångra", b.rader[8][2] == "P" and b.rader[8][5] != "P")
 	_koll("pojken står still i redigeraren", not b.pojke.visible and not b.pojke.is_physics_processing())
+	# filen ändras utanför spelet (t.ex. återställd från git) → nästa klick ska utgå från filen
+	var text := FileAccess.get_file_as_string(fil)
+	var f := FileAccess.open(fil, FileAccess.WRITE)
+	f.store_string(text.replace("..P", "..P" if false else "..P").replace("G".repeat(40), "G".repeat(39) + "W", ))
+	f.close()
+	red = b.get_children().filter(func(c): return c.get_script() and c.get_script().resource_path.ends_with("redigerare.gd"))[0]
+	red._satt(Vector2i(12, 8), "k")
+	await _rutor(5)
+	b = get_tree().current_scene
+	_koll("ändring utanför spelet skrivs inte över", b.rader[8][12] == "k" and b.rader[9][39] == "W", b.rader[9].substr(30, 12))
 	DirAccess.remove_absolute(fil)
 	print("PROV REDIGERAREN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
 	get_tree().quit(1 if _fel else 0)

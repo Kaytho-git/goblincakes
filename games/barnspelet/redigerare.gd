@@ -144,8 +144,14 @@ func _unhandled_input(e: InputEvent) -> void:
 
 ## Lägg tecknet i rutan, spara, bygg om banan
 func _satt(c: Vector2i, tecken: String) -> void:
-	var rader: Array = bana.rader.duplicate()
-	var bredd := maxi(bana.bredd, c.x + 1)
+	# utgå från filen på disken, inte från banan i minnet: ändrades filen utanför spelet (återställd från git)
+	# skrev annars nästa klick tillbaka den gamla versionen (hände 15 nov)
+	var pa_disk := FileAccess.get_file_as_string(bana.fil()).strip_edges(false, true)
+	var rader: Array = Array(pa_disk.split("\n")) if pa_disk != "" else Array(bana.rader)
+	var bredd0 := 0
+	for r in rader:
+		bredd0 = maxi(bredd0, r.length())
+	var bredd := maxi(bredd0, c.x + 1)
 	for y in rader.size():
 		rader[y] = rader[y].rpad(bredd, ".")
 	if rader[c.y][c.x] == tecken:
@@ -153,7 +159,7 @@ func _satt(c: Vector2i, tecken: String) -> void:
 	if tecken in ENSAM:
 		for y in rader.size():
 			rader[y] = rader[y].replace(tecken, ".")
-	Spel.red_historik.append("\n".join(bana.rader))
+	Spel.red_historik.append(pa_disk)
 	if Spel.red_historik.size() > 200:
 		Spel.red_historik.pop_front()
 	var r: String = rader[c.y]
