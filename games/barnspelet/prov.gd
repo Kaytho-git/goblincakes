@@ -249,15 +249,17 @@ func _kor_djungel() -> void:
 	var R := 48.0
 	var finns := func(skript: String) -> Array:
 		return bana.fiender.filter(func(f): return is_instance_valid(f) and f.get_script().resource_path.ends_with(skript))
-	_koll("djungelns fiender finns", finns.call("gangare.gd").size() == 4 and finns.call("papegoja.gd").size() == 3
-			and finns.call("krokodil.gd").size() == 2 and finns.call("kokos.gd").size() == 3 and bana.boss != null)
-	# vattnet
-	await _flytta(77 * R + 24.0, 300.0)
+	# (banan byggs av användaren i redigeraren – proven får inte bero på exakt var saker ligger)
+	_koll("djungelns fiender finns", finns.call("gangare.gd").size() >= 1 and finns.call("papegoja.gd").size() >= 1
+			and finns.call("krokodil.gd").size() >= 1 and finns.call("kokos.gd").size() >= 1 and bana.boss != null)
+	# vattnet (vid den första krokodilen)
+	var krok0: Node2D = finns.call("krokodil.gd")[0]
+	await _flytta(krok0.position.x, 300.0)
 	await _rutor(60)
 	_koll("oj i vattnet", pojke.dod)
 	# krokodilen hoppar upp inom 3 s när man är nära
-	await _flytta(74 * R, 432.0)
 	var krok: Node2D = finns.call("krokodil.gd")[0]
+	await _flytta(krok.position.x - 3.0 * R, 300.0)
 	var sett := false
 	for i in 200:
 		await get_tree().physics_frame
@@ -266,8 +268,8 @@ func _kor_djungel() -> void:
 			break
 	_koll("krokodilen hoppar upp ur vattnet", sett)
 	# kokosnöten faller när man går under palmen
-	await _flytta(35 * R, 432.0)
 	var kokos: Node2D = finns.call("kokos.gd")[0]
+	await _flytta(kokos.position.x - 4.0 * R, 300.0)
 	Spel.prov_x = 1.0
 	await _rutor(25)
 	Spel.prov_x = 0.0

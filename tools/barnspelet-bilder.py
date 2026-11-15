@@ -133,7 +133,11 @@ class Drawing:
         x0, y0, x1, y1 = self.boxes[i]
         tw, th = size or (max(1, round((x1 - x0) / scale)), max(1, round((y1 - y0) / scale)))
         px = self.px
-        others = [b for j, b in enumerate(self.boxes) if j != i and b[0] < x1 and b[2] > x0 and b[1] < y1 and b[3] > y0]
+        area = (x1 - x0) * (y1 - y0)
+        # only smaller figures inside this one – never a bigger one around it (the banana lies inside the palm's
+        # box; blanking the palm's box cut the banana in half, 15 Nov)
+        others = [b for j, b in enumerate(self.boxes) if j != i and b[0] < x1 and b[2] > x0 and b[1] < y1 and b[3] > y0
+                  and (b[2] - b[0]) * (b[3] - b[1]) < area]
         if others:
             px = list(px)
             for bx0, by0, bx1, by1 in others:
