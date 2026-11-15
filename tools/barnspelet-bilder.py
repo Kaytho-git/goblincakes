@@ -294,11 +294,11 @@ def mark():
     save("mark", cells, size, names)
 
 
-def bakgrund(nr="1"):
+def bakgrund(nr="1", tema="djungel"):
     """Kakan's jungle background (goblincakes-image, pixel art style, 1280×720): the middle without the dark
     frame and its own ground, on a grid of 480 × 300 (shown ×2 in the game, a background may be coarser than
     the figures), then the picture + its mirror image side by side – repeats without a seam."""
-    im = Image.open(SRC / f"djungel-bakgrund-{nr}.png").convert("RGBA").crop((160, 0, 1120, 600))
+    im = Image.open(SRC / f"{tema}-bakgrund-{nr}.png").convert("RGBA").crop((160, 0, 1120, 600))
     w, h = im.size
     get = im.get_flattened_data if hasattr(im, "get_flattened_data") else im.getdata
     px = list(get())
@@ -329,9 +329,9 @@ def bakgrund(nr="1"):
                 img.putpixel((tw * 2 - 1 - x, yy), (*c, 255))
     th += top
     OUT.mkdir(parents=True, exist_ok=True)
-    img.save(OUT / "djungel-bakgrund.png")
-    (OUT / "djungel-bakgrund.json").write_text(json.dumps({"cell": [tw * 2, th], "frames": ["bakgrund"]}) + "\n")
-    print(f"  ✓ djungel-bakgrund: {tw * 2}×{th} (spegelvänd, upprepas utan skarv, {top} rader extra överst)")
+    img.save(OUT / f"{tema}-bakgrund.png")
+    (OUT / f"{tema}-bakgrund.json").write_text(json.dumps({"cell": [tw * 2, th], "frames": ["bakgrund"]}) + "\n")
+    print(f"  ✓ {tema}-bakgrund: {tw * 2}×{th} (spegelvänd, upprepas utan skarv, {top} rader extra överst)")
 
 
 def djungel():
@@ -382,7 +382,62 @@ def orangutang():
     save("orangutang", cells, size, names)
 
 
-PARTS = {"modig": modig, "block": block, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
+def sno():
+    """The snow level (bana 2, 15 Nov): tiles (3 × 4: snow ground, frozen soil, snowy plank, ice), blocks (ice
+    block, snowy crate), enemies (sled, snowball, snowplow + dented, snow pile + loose snowball), the snowman boss
+    (sad, happy), the friend being built (1–3 balls), the boy holding the penguin, the cage with the penguin."""
+    d = Drawing("sno-mark-prov.png", grid=True)
+    if len(d.boxes) != 12:
+        sys.exit(f"sno-mark: hittade {len(d.boxes)} rutor, inte 12")
+    names = ["gras_v", "gras", "gras_h", "jord_v", "jord", "jord_h", "planka_v", "planka", "planka_h", "is_v", "is", "is_h"]
+    cells, size = sheet("sno-mark", [d.cut(i, 1, (48, 48)) for i in range(12)], names, pad=0, fixed=(48, 48))
+    save("sno-mark", cells, size, names)
+    b = Drawing("sno-block-prov.png", grid=True)
+    if len(b.boxes) != 2:
+        sys.exit(f"sno-block: hittade {len(b.boxes)} block, inte 2")
+    cells, size = sheet("sno-block", [b.cut(i, 1, (48, 48)) for i in range(2)], ["sten", "lada"], pad=0, fixed=(48, 48))
+    save("sno-block", cells, size, ["sten", "lada"])
+    f = Drawing("sno-fiender-prov.png", grid=True, join=70)  # the sled's "!" and the plow's stars belong to them
+    if len(f.boxes) != 8:
+        sys.exit(f"sno-fiender: hittade {len(f.boxes)} figurer, inte 8")
+    for n, (i, h, a, b2) in {"pulka": (0, 44, "pulka1", "pulka2"), "snoboll": (2, 44, "snoboll1", "snoboll2"),
+                             "plog": (4, 64, "plog1", "plog2")}.items():
+        k = f.scale_for(i, h)
+        cells, size = sheet(n, [f.cut(i, k), f.cut(i + 1, k)], [a, b2])
+        save(n, cells, size, [a, b2])
+    for n, i, h in (("snohog", 6, 56), ("snoklot", 7, 34)):
+        k = f.scale_for(i, h)
+        cells, size = sheet(n, [f.cut(i, k)], [n], pad=0)
+        save(n, cells, size, [n])
+    g = Drawing("snogubbe-prov.png")
+    if len(g.boxes) != 2:
+        sys.exit(f"snogubbe: hittade {len(g.boxes)} figurer, inte 2")
+    g.common_ground()
+    k = g.scale_for(0, 200)
+    g.peel(k)
+    cells, size = sheet("snogubbe", [g.cut(0, k), g.cut(1, k)], ["ledsen", "glad"])
+    save("snogubbe", cells, size, ["ledsen", "glad"])
+    c = Drawing("kompis-prov.png")
+    if len(c.boxes) != 3:
+        sys.exit(f"kompis: hittade {len(c.boxes)} figurer, inte 3")
+    c.common_ground()
+    k = c.scale_for(2, 120)
+    c.peel(k)
+    cells, size = sheet("kompis", [c.cut(i, k) for i in range(3)], ["kompis1", "kompis2", "kompis3"])
+    save("kompis", cells, size, ["kompis1", "kompis2", "kompis3"])
+    t = Drawing("pojken-triumf-pingvin-prov.png")
+    k = t.scale_for(0, 132)
+    t.peel(k)
+    cells, size = sheet("triumf-pingvin", [t.cut(0, k)], ["triumf"], pad=0)
+    save("triumf-pingvin", cells, size, ["triumf"])
+    u = Drawing("bur-pingvin-prov.png")
+    k = u.scale_for(0, 120)
+    u.peel(k)
+    cells, size = sheet("bur-pingvin", [u.cut(0, k)], ["bur"], pad=0)
+    save("bur-pingvin", cells, size, ["bur"])
+
+
+PARTS = {"sno": sno, "sno-bakgrund": lambda: bakgrund("1", "sno"), "modig": modig, "block": block, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
 
 if __name__ == "__main__":
     for part in sys.argv[1:] or PARTS:

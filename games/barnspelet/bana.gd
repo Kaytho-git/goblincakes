@@ -8,6 +8,11 @@ extends Node2D
 ##   r  racerbil      s  orm      p  papegoja    o  palm med kokosnöt             O  bossen (orangutangen)
 ##   F  flagga (börja om här)    B  buren med gossedjuret (mål; med en boss: öppen först när den sover)
 ##   P  start
+## Snön (bana 2, 15 nov):
+##   I  isplatta (halt – man glider; jord under)   /  backe upp åt höger   \\  backe ner åt höger (jord under)
+##   q  pulka med ögon    m  snöplog (trampas två gånger)    n  snöhög (snöbollar rullar ut)
+##   d  snöklot (bärs till snögubben, lämnas med B)
+## Bossen (O) står i banans json "boss" (orangutang, snogubbe); "triumf" = bilden vid målet.
 
 const RUTA := 48
 const MARKYTA := 9 * 48.0  ## markens vanliga höjd (rad 9)
@@ -15,8 +20,6 @@ const MARKYTA := 9 * 48.0  ## markens vanliga höjd (rad 9)
 ## fötterna ska stå mitt i det – annars ser allt ut att sväva på grästopparna (användaren 15 nov)
 const MARK_UPP := 12.0
 const VATTEN_NER := 20.0  ## vattenytan ligger en bit ner i gropen, inte i höjd med gräset (användaren 15 nov)
-const KAKEL := ["gras_v", "gras", "gras_h", "jord_v", "jord", "jord_h", "planka_v", "planka", "planka_h",
-		"vattenyta", "vatten", "vattenyta2"]
 
 var bredd := 0
 var hojd := 0
@@ -40,6 +43,9 @@ var _plankor := {}
 var _mark := {}    ## bara marken (G och jorden under) – gräset ritas där inget mark ligger ovanför
 var _block := {}   ## Vector2i → 0 sten, 1 trälåda
 var _vatten := {}  ## Vector2i → true för ytan, false under
+var _backar := {}  ## Vector2i → 1 backe upp åt höger (/), -1 ner åt höger (\\)
+var _is := {}      ## isplattornas rutor (halt)
+var _bar: Sprite2D  ## snöklotet pojken bär (null = inget)
 var _meta := {}
 var _kastade: Array = []  ## {"nod", "v", "studsad"}
 var _buskar: Array = []
@@ -117,7 +123,46 @@ func _redigera() -> void:
 
 
 func fast(p: Vector2) -> bool:
-	return _fast.has(Vector2i(floori(p.x / RUTA), floori(p.y / RUTA)))
+	var c := Vector2i(floori(p.x / RUTA), floori(p.y / RUTA))
+	if _backar.has(c):  # under den sneda ytan
+		var lx := p.x - c.x * RUTA
+		var ly := p.y - c.y * RUTA
+		return ly >= (RUTA - lx if _backar[c] > 0 else lx)
+	return _fast.has(c)
+
+
+## En vägg framför det som går på marken: fast, men inte en backe (den går man uppför)
+func vagg(p: Vector2) -> bool:
+	var c := Vector2i(floori(p.x / RUTA), floori(p.y / RUTA))
+	return _fast.has(c) and not _backar.has(c)
+
+
+## Halt under fötterna (isplattorna)
+func halt(p: Vector2) -> bool:
+	return _is.has(Vector2i(floori(p.x / RUTA), floori((p.y + 2.0) / RUTA)))
+
+
+## Lutningen där man står: 1 = backe upp åt höger, -1 = ner åt höger, 0 = plant
+func backe(p: Vector2) -> int:
+	for dy in [-2.0, 2.0]:
+		var c := Vector2i(floori(p.x / RUTA), floori((p.y + dy) / RUTA))
+		if _backar.has(c):
+			return _backar[c]
+	return 0
+
+
+## För det som går/rullar på marken: tyngden, och står man i marken (backar) lyfts man upp till ytan
+func pa_marken(pos: Vector2, vy: float, dt: float) -> Array:
+	vy = minf(vy + 3800.0 * dt, 950.0)
+	var ny := pos.y + vy * dt
+	if fast(Vector2(pos.x, ny)):
+		var n := 0
+		while fast(Vector2(pos.x, ny)) and n < 60:
+			ny = floorf(ny) - 1.0
+			n += 1
+		ny += 0.999
+		vy = 0.0
+	return [Vector2(pos.x, ny), vy]
 
 
 # ── Bygget ───────────────────────────────────────────────────────
@@ -126,8 +171,15 @@ func _rutor(rader: PackedStringArray) -> void:
 	for y in hojd:
 		for x in rader[y].length():
 			match rader[y][x]:
-				"G":
+				"G", "I":
 					for yy in range(y, hojd):
+						_fast[Vector2i(x, yy)] = true
+						_mark[Vector2i(x, yy)] = true
+					if rader[y][x] == "I":
+						_is[Vector2i(x, y)] = true
+				"/", "\\":
+					_backar[Vector2i(x, y)] = 1 if rader[y][x] == "/" else -1
+					for yy in range(y + 1, hojd):
 						_fast[Vector2i(x, yy)] = true
 						_mark[Vector2i(x, yy)] = true
 				"X", "L":
@@ -145,17 +197,20 @@ func _rutor(rader: PackedStringArray) -> void:
 	var src := TileSetAtlasSource.new()
 	var mark: String = _meta.get("mark", "mark")
 	src.texture = Bilder.textur(mark)
-	var antal: int = Bilder.info(mark)["frames"].size()
+	var namn: Array = Bilder.info(mark)["frames"]
+	var antal := namn.size()
+	var nr := func(n: String) -> int:  # rutan med det namnet (snön har is där djungeln har vatten)
+		return maxi(0, namn.find(n))
 	src.texture_region_size = Vector2i(RUTA, RUTA)
 	var sid := ts.add_source(src)
 	var h := RUTA / 2.0
-	for i in mini(KAKEL.size(), antal):
+	for i in antal:
 		src.create_tile(Vector2i(i, 0))
-		if i >= 9:
+		if namn[i].begins_with("vatten"):
 			continue  # vattnet: ingen krock
 		var td := src.get_tile_data(Vector2i(i, 0), 0)
 		td.add_collision_polygon(0)
-		if i >= 6:  # plankan: bara överkanten, och bara uppifrån
+		if namn[i].begins_with("planka"):  # plankan: bara överkanten, och bara uppifrån
 			td.set_collision_polygon_points(0, 0, PackedVector2Array([Vector2(-h, -h), Vector2(h, -h), Vector2(h, -h + 14), Vector2(-h, -h + 14)]))
 			td.set_collision_polygon_one_way(0, 0, true)
 		else:
@@ -170,15 +225,28 @@ func _rutor(rader: PackedStringArray) -> void:
 	syns.collision_enabled = false
 	syns.position.y = -MARK_UPP
 	add_child(syns)
+	var isyns := TileMapLayer.new()
+	isyns.tile_set = ts
+	isyns.collision_enabled = false
+	add_child(isyns)
+	var yta := _mark.duplicate()  # backarna räknas som mark när kanterna väljs (inget kantgräs mot en backe)
+	yta.merge(_backar)
+	var kantnamn := ["_v", "", "_h"]
 	for c in _mark:
-		var topp := not _mark.has(c + Vector2i.UP)
-		var ruta := Vector2i((0 if topp else 3) + _kant(_mark, c), 0)
+		var topp := not _mark.has(c + Vector2i.UP) and not _backar.has(c + Vector2i.UP)
+		var ruta := Vector2i(nr.call(("gras" if topp else "jord") + kantnamn[_kant(yta, c)]), 0)
+		if _is.has(c) and namn.has("is"):
+			# isen syns utan MARK_UPP (ingen snö att sjunka ner i) – i eget lager framför marken
+			ruta = Vector2i(nr.call("is" + kantnamn[_kant(_is, c)]), 0)
+			lager.set_cell(c, sid, ruta)
+			isyns.set_cell(c, sid, ruta)
+			continue
 		lager.set_cell(c, sid, ruta)
 		syns.set_cell(c, sid, ruta)
 		if c.y == hojd - 1:  # en rad till under: den synliga marken är MARK_UPP högre och ska nå skärmens nederkant
 			syns.set_cell(c + Vector2i.DOWN, sid, ruta)
 	for c in _plankor:
-		var ruta := Vector2i(6 + _kant(_plankor, c), 0)
+		var ruta := Vector2i(nr.call("planka" + kantnamn[_kant(_plankor, c)]), 0)
 		lager.set_cell(c, sid, ruta)
 		syns.set_cell(c, sid, ruta)
 	# blocken följer banans tema (banor/<namn>.json "block" – djungeln: djungel-block), krock i det osynliga lagret,
@@ -201,7 +269,9 @@ func _rutor(rader: PackedStringArray) -> void:
 		for c in _block:
 			lager.set_cell(c, bid, Vector2i(_block[c], 0))
 			blocksyns.set_cell(c, bid, Vector2i(_block[c], 0))
-	if antal >= 11:
+	if not _backar.is_empty():
+		_backar_lager(ts, mark, lager, syns)
+	if namn.has("vatten"):
 		var vatten := TileMapLayer.new()  # framför pojken och krokodilen
 		vatten.tile_set = ts
 		vatten.position.y = VATTEN_NER
@@ -210,7 +280,53 @@ func _rutor(rader: PackedStringArray) -> void:
 		vatten.modulate = Color(1, 1, 1, 0.92)
 		add_child(vatten)
 		for c in _vatten:
-			vatten.set_cell(c, sid, Vector2i(9 if _vatten[c] else 10, 0))
+			vatten.set_cell(c, sid, Vector2i(nr.call("vattenyta" if _vatten[c] else "vatten"), 0))
+
+
+## Backarna: rutorna görs här av banans egna gräs- och jordrutor (varje kolumn flyttas ner så att ytan
+## följer diagonalen) – så får alla teman backar utan nya bilder. Krocken = en triangel.
+var backe_bilder := {}  ## 1/-1 → ImageTexture (redigerarens meny använder dem också)
+
+
+func backe_bild(riktning: int) -> Texture2D:
+	if backe_bilder.is_empty():
+		var mark: String = _meta.get("mark", "mark")
+		var namn: Array = Bilder.info(mark)["frames"]
+		var blad := Bilder.textur(mark).get_image()
+		blad.decompress()
+		var gras := blad.get_region(Rect2i(maxi(0, namn.find("gras")) * RUTA, 0, RUTA, RUTA))
+		var jord := blad.get_region(Rect2i(maxi(0, namn.find("jord")) * RUTA, 0, RUTA, RUTA))
+		for r in [1, -1]:
+			var img := Image.create(RUTA, RUTA, false, Image.FORMAT_RGBA8)
+			for x in RUTA:
+				var ner := (RUTA - 1 - x) if r > 0 else x  # ytans höjd i den här kolumnen
+				for y in range(ner, RUTA):
+					var k := y - ner
+					img.set_pixel(x, y, gras.get_pixel(x, k) if k < RUTA else jord.get_pixel(x, k - RUTA))
+			backe_bilder[r] = ImageTexture.create_from_image(img)
+	return backe_bilder[riktning]
+
+
+func _backar_lager(ts: TileSet, mark: String, lager: TileMapLayer, syns: TileMapLayer) -> void:
+	var src := TileSetAtlasSource.new()
+	var img := Image.create(RUTA * 2, RUTA, false, Image.FORMAT_RGBA8)
+	img.blit_rect(backe_bild(1).get_image(), Rect2i(0, 0, RUTA, RUTA), Vector2i(0, 0))
+	img.blit_rect(backe_bild(-1).get_image(), Rect2i(0, 0, RUTA, RUTA), Vector2i(RUTA, 0))
+	src.texture = ImageTexture.create_from_image(img)
+	src.texture_region_size = Vector2i(RUTA, RUTA)
+	var id := ts.add_source(src)
+	var h := RUTA / 2.0
+	for i in 2:
+		src.create_tile(Vector2i(i, 0))
+		var td := src.get_tile_data(Vector2i(i, 0), 0)
+		td.add_collision_polygon(0)
+		var tri := PackedVector2Array([Vector2(-h, h), Vector2(h, -h), Vector2(h, h)]) if i == 0 \
+				else PackedVector2Array([Vector2(-h, -h), Vector2(h, h), Vector2(-h, h)])
+		td.set_collision_polygon_points(0, 0, tri)
+	for c in _backar:
+		var ruta := Vector2i(0 if _backar[c] > 0 else 1, 0)
+		lager.set_cell(c, id, ruta)
+		syns.set_cell(c, id, ruta)
 
 
 ## 0 = vänsterkant, 1 = mitten, 2 = högerkant
@@ -238,7 +354,7 @@ func _figurer(rader: PackedStringArray) -> void:
 						_start = golv
 						f["nod"].modulate = Color(1, 1, 0.6)
 				"B":
-					_sak("bur", golv, false)
+					_sak("bur", golv, false, _meta.get("bur", "bur"))  # buren med banans gossedjur
 				"r":
 					ny_fiende("gangare", golv, {"typ": "racerbil"})
 				"s":
@@ -261,15 +377,25 @@ func _figurer(rader: PackedStringArray) -> void:
 					b.z_index = -2
 					add_child(b)
 					_buskar.append(golv)
+				"q":
+					ny_fiende("gangare", golv, {"typ": "pulka"})
+				"m":
+					ny_fiende("gangare", golv, {"typ": "plog"})
+				"n":
+					ny_fiende("snohog", golv)
+				"d":
+					_sak("snoklot", golv, false)
 				"O":
-					boss = ny_fiende("orangutang", golv)
+					boss = ny_fiende(_meta.get("boss", "orangutang"), golv)
 					boss.somnade.connect(func(): Spel.ljud("raddad"))
 
 
-func _sak(typ: String, pos: Vector2, svavar: bool) -> Dictionary:
+func _sak(typ: String, pos: Vector2, svavar: bool, bild := "") -> Dictionary:
 	var s := Sprite2D.new()
-	s.texture = Bilder.textur(typ)
-	var c: Vector2 = Bilder.cell(typ)
+	if bild == "" or not FileAccess.file_exists("res://bilder/%s.json" % bild):
+		bild = typ
+	s.texture = Bilder.textur(bild)
+	var c: Vector2 = Bilder.cell(bild)
 	s.centered = false
 	s.offset = -c / 2.0 if svavar else Vector2(-c.x / 2.0, -c.y)
 	s.position = pos
@@ -348,13 +474,14 @@ func _physics_process(_dt: float) -> void:
 			continue
 		# uppifrån och på väg ner = trampa (om den går att trampa på); en glidning slår ut det som går på
 		# marken (ormar, bilar); annars "oj"
+		# (snöplogen tål ett tramp – den räknas som utslagen först när den är platt)
 		if b.trampbar and pojke.glider and b.get_script().resource_path.ends_with("gangare.gd"):
 			b.platta()
-			utslagna += 1
+			utslagna += 1 if b.platt else 0
 			Spel.ljud("trampa")
 		elif b.trampbar and pojke.velocity.y > 0.0 and pojke.position.y < r.position.y + 22.0:
 			b.platta()
-			utslagna += 1
+			utslagna += 1 if b.platt else 0
 			pojke.studsa()
 		else:
 			pojke.do()
@@ -364,6 +491,7 @@ func _physics_process(_dt: float) -> void:
 		if pr.intersects(k):
 			pojke.position.x = k.position.x - pojke.BREDD / 2.0 if pojke.position.x < k.get_center().x else k.end.x + pojke.BREDD / 2.0
 			pojke.velocity.x = 0.0
+	_zooma(_dt)
 	_bananer(_dt)
 	for s in saker.duplicate():
 		if not pr.intersects(s["rect"]):
@@ -380,6 +508,14 @@ func _physics_process(_dt: float) -> void:
 				Spel.bananer += 1
 				Spel.ljud("knapp")
 				_ta_bort(s)
+			"snoklot":
+				if _bar == null and _special_slapp:  # en i taget; inte samma tryck som nyss släppte den
+					_ta_bort(s)
+					_bar = Sprite2D.new()
+					_bar.texture = Bilder.textur("snoklot")
+					_bar.position = Vector2(0, -pojke.HOJD - 20.0)
+					pojke.add_child(_bar)
+					Spel.ljud("knapp")
 			"flagga":
 				if not is_equal_approx(Spel.flagga, s["nod"].position.x):
 					Spel.flagga = s["nod"].position.x
@@ -397,7 +533,10 @@ var _special_forra := false
 
 func _bananer(dt: float) -> void:
 	var b := Spel.special_nere()
-	if b and not _special_forra and Spel.bananer > 0:
+	_special_slapp = _special_slapp or not b
+	if b and not _special_forra and _bar != null:
+		_lamna()
+	elif b and not _special_forra and Spel.bananer > 0:
 		Spel.bananer -= 1
 		var n := Sprite2D.new()
 		n.texture = Bilder.textur("banan")
@@ -415,7 +554,7 @@ func _bananer(dt: float) -> void:
 		n.rotation += 12.0 * dt * signf(k["v"].x)
 		var r := Rect2(n.position - Vector2(12, 12), Vector2(24, 24))
 		var bort := fast(n.position) or n.position.y > botten
-		if not bort and boss and not boss.sover and not k["studsad"]:
+		if not bort and boss and not boss.sover and not k["studsad"] and boss.has_method("mun"):
 			if boss.mun().has_area() and r.intersects(boss.mun()):
 				boss.mata()
 				bort = true
@@ -430,6 +569,38 @@ func _bananer(dt: float) -> void:
 		_busk_tid = 0.0
 		if not saker.any(func(s): return s["typ"] == "banan"):
 			_sak("banan", _buskar[0] + Vector2(56.0, 0.0), false)
+
+
+## Snöklotet: B vid snögubbens kompis = en del till; annars läggs det ner framför fötterna (man ska aldrig fastna)
+var _special_slapp := true
+
+
+func _lamna() -> void:
+	_bar.queue_free()
+	_bar = null
+	if boss and boss.has_method("lamna") and not boss.sover and absf(pojke.position.x - boss.kompis_x()) < 130.0:
+		boss.lamna()
+		return
+	var vand := -1.0 if pojke._vand < 0.0 else 1.0
+	var x := pojke.position.x + vand * 40.0
+	if fast(Vector2(x, pojke.position.y - 20.0)):
+		x = pojke.position.x
+	_sak("snoklot", Vector2(x, pojke.position.y), false)
+	_special_slapp = false  # plockas inte upp igen förrän B har släppts
+	Spel.ljud("kasta")
+
+
+## Vid en boss som vill ha plats (snögubben: man bygger bredvid) zoomar kameran ut lite
+func _zooma(dt: float) -> void:
+	var mal := 1.0
+	if boss and not boss.sover and boss.get("ZOOM") != null and absf(pojke.position.x - boss.position.x) < 700.0:
+		mal = boss.ZOOM
+	var z := move_toward(kamera.zoom.x, mal, dt * 0.6)
+	if is_equal_approx(z, kamera.zoom.x):
+		return
+	kamera.zoom = Vector2(z, z)
+	# banan är bara 540 hög – det som syns ovanför den när man zoomar ut är himlen
+	kamera.limit_top = mini(0, int(hojd * RUTA - 540.0 / z))
 
 
 func Pojke_halv() -> float:
@@ -466,9 +637,10 @@ func _raddad(s: Dictionary) -> void:
 	Spel.ljud("raddad")
 	_visa_tid()
 	var t_bild := Sprite2D.new()
-	t_bild.texture = Bilder.textur("triumf")
+	var tb: String = _meta.get("triumf", "triumf")  # pojken med banans gossedjur
+	t_bild.texture = Bilder.textur(tb)
 	t_bild.centered = false
-	var c: Vector2 = Bilder.cell("triumf")
+	var c: Vector2 = Bilder.cell(tb)
 	t_bild.offset = Vector2(-c.x / 2.0, -c.y)
 	t_bild.position = Vector2(s["nod"].position.x, s["y"])
 	t_bild.z_index = 5
@@ -667,6 +839,10 @@ func _bakgrund() -> void:
 		var p := Parallax2D.new()
 		p.scroll_scale = Vector2(0.3, 1.0)
 		var tex := Bilder.textur(_meta["bakgrund"])
+		# himlen ovanför bilden (syns när kameran zoomar ut) = bildens översta färg
+		var topp := tex.get_image()
+		topp.decompress()
+		RenderingServer.set_default_clear_color(topp.get_pixel(topp.get_width() / 2, 2))
 		p.repeat_size = Vector2(tex.get_width() * 2.0, 0)
 		p.repeat_times = 3
 		p.z_index = -30
@@ -680,6 +856,7 @@ func _bakgrund() -> void:
 		p.add_child(s)
 		add_child(p)
 		return
+	RenderingServer.set_default_clear_color(ProjectSettings.get_setting("rendering/environment/defaults/default_clear_color"))
 	var kullar := Parallax2D.new()
 	kullar.scroll_scale = Vector2(0.45, 0.2)
 	kullar.repeat_size = Vector2(960, 0)

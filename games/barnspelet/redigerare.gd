@@ -16,6 +16,9 @@ const VERKTYG := [
 	["X", "Block 1 (följer banans tema)", ["block", "sten"]],
 	["L", "Block 2 (följer banans tema)", ["block", "lada"]],
 	["W", "Vatten", ["mark", "vattenyta"]],
+	["I", "Is – halt (snön)", ["mark", "is"]],
+	["/", "Backe upp", ["backe", "1"]],
+	["\\", "Backe ner", ["backe", "-1"]],
 	["k", "Knapp", ["knapp", ""]],
 	["h", "Hjärta", ["hjarta", ""]],
 	["r", "Racerbil", ["racerbil", "kor1"]],
@@ -25,7 +28,11 @@ const VERKTYG := [
 	["o", "Palm", ["palm", ""]],
 	["b", "Banan", ["banan", ""]],
 	["u", "Bananbuske", ["buske", ""]],
-	["O", "Boss", ["orangutang", "hungrig"]],
+	["q", "Pulka", ["pulka", "pulka1"]],
+	["m", "Snöplog (trampa två gånger)", ["plog", "plog1"]],
+	["n", "Snöhög (snöbollar rullar ut)", ["snohog", ""]],
+	["d", "Snöklot (till snögubbens kompis)", ["snoklot", ""]],
+	["O", "Boss (följer banan)", ["boss", ""]],
 	["F", "Flagga", ["flagga", ""]],
 	["B", "Bur", ["bur", ""]],
 	["P", "Start", ["pojken", "sta"]],
@@ -131,6 +138,11 @@ func _ikon(blad: String, ruta: String) -> Texture2D:
 			return null
 		var bf: Array = Bilder.info(bb)["frames"]
 		return Bilder.bild(bb, bf[0 if ruta == "sten" else mini(1, bf.size() - 1)])
+	if blad == "backe":
+		return bana.backe_bild(int(ruta))
+	if blad == "boss":  # banans egen boss (banor/<namn>.json "boss")
+		var bs: String = bana._meta.get("boss", "orangutang")
+		return Bilder.bild(bs, "") if FileAccess.file_exists("res://bilder/%s.json" % bs) else null
 	if blad == "mark":
 		var m: String = bana._meta.get("mark", "mark")
 		var frames: Array = Bilder.info(m)["frames"]
@@ -204,6 +216,8 @@ func _unhandled_input(e: InputEvent) -> void:
 			_falla()
 		elif e.keycode == KEY_Z and e.ctrl_pressed:
 			_angra()
+		elif e.keycode == KEY_INSERT or e.keycode == KEY_DELETE:
+			_kolumn(e.keycode == KEY_INSERT, floori(get_global_mouse_position().x / RUTA))
 		elif e.keycode >= KEY_0 and e.keycode <= KEY_9:
 			var i: int = (e.keycode - KEY_0 + 9) % 10
 			if i < VERKTYG.size():
@@ -232,6 +246,20 @@ func _satt(c: Vector2i, tecken: String) -> void:
 		Spel.red_historik.pop_front()
 	var r: String = rader[c.y]
 	rader[c.y] = r.substr(0, c.x) + tecken + r.substr(c.x + 1)
+	_spara("\n".join(rader))
+
+
+## Insert: en tom kolumn där musen är (allt till höger flyttas ett steg åt höger); Delete: kolumnen bort
+## (allt efter flyttas tillbaka). Så blir banan längre/kortare var som helst. Ctrl+Z ångrar.
+func _kolumn(infoga: bool, x: int) -> void:
+	var pa_disk := FileAccess.get_file_as_string(bana.fil()).strip_edges(false, true)
+	var rader: Array = Array(pa_disk.split("\n")) if pa_disk != "" else Array(bana.rader)
+	if x < 0:
+		return
+	Spel.red_historik.append(pa_disk)
+	for y in rader.size():
+		var r: String = rader[y].rpad(x + 1, ".")
+		rader[y] = (r.substr(0, x) + "." + r.substr(x)) if infoga else (r.substr(0, x) + r.substr(x + 1))
 	_spara("\n".join(rader))
 
 

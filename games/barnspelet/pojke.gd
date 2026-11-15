@@ -25,6 +25,10 @@ const GLID_FART := 200.0    ## minst så här fort för att glida i stället fö
 const GLID_BROMS := 420.0
 const GLID_TID := 0.75
 const LAG := 50.0           ## höjden när han duckar/glider
+## Isplattorna (bana 2): halt – farten kommer långsamt och han glider vidare när spaken släpps
+const IS_ACC := 300.0
+const IS_BROMS := 120.0
+const IS_VAND := 500.0
 
 const BREDD := 34.0
 const HOJD := 86.0
@@ -53,7 +57,8 @@ func _ready() -> void:
 	add_child(_shape)
 	collision_layer = 2
 	collision_mask = 1
-	floor_snap_length = 10.0
+	floor_snap_length = 16.0                # följer marken nerför backar i full fart
+	floor_max_angle = deg_to_rad(50.0)      # backarna är 45°
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = Bilder.ramar("pojken", {
 		"sta": [["idle1", "idle2"], 1.4, true],  # andas
@@ -119,6 +124,11 @@ func _physics_process(dt: float) -> void:
 		acc = ACC if x != 0.0 else BROMS
 		if x != 0.0 and signf(x) != signf(velocity.x) and velocity.x != 0.0:
 			acc = VAND
+		var b: Node2D = get_parent()
+		if b.has_method("halt") and b.halt(position):
+			acc = IS_ACC if x != 0.0 else IS_BROMS
+			if x != 0.0 and signf(x) != signf(velocity.x) and velocity.x != 0.0:
+				acc = IS_VAND
 	if not glider:
 		velocity.x = move_toward(velocity.x, mal, acc * dt)
 	if x != 0.0:
