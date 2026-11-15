@@ -3846,7 +3846,11 @@ def cs2_overview(folder, count=10, season="", private=False):
     seasons_ = season_list("cs2", side)
     chosen = next((x for x in seasons_ if x["key"] == season), seasons_[0] if seasons_ else None)
     ms = sorted(in_season(side, chosen), key=lambda v: v.get("started", 0))
-    waiting = sum(1 for v in vids if v.get("demo") == "waiting")
+    # the matches waiting for a demo that can still become official (15 Nov, the user): not one Leetify
+    # never had (a friends' server – no Valve demo is coming), not one moved to PRIVAT by hand; none on PRIVAT
+    waiting = 0 if private else sum(
+        1 for v in vids if v.get("demo") == "waiting" and not (v.get("leetify") or {}).get("none")
+        and (hist.get(str(int(v.get("started") or 0))) or {}).get("manual") is not True)
     n = count or 10
     recent = ms[-count:] if count else ms
     before = ms[-2 * n:-n] if len(ms) > n else []
