@@ -269,6 +269,7 @@ func _kor_djungel() -> void:
 	var finns := func(skript: String) -> Array:
 		return bana.fiender.filter(func(f): return is_instance_valid(f) and f.get_script().resource_path.ends_with(skript))
 	# (banan byggs av användaren i redigeraren – proven får inte bero på exakt var saker ligger)
+	_koll("djungeln i 100 % (banans egen zoom)", is_equal_approx(bana.kamera.zoom.x, 1.0))
 	_koll("djungelns fiender finns", finns.call("gangare.gd").size() >= 1 and finns.call("papegoja.gd").size() >= 1
 			and finns.call("krokodil.gd").size() >= 1 and finns.call("kokos.gd").size() >= 1 and bana.boss != null)
 	# vattnet (vid den första krokodilen)
@@ -394,6 +395,7 @@ func _kor_red() -> void:
 	_koll("Delete = kolumnen bort, resten tillbaka", b.rader[8] == fore, b.rader[8].substr(0, 16))
 	# zooma ut: kameran visar mer, och zoomen finns kvar när banan byggs om efter en ändring
 	red = b.get_children().filter(func(c): return c.get_script() and c.get_script().resource_path.ends_with("redigerare.gd"))[0]
+	Spel.red_zoom = 1.0
 	for i in 4:
 		red._zooma(-0.1)
 	red._satt(Vector2i(14, 8), "k")
@@ -405,7 +407,7 @@ func _kor_red() -> void:
 	for i in 9:
 		red._zooma(-0.1)
 	_koll("zoomen stannar på 40 %", is_equal_approx(Spel.red_zoom, 0.4))
-	Spel.red_zoom = 1.0
+	Spel.red_zoom = -1.0
 	DirAccess.remove_absolute(fil)
 	print("PROV REDIGERAREN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
 	get_tree().quit(1 if _fel else 0)
@@ -453,6 +455,7 @@ func _kor_sno() -> void:
 	var gangare: Array = finns.call("gangare.gd")
 	var plog: Array = gangare.filter(func(g): return g.typ == "plog")
 	var pulka: Array = gangare.filter(func(g): return g.typ == "pulka")
+	_koll("snön i 60 % (banans egen zoom)", is_equal_approx(bana.kamera.zoom.x, 0.6), "zoom %.2f" % bana.kamera.zoom.x)
 	_koll("snöns saker finns", plog.size() == 1 and pulka.size() == 1 and finns.call("snohog.gd").size() == 1
 			and bana.boss != null and bana.boss.get_script().resource_path.ends_with("snogubbe.gd"))
 	# halkan: samma fart på marken och på isen, släpp spaken – på isen glider han långt
@@ -539,7 +542,7 @@ func _kor_sno() -> void:
 		Spel.prov_special = false
 		await _rutor(2)
 	_koll("tre klot = kompisen klar, snögubben glad", boss.delar == 3 and boss.sover, "%d delar" % boss.delar)
-	_koll("kameran zoomar ut vid snögubben", bana.kamera.zoom.x < 0.95, "zoom %.2f" % bana.kamera.zoom.x)
+	_koll("kameran utzoomad vid snögubben (minst snögubbens 80 %)", bana.kamera.zoom.x <= 0.81, "zoom %.2f" % bana.kamera.zoom.x)
 	await _flytta(boss.position.x + 3.0 * R, 9.0 * R)
 	await _rutor(10)
 	_koll("buren öppnas", bana.klar)

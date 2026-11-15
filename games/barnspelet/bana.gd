@@ -473,8 +473,16 @@ func _ny_kamera() -> void:
 	kamera.position_smoothing_speed = 7.0
 	kamera.process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS  # i takt med pojken (fysikinterpoleringen)
 	kamera.position = pojke.position
+	var z := zoom()
+	kamera.zoom = Vector2(z, z)
+	kamera.limit_top = mini(0, int(hojd * RUTA - 540.0 / z))  # banan är lägre än det som syns: himmel ovanför
 	add_child(kamera)
 	kamera.reset_smoothing()
+
+
+## Banans zoom: json "zoom", annars spelets (Spel.ZOOM)
+func zoom() -> float:
+	return float(_meta.get("zoom", Spel.ZOOM))
 
 
 # ── Varje bildruta ───────────────────────────────────────────────
@@ -623,9 +631,9 @@ func _lamna() -> void:
 
 ## Vid en boss som vill ha plats (snögubben: man bygger bredvid) zoomar kameran ut lite
 func _zooma(dt: float) -> void:
-	var mal := 1.0
+	var mal := zoom()
 	if boss and not boss.sover and boss.get("ZOOM") != null and absf(pojke.position.x - boss.position.x) < 700.0:
-		mal = boss.ZOOM
+		mal = minf(mal, boss.ZOOM)  # aldrig närmare än banans vanliga zoom
 	var z := move_toward(kamera.zoom.x, mal, dt * 0.6)
 	if is_equal_approx(z, kamera.zoom.x):
 		return

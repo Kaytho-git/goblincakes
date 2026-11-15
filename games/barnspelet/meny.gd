@@ -127,6 +127,7 @@ func _starta(nr: int, redigera: bool) -> void:
 	Spel.redigerar = redigera
 	Spel.red_kamera = Vector2(480, 9999.0)
 	Spel.red_historik.clear()
+	Spel.red_zoom = -1.0
 	Spel.test_start = Vector2.ZERO
 	Spel.flagga = -1.0
 	Spel.liv = Spel.LIV_START

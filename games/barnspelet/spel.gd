@@ -14,7 +14,11 @@ var bananer := 0  ## som pojken bär (kastas med B)
 ## Redigeraren (redigerare.gd) – E växlar
 var redigerar := false
 var red_kamera := Vector2(480, 270)
-var red_zoom := 1.0  ## redigerarens zoom (användaren 15 nov: "zooma ut om jag vill ha mer utrymme") – 1 = som i spelet
+## Zoomen per bana (användaren 15 nov: "jag vill välja vilken zoom det ska vara per bana, jungelbanan är perfekt
+## som den är, snöbanan vill jag ha lite mer hopp på, då passar det bra med större vy"): banor/<nr>.json "zoom"
+## (snön 0.6), annars ZOOM.
+const ZOOM := 1.0
+var red_zoom := -1.0  ## redigerarens zoom ("zooma ut om jag vill ha mer utrymme"); −1 = börja på banans zoom
 var red_verktyg := 1  ## 0 = suddet, 1 = mark
 var red_senast := Vector3i(-1, -1, 0)
 var red_meny := true  ## redigerarens panel till vänster öppen

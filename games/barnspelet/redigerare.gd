@@ -103,6 +103,8 @@ func _ready() -> void:
 	_visa_panel()
 	_valj(Spel.red_verktyg if Spel.red_verktyg in _synliga else 1)  # ett gömt verktyg (annan bana) → marken
 	bana.kamera.limit_bottom = int(bana.hojd * RUTA)
+	if Spel.red_zoom < 0.0:  # nyss öppnad: som banan ser ut när man spelar
+		Spel.red_zoom = bana.zoom()
 	_zooma(0.0)
 	bana.kamera.reset_smoothing()
 
