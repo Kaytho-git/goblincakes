@@ -21,6 +21,9 @@ var red_historik: Array[String] = []
 ## I barnläget (-- --barnlage, menyfilen från tools/barnspelet-installera.sh): ingen redigerare, ingen
 ## tidtagare – barnet ska inte kunna ändra något. Back + Start på kontrollen avslutar (tillbaka till barnläget).
 var barnlage := false
+## Startat från banväljaren (-- --meny, meny.tscn): Esc går tillbaka dit i stället för att avsluta
+var fran_meny := false
+var meny_visad := false
 var test_start := Vector2.ZERO  ## "spela härifrån" – gäller tills man spelar från början
 
 ## Tiden (användaren 15 nov: "man ska kunna se hur snabbt man klarat banan … Speedruns incoming!"):
@@ -91,6 +94,8 @@ func _ready() -> void:
 	if "--barnlage" in args:
 		barnlage = true
 		redigerar = false
+	elif "--meny" in args:
+		fran_meny = true
 	_knappar()
 	_gor_ljud()
 	for i in 6:
@@ -144,13 +149,19 @@ func _knappar() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("sluta"):
-		get_tree().quit()
+		if fran_meny and not barnlage and get_tree().current_scene and get_tree().current_scene.name != "Meny":
+			till_menyn()
+		else:
+			get_tree().quit()
+		return
 	if event is InputEventJoypadButton and event.pressed and event.button_index in [JOY_BUTTON_BACK, JOY_BUTTON_START]:
 		if Input.is_joy_button_pressed(event.device, JOY_BUTTON_BACK) and Input.is_joy_button_pressed(event.device, JOY_BUTTON_START):
 			get_tree().quit()
 	if prov or barnlage or not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 	var bana := get_tree().current_scene
+	if bana == null or bana.name == "Meny":
+		return
 	if event.keycode == KEY_T:
 		visa_tid = not visa_tid
 	if event.keycode == KEY_E:
@@ -168,6 +179,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		flagga = -1.0
 		ny_runda()
 		get_tree().reload_current_scene()
+
+
+func till_menyn() -> void:
+	redigerar = false
+	get_tree().change_scene_to_file("res://meny.tscn")
 
 
 # ── Det pojken frågar efter (proven kan ta över) ─────────────────

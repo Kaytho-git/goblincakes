@@ -55,6 +55,12 @@ var _tid := 0.0
 
 
 func _ready() -> void:
+	if Spel.fran_meny and not Spel.meny_visad:  # -- --meny: banväljaren först
+		Spel.meny_visad = true
+		set_process(false)
+		set_physics_process(false)
+		get_tree().change_scene_to_file.call_deferred("res://meny.tscn")
+		return
 	Spel.bananer = 0
 	if not FileAccess.file_exists(fil()):
 		_ny_bana()

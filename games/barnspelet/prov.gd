@@ -19,6 +19,9 @@ func _ready() -> void:
 		Spel.bana = "provred-tillfallig"
 		Spel.redigerar = true
 		_kor_red.call_deferred()
+	elif "--prov-meny" in args:
+		Spel.prov = true
+		_kor_meny.call_deferred()
 	elif "--prov-sno" in args:
 		Spel.prov = true
 		Spel.bana = "provsno-tillfallig"
@@ -518,4 +521,31 @@ func _kor_sno() -> void:
 	DirAccess.remove_absolute(_sno_fil("txt"))
 	DirAccess.remove_absolute(_sno_fil("json"))
 	print("PROV SNÖN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
+	get_tree().quit(1 if _fel else 0)
+
+
+# ── Banväljaren (-- --meny) ──
+
+func _kor_meny() -> void:
+	await _rutor(2)
+	get_tree().change_scene_to_file("res://meny.tscn")
+	await _rutor(5)
+	var m: Control = get_tree().current_scene
+	_koll("banväljaren visar tio banor", m.name == "Meny" and m.kort.size() == 10)
+	var med_grund: Array = m.kort.filter(func(k): return k["grund"])
+	_koll("bara banor med grund går att välja", med_grund.size() >= 2 and m.kort[0]["grund"] and m.kort[1]["grund"]
+			and not m.kort[9]["grund"] and m.kort[9]["redigera"] == null, "%d med grund" % med_grund.size())
+	m.kort[0]["spela"].pressed.emit()
+	await _rutor(10)
+	var b: Node = get_tree().current_scene
+	_koll("Spela startar banan", b.name != "Meny" and Spel.bana == "1" and not Spel.redigerar and b.pojke.visible)
+	Spel.till_menyn()
+	await _rutor(5)
+	m = get_tree().current_scene
+	_koll("tillbaka till banväljaren", m.name == "Meny")
+	m.kort[0]["redigera"].pressed.emit()
+	await _rutor(10)
+	b = get_tree().current_scene
+	_koll("Redigera öppnar redigeraren", Spel.bana == "1" and Spel.redigerar and not b.pojke.visible)
+	print("PROV BANVÄLJAREN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
 	get_tree().quit(1 if _fel else 0)
