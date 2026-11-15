@@ -199,6 +199,7 @@ def figur():
     run = Drawing("pojken-spring-prov.png")   # push, flight, push, flight – near leg always in front
     fall = Drawing("pojken-fall-prov.png")    # fall, bromsa
     idle = Drawing("pojken-idle-prov.png")    # stå, andas in, tittar på oss, tittar upp (fötterna stilla)
+    duck = Drawing("pojken-duck-prov.png")    # ducka, glida (huvudet lika stort som när han står → 68 px hög)
     s = std.scale_for(0, 96)
     pass_h = round((walk.boxes[1][3] - walk.boxes[1][1]) / s)
     s_far, s_near = pass_far.scale_for(0, pass_h), pass_near.scale_for(0, pass_h)
@@ -206,16 +207,18 @@ def figur():
     s_run = s * ((run.boxes[0][3] - run.boxes[0][1]) / (walk.boxes[0][3] - walk.boxes[0][1])) ** 0  # same canvas as the walk
     s_fall = fall.scale_for(0, 96)
     s_idle = idle.scale_for(0, 96)
+    duck.common_ground()
+    s_duck = duck.scale_for(0, 68)
     for d, k in ((std, s), (walk, s), (pass_far, s_far), (pass_near, s_near), (oj, s_oj), (run, s_run), (fall, s_fall),
-                 (idle, s_idle)):
+                 (idle, s_idle), (duck, s_duck)):
         d.peel(k)
     run.common_ground()
     idle.common_ground()
     cuts = [std.cut(0, s), walk.cut(0, s), pass_far.cut(0, s_far), walk.cut(2, s), pass_near.cut(0, s_near),
             std.cut(3, s), oj.cut(0, s_oj)] + [run.cut(i, s_run) for i in range(4)] + [fall.cut(0, s_fall), fall.cut(1, s_fall)] + \
-        [idle.cut(i, s_idle) for i in range(4)]
+        [idle.cut(i, s_idle) for i in range(4)] + [duck.cut(0, s_duck), duck.cut(1, s_duck)]
     names = ["sta", "kliv1", "mellan1", "kliv2", "mellan2", "hopp", "oj", "spring1", "spring2", "spring3", "spring4",
-             "fall", "bromsa", "idle1", "idle2", "idle3", "idle4"]
+             "fall", "bromsa", "idle1", "idle2", "idle3", "idle4", "duck", "glid"]
     cells, size = sheet("pojken", cuts, names)
     # The far leg darker – walk: kliv1, mellan1, kliv2; run (15 Nov: Codex drew the alternation right, but its
     # dark blue was too close to the light one, the user saw "the same leg up every time"): push 1 and flight 1 =
@@ -273,11 +276,22 @@ def bakgrund(nr="1"):
     px = list(get())
     tw, th = 480, 300
     out = pa.cells(w, h, px, (0, 0, w, h), tw, th, False)
+    # Gula prickar i nedre delen (Kakans blommor i markhöjd) såg ut som saker att plocka – "halva bananer"
+    # (användaren 15 nov): målas över med närmaste icke-gula granne till vänster
+    gul = lambda c: c and c[0] > 170 and c[1] > 140 and c[2] < 120 and c[0] - c[2] > 90
+    for y in range(int(th * 0.55), th):
+        for x in range(tw):
+            if gul(out[y * tw + x]):
+                for d in range(1, 12):
+                    n = out[y * tw + max(0, x - d)]
+                    if not gul(n):
+                        out[y * tw + x] = n
+                        break
     pal = pa.median_cut(sorted({c[:3] for c in out if c}), 48)
     memo = {}
     # TOPP extra rader överst = de översta raderna spegelvända uppåt: kameran går upp i höga hopp, och
     # bakgrunden ligger lågt (blomraden bakom marken) – annars syntes en ljus rand överst (användaren 15 nov)
-    top = 40
+    top = 0  # 0: spegelvänt uppåt såg konstigt ut (användaren) – hela bilden ligger högre i stället
     img = Image.new("RGBA", (tw * 2, th + top))
     for y in range(th):
         for x in range(tw):

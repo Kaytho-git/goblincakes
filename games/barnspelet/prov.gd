@@ -65,6 +65,9 @@ func _flytta(x: float, y: float) -> void:
 	pojke.dod = false
 	pojke.collision_mask = 1
 	pojke.visible = true
+	pojke.ducker = false
+	pojke.glider = false
+	Spel.prov_ner = false
 	Spel.prov_x = 0.0
 	Spel.prov_hopp = false
 	Spel.prov_spring = false
@@ -167,6 +170,33 @@ func _kor() -> void:
 	Spel.prov_hopp = false
 	Spel.prov_x = 0.0
 	_koll("vänder i luften (för kort hopp går att rädda)", pojke.position.x < x_hopp, "%.0f px bakåt" % (x_hopp - pojke.position.x))
+
+	# ducka: står still, låg
+	await _flytta(900.0, 432.0)
+	Spel.prov_ner = true
+	await _rutor(10)
+	_koll("ducka: låg och still", pojke.ducker and pojke.rect().size.y < 60.0 and absf(pojke.velocity.x) < 1.0)
+	Spel.prov_ner = false
+	await _rutor(5)
+	_koll("reser sig när man släpper", not pojke.ducker and pojke.rect().size.y > 80.0)
+	# glida i fart: glider en bit, farten avtar, slår ut en bil
+	await _flytta(860.0, 432.0)
+	Spel.prov_x = 1.0
+	Spel.prov_spring = true
+	await _rutor(40)
+	var glidbil: Node2D = bana.ny_bil(Vector2(pojke.position.x + 150.0, 432.0))
+	glidbil.vaken = true
+	Spel.prov_ner = true
+	await _rutor(3)
+	var glid_start := pojke.position.x
+	_koll("glida i fart", pojke.glider and pojke.rect().size.y < 60.0)
+	await _rutor(30)
+	_koll("glidningen slår ut racerbilen", (not is_instance_valid(glidbil) or glidbil.platt) and not pojke.dod,
+			"%.0f px glidning" % (pojke.position.x - glid_start))
+	Spel.prov_ner = false
+	Spel.prov_spring = false
+	Spel.prov_x = 0.0
+	await _rutor(40)
 
 	# trampa på en racerbil
 	await _flytta(900.0, 432.0)

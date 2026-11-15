@@ -26,6 +26,12 @@ var fiender: Array = []
 var boss: Node2D
 var saker: Array = []  ## {"typ", "nod", "rect", "y"}
 var klar := false
+## Vid målet (användaren 15 nov): fiender utslagna av alla som går att slå ut, knappar plockade av alla –
+## i det sista försöket (banan laddas om när man dör, och allt kommer tillbaka)
+var utslagna := 0
+var _alla_fiender := 0
+var _alla_knappar := 0
+var plockade := 0
 var rader: PackedStringArray
 
 var _fast := {}
@@ -55,6 +61,8 @@ func _ready() -> void:
 	_rutor(rader)
 	_figurer(rader)
 	_testa_harifran()
+	_alla_fiender = fiender.filter(func(f): return f.trampbar).size()
+	_alla_knappar = saker.filter(func(x): return x["typ"] == "knapp").size()
 	_ny_pojke()
 	_ny_kamera()
 	_hud()
@@ -290,6 +298,8 @@ func _ny_kamera() -> void:
 func _physics_process(_dt: float) -> void:
 	if Spel.redigerar:
 		return
+	if not klar:
+		Spel.tid += _dt
 	if not pojke.dod:
 		kamera.position = Vector2(pojke.position.x, pojke.position.y - 90.0)
 	if pojke.dod or klar:
@@ -309,9 +319,15 @@ func _physics_process(_dt: float) -> void:
 		var r: Rect2 = b.rect()
 		if b.platt or not r.has_area() or not pr.intersects(r):
 			continue
-		# uppifrån och på väg ner = trampa (om den går att trampa på); annars "oj"
-		if b.trampbar and pojke.velocity.y > 0.0 and pojke.position.y < r.position.y + 22.0:
+		# uppifrån och på väg ner = trampa (om den går att trampa på); en glidning slår ut det som går på
+		# marken (ormar, bilar); annars "oj"
+		if b.trampbar and pojke.glider and b.get_script().resource_path.ends_with("gangare.gd"):
 			b.platta()
+			utslagna += 1
+			Spel.ljud("trampa")
+		elif b.trampbar and pojke.velocity.y > 0.0 and pojke.position.y < r.position.y + 22.0:
+			b.platta()
+			utslagna += 1
 			pojke.studsa()
 		else:
 			pojke.do()
@@ -328,6 +344,7 @@ func _physics_process(_dt: float) -> void:
 		match s["typ"]:
 			"knapp":
 				Spel.ta_knapp()
+				plockade += 1
 				_ta_bort(s)
 			"hjarta":
 				Spel.nytt_liv()
@@ -420,6 +437,7 @@ func _raddad(s: Dictionary) -> void:
 	pojke.visible = false
 	s["nod"].visible = false
 	Spel.ljud("raddad")
+	_visa_tid()
 	var t_bild := Sprite2D.new()
 	t_bild.texture = Bilder.textur("triumf")
 	t_bild.centered = false
@@ -434,9 +452,104 @@ func _raddad(s: Dictionary) -> void:
 	t.tween_property(t_bild, "position:y", s["y"], 0.2).set_ease(Tween.EASE_IN)
 	if Spel.prov:
 		return
-	await get_tree().create_timer(4.0).timeout
+	await get_tree().create_timer(5.0).timeout
 	Spel.flagga = -1.0  # steg 2: tillbaka till kartan
+	Spel.test_start = Vector2.ZERO
+	Spel.ny_runda()
 	get_tree().reload_current_scene()
+
+
+## Tiden när banan är klar (för den vuxne – siffror, inga ord): tiden stort, bästa tiden under,
+## krona vid nytt rekord. Från "spela härifrån" grå och inget rekord.
+func _visa_tid() -> void:
+	var rekord := Spel.spara_tid(Spel.bana, Spel.tid)
+	var basta := Spel.basta_tid(Spel.bana)
+	var lager := CanvasLayer.new()
+	lager.layer = 5
+	add_child(lager)
+	var ruta := VBoxContainer.new()
+	ruta.position = Vector2(0, 40)
+	ruta.size = Vector2(960, 140)
+	ruta.alignment = BoxContainer.ALIGNMENT_BEGIN
+	lager.add_child(ruta)
+	var stor := LabelSettings.new()
+	stor.font_size = 44
+	stor.outline_size = 8
+	stor.outline_color = Color(0.16, 0.1, 0.2)
+	stor.font_color = Color(1.0, 0.85, 0.25) if rekord else (Color(1, 1, 1) if Spel.tid_giltig else Color(0.75, 0.75, 0.75))
+	ruta.add_child(_tid_rad(Spel.tid, stor, rekord, 4))
+	var rad := HBoxContainer.new()
+	rad.alignment = BoxContainer.ALIGNMENT_CENTER
+	rad.add_theme_constant_override("separation", 36)
+	ruta.add_child(rad)
+	var mellan := stor.duplicate()
+	mellan.font_size = 28
+	rad.add_child(_rakning(Bilder.bild("orm", "orm1") if Bilder.info("orm")["frames"].size() > 0 else null, utslagna, _alla_fiender, mellan))
+	rad.add_child(_rakning(Bilder.textur("knapp"), plockade, _alla_knappar, mellan))
+	if basta >= 0.0 and not rekord:
+		var liten := stor.duplicate()
+		liten.font_size = 24
+		liten.font_color = Color(1.0, 0.85, 0.25)
+		ruta.add_child(_tid_rad(basta, liten, true, 2))
+
+
+## [bild] 8/8 – guld när allt är taget
+func _rakning(bild: Texture2D, n: int, av: int, stil: LabelSettings) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 8)
+	if bild:
+		var t := TextureRect.new()
+		t.texture = bild
+		t.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		h.add_child(t)
+	var l := Label.new()
+	l.text = "%d/%d" % [n, av]
+	var st := stil.duplicate()
+	st.font_color = Color(1.0, 0.85, 0.25) if n >= av else Color(1, 1, 1)
+	l.label_settings = st
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(l)
+	return h
+
+
+## En rad: [krona] tid, centrerad
+func _tid_rad(t: float, stil: LabelSettings, krona: bool, skala: int) -> HBoxContainer:
+	var rad := HBoxContainer.new()
+	rad.alignment = BoxContainer.ALIGNMENT_CENTER
+	rad.add_theme_constant_override("separation", 10)
+	if krona:
+		var k := TextureRect.new()
+		k.texture = _krona(skala)
+		k.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		rad.add_child(k)
+	var l := Label.new()
+	l.text = Spel.tid_text(t)
+	l.label_settings = stil
+	rad.add_child(l)
+	return rad
+
+
+## En liten pixelkrona (rekord) – ritad här i stället för ett tecken som typsnittet kanske saknar
+func _krona(skala: int) -> ImageTexture:
+	var m := [
+		"..#.....#.....#..",
+		".#o#...#o#...#o#.",
+		"..##..#####..##..",
+		"..###########.#..",
+		"..#############..",
+		"..##o###o###o##..",
+		"..#############..",
+		"..#############..",
+		".ddddddddddddddd.",
+	]
+	var img := Image.create(17 * skala, m.size() * skala, false, Image.FORMAT_RGBA8)
+	var farg := {"#": Color(1.0, 0.82, 0.2), "o": Color(0.9, 0.25, 0.3), "d": Color(0.7, 0.45, 0.1)}
+	for y in m.size():
+		for x in 17:
+			var c: String = m[y][x]
+			if farg.has(c):
+				img.fill_rect(Rect2i(x * skala, y * skala, skala, skala), farg[c])
+	return ImageTexture.create_from_image(img)
 
 
 # ── Skärmen ──────────────────────────────────────────────────────
@@ -466,6 +579,16 @@ func _hud() -> void:
 	ram.custom_minimum_size = Vector2(10 * 12 + 6, 22)
 	ram.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	rad.add_child(ram)
+	_hud_tid = Label.new()
+	var ts := LabelSettings.new()
+	ts.font_size = 22
+	ts.outline_size = 5
+	ts.outline_color = Color(0.16, 0.1, 0.2)
+	_hud_tid.label_settings = ts
+	_hud_tid.position = Vector2(830, 12)
+	_hud_tid.size = Vector2(110, 30)
+	_hud_tid.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	lager.add_child(_hud_tid)
 	_hud_bananer = HBoxContainer.new()
 	_hud_bananer.position = Vector2(20, 84)
 	_hud_bananer.add_theme_constant_override("separation", 2)
@@ -478,6 +601,7 @@ func _hud() -> void:
 		_hud_fack.append(fack)
 
 
+var _hud_tid: Label
 var _hud_hjartan: HBoxContainer
 var _hud_bananer: HBoxContainer
 var _visade_bananer := -1
@@ -486,6 +610,9 @@ var _visat_liv := -1
 
 
 func _hud_uppdatera() -> void:
+	_hud_tid.visible = Spel.visa_tid and not klar
+	if _hud_tid.visible:
+		_hud_tid.text = Spel.tid_text(Spel.tid)
 	if _visat_liv != Spel.liv:
 		_visat_liv = Spel.liv
 		for c in _hud_hjartan.get_children():
@@ -520,9 +647,9 @@ func _bakgrund() -> void:
 		s.texture = tex
 		s.centered = false
 		s.scale = Vector2(2, 2)  # bakgrunden ritad grövre (480 × 300 per halva)
-		# nederkanten 200 px under markytan: Kakans blomrad längst ner hamnar bakom marken (den såg ut som
-		# saker att plocka – "halva bananer", användaren 15 nov)
-		s.position = Vector2(0, MARKYTA + 200.0 - tex.get_height() * 2.0)
+		# överkanten i banans överkant (kameran går aldrig högre) och resten så långt ner det går: Kakans
+		# blomrad längst ner ska ligga bakom marken (den såg ut som saker att plocka – "halva bananer")
+		s.position = Vector2(0, 0)
 		p.add_child(s)
 		add_child(p)
 		return

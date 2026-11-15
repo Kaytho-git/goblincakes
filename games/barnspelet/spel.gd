@@ -19,12 +19,59 @@ var red_senast := Vector3i(-1, -1, 0)
 var red_historik: Array[String] = []
 var test_start := Vector2.ZERO  ## "spela härifrån" – gäller tills man spelar från början
 
+## Tiden (användaren 15 nov: "man ska kunna se hur snabbt man klarat banan … Speedruns incoming!"):
+## från banans början tills buren öppnas, dödsfall räknas med (scenen laddas om men tiden går vidare).
+## Man förlorar aldrig på tid. Bästa tiden per bana i user://basta-tider.json. T = tidtagare medan man spelar.
+var tid := 0.0
+var tid_giltig := true  ## false när man började mitt i ("spela härifrån") – blir inget rekord
+var visa_tid := false
+const TIDER := "user://basta-tider.json"
+
+
+## Banan börjar om från början: tiden nollas
+func ny_runda() -> void:
+	tid = 0.0
+	tid_giltig = test_start == Vector2.ZERO
+
+
+func basta_tid(namn: String) -> float:
+	var f := FileAccess.open(TIDER, FileAccess.READ)
+	if f == null:
+		return -1.0
+	var d = JSON.parse_string(f.get_as_text())
+	return float(d.get(namn, -1.0)) if d is Dictionary else -1.0
+
+
+## Sparar om det är rekord; returnerar true vid nytt rekord
+func spara_tid(namn: String, t: float) -> bool:
+	if not tid_giltig or prov:
+		return false
+	var gammal := basta_tid(namn)
+	if gammal >= 0.0 and t >= gammal:
+		return false
+	var d := {}
+	var f := FileAccess.open(TIDER, FileAccess.READ)
+	if f:
+		var las = JSON.parse_string(f.get_as_text())
+		if las is Dictionary:
+			d = las
+		f.close()
+	d[namn] = t
+	f = FileAccess.open(TIDER, FileAccess.WRITE)
+	f.store_string(JSON.stringify(d))
+	return true
+
+
+static func tid_text(t: float) -> String:
+	return "%d:%05.2f" % [int(t) / 60, fmod(t, 60.0)]
+
 ## Proven (prov.gd) styr pojken i stället för kontrollen
 var prov := false
 var prov_x := 0.0
 var prov_hopp := false
 var prov_spring := false
 var prov_special := false
+var prov_ner := false
 
 var _ljud := {}
 var _spelare: Array[AudioStreamPlayer] = []
@@ -94,10 +141,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if prov or not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 	var bana := get_tree().current_scene
+	if event.keycode == KEY_T:
+		visa_tid = not visa_tid
 	if event.keycode == KEY_E:
 		if redigerar:  # spela härifrån
 			redigerar = false
 			test_start = Vector2(red_kamera.x, -1.0)
+			ny_runda()
 		else:
 			redigerar = true
 			red_kamera = bana.kamera.get_screen_center_position()
@@ -106,6 +156,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		redigerar = false
 		test_start = Vector2.ZERO
 		flagga = -1.0
+		ny_runda()
 		get_tree().reload_current_scene()
 
 
@@ -124,6 +175,12 @@ func hopp_nere() -> bool:
 
 func spring_nere() -> bool:
 	return prov_spring if prov else Input.is_action_pressed("spring")
+
+
+func ner_nere() -> bool:
+	if prov:
+		return prov_ner
+	return Input.is_action_pressed("ner")
 
 
 func special_nere() -> bool:
@@ -153,6 +210,7 @@ func forlorat() -> bool:
 		liv = LIV_START
 		knappar = 0
 		flagga = -1.0
+		ny_runda()
 		return true
 	return false
 
