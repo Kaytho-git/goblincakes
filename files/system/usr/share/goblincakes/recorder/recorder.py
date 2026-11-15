@@ -1399,11 +1399,13 @@ def cs2_demo_load(path):
         "hurts": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "attacker": _sid(r.get("attacker_steamid")),
                    "dmg": _int(r.get("dmg_health") or 0), "health": _int(r.get("health") or 0),
                    "weapon": str(r.get("weapon") or "")} for r in live_rows("player_hurt")],
-        # n = the bullet's place in the spray (0 = the first), speed = how fast you moved (units/s)
+        # n = the bullet's place in the spray (0 = the first), speed = how fast you moved (units/s),
+        # duck = how crouched (0–1; counter-strafe leaves crouched shots out)
         "fires": [{"tick": r["tick"], "who": _sid(r.get("user_steamid")), "weapon": str(r.get("weapon") or ""),
                    "n": _int(r.get("user_shots_fired") or 0),
-                   "speed": math.hypot(_float(r.get("user_velocity_X")), _float(r.get("user_velocity_Y")))}
-                  for r in live_rows("weapon_fire", player=["shots_fired", "velocity_X", "velocity_Y"])],
+                   "speed": math.hypot(_float(r.get("user_velocity_X")), _float(r.get("user_velocity_Y"))),
+                   "duck": _float(r.get("user_duck_amount"))}
+                  for r in live_rows("weapon_fire", player=["shots_fired", "velocity_X", "velocity_Y", "duck_amount"])],
         "blinds": [{"tick": r["tick"], "victim": _sid(r.get("user_steamid")), "attacker": _sid(r.get("attacker_steamid")),
                     "time": _float(r.get("blind_duration") or 0)} for r in live_rows("player_blind")],
     }
@@ -1520,6 +1522,7 @@ def cs2_demo_analyse(raw, me):
     # damage (capped at the health the enemy had left), hits and shots per weapon
     health, dmg, util = {}, 0, {"heDmg": 0, "fireDmg": 0}
     weapons, variant = {}, {}  # base gun → numbers; base gun → {the name you shot with: shots}
+    hit_shots = set()  # (gun, tick): a shotgun's pellets (or a bullet through two players) = one hit
 
     def gun(w, count=0):
         base = SAME_GUN.get(w, w)
@@ -1540,7 +1543,10 @@ def cs2_demo_analyse(raw, me):
         elif w in ("inferno", "molotov", "incgrenade"):
             util["fireDmg"] += real
         elif w and not NOT_GUNS.search(w):
-            gun(w)["hits"] += 1
+            base = SAME_GUN.get(w, w)
+            if (base, h["tick"]) not in hit_shots and (base, h["tick"] - 1) not in hit_shots:
+                hit_shots.add((base, h["tick"]))
+                gun(w)["hits"] += 1
     thrown = {"flash": 0, "smoke": 0, "he": 0, "molotov": 0, "decoy": 0}
     for f in raw["fires"]:
         if f["who"] != me or round_of(f["tick"]) is None:
@@ -1609,10 +1615,14 @@ EYE, DUCK = 64.0, 18.0  # eye height standing, and how much lower crouched
 # sight up to FIGHT_SLACK before (without the map's geometry: one of your hits within a second)
 FIGHT_SLACK = TICKRATE // 2
 NO_SHOT_STATS = re.compile(NOT_GUNS.pattern + r"|nova|xm1014|mag7|sawedoff")  # shotguns: many pellets
-SPRAY_GUNS = {"ak47", "m4a1", "m4a1_silencer", "famas", "galilar", "aug", "sg556", "mac10", "mp9", "mp7",
-              "mp5sd", "ump45", "p90", "bizon", "negev", "m249", "cz75a"}
-SPRAY_FROM = 3  # the 4th bullet and on = the spray (the first ones go where you aim)
-# Counter-strafe: a gun is accurate below 34 % of its top speed (units/s; others 240)
+# Spray and counter-strafe as Leetify's glossary defines them (15 Nov, the user's decision – compared on two
+# Premier matches, all ten players: counter-strafe off by 3.6 points on average, was 23 with only the
+# first bullet of every gun): rifles only; a spray = 3+ shots in a row, all of its shots count;
+# counter-strafe = every rifle shot not crouched, good below 34 % of the top speed
+RIFLES = {"ak47", "m4a1", "m4a1_silencer", "m4a1_silencer_off", "famas", "galilar", "aug", "sg556"}
+SPRAY_MIN = 3
+CROUCHED = 0.5
+# A gun is accurate below 34 % of its top speed (units/s; others 240)
 MAX_SPEED = {"ak47": 215, "m4a1": 225, "m4a1_silencer": 225, "famas": 220, "galilar": 215, "aug": 220,
              "sg556": 210, "awp": 200, "ssg08": 230, "g3sg1": 215, "scar20": 215, "mp7": 220, "mp5sd": 235,
              "ump45": 230, "p90": 230, "negev": 150, "m249": 195, "deagle": 230, "revolver": 180}
@@ -1895,9 +1905,9 @@ def cs2_demo_aim(dem, raw, a, me):
 
 
 def cs2_demo_shots(raw, me, fight=None):
-    """Your shots in fights: first-shot accuracy (the spray's first bullet hits), spray control
-    (the 4th bullet and on hits, rifles/SMGs), counter-strafe (the first bullet fired standing
-    still enough to be accurate). A hit = your player_hurt on the same tick with the same gun.
+    """Your shots in fights: first-shot accuracy (the spray's first bullet hits, every gun but
+    shotguns – our own measure), spray accuracy and counter-strafe (Leetify's definitions, see RIFLES).
+    A hit = your player_hurt on the same tick with the same gun.
     fight = ticks with an enemy in sight (cs2_demo_aim), else near one of your hits."""
     def gun(w):
         w = str(w or "").removeprefix("weapon_")
@@ -1916,8 +1926,8 @@ def cs2_demo_shots(raw, me, fight=None):
         return i < len(hit_ticks) and hit_ticks[i] <= t + TICKRATE
 
     first = [0, 0]
-    spray = [0, 0]
-    still = 0
+    sprays, cur = [], []  # each rifle spray: hit or not per shot
+    strafe = [0, 0]
     for f in sorted((f for f in raw["fires"] if f["who"] == me), key=lambda f: f["tick"]):
         name = str(f["weapon"]).removeprefix("weapon_")
         if NO_SHOT_STATS.search(name) or not in_fight(f["tick"]):
@@ -1933,13 +1943,21 @@ def cs2_demo_shots(raw, me, fight=None):
         if n == 0:
             first[0] += hit
             first[1] += 1
-            still += f.get("speed", 0) <= STILL * MAX_SPEED.get(name, 240)
-        elif n >= SPRAY_FROM and name in SPRAY_GUNS:
-            spray[0] += hit
-            spray[1] += 1
+        if name not in RIFLES:
+            continue
+        if n == 0 and cur:
+            sprays.append(cur)
+            cur = []
+        cur.append(hit)
+        if f.get("duck", 0) < CROUCHED:
+            strafe[0] += f.get("speed", 0) < STILL * MAX_SPEED.get(name, 240)
+            strafe[1] += 1
+    if cur:
+        sprays.append(cur)
+    spray = [h for sp in sprays if len(sp) >= SPRAY_MIN for h in sp]
     return {"firstShot": round(100 * first[0] / first[1]) if first[1] >= 5 else None, "firstShots": first[1],
-            "spray": round(100 * spray[0] / spray[1]) if spray[1] >= 10 else None, "sprayShots": spray[1],
-            "strafe": round(100 * still / first[1]) if first[1] >= 5 else None}
+            "spray": round(100 * sum(spray) / len(spray)) if len(spray) >= 10 else None, "sprayShots": len(spray),
+            "strafe": round(100 * strafe[0] / strafe[1]) if strafe[1] >= 5 else None, "strafeShots": strafe[1]}
 
 
 PLAYER_KEYS = ("kills", "deaths", "assists", "kd", "adr", "kast", "hs", "entryWon", "entryLost", "trades",

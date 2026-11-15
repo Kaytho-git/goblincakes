@@ -464,10 +464,10 @@ Window {
                          + (ds.s.reactionCount || 0) + " gånger) – lägre är bättre."],
                         ["1:A SKOTTET", win.pct(ds.s.firstShot), "Första kulan träffar – av " + (ds.s.firstShots || 0)
                          + " första skott när en fiende syntes. Egen mätning – jämför med dig själv över tid, inte med Leetify."],
-                        ["SPRAY", win.pct(ds.s.spray), "Spray control: kula 4 och framåt som träffar (gevär/k-pistar) – av "
-                         + (ds.s.sprayShots || 0) + " skott. Egen mätning – jämför med dig själv över tid, inte med Leetify."],
-                        ["STRAFE", win.pct(ds.s.strafe), "Counter-strafe: första skottet avlossat så stilla att det var träffsäkert "
-                         + "(under 34 % av vapnets fart). Egen mätning – jämför med dig själv över tid, inte med Leetify."]]
+                        ["SPRAY", win.pct(ds.s.spray), "Spray accuracy: skotten i sprayer på 3+ skott som träffar, bara gevär – av "
+                         + (ds.s.sprayShots || 0) + " skott. Som Leetify räknar, men träffarna räknas lite olika – ungefärligt."],
+                        ["STRAFE", win.pct(ds.s.strafe), "Counter-strafe: gevärsskott avlossade så stilla att de var träffsäkra (under 34 % "
+                         + "av vapnets fart), hukade skott räknas inte – av " + (ds.s.strafeShots || 0) + " skott. Som Leetify räknar."]]
                 Rectangle {
                     G.Light {}
                     required property var modelData
@@ -2996,8 +2996,8 @@ Window {
                 StatTile { label: "SIKTE"; value: parent.a.cp ? win.num(parent.a.cp.toFixed(1)) + "°" : "–"; now: parent.n.cp; before: parent.b.cp; lowerBetter: true; tip: "Crosshair placement (ungefärlig, demon) – lägre är bättre." }
                 StatTile { label: "REAKTION"; value: win.ms(parent.a.reaction); now: parent.n.reaction; before: parent.b.reaction; lowerBetter: true; tip: "Från att du kunde se fienden till ditt första skott (demon) – lägre är bättre." }
                 StatTile { label: "1:A SKOTTET"; value: win.pct(parent.a.firstShot); now: parent.n.firstShot; before: parent.b.firstShot; tip: "Första kulan träffar när en fiende syns (demon). Egen mätning – jämför med dig själv över tid, inte med Leetify." }
-                StatTile { label: "SPRAY"; value: win.pct(parent.a.spray); now: parent.n.spray; before: parent.b.spray; tip: "Spray control: kula 4 och framåt som träffar, gevär och k-pistar (demon). Egen mätning – jämför med dig själv över tid, inte med Leetify." }
-                StatTile { label: "COUNTER-STRAFE"; value: win.pct(parent.a.strafe); now: parent.n.strafe; before: parent.b.strafe; tip: "Första skottet avlossat så stilla att det var träffsäkert, under 34 % av vapnets fart (demon). Egen mätning – jämför med dig själv över tid, inte med Leetify." }
+                StatTile { label: "SPRAY"; value: win.pct(parent.a.spray); now: parent.n.spray; before: parent.b.spray; tip: "Spray accuracy: skotten i sprayer på 3+ skott som träffar, bara gevär (demon). Som Leetify räknar, ungefärligt." }
+                StatTile { label: "COUNTER-STRAFE"; value: win.pct(parent.a.strafe); now: parent.n.strafe; before: parent.b.strafe; tip: "Gevärsskott avlossade under 34 % av vapnets fart, hukade skott räknas inte (demon). Som Leetify räknar." }
                 StatTile { label: "ENTRY / MATCH"; value: win.num(parent.p.entryWon) + "–" + win.num(parent.p.entryLost); now: parent.n.entryWon; before: parent.b.entryWon; tip: "Rundans första kill: vunna–förlorade per match (demon). Pilen: vunna." }
                 StatTile { label: "TRADES / MATCH"; value: win.num(parent.p.trades); now: parent.n.trades; before: parent.b.trades; tip: "Du hämnades en lagkamrat inom 5 s (demon)." }
                 StatTile { label: "CLUTCH / MATCH"; value: win.num(parent.p.clutchWon) + "/" + win.num(parent.p.clutches); now: parent.n.clutchWon; before: parent.b.clutchWon; tip: "1vX vunna av alla, per match (demon). Pilen: vunna." }
