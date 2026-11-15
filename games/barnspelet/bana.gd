@@ -913,6 +913,8 @@ func _hink_plats() -> void:
 	if _hink_sprite == null or _haller:
 		return
 	var v := 1.0 if pojke._vand > 0.0 else -1.0
+	# bär han den redan i bilderna (pojken-safari-hink): den lösa hinken syns bara när den står på marken
+	_hink_sprite.visible = pojke.ducker or pojke.glider or pojke.blad != _meta.get("pojke_hink", "")
 	if pojke.ducker or pojke.glider:
 		_hink_sprite.position = Vector2(v * 40.0, -15.0)
 	else:
@@ -928,10 +930,12 @@ func _hall_ut() -> void:
 	var mot := signf(boss.kompis_x() - pojke.position.x)
 	if mot == 0.0:
 		mot = 1.0
-	_hink_sprite.position = Vector2(mot * 18.0, -40.0)
-	var t := _hink_sprite.create_tween()
-	t.tween_property(_hink_sprite, "rotation", mot * 2.0, 0.25)
-	var kant := _hink_sprite.global_position + Vector2(mot * 12.0, 4.0)
+	var kant := pojke.position + Vector2(mot * 22.0, -30.0)  # handen
+	if pojke.blad != _meta.get("pojke_hink", ""):  # utan hink i bilderna: den lösa hinken tippas
+		_hink_sprite.visible = true
+		_hink_sprite.position = Vector2(mot * 18.0, -40.0)
+		_hink_sprite.create_tween().tween_property(_hink_sprite, "rotation", mot * 2.0, 0.25)
+		kant = _hink_sprite.global_position + Vector2(mot * 12.0, 4.0)
 	var mal := Vector2(boss.kompis_x(), boss.position.y - 10.0)
 	for i in 24:  # sandkorn som rinner ut i en båge
 		var k := ColorRect.new()

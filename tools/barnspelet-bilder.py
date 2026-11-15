@@ -224,7 +224,12 @@ def figur(klader=""):
     klader "-vinter" = the same drawings redrawn by Codex in winter clothes (pojken-…-vinter-prov….png) →
     the sheet pojken-vinter (the level's json "pojke")."""
     def D(namn):
-        return Drawing(namn.replace("-prov", klader + "-prov"))
+        # "-safari-hink" (the boy carrying the sand bucket): only the upright poses were redrawn – ducking,
+        # sliding, crawling and "oj" fall back to the plain safari drawings (the bucket is put down then)
+        fil = namn.replace("-prov", klader + "-prov")
+        if klader == "-safari-hink" and not (SRC / fil).exists():
+            fil = namn.replace("-prov", "-safari-prov")
+        return Drawing(fil)
     std = D("pojken-prov1.png")                 # stå, gång, gång, hopp (only stå and hopp used)
     walk = D("pojken-gangcykel-prov3.png")      # kliv, (mellan), kliv, (mellan)
     if klader:
@@ -293,7 +298,7 @@ def figur(klader=""):
     # dark blue was too close to the light one, the user saw "the same leg up every time"): push 1 and flight 1 =
     # far knee forward (right), push 2 and flight 2 = far leg planted/behind (left)
     for i, side in ((1, "left"), (2, "left"), (3, "right"), (7, "right"), (8, "right"), (9, "left"), (10, "left")):
-        if (klader == "-vinter" and i == 2) or klader == "-safari":
+        if (klader == "-vinter" and i == 2) or klader.startswith("-safari"):
             continue  # Codex drew the dark far leg already (winter passing steps; all safari frames – bare legs)
         darken_leg(cells[i], side, klader == "-vinter")
     save("pojken" + klader, cells, size, names)
@@ -563,7 +568,7 @@ def sand():
     save("bur-skoldpadda", cells, size, ["bur"])
 
 
-PARTS = {"figur-safari": lambda: figur("-safari"), "sand": sand, "sand-bakgrund": lambda: bakgrund("1", "sand"), "figur-vinter": lambda: figur("-vinter"), "sno": sno, "sno-bakgrund": lambda: bakgrund("1", "sno"), "modig": modig, "block": block, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
+PARTS = {"figur-safari": lambda: figur("-safari"), "figur-safari-hink": lambda: figur("-safari-hink"), "sand": sand, "sand-bakgrund": lambda: bakgrund("1", "sand"), "figur-vinter": lambda: figur("-vinter"), "sno": sno, "sno-bakgrund": lambda: bakgrund("1", "sno"), "modig": modig, "block": block, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
 
 if __name__ == "__main__":
     for part in sys.argv[1:] or PARTS:

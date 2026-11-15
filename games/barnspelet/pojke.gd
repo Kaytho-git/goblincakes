@@ -51,6 +51,7 @@ var _hopp_forra := false
 var _sprite: AnimatedSprite2D
 var _dod_tid := 0.0
 var _kvick := -1.0  ## djupet i kvicksanden (px), −1 = inte i den
+var blad := "pojken"  ## bildbladet (kläderna; pojken-safari-hink = bär hinken)
 
 
 func _ready() -> void:
@@ -68,7 +69,11 @@ func _ready() -> void:
 	# kläderna efter banan (json "pojke": snön = pojken-vinter; användaren 15 nov) – annars de vanliga
 	var bana_nod: Node = get_parent()
 	var meta: Dictionary = bana_nod._meta if bana_nod != null and bana_nod.get("_meta") is Dictionary else {}
-	var blad: String = meta.get("pojke", "pojken")
+	blad = meta.get("pojke", "pojken")
+	# med hinken i handen (Sanden: json "pojke_hink", bara när banan har sanddynor)
+	var hb: String = meta.get("pojke_hink", "")
+	if hb != "" and FileAccess.file_exists("res://bilder/%s.json" % hb) and bana_nod.saker.any(func(x): return x["typ"] == "sanddyn"):
+		blad = hb
 	if not FileAccess.file_exists("res://bilder/%s.json" % blad):
 		blad = "pojken"
 	var anims := {
