@@ -117,6 +117,7 @@ func _sak(typ: String, pos: Vector2, svavar: bool) -> Dictionary:
 	s.centered = false
 	s.offset = -c / 2.0 if svavar else Vector2(-c.x / 2.0, -c.y)
 	s.position = pos
+	s.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # guppar i _process
 	add_child(s)
 	var r := Rect2(pos - c / 2.0, c) if svavar else Rect2(pos - Vector2(c.x / 2.0, c.y), c)
 	var sak := {"typ": typ, "nod": s, "rect": r, "y": pos.y, "svavar": svavar}
@@ -151,6 +152,7 @@ func _ny_kamera() -> void:
 	kamera.limit_bottom = hojd * RUTA
 	kamera.position_smoothing_enabled = true
 	kamera.position_smoothing_speed = 7.0
+	kamera.process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS  # i takt med pojken (fysikinterpoleringen)
 	kamera.position = pojke.position
 	add_child(kamera)
 	kamera.reset_smoothing()
@@ -159,6 +161,8 @@ func _ny_kamera() -> void:
 # ── Varje bildruta ───────────────────────────────────────────────
 
 func _physics_process(_dt: float) -> void:
+	if not pojke.dod:
+		kamera.position = Vector2(pojke.position.x, pojke.position.y - 90.0)
 	if pojke.dod or klar:
 		return
 	if pojke.position.x < Pojke_halv():
@@ -207,8 +211,6 @@ func _process(dt: float) -> void:
 	for s in saker:
 		if s["svavar"]:  # knappar och hjärtan guppar
 			s["nod"].position.y = s["y"] + roundf(sin(_tid * 3.0 + s["nod"].position.x * 0.05) * 2.0)
-	if not pojke.dod:
-		kamera.position = Vector2(pojke.position.x, pojke.position.y - 90.0)
 	_hud_uppdatera()
 
 
@@ -239,6 +241,7 @@ func _raddad(s: Dictionary) -> void:
 	t_bild.offset = Vector2(-c.x / 2.0, -c.y)
 	t_bild.position = Vector2(s["nod"].position.x, s["y"])
 	t_bild.z_index = 5
+	t_bild.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # studsar med en tween
 	add_child(t_bild)
 	var t := create_tween().set_loops(5)
 	t.tween_property(t_bild, "position:y", s["y"] - 24.0, 0.2).set_ease(Tween.EASE_OUT)

@@ -26,6 +26,8 @@ window/stretch/scale_mode="integer"
 [physics]
 
 common/physics_ticks_per_second=60
+; mjuk rörelse på 144/180 Hz-skärmar: lägen mellan fysikstegen räknas ut (annars ryckte pojken – användaren 15 nov)
+common/physics_interpolation=true
 
 [rendering]
 

@@ -134,6 +134,19 @@ func _kor() -> void:
 	Spel.prov_hopp = false
 	Spel.prov_x = 0.0
 
+	# vända i luften: hopp åt höger i gångfart, spaken åt vänster direkt → ska landa till vänster om starten
+	await _flytta(900.0, 432.0)
+	Spel.prov_x = 1.0
+	await _rutor(30)
+	var x_hopp := pojke.position.x
+	Spel.prov_hopp = true
+	await _rutor(2)
+	Spel.prov_x = -1.0
+	await _rutor(60)
+	Spel.prov_hopp = false
+	Spel.prov_x = 0.0
+	_koll("vänder i luften (för kort hopp går att rädda)", pojke.position.x < x_hopp, "%.0f px bakåt" % (x_hopp - pojke.position.x))
+
 	# trampa på en racerbil
 	await _flytta(900.0, 432.0)
 	var bil: Node2D = bana.ny_bil(Vector2(1320.0, 432.0))  # ingen planka ovanför

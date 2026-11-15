@@ -163,21 +163,29 @@ def figur():
     oj = Drawing("pojken-oj-prov.png")
     run = Drawing("pojken-spring-prov.png")   # push, flight, push, flight – near leg always in front
     fall = Drawing("pojken-fall-prov.png")    # fall, bromsa
+    idle = Drawing("pojken-idle-prov.png")    # stå, andas in, tittar på oss, tittar upp (fötterna stilla)
     s = std.scale_for(0, 96)
     pass_h = round((walk.boxes[1][3] - walk.boxes[1][1]) / s)
     s_far, s_near = pass_far.scale_for(0, pass_h), pass_near.scale_for(0, pass_h)
     s_oj = oj.scale_for(0, 96)
     s_run = s * ((run.boxes[0][3] - run.boxes[0][1]) / (walk.boxes[0][3] - walk.boxes[0][1])) ** 0  # same canvas as the walk
     s_fall = fall.scale_for(0, 96)
-    for d, k in ((std, s), (walk, s), (pass_far, s_far), (pass_near, s_near), (oj, s_oj), (run, s_run), (fall, s_fall)):
+    s_idle = idle.scale_for(0, 96)
+    for d, k in ((std, s), (walk, s), (pass_far, s_far), (pass_near, s_near), (oj, s_oj), (run, s_run), (fall, s_fall),
+                 (idle, s_idle)):
         d.peel(k)
     run.common_ground()
+    idle.common_ground()
     cuts = [std.cut(0, s), walk.cut(0, s), pass_far.cut(0, s_far), walk.cut(2, s), pass_near.cut(0, s_near),
-            std.cut(3, s), oj.cut(0, s_oj)] + [run.cut(i, s_run) for i in range(4)] + [fall.cut(0, s_fall), fall.cut(1, s_fall)]
+            std.cut(3, s), oj.cut(0, s_oj)] + [run.cut(i, s_run) for i in range(4)] + [fall.cut(0, s_fall), fall.cut(1, s_fall)] + \
+        [idle.cut(i, s_idle) for i in range(4)]
     names = ["sta", "kliv1", "mellan1", "kliv2", "mellan2", "hopp", "oj", "spring1", "spring2", "spring3", "spring4",
-             "fall", "bromsa"]
+             "fall", "bromsa", "idle1", "idle2", "idle3", "idle4"]
     cells, size = sheet("pojken", cuts, names)
-    for i, side in ((1, "left"), (2, "left"), (3, "right")):
+    # The far leg darker – walk: kliv1, mellan1, kliv2; run (15 Nov: Codex drew the alternation right, but its
+    # dark blue was too close to the light one, the user saw "the same leg up every time"): push 1 and flight 1 =
+    # far knee forward (right), push 2 and flight 2 = far leg planted/behind (left)
+    for i, side in ((1, "left"), (2, "left"), (3, "right"), (7, "right"), (8, "right"), (9, "left"), (10, "left")):
         darken_leg(cells[i], side)
     save("pojken", cells, size, names)
 
