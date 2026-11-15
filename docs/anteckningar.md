@@ -1022,7 +1022,8 @@ Användaren: högra sidan av klockrutan var tom (headset med sladd → inget hea
 - **Beslutat:** Godot 4 (fysik/kollision/tilemap; banorna kan ritas i Godots redigerare), bara i barnläget (en ruta där). Liv – man dör och börjar om; fler liv genom att plocka upp något eller av poäng. Kontrollen (Xbox): A hoppa, håll X springa, Y powerups, B specialattack.
 - **Bilderna:** Kakan (Z-Image + pixelart-stilen, som barnläget) ritar bakgrunderna och världskartan; ChatGPT (`goblincakes-chatgpt image`, användaren trycker Enter) ritar allt rörligt (pojken i alla lägen, fiender, gossedjuren, föremål). Skälet: rörliga figurer måste se likadana ut i varje bild – ChatGPT kan få förra bilden som förlaga, Z-Image inte.
 - **Stegplan (förslag):** (1) känslan – en bana: springa/hoppa, en fiende, grop, flagga, döden; sonen provar; (2) världskartan, sparade framsteg, 3–4 banor, rutan i barnläget (KWin-skriptet släpper in fönstret som RetroArch, barnläget släpper kontrollen); (3) fler världar/fiender, bilder, ljud, musik.
-- **Öppet:** vad som händer när liven är slut, byggklossarna (tileset) – vem ritar dem, figurernas namn.
+- **Beslutat 15 nov (forts.):** liven slut → tillbaka till kartan, klarade banor kvar, liven fylls på. Byggklossarna: ChatGPT ritar, Claude rättar mot rutnätet (kod som reserv). Karta med ~10 banor; varje karta (värld) får sitt eget utseende, innehållet per bana bestäms tillsammans. Pojkens namn väljer spelaren; gossedjuren heter det de är (Björnen …); den onda leksaken = en actionfigur med cape. Varje bana: befria ett gossedjur ur en bur (förslag), knappar som poäng (100 = liv), hjärta/nalle = liv (förslag).
+- **Provbilden:** ChatGPT ritar pojken i fyra lägen (stå, gå ×2, hoppa) – användaren godkänner utseendet före steg 1.
 
 ## Flyttat från CLAUDE.md 14 nov (för att spara kontext)
 Står här ordagrant som det stod i CLAUDE.md – CLAUDE.md har bara en pekare kvar.

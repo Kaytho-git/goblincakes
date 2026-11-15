@@ -439,11 +439,36 @@ PICTURES = HOME / "Bilder"
 IMAGE_WAIT = 600
 
 
-def newest_images(since):
+def newest_images(since, old=frozenset()):
+    """Pictures newer than since – minus a copy in Bilder of one drawn before (15 Nov: the app wrote an
+    old picture into Bilder again when it started, and that was taken for the new one)."""
     found = list(GENERATED.glob("*/*.png"))
     for ext in ("png", "jpg", "jpeg", "webp"):
         found += PICTURES.glob("*." + ext)
-    return sorted((f for f in found if f.stat().st_mtime > since), key=lambda f: f.stat().st_mtime)
+    found = [f for f in found if f.stat().st_mtime > since]
+    if old:
+        found = [f for f in found if f.parent != PICTURES or digest(f) not in old]
+    return sorted(found, key=lambda f: f.stat().st_mtime)
+
+
+def digest(path):
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def drawn_before():
+    return frozenset(filter(None, (digest(f) for f in GENERATED.glob("*/*.png"))))
+
+
+def to_clipboard(text):
+    """The text in the clipboard too – 15 Nov the app opened without it in the box (Ctrl+V then)."""
+    try:
+        subprocess.Popen(["wl-copy", "--", text], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
 
 
 def close_app():
@@ -475,14 +500,16 @@ def cmd_image(args):
     text = " ".join(args).strip()
     if not text:
         fail("Skriv vad bilden ska föreställa")
+    old = drawn_before()
     started = time.time()
+    to_clipboard(text)
     cmd_open(text, NEW_CODEX)
-    status("Codex i ChatGPT-appen öppnas med texten ifylld – tryck Enter där. Väntar på bilden…")
+    status("Codex i ChatGPT-appen öppnas med texten ifylld – tryck Enter där (tom ruta: Ctrl+V först). Väntar på bilden…")
     while time.time() - started < IMAGE_WAIT:
-        found = newest_images(started)
+        found = newest_images(started, old)
         if found:
             time.sleep(4)  # let the app finish writing – and save its copy in Bilder
-            found = newest_images(started)
+            found = newest_images(started, old)
             saved = [f for f in found if f.parent == PICTURES]
             pic = (saved or found)[-1]
             if out is None and saved:
