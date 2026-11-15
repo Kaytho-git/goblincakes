@@ -79,6 +79,43 @@ func _ready() -> void:
 	_sprite.offset = Vector2(-cell.x / 2.0, -cell.y)
 	_sprite.play("sta")
 	add_child(_sprite)
+	var b: Node = get_parent()
+	_andas = b != null and b.get("_meta") is Dictionary and b._meta.get("andedrakt", false)
+
+
+## Andedräkten i kylan (banans json "andedrakt": true – snön; användaren 15 nov): ett litet vitt moln
+## ur munnen då och då, som glider framåt, växer och bleknar bort
+var _andas := false
+var _andas_tid := 1.0
+var _moln_bild: ImageTexture
+
+
+func _andedrakt(dt: float) -> void:
+	_andas_tid -= dt
+	if _andas_tid > 0.0 or dod:
+		return
+	_andas_tid = randf_range(1.6, 2.4) if absf(velocity.x) < 300.0 else randf_range(0.9, 1.3)  # tätare när han springer
+	if _moln_bild == null:
+		var img := Image.create(10, 7, false, Image.FORMAT_RGBA8)
+		for p in [[2, 1], [3, 1], [5, 1], [6, 1], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [6, 2], [7, 2],
+				[0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [8, 3],
+				[1, 4], [2, 4], [3, 4], [4, 4], [5, 4], [6, 4], [7, 4], [8, 4], [2, 5], [3, 5], [6, 5], [7, 5]]:
+			img.set_pixel(p[0], p[1], Color(1, 1, 1, 0.85 if p[1] in [2, 3] else 0.6))
+		_moln_bild = ImageTexture.create_from_image(img)
+	var m := Sprite2D.new()
+	m.texture = _moln_bild
+	m.z_index = 4
+	m.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # flyttas med en tween
+	var munnen := Vector2(_vand * 17.0, -hojd_nu + (24.0 if hojd_nu < HOJD else 30.0))
+	m.position = position + munnen
+	m.scale = Vector2(1.2, 1.2)
+	m.flip_h = _vand < 0.0
+	get_parent().add_child(m)
+	var t := m.create_tween().set_parallel()
+	t.tween_property(m, "position", m.position + Vector2(_vand * 22.0 + velocity.x * 0.3, -10.0), 1.1).set_ease(Tween.EASE_OUT)
+	t.tween_property(m, "scale", Vector2(2.6, 2.4), 1.1).set_ease(Tween.EASE_OUT)
+	t.tween_property(m, "modulate:a", 0.0, 1.1).set_ease(Tween.EASE_IN)
+	t.chain().tween_callback(m.queue_free)
 
 
 func _physics_process(dt: float) -> void:
@@ -157,6 +194,8 @@ func _physics_process(dt: float) -> void:
 	velocity.y = minf(velocity.y + g * dt, MAX_FALL)
 	move_and_slide()
 	_bild()
+	if _andas:
+		_andedrakt(dt)
 
 
 ## Vilken rörelse som syns. Spring från 320 px/s (gång 250, spring 400); bromsa = spaken åt andra hållet
