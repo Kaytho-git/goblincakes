@@ -35,6 +35,11 @@ func _ready() -> void:
 		Spel.bana = "provsno-tillfallig"
 		_sno_bana()
 		_kor_sno.call_deferred()
+	elif "--prov-sand" in args:
+		Spel.prov = true
+		Spel.bana = "provsand-tillfallig"
+		_sand_bana()
+		_kor_sand.call_deferred()
 	elif "--prov-djungel" in args:
 		Spel.prov = true
 		Spel.bana = "1"
@@ -429,6 +434,158 @@ const SNO_BANA := [
 	"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
 	"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
 ]
+
+
+const SAND_BANA := [
+	"................................................................................................",
+	"................................................................................................",
+	"................................................................................................",
+	"................................................................................................",
+	"................................................................................................",
+	"........................................................g.......................................",
+	"................................................................................................",
+	"................................................................................................",
+	"..P..y.y.y..........t.....vv....a.....x.....C.....w.........y.y.y.y.y.y.........O.........B.....",
+	"GGGGGGGGGGGGGZZGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+	"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+	"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+]
+
+
+func _sand_fil(slut: String) -> String:
+	return ProjectSettings.globalize_path("res://banor/provsand-tillfallig." + slut)
+
+
+func _sand_bana() -> void:
+	var f := FileAccess.open(_sand_fil("txt"), FileAccess.WRITE)
+	f.store_string("\n".join(SAND_BANA) + "\n")
+	f.close()
+	f = FileAccess.open(_sand_fil("json"), FileAccess.WRITE)
+	f.store_string(FileAccess.get_file_as_string("res://banor/3.json"))
+	f.close()
+
+
+## Sanden (bana 3): kvicksand, vind, skatt, fienderna, hinken och sköldpaddan
+func _kor_sand() -> void:
+	bana = get_tree().current_scene
+	pojke = bana.pojke
+	var R := 48.0
+	var U: float = (bana.hojd - SAND_BANA.size()) * R
+	var G: float = 9.0 * R + U  # markens yta
+	var finns := func(skript: String) -> Array:
+		return bana.fiender.filter(func(f): return is_instance_valid(f) and f.get_script().resource_path.ends_with(skript))
+	var gangare: Array = finns.call("gangare.gd")
+	var typ := func(t: String) -> Array:
+		return gangare.filter(func(g): return is_instance_valid(g) and g.typ == t)
+	_koll("sandens saker finns", typ.call("krabba").size() == 1 and typ.call("skorpion").size() == 1 and typ.call("kaktus").size() == 1
+			and finns.call("snohog.gd").size() == 1 and finns.call("papegoja.gd").size() == 1 and bana.boss != null
+			and bana.boss.get_script().resource_path.ends_with("skoldpadda.gd"))
+	_koll("dynor och skatt", bana.saker.filter(func(x): return x["typ"] == "sanddyn").size() == 9
+			and bana.saker.filter(func(x): return x["typ"] == "skatt").size() == 1)
+	for f in bana.fiender:  # fienderna stilla medan det andra provas
+		if is_instance_valid(f) and f != bana.boss:
+			f.process_mode = Node.PROCESS_MODE_DISABLED
+	# kvicksand: sjunker sakta, hoppa ur
+	await _flytta(13.5 * R, G - 2.0)
+	await _rutor(30)
+	var djup: float = bana.kvicksand(pojke.position)
+	_koll("kvicksand: sjunker sakta", djup > 2.0 and djup < 40.0 and not pojke.dod, "%.0f px" % djup)
+	Spel.prov_hopp = true
+	await _rutor(8)
+	Spel.prov_hopp = false
+	_koll("kvicksand: går att hoppa ur", pojke.position.y < G - 40.0 and not pojke.dod, "y %.0f (ytan %.0f)" % [pojke.position.y, G])
+	await _flytta(13.5 * R, G - 2.0)
+	for i in 200:
+		await get_tree().physics_frame
+		if pojke.dod:
+			break
+	_koll("kvicksand: för djupt = oj", pojke.dod)
+	# vinden knuffar bakåt (kolumn 26–27) när det blåser
+	await _flytta(23.0 * R, G)
+	while not bana.blaser():
+		await get_tree().physics_frame
+	pojke.position.x = 27.9 * R
+	var vx0 := pojke.position.x
+	await _rutor(15)
+	_koll("vinden knuffar bakåt", pojke.position.x < vx0 - 20.0, "%.0f px" % (vx0 - pojke.position.x))
+	# skatten: ducka på glittret = ett hjärta
+	Spel.liv = 3
+	await _flytta(20.0 * R + 24.0, G)
+	Spel.prov_ner = true
+	await _rutor(10)
+	Spel.prov_ner = false
+	_koll("skatten: ducka = ett hjärta", Spel.liv == 4 and bana.saker.filter(func(x): return x["typ"] == "skatt").is_empty(), "liv %d" % Spel.liv)
+	# skorpionen: svansen uppe = oj, nere = tramp
+	var sk: Node2D = typ.call("skorpion")[0]
+	sk.process_mode = Node.PROCESS_MODE_INHERIT
+	sk._svans_tid = 0.0
+	await _rutor(2)
+	await _flytta(sk.position.x, sk.position.y - 70.0)
+	sk._svans_tid = 0.0
+	pojke.velocity.y = 400.0
+	await _rutor(10)
+	_koll("skorpion med svansen uppe = oj", pojke.dod)
+	sk._svans_tid = 1.85  # svansen nere (i 1,35 s) innan pojken släpps ovanför
+	sk.trampbar = true  # (banan kollar trampet före skorpionens egen uppdatering)
+	await _flytta(sk.position.x, sk.position.y - 70.0)
+	pojke.velocity.y = 400.0
+	await _rutor(10)
+	_koll("skorpion med svansen nere = tramp", not pojke.dod and (not is_instance_valid(sk) or sk.platt), "död %s, platt %s, tramp %s, y %.0f" % [pojke.dod, sk.platt if is_instance_valid(sk) else true, sk.trampbar if is_instance_valid(sk) else true, pojke.position.y])
+	# kaktusen går inte att trampa på
+	var ka: Node2D = typ.call("kaktus")[0]
+	await _flytta(ka.position.x, ka.position.y - 80.0)
+	pojke.velocity.y = 400.0
+	await _rutor(15)
+	_koll("kaktus = oj (hoppa över)", pojke.dod)
+	# vindvirveln: en tumbleweed rullar ut
+	var vv: Node2D = finns.call("snohog.gd")[0]
+	vv.process_mode = Node.PROCESS_MODE_INHERIT
+	await _flytta(vv.position.x - 5.0 * R, G)
+	var tw: Node2D = null
+	for i in 240:
+		await get_tree().physics_frame
+		var tt: Array = finns.call("snoboll.gd")
+		if not tt.is_empty():
+			tw = tt[0]
+			break
+	_koll("vindvirveln: en tumbleweed rullar ut", tw != null and tw.blad == "tumbleweed")
+	vv.process_mode = Node.PROCESS_MODE_DISABLED
+	for f in finns.call("snoboll.gd"):
+		f.queue_free()
+	# gamen dyker mot pojken
+	var gam: Node2D = finns.call("papegoja.gd")[0]
+	gam.process_mode = Node.PROCESS_MODE_INHERIT
+	await _flytta(gam._hem.x, G)
+	gam._dyk_vila = 0.0
+	var lagst := gam.position.y
+	for i in 60:
+		await get_tree().physics_frame
+		lagst = maxf(lagst, gam.position.y)
+	_koll("gamen dyker", lagst > gam._hem.y + 60.0, "%.0f px ner" % (lagst - gam._hem.y))
+	gam.process_mode = Node.PROCESS_MODE_DISABLED
+	# hinken: tre dynor = full; full hink vid sköldpaddan = en del av slottet; tre delar = glad, vägen fri
+	var boss: Node2D = bana.boss
+	_koll("sköldpaddan spärrar vägen", not boss.sover and boss.kropp().has_area())
+	var dynor := func() -> Array:
+		return bana.saker.filter(func(x): return x["typ"] == "sanddyn")
+	for del in 3:
+		for d in 3:
+			await _flytta(dynor.call()[0]["nod"].position.x, G)
+		if del == 0:
+			_koll("tre dynor = full hink", bana._hink == 3, "%d" % bana._hink)
+		await _flytta(boss.position.x - 150.0, G)
+		if del == 0:
+			_koll("full hink vid sköldpaddan = en del av slottet", boss.delar == 1 and bana._hink == 0)
+	_koll("tre delar (9 dynor) = sköldpaddan glad", boss.delar == 3 and boss.sover and not boss.kropp().has_area())
+	await _rutor(180)
+	_koll("den går till slottet", boss._framme and boss.position.x < 80.0 * R - 100.0, "x %.0f" % boss.position.x)
+	await _flytta(90.0 * R + 24.0, G)
+	await _rutor(10)
+	_koll("buren öppnas", bana.klar)
+	DirAccess.remove_absolute(_sand_fil("txt"))
+	DirAccess.remove_absolute(_sand_fil("json"))
+	print("PROV SANDEN: %s" % ("allt klarat" if _fel == 0 else "%d fel" % _fel))
+	get_tree().quit(1 if _fel else 0)
 
 
 func _sno_fil(slut: String) -> String:

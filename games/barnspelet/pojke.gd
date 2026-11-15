@@ -30,6 +30,9 @@ const KRYP := 110.0         ## duckar = kryper i den farten; under ett tak tar g
 const IS_ACC := 300.0
 const IS_BROMS := 120.0
 const IS_VAND := 500.0
+## Kvicksanden (bana 3): sjunker sakta, går sakta, kan alltid hoppa ur (för djupt = oj, bana.gd)
+const SJUNK := 28.0
+const KVICK_FART := 90.0
 
 const BREDD := 34.0
 const HOJD := 86.0
@@ -47,6 +50,7 @@ var _buffert := 0.0
 var _hopp_forra := false
 var _sprite: AnimatedSprite2D
 var _dod_tid := 0.0
+var _kvick := -1.0  ## djupet i kvicksanden (px), −1 = inte i den
 
 
 func _ready() -> void:
@@ -186,8 +190,12 @@ func _physics_process(dt: float) -> void:
 	if x != 0.0:
 		_vand = signf(x)
 
-	# hopp: kant-tid och buffert gör det snällt
-	_kant = KANT_TID if is_on_floor() else maxf(0.0, _kant - dt)
+	var bn: Node2D = get_parent()
+	_kvick = bn.kvicksand(position) if bn.has_method("kvicksand") else -1.0
+	if _kvick >= 0.0:
+		velocity.x = clampf(velocity.x, -KVICK_FART, KVICK_FART)
+	# hopp: kant-tid och buffert gör det snällt (i kvicksanden går det alltid att hoppa)
+	_kant = KANT_TID if (is_on_floor() or _kvick >= 0.0) else maxf(0.0, _kant - dt)
 	_buffert = BUFFERT if nytt_hopp else maxf(0.0, _buffert - dt)
 	if _buffert > 0.0 and _kant > 0.0:
 		var fart := absf(velocity.x) / SPRING
@@ -201,7 +209,12 @@ func _physics_process(dt: float) -> void:
 		Spel.ljud("hopp")
 	var g := TYNGD_UPP if (velocity.y < 0.0 and hopp) else TYNGD
 	velocity.y = minf(velocity.y + g * dt, MAX_FALL)
+	if _kvick >= 0.0 and velocity.y > SJUNK:
+		velocity.y = SJUNK
+	var vind: float = bn.vind(position) if bn.has_method("vind") else 0.0
+	velocity.x += vind  # vindpusten knuffar bakåt (på marken och i luften)
 	move_and_slide()
+	velocity.x = 0.0 if is_on_wall() and vind != 0.0 else velocity.x - vind
 	_bild()
 	if _andas:
 		_andedrakt(dt)
@@ -245,7 +258,7 @@ func _bild() -> void:
 		_sprite.play("duck")
 		# kryper utan krypbilder: gungar lite upp och ner
 		_sprite.position.y = -2.0 if fart > 10.0 and int(Time.get_ticks_msec() / 140) % 2 == 0 else 0.0
-	elif not is_on_floor():
+	elif not is_on_floor() and _kvick < 0.0:
 		_sprite.play("hopp" if velocity.y < 0.0 else "fall")
 	elif bromsar:
 		_sprite.play("bromsa")

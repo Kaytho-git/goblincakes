@@ -12,6 +12,11 @@ extends Node2D
 ##   I  isplatta (halt – man glider; jord under)   /  backe upp åt höger   \\  backe ner åt höger (jord under)
 ##   q  pulka med ögon    m  snöplog (trampas två gånger)    n  snöhög (snöbollar rullar ut)
 ##   d  snöklot (bärs till snögubben, lämnas med B)
+## Sanden (bana 3, 15 nov):
+##   Z  kvicksand (man sjunker sakta, hoppa ur; för djupt = oj)   v  vind i hela kolumnen (knuffar bakåt i pustar)
+##   t  skatt (ducka på glittret)   y  sanddyna (fyller en tredjedel av hinken; full hink till sköldpaddan = en del
+##   av slottet)   a  krabba   x  skorpion (trampbar när svansen är nere)   w  vindvirvel (tumbleweeds rullar ut)
+##   g  gam (flyger i vågor, dyker)   C  kaktus (står still, hoppa över)
 ## Bossen (O) står i banans json "boss" (orangutang, snogubbe); "triumf" = bilden vid målet.
 
 const RUTA := 48
@@ -45,6 +50,9 @@ var _block := {}   ## Vector2i → 0 sten, 1 trälåda
 var _vatten := {}  ## Vector2i → true för ytan, false under
 var _backar := {}  ## Vector2i → 1 backe upp åt höger (/), -1 ner åt höger (\\)
 var _is := {}      ## isplattornas rutor (halt)
+var _kvick := {}   ## kvicksandens rutor (ytan och raden under) → ytans rad
+var _vind := {}    ## kolumner med vind
+var _hink := 0     ## sanddynor i hinken (3 = full)
 var _bar: Sprite2D  ## snöklotet pojken bär (null = inget)
 var _meta := {}
 var _kastade: Array = []  ## {"nod", "v", "studsad"}
@@ -168,6 +176,26 @@ func halt(p: Vector2) -> bool:
 	return _is.has(Vector2i(floori(p.x / RUTA), floori((p.y + 2.0) / RUTA)))
 
 
+## Kvicksanden: hur djupt fötterna är under ytan (px), −1 = inte i kvicksand
+func kvicksand(p: Vector2) -> float:
+	var c := Vector2i(floori(p.x / RUTA), floori((p.y - 1.0) / RUTA))
+	if not _kvick.has(c):
+		return -1.0
+	return p.y - _kvick[c] * RUTA
+
+
+## Vindpusten: blåser i pustar (2 s blåst, 1,6 s still) i kolumnerna med v
+const VIND := 150.0  ## px/s bakåt (mot början)
+
+
+func blaser() -> bool:
+	return fmod(_tid, 3.6) < 2.0
+
+
+func vind(p: Vector2) -> float:
+	return -VIND if _vind.has(floori(p.x / RUTA)) and blaser() else 0.0
+
+
 ## En backe vid x någonstans från y och djup px ner (det som går på marken: backen nedåt är ingen kant)
 func backe_under(p: Vector2, djup: float) -> bool:
 	var y := p.y
@@ -213,6 +241,14 @@ func _rutor(rader: PackedStringArray) -> void:
 						_mark[Vector2i(x, yy)] = true
 					if rader[y][x] == "I":
 						_is[Vector2i(x, y)] = true
+				"Z":  # kvicksand: ytan och raden under, fast mark därunder
+					for yy in range(y, mini(y + 2, hojd)):
+						_kvick[Vector2i(x, yy)] = y
+					for yy in range(y + 2, hojd):
+						_fast[Vector2i(x, yy)] = true
+						_mark[Vector2i(x, yy)] = true
+				"v":
+					_vind[x] = true
 				"/", "\\":
 					_backar[Vector2i(x, y)] = 1 if rader[y][x] == "/" else -1
 					for yy in range(y + 1, hojd):
@@ -226,6 +262,9 @@ func _rutor(rader: PackedStringArray) -> void:
 				"W", "c":
 					for yy in range(y, hojd):
 						_vatten[Vector2i(x, yy)] = yy == y
+	for c in _kvick:  # kvicksanden går före mark i samma ruta (G i raden under gjorde botten fast)
+		_fast.erase(c)
+		_mark.erase(c)
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(RUTA, RUTA)
 	ts.add_physics_layer()
@@ -267,10 +306,11 @@ func _rutor(rader: PackedStringArray) -> void:
 	add_child(isyns)
 	var yta := _mark.duplicate()  # backarna räknas som mark när kanterna väljs (inget kantgräs mot en backe)
 	yta.merge(_backar)
+	yta.merge(_kvick)  # kvicksanden också (ingen kant i sanden vid gropen)
 	var kantnamn := ["_v", "", "_h"]
 	var ismossa := []  ## isrutor som får snö ovanpå: [ruta, kant]
 	for c in _mark:
-		var topp := not _mark.has(c + Vector2i.UP) and not _backar.has(c + Vector2i.UP)
+		var topp := not _mark.has(c + Vector2i.UP) and not _backar.has(c + Vector2i.UP) and not _kvick.has(c + Vector2i.UP)
 		var ruta := Vector2i(nr.call(("gras" if topp else "jord") + kantnamn[_kant(yta, c)]), 0)
 		if _is.has(c) and namn.has("is"):
 			# isen syns utan MARK_UPP (blocket i höjd med marken) – i eget lager framför marken, med
@@ -313,6 +353,20 @@ func _rutor(rader: PackedStringArray) -> void:
 			blocksyns.set_cell(c, bid, Vector2i(_block[c], 0))
 	if not _backar.is_empty():
 		_backar_lager(ts, mark, lager, syns)
+	if namn.has("kvicksand") and not _kvick.is_empty():
+		var kv := TileMapLayer.new()  # framför pojken – han sjunker ner i den
+		kv.tile_set = ts
+		kv.collision_enabled = false
+		kv.position.y = -MARK_UPP
+		kv.z_index = 8
+		add_child(kv)
+		for c in _kvick:
+			kv.set_cell(c, sid, Vector2i(nr.call("kvicksand" + kantnamn[_kant(yta, c)]), 0))
+	if not _vind.is_empty():
+		var v := Node2D.new()
+		v.set_script(load("res://vind.gd"))
+		v.set("bana", self)
+		add_child(v)
 	if namn.has("vatten"):
 		var vatten := TileMapLayer.new()  # framför pojken och krokodilen
 		vatten.tile_set = ts
@@ -499,6 +553,20 @@ func _figurer(rader: PackedStringArray) -> void:
 					ny_fiende("snohog", golv)
 				"d":
 					_sak("snoklot", golv, false)
+				"a":
+					ny_fiende("gangare", golv, {"typ": "krabba"})
+				"x":
+					ny_fiende("gangare", golv, {"typ": "skorpion"})
+				"C":
+					ny_fiende("gangare", golv, {"typ": "kaktus"})
+				"w":
+					ny_fiende("snohog", golv, {"blad": "vindvirvel", "boll": "tumbleweed"})
+				"g":
+					ny_fiende("papegoja", mitt, {"blad": "gam", "dyker": true})
+				"t":
+					_sak("skatt", golv, false)
+				"y":
+					_sak("sanddyn", golv, false)
 				"O":
 					boss = ny_fiende(_meta.get("boss", "orangutang"), golv)
 					boss.somnade.connect(func(): Spel.ljud("raddad"))
@@ -508,13 +576,22 @@ func _sak(typ: String, pos: Vector2, svavar: bool, bild := "") -> Dictionary:
 	var s := Sprite2D.new()
 	if bild == "" or not FileAccess.file_exists("res://bilder/%s.json" % bild):
 		bild = typ
-	s.texture = Bilder.textur(bild)
-	var c: Vector2 = Bilder.cell(bild)
+	var c := Vector2(40, 20)  # skatten: bara glitter i sanden
+	if typ != "skatt":
+		s.texture = Bilder.textur(bild)
+		c = Bilder.cell(bild)
 	s.centered = false
 	s.offset = -c / 2.0 if svavar else Vector2(-c.x / 2.0, -c.y)
 	s.position = pos
 	s.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # guppar i _process
 	add_child(s)
+	if typ == "skatt":
+		for i in 3:
+			var g := Sprite2D.new()
+			g.texture = _glitter()
+			g.position = Vector2([-12.0, 4.0, 13.0][i], [-6.0, -12.0, -4.0][i])
+			g.modulate.a = 0.0
+			s.add_child(g)
 	if typ == "snoklot":
 		var g := Sprite2D.new()
 		g.texture = _glitter()
@@ -646,6 +723,13 @@ func _physics_process(_dt: float) -> void:
 		if pr.intersects(k):
 			pojke.position.x = k.position.x - pojke.BREDD / 2.0 if pojke.position.x < k.get_center().x else k.end.x + pojke.BREDD / 2.0
 			pojke.velocity.x = 0.0
+	if _hink >= 3 and boss and not boss.sover and boss.has_method("fyll") and absf(pojke.position.x - boss.position.x) < 200.0:
+		_hink = 0  # full hink vid sköldpaddan: en del av slottet
+		boss.fyll()
+		_hink_bild()
+	if kvicksand(pojke.position) > 64.0:  # sjönk för djupt
+		pojke.do()
+		return
 	_zooma(_dt)
 	_bananer(_dt)
 	for s in saker.duplicate():
@@ -671,6 +755,25 @@ func _physics_process(_dt: float) -> void:
 					_bar.position = Vector2(0, -pojke.HOJD - 20.0)
 					pojke.add_child(_bar)
 					Spel.ljud("knapp")
+			"skatt":  # ducka (eller glida) på glittret: ett hjärta, eller tre knappar om liven är fulla
+				if pojke.ducker or pojke.glider:
+					_ta_bort(s)
+					if Spel.liv < Spel.LIV_START:
+						Spel.nytt_liv()
+					else:
+						for i in 3:
+							Spel.ta_knapp()
+					Spel.ljud("flagga")
+			"sanddyn":  # en tredjedel av hinken; dynan är slut
+				if _hink < 3 and boss and not boss.sover:
+					_hink += 1
+					saker.erase(s)
+					var n: Sprite2D = s["nod"]
+					var t := n.create_tween()
+					t.tween_property(n, "scale", Vector2(1.2, 0.0), 0.3)
+					t.tween_callback(n.queue_free)
+					Spel.ljud("knapp")
+					_hink_bild()
 			"flagga":
 				if not is_equal_approx(Spel.flagga, s["nod"].position.x):
 					Spel.flagga = s["nod"].position.x
@@ -767,6 +870,13 @@ func _process(dt: float) -> void:
 	for s in saker:
 		if s["svavar"]:  # knappar och hjärtan guppar
 			s["nod"].position.y = s["y"] + roundf(sin(_tid * 3.0 + s["nod"].position.x * 0.05) * 2.0)
+		elif s["typ"] == "skatt":  # glitter som tänds och släcks om vartannat
+			var i := 0
+			for g in s["nod"].get_children():
+				var f := fmod(_tid * 1.1 + i * 0.33 + s["nod"].position.x * 0.01, 1.0)
+				g.modulate.a = clampf(1.0 - absf(f - 0.5) * 4.0, 0.0, 1.0)
+				g.rotation = f * 1.5
+				i += 1
 		elif s["typ"] == "snoklot":  # studsar lite och glittrar – inte samma som de rullande snöbollarna (användaren 15 nov)
 			var fas: float = _tid * 3.0 + s["nod"].position.x * 0.05
 			s["nod"].position.y = s["y"] - roundf(absf(sin(fas)) * 5.0)
@@ -777,6 +887,25 @@ func _process(dt: float) -> void:
 			g.modulate.a = clampf(1.0 - absf(blink - 0.5) * 4.0, 0.0, 1.0)
 			g.rotation = blink * 1.5
 	_hud_uppdatera()
+
+
+## Hinken (Sanden): i pojkens hand – tom eller med sand – och mätaren uppe till vänster (tre fack)
+var _hink_sprite: Sprite2D
+var _hink_fack: Array[ColorRect] = []
+
+
+func _hink_bild() -> void:
+	if _hink_sprite == null:
+		if not saker.any(func(x): return x["typ"] == "sanddyn") and _hink == 0:
+			return
+		_hink_sprite = Sprite2D.new()
+		_hink_sprite.position = Vector2(20, -34)
+		_hink_sprite.z_index = 1
+		pojke.add_child(_hink_sprite)
+	_hink_sprite.texture = Bilder.bild("hink", "full" if _hink > 0 else "tom")
+	_hink_sprite.position.x = 20.0 if pojke._vand > 0.0 else -20.0
+	for i in _hink_fack.size():
+		_hink_fack[i].color = Color(0.95, 0.78, 0.35) if i < _hink else Color(1, 1, 1, 0.15)
 
 
 func _ta_bort(s: Dictionary) -> void:
@@ -956,6 +1085,26 @@ func _hud() -> void:
 	_hud_bananer.position = Vector2(20, 84)
 	_hud_bananer.add_theme_constant_override("separation", 2)
 	lager.add_child(_hud_bananer)
+	if saker.any(func(x): return x["typ"] == "sanddyn"):  # hinkens mätare: tre fack
+		var hrad := HBoxContainer.new()
+		hrad.position = Vector2(20, 84)
+		hrad.add_theme_constant_override("separation", 6)
+		lager.add_child(hrad)
+		var hi := TextureRect.new()
+		hi.texture = Bilder.bild("hink", "full")
+		hrad.add_child(hi)
+		var hram := Panel.new()
+		hram.add_theme_stylebox_override("panel", stil)
+		hram.custom_minimum_size = Vector2(3 * 22 + 6, 22)
+		hram.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		hrad.add_child(hram)
+		for i in 3:
+			var f := ColorRect.new()
+			f.position = Vector2(4 + i * 22, 4)
+			f.size = Vector2(20, 14)
+			hram.add_child(f)
+			_hink_fack.append(f)
+		_hink_bild()
 	for i in 10:
 		var fack := ColorRect.new()
 		fack.position = Vector2(4 + i * 12, 4)
@@ -973,6 +1122,8 @@ var _visat_liv := -1
 
 
 func _hud_uppdatera() -> void:
+	if _hink_sprite:
+		_hink_sprite.position.x = 20.0 if pojke._vand > 0.0 else -20.0
 	_hud_tid.visible = Spel.visa_tid and not klar
 	if _hud_tid.visible:
 		_hud_tid.text = Spel.tid_text(Spel.tid)
@@ -1017,6 +1168,8 @@ func _bakgrund() -> void:
 		# överkanten i banans överkant (kameran går aldrig högre) och resten så långt ner det går: Kakans
 		# blomrad längst ner ska ligga bakom marken (den såg ut som saker att plocka – "halva bananer")
 		s.position = Vector2(0, (hojd - 12) * RUTA)  # högre banor (tomma rader överst): bilden nere vid marken
+		# json "bakgrund_upp": så många px högre (Sanden: oasens palm låg i markhöjd – bara bladen syntes)
+		s.position.y -= float(_meta.get("bakgrund_upp", 0))
 		p.add_child(s)
 		add_child(p)
 		return

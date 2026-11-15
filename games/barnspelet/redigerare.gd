@@ -36,6 +36,15 @@ const VERKTYG := [
 	["m", "Snöplog (trampa två gånger)", ["plog", "plog1"], "sno"],
 	["n", "Snöhög (snöbollar rullar ut)", ["snohog", ""], "sno"],
 	["d", "Snöklot (till snögubbens kompis)", ["snoklot", ""], "sno"],
+	["Z", "Kvicksand (sjunker, hoppa ur)", ["mark", "kvicksand"], "bild:kvicksand"],
+	["a", "Krabba", ["krabba", "krabba1"], "sand"],
+	["x", "Skorpion (trampa när svansen är nere)", ["skorpion", "uppe"], "sand"],
+	["C", "Kaktus (hoppa över)", ["kaktus", ""], "sand"],
+	["g", "Gam (dyker)", ["gam", "gam1"], "sand"],
+	["w", "Vindvirvel (tumbleweeds rullar ut)", ["vindvirvel", ""], "sand"],
+	["v", "Vind (hela kolumnen, knuffar bakåt)", ["vind", ""], "sand"],
+	["t", "Skatt (ducka på glittret)", ["skatt", ""], "sand"],
+	["y", "Sanddyna (fyller hinken)", ["sanddyn", ""], "sand"],
 	["O", "Boss (följer banan)", ["boss", ""]],
 	["F", "Flagga", ["flagga", ""]],
 	["B", "Bur", ["bur", ""]],
@@ -160,6 +169,16 @@ func _ikon(blad: String, ruta: String) -> Texture2D:
 			return null
 		var bf: Array = Bilder.info(bb)["frames"]
 		return Bilder.bild(bb, bf[0 if ruta == "sten" else mini(1, bf.size() - 1)])
+	if blad == "vind":  # tre streck med pil åt vänster
+		var vi := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+		for y in [4, 8, 12]:
+			for x in range(2, 15):
+				vi.set_pixel(x, y, Color(0.98, 0.86, 0.55))
+			vi.set_pixel(3, y - 1, Color(0.98, 0.86, 0.55))
+			vi.set_pixel(3, y + 1, Color(0.98, 0.86, 0.55))
+		return ImageTexture.create_from_image(vi)
+	if blad == "skatt":
+		return bana._glitter()
 	if blad == "backe":
 		return bana.backe_bild(int(ruta))
 	if blad == "boss":  # banans egen boss (banor/<namn>.json "boss")
@@ -354,6 +373,8 @@ func _draw() -> void:
 			if r[x] == "c":
 				var t := Bilder.bild("krokodil", "krokodil1")
 				draw_texture(t, Vector2(x * RUTA + 24 - t.get_width() / 2.0, y * RUTA - t.get_height() + 30), Color(1, 1, 1, 0.6))
+			elif r[x] == "v":  # vinden: hela kolumnen svagt sandfärgad (syns annars bara när det blåser)
+				draw_rect(Rect2(x * RUTA, 0, RUTA, bana.hojd * RUTA), Color(0.98, 0.86, 0.55, 0.18))
 			elif r[x] == "P":
 				var t := Bilder.bild("pojken", "sta")
 				draw_texture(t, Vector2(x * RUTA + 24 - t.get_width() / 2.0, (y + 1) * RUTA - t.get_height()), Color(1, 1, 1, 0.7))

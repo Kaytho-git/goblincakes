@@ -293,8 +293,8 @@ def figur(klader=""):
     # dark blue was too close to the light one, the user saw "the same leg up every time"): push 1 and flight 1 =
     # far knee forward (right), push 2 and flight 2 = far leg planted/behind (left)
     for i, side in ((1, "left"), (2, "left"), (3, "right"), (7, "right"), (8, "right"), (9, "left"), (10, "left")):
-        if klader == "-vinter" and i == 2:
-            continue  # Codex drew the winter passing steps with the dark far leg already
+        if (klader == "-vinter" and i == 2) or klader == "-safari":
+            continue  # Codex drew the dark far leg already (winter passing steps; all safari frames – bare legs)
         darken_leg(cells[i], side, klader == "-vinter")
     save("pojken" + klader, cells, size, names)
 
@@ -494,7 +494,76 @@ def sno():
     save("bur-pingvin", cells, size, ["bur"])
 
 
-PARTS = {"figur-vinter": lambda: figur("-vinter"), "sno": sno, "sno-bakgrund": lambda: bakgrund("1", "sno"), "modig": modig, "block": block, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
+
+def sand():
+    """The sand level (bana 3, 15 Nov): tiles (3 × 4: sand, sandy soil, sandy plank, quicksand), blocks
+    (sandstone, crate), enemies (crab, scorpion tail up/down, tumbleweed, vulture, dust devil, cactus), the
+    tortoise boss (in its shell, happy), the sandcastle (3 stages), bucket (empty, full) and dune, the cage with
+    the baby turtle and the boy holding it."""
+    d = Drawing("sand-mark-prov.png", grid=True)
+    if len(d.boxes) != 12:
+        sys.exit(f"sand-mark: hittade {len(d.boxes)} rutor, inte 12")
+    names = ["gras_v", "gras", "gras_h", "jord_v", "jord", "jord_h", "planka_v", "planka", "planka_h",
+             "kvicksand_v", "kvicksand", "kvicksand_h"]
+    cells, size = sheet("sand-mark", [d.cut(i, 1, (48, 48)) for i in range(12)], names, pad=0, fixed=(48, 48))
+    save("sand-mark", cells, size, names)
+    b = Drawing("sand-block-prov.png", grid=True)
+    if len(b.boxes) != 2:
+        sys.exit(f"sand-block: hittade {len(b.boxes)} block, inte 2")
+    cells, size = sheet("sand-block", [b.cut(i, 1, (48, 48)) for i in range(2)], ["sten", "lada"], pad=0, fixed=(48, 48))
+    save("sand-block", cells, size, ["sten", "lada"])
+    f = Drawing("sand-fiender-prov.png", grid=True, join=40)
+    if len(f.boxes) != 10:
+        sys.exit(f"sand-fiender: hittade {len(f.boxes)} figurer, inte 10")
+    for n, (i, h, a, b2) in {"krabba": (0, 34, "krabba1", "krabba2"), "skorpion": (2, 40, "uppe", "nere"),
+                             "tumbleweed": (4, 40, "tumbleweed1", "tumbleweed2"), "gam": (6, 48, "gam1", "gam2")}.items():
+        k = max(f.scale_for(i, h), f.scale_for(i + 1, h))
+        cells, size = sheet(n, [f.cut(i, k), f.cut(i + 1, k)], [a, b2])
+        save(n, cells, size, [a, b2])
+    for n, i, h in (("vindvirvel", 8, 56), ("kaktus", 9, 56)):
+        k = f.scale_for(i, h)
+        cells, size = sheet(n, [f.cut(i, k)], [n], pad=0)
+        save(n, cells, size, [n])
+    g = Drawing("skoldpadda-prov.png")
+    if len(g.boxes) != 2:
+        sys.exit(f"skoldpadda: hittade {len(g.boxes)} figurer, inte 2")
+    g.common_ground()
+    k = g.scale_for(0, 130)
+    g.peel(k)
+    cells, size = sheet("skoldpadda", [g.cut(0, k), g.cut(1, k)], ["ledsen", "glad"])
+    save("skoldpadda", cells, size, ["ledsen", "glad"])
+    c = Drawing("sandslott-prov.png")
+    if len(c.boxes) != 3:
+        sys.exit(f"sandslott: hittade {len(c.boxes)} figurer, inte 3")
+    c.common_ground()
+    k = c.scale_for(2, 120)
+    c.peel(k)
+    cells, size = sheet("sandslott", [c.cut(i, k) for i in range(3)], ["slott1", "slott2", "slott3"])
+    save("sandslott", cells, size, ["slott1", "slott2", "slott3"])
+    s = Drawing("sand-saker-prov.png")
+    if len(s.boxes) != 3:
+        sys.exit(f"sand-saker: hittade {len(s.boxes)} figurer, inte 3")
+    k = s.scale_for(0, 30)
+    s.peel(k)
+    cells, size = sheet("hink", [s.cut(0, k), s.cut(1, k)], ["tom", "full"], pad=0)
+    save("hink", cells, size, ["tom", "full"])
+    k = s.scale_for(2, 36)
+    cells, size = sheet("sanddyn", [s.cut(2, k)], ["sanddyn"], pad=0)
+    save("sanddyn", cells, size, ["sanddyn"])
+    t = Drawing("pojken-triumf-skoldpadda-prov.png", join=60)  # the sparkles belong to the picture
+    k = max(b[3] - b[1] for b in t.boxes) / 132
+    t.boxes = [(min(b[0] for b in t.boxes), min(b[1] for b in t.boxes), max(b[2] for b in t.boxes), max(b[3] for b in t.boxes))]
+    t.peel(k)
+    cells, size = sheet("triumf-skoldpadda", [t.cut(0, k)], ["triumf"], pad=0)
+    save("triumf-skoldpadda", cells, size, ["triumf"])
+    u = Drawing("bur-skoldpadda-prov.png")
+    k = u.scale_for(0, 120)
+    u.peel(k)
+    cells, size = sheet("bur-skoldpadda", [u.cut(0, k)], ["bur"], pad=0)
+    save("bur-skoldpadda", cells, size, ["bur"])
+
+
+PARTS = {"figur-safari": lambda: figur("-safari"), "sand": sand, "sand-bakgrund": lambda: bakgrund("1", "sand"), "figur-vinter": lambda: figur("-vinter"), "sno": sno, "sno-bakgrund": lambda: bakgrund("1", "sno"), "modig": modig, "block": block, "bakgrund": bakgrund, "djungel": djungel, "orangutang": orangutang, "figur": figur, "triumf": triumf, "racerbil": racerbil, "saker": saker, "mark": mark}
 
 if __name__ == "__main__":
     for part in sys.argv[1:] or PARTS:

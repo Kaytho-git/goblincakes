@@ -9,6 +9,10 @@ const TYPER := {
 	"orm": {"fart": 125.0, "halv": 36.0, "hojd": 24.0, "rutor": ["orm1", "orm2"], "fps": 5.0},
 	"pulka": {"fart": 110.0, "halv": 42.0, "hojd": 38.0, "rutor": ["pulka1", "pulka2"], "fps": 5.0},
 	"plog": {"fart": 70.0, "halv": 44.0, "hojd": 60.0, "rutor": ["plog1"], "fps": 1.0, "liv": 2, "skadad": "plog2"},
+	# Sanden (bana 3): krabban går i sidled; skorpionen kan trampas bara när svansen är nere; kaktusen står still
+	"krabba": {"fart": 75.0, "halv": 28.0, "hojd": 30.0, "rutor": ["krabba1", "krabba2"], "fps": 6.0},
+	"skorpion": {"fart": 45.0, "halv": 30.0, "hojd": 34.0, "rutor": ["uppe"], "fps": 1.0, "svans": "nere"},
+	"kaktus": {"fart": 0.0, "halv": 20.0, "hojd": 52.0, "rutor": ["kaktus"], "fps": 1.0, "trampbar": false},
 }
 
 var bana: Node2D
@@ -22,6 +26,7 @@ var _stum := 0.0  ## efter första trampet: står still (och tål inget nytt tra
 var _vy := 0.0
 var _t: Dictionary
 var _sprite: AnimatedSprite2D
+var _svans_tid := 0.0  ## skorpionen: uppe 1,8 s, nere 1,4 s
 
 
 func _ready() -> void:
@@ -32,6 +37,9 @@ func _ready() -> void:
 	var anims := {"ga": [_t["rutor"], _t["fps"], true]}
 	if _t.has("skadad"):
 		anims["skadad"] = [[_t["skadad"]], 1.0, false]
+	if _t.has("svans"):
+		anims["nere"] = [[_t["svans"]], 1.0, false]
+	trampbar = _t.get("trampbar", true)
 	_sprite.sprite_frames = Bilder.ramar(blad, anims)
 	_sprite.centered = false
 	var cell: Vector2 = Bilder.cell(blad)
@@ -48,6 +56,15 @@ func _physics_process(dt: float) -> void:
 			return
 		vaken = true
 	_stum = maxf(0.0, _stum - dt)
+	if _t.has("svans"):  # svansen upp (farlig) och ner (gå att trampa på)
+		_svans_tid = fmod(_svans_tid + dt, 3.2)
+		trampbar = _svans_tid >= 1.8
+		_sprite.play("nere" if trampbar else "ga")
+	if _t["fart"] == 0.0:  # kaktusen: står still
+		var mk: Array = bana.pa_marken(position, _vy, dt)
+		position = mk[0]
+		_vy = mk[1]
+		return
 	var halv: float = _t["halv"]
 	var fart: float = 0.0 if _stum > 0.0 else _t["fart"]
 	if typ == "pulka":  # pulkan åker fort nerför backar, sakta uppför (användaren 15 nov)

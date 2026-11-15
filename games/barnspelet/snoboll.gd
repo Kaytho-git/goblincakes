@@ -9,6 +9,7 @@ const HALV := 22.0
 
 var bana: Node2D
 var riktning := -1.0
+var blad := "snoboll"  ## tumbleweed i Sanden (bilderna <blad>1, <blad>2)
 var platt := false
 var trampbar := true
 var raknas := false  ## inte med i målets räkning (de kommer hela tiden)
@@ -21,7 +22,7 @@ var _sprite: Sprite2D
 func _ready() -> void:
 	_vx = riktning * FART
 	_sprite = Sprite2D.new()
-	_sprite.texture = Bilder.bild("snoboll", "snoboll1")
+	_sprite.texture = Bilder.bild(blad, blad + "1")
 	_sprite.position = Vector2(0, -HALV)
 	add_child(_sprite)
 
