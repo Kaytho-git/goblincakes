@@ -28,6 +28,7 @@ Item {
         settings.focusOnNavigationEnabled: true
         // Set once: a reload would lose the tabs' screens (the shells live on in ptyterm.py)
         Component.onCompleted: url = Qt.resolvedUrl("terminal/index.html") + "?accent=" + encodeURIComponent(accent.color)
+                                     + "&accentText=" + encodeURIComponent(accent.text)
                                      + "&size=" + Math.round(13 * zoomRoot.zoom)
         onContextMenuRequested: request => request.accepted = true  // the page's own right click (copy/paste)
         onNewWindowRequested: request => Qt.openUrlExternally(request.requestedUrl)

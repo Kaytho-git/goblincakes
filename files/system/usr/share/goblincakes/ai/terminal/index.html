@@ -12,6 +12,23 @@
   .xterm-viewport::-webkit-scrollbar { width: 8px; }
   .xterm-viewport::-webkit-scrollbar-thumb { background: #1E2A40; }
   .xterm-viewport::-webkit-scrollbar-track { background: transparent; }
+  /* Pictures (17 Nov): a path to one is underlined – hover = #peek, click = #viewer over the terminal */
+  #peek { position: fixed; display: none; z-index: 5; background: #0B1018; border: 1px solid var(--accent);
+          padding: 6px; pointer-events: none; }
+  #peek img { display: block; max-width: 360px; max-height: 240px; }
+  #peek div, #viewer .name, #viewer .fail { font: 12px 'IBM Plex Sans', 'DejaVu Sans', sans-serif; color: #8A96AB;
+          margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+  #viewer { position: fixed; inset: 0; z-index: 6; display: none; flex-direction: column;
+            background: rgba(5, 8, 13, 0.94); }
+  #viewer.on { display: flex; }
+  #viewer .bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #1E2A40; }
+  #viewer .name { flex: 1; max-width: none; margin: 0; color: #E6ECF5; }
+  #viewer button { font: 600 11px 'IBM Plex Sans', 'DejaVu Sans', sans-serif; letter-spacing: 1px; color: #E6ECF5;
+                   background: transparent; border: 1px solid #1E2A40; border-radius: 0; padding: 6px 12px; cursor: pointer; }
+  #viewer button:hover, #viewer button:focus { border-color: var(--accent); color: var(--accent-text); outline: none; }
+  #viewer .pic { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 12px; }
+  #viewer .pic img { max-width: 100%; max-height: 100%; object-fit: contain; background: #1A2438; }
+  #viewer .fail { display: none; font-size: 14px; }
 </style>
 <script src="xterm.js"></script>
 <script src="addon-fit.js"></script>
@@ -19,10 +36,15 @@
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 </head>
 <body>
+<div id="peek"><img><div></div></div>
+<div id="viewer"><div class="bar"><span class="name"></span><button id="viewerOpen">ÖPPNA I BILDVISAREN</button>
+  <button id="viewerClose">STÄNG</button></div><div class="pic"><img><span class="fail">Kunde inte visa bilden</span></div></div>
 <script>
 const q = new URLSearchParams(location.search);
 const accent = q.get("accent") || "#2F6FED";
 const fontSize = Number(q.get("size")) || 14;
+document.documentElement.style.setProperty("--accent", accent);
+document.documentElement.style.setProperty("--accent-text", q.get("accentText") || accent);
 const theme = {
   background: "#0B1018", foreground: "#E6ECF5", cursor: accent, cursorAccent: "#0B1018",
   selectionBackground: accent + "66",
@@ -38,7 +60,116 @@ const early = {};           // output that came before open() answered
 let current = 0;
 let size = fontSize;        // Ctrl+Shift+plus/minus: every tab, new ones too
 
+// ---- Pictures in the output (17 Nov, the user: "see the pictures directly in the terminal") ----
+// Claude Code and Kakan only print a picture's path, so such a path becomes a link: hover = a small preview,
+// click = the picture big over the terminal. ptyterm.imageUrl says whether it is a picture file (relative paths
+// from Claude Code's folder, else the shell's) and gives its file:// address.
+const IMAGE = /(?:file:\/\/)?(?:~|\.{1,2})?\/?(?:[\p{L}\p{N}_.+@%=-]+\/)*[\p{L}\p{N}_.+@%=-]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif|ico)(?!\.?[\p{L}\p{N}_\/])/giu;
+const known = new Map();    // "id\npath" → {url, at}: provideLinks runs on every mouse move over a row
+let peekTimer = 0;
+
+function imageUrl(sid, path, done) {
+  const key = sid + "\n" + path, k = known.get(key);
+  if (k && (k.url || Date.now() - k.at < 3000)) return done(k.url);  // a missing file may turn up soon
+  terms.imageUrl(sid, path, url => { known.set(key, { url, at: Date.now() }); done(url); });
+}
+
+function imageLinks(term, sid, y, callback) {
+  const buf = term.buffer.active, cols = term.cols;
+  // A long path goes on onto the next rows: xterm's own wrap (isWrapped), or Claude Code's own line break at a
+  // full row with an indent on the next. Read those rows as one line – a full row may also just end there,
+  // so the path is looked for both with and without the next row glued on.
+  const full = i => { const l = buf.getLine(i); return !!l && l.translateToString(true).length >= cols - 2; };
+  const joined = i => { const l = buf.getLine(i); return !!l && (l.isWrapped || full(i - 1)); };
+  let first = y - 1, last = y - 1;
+  while (first > 0 && first > y - 20 && joined(first)) first--;
+  while (last < y + 20 && joined(last + 1)) last++;
+  const glued = { text: "", pos: [] }, apart = { text: "", pos: [] };
+  for (let i = first; i <= last; i++) {
+    const line = buf.getLine(i);
+    if (!line) continue;
+    const next = buf.getLine(i + 1);
+    let t = line.translateToString(!(next && next.isWrapped && i < last)), x = 0;
+    if (i > first && !line.isWrapped) {           // Claude Code's break: drop the indent, and in `apart` a space
+      x = t.length - t.trimStart().length;
+      t = t.trimStart();
+      apart.text += " "; apart.pos.push(null);
+    }
+    for (const v of [glued, apart]) {
+      v.text += t;
+      for (let c = 0; c < t.length; c++) v.pos.push({ x: x + c + 1, y: i + 1 });
+    }
+  }
+  const found = [], seen = new Set();
+  for (const v of [glued, apart]) for (const m of v.text.matchAll(IMAGE)) {
+    const start = v.pos[m.index], end = v.pos[m.index + m[0].length - 1];
+    if (!start || !end || start.y > y || end.y < y) continue;
+    const key = start.x + "," + start.y + "," + end.x + "," + end.y;
+    if (!seen.has(key)) { seen.add(key); found.push({ path: m[0], range: { start, end } }); }
+  }
+  if (!found.length) return callback(undefined);
+  let left = found.length;
+  const links = [];
+  found.forEach(f => imageUrl(sid, f.path, url => {
+    if (url) links.push({
+      range: f.range, text: f.path, decorations: { underline: true, pointerCursor: true },
+      activate: () => { hidePeek(); openViewer(url, f.path); },
+      hover: ev => showPeek(url, f.path, ev),
+      leave: hidePeek
+    });
+    if (--left === 0) callback(links.length ? links : undefined);
+  }));
+}
+
+function showPeek(url, name, ev) {
+  clearTimeout(peekTimer);
+  const x = ev.clientX, y = ev.clientY;
+  peekTimer = setTimeout(() => {
+    const peek = document.getElementById("peek"), img = peek.querySelector("img");
+    peek.querySelector("div").textContent = name.split("/").pop();
+    img.onload = () => {
+      peek.style.display = "block";
+      const w = peek.offsetWidth, h = peek.offsetHeight;
+      peek.style.left = Math.max(4, Math.min(x + 14, innerWidth - w - 4)) + "px";
+      peek.style.top = (y + 18 + h < innerHeight ? y + 18 : Math.max(4, y - h - 10)) + "px";
+    };
+    img.onerror = hidePeek;
+    img.src = url;
+  }, 200);
+}
+
+function hidePeek() {
+  clearTimeout(peekTimer);
+  document.getElementById("peek").style.display = "none";
+}
+
+function openViewer(url, name) {
+  const v = document.getElementById("viewer"), img = v.querySelector(".pic img"), fail = v.querySelector(".fail");
+  v.querySelector(".name").textContent = name;
+  v.dataset.url = url;
+  img.style.display = ""; fail.style.display = "none";
+  img.onerror = () => { img.style.display = "none"; fail.style.display = "block"; };
+  img.src = url;
+  v.classList.add("on");
+  document.getElementById("viewerClose").focus();
+}
+
+function closeViewer() {
+  const v = document.getElementById("viewer");
+  if (!v.classList.contains("on")) return false;
+  v.classList.remove("on");
+  v.querySelector(".pic img").removeAttribute("src");
+  focusCurrent();
+  return true;
+}
+
+document.getElementById("viewerClose").onclick = closeViewer;
+document.getElementById("viewerOpen").onclick = () => { terms.openUrl(document.getElementById("viewer").dataset.url); closeViewer(); };
+document.querySelector("#viewer .pic").onclick = ev => { if (ev.target.tagName !== "IMG") closeViewer(); };
+document.addEventListener("keydown", ev => { if (ev.key === "Escape" && closeViewer()) ev.preventDefault(); });
+
 function make(folder, command) {
+  let sid = 0;  // known when open() answers
   const el = document.createElement("div");
   el.className = "term on";
   document.body.appendChild(el);
@@ -52,10 +183,13 @@ function make(folder, command) {
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
   term.loadAddon(new WebLinksAddon.WebLinksAddon((e, uri) => terms.openUrl(uri)));
+  term.registerLinkProvider({ provideLinks: (y, callback) => sid ? imageLinks(term, sid, y, callback) : callback(undefined) });
   term.open(el);
   fit.fit();
+  term.onScroll(hidePeek);
   // Ctrl+Shift+C/V like other Linux terminals; Ctrl+Shift+T/W = new/close tab; Ctrl+Shift+plus/minus/0 = text size
   term.attachCustomKeyEventHandler(ev => {
+    if (ev.type === "keydown" && ev.key === "Escape" && closeViewer()) return false;
     if (ev.type !== "keydown" || !ev.ctrlKey || !ev.shiftKey) return true;
     const k = ev.key.toLowerCase();
     if (k === "c") { terms.copy(term.getSelection()); return false; }
@@ -76,6 +210,7 @@ function make(folder, command) {
     else terms.paste(text => term.paste(text));
   });
   terms.open(folder, command, term.cols, term.rows, id => {
+    sid = id;
     tabs[id] = { term, fit, el };
     term.onData(d => terms.write(id, d));
     term.onResize(s => terms.resize(id, s.cols, s.rows));

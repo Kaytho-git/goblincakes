@@ -11,9 +11,13 @@ import shlex
 import signal
 import struct
 import termios
+from urllib.parse import unquote
 
 from PySide6.QtCore import QObject, QSocketNotifier, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices, QGuiApplication
+
+
+IMAGE_TYPES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".avif", ".ico")
 
 
 class Session:
@@ -86,6 +90,28 @@ class Terminals(QObject):
                 except OSError:
                     return ""
         return ""
+
+    @Slot(int, str, result=str)
+    def imageUrl(self, sid, path):
+        """A picture's path in a tab's output (17 Nov): its file:// address for the hover preview and the big view,
+        "" when it is no picture file. Relative paths from Claude Code's folder in the tab, else the shell's."""
+        if path.startswith("file://"):
+            path = unquote(path[7:])
+        path = os.path.expanduser(path)
+        if not path.lower().endswith(IMAGE_TYPES):
+            return ""
+        if not os.path.isabs(path):
+            folders = [self.claudeFolder(sid)]
+            s = self._sessions.get(sid)
+            if s:
+                try:
+                    folders.append(os.readlink(f"/proc/{s.pid}/cwd"))
+                except OSError:
+                    pass
+            path = next((os.path.join(f, path) for f in folders if f and os.path.isfile(os.path.join(f, path))), "")
+        if not path or not os.path.isfile(path):
+            return ""
+        return QUrl.fromLocalFile(os.path.normpath(path)).toString()
 
     @Slot(result=str)
     def ready(self):

@@ -70,6 +70,7 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - [ ] **RetroDECK i barnläget** – byggt 14 nov (valfritt i Config), testlista `barnlage-retrodeck.md` (grep "RetroDECK i barnläget").
 - [ ] **Barnläget i pixelart** – Kakans bilder inbyggda överallt 14 nov (bara offscreen-provat); användaren provar på riktigt (grep "Pixelart").
 - [ ] **A Boy to the Rescue** (barnspelet, `games/barnspelet/`) – bana 1 djungeln klar och i barnläget 15 nov; bana 2 snö klar (användaren bygger banan); bana 3 sand byggd 15 nov – användaren bygger och provar (arbetsgången: grep "Arbetssättet för banorna") (grep "Barnspelet – planen").
+- [ ] **Bilder i Goblin AI:s terminal** – bildvägar blir länkar (hovra/klick), byggt 17 nov, testlista `terminal-bilder.md` (grep "Bildvägar som länkar").
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer

@@ -914,6 +914,19 @@ visar ingen bild. Ingen kod är kopierad.
   men **inte U=1-platshållarna** – den svarar OK på frågan, så Claude Code skulle skicka bilder som syns som skräptecken.
   Slutsats: inte nu; Ghostty (GOBLINCAKES standardterminal) kan U=1. Kolla igen när addon-image har Unicode-platshållare
   (sök "placeholder"/"U=1" i dess src/kitty).
+- **Bildvägar som länkar i Goblin AI:s terminal (17 nov, användaren: "se bilderna direkt i terminalen" – valde A, länkar,
+  framför B, ett eget `goblin bild`-kommando med addon-image):** `ai/terminal/index.html` `registerLinkProvider` per flik →
+  `imageLinks()`: regexen `IMAGE` (png/jpg/jpeg/gif/webp/svg/bmp/avif/ico; absolut, `~/`, `./`, `file://` eller relativ)
+  på raden plus rader som hör ihop – xtermens egen radbrytning (`isWrapped`) och Claude Codes egen (full rad + indrag på
+  nästa; letas både ihopklistrad och med mellanslag, eftersom en full rad också kan sluta där). `ptyterm.imageUrl(sid, path)`
+  = file://-adressen om det är en bildfil, annars "" (relativt: Claude Codes mapp i fliken via `claudeFolder`, annars
+  skalets cwd); svaret sparas i `known` (en saknad fil frågas om efter 3 s). Hovra = `#peek` (max 360×240, efter 200 ms,
+  vänds vid kanten); klick = `#viewer` över hela terminalen med namnet, ÖPPNA I BILDVISAREN (`terms.openUrl`) och STÄNG
+  (Esc, klick utanför bilden). Färger: `?accent=` + nya `&accentText=` från TerminalView.qml. **Provat (molnsession):**
+  sidan med riktiga ptyterm i QWebEngineView offscreen – länkar på absolut väg som xterm bryter, `./`, relativ, väg som
+  bryts "som Claude Code" (full rad + indrag), ingen länk på saknad fil/`~/x.png`/raden efter; förhandsvisningen och
+  stora vyn ritar bilden (file:// laddas från sidan). **Ej provat:** riktiga fönstret med musen, Claude Codes riktiga
+  utdata (hur den bryter långa vägar), SVG, testlistan `terminal-bilder.md`.
 
 ## Levande utseende – rörelse och ljus (10 nov – planerat; alla 7 stegen BYGGDA 11 nov, bara provade i molnet)
 
