@@ -1,3 +1,4 @@
+2026-11-17  Batteriet i Pulsar-möss (t.ex. ZywOo The Chosen X) syns nu i toppfältet och på dashboarden, både med sladd och trådlöst.
 2026-11-17  GOBLINCAKES för Nvidia-kort går över till Fedora 45 (de andra varianterna har redan den). Nästa uppdatering blir lite större än vanligt.
 2026-11-17  Terminalen i Goblin AI visar bilder: håll musen över en sökväg till en bild så syns en liten förhandsvisning, klicka så öppnas bilden i stort. Esc stänger.
 2026-11-15  CS2: flyttar du en match till Privat slutar den vänta på demo, precis som Klar utan demo – hela filmen tas bort, klippen blir kvar.

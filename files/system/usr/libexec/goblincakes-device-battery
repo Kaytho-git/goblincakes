@@ -12,6 +12,8 @@ A Logitech mouse charging on its cable is a plain USB device: the kernel shows n
 vanished from the top bar (30 Oct, G502 X PLUS). Then the mouse itself is asked over HID++ (hidraw, readable
 without root): the Unified Battery feature 0x1004 gives percent and charging.
 
+Pulsar mice (17 Nov, ZywOo The Chosen X) are never in UPower: pulsar() asks them itself, cable or dongle.
+
 Logitech's estimate sags right after a full charge: 100 % on the cable, 91 % once unplugged (31 Oct) –
 the battery is full but its resting voltage is lower. The first reading after a full charge is kept as the
 top in ~/.cache/goblincakes/device-battery.json and top…50 is stretched to 100…50; below 50 the device's own
@@ -105,6 +107,63 @@ def wired_logitech():
     return found
 
 
+def _pulsar_battery(fd):
+    """Command 180 (HCTNM_BatteryLevel, from Pulsar's own web app bbb.pulsar.gg/zywoo) – the answer, or None.
+    Report id 0, 64 bytes: [180, 0…] → [180, percent, voltage float32 ×4 bytes, charging]. 167 = busy (ask
+    again), 163 = the dongle has no mouse (switched off). Only reads – nothing in the mouse changes."""
+    for _ in range(5):
+        try:
+            os.write(fd, bytes([0, 180]) + bytes(63))
+        except OSError:
+            return None
+        end = time.monotonic() + 0.5
+        got = None
+        while time.monotonic() < end:
+            if not select.select([fd], [], [], 0.1)[0]:
+                continue
+            data = os.read(fd, 64)
+            if data and data[0] in (180, 163, 167):
+                got = data
+                break
+        if not got or got[0] == 163:
+            return None
+        if got[0] == 180 and len(got) >= 7:
+            return got
+        time.sleep(0.05)
+    return None
+
+
+def pulsar():
+    """Pulsar mice (VID 3710, e.g. ZywOo The Chosen X: 7401 on the cable, 5405 the dongle), on the cable
+    or wirelessly: [{kind, name, percent, charging}]. Only the vendor interface is asked – its report
+    descriptor begins Generic Desktop / usage 0 (05 01 09 00); the mouse and keyboard interfaces never are."""
+    found = []
+    for raw in sorted(Path("/sys/class/hidraw").glob("hidraw*")):
+        try:
+            uevent = (raw / "device/uevent").read_text()
+            descriptor = (raw / "device/report_descriptor").read_bytes()
+        except OSError:
+            continue
+        if ":00003710:" not in uevent.upper() or not descriptor.startswith(b"\x05\x01\x09\x00"):
+            continue
+        match = re.search(r"HID_NAME=(.*)", uevent)
+        name = re.sub(r"^(Pulsar\s+)+", "", match.group(1).strip()) if match else "Pulsar"
+        if "dongle" in name.lower():
+            name = "Pulsar-mus"
+        try:
+            fd = os.open(f"/dev/{raw.name}", os.O_RDWR | os.O_NONBLOCK)
+        except OSError:
+            continue
+        try:
+            got = _pulsar_battery(fd)
+        finally:
+            os.close(fd)
+        if got and got[1] <= 100:
+            found.append({"kind": "mouse", "name": name, "percent": got[1],
+                          "charging": got[6] == 1, "full": got[6] == 1 and got[1] >= 100})
+    return found
+
+
 def compensate(devices):
     """Stretch the sag after a full charge: the first reading off the charger counts as 100 % (see top)."""
     try:
@@ -170,6 +229,7 @@ def main():
         })
     if not any(d["kind"] in ("mouse", "keyboard") for d in devices):
         devices += wired_logitech()
+    devices += pulsar()  # UPower never sees Pulsar, so it is always asked itself
     print(json.dumps(compensate(devices), ensure_ascii=False))
 
 

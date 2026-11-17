@@ -36,7 +36,7 @@ Ord: toppfält, toppfältet, panel, widget, spelas nu, nowplaying, batteri, ladd
   ~/.local/share/plasma/plasmoids/org.goblincakes.nowplaying/ används i stället om den finns.
 - Widgeten kör hjälpprogram med fasta sökvägar (egenskaper i main.qml, t.ex. `batteryCommand`):
   - batteri: /usr/libexec/goblincakes-device-battery – skriver en JSON-lista, t.ex.
-    `[{"kind": "mouse", "name": "…", "percent": 75, "charging": false}]` (läser UPower). Var 30:e sekund.
+    `[{"kind": "mouse", "name": "…", "percent": 75, "charging": false}]` (läser UPower; Logitech med sladd och Pulsar-möss frågas direkt). Var 30:e sekund.
   - Discord-röst: /usr/libexec/goblincakes-discord-voice
   - Goblin AI:s steg: /usr/libexec/goblincakes-ai-activity
 - Kolla: kör hjälpprogrammet för hand – svarar det rätt? Läs sedan sökvägen i widgetens main.qml (även den egna
@@ -46,6 +46,7 @@ Ord: toppfält, toppfältet, panel, widget, spelas nu, nowplaying, batteri, ladd
 Kontroll: `/usr/libexec/goblincakes-device-battery`
 Kontroll: `grep -n 'Command:' /usr/share/plasma/plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml ~/.local/share/plasma/plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml`
 - Enheter utan batteri i UPower (många sladdade headset) syns inte – det är inget fel.
+- Pulsar-möss (t.ex. ZywOo The Chosen X, med sladd eller dongel) syns aldrig i UPower – hjälpprogrammet frågar musen själv (kommando 180 på dess tillverkargränssnitt). Avstängd mus bakom donglen = syns inte, inget fel.
 - Efter en full laddning visar widgeten 100 % fast musen själv säger t.ex. 91 % – avsiktligt: musens första
   siffra efter laddningen sparas som topp i ~/.cache/goblincakes/device-battery.json och räknas om till 100 %
   (ner till 50 %, under det visas musens egen siffra). Skiljer sig siffran från G HUB/upower är det inget fel.
