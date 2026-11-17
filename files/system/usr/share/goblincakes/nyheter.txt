@@ -1,3 +1,4 @@
+2026-11-17  GOBLINCAKES för Nvidia-kort går över till Fedora 45 (de andra varianterna har redan den). Nästa uppdatering blir lite större än vanligt.
 2026-11-17  Terminalen i Goblin AI visar bilder: håll musen över en sökväg till en bild så syns en liten förhandsvisning, klicka så öppnas bilden i stort. Esc stänger.
 2026-11-15  CS2: flyttar du en match till Privat slutar den vänta på demo, precis som Klar utan demo – hela filmen tas bort, klippen blir kvar.
 2026-11-15  CS2 Stats hämtar dina matcher från Leetify: en match som finns där räknas som officiell direkt (ingen demo behövs för det), och TTD, sikte, spray och counter-strafe visar Leetifys egna värden, märkta med ett litet L. Matcher på privata servrar ligger under PRIVAT. Lägg din Leetify-nyckel i ~/.config/goblincakes/leetify.key.

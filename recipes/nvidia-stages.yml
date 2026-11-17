@@ -5,7 +5,7 @@
 stages:
   # AppGrid with square corners (files/scripts/build-appgrid.sh)
   - name: appgrid-square
-    from: ghcr.io/ublue-os/kinoite-nvidia:44
+    from: ghcr.io/ublue-os/kinoite-nvidia:45
     modules:
       - type: script
         scripts:
@@ -13,7 +13,7 @@ stages:
 
   # Newer libratbag for Piper (files/scripts/build-libratbag.sh)
   - name: libratbag-git
-    from: ghcr.io/ublue-os/kinoite-nvidia:44
+    from: ghcr.io/ublue-os/kinoite-nvidia:45
     modules:
       - type: script
         scripts:
