@@ -46,7 +46,7 @@ Ord: toppfält, toppfältet, panel, widget, spelas nu, nowplaying, batteri, ladd
 Kontroll: `/usr/libexec/goblincakes-device-battery`
 Kontroll: `grep -n 'Command:' /usr/share/plasma/plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml ~/.local/share/plasma/plasmoids/org.goblincakes.nowplaying/contents/ui/main.qml`
 - Enheter utan batteri i UPower (många sladdade headset) syns inte – det är inget fel.
-- Pulsar-möss (t.ex. ZywOo The Chosen X, med sladd eller dongel) syns aldrig i UPower – hjälpprogrammet frågar musen själv (kommando 180 på dess tillverkargränssnitt). Avstängd mus bakom donglen = syns inte, inget fel.
+- Pulsar-möss (t.ex. ZywOo The Chosen X, med sladd eller dongel) syns aldrig i UPower – hjälpprogrammet frågar musen själv (kommando 180 på dess tillverkargränssnitt). Avstängd mus bakom donglen = syns inte, inget fel. Behörigheten: `/usr/lib/udev/rules.d/60-goblincakes-pulsar.rules` (kolla `ls -l /dev/hidraw*` – musens ska ha `+`).
 - Efter en full laddning visar widgeten 100 % fast musen själv säger t.ex. 91 % – avsiktligt: musens första
   siffra efter laddningen sparas som topp i ~/.cache/goblincakes/device-battery.json och räknas om till 100 %
   (ner till 50 %, under det visas musens egen siffra). Skiljer sig siffran från G HUB/upower är det inget fel.

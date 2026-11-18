@@ -1,0 +1,4 @@
+# GOBLINCAKES: let the logged-in user ask Pulsar mice (VID 3710, cable or dongle) for their battery
+# (goblincakes-device-battery) and use Pulsar's web app (WebHID). Universal Blue's 92-viia.rules,
+# which opened every hidraw, is gone in Fedora 45.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3710", MODE="0660", TAG+="uaccess"
