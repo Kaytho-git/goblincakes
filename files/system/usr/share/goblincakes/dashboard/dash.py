@@ -157,12 +157,13 @@ def save_settings(data):
 
 FRAMES = [("projects", "Projekt", "dina mappar – öppna i VS Code, Claude Code"),
           ("system", "System", "CPU, GPU, temperatur, RAM, disk"),
-          ("wow", "WoW Stats", "karaktärer och senaste raiden (Warcraft Logs)"),
+          ("wow", "WoW Stats", "karaktärer och senaste raiden (Warcraft Logs; bild, M+ och PvP med Blizzard-nyckeln)"),
           ("cs2", "CS2 Stats", "de senaste matcherna och kartorna"),
           ("builds", "Byggen", "GOBLINCAKES byggen på GitHub (när repot finns på datorn)"),
           ("reports", "Kakan", "Kakans rapporter"),
           ("claude", "AI-kartan", "vad Claude Code, Codex eller Kakan gör just nu – kartan i mitten"),
-          ("addons", "Tillägg", "WoW-tilläggen i WowUp – uppdateringar, GoblinUp i mitten (när WowUp finns)")]
+          ("addons", "Tillägg", "WoW-tilläggen i WowUp – uppdateringar, GoblinUp i mitten (när WowUp finns)"),
+          ("wowinfo", "WoW-läget", "WoW Token (Köp token), veckoreset och realmstatus – med Blizzard-nyckeln nedan")]
 SIDES = {"left": 3, "right": 2}           # at most this many frames on each side
 MAX_VIEWS = 6
 DEFAULT_VIEWS = [{"name": "SPEL", "left": ["projects", "system"], "right": ["wow", "cs2"]},
@@ -1034,6 +1035,8 @@ if __name__ == "__main__":
                   # the programs at the bottom = the dock's pinned apps (shared); dockOk false = Plasma didn't answer
                   "chosen": dock_apps(), "dock": []}
         result["dockOk"] = bool(result["chosen"]) or current_dock_answers()
+        import blizzard  # noqa: PLC0415 – Blizzard's API (18 Nov): only whether the key is there
+        result["blizzard"] = {"configured": blizzard.configured(), "clients": blizzard.CLIENTS_PAGE}
     elif what == "save":         # from Config: {"views": [...], "apps": [...] only when changed} on stdin
         data = json.loads(sys.stdin.read() or "{}")
         ok = save_views(data.get("views") or [], data.get("apps"), data.get("start"))

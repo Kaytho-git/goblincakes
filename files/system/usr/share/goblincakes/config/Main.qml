@@ -2345,6 +2345,86 @@ Window {
                 }
             }
 
+            // ── BLIZZARD (18 Nov): the user's own API client – WoW Stats' picture, M+, raid progress, PvP and WOW-LÄGET ──
+            Column {
+                id: bzSection
+                visible: !!dashView.info
+                width: parent.width
+                spacing: 10
+                property bool busy: false
+                property string said: ""
+                readonly property bool on: !!(dashView.info && dashView.info.blizzard && dashView.info.blizzard.configured)
+                Connections {
+                    target: backend
+                    function onBlizzardDone(json) {
+                        bzSection.busy = false;
+                        let out = {};
+                        try {
+                            out = JSON.parse(json);
+                        } catch (e) {
+                            out = { "ok": false, "why": "blizzard.py svarade inte" };
+                        }
+                        bzSection.said = out.ok ? (out.configured ? "Nyckeln fungerar och är sparad – dashboarden hämtar inom en minut." : "Nyckeln är borttagen.")
+                                                : (out.why || "Det gick inte");
+                        if (out.ok) {
+                            bzId.text = "";
+                            bzSecret.text = "";
+                            dashView.info = Object.assign({}, dashView.info, { "blizzard": Object.assign({}, dashView.info.blizzard, { "configured": out.configured }) });
+                        }
+                    }
+                }
+                Text {
+                    text: "BLIZZARD – BILD, MYTHIC+, RAIDPROGRESS, PVP OCH WOW-LÄGET"
+                    color: "#8B98AD"
+                    font.family: "Chakra Petch"
+                    font.pixelSize: 13
+                    font.letterSpacing: 2
+                }
+                Text {
+                    width: Math.min(820, parent.width)
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.15
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 14
+                    text: bzSection.on
+                        ? "Kopplat. WoW Stats visar karaktärens bild, item level, Mythic+ score, raidprogress och PvP från Blizzard, och ramen WoW-läget (lägg till den i en vy ovan) visar token-priset med Köp token, veckoreset och realmstatus. Hämtas var 30:e minut (token och realmer var 10:e)."
+                        : "Gratis nyckel från Blizzard, sparas bara på den här datorn: tryck på knappen och logga in med ditt Battle.net-konto, Create Client, skriv ett namn (t.ex. GOBLINCAKES) och en Redirect URL (t.ex. http://localhost). Klistra sedan in Client ID och Client Secret här. Ingen inloggning i dashboarden – bara det som syns publikt på Armory."
+                }
+                Row {
+                    visible: !bzSection.on
+                    spacing: 12
+                    FlatButton { text: "Skapa nyckel …"; onClicked: backend.openLink(dashView.info.blizzard.clients) }
+                    FlatField { id: bzId; width: 260; hint: "Client ID" }
+                    FlatField { id: bzSecret; width: 260; hint: "Client Secret"; echoMode: TextInput.Password }
+                    FlatButton {
+                        primary: true
+                        enabledState: bzId.text.trim().length > 10 && bzSecret.text.trim().length > 10 && !bzSection.busy
+                        text: bzSection.busy ? "Provar …" : "Spara"
+                        onClicked: {
+                            bzSection.busy = true;
+                            bzSection.said = "";
+                            backend.setBlizzard(bzId.text, bzSecret.text);
+                        }
+                    }
+                }
+                FlatButton {
+                    visible: bzSection.on
+                    text: "Ta bort Blizzard-nyckeln"
+                    onClicked: {
+                        bzSection.busy = true;
+                        backend.forgetBlizzard();
+                    }
+                }
+                Text {
+                    visible: bzSection.said !== ""
+                    text: bzSection.said
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                }
+            }
+
             // ── APPARNA LÄNGST NER ──
             Column {
                 visible: !!dashView.info

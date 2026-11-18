@@ -36,6 +36,7 @@ Window {
     property var winMenu: null         // right-click on an open program: {id, name, x, y} (Växla till / Stäng)
     property var tools: ({})
     property var wow: ({})
+    property var blizzard: ({})        // Blizzard's API (18 Nov): {configured, chars {player: …}, world} – blizzard.py
     // GoblinUp (18 Nov): WowUp's add-ons (goblincakes-wowup status), what a button is doing, the search's hits
     property var wowup: ({})
     property var wowupAct: ({})
@@ -77,11 +78,12 @@ Window {
     readonly property var currentView: views[backend.view] || ({ "left": [], "right": [] })
     function frameComponent(id) {
         return ({ "projects": projectsFrame, "system": systemFrame, "wow": wowFrame, "cs2": cs2Frame,
-                  "builds": buildsFrame, "reports": reportsFrame, "claude": claudeFrame, "addons": addonsFrame })[id] || null;
+                  "builds": buildsFrame, "reports": reportsFrame, "claude": claudeFrame, "addons": addonsFrame,
+                  "wowinfo": wowinfoFrame })[id] || null;
     }
     // A frame is shown only when it has something to show (projects and the system always have)
     function shows(id) {
-        return id === "projects" || id === "system" || id === "claude" ? true
+        return id === "projects" || id === "system" || id === "claude" || id === "wowinfo" ? true
              : id === "wow" ? (wow.players || []).length > 0
              : id === "cs2" ? !!cs2.count
              : id === "builds" ? !!builds.builder && (builds.rows || []).length > 0
@@ -199,7 +201,7 @@ Window {
 
     Component.onCompleted: {
         for (const k of ["apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project",
-                         "trayBox", "tools", "wow", "cs2", "builds", "reports", "own", "browse",
+                         "trayBox", "tools", "wow", "blizzard", "cs2", "builds", "reports", "own", "browse",
                          "batteries", "notices", "recorder"])
             load(k);
     }
@@ -1336,9 +1338,103 @@ Window {
                         title: modelData.name
                         titleColor: win.classColors[modelData["class"]] || "#E6ECF5"
                         line: [modelData.spec, modelData["class"], modelData.realm].filter(t => t).join(" · ")
-                        side: modelData.ilvl ? "ilvl <b><font color='#E6ECF5'>" + modelData.ilvl + "</font></b>" : ""
+                        // ilvl (Blizzard's when there is a key – it follows the gear, GoblinRecorder's the last fight) + M+ score
+                        readonly property var bz: (win.blizzard.chars || {})[modelData.player] || ({})
+                        readonly property var ilvl: bz.ilvl || modelData.ilvl
+                        readonly property var score: (bz.mplus || {}).score
+                        side: (ilvl ? "ilvl <b><font color='#E6ECF5'>" + ilvl + "</font></b>" : "")
+                              + (score ? (ilvl ? "  " : "") + "M+ <b><font color='" + (bz.mplus.color || "#E6ECF5") + "'>" + score + "</font></b>" : "")
                         onClicked: backend.setMid("char:" + modelData.player)
                     }
+                }
+            }
+        }
+    }
+    // WOW-LÄGET (18 Nov, Blizzard's API): the WoW Token's price + Köp token (Blizzard's shop in the browser – the
+    // game's own shop is a web page that often fails under Proton), the weekly reset and the realms' status
+    Component {
+        id: wowinfoFrame
+        Frame {
+            id: infoFrame
+            width: parent.width
+            implicitHeight: infoColumn.implicitHeight + 32
+            readonly property var w: win.blizzard.world || ({})
+            Column {
+                id: infoColumn
+                x: 16
+                y: 16
+                width: parent.width - 32
+                spacing: 10
+                Heading { text: "WOW-LÄGET" + (infoFrame.w.region ? " · " + infoFrame.w.region : "") }
+                Text {
+                    visible: !win.blizzard.configured
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: "Token-priset, veckoreset och realmstatus kommer från Blizzard – lägg in en gratis nyckel i Config → Dashboard."
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 12
+                }
+                FlatButton { visible: !win.blizzard.configured; text: "Anpassa …"; onClicked: backend.customize() }
+                Row {
+                    visible: !!win.blizzard.configured
+                    width: parent.width
+                    spacing: 8
+                    Tile {
+                        width: (parent.width - 8) / 2
+                        value: infoFrame.w.token ? Number(infoFrame.w.token).toLocaleString(Qt.locale("sv_SE"), "f", 0) + " g" : "–"
+                        label: "WOW TOKEN"
+                    }
+                    Tile {
+                        width: (parent.width - 8) / 2
+                        value: infoFrame.w.resetText || "–"
+                        label: "VECKORESET OM"
+                    }
+                }
+                Repeater {
+                    model: win.blizzard.configured ? (infoFrame.w.realms || []) : []
+                    Row {
+                        required property var modelData
+                        width: infoColumn.width
+                        spacing: 8
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 8
+                            height: 8
+                            color: modelData.up === true ? "#3BD16F" : modelData.up === false ? "#F06B6B" : "#5C6880"
+                        }
+                        Text {
+                            width: parent.width - 16
+                            elide: Text.ElideRight
+                            text: modelData.name + "  <font color='#8B98AD'>" + modelData.text + "</font>"
+                            textFormat: Text.StyledText
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 13
+                        }
+                    }
+                }
+                Text {
+                    visible: !!win.blizzard.configured && !!infoFrame.w.why
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: "Blizzard: " + (infoFrame.w.why || "")
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 12
+                }
+                Text {
+                    visible: !!win.blizzard.configured && !infoFrame.w.at
+                    text: "Hämtar från Blizzard …"
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 12
+                }
+                FlatButton {
+                    visible: !!win.blizzard.configured
+                    width: parent.width
+                    text: "Köp token i Blizzards butik"
+                    onClicked: backend.openUrl(infoFrame.w.shop || "https://shop.battle.net/family/world-of-warcraft")
                 }
             }
         }
@@ -2339,8 +2435,9 @@ Window {
             }
             FlatScrollBar { flick: raidView }
 
-            // ── A character ──
-            Item {
+            // ── A character – WoW Stats' own numbers (GoblinRecorder, Warcraft Logs) + Blizzard's API (18 Nov):
+            // the picture, Mythic+ this season, raid progress and PvP – only with a Blizzard key (Config → Dashboard) ──
+            Flickable {
                 id: charView
                 readonly property var c: {
                     for (const p of win.wow.players || [])
@@ -2348,14 +2445,48 @@ Window {
                             return p;
                     return null;
                 }
+                // Blizzard's answer for the character ({} without a key or before the first answer)
+                readonly property var bz: {
+                    const b = c && win.blizzard.chars ? win.blizzard.chars[c.player] : null;
+                    return b && !b.missing && b.level ? b : ({});
+                }
+                readonly property bool hasBz: !!bz.level
+                readonly property bool hasPic: !!bz.picture
                 visible: win.midChar !== "" && !!c
                 anchors { top: searchRow.bottom; topMargin: 20; left: parent.left; right: parent.right; bottom: parent.bottom
                           leftMargin: 28; rightMargin: 28; bottomMargin: 20 }
+                contentHeight: Math.max(charColumn.implicitHeight, charView.hasPic ? charPic.height : 0)
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                // Blizzard's render (a transparent picture of the whole character), kept as a file by blizzard.py
+                Rectangle {
+                    id: charPic
+                    visible: charView.hasPic
+                    width: visible ? Math.min(300, charView.width * 0.26) : 0
+                    height: Math.min(560, Math.max(420, charView.height))
+                    color: "#12203A"
+                    border.width: 1
+                    border.color: "#1A2438"
+                    Image {
+                        anchors.fill: parent
+                        anchors.margins: 1
+                        source: charView.hasPic ? "file://" + charView.bz.picture : ""
+                        fillMode: Image.PreserveAspectCrop
+                        horizontalAlignment: Image.AlignHCenter
+                        verticalAlignment: Image.AlignTop
+                        asynchronous: true
+                        smooth: true
+                        mipmap: true
+                    }
+                }
                 Column {
-                    width: parent.width
+                    id: charColumn
+                    x: charView.hasPic ? charPic.width + 22 : 0
+                    width: charView.width - x
                     spacing: 16
                     visible: !!charView.c
                     Column {
+                        width: parent.width
                         Text {
                             text: charView.c ? charView.c.name : ""
                             color: charView.c ? win.classColors[charView.c["class"]] || "#E6ECF5" : "#E6ECF5"
@@ -2364,8 +2495,14 @@ Window {
                             font.pixelSize: 34
                         }
                         SubTitle {
-                            text: charView.c ? [charView.c.spec, charView.c["class"], charView.c.realm, charView.c.region,
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: charView.c ? [charView.bz.level ? "Nivå " + charView.bz.level : "", charView.c.spec || charView.bz.spec,
+                                                charView.c["class"] || charView.bz["class"], charView.bz.realmName || charView.c.realm,
+                                                charView.bz.guild ? "<" + charView.bz.guild + ">" : "", charView.c.region,
+                                                charView.bz.game === "Forever" ? "WoW Forever" : "",
                                                 "spelade senast " + charView.c.last].filter(t => t).join(" · ") + " · den här säsongen" : ""
+                            textFormat: Text.PlainText
                         }
                     }
                     Grid {
@@ -2376,13 +2513,179 @@ Window {
                         readonly property real cell: (width - 50) / 6
                         readonly property var c: charView.c || ({})
                         function show(v, pre) { return v === null || v === undefined ? "–" : (pre || "") + v; }
-                        Tile { width: charTiles.cell; value: charTiles.show(charTiles.c.ilvl); label: "ITEM LEVEL" }
+                        Tile { width: charTiles.cell; value: charTiles.show(charView.bz.ilvl || charTiles.c.ilvl); label: "ITEM LEVEL" }
                         Tile { width: charTiles.cell; value: charTiles.show(charTiles.c.raidParse); label: "RAID-PARSE (SNITT)"; tint: win.parseColor(charTiles.c.raidParse) }
                         Tile { width: charTiles.cell; value: charTiles.show(charTiles.c.bestParse); label: "BÄSTA PARSE"; tint: win.parseColor(charTiles.c.bestParse) }
                         Tile { width: charTiles.cell; value: (charTiles.c.kills || 0) + " / " + (charTiles.c.wipes || 0); label: "KILLS / WIPES" }
                         Tile { width: charTiles.cell; value: (charTiles.c.timed || 0) + " / " + (charTiles.c.keys || 0); label: "NYCKLAR I TID" }
                         Tile { width: charTiles.cell; value: charTiles.show(charTiles.c.topKey, "+"); label: "HÖGSTA I TID" }
                     }
+
+                    // ── From Blizzard ──
+                    Grid {
+                        id: bzTiles
+                        visible: charView.hasBz
+                        width: parent.width
+                        columns: 4
+                        spacing: 10
+                        readonly property real cell: (width - 30) / 4
+                        readonly property var m: charView.bz.mplus || ({})
+                        readonly property var pvp: (charView.bz.pvp || ({})).rows || []
+                        Tile { width: bzTiles.cell; value: bzTiles.m.score ? String(bzTiles.m.score) : "–"; label: "M+ SCORE"; tint: bzTiles.m.color || "#E6ECF5" }
+                        Tile { width: bzTiles.cell; value: bzTiles.m.top ? "+" + bzTiles.m.top : "–"; label: "BÄSTA NYCKEL I TID (BLIZZARD)" }
+                        Tile { width: bzTiles.cell; value: bzTiles.pvp.length ? String(bzTiles.pvp[0].rating) : "–"; label: bzTiles.pvp.length ? bzTiles.pvp[0].name.toUpperCase() : "PVP-RATING" }
+                        Tile { width: bzTiles.cell; value: charView.bz.achievements ? Number(charView.bz.achievements).toLocaleString(Qt.locale("sv_SE"), "f", 0) : "–"; label: "ACHIEVEMENT POINTS" }
+                    }
+                    Row {
+                        visible: charView.hasBz
+                        width: parent.width
+                        spacing: 28
+                        // RAIDPROGRESS – the newest expansion's raids, one bar per difficulty
+                        Column {
+                            width: (parent.width - 28) / 2
+                            spacing: 8
+                            Heading { text: "RAIDPROGRESS" }
+                            Repeater {
+                                model: charView.bz.raids || []
+                                Column {
+                                    required property var modelData
+                                    width: parent.width
+                                    spacing: 5
+                                    Text {
+                                        text: modelData.name
+                                        color: "#C9D3E3"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                        font.weight: Font.DemiBold
+                                    }
+                                    Repeater {
+                                        model: modelData.modes
+                                        Row {
+                                            required property var modelData
+                                            spacing: 10
+                                            Text {
+                                                width: 70
+                                                text: modelData.name
+                                                color: "#8B98AD"
+                                                font.family: "IBM Plex Sans"
+                                                font.pixelSize: 12
+                                            }
+                                            Meter {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                width: parent.parent.width - 70 - 50 - 20
+                                                height: 8
+                                                percent: modelData.total ? 100 * modelData.done / modelData.total : 0
+                                            }
+                                            Text {
+                                                width: 50
+                                                horizontalAlignment: Text.AlignRight
+                                                text: modelData.done + "/" + modelData.total
+                                                color: "#E6ECF5"
+                                                font.family: "IBM Plex Mono"
+                                                font.pixelSize: 12
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Text {
+                                visible: (charView.bz.raids || []).length === 0
+                                text: "Ingen raid den här expansionen."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            // PVP – every bracket played this season
+                            Heading { text: "PVP" + ((charView.bz.pvp || {}).honor ? " · HONOR LEVEL " + charView.bz.pvp.honor : ""); topPadding: 10 }
+                            Repeater {
+                                model: (charView.bz.pvp || ({})).rows || []
+                                Row {
+                                    required property var modelData
+                                    spacing: 10
+                                    Text { width: 110; text: modelData.name; color: "#C9D3E3"; font.family: "IBM Plex Sans"; font.pixelSize: 13 }
+                                    Text { width: 60; text: String(modelData.rating); color: "#E6ECF5"; font.family: "IBM Plex Mono"; font.pixelSize: 13 }
+                                    Text {
+                                        text: modelData.played ? modelData.won + " vunna av " + modelData.played : ""
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 12
+                                    }
+                                }
+                            }
+                            Text {
+                                visible: ((charView.bz.pvp || ({})).rows || []).length === 0
+                                text: "Ingen rankad PvP den här säsongen."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                        }
+                        // MYTHIC+ – the season's best run per dungeon
+                        Column {
+                            width: (parent.width - 28) / 2
+                            spacing: 4
+                            Heading { text: "MYTHIC+ · BÄSTA PER DUNGEON"; bottomPadding: 4 }
+                            Repeater {
+                                model: (charView.bz.mplus || ({})).best || []
+                                Rectangle {
+                                    required property var modelData
+                                    width: parent.width
+                                    height: 28
+                                    color: "transparent"
+                                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+                                    Text {
+                                        anchors { left: parent.left; right: keyText.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                                        elide: Text.ElideRight
+                                        text: modelData.dungeon
+                                        color: "#C9D3E3"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                    Text {
+                                        id: keyText
+                                        anchors { right: starText.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                                        text: "+" + modelData.level
+                                        color: modelData.timed ? "#E6ECF5" : "#8B98AD"
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 13
+                                    }
+                                    Text {
+                                        id: starText
+                                        width: 40
+                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                        horizontalAlignment: Text.AlignRight
+                                        text: modelData.timed ? modelData.stars : "ej i tid"
+                                        color: modelData.timed ? accent.text : "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 11
+                                    }
+                                }
+                            }
+                            Text {
+                                visible: ((charView.bz.mplus || ({})).best || []).length === 0
+                                text: "Inga nycklar den här säsongen."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                        }
+                    }
+                    Text {
+                        visible: !charView.hasBz && !!charView.c
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: {
+                            const b = charView.c && win.blizzard.chars ? win.blizzard.chars[charView.c.player] : null;
+                            return !win.blizzard.configured ? "Bild, Mythic+ score, raidprogress och PvP från Blizzard: lägg in en gratis Blizzard-nyckel i Config → Dashboard."
+                                 : b && b.missing ? "Blizzard hittar inte " + charView.c.name + " (varken i Retail eller WoW Forever)."
+                                 : b && b.failed ? "Blizzard: " + b.failed
+                                 : "Hämtar från Blizzard …";
+                        }
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                    }
+
                     Heading { text: "PARSE ÖVER TID"; topPadding: 6 }
                     Row {
                         width: parent.width
@@ -2392,7 +2695,7 @@ Window {
                             model: charView.c ? charView.c.trend : []
                             Item {
                                 required property var modelData
-                                width: Math.min(28, (charView.width - 39 * 4) / 40)
+                                width: Math.min(28, (charColumn.width - 39 * 4) / 40)
                                 height: 80
                                 Rectangle {
                                     anchors.bottom: parent.bottom
@@ -2410,10 +2713,12 @@ Window {
                         font.family: "IBM Plex Sans"
                         font.pixelSize: 14
                     }
-                    Row {
+                    Flow {
+                        width: parent.width
                         spacing: 8
                         FlatButton { text: "Senaste raiden"; visible: !!win.wow.raid; onClicked: backend.setMid("raid") }
                         FlatButton { text: "Öppna på Warcraft Logs"; visible: charView.c && charView.c.wclUrl !== ""; onClicked: backend.openUrl(charView.c.wclUrl) }
+                        FlatButton { text: "Öppna i Armory"; visible: !!charView.bz.armory; onClicked: backend.openUrl(charView.bz.armory) }
                         FlatButton { text: "WoW Stats i GoblinRecorder"; onClicked: backend.launch("goblin-recorder.desktop") }
                         FlatButton {
                             primary: true
@@ -2422,7 +2727,9 @@ Window {
                         }
                     }
                 }
+                FastWheel { flick: charView }
             }
+            FlatScrollBar { flick: charView }
 
             // ── CS2 ──
             Item {

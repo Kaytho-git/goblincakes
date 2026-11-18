@@ -157,7 +157,7 @@ class Backend(QObject):
 
     KEYS = ("apps", "bottom", "windows", "system", "top", "player", "quota", "projects", "project", "trayBox", "tools",
             "wow", "cs2", "builds", "buildSteps", "reports", "own", "browse", "batteries", "notices", "recorder",
-            "wowup", "wowupAct", "wowupHits")
+            "wowup", "wowupAct", "wowupHits", "blizzard")
 
     def __init__(self):
         super().__init__()
@@ -230,6 +230,8 @@ class Backend(QObject):
             self.job("wow", stats.wow)
             if not test:
                 QTimer.singleShot(1500, lambda: self.job("wowfetch", lambda: stats.wow(True), into="wow"))
+        if used & {"wow", "wowinfo"}:
+            self.read_blizzard(used)
         if "cs2" in used:
             self.job("cs2", stats.cs2)
         if "builds" in used:
@@ -237,6 +239,23 @@ class Backend(QObject):
         if "reports" in used:
             seen = float(dash.settings().get("reportsSeen") or 0)
             self.job("reports", lambda: stats.reports(seen))
+
+    def read_blizzard(self, used):
+        """Blizzard's API (18 Nov): the characters of WOW STATS (picture, ilvl, Mythic+, raid progress, PvP) and
+        WOW-LÄGET (token, reset, realms) – blizzard.py asks only for what is due (30 / 10 min) and keeps it."""
+        import blizzard  # noqa: PLC0415
+        if "blizzard" in self.test:
+            self.job("blizzard", lambda: self.test["blizzard"])
+            return
+        import stats  # noqa: PLC0415
+
+        def work():
+            try:
+                players = json.loads(self.data.get("wow") or "{}").get("players") or stats.wow().get("players") or []
+            except ValueError:
+                players = []
+            return blizzard.refresh(players, want_world="wowinfo" in used)
+        self.job("blizzard", work)
 
     # ── GoblinUp (18 Nov): WowUp's add-ons – its own file every 5 s while TILLÄGG or the middle shows them ──
     def read_wowup(self):

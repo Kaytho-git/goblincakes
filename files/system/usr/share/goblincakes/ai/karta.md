@@ -229,6 +229,15 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
 - Nederst i dashboarden: GOBLINCAKES egna program i en rad med små ikoner (dash.py own_apps: Config, Goblin AI,
   GoblinRecorder, GoblinAmp, GoblinShare, Barnläge), under dem programraden = dockans fästa program (delas åt båda hållen: Config →
   DASHBOARD → APPARNA LÄNGST NER ändrar dockan; i upplägget Dashboard listan i desktop-layout.json, som dockan får tillbaka).
+- Blizzard-data (18 nov): /usr/share/goblincakes/dashboard/blizzard.py frågar Blizzards WoW-API med användarens egen
+  nyckel (develop.battle.net, Client ID + Secret – läggs in i Config → DASHBOARD → BLIZZARD, sparas i
+  ~/.config/goblincakes/blizzard.json, bara läsbar för användaren; aldrig visa hemligheten). WOW STATS mitt för en karaktär
+  visar då bild (render, ~/.cache/goblincakes/blizzard/), Blizzards item level, Mythic+ score och bästa per dungeon,
+  raidprogress (nyaste expansionen) och PvP; ramen WOW-LÄGET (id wowinfo, väljs i en vy) visar WoW Token-priset,
+  veckoreset (räknas ut: EU onsdag 04:00 UTC), realmstatus och knappen Köp token (Blizzards butik i webbläsaren – köpet
+  i spelet fungerar ofta inte under Proton). Svaren sparas i ~/.cache/goblincakes/dashboard-blizzard.json (karaktärer
+  var 30:e min, token/realmer var 10:e). Kolla: `python3 /usr/share/goblincakes/dashboard/blizzard.py status`,
+  `… char <namn> <realm> eu`, `… world eu <realm>`; "Fel Client ID eller Secret" = ny nyckel i Config.
 
 ## GOBLINCAKES Config
 Ord: config, inställningar, goblincakes config, program, förinstallerat, fönster, grafik, uppdatera, reglage
