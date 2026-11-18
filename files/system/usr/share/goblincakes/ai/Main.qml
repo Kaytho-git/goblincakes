@@ -2935,6 +2935,7 @@ Window {
                                                 : segItem.s.type === "shot" ? "SKÄRMBILD"
                                                 : segItem.s.type === "memory" ? "MINNE"
                                                 : segItem.s.type === "solved" ? "KÄND LÖSNING"
+                                                : segItem.s.type === "knowledge" ? (segItem.s.update ? "LÄGGA TILL I KUNSKAPSMINNET?" : "SPARA I KUNSKAPSMINNET?")
                                                 : segItem.s.type === "forget" ? "MINNE – GLÖMT"
                                                 : segItem.s.type === "file" ? "NY VERSION AV " + segItem.s.name.toUpperCase()
                                                 : (segItem.s.lang ? segItem.s.lang.toUpperCase() : "TEXT"))
@@ -3064,7 +3065,7 @@ Window {
                                             }
                                         }
                                         CodeBox {
-                                            visible: ["image", "shot", "memory", "forget", "blocked", "solved"].indexOf(segItem.s.type) < 0
+                                            visible: ["image", "shot", "memory", "forget", "blocked", "solved", "knowledge"].indexOf(segItem.s.type) < 0
                                                      && (segItem.s.type !== "command" || !segItem.s.explain || (segItem.showCode && !segItem.s.diff))
                                             code: segItem.s.code || ""
                                             maxHeight: segItem.s.type === "file" ? 320 : 220
@@ -3204,6 +3205,81 @@ Window {
                                             small: true
                                             text: "Ångra"
                                             onClicked: backend.undoMemory(msgItem.index, segItem.index)
+                                        }
+
+                                        // Kakans kunskapsminne (18 Nov, the user: "hon ger källor, jag kollar, jag godkänner eller nekar"):
+                                        // the subject, her facts and the page they come from – Tillåt saves, Nej is remembered
+                                        Text {
+                                            visible: segItem.s.type === "knowledge"
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            textFormat: Text.PlainText
+                                            text: segItem.s.type === "knowledge" ? (segItem.s.update ? "Läggs till under: " : "Ny rubrik: ") + (segItem.s.title || "") : ""
+                                            color: "#E6ECF5"
+                                            font.family: "IBM Plex Sans"
+                                            font.weight: Font.DemiBold
+                                            font.pixelSize: 14
+                                        }
+                                        Text {
+                                            visible: segItem.s.type === "knowledge"
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            textFormat: Text.PlainText
+                                            text: segItem.s.type === "knowledge" ? (segItem.s.facts || "") : ""
+                                            color: "#C9D3E3"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 14
+                                        }
+                                        Text {
+                                            visible: segItem.s.type === "knowledge"
+                                            width: parent.width
+                                            wrapMode: Text.WrapAnywhere
+                                            textFormat: Text.PlainText
+                                            text: segItem.s.type === "knowledge" ? "Källa: " + (segItem.s.source ? segItem.s.source + " – " : "") + (segItem.s.url || "") : ""
+                                            color: knowSrc.containsMouse ? accent.text : "#8B98AD"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 13
+                                            font.underline: knowSrc.containsMouse
+                                            MouseArea {
+                                                id: knowSrc
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: if (segItem.s.url) Qt.openUrlExternally(segItem.s.url)
+                                            }
+                                        }
+                                        Text {
+                                            visible: segItem.s.type === "knowledge"
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            text: segItem.s.state === "saved" ? "Sparat i kunskapsminnet – " + (backend.aiName || "Kakan") + " läser det vid frågor om ämnet (Inställningar → Kunskap)."
+                                                  : segItem.s.state === "denied" ? "Nekat – inte sparat, och föreslås inte igen."
+                                                  : segItem.s.state === "error" ? (segItem.s.error || "Gick inte att spara.")
+                                                  : "Kolla att fakta stämmer med källan (klicka för att öppna den). Inget sparas förrän du trycker Tillåt."
+                                            color: segItem.s.state === "error" ? accent.errorBright : "#8B98AD"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 13
+                                        }
+                                        Row {
+                                            visible: segItem.s.type === "knowledge" && (segItem.s.state === "new" || segItem.s.state === "error")
+                                            spacing: 10
+                                            FlatButton {
+                                                primary: true
+                                                small: true
+                                                text: "Tillåt"
+                                                onClicked: backend.allowKnowledge(msgItem.index, segItem.index)
+                                            }
+                                            FlatButton {
+                                                small: true
+                                                text: "Nej"
+                                                onClicked: backend.denyKnowledge(msgItem.index, segItem.index)
+                                            }
+                                        }
+                                        FlatButton {
+                                            visible: segItem.s.type === "knowledge" && (segItem.s.state === "saved" || segItem.s.state === "denied")
+                                            small: true
+                                            text: "Ångra"
+                                            onClicked: backend.undoKnowledge(msgItem.index, segItem.index)
                                         }
 
                                         // A known solution (28 Oct, point 12): saved at once, can be undone; alike an older one → the choice
@@ -5164,7 +5240,7 @@ Window {
             }
             readonly property var sections: [
                 { name: "Namn", item: setName, key: "kakan" }, { name: "Avatar", item: setAvatar },
-                { name: "Minne", item: memCard }, { name: "Lärdomar", item: lessonCard },
+                { name: "Minne", item: memCard }, { name: "Lärdomar", item: lessonCard }, { name: "Kunskap", item: knowCard, key: "kunskap" },
                 { name: "Körda kommandon", item: cmdLogCard }, { name: "Egna verktyg", item: ownToolsCard, key: "verktyg" },
                 { name: "Verktyg (MCP)", item: mcpCard },
                 { name: "Egna knappar", item: dailyCard }, { name: "Lokal AI", item: setLocal, key: "lokal" },
@@ -5856,6 +5932,237 @@ Window {
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── Kunskap (18 Nov): Kakans kunskapsminne – what she found and the user allowed; read, open, remove ──
+                Rectangle {
+                    G.Light {}
+                    id: knowCard
+                    property bool open: false
+                    width: settingsCol.width
+                    height: knowCol.height + 36
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    property var items: JSON.parse(backend.knowledge)
+                    property var denied: JSON.parse(backend.knowledgeDenied)
+                    property string shown: ""     // the subject opened
+                    property string asking: ""    // the subject whose × waits for "Ta bort"
+                    property bool deniedOpen: false
+
+                    Column {
+                        id: knowCol
+                        x: 20
+                        y: 18
+                        width: parent.width - 40
+                        spacing: 10
+                        Text {
+                            width: parent.width
+                            text: (knowCard.open ? "▾  " : "▸  ") + "Kunskapsminne" + (knowCard.items.length ? "   (" + knowCard.items.length + ")" : "")
+                            color: "#E6ECF5"
+                            font.family: "IBM Plex Sans"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: 16
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: knowCard.open = !knowCard.open
+                            }
+                        }
+                        Column {
+                            visible: knowCard.open
+                            width: parent.width
+                            spacing: 10
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: "Fakta " + (backend.aiName || "Kakan") + " hittat på nätet och i Wikipedia och som du godkänt (Tillåt på kortet under svaret). "
+                                      + "Vid en fråga om samma ämne läser hon här först – står svaret här söker hon inte igen, utom när frågan gäller något som kan ha ändrats. "
+                                      + "Nekade förslag föreslås inte igen. Delas av alla chattar."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            FlatButton {
+                                small: true
+                                text: "Öppna filen"
+                                onClicked: backend.openKnowledgeFile()
+                            }
+                            Text {
+                                visible: knowCard.items.length === 0
+                                text: "Inget sparat än."
+                                color: "#5C6880"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 13
+                            }
+                            Repeater {
+                                model: knowCard.items
+                                Column {
+                                    id: knowRow
+                                    required property var modelData
+                                    width: knowCol.width
+                                    spacing: 6
+                                    Row {
+                                        width: parent.width
+                                        spacing: 10
+                                        Text {
+                                            width: parent.width - 30
+                                            elide: Text.ElideRight
+                                            text: (knowCard.shown === knowRow.modelData.title ? "▾  " : "▸  ") + knowRow.modelData.title
+                                                  + "   ·  " + knowRow.modelData.entries.length + (knowRow.modelData.entries.length === 1 ? " sparning" : " sparningar")
+                                                  + (knowRow.modelData.updated ? "  ·  " + knowRow.modelData.updated : "")
+                                            color: knowHead.containsMouse ? accent.text : "#E6ECF5"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 14
+                                            MouseArea {
+                                                id: knowHead
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: knowCard.shown = knowCard.shown === knowRow.modelData.title ? "" : knowRow.modelData.title
+                                            }
+                                        }
+                                        Text {
+                                            text: "×"
+                                            color: knowX.containsMouse ? accent.errorBright : "#8B98AD"
+                                            font.pixelSize: 18
+                                            MouseArea {
+                                                id: knowX
+                                                anchors.fill: parent
+                                                anchors.margins: -6
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: knowCard.asking = knowCard.asking === knowRow.modelData.title ? "" : knowRow.modelData.title
+                                            }
+                                        }
+                                    }
+                                    Row {
+                                        visible: knowCard.asking === knowRow.modelData.title
+                                        spacing: 10
+                                        leftPadding: 16
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "Ta bort hela ämnet?"
+                                            color: "#C9D3E3"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 13
+                                        }
+                                        FlatButton {
+                                            small: true
+                                            text: "Ta bort"
+                                            onClicked: { backend.removeKnowledge(knowRow.modelData.title); knowCard.asking = ""; }
+                                        }
+                                        FlatButton {
+                                            small: true
+                                            text: "Avbryt"
+                                            onClicked: knowCard.asking = ""
+                                        }
+                                    }
+                                    Column {
+                                        visible: knowCard.shown === knowRow.modelData.title
+                                        width: parent.width
+                                        spacing: 8
+                                        leftPadding: 16
+                                        Repeater {
+                                            model: knowCard.shown === knowRow.modelData.title ? knowRow.modelData.entries : []
+                                            Column {
+                                                id: entryRow
+                                                required property var modelData
+                                                width: knowCol.width - 16
+                                                spacing: 2
+                                                Text {
+                                                    width: parent.width
+                                                    wrapMode: Text.WordWrap
+                                                    textFormat: Text.PlainText
+                                                    text: entryRow.modelData.facts
+                                                    color: "#C9D3E3"
+                                                    font.family: "IBM Plex Sans"
+                                                    font.pixelSize: 13
+                                                }
+                                                Text {
+                                                    width: parent.width
+                                                    wrapMode: Text.WrapAnywhere
+                                                    textFormat: Text.PlainText
+                                                    text: entryRow.modelData.url
+                                                          ? (entryRow.modelData.date + "  ·  " + (entryRow.modelData.source && entryRow.modelData.source !== entryRow.modelData.url ? entryRow.modelData.source + " – " : "") + entryRow.modelData.url)
+                                                          : "Skrivet för hand"
+                                                    color: entrySrc.containsMouse ? accent.text : "#5C6880"
+                                                    font.family: "IBM Plex Sans"
+                                                    font.pixelSize: 12
+                                                    font.underline: entrySrc.containsMouse && !!entryRow.modelData.url
+                                                    MouseArea {
+                                                        id: entrySrc
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: entryRow.modelData.url ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                                        onClicked: if (entryRow.modelData.url) Qt.openUrlExternally(entryRow.modelData.url)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            // What the user said Nej to: not offered again – remove a line to let her offer it again
+                            Text {
+                                visible: knowCard.denied.length > 0
+                                text: (knowCard.deniedOpen ? "▾  " : "▸  ") + "Nekade förslag   (" + knowCard.denied.length + ")"
+                                color: knowDen.containsMouse ? accent.text : "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: 13
+                                MouseArea {
+                                    id: knowDen
+                                    anchors.fill: parent
+                                    anchors.margins: -4
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: knowCard.deniedOpen = !knowCard.deniedOpen
+                                }
+                            }
+                            Column {
+                                visible: knowCard.deniedOpen && knowCard.denied.length > 0
+                                width: parent.width
+                                spacing: 6
+                                leftPadding: 16
+                                Repeater {
+                                    model: knowCard.deniedOpen ? knowCard.denied : []
+                                    Row {
+                                        id: denRow
+                                        required property var modelData
+                                        width: knowCol.width - 16
+                                        spacing: 10
+                                        Text {
+                                            width: parent.width - 30
+                                            elide: Text.ElideRight
+                                            text: denRow.modelData.title + "  ·  " + denRow.modelData.date + "  ·  " + denRow.modelData.url
+                                            color: "#5C6880"
+                                            font.family: "IBM Plex Sans"
+                                            font.pixelSize: 12
+                                        }
+                                        Text {
+                                            text: "×"
+                                            color: denX.containsMouse ? accent.errorBright : "#8B98AD"
+                                            font.pixelSize: 16
+                                            MouseArea {
+                                                id: denX
+                                                anchors.fill: parent
+                                                anchors.margins: -6
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: backend.undenyKnowledge(denRow.modelData.title, denRow.modelData.url)
+                                            }
+                                        }
+                                    }
+                                }
+                                FlatButton {
+                                    small: true
+                                    text: "Rensa listan"
+                                    onClicked: backend.clearKnowledgeDenied()
                                 }
                             }
                         }

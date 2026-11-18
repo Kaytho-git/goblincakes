@@ -629,6 +629,24 @@ def show_answer(chat, answer, service, keys):
             part.update(state="saved", done=forget(part["items"]))
             for t in part["done"]:
                 print(f"  {RULE}▌{RESET} {ACCENT_BOLD}Glömde{RESET} {FROST}{t}{RESET}")
+        elif kind == "knowledge":  # kunskapsminnet (18 Nov): j = sparas, annat = Nej (föreslås inte igen)
+            k = goblinai.kunskap_mod()
+            word = "Lägga till i kunskapsminnet" if part.get("update") else "Spara i kunskapsminnet"
+            print(f"  {RULE}▌{RESET} {ACCENT_BOLD}{word}:{RESET} {FROST}{part['title']}{RESET}")
+            for line in textwrap.wrap(part["facts"], 90):
+                print(f"  {RULE}▌{RESET} {line}")
+            print(f"  {RULE}▌{RESET} {MUTED}Källa: {part.get('source') or ''} {part['url']}{RESET}")
+            try:
+                if ask_yes("Stämmer det med källan – spara?"):
+                    part.update(state="saved", action=k.add(part["title"], part["facts"], part["url"], part.get("source", "")))
+                    muted("  Sparat i kunskapsminnet.")
+                else:
+                    k.deny(part["title"], part["url"], part["facts"])
+                    part["state"] = "denied"
+                    muted("  Nekat – föreslås inte igen.")
+            except (OSError, ValueError) as e:
+                part.update(state="error", error=str(e))
+                muted(f"  Gick inte att spara: {e}")
         elif kind == "shot":
             part.update(state="error", error="Skärmbilder tas i fönstret.")
             muted("  (Skärmbilder tas i fönstret – skriv /app så följer samtalet med.)")

@@ -1158,6 +1158,76 @@ def byt_run(query):
             "Nästa ändring gör du när du sett hur det gick (du får veta det när användaren tryckt Tillåt)."), []
 
 
+def kunskap_mod():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import kunskap  # noqa: PLC0415
+    return kunskap
+
+
+# Kakans kunskapsminne (18 Nov, the user: "hon ger källor, jag kollar, jag godkänner eller nekar"): she proposes,
+# Goblin AI checks the source against the pages she read in this answer, the card waits for Tillåt or Nej
+KUNSKAP_DESC = ("Föreslår att spara fakta i ditt kunskapsminne, så att du kan svara på följdfrågor om ämnet utan att söka "
+                "igen – även i ett annat samtal, en annan dag. Bara fakta från en sida du läst i just det här svaret "
+                "(sökningen, Wikipedia, las_sida) med den sidans adress som källa – aldrig gissningar eller egna slutsatser. "
+                "Använd det när användaren ber dig spara eller komma ihåg något, eller när ämnet är något hen frågar vidare om "
+                "(en händelse, en sak att laga, ett ämne att lära sig) – inte för sådant som ändras snabbt (väder, priser, "
+                "dagens resultat, nyheter). Användaren ser kortet och godkänner eller nekar. Högst ett kort per svar – "
+                "svara på frågan som vanligt också.")
+KUNSKAP_PROMPT = """
+Föreslå att spara fakta i ditt kunskapsminne (användaren godkänner först) med ett ```kunskap-block:
+```kunskap
+rubrik: Ämnet kort, t.ex. Bågskytte – OS Paris 2024
+källa: https://… (en sida du läst i det här svaret)
+De viktigaste fakta från sidan, några korta meningar – bara det som står där.
+```
+Bara när användaren ber dig spara/komma ihåg, eller ämnet är något hen frågar vidare om – inte väder, priser, nyheter."""
+KUNSKAP_GUIDE = """
+Kortet läggs under ditt svar av sig självt (skriv det inte) och sparas bara om användaren trycker Tillåt. Svara på frågan
+som vanligt – fråga inte om du ska spara det (kortet är frågan)."""
+
+
+def kunskap_run(query):
+    """The kunskap tool: her title, facts and source checked, then the card under her answer (one per answer)."""
+    k = kunskap_mod()
+    query = query.strip()
+    try:
+        args = json.loads(query) if query.startswith("{") else None
+    except ValueError:
+        args = None
+    if isinstance(args, dict):
+        title, facts = " ".join(str(args.get("rubrik") or "").split()), str(args.get("fakta") or "")
+        url = str(args.get("kalla") or args.get("källa") or "")
+    else:
+        found_title = re.search(r"^\s*rubrik\s*:\s*(.+)$", query, re.M | re.I)
+        found_url = re.search(r"^\s*k[äa]lla\s*:\s*(\S+)", query, re.M | re.I)
+        title = " ".join(found_title.group(1).split()) if found_title else ""
+        url = found_url.group(1) if found_url else ""
+        facts = re.sub(r"^\s*(?:rubrik|k[äa]lla)\s*:.*(?:\n|$)", "", query, flags=re.M | re.I)
+    facts = facts.strip()
+    url = url.strip().strip("<>()[]\"'`.,;")
+    if not title or not facts:
+        return "Inget kort gjort: rubrik och fakta behövs (och källan).", []
+    read = {k._url(s["url"]): s for s in getattr(LAST, "sources", []) if s.get("url")}
+    if not read:
+        return ("Inget kort gjort: du har inte läst någon sida i det här svaret. Spara bara fakta från en sida du läst nu – "
+                "svara på frågan som vanligt."), []
+    src = read.get(k._url(url))
+    if not src:
+        return ("Inget kort gjort: källan är ingen sida du läst i det här svaret. Använd adressen till en av dem: "
+                + ", ".join(s["url"] for s in list(read.values())[:5])), []
+    if k.was_denied(title, src["url"]):
+        return "Inget kort gjort: användaren har redan sagt nej till att spara det här. Föreslå det inte igen – svara som vanligt.", []
+    if len(facts) > k.FACTS_MAX:
+        cut = facts[:k.FACTS_MAX]
+        facts = cut[:cut.rfind(". ") + 1] if ". " in cut else cut
+    again = bool(getattr(LAST, "knowledge_card", ""))
+    LAST.knowledge_card = k.card(title, facts, src["url"], src.get("title") or "")
+    return (("Klart – det nya kortet ersätter ditt förra (bara ett per svar). " if again else
+             "Klart – kortet läggs under ditt svar (skriv det inte själv) och sparas först när användaren trycker Tillåt. ")
+            + "Svara nu på frågan som vanligt – fråga inte om du ska spara det (kortet är frågan) och gör inget fler "
+            "kunskapskort."), []
+
+
 # "uppdatera sen stäng av datorn", "stäng av datorn när uppdateringen är klar" (29 Oct)
 UPDATE_OFF = re.compile(r"(?:uppdater|update|bygge).{0,120}(?:st[äa]ng\w*\s+av|shut\s*down|power\s*off)"
                         r"|st[äa]ng\w*\s+av.{0,120}(?:uppdater|update|bygge)", re.I | re.S)
@@ -1724,6 +1794,19 @@ def tools_for(keys, project, messages):
             "eller senaste boss (då wowstats). En ny länk = hämta igen.",
             "`senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, `senaste nyckeln` (Mythic+), en länk till rapporten; `alla` (+ länken) = varje boss i "
             "rapporten; en förmåga/mekanik/fiende: `<boss> förmåga: <namn>` (t.ex. `Ula'tek förmåga: Venomous Heart`)")
+    if ("sök" in tools or "wiki" in tools) and not report_only(messages):
+        # Kakans kunskapsminne (18 Nov): a card under the answer, saved only when the user presses Tillåt
+        tools["kunskap"] = tool("Föreslår att spara i kunskapsminnet", KUNSKAP_PROMPT, KUNSKAP_GUIDE, kunskap_run, "kunskap",
+                                "", "", [look_fn(
+                                    "spara_kunskap", KUNSKAP_DESC,
+                                    {"rubrik": ("Ämnet kort, som en rubrik: `Bågskytte – OS Paris 2024`, `Saab 9-3 – "
+                                                "länkarmar bak`", True),
+                                     "fakta": ("De viktigaste fakta från sidan, några korta meningar (högst ~1000 tecken) – "
+                                               "bara det som står där, inga egna slutsatser", True),
+                                     "kalla": ("Adressen till sidan fakta kommer från – en sida du läst i det här svaret "
+                                               "(från sökningen, Wikipedia eller las_sida)", True)},
+                                    lambda a: json.dumps({k: str(a.get(k) or a.get("källa" if k == "kalla" else k) or "")
+                                                          for k in ("rubrik", "fakta", "kalla")}, ensure_ascii=False))])
     only = only_tools(messages)
     if only and not any(k.startswith("mcp_") for k in only):
         # /wiki <fråga> (the user 30 Oct): only that tool on the menu – the 36 tools' descriptions were ~7400 tokens
@@ -1742,7 +1825,7 @@ def tools_for(keys, project, messages):
 # /<kommando> <fråga> = the question with only these tools (30 Oct, the user: "används inget / så jobbar den som vanligt,
 # används /wiki så jobbar den bara med wiki"). Shared by the window and the terminal.
 ONLY_COMMANDS = {
-    "wiki": (["wiki"], "fråga uppslagsverket – bara Wikipedia"),
+    "wiki": (["wiki", "kunskap"], "fråga uppslagsverket – bara Wikipedia"),
     "kalender": (["kalender"], "bara kalendern och påminnelser"),
     "wcl": (["warcraftlogs", "wowstats"], "bara Warcraft Logs och dina WoW-siffror"),
     "wow": (["wowfel", "wowapi", "wowstats", "warcraftlogs", "leta"], "bara WoW: felen, API:t, siffrorna, loggarna, filerna"),
@@ -1764,6 +1847,8 @@ PLAIN_TOOLS = [
                   "något blir klart (Steam, en nedladdning, uppdateringen). Loggas och kan ångras."),
     ("byt", "Ändra en fil", "Byter, lägger till eller tar bort rader i en fil som redan finns – t.ex. när ett WoW-tillägg "
             "lagas. Du ser före och efter och trycker Tillåt."),
+    ("kunskap", "Kunskapsminnet", "Föreslår att spara fakta hon hittat på nätet eller i Wikipedia, med källan – du kollar och "
+                "trycker Tillåt eller Nej. Vid en fråga om samma ämne läser hon minnet först (Inställningar → Kunskap)."),
     ("kommandon", "Kör kommandon", "Kör kommandon i terminalen åt dig. Kommandon som bara läser körs direkt, de som ändrar "
                   "något får ett Tillåt-kort (ångra under Körda kommandon)."),
     ("fil", "Skapa filer", "Sparar en ny fil – ett skript, ett WoW-tillägg, en text – i mappen du jobbar i, efter att du "
@@ -1807,7 +1892,8 @@ TOOL_WORDS = {"sök": "sök", "sok": "sök", "search": "sök", "wowfel": "wowfel
               "påminn": "skrivbord", "bevaka": "skrivbord", "kalender": "kalender",
               "lagg": "lagg", "laggmätning": "lagg", "lagmätning": "lagg",
               "byggstatus": "byggstatus", "bygget": "byggstatus",
-              "byt": "byt", "byt_text": "byt", "bytatext": "byt"}
+              "byt": "byt", "byt_text": "byt", "bytatext": "byt",
+              "kunskap": "kunskap", "spara_kunskap": "kunskap", "kunskapsminne": "kunskap"}
 
 # With real tool calls the system prompt only gets this – the tools describe themselves
 TOOLS_PROMPT = """
@@ -2118,6 +2204,7 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
     LAST.tools, LAST.steps, LAST.done, LAST.cards, LAST.card_spans, LAST.cut_short = [], None, [], [], [], False
+    LAST.sources, LAST.knowledge_card, LAST.remembered = [], "", []  # kunskapsminnet (18 Nov)
     messages = plan_chat(laga_chat(messages))  # /laga: she sees only the repair, not the hunt before it; /planering: the step
     LAST.laga = laga_on(messages)
     LAST.stop = steps.stop if steps else None  # request() closes the local AI's connection on STOPP
@@ -2205,6 +2292,11 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         # a guess she never got to look up (gear round 18, 1 Nov)
         answer = answer.rstrip() + ("\n\n*Obs: Kakans minne tog slut innan hon hann kolla klart – ändringen kan vara "
                                     "gissad. Tryck Tillåt bara om du vill prova den, annars **Skicka till Claude**.*")
+    # The kunskap card (18 Nov): only Goblin AI's checked one – her own ```kunskap copies in the text go
+    answer = re.sub(r"```kunskap[ \t]*\n.*?```\n?", "", answer, flags=re.S).rstrip()
+    if getattr(LAST, "knowledge_card", ""):
+        answer += ("\n\nSpara i kunskapsminnet? Kolla källan – inget sparas förrän du trycker Tillåt:\n"
+                   + LAST.knowledge_card)
     wrong = check_report(answer)
     if wrong:
         # Her report checked against the file (7 Nov) – what doesn't hold is said under it, by Goblin AI
@@ -2616,6 +2708,18 @@ def own_data_question(question, tools):
     return "leta" in tools and bool(OWN_SYSTEM.search(text))
 
 
+def knowledge_for(text):
+    """The kunskapsminne's sections that fit the question: [(section, strong)] – at most a quarter of the local
+    AI's memory (characters ≈ tokens × 4, so a quarter of the tokens in characters is a sixteenth of the room)."""
+    if not isinstance(text, str) or not text.strip():
+        return []
+    try:
+        k = kunskap_mod()
+        return k.find(text[:600], limit=min(k.PROMPT_MAX, max(4000, local_context())))
+    except Exception:  # noqa: BLE001 – a broken file must not stop the question
+        return []
+
+
 def fresh_question(question):
     """The question is about something that may have changed: the words above, or this or last year."""
     if not isinstance(question, str) or question.startswith(REPORT_TURNS):
@@ -2722,6 +2826,8 @@ def local_sources():
             name = SOURCE_NAMES.get(tool, "")
         if name and not str(text).startswith(("gick inte", "Det här verktyget ändrar", "Det här ändrar något")) and name not in out:
             out.append(name)
+    if getattr(LAST, "remembered", []):
+        out.append("ditt kunskapsminne (" + ", ".join(LAST.remembered) + ")")
     return out
 
 
@@ -2738,6 +2844,9 @@ def tool_label(tool, query, tools):
         return f"Byter text i {Path(target.group(0)).name}" if target else "Byter text i en fil"
     if tool == "leta":
         return sys_tools().describe(query)
+    if tool == "kunskap":
+        found = re.search(r'"rubrik":\s*"([^"]+)"|^\s*rubrik\s*:\s*(.+)$', query, re.M | re.I)
+        return "Föreslår att spara i kunskapsminnet" + (f": {(found.group(1) or found.group(2)).strip()[:60]}" if found else "")
     name = tools[tool]["name"] if tool in tools else tool
     return f"{name}{': ' + query[:80] if query else ''}"
 
@@ -3032,6 +3141,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         return ask_once(messages, keys, status, notice, project, choice)
     # chat() adds the tools: as real tool calls, or their code block prompts to the system prompt
     sources, used, searched = [], 0, False
+    LAST.sources = sources  # the pages read in this answer – a kunskap card may only cite one of them (18 Nov)
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:2000]
     # What the commands printed ("Så här gick det: …") is no question: a GitHub link on the page Kakan clicked to sent
     # the answer to GitHub, and a path in it to the computer's logs (28 Oct)
@@ -3188,6 +3298,27 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         steps.start("Förstår följdfrågan")
         follow_query = follow_up_query(follow, " ".join(asked_text(asked.get("content")).split()), keys, project, choice)
         steps.done(note=follow_query[:80] if follow_query else "ingen ny sökning behövs")
+    # Kakans kunskapsminne (18 Nov): what the user allowed her to keep, read before the web. The subject itself in
+    # the question and nothing that may have changed ("senaste", this year, the Sök button) → the memory first instead
+    # of the forced search; she can still search herself when it isn't enough.
+    remembered = ([] if report or typed or api_asked or chat_only or own
+                  else knowledge_for(follow_query or asked_text(asked.get("content"))))
+    if remembered:
+        first = any(strong for _, strong in remembered) and not forced and not fresh_question(asked.get("content"))
+        # "Hämtat från" names the memory only when its subject was the question's – a loose match is just along
+        LAST.remembered = [s["title"] for s, strong in remembered if strong]
+        steps.start("Läser i kunskapsminnet: " + ", ".join(s["title"] for s, _ in remembered)[:80])
+        steps.done(note="läser minnet först" if first else "")
+        messages.append({"role": "user", "content":
+                         "[Goblin AI: ur ditt kunskapsminne – fakta användaren godkänt tidigare, med datum och källa. Det "
+                         "här skrev användaren inte in]\n\n" + "\n\n".join(kunskap_mod().as_text(s) for s, _ in remembered)
+                         + "\n\n[Slut på minnet]\n\n"
+                         + ("Räcker det här för frågan: svara ur minnet och säg att det kommer från ditt kunskapsminne "
+                            "(och när det sparades). Saknas det som frågan gäller, eller kan det ha ändrats sedan dess: "
+                            "sök på nätet." if first else "Använd det bara om det passar frågan.")
+                         + f"\nAnvändarens fråga var: \"{question}\""})
+        if first:
+            follow_query = ""  # the follow-up's forced search: the memory answers first
     if "sök" in tools and not typed and not api_asked and (forced or follow_query or (fresh_question(asked.get("content")) and not own and not chat_only)):
         # Goblin AI searches first, with the question itself (Tavily takes plain questions)
         query = follow_query or " ".join(asked_text(asked.get("content")).split())[:300]
@@ -6633,6 +6764,10 @@ def segments(text):
             found = parse_solved(code)
             if found:
                 parts.append({"type": "solved", **found, "state": "new"})
+        elif lang.lower() == "kunskap":  # a card for the kunskapsminne: Tillåt saves it, Nej is remembered (18 Nov)
+            found = kunskap_mod().parse_card(code)
+            if found:
+                parts.append({"type": "knowledge", **found, "state": "new"})
         elif lang.lower() in ("skärmbild", "skarmbild", "screenshot"):
             both = bool(re.search(r"båda|alla|both|all", code, re.I))
             parts.append({"type": "shot", "scope": "all" if both else "screen", "state": "new"})

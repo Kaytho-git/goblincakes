@@ -62,7 +62,7 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 
 ## Att göra (detaljer: grep på namnet, eller "Att göra – detaljerna")
 - [ ] **GOBLINCAKES Dashboard** – byggd och provad 14 nov; kvar testlistorna `dashboard-notiser.md` och `dashboard-sken-kvot.md` (grep "Dashboard – bygget").
-- [ ] **Kakans samtal och kunskapsminne** – planeras, byggs inte förrän användaren säger det (grep "kunskapsminne").
+- [ ] **Kakans kunskapsminne** – del 1+2 byggd 18 nov (kunskap.py, Tillåt/Nej-kort, flik Kunskap), testlista `kunskapsminne.md`; resten av planen (betydelsesökning, komprimering, ihop med Claude) väntar (grep "Kunskapsminnet – bygget").
 - [ ] **Epics launcher i Config** – väntar på paketformatet (grep "Beredskapsplan").
 - [ ] **Offhand – WoW över två skärmar** – nästa: prova i Forever (grep "Offhand").
 - [ ] **Barnläge** – byggt 13 nov, testlista `barnlage.md` (grep "Barnläge").

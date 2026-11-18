@@ -432,6 +432,16 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   metadata.json + contents/ui/main.qml med PlasmoidItem, kpackagetool6 -t Plasma/Applet, prova med timeout 8
   plasmawindowed – felen står i journalen, `journalctl --user -t plasmawindowed`). Klart först när provet visar "Inga fel.".
 
+## Kunskapsminnet (Kakans fakta från nätet)
+Ord: kunskapsminne, kunskap, spara i minnet, kom ihåg fakta, följdfråga, nekat, tillåt
+- Filen ~/.local/share/goblincakes/ai/kunskap.md: en `## rubrik` per ämne, under den "Sparad ÅÅÅÅ-MM-DD · Källa: [titel](adress)" och fakta. Delas av alla chattar. Nekade förslag i kunskap-nekat.json bredvid.
+- Programmet /usr/share/goblincakes/ai/kunskap.py (`list [ord]`, `visa RUBRIK`, `ta-bort RUBRIK`, `nekat`). Inställningar → Kunskap visar ämnena (klick = fakta och källor, × = ta bort) och Nekade förslag.
+- Du föreslår att spara med verktyget spara_kunskap (rubrik, fakta, källa). Goblin AI gör kortet bara om källan är en sida du läst i just det svaret och användaren inte sagt nej till det förut. Inget sparas förrän användaren trycker Tillåt; Nej sparas så att det inte föreslås igen.
+- Vid en fråga läses de ämnen som passar in före sökningen. Gäller frågan ämnet och inget som kan ha ändrats ("senaste", i år, Sök-knappen): minnet först, ingen tvingad sökning – sök själv om det inte räcker.
+- "Inget kort gjort: källan är ingen sida du läst" = adressen fanns inte bland sidorna i svaret; använd en av adresserna verktyget räknar upp.
+- Kolla: `python3 /usr/share/goblincakes/ai/kunskap.py list`, `python3 /usr/share/goblincakes/ai/kunskap.py nekat`.
+Kontroll: `python3 /usr/share/goblincakes/ai/kunskap.py list`
+
 ## Lokal AI (Ollama)
 Ord: lokal ai, ollama, modell, gemma, långsam ai, grafikminne
 - Tjänsten goblincakes-ollama (/usr/libexec/goblincakes-ollama serve), inställningar ~/.config/goblincakes/ollama.json.
