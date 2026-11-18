@@ -61,7 +61,6 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - [ ] Notis om ny Fedora-version – Fedora 45 kom 9 nov (utom nvidia-varianten); notisen gick på frugans laptop, knappen ej provad
 
 ## Att göra (detaljer: grep på namnet, eller "Att göra – detaljerna")
-- [ ] **Kakan självgående – veckans plan** – allt klart utom punkt 18 (defensiva sidan i WoW-analyserna) (grep "veckans plan").
 - [ ] **GOBLINCAKES Dashboard** – byggd och provad 14 nov; kvar testlistorna `dashboard-notiser.md` och `dashboard-sken-kvot.md` (grep "Dashboard – bygget").
 - [ ] **Kakans samtal och kunskapsminne** – planeras, byggs inte förrän användaren säger det (grep "kunskapsminne").
 - [ ] **Epics launcher i Config** – väntar på paketformatet (grep "Beredskapsplan").
