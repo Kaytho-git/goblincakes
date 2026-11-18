@@ -1,0 +1,76 @@
+# GOBLINCAKES' Thunderbird theme (thunderbird-tema/, 18 Nov – the user: "do it like the Firefox theme"):
+# the same palette and goblin as firefox-tema/. Thunderbird needs no signing (xpinstall.signatures.required
+# is false there), so the flow only zips it into the release "thunderbird-tema" and writes
+# thunderbird-tema/updates.json – the manifest's update_url, so an installed theme updates itself.
+# Thunderbird is the user's own Flatpak (not in the image, no access to /etc): installed once by hand
+# (Tillägg och teman → kugghjulet → Installera tillägg från fil). New version: raise "version" in manifest.json.
+name: Thunderbird-temat
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "thunderbird-tema/**"
+      - "!thunderbird-tema/updates.json"
+      - ".github/workflows/build-thunderbird-theme.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write # the release "thunderbird-tema" and updates.json
+
+concurrency:
+  group: thunderbird-theme
+  cancel-in-progress: false
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Version
+        id: v
+        run: |
+          version=$(jq -r .version thunderbird-tema/manifest.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view thunderbird-tema -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' 2>/dev/null \
+              | grep -qx "goblincakes-thunderbird-theme-$version.xpi"; then
+            echo "Version $version finns redan – höj version i manifest.json för en ny."
+            echo "done=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Packa (en .xpi är en zip)
+        if: steps.v.outputs.done != 'true'
+        run: |
+          mkdir -p out
+          (cd thunderbird-tema && zip -X -r "../out/goblincakes-thunderbird-theme-${{ steps.v.outputs.version }}.xpi" . -x updates.json)
+          cp "out/goblincakes-thunderbird-theme-${{ steps.v.outputs.version }}.xpi" out/goblincakes-thunderbird-theme.xpi
+          unzip -l out/goblincakes-thunderbird-theme.xpi
+
+      - name: Lägg upp i releasen "thunderbird-tema"
+        if: steps.v.outputs.done != 'true'
+        run: |
+          gh release view thunderbird-tema -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create thunderbird-tema -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "GOBLINCAKES Thunderbird-tema" \
+              --notes "GOBLINCAKES tema för Thunderbird. Thunderbird → Tillägg och teman → kugghjulet → Installera tillägg från fil → goblincakes-thunderbird-theme.xpi. Uppdaterar sig själv."
+          gh release upload thunderbird-tema out/goblincakes-thunderbird-theme.xpi \
+            "out/goblincakes-thunderbird-theme-${{ steps.v.outputs.version }}.xpi" --clobber -R "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Skriv updates.json (Thunderbird hämtar nya versioner härifrån)
+        if: steps.v.outputs.done != 'true'
+        run: |
+          v=${{ steps.v.outputs.version }}
+          jq -n --arg v "$v" \
+            --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/thunderbird-tema/goblincakes-thunderbird-theme-$v.xpi" \
+            '{addons: {"thunderbird-theme@goblincakes": {updates: [{version: $v, update_link: $url}]}}}' > thunderbird-tema/updates.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add thunderbird-tema/updates.json
+          git commit -m "Thunderbird theme $v packed – updates.json" || exit 0
+          git pull --rebase
+          git push

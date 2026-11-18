@@ -1,0 +1,12 @@
+{
+  "addons": {
+    "thunderbird-theme@goblincakes": {
+      "updates": [
+        {
+          "version": "1.0",
+          "update_link": "https://github.com/Kaytho-git/goblincakes/releases/download/thunderbird-tema/goblincakes-thunderbird-theme-1.0.xpi"
+        }
+      ]
+    }
+  }
+}
