@@ -1018,6 +1018,10 @@ def wow_stats(query):
     item level – put together from GoblinRecorder's history (recorder.wow_overview), no calls."""
     sys.path.insert(0, os.environ.get("GOBLINCAKES_RECORDER_SHARE", "/usr/share/goblincakes/recorder"))
     import recorder as R  # noqa: PLC0415
+    try:  # GoblinRecorder fetches only when someone looks (18 Nov): ask for tonight's numbers first
+        R.wcl_ask_wait(45)
+    except Exception:  # noqa: BLE001
+        pass
     q = (query or "").lower()
     days = int(m.group(1)) if (m := re.search(r"(\d+)\s*dag", q)) else 0
     folder = R.load_config()["folder"]

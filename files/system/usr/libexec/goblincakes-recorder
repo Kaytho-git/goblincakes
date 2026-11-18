@@ -39,16 +39,16 @@ import recorder as R  # noqa: E402
 LIVE_LIMIT = 30  # a start line older than this (seconds) is not recorded
 LATE_MARKS = 120  # seconds after a video ends that late log lines may still add marks
 MAX_LENGTH = {"raid": 45 * 60, "mplus": 3 * 3600, "arena": 45 * 60, "cs2": 3 * 3600, "test": 5 * 60}
-WCL_EVERY = 5 * 60  # look for Warcraft Logs fights this often …
-WCL_LIVE_EVERY = 30  # … and this often while a report is live logged (or just after a recording)
-WCL_LIVE_FOR = 20 * 60  # live = a live-logged report seen this recently
-WCL_FOR = 24 * 3600  # … for videos this young
-WCL_FRESH = 15 * 60  # a video this young without a link is looked for …
+# Warcraft Logs (18 Nov, the user's choice): nothing while you play – a round when a window asks (R.wcl_ask:
+# GoblinRecorder's window, the dashboard, Kakan), once after the raid and once more when the parses have settled
+WCL_AFTER_QUIET = 30 * 60  # the raid is over: WoW closed, or no new pull this long
+WCL_SETTLE = 65 * 60  # Warcraft Logs ranks a kill about an hour after it: one more round then
+WCL_RETRY = 10 * 60  # a round that failed (no network) is tried again after this
+WCL_FOR = 24 * 3600  # videos this young are looked for
 REPORT_AGAIN = 30 * 60  # a report from tonight is read again this often (it grows during the evening)
 REPORT_FRESH = 12 * 3600  # … while its newest video is this young
 DEMO_EVERY = 30  # look for new CS2 demos this often (while a match waits for one)
 DEMO_SETTLE = 15  # a demo unchanged this long is whole (downloaded / `stop` given)
-WCL_FRESH_EVERY = 15  # … this often (only the fresh ones: Live Log has the fight within seconds)
 WCL_UNRANKED_SOON = 5 * 60  # parses not ranked yet: asked again this often the first hour, then hourly
 ME = re.compile(r'^(Player-[^,]+),"([^"]+)",0x511,')  # a line by your own character
 
@@ -141,7 +141,10 @@ class Service:
         self.error = ""
         self.last_status = 0
         self.me = ""  # Name-Realm-Region of the character playing (for Warcraft Logs)
-        self.wcl_next = time.time() + 60
+        self.wcl_next = time.time() + 120  # a round soon after start: what waited when the computer was turned off
+        self.wcl_after = 0  # when the last raid/M+ video was saved – the after-raid round is due (0 = done)
+        self.wcl_settle = 0  # when to look once more for the parses (0 = not due)
+        self.wcl_ok = True  # the last round went through
         self.wcl_busy = False
         self.parses_next = time.time() + 120  # the week's parses again (R.wow_parses_refresh) – it picks what is due
         self.tidy = False  # WoW closed: remove non-kills once the last video is saved
@@ -623,8 +626,8 @@ class Service:
         R.wow_history_add(meta)  # WoW Stats: every pull and key, also when the video goes later
         if cur["kind"] == "cs2":
             R.cs2_history_add([meta])  # CS2 Stats: the same
-        # A live-logged fight is on Warcraft Logs within seconds – look at once, not in 5 minutes
-        self.wcl_next = min(self.wcl_next, time.time() + 3)
+        if cur["kind"] in ("raid", "mplus"):  # Warcraft Logs: after the raid, not now (18 Nov)
+            self.wcl_after = time.time()
         R.make_thumb(dest, min(max(meta["fightStart"] + 20, 0), max(meta["duration"] - 2, 0)),
                      dest.with_suffix(".jpg"))
         self.closing.append(meta)
@@ -658,7 +661,7 @@ class Service:
         data = {k: v for k, v in meta.items() if not k.startswith("_")}
         try:  # keep what was added to the file since (Warcraft Logs link and numbers, kept)
             old = json.loads(Path(meta["_path"]).read_text())
-            data.update({k: old[k] for k in ("wcl", "wclStats", "keep", "youtube", "clipsMade", "videoRemoved",
+            data.update({k: old[k] for k in ("wcl", "wclMissing", "wclStats", "keep", "youtube", "clipsMade", "videoRemoved",
                                          "demo", "demoFile", "demoStats", "demoRounds") if k in old})
         except (OSError, ValueError):
             pass
@@ -739,28 +742,43 @@ class Service:
 
     # ------------------------------------------------------------ Warcraft Logs
     def wcl_check(self):
-        """Videos from the last day without a Warcraft Logs link: ask again (the upload
-        comes some minutes after the fight). Runs beside the main loop."""
+        """Videos from the last day without a Warcraft Logs link, their numbers and the week's parses – in a
+        round when asked (R.wcl_ask), after the raid, when the parses have settled, soon after start, or when a
+        failed round is tried again. Not while you play. Runs beside the main loop."""
         if not self.key_level_fixed:
             self.key_level_fixed = True
             try:
                 R.mplus_key_level_fix(self.cfg["folder"])
             except (OSError, ValueError) as e:
                 log("M+ parse fix:", e)
-        if self.wcl_busy or time.time() < self.wcl_next or not R.wcl_configured():
+        if self.wcl_busy:
             return
-        live = time.time() - R.wcl_live_seen < WCL_LIVE_FOR
-        self.wcl_next = time.time() + (WCL_LIVE_EVERY if live else WCL_EVERY)
+        now = time.time()
+        asked = R.WCL_ASK.exists()
+        if asked:
+            try:
+                R.WCL_ASK.unlink()
+            except OSError:
+                pass
+        raid_over = self.wcl_after and not self.current and (not self.wow or now - self.wcl_after > WCL_AFTER_QUIET)
+        due = asked or raid_over or (self.wcl_settle and now >= self.wcl_settle) or (self.wcl_next and now >= self.wcl_next)
+        if not due or not R.wcl_configured() or R.wcl_paused():
+            if asked:
+                self.wcl_done()  # the one waiting (Kakan) need not wait – what is saved is all there is
+            if due and R.wcl_paused():  # the hour's points spent: the round waits for them (not lost)
+                self.wcl_next = max(self.wcl_next, R.wcl_paused() + 5)
+            return
+        if raid_over:
+            self.wcl_after = 0
+            self.wcl_settle = now + WCL_SETTLE
+        elif self.wcl_settle and now >= self.wcl_settle:
+            self.wcl_settle = 0
+        self.wcl_next = 0
         todo = [v for v in R.video_files(self.cfg["folder"])
-                if v.get("kind") in ("raid", "mplus") and not v.get("wcl") and v.get("player") and time.time() - v["started"] < WCL_FOR]
-        # Just recorded (from the pull: the start + the fight + a few minutes): only those, often
-        fresh = [v for v in todo if time.time() - v["started"] - (v.get("fight") or 0) < WCL_FRESH]
-        if fresh:
-            todo = fresh
-            self.wcl_next = time.time() + WCL_FRESH_EVERY
+                if v.get("kind") in ("raid", "mplus") and not v.get("wcl") and not v.get("wclMissing")
+                and v.get("player") and now - v["started"] < WCL_FOR]
         # WoW Stats: your numbers from the log of each kill and key – at once, and once more when the
         # parses have settled (an hour after the end)
-        now = time.time()
         stats = [v for v in R.video_files(self.cfg["folder"])
                  if v.get("kind") in ("raid", "mplus") and v.get("wcl") and v.get("result") in ("kill", "timed")
                  and now - v["started"] < WCL_FOR + 3600
@@ -783,18 +801,28 @@ class Service:
         if refresh:
             self.parses_next = now + 3600
         if not todo and not stats and not ilvl and not reports and not refresh:
+            self.wcl_done()
             return
         self.wcl_busy = True
         threading.Thread(target=self.wcl_run, args=(todo, stats, ilvl, reports, refresh), daemon=True).start()
 
+    def wcl_done(self):
+        """Tell the one waiting for the round (R.wcl_ask_wait) that it is done."""
+        try:
+            R.WCL_DONE.touch()
+        except OSError:
+            pass
+
     def wcl_run(self, todo, stats=(), ilvl=(), reports=(), refresh=False):
         try:
-            for v in todo:
-                found = R.wcl_find(v)
+            for path, found in R.wcl_find_all(todo).items():
+                v = next(x for x in todo if x["path"] == path)
                 if found:
-                    R.set_meta(v["path"], wcl=found)
-                    self.last_video = Path(v["path"]).name + "#wcl"
+                    R.set_meta(path, wcl=found)
+                    self.last_video = Path(path).name + "#wcl"
                     log("Warcraft Logs:", v["file"], found["url"])
+                elif json.loads(Path(path).with_suffix(".json").read_text()).get("wclMissing"):
+                    log("Warcraft Logs: not there (too short to be kept):", v["file"])
             for v in stats:
                 R.set_meta(v["path"], wclStats=R.wcl_stats(v["wcl"]))
                 R.wow_history_add(json.loads(Path(v["path"]).with_suffix(".json").read_text()))
@@ -812,10 +840,21 @@ class Service:
                 if n:
                     self.last_video = f"parses {time.time()}"
                     log("Warcraft Logs: the week's parses again –", n, "changed")
+            if not self.wcl_ok:
+                log("Warcraft Logs: fetched again")
+            self.wcl_ok = True
+        except R.WclQuotaSpent as e:  # the round comes when the points are back (once in the log, not every 15 s)
+            if self.wcl_ok:
+                log("Warcraft Logs:", e)
+            self.wcl_ok = False
+            self.wcl_next = (R.wcl_paused() or time.time() + R.WCL_PAUSE_FOR) + 5
         except Exception as e:  # noqa: BLE001 – no network etc.: try again later
             log("Warcraft Logs:", e)
+            self.wcl_ok = False
+            self.wcl_next = time.time() + WCL_RETRY
         finally:
             self.wcl_busy = False
+            self.wcl_done()
 
     # ------------------------------------------------------------ CS2 demos (step 2)
     def demo_check(self):

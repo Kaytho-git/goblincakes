@@ -486,6 +486,12 @@ Ord: goblinrecorder, recorder, inspelning, spela in, obs, film, raid, mythic, m+
 Kontroll: `systemctl --user is-active goblincakes-recorder`
 Kontroll: `journalctl --user -u goblincakes-recorder -n 15 --no-pager`
 
+- Warcraft Logs (länkar, siffror, parses) hämtas INTE medan man spelar (18 nov): bara när GoblinRecorders fönster
+  visas (sedan högst var 10:e min), dashboarden visas (högst var 10:e min), Kakans wowstats frågar, en gång efter
+  raiden (WoW stängt eller 30 min utan pull) och en gång till ~65 min senare (parses rankade). Frågan = filen
+  ~/.cache/goblincakes/wcl-ask, klar = wcl-fetched. Timkvoten slut (429) → ~/.cache/goblincakes/wcl-pause (tid då
+  den är tillbaka) – inga anrop alls före den, från något program. Korta wipes som WCL inte sparar får
+  "wclMissing" i videons .json och letas inte efter igen ("not there (too short to be kept)" i journalen).
 - WoW Stats → "Leta efter saknade": nycklar och raidbossar från den senaste veckan som finns på Warcraft Logs men inte i WoW Stats (inte inspelade, t.ex. när GoblinRecorder inte kände igen WoW). Raid: kills + bästa wipen per boss och kväll. Läggs bara till när användaren trycker Lägg till (`recorder.py` wow_missing/wow_add_missing). Saknas en körning i WoW Stats → föreslå knappen.
 - Parserna i WoW Stats hämtas igen från Warcraft Logs en gång om dagen i en vecka (procenten ändras de första
   dagarna; en för tidigt hämtad kan vara fel – 100 mot ilvl-parse 32). Stämmer en parse inte med Warcraft Logs:

@@ -64,6 +64,7 @@ class Backend(QObject):
         self._yt_cancel = False
         self._checked_at = 0.0
         self._checks = {}
+        self._shown = False
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll)
         self.timer.start(1000)
@@ -100,6 +101,14 @@ class Backend(QObject):
         self._checked_at = 0.0
         self.poll()
 
+    def shown(self, visible):
+        """The window shown: the service fetches the videos' Warcraft Logs links and numbers now (18 Nov: not
+        while you play, only when you look) – and every 10 minutes while the window stays up."""
+        self._shown = visible
+        if visible:
+            R.wcl_ask()
+            self.recheck()
+
     def poll(self):
         st = R.read_status()
         alive = bool(st) and time.time() - st.get("time", 0) < 10
@@ -112,6 +121,8 @@ class Backend(QObject):
         # also with the window hidden – now when the window is shown, after the buttons, and every 30 s
         if time.time() - self._checked_at > 30:
             self._checked_at = time.time()
+            if self._shown:
+                R.wcl_ask(every=600)
             self._checks = {"audioPlugin": R.audio_plugin_installed(), "cs2Gsi": R.cs2_state()}
         st.update(self._checks)
         text = json.dumps(st, ensure_ascii=False)
@@ -814,7 +825,9 @@ def main():
     if not engine.rootObjects():
         return 1
     win = engine.rootObjects()[0]
-    win.visibleChanged.connect(lambda shown: backend.recheck() if shown else None)
+    win.visibleChanged.connect(backend.shown)
+    if win.isVisible():
+        backend.shown(True)
     # The window's ✕ asks (or does what was chosen): hide in the system tray or close –
     # Main.qml's onClosing; the tray menu always closes for real
     tray = make_tray(app, win, backend, app_icon) if has_tray else None

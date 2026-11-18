@@ -173,6 +173,11 @@ def latest_raid(entries, fetch=False):
 def wow(fetch=False):
     """{"players": [the characters, the last played first], "raid": latest_raid()} – {} without a history."""
     r = _recorder()
+    if fetch:  # shown: GoblinRecorder's service fetches the evening's links and numbers (18 Nov: only when you look)
+        try:
+            r.wcl_ask(every=600)
+        except Exception:  # noqa: BLE001 – an older recorder.py
+            pass
     entries = [e for e in r.wow_history().values() if isinstance(e, dict)]
     if not entries:
         return {}

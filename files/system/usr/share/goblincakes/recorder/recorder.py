@@ -2777,18 +2777,101 @@ def wcl_forget():
         pass
 
 
+# 18 Nov (the user: "something drew on my WCL quota while I played"): the service asked every 15 s for
+# short wipes that never come to Warcraft Logs, and went on asking with the hour's points spent (429 every
+# 15 s). Now: nothing is fetched while you play – only when you look (GoblinRecorder's window, the dashboard,
+# Kakan: wcl_ask) and once after the raid; with the points spent every program waits (WCL_PAUSE).
+WCL_ASK = CACHE_DIR / "wcl-ask"  # a window that shows Warcraft Logs data asks the service for a round
+WCL_DONE = CACHE_DIR / "wcl-fetched"  # … the service touches this when the round is done
+WCL_PAUSE = CACHE_DIR / "wcl-pause"  # the hour's points spent: no calls before this time (shared by all)
+WCL_PAUSE_FOR = 15 * 60  # when Warcraft Logs does not say for how long
+_wcl_asked = 0.0
+
+
+class WclQuotaSpent(RuntimeError):
+    pass
+
+
+def wcl_paused():
+    """When the hour's points come back (time.time()), or 0."""
+    try:
+        until = float(WCL_PAUSE.read_text())
+    except (OSError, ValueError):
+        return 0
+    return until if until > time.time() else 0
+
+
+def _wcl_pause(seconds=None):
+    until = time.time() + (seconds or WCL_PAUSE_FOR)
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        WCL_PAUSE.write_text(str(until))
+    except OSError:
+        pass
+    return until
+
+
+def _quota_text(until):
+    return f"timkvoten på Warcraft Logs är slut – den kommer tillbaka ungefär {time.strftime('%H:%M', time.localtime(until))}"
+
+
+def wcl_ask(every=0):
+    """Ask GoblinRecorder's service to fetch the videos' links and numbers now (it does not while you play).
+    every: not again from this program within that many seconds (a window that stays open)."""
+    global _wcl_asked
+    if every and time.time() - _wcl_asked < every:
+        return False
+    _wcl_asked = time.time()
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        WCL_ASK.touch()
+    except OSError:
+        return False
+    return True
+
+
+def wcl_ask_wait(timeout=45):
+    """wcl_ask + wait for the service's round (Kakan, before she reads the history). The service takes the ask
+    within a few seconds; if it does not (not running), no waiting."""
+    t0 = time.time()
+    if not wcl_ask():
+        return False
+    while time.time() - t0 < timeout:
+        time.sleep(0.5)
+        try:
+            if WCL_DONE.stat().st_mtime >= t0:
+                return True
+        except OSError:
+            pass
+        if WCL_ASK.exists() and time.time() - t0 > 8:
+            return False
+    return False
+
+
 def wcl_query(query, variables=None):
+    import urllib.error
     import urllib.request
+    if until := wcl_paused():
+        raise WclQuotaSpent(_quota_text(until))
     req = urllib.request.Request(f"{WCL}/api/v2/client", data=json.dumps(
         {"query": query, "variables": variables or {}}).encode(), headers={
         "Authorization": "Bearer " + _wcl_token(), "Content-Type": "application/json",
         "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        out = json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            out = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            try:
+                wait = int(e.headers.get("Retry-After") or 0)
+            except ValueError:
+                wait = 0
+            raise WclQuotaSpent(_quota_text(_wcl_pause(wait))) from e
+        raise
     errors = out.get("errors") or []
     # 22 Oct: with the hour's 1000 points spent the answer has data, but the asked parts are null
     if any("points remaining" in (e.get("message") or "") for e in errors):
-        raise RuntimeError("timkvoten är slut (1000 poäng i timmen) – prova igen om en stund")
+        raise WclQuotaSpent(_quota_text(_wcl_pause()))
     if errors and not out.get("data"):
         raise RuntimeError(errors[0].get("message", "fel från Warcraft Logs"))
     return out["data"]
@@ -2802,18 +2885,6 @@ def server_slug(realm):
 
 REPORT_FIELDS = ("code startTime endTime zone { id name expansion { id name } } fights { id encounterID name kill startTime endTime "
                  "bossPercentage fightPercentage keystoneLevel difficulty averageItemLevel }")
-
-
-WCL_LIVE_AGE = 10 * 60  # a report that grew this recently is being live logged
-wcl_live_seen = 0  # when a live-logged report was last seen (time.time())
-
-
-def wcl_note_live(reports):
-    """Remember when one of the reports is live logged (Archon/the uploader's Live Log: the
-    report grows during the evening), so the service looks for new fights often."""
-    global wcl_live_seen
-    if any(r.get("endTime", 0) / 1000 > time.time() - WCL_LIVE_AGE for r in reports):
-        wcl_live_seen = time.time()
 
 
 def wcl_reports(player, start_ms, end_ms):
@@ -2846,7 +2917,6 @@ def wcl_reports(player, start_ms, end_ms):
             " endTime:$to, limit: 10) { data { " + REPORT_FIELDS + " } } } }",  # more is too costly for the API
             dict(window, g=g["id"])
         )["reportData"]["reports"]["data"]
-    wcl_note_live(reports)
     return reports
 
 
@@ -3042,12 +3112,15 @@ def wcl_ilvl(wcl, player=""):
     return {"avgIlvl": round(avg, 2) if avg else None, "ilvl": mine.get("maxItemLevel") or mine.get("minItemLevel")}
 
 
-def wcl_find(meta):
-    """The Warcraft Logs fight a video shows, or None (not uploaded yet / not public)."""
+def wcl_find(meta, reports=None):
+    """The Warcraft Logs fight a video shows, or None (not uploaded yet / not public). reports: already
+    fetched (wcl_find_all: one search for all the evening's videos)."""
     start_ms = meta["started"] * 1000
     end_ms = start_ms + max(meta.get("fight", 0), 1) * 1000
     best, best_score = None, None
-    for rep in wcl_reports(meta.get("player", ""), start_ms, end_ms):
+    if reports is None:
+        reports = wcl_reports(meta.get("player", ""), start_ms, end_ms)
+    for rep in reports:
         for f in rep.get("fights") or []:
             fs, fe = rep["startTime"] + f["startTime"], rep["startTime"] + f["endTime"]
             if meta["kind"] == "raid":
@@ -3067,6 +3140,37 @@ def wcl_find(meta):
                         "bossPercentage": f.get("bossPercentage"), "avgIlvl": f.get("averageItemLevel"),
                         "url": f"{WCL}/reports/{rep['code']}#fight={f['id']}"}
     return best
+
+
+def wcl_not_coming(meta, reports):
+    """True when the video's fight will never be on Warcraft Logs: a report covers its time and has fights
+    after it, but not this one (18 Nov: wipes of 1–13 s are not kept by Warcraft Logs – they were looked for
+    every 15 s for a day)."""
+    start_ms = meta["started"] * 1000
+    end_ms = start_ms + max(meta.get("fight", 0), 1) * 1000
+    for rep in reports:
+        fights = rep.get("fights") or []
+        if rep["startTime"] <= start_ms and any(rep["startTime"] + f["startTime"] > end_ms + 30000 for f in fights):
+            return True
+    return False
+
+
+def wcl_find_all(videos):
+    """The fights of many videos with one search per character (3 calls in all, not 3 per video).
+    Returns {video path: link or None} and marks the videos whose fight will never come (wclMissing)."""
+    out = {}
+    by_player = {}
+    for v in videos:
+        by_player.setdefault(v.get("player", ""), []).append(v)
+    for player, vs in by_player.items():
+        start_ms = min(v["started"] for v in vs) * 1000
+        end_ms = max(v["started"] + max(v.get("fight", 0), 1) for v in vs) * 1000
+        reports = wcl_reports(player, start_ms, end_ms)
+        for v in vs:
+            out[v["path"]] = found = wcl_find(v, reports)
+            if not found and wcl_not_coming(v, reports):
+                set_meta(v["path"], wclMissing=time.time())
+    return out
 
 # ---------------------------------------------------------------- WoW Stats / CS2 Stats
 # (22 Oct, the user's wish: two buttons at the top of the window, and – the user's decision – put
