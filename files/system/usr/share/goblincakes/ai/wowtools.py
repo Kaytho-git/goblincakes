@@ -407,7 +407,10 @@ CC_SPELLS = ("Hammer of Justice", "Blinding Light", "Repentance", "Turn Evil", "
              "Entangling Roots", "Solar Beam", "Hibernate", "Cyclone", "Intimidation", "Binding Shot",
              "Freezing Trap", "Tar Trap", "High Explosive Trap", "Bursting Shot", "Scatter Shot", "Sleep Walk",
              "Landslide", "Tail Swipe", "Wing Buffet", "Oppressing Roar", "War Stomp", "Quaking Palm",
-             "Haymaker", "Bull Rush")
+             "Haymaker", "Bull Rush",
+             # 18 Nov: Eyrea's Earthgrab Totem was missing – Kakan said she used no CC
+             "Earthgrab Totem", "Sundering", "Lightning Lasso", "Shining Force", "Blinding Sleet", "Death Grip",
+             "Void Tendrils")
 CC_FILTER = "ability.name in (" + ", ".join(f'"{n}"' for n in CC_SPELLS) + ")"
 
 FIGHT_QUERY = ("query($c:String,$f:[Int]){ reportData { report(code:$c) {"
@@ -662,6 +665,8 @@ def pull_text(rep, fight, player, data, stats, compact=False):
     out = [f"Warcraft Logs: {rep.get('title', '')} – {fight['name']} {diff}, pull {number} av {len(same)}: {result}, "
            f"{mmss(length)} lång.",
            f"Länk: https://www.warcraftlogs.com/reports/{rep['code']}#fight={fight['id']}"]
+    if key:  # 18 Nov: Kakan called the key "The Council of Tribes Mythic+ +16" – a boss from the [pull …] tags
+        out.append(f"Dungeon: {fight['name']} – namnen i [pull …] nedan är bossar och fiender i den, inte dungeonens namn.")
     if fight.get("kill") and not key:
         # 7 Nov: "varför dog vi på Twin Fangs?" – qwen3.5 read the kill as a wipe ("the first death decided it")
         out.append("OBS: det här var en KILL – bossen dog och ni vann pullen. Dödsfallen nedan kostade, men ledde inte "

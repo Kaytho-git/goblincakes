@@ -2444,8 +2444,9 @@ def own_bosses():
 PARSE_WORDS = re.compile(r"\b(?:parse\w*|median|ilvl|item level|sämst|bäst|förbättra|snitt\w*)\b", re.I)
 
 
-# The latest Mythic+ key (punkt 18, 7 Nov: qwen3.5 searched the web for "senaste nyckeln" and found hockey)
-KEY_Q = re.compile(r"\b(?:senaste|sista|förra|vår|dagens|kvällens)\s+(?:m\+\s*|mythic\+?\s*)?(?:nyckel|nyckeln|key|keyn)\b"
+# The latest Mythic+ key (punkt 18, 7 Nov: qwen3.5 searched the web for "senaste nyckeln" and found hockey;
+# 18 Nov: the typo "nycklen" did too – nyckel/nycklen/nyckel'n/nykeln, not nyköpt)
+KEY_Q = re.compile(r"\b(?:senaste|sista|förra|vår|dagens|kvällens)\s+(?:m\+\s*|mythic\+?\s*)?(?:nyc?k(?:e?l|le)\w*|key(?:n|s|en)?\b)"
                    r"|(?<!\w)m\+|\bmythic\s*(?:\+|plus)", re.I)
 
 
