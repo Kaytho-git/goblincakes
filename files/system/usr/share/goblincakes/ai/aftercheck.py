@@ -12,6 +12,7 @@ Kept in ~/.local/state/goblincakes/efterkontroll.json. Only reads. Only the stan
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -126,7 +127,7 @@ def demoparser():
         return {}
     code = "import sys; sys.path.insert(0, '/usr/lib/goblincakes/demoparser'); import demoparser2, awpy"
     try:
-        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+        r = subprocess.run([shutil.which("python3.14") or sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as e:
         return {"demoparser": (False, f"gick inte att starta ({e})")}
     last = (r.stderr.strip().splitlines() or [""])[-1][:200]

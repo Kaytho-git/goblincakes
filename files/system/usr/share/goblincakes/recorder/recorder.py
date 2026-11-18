@@ -3921,7 +3921,8 @@ def cs2_overview(folder, count=10, season="", private=False):
 def cs2_demo_process(dem, meta_path=None):
     """cs2_demo_run in its own process (pandas & co. stay out of the service and the window),
     with low priority – a demo takes some seconds of CPU, maybe while you play."""
-    cmd = ["nice", "-n", "10", sys.executable, "-I", __file__, "cs2-demo", str(dem)] + ([str(meta_path)] if meta_path else [])
+    py = shutil.which("python3.14") or sys.executable  # the demo libraries are built for 3.14 (install-demoparser.sh)
+    cmd = ["nice", "-n", "10", py, "-I", __file__, "cs2-demo", str(dem)] + ([str(meta_path)] if meta_path else [])
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         return json.loads(r.stdout.strip().splitlines()[-1])

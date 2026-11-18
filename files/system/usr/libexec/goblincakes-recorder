@@ -1080,7 +1080,7 @@ def main():
         with R.OBS() as obs:
             print(", ".join(R.setup_obs(obs, R.load_config())) or "redan klart")
     elif cmd == "cs2-demo" and len(sys.argv) > 2:  # by hand: goblincakes-recorder cs2-demo <demo> [<video>]
-        print(json.dumps(R.cs2_demo_run(sys.argv[2], Path(sys.argv[3]).with_suffix(".json") if len(sys.argv) > 3 else None),
+        print(json.dumps(R.cs2_demo_process(sys.argv[2], Path(sys.argv[3]).with_suffix(".json") if len(sys.argv) > 3 else None),
                          ensure_ascii=False))
     elif cmd == "cs2-clips" and len(sys.argv) > 2:  # again by hand: goblincakes-recorder cs2-clips <video>
         made, err = R.cs2_make_clips(Path(sys.argv[2]).with_suffix(".json"),
