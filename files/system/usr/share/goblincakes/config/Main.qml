@@ -2389,7 +2389,7 @@ Window {
                     font.pixelSize: 14
                     text: bzSection.on
                         ? "Kopplat. WoW Stats visar karaktärens bild, item level, Mythic+ score, raidprogress och PvP från Blizzard, och ramen WoW-läget (lägg till den i en vy ovan) visar token-priset med Köp token, veckoreset och realmstatus. Hämtas var 30:e minut (token och realmer var 10:e)."
-                        : "Gratis nyckel från Blizzard, sparas bara på den här datorn: tryck på knappen och logga in med ditt Battle.net-konto, Create Client, skriv ett namn (t.ex. GOBLINCAKES) och en Redirect URL (t.ex. http://localhost). Klistra sedan in Client ID och Client Secret här. Ingen inloggning i dashboarden – bara det som syns publikt på Armory."
+                        : "Gratis nyckel från Blizzard, sparas bara på den här datorn: tryck på knappen och logga in med ditt Battle.net-konto, Create Client, skriv ett eget namn (unikt för alla Blizzards användare – t.ex. GOBLINCAKES-dittnamn; \"500 INTERNAL_SERVER_ERROR\" betyder oftast att namnet är upptaget), en Redirect URL (t.ex. http://localhost), kryssa i I do not have a service URL och skriv kort under Intended Use vad den ska användas till. Klistra sedan in Client ID och Client Secret här. Ingen inloggning i dashboarden – bara det som syns publikt på Armory."
                 }
                 Row {
                     visible: !bzSection.on
