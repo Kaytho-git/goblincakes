@@ -59,6 +59,11 @@ DIR = Path(os.environ.get("GOBLINCAKES_VOICE_DIR")
            or Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share") / "goblincakes-voice")
 VENV = DIR / "venv"
 PY = VENV / "bin/python3"
+# The environment is made with Python 3.14 when it is there (18 Nov): onnxruntime (Piper, faster-whisper) had no
+# packages for Fedora 45's 3.15 – the repair after the Fedora jump failed with "No matching distribution".
+# python3.14 is in the image through install-demoparser.sh. Without it: the system's python3, as before.
+BASE_PY = shutil.which("python3.14") or "/usr/bin/python3"
+BASE_VER = "3.14" if BASE_PY.endswith("python3.14") else f"{sys.version_info[0]}.{sys.version_info[1]}"
 MODELS = DIR / "models"
 HF = "https://huggingface.co"
 # Tested together 4 Nov; newer ones only after a test.
@@ -190,11 +195,11 @@ def piper_file(name):
 
 
 def venv_ok():
-    """The environment belongs to the Python that runs now. Its python3 is a link to the system's and its packages
+    """The environment belongs to BASE_PY. Its python3 is a link to the system's and its packages
     live in lib/pythonX.Y: after a Fedora with a newer Python (44 → 45: 3.14 → 3.15) the link runs the new one,
     which finds none of them – the service started, crashed and was started again every 10 s, saying nothing.
     The two packages themselves are looked for: an environment made again whose download failed is not ready."""
-    site = VENV / f"lib/python{sys.version_info[0]}.{sys.version_info[1]}/site-packages"
+    site = VENV / f"lib/python{BASE_VER}/site-packages"
     return (site / "faster_whisper").is_dir() and (site / "piper").is_dir()
 
 
@@ -275,7 +280,7 @@ def cmd_install(restart=True):
             # --clear: an environment of another Python is emptied first (the models are beside it, not in it)
             say("Python har bytt version – gör om Python-miljön…" if stale() else "Skapar Python-miljön…")
             DIR.mkdir(parents=True, exist_ok=True)
-            r = subprocess.run(["/usr/bin/python3", "-m", "venv", "--clear", str(VENV)], capture_output=True, text=True)
+            r = subprocess.run([BASE_PY, "-m", "venv", "--clear", str(VENV)], capture_output=True, text=True)
             if r.returncode != 0:
                 raise RuntimeError("Kunde inte skapa Python-miljön: " + r.stderr.strip()[-300:])
         say("Installerar tal till text och uppläsning (faster-whisper, Piper)…")
@@ -317,7 +322,7 @@ def offer_repair():
     """The service found the environment made for another Python (a new Fedora). Nothing is fetched by itself: a
     notice with a button; pressed = the environment is made again (the packages, ~250 MB – the models stay).
     True when the voice works again. Closed without the button = asked again at the next login."""
-    version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    version = BASE_VER
     print(f"Röstens Python-miljö är gjord för en annan Python än {version} – frågar om den ska göras om.", flush=True)
     try:
         chosen = subprocess.run(
