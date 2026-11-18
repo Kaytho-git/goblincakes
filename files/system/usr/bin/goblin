@@ -339,6 +339,7 @@ COMMANDS=(
     "pixelart|Barnlägets bilder i pixelart: Kakan och ChatGPT ritar samma, du väljer – goblin pixelart kakan saturnus, goblin pixelart chatgpt saturnus, goblin pixelart jämför; bara goblin pixelart = listan"
     "discord|Namnge röstkanalen du sitter i just nu (visas i toppfältet): goblin discord namn <kanalens namn>, t.ex. goblin discord namn Raid (goblin discord Raid går också); bara goblin discord = listan med namngivna kanaler"
     "wow|Länka alla WoW-versioner i ~/Games/WoW och uppdatera WowUp"
+    "tillägg|GoblinUp – WoW-tilläggen i WowUp (också i dashboarden): goblin tillägg = listan, goblin tillägg kolla, goblin tillägg uppdatera [namn|alla], goblin tillägg sök [forever] <text>, goblin tillägg installera [forever] <namn>, goblin tillägg öppna"
     "färg|GOBLINCAKES färg – blått eller en WoW-klassfärg: goblin färg dk (också i Config → Inställningar)"
     "dock get|Dockans storlek och våg (samma som Config → Inställningar → Dockan)"
     "dock set …|Ändra dockan: scale 0,5–2,0, zoom true/false, zoomFactor 1,0–1,5, zoomRange 1,5–4,0"
@@ -881,6 +882,8 @@ HELP
             *) echo "Använd: goblin dashboard  (visa/göm),  goblin dashboard stäng  eller  goblin dashboard upplägg [dashboard|klassiskt]" >&2; exit 2 ;;
         esac ;;
     nyheter|news) shift; heading "Nytt i GOBLINCAKES"; exec /usr/libexec/goblincakes-news latest "${1:-15}" ;;
+    # GoblinUp (18 Nov): WowUp's add-ons – WowUp does the work, steered through its remote debugging port
+    tillägg|tillagg|addons|addon|goblinup|up) shift; exec /usr/libexec/goblincakes-wowup text "$@" ;;
     färg|farg|color|colour) shift; cmd_farg "$@" ;;
     gamemode) cmd_gamemode ;;
     anticheat|anti-cheat|eac|antifusk) shift; cmd_anticheat "$@" ;;

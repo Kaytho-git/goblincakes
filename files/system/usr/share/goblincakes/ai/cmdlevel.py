@@ -370,6 +370,9 @@ def _goblin(args):
         return ""
     if p[0] in {"anticheat", "eac"} and (len(p) == 1 or p[1:] in (["kolla"], ["check"])):
         return ""  # only the check; fixa/ångra change kernel arguments
+    if p[0] in {"tillägg", "tillagg", "addons", "addon", "goblinup", "up"} and (
+            len(p) == 1 or p[1] in {"lista", "list", "status", "sök", "sok", "search"}):
+        return ""  # GoblinUp (18 Nov): the list and WowUp's search only read; kolla/uppdatera/installera get Tillåt
     return "" if p[0] in {"screen", "tile", "discord", "frames"} and len(p) == 1 else f"goblin {p[0]}"
 
 
@@ -495,6 +498,8 @@ READ = {
 LIBEXEC_READ = {
     "goblincakes-device-battery": only(), "goblincakes-discord-voice": only(), "goblincakes-ai-activity": only(),
     "goblincakes-gameguard": lambda a: "" if a == ["status"] else "gameguard ändrar",
+    "goblincakes-wowup": lambda a: "" if a in ([], ["status"], ["text"], ["text", "lista"]) or a[:2] in (["text", "sök"], ["search"])
+                         else "wowup ändrar",
     "goblincakes-vencord": lambda a: "" if a == ["status"] else "vencord ändrar",
     "goblincakes-ianseo": lambda a: "" if len(a) == 2 and a[0] in ("network", "internet") and a[1] in ("status", "url")
     else "ianseo ändrar",

@@ -1,0 +1,569 @@
+#!/usr/bin/python3
+"""GOBLINCAKES GoblinUp: WowUp-CF styrd från dashboarden och Kakan (18 nov, användaren: "ett snyggare skal,
+wowup kan tuffa på i bakgrunden"). Som GoblinAmp och Spotify: WowUp gör jobbet (hämtar med sin egen rätt hos
+CurseForge), vi läser dess fil och trycker på dess knappar.
+
+    goblincakes-wowup status                    JSON: installerat, igång, ansluten, spel, tilläggen per spelversion
+    goblincakes-wowup check                     WowUps "Check Updates" (alla spelversioner)
+    goblincakes-wowup update-all [retail|forever]   "Update All" (utan val: alla spelversioner)
+    goblincakes-wowup update <id|namn>          ett tillägg (WowUps id ur status, eller namnet)
+    goblincakes-wowup search <version> <text>   "Get Addons" – sökningens träffar
+    goblincakes-wowup install <version> <text> <namn>   installera träffen med det namnet
+    goblincakes-wowup connect                   se till att WowUp går att styra (startar om det med porten)
+    goblincakes-wowup open                      visa WowUps eget fönster
+    goblincakes-wowup text [lista|kolla|uppdatera …|sök …|installera …|öppna]   samma som vanlig text (goblin tillägg)
+
+Läsa: ~/.config/WowUpCf/addons.json (WowUp skriver den efter varje kontroll). Styra: WowUp startas med
+Chromes fjärrstyrningsport, bara för den här datorn (127.0.0.1:9233) – Config skriver den i autostarten, spelvakten
+startar WowUp med samma rad. Utan port: `connect` startar om WowUp med den (SIGINT – SIGTERM kraschar WowUp).
+Knapparna letas upp efter sin sort (WowUps egna komponentnamn), inte texten – fungerar på alla språk. Hittas en
+inte (WowUp har bytt utseende) svarar vi {"ok": false, "why": …} i stället för att gissa. Aldrig WowUps
+CurseForge-nyckel eller nedladdningslänkarna direkt. Inget görs medan WoW körs (spelvakten stänger WowUp då
+ändå, och spelet läser tilläggen). Bara standardbiblioteket.
+"""
+import base64
+import json
+import os
+import re
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+HOME = Path.home()
+APPIMAGE = Path(os.environ.get("GOBLINCAKES_WOWUP_APPIMAGE", HOME / "AppImages/WowUp.AppImage"))
+ADDONS = Path(os.environ.get("GOBLINCAKES_WOWUP_ADDONS", HOME / ".config/WowUpCf/addons.json"))
+PORT = int(os.environ.get("GOBLINCAKES_WOWUP_PORT", "9233"))
+PORT_ARGS = [f"--remote-debugging-port={PORT}", "--remote-debugging-address=127.0.0.1"]
+HIDDEN = "/usr/libexec/goblincakes-start-hidden"
+# WowUps clientType → vår id och namn (WowUp-CF 2.25: 0 = World of Warcraft, 10 = World of Warcraft: Forever)
+CLIENTS = {0: ("retail", "Retail"), 1: ("classic", "Classic"), 2: ("classic-era", "Classic Era"),
+           10: ("forever", "Forever")}
+PROVIDERS = {"Curse": "CurseForge", "RaiderIO": "Raider.IO", "WowUpHub": "WowUp Hub", "WowInterface": "WoWInterface",
+             "GitHub": "GitHub", "Wago": "Wago", "TukUI": "TukUI", "Zip": "Zip", "Unknown": ""}
+
+sys.path.insert(0, "/usr/share/goblincakes")
+
+
+def say(obj):
+    print(json.dumps(obj, ensure_ascii=False, indent=1))
+
+
+def installed():
+    return APPIMAGE.is_file() and os.access(APPIMAGE, os.X_OK)
+
+
+def game_running():
+    """Körs WoW? Då stänger spelvakten WowUp och spelet läser tilläggen – inget görs då (andra spel stör inte)."""
+    if os.environ.get("GOBLINCAKES_WOWUP_NOGAME"):   # attrapprov
+        return False
+    try:
+        import gaming  # noqa: PLC0415 – samma regel som spelvakten
+        return any(gaming.WOW.match(p[1]) for p in gaming.processes())
+    except Exception:  # noqa: BLE001 – utan spelkollen: hellre en kontroll för mycket
+        return False
+
+
+def wowup_pids():
+    """WowUps huvudprocesser (inte dess hjälpare med --type=)."""
+    out = []
+    for d in Path("/proc").iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            if (d / "comm").read_text().strip() != "wowup-cf":
+                continue
+            cmd = (d / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if b"--type=" not in cmd:
+            out.append(int(d.name))
+    return out
+
+
+# ── Läsa: WowUps egen fil ──
+
+def client_of(kind):
+    for n, (cid, name) in CLIENTS.items():
+        if kind in (cid, n, str(n)):
+            return n, cid, name
+    return None
+
+
+def addons():
+    try:
+        data = json.loads(ADDONS.read_text())
+    except (OSError, ValueError):
+        return []
+    rows = data.values() if isinstance(data, dict) else data
+    return [a for a in rows if isinstance(a, dict) and a.get("name")]
+
+
+def has_update(a):
+    old, new = a.get("installedExternalReleaseId"), a.get("externalLatestReleaseId")
+    if old and new:
+        return str(old) != str(new)
+    return bool(a.get("latestVersion")) and a.get("latestVersion") != a.get("installedVersion")
+
+
+def status():
+    rows = addons()
+    clients = {}
+    for a in rows:
+        n = a.get("clientType", 0)
+        cid, name = CLIENTS.get(n, (f"client-{n}", f"Klient {n}"))
+        c = clients.setdefault(n, {"id": cid, "name": name, "rows": [], "outside": [], "updates": 0})
+        provider = a.get("providerName") or "Unknown"
+        if provider == "Unknown":
+            c["outside"].append(a["name"])
+            continue
+        upd = has_update(a) and not a.get("isIgnored")
+        c["updates"] += upd
+        c["rows"].append({"id": a.get("id", ""), "name": a["name"], "author": a.get("author") or "",
+                          "version": a.get("installedVersion") or "", "latest": a.get("latestVersion") or "",
+                          "provider": PROVIDERS.get(provider, provider), "update": upd,
+                          "auto": bool(a.get("autoUpdateEnabled")), "ignored": bool(a.get("isIgnored")),
+                          "summary": (a.get("summary") or "").strip()[:240], "url": a.get("externalUrl") or ""})
+    for c in clients.values():
+        c["rows"].sort(key=lambda r: (not r["update"], r["name"].lower().lstrip("!")))
+        c["outside"].sort(key=lambda s: s.lower().lstrip("!"))
+    try:
+        checked = ADDONS.stat().st_mtime
+    except OSError:
+        checked = 0
+    ok = installed()
+    return {"installed": ok, "running": bool(wowup_pids()) if ok else False,
+            "connected": ok and target() is not None, "game": game_running(), "checked": checked,
+            "updates": sum(c["updates"] for c in clients.values()),
+            "clients": [clients[k] for k in sorted(clients)]}
+
+
+# ── Styra: Chromes fjärrstyrning (DevTools-protokollet) mot WowUps fönster ──
+
+def target():
+    """WowUps sida på porten – bara om det verkligen är WowUp som svarar där."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json/version", timeout=1) as r:
+            if "WowUp" not in json.load(r).get("User-Agent", ""):
+                return None
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json/list", timeout=1) as r:
+            pages = json.load(r)
+    except (OSError, ValueError):
+        return None
+    for p in pages:
+        if p.get("type") == "page" and "/renderer/" in p.get("url", "") and p.get("webSocketDebuggerUrl"):
+            return p["webSocketDebuggerUrl"]
+    return None
+
+
+class Page:
+    """En liten websocket-klient (bara det CDP behöver: text, maskerat, ingen fragmentering)."""
+
+    def __init__(self, ws_url):
+        path = "/" + ws_url.split("/", 3)[3]
+        self.s = socket.create_connection(("127.0.0.1", PORT), timeout=10)
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.s.sendall((f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{PORT}\r\nUpgrade: websocket\r\n"
+                        f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode())
+        buf = b""
+        while b"\r\n\r\n" not in buf:
+            chunk = self.s.recv(4096)
+            if not chunk:
+                raise OSError("WowUp stängde anslutningen")
+            buf += chunk
+        if b" 101 " not in buf.split(b"\r\n", 1)[0]:
+            raise OSError("WowUp tog inte emot anslutningen")
+        self.buf = buf.split(b"\r\n\r\n", 1)[1]
+        self.n = 0
+
+    def _send(self, obj):
+        data = json.dumps(obj).encode()
+        mask = os.urandom(4)
+        n = len(data)
+        head = bytes([0x81]) + (bytes([0x80 | n]) if n < 126 else
+                                bytes([0xFE]) + struct.pack(">H", n) if n < 65536 else
+                                bytes([0xFF]) + struct.pack(">Q", n))
+        self.s.sendall(head + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
+
+    def _need(self, n):
+        while len(self.buf) < n:
+            chunk = self.s.recv(65536)
+            if not chunk:
+                raise OSError("WowUp stängde anslutningen")
+            self.buf += chunk
+
+    def _recv(self):
+        self._need(2)
+        n, o = self.buf[1] & 127, 2
+        if n == 126:
+            self._need(4)
+            n, o = struct.unpack(">H", self.buf[2:4])[0], 4
+        elif n == 127:
+            self._need(10)
+            n, o = struct.unpack(">Q", self.buf[2:10])[0], 10
+        self._need(o + n)
+        data, self.buf = self.buf[o:o + n], self.buf[o + n:]
+        return json.loads(data)
+
+    def js(self, expr, timeout=20):
+        """Kör JavaScript i WowUps fönster (ett löfte väntas in) – värdet tillbaka som JSON."""
+        self.n += 1
+        self.s.settimeout(timeout)
+        self._send({"id": self.n, "method": "Runtime.evaluate",
+                    "params": {"expression": expr, "returnByValue": True, "awaitPromise": True}})
+        while True:
+            r = self._recv()
+            if r.get("id") == self.n:
+                res = r.get("result") or {}
+                if "exceptionDetails" in res:
+                    raise RuntimeError(res["exceptionDetails"].get("text") or "fel i WowUps fönster")
+                return (res.get("result") or {}).get("value")
+
+    def close(self):
+        try:
+            self.s.close()
+        except OSError:
+            pass
+
+
+def start_wowup():
+    cmd = [str(APPIMAGE), "--hidden", *PORT_ARGS]
+    if Path(HIDDEN).exists():
+        cmd = [HIDDEN, "wowupcf", "--", *cmd]
+    subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+
+
+def connect(wait=45):
+    """Ett styrbart WowUp: (Page, None) eller (None, varför)."""
+    if not installed():
+        return None, "WowUp är inte installerat (GOBLINCAKES Config → Program)."
+    ws = target()
+    if ws is None:
+        if game_running():
+            return None, "WoW körs – WowUp vilar tills WoW stängs."
+        pids = wowup_pids()
+        for pid in pids:            # igång utan porten (startat för hand eller före GoblinUp): om med porten
+            try:
+                os.kill(pid, signal.SIGINT)
+            except OSError:
+                pass
+        end = time.monotonic() + 20
+        while pids and wowup_pids() and time.monotonic() < end:
+            time.sleep(0.3)
+        if wowup_pids():
+            return None, "WowUp stängdes inte – stäng det själv och försök igen."
+        start_wowup()
+        end = time.monotonic() + wait
+        while ws is None and time.monotonic() < end:
+            time.sleep(0.5)
+            ws = target()
+        if ws is None:
+            return None, "WowUp startade inte med fjärrstyrningen."
+    try:
+        page = Page(ws)
+    except OSError as e:
+        return None, f"Kom inte åt WowUp: {e}"
+    # WowUps tabell finns först när fönstret laddat klart
+    end = time.monotonic() + 30
+    while time.monotonic() < end:
+        try:
+            if page.js("!!document.querySelector('[role=tab]')"):
+                return page, None
+        except (OSError, RuntimeError):
+            pass
+        time.sleep(0.5)
+    page.close()
+    return None, "WowUps fönster laddade inte klart."
+
+
+# JavaScript-delarna. Flikarna: 0 = My Addons, 1 = Get Addons (ordningen, inte texten).
+JS_BASE = r"""
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const tab = async i => { const t = [...document.querySelectorAll('[role=tab]')][i]; if (!t) throw new Error('flik ' + i);
+  if (t.getAttribute('aria-selected') !== 'true') { t.click(); await sleep(900); } };
+const pickClient = async want => {
+  const sel = [...document.querySelectorAll('mat-select')].find(s => s.offsetParent !== null) || document.querySelector('mat-select');
+  if (!sel) throw new Error('spelvalet');
+  const cur = (sel.innerText || '').trim();
+  const fits = t => want === 'forever' ? /forever/i.test(t) : want === 'retail' ? !/[:(]/.test(t) && !/classic/i.test(t)
+                  : want === 'classic' ? /classic/i.test(t) && !/era/i.test(t) : want === 'classic-era' ? /era/i.test(t) : false;
+  if (fits(cur)) return cur;
+  (sel.querySelector('.mat-mdc-select-trigger') || sel).click(); await sleep(500);
+  const opt = [...document.querySelectorAll('mat-option')].find(o => fits(o.innerText.trim()));
+  if (!opt) { document.querySelector('.cdk-overlay-backdrop')?.click(); throw new Error('spelversionen ' + want); }
+  opt.click(); await sleep(1500); return opt.innerText.trim(); };
+const findRow = async id => { const vp = document.querySelector('.ag-body-viewport');
+  for (let i = 0; i < 60; i++) { const r = document.querySelector('[row-id="' + id + '"]'); if (r) return r;
+    if (!vp || vp.scrollTop + vp.clientHeight >= vp.scrollHeight) { if (i && vp) { vp.scrollTop = 0; await sleep(200); } if (i > 1) break; }
+    else { vp.scrollTop += vp.clientHeight * 0.8; await sleep(250); } }
+  return document.querySelector('[row-id="' + id + '"]'); };
+"""
+
+
+def run(page, body, timeout=30, **args):
+    """body = JavaScript (vanlig sträng, inga f-strängar); args blir konstanten A i den."""
+    return page.js("(async () => {" + JS_BASE + "const A = " + json.dumps(args) + ";" + body + "})()",
+                   timeout=timeout)
+
+
+def want_client(name):
+    c = client_of(name)
+    return c[1] if c else None
+
+
+def clients_present():
+    return sorted({a.get("clientType", 0) for a in addons()})
+
+
+def do_check(page):
+    """Check Updates i varje spelversion som har tillägg."""
+    done = []
+    for n in clients_present():
+        cid = CLIENTS.get(n, (None,))[0]
+        if not cid:
+            continue
+        got = run(page, """
+          await tab(0); await pickClient(A.client);
+          const head = document.querySelector('button.menu-button')?.closest('.row')?.parentElement?.parentElement;
+          const btns = [...(head || document).querySelectorAll('button.wu-btn-primary')]
+             .filter(b => !b.classList.contains('menu-button') && !b.classList.contains('chip') && !b.closest('app-progress-button'));
+          const b = btns.find(x => x.offsetParent !== null);
+          if (!b) return 'saknas';
+          b.click(); await sleep(400);
+          for (let i = 0; i < 120 && b.disabled; i++) await sleep(500);
+          return 'ok';""", timeout=90, client=cid)
+        if got != "ok":
+            return {"ok": False, "why": "Hittar inte WowUps knapp för att kolla uppdateringar – WowUp kan ha bytt utseende."}
+        done.append(cid)
+    return {"ok": True, "checked": done}
+
+
+def do_update_all(page, only=None):
+    done = []
+    for n in clients_present():
+        cid = CLIENTS.get(n, (None,))[0]
+        if not cid or (only and cid != only):
+            continue
+        got = run(page, """
+          await tab(0); await pickClient(A.client);
+          const b = document.querySelector('button.menu-button');
+          if (!b) return 'saknas';
+          if (b.disabled) return 'inget';
+          b.click(); await sleep(800);
+          for (let i = 0; i < 600 && (!b.disabled || document.querySelector('app-addon-update-button:not([hidden]) button:disabled')); i++) await sleep(500);
+          return 'ok';""", timeout=330, client=cid)
+        if got == "saknas":
+            return {"ok": False, "why": "Hittar inte WowUps knapp Update All – WowUp kan ha bytt utseende."}
+        done.append({"client": cid, "result": "uppdaterat" if got == "ok" else "inget att uppdatera"})
+    return {"ok": True, "done": done}
+
+
+def find_addon(key):
+    rows = addons()
+    for a in rows:
+        if a.get("id") == key:
+            return a
+    low = key.lower()
+    hits = [a for a in rows if a["name"].lower() == low] or [a for a in rows if low in a["name"].lower()]
+    return hits[0] if len(hits) == 1 else None
+
+
+def do_update(page, key):
+    a = find_addon(key)
+    if not a:
+        return {"ok": False, "why": f"Hittar inget (eller fler än ett) tillägg som heter {key!r}."}
+    cid = CLIENTS.get(a.get("clientType", 0), (None,))[0]
+    got = run(page, """
+      await tab(0); await pickClient(A.client);
+      const r = await findRow(A.id);
+      if (!r) return 'ingen rad';
+      const w = r.querySelector('app-addon-update-button');
+      if (!w) return 'saknas';
+      if (w.hasAttribute('hidden')) return 'inget';
+      const b = w.querySelector('button'); if (!b || b.disabled) return 'inget';
+      b.click(); await sleep(800);
+      for (let i = 0; i < 360; i++) { const x = document.querySelector('[row-id="' + A.id + '"] app-addon-update-button');
+        if (!x || x.hasAttribute('hidden')) return 'ok'; await sleep(500); }
+      return 'tid';""", timeout=200, client=cid, id=a["id"])
+    why = {"ingen rad": f"WowUp visar inte {a['name']} – är det borttaget?",
+           "saknas": "Hittar inte WowUps uppdateringsknapp – WowUp kan ha bytt utseende.",
+           "tid": f"{a['name']} blev inte klart inom 3 minuter – titta i WowUp."}.get(got)
+    if why:
+        return {"ok": False, "why": why}
+    return {"ok": True, "name": a["name"], "result": "uppdaterat" if got == "ok" else "redan senaste versionen"}
+
+
+SEARCH_JS = r"""
+  await tab(1); await pickClient(A.client);
+  const box = [...document.querySelectorAll('mat-form-field input[type=text], input.mat-mdc-input-element')].find(i => i.offsetParent !== null);
+  if (!box) return {why: 'sökrutan'};
+  const before = [...document.querySelectorAll('.ag-row')].map(r => r.innerText).join('|');
+  box.focus(); box.value = A.text; box.dispatchEvent(new Event('input', {bubbles: true}));
+  for (const t of ['keydown', 'keyup']) box.dispatchEvent(new KeyboardEvent(t, {key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true}));
+  const cell = (r, c) => (r.querySelector('[col-id="' + c + '"]')?.innerText || '').trim().replace(/\s+/g, ' ');
+  const title = r => (r.querySelector('.addon-title')?.innerText || cell(r, 'name').split('\n')[0]).trim();
+  // klart = nya rader, och de första har både namn och knapp (ag-grid ritar dem i omgångar)
+  const ready = rs => rs.length && rs.slice(0, 3).every(r => title(r) && r.querySelector('[col-id="status"] button'));
+  let rows = [];
+  for (let i = 0; i < 50; i++) { await sleep(400);
+    rows = [...document.querySelectorAll('.ag-center-cols-container .ag-row')];
+    const now = rows.map(r => r.innerText).join('|');
+    if (now !== before && ready(rows)) break; }
+  await sleep(300);
+  rows = [...document.querySelectorAll('.ag-center-cols-container .ag-row')].filter(r => title(r));
+"""
+
+
+def do_search(page, client, text):
+    cid = want_client(client) or "retail"
+    got = run(page, SEARCH_JS + r"""
+  return {hits: rows.slice(0, 25).map(r => ({name: title(r), line: cell(r, 'name'), downloads: cell(r, 'downloadCount'),
+      author: cell(r, 'author'), provider: cell(r, 'providerName'), released: cell(r, 'releasedAt'),
+      installed: !r.querySelector('app-addon-install-button button:not(:disabled)')}))};""", timeout=60,
+              client=cid, text=text)
+    if not isinstance(got, dict) or got.get("why"):
+        return {"ok": False, "why": "Hittar inte WowUps sökning – WowUp kan ha bytt utseende."}
+    for h in got["hits"]:
+        h["provider"] = PROVIDERS.get(h["provider"], h["provider"])
+    run(page, "await tab(0); return 1;")
+    return {"ok": True, "client": cid, "hits": got["hits"]}
+
+
+def do_install(page, client, text, name):
+    cid = want_client(client) or "retail"
+    got = run(page, SEARCH_JS + r"""
+  const low = A.name.toLowerCase();
+  const r = rows.find(x => title(x) === A.name) || rows.find(x => title(x).toLowerCase() === low)
+         || rows.find(x => title(x).toLowerCase().startsWith(low + ' '));
+  if (!r) return {why: 'ingen'};
+  const b = r.querySelector('app-addon-install-button button');
+  if (!b) return {why: 'knapp'};
+  if (b.disabled) return {done: 'redan'};
+  b.click();
+  for (let i = 0; i < 360; i++) { await sleep(500); if (!document.body.contains(b) || b.disabled) break; }
+  for (let i = 0; i < 360 && document.body.contains(b) && /\d+\s*%/.test(b.innerText); i++) await sleep(500);
+  return {done: 'ok'};""", timeout=400, client=cid, text=text, name=name)
+    run(page, "await tab(0); return 1;")
+    if not isinstance(got, dict) or got.get("why"):
+        why = (got or {}).get("why") if isinstance(got, dict) else None
+        return {"ok": False, "why": f"Hittar inte {name!r} i sökningen." if why == "ingen"
+                else "Hittar inte WowUps installationsknapp – WowUp kan ha bytt utseende."}
+    return {"ok": True, "name": name, "result": "redan installerat" if got.get("done") == "redan" else "installerat"}
+
+
+def open_window():
+    if not installed():
+        return {"ok": False, "why": "WowUp är inte installerat."}
+    # Ett andra WowUp lämnar över till det som körs (det visar sitt fönster); inget igång = starta med porten
+    cmd = [str(APPIMAGE)] + ([] if wowup_pids() else PORT_ARGS)
+    subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+    return {"ok": True}
+
+
+def act(what, args):
+    if what in ("check", "update-all", "update", "search", "install") and game_running():
+        return {"ok": False, "why": "WoW körs – WowUp vilar tills WoW stängs (gör det sedan)."}
+    page, why = connect()
+    if page is None:
+        return {"ok": False, "why": why}
+    try:
+        if what == "connect":
+            return {"ok": True}
+        if what == "check":
+            return do_check(page)
+        if what == "update-all":
+            return do_update_all(page, want_client(args[0]) if args else None)
+        if what == "update" and args:
+            return do_update(page, " ".join(args))
+        if what == "search" and len(args) >= 2:
+            return do_search(page, args[0], " ".join(args[1:]))
+        if what == "install" and len(args) >= 3:
+            return do_install(page, args[0], args[1], " ".join(args[2:]))
+        return {"ok": False, "why": "fel argument"}
+    except (OSError, RuntimeError) as e:
+        msg = str(e)
+        if re.search(r"spelvalet|spelversionen|flik", msg):
+            return {"ok": False, "why": "Hittar inte WowUps flikar eller spelval – WowUp kan ha bytt utseende."}
+        return {"ok": False, "why": f"WowUp svarade inte: {msg}"}
+    finally:
+        page.close()
+
+
+def human(args):
+    """`goblin tillägg …` (och Kakan via den): samma sak som vanlig text."""
+    word = (args[0] if args else "").lower()
+    rest = args[1:]
+    if word in ("", "lista", "list", "status"):
+        st = status()
+        if not st["installed"]:
+            return "WowUp är inte installerat (GOBLINCAKES Config → Program → WowUp)."
+        lines = []
+        for c in st["clients"]:
+            upd = [r for r in c["rows"] if r["update"]]
+            lines.append(f"{c['name']}: {len(c['rows'])} tillägg i WowUp"
+                         + (f", {len(upd)} med uppdatering: " + ", ".join(f"{r['name']} ({r['version']} → {r['latest']})"
+                                                                         for r in upd) if upd else ", alla uppdaterade"))
+            if c["outside"]:
+                lines.append(f"  utanför WowUp (uppdateras inte härifrån): {', '.join(c['outside'])}")
+        when = time.strftime("%-d/%-m %H:%M", time.localtime(st["checked"])) if st["checked"] else "aldrig"
+        lines.append(f"WowUp kollade senast {when}" + (" · WoW körs – WowUp vilar" if st["game"] else ""))
+        return "\n".join(lines)
+    if word in ("kolla", "check"):
+        r = act("check", [])
+        return "Kollat – " + human([]) if r.get("ok") else r.get("why", "Det gick inte.")
+    if word in ("uppdatera", "update"):
+        target = " ".join(rest)
+        if target.lower() in ("", "alla", "allt", "all"):
+            r = act("update-all", [])
+            if not r.get("ok"):
+                return r.get("why", "Det gick inte.")
+            return "Klart: " + ", ".join(f"{(client_of(d['client']) or (0, '', d['client']))[2]} {d['result']}"
+                                          for d in r.get("done", [])) if r.get("done") else "Inget att uppdatera."
+        r = act("update", [target])
+        return f"{r['name']}: {r['result']}." if r.get("ok") else r.get("why", "Det gick inte.")
+    if word in ("sök", "sok", "search"):
+        client = "forever" if rest[:1] and rest[0].lower() == "forever" else "retail"
+        text = " ".join(rest[1:] if rest[:1] and rest[0].lower() in ("forever", "retail") else rest)
+        if not text:
+            return "Säg vad du söker efter, t.ex. goblin tillägg sök details"
+        r = act("search", [client, text])
+        if not r.get("ok"):
+            return r.get("why", "Det gick inte.")
+        return "\n".join(f"{h['name']} – {h['author']} · {h['provider']} · {h['downloads']}"
+                         + (" (installerat)" if h["installed"] else "") for h in r["hits"][:10]) or "Inga träffar."
+    if word in ("installera", "install"):
+        client = "forever" if rest[:1] and rest[0].lower() == "forever" else "retail"
+        name = " ".join(rest[1:] if rest[:1] and rest[0].lower() in ("forever", "retail") else rest)
+        if not name:
+            return "Säg tilläggets namn, t.ex. goblin tillägg installera Details! Damage Meter"
+        r = act("install", [client, name, name])
+        return f"{r['name']}: {r['result']}." if r.get("ok") else r.get("why", "Det gick inte.")
+    if word in ("öppna", "oppna", "open"):
+        r = open_window()
+        return "WowUp öppnas." if r.get("ok") else r["why"]
+    return ("Använd: goblin tillägg (listan), goblin tillägg kolla, goblin tillägg uppdatera [namn|alla], "
+            "goblin tillägg sök [forever] <text>, goblin tillägg installera [forever] <namn>, goblin tillägg öppna")
+
+
+def main():
+    what = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if what == "status":
+        say(status())
+    elif what == "text":
+        print(human(sys.argv[2:]))
+    elif what == "open":
+        say(open_window())
+    elif what in ("check", "update-all", "update", "search", "install", "connect"):
+        say(act(what, sys.argv[2:]))
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()

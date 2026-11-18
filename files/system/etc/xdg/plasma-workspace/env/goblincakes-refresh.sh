@@ -164,7 +164,10 @@ for _gc_f in "${XDG_CONFIG_HOME:-$HOME/.config}"/autostart/*.desktop; do
     case "$_gc_f" in
         */appimage-wowup.desktop)
             grep -q '^X-GOBLINCAKES-Autostart=true' "$_gc_f" && ! grep -q 'goblincakes-start-hidden' "$_gc_f" \
-                && sed -i 's|^Exec=|Exec=/usr/libexec/goblincakes-start-hidden wowupcf -- |' "$_gc_f" ;;
+                && sed -i 's|^Exec=|Exec=/usr/libexec/goblincakes-start-hidden wowupcf -- |' "$_gc_f"
+            # GoblinUp (18 Nov): WowUp with its remote debugging port, only for this computer (goblincakes-wowup)
+            grep -q '^X-GOBLINCAKES-Autostart=true' "$_gc_f" && ! grep -q -- '--remote-debugging-port' "$_gc_f" \
+                && sed -i 's|^Exec=.*|& --remote-debugging-port=9233 --remote-debugging-address=127.0.0.1|' "$_gc_f" ;;
     esac
 done
 

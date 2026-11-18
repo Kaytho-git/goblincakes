@@ -89,6 +89,7 @@ def cmdline(pid):
 
 
 HIDDEN = Path(os.environ.get("GOBLINCAKES_START_HIDDEN", "/usr/libexec/goblincakes-start-hidden"))
+WOWUP_PORT = ["--remote-debugging-port=9233", "--remote-debugging-address=127.0.0.1"]   # = goblincakes-wowup
 
 
 def wowup_starter(pids):
@@ -109,6 +110,9 @@ def wowup_starter(pids):
                 argv = [a for a in shlex.split(exec_line.group(1)) if not re.fullmatch(r"%[a-zA-Z]", a)]
                 if argv[0].startswith("/tmp/.mount_"):
                     continue  # WowUp's own entry into its old mount – gone
+                # GoblinUp (18 Nov) steers WowUp through its remote debugging port – only for this computer
+                if not any(a.startswith("--remote-debugging-port") for a in argv):
+                    argv += WOWUP_PORT
                 if HIDDEN.name not in argv[0]:
                     if "--hidden" not in argv:
                         argv.append("--hidden")

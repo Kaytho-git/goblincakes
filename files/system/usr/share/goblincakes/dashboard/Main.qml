@@ -36,6 +36,25 @@ Window {
     property var winMenu: null         // right-click on an open program: {id, name, x, y} (Växla till / Stäng)
     property var tools: ({})
     property var wow: ({})
+    // GoblinUp (18 Nov): WowUp's add-ons (goblincakes-wowup status), what a button is doing, the search's hits
+    property var wowup: ({})
+    property var wowupAct: ({})
+    property var wowupHits: ({})
+    property string upClient: ""       // the chosen game version (retail | forever …) – "" = the first
+    property int upSel: 0              // the marked row
+    property bool upHits: false        // the search's hits instead of the list
+    readonly property var upClients: wowup.clients || []
+    readonly property var upCurrent: upClients.find(c => c.id === upClient) || upClients[0] || ({ "rows": [], "outside": [], "updates": 0 })
+    readonly property var upRow: (upCurrent.rows || [])[upSel] || null
+    readonly property bool upBusy: !!wowupAct.busy
+    function upDo(what, a, b, c) { backend.wowup(what, a || "", b || "", c || ""); }
+    function upTime(stamp) {
+        if (!stamp)
+            return "";
+        const d = new Date(stamp * 1000);
+        const today = d.toDateString() === new Date().toDateString();
+        return (today ? "" : d.getDate() + "/" + (d.getMonth() + 1) + " ") + Qt.formatTime(d, "HH:mm");
+    }
     property var cs2: ({})
     property var builds: ({})
     property var buildSteps: ({})      // the open build in BYGGEN: {id, done, jobs [{name, kind, length, steps}]}
@@ -58,7 +77,7 @@ Window {
     readonly property var currentView: views[backend.view] || ({ "left": [], "right": [] })
     function frameComponent(id) {
         return ({ "projects": projectsFrame, "system": systemFrame, "wow": wowFrame, "cs2": cs2Frame,
-                  "builds": buildsFrame, "reports": reportsFrame, "claude": claudeFrame })[id] || null;
+                  "builds": buildsFrame, "reports": reportsFrame, "claude": claudeFrame, "addons": addonsFrame })[id] || null;
     }
     // A frame is shown only when it has something to show (projects and the system always have)
     function shows(id) {
@@ -66,7 +85,8 @@ Window {
              : id === "wow" ? (wow.players || []).length > 0
              : id === "cs2" ? !!cs2.count
              : id === "builds" ? !!builds.builder && (builds.rows || []).length > 0
-             : id === "reports" ? (reports.rows || []).length > 0 : false;
+             : id === "reports" ? (reports.rows || []).length > 0
+             : id === "addons" ? !!wowup.installed : false;
     }
     // A sideways swipe (touchpad) changes the view – once per swipe
     property real swipe: 0
@@ -1491,6 +1511,34 @@ Window {
         }
     }
 
+    // TILLÄGG (GoblinUp, 18 Nov): WowUp's updates – press = GoblinUp in the middle
+    Component {
+        id: addonsFrame
+        Frame {
+            width: parent.width
+            implicitHeight: addonsColumn.implicitHeight + 32
+            Column {
+                id: addonsColumn
+                x: 16
+                y: 16
+                width: parent.width - 32
+                spacing: 10
+                Heading { text: "TILLÄGG" }
+                SideCard {
+                    readonly property var withUpdates: win.upClients.filter(c => c.updates > 0)
+                    on: win.mid === "goblinup"
+                    live: win.upBusy
+                    title: win.wowup.updates ? win.wowup.updates + (win.wowup.updates === 1 ? " uppdatering" : " uppdateringar")
+                         : win.wowup.clients ? "Alla uppdaterade" : "GoblinUp"
+                    line: win.wowup.game ? "WoW körs – WowUp vilar"
+                        : withUpdates.length ? withUpdates.map(c => c.rows.filter(r => r.update).map(r => r.name).join(", ") + " · " + c.name).join(" · ")
+                        : win.upClients.map(c => c.name + " " + c.rows.length).join(" · ")
+                    onClicked: backend.setMid(win.mid === "goblinup" ? "apps" : "goblinup")
+                }
+            }
+        }
+    }
+
     // ── The middle part ───────────────────────────────────────
     Item {
         id: body
@@ -2678,6 +2726,316 @@ Window {
                     FastWheel { flick: reportList }
                 }
                 FlatScrollBar { flick: reportList }
+            }
+
+            // ── GOBLINUP (18 Nov): WowUp's add-ons – WowUp does the work in the background (goblincakes-wowup) ──
+            Item {
+                id: upView
+                visible: win.mid === "goblinup"
+                anchors { top: searchRow.bottom; topMargin: 20; left: parent.left; right: parent.right; bottom: parent.bottom
+                          leftMargin: 28; rightMargin: 28; bottomMargin: 16 }
+                onVisibleChanged: if (visible) { win.upHits = false; upList.forceActiveFocus(); }
+                readonly property string state: win.wowup.game ? "game" : win.wowup.connected ? "on" : win.wowup.running ? "plain" : "off"
+                readonly property var cols: [Math.max(200, width - 640), 170, 220, 120, 130]
+
+                Item {
+                    id: upHead
+                    width: parent.width
+                    height: 40
+                    Row {
+                        spacing: 16
+                        anchors.verticalCenter: parent.verticalCenter
+                        BigTitle { id: upTitle; text: "GOBLINUP"; anchors.verticalCenter: parent.verticalCenter }
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            Repeater {
+                                model: win.upClients
+                                FlatButton {
+                                    required property var modelData
+                                    small: true
+                                    minWidth: 92
+                                    primary: modelData.id === win.upCurrent.id
+                                    text: modelData.name + " · " + modelData.rows.length
+                                    onClicked: { win.upClient = modelData.id; win.upSel = 0; win.upHits = false; }
+                                }
+                            }
+                        }
+                    }
+                    Row {
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        spacing: 8
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 8; height: 8
+                            color: upView.state === "on" ? "#3BD16F" : upView.state === "game" ? "#F0B232" : "#8B98AD"
+                        }
+                        SubTitle {
+                            text: upView.state === "game" ? "WoW körs – WowUp vilar tills WoW stängs"
+                                : upView.state === "on" ? "WowUp ansluten · kollat " + win.upTime(win.wowup.checked)
+                                : upView.state === "plain" ? "WowUp körs – startas om med fjärrstyrningen när du trycker"
+                                : "WowUp är stängt – startas när du trycker"
+                        }
+                    }
+                }
+
+                Item {
+                    id: upActions
+                    anchors { top: upHead.bottom; topMargin: 14 }
+                    width: parent.width
+                    height: 40
+                    Row {
+                        spacing: 10
+                        FlatButton {
+                            primary: true
+                            enabledState: !win.upBusy && win.upCurrent.updates > 0 && upView.state !== "game"
+                            text: win.upCurrent.updates ? "Uppdatera alla · " + win.upCurrent.updates : "Uppdatera alla"
+                            onClicked: win.upDo("update-all", win.upCurrent.id)
+                        }
+                        FlatButton {
+                            enabledState: !win.upBusy && upView.state !== "game"
+                            text: "Kolla uppdateringar"
+                            onClicked: win.upDo("check")
+                        }
+                        FlatButton {
+                            text: "Öppna WowUp"
+                            onClicked: win.upDo("open")
+                        }
+                    }
+                    G.FlatField {
+                        id: upSearch
+                        anchors.right: parent.right
+                        width: Math.min(360, parent.width - 560)
+                        height: 40
+                        fontSize: 14
+                        hint: "Sök eller installera tillägg …  (Enter)"
+                        onAccepted: if (text.trim() !== "" && !win.upBusy && upView.state !== "game") {
+                            win.upHits = true;
+                            win.upDo("search", win.upCurrent.id, text.trim());
+                        }
+                        Keys.onEscapePressed: { if (text !== "") text = ""; else upList.forceActiveFocus(); win.upHits = false; }
+                    }
+                }
+
+                // What a button is doing, or why it could not (WowUp has changed its looks, a game runs …)
+                Row {
+                    id: upNote
+                    anchors { top: upActions.bottom; topMargin: 10 }
+                    height: visible ? 22 : 0
+                    spacing: 10
+                    visible: win.upBusy || win.wowupAct.ok === false || (win.wowupAct.ok === true && win.wowupAct.what !== "search")
+                    G.LiveTag { visible: win.upBusy; anchors.verticalCenter: parent.verticalCenter; tone: accent.text }
+                    SubTitle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: win.wowupAct.ok === false && !win.upBusy ? "#F0B232" : "#8B98AD"
+                        text: win.upBusy ? ({ "check": "Kollar uppdateringar …", "update-all": "Uppdaterar alla …",
+                                              "update": "Uppdaterar " + (win.wowupAct.name || "") + " …",
+                                              "search": "Söker …", "install": "Installerar " + (win.wowupAct.name || "") + " …" })[win.wowupAct.what]
+                                              + "   WowUp gör jobbet i bakgrunden"
+                            : win.wowupAct.ok === false ? (win.wowupAct.why || "Det gick inte.")
+                            : ({ "check": "Kollat.", "update-all": "Uppdaterat.", "update": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart"),
+                                 "install": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart") })[win.wowupAct.what] || ""
+                    }
+                }
+
+                // The table's heading
+                Row {
+                    id: upCols
+                    anchors { top: upNote.bottom; topMargin: 12 }
+                    visible: !win.upHits
+                    HeadCell { width: upView.cols[0]; leftPadding: 12; horizontalAlignment: Text.AlignLeft; text: "TILLÄGG" }
+                    HeadCell { width: upView.cols[1]; horizontalAlignment: Text.AlignLeft; text: "AV" }
+                    HeadCell { width: upView.cols[2]; horizontalAlignment: Text.AlignLeft; text: "VERSION" }
+                    HeadCell { width: upView.cols[3]; horizontalAlignment: Text.AlignLeft; text: "KÄLLA" }
+                    HeadCell { width: upView.cols[4]; horizontalAlignment: Text.AlignLeft; text: "STATUS" }
+                }
+                Rectangle { id: upRule; anchors { top: upCols.bottom; topMargin: 8 } width: parent.width; height: 1; color: "#1E2A40"; visible: !win.upHits }
+
+                ListView {
+                    id: upList
+                    visible: !win.upHits
+                    anchors { top: upRule.bottom; left: parent.left; right: parent.right; bottom: upDetail.top; bottomMargin: 12 }
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: win.upCurrent.rows || []
+                    currentIndex: win.upSel
+                    keyNavigationEnabled: false
+                    Keys.onUpPressed: win.upSel = Math.max(0, win.upSel - 1)
+                    Keys.onDownPressed: win.upSel = Math.min(count - 1, win.upSel + 1)
+                    Keys.onReturnPressed: if (win.upRow && win.upRow.update && !win.upBusy) win.upDo("update", win.upRow.id, "", win.upRow.name)
+                    Keys.onEnterPressed: if (win.upRow && win.upRow.update && !win.upBusy) win.upDo("update", win.upRow.id, "", win.upRow.name)
+                    Keys.onTabPressed: if (win.upClients.length > 1) {
+                        const i = win.upClients.findIndex(c => c.id === win.upCurrent.id);
+                        win.upClient = win.upClients[(i + 1) % win.upClients.length].id;
+                        win.upSel = 0;
+                    }
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_R && !win.upBusy) { win.upDo("check"); event.accepted = true; }
+                        else if (event.key === Qt.Key_Slash) { upSearch.field.forceActiveFocus(); event.accepted = true; }
+                        else if (event.key === Qt.Key_Escape) { win.back(); event.accepted = true; }
+                    }
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+                        readonly property bool chosen: index === win.upSel
+                        width: upList.width
+                        height: 40
+                        color: chosen ? "#12203A" : upRowArea.containsMouse ? "#101A2C" : "transparent"
+                        border.width: chosen ? 1 : 0
+                        border.color: accent.color
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#141C2C"; visible: !parent.chosen }
+                        Row {
+                            height: parent.height
+                            Cell { width: upView.cols[0]; height: parent.height; leftPadding: 12; rightPadding: 12; horizontalAlignment: Text.AlignLeft
+                                   font.weight: Font.Medium; text: modelData.name }
+                            Cell { width: upView.cols[1]; height: parent.height; rightPadding: 12; horizontalAlignment: Text.AlignLeft
+                                   color: "#8B98AD"; text: modelData.author }
+                            Cell { width: upView.cols[2]; height: parent.height; rightPadding: 12; horizontalAlignment: Text.AlignLeft
+                                   font.family: "IBM Plex Mono"; font.pixelSize: 13; textFormat: Text.StyledText
+                                   text: modelData.version + (modelData.update ? " <font color='" + accent.text + "'>→ " + modelData.latest + "</font>" : "") }
+                            Cell { width: upView.cols[3]; height: parent.height; horizontalAlignment: Text.AlignLeft; color: "#8B98AD"; text: modelData.provider }
+                            Item {
+                                width: upView.cols[4]; height: parent.height
+                                Rectangle {
+                                    visible: modelData.update
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: upBadge.implicitWidth + 16; height: 22
+                                    color: accent.color
+                                    Text { id: upBadge; anchors.centerIn: parent; text: "Uppdatering"; color: accent.on
+                                           font.family: "IBM Plex Sans"; font.pixelSize: 12; font.weight: Font.DemiBold }
+                                }
+                                Cell { visible: !modelData.update; height: parent.height; horizontalAlignment: Text.AlignLeft; color: "#8B98AD"
+                                       font.pixelSize: 13; text: modelData.ignored ? "Ignoreras" : "Uppdaterad" }
+                            }
+                        }
+                        MouseArea {
+                            id: upRowArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { win.upSel = index; upList.forceActiveFocus(); }
+                            onDoubleClicked: if (modelData.update && !win.upBusy) win.upDo("update", modelData.id, "", modelData.name)
+                        }
+                    }
+                    footer: Text {
+                        width: upList.width
+                        visible: (win.upCurrent.outside || []).length > 0
+                        height: visible ? implicitHeight + 24 : 0
+                        topPadding: 14
+                        leftPadding: 12
+                        rightPadding: 12
+                        wrapMode: Text.WordWrap
+                        textFormat: Text.StyledText
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 13
+                        text: "<font face='Chakra Petch'>UTANFÖR WOWUP · " + (win.upCurrent.outside || []).length + "</font> — "
+                              + (win.upCurrent.outside || []).join(", ") + " (visas, men uppdateras inte härifrån)"
+                    }
+                    FastWheel { flick: upList }
+                }
+                FlatScrollBar { flick: upList; visible: !win.upHits }
+
+                // The search's hits (WowUp's Get Addons)
+                Item {
+                    id: upHitsBox
+                    visible: win.upHits
+                    anchors { top: upNote.bottom; topMargin: 12; left: parent.left; right: parent.right; bottom: upDetail.top; bottomMargin: 12 }
+                    Row {
+                        id: upHitsHead
+                        spacing: 12
+                        SubTitle { anchors.verticalCenter: parent.verticalCenter
+                                   text: "SÖKNING I WOWUP · " + win.upCurrent.name + (win.wowupHits.hits ? " · " + win.wowupHits.hits.length + " träffar" : "") }
+                        FlatButton { small: true; text: "Tillbaka till listan"; onClicked: { win.upHits = false; upList.forceActiveFocus(); } }
+                    }
+                    ListView {
+                        id: upHitList
+                        anchors { top: upHitsHead.bottom; topMargin: 12; left: parent.left; right: parent.right; bottom: parent.bottom }
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        model: win.upBusy && win.wowupAct.what === "search" ? [] : (win.wowupHits.hits || [])
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: upHitList.width
+                            height: 52
+                            color: upHitArea.containsMouse ? "#101A2C" : "transparent"
+                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#141C2C" }
+                            MouseArea { id: upHitArea; anchors.fill: parent; hoverEnabled: true }
+                            Column {
+                                anchors { left: parent.left; leftMargin: 12; right: upHitDl.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                                Cell { width: parent.width; horizontalAlignment: Text.AlignLeft; font.weight: Font.Medium; text: modelData.name }
+                                Cell { width: parent.width; horizontalAlignment: Text.AlignLeft; color: "#8B98AD"; font.pixelSize: 12
+                                       text: [modelData.author, modelData.provider, modelData.released].filter(x => x).join(" · ") }
+                            }
+                            Cell { id: upHitDl; anchors { right: upHitButton.left; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                                   width: 130; color: "#8B98AD"; font.family: "IBM Plex Mono"; font.pixelSize: 13; text: modelData.downloads }
+                            FlatButton {
+                                id: upHitButton
+                                anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                                small: true
+                                minWidth: 104
+                                enabledState: !modelData.installed && !win.upBusy
+                                text: modelData.installed ? "Installerat" : "Installera"
+                                onClicked: win.upDo("install", win.upCurrent.id, win.wowupHits.name || upSearch.text.trim(), modelData.name)
+                            }
+                        }
+                        FastWheel { flick: upHitList }
+                    }
+                    FlatScrollBar { flick: upHitList }
+                }
+
+                // The marked add-on
+                Rectangle {
+                    id: upDetail
+                    anchors { bottom: upKeys.top; bottomMargin: 10 }
+                    width: parent.width
+                    height: visible ? 64 : 0
+                    visible: !!win.upRow && !win.upHits
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#1E2A40"
+                    Column {
+                        anchors { left: parent.left; leftMargin: 16; right: upDetailButtons.left; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                        spacing: 3
+                        Text { width: parent.width; elide: Text.ElideRight; text: win.upRow ? win.upRow.name : ""; color: "#E6ECF5"
+                               font.family: "Chakra Petch"; font.weight: Font.DemiBold; font.pixelSize: 16 }
+                        Text { width: parent.width; elide: Text.ElideRight; color: "#8B98AD"; font.family: "IBM Plex Sans"; font.pixelSize: 13
+                               text: win.upRow ? (win.upRow.summary || "") + (win.upRow.auto ? " · auto-uppdatering på" : " · auto-uppdatering av") : "" }
+                    }
+                    Row {
+                        id: upDetailButtons
+                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                        spacing: 8
+                        FlatButton {
+                            primary: true
+                            visible: !!win.upRow && win.upRow.update
+                            enabledState: !win.upBusy && upView.state !== "game"
+                            text: "Uppdatera"
+                            onClicked: win.upDo("update", win.upRow.id, "", win.upRow.name)
+                        }
+                        FlatButton {
+                            visible: !!win.upRow && !!win.upRow.url
+                            text: "Tilläggets sida"
+                            onClicked: backend.openUrl(win.upRow.url)
+                        }
+                    }
+                }
+
+                Row {
+                    id: upKeys
+                    anchors.bottom: parent.bottom
+                    spacing: 18
+                    Repeater {
+                        model: [["↑↓", "välj"], ["Enter", "uppdatera"], ["/", "sök"], ["R", "kolla"], ["Tab", "byt spelversion"], ["Esc", "tillbaka"]]
+                        Text {
+                            required property var modelData
+                            textFormat: Text.StyledText
+                            text: "<font color='#E6ECF5'>" + modelData[0] + "</font> " + modelData[1]
+                            color: "#8B98AD"
+                            font.family: "IBM Plex Mono"
+                            font.pixelSize: 12
+                        }
+                    }
+                }
             }
 
             // ── CLAUDE CODE: the map (qml/Goblin/ClaudeMap.qml) ──

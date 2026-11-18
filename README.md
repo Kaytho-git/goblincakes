@@ -64,6 +64,7 @@ En helskärm som du tar fram med **Meta** (eller `goblin dashboard`), med allt p
 ### World of Warcraft
 - Battle.net via Lutris med GE-Proton, installerat så att butiken fungerar.
 - **WowUp, Raider.IO och Archon** installeras och uppdateras automatiskt.
+- **GoblinUp** – WoW-tilläggen i dashboarden (en egen vy): se vilka som har uppdateringar, uppdatera, sök och installera nya. WowUp gör jobbet i bakgrunden; `goblin tillägg` gör samma sak i terminalen, och Kakan kan uppdatera åt dig när du trycker Tillåt.
 - Mapparna för `Logs` och `AddOns` – för alla WoW-versioner, var de än ligger – länkas till `~/Games/WoW`. WowUp och Raider.IO hittar WoW själva; `goblin wow` talar om vad du väljer i Archon.
 
 ### GoblinRecorder

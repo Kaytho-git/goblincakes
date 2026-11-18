@@ -1,3 +1,4 @@
+2026-11-18  GoblinUp: dina WoW-tillägg har fått en egen vy i dashboarden (GOBLINUP) – se vilka som har uppdateringar, uppdatera med ett tryck, sök och installera nya. WowUp sköter jobbet i bakgrunden som förut. I SPEL ligger nu rutan TILLÄGG där SYSTEM var. Kakan kan också uppdatera tilläggen åt dig (du trycker Tillåt), och `goblin tillägg` gör samma sak i terminalen. Syns bara om WowUp är installerat.
 2026-11-18  Kakan har fått ett kunskapsminne: hon föreslår att spara fakta hon hittat på nätet, med källan, och du trycker Tillåt eller Nej. Vid en fråga om samma ämne svarar hon ur minnet i stället för att söka igen (Inställningar → Kunskap i Goblin AI).
 2026-11-18  Kakan räknar med fler CC-förmågor (t.ex. Earthgrab Totem), förväxlar inte dungeonen med en boss och söker inte på nätet när du stavar "nyckeln" lite fel.
 2026-11-18  Kakans röst kan lagas igen efter Fedora 45-hoppet: tryck Laga nu i notisen (eller kör goblin update) efter nästa uppdatering.

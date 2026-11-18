@@ -161,7 +161,8 @@ FRAMES = [("projects", "Projekt", "dina mappar – öppna i VS Code, Claude Code
           ("cs2", "CS2 Stats", "de senaste matcherna och kartorna"),
           ("builds", "Byggen", "GOBLINCAKES byggen på GitHub (när repot finns på datorn)"),
           ("reports", "Kakan", "Kakans rapporter"),
-          ("claude", "AI-kartan", "vad Claude Code, Codex eller Kakan gör just nu – kartan i mitten")]
+          ("claude", "AI-kartan", "vad Claude Code, Codex eller Kakan gör just nu – kartan i mitten"),
+          ("addons", "Tillägg", "WoW-tilläggen i WowUp – uppdateringar, GoblinUp i mitten (när WowUp finns)")]
 SIDES = {"left": 3, "right": 2}           # at most this many frames on each side
 MAX_VIEWS = 6
 DEFAULT_VIEWS = [{"name": "SPEL", "left": ["projects", "system"], "right": ["wow", "cs2"]},
@@ -187,6 +188,8 @@ def start_mid(saved=None):
 def mid_fits(mid, view):
     if mid == "claude":                   # the AI map is there in every view (it may be where it opens)
         return True
+    if mid == "goblinup":                 # GoblinUp (18 Nov): in every view – as long as WowUp is there
+        return wowup_installed()
     frame = MID_FRAME.get(str(mid).split(":", 1)[0])
     return mid == "apps" or bool(frame and frame in view.get("left", []) + view.get("right", []))
 
@@ -233,6 +236,82 @@ def claude_frame_once(saved):
     except OSError:
         pass
     return True
+
+
+# ── GoblinUp (18 Nov, the user): WowUp's add-ons in the middle, a view of its own and TILLÄGG in SPEL where SYSTEM
+# was – only while WowUp is installed (the user: "ska bara kopplas in om wowup är installerat") ──
+WOWUP_APPIMAGE = Path(os.environ.get("GOBLINCAKES_WOWUP_APPIMAGE", Path.home() / "AppImages/WowUp.AppImage"))
+WOWUP_HELPER = os.environ.get("GOBLINCAKES_WOWUP", "/usr/libexec/goblincakes-wowup")
+GOBLINUP_VIEW = "GOBLINUP"
+
+
+def wowup_installed():
+    return WOWUP_APPIMAGE.is_file()
+
+
+def goblinup_views(saved):
+    """WowUp installed → once: the GOBLINUP view (the frames of SPEL as they were, GoblinUp in the middle) and TILLÄGG
+    in SPEL instead of SYSTEM. WowUp gone → both out again (SYSTEM back). Returns True when the views were changed."""
+    on = wowup_installed()
+    if bool(saved.get("goblinup")) == on:
+        return False
+    rows = views(saved)
+    if on:
+        spel = next((v for v in rows if v["name"] == "SPEL"), None) or next(
+            (v for v in rows if "wow" in v["left"] + v["right"]), None)
+        if not any(v["name"] == GOBLINUP_VIEW for v in rows) and len(rows) < MAX_VIEWS:
+            base = spel or DEFAULT_VIEWS[0]
+            rows.append({"name": GOBLINUP_VIEW, "left": list(base["left"]), "right": list(base["right"]),
+                         "mid": "goblinup"})
+        if spel and "addons" not in spel["left"] + spel["right"]:
+            for side in ("left", "right"):
+                if "system" in spel[side]:
+                    spel[side][spel[side].index("system")] = "addons"
+                    break
+            else:
+                side = next((k for k in ("left", "right") if len(spel[k]) < SIDES[k]), None)
+                if side:
+                    spel[side].append("addons")
+    else:
+        rows = [v for v in rows if not (v["name"] == GOBLINUP_VIEW and v.get("mid") in ("goblinup", "apps"))] or rows
+        for v in rows:
+            for side in ("left", "right"):
+                if "addons" in v[side]:
+                    i = v[side].index("addons")
+                    if "system" in v["left"] + v["right"]:
+                        v[side].pop(i)
+                    else:
+                        v[side][i] = "system"
+    saved["views"] = rows
+    saved["view"] = min(view_index(saved, rows), len(rows) - 1)
+    saved["goblinup"] = on
+    try:
+        save_settings(saved)
+    except OSError:
+        pass
+    return True
+
+
+def wowup(timeout=8):
+    """GoblinUp's list: goblincakes-wowup status (WowUp's own file; the port only answers whether it can be steered)."""
+    if not wowup_installed():
+        return {"installed": False}
+    try:
+        out = subprocess.run([WOWUP_HELPER, "status"], capture_output=True, text=True, timeout=timeout).stdout
+        return json.loads(out)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return {"installed": True, "clients": [], "error": True}
+
+
+def wowup_act(*args, timeout=420):
+    """A GoblinUp button: goblincakes-wowup <args> – {ok, why, …}."""
+    try:
+        out = subprocess.run([WOWUP_HELPER, *args], capture_output=True, text=True, timeout=timeout).stdout
+        return json.loads(out)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "why": "WowUp blev inte klart i tid – titta i WowUp."}
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return {"ok": False, "why": "GoblinUp kom inte åt WowUp."}
 
 
 def view_index(saved=None, rows=None):
@@ -943,6 +1022,8 @@ if __name__ == "__main__":
         result = [a["id"] for a in bottom_apps()]
     elif what == "views":
         result = {"view": view_index(), "views": views()}
+    elif what == "wowup":
+        result = wowup()
     elif what == "config":       # GOBLINCAKES Config → Dashboard: everything the page shows
         saved = settings()
         rows = apps()

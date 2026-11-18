@@ -578,10 +578,30 @@ Ord: wow, world of warcraft, battle.net, tillägg, addon, addons, bugsack, lua-f
 - WoW:s funktioner: verktyget wowapi slår upp en funktion, händelse eller ramtyp för spelet just nu, och `kolla <mapp>` jämför ett tilläggs .toc och .lua med spelet (påhittade namn, fel .toc-namn, Interface-raden). Datan: ~/.local/share/goblincakes/wowapi/index.json (hämtas igen efter en vecka; `python3 /usr/share/goblincakes/ai/wowapi.py hämta`). Efter varje ändring i ett tilläggs fil kör Goblin AI kontrollen själv. Kontrollen läser också Lua-koden med `luajit` (samma Lua som WoW): "Lua-fel" = WoW laddar inte filen alls. Den ser även fel antal argument till C_-funktioner och `.fält` på en funktion som ger tillbaka tal. Och variabler som används men aldrig får ett värde (en `local` som försvann). Den ser inte om tillägget gör rätt sak – det provas i spelet (/reload). En `sed` som inte hittade texten säger ändå OK – Goblin AI säger till efteråt.
 - Bara användarens egna tillägg får ändras (git-klonerna i AddOns, eller listan ~/.config/goblincakes/egna-tillagg) – andras (BigWigs, EllesmereUI, RaiderIO …) stoppas; förklara felet och föreslå WoWUp eller att säga till den som gjort det. Committa aldrig – användaren sparar ändringen själv.
 - Ändra aldrig spelets egna filer – bara tilläggens filer och inställningar.
-- WoWUp uppdaterar tilläggen. Ikonerna för Archon, Raider.IO och WowUp i systemfältet är våra (tjänsten
+- WoWUp uppdaterar tilläggen (GoblinUp i dashboarden och `goblin tillägg` styr det – se ## GoblinUp). Ikonerna för Archon, Raider.IO och WowUp i systemfältet är våra (tjänsten
   goblincakes-archon-tray): deras egna ligger bakom pilen (systray.js), eftersom vänsterklick på dem inte gör något
   (Electron) – vårt vänsterklick väljer programmets "Open …"/"Show" i dess meny. Öppnas inget fönster: kör tjänsten?
   (systemctl --user status goblincakes-archon-tray)
+
+## GoblinUp (WoW-tilläggen via WowUp)
+Ord: goblinup, uppdatera tilläggen, uppdatera addons, nya tillägg, installera tillägg, tillägg uppdatering, wowup styrs inte
+- Ett skal över WowUp-CF (som GoblinAmp över Spotify): WowUp kör kvar i bakgrunden och gör jobbet (hämtar med sin egen
+  rätt hos CurseForge); vi läser dess fil och trycker på dess knappar. Bara när WowUp är installerat (~/AppImages/WowUp.AppImage).
+- Dashboarden: vyn GOBLINUP (GoblinUp i mitten) och ramen TILLÄGG i SPEL där SYSTEM var – läggs till en gång när WowUp
+  finns, tas bort igen om WowUp avinstalleras (dash.goblinup_views, flaggan `goblinup` i ~/.config/goblincakes/dashboard.json).
+- Kommandot: `goblin tillägg` (listan), `goblin tillägg sök [forever] <text>`, `goblin tillägg uppdatera [namn|alla]`,
+  `goblin tillägg installera [forever] <namn>`, `goblin tillägg kolla`, `goblin tillägg öppna`. Du (Kakan): listan och
+  sökningen direkt, resten blir ett Tillåt-kort.
+- Hjälparen /usr/libexec/goblincakes-wowup (status = JSON). Läser ~/.config/WowUpCf/addons.json (WowUp skriver den efter
+  varje kontroll; clientType 0 = Retail, 10 = Forever; providerName Unknown = "utanför WowUp", t.ex. användarens egna
+  tillägg som inte kommer från WowUp – de uppdateras inte härifrån). Styr via Chromes fjärrstyrningsport, bara för den här
+  datorn: WowUp startas med `--remote-debugging-port=9233 --remote-debugging-address=127.0.0.1` (autostarten från Config,
+  spelvakten, goblincakes-refresh.sh lägger till den i gamla autostartposter). Körs WowUp utan port startar hjälparen om
+  det (SIGINT) med porten när en knapp trycks.
+- Inget görs medan WoW körs (spelvakten stänger WowUp då). "Hittar inte WowUps knapp … WowUp kan ha bytt utseende" =
+  en WowUp-uppdatering har ändrat fönstret: säg det och be användaren skicka till Claude – gissa inte.
+- Kolla: `goblincakes-wowup status`, `curl -s http://127.0.0.1:9233/json/version` (ska nämna WowUp),
+  `grep Exec ~/.config/autostart/appimage-wowup.desktop` (ska ha --remote-debugging-port).
 
 ## Lagmätaren
 Ord: lagg, laggar, ping, laggknappen, meta+shift+l, lagmätning, hackar, nätet, paketförlust
