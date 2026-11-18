@@ -283,46 +283,102 @@ def when_text(t):
     return f"{day_text(t, False)} {clock}"
 
 
-def builds(count=10, test_runs=None):
-    """{builder, rows [{state, kind ok|fail|off|run, hash, sha, title, when, length, url}], ok, failed, running,
-    last} – the image's builds; {"builder": False} for someone without the repo."""
+RUN_KEYS = ("id", "status", "conclusion", "head_sha", "display_title", "created_at", "run_started_at", "updated_at",
+            "html_url", "event", "name", "workflow_id", "head_branch")
+
+
+def _repo_runs(repo, count, cache):
+    """GitHub's latest runs of one repo, saved per repo in dashboard-builds.json: GOBLINCAKES' own = only the image
+    (build.yml) as before, another repo = all its workflows. Raises when GitHub does not answer and nothing is saved."""
     import buildstatus  # noqa: PLC0415
+    import github  # noqa: PLC0415
+    saved = (cache.get("repos") or {}).get(repo) or {}
+    running = any(r.get("status") != "completed" for r in saved.get("runs") or [])
+    if time.time() - saved.get("at", 0) < (BUILD_AGE_RUNNING if running else BUILD_AGE) and saved.get("runs"):
+        return saved["runs"]
+    try:
+        if repo == buildstatus.REPO:
+            got = buildstatus.runs("build.yml", count)
+        else:
+            got = github.get(f"/repos/{repo}/actions/runs?per_page={count}").get("workflow_runs", [])
+        runs = [{k: r.get(k) for k in RUN_KEYS} for r in got]
+        cache.setdefault("repos", {})[repo] = {"at": time.time(), "runs": runs}
+        return runs
+    except Exception as e:  # noqa: BLE001 – no network, GitHub's hourly limit: the last ones we saw
+        if saved.get("runs"):
+            return saved["runs"]
+        raise RuntimeError(str(e) if isinstance(e, github.GithubError) else "GitHub svarade inte") from e
+
+
+def builds(count=10, test_runs=None, test_repos=None):
+    """{builder, rows [{state, kind ok|fail|off|run, hash, sha, prev, title, when, length, url, id, repo, repoName,
+    own}], ok, failed, running, last, repos, url} – the builds of the repos chosen in Config → Dashboard → GITHUB
+    (github.py; no choice = the GOBLINCAKES repo for the one who has it), newest first; {"builder": False} = none.
+    test_runs: {repo: [runs]} (or a list = GOBLINCAKES' own)."""
+    import buildstatus  # noqa: PLC0415
+    import github  # noqa: PLC0415
+    errors = []
     if test_runs is None:
-        if not buildstatus.builder():
+        repos = github.chosen()
+        if not repos:
             return {"builder": False}
         cache = _load(BUILD_CACHE)
-        running = any(r.get("status") != "completed" for r in cache.get("runs") or [])
-        if time.time() - cache.get("at", 0) < (BUILD_AGE_RUNNING if running else BUILD_AGE) and cache.get("runs"):
-            runs = cache["runs"]
-        else:
+        if "runs" in cache:   # the file from before 18 Nov: only GOBLINCAKES' own
+            cache = {"repos": {buildstatus.REPO: {"at": cache.get("at", 0), "runs": cache["runs"]}}}
+        per = {}
+        for repo in repos:
             try:
-                runs = [{k: r.get(k) for k in ("id", "status", "conclusion", "head_sha", "display_title", "created_at",
-                                               "run_started_at", "updated_at", "html_url", "event")}
-                        for r in buildstatus.runs("build.yml", count)]
-                _save(BUILD_CACHE, {"at": time.time(), "runs": runs})
-            except Exception:  # noqa: BLE001 – no network, GitHub's hourly limit: the last ones we saw
-                runs = cache.get("runs") or []
-                if not runs:
-                    return {"builder": True, "rows": [], "error": "GitHub svarade inte"}
+                per[repo] = _repo_runs(repo, count, cache)
+            except RuntimeError as e:
+                errors.append(f"{repo.partition('/')[2]}: {e}" if len(repos) > 1 else str(e))
+        _save(BUILD_CACHE, cache)
     else:
-        runs = test_runs
+        per = test_runs if isinstance(test_runs, dict) else {buildstatus.REPO: test_runs}
+        repos = test_repos or list(per)
     rows = []
-    for r in runs[:count]:
-        done = r.get("status") == "completed"
-        state, kind = BUILD_STATE.get(r.get("conclusion"), ("okänt", "off")) if done else ("pågår", "run")
-        start = _stamp(r.get("run_started_at") or r.get("created_at"))
-        end = _stamp(r.get("updated_at")) if done else time.time()
-        title = r.get("display_title") or ""
-        rows.append({"state": state, "kind": kind, "sha": r.get("head_sha") or "", "hash": (r.get("head_sha") or "")[:7],
-                     "title": "Dagligt bygge" if r.get("event") == "schedule" else title,
-                     "when": when_text(start), "length": span_text(end - start) if start else "",
-                     "url": r.get("html_url") or "",
-                     "id": str(r.get("id") or (r.get("html_url") or "").rstrip("/").rpartition("/")[2])})
-    for i, row in enumerate(rows):  # the build before: its commits up to this one = what this one added (same = none)
-        row["prev"] = rows[i + 1]["sha"] if i + 1 < len(rows) else ""
-    return {"builder": True, "rows": rows, "ok": sum(r["kind"] == "ok" for r in rows),
-            "failed": sum(r["kind"] == "fail" for r in rows), "running": next((r for r in rows if r["kind"] == "run"), None),
-            "last": rows[0] if rows else None, "url": f"https://github.com/{buildstatus.REPO}/actions/workflows/build.yml"}
+    for repo, runs in per.items():
+        own = repo == buildstatus.REPO
+        mine = []
+        for r in runs[:count]:
+            done = r.get("status") == "completed"
+            state, kind = BUILD_STATE.get(r.get("conclusion"), ("okänt", "off")) if done else ("pågår", "run")
+            start = _stamp(r.get("run_started_at") or r.get("created_at"))
+            end = _stamp(r.get("updated_at")) if done else time.time()
+            title = r.get("display_title") or ""
+            if own:
+                title = "Dagligt bygge" if r.get("event") == "schedule" else title
+            elif r.get("name"):   # another repo: which workflow – a push can start several
+                title = f"{r['name']}: " + ("schemalagt" if r.get("event") == "schedule" else title)
+            mine.append({"state": state, "kind": kind, "sha": r.get("head_sha") or "",
+                         "hash": (r.get("head_sha") or "")[:7], "title": title,
+                         "when": when_text(start), "length": span_text(end - start) if start else "",
+                         "url": r.get("html_url") or "", "repo": repo, "repoName": repo.partition("/")[2], "own": own,
+                         "start": start or 0, "flow": f"{r.get('workflow_id')}/{r.get('head_branch')}",
+                         "id": str(r.get("id") or (r.get("html_url") or "").rstrip("/").rpartition("/")[2])})
+        for i, row in enumerate(mine):  # the run before of the same workflow: its commits up to this one = what
+            row["prev"] = next((o["sha"] for o in mine[i + 1:] if o["flow"] == row["flow"]), "")  # it added (same = none)
+        rows += mine
+    rows.sort(key=lambda r: -r["start"])
+    rows = rows[:count if len(per) < 2 else count + 5]
+    for row in rows:
+        row.pop("start"), row.pop("flow")
+    if len(repos) == 1:
+        url = (f"https://github.com/{buildstatus.REPO}/actions/workflows/build.yml" if repos[0] == buildstatus.REPO
+               else f"https://github.com/{repos[0]}/actions")
+    else:
+        user = github.load().get("user") or repos[0].partition("/")[0]
+        url = f"https://github.com/{user}?tab=repositories"
+    out = {"builder": True, "rows": rows, "ok": sum(r["kind"] == "ok" for r in rows),
+           "failed": sum(r["kind"] == "fail" for r in rows),
+           # "Säg till när bygget är klart" and "Fråga Kakan varför": Kakan only follows GOBLINCAKES' own builds
+           "running": next((r for r in rows if r["kind"] == "run" and r["own"]), None),
+           "failedOwn": sum(r["kind"] == "fail" and r["own"] for r in rows),
+           "last": rows[0] if rows else None, "repos": len(repos), "url": url,
+           "about": ("GOBLINCAKES-imagen på GitHub · varje push + dagligen" if repos == [buildstatus.REPO]
+                     else "Dina byggen på GitHub · " + ", ".join(r.partition("/")[2] for r in repos))}
+    if errors:
+        out["error"] = " · ".join(errors)
+    return out
 
 
 STEP_NAMES = {"Hämta repot (hela historiken)": "Hämta repot", "Nyheternas commits": "Nyheterna",
@@ -351,15 +407,19 @@ def _message(sha, text):
             "text": "\n".join(" ".join(p.split()) for p in paras if p.strip())}
 
 
-def build_commits(sha, prev="", test_repo=None):
+def build_commits(sha, prev="", test_repo=None, repo_name=""):
     """[{hash, title, text}] newest first – the commits a build brought (since the build before; the oldest build
-    in the list only its own; [] = the same code again, a daily build). From the repo on this computer, GitHub's compare if it is not fetched."""
-    key = f"{prev}..{sha}"
+    in the list only its own; [] = the same code again, a daily build). GOBLINCAKES' own from the repo on this
+    computer, otherwise (or when it is not fetched) GitHub's compare of repo_name (owner/name)."""
+    import buildstatus  # noqa: PLC0415
+    import github  # noqa: PLC0415
+    repo_name = repo_name or buildstatus.REPO
+    key = f"{repo_name}:{prev}..{sha}"
     if not sha or key in _commits:
         return _commits.get(key, [])
     import subprocess  # noqa: PLC0415
     repo = test_repo
-    if repo is None:
+    if repo is None and repo_name == buildstatus.REPO:
         import knowledge  # noqa: PLC0415
         repo = knowledge.find_repo()
     out = None
@@ -372,12 +432,11 @@ def build_commits(sha, prev="", test_repo=None):
             if r.returncode == 0:
                 out = [_message(h, b) for h, _, b in (c.strip().partition("\x1f") for c in r.stdout.split("\x1e")) if h]
     if out is None and test_repo is None:
-        import buildstatus  # noqa: PLC0415
         try:
             if prev:
-                got = buildstatus.get(f"/compare/{prev}...{sha}").get("commits", [])[::-1][:40]
+                got = github.get(f"/repos/{repo_name}/compare/{prev}...{sha}").get("commits", [])[::-1][:40]
             else:
-                got = [buildstatus.get(f"/commits/{sha}")]
+                got = [github.get(f"/repos/{repo_name}/commits/{sha}")]
             out = [_message(c.get("sha", ""), (c.get("commit") or {}).get("message", "")) for c in got]
         except Exception:  # noqa: BLE001 – no network: try again next time (None = no list shown)
             return None
@@ -385,27 +444,30 @@ def build_commits(sha, prev="", test_repo=None):
     return _commits[key]
 
 
-def build_steps(run_id, test_jobs=None):
+def build_steps(run_id, test_jobs=None, repo=""):
     """{id, done, jobs [{name, kind, length, steps [{name, kind}]}]} – what one build has done and what is left
     (GitHub's jobs: the check and one per variant). The image itself is one step on GitHub ("Build Custom Image");
-    what goes on inside it is only in the log, after the variant is done."""
+    what goes on inside it is only in the log, after the variant is done. Another repo (owner/name): GitHub's own
+    names of its jobs and steps."""
+    import buildstatus  # noqa: PLC0415 – variant(): "Build Custom Image (recipe-nvidia.yml, …)" → the variant's name
+    import github  # noqa: PLC0415
+    own = not repo or repo == buildstatus.REPO
     if test_jobs is None:
-        import buildstatus  # noqa: PLC0415
         try:
-            jobs = buildstatus.get(f"/actions/runs/{int(run_id)}/jobs?per_page=30").get("jobs", [])
+            jobs = github.get(f"/repos/{repo or buildstatus.REPO}/actions/runs/{int(run_id)}/jobs?per_page=30").get("jobs", [])
         except Exception:  # noqa: BLE001 – no network, GitHub's limit
             return {"id": str(run_id), "error": "GitHub svarade inte – försöker igen om 20 s"}
     else:
         jobs = test_jobs
-    import buildstatus  # noqa: PLC0415 – variant(): "Build Custom Image (recipe-nvidia.yml, …)" → the variant's name
     out = []
     for j in jobs:
         name = j.get("name") or ""
         start = _stamp(j.get("started_at") or "")
         end = _stamp(j.get("completed_at") or "") if j.get("status") == "completed" else time.time()
-        steps = [{"name": STEP_NAMES.get(s.get("name"), s.get("name") or ""), "kind": _step_kind(s.get("status"), s.get("conclusion"))}
+        steps = [{"name": (STEP_NAMES.get(s.get("name")) if own else None) or s.get("name") or "",
+                  "kind": _step_kind(s.get("status"), s.get("conclusion"))}
                  for s in j.get("steps") or [] if not STEP_HIDDEN.match(s.get("name") or "")]
-        out.append({"name": buildstatus.variant(name) if "recipe" in name else name,
+        out.append({"name": buildstatus.variant(name) if own and "recipe" in name else name,
                     "kind": _step_kind(j.get("status"), j.get("conclusion")),
                     "length": span_text(end - start) if start and j.get("status") != "queued" else "", "steps": steps})
     return {"id": str(run_id), "done": bool(out) and all(j["kind"] not in ("run", "wait") for j in out), "jobs": out}

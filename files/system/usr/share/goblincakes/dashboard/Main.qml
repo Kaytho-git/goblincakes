@@ -58,6 +58,7 @@ Window {
     }
     property var cs2: ({})
     property var builds: ({})
+    readonly property int buildRepoW: (builds.repos || 1) > 1 ? 160 : 0   // the REPO column with more than one repo
     property var buildSteps: ({})      // the open build in BYGGEN: {id, done, jobs [{name, kind, length, steps}]}
     property var reports: ({})
     // CLAUDE CODE (13 Nov): what Claude Code does – claudefeed.py, read every ½ s only while the frame or the middle shows
@@ -1536,7 +1537,8 @@ Window {
                         Text {
                             width: parent.width
                             elide: Text.ElideRight
-                            text: win.builds.last ? win.builds.last.when + " · " + win.builds.last.length : ""
+                            text: win.builds.last ? win.builds.last.when + " · " + win.builds.last.length
+                                                    + ((win.builds.repos || 1) > 1 ? " · " + win.builds.last.repoName : "") : ""
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 12
@@ -2867,7 +2869,7 @@ Window {
                         BigTitle { id: buildTitle; text: "BYGGEN" }
                         SubTitle {
                             anchors.baseline: buildTitle.baseline
-                            text: "GOBLINCAKES-imagen på GitHub · varje push + dagligen" + (win.builds.error ? " · " + win.builds.error : "")
+                            text: (win.builds.about || "GOBLINCAKES-imagen på GitHub · varje push + dagligen") + (win.builds.error ? " · " + win.builds.error : "")
                         }
                     }
                     Row {
@@ -2886,8 +2888,9 @@ Window {
                         height: 30
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1E2A40" }
                         HeadCell { text: "RESULTAT"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
-                        HeadCell { x: 132; text: "COMMIT"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
-                        HeadCell { x: 234; text: "VAD SOM ÄNDRADES"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
+                        HeadCell { x: 132; visible: win.buildRepoW > 0; text: "REPO"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
+                        HeadCell { x: 132 + win.buildRepoW; text: "COMMIT"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
+                        HeadCell { x: 234 + win.buildRepoW; text: "VAD SOM ÄNDRADES"; horizontalAlignment: Text.AlignLeft; anchors.verticalCenter: parent.verticalCenter }
                         HeadCell { anchors { right: parent.right; rightMargin: 100; verticalCenter: parent.verticalCenter } text: "NÄR" }
                         HeadCell { anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter } text: "TID" }
                     }
@@ -2908,9 +2911,11 @@ Window {
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
                         Cell { width: 124; height: 48; horizontalAlignment: Text.AlignLeft; text: modelData.state
                                color: win.resultColor(modelData.kind); font.weight: Font.DemiBold }
-                        Cell { x: 132; width: 90; height: 48; horizontalAlignment: Text.AlignLeft; text: modelData.hash
+                        Cell { x: 132; visible: win.buildRepoW > 0; width: win.buildRepoW - 12; height: 48; horizontalAlignment: Text.AlignLeft
+                               text: modelData.repoName || ""; color: "#B9C3D3" }
+                        Cell { x: 132 + win.buildRepoW; width: 90; height: 48; horizontalAlignment: Text.AlignLeft; text: modelData.hash
                                color: accent.text; font.family: "IBM Plex Mono"; font.pixelSize: 12 }
-                        Cell { x: 234; width: parent.width - 234 - 270; height: 48; horizontalAlignment: Text.AlignLeft; text: modelData.title }
+                        Cell { x: 234 + win.buildRepoW; width: parent.width - 234 - win.buildRepoW - 270; height: 48; horizontalAlignment: Text.AlignLeft; text: modelData.title }
                         Cell { anchors { right: parent.right; rightMargin: 100 } width: 160; height: 48; text: modelData.when; color: "#8B98AD" }
                         Cell { anchors { right: parent.right; rightMargin: 12 } width: 84; height: 48; text: modelData.length
                                color: "#8B98AD"; font.family: "IBM Plex Mono"; font.pixelSize: 12 }
@@ -2935,7 +2940,8 @@ Window {
                                 readonly property int count: buildRow.open ? (win.buildSteps.commits || []).length : 0
                                 visible: count > 0 || (buildRow.open && !!win.buildSteps.jobs && !!win.buildSteps.commits)
                                 topPadding: 6
-                                text: count === 0 ? "INGA NYA COMMITS – SAMMA KOD BYGGS OM MED FEDORAS NYA PAKET"
+                                text: count === 0 ? (buildRow.modelData.own ? "INGA NYA COMMITS – SAMMA KOD BYGGS OM MED FEDORAS NYA PAKET"
+                                                                            : "INGA NYA COMMITS – SAMMA KOD SOM FÖRRA KÖRNINGEN")
                                       : count === 1 ? "COMMIT I BYGGET" : "COMMITS I BYGGET (" + count + ")"
                             }
                             Repeater {
@@ -3039,7 +3045,7 @@ Window {
                     }
                     FlatButton {
                         primary: true
-                        visible: !!win.builds.failed
+                        visible: !!win.builds.failedOwn
                         text: "Fråga Kakan varför det misslyckades"
                         onClicked: backend.askKakan("Varför misslyckades det senaste misslyckade bygget av GOBLINCAKES?")
                     }

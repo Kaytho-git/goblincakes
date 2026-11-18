@@ -159,7 +159,7 @@ FRAMES = [("projects", "Projekt", "dina mappar – öppna i VS Code, Claude Code
           ("system", "System", "CPU, GPU, temperatur, RAM, disk"),
           ("wow", "WoW Stats", "karaktärer och senaste raiden (Warcraft Logs; bild, M+ och PvP med Blizzard-nyckeln)"),
           ("cs2", "CS2 Stats", "de senaste matcherna och kartorna"),
-          ("builds", "Byggen", "GOBLINCAKES byggen på GitHub (när repot finns på datorn)"),
+          ("builds", "Byggen", "Byggen på GitHub – dina repon (välj under GITHUB nedan)"),
           ("reports", "Kakan", "Kakans rapporter"),
           ("claude", "AI-kartan", "vad Claude Code, Codex eller Kakan gör just nu – kartan i mitten"),
           ("addons", "Tillägg", "WoW-tilläggen i WowUp – uppdateringar, GoblinUp i mitten (när WowUp finns)"),
@@ -1037,6 +1037,8 @@ if __name__ == "__main__":
         result["dockOk"] = bool(result["chosen"]) or current_dock_answers()
         import blizzard  # noqa: PLC0415 – Blizzard's API (18 Nov): only whether the key is there
         result["blizzard"] = {"configured": blizzard.configured(), "clients": blizzard.CLIENTS_PAGE}
+        import github  # noqa: PLC0415 – BYGGEN's repos (18 Nov)
+        result["github"] = github.status()
     elif what == "save":         # from Config: {"views": [...], "apps": [...] only when changed} on stdin
         data = json.loads(sys.stdin.read() or "{}")
         ok = save_views(data.get("views") or [], data.get("apps"), data.get("start"))

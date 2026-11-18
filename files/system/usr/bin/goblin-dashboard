@@ -308,9 +308,10 @@ class Backend(QObject):
         row = next((r for r in json.loads(self.data.get("builds") or "{}").get("rows") or [] if r.get("id") == run), {})
 
         def work():  # the steps from GitHub, the commits from the repo here (fetched once per build)
-            out = stats.build_steps(run, test_jobs=test["buildSteps"]) if "buildSteps" in test else stats.build_steps(run)
+            repo = row.get("repo", "")
+            out = stats.build_steps(run, test_jobs=test.get("buildSteps"), repo=repo)
             out["commits"] = (test["buildCommits"] if "buildCommits" in test
-                              else stats.build_commits(row.get("sha", ""), row.get("prev", "")))
+                              else stats.build_commits(row.get("sha", ""), row.get("prev", ""), repo_name=repo))
             return out
         self.job("buildSteps", work)
 

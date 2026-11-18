@@ -2425,6 +2425,173 @@ Window {
                 }
             }
 
+            // ── GITHUB (18 Nov): whose builds BYGGEN shows – anyone's own repos (the dashboard's github.py) ──
+            Column {
+                id: ghSection
+                visible: !!dashView.info && !!dashView.info.github
+                width: parent.width
+                spacing: 10
+                property bool busy: false
+                property string said: ""
+                property var repos: []          // the account's repos once fetched: [{repo, name, private, pushed}]
+                property var picked: []         // owner/name, the ones ticked
+                readonly property var gh: (dashView.info && dashView.info.github) || ({})
+                readonly property var shown: {   // the GOBLINCAKES repo (its builder) and the chosen ones are always there
+                    let out = ghSection.repos.slice();
+                    for (const r of [gh.own || ""].concat(gh.chosen || []))
+                        if (r && !out.some(o => o.repo === r))
+                            out.unshift({ "repo": r, "name": r.split("/")[1], "private": false });
+                    return out;
+                }
+                onGhChanged: picked = (gh.chosen || []).slice()
+                function toggle(repo) {
+                    let p = picked.slice();
+                    const i = p.indexOf(repo);
+                    if (i >= 0)
+                        p.splice(i, 1);
+                    else if (p.length < (gh.max || 8))
+                        p.push(repo);
+                    picked = p;
+                }
+                readonly property bool changed: JSON.stringify(picked.slice().sort()) !== JSON.stringify((gh.chosen || []).slice().sort())
+                Connections {
+                    target: backend
+                    function onGithubDone(json) {
+                        ghSection.busy = false;
+                        let out = {};
+                        try {
+                            out = JSON.parse(json);
+                        } catch (e) {
+                            out = { "ok": false, "why": "github.py svarade inte" };
+                        }
+                        if (out.repos)
+                            ghSection.repos = out.repos;
+                        ghSection.said = out.ok ? (out.repos ? out.repos.length + " repon hittade – kryssa i vilka BYGGEN ska visa och tryck Spara valet."
+                                                             : "Klart – BYGGEN i dashboarden ändras nästa gång den öppnas.")
+                                                : (out.why || "Det gick inte");
+                        if (out.ok) {
+                            ghKey.text = "";
+                            let g = {};
+                            for (const k of ["user", "hasKey", "chosen", "own", "tokenPage", "max"])
+                                if (out[k] !== undefined)
+                                    g[k] = out[k];
+                            dashView.info = Object.assign({}, dashView.info, { "github": Object.assign({}, dashView.info.github, g) });
+                        }
+                    }
+                }
+                Text {
+                    text: "GITHUB – VILKA BYGGEN SOM SYNS I BYGGEN"
+                    color: "#8B98AD"
+                    font.family: "Chakra Petch"
+                    font.pixelSize: 13
+                    font.letterSpacing: 2
+                }
+                Text {
+                    width: Math.min(820, parent.width)
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.15
+                    color: "#E6ECF5"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 14
+                    text: ((ghSection.gh.chosen || []).length
+                           ? "BYGGEN visar nu: " + ghSection.gh.chosen.map(r => r.split("/")[1]).join(", ") + ". "
+                           : "BYGGEN visar byggena (GitHub Actions) i dina egna repon. ")
+                          + "Skriv ditt GitHub-namn och tryck Hämta mina repon – offentliga repon fungerar utan inloggning. "
+                          + "Privata repon, eller fler än några få, behöver en nyckel (GitHub tillåter 60 frågor i timmen utan): "
+                          + "Skapa nyckel … → läsrätt till Actions och Contents räcker. Sparas bara på den här datorn."
+                }
+                Row {
+                    spacing: 12
+                    FlatField { id: ghUser; width: 220; hint: "GitHub-namn"; text: ghSection.gh.user || "" }
+                    FlatField { id: ghKey; width: 260; hint: ghSection.gh.hasKey ? "Nyckel sparad" : "Nyckel (valfri)"; echoMode: TextInput.Password }
+                    FlatButton {
+                        primary: true
+                        enabledState: (ghUser.text.trim().length > 0 || ghKey.text.trim().length > 10) && !ghSection.busy
+                        text: ghSection.busy ? "Hämtar …" : "Hämta mina repon"
+                        onClicked: {
+                            ghSection.busy = true;
+                            ghSection.said = "";
+                            backend.setGithub(ghUser.text, ghKey.text);   // an empty key field keeps the saved key
+                        }
+                    }
+                    FlatButton { text: "Skapa nyckel …"; onClicked: backend.openLink(ghSection.gh.tokenPage) }
+                }
+                Column {
+                    visible: ghSection.repos.length > 0
+                    width: Math.min(820, parent.width)
+                    spacing: 0
+                    Repeater {
+                        model: ghSection.shown
+                        Rectangle {
+                            id: ghRow
+                            required property var modelData
+                            readonly property bool on: ghSection.picked.indexOf(modelData.repo) >= 0
+                            width: parent.width
+                            height: 40
+                            color: ghArea.containsMouse ? "#101A2C" : "transparent"
+                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#1A2438" }
+                            CheckSquare { x: 10; size: 18; anchors.verticalCenter: parent.verticalCenter; checked: ghRow.on }
+                            Text {
+                                x: 40
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: ghRow.modelData.repo + (ghRow.modelData.private ? "   · privat" : "")
+                                      + (ghRow.modelData.repo === ghSection.gh.own ? "   · GOBLINCAKES" : "")
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: 14
+                            }
+                            MouseArea {
+                                id: ghArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: ghSection.toggle(ghRow.modelData.repo)
+                            }
+                        }
+                    }
+                }
+                Row {
+                    spacing: 12
+                    FlatButton {
+                        visible: ghSection.repos.length > 0
+                        primary: true
+                        enabledState: ghSection.changed && !ghSection.busy
+                        text: "Spara valet (" + ghSection.picked.length + " av högst " + (ghSection.gh.max || 8) + ")"
+                        onClicked: {
+                            ghSection.busy = true;
+                            backend.chooseGithub(JSON.stringify(ghSection.picked));
+                        }
+                    }
+                    FlatButton {
+                        visible: !!ghSection.gh.hasKey
+                        text: "Ta bort nyckeln"
+                        onClicked: {
+                            ghSection.busy = true;
+                            backend.forgetGithubKey();
+                        }
+                    }
+                    FlatButton {
+                        visible: !!ghSection.gh.user
+                        text: "Glöm GitHub-kontot"
+                        onClicked: {
+                            ghSection.busy = true;
+                            ghSection.repos = [];
+                            ghUser.text = "";
+                            backend.forgetGithub();
+                        }
+                    }
+                }
+                Text {
+                    visible: ghSection.said !== ""
+                    width: Math.min(820, parent.width)
+                    wrapMode: Text.WordWrap
+                    text: ghSection.said
+                    color: "#8B98AD"
+                    font.family: "IBM Plex Sans"
+                    font.pixelSize: 13
+                }
+            }
+
             // ── APPARNA LÄNGST NER ──
             Column {
                 visible: !!dashView.info

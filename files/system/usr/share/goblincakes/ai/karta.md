@@ -186,7 +186,8 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   org.kde.KWin /Scripting och får svaret på D-Bus-tjänsten org.goblincakes.dashboard.p<pid>.
 - Steg 2 (10 nov), ramarna till höger – dashboard/stats.py, läser bara det andra har sparat: WOW STATS och CS2 STATS ur
   GoblinRecorders historik (~/.local/share/goblincakes/wow-history.json, cs2-history.json; CS2 = säsongens officiella
-  matcher, inte PRIVAT), BYGGEN = buildstatus.py (bara på datorn som har repot; sparas 5 min i
+  matcher, inte PRIVAT), BYGGEN = byggena i repona som valts i Config → Dashboard → GITHUB (dashboard/github.py, ~/.config/goblincakes/github.json;
+  inget valt = GOBLINCAKES-repot om det finns på datorn; GOBLINCAKES egna via buildstatus.py; sparas 5 min i
   ~/.cache/goblincakes/dashboard-builds.json, 1 min medan ett bygge pågår; din "bygget är klart"-bevakning tar bort
   filen så att dashboarden frågar igen; tryck på ett bygge = stegen: kontrollen + varje variant ✓ klart / ● pågår /
   ✗ fel / ○ kvar, läses om var 20:e s tills bygget är klart – stats.build_steps; överst byggets commits ur repot – stats.build_commits), KAKAN = rapporterna i ~/.local/share/goblincakes/till-claude.

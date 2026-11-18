@@ -41,7 +41,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 ### GOBLINCAKES Dashboard
 En helskärm som du tar fram med **Meta** (eller `goblin dashboard`), med allt på ett ställe:
 - **Program:** öppna program överst (tryck = växla dit, högerklick = stäng), alla program i mitten – börja skriva så söker du – och dina vanliga program längst ner, samma som i dockan.
-- **Ramar runt om:** dina projekt (öppna i VS Code eller Claude Code), systemet (processor, grafikkort, temperatur, minne, disk), WoW Stats med senaste raidkvällen boss för boss, CS2 Stats, byggen på GitHub, Goblin AI:s rapporter och GoblinRecorders kontroll (är OBS redo, spelas något in).
+- **Ramar runt om:** dina projekt (öppna i VS Code eller Claude Code), systemet (processor, grafikkort, temperatur, minne, disk), WoW Stats med senaste raidkvällen boss för boss, CS2 Stats, byggen på GitHub (dina egna repon, valda i Config), Goblin AI:s rapporter och GoblinRecorders kontroll (är OBS redo, spelas något in).
 - **Vyer:** t.ex. SPEL och JOBB – byt med hjulet, svep i sidled eller Ctrl+← →. Vilka ramar som ligger var väljer du i **Config → Dashboard**.
 - **Överst:** klockan, nätverk, ljud, Bluetooth, batteriet i musen, headsetet, tangentbordet och handkontrollen, notiser du kan trycka på och en strömknapp.
 - **AI-kartan** i mitten: vad Claude Code, Codex eller Kakan gör just nu (se [Goblin AI](#goblin-ai)).

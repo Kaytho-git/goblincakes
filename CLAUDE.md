@@ -70,6 +70,7 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - [ ] **Barnläget i pixelart** – Kakans bilder inbyggda överallt 14 nov (bara offscreen-provat); användaren provar på riktigt (grep "Pixelart").
 - [ ] **A Boy to the Rescue** (barnspelet, `games/barnspelet/`) – bana 1 djungeln klar och i barnläget 15 nov; bana 2 snö klar (användaren bygger banan); bana 3 sand byggd 15 nov – användaren bygger och provar (arbetsgången: grep "Arbetssättet för banorna") (grep "Barnspelet – planen").
 - [ ] **Blizzard-data i dashboarden** – karaktärsbild, M+, raidprogress, PvP + ramen WoW-läget (Köp token), byggt 18 nov, testlista `dashboard-blizzard.md` (grep "Blizzard-data i dashboarden").
+- [ ] **BYGGEN: commits + egna GitHub-repon** – commit-listan per bygge och Config → Dashboard → GITHUB, byggt 18 nov, testlista `dashboard-github.md` (grep "BYGGEN för allas repon").
 - [ ] **Bilder i Goblin AI:s terminal** – bildvägar blir länkar (hovra/klick), byggt 17 nov, testlista `terminal-bilder.md` (grep "Bildvägar som länkar").
 - [ ] **GoblinUp** – skal över WowUp i dashboarden + `goblin tillägg` + Kakan, byggt 18 nov, testlista `goblinup.md` (grep "GoblinUp – bygget").
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
