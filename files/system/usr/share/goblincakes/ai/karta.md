@@ -590,7 +590,9 @@ Ord: goblinup, uppdatera tilläggen, uppdatera addons, nya tillägg, installera 
 - Dashboarden: vyn GOBLINUP (GoblinUp i mitten) och ramen TILLÄGG i SPEL där SYSTEM var – läggs till en gång när WowUp
   finns, tas bort igen om WowUp avinstalleras (dash.goblinup_views, flaggan `goblinup` i ~/.config/goblincakes/dashboard.json).
 - Kommandot: `goblin tillägg` (listan), `goblin tillägg sök [forever] <text>`, `goblin tillägg uppdatera [namn|alla]`,
-  `goblin tillägg installera [forever] <namn>`, `goblin tillägg kolla`, `goblin tillägg öppna`. Du (Kakan): listan och
+  `goblin tillägg installera [forever] <namn>`, `goblin tillägg kolla [namn]`, `goblin tillägg ignorera <namn> [av]`,
+  `goblin tillägg ta bort <namn>`, `goblin tillägg öppna` (namn i både Retail och Forever = Retail; `forever <namn>`
+  = det i Forever). I dashboarden: högerklick på ett tillägg = Kolla, Uppdatera, Ignorera, Tilläggets sida, Ta bort. Du (Kakan): listan och
   sökningen direkt, resten blir ett Tillåt-kort.
 - Hjälparen /usr/libexec/goblincakes-wowup (status = JSON). Läser ~/.config/WowUpCf/addons.json (WowUp skriver den efter
   varje kontroll; clientType 0 = Retail, 10 = Forever; providerName Unknown = "utanför WowUp", t.ex. användarens egna

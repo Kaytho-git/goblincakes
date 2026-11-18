@@ -1593,7 +1593,7 @@ DESK_FNS = [
             "ändrar något (update, färg, dock reset …) blir ett Tillåt-kort åt användaren. WoW-tilläggen (GoblinUp, "
             "WowUp gör jobbet): `tillägg` = listan och vilka som har uppdateringar (direkt), `tillägg sök <text>` "
             "(direkt), `tillägg uppdatera alla` / `tillägg uppdatera <namn>` / `tillägg installera <namn>` / "
-            "`tillägg kolla` (Tillåt-kort). Inte medan WoW körs.",
+            "`tillägg kolla [namn]` / `tillägg ignorera <namn> [av]` / `tillägg ta bort <namn>` (Tillåt-kort). Inte medan WoW körs.",
             {"kommando": ("Kommandot utan `goblin`, t.ex. `nyheter 5`, `screen`, `tile open raid`, `update`", True)},
             lambda a: f"goblin {look_arg(a, 'kommando')}"),
     look_fn("kalender_visa", "Visar vad som står i användarens kalender (Merkuro) de närmaste dagarna, med påminnelser.",

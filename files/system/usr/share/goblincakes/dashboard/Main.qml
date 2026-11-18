@@ -1528,8 +1528,8 @@ Window {
                     readonly property var withUpdates: win.upClients.filter(c => c.updates > 0)
                     on: win.mid === "goblinup"
                     live: win.upBusy
-                    title: win.wowup.updates ? win.wowup.updates + (win.wowup.updates === 1 ? " uppdatering" : " uppdateringar")
-                         : win.wowup.clients ? "Alla uppdaterade" : "GoblinUp"
+                    title: win.wowup.updates ? win.wowup.updates + (win.wowup.updates === 1 ? " uppdatering finns" : " uppdateringar finns")
+                         : win.wowup.clients ? "Allt uppdaterat" : "GoblinUp"
                     line: win.wowup.game ? "WoW körs – WowUp vilar"
                         : withUpdates.length ? withUpdates.map(c => c.rows.filter(r => r.update).map(r => r.name).join(", ") + " · " + c.name).join(" · ")
                         : win.upClients.map(c => c.name + " " + c.rows.length).join(" · ")
@@ -2827,12 +2827,18 @@ Window {
                     SubTitle {
                         anchors.verticalCenter: parent.verticalCenter
                         color: win.wowupAct.ok === false && !win.upBusy ? "#F0B232" : "#8B98AD"
-                        text: win.upBusy ? ({ "check": "Kollar uppdateringar …", "update-all": "Uppdaterar alla …",
+                        text: win.upBusy ? ({ "check": win.wowupAct.name ? "Kollar " + win.wowupAct.name + " …" : "Kollar uppdateringar …",
+                                              "ignore": "Ändrar " + (win.wowupAct.name || "") + " …",
+                                              "remove": "Tar bort " + (win.wowupAct.name || "") + " …",
+                                              "update-all": "Uppdaterar alla …",
                                               "update": "Uppdaterar " + (win.wowupAct.name || "") + " …",
                                               "search": "Söker …", "install": "Installerar " + (win.wowupAct.name || "") + " …" })[win.wowupAct.what]
                                               + "   WowUp gör jobbet i bakgrunden"
                             : win.wowupAct.ok === false ? (win.wowupAct.why || "Det gick inte.")
-                            : ({ "check": "Kollat.", "update-all": "Uppdaterat.", "update": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart"),
+                            : ({ "check": win.wowupAct.name ? win.wowupAct.name + ": " + (win.wowupAct.update ? "uppdatering finns (" + win.wowupAct.latest + ")" : "senaste versionen") : "Kollat.",
+                                 "ignore": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart"),
+                                 "remove": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart"),
+                                 "update-all": "Uppdaterat.", "update": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart"),
                                  "install": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart") })[win.wowupAct.what] || ""
                     }
                 }
@@ -2871,7 +2877,8 @@ Window {
                     Keys.onPressed: event => {
                         if (event.key === Qt.Key_R && !win.upBusy) { win.upDo("check"); event.accepted = true; }
                         else if (event.key === Qt.Key_Slash) { upSearch.field.forceActiveFocus(); event.accepted = true; }
-                        else if (event.key === Qt.Key_Escape) { win.back(); event.accepted = true; }
+                        else if (event.key === Qt.Key_Escape) { if (upMenu.visible) upMenu.visible = false; else win.back(); event.accepted = true; }
+                        else if (event.key === Qt.Key_Menu && win.upRow) { upMenu.openAt(Qt.point(upView.cols[0] / 2, upList.y + 40 * (win.upSel + 1) - upList.contentY), win.upRow); event.accepted = true; }
                     }
                     delegate: Rectangle {
                         required property var modelData
@@ -2912,8 +2919,14 @@ Window {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: { win.upSel = index; upList.forceActiveFocus(); }
-                            onDoubleClicked: if (modelData.update && !win.upBusy) win.upDo("update", modelData.id, "", modelData.name)
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            onClicked: mouse => {
+                                win.upSel = index;
+                                upList.forceActiveFocus();
+                                if (mouse.button === Qt.RightButton)
+                                    upMenu.openAt(mapToItem(upView, mouse.x, mouse.y), modelData);
+                            }
+                            onDoubleClicked: mouse => { if (mouse.button === Qt.LeftButton && modelData.update && !win.upBusy) win.upDo("update", modelData.id, "", modelData.name); }
                         }
                     }
                     footer: Text {
@@ -3018,6 +3031,103 @@ Window {
                             onClicked: backend.openUrl(win.upRow.url)
                         }
                     }
+                }
+
+                // Right click on an add-on (18 Nov, the user: "Kolla, uppdatera, tilläggets sida, ta bort" + ignorera)
+                MouseArea {   // a click beside the menu closes it
+                    anchors.fill: parent
+                    visible: upMenu.visible
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: upMenu.visible = false
+                }
+                Rectangle {
+                    id: upMenu
+                    property var row: null
+                    property bool sure: false          // Ta bort: a second press confirms
+                    visible: false
+                    z: 10
+                    width: 260
+                    height: upMenuColumn.implicitHeight + 12
+                    color: "#0E1420"
+                    border.width: 1
+                    border.color: "#2A3852"
+                    function openAt(p, row) {
+                        upMenu.row = row;
+                        upMenu.sure = false;
+                        x = Math.min(p.x, upView.width - width - 4);
+                        y = Math.min(p.y, upView.height - height - 4);
+                        visible = true;
+                    }
+                    function pick(what) {
+                        const r = upMenu.row;
+                        visible = false;
+                        if (!r)
+                            return;
+                        if (what === "page")
+                            backend.openUrl(r.url);
+                        else if (what === "ignore")
+                            win.upDo("ignore", r.id, r.ignored ? "off" : "on", r.name);
+                        else
+                            win.upDo(what, r.id, "", r.name);
+                    }
+                    Column {
+                        id: upMenuColumn
+                        x: 6
+                        y: 6
+                        width: parent.width - 12
+                        Text {
+                            width: parent.width
+                            leftPadding: 10
+                            topPadding: 4
+                            bottomPadding: 6
+                            elide: Text.ElideRight
+                            text: upMenu.row ? upMenu.row.name : ""
+                            color: "#8B98AD"
+                            font.family: "Chakra Petch"
+                            font.pixelSize: 13
+                            font.letterSpacing: 1
+                        }
+                        Repeater {
+                            model: upMenu.row ? [
+                                { "id": "check", "text": "Kolla uppdatering", "on": !win.upBusy && upView.state !== "game" },
+                                { "id": "update", "text": "Uppdatera" + (upMenu.row.update ? " till " + upMenu.row.latest : ""),
+                                  "on": upMenu.row.update && !win.upBusy && upView.state !== "game" },
+                                { "id": "ignore", "text": upMenu.row.ignored ? "Sluta ignorera" : "Ignorera",
+                                  "on": !win.upBusy && upView.state !== "game" },
+                                { "id": "page", "text": "Tilläggets sida", "on": !!upMenu.row.url },
+                                { "id": "remove", "text": upMenu.sure ? "Tryck igen för att ta bort" : "Ta bort",
+                                  "on": !win.upBusy && upView.state !== "game", "danger": true }
+                            ] : []
+                            Rectangle {
+                                required property var modelData
+                                width: upMenuColumn.width
+                                height: 36
+                                color: !modelData.on ? "transparent"
+                                     : upItemArea.containsMouse ? (modelData.danger ? "#3A1620" : "#12203A") : "transparent"
+                                Text {
+                                    anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                                    text: modelData.text
+                                    color: !modelData.on ? "#4A5870" : modelData.danger && (upItemArea.containsMouse || upMenu.sure) ? "#F06B6B" : "#E6ECF5"
+                                    font.family: "IBM Plex Sans"
+                                    font.pixelSize: 14
+                                }
+                                MouseArea {
+                                    id: upItemArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    enabled: modelData.on
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (modelData.id === "remove" && !upMenu.sure)
+                                            upMenu.sure = true;
+                                        else
+                                            upMenu.pick(modelData.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    onVisibleChanged: if (!visible) sure = false
                 }
 
                 Row {

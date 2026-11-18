@@ -4,7 +4,9 @@ wowup kan tuffa på i bakgrunden"). Som GoblinAmp och Spotify: WowUp gör jobbet
 CurseForge), vi läser dess fil och trycker på dess knappar.
 
     goblincakes-wowup status                    JSON: installerat, igång, ansluten, spel, tilläggen per spelversion
-    goblincakes-wowup check                     WowUps "Check Updates" (alla spelversioner)
+    goblincakes-wowup check [id|namn|version]   WowUps "Check Updates" (alla spelversioner, en, eller ett tilläggs)
+    goblincakes-wowup ignore <id|namn> on|off   WowUps "Ignore" (högerklicksmenyn)
+    goblincakes-wowup remove <id|namn>          WowUps "Remove" – bekräftar tillägget, behåller beroenden
     goblincakes-wowup update-all [retail|forever]   "Update All" (utan val: alla spelversioner)
     goblincakes-wowup update <id|namn>          ett tillägg (WowUps id ur status, eller namnet)
     goblincakes-wowup search <version> <text>   "Get Addons" – sökningens träffar
@@ -302,6 +304,16 @@ const findRow = async id => { const vp = document.querySelector('.ag-body-viewpo
     if (!vp || vp.scrollTop + vp.clientHeight >= vp.scrollHeight) { if (i && vp) { vp.scrollTop = 0; await sleep(200); } if (i > 1) break; }
     else { vp.scrollTop += vp.clientHeight * 0.8; await sleep(250); } }
   return document.querySelector('[row-id="' + id + '"]'); };
+const closeMenu = async () => { document.querySelector('.cdk-overlay-backdrop')?.click();
+  document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); await sleep(300); };
+// Radens högerklicksmeny – bara om dess rubrik är rätt tillägg
+const openMenu = async (id, name) => { const r = await findRow(id); if (!r) return null;
+  const c = r.querySelector('[col-id="name"]') || r; const b = c.getBoundingClientRect();
+  c.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true, clientX: b.x + 20, clientY: b.y + 10, button: 2}));
+  for (let i = 0; i < 20; i++) { await sleep(150); const p = document.querySelector('.mat-mdc-menu-panel'); if (p) {
+    const head = (p.querySelector('.addon-name')?.innerText || '').trim();
+    if (head && head !== name) { await closeMenu(); return 'fel'; } return p; } }
+  return null; };
 """
 
 
@@ -320,12 +332,17 @@ def clients_present():
     return sorted({a.get("clientType", 0) for a in addons()})
 
 
-def do_check(page):
-    """Check Updates i varje spelversion som har tillägg."""
+def do_check(page, key=None):
+    """Check Updates i varje spelversion som har tillägg – eller bara en (retail/forever), eller ett tilläggs
+    (WowUp kollar en hel spelversion åt gången; svaret säger sedan hur det står till med just det)."""
+    one = find_addon(key) if key and not client_of(key) else None
+    if key and not one and not client_of(key):
+        return {"ok": False, "why": f"Hittar inget (eller fler än ett) tillägg som heter {key!r}."}
+    only = CLIENTS.get(one.get("clientType", 0), (None,))[0] if one else (client_of(key)[1] if key else None)
     done = []
     for n in clients_present():
         cid = CLIENTS.get(n, (None,))[0]
-        if not cid:
+        if not cid or (only and cid != only):
             continue
         got = run(page, """
           await tab(0); await pickClient(A.client);
@@ -340,6 +357,11 @@ def do_check(page):
         if got != "ok":
             return {"ok": False, "why": "Hittar inte WowUps knapp för att kolla uppdateringar – WowUp kan ha bytt utseende."}
         done.append(cid)
+    if one:
+        time.sleep(1)   # WowUp skriver sin fil strax efter
+        now = find_addon(one["id"]) or one
+        return {"ok": True, "checked": done, "name": now["name"], "update": has_update(now),
+                "latest": now.get("latestVersion") or ""}
     return {"ok": True, "checked": done}
 
 
@@ -364,12 +386,22 @@ def do_update_all(page, only=None):
 
 
 def find_addon(key):
+    """Ett tillägg: WowUps id, eller namnet – "forever BugSack" = det i Forever; samma namn i flera
+    spelversioner utan att säga vilken = Retail."""
     rows = addons()
     for a in rows:
         if a.get("id") == key:
             return a
-    low = key.lower()
+    want = None
+    first, _, rest = key.partition(" ")
+    if rest and client_of(first.lower()):
+        want, key = client_of(first.lower())[0], rest
+    low = key.lower().strip()
+    if want is not None:
+        rows = [a for a in rows if a.get("clientType", 0) == want]
     hits = [a for a in rows if a["name"].lower() == low] or [a for a in rows if low in a["name"].lower()]
+    if len(hits) > 1 and want is None:
+        hits = [a for a in hits if a.get("clientType", 0) == 0] or hits
     return hits[0] if len(hits) == 1 else None
 
 
@@ -396,6 +428,81 @@ def do_update(page, key):
     if why:
         return {"ok": False, "why": why}
     return {"ok": True, "name": a["name"], "result": "uppdaterat" if got == "ok" else "redan senaste versionen"}
+
+
+def do_ignore(page, key, on):
+    a = find_addon(key)
+    if not a:
+        return {"ok": False, "why": f"Hittar inget (eller fler än ett) tillägg som heter {key!r}."}
+    cid = CLIENTS.get(a.get("clientType", 0), (None,))[0]
+    for _ in range(2):   # WowUp ritar om raden en stund efter en ändring – en gång till om filen inte följde med
+        got = ignore_once(page, a, cid, on)
+        if got != "ok":
+            break
+        end = time.monotonic() + 5
+        while time.monotonic() < end and bool((find_addon(a["id"]) or {}).get("isIgnored")) != on:
+            time.sleep(0.4)
+        if bool((find_addon(a["id"]) or {}).get("isIgnored")) == on:
+            break
+        time.sleep(1)
+    else:
+        got = "följde"
+    why = {"fel": f"WowUps meny gällde inte {a['name']} – inget ändrat.",
+           "meny": "WowUps högerklicksmeny kom inte upp – WowUp kan ha bytt utseende.",
+           "saknas": "Hittar inte WowUps Ignore – WowUp kan ha bytt utseende.",
+           "följde": f"WowUp ändrade inte {a['name']} – titta i WowUp."}.get(got)
+    if why:
+        return {"ok": False, "why": why}
+    return {"ok": True, "name": a["name"], "result": "ignoreras" if on else "ignoreras inte längre"}
+
+
+def ignore_once(page, a, cid, on):
+    return run(page, """
+      await tab(0); await pickClient(A.client); await sleep(300);
+      const p = await openMenu(A.id, A.name);
+      if (p === 'fel') return 'fel';
+      if (!p) return 'meny';
+      const box = p.querySelector('mat-checkbox input[type=checkbox]');   // den första = Ignore
+      if (!box) { await closeMenu(); return 'saknas'; }
+      if (box.checked !== A.on) { box.click(); await sleep(600); }
+      await closeMenu(); return 'ok';""", timeout=40, client=cid, id=a["id"], name=a["name"], on=on)
+
+
+def do_remove(page, key):
+    a = find_addon(key)
+    if not a:
+        return {"ok": False, "why": f"Hittar inget (eller fler än ett) tillägg som heter {key!r}."}
+    cid = CLIENTS.get(a.get("clientType", 0), (None,))[0]
+    got = run(page, """
+      await tab(0); await pickClient(A.client);
+      const p = await openMenu(A.id, A.name);
+      if (p === 'fel') return 'fel';
+      if (!p) return 'meny';
+      const items = [...p.querySelectorAll('.addon-context-menu-items > button')];
+      const rm = items[items.length - 1];                                   // den sista = Remove
+      if (!rm) { await closeMenu(); return 'saknas'; }
+      rm.click();
+      // WowUps fråga: bara om den nämner tillägget trycks det positiva svaret
+      let d = null;
+      for (let i = 0; i < 20 && !d; i++) { await sleep(200); d = document.querySelector('mat-dialog-container, .mat-mdc-dialog-container'); }
+      if (!d) return 'fraga';
+      if (!(d.innerText || '').includes(A.name)) { d.querySelector('.wu-btn-flat')?.click(); return 'fel'; }
+      d.querySelector('.wu-btn-primary')?.click();
+      await sleep(1200);
+      // Beroenden: en andra fråga – nej, de får vara kvar
+      const d2 = document.querySelector('mat-dialog-container, .mat-mdc-dialog-container');
+      if (d2) { d2.querySelector('.wu-btn-flat')?.click(); await sleep(800); }
+      for (let i = 0; i < 40 && document.querySelector('[row-id="' + A.id + '"]'); i++) await sleep(500);
+      return document.querySelector('[row-id="' + A.id + '"]') ? 'kvar' : 'ok';""", timeout=60, client=cid, id=a["id"],
+              name=a["name"])
+    why = {"fel": f"WowUps fråga gällde inte {a['name']} – inget borttaget.",
+           "meny": "WowUps högerklicksmeny kom inte upp – WowUp kan ha bytt utseende.",
+           "saknas": "Hittar inte WowUps Remove – WowUp kan ha bytt utseende.",
+           "fraga": "WowUps fråga om borttagning kom inte – titta i WowUp.",
+           "kvar": f"{a['name']} ligger kvar i WowUp – titta där."}.get(got)
+    if why:
+        return {"ok": False, "why": why}
+    return {"ok": True, "name": a["name"], "result": "borttaget"}
 
 
 SEARCH_JS = r"""
@@ -467,7 +574,7 @@ def open_window():
 
 
 def act(what, args):
-    if what in ("check", "update-all", "update", "search", "install") and game_running():
+    if what in ("check", "update-all", "update", "search", "install", "ignore", "remove") and game_running():
         return {"ok": False, "why": "WoW körs – WowUp vilar tills WoW stängs (gör det sedan)."}
     page, why = connect()
     if page is None:
@@ -476,7 +583,11 @@ def act(what, args):
         if what == "connect":
             return {"ok": True}
         if what == "check":
-            return do_check(page)
+            return do_check(page, " ".join(args) or None)
+        if what == "ignore" and len(args) >= 2 and args[-1] in ("on", "off"):
+            return do_ignore(page, " ".join(args[:-1]), args[-1] == "on")
+        if what == "remove" and args:
+            return do_remove(page, " ".join(args))
         if what == "update-all":
             return do_update_all(page, want_client(args[0]) if args else None)
         if what == "update" and args:
@@ -515,8 +626,21 @@ def human(args):
         lines.append(f"WowUp kollade senast {when}" + (" · WoW körs – WowUp vilar" if st["game"] else ""))
         return "\n".join(lines)
     if word in ("kolla", "check"):
-        r = act("check", [])
-        return "Kollat – " + human([]) if r.get("ok") else r.get("why", "Det gick inte.")
+        r = act("check", rest)
+        if not r.get("ok"):
+            return r.get("why", "Det gick inte.")
+        if r.get("name"):
+            return f"{r['name']}: " + (f"uppdatering finns ({r['latest']})" if r["update"] else "senaste versionen")
+        return "Kollat – " + human([])
+    if word in ("ignorera", "ignore", "sluta-ignorera"):
+        on = word != "sluta-ignorera" and not (rest[-1:] and rest[-1] in ("av", "off"))
+        name = " ".join(x for x in rest if x not in ("på", "av", "on", "off"))
+        r = act("ignore", [name, "on" if on else "off"])
+        return f"{r['name']}: {r['result']}." if r.get("ok") else r.get("why", "Det gick inte.")
+    if word in ("ta-bort", "tabort", "remove", "avinstallera") or (word == "ta" and rest[:1] == ["bort"]):
+        name = " ".join(rest[1:] if word == "ta" else rest)
+        r = act("remove", [name])
+        return f"{r['name']}: {r['result']}." if r.get("ok") else r.get("why", "Det gick inte.")
     if word in ("uppdatera", "update"):
         target = " ".join(rest)
         if target.lower() in ("", "alla", "allt", "all"):
@@ -547,8 +671,9 @@ def human(args):
     if word in ("öppna", "oppna", "open"):
         r = open_window()
         return "WowUp öppnas." if r.get("ok") else r["why"]
-    return ("Använd: goblin tillägg (listan), goblin tillägg kolla, goblin tillägg uppdatera [namn|alla], "
-            "goblin tillägg sök [forever] <text>, goblin tillägg installera [forever] <namn>, goblin tillägg öppna")
+    return ("Använd: goblin tillägg (listan), goblin tillägg kolla [namn], goblin tillägg uppdatera [namn|alla], "
+            "goblin tillägg sök [forever] <text>, goblin tillägg installera [forever] <namn>, "
+            "goblin tillägg ignorera <namn> [av], goblin tillägg ta bort <namn>, goblin tillägg öppna")
 
 
 def main():
@@ -559,7 +684,7 @@ def main():
         print(human(sys.argv[2:]))
     elif what == "open":
         say(open_window())
-    elif what in ("check", "update-all", "update", "search", "install", "connect"):
+    elif what in ("check", "update-all", "update", "search", "install", "connect", "ignore", "remove"):
         say(act(what, sys.argv[2:]))
     else:
         sys.exit(__doc__)

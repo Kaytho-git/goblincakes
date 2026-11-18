@@ -253,9 +253,15 @@ class Backend(QObject):
         if "wowupAct" in self.busy:
             self.said.emit("GoblinUp gör redan något – vänta tills det är klart")
             return
-        # update: a = the add-on's id, c = its name (only for the line "Uppdaterar …"); install: c = the hit's name
-        args = [what, a] if what == "update" else [x for x in (what, a, b, c) if x]
-        label = c if what in ("update", "install") else b if what == "search" else ""
+        # update/remove/check: a = the add-on's id (check: or nothing = all), c = its name (only for the line
+        # "Uppdaterar …"); ignore: b = on|off; install: c = the hit's name
+        if what in ("update", "remove", "check"):
+            args = [what] + ([a] if a else [])
+        elif what == "ignore":
+            args = [what, a, b]
+        else:
+            args = [x for x in (what, a, b, c) if x]
+        label = c if what in ("update", "install", "remove", "ignore", "check") else b if what == "search" else ""
         self.data["wowupAct"] = json.dumps({"busy": True, "what": what, "name": label}, ensure_ascii=False)
         self.changed.emit("wowupAct")
 
@@ -366,6 +372,7 @@ class Backend(QObject):
             self.job("trayBox", lambda: dict(self.test.get("tray") or dash.tray(name), name=name))
 
     def read_all(self):
+        self.read_wowup()     # GoblinUp: TILLÄGG shows at once (only WowUp's file – a fraction of a second)
         self.read_apps()
         self.read_system()
         self.read_player()
