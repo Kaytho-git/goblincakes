@@ -189,7 +189,7 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   matcher, inte PRIVAT), BYGGEN = buildstatus.py (bara på datorn som har repot; sparas 5 min i
   ~/.cache/goblincakes/dashboard-builds.json, 1 min medan ett bygge pågår; din "bygget är klart"-bevakning tar bort
   filen så att dashboarden frågar igen; tryck på ett bygge = stegen: kontrollen + varje variant ✓ klart / ● pågår /
-  ✗ fel / ○ kvar, läses om var 20:e s tills bygget är klart – stats.build_steps), KAKAN = rapporterna i ~/.local/share/goblincakes/till-claude.
+  ✗ fel / ○ kvar, läses om var 20:e s tills bygget är klart – stats.build_steps; överst byggets commits ur repot – stats.build_commits), KAKAN = rapporterna i ~/.local/share/goblincakes/till-claude.
   En ram utan data syns inte alls (ingen WoW-historik → ingen WOW STATS).
 - Senaste raiden = senaste raidkvällen för karaktären som raidade sist. Staplarna (bossens hälsa per pull) frågas från
   Warcraft Logs, en fråga per rapport, sparat i ~/.cache/goblincakes/dashboard-wcl.json; utan WCL-nyckel

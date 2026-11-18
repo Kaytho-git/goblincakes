@@ -305,8 +305,14 @@ class Backend(QObject):
             return
         import stats  # noqa: PLC0415
         run, test = self._build, self.test
-        self.job("buildSteps", (lambda: stats.build_steps(run, test_jobs=test["buildSteps"])) if "buildSteps" in test
-                 else lambda: stats.build_steps(run))
+        row = next((r for r in json.loads(self.data.get("builds") or "{}").get("rows") or [] if r.get("id") == run), {})
+
+        def work():  # the steps from GitHub, the commits from the repo here (fetched once per build)
+            out = stats.build_steps(run, test_jobs=test["buildSteps"]) if "buildSteps" in test else stats.build_steps(run)
+            out["commits"] = (test["buildCommits"] if "buildCommits" in test
+                              else stats.build_commits(row.get("sha", ""), row.get("prev", "")))
+            return out
+        self.job("buildSteps", work)
 
     @Slot(str)
     def openBuild(self, run_id):

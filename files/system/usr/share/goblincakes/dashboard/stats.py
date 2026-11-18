@@ -318,6 +318,8 @@ def builds(count=10, test_runs=None):
                      "when": when_text(start), "length": span_text(end - start) if start else "",
                      "url": r.get("html_url") or "",
                      "id": str(r.get("id") or (r.get("html_url") or "").rstrip("/").rpartition("/")[2])})
+    for i, row in enumerate(rows):  # the build before: its commits up to this one = what this one added (same = none)
+        row["prev"] = rows[i + 1]["sha"] if i + 1 < len(rows) else ""
     return {"builder": True, "rows": rows, "ok": sum(r["kind"] == "ok" for r in rows),
             "failed": sum(r["kind"] == "fail" for r in rows), "running": next((r for r in rows if r["kind"] == "run"), None),
             "last": rows[0] if rows else None, "url": f"https://github.com/{buildstatus.REPO}/actions/workflows/build.yml"}
@@ -335,6 +337,52 @@ def _step_kind(status, conclusion):
     if status == "completed":
         return {"success": "ok", "failure": "fail", "timed_out": "fail"}.get(conclusion, "off")
     return "run" if status == "in_progress" else "wait"
+
+
+TRAILER = re.compile(r"^(Co-Authored-By|Claude-Session|Signed-off-by):", re.I)
+_commits = {}  # "prev..sha" → the list; a build's commits never change
+
+
+def _message(sha, text):
+    """{hash, title, text} – the body's wrapped lines joined into paragraphs, the trailers left out."""
+    title, _, body = text.strip().partition("\n")
+    paras = re.split(r"\n\s*\n", "\n".join(line for line in body.splitlines() if not TRAILER.match(line.strip())).strip())
+    return {"hash": sha[:7], "title": title.strip(),
+            "text": "\n".join(" ".join(p.split()) for p in paras if p.strip())}
+
+
+def build_commits(sha, prev="", test_repo=None):
+    """[{hash, title, text}] newest first – the commits a build brought (since the build before; the oldest build
+    in the list only its own; [] = the same code again, a daily build). From the repo on this computer, GitHub's compare if it is not fetched."""
+    key = f"{prev}..{sha}"
+    if not sha or key in _commits:
+        return _commits.get(key, [])
+    import subprocess  # noqa: PLC0415
+    repo = test_repo
+    if repo is None:
+        import knowledge  # noqa: PLC0415
+        repo = knowledge.find_repo()
+    out = None
+    if repo:
+        def git(*args):
+            return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=10)
+        if git("cat-file", "-e", f"{sha}^{{commit}}").returncode == 0 and (
+                not prev or git("cat-file", "-e", f"{prev}^{{commit}}").returncode == 0):
+            r = git("log", "--format=%H%x1f%B%x1e", "-n", "40", f"{prev}..{sha}" if prev else "-1", *([] if prev else [sha]))
+            if r.returncode == 0:
+                out = [_message(h, b) for h, _, b in (c.strip().partition("\x1f") for c in r.stdout.split("\x1e")) if h]
+    if out is None and test_repo is None:
+        import buildstatus  # noqa: PLC0415
+        try:
+            if prev:
+                got = buildstatus.get(f"/compare/{prev}...{sha}").get("commits", [])[::-1][:40]
+            else:
+                got = [buildstatus.get(f"/commits/{sha}")]
+            out = [_message(c.get("sha", ""), (c.get("commit") or {}).get("message", "")) for c in got]
+        except Exception:  # noqa: BLE001 – no network: try again next time (None = no list shown)
+            return None
+    _commits[key] = out or []
+    return _commits[key]
 
 
 def build_steps(run_id, test_jobs=None):

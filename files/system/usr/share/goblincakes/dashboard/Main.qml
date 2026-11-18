@@ -2930,6 +2930,57 @@ Window {
                             y: 48
                             width: parent.width - 32
                             spacing: 4
+                            // what the build brought: every commit since the build before, whole title and text
+                            HeadCell {
+                                readonly property int count: buildRow.open ? (win.buildSteps.commits || []).length : 0
+                                visible: count > 0 || (buildRow.open && !!win.buildSteps.jobs && !!win.buildSteps.commits)
+                                topPadding: 6
+                                text: count === 0 ? "INGA NYA COMMITS – SAMMA KOD BYGGS OM MED FEDORAS NYA PAKET"
+                                      : count === 1 ? "COMMIT I BYGGET" : "COMMITS I BYGGET (" + count + ")"
+                            }
+                            Repeater {
+                                model: buildRow.open ? (win.buildSteps.commits || []) : []
+                                delegate: Item {
+                                    required property var modelData
+                                    width: stepBox.width
+                                    height: commitText.y + commitText.height + 6
+                                    Text {
+                                        y: 4
+                                        width: 70
+                                        text: modelData.hash
+                                        color: accent.text
+                                        font.family: "IBM Plex Mono"
+                                        font.pixelSize: 12
+                                        topPadding: 1
+                                    }
+                                    Text {
+                                        id: commitTitle
+                                        x: 76; y: 4
+                                        width: parent.width - 76
+                                        text: modelData.title
+                                        wrapMode: Text.Wrap
+                                        color: "#E6ECF5"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 14
+                                        font.weight: Font.DemiBold
+                                    }
+                                    Text {
+                                        id: commitText
+                                        x: 76
+                                        y: commitTitle.y + commitTitle.height + (text ? 2 : 0)
+                                        width: parent.width - 76
+                                        height: text ? implicitHeight : 0
+                                        text: modelData.text
+                                        wrapMode: Text.Wrap
+                                        lineHeight: 1.15
+                                        color: "#8B98AD"
+                                        font.family: "IBM Plex Sans"
+                                        font.pixelSize: 13
+                                    }
+                                }
+                            }
+                            Rectangle { visible: buildRow.open && !!win.buildSteps.jobs; width: parent.width; height: 1; color: "#1A2438" }
+                            Item { visible: buildRow.open && !!win.buildSteps.jobs; width: 1; height: 2 }
                             Cell {
                                 visible: !!win.buildSteps.loading || !!win.buildSteps.error
                                 width: parent.width; height: 26; horizontalAlignment: Text.AlignLeft; color: "#8B98AD"
