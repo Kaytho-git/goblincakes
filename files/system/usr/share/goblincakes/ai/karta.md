@@ -434,8 +434,8 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   kort notis säger var – mitt i ett bossförsök/en arenamatch (GoblinRecorder spelar in) väntar det tills försöket är
   slut. Ja/Nej svaras alltid i Goblin AI, aldrig i en notis.
 - Testa åt Claude (ai/testlist.py): Claude lägger testlistor i ~/.local/share/goblincakes/testlistor/ (eller i repots
-  docs/testlistor/till-kakan/ – kopieras dit en gång efter git pull, minnet i testlistor/.fran-repot.json); /testa kör
-  den nyaste (/testa <namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
+  docs/testlistor/till-kakan/ – kopieras dit en gång efter git pull, minnet i testlistor/.fran-repot.json); /testa visar
+  de väntande numrerade (bara en: den körs; /testa <nr|namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
   direkt, ändrande Tillåt, farliga stoppas); du bedömer utdatan mot "väntat" (OK/FEL/OKLART), frågor besvaras av
   användaren (ja/nej/hoppa). Resultatet sparas i till-claude/ (…-testresultat-….md), listan flyttas till klara/.
 - Bygga egna widgetar: när användaren ber om en Plasma-widget får du en provad mall (WIDGET_GUIDE i goblinai.py:

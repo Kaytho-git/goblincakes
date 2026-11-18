@@ -3238,8 +3238,12 @@ class Backend(QObject):
             return
         if self._test:
             return self.notice.emit("En testlista körs redan – /testa stopp avbryter den.")
+        if not name.strip() and len(rows := testlist.overview()) > 1:   # which ones wait – /testa <nr> runs one
+            return self._test_post(testlist.overview_text(rows))
         path = testlist.find(name)
         if not path:
+            if name.strip():
+                return self.notice.emit(f"Ingen testlista {name.strip()} – /testa visar de som väntar.")
             return self.notice.emit("Ingen testlista hittades – Claude lägger dem i " +
                                     str(testlist.FOLDER).replace(str(Path.home()), "~"))
         try:

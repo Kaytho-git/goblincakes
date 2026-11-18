@@ -19,7 +19,7 @@ version…), let the command print that too and say what to expect for each case
 `pgrep -f`/`pgrep -fc` matches the shell running the command too: write the pattern with brackets,
 `pgrep -fc '[f]edora-check'` (13 Nov: three false FEL – "processer: 1" was the shell itself).
 
-In Goblin AI: /testa (the newest list), /testa <name>, /testa stopp. Each point is a message in the chat with the
+In Goblin AI: /testa (the waiting lists, numbered – just one: it runs), /testa <number|name>, /testa stopp. Each point is a message in the chat with the
 usual command card – reading commands run at once, changing ones wait for Tillåt, dangerous ones are stopped –
 and Kakan judges the output against `väntat` (OK / FEL / OKLART). A `fråga` is answered in the chat (ja / nej /
 hoppa, or what the user sees). The result, with every command's raw output beside her judgement, is saved in
@@ -27,6 +27,7 @@ toclaude.FOLDER (Claude reads it with the MCP tool `rapporter`); the list moves 
 """
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -89,12 +90,41 @@ def lists():
 
 
 def find(name=""):
-    """The list to run: the newest, or the one whose file name has `name` in it. None if there is none."""
+    """The list to run: the newest, number `name` in overview() (1 = the newest), or the one whose file name has
+    `name` in it. None if there is none."""
     found = lists()
     name = name.strip().lower()
     if not name:
         return found[0] if found else None
+    if name.isdigit():
+        return found[int(name) - 1] if 0 < int(name) <= len(found) else None
     return next((p for p in found if name in p.stem.lower()), None)
+
+
+MONTHS = ("jan", "feb", "mars", "apr", "maj", "juni", "juli", "aug", "sep", "okt", "nov", "dec")
+
+
+def overview():
+    """[{n, name, title, points, date}] – the lists waiting, newest first, numbered as find() counts them (18 Nov,
+    the user: "/testa … får man upp dom som ska testas"). A finished list moves to klara/ and is gone from here."""
+    out = []
+    for n, p in enumerate(lists(), 1):
+        try:
+            data = load(p)
+            t = time.localtime(p.stat().st_mtime)
+        except OSError:
+            continue
+        out.append({"n": n, "name": p.stem, "title": data["title"], "points": len(data["items"]),
+                    "date": f"{t.tm_mday} {MONTHS[t.tm_mon - 1]}"})
+    return out
+
+
+def overview_text(rows):
+    """The overview as a chat message."""
+    lines = [f"**Testlistor som väntar ({len(rows)})** – skriv `/testa <nummer>` för att köra en. "
+             "En lista som körts klart försvinner härifrån."]
+    lines += [f"{r['n']}. **{r['title']}** – {r['points']} punkter · {r['date']} · `{r['name']}`" for r in rows]
+    return "\n".join(lines)
 
 
 def parse(text):
