@@ -3622,6 +3622,10 @@ def main():
     terminals = ptyterm.Terminals()
     app.aboutToQuit.connect(terminals.close_all)
     engine.rootContext().setContextProperty("terminals", terminals)
+    # FILER beside TERMINAL (18 Nov): the tab's folder as a tree with git's marks – only reads (ai/fileview.py)
+    import fileview  # noqa: PLC0415
+    files_view = fileview.FileView(app)
+    engine.rootContext().setContextProperty("fileView", files_view)
     # The CLAUDE CODE map beside TERMINAL (13 Nov) – claudemap.py next to accent.py, read only while it shows
     sys.path.insert(0, str(SHARE.parent))
     import claudefeed  # noqa: PLC0415

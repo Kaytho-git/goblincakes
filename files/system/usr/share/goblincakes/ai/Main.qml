@@ -1238,6 +1238,22 @@ Window {
         // Mouse wheel: each notch moves the list a fixed step at once (Flickable's own wheel
         // handling only gives it a small push that slows down – sluggish on a real computer)
         component FastWheel: G.FastWheel {}   // shared (qml/Goblin, P16)
+        // The signal (18 Nov): a terminal tab (and TERMINAL above) where Claude Code is done or asks – a dot in the
+        // accent that breathes in Levande (still in Platt and under spel)
+        component WaitDot: Rectangle {
+            id: waitDot
+            width: 8
+            height: 8
+            radius: 4
+            color: accent.color
+            SequentialAnimation on opacity {
+                running: waitDot.visible && typeof look !== "undefined" && !!look && look.motion === true
+                loops: Animation.Infinite
+                onRunningChanged: if (!running) waitDot.opacity = 1
+                NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 1; duration: 700; easing.type: Easing.InOutSine }
+            }
+        }
 
         // Two lessons maybe about the same thing (28 Oct, the user's idea): the AI found them, the user chooses –
         // the new one, the old one, or both (different things). Under a ♥/👎 answer and in Lärdomar.
@@ -1893,6 +1909,10 @@ Window {
                                 id: tabContent
                                 anchors.centerIn: parent
                                 spacing: 8
+                                WaitDot {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: tab.modelData.v === "terminal" && zoomRoot.termWaiting > 0 && !tab.on
+                                }
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: tab.modelData.mark
@@ -1999,13 +2019,46 @@ Window {
         }
 
         // ── TERMINAL (1 Nov, the user): shells in tabs – xterm.js in TerminalView.qml, the shells in ptyterm.py ──
-        ListModel { id: termTabs }  // {sid, title}
+        ListModel { id: termTabs }  // {sid, title, waiting}
         property int termCurrent: 0
+        // The signal (18 Nov): a tab whose Claude Code/Codex is done or asks while the user looks elsewhere gets a dot
+        // (TERMINAL above too), and the taskbar flashes when Goblin AI isn't in front (the page reads the screen)
+        property int termWaiting: 0
+        onTermCurrentChanged: {
+            termSeen();
+            filesLoad();
+        }
+        function termSeen() {
+            if (!win.active || !terminalView.visible)
+                return;
+            for (let i = 0; i < termTabs.count; i++)
+                if (termTabs.get(i).sid === zoomRoot.termCurrent && termTabs.get(i).waiting)
+                    termTabs.setProperty(i, "waiting", false);
+            termCount();
+        }
+        function termCount() {
+            let n = 0;
+            for (let i = 0; i < termTabs.count; i++)
+                if (termTabs.get(i).waiting)
+                    n++;
+            zoomRoot.termWaiting = n;
+        }
+        Connections {
+            target: win
+            function onActiveChanged() { zoomRoot.termSeen(); }
+        }
+        // FILER beside the terminal (18 Nov): the folder of the tab shown, read when FILER opens or the tab changes
+        property bool filesOpen: false
+        function filesLoad() {
+            if (zoomRoot.filesOpen && filesPane)
+                filesPane.load(terminals.folderOf(zoomRoot.termCurrent));
+        }
+        onFilesOpenChanged: filesLoad()
         Connections {
             target: terminals
             function onOpened(sid, folder, command) {
                 const name = folder.replace(/\/+$/, "").split("/").pop() || "/";
-                termTabs.append({ sid: sid, folder: name, title: (command.indexOf("claude") >= 0 ? "claude · " : "") + name });
+                termTabs.append({ sid: sid, folder: name, title: (command.indexOf("claude") >= 0 ? "claude · " : "") + name, waiting: false });
                 zoomRoot.termCurrent = sid;
                 if (termLoader.item)
                     termLoader.item.focusWeb();
@@ -2019,6 +2072,16 @@ Window {
                         termTabs.setProperty(i, "title", path ? path[1] : termTabs.get(i).folder + " · " + title.replace(/Claude Code/, "claude"));
                     }
             }
+            function onWantsYou(sid) {
+                const seen = win.active && terminalView.visible && zoomRoot.termCurrent === sid;
+                if (!seen)
+                    for (let i = 0; i < termTabs.count; i++)
+                        if (termTabs.get(i).sid === sid)
+                            termTabs.setProperty(i, "waiting", true);
+                zoomRoot.termCount();
+                if (!win.active)
+                    win.alert(0);   // the taskbar flashes until Goblin AI is in front (no sound, nothing pops up)
+            }
             function onExited(sid) {
                 let at = -1;
                 for (let i = 0; i < termTabs.count; i++)
@@ -2027,6 +2090,7 @@ Window {
                 if (at < 0)
                     return;
                 termTabs.remove(at);
+                zoomRoot.termCount();
                 if (zoomRoot.termCurrent === sid && termTabs.count > 0) {
                     zoomRoot.termCurrent = termTabs.get(Math.min(at, termTabs.count - 1)).sid;
                     termLoader.item.show(zoomRoot.termCurrent);
@@ -2037,7 +2101,11 @@ Window {
             id: terminalView
             visible: win.view === "terminal"
             anchors.fill: viewArea
-            onVisibleChanged: if (visible && termLoader.item) termLoader.item.focusTerminal()
+            onVisibleChanged: {
+                if (visible && termLoader.item)
+                    termLoader.item.focusTerminal();
+                zoomRoot.termSeen();
+            }
 
             Item {
                 id: termStrip
@@ -2053,17 +2121,23 @@ Window {
                             id: termTab
                             required property int sid
                             required property string title
+                            required property bool waiting
                             readonly property bool on: zoomRoot.termCurrent === sid
-                            width: Math.min(220, termTabText.implicitWidth + 44)
+                            width: Math.min(220 + (waiting ? 14 : 0), termTabText.implicitWidth + 44 + (waiting ? 14 : 0))
                             height: termRow.height
                             Rectangle {
                                 anchors.fill: parent
                                 anchors.topMargin: 6
                                 color: termTab.on ? "#12203A" : termTabArea.containsMouse ? "#0E1420" : "transparent"
                             }
+                            WaitDot {
+                                id: termDot
+                                visible: termTab.waiting
+                                anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter; verticalCenterOffset: 3 }
+                            }
                             Text {
                                 id: termTabText
-                                anchors { left: parent.left; leftMargin: 12; right: termClose.left; rightMargin: 6; verticalCenter: parent.verticalCenter; verticalCenterOffset: 3 }
+                                anchors { left: parent.left; leftMargin: termTab.waiting ? 26 : 12; right: termClose.left; rightMargin: 6; verticalCenter: parent.verticalCenter; verticalCenterOffset: 3 }
                                 elide: Text.ElideLeft
                                 text: termTab.title
                                 color: termTab.on ? "#E6ECF5" : "#8B98AD"
@@ -2127,35 +2201,77 @@ Window {
                     Rectangle {
                         anchors.fill: parent
                         anchors.topMargin: 6
-                        color: claudeFeed.pane ? "#12203A" : mapToggleArea.containsMouse ? "#0E1420" : "transparent"
+                        color: mapToggle.on ? "#12203A" : mapToggleArea.containsMouse ? "#0E1420" : "transparent"
                     }
                     Text {
                         id: mapToggleText
                         anchors { centerIn: parent; verticalCenterOffset: 3 }
                         text: "KARTA"
-                        color: claudeFeed.pane ? "#E6ECF5" : mapToggleArea.containsMouse ? accent.text : "#8B98AD"
+                        color: mapToggle.on ? "#E6ECF5" : mapToggleArea.containsMouse ? accent.text : "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.weight: Font.DemiBold
                         font.pixelSize: 11
                         font.letterSpacing: 1
                     }
                     Rectangle {
-                        visible: claudeFeed.pane
+                        visible: mapToggle.on
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                         height: 2
                         color: accent.color
                     }
+                    readonly property bool on: claudeFeed.pane && !zoomRoot.filesOpen
                     MouseArea {
                         id: mapToggleArea
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: claudeFeed.pane = !claudeFeed.pane
+                        onClicked: {   // from FILER: the map (remembered); otherwise on/off as before
+                            if (zoomRoot.filesOpen) {
+                                zoomRoot.filesOpen = false;
+                                claudeFeed.pane = true;
+                            } else {
+                                claudeFeed.pane = !claudeFeed.pane;
+                            }
+                        }
+                    }
+                }
+                // FILER (18 Nov): the folder's files in the same place – not remembered, the map's choice stays
+                Item {
+                    id: filesToggle
+                    anchors { right: mapToggle.left; top: parent.top; bottom: parent.bottom }
+                    width: filesToggleText.implicitWidth + 28
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.topMargin: 6
+                        color: zoomRoot.filesOpen ? "#12203A" : filesToggleArea.containsMouse ? "#0E1420" : "transparent"
+                    }
+                    Text {
+                        id: filesToggleText
+                        anchors { centerIn: parent; verticalCenterOffset: 3 }
+                        text: "FILER"
+                        color: zoomRoot.filesOpen ? "#E6ECF5" : filesToggleArea.containsMouse ? accent.text : "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: 11
+                        font.letterSpacing: 1
+                    }
+                    Rectangle {
+                        visible: zoomRoot.filesOpen
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                        height: 2
+                        color: accent.color
+                    }
+                    MouseArea {
+                        id: filesToggleArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: zoomRoot.filesOpen = !zoomRoot.filesOpen
                     }
                 }
                 Text {
-                    anchors { right: mapToggle.left; rightMargin: 14; verticalCenter: parent.verticalCenter; verticalCenterOffset: 3 }
-                    visible: parent.width - termRow.width - mapToggle.width > 420
+                    anchors { right: filesToggle.left; rightMargin: 14; verticalCenter: parent.verticalCenter; verticalCenterOffset: 3 }
+                    visible: parent.width - termRow.width - mapToggle.width - filesToggle.width > 420
                     text: "ctrl+shift+c/v kopiera/klistra · högerklick · ctrl+shift+t/w ny/stäng"
                     color: "#5C6880"
                     font.family: "IBM Plex Mono"
@@ -2176,12 +2292,14 @@ Window {
             // ── The CLAUDE CODE map beside the terminal (13 Nov): the session in the current tab's folder first ──
             Rectangle {
                 id: claudePane
-                visible: claudeFeed.pane && parent.width >= 700   // a narrow window: the terminal gets the room
+                visible: (claudeFeed.pane || zoomRoot.filesOpen) && parent.width >= 700   // a narrow window: the terminal gets the room
                 anchors { right: parent.right; top: termStrip.bottom; bottom: parent.bottom }
-                width: Math.min(420, Math.max(320, parent.width * 0.3))
+                // a file open in FILER: half the tab (the terminal keeps the rest)
+                width: zoomRoot.filesOpen && filesPane.fileOpen ? Math.max(420, Math.round(parent.width * 0.5))
+                       : Math.min(420, Math.max(320, parent.width * 0.3))
                 color: "#0B1018"
                 Rectangle { width: 1; height: parent.height; color: "#1A2438" }
-                readonly property bool wanted: claudeFeed.pane && terminalView.visible && win.visible && terminalView.width >= 700
+                readonly property bool wanted: claudeFeed.pane && !zoomRoot.filesOpen && terminalView.visible && win.visible && terminalView.width >= 700
                 onWantedChanged: claudeFeed.active = wanted
                 Component.onCompleted: claudeFeed.active = wanted
                 Timer {   // which folder Claude Code runs in, in the tab shown
@@ -2191,7 +2309,13 @@ Window {
                     triggeredOnStart: true
                     onTriggered: claudeFeed.folder = terminals.claudeFolder(zoomRoot.termCurrent)
                 }
+                FilesPane {
+                    id: filesPane
+                    visible: zoomRoot.filesOpen
+                    anchors { fill: parent; leftMargin: 1 }
+                }
                 G.ClaudeMap {
+                    visible: !zoomRoot.filesOpen
                     anchors { fill: parent; leftMargin: 15; rightMargin: 14; topMargin: 12; bottomMargin: 8 }
                     info: {
                         try {

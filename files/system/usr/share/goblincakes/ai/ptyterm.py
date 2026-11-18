@@ -35,6 +35,7 @@ class Terminals(QObject):
     exited = Signal(int)              # the shell is gone (exit, ✕)
     titled = Signal(int, str)         # the shell's own title (Fedora's bash: user@host:folder)
     wanted = Signal(str, str)         # QML → page: open a terminal here (the folder, the command)
+    wantsYou = Signal(int)            # page → QML (18 Nov): Claude Code/Codex in this tab is done or asks
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -90,6 +91,24 @@ class Terminals(QObject):
                 except OSError:
                     return ""
         return ""
+
+    @Slot(int, result=str)
+    def folderOf(self, sid):
+        """FILER beside TERMINAL (18 Nov): Claude Code's folder in this tab, else the shell's own."""
+        folder = self.claudeFolder(sid)
+        s = self._sessions.get(sid)
+        if not folder and s:
+            try:
+                folder = os.readlink(f"/proc/{s.pid}/cwd")
+            except OSError:
+                pass
+        return folder
+
+    @Slot(int)
+    def attention(self, sid):
+        """The page saw a tab's program stop working or ask (the screen: "esc to interrupt" gone, "Esc to cancel")."""
+        if sid in self._sessions:
+            self.wantsYou.emit(sid)
 
     @Slot(int, str, result=str)
     def imageUrl(self, sid, path):

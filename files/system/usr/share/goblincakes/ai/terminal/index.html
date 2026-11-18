@@ -220,6 +220,34 @@ function make(folder, command) {
   });
 }
 
+// The signal (18 Nov, the user: "something that shows you want attention"): Claude Code (and Codex) write
+// "esc to interrupt" at the bottom while they work and "Esc to cancel" in a question (permission, choices) –
+// their own window title stays "✳ …" either way (tried 18 Nov). Read from the screen's rows a moment after
+// output stops; work → done, or a new question = attention (QML marks the tab and flashes the taskbar).
+function screenState(term) {
+  const b = term.buffer.active, rows = [];
+  for (let y = b.baseY; y < b.baseY + term.rows; y++) {
+    const line = b.getLine(y);
+    if (line) rows.push(line.translateToString(true));
+  }
+  const text = rows.join("\n");
+  if (/Esc to cancel|Do you want to proceed\?/.test(text)) return "asking";
+  return /esc to interrupt/i.test(text) ? "busy" : "idle";
+}
+function watch(id) {
+  const t = tabs[id];
+  if (!t || t.watchTimer) return;
+  t.watchTimer = setTimeout(() => {
+    t.watchTimer = 0;
+    if (!tabs[id]) return;
+    t.term.write("", () => {  // after what came meanwhile has been drawn
+      const now = screenState(t.term), before = t.state || "idle";
+      t.state = now;
+      if ((before === "busy" && now === "idle") || (now === "asking" && before !== "asking")) terms.attention(id);
+    });
+  }, 700);
+}
+
 function show(id) {
   if (!tabs[id]) return;
   current = id;
@@ -237,12 +265,13 @@ window.addEventListener("resize", () => { if (tabs[current]) tabs[current].fit.f
 new QWebChannel(qt.webChannelTransport, ch => {
   terms = ch.objects.terms;
   terms.output.connect((id, text) => {
-    if (tabs[id]) tabs[id].term.write(text);
+    if (tabs[id]) { tabs[id].term.write(text); watch(id); }
     else early[id] = (early[id] || "") + text;
   });
   terms.exited.connect(id => {
     const t = tabs[id];
     if (!t) return;
+    clearTimeout(t.watchTimer);
     t.term.dispose();
     t.el.remove();
     delete tabs[id];
