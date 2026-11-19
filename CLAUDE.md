@@ -74,6 +74,7 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - [ ] **Bilder i Goblin AI:s terminal** – bildvägar blir länkar (hovra/klick), byggt 17 nov, testlista `terminal-bilder.md` (grep "Bildvägar som länkar").
 - [ ] **GoblinUp** – skal över WowUp i dashboarden + `goblin tillägg` + Kakan, byggt 18 nov, testlista `goblinup.md` (grep "GoblinUp – bygget").
 - [ ] **FILER + signalen i Goblin AI:s TERMINAL** – filvy bredvid terminalen + prick/blink när Claude väntar, byggt 18 nov, testlista `filer-signalen.md` (grep "FILER bredvid TERMINAL").
+- [ ] **GC-färger på mobilen (Theme Park)** – bakgrunder + färglista i `mobil/` 19 nov; nästa: hemma vid datorn ställer Claude in färgerna via adb (grep "Theme Park via adb").
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer
