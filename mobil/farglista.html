@@ -8,19 +8,29 @@
   .sub{color:#8B98AD;font-size:17px;margin-bottom:32px}
   .row{display:flex;align-items:center;gap:20px;padding:16px 0;border-top:1px solid #1E2A40}
   .sw{width:84px;height:84px;flex:none;border:1px solid #1E2A40}
-  .hex{font-family:"IBM Plex Mono",monospace;font-size:30px;font-weight:600}
-  .what{font-size:19px;margin-top:2px}
+  .field{font-size:24px;font-weight:600}
+  .hex{font-family:"IBM Plex Mono",monospace;font-size:22px;color:#2F6FED;margin-left:10px}
+  .what{font-size:17px;margin-top:2px}
   .ex{color:#8B98AD;font-size:15px;margin-top:2px}
+  ol{color:#8B98AD;font-size:16px;margin:0 0 28px;padding-left:22px;line-height:1.5}
 </style></head><body><div class="wrap">
 <h1>GOBLINCAKES – FÄRGER</h1>
-<div class="sub">För Theme Park (Good Lock). Skriv in koden i färgväljarens fält för hex.</div>
-<div class="row"><div class="sw" style="background:#07090D"></div><div><div class="hex">#07090D</div><div class="what">Bakgrund (Void)</div><div class="ex">Appars och inställningarnas bakgrund, snabbpanelens bakgrund</div></div></div>
-<div class="row"><div class="sw" style="background:#0E1420"></div><div><div class="hex">#0E1420</div><div class="what">Rutor och paneler (Night)</div><div class="ex">Kort, notiser, rutor ovanpå bakgrunden, tangentbordet</div></div></div>
-<div class="row"><div class="sw" style="background:#12203A"></div><div><div class="hex">#12203A</div><div class="what">Djupblå (Deep)</div><div class="ex">Bakgrundsbilden, avstängda knappar i snabbpanelen</div></div></div>
-<div class="row"><div class="sw" style="background:#2F6FED"></div><div><div class="hex">#2F6FED</div><div class="what">Accent</div><div class="ex">Knappar, påslagna reglage, markeringar, länkar, påslagna knappar i snabbpanelen</div></div></div>
-<div class="row"><div class="sw" style="background:#E6ECF5"></div><div><div class="hex">#E6ECF5</div><div class="what">Text (Frost)</div><div class="ex">Vanlig text och ikoner</div></div></div>
-<div class="row"><div class="sw" style="background:#8B98AD"></div><div><div class="hex">#8B98AD</div><div class="what">Dämpad text</div><div class="ex">Undertexter, tid på notiser, förklaringar</div></div></div>
-<div class="row"><div class="sw" style="background:#1E2A40"></div><div><div class="hex">#1E2A40</div><div class="what">Ramar och avdelare</div><div class="ex">Linjer mellan rader, ramar runt rutor</div></div></div>
-<div class="row" style="border-bottom:1px solid #1E2A40"><div class="sw" style="background:#FFFFFF"></div><div><div class="hex">#FFFFFF</div><div class="what">Text på accentfärg</div><div class="ex">Texten på blå knappar</div></div></div>
-<div class="sub" style="margin:28px 0 0">Platt med raka hörn: välj fyrkantiga ikoner och minsta möjliga rundning där det går att välja.</div>
+<div class="sub">Theme Park (Good Lock), fält för fält. Skriv koden i färgväljarens hexruta.</div>
+<ol>
+  <li>Theme → ditt tema → Edit</li>
+  <li>Pennan under förhandsbilderna = huvudfärgen</li>
+  <li>Pennan till höger om stilarna = fälten nedan → bocken</li>
+  <li>Spara-pilen (temat som används går inte att skriva över – nytt namn) → Apply</li>
+  <li>Färgerna gäller temats mörka läge: slå på Mörkt läge</li>
+</ol>
+<div class="row"><div class="sw" style="background:#2F6FED"></div><div><div class="field">Huvudfärg<span class="hex">2F6FED</span></div><div class="what">Accent</div><div class="ex">Steg 2 – resten av temat räknas fram ur den</div></div></div>
+<div class="row"><div class="sw" style="background:#07090D"></div><div><div class="field">Background<span class="hex">07090D</span></div><div class="what">Bakgrund (Void)</div><div class="ex">Appars och inställningarnas bakgrund</div></div></div>
+<div class="row"><div class="sw" style="background:#E6ECF5"></div><div><div class="field">On background<span class="hex">E6ECF5</span></div><div class="what">Text (Frost)</div><div class="ex">Text och ikoner på bakgrunden</div></div></div>
+<div class="row"><div class="sw" style="background:#0E1420"></div><div><div class="field">surface<span class="hex">0E1420</span></div><div class="what">Rutor och paneler (Night)</div><div class="ex">Rader i Inställningar, pratbubblor, tangentbordet</div></div></div>
+<div class="row"><div class="sw" style="background:#E6ECF5"></div><div><div class="field">On surface<span class="hex">E6ECF5</span></div><div class="what">Text (Frost)</div><div class="ex">Text på rutorna</div></div></div>
+<div class="row"><div class="sw" style="background:#2F6FED"></div><div><div class="field">Primary<span class="hex">2F6FED</span></div><div class="what">Accent</div><div class="ex">Knappar, ikoner, påslagna reglage, snabbpanelen</div></div></div>
+<div class="row"><div class="sw" style="background:#FFFFFF"></div><div><div class="field">On primary<span class="hex">FFFFFF</span></div><div class="what">Text på accentfärg</div><div class="ex">Texten på blå knappar</div></div></div>
+<div class="row"><div class="sw" style="background:#12203A"></div><div><div class="field">Secondary<span class="hex">12203A</span></div><div class="what">Djupblå (Deep)</div><div class="ex">Reglagens spår, avstängda knappar</div></div></div>
+<div class="row" style="border-bottom:1px solid #1E2A40"><div class="sw" style="background:#07090D"></div><div><div class="field">Error, Highlight</div><div class="what">Låt vara</div><div class="ex">Röd för fel, markerad text</div></div></div>
+<div class="sub" style="margin:28px 0 0">Dämpad text #8B98AD och ramar #1E2A40 har inga egna fält i Theme Park (för KWGT m.m.). Platt med raka hörn: välj fyrkantiga ikoner och minsta rundning där det går.</div>
 </div></body></html>
