@@ -73,7 +73,6 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - [ ] **BYGGEN: commits + egna GitHub-repon** – commit-listan per bygge och Config → Dashboard → GITHUB, byggt 18 nov, testlista `dashboard-github.md` (grep "BYGGEN för allas repon").
 - [ ] **Bilder i Goblin AI:s terminal** – bildvägar blir länkar (hovra/klick), byggt 17 nov, testlista `terminal-bilder.md` (grep "Bildvägar som länkar").
 - [ ] **GoblinUp** – skal över WowUp i dashboarden + `goblin tillägg` + Kakan, byggt 18 nov, testlista `goblinup.md` (grep "GoblinUp – bygget").
-- [ ] **FILER + signalen i Goblin AI:s TERMINAL** – filvy bredvid terminalen + prick/blink när Claude väntar, byggt 18 nov, testlista `filer-signalen.md` (grep "FILER bredvid TERMINAL").
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer
