@@ -24,7 +24,8 @@ import subprocess
 import time
 from pathlib import Path
 
-CONVERSATION = "röst"   # how the voice's actions are marked in Kakan's log
+CONVERSATION = "röst"   # how the voice's actions are marked in Kakan's log ("skrivet" in Goblin AI's window: typed())
+_written = False        # typed() in Goblin AI's window: the sentences are shown, not read aloud
 
 # ── Understanding ─────────────────────────────────────────────────
 
@@ -196,6 +197,8 @@ def _plain(sentence):
     """Kakan's written answers, made for reading aloud: no "→", no notes about the local AI."""
     s = re.sub(r"\s*Medan ett spel kör vilar den lokala AI:n\.", "", sentence)
     s = re.sub(r"\(det finns också:[^)]*\)", "", s)
+    if _written:  # Goblin AI's window shows it: "30 % → 40 %" reads better than the spoken form
+        return " ".join(s.split())
     s = s.replace(" (syns i GoblinAmp)", "").replace("%", " procent").replace(" → ", " till ")
     return " ".join(s.split())
 
@@ -733,7 +736,72 @@ def run(command, arg):
     return "", False
 
 
+# ── Written in Goblin AI (20 Nov, the user's choice: the same commands as the voice) ─────────────
+# A short message that is a command outright ("pausa", "starta wow", "höj volymen", "spela master of puppets med
+# metallica") is done at once without the language model – fast, and it also works while a game runs and the local
+# AI rests. Stricter than the voice: a written chat is mostly questions, so a question, a "starta om" or a
+# troubleshooting word goes to Kakan as before, and so does anything that wasn't found or that she would have to ask
+# about ("Menade du …?" – her music tool takes it then). Only Goblin AI's window uses this (its own process: the
+# voice's goblincakes-voice runs in another, so CONVERSATION set here never marks the voice's actions).
+TYPED_COMMANDS = {"clock", "pull", "volume_to", "louder", "quieter", "pause", "play", "next", "previous", "start",
+                  "music"}
+TYPED_WORDS = 8
+TYPED_QUESTION = re.compile(r"\b(?:hur|varför|vilken|vilket|vilka|vem|när|går det|kan jag|ska jag|fungerar|funkar|"
+                            r"inte|fel|felet|hjälp|problem|om|kolla|fixa|laga|varje|alltid)\b")
+TYPED_MUSIC_ONLY = {"louder", "quieter", "pause", "next"}  # "kan du stoppa uppdateringen" is no music
+TYPED_ALONE = re.compile(r"(?:paus|pausa|pause|stopp|stoppa|nästa|nästa låt|hoppa över|skippa|höj|sänk|högre|lägre|"
+                         r"tystare|starkare|svagare|höj mycket|sänk mycket)")  # these words alone = the music
+TYPED_NOT = re.compile(r"^(?:kör|sätt igång)\b|\bspela\s+in\b")  # "kör uppdateringen", "spela in med OBS": not music/games
+TYPED_TO_KAKAN = ("Hittar inget", "Kommer inte åt", "Det gick inte", "Flera spel passar", "Säg vad", "Jag hittade inte",
+                  "Jag hittar inget", "Jag är inte säker", "Menade du", "Spotify svarade inte", "Ja till vad",
+                  "Spelen (ord", "Okänt")  # "Ingen musik spelas just nu." is an answer: it stays
+
+
+def typed_match(text):
+    """(command, argument) when a written message is a command outright, else None (a question for Kakan)."""
+    raw = (text or "").strip()
+    if not raw or "\n" in raw or raw.startswith("/") or len(raw) > 120:
+        return None
+    t = re.sub(r"^(?:kakan\s+)?(?:kan du\s+|snälla\s+)?", "", fix_words(raw))
+    if not t or len(t.split()) > TYPED_WORDS:
+        return None
+    if re.fullmatch(r"(?:vad är|hur mycket är)\s+klockan(?:\s+nu)?|klockan", t):   # "vad är klockan?" – the one question
+        return ("clock", "")
+    if "?" in raw or TYPED_QUESTION.search(t) or TYPED_NOT.search(t) or re.search(r"\bvad\b", t):
+        return None
+    found = match(raw)
+    if not found or found[0] not in TYPED_COMMANDS:
+        return None
+    command, arg = found
+    if command in TYPED_MUSIC_ONLY and not TYPED_ALONE.fullmatch(t) and not re.search(MUSIC, t):
+        return None
+    if command == "music" and arg[0] == "svar":
+        return None
+    return found
+
+
+def typed(text, conversation="skrivet"):
+    """The answer to a written command (one sentence), or None: Kakan answers it as before."""
+    found = typed_match(text)
+    if not found:
+        return None
+    global CONVERSATION, _written
+    CONVERSATION, _written = conversation, True
+    try:
+        sentence, _speak = run(*found)
+    except Exception:  # noqa: BLE001 – no player, no network: Kakan takes it and can see why
+        return None
+    sentence = (sentence or "").strip()
+    if not sentence or sentence.startswith(TYPED_TO_KAKAN):
+        return None
+    return sentence
+
+
 if __name__ == "__main__":
     import sys
+    if sys.argv[1:2] == ["--skrivet"]:  # what a written message would be: python3 voicecmd.py --skrivet "pausa"
+        for a in sys.argv[2:]:
+            print(f"{a!r:55} → {typed_match(a)}")
+        raise SystemExit
     for a in sys.argv[1:] or ["starta vov", "ge mig senaste fullen", "spela albumet master of puppets med metallica"]:
         print(f"{a!r:55} → {match_all(a)}")

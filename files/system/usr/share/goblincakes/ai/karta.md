@@ -293,6 +293,11 @@ Ord: kartan, ai-kartan, claude-kartan, claude code-kartan, KARTA, vad claude gö
 ## Goblin AI (du själv)
 Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, körda kommandon, ångra
 - Fönstret /usr/bin/goblin-ai (Meta+A, goblin ai app), koden i /usr/share/goblincakes/ai/ (goblinai.py m.fl.).
+- Skrivna kommandon utan AI (20 nov): ett kort meddelande som är ett kommando rakt av ("pausa", "nästa låt",
+  "höj volymen", "starta wow", "spela <album> med <artist>", "vad är klockan", "visa senaste pullen") görs direkt
+  med röstens kommandon (voicecmd.typed) – svaret märks "Direkt – utan AI" och fungerar även när AI:n vilar under
+  spel. Frågor, "starta om", "kör …", felsökningsord och det som inte hittas eller är osäkert går till dig som vanligt.
+  Kolla vad ett meddelande blir: `python3 /usr/share/goblincakes/ai/voicecmd.py --skrivet "<text>"` (None = till dig).
 - Fönstrets layout (1 nov): rutorna KAKAN (avatar, modell, minne, vad du gör), PROJEKT (MAPPAR + dina projekt),
   KOMMANDON och MODELLER (klick = välj modell, I MINNET = laddad i Ollama) till vänster – på stående
   skärm i en rad överst – och flikarna SVAR, CHATTAR, LÄR DIG KODA, INSTÄLLNINGAR (meny till vänster med delarna).

@@ -379,6 +379,7 @@ class Backend(QObject):
     # From worker threads to the GUI thread
     _answered = Signal(str, str)  # answer, service
     _failed = Signal(str)
+    _directMissed = Signal()  # a written message wasn't a command after all (voicecmd.typed): Kakan answers it
     _claudeDone = Signal(str, str, str, bool)  # conversation id, report path, answer or error, ok
     claudeTerminal = Signal(str, str)  # folder, command: Claude Code with Kakan's report in a TERMINAL tab (2 Nov)
     helperChanged = Signal()  # Inställningar → Skicka vidare (Claude Code, Codex, own program)
@@ -422,6 +423,8 @@ class Backend(QObject):
         self._plan_q = None  # the next step's question (goblinai.plan_message)
         self._mcpDone.connect(self._on_mcp_done)
         self._failed.connect(self._on_failure)
+        self._direct_next = ""  # a plain written message: tried as a command first (voicecmd.typed, 20 Nov)
+        self._directMissed.connect(lambda: self._stop is not None and not self._stop.is_set() and self._ask())
         self._search_next = False  # "Sök på nätet": the next question is searched first
         self._only_next = []  # /wiki: the next question gets only these tools
         self._laga_next = None  # /laga: the next question is the repair turn goblinai.laga_message made
@@ -632,6 +635,11 @@ class Backend(QObject):
         if self._daily_running:  # a daily update: the AI is told what it is (the chat shows only the wish)
             question["content"] += goblinai.DAILY_PROMPT
             question["button"] = True  # its links and sports teams are read in the ask thread (goblinai.read_links)
+        # A command outright ("pausa", "starta wow", 20 Nov): done without the AI (voicecmd.typed) – only a plain
+        # written message, never /laga, /planering, /wiki, Sök, the reserve or a daily run
+        plain = not (attachment or self._plan or self._daily_running or shown.get("laga") or shown.get("plan")
+                     or question.get("reserve") or question.get("only") or question.get("search"))
+        self._direct_next = text if plain else ""
         self._api.append(question)
         self._ask()
 
@@ -639,6 +647,9 @@ class Backend(QObject):
         return next((p for p in self._projects if p["id"] == project_id), None)
 
     def _ask(self):
+        direct, self._direct_next = getattr(self, "_direct_next", ""), ""
+        if direct:
+            return self._ask_direct(direct)
         project = self._project_of(self._project)
         # Not an own button's daily run: nothing opens a terminal by itself without the user there
         level = None if self._daily_running else goblinai.reserve_for(self._api, self._model, project)
@@ -678,6 +689,31 @@ class Backend(QObject):
             except Exception as e:  # never leave the window hanging
                 if not stop.is_set():
                     self._failed.emit(f"Något gick fel: {e}")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    DIRECT_SERVICE = "Direkt – utan AI"
+
+    def _ask_direct(self, text):
+        """A written command outright (voicecmd.typed, the voice's commands, 20 Nov): done in a thread (Spotify is
+        network) and answered at once – also while a game runs and the local AI rests. Not a command, not found or
+        unsure ("Menade du …?"): Kakan takes the question as before."""
+        self._set_busy(True, "Gör det…")
+        stop = self._stop = threading.Event()
+
+        def work():
+            try:
+                import voicecmd  # noqa: PLC0415 – the voice's commands, loaded at the first one
+                sentence = voicecmd.typed(text)
+            except Exception:  # noqa: BLE001 – Kakan takes it
+                sentence = None
+            if stop.is_set():
+                return
+            if sentence:
+                self._pending_tools, self._pending_done, self._pending_report_done = [], [], []
+                self._answered.emit(sentence, self.DIRECT_SERVICE)
+            else:
+                self._directMissed.emit()
 
         threading.Thread(target=work, daemon=True).start()
 
