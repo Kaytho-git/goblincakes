@@ -14,7 +14,7 @@ Window {
     height: column.implicitHeight + 28
     visible: false
     color: "#0B1018"
-    title: "Kakan"
+    title: Qt.application.displayName   // the AI's name (goblincakes-voice sets it)
     flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus | Qt.WindowTransparentForInput
     LayerShell.Window.scope: "goblincakes-voice-box"
     LayerShell.Window.layer: LayerShell.Window.LayerOverlay
@@ -95,7 +95,7 @@ Window {
                 }
             }
             Text {
-                text: "KAKAN · " + (root.state === "listening" ? "LYSSNAR"
+                text: Qt.application.displayName.toUpperCase() + " · " + (root.state === "listening" ? "LYSSNAR"
                                     : root.state === "thinking" ? "TÄNKER" : "SVAR")
                 color: accent.text
                 font.family: "Chakra Petch"

@@ -25,16 +25,17 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import ainame  # noqa: E402 – the AI's name (Goblin AI, or the one chosen)
 PROTOCOL = "2025-06-18"
 SHARED = ("goblincakes", "systemfel", "leta", "wowstats", "warcraftlogs", "wowfel", "wowapi", "cs2", "sport", "lagg", "byggstatus")
 ANSWER_MAX = 60000  # characters – Claude reads more than the local AI; a raid night from WCL fits
-INSTRUCTIONS = ("Verktyg från GOBLINCAKES lokala AI (Kakan) på användarens dator. Svaren är på svenska. "
+INSTRUCTIONS = ("Verktyg från GOBLINCAKES lokala AI ({name}) på användarens dator. Svaren är på svenska. "
                 "warcraftlogs = vad som hände i en pull/raidkväll, wowstats = användarens egna parses över tid, "
                 "wowfel = BugSacks fel, cs2 = egna CS2-siffror ur demos, lagg = lagmätningen kring användarens "
                 "Meta+Shift+L (\"laggar nu\") under spel, byggstatus = GOBLINCAKES byggen på GitHub och varför ett misslyckades, goblincakes = kartan över systemet (läs "
                 "den först när en del av GOBLINCAKES strular), systemfel = datorns loggade fel (och vad kontrollen efter senaste uppdateringen hittade), hitta_filer/las_fil/"
                 "visa_mapp/sok_i_filer/logg/program/tjanst = läsa i datorn (nycklar och lösenord visas inte), "
-                "rapporter = det Kakan inte kunde lösa (Skicka till Claude i Goblin AI), losningar = hennes kända "
+                "rapporter = det {name} inte kunde lösa (Skicka till Claude i Goblin AI), losningar = hennes kända "
                 "lösningar (problem som lösts på datorn) och lärdomar.")
 
 
@@ -65,17 +66,17 @@ def shared_tools():
     tools = {w: t for w, t in tools.items() if w in SHARED or (w == "byt" and CHANGE)}
     g.LAST.fixes = int(os.environ.get("GOBLINCAKES_MCP_FIXES") or 0)  # byt_text's "only small faults" counts the question's
     import toclaude  # noqa: PLC0415
-    tools["rapporter"] = g.tool("Läser Kakans rapporter", "", "", lambda q: (toclaude.read(q), []), "rapporter",
-                                "Kakans rapporter till Claude: det hon inte kunde lösa själv – frågan, hennes svar och "
+    tools["rapporter"] = g.tool(ainame.say("Läser {gen} rapporter"), "", "", lambda q: (toclaude.read(q), []), "rapporter",
+                                ainame.say("{gen} rapporter till Claude: det hon inte kunde lösa själv – frågan, hennes svar och "
                                 "steg, vad verktygen visade och kommandona hon körde med utdata (Skicka till Claude i "
-                                "Goblin AI). Tomt = listan och den senaste i sin helhet.",
+                                "Goblin AI). Tomt = listan och den senaste i sin helhet."),
                                 "Tomt, eller rapportens namn (eller en del av det)")
     import solutions  # noqa: PLC0415
-    tools["losningar"] = g.tool("Läser Kakans kända lösningar", "", "", lambda q: (solutions.read(q), []), "losningar",
-                                "Kakans kända lösningar – problem som lösts på den här datorn (tecken → orsak → "
-                                "lösning, från Kakan eller Claude, bekräftade eller inte) – och hennes lärdomar per "
+    tools["losningar"] = g.tool(ainame.say("Läser {gen} kända lösningar"), "", "", lambda q: (solutions.read(q), []), "losningar",
+                                ainame.say("{gen} kända lösningar – problem som lösts på den här datorn (tecken → orsak → "
+                                "lösning, från {name} eller Claude, bekräftade eller inte) – och hennes lärdomar per "
                                 "kategori. Kolla här först när ett fel kan ha hänt förut. Tomt = alla lösningar + "
-                                "antal lärdomar; \"lärdomar [kategori]\" = lärdomarna; annars ord ur felet.",
+                                "antal lärdomar; \"lärdomar [kategori]\" = lärdomarna; annars ord ur felet."),
                                 "Tomt, \"lärdomar [kategori]\", eller ord ur felet (t.ex. discord startar inte)")
     return tools
 
@@ -143,8 +144,8 @@ def serve():
             asked = params.get("protocolVersion")
             reply(msg_id, {"protocolVersion": asked if asked in (PROTOCOL, "2025-03-26", "2024-11-05") else PROTOCOL,
                            "capabilities": {"tools": {}},
-                           "serverInfo": {"name": "goblincakes-kakan", "title": "Kakan (GOBLINCAKES)", "version": "1"},
-                           "instructions": INSTRUCTIONS})
+                           "serverInfo": {"name": "goblincakes-kakan", "title": ainame.name() + " (GOBLINCAKES)", "version": "1"},
+                           "instructions": ainame.say(INSTRUCTIONS)})
         elif method == "ping":
             reply(msg_id, {})
         elif method == "tools/list":

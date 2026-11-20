@@ -132,7 +132,7 @@ def run(oid, via="ai"):
         print("Beställningen finns inte", file=sys.stderr)
         return 1
     import goblinai  # noqa: PLC0415
-    name = goblinai.ai_name() or "Goblin AI"
+    name = goblinai.ainame.name()
     short = " ".join(order["text"].split())
     short = short[:60] + ("…" if len(short) > 60 else "")
 

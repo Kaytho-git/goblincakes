@@ -20,8 +20,12 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import ainame  # noqa: E402 – the AI's name (Goblin AI, or the one chosen)
 
 FOLDER = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "goblincakes/till-claude"
 SOLUTIONS = Path(__file__).resolve().parent / "solutions.py"  # Claude Code saves what it fixed as a known solution
@@ -139,8 +143,8 @@ def build(display, index, info=""):
     if not question:
         first = next((m for m in chat if m.get("service") == "Testa åt Claude"), display[index])
         question = re.sub(r"[*]", "", (first.get("text") or "").split("\n", 1)[0]).split(" – ")[0]
-    out = [f"# Kakans rapport: {_title(question)}",
-           f"{datetime.now():%Y-%m-%d %H:%M} – från Goblin AI (Skicka till Claude). Kakan kunde inte lösa det här "
+    out = [f"# {ainame.gen()} rapport: {_title(question)}",
+           f"{datetime.now():%Y-%m-%d %H:%M} – från Goblin AI (Skicka till Claude). {ainame.name()} kunde inte lösa det här "
            "själv; allt nedan är hämtat ur samtalet, inget är skrivet i efterhand.",
            "", "## Frågan", question.strip() or "(ingen fråga hittades)"]
     if info:
@@ -156,7 +160,7 @@ def build(display, index, info=""):
         elif role == "error":
             out += ["", "### Fel i Goblin AI", (m.get("text") or "").strip()]
         elif role == "assistant":
-            out += ["", f"### Kakan ({m.get('service') or 'okänd modell'})", (m.get("text") or "").strip()]
+            out += ["", f"### {ainame.name()} ({m.get('service') or 'okänd modell'})", (m.get("text") or "").strip()]
             steps = m.get("steps") or []
             if steps:
                 out += ["", "**Hennes steg:**"]
@@ -190,7 +194,7 @@ def build(display, index, info=""):
 def save(markdown):
     """The report as a file in FOLDER; returns its path."""
     FOLDER.mkdir(parents=True, exist_ok=True)
-    head = markdown.split("\n", 1)[0].replace("# Kakans rapport:", "")
+    head = markdown.split("\n", 1)[0].split(" rapport:", 1)[-1]
     name = re.sub(r"\s+", "-", head.strip().lower())[:50].strip("-") or "rapport"
     path = FOLDER / f"{datetime.now():%Y-%m-%d-%H%M}-{name}.md"
     path.write_text(markdown, encoding="utf-8")
@@ -199,29 +203,29 @@ def save(markdown):
 
 def task(path, mode, helper="claude"):
     """What Claude Code (or Codex, or the user's own program) is asked."""
-    tools = "Kakans MCP-verktyg finns – losningar visar om det hänt förut" if helper == "claude" else (
+    tools = f"{ainame.gen()} MCP-verktyg finns – losningar visar om det hänt förut" if helper == "claude" else (
         f"python3 {SOLUTIONS} list visar om det hänt förut")
     if mode == "ask":
-        return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem. Läs hennes rapport {path} (hennes analys "
+        return (f"{ainame.name()} (GOBLINCAKES lokala AI) kunde inte lösa ett problem. Läs hennes rapport {path} (hennes analys "
                 "är en ledtråd, inte facit – filerna hon läste står i den med radnummer) och svara på "
                 "svenska, kort och utan jargong för en användare som inte är programmerare: vad är troligen fel, och "
                 "vad ska användaren göra? Du får bara läsa – ändra inget. Behövs en "
                 f"ändring i datorn eller i GOBLINCAKES kod: säg vad, så tar användaren det i {PROGRAMS[helper]}. Är du säker "
                 "på orsak och lösning: avsluta svaret med ett kodblock märkt ```löst med tre rader – \"Tecken: <vad "
                 "användaren märkte>\", \"Orsak: <vad som är fel>\", \"Lösning: <vad som ska göras>\" – då sparas det "
-                "som en känd lösning åt Kakan (ej bekräftad tills den fungerat). Är du osäker: inget sådant block.")
-    return (f"Kakan (GOBLINCAKES lokala AI) kunde inte lösa ett problem och skickade det till dig. Läs hennes rapport "
+                f"som en känd lösning åt {ainame.name()} (ej bekräftad tills den fungerat). Är du osäker: inget sådant block.")
+    return (f"{ainame.name()} (GOBLINCAKES lokala AI) kunde inte lösa ett problem och skickade det till dig. Läs hennes rapport "
             f"{path}, ta reda på vad som är fel ({tools}) och lös det. Hennes analys är en ledtråd, inte facit – "
             "kontrollera varje påstående själv; användarens egen beskrivning av vad som händer är det säkraste. "
             "Filerna hon läste står i rapporten med radnummer: börja där i stället för att leta upp och läsa dem "
             "igen, och läs bara vidare när det behövs. Två fall:\n"
             "1. Felet är bara på den här datorn (ett WoW-tillägg, en inställning, ett program, en fil i hemmappen): "
-            "rätta det där. Rör INTE repot – ingen commit, ingen push, ingen rad i Kakans karta.\n"
+            f"rätta det där. Rör INTE repot – ingen commit, ingen push, ingen rad i hennes karta.\n"
             "2. Felet är i GOBLINCAKES egen kod: rätta koden i repot enligt CLAUDE.md (projektets regler). Är det "
-            "något Kakan borde känna igen nästa gång: en kort rad (tecken på felet → vad som är fel → vad hon ska "
+            f"något {ainame.name()} borde känna igen nästa gång: en kort rad (tecken på felet → vad som är fel → vad hon ska "
             "göra) i den delens ##-avsnitt i hennes karta, files/system/usr/share/goblincakes/ai/karta.md.\n"
             "Skriv bara det du har kontrollerat (t.ex. med wowapi eller i filen) – inga gissningar om att något "
-            "\"inte finns\". I båda fallen: spara lösningen som en känd lösning, så att Kakan känner igen den på den "
+            "\"inte finns\". I båda fallen: spara lösningen som en känd lösning, så att " + ainame.name() + " känner igen den på den "
             f"här datorn: python3 {SOLUTIONS} add --tecken \"<vad användaren märkte, med hens ord>\" --orsak \"<vad som "
             "var fel>\" --losning \"<vad som gjordes>\" (lägg till --bekraftad bara om du provat att det fungerar "
             "nu). Säg sedan kort vad det var, om repot ändrades (och vad) och att lösningen är sparad.")
@@ -302,7 +306,7 @@ def read(query=""):
     """Empty: the list (newest first) and the newest one in full; a name or a part of it: that report."""
     found = reports()
     if not found:
-        return f"Inga rapporter från Kakan ännu ({FOLDER})."
+        return f"Inga rapporter från {ainame.name()} ännu ({FOLDER})."
     query = query.strip().lower()
     if query and query not in ("senaste", "nyaste", "latest"):
         hit = next((p for p in found if query in p.name.lower()), None)
@@ -310,5 +314,5 @@ def read(query=""):
             return "Ingen rapport heter så. Rapporterna:\n" + "\n".join(p.name for p in found[:30])
         return f"{hit}\n\n{hit.read_text(encoding='utf-8')}"
     listing = "\n".join(f"- {p.name}" for p in found[:30])
-    return (f"Kakans rapporter i {FOLDER} (nyast först):\n{listing}\n\n--- Den senaste: {found[0]} ---\n\n"
+    return (f"{ainame.gen()} rapporter i {FOLDER} (nyast först):\n{listing}\n\n--- Den senaste: {found[0]} ---\n\n"
             + found[0].read_text(encoding="utf-8"))

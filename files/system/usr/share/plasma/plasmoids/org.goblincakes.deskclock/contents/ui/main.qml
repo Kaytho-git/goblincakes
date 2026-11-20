@@ -53,7 +53,7 @@ PlasmoidItem {
         + "[ -e \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/goblincakes-gaming\" ] && echo spel; "
         + "echo \"namn=$(head -c 40 \"$HOME/.config/goblincakes/ai-name\" 2>/dev/null)\"; true"
     property bool living: false
-    property string aiName: "Kakan"       // Goblin AI → name (ai-name)
+    property string aiName: "Goblin AI"     // Goblin AI → name (ai-name)
     // Optimization P1 (11 Nov): while a game runs the reads are three times sparser – the game covers the row
     property bool gaming: false
     readonly property int slow: gaming ? 3 : 1
@@ -184,7 +184,7 @@ PlasmoidItem {
                 root.living = lines[0] === "levande";
                 root.gaming = lines.indexOf("spel") >= 0;
                 const named = lines.find(l => l.indexOf("namn=") === 0);
-                root.aiName = named && named.length > 5 ? named.slice(5) : "Kakan";
+                root.aiName = named && named.length > 5 ? named.slice(5) : "Goblin AI";
             } else if (source === root.aiFolderCommand) {
                 root.aiFolder = StandardPaths.writableLocation(StandardPaths.RuntimeLocation) + "/goblincakes-ai";
             } else if (source === root.batteryCommand) {

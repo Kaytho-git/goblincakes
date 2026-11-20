@@ -62,6 +62,7 @@ Window {
     property var buildSteps: ({})      // the open build in BYGGEN: {id, done, jobs [{name, kind, length, steps}]}
     property var reports: ({})
     // CLAUDE CODE (13 Nov): what Claude Code does – claudefeed.py, read every ½ s only while the frame or the middle shows
+    readonly property string ai: backend.aiName || "Goblin AI"   // the AI's name (Goblin AI → Inställningar → Namn)
     readonly property var claude: {
         try {
             return JSON.parse(claudeFeed.state);
@@ -1573,7 +1574,7 @@ Window {
                 y: 16
                 width: parent.width - 32
                 spacing: 10
-                Heading { text: "KAKAN" }
+                Heading { text: win.ai.toUpperCase() }
                 SideCard {
                     on: win.mid === "reports"
                     title: win.reports.new ? win.reports.new + (win.reports.new === 1 ? " ny rapport" : " nya rapporter") : "Rapporter"
@@ -1600,8 +1601,8 @@ Window {
                     on: win.mid === "claude"
                     live: !!win.claude.busy
                     title: win.claude.none ? "Ingen session ännu"
-                         : ({ claude: "Claude Code", codex: "Codex", kakan: "Kakan" })[win.claude.tool] + (win.claude.tool !== "kakan" && win.claude.folder ? " · " + win.claude.folder : "")
-                    line: win.claude.none ? "Claude Code, Codex eller Kakan när de jobbar" : (win.claude.now || "")
+                         : ({ claude: "Claude Code", codex: "Codex", kakan: win.ai })[win.claude.tool] + (win.claude.tool !== "kakan" && win.claude.folder ? " · " + win.claude.folder : "")
+                    line: win.claude.none ? "Claude Code, Codex eller " + win.ai + " när de jobbar" : (win.claude.now || "")
                     side: win.claude.context ? "kontext " + win.claude.context + " %" : ""
                     onClicked: backend.setMid(win.mid === "claude" ? "apps" : "claude")
                 }
@@ -2424,7 +2425,7 @@ Window {
                                 FlatButton { text: "Hela kvällen i Warcraft Logs"; visible: !!raidView.r.url; onClicked: backend.openUrl(raidView.r.url) }
                                 FlatButton {
                                     primary: true
-                                    text: "Fråga Kakan om bossen"
+                                    text: "Fråga " + win.ai + " om bossen"
                                     onClicked: backend.askKakan("Titta på pullarna på " + raidView.b.name + " (" + raidView.b.difficulty
                                         + ") från senaste raiden" + (raidView.b.url ? ": " + raidView.b.url : "")
                                         + ". Vad gick fel och vad kan jag göra bättre?")
@@ -2724,7 +2725,7 @@ Window {
                         FlatButton { text: "WoW Stats i GoblinRecorder"; onClicked: backend.launch("goblin-recorder.desktop") }
                         FlatButton {
                             primary: true
-                            text: "Fråga Kakan"
+                            text: "Fråga " + win.ai
                             onClicked: backend.askKakan("Hur ligger " + charView.c.name + " till den här säsongen i raid och Mythic+ – vad ska jag förbättra först?")
                         }
                     }
@@ -2844,7 +2845,7 @@ Window {
                                 FlatButton {
                                     primary: true
                                     width: parent.width
-                                    text: "Fråga Kakan vad jag ska träna på här"
+                                    text: "Fråga " + win.ai + " vad jag ska träna på här"
                                     onClicked: backend.askKakan("Titta på mina senaste CS2-matcher på " + csView.chosen.name + ". Vad ska jag träna på där?")
                                 }
                                 FlatButton { width: parent.width; text: "CS2 Stats i GoblinRecorder"; onClicked: backend.launch("goblin-recorder.desktop") }
@@ -3046,7 +3047,7 @@ Window {
                     FlatButton {
                         primary: true
                         visible: !!win.builds.failedOwn
-                        text: "Fråga Kakan varför det misslyckades"
+                        text: "Fråga " + win.ai + " varför det misslyckades"
                         onClicked: backend.askKakan("Varför misslyckades det senaste misslyckade bygget av GOBLINCAKES?")
                     }
                 }
@@ -3061,7 +3062,7 @@ Window {
                 Row {
                     id: reportHead
                     spacing: 14
-                    BigTitle { id: reportTitle; text: "KAKANS RAPPORTER" }
+                    BigTitle { id: reportTitle; text: (/[A-Z]{2}$/.test(win.ai) ? win.ai + ":s" : /[sxz]$/i.test(win.ai) ? win.ai : win.ai + "s").toUpperCase() + " RAPPORTER" }
                     SubTitle { anchors.baseline: reportTitle.baseline; text: "det hon har lämnat till Claude · tryck för att läsa" }
                 }
                 ListView {
@@ -3522,11 +3523,11 @@ Window {
                     id: claudeHead
                     spacing: 14
                     // VILANDE when no AI works (13 Nov, the user) – the map shows the latest session, calm
-                    readonly property string who: ({ claude: "Claude Code", codex: "Codex", kakan: "Kakan" })[win.claude.tool] || ""
+                    readonly property string who: ({ claude: "Claude Code", codex: "Codex", kakan: win.ai })[win.claude.tool] || ""
                     BigTitle { id: claudeTitle; text: win.claude.busy ? (win.claude.title || "AI-KARTAN") : "VILANDE" }
                     SubTitle {
                         anchors.baseline: claudeTitle.baseline
-                        text: win.claude.busy ? "vad " + ({ claude: "Claude", codex: "Codex", kakan: "Kakan" })[win.claude.tool] + " gör just nu"
+                        text: win.claude.busy ? "vad " + ({ claude: "Claude", codex: "Codex", kakan: win.ai })[win.claude.tool] + " gör just nu"
                             : win.claude.none || !claudeHead.who ? "ingen AI jobbar just nu"
                             : "ingen AI jobbar just nu · senast " + claudeHead.who
                               + (win.claude.tool !== "kakan" && win.claude.folder ? " i " + win.claude.folder : "")

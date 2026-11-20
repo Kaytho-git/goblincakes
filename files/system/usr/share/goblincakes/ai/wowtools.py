@@ -138,7 +138,8 @@ def versions_text(addon):
                 "Då länkar `goblin wow` mapparna; kör det själv i ett kodblock.")
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import wowapi  # noqa: PLC0415
-    there = {"kakan": " (en mapp med samma namn finns redan – gjord av dig, Kakan (## Author: Kakan): du får skriva över den)",
+    import ainame  # noqa: PLC0415
+    there = {"kakan": f" (en mapp med samma namn finns redan – gjord av dig (## Author: {ainame.name()}): du får skriva över den)",
              "user": " (en mapp med samma namn finns redan – användarens eget tillägg: skriv inte över, fråga användaren)",
              "other": " (en mapp med samma namn finns redan – någon annans tillägg: skriv inte över, fråga användaren)"}
     rows = [f"- {v}: {game / 'Interface/AddOns'}" + there.get(wowapi.addon_maker(game / "Interface/AddOns" / addon), "")

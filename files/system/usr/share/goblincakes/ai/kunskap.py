@@ -28,12 +28,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from knowledge import stems  # noqa: E402 – the map's word stems: "länkarmar" and "länkarm" meet
+import ainame  # noqa: E402 – the AI's name (Goblin AI, or the one chosen)
 
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "goblincakes/ai"
 FILE = DATA / "kunskap.md"
 DENIED = DATA / "kunskap-nekat.json"  # [{"title", "url", "facts", "date"}]
-HEAD = ("# Kakans kunskapsminne\n"
-        "Det Kakan har hittat på nätet och i Wikipedia och användaren godkänt (Tillåt) – ändra eller ta bort i "
+HEAD = ("# {gen} kunskapsminne\n"
+        "Det {name} har hittat på nätet och i Wikipedia och användaren godkänt (Tillåt) – ändra eller ta bort i "
         "Goblin AI → Inställningar → Kunskap.\n")
 ENTRY = re.compile(r"^Sparad (\d{4}-\d{2}-\d{2}) · Källa: \[(.*?)\]\((\S+?)\)\s*$", re.M)
 
@@ -87,7 +88,7 @@ def parse(text):
 
 
 def dump(sections):
-    parts = [HEAD]
+    parts = [ainame.say(HEAD)]
     for s in sections:
         lines = [f"## {s['title']}"]
         for e in s["entries"]:

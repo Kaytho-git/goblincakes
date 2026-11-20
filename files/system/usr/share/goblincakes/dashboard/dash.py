@@ -24,6 +24,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent / "ai"))
+import ainame  # noqa: E402 – the AI's name (Goblin AI, or the one chosen)
+
 HOME = Path.home()
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "goblincakes"
@@ -160,8 +163,8 @@ FRAMES = [("projects", "Projekt", "dina mappar – öppna i VS Code, Claude Code
           ("wow", "WoW Stats", "karaktärer och senaste raiden (Warcraft Logs; bild, M+ och PvP med Blizzard-nyckeln)"),
           ("cs2", "CS2 Stats", "de senaste matcherna och kartorna"),
           ("builds", "Byggen", "Byggen på GitHub – dina repon (välj under GITHUB nedan)"),
-          ("reports", "Kakan", "Kakans rapporter"),
-          ("claude", "AI-kartan", "vad Claude Code, Codex eller Kakan gör just nu – kartan i mitten"),
+          ("reports", ainame.name(), ainame.gen() + " rapporter"),
+          ("claude", "AI-kartan", "vad Claude Code, Codex eller " + ainame.name() + " gör just nu – kartan i mitten"),
           ("addons", "Tillägg", "WoW-tilläggen i WowUp – uppdateringar, GoblinUp i mitten (när WowUp finns)"),
           ("wowinfo", "WoW-läget", "WoW Token (Köp token), veckoreset och realmstatus – med Blizzard-nyckeln nedan")]
 SIDES = {"left": 3, "right": 2}           # at most this many frames on each side
@@ -175,7 +178,7 @@ MID_FRAME = {"system": "system", "project": "projects", "raid": "wow", "char": "
 
 # What the middle shows when the dashboard opens (Meta) – Config → Dashboard (13 Nov, the user: the AI map as standard,
 # "låt användaren bestämma i config"). "last" = where it was left, per view (as before 13 Nov).
-STARTS = [("claude", "AI-kartan", "vad Claude Code, Codex eller Kakan gör – VILANDE när ingen jobbar"),
+STARTS = [("claude", "AI-kartan", "vad Claude Code, Codex eller " + ainame.name() + " gör – VILANDE när ingen jobbar"),
           ("apps", "Program", "alla program och sökningen"),
           ("last", "Där du var senast", "det du tittade på sist i vyn")]
 

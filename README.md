@@ -28,7 +28,7 @@ En dator som bara fungerar – för den som vill spela, raida och sköta bågsky
 - Eget tema i hela systemet: mörk palett, Chakra Petch och IBM Plex, raka hörn överallt.
 - **Välj färg:** GOBLINCAKES blå eller någon av WoW:s 13 klassfärger – knappar, ramar, markeringar, inloggningen och de egna fönstren byter färg (Config → Inställningar → Utseende, eller `goblin färg`).
 - **Två stilar:** *Platt* eller *Levande* (Config → Inställningar → Utseende). Med Levande tonar knappar och reglage mjukt när du pekar på dem, det du valt glöder lite i din färg, toppfältet blir tonat glas och klockor och siffror glider fram till sina nya värden – men inget rör sig medan ett spel kör.
-- **Två upplägg:** toppfält och docka, eller **Dashboard** – då försvinner båda och skrivbordet har bara en liten rad uppe i mitten (klockan, Discord-kanalen, Spelas nu, batterierna och Kakan), och **Meta** tar fram [GOBLINCAKES Dashboard](#goblincakes-dashboard).
+- **Två upplägg:** toppfält och docka, eller **Dashboard** – då försvinner båda och skrivbordet har bara en liten rad uppe i mitten (klockan, Discord-kanalen, Spelas nu, batterierna och AI:n), och **Meta** tar fram [GOBLINCAKES Dashboard](#goblincakes-dashboard).
 - **Webbläsarna** får GOBLINCAKES-tema: Firefox (med goblinen i fliklisten), Chrome, Brave och Chromium.
 - Egen startskärm, inloggning, låsskärm och utloggning (*"Goodbye! See you next raid!"*). Vid inloggningen väljer du **Skrivbord** eller **TV-läge**.
 - **Toppfältet:** appmenyn (AppGrid) mitt på skärmen, öppna program, *Spelas nu* och en ruta som visar när det finns uppdateringar.
@@ -44,7 +44,7 @@ En helskärm som du tar fram med **Meta** (eller `goblin dashboard`), med allt p
 - **Ramar runt om:** dina projekt (öppna i VS Code eller Claude Code), systemet (processor, grafikkort, temperatur, minne, disk), WoW Stats med senaste raidkvällen boss för boss, CS2 Stats, byggen på GitHub (dina egna repon, valda i Config), Goblin AI:s rapporter och GoblinRecorders kontroll (är OBS redo, spelas något in).
 - **Vyer:** t.ex. SPEL och JOBB – byt med hjulet, svep i sidled eller Ctrl+← →. Vilka ramar som ligger var väljer du i **Config → Dashboard**.
 - **Överst:** klockan, nätverk, ljud, Bluetooth, batteriet i musen, headsetet, tangentbordet och handkontrollen, notiser du kan trycka på och en strömknapp.
-- **AI-kartan** i mitten: vad Claude Code, Codex eller Kakan gör just nu (se [Goblin AI](#goblin-ai)).
+- **AI-kartan** i mitten: vad Claude Code, Codex eller Goblin AI gör just nu (se [Goblin AI](#goblin-ai)).
 
 ### Spel
 - **Steam** förinstallerat, plus Gamescope, GameMode och MangoHud (FPS-mätare). Windows-program utanför spelen: Bottles i GOBLINCAKES Config.
@@ -64,7 +64,7 @@ En helskärm som du tar fram med **Meta** (eller `goblin dashboard`), med allt p
 ### World of Warcraft
 - Battle.net via Lutris med GE-Proton, installerat så att butiken fungerar.
 - **WowUp, Raider.IO och Archon** installeras och uppdateras automatiskt.
-- **GoblinUp** – WoW-tilläggen i dashboarden (en egen vy): se vilka som har uppdateringar, uppdatera, sök och installera nya. WowUp gör jobbet i bakgrunden; `goblin tillägg` gör samma sak i terminalen, och Kakan kan uppdatera åt dig när du trycker Tillåt.
+- **GoblinUp** – WoW-tilläggen i dashboarden (en egen vy): se vilka som har uppdateringar, uppdatera, sök och installera nya. WowUp gör jobbet i bakgrunden; `goblin tillägg` gör samma sak i terminalen, och AI:n kan uppdatera åt dig när du trycker Tillåt.
 - Mapparna för `Logs` och `AddOns` – för alla WoW-versioner, var de än ligger – länkas till `~/Games/WoW`. WowUp och Raider.IO hittar WoW själva; `goblin wow` talar om vad du väljer i Archon.
 
 ### GoblinRecorder
@@ -139,13 +139,13 @@ Ett eget fönster som öppnas vid första inloggningen – och sedan med **Meta+
 - **Uppdatera** – se vad som är nytt och uppdatera allt eller en del i taget (systemet, Flatpak-program, VS Code, Discord, WoW-tillägg, GE-Proton, firmware).
 
 ### Goblin AI
-Fråga om datorn eller vad som helst – AI:n heter **Kakan** och finns i ett eget fönster (**Meta+A**), i en snabbruta (**Meta+§**) eller i terminalen (`goblin ai`, med samma utseende och /kommandon – `/app` tar samtalet till fönstret). Föreslagna kommandon körs bara när du säger ja, och AI:n kan ändra filer du bifogar.
+Fråga om datorn eller vad som helst – AI:n heter **Goblin AI** (eller det namn du ger den i Inställningar → Namn) och finns i ett eget fönster (**Meta+A**), i en snabbruta (**Meta+§**) eller i terminalen (`goblin ai`, med samma utseende och /kommandon – `/app` tar samtalet till fönstret). Föreslagna kommandon körs bara när du säger ja, och AI:n kan ändra filer du bifogar.
 - **Lokalt eller i molnet:** kör AI:n på din egen dator med Ollama (inget lämnar datorn; installeras med en knapp, förslag på modeller efter ditt grafikkort, stängs av medan du spelar) och/eller gratisnivåerna hos Gemini och OpenRouter – eller dina egna nycklar till Claude, OpenAI m.fl.
 - **Söker på nätet** själv när du frågar om något nytt (gratis Tavily-nyckel).
-- **Kakans röst** (slås på i Goblin AI → Inställningar → Röst): håll **F8** och prata – även mitt i ett spel. Hon spelar musik i Spotify eller GoblinAmp ("spela Trivium"), sköter enkla kommandon, startar lagmätningen när du säger "det laggar" och tar större frågor vidare till Goblin AI. En ruta uppe till höger visar vad hon hörde och vad hon svarar, och när hon frågar "Menade du …?" lär hon sig hur du säger namnen.
+- **Rösten** (slås på i Goblin AI → Inställningar → Röst): håll **F8** och prata – även mitt i ett spel. Hon spelar musik i Spotify eller GoblinAmp ("spela Trivium"), sköter enkla kommandon, startar lagmätningen när du säger "det laggar" och tar större frågor vidare till Goblin AI. En ruta uppe till höger visar vad hon hörde och vad hon svarar, och när hon frågar "Menade du …?" lär hon sig hur du säger namnen.
 - **Läser och skapar:** PDF:er, bilder och skärmbilder; ritar bilder – även pixelart – (på datorn eller gratis via Cloudflare); sparar svar som PDF, Word eller bild.
 - **Hjälper med datorn och spelet:** hittar fel i systemloggarna och föreslår lösningar steg för steg, läser WoW-tilläggens felmeddelanden och analyserar dina Warcraft Logs (dödsfall, cooldowns, förmågor) och dina CS2-matcher.
-- **AI-kartan** bredvid terminalen (och i dashboarden): vad Claude Code, Codex eller Kakan gör just nu – filer, kommandon, nätet, agenter, fel och hur full kontexten är – läst ur deras egna loggar, inget installeras i dem.
+- **AI-kartan** bredvid terminalen (och i dashboarden): vad Claude Code, Codex eller Goblin AI gör just nu – filer, kommandon, nätet, agenter, fel och hur full kontexten är – läst ur deras egna loggar, inget installeras i dem.
 - **Projekt** med egna instruktioner, filer och modeller, ett **minne**, avatar och namn. ♥ under ett bra svar lär den att göra likadant nästa gång, 👎 att undvika det.
 - **Egna knappar** ovanför rutan: ett tryck ger t.ex. det senaste om ditt lag (tabell och matcher hämtas direkt) eller sammanfattar en sida du länkar.
 - **Ger inte upp:** är en modell överbelastad tar den nästa modell eller tjänst, och den lokala AI:n sist. Svar kan kopieras med formateringen kvar.

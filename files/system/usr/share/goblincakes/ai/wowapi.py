@@ -867,6 +867,13 @@ def toc_authors(folder):
     return found
 
 
+def ai_authors():
+    """## Author names that mean the AI made it: its name now, and the ones it has had (Kakan, Goblin AI) – 20 Nov."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import ainame  # noqa: PLC0415
+    return {ainame.name().lower(), "kakan", "goblin ai"}
+
+
 def own_authors():
     """The user's author name(s): ## Author in their git clones (not Kakan) – the user 30 Oct: their name in all their
     add-ons makes them easy to find, also a copy without git (one installed from CurseForge with WowUp)."""
@@ -874,7 +881,7 @@ def own_authors():
     for d in ADDONS.glob("*"):
         if (d / ".git").exists():
             names |= toc_authors(d)
-    return names - {"kakan", ""}
+    return names - ai_authors() - {""}
 
 
 def own_addons():
@@ -897,7 +904,7 @@ def addon_maker(folder):
     if folder.name in own_addons() or (folder / ".git").exists():
         return "user"
     authors = toc_authors(folder)
-    if "kakan" in authors:
+    if authors & ai_authors():
         return "kakan"
     return "user" if authors & own_authors() else "other"
 

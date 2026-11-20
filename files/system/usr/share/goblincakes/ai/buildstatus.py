@@ -24,6 +24,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import ainame  # noqa: E402 – the AI's name (Goblin AI, or the one chosen)
 
 REPO = "Kaytho-git/goblincakes"
 API = f"https://api.github.com/repos/{REPO}"
@@ -299,7 +300,7 @@ def tell(title, run, fails):
                 "någon annan (Fedora, Universal Blue, GitHub). Du ändrar inte koden i repot – säg vad Claude behöver "
                 "veta, och föreslå Skicka till Claude.")
     url = run.get("html_url", "")
-    reminders.notice(f"{title} misslyckades", body, actions=[("ask", "Fråga Kakan"), ("open", "Öppna på GitHub")],
+    reminders.notice(f"{title} misslyckades", body, actions=[("ask", "Fråga " + ainame.name()), ("open", "Öppna på GitHub")],
                      on_action=lambda c: subprocess.Popen(["goblin-ai", "--ask", question], start_new_session=True)
                      if c == "ask" else c == "open" and subprocess.Popen(["xdg-open", url], start_new_session=True))
 

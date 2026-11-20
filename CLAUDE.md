@@ -74,6 +74,7 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - [ ] **Bilder i Goblin AI:s terminal** – bildvägar blir länkar (hovra/klick), byggt 17 nov, testlista `terminal-bilder.md` (grep "Bildvägar som länkar").
 - [ ] **GoblinUp** – skal över WowUp i dashboarden + `goblin tillägg` + Kakan, byggt 18 nov, testlista `goblinup.md` (grep "GoblinUp – bygget").
 - [ ] **Skrivna kommandon utan AI** – "pausa", "starta wow" i Goblin AI görs direkt (röstens kommandon), byggt 20 nov, testlista `skrivna-kommandon.md` (grep "Skrivna kommandon utan AI").
+- [ ] **AI:ns namn** – Goblin AI som standard, eget namn (Inställningar → Namn) överallt + väckordet, byggt 20 nov, testlista `ai-namnet.md` (grep "AI:ns namn – Goblin AI").
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer

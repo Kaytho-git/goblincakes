@@ -532,6 +532,11 @@ class Backend(QObject):
             self.job("project", lambda: dash.project(path))
 
     @Property(str, constant=True)
+    def aiName(self):
+        """The AI's name for the buttons (Goblin AI, or the one chosen in Goblin AI)."""
+        return dash.ainame.name()
+
+    @Property(str, constant=True)
     def trayIcons(self):
         return json.dumps([{"id": i, "name": n} for i, n in dash.TRAY], ensure_ascii=False)
 
@@ -722,7 +727,7 @@ class Backend(QObject):
                 out = subprocess.run([sys.executable, str(SHARE.parent / "ai/reminders.py"), "bevaka", "bygge", sha],
                                      capture_output=True, text=True, timeout=30)
                 line = (out.stdout or out.stderr).strip().splitlines()
-                return line[-1][:120] if line else "Kakan säger till när bygget är klart"
+                return line[-1][:120] if line else "Du får en notis när bygget är klart"
             except (OSError, subprocess.SubprocessError) as e:
                 return f"Gick inte: {e}"
         self._later(work)

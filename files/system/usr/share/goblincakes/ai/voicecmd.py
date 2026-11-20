@@ -24,6 +24,8 @@ import subprocess
 import time
 from pathlib import Path
 
+import ainame  # the AI's name = the wake word (20 Nov: "Kakan" for the user, "Goblin AI" for everyone else)
+
 CONVERSATION = "röst"   # how the voice's actions are marked in Kakan's log ("skrivet" in Goblin AI's window: typed())
 _written = False        # typed() in Goblin AI's window: the sentences are shown, not read aloud
 
@@ -60,13 +62,18 @@ KINDS = {"albumet": "album", "album": "album", "albumen": "album", "skivan": "al
 PLAY = r"(?:spela|starta|sätt på|lyssna på)\s+(?:upp\s+)?"
 
 
+def wake():
+    """The AI's name as a pattern (lower case): the chosen name, and "goblin ai" (the window) always."""
+    return "(?:" + "|".join(dict.fromkeys(re.escape(n) for n in (ainame.name().lower(), "goblin ai"))) + ")"
+
+
 def fix_words(text):
     t = text.lower()
     t = re.sub(r"[.,!?;:\"“”]", " ", t)
     t = re.sub(r"(?<=\w)['’](?=\w)", "", t)          # "l'ambe of god"
     for pattern, word in HEARD_AS:
         t = re.sub(pattern, word, t)
-    t = re.sub(r"^((?:kakan\s+)?(?:kan du\s+)?)spelar\b", r"\1spela", t)   # Whisper hears "Spelar …" (6 Nov)
+    t = re.sub(r"^((?:" + wake() + r"\s+)?(?:kan du\s+)?)spelar\b", r"\1spela", t)   # Whisper hears "Spelar …" (6 Nov)
     t = re.sub(r"\b(\w{2,}?)(albumet|album)\b", r"\1 \2", t)               # "vengeance falalbum" (6 Nov)
     return " ".join(t.split())
 
@@ -91,16 +98,16 @@ def match_all(text):
 def match(text):
     # "Spela Triviums, Vengeance Falls album" (6 Nov): artist, comma, title + kind – the comma is gone
     # after fix_words, so it is looked for first
-    m = re.match(r"^(?:kakan\s+)?(?:kan du\s+)?(?:spela|spelar|starta|sätt på|lyssna på)\s+(?:upp\s+)?([^,]+?)s?,\s*"
+    m = re.match(r"^(?:" + wake() + r"\s+)?(?:kan du\s+)?(?:spela|spelar|starta|sätt på|lyssna på)\s+(?:upp\s+)?([^,]+?)s?,\s*"
                  r"([^,]+?)[\s-]*(albumet|album|skivan|plattan|låten)[.!?\s]*$",
                  re.sub(r"\b(\w{2,}?)(albumet|album)\b", r"\1 \2", text.lower().strip()))
     if m and fix_words(m.group(1)) and fix_words(m.group(2)):
         return ("music", (KINDS[m.group(3)], fix_words(m.group(1)), fix_words(m.group(2))))
     t = fix_words(text)
-    # just "Kakan" / "hej Kakan" (8 Nov, the user): she greets by name and listens by herself afterwards
-    if re.fullmatch(r"(?:hej|hallå|hejsan|tjena|hej hej)?\s*kakan", t):
+    # just the name ("Kakan" / "hej Kakan", 8 Nov, the user): she greets by name and listens by herself afterwards
+    if re.fullmatch(r"(?:hej|hallå|hejsan|tjena|hej hej)?\s*" + wake(), t):
         return ("greet", "")
-    t = re.sub(r"^(?:kakan\s+)?(?:kan du\s+|snälla\s+)?", "", t)
+    t = re.sub(r"^(?:" + wake() + r"\s+)?(?:kan du\s+|snälla\s+)?", "", t)
     if not t:
         return None
     short = len(t.split()) <= 5
@@ -690,7 +697,7 @@ def run(command, arg):
         step = 25 if arg == "big" else 10
         return _plain(d.player_volume("musiken", f"{'+' if command == 'louder' else '-'}{step}", CONVERSATION)), False
     if command == "start":
-        if arg in ("goblin ai", "kakan", "dig", "dig själv"):
+        if arg in ("goblin ai", ainame.name().lower(), "dig", "dig själv"):
             subprocess.Popen(["goblin-ai"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              start_new_session=True)
             return "Här är jag.", True
@@ -762,7 +769,7 @@ def typed_match(text):
     raw = (text or "").strip()
     if not raw or "\n" in raw or raw.startswith("/") or len(raw) > 120:
         return None
-    t = re.sub(r"^(?:kakan\s+)?(?:kan du\s+|snälla\s+)?", "", fix_words(raw))
+    t = re.sub(r"^(?:" + wake() + r"\s+)?(?:kan du\s+|snälla\s+)?", "", fix_words(raw))
     if not t or len(t.split()) > TYPED_WORDS:
         return None
     if re.fullmatch(r"(?:vad är|hur mycket är)\s+klockan(?:\s+nu)?|klockan", t):   # "vad är klockan?" – the one question

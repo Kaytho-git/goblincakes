@@ -4,7 +4,7 @@ on this computer and ChatGPT draws the same, the user picks what they like best)
 /usr/share/goblincakes/kids/pixelart.json. Everything lands in ~/Bilder/Barnläge/pixelart/<kakan|chatgpt>/.
 
     goblincakes-pixelart [lista]                  the pictures and which are drawn
-    goblincakes-pixelart kakan [id …|alla]        Kakan draws them (goblincakes-image, the pixel art style)
+    goblincakes-pixelart ai [id …|alla]           the AI draws them ("kakan" works too) (goblincakes-image, the pixel art style)
     goblincakes-pixelart chatgpt [id …|alla]      Codex in the ChatGPT app draws them (press Enter in the app)
     goblincakes-pixelart jämför [id …]            a picture with all of them side by side, opened
     goblincakes-pixelart städa <in> <ut> <bredd> <höjd> [--figur] [--färger N]
@@ -21,6 +21,10 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent / "share/goblincakes/ai"))
+sys.path.insert(2, "/usr/share/goblincakes/ai")
+import ainame  # noqa: E402 – the AI's name (Goblin AI, or the one chosen)
+
 HOME = Path.home()
 LIST = Path(os.environ.get("GOBLINCAKES_PIXELART_LIST", "/usr/share/goblincakes/kids/pixelart.json"))
 IMAGE = os.environ.get("GOBLINCAKES_IMAGE_HELPER", "/usr/libexec/goblincakes-image")
@@ -28,7 +32,7 @@ CHATGPT = os.environ.get("GOBLINCAKES_CHATGPT_HELPER", "/usr/libexec/goblincakes
 CODEX_HOME = Path(os.environ.get("CODEX_HOME") or HOME / ".codex")
 FORMATS = {"1:1": (1024, 1024), "16:9": (1280, 720)}
 SOURCES = ("kakan", "chatgpt")
-SOURCE_NAMES = {"kakan": "Kakan (din dator)", "chatgpt": "ChatGPT (Codex)"}
+SOURCE_NAMES = {"kakan": ainame.name() + " (din dator)", "chatgpt": "ChatGPT (Codex)"}
 PREVIEW = 6
 
 START = "<!-- goblincakes-pixelart: början (goblin pixelart skriver om det här avsnittet) -->"
@@ -262,12 +266,12 @@ def cmd_kakan(ids):
     for it in pick(ids, items):
         raw, _ = paths("kakan", it)
         w, h = FORMATS.get(it["format"], FORMATS["1:1"])
-        print(f"Kakan ritar {it['name']}…", flush=True)
+        print(f"{ainame.name()} ritar {it['name']}…", flush=True)
         try:
             proc = subprocess.Popen([IMAGE, "generate", str(raw), str(w), str(h), "--style", "pixelart"],
                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         except OSError:
-            sys.exit(f"Kakans ritprogram saknas ({IMAGE})")
+            sys.exit(f"{ainame.gen()} ritprogram saknas ({IMAGE})")
         proc.stdin.write(it["prompt"])
         proc.stdin.close()
         last = 0.0
@@ -285,7 +289,7 @@ def cmd_kakan(ids):
         err = proc.stderr.read().strip()
         code = proc.wait()
         if code == 3:
-            sys.exit("Ett spel kör – Kakan ritar inte medan du spelar. Försök igen efteråt.")
+            sys.exit(f"Ett spel kör – {ainame.name()} ritar inte medan du spelar. Försök igen efteråt.")
         if code != 0 or not raw.is_file():
             print(f"  ✗ {it['name']}: {(err.splitlines() or ['bilden blev inte klar'])[-1]}")
             failed += 1
@@ -347,7 +351,7 @@ def cmd_list():
         done = [SOURCE_NAMES[s].split(" ")[0] for s in SOURCES if paths(s, it)[1].is_file()]
         print(f"  {it['id']:<12} {it['name']:<24} {it['size'][0]}×{it['size'][1]:<5} "
               + ("ritad av " + " och ".join(done) if done else "inte ritad"))
-    print("\n  goblin pixelart kakan saturnus · goblin pixelart chatgpt saturnus · goblin pixelart jämför")
+    print("\n  goblin pixelart ai saturnus · goblin pixelart chatgpt saturnus · goblin pixelart jämför")
     return 0
 
 
@@ -355,7 +359,7 @@ def cmd_compare(ids):
     data, items = load_list()
     rows = [it for it in pick(ids, items) if any(paths(s, it)[1].is_file() for s in SOURCES)]
     if not rows:
-        sys.exit("Inget ritat än – goblin pixelart kakan saturnus / goblin pixelart chatgpt saturnus")
+        sys.exit("Inget ritat än – goblin pixelart ai saturnus / goblin pixelart chatgpt saturnus")
     QImage = _qt()
     from PySide6.QtCore import QRect, Qt  # noqa: PLC0415
     from PySide6.QtGui import QColor, QFont, QPainter  # noqa: PLC0415
@@ -435,7 +439,7 @@ def main(argv):
     cmd, rest = (argv[0], argv[1:]) if argv else ("lista", [])
     if cmd in ("lista", "list"):
         return cmd_list()
-    if cmd == "kakan":
+    if cmd in ("ai", "kakan"):
         return cmd_kakan(rest)
     if cmd == "chatgpt":
         return cmd_chatgpt(rest)

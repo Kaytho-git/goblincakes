@@ -30,6 +30,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(1, str(HERE.parent))  # gaming.py
+import ainame  # noqa: E402 – the AI's name (Goblin AI, or the one chosen)
 
 DATA = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "goblincakes" / "ai"
 STORE = DATA / "vakt.json"
@@ -401,7 +402,7 @@ def listing(rest="", conversation=""):
         said = "Tog bort: " + "; ".join(_describe(i) for i in gone)
         import cmdlevel  # noqa: PLC0415
         cmdlevel.log("påminnelser bort " + arg, "change", "kakan", 0, said,
-                     {"undo": [], "hint": "Säg till Kakan igen om du vill ha tillbaka den."}, conversation)
+                     {"undo": [], "hint": f"Säg till {ainame.name()} igen om du vill ha tillbaka den."}, conversation)
         return said
     if not items:
         return "Inga påminnelser eller bevakningar."
@@ -675,7 +676,7 @@ def run_plan(item):
     Kakan with the step before's result; one notice with how it went, the whole run saved as a chat."""
     import desktop  # noqa: PLC0415
     import goblinai  # noqa: PLC0415
-    name = goblinai.ai_name() or "Goblin AI"
+    name = goblinai.ainame.name()
     conv = time.strftime("%Y%m%d-%H%M%S")
     before, shown, api, said = "", [], [], []
     for st in item["steps"]:
@@ -727,7 +728,7 @@ def ask(item):
     if item["kind"] == "plan":
         return run_plan(item)
     import goblinai  # noqa: PLC0415
-    name = goblinai.ai_name() or "Goblin AI"
+    name = goblinai.ainame.name()
     asked = dt.datetime.fromtimestamp(item["made"])
     question_text = item["text"]
     if item.get("plan"):  # /planering: do the step, not only answer

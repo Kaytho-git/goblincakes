@@ -53,6 +53,10 @@ import urllib.request
 import wave
 from pathlib import Path
 
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent / "share/goblincakes/ai"))
+sys.path.insert(2, "/usr/share/goblincakes/ai")
+import ainame  # noqa: E402 – the AI's name: the wake word and the texts (Goblin AI, or the one chosen)
+
 HOME = Path.home()
 CONFIG_FILE = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes/voice.json"
 DIR = Path(os.environ.get("GOBLINCAKES_VOICE_DIR")
@@ -80,7 +84,7 @@ WHISPER_BIG_REPO = "KBLab/kb-whisper-medium"
 WHISPER_THREADS = 4
 # Words Whisper otherwise hears as Swedish ("Warcraft Logs" → "varmkraft lågs"): given as the
 # text "before" the speech, so it leans towards these spellings.
-VOCABULARY = ("Kakan, Goblin AI, GOBLINCAKES, Warcraft Logs, WoW, World of Warcraft, CS2, Counter-Strike, "
+VOCABULARY = (ainame.name() + ", Goblin AI, GOBLINCAKES, Warcraft Logs, WoW, World of Warcraft, CS2, Counter-Strike, "
               "Discord, Spotify, Steam, pull, pullen, senaste pullen, raid, Mythic plus, wipe, parse, lagg, GoblinAmp, GoblinRecorder, "
               "BugSack, WowUp, tillägg, addon, addon i WoW, gear planner, CooldownVoice, KeystoneDisplay, IDidWhatWhen, SimpleQuestRemover, "
               "DadJoke.")  # the user's own add-ons: "gear planner" was heard "Gairplaner" (7 Nov)
@@ -327,7 +331,7 @@ def offer_repair():
     try:
         chosen = subprocess.run(
             ["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", "-t", "0", "-A", "repair=Laga nu",
-             "Kakans röst behöver lagas",
+             ainame.gen() + " röst behöver lagas",
              f"Systemet har fått en ny Python-version ({version}) och röstens delar måste hämtas om (ca 250 MB, "
              "tar någon minut). Röstknappen fungerar inte förrän det är gjort. Går också med goblin update."],
             capture_output=True, text=True, check=False).stdout.strip()
@@ -337,7 +341,7 @@ def offer_repair():
         print("Inte lagad nu – frågar igen vid nästa inloggning (eller: goblin update).", flush=True)
         return False
     ok = cmd_install(restart=False) == 0 and installed()
-    notify("Kakans röst fungerar igen" if ok else "Kakans röst gick inte att laga",
+    notify(ainame.gen() + (" röst fungerar igen" if ok else " röst gick inte att laga"),
            "Håll röstknappen och prata." if ok else
            f"{LAST_SAID[0]} Försök igen med goblin update eller Goblin AI → Inställningar → Röst.")
     return ok
@@ -548,7 +552,7 @@ def cmd_say(args):
 
 # ── The service: hold the key and talk ────────────────────────────
 
-SHORTCUT = ["goblincakes-voice", "push-to-talk", "Goblin AI röst", "Håll in och prata med Kakan"]
+SHORTCUT = ["goblincakes-voice", "push-to-talk", "Goblin AI röst", "Håll in och prata med " + ainame.name()]
 KEY_F8 = 0x01000037
 MIN_HOLD = 0.4          # shorter = a slip of the finger
 MAX_HOLD = 30           # a stuck key stops by itself
@@ -697,7 +701,7 @@ def cmd_box():
     if own_scale:
         del os.environ["QT_SCALE_FACTOR"]
     app.setApplicationName("goblincakes-voice-box")
-    app.setApplicationDisplayName("Kakan")
+    app.setApplicationDisplayName(ainame.name())
     app.setDesktopFileName("goblincakes-voice-box")      # = the window's class for KWin's script
     app.setWindowIcon(QIcon.fromTheme("goblincakes-ai"))
     app.setQuitOnLastWindowClosed(False)
@@ -902,7 +906,7 @@ class Listener:
                                      str(self.wav)])
         self.started = time.monotonic()
         discord_mute()
-        self.box("listening", fallback="Kakan lyssnar…")
+        self.box("listening", fallback=ainame.name() + " lyssnar…")
         if os.path.exists(START_SOUND):
             subprocess.Popen(["pw-play", START_SOUND], stderr=subprocess.DEVNULL)
         self.timer = self.GLib.timeout_add_seconds(MAX_HOLD, self.release)
@@ -937,7 +941,7 @@ class Listener:
             return False
         self.wav = self.tmp / f"{int(time.time() * 1000)}.wav"
         words = (ASK_NOW_OR_LATER + " Säg Claude eller vänta.") if self.choice else "Jag lyssnar – säg vad du vill."
-        self.box("listening", answer=words, fallback="Kakan lyssnar…")
+        self.box("listening", answer=words, fallback=ainame.name() + " lyssnar…")
         discord_mute()
         if os.path.exists(START_SOUND):        # the sound first – it must not count as speech
             subprocess.run(["pw-play", START_SOUND], stderr=subprocess.DEVNULL, timeout=3, check=False)
@@ -1035,7 +1039,7 @@ class Listener:
                 chosen = subprocess.run(
                     # -t 0: stays on screen until a button or the cross (the user 8 Nov: "ibland kan man vara upptagen")
                     ["notify-send", "-a", "Goblin AI", "-i", "goblincakes-ai", "-t", "0", "-A", "send=Skicka till Claude",
-                     "-A", "drop=Släng", "Kakan: frågor från spelet", body],
+                     "-A", "drop=Släng", ainame.name() + ": frågor från spelet", body],
                     capture_output=True, text=True, check=False).stdout.strip()
             except OSError:
                 chosen = ""
@@ -1109,7 +1113,7 @@ class Listener:
         """A simple command is done at once (voicecmd.py, part C); anything else is shown (part D: Kakan)."""
         print(f"Hörde ({result.get('seconds')} s, säkerhet {result.get('sure')}): {text or '–'}", flush=True)
         if not text:
-            self.box("answer", "", "Jag hörde inget.", 3, fallback="Kakan hörde inget")
+            self.box("answer", "", "Jag hörde inget.", 3, fallback=ainame.name() + " hörde inget")
             return
         fixed = known_words(text)
         if fixed != text:
@@ -1142,7 +1146,7 @@ class Listener:
         if not commands and len(text.split()) <= 3 and (ANSWER_ONLY.fullmatch(voicecmd().fix_words(text))):
             # 8 Nov: a lone "Nu!" with no "nu eller vänta?" asked became a question of its own for Claude
             self.box("answer", text, "Jag väntade inte på något svar – tryck F8 och säg frågan igen.", 5,
-                     fallback="Kakan väntade inte på något svar")
+                     fallback=ainame.name() + " väntade inte på något svar")
             return
         if not commands and not result.get("big") and big_installed() and result.get("hear"):
             # A question, not a command: the bigger model hears the same recording once more (7 Nov) – the box shows

@@ -23,6 +23,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import systools  # noqa: E402
+import ainame  # noqa: E402 – the AI's name (Goblin AI, or the one chosen)
 
 STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "goblincakes" / "efterkontroll.json"
 WAIT = 180  # seconds after login: everything has started by then
@@ -222,7 +223,7 @@ def tell(update):
                 "och du redan försökt rätta det.")
     import reminders  # noqa: PLC0415
     reminders.notice(f"Efter uppdateringen: {n} sak{'er' if n > 1 else ''} gick sönder",
-                     "\n".join(lines[:4]) + ("\n…" if n > 4 else ""), actions=[("ask", "Fråga Kakan")],
+                     "\n".join(lines[:4]) + ("\n…" if n > 4 else ""), actions=[("ask", "Fråga " + ainame.name())],
                      on_action=lambda c: c == "ask" and subprocess.Popen(["goblin-ai", "--ask", question],
                                                                          start_new_session=True))
 

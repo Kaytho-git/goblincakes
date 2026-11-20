@@ -25,7 +25,7 @@ Item {
     // Kakan's stations have names of their own (claudemap.KakanSession.NAMES: KOMMANDON, NÄTET, SPEL, DATORN …)
     readonly property var names: info.names ? info.names : defaultNames
     readonly property var defaultNames: ({ you: "DU", model: "MODELL", memory: "MINNE", files: "FILER", shell: "SKAL",
-                                    net: "NÄTVERK", browser: "WEBBLÄSARE", agents: "AGENTER", kakan: "KAKAN",
+                                    net: "NÄTVERK", browser: "WEBBLÄSARE", agents: "AGENTER", kakan: "GOBLIN AI",
                                     skills: "SKILLS", hooks: "HOOKS" })
     readonly property color memoryColor: "#A78BFA"
     readonly property color kakanColor: "#F25CB4"      // Kakan working for Claude/Codex
@@ -347,7 +347,8 @@ Item {
                 color: "#E6ECF5"
                 font.family: "Chakra Petch"
                 font.weight: Font.Bold
-                font.pixelSize: Math.max(10, drawing.core * 0.34)
+                // smaller for a long name (the AI's own, 20 Nov) – CLAUDE and CODEX keep 0.34
+                font.pixelSize: Math.max(10, drawing.core * Math.min(0.34, 2.04 / Math.max(1, text.length)))
                 font.letterSpacing: 1
             }
         }

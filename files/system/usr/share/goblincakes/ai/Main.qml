@@ -41,6 +41,8 @@ Window {
     readonly property int gap: 10
     readonly property int sideWidth: 330   // the boxes' column (lying screen)
     readonly property int rowHeight: 300   // the boxes' row (standing screen)
+    readonly property string ai: backend.aiName || "Goblin AI"  // the AI's name (Inställningar → Namn), Goblin AI by default
+    readonly property string aiGen: /[A-Z]{2}$/.test(ai) ? ai + ":s" : /[sxz]$/i.test(ai) ? ai : ai + "s"   // Swedish genitive: Goblin AI:s, Kakans
     property string settingsJump: ""       // a section to show when INSTÄLLNINGAR opens (Kakan, Lokal AI …)
     property string attachment: ""
     property var pendingSave: null // {index, seg} while the "save as" dialog is open
@@ -255,7 +257,7 @@ Window {
         { name: "lär", note: "lärläget Lär dig koda, på eller av" },
         { name: "minne", note: "vad Goblin AI kommer ihåg om dig" },
         { name: "claude", note: "skicka senaste svaret till Claude Code – /claude fråga = bara läsa, svaret kommer hit", args: true, hidden: !backend.claude },
-        { name: "laga", note: "laga felen i Kakans senaste rapport – hon börjar om med bara rapporten och koden (dina egna tillägg och skript)" },
+        { name: "laga", note: "laga felen i " + win.aiGen + " senaste rapport – hon börjar om med bara rapporten och koden (dina egna tillägg och skript)" },
         { name: (reserveInfo.commands || {}).fast || "haiku", reserve: "fast", args: true, hidden: reserveInfo.on !== true || !reserveInfo.helper,
           note: "fråga " + (reserveInfo.fast || "") + " (ditt abonnemang) – utan fråga: försök igen med den förra" },
         { name: (reserveInfo.commands || {}).strong || "sonnet", reserve: "strong", args: true, hidden: reserveInfo.on !== true || !reserveInfo.helper,
@@ -2543,7 +2545,7 @@ Window {
                 width: parent.width - 48
                 spacing: 14
                 Text {
-                    text: "Ska " + (win.reserveInfo.program || "") + " hjälpa Kakan?"
+                    text: "Ska " + (win.reserveInfo.program || "") + " hjälpa " + win.ai + "?"
                     color: "#E6ECF5"
                     font.family: "Chakra Petch"
                     font.weight: Font.DemiBold
@@ -2552,11 +2554,11 @@ Window {
                 Text {
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: (win.reserveInfo.program || "") + " är inloggat på datorn. Kakan kan använda det som reserv:\n\n"
+                    text: (win.reserveInfo.program || "") + " är inloggat på datorn. " + win.ai + " kan använda det som reserv:\n\n"
                           + "•  När ett spel kör vilar lokala AI:n – då svarar " + (win.reserveInfo.fast || "") + " i stället.\n"
-                          + "•  När Kakan fastnar kommer knappen \"Försök igen med " + (win.reserveInfo.fast || "") + "\" under svaret – du väljer själv.\n"
+                          + "•  När " + win.ai + " fastnar kommer knappen \"Försök igen med " + (win.reserveInfo.fast || "") + "\" under svaret – du väljer själv.\n"
                           + "•  Kommer den inte vidare tar " + (win.reserveInfo.strong || "") + " över.\n\n"
-                          + "Den använder Kakans verktyg och ändrar bara via korten, när du trycker Tillåt. "
+                          + "Den använder " + win.aiGen + " verktyg och ändrar bara via korten, när du trycker Tillåt. "
                           + "Det drar av kvoten på ditt abonnemang – det syns i kvot-widgeten i toppfältet. "
                           + "Aldrig i ett Privat-projekt, aldrig bilder.\n\n"
                           + "Du kan ändra det när du vill i Inställningar → Skicka vidare."
@@ -3073,7 +3075,7 @@ Window {
                                             width: parent.width
                                             spacing: 2
                                             Text {
-                                                text: "DET HÄR ÄR FEL  ·  enligt Kakan"
+                                                text: "DET HÄR ÄR FEL  ·  enligt " + win.ai
                                                 color: "#5C6880"
                                                 font.family: "IBM Plex Sans"
                                                 font.pixelSize: 11
@@ -3172,7 +3174,7 @@ Window {
                                             width: parent.width
                                             spacing: 2
                                             Text {
-                                                text: "SÅ HÄR SKA DET BLI  ·  enligt Kakan"
+                                                text: "SÅ HÄR SKA DET BLI  ·  enligt " + win.ai
                                                 color: "#5C6880"
                                                 font.family: "IBM Plex Sans"
                                                 font.pixelSize: 11
@@ -3376,7 +3378,7 @@ Window {
                                             visible: segItem.s.type === "knowledge"
                                             width: parent.width
                                             wrapMode: Text.WordWrap
-                                            text: segItem.s.state === "saved" ? "Sparat i kunskapsminnet – " + (backend.aiName || "Kakan") + " läser det vid frågor om ämnet (Inställningar → Kunskap)."
+                                            text: segItem.s.state === "saved" ? "Sparat i kunskapsminnet – " + win.ai + " läser det vid frågor om ämnet (Inställningar → Kunskap)."
                                                   : segItem.s.state === "denied" ? "Nekat – inte sparat, och föreslås inte igen."
                                                   : segItem.s.state === "error" ? (segItem.s.error || "Gick inte att spara.")
                                                   : "Kolla att fakta stämmer med källan (klicka för att öppna den). Inget sparas förrän du trycker Tillåt."
@@ -3415,7 +3417,7 @@ Window {
                                             text: segItem.s.state === "undone" ? "Ångrat."
                                                   : segItem.s.state === "merged" ? "Den äldre lösningen behölls."
                                                   : (segItem.s.action === "confirmed" ? "Bekräftade den kända lösningen – den har fungerat nu:\n"
-                                                     : segItem.s.confirmed === false ? "Sparad som känd lösning (ej bekräftad – Kakan frågar om den hjälpte när den används):\n"
+                                                     : segItem.s.confirmed === false ? "Sparad som känd lösning (ej bekräftad – " + win.ai + " frågar om den hjälpte när den används):\n"
                                                      : "Sparad som känd lösning – känns igen nästa gång:\n")
                                                     + "Tecken: " + (segItem.s.question || segItem.s.problem || "") + "\n" + (segItem.s.lesson || "")
                                             color: "#C9D3E3"
@@ -5448,7 +5450,7 @@ Window {
                             wrapMode: Text.WordWrap
                             text: backend.aiName
                                   ? "Din AI heter " + backend.aiName + (backend.aiGender ? " (" + backend.aiGender + ")" : "") + " – i alla chattar och i snabbrutan (Meta+§), både lokalt och i molnet."
-                                  : "Ge din AI ett eget namn, så kallar den sig det i alla chattar – t.ex. Kakan."
+                                  : "Ge din AI ett eget namn, så kallar den sig det i alla chattar."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
                             font.pixelSize: 13
@@ -6104,7 +6106,7 @@ Window {
                             Text {
                                 width: parent.width
                                 wrapMode: Text.WordWrap
-                                text: "Fakta " + (backend.aiName || "Kakan") + " hittat på nätet och i Wikipedia och som du godkänt (Tillåt på kortet under svaret). "
+                                text: "Fakta " + win.ai + " hittat på nätet och i Wikipedia och som du godkänt (Tillåt på kortet under svaret). "
                                       + "Vid en fråga om samma ämne läser hon här först – står svaret här söker hon inte igen, utom när frågan gäller något som kan ha ändrats. "
                                       + "Nekade förslag föreslås inte igen. Delas av alla chattar."
                                 color: "#8B98AD"
@@ -6769,7 +6771,7 @@ Window {
                                 visible: !mcpCard.hasBrowser
                                 width: parent.width
                                 wrapMode: Text.WordWrap
-                                text: "Webbläsaren (Microsofts Playwright-server): en egen webbläsare i en container, utan dina inloggningar – Kakan kan öppna sidor, klicka och fylla i. Öppna och läsa går direkt, klicka och skriva kräver Tillåt. Hämtar ca 1 GB första gången."
+                                text: "Webbläsaren (Microsofts Playwright-server): en egen webbläsare i en container, utan dina inloggningar – " + win.ai + " kan öppna sidor, klicka och fylla i. Öppna och läsa går direkt, klicka och skriva kräver Tillåt. Hämtar ca 1 GB första gången."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
                                 font.pixelSize: 13
@@ -7451,7 +7453,7 @@ Window {
                         Text {
                             width: parent.width
                             wrapMode: Text.WordWrap
-                            text: "Det Kakan inte kan laga själv blir en rapport. Här väljer du vem som får den: knappen under svaren "
+                            text: "Det " + win.ai + " inte kan laga själv blir en rapport. Här väljer du vem som får den: knappen under svaren "
                                   + "startar programmet i TERMINAL med rapporten som uppgift. Skriv \"skicka till Claude\" eller "
                                   + "\"skicka till Codex\" i frågan så startar det av sig självt när rapporten är klar – det "
                                   + "använder kvoten på ditt abonnemang. Bara \"skicka\" sparar rapporten utan att starta något."
@@ -7475,14 +7477,14 @@ Window {
                                 }
                             }
                         }
-                        Label { visible: !!win.reserveInfo.helper; text: "KAKANS RESERV" }
+                        Label { visible: !!win.reserveInfo.helper; text: win.aiGen.toUpperCase() + " RESERV" }
                         Text {
                             visible: !!win.reserveInfo.helper
                             width: parent.width
                             wrapMode: Text.WordWrap
                             text: "När lokala AI:n vilar (ett spel kör) svarar " + (win.reserveInfo.fast || "") + " i " + (win.reserveInfo.program || "")
-                                  + " åt Kakan, och när hon fastnar kan du trycka \"Försök igen med " + (win.reserveInfo.fast || "") + "\" under svaret. "
-                                  + "Kommer den inte heller vidare tar " + (win.reserveInfo.strong || "") + " över. Den läser med Kakans verktyg och "
+                                  + " åt " + win.ai + ", och när hon fastnar kan du trycka \"Försök igen med " + (win.reserveInfo.fast || "") + "\" under svaret. "
+                                  + "Kommer den inte heller vidare tar " + (win.reserveInfo.strong || "") + " över. Den läser med " + win.aiGen + " verktyg och "
                                   + "ändrar bara via korten (Tillåt). Det drar av kvoten på ditt abonnemang – du ser det i kvot-widgeten i toppfältet. "
                                   + "Aldrig i ett Privat-projekt, aldrig bilder."
                             color: "#8B98AD"
@@ -7861,8 +7863,8 @@ Window {
                             width: parent.width
                             wrapMode: Text.WordWrap
                             text: "Håll röstknappen (F8 – byt i Systeminställningar → Genvägar → goblincakes-voice) och prata, släpp när "
-                                  + "du är klar. Enkla saker gör " + (backend.aiName || "Kakan") + " direkt: musik, volym, starta spel och program, klockan, "
-                                  + "senaste pullen, \"det laggar\". Annat öppnar Goblin AI med frågan. Under spel läser " + (backend.aiName || "Kakan")
+                                  + "du är klar. Enkla saker gör " + win.ai + " direkt: musik, volym, starta spel och program, klockan, "
+                                  + "senaste pullen, \"det laggar\". Annat öppnar Goblin AI med frågan. Under spel läser " + win.ai
                                   + " inte upp något – svaret syns bara i rutan uppe till höger. Allt hörs och läses på din dator, "
                                   + "inget skickas iväg."
                             color: "#8B98AD"
@@ -7917,9 +7919,9 @@ Window {
                             width: parent.width
                             wrapMode: Text.WordWrap
                             text: (win.voiceStatus.learned || []).length
-                                  ? "Det " + (backend.aiName || "Kakan") + " har hört och vad du menade. Lärt när du sagt ja till \"Menade du …?\" "
+                                  ? "Det " + win.ai + " har hört och vad du menade. Lärt när du sagt ja till \"Menade du …?\" "
                                     + "– säg nej direkt efter något fel, eller tryck Glöm här."
-                                  : "Inget än. När du säger ja till \"Menade du …?\" kommer " + (backend.aiName || "Kakan")
+                                  : "Inget än. När du säger ja till \"Menade du …?\" kommer " + win.ai
                                     + " ihåg det hon hörde och spelar rätt direkt nästa gång."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"

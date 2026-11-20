@@ -697,12 +697,12 @@ def first_name():
 
 
 def greet(text):
-    """Aloud with Kakan's voice when Röst is installed (the man's voice when the AI is "han"), else a notice."""
+    """Aloud with the AI's voice when Röst is installed (the man's voice when the AI is "han"), else a notice."""
     config = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "goblincakes"
     try:
-        name = (config / "ai-name").read_text().strip() or "Kakan"
+        name = (config / "ai-name").read_text().strip() or "Goblin AI"
     except OSError:
-        name = "Kakan"
+        name = "Goblin AI"
     try:
         voice = "man" if (config / "ai-gender").read_text().strip() == "han" else "kvinna"
     except OSError:

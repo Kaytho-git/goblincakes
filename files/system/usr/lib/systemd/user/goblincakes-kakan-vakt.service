@@ -1,5 +1,5 @@
 [Unit]
-Description=GOBLINCAKES Kakans påminnelser och bevakningar (Goblin AI: "påminn mig 19:45", "säg till när …")
+Description=GOBLINCAKES Goblin AI:s påminnelser och bevakningar (Goblin AI: "påminn mig 19:45", "säg till när …")
 ConditionKernelCommandLine=!rd.live.image
 
 [Service]

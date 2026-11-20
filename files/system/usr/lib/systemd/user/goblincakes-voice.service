@@ -1,5 +1,5 @@
 [Unit]
-Description=Kakan's voice – hold the voice key (F8) and talk (installed from Goblin AI)
+Description=Goblin AI's voice – hold the voice key (F8) and talk (installed from Goblin AI)
 # Only for those who installed the voice (goblincakes-voice install)
 ConditionPathExists=%h/.local/share/goblincakes-voice/venv/bin/python3
 # Needs the desktop (KDE's shortcut service, the sound server)

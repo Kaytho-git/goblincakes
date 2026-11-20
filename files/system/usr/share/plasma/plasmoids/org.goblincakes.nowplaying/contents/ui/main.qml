@@ -511,7 +511,7 @@ PlasmoidItem {
                 implicitWidth: Math.round(240 * s)
                 mark: Kirigami.Theme.focusColor
                 breathe: true
-                label: String(root.ai.name || "Kakan").toUpperCase() + (root.ai.kind === "image" ? " RITAR" : " ARBETAR")
+                label: String(root.ai.name || "Goblin AI").toUpperCase() + (root.ai.kind === "image" ? " RITAR" : " ARBETAR")
                 text: {
                     const steps = root.ai.steps || [];
                     const now = steps.filter(s => s.state === "run").pop();

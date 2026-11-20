@@ -724,7 +724,7 @@ class Backend(QObject):
         try:
             folder, command, name = goblinai.reserve_terminal(self._api, level)
         except (goblinai.ServiceError, OSError) as e:
-            self.notice.emit(f"Kakans reserv: {e} – frågar som vanligt")
+            self.notice.emit(f"{goblinai.ainame.gen()} reserv: {e} – frågar som vanligt")
             return False
         self.claudeTerminal.emit(str(folder), command)
         text = (f"*{name} jobbar med frågan i TERMINAL-fliken ({folder}).* Den frågar där innan den ändrar något – "
@@ -2152,6 +2152,9 @@ class Backend(QObject):
     def setAiName(self, name):
         goblinai.set_ai_name(name)
         self.nameChanged.emit()
+        # the voice's word list starts with the name (Whisper then hears it) – only restarted when it runs (20 Nov)
+        subprocess.Popen(["systemctl", "--user", "try-restart", "goblincakes-voice.service"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     @Property(str, notify=nameChanged)
     def aiGender(self):
@@ -2204,14 +2207,14 @@ class Backend(QObject):
         """A picture (chosen or drawn in a chat) becomes the avatar."""
         if not self._save_avatar(source, AVATAR):
             return
-        self.notice.emit(f"{goblinai.ai_name() or 'Goblin AI'} har fått en ny avatar.")
+        self.notice.emit(f"{goblinai.ainame.name()} har fått en ny avatar.")
         threading.Thread(target=goblinai.describe_avatar, daemon=True).start()  # so the AI knows how it looks
 
     @Slot(str)
     def setAvatarThinking(self, source):
         """A picture becomes the thinking avatar – shown while the AI works, instead of "tänker…"."""
         if self._save_avatar(source, AVATAR_THINKING):
-            self.notice.emit(f"{goblinai.ai_name() or 'Goblin AI'} har fått en tänkande avatar.")
+            self.notice.emit(f"{goblinai.ainame.name()} har fått en tänkande avatar.")
 
     @Slot()
     def removeAvatarThinking(self):
@@ -3167,7 +3170,7 @@ class Backend(QObject):
         if self._busy or level not in goblinai.RESERVE_LEVELS:
             return
         if goblinai.reserve_on() is not True or not goblinai.reserve_helper():
-            self.notice.emit("Kakans reserv är av – Inställningar → Skicka vidare")
+            self.notice.emit(f"{goblinai.ainame.gen()} reserv är av – Inställningar → Skicka vidare")
             return
         if text.strip():
             self._reserve_next = level
@@ -3208,7 +3211,7 @@ class Backend(QObject):
         import knowledge  # noqa: PLC0415 – finds the GOBLINCAKES repo, if there is one
         repo = knowledge.find_repo()
         helper = toclaude.current()
-        self.notice.emit(f"{toclaude.NAMES.get(helper, 'Claude')} läser Kakans rapport (bara läsning, en stund)…")
+        self.notice.emit(f"{toclaude.NAMES.get(helper, 'Claude')} läser {goblinai.ainame.gen()} rapport (bara läsning, en stund)…")
         conversation = self._id
 
         def work():
@@ -3231,9 +3234,9 @@ class Backend(QObject):
             self.notice.emit(f"Varken Claude Code eller Codex finns – rapporten: {path}")
         elif self.web:
             self.claudeTerminal.emit(str(repo or Path.home()), toclaude.fix_command(path, helper))
-            self.notice.emit(f"{program} startar i TERMINAL med Kakans rapport")
+            self.notice.emit(f"{program} startar i TERMINAL med {goblinai.ainame.gen()} rapport")
         elif toclaude.start_fix(path, repo, helper):
-            self.notice.emit(f"{program} startar i en terminal med Kakans rapport")
+            self.notice.emit(f"{program} startar i en terminal med {goblinai.ainame.gen()} rapport")
         else:
             self.notice.emit(f"{program} gick inte att starta – rapporten: {path}")
 
@@ -3251,7 +3254,7 @@ class Backend(QObject):
             return
         helper = toclaude.current()
         service = (f"Claude {toclaude.MODEL.capitalize()}" if helper == "claude" else toclaude.NAMES.get(helper, "")) \
-            + " (läste Kakans rapport)"
+            + f" (läste {goblinai.ainame.gen()} rapport)"
         shown = {"role": "assistant", "text": text, "segments": goblinai.segments(text), "service": service,
                  "file": "", "tools": []}
         self._apply_memory(shown, source="claude")  # its ```löst = a known solution, not confirmed yet
@@ -3388,7 +3391,7 @@ class Backend(QObject):
             return self.notice.emit(f"Resultatet gick inte att spara: {e}")
         table = markdown.split("\n## ", 1)[0].split("\n", 1)[1].strip()
         self._test_post(f"**Testlistan är {'stoppad' if stopped else 'klar'}.** {table}\n\nSparat åt Claude: "
-                        f"`{str(path).replace(str(Path.home()), '~')}` – säg åt Claude att läsa Kakans rapporter.")
+                        f"`{str(path).replace(str(Path.home()), '~')}` – säg åt Claude att läsa {goblinai.ainame.gen()} rapporter.")
         self._api.append({"role": "assistant", "content": f"[Du körde Claudes testlista {t['data']['title']}:]\n{table}"})
         self._save()
 

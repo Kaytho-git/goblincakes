@@ -34,7 +34,7 @@ def place(path):
     m = re.search(r"/plasmoids/([^/]+)(?:/.*?([^/]+))?$", p)
     if m:
         return f"{m.group(2)} i widgeten {m.group(1)}" if m.group(2) else f"widgeten {m.group(1)}"
-    m = re.match(r"~/kakan-prov/([^/]+)(?:/(.+))?$", p)
+    m = re.match(r"~/(?:kakan|goblin)-prov/([^/]+)(?:/(.+))?$", p)
     if m:
         return f"{m.group(2)} i provmappen {m.group(1)}" if m.group(2) else f"provmappen {m.group(1)}"
     return p

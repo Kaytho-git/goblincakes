@@ -31,6 +31,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import ainame  # noqa: E402
 import toclaude
 
 FOLDER = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "goblincakes/testlistor"
@@ -210,7 +211,7 @@ def result_markdown(data, results, path, stopped=False):
     counts = {v: sum(1 for r in results if r["verdict"] == v) for v in VERDICTS}
     summary = ", ".join(f"{n} {v}" for v, n in counts.items() if n)
     out = [f"# Testresultat: {data['title']}",
-           f"{datetime.now():%Y-%m-%d %H:%M} – Kakan körde testlistan {Path(path).name} åt Claude"
+           f"{datetime.now():%Y-%m-%d %H:%M} – {ainame.name()} körde testlistan {Path(path).name} åt Claude"
            + (" (stoppad innan den var klar)" if stopped else "") + f". {summary}.",
            "", "| # | Punkt | Resultat | Varför |", "|---|---|---|---|"]
     for n, r in enumerate(results, 1):

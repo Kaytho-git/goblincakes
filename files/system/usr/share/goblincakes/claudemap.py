@@ -17,18 +17,21 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(1, str(Path(__file__).resolve().parent / "ai"))
+import ainame  # noqa: E402 – the AI's name (Goblin AI, or the one chosen)
+
 # "kakan" (14 Nov, the user: "att det visas i kartan när hon jobbar för dig"): Claude or Codex using Kakan – her picture
 # program, her model through Ollama, her MCP tools. Not on Kakan's own map (KakanSession.ORDER).
 STATIONS = ["you", "model", "memory", "files", "shell", "net", "browser", "agents", "kakan", "skills", "hooks"]
 NAMES = {"you": "DU", "model": "MODELL", "memory": "MINNE", "files": "FILER", "shell": "SKAL", "net": "NÄTVERK",
-         "browser": "WEBBLÄSARE", "agents": "AGENTER", "kakan": "KAKAN", "skills": "SKILLS", "hooks": "HOOKS"}
+         "browser": "WEBBLÄSARE", "agents": "AGENTER", "kakan": ainame.name().upper(), "skills": "SKILLS", "hooks": "HOOKS"}
 KAKAN_CMDS = [   # a command that has Kakan work → its row on the map
-    (r"\bgoblin(?:cakes-pixelart|\s+pixelart)\s+kakan\b((?:\s+[a-zåäö][\w-]*)*)", lambda m: "Kakan ritar " + (
+    (r"\bgoblin(?:cakes-pixelart|\s+pixelart)\s+(?:kakan|ai)\b((?:\s+[a-zåäö][\w-]*)*)", lambda m: ainame.name() + " ritar " + (
         " ".join(m.group(1).split()) or "pixelart")),
-    (r"\bgoblincakes-image\s+generate\b", lambda m: "Kakan ritar en bild"),
-    (r"\bgoblincakes-image\s+pull-style\b", lambda m: "Kakan hämtar en ritstil"),
-    (r"\bollama\s+(?:run|generate)\b", lambda m: "Kakan tänker (Ollama)"),
-    (r"(?:localhost|127\.0\.0\.1):11434/api/(?:generate|chat)", lambda m: "Kakan tänker (Ollama)"),
+    (r"\bgoblincakes-image\s+generate\b", lambda m: ainame.name() + " ritar en bild"),
+    (r"\bgoblincakes-image\s+pull-style\b", lambda m: ainame.name() + " hämtar en ritstil"),
+    (r"\bollama\s+(?:run|generate)\b", lambda m: ainame.name() + " tänker (Ollama)"),
+    (r"(?:localhost|127\.0\.0\.1):11434/api/(?:generate|chat)", lambda m: ainame.name() + " tänker (Ollama)"),
 ]
 
 
@@ -185,7 +188,7 @@ def classify(name, args):
         if "memory" in low or tool in ("losningar", "rapporter"):
             return "memory", f"{server} · {tool}"
         if server == "kakan":
-            return "kakan", f"Kakan · {tool}"
+            return "kakan", f"{ainame.name()} · {tool}"
         return "net", f"{server} · {tool}"
     if name in ("Artifact",):
         return "net", "artifact"
@@ -516,7 +519,7 @@ class Session:
                 for r in self.rows[-ROWS:]]
         now_line = (running[-1]["label"] if running else "tänker…" if self.busy else
                     "väntar på dig" if idle < ACTIVE_FOR else "ingen aktivitet")
-        return {"tool": self.TOOL, "core": self.CORE, "title": self.TITLE, "names": self.NAMES, "order": self.ORDER,
+        return {"tool": self.TOOL, "core": self.CORE, "title": self.TITLE, "names": self.NAMES or NAMES, "order": self.ORDER,
                 "session": self.id, "cwd": self.cwd, "folder": Path(self.cwd).name if self.cwd else "",
                 "model": short_model(self.model), "context": round(100 * self.tokens / self.window()) if self.window() else 0,
                 "busy": self.busy or bool(running), "running": running, "stations": stations, "rows": rows,
@@ -685,7 +688,7 @@ def kakan_station(tool, text):
 
 
 class KakanSession(Session):
-    TOOL, CORE, TITLE = "kakan", "KAKAN", "KAKAN"
+    TOOL, CORE, TITLE = "kakan", ainame.name().upper(), ainame.name().upper()
     ORDER = [s for s in STATIONS if s != "kakan"]
     NAMES = {"you": "DU", "model": "MODELL", "memory": "MINNE", "files": "FILER", "shell": "KOMMANDON",
              "net": "NÄTET", "browser": "SPEL", "agents": "DATORN", "skills": "SKRIVBORDET", "hooks": "KONTROLL"}
@@ -836,7 +839,7 @@ class Watcher:
             out["folder"] = Path(out["cwd"]).name if out["cwd"] else path.parent.name
         names = {"claude": "", "codex": "codex · ", "kakan": ""}
         out["sessions"] = [{"id": self.sid(f, k), "tool": k,
-                            "folder": "Kakan" if k == "kakan" else names[k] + (Path(self.folder_of(f, k)).name or f.parent.name),
+                            "folder": ainame.name() if k == "kakan" else names[k] + (Path(self.folder_of(f, k)).name or f.parent.name),
                             "active": now - m < 120, "on": f == path} for m, f, k in found[:6]]
         out["picked"] = bool(self.pick)
         return out

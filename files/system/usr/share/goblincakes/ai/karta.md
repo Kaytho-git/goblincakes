@@ -104,7 +104,7 @@ Ord: efter uppdateringen, efterkontroll, gick sönder, slutade fungera, ny image
   ai/aftercheck.py) på GOBLINCAKES påslagna tjänster, misslyckade tjänster, toppfältet och widgetarnas fel
   (org.goblincakes.*), Ollama, GoblinRecorders CS2-demoläsare (demoparser2/awpy, bara med GoblinRecorder på). Resultatet sparas per image i ~/.local/state/goblincakes/efterkontroll.json.
 - Efter en ny image jämförs med förra imagen: bara det som fungerade före och är trasigt nu ger en notis
-  ("Efter uppdateringen: N saker gick sönder", knappen Fråga Kakan). Allt bra = ingen notis.
+  ("Efter uppdateringen: N saker gick sönder", knappen Fråga + ditt namn). Allt bra = ingen notis.
 - "No module named 'demoparser2'" efter ny Fedora-version = demoparser2/awpy/pandas har färdiga paket per Python-version och bygget (install-demoparser.sh) föll tyst → inget i /usr/lib/goblincakes/demoparser. Läsaren körs med python3.14 (recorder `cs2_demo_process`); kolla `ls /usr/lib/goblincakes/demoparser`, `rpm -q python3.14`, byggloggen. Du kan inte rätta det på datorn (read-only) – skicka vidare. goblincakes-voice.service "inactive (success)" efter ny Fedora-version: läs `journalctl --user -u goblincakes-voice -b`. "pip misslyckades: No matching distribution" = rösten är trasig (paketen saknas för nya Pythonen; miljön görs med python3.14, finns den inte i imagen → skicka vidare). Bara "Inte lagad nu" = användaren har inte tryckt Laga nu – säg åt hen att köra goblin update.
 - Var trasigt redan före = inte uppdateringens fel. Kända ofarliga fel (systemd-remount-fs, nvidia-settings-load)
   räknas inte.
@@ -143,7 +143,7 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
 - /usr/bin/goblin-dashboard (fönstret, kod /usr/share/goblincakes/dashboard/: Main.qml, dash.py = allt som läses,
   windows.js = KWin-skriptet för öppna fönster – växla till och stänga via högerklick). Processen ligger kvar gömd
   efter Esc så att den kommer upp direkt; `goblin dashboard stäng` avslutar den. Inget läses medan den är gömd.
-- Program som startas från dashboarden (program, projekt, Fråga Kakan, Anpassa, länkar) får en egen enhet
+- Program som startas från dashboarden (program, projekt, Fråga + ditt namn, Anpassa, länkar) får en egen enhet
   app-goblincakes-<namn>-<slump>.scope (dash.start via systemd-run --scope) – inte dashboardens. Kolla:
   systemctl --user list-units 'app-goblincakes-*'
 - Klockraden (12 nov): gömd som standard (Plasmas autohide, fram vid överkanten i mitten) eller framme på tomt skrivbord
@@ -196,7 +196,7 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   Warcraft Logs, en fråga per rapport, sparat i ~/.cache/goblincakes/dashboard-wcl.json; utan WCL-nyckel
   (~/.config/goblincakes/wcl.json) eller utan länk på pullen visas bara kill/wipe.
 - Den göms av sig själv när ett annat fönster blir aktivt (som Plasmas Instrumentpanel för program).
-- Steg 3 (10 nov), vyer: SPEL (Projekt, System | WoW Stats, CS2 Stats) och JOBB (Projekt, System | Byggen, Kakan) som
+- Steg 3 (10 nov), vyer: SPEL (Projekt, System | WoW Stats, CS2 Stats) och JOBB (Projekt, System | Byggen, din ram med ditt namn) som
   standard, högst 3 ramar till vänster och 2 till höger, högst 6 vyer; KVOT och SPELAS NU syns i alla. Byte: prickarna
   under mitten (tryck eller hjulet), svep i sidled, Ctrl+← →. En ram som inte finns i någon vy läses inte alls.
   Ram saknas fast den är vald → den har inget att visa (t.ex. ingen WoW-historik), eller vyn är en annan än man tror:
@@ -207,8 +207,8 @@ Kontroll: `python3 /usr/share/goblincakes/dashboard/dash.py system` (även apps,
 - Steg 4 (10 nov), skrivbordets upplägg – ett val, standard = toppfält och docka: Config → INSTÄLLNINGAR → Utseende →
   Skrivbordets upplägg eller `goblin dashboard upplägg dashboard|klassiskt`; hjälparen /usr/libexec/goblincakes-desktop-layout
   (`status` = classic/dashboard). Dashboard = toppfältet och dockan borta, en panel uppe i mitten (alltid gömd – autohide,
-  fram vid överkanten): widgetarna org.goblincakes.nowplaying (part=left: Steam + Discord, part=right: Spelas nu + Kakan),
-  org.goblincakes.deskclock (batteri, nätverk nmcli, klocka/datum/vecka, ljud wpctl, headsetbatteri, Kakan längst till höger: cupcaken Redo/Laddar/Ej laddad/Vilar – läser Ollamas /api/ps, klick = goblincakes-ollama wake) och ett litet
+  fram vid överkanten): widgetarna org.goblincakes.nowplaying (part=left: Steam + Discord, part=right: Spelas nu + du),
+  org.goblincakes.deskclock (batteri, nätverk nmcli, klocka/datum/vecka, ljud wpctl, headsetbatteri, du längst till höger (ditt namn): cupcaken Redo/Laddar/Ej laddad/Vilar – läser Ollamas /api/ps, klick = goblincakes-ollama wake) och ett litet
   systemfält i en egen panel gömd uppe till höger (autohide; bara notiser + programmens ikoner – behövs för notiserna). Meta = Plasmas globala
   kortkommando goblin-dashboard/toggle (kglobalaccel; Meta tas från plasmashells "activate application launcher", Alt+F1
   blir kvar). Dashboarden lyssnar själv på det, så den måste köra (startas gömd vid inloggning; efter
@@ -270,7 +270,7 @@ Ord: kartan, ai-kartan, claude-kartan, claude code-kartan, KARTA, vad claude gö
   Inget installeras i Claude Code. Kod: /usr/share/goblincakes/claudemap.py (läsaren), claudefeed.py (Qt),
   qml/Goblin/ClaudeMap.qml (ritningen).
 - Stationen KAKAN (rosa, 14 nov) på Claudes och Codex karta = när de använder dig: ditt bildprogram
-  (`goblin pixelart kakan …`, `goblincakes-image generate/pull-style`), din modell via Ollama (`ollama run`,
+  (`goblin pixelart ai …`, `goblincakes-image generate/pull-style`), din modell via Ollama (`ollama run`,
   localhost:11434/api/…) och dina MCP-verktyg (utom rapporter/losningar = MINNE). Inte på din egen karta.
   Igenkänningen: `kakan_use()` i claudemap.py (text inom citattecken räknas inte).
 - Kolla för hand: `python3 /usr/share/goblincakes/claudemap.py` (nyaste sessionen) eller `… claudemap.py ~/projekt`
@@ -291,8 +291,12 @@ Ord: kartan, ai-kartan, claude-kartan, claude code-kartan, KARTA, vad claude gö
   för mycket i början av en 1M-session.
 
 ## Goblin AI (du själv)
-Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, körda kommandon, ångra
+Ord: goblin ai, kakan, namn, provmapp, goblin-prov, ai, chatt, meta+a, minne, lärdomar, kända lösningar, körda kommandon, ångra
 - Fönstret /usr/bin/goblin-ai (Meta+A, goblin ai app), koden i /usr/share/goblincakes/ai/ (goblinai.py m.fl.).
+- Ditt namn (20 nov): ~/.config/goblincakes/ai-name (Inställningar → Namn), tomt = Goblin AI. ai/ainame.py ger namnet
+  till alla delar (notiser, dashboarden, klockrutan, rösten); väckordet är namnet (eller "goblin ai"), och röstens
+  tjänst startas om när namnet byts. Provmappen för kopior och widgetar: ~/kakan-prov där den redan fanns, annars
+  ~/goblin-prov (ainame.prov()). Kolla: `python3 -c "import sys; sys.path.insert(0, '/usr/share/goblincakes/ai'); import ainame; print(ainame.name())"`.
 - Skrivna kommandon utan AI (20 nov): ett kort meddelande som är ett kommando rakt av ("pausa", "nästa låt",
   "höj volymen", "starta wow", "spela <album> med <artist>", "vad är klockan", "visa senaste pullen") görs direkt
   med röstens kommandon (voicecmd.typed) – svaret märks "Direkt – utan AI" och fungerar även när AI:n vilar under
@@ -425,7 +429,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   läggs i vakt.json som "plan" (reminders.plan_chain/run_plan, väntar under spel) – "påminn mig att …" = vanlig
   påminnelse. Har ett steg i kedjan gått via dig öppnas Goblin AI med samtalet (inte under spel). Steg en annan dag än idag står också i kalendern (Merkuro, utan kalenderns egen påminnelse). Planen är bara användarens egna svar:
   inget du läser lägger till steg. Fortsätter inte planen: användaren skriver fortsätt eller avbryt.
-- Kakans reserv (punkt 17, 7 nov): Claude Code eller Codex med användarens eget abonnemang tar frågan åt dig när
+- Din reserv (punkt 17, 7 nov): Claude Code eller Codex med användarens eget abonnemang tar frågan åt dig när
   lokala AI:n vilar (ett spel kör) och när användaren trycker "Försök igen med Claude Haiku" (eller /haiku, /sonnet;
   med Codex /luna, /sol) under ett svar där du fastnat. Programmet startar som sig självt i en TERMINAL-flik i Goblin
   AI (i `goblin ai`: i samma terminal, /exit tillbaka) med frågan och samtalet – dess egna verktyg (Read/Grep/Edit)
@@ -449,7 +453,7 @@ Ord: goblin ai, kakan, ai, chatt, meta+a, minne, lärdomar, kända lösningar, k
   metadata.json + contents/ui/main.qml med PlasmoidItem, kpackagetool6 -t Plasma/Applet, prova med timeout 8
   plasmawindowed – felen står i journalen, `journalctl --user -t plasmawindowed`). Klart först när provet visar "Inga fel.".
 
-## Kunskapsminnet (Kakans fakta från nätet)
+## Kunskapsminnet (dina fakta från nätet)
 Ord: kunskapsminne, kunskap, spara i minnet, kom ihåg fakta, följdfråga, nekat, tillåt
 - Filen ~/.local/share/goblincakes/ai/kunskap.md: en `## rubrik` per ämne, under den "Sparad ÅÅÅÅ-MM-DD · Källa: [titel](adress)" och fakta. Delas av alla chattar. Nekade förslag i kunskap-nekat.json bredvid.
 - Programmet /usr/share/goblincakes/ai/kunskap.py (`list [ord]`, `visa RUBRIK`, `ta-bort RUBRIK`, `nekat`). Inställningar → Kunskap visar ämnena (klick = fakta och källor, × = ta bort) och Nekade förslag.
@@ -494,7 +498,7 @@ Kontroll: `systemctl --user is-active goblincakes-recorder`
 Kontroll: `journalctl --user -u goblincakes-recorder -n 15 --no-pager`
 
 - Warcraft Logs (länkar, siffror, parses) hämtas INTE medan man spelar (18 nov): bara när GoblinRecorders fönster
-  visas (sedan högst var 10:e min), dashboarden visas (högst var 10:e min), Kakans wowstats frågar, en gång efter
+  visas (sedan högst var 10:e min), dashboarden visas (högst var 10:e min), ditt wowstats-verktyg frågar, en gång efter
   raiden (WoW stängt eller 30 min utan pull) och en gång till ~65 min senare (parses rankade). Frågan = filen
   ~/.cache/goblincakes/wcl-ask, klar = wcl-fetched. Timkvoten slut (429) → ~/.cache/goblincakes/wcl-pause (tid då
   den är tillbaka) – inga anrop alls före den, från något program. Korta wipes som WCL inte sparar får
@@ -569,7 +573,7 @@ Ord: spelläge, gamemode, spel, prestanda, lagg, fps, wowup stängs, battle.net 
 - Tjänsten goblincakes-gameguard (/usr/libexec/goblincakes-gameguard run) ser varje sekund om ett spel kör:
   GameMode, uppdateringar väntar, Akonadi/Baloo vilar, WoWUp stängs medan WoW kör. Allt återställs efter spelet.
 - Den är ensam om att leta efter spel och kör även med Spelläge av (då letar den bara): svaret står i
-  $XDG_RUNTIME_DIR/goblincakes-game (1 = spel, 0 = inget, rörs varje sekund). Lokala AI:n, Kakans vakt och Goblin AI läser
+  $XDG_RUNTIME_DIR/goblincakes-game (1 = spel, 0 = inget, rörs varje sekund). Lokala AI:n, vakt-tjänsten och Goblin AI läser
   den; är filen äldre än 5 s (tjänsten stannad/kraschad) letar de själva som förut. Kolla: systemctl --user status
   goblincakes-gameguard; stat -c %y $XDG_RUNTIME_DIR/goblincakes-game
 - Vad som är ett spel: /usr/share/goblincakes/gaming.py (samma regel för Spelläge och lokala AI:n). Battle.net ensamt är inget
@@ -615,7 +619,7 @@ Ord: goblinup, uppdatera tilläggen, uppdatera addons, nya tillägg, installera 
 - Kommandot: `goblin tillägg` (listan), `goblin tillägg sök [forever] <text>`, `goblin tillägg uppdatera [namn|alla]`,
   `goblin tillägg installera [forever] <namn>`, `goblin tillägg kolla [namn]`, `goblin tillägg ignorera <namn> [av]`,
   `goblin tillägg ta bort <namn>`, `goblin tillägg öppna` (namn i både Retail och Forever = Retail; `forever <namn>`
-  = det i Forever). I dashboarden: högerklick på ett tillägg = Kolla, Uppdatera, Ignorera, Tilläggets sida, Ta bort. Du (Kakan): listan och
+  = det i Forever). I dashboarden: högerklick på ett tillägg = Kolla, Uppdatera, Ignorera, Tilläggets sida, Ta bort. Du: listan och
   sökningen direkt, resten blir ett Tillåt-kort.
 - Hjälparen /usr/libexec/goblincakes-wowup (status = JSON). Läser ~/.config/WowUpCf/addons.json (WowUp skriver den efter
   varje kontroll; clientType 0 = Retail, 10 = Forever; providerName Unknown = "utanför WowUp", t.ex. användarens egna
@@ -650,7 +654,7 @@ Ord: lagg, laggar, ping, laggknappen, meta+shift+l, lagmätning, hackar, nätet,
   `journalctl --user -u goblincakes-lagmeter`.
 Kontroll: `/usr/libexec/goblincakes-lagmeter status`
 
-## Kakans röst (röstknappen)
+## Din röst (röstknappen)
 Ord: röst, röstknappen, f8, prata, hör inte, hörde fel, uppläsning, rutan, whisper, piper, menade du, lärt
 - Håll F8 (musknapp 4 på G502 = F8) och prata, släpp när du är klar. Tjänsten goblincakes-voice
   (/usr/libexec/goblincakes-voice listen, /usr/lib/systemd/user/goblincakes-voice.service) startar bara om
@@ -673,22 +677,22 @@ Ord: röst, röstknappen, f8, prata, hör inte, hörde fel, uppläsning, rutan, 
   "Kommandon", "Svar", "Lärde mig"), `/usr/libexec/goblincakes-voice status`, prova hörseln utan knappen:
   `/usr/libexec/goblincakes-voice test 5`.
 - Ny Fedora = ny Python (44 → 45: 3.14 → 3.15): röstens miljö (venv/lib/pythonX.Y) är gjord för den gamla och
-  måste göras om – modellerna ligger kvar. Tjänsten märker det vid inloggning och visar notisen "Kakans röst
+  måste göras om – modellerna ligger kvar. Tjänsten märker det vid inloggning och visar notisen "<ditt namn>s röst
   behöver lagas" med knappen Laga nu (inget hämtas utan knappen; stängd notis = frågar igen nästa inloggning, och
-  tjänsten är då stoppad utan fel). `goblin update` lagar det också (steget Kakans röst).
+  tjänsten är då stoppad utan fel). `goblin update` lagar det också (steget Goblin AI:s röst).
   Kolla: `/usr/libexec/goblincakes-voice status` → "stale": true = behöver lagas; `/usr/libexec/goblincakes-voice
   stale; echo $?` (0 = behöver lagas); laga för hand: `/usr/libexec/goblincakes-voice install`.
 Kontroll: `/usr/libexec/goblincakes-voice status`
 
 - Under spel (7 nov): en fråga som inte är ett kommando ("gear planner funkar inte, kolla det") går till Goblin AI
   utan att fönstret kommer över spelet – rutan säger "Jag tar det i Goblin AI – svaret kommer på andra skärmen",
-  Claude Haiku (Kakans reserv) startar i TERMINAL-fliken, Goblin AI visas på den lediga skärmen med en notis. Hon
+  Claude Haiku (din reserv) startar i TERMINAL-fliken, Goblin AI visas på den lediga skärmen med en notis. Hon
   läser aldrig upp något under spel.
 - 8 nov: under spel frågar rutan först "Vill du att Claude tittar på det nu, eller kan det vänta …?" och hon lyssnar
   själv (utan F8) i 6 s: "Claude"/"nu"/"ja" = Goblin AI direkt, "vänta"/inget = sparas i
   ~/.local/share/goblincakes-voice/efter-spelet.json; när spelet stängts (koll var 30:e s) en notis med
   frågorna: Skicka till Claude / Släng (stängd utan val = ligger kvar till nästa spel). "fel"/"glöm det" = slängs direkt.
-  Bara "Kakan" (eller "hej Kakan") = "Hej <namn från kontot>! Vad kan jag hjälpa dig med?" och sedan lyssnar hon själv.
+  Bara ditt namn (eller "hej" + namnet; väckordet följer namnet i Inställningar → Namn, standard Goblin AI) = "Hej <namn från kontot>! Vad kan jag hjälpa dig med?" och sedan lyssnar hon själv.
   Loggen: "Lyssnade själv … s", "Sparad till efter spelet", "Spelet slut – N sparade frågor".
 ## Steam och spel
 Ord: steam, proton, spel startar inte, goblin play, tv-läge, big picture, lutris, heroic
@@ -876,7 +880,7 @@ Ord: barnläge, barn, sandlåda, kids, PIN-kod barnläge, goblin barn
   den gamla ritade versionen = DrawnScene.qml, väljs med "pixelart": false i kids.json. Splashen (Splash.qml,
   Glint.qml; färgade gnistor = tools/pixelart-tint.py), rutorna/knapparna (PixelFrame.qml, PixelGlyph.qml, MusicArt.qml)
   och typsnittet Pixelify Sans (kids/fonts/) också. Rita om: `goblin pixelart` →
-  /usr/libexec/goblincakes-pixelart, listan /usr/share/goblincakes/kids/pixelart.json. `kakan <id>` = du ritar med
+  /usr/libexec/goblincakes-pixelart, listan /usr/share/goblincakes/kids/pixelart.json. `ai <id>` (eller `kakan <id>`) = du ritar med
   bildprogrammet (`goblincakes-image generate … --style pixelart`: Z-Image-Turbo + pixelart-tillägget i
   <bildmappen>/loras/, hämtas första gången), `chatgpt <id>` = Codex i ChatGPT-appen (användaren trycker Enter; stilen
   står i ~/.codex/AGENTS.md mellan raderna "goblincakes-pixelart: början/slut"), `jämför` = jämförelsebilden.
