@@ -298,16 +298,16 @@
      "id": "cont-bygga-2",
      "level": 2,
      "title": "Standardvärde och eget värde",
-     "prompt": "Gör välkommen.py som skriver Välkommen, <GAST> (läs miljövariabeln GAST med os.environ). Containerfile med ENV GAST=främling. Bygg som valkommen, kör den en gång utan och en gång med -e GAST=Kaytho.",
+     "prompt": "Gör välkommen.py som skriver Välkommen, <GAST> (läs miljövariabeln GAST med os.environ). Containerfile med ENV GAST=främling. Bygg som valkommen, kör den en gång utan och en gång med -e GAST=Goblin.",
      "starter": "",
      "check": {
-      "regex": "(?m)^Välkommen, främling$\\s+^Välkommen, Kaytho$"
+      "regex": "(?m)^Välkommen, främling$\\s+^Välkommen, Goblin$"
      },
      "hints": [
       "ENV GAST=främling i Containerfile.",
-      "-e GAST=Kaytho när du kör går före ENV."
+      "-e GAST=Goblin när du kör går före ENV."
      ],
-     "solution": "cat > valkommen.py <<'EOF'\nimport os\nprint(\"Välkommen,\", os.environ[\"GAST\"])\nEOF\ncat > Containerfile <<'EOF'\nFROM python:3.13-slim\nWORKDIR /app\nCOPY valkommen.py .\nENV GAST=främling\nCMD [\"python3\", \"valkommen.py\"]\nEOF\npodman build -t valkommen .\npodman run --rm valkommen\npodman run --rm -e GAST=Kaytho valkommen"
+     "solution": "cat > valkommen.py <<'EOF'\nimport os\nprint(\"Välkommen,\", os.environ[\"GAST\"])\nEOF\ncat > Containerfile <<'EOF'\nFROM python:3.13-slim\nWORKDIR /app\nCOPY valkommen.py .\nENV GAST=främling\nCMD [\"python3\", \"valkommen.py\"]\nEOF\npodman build -t valkommen .\npodman run --rm valkommen\npodman run --rm -e GAST=Goblin valkommen"
     },
     {
      "id": "cont-bygga-3",

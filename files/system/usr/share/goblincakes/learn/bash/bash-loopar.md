@@ -1,7 +1,7 @@
 # Loopar
 
 ```bash
-for namn in Kaytho Bo Cia; do
+for namn in Goblin Bo Cia; do
   echo "Hej $namn"
 done
 

@@ -10,7 +10,7 @@ PHP körs på **servern** och gör HTML som skickas till webbläsaren. Koden st�
 
 ```php
 <?php
-$namn = "Kaytho";
+$namn = "Goblin";
 $nivå = 80;
 echo "Hej $namn, du är nivå $nivå\\n";      // variabler fungerar inne i "…"
 echo 'Enkla citattecken: $namn' . "\\n";      // … men inte i '…'
@@ -21,9 +21,9 @@ echo "Nästa nivå: " . ($nivå + 1) . "\\n";    // . sätter ihop
 - Varje rad slutar med `;`.
 - `"\\n"` = ny rad (på en hemsida används `<br>` eller nya taggar i stället).
 """, "tasks": [
- T("php-grunder-1", 1, "Hej", 'Sätt $namn = "Kaytho" och skriv ut: Hej Kaytho!',
-   '<?php\n$namn = "Kaytho";\necho "Hej $namn!\\n";', {"expect": "Hej Kaytho!"},
-   ['echo "Hej $namn!";', "Glöm inte $ och ;"], '<?php\n$namn = "Kaytho";\n'),
+ T("php-grunder-1", 1, "Hej", 'Sätt $namn = "Goblin" och skriv ut: Hej Goblin!',
+   '<?php\n$namn = "Goblin";\necho "Hej $namn!\\n";', {"expect": "Hej Goblin!"},
+   ['echo "Hej $namn!";', "Glöm inte $ och ;"], '<?php\n$namn = "Goblin";\n'),
  T("php-grunder-2", 2, "Pilar", "Med $pilar = 6 och $serier = 12: skriv ut Totalt 72 pilar",
    '<?php\n$pilar = 6;\n$serier = 12;\necho "Totalt " . ($pilar * $serier) . " pilar\\n";', {"expect": "Totalt 72 pilar"},
    ["Räkna inom parentes och sätt ihop med .", 'echo "Totalt " . ($pilar * $serier) . " pilar";']),
@@ -65,7 +65,7 @@ P.append({"id": "php-arrayer", "title": "PHP: arrayer", "requires": ["php-villko
 
 ```php
 <?php
-$raid = ["Kaytho", "Bo"];
+$raid = ["Goblin", "Bo"];
 $raid[] = "Cia";                       // lägg till sist
 echo count($raid) . "\\n";             // 3
 
@@ -75,7 +75,7 @@ echo $skytt["namn"] . "\\n";
 foreach ($skytt as $nyckel => $värde) {
     echo "$nyckel: $värde\\n";
 }
-echo implode(", ", $raid) . "\\n";     // Kaytho, Bo, Cia
+echo implode(", ", $raid) . "\\n";     // Goblin, Bo, Cia
 ```
 
 Sortera: `sort($a)` / `rsort($a)` (störst först), egen ordning med
@@ -295,9 +295,9 @@ CREATE TABLE anvandare (
 - `NOT NULL`, `UNIQUE` och `DEFAULT` låter databasen själv vakta reglerna.
 - I MariaDB heter typerna lite annorlunda (`INT AUTO_INCREMENT`, `VARCHAR(100)`) – idén är densamma.
 """, "tasks": [
- T("sql-tabeller-1", 3, "Anmälningar", "Skapa tabellen anmalan med id (INTEGER PRIMARY KEY), namn (TEXT NOT NULL) och roll (TEXT NOT NULL, standard 'DPS'). Lägg in Kaytho med rollen Healer och Bo utan roll, och visa namn och roll i id-ordning.",
-   "CREATE TABLE anmalan (id INTEGER PRIMARY KEY, namn TEXT NOT NULL, roll TEXT NOT NULL DEFAULT 'DPS');\nINSERT INTO anmalan (namn, roll) VALUES ('Kaytho', 'Healer');\nINSERT INTO anmalan (namn) VALUES ('Bo');\nSELECT namn, roll FROM anmalan ORDER BY id;",
-   {"expect": "namn | roll\nKaytho | Healer\nBo | DPS"},
+ T("sql-tabeller-1", 3, "Anmälningar", "Skapa tabellen anmalan med id (INTEGER PRIMARY KEY), namn (TEXT NOT NULL) och roll (TEXT NOT NULL, standard 'DPS'). Lägg in Goblin med rollen Healer och Bo utan roll, och visa namn och roll i id-ordning.",
+   "CREATE TABLE anmalan (id INTEGER PRIMARY KEY, namn TEXT NOT NULL, roll TEXT NOT NULL DEFAULT 'DPS');\nINSERT INTO anmalan (namn, roll) VALUES ('Goblin', 'Healer');\nINSERT INTO anmalan (namn) VALUES ('Bo');\nSELECT namn, roll FROM anmalan ORDER BY id;",
+   {"expect": "namn | roll\nGoblin | Healer\nBo | DPS"},
    ["roll TEXT NOT NULL DEFAULT 'DPS'", "Utelämna roll i INSERT för Bo, så tar den standardvärdet."]),
 ]})
 write_track("sql", S)

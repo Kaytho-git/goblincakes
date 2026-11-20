@@ -4,8 +4,8 @@
 
 ```bash
 git init                         # gör mappen till ett Git-förråd
-git config user.name "Kaytho"    # vem du är (en gång)
-git config user.email "kaytho@example.com"
+git config user.name "Goblin"    # vem du är (en gång)
+git config user.email "goblin@example.com"
 git add main.lua                 # välj vad som ska med i nästa version
 git commit -m "Första versionen" # spara versionen med en beskrivning
 git log --oneline                # visa versionerna

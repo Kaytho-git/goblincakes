@@ -53,7 +53,7 @@ func _ready():
 ## Variabler
 
 ```gdscript
-var namn := "Kaytho"        # := gissar typen (här String)
+var namn := "Goblin"        # := gissar typen (här String)
 var hp: int = 100           # eller skriv typen själv
 var fart := 2.5             # float = decimaltal
 var levande := true         # bool
@@ -70,17 +70,17 @@ allt den får.
  GT("godot-forsta-1", 1, "Hej Azeroth", "Skriv ut texten Hej från Godot! när noden startar.",
     START.replace("pass", 'print("Hej från Godot!")'), {"expect": "Hej från Godot!"},
     ["Byt pass mot en print-rad.", 'print("Hej från Godot!") – med Tab före.'], START),
- GT("godot-forsta-2", 1, "Skada", 'Skapa variablerna namn = "Kaytho", hp = 100 och skada = 35. Räkna ut hur mycket HP som är kvar och skriv: Kaytho har 65 HP kvar',
+ GT("godot-forsta-2", 1, "Skada", 'Skapa variablerna namn = "Goblin", hp = 100 och skada = 35. Räkna ut hur mycket HP som är kvar och skriv: Goblin har 65 HP kvar',
     """
 extends Node
 
 func _ready():
-    var namn := "Kaytho"
+    var namn := "Goblin"
     var hp := 100
     var skada := 35
     hp -= skada
     print("%s har %d HP kvar" % [namn, hp])
-""", {"expect": "Kaytho har 65 HP kvar"},
+""", {"expect": "Goblin har 65 HP kvar"},
     ["hp -= skada drar av skadan.", 'print("%s har %d HP kvar" % [namn, hp])'], START),
  GT("godot-forsta-3", 2, "Fart i decimaler", "Spelaren går 2.5 meter per steg och tar 7 steg. Skriv ut: Sträcka: 17.5 m – räkna med variabler, inte för hand.",
     """
@@ -220,7 +220,7 @@ if loot.has("Sköld"):
 ## Ordböcker (Dictionary) – namn → värde
 
 ```gdscript
-var poang := {"Kaytho": 10, "Bo": 25}
+var poang := {"Goblin": 10, "Bo": 25}
 poang["Ann"] = 18
 for namn in poang:         # går igenom nycklarna
 	print(namn, ": ", poang[namn])
@@ -249,12 +249,12 @@ func _ready():
         print(sak)
 """, {"expect": "4\nSvärd\nSköld\nDryck\nGuld"},
     ['loot.append("Guld")', "print(loot.size()) och sedan for sak in loot:"], START),
- GT("godot-funktioner-3", 3, "Vem vann?", 'Poängen är {"Kaytho": 10, "Bo": 25, "Ann": 18}. Hitta den med flest poäng med en loop och skriv: Bo vann med 25',
+ GT("godot-funktioner-3", 3, "Vem vann?", 'Poängen är {"Goblin": 10, "Bo": 25, "Ann": 18}. Hitta den med flest poäng med en loop och skriv: Bo vann med 25',
     """
 extends Node
 
 func _ready():
-    var poang := {"Kaytho": 10, "Bo": 25, "Ann": 18}
+    var poang := {"Goblin": 10, "Bo": 25, "Ann": 18}
     var bast := ""
     var mest := -1
     for namn in poang:
@@ -264,7 +264,7 @@ func _ready():
     print("%s vann med %d" % [bast, mest])
 """, {"expect": "Bo vann med 25"},
     ["Spara bästa namnet och poängen i två variabler och jämför i loopen.", "for namn in poang: ger nycklarna; poang[namn] ger poängen."],
-    'extends Node\n\nfunc _ready():\n    var poang := {"Kaytho": 10, "Bo": 25, "Ann": 18}\n'),
+    'extends Node\n\nfunc _ready():\n    var poang := {"Goblin": 10, "Bo": 25, "Ann": 18}\n'),
 ]})
 
 M.append({"id": "godot-noder", "title": "Noder och scenträdet", "requires": ["godot-funktioner"],

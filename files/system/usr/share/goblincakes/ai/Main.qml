@@ -5797,7 +5797,7 @@ Window {
                                         Text {
                                             visible: memInput.text === ""
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: "T.ex. Spelar WoW som Kaytho på Stormscale (EU)"
+                                            text: "T.ex. Spelar WoW som Goblin på Stormscale (EU)"
                                             color: "#5C6880"
                                             font.family: "IBM Plex Sans"
                                             font.pixelSize: 13

@@ -10,16 +10,16 @@
      "id": "lua-grunder-1",
      "level": 1,
      "title": "Hälsa",
-     "prompt": "Skapa local namn = \"Kaytho\" och skriv ut: Hej Kaytho!",
-     "starter": "local namn = \"Kaytho\"\n",
+     "prompt": "Skapa local namn = \"Goblin\" och skriv ut: Hej Goblin!",
+     "starter": "local namn = \"Goblin\"\n",
      "check": {
-      "expect": "Hej Kaytho!"
+      "expect": "Hej Goblin!"
      },
      "hints": [
       "Sätt ihop strängar med ..",
       "print(\"Hej \" .. namn .. \"!\")"
      ],
-     "solution": "local namn = \"Kaytho\"\nprint(\"Hej \" .. namn .. \"!\")"
+     "solution": "local namn = \"Goblin\"\nprint(\"Hej \" .. namn .. \"!\")"
     },
     {
      "id": "lua-grunder-2",
@@ -133,16 +133,16 @@
      "id": "lua-tabeller-1",
      "level": 1,
      "title": "Första och antal",
-     "prompt": "local raid = {\"Kaytho\", \"Bo\", \"Cia\"}. Skriv ut första namnet och sedan antalet: Kaytho och 3 på var sin rad.",
-     "starter": "local raid = {\"Kaytho\", \"Bo\", \"Cia\"}\n",
+     "prompt": "local raid = {\"Goblin\", \"Bo\", \"Cia\"}. Skriv ut första namnet och sedan antalet: Goblin och 3 på var sin rad.",
+     "starter": "local raid = {\"Goblin\", \"Bo\", \"Cia\"}\n",
      "check": {
-      "expect": "Kaytho\n3"
+      "expect": "Goblin\n3"
      },
      "hints": [
       "Index börjar på 1.",
       "#raid ger antalet."
      ],
-     "solution": "local raid = {\"Kaytho\", \"Bo\", \"Cia\"}\nprint(raid[1])\nprint(#raid)"
+     "solution": "local raid = {\"Goblin\", \"Bo\", \"Cia\"}\nprint(raid[1])\nprint(#raid)"
     },
     {
      "id": "lua-tabeller-2",
@@ -168,22 +168,22 @@
    "requires": [
     "lua-tabeller"
    ],
-   "summary": "`{namn = \"Kaytho\", nivå = 80}`, `t.namn` / `t[\"namn\"]`, `pairs` (ingen ordning), nästlade tabeller.",
+   "summary": "`{namn = \"Goblin\", nivå = 80}`, `t.namn` / `t[\"namn\"]`, `pairs` (ingen ordning), nästlade tabeller.",
    "tasks": [
     {
      "id": "lua-ordbocker-1",
      "level": 1,
      "title": "Karaktärsblad",
-     "prompt": "Skapa local k = {namn = \"Kaytho\", klass = \"Präst\"} och skriv ut: Kaytho (Präst)",
+     "prompt": "Skapa local k = {namn = \"Goblin\", klass = \"Präst\"} och skriv ut: Goblin (Präst)",
      "starter": "",
      "check": {
-      "expect": "Kaytho (Präst)"
+      "expect": "Goblin (Präst)"
      },
      "hints": [
       "k.namn och k.klass",
       "print(k.namn .. \" (\" .. k.klass .. \")\")"
      ],
-     "solution": "local k = {namn = \"Kaytho\", klass = \"Präst\"}\nprint(k.namn .. \" (\" .. k.klass .. \")\")"
+     "solution": "local k = {namn = \"Goblin\", klass = \"Präst\"}\nprint(k.namn .. \" (\" .. k.klass .. \")\")"
     },
     {
      "id": "lua-ordbocker-2",

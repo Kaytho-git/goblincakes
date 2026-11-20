@@ -3,8 +3,8 @@
 En **lista** håller många värden i ordning:
 
 ```python
-raid = ["Kaytho", "Bo", "Cia"]
-print(raid[0])        # Kaytho – första har index 0
+raid = ["Goblin", "Bo", "Cia"]
+print(raid[0])        # Goblin – första har index 0
 raid.append("Dan")    # lägg till sist
 print(len(raid))      # 4
 for namn in raid:

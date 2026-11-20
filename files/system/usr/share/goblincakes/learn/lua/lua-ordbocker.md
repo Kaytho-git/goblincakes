@@ -3,7 +3,7 @@
 Samma tabell kan ha **nycklar** – som en ordbok:
 
 ```lua
-local spelare = {namn = "Kaytho", klass = "Präst", nivå = 80}
+local spelare = {namn = "Goblin", klass = "Präst", nivå = 80}
 print(spelare.namn)          -- eller spelare["namn"]
 spelare.guild = "GOBLINCAKES"
 for nyckel, värde in pairs(spelare) do

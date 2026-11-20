@@ -22,8 +22,8 @@ Terminalen styr datorn med kommandon. De viktigaste:
 
 Tips: **Tab** fyller i filnamn, **↑** tar fram förra kommandot, `man ls` visar hjälpen.
 """, "tasks": [
- T("bash-kommandon-1", 1, "Raidlista", "Skapa mappen raid, skriv raden Kaytho till filen raid/lista.txt, lägg till raden Bo, och visa filen med cat.",
-   'mkdir -p raid\necho "Kaytho" > raid/lista.txt\necho "Bo" >> raid/lista.txt\ncat raid/lista.txt', {"expect": "Kaytho\nBo"},
+ T("bash-kommandon-1", 1, "Raidlista", "Skapa mappen raid, skriv raden Goblin till filen raid/lista.txt, lägg till raden Bo, och visa filen med cat.",
+   'mkdir -p raid\necho "Goblin" > raid/lista.txt\necho "Bo" >> raid/lista.txt\ncat raid/lista.txt', {"expect": "Goblin\nBo"},
    ["> skriver, >> lägger till.", "cat raid/lista.txt visar filen."]),
  T("bash-kommandon-2", 2, "Byt namn", "Skapa filen gammal.txt med texten hej, byt namn på den till ny.txt och visa sedan alla .txt-filer med ls.",
    'echo "hej" > gammal.txt\nmv gammal.txt ny.txt\nls *.txt', {"expect": "ny.txt"},
@@ -35,7 +35,7 @@ M.append({"id": "bash-variabler", "title": "Variabler och kommandon i kommandon"
 # Variabler och kommandon i kommandon
 
 ```bash
-namn="Kaytho"
+namn="Goblin"
 echo "Hej $namn"
 antal=$(ls | wc -l)          # resultatet av ett kommando
 echo "Det finns $antal filer"
@@ -47,8 +47,8 @@ echo $(( 6 * 12 ))           # räkna med heltal
   Enkla citattecken `'$namn'` skriver ut texten precis som den står.
 - `$(…)` kör ett kommando och ger dess utskrift. `$(( … ))` räknar.
 """, "tasks": [
- T("bash-variabler-1", 1, "Hej med variabel", 'Sätt namn="Kaytho" och skriv ut: Hej Kaytho!',
-   'namn="Kaytho"\necho "Hej $namn!"', {"expect": "Hej Kaytho!"}, ['echo "Hej $namn!"', "Inga mellanslag runt =."]),
+ T("bash-variabler-1", 1, "Hej med variabel", 'Sätt namn="Goblin" och skriv ut: Hej Goblin!',
+   'namn="Goblin"\necho "Hej $namn!"', {"expect": "Hej Goblin!"}, ['echo "Hej $namn!"', "Inga mellanslag runt =."]),
  T("bash-variabler-2", 2, "Räkna pilar", "Sätt pilar=6 och serier=12 och skriv ut: Totalt 72 pilar",
    'pilar=6\nserier=12\necho "Totalt $(( pilar * serier )) pilar"', {"expect": "Totalt 72 pilar"},
    ["$(( … )) räknar.", 'echo "Totalt $(( pilar * serier )) pilar"']),
@@ -122,7 +122,7 @@ M.append({"id": "bash-loopar", "title": "Loopar", "requires": ["bash-villkor"],
 # Loopar
 
 ```bash
-for namn in Kaytho Bo Cia; do
+for namn in Goblin Bo Cia; do
   echo "Hej $namn"
 done
 
@@ -140,9 +140,9 @@ done < lista.txt
 `for f in *.txt` är det vanligaste sättet att göra något med många filer – t.ex. byta namn eller
 packa ner dem.
 """, "tasks": [
- T("bash-loopar-1", 1, "Hälsa på alla", "Skriv ut Hej Kaytho, Hej Bo och Hej Cia på var sin rad med en for-loop.",
-   'for namn in Kaytho Bo Cia; do\n  echo "Hej $namn"\ndone', {"expect": "Hej Kaytho\nHej Bo\nHej Cia"},
-   ["for namn in Kaytho Bo Cia; do … done", 'echo "Hej $namn"']),
+ T("bash-loopar-1", 1, "Hälsa på alla", "Skriv ut Hej Goblin, Hej Bo och Hej Cia på var sin rad med en for-loop.",
+   'for namn in Goblin Bo Cia; do\n  echo "Hej $namn"\ndone', {"expect": "Hej Goblin\nHej Bo\nHej Cia"},
+   ["for namn in Goblin Bo Cia; do … done", 'echo "Hej $namn"']),
  T("bash-loopar-2", 2, "Byt ändelse", "Mappen har a.log och b.log. Byt namn på alla .log-filer till .txt och visa sedan filerna med ls.",
    'for f in *.log; do\n  mv "$f" "${f%.log}.txt"\ndone\nls', {"expect": "a.txt\nb.txt"},
    ['"${f%.log}" tar bort .log från slutet av namnet.', 'mv "$f" "${f%.log}.txt"'],
@@ -161,7 +161,7 @@ set -euo pipefail          # stanna vid fel – gör skript mycket säkrare
 echo "Hej $1"
 ```
 
-Gör filen körbar med `chmod +x hej.sh` och kör `./hej.sh Kaytho`. Argumenten heter `$1`, `$2` …,
+Gör filen körbar med `chmod +x hej.sh` och kör `./hej.sh Goblin`. Argumenten heter `$1`, `$2` …,
 alla på en gång `"$@"`, antalet `$#`.
 
 **Funktioner** fungerar likadant:
@@ -171,7 +171,7 @@ halsa() {
   local namn="$1"
   echo "Hej $namn"
 }
-halsa Kaytho
+halsa Goblin
 ```
 
 Lägg egna skript i `~/.local/bin` – då kan du köra dem var som helst i terminalen.
@@ -250,8 +250,8 @@ G.append({"id": "git-forsta", "title": "Git: spara versioner", "requires": ["bas
 
 ```bash
 git init                         # gör mappen till ett Git-förråd
-git config user.name "Kaytho"    # vem du är (en gång)
-git config user.email "kaytho@example.com"
+git config user.name "Goblin"    # vem du är (en gång)
+git config user.email "goblin@example.com"
 git add main.lua                 # välj vad som ska med i nästa version
 git commit -m "Första versionen" # spara versionen med en beskrivning
 git log --oneline                # visa versionerna
@@ -263,7 +263,7 @@ säger *varför*: "Lägg till /hej-kommandot", inte "ändringar".
 Här i lärläget: lägg till `-q` (tyst) på `init` och `commit` så att utskriften blir ren.
 """, "tasks": [
  T("git-forsta-1", 1, "Två versioner", "Skapa ett förråd (git init -q), sätt namn och e-post, gör två commits (skapa fil.txt, commit; ändra den, commit) och skriv sedan ut antalet commits med git log --oneline | wc -l.",
-   'git init -q\ngit config user.name "Kaytho"\ngit config user.email "kaytho@example.com"\necho "v1" > fil.txt\ngit add fil.txt\ngit commit -q -m "Första versionen"\necho "v2" > fil.txt\ngit add fil.txt\ngit commit -q -m "Andra versionen"\ngit log --oneline | wc -l',
+   'git init -q\ngit config user.name "Goblin"\ngit config user.email "goblin@example.com"\necho "v1" > fil.txt\ngit add fil.txt\ngit commit -q -m "Första versionen"\necho "v2" > fil.txt\ngit add fil.txt\ngit commit -q -m "Andra versionen"\ngit log --oneline | wc -l',
    {"expect": "2"}, ["Glöm inte git config user.name och user.email.", "add + commit två gånger, sedan git log --oneline | wc -l"]),
 ]})
 G.append({"id": "git-status", "title": "Git: vad har ändrats?", "requires": ["git-forsta"],
@@ -308,7 +308,7 @@ git branch                   # visa grenarna
 `git init -b main` gör att huvudgrenen heter `main` från början.
 """, "tasks": [
  T("git-grenar-1", 2, "Prova i en gren", "I ett förråd (git init -q -b main, med namn/e-post och en första commit av fil.txt med texten bas): skapa grenen test, ändra fil.txt till nytt och gör commit, gå tillbaka till main och skriv ut fil.txt (bas), slå sedan ihop test och skriv ut fil.txt igen (nytt).",
-   'git init -q -b main\ngit config user.name "Kaytho"\ngit config user.email "k@example.com"\necho "bas" > fil.txt\ngit add fil.txt\ngit commit -q -m "Bas"\ngit switch -q -c test\necho "nytt" > fil.txt\ngit commit -q -am "Nytt"\ngit switch -q main\ncat fil.txt\ngit merge -q test\ncat fil.txt',
+   'git init -q -b main\ngit config user.name "Goblin"\ngit config user.email "k@example.com"\necho "bas" > fil.txt\ngit add fil.txt\ngit commit -q -m "Bas"\ngit switch -q -c test\necho "nytt" > fil.txt\ngit commit -q -am "Nytt"\ngit switch -q main\ncat fil.txt\ngit merge -q test\ncat fil.txt',
    {"expect": "bas\nnytt"}, ["git switch -c test skapar grenen.", "git commit -am sparar ändrade filer direkt; -q gör utskriften tyst."]),
 ]})
 G.append({"id": "git-angra", "title": "Git: ångra", "requires": ["git-grenar"],
@@ -327,7 +327,7 @@ G.append({"id": "git-angra", "title": "Git: ångra", "requires": ["git-grenar"],
 Det finns farligare kommandon (`reset --hard`) – använd dem inte förrän du vet exakt vad de gör.
 """, "tasks": [
  T("git-angra-1", 2, "Släng en ändring", "I ett förråd med fil.txt = bra (commitad): skriv dåligt till fil.txt, ångra med git restore och skriv ut filen.",
-   'git init -q\ngit config user.name "Kaytho"\ngit config user.email "k@example.com"\necho "bra" > fil.txt\ngit add fil.txt\ngit commit -q -m "Bra"\necho "dåligt" > fil.txt\ngit restore fil.txt\ncat fil.txt',
+   'git init -q\ngit config user.name "Goblin"\ngit config user.email "k@example.com"\necho "bra" > fil.txt\ngit add fil.txt\ngit commit -q -m "Bra"\necho "dåligt" > fil.txt\ngit restore fil.txt\ncat fil.txt',
    {"expect": "bra"}, ["git restore fil.txt tar tillbaka senaste commit.", "Gör först en commit med texten bra."]),
 ]})
 G.append({"id": "git-github", "title": "Git: GitHub", "requires": ["git-angra"],

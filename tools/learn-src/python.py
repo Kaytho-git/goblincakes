@@ -42,7 +42,7 @@ M.append({"id": "python-variabler", "title": "Variabler", "requires": ["python-h
 En **variabel** är ett namn på ett värde – som en etikett på en låda.
 
 ```python
-namn = "Kaytho"
+namn = "Goblin"
 nivå = 80
 print(namn)
 print(nivå + 1)
@@ -60,10 +60,10 @@ Text och variabler sätts ihop med en **f-sträng** – ett `f` före citatteckn
 print(f"Hej {namn}, du är nivå {nivå}")
 ```
 """, "tasks": [
- T("python-variabler-1", 1, "Din karaktär", 'Skapa variablerna namn = "Kaytho" och nivå = 80, och skriv ut: Kaytho är nivå 80',
-   'namn = "Kaytho"\nnivå = 80\nprint(f"{namn} är nivå {nivå}")', {"expect": "Kaytho är nivå 80"},
+ T("python-variabler-1", 1, "Din karaktär", 'Skapa variablerna namn = "Goblin" och nivå = 80, och skriv ut: Goblin är nivå 80',
+   'namn = "Goblin"\nnivå = 80\nprint(f"{namn} är nivå {nivå}")', {"expect": "Goblin är nivå 80"},
    ['En f-sträng sätter in variabler: f"… {namn} …"', 'print(f"{namn} är nivå {nivå}")'],
-   'namn = "Kaytho"\nnivå = 80\n'),
+   'namn = "Goblin"\nnivå = 80\n'),
  T("python-variabler-2", 2, "Räkna pilar", "En bågskytt skjuter 6 pilar per serie och 12 serier. Spara talen i variabler, räkna ut totalen och skriv ut: Totalt 72 pilar",
    'pilar = 6\nserier = 12\ntotalt = pilar * serier\nprint(f"Totalt {totalt} pilar")', {"expect": "Totalt 72 pilar"},
    ["Gånger skrivs * i Python.", "pilar = 6, serier = 12, totalt = pilar * serier"]),
@@ -145,8 +145,8 @@ M.append({"id": "python-listor", "title": "Listor", "requires": ["python-loopar"
 En **lista** håller många värden i ordning:
 
 ```python
-raid = ["Kaytho", "Bo", "Cia"]
-print(raid[0])        # Kaytho – första har index 0
+raid = ["Goblin", "Bo", "Cia"]
+print(raid[0])        # Goblin – första har index 0
 raid.append("Dan")    # lägg till sist
 print(len(raid))      # 4
 for namn in raid:
@@ -174,7 +174,7 @@ En **funktion** är kod med ett namn som man kan använda om och om igen:
 def halsa(namn):
     return f"Hej {namn}!"
 
-print(halsa("Kaytho"))
+print(halsa("Goblin"))
 print(halsa("Bo"))
 ```
 
@@ -199,8 +199,8 @@ M.append({"id": "python-ordbocker", "title": "Ordböcker (dict)", "requires": ["
 En **ordbok** kopplar ihop en nyckel med ett värde – som en telefonbok:
 
 ```python
-klasser = {"Kaytho": "Präst", "Bo": "Krigare"}
-print(klasser["Kaytho"])          # Präst
+klasser = {"Goblin": "Präst", "Bo": "Krigare"}
+print(klasser["Goblin"])          # Präst
 klasser["Cia"] = "Magiker"         # lägg till
 for namn, klass in klasser.items():
     print(f"{namn}: {klass}")
@@ -209,9 +209,9 @@ for namn, klass in klasser.items():
 `"Bo" in klasser` ger `True`/`False`. `klasser.get("Dan", "okänd")` ger ett standardvärde i
 stället för ett fel när nyckeln saknas.
 """, "tasks": [
- T("python-ordbocker-1", 1, "Slå upp", 'roller = {"Kaytho": "Healer", "Bo": "Tank"}. Skriv ut Bos roll: Tank',
-   'roller = {"Kaytho": "Healer", "Bo": "Tank"}\nprint(roller["Bo"])', {"expect": "Tank"},
-   ['roller["Bo"]', 'print(roller["Bo"])'], 'roller = {"Kaytho": "Healer", "Bo": "Tank"}\n'),
+ T("python-ordbocker-1", 1, "Slå upp", 'roller = {"Goblin": "Healer", "Bo": "Tank"}. Skriv ut Bos roll: Tank',
+   'roller = {"Goblin": "Healer", "Bo": "Tank"}\nprint(roller["Bo"])', {"expect": "Tank"},
+   ['roller["Bo"]', 'print(roller["Bo"])'], 'roller = {"Goblin": "Healer", "Bo": "Tank"}\n'),
  T("python-ordbocker-2", 2, "Räkna roller", 'Lista: ["Healer", "Tank", "DPS", "DPS", "DPS"]. Räkna hur många av varje med en ordbok och skriv ut: DPS 3, Healer 1, Tank 1 (en rad per roll, i bokstavsordning, som "DPS 3").',
    'roller = ["Healer", "Tank", "DPS", "DPS", "DPS"]\nantal = {}\nfor r in roller:\n    antal[r] = antal.get(r, 0) + 1\nfor r in sorted(antal):\n    print(f"{r} {antal[r]}")',
    {"expect": "DPS 3\nHealer 1\nTank 1"},

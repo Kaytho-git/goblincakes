@@ -3,8 +3,8 @@
 En **ordbok** kopplar ihop en nyckel med ett värde – som en telefonbok:
 
 ```python
-klasser = {"Kaytho": "Präst", "Bo": "Krigare"}
-print(klasser["Kaytho"])          # Präst
+klasser = {"Goblin": "Präst", "Bo": "Krigare"}
+print(klasser["Goblin"])          # Präst
 klasser["Cia"] = "Magiker"         # lägg till
 for namn, klass in klasser.items():
     print(f"{namn}: {klass}")

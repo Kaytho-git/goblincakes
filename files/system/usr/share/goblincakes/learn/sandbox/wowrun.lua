@@ -1,7 +1,7 @@
 -- GOBLINCAKES lärläge: a small stand-in for World of Warcraft's API, so the basics of an addon can be
 -- run and checked outside the game (Lua 5.1, like WoW). Not the whole API – the final test is in WoW.
 -- Usage: lua5.1 wowrun.lua main.lua   (runs the addon, then ADDON_LOADED – another addon's first – and PLAYER_LOGIN;
--- a file "slash.txt" with e.g. "/hej Kaytho" runs that slash command afterwards)
+-- a file "slash.txt" with e.g. "/hej Goblin" runs that slash command afterwards)
 local ADDON = "MittTillagg"
 local frames, eventFrames = {}, {}
 SlashCmdList = {}
@@ -64,7 +64,7 @@ end
 UIParent = newRegion("Frame", "UIParent")
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, msg) print(msg) end }
 
-local playerName = "Kaytho"
+local playerName = "Goblin"
 function UnitName(unit) if unit == "player" then return playerName, nil end return nil end
 function UnitClass(unit) if unit == "player" then return "Präst", "PRIEST", 5 end end
 function UnitLevel(unit) return 80 end

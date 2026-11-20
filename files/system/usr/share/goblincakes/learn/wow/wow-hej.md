@@ -24,5 +24,5 @@ f:SetScript("OnEvent", function(self, event)
 end)
 ```
 
-**Här i lärläget** körs koden mot en liten låtsasversion av WoW:s API (ditt namn är Kaytho).
+**Här i lärläget** körs koden mot en liten låtsasversion av WoW:s API (ditt namn är Goblin).
 Slutprovet gör du i spelet – `/reload` laddar om tilläggen, och BugSack visar fel.

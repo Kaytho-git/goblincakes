@@ -4,7 +4,7 @@ Lua är ett litet, lättläst språk – det WoW-tillägg skrivs i.
 
 ```lua
 print("Hej från Lua!")
-local namn = "Kaytho"
+local namn = "Goblin"
 local nivå = 80
 print(namn .. " är nivå " .. nivå)
 ```

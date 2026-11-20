@@ -8,7 +8,7 @@ set -euo pipefail          # stanna vid fel – gör skript mycket säkrare
 echo "Hej $1"
 ```
 
-Gör filen körbar med `chmod +x hej.sh` och kör `./hej.sh Kaytho`. Argumenten heter `$1`, `$2` …,
+Gör filen körbar med `chmod +x hej.sh` och kör `./hej.sh Goblin`. Argumenten heter `$1`, `$2` …,
 alla på en gång `"$@"`, antalet `$#`.
 
 **Funktioner** fungerar likadant:
@@ -18,7 +18,7 @@ halsa() {
   local namn="$1"
   echo "Hej $namn"
 }
-halsa Kaytho
+halsa Goblin
 ```
 
 Lägg egna skript i `~/.local/bin` – då kan du köra dem var som helst i terminalen.

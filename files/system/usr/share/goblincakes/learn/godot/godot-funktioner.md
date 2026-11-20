@@ -25,7 +25,7 @@ if loot.has("Sköld"):
 ## Ordböcker (Dictionary) – namn → värde
 
 ```gdscript
-var poang := {"Kaytho": 10, "Bo": 25}
+var poang := {"Goblin": 10, "Bo": 25}
 poang["Ann"] = 18
 for namn in poang:         # går igenom nycklarna
 	print(namn, ": ", poang[namn])

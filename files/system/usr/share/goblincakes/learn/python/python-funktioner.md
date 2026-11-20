@@ -6,7 +6,7 @@ En **funktion** är kod med ett namn som man kan använda om och om igen:
 def halsa(namn):
     return f"Hej {namn}!"
 
-print(halsa("Kaytho"))
+print(halsa("Goblin"))
 print(halsa("Bo"))
 ```
 

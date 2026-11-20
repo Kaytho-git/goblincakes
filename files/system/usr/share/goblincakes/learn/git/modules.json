@@ -21,7 +21,7 @@
       "Glöm inte git config user.name och user.email.",
       "add + commit två gånger, sedan git log --oneline | wc -l"
      ],
-     "solution": "git init -q\ngit config user.name \"Kaytho\"\ngit config user.email \"kaytho@example.com\"\necho \"v1\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Första versionen\"\necho \"v2\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Andra versionen\"\ngit log --oneline | wc -l"
+     "solution": "git init -q\ngit config user.name \"Goblin\"\ngit config user.email \"goblin@example.com\"\necho \"v1\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Första versionen\"\necho \"v2\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Andra versionen\"\ngit log --oneline | wc -l"
     }
    ],
    "lesson": "git-forsta.md"
@@ -73,7 +73,7 @@
       "git switch -c test skapar grenen.",
       "git commit -am sparar ändrade filer direkt; -q gör utskriften tyst."
      ],
-     "solution": "git init -q -b main\ngit config user.name \"Kaytho\"\ngit config user.email \"k@example.com\"\necho \"bas\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Bas\"\ngit switch -q -c test\necho \"nytt\" > fil.txt\ngit commit -q -am \"Nytt\"\ngit switch -q main\ncat fil.txt\ngit merge -q test\ncat fil.txt"
+     "solution": "git init -q -b main\ngit config user.name \"Goblin\"\ngit config user.email \"k@example.com\"\necho \"bas\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Bas\"\ngit switch -q -c test\necho \"nytt\" > fil.txt\ngit commit -q -am \"Nytt\"\ngit switch -q main\ncat fil.txt\ngit merge -q test\ncat fil.txt"
     }
    ],
    "lesson": "git-grenar.md"
@@ -99,7 +99,7 @@
       "git restore fil.txt tar tillbaka senaste commit.",
       "Gör först en commit med texten bra."
      ],
-     "solution": "git init -q\ngit config user.name \"Kaytho\"\ngit config user.email \"k@example.com\"\necho \"bra\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Bra\"\necho \"dåligt\" > fil.txt\ngit restore fil.txt\ncat fil.txt"
+     "solution": "git init -q\ngit config user.name \"Goblin\"\ngit config user.email \"k@example.com\"\necho \"bra\" > fil.txt\ngit add fil.txt\ngit commit -q -m \"Bra\"\necho \"dåligt\" > fil.txt\ngit restore fil.txt\ncat fil.txt"
     }
    ],
    "lesson": "git-angra.md"

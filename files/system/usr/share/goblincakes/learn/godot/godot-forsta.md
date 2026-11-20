@@ -18,7 +18,7 @@ func _ready():
 ## Variabler
 
 ```gdscript
-var namn := "Kaytho"        # := gissar typen (här String)
+var namn := "Goblin"        # := gissar typen (här String)
 var hp: int = 100           # eller skriv typen själv
 var fart := 2.5             # float = decimaltal
 var levande := true         # bool

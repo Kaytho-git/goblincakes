@@ -5,7 +5,7 @@ import sys
 
 code = open("main.php", encoding="utf-8").read()
 cases = [('["namn" => "  Bo ", "roll" => "Tank"]', "Bo anmäld som Tank"),
-         ('["namn" => "Kaytho", "roll" => "Healer"]', "Kaytho anmäld som Healer"),
+         ('["namn" => "Goblin", "roll" => "Healer"]', "Goblin anmäld som Healer"),
          ('["namn" => "<b>X</b>", "roll" => "DPS"]', "&lt;b&gt;X&lt;/b&gt; anmäld som DPS"),
          ('["namn" => "Bo", "roll" => "Kock"]', "Fel roll")]
 for post, want in cases:

@@ -12,10 +12,10 @@
      "id": "wow-hej-1",
      "level": 1,
      "title": "Hälsa när du loggar in",
-     "prompt": "Gör så att tillägget skriver ut \"Välkommen, Kaytho!\" när PLAYER_LOGIN kommer. Använd UnitName(\"player\") för namnet.",
+     "prompt": "Gör så att tillägget skriver ut \"Välkommen, Goblin!\" när PLAYER_LOGIN kommer. Använd UnitName(\"player\") för namnet.",
      "starter": "local f = CreateFrame(\"Frame\")\nf:RegisterEvent(\"PLAYER_LOGIN\")\nf:SetScript(\"OnEvent\", function(self, event)\n  -- skriv här\nend)\n",
      "check": {
-      "expect": "Välkommen, Kaytho!"
+      "expect": "Välkommen, Goblin!"
      },
      "hints": [
       "UnitName(\"player\") ger ditt namn.",

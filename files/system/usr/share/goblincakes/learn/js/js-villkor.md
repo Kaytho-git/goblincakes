@@ -14,7 +14,7 @@ for (let i = 1; i <= 3; i++) {
   console.log(`Våg ${i}`);
 }
 
-for (const namn of ["Kaytho", "Bo"]) {
+for (const namn of ["Goblin", "Bo"]) {
   console.log(namn);
 }
 ```

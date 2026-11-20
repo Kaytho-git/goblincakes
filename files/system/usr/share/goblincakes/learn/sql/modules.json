@@ -191,16 +191,16 @@
      "id": "sql-tabeller-1",
      "level": 3,
      "title": "Anmälningar",
-     "prompt": "Skapa tabellen anmalan med id (INTEGER PRIMARY KEY), namn (TEXT NOT NULL) och roll (TEXT NOT NULL, standard 'DPS'). Lägg in Kaytho med rollen Healer och Bo utan roll, och visa namn och roll i id-ordning.",
+     "prompt": "Skapa tabellen anmalan med id (INTEGER PRIMARY KEY), namn (TEXT NOT NULL) och roll (TEXT NOT NULL, standard 'DPS'). Lägg in Goblin med rollen Healer och Bo utan roll, och visa namn och roll i id-ordning.",
      "starter": "",
      "check": {
-      "expect": "namn | roll\nKaytho | Healer\nBo | DPS"
+      "expect": "namn | roll\nGoblin | Healer\nBo | DPS"
      },
      "hints": [
       "roll TEXT NOT NULL DEFAULT 'DPS'",
       "Utelämna roll i INSERT för Bo, så tar den standardvärdet."
      ],
-     "solution": "CREATE TABLE anmalan (id INTEGER PRIMARY KEY, namn TEXT NOT NULL, roll TEXT NOT NULL DEFAULT 'DPS');\nINSERT INTO anmalan (namn, roll) VALUES ('Kaytho', 'Healer');\nINSERT INTO anmalan (namn) VALUES ('Bo');\nSELECT namn, roll FROM anmalan ORDER BY id;"
+     "solution": "CREATE TABLE anmalan (id INTEGER PRIMARY KEY, namn TEXT NOT NULL, roll TEXT NOT NULL DEFAULT 'DPS');\nINSERT INTO anmalan (namn, roll) VALUES ('Goblin', 'Healer');\nINSERT INTO anmalan (namn) VALUES ('Bo');\nSELECT namn, roll FROM anmalan ORDER BY id;"
     }
    ],
    "lesson": "sql-tabeller.md"

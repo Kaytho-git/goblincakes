@@ -1,7 +1,7 @@
 # Variabler och kommandon i kommandon
 
 ```bash
-namn="Kaytho"
+namn="Goblin"
 echo "Hej $namn"
 antal=$(ls | wc -l)          # resultatet av ett kommando
 echo "Det finns $antal filer"

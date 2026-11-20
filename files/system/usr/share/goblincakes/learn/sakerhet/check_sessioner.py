@@ -13,9 +13,9 @@ ini_set('session.use_only_cookies', '0');
 session_start();
 $h = password_hash('hunter2', PASSWORD_DEFAULT);
 $fore = session_id();
-$r = logga_in('Kaytho', 'fel', $h);
+$r = logga_in('Goblin', 'fel', $h);
 echo ($r ? 'fel-inne' : 'fel-ute'), ' ', (empty($_SESSION['anvandare']) ? 'tom' : 'satt'), ' ', (session_id() === $fore ? 'samma' : 'ny'), "\n";
-$r = logga_in('Kaytho', 'hunter2', $h);
+$r = logga_in('Goblin', 'hunter2', $h);
 echo ($r ? 'in' : 'ute'), ' ', ($_SESSION['anvandare'] ?? '-'), ' ', (session_id() === $fore ? 'samma' : 'ny'), "\n";
 '''
 r = subprocess.run(["php", "-r", "?>" + closed + harness], capture_output=True, text=True, timeout=10)
@@ -30,7 +30,7 @@ first, name, sid = lines[1].split(" ", 2)
 if first != "in":
     print("Med rätt lösenord ska logga_in returnera true.")
     sys.exit(1)
-if name != "Kaytho":
+if name != "Goblin":
     print('Spara namnet i $_SESSION["anvandare"] när lösenordet stämmer.')
     sys.exit(1)
 if sid != "ny":

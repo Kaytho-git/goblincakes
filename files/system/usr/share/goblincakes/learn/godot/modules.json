@@ -25,16 +25,16 @@
      "id": "godot-forsta-2",
      "level": 1,
      "title": "Skada",
-     "prompt": "Skapa variablerna namn = \"Kaytho\", hp = 100 och skada = 35. Räkna ut hur mycket HP som är kvar och skriv: Kaytho har 65 HP kvar",
+     "prompt": "Skapa variablerna namn = \"Goblin\", hp = 100 och skada = 35. Räkna ut hur mycket HP som är kvar och skriv: Goblin har 65 HP kvar",
      "starter": "extends Node\n\nfunc _ready():\n\tpass\n",
      "check": {
-      "expect": "Kaytho har 65 HP kvar"
+      "expect": "Goblin har 65 HP kvar"
      },
      "hints": [
       "hp -= skada drar av skadan.",
       "print(\"%s har %d HP kvar\" % [namn, hp])"
      ],
-     "solution": "extends Node\n\nfunc _ready():\n\tvar namn := \"Kaytho\"\n\tvar hp := 100\n\tvar skada := 35\n\thp -= skada\n\tprint(\"%s har %d HP kvar\" % [namn, hp])\n"
+     "solution": "extends Node\n\nfunc _ready():\n\tvar namn := \"Goblin\"\n\tvar hp := 100\n\tvar skada := 35\n\thp -= skada\n\tprint(\"%s har %d HP kvar\" % [namn, hp])\n"
     },
     {
      "id": "godot-forsta-3",
@@ -167,8 +167,8 @@
      "id": "godot-funktioner-3",
      "level": 3,
      "title": "Vem vann?",
-     "prompt": "Poängen är {\"Kaytho\": 10, \"Bo\": 25, \"Ann\": 18}. Hitta den med flest poäng med en loop och skriv: Bo vann med 25",
-     "starter": "extends Node\n\nfunc _ready():\n\tvar poang := {\"Kaytho\": 10, \"Bo\": 25, \"Ann\": 18}\n",
+     "prompt": "Poängen är {\"Goblin\": 10, \"Bo\": 25, \"Ann\": 18}. Hitta den med flest poäng med en loop och skriv: Bo vann med 25",
+     "starter": "extends Node\n\nfunc _ready():\n\tvar poang := {\"Goblin\": 10, \"Bo\": 25, \"Ann\": 18}\n",
      "check": {
       "expect": "Bo vann med 25"
      },
@@ -176,7 +176,7 @@
       "Spara bästa namnet och poängen i två variabler och jämför i loopen.",
       "for namn in poang: ger nycklarna; poang[namn] ger poängen."
      ],
-     "solution": "extends Node\n\nfunc _ready():\n\tvar poang := {\"Kaytho\": 10, \"Bo\": 25, \"Ann\": 18}\n\tvar bast := \"\"\n\tvar mest := -1\n\tfor namn in poang:\n\t\tif poang[namn] > mest:\n\t\t\tmest = poang[namn]\n\t\t\tbast = namn\n\tprint(\"%s vann med %d\" % [bast, mest])\n"
+     "solution": "extends Node\n\nfunc _ready():\n\tvar poang := {\"Goblin\": 10, \"Bo\": 25, \"Ann\": 18}\n\tvar bast := \"\"\n\tvar mest := -1\n\tfor namn in poang:\n\t\tif poang[namn] > mest:\n\t\t\tmest = poang[namn]\n\t\t\tbast = namn\n\tprint(\"%s vann med %d\" % [bast, mest])\n"
     }
    ],
    "lesson": "godot-funktioner.md"

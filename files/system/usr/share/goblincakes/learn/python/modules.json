@@ -51,16 +51,16 @@
      "id": "python-variabler-1",
      "level": 1,
      "title": "Din karaktär",
-     "prompt": "Skapa variablerna namn = \"Kaytho\" och nivå = 80, och skriv ut: Kaytho är nivå 80",
-     "starter": "namn = \"Kaytho\"\nnivå = 80\n",
+     "prompt": "Skapa variablerna namn = \"Goblin\" och nivå = 80, och skriv ut: Goblin är nivå 80",
+     "starter": "namn = \"Goblin\"\nnivå = 80\n",
      "check": {
-      "expect": "Kaytho är nivå 80"
+      "expect": "Goblin är nivå 80"
      },
      "hints": [
       "En f-sträng sätter in variabler: f\"… {namn} …\"",
       "print(f\"{namn} är nivå {nivå}\")"
      ],
-     "solution": "namn = \"Kaytho\"\nnivå = 80\nprint(f\"{namn} är nivå {nivå}\")"
+     "solution": "namn = \"Goblin\"\nnivå = 80\nprint(f\"{namn} är nivå {nivå}\")"
     },
     {
      "id": "python-variabler-2",
@@ -287,8 +287,8 @@
      "id": "python-ordbocker-1",
      "level": 1,
      "title": "Slå upp",
-     "prompt": "roller = {\"Kaytho\": \"Healer\", \"Bo\": \"Tank\"}. Skriv ut Bos roll: Tank",
-     "starter": "roller = {\"Kaytho\": \"Healer\", \"Bo\": \"Tank\"}\n",
+     "prompt": "roller = {\"Goblin\": \"Healer\", \"Bo\": \"Tank\"}. Skriv ut Bos roll: Tank",
+     "starter": "roller = {\"Goblin\": \"Healer\", \"Bo\": \"Tank\"}\n",
      "check": {
       "expect": "Tank"
      },
@@ -296,7 +296,7 @@
       "roller[\"Bo\"]",
       "print(roller[\"Bo\"])"
      ],
-     "solution": "roller = {\"Kaytho\": \"Healer\", \"Bo\": \"Tank\"}\nprint(roller[\"Bo\"])"
+     "solution": "roller = {\"Goblin\": \"Healer\", \"Bo\": \"Tank\"}\nprint(roller[\"Bo\"])"
     },
     {
      "id": "python-ordbocker-2",

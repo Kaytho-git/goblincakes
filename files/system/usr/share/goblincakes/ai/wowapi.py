@@ -868,7 +868,7 @@ def toc_authors(folder):
 
 
 def own_authors():
-    """The user's author name(s): ## Author in their git clones (not Kakan) – the user 30 Oct: "Kaytho" in all their
+    """The user's author name(s): ## Author in their git clones (not Kakan) – the user 30 Oct: their name in all their
     add-ons makes them easy to find, also a copy without git (one installed from CurseForge with WowUp)."""
     names = set()
     for d in ADDONS.glob("*"):

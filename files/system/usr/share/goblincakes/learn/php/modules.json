@@ -12,16 +12,16 @@
      "id": "php-grunder-1",
      "level": 1,
      "title": "Hej",
-     "prompt": "Sätt $namn = \"Kaytho\" och skriv ut: Hej Kaytho!",
-     "starter": "<?php\n$namn = \"Kaytho\";\n",
+     "prompt": "Sätt $namn = \"Goblin\" och skriv ut: Hej Goblin!",
+     "starter": "<?php\n$namn = \"Goblin\";\n",
      "check": {
-      "expect": "Hej Kaytho!"
+      "expect": "Hej Goblin!"
      },
      "hints": [
       "echo \"Hej $namn!\";",
       "Glöm inte $ och ;"
      ],
-     "solution": "<?php\n$namn = \"Kaytho\";\necho \"Hej $namn!\\n\";"
+     "solution": "<?php\n$namn = \"Goblin\";\necho \"Hej $namn!\\n\";"
     },
     {
      "id": "php-grunder-2",

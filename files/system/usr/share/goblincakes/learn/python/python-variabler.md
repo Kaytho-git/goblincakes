@@ -3,7 +3,7 @@
 En **variabel** är ett namn på ett värde – som en etikett på en låda.
 
 ```python
-namn = "Kaytho"
+namn = "Goblin"
 nivå = 80
 print(namn)
 print(nivå + 1)

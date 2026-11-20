@@ -3,7 +3,7 @@
 JavaScript gör hemsidor levande – och körs också utanför webbläsaren (Node.js), som här.
 
 ```js
-const namn = "Kaytho";     // const = ändras inte
+const namn = "Goblin";     // const = ändras inte
 let nivå = 79;             // let = kan ändras
 nivå = nivå + 1;
 console.log(`${namn} är nivå ${nivå}`);

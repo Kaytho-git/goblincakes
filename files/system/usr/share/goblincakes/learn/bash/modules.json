@@ -10,16 +10,16 @@
      "id": "bash-kommandon-1",
      "level": 1,
      "title": "Raidlista",
-     "prompt": "Skapa mappen raid, skriv raden Kaytho till filen raid/lista.txt, lägg till raden Bo, och visa filen med cat.",
+     "prompt": "Skapa mappen raid, skriv raden Goblin till filen raid/lista.txt, lägg till raden Bo, och visa filen med cat.",
      "starter": "",
      "check": {
-      "expect": "Kaytho\nBo"
+      "expect": "Goblin\nBo"
      },
      "hints": [
       "> skriver, >> lägger till.",
       "cat raid/lista.txt visar filen."
      ],
-     "solution": "mkdir -p raid\necho \"Kaytho\" > raid/lista.txt\necho \"Bo\" >> raid/lista.txt\ncat raid/lista.txt"
+     "solution": "mkdir -p raid\necho \"Goblin\" > raid/lista.txt\necho \"Bo\" >> raid/lista.txt\ncat raid/lista.txt"
     },
     {
      "id": "bash-kommandon-2",
@@ -51,16 +51,16 @@
      "id": "bash-variabler-1",
      "level": 1,
      "title": "Hej med variabel",
-     "prompt": "Sätt namn=\"Kaytho\" och skriv ut: Hej Kaytho!",
+     "prompt": "Sätt namn=\"Goblin\" och skriv ut: Hej Goblin!",
      "starter": "",
      "check": {
-      "expect": "Hej Kaytho!"
+      "expect": "Hej Goblin!"
      },
      "hints": [
       "echo \"Hej $namn!\"",
       "Inga mellanslag runt =."
      ],
-     "solution": "namn=\"Kaytho\"\necho \"Hej $namn!\""
+     "solution": "namn=\"Goblin\"\necho \"Hej $namn!\""
     },
     {
      "id": "bash-variabler-2",
@@ -180,16 +180,16 @@
      "id": "bash-loopar-1",
      "level": 1,
      "title": "Hälsa på alla",
-     "prompt": "Skriv ut Hej Kaytho, Hej Bo och Hej Cia på var sin rad med en for-loop.",
+     "prompt": "Skriv ut Hej Goblin, Hej Bo och Hej Cia på var sin rad med en for-loop.",
      "starter": "",
      "check": {
-      "expect": "Hej Kaytho\nHej Bo\nHej Cia"
+      "expect": "Hej Goblin\nHej Bo\nHej Cia"
      },
      "hints": [
-      "for namn in Kaytho Bo Cia; do … done",
+      "for namn in Goblin Bo Cia; do … done",
       "echo \"Hej $namn\""
      ],
-     "solution": "for namn in Kaytho Bo Cia; do\n  echo \"Hej $namn\"\ndone"
+     "solution": "for namn in Goblin Bo Cia; do\n  echo \"Hej $namn\"\ndone"
     },
     {
      "id": "bash-loopar-2",

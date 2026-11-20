@@ -10,16 +10,16 @@
      "id": "js-grunder-1",
      "level": 1,
      "title": "Hej",
-     "prompt": "Skapa const namn = \"Kaytho\" och skriv ut: Hej Kaytho!",
-     "starter": "const namn = \"Kaytho\";\n",
+     "prompt": "Skapa const namn = \"Goblin\" och skriv ut: Hej Goblin!",
+     "starter": "const namn = \"Goblin\";\n",
      "check": {
-      "expect": "Hej Kaytho!"
+      "expect": "Hej Goblin!"
      },
      "hints": [
       "console.log skriver ut.",
       "console.log(`Hej ${namn}!`);"
      ],
-     "solution": "const namn = \"Kaytho\";\nconsole.log(`Hej ${namn}!`);"
+     "solution": "const namn = \"Goblin\";\nconsole.log(`Hej ${namn}!`);"
     },
     {
      "id": "js-grunder-2",

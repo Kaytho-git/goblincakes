@@ -3454,7 +3454,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         request_ = tool_request(answer, tools)
         if not request_ and not used and not nudged and own_game_question(asked.get("content"), tools):
             # About the user's own WoW/CS2/computer/team but no tool used: in a long chat gemma4 answered "enligt
-            # Warcraft Logs dog Kaytho" without reading anything (25 Oct) – once more, told to use one
+            # Warcraft Logs dog <namn>" without reading anything (25 Oct) – once more, told to use one
             nudged = True
             own = [w for w in ("warcraftlogs", "wowstats", "cs2", "sport", "lagg", "systemfel", "leta") if w in tools]
             messages.append({"role": "assistant", "content": answer})
@@ -4770,7 +4770,7 @@ MEMORY_PROMPT = """
 Minne: du har ett minne som följer med i alla chattar. När användaren ber dig komma ihåg något
 ("kom ihåg att …", "spara att …") – eller berättar något om sig själv som tydligt är bra att veta
 framöver – skriv ett kodblock märkt ```minne med en sak per rad, kort och i tredje person
-(t.ex. "Spelar WoW som Kaytho på Stormscale (EU)."). Ber användaren dig glömma något, skriv ett
+(t.ex. "Spelar WoW som Goblin på Stormscale (EU)."). Ber användaren dig glömma något, skriv ett
 kodblock märkt ```glöm med det som ska bort, en sak per rad. Säg kort i texten vad du sparade eller glömde.
 Spara inga lösenord, nycklar eller annat hemligt."""
 

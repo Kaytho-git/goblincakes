@@ -22,7 +22,7 @@ De flesta taggar har en start `<p>` och ett slut `</p>`. Det som syns står mell
 Tryck **Förhandsvisa** för att se sidan i webbläsaren.
 """, "tasks": [
  T("html-forsta-1", 1, "En sida om dig", "Gör en sida med en rubrik (h1) med ditt namn och ett stycke (p) om vad du gillar.",
-   page("  <h1>Kaytho</h1>\n  <p>Jag gillar bågskytte och WoW.</p>"), {"has": ["<h1", "</h1>", "<p", "</p>"]},
+   page("  <h1>Goblin</h1>\n  <p>Jag gillar bågskytte och WoW.</p>"), {"has": ["<h1", "</h1>", "<p", "</p>"]},
    ["En rubrik skrivs <h1>Text</h1>.", "Lägg <h1>…</h1> och <p>…</p> mellan <body> och </body>."], PAGE),
  T("html-forsta-2", 2, "Rubriknivåer", "Gör en sida med en h1 (Raidguide), två h2 (Bossar och Tips) och ett stycke under varje h2 där ett ord är fetstilt med strong.",
    page("  <h1>Raidguide</h1>\n  <h2>Bossar</h2>\n  <p>Den första är <strong>svår</strong>.</p>\n  <h2>Tips</h2>\n  <p>Stå inte i elden.</p>"),
@@ -205,7 +205,7 @@ J.append({"id": "js-grunder", "title": "JavaScript: grunder", "requires": [],
 JavaScript gör hemsidor levande – och körs också utanför webbläsaren (Node.js), som här.
 
 ```js
-const namn = "Kaytho";     // const = ändras inte
+const namn = "Goblin";     // const = ändras inte
 let nivå = 79;             // let = kan ändras
 nivå = nivå + 1;
 console.log(`${namn} är nivå ${nivå}`);
@@ -215,9 +215,9 @@ console.log(`${namn} är nivå ${nivå}`);
 - Text med `` ` `` (backticks) kan ha `${variabler}` inuti.
 - Jämför med `===` och `!==` (tre tecken) – `==` gör konstiga omvandlingar.
 """, "tasks": [
- T("js-grunder-1", 1, "Hej", 'Skapa const namn = "Kaytho" och skriv ut: Hej Kaytho!',
-   'const namn = "Kaytho";\nconsole.log(`Hej ${namn}!`);', {"expect": "Hej Kaytho!"},
-   ["console.log skriver ut.", "console.log(`Hej ${namn}!`);"], 'const namn = "Kaytho";\n'),
+ T("js-grunder-1", 1, "Hej", 'Skapa const namn = "Goblin" och skriv ut: Hej Goblin!',
+   'const namn = "Goblin";\nconsole.log(`Hej ${namn}!`);', {"expect": "Hej Goblin!"},
+   ["console.log skriver ut.", "console.log(`Hej ${namn}!`);"], 'const namn = "Goblin";\n'),
  T("js-grunder-2", 2, "Räkna", "Med let poang = 600, lägg till 55 och skriv ut: Poäng: 655",
    'let poang = 600;\npoang += 55;\nconsole.log(`Poäng: ${poang}`);', {"expect": "Poäng: 655"}, ["poang += 55", "console.log(`Poäng: ${poang}`);"]),
 ]})
@@ -240,7 +240,7 @@ for (let i = 1; i <= 3; i++) {
   console.log(`Våg ${i}`);
 }
 
-for (const namn of ["Kaytho", "Bo"]) {
+for (const namn of ["Goblin", "Bo"]) {
   console.log(namn);
 }
 ```

@@ -24,7 +24,7 @@
       "En rubrik skrivs <h1>Text</h1>.",
       "Lägg <h1>…</h1> och <p>…</p> mellan <body> och </body>."
      ],
-     "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n  <h1>Kaytho</h1>\n  <p>Jag gillar bågskytte och WoW.</p>\n</body>\n</html>\n"
+     "solution": "<!doctype html>\n<html lang=\"sv\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Min sida</title>\n</head>\n<body>\n  <h1>Goblin</h1>\n  <p>Jag gillar bågskytte och WoW.</p>\n</body>\n</html>\n"
     },
     {
      "id": "html-forsta-2",

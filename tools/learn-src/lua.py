@@ -9,7 +9,7 @@ Lua är ett litet, lättläst språk – det WoW-tillägg skrivs i.
 
 ```lua
 print("Hej från Lua!")
-local namn = "Kaytho"
+local namn = "Goblin"
 local nivå = 80
 print(namn .. " är nivå " .. nivå)
 ```
@@ -20,9 +20,9 @@ print(namn .. " är nivå " .. nivå)
 - `--` startar en kommentar.
 - En variabel som inte fått något värde är `nil` (= ingenting).
 """, "tasks": [
- T("lua-grunder-1", 1, "Hälsa", "Skapa local namn = \"Kaytho\" och skriv ut: Hej Kaytho!",
-   'local namn = "Kaytho"\nprint("Hej " .. namn .. "!")', {"expect": "Hej Kaytho!"},
-   ["Sätt ihop strängar med ..", 'print("Hej " .. namn .. "!")'], 'local namn = "Kaytho"\n'),
+ T("lua-grunder-1", 1, "Hälsa", "Skapa local namn = \"Goblin\" och skriv ut: Hej Goblin!",
+   'local namn = "Goblin"\nprint("Hej " .. namn .. "!")', {"expect": "Hej Goblin!"},
+   ["Sätt ihop strängar med ..", 'print("Hej " .. namn .. "!")'], 'local namn = "Goblin"\n'),
  T("lua-grunder-2", 2, "Räkna mana", "Du har 5000 mana och en besvärjelse kostar 350. Räkna hur många hela gånger du kan kasta den och skriv ut: 14 gånger",
    'local mana = 5000\nlocal kostnad = 350\nlocal ganger = math.floor(mana / kostnad)\nprint(ganger .. " gånger")', {"expect": "14 gånger"},
    ["/ ger decimaltal i Lua.", "math.floor() rundar nedåt."]),
@@ -92,8 +92,8 @@ M.append({"id": "lua-tabeller", "title": "Lua: tabeller som listor", "requires":
 En **tabell** är Luas enda samlingstyp. Som lista:
 
 ```lua
-local raid = {"Kaytho", "Bo", "Cia"}
-print(raid[1])            -- Kaytho – Lua börjar på 1!
+local raid = {"Goblin", "Bo", "Cia"}
+print(raid[1])            -- Goblin – Lua börjar på 1!
 print(#raid)              -- 3
 table.insert(raid, "Dan")
 for i, namn in ipairs(raid) do
@@ -104,22 +104,22 @@ end
 Bra att ha: `table.sort(t)` sorterar (med en funktion för egen ordning:
 `table.sort(t, function(a, b) return a > b end)`), `table.concat(t, ", ")` gör en sträng.
 """, "tasks": [
- T("lua-tabeller-1", 1, "Första och antal", 'local raid = {"Kaytho", "Bo", "Cia"}. Skriv ut första namnet och sedan antalet: Kaytho och 3 på var sin rad.',
-   'local raid = {"Kaytho", "Bo", "Cia"}\nprint(raid[1])\nprint(#raid)', {"expect": "Kaytho\n3"},
-   ["Index börjar på 1.", "#raid ger antalet."], 'local raid = {"Kaytho", "Bo", "Cia"}\n'),
+ T("lua-tabeller-1", 1, "Första och antal", 'local raid = {"Goblin", "Bo", "Cia"}. Skriv ut första namnet och sedan antalet: Goblin och 3 på var sin rad.',
+   'local raid = {"Goblin", "Bo", "Cia"}\nprint(raid[1])\nprint(#raid)', {"expect": "Goblin\n3"},
+   ["Index börjar på 1.", "#raid ger antalet."], 'local raid = {"Goblin", "Bo", "Cia"}\n'),
  T("lua-tabeller-2", 2, "Sorterat", 'local skada = {120, 300, 95}. Sortera störst först och skriv ut: 300, 120, 95',
    'local skada = {120, 300, 95}\ntable.sort(skada, function(a, b) return a > b end)\nprint(table.concat(skada, ", "))', {"expect": "300, 120, 95"},
    ["table.sort med en jämförelsefunktion.", 'table.concat(skada, ", ")'], "local skada = {120, 300, 95}\n"),
 ]})
 M.append({"id": "lua-ordbocker", "title": "Lua: tabeller med nycklar", "requires": ["lua-tabeller"],
- "summary": "`{namn = \"Kaytho\", nivå = 80}`, `t.namn` / `t[\"namn\"]`, `pairs` (ingen ordning), nästlade tabeller.",
+ "summary": "`{namn = \"Goblin\", nivå = 80}`, `t.namn` / `t[\"namn\"]`, `pairs` (ingen ordning), nästlade tabeller.",
  "lesson_md": """
 # Lua: tabeller med nycklar
 
 Samma tabell kan ha **nycklar** – som en ordbok:
 
 ```lua
-local spelare = {namn = "Kaytho", klass = "Präst", nivå = 80}
+local spelare = {namn = "Goblin", klass = "Präst", nivå = 80}
 print(spelare.namn)          -- eller spelare["namn"]
 spelare.guild = "GOBLINCAKES"
 for nyckel, värde in pairs(spelare) do
@@ -130,8 +130,8 @@ end
 `pairs` går igenom alla nycklar men **i ingen bestämd ordning** – sortera nycklarna själv om
 ordningen spelar roll. Tabeller kan ligga i tabeller: `raid[1].namn`.
 """, "tasks": [
- T("lua-ordbocker-1", 1, "Karaktärsblad", 'Skapa local k = {namn = "Kaytho", klass = "Präst"} och skriv ut: Kaytho (Präst)',
-   'local k = {namn = "Kaytho", klass = "Präst"}\nprint(k.namn .. " (" .. k.klass .. ")")', {"expect": "Kaytho (Präst)"},
+ T("lua-ordbocker-1", 1, "Karaktärsblad", 'Skapa local k = {namn = "Goblin", klass = "Präst"} och skriv ut: Goblin (Präst)',
+   'local k = {namn = "Goblin", klass = "Präst"}\nprint(k.namn .. " (" .. k.klass .. ")")', {"expect": "Goblin (Präst)"},
    ["k.namn och k.klass", 'print(k.namn .. " (" .. k.klass .. ")")']),
  T("lua-ordbocker-2", 2, "Räkna klasser", 'local raid = {"Präst", "Krigare", "Präst"}. Räkna hur många av varje i en tabell och skriv ut Krigare 1 och Präst 2 (i bokstavsordning).',
    'local raid = {"Präst", "Krigare", "Präst"}\nlocal antal = {}\nfor _, k in ipairs(raid) do\n  antal[k] = (antal[k] or 0) + 1\nend\nlocal namn = {}\nfor k in pairs(antal) do table.insert(namn, k) end\ntable.sort(namn)\nfor _, k in ipairs(namn) do print(k .. " " .. antal[k]) end',
@@ -194,12 +194,12 @@ f:SetScript("OnEvent", function(self, event)
 end)
 ```
 
-**Här i lärläget** körs koden mot en liten låtsasversion av WoW:s API (ditt namn är Kaytho).
+**Här i lärläget** körs koden mot en liten låtsasversion av WoW:s API (ditt namn är Goblin).
 Slutprovet gör du i spelet – `/reload` laddar om tilläggen, och BugSack visar fel.
 """, "tasks": [
- T("wow-hej-1", 1, "Hälsa när du loggar in", 'Gör så att tillägget skriver ut "Välkommen, Kaytho!" när PLAYER_LOGIN kommer. Använd UnitName("player") för namnet.',
+ T("wow-hej-1", 1, "Hälsa när du loggar in", 'Gör så att tillägget skriver ut "Välkommen, Goblin!" när PLAYER_LOGIN kommer. Använd UnitName("player") för namnet.',
    'local f = CreateFrame("Frame")\nf:RegisterEvent("PLAYER_LOGIN")\nf:SetScript("OnEvent", function(self, event)\n  print("Välkommen, " .. UnitName("player") .. "!")\nend)\n',
-   {"expect": "Välkommen, Kaytho!"},
+   {"expect": "Välkommen, Goblin!"},
    ['UnitName("player") ger ditt namn.', 'print("Välkommen, " .. UnitName("player") .. "!")'],
    'local f = CreateFrame("Frame")\nf:RegisterEvent("PLAYER_LOGIN")\nf:SetScript("OnEvent", function(self, event)\n  -- skriv här\nend)\n'),
 ]})

@@ -3,8 +3,8 @@
 En **tabell** är Luas enda samlingstyp. Som lista:
 
 ```lua
-local raid = {"Kaytho", "Bo", "Cia"}
-print(raid[1])            -- Kaytho – Lua börjar på 1!
+local raid = {"Goblin", "Bo", "Cia"}
+print(raid[1])            -- Goblin – Lua börjar på 1!
 print(#raid)              -- 3
 table.insert(raid, "Dan")
 for i, namn in ipairs(raid) do

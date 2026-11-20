@@ -4,7 +4,7 @@ PHP körs på **servern** och gör HTML som skickas till webbläsaren. Koden st�
 
 ```php
 <?php
-$namn = "Kaytho";
+$namn = "Goblin";
 $nivå = 80;
 echo "Hej $namn, du är nivå $nivå\n";      // variabler fungerar inne i "…"
 echo 'Enkla citattecken: $namn' . "\n";      // … men inte i '…'
