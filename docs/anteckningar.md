@@ -1081,6 +1081,12 @@ Användaren: högra sidan av klockrutan var tom (headset med sladd → inget hea
 - **Ljuden – planeras (15 nov kväll, användaren; bygg inte än):** dagens ljud är fyrkantsvågor gjorda i `spel.gd` (`_ton`: hopp, knapp, trampa, aj, oj, liv, kasta, mums, flagga, raddad) – inga för gå/spring/kryp. Önskat: hopp, skada, bonk på fiender, plock (knappar, hjärtan), kryp, gå, spring – fotstegen olika per tema (gräs/snö/sand) om Kenney har det; fler kommer när användaren provar. Källa: **Kenney (kenney.nl, CC0) – vi kollar vad som finns när vi börjar**; annars jsfxr/ChipTone (retro) – förslag att lyssna på innan något byggs in. Ljudnivå: i dag bara barnlägets master – senare egna inställningar i spelet.
 - **Vägen framåt (15 nov kväll, användaren):** (1) banorna klara → (2) **världskartan** med områden per tema (snöbanan ligger i ett snöområde osv.) → (3) **splash** med spelnamnet och pojken → (4) **start och inställningar** (ljud m.m.) → (5) **två spelare turvis** som i Mario (varannat liv, inte samtidigt) – spelare 2 = en flicka – görs **sist**, när alla banor och kläder är klara: Codex ritar om varje färdigt pojkblad (källbilderna `pojken-*-prov*.png` per klädsel) som flicka, samma poser och duk, så att `figur()` kan bygga hennes blad likadant.
 
+## Texter som är data – skriv aldrig om bakåt (21 nov)
+Lärdom från namnbytet (Kakan → Goblin AI, 20 nov): de flesta texter är bara det som visas, men en del läses också av ett annat program – ändras de bakåt går något sönder. Före en ändring av en text: `grep` efter vem som läser filen/strängen. Kända fall:
+- `nyheter.txt`: uppdateringspilen (`goblincakes-updates`) och `goblin update` (`goblincakes-news`) jämför raderna ord för ord – en omskriven gammal rad visas som ny hos alla (99 rader 20 nov, återställda 21 nov). Bara nya rader överst, gamla rör man inte.
+- `## Author:` i WoW-tilläggen: avgör vems tillägget är (`wowapi.ai_authors()` – gamla namn måste stå kvar i listan).
+- Texter som delas upp i kod (t.ex. första ordet som etikett) – prova med flerordsnamnet ("Goblin AI").
+
 ## Flyttat från CLAUDE.md 14 nov (för att spara kontext)
 Står här ordagrant som det stod i CLAUDE.md – CLAUDE.md har bara en pekare kvar.
 
