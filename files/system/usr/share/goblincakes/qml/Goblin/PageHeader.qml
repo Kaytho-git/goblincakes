@@ -84,7 +84,9 @@ Item {
                     visible: text !== ""
                     // beside the right group: up to it; under it: the whole page
                     readonly property real room: pageItem.width - head.logoSize - 22
-                                                 - (head.wrapped || rightSlot.width === 0 ? 0 : rightSlot.width + 32)
+                                                 - (head.wrapped || rightSlot.width === 0
+                                                    // a low right group at the title's top (Config's version) is above it
+                                                    || (head.rightOnTop && rightSlot.height <= titleRow.height) ? 0 : rightSlot.width + 32)
                     width: Math.min(implicitWidth, room)
                     wrapMode: head.subtitleLines > 1 ? Text.WordWrap : Text.NoWrap
                     maximumLineCount: head.subtitleLines

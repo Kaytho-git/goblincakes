@@ -106,13 +106,13 @@ Flickable {
     component Heading: Text {
         color: "#8B98AD"
         font.family: "Chakra Petch"
-        font.pixelSize: 13
+        font.pixelSize: G.Type.label
         font.letterSpacing: 2
     }
     component Body: Text {
         color: "#8B98AD"
         font.family: "IBM Plex Sans"
-        font.pixelSize: 14
+        font.pixelSize: G.Type.body
         wrapMode: Text.WordWrap
     }
     component Small: Rectangle {
@@ -131,7 +131,7 @@ Flickable {
             text: small.text
             color: "#E6ECF5"
             font.family: "IBM Plex Sans"
-            font.pixelSize: 12
+            font.pixelSize: G.Type.small
         }
         MouseArea {
             id: smallArea
@@ -152,7 +152,7 @@ Flickable {
         Body {
             visible: !kidsView.info
             text: kidsView.status || "Läser…"
-            font.pixelSize: 15
+            font.pixelSize: G.Type.body
         }
 
         // ── the games and programs
@@ -211,7 +211,7 @@ Flickable {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                             elide: Text.ElideRight
                         }
                         Text {
@@ -222,7 +222,7 @@ Flickable {
                                   : "Program"
                             color: card.modelData.overlay === true ? accent.errorBright : "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.small
                             elide: Text.ElideRight
                         }
                         Row {
@@ -267,7 +267,7 @@ Flickable {
                         text: "+ Lägg till"
                         color: "#E6ECF5"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 15
+                        font.pixelSize: G.Type.body
                     }
                     MouseArea {
                         id: addArea
@@ -320,7 +320,7 @@ Flickable {
                                 textFormat: Text.StyledText
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                                 elide: Text.ElideRight
                             }
                             MouseArea {
@@ -371,7 +371,7 @@ Flickable {
                             text: rd.modelData.t
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                         }
                         MouseArea {
                             id: rdArea
@@ -482,7 +482,7 @@ Flickable {
                                     text: rrow.modelData.name
                                     color: "#E6ECF5"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.small
                                     elide: Text.ElideRight
                                 }
                                 Text {
@@ -491,7 +491,7 @@ Flickable {
                                            rrow.modelData.players ? rrow.modelData.players + " spelare" : ""].filter(t => t).join(" · ")
                                     color: "#8B98AD"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.small
                                     elide: Text.ElideRight
                                 }
                             }
@@ -599,7 +599,7 @@ Flickable {
                         text: "+ Lägg till bilder"
                         color: "#E6ECF5"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                     }
                     MouseArea {
                         id: picAddArea
@@ -644,7 +644,7 @@ Flickable {
                             text: mus.modelData.t
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                         }
                         MouseArea {
                             id: musArea
@@ -684,7 +684,7 @@ Flickable {
                             text: vol.modelData.t
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                         }
                         MouseArea {
                             id: volArea
