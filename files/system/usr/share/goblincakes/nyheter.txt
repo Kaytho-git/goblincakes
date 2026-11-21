@@ -1,3 +1,4 @@
+2026-11-21  GoblinAmp: att leta i GENRER och Liknande fungerar igen efter bytet till Fedora 45.
 2026-11-21  Bildlänkarna i Goblin AI:s terminal fungerar nu även när filnamnet har mellanslag, t.ex. "Bild vid sjön.png".
 2026-11-20  Namnet du ger din AI i Goblin AI → Inställningar → Namn syns nu överallt – även på dashboarden, AI-kartan, i rösten och i notiserna – och utan eget namn står det Goblin AI. Rösten väcks med samma namn.
 2026-11-20  Exemplen i lärläget och i Goblin AI använder nu det neutrala namnet Goblin.

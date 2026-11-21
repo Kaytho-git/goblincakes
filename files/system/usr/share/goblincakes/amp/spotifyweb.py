@@ -19,7 +19,7 @@ with /playlists/{id}/items (add, remove by uri, move a range), a list away with 
 Recover playlists). The modify scopes came with this – an older sign-in has to be redone once.
 """
 import base64
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor   # not concurrent.futures.X: a lazy name under Python 3.15 + PySide6 (21 Nov)
 import hashlib
 import http.server
 import json
@@ -470,7 +470,7 @@ class Library:
 
     def find_tracks(self, pairs):
         """[(artist, title)] → the rows found in Spotify, in the same order (5 at a time)."""
-        with concurrent.futures.ThreadPoolExecutor(5) as pool:
+        with ThreadPoolExecutor(5) as pool:
             found = list(pool.map(lambda p: self._quiet(self.find_track, *p), pairs))
         seen, out = set(), []
         for row in found:
@@ -486,7 +486,7 @@ class Library:
         return artist_row((exact or items)[0]) if items else None
 
     def find_artists(self, names):
-        with concurrent.futures.ThreadPoolExecutor(5) as pool:
+        with ThreadPoolExecutor(5) as pool:
             return [r for r in pool.map(lambda n: self._quiet(self.find_artist, n), names) if r]
 
     @staticmethod
