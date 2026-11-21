@@ -1,7 +1,7 @@
 // The tabs of a page (docs/ux/norm.md 4 and 6, 22 Nov): Chakra Petch in capitals, an accent line under the chosen
 // one. The whole tab is the click area, the gap to its neighbours included (12 units on each side – before, only
 // the text was, and the gaps were dead). When the tabs don't fit they scroll sideways: the mouse wheel, a drag, or
-// the arrow in a faded edge – never clipped. The chosen tab is scrolled into view.
+// the arrow at the edge (the tabs stop before it, so it works on Levande's soft background too). The chosen tab is scrolled into view.
 //   model: [{ id, label }] · current: the chosen id · selected(id) when one is clicked
 import QtQuick
 
@@ -13,7 +13,6 @@ Item {
     property int fontSize: 15
     property real letterSpacing: 2.5
     property int gap: 24
-    property color fadeColor: "#07090D"
     readonly property bool overflow: row.width > width + 1
 
     implicitWidth: row.width
@@ -34,9 +33,12 @@ Item {
     }
     onWidthChanged: if (!overflow) flick.contentX = 0
 
+    readonly property bool moreLeft: overflow && flick.contentX > 1
+    readonly property bool moreRight: overflow && flick.contentX < row.width - flick.width - 1
+
     Flickable {
         id: flick
-        anchors.fill: parent
+        anchors { fill: parent; leftMargin: bar.moreLeft ? 28 : 0; rightMargin: bar.overflow ? 28 : 0 }
         contentWidth: row.width
         contentHeight: height
         clip: bar.overflow
@@ -107,29 +109,19 @@ Item {
         }
     }
 
-    // The faded edges with an arrow – only where there is more to see
+    // The arrows at the edges – only where there is more to see
     Repeater {
         model: [{ side: "left" }, { side: "right" }]
         Item {
             id: edge
             required property var modelData
             readonly property bool isLeft: modelData.side === "left"
-            visible: bar.overflow && (isLeft ? flick.contentX > 1 : flick.contentX < row.width - flick.width - 1)
-            width: 40
+            visible: isLeft ? bar.moreLeft : bar.moreRight
+            width: 28
             height: bar.height - 2
             x: isLeft ? 0 : bar.width - width
-            Rectangle {
-                anchors.fill: parent
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: edge.isLeft ? bar.fadeColor : Qt.rgba(bar.fadeColor.r, bar.fadeColor.g, bar.fadeColor.b, 0) }
-                    GradientStop { position: 0.6; color: bar.fadeColor }
-                    GradientStop { position: 1; color: edge.isLeft ? Qt.rgba(bar.fadeColor.r, bar.fadeColor.g, bar.fadeColor.b, 0) : bar.fadeColor }
-                }
-            }
             Text {
-                anchors { verticalCenter: parent.verticalCenter; left: edge.isLeft ? parent.left : undefined; right: edge.isLeft ? undefined : parent.right
-                          leftMargin: 4; rightMargin: 4 }
+                anchors.centerIn: parent
                 text: edge.isLeft ? "‹" : "›"
                 color: arrowArea.containsMouse ? "#E6ECF5" : "#8B98AD"
                 font.family: "IBM Plex Sans"
