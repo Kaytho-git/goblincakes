@@ -444,50 +444,25 @@ Window {
         scale: win.zoom
         transformOrigin: Item.TopLeft
 
-        // ── Header ───────────────────────────────────────────────
+        // ── Header (G.PageHeader: the buttons move under the title when narrow; norm 1) ──
 
-        Item {
+        G.PageHeader {
             id: header
             anchors { left: parent.left; right: parent.right; top: parent.top }
-            height: 150
+            logo: iconUrl
+            logoSize: 60
+            topMargin: 26
+            tabsGap: 15
+            sideMargin: 40
+            title: "GOBLINSHARE"
+            subtitle: !win.st.running ? (win.st.on || win.st.starting ? "Startar …" : "Avstängt – ingen på nätverket ser dig")
+                    : win.st.error ? win.st.error
+                    : "Andra ser dig som " + win.st.alias + (win.st.addresses && win.st.addresses.length
+                      ? " · " + win.st.addresses.join(", ") : " · inget nätverk")
+            subtitleColor: win.st.error ? accent.errorBright : "#8B98AD"
 
-            Row {
-                anchors { left: parent.left; leftMargin: 40; top: parent.top; topMargin: 26 }
-                spacing: 20
-                Image {
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: iconUrl
-                    sourceSize.width: 60
-                    sourceSize.height: 60
-                }
-                Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 6
-                    Text {
-                        text: "GOBLINSHARE"
-                        color: "#E6ECF5"
-                        font.family: "Chakra Petch"
-                        font.weight: Font.Bold
-                        font.pixelSize: 30
-                        font.letterSpacing: 4
-                    }
-                    Text {
-                        width: Math.min(implicitWidth, header.width - 40 - 80 - onRow.width - 80)
-                        text: !win.st.running ? (win.st.on || win.st.starting ? "Startar …" : "Avstängt – ingen på nätverket ser dig")
-                            : win.st.error ? win.st.error
-                            : "Andra ser dig som " + win.st.alias + (win.st.addresses && win.st.addresses.length
-                              ? " · " + win.st.addresses.join(", ") : " · inget nätverk")
-                        color: win.st.error ? accent.errorBright : "#8B98AD"
-                        font.family: "IBM Plex Sans"
-                        font.pixelSize: 15
-                        elide: Text.ElideRight
-                    }
-                }
-            }
-
-            Row {
+            actions: Row {
                 id: onRow
-                anchors { right: parent.right; rightMargin: 40; top: parent.top; topMargin: 40 }
                 spacing: 14
                 FlatButton { // someone helps on this computer: a code to read out (4 Nov)
                     anchors.verticalCenter: parent.verticalCenter
@@ -518,49 +493,15 @@ Window {
                 }
             }
 
-            Row {
-                anchors { left: parent.left; leftMargin: 40; bottom: parent.bottom }
-                spacing: 32
+            tabs: G.TabBar {
+                width: parent.width
+                gap: 32
                 visible: !!win.st.running
-                Repeater {
-                    model: [{ "id": "devices", "label": "ENHETER" + (win.peers.length ? " (" + win.peers.length + ")" : "") },
-                            { "id": "history", "label": "HISTORIK" },
-                            { "id": "settings", "label": "INSTÄLLNINGAR" }]
-                    Item {
-                        id: tabItem
-                        required property var modelData
-                        readonly property bool active: win.tab === modelData.id
-                        width: tabLabel.implicitWidth
-                        height: 44
-                        Text {
-                            id: tabLabel
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: tabItem.modelData.label
-                            color: tabItem.active ? "#E6ECF5" : tabArea.containsMouse ? "#C9D3E3" : "#8B98AD"
-                            font.family: "Chakra Petch"
-                            font.weight: Font.DemiBold
-                            font.pixelSize: 15
-                            font.letterSpacing: 2
-                        }
-                        Rectangle {
-                            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                            height: 3
-                            color: tabItem.active ? accent.color : "transparent"
-                        }
-                        MouseArea {
-                            id: tabArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: win.tab = tabItem.modelData.id
-                        }
-                    }
-                }
-            }
-            Rectangle {
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                height: 1
-                color: "#1E2A40"
+                model: [{ "id": "devices", "label": "ENHETER" + (win.peers.length ? " (" + win.peers.length + ")" : "") },
+                        { "id": "history", "label": "HISTORIK" },
+                        { "id": "settings", "label": "INSTÄLLNINGAR" }]
+                current: win.tab
+                onSelected: id => win.tab = id
             }
         }
 
@@ -614,9 +555,9 @@ Window {
 
             Column {
                 id: devCol
-                x: 40
+                x: G.Norm.pageX(devFlick.width, G.Norm.page, 40)   // the centred page (norm 1)
                 y: 28
-                width: devFlick.width - 80
+                width: G.Norm.pageWidth(devFlick.width, G.Norm.page, 40)
                 spacing: 22
 
                 // Files from Dolphin / goblin share skicka, waiting for a device
@@ -1095,7 +1036,9 @@ Window {
         ListView {
             id: histList
             visible: !!win.st.running && win.tab === "history"
-            anchors { top: header.bottom; topMargin: 24; left: parent.left; leftMargin: 40; right: parent.right; rightMargin: 40; bottom: parent.bottom; bottomMargin: 20 }
+            x: G.Norm.pageX(stage.width, G.Norm.page, 40)   // the centred page (norm 1)
+            width: G.Norm.pageWidth(stage.width, G.Norm.page, 40)
+            anchors { top: header.bottom; topMargin: 24; bottom: parent.bottom; bottomMargin: 20 }
             model: win.history
             spacing: 8
             clip: true
@@ -1202,9 +1145,9 @@ Window {
             FastWheel { flick: setFlick }
             Column {
                 id: setCol
-                x: 40
+                x: G.Norm.pageX(setFlick.width, G.Norm.page, 40)   // the page's left edge, at most 760 wide
                 y: 28
-                width: Math.min(760, setFlick.width - 80)
+                width: Math.min(760, G.Norm.pageWidth(setFlick.width, G.Norm.page, 40))
                 spacing: 14
 
                 SectionTitle { text: "DITT NAMN" }
