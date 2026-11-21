@@ -27,15 +27,11 @@ sys.path.insert(0, str(SHARE))
 import recorder as R  # noqa: E402
 
 
-def season_logo():
-    """The logo – in its look for the time of year when there is one."""
-    default = "/usr/share/icons/hicolor/scalable/apps/goblincakes.svg"
-    try:
-        sys.path.insert(0, "/usr/share/goblincakes/seasons")
-        import season
-        return season.asset("logo.svg", default)
-    except Exception:  # noqa: BLE001
-        return default
+# The shared start of the windows (share/goblincakes/goblinapp.py – P17, 22 Nov): the repo's next to this file, else /usr
+sys.path.append(str(next((d for d in (Path(__file__).resolve().parents[1] / "share/goblincakes",
+                                      Path("/usr/share/goblincakes")) if (d / "goblinapp.py").exists()),
+                         "/usr/share/goblincakes")))
+from goblinapp import cached_qml, season_logo, use_accent  # noqa: E402
 
 
 class Backend(QObject):
@@ -664,22 +660,6 @@ class Backend(QObject):
         return QUrl.fromLocalFile(path).toString() if path else ""
 
 
-def use_accent(engine):
-    """GOBLINCAKES' accent colour (Config → Utseende) as the QML property "accent", followed
-    live: /usr/share/goblincakes/accent.py. Without it: the standard blue."""
-    for d in (SHARE.parent, Path(__file__).resolve().parents[1] / "share/goblincakes", Path("/usr/share/goblincakes")):
-        if (d / "accent.py").exists():
-            sys.path.insert(0, str(d))
-            break
-    try:
-        import accent
-        accent.install(engine)
-    except Exception:  # noqa: BLE001 – an old or broken file must not stop the window
-        engine.rootContext().setContextProperty("accent", {
-            "color": "#2F6FED", "hover": "#4A82F0", "on": "#E6ECF5", "text": "#2F6FED",
-            "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
-
-
 def tray_text(st):
     """What the system tray icon says: is anything being recorded, and if not, why."""
     if not st.get("service"):
@@ -767,19 +747,6 @@ def make_tray(app, win, backend, base):
     tray.show()
     tray.menu = menu  # the menu has no parent: keep it alive with the icon
     return tray
-
-
-def cached_qml(path):
-    """The window's QML from a copy Qt's QML cache works for (share/goblincakes/qmlcache.py, P23 12 Nov:
-    image files are dated 1970 and were compiled again at every start) – or the file itself."""
-    try:
-        import importlib.util  # noqa: PLC0415
-        spec = importlib.util.spec_from_file_location("qmlcache", Path(path).resolve().parents[1] / "qmlcache.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module.local(path)
-    except Exception:  # noqa: BLE001 – anything wrong: load the file as before
-        return str(path)
 
 
 def main():

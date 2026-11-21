@@ -1,6 +1,8 @@
 # UX-granskningen (steg B) – avvikelser och förslag
 
-**Läget:** klart 22 nov (Opus, inte Fable). Normen finns i `docs/ux/norm.md`. Alla fönster är genomgångna, inget kvar. **Nästa:** steg C. Användaren väljer punkter i avsnitt 3 och Opus bygger dem en eller några per session (`docs/optimering/startinstruktion.md` del 3, steg C).
+**Steg C (22 nov, Opus):** BYGGT #1, #2, #3, #4, #5 (+ #9 titeln, #17 GoblinAmps sharpText, #24 röstrutan, Dashboards skala ur #12) – testlistor ux-rubrik-flikar, ux-goblin-ai, ux-skalan; bilder efter i `~/.local/share/goblincakes/ux-bilder/efter/`. Kvar att välja bland: #6–8, #10–16, #18–23 och resten av #12.
+
+**Läget (steg B):** klart 22 nov (Opus, inte Fable). Normen finns i `docs/ux/norm.md`. Alla fönster är genomgångna, inget kvar. **Nästa:** steg C. Användaren väljer punkter i avsnitt 3 och Opus bygger dem en eller några per session (`docs/optimering/startinstruktion.md` del 3, steg C).
 
 Underlaget: `docs/ux/inventering.md` och bilderna i `~/.local/share/goblincakes/ux-bilder/`. Sökvägar är relativa till `files/system/usr/share/goblincakes/` om inget annat står, och rader gäller commit 8706f94a. **Sett** = sett på bild i den här granskningen. **Läst** = bara läst i koden; det ska bekräftas innan något byggs.
 

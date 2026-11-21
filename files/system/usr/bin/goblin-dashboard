@@ -53,19 +53,11 @@ def test_data():
         return {}
 
 
-def use_accent(engine):
-    """GOBLINCAKES' accent colour as the QML property "accent", followed live (accent.py)."""
-    for d in (SHARE.parent, Path("/usr/share/goblincakes")):
-        if (d / "accent.py").exists():
-            sys.path.insert(0, str(d))
-            break
-    try:
-        import accent
-        accent.install(engine)
-    except Exception:  # noqa: BLE001 – an old or broken file must not stop the window
-        engine.rootContext().setContextProperty("accent", {
-            "color": "#2F6FED", "hover": "#4A82F0", "on": "#E6ECF5", "text": "#2F6FED",
-            "dim": "#1B3A78", "error": "#A4262C", "errorBright": "#E5484D"})
+# The shared start of the windows (share/goblincakes/goblinapp.py – P17, 22 Nov): the repo's next to this file, else /usr
+sys.path.append(str(next((d for d in (Path(__file__).resolve().parents[1] / "share/goblincakes",
+                                      Path("/usr/share/goblincakes")) if (d / "goblinapp.py").exists()),
+                         "/usr/share/goblincakes")))
+from goblinapp import cached_qml, use_accent  # noqa: E402
 
 
 class IconProvider(QQuickImageProvider):
@@ -787,19 +779,6 @@ def installed():
         return Path(exe).resolve() == Path(sys.argv[0]).resolve()
     except (OSError, StopIteration, IndexError):
         return False
-
-
-def cached_qml(path):
-    """The window's QML from a copy Qt's QML cache works for (share/goblincakes/qmlcache.py, P23 12 Nov:
-    image files are dated 1970 and were compiled again at every start) – or the file itself."""
-    try:
-        import importlib.util  # noqa: PLC0415
-        spec = importlib.util.spec_from_file_location("qmlcache", Path(path).resolve().parents[1] / "qmlcache.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module.local(path)
-    except Exception:  # noqa: BLE001 – anything wrong: load the file as before
-        return str(path)
 
 
 def main():

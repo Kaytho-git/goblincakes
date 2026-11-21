@@ -16,6 +16,10 @@ Ord: felsöka, fungerar inte, syns inte, trasig, slutat, system, atomiskt, rollb
   Avinstallera, lagmätaren, röstrutan) laddar sin QML från en kopia i ~/.cache/goblincakes/qml-src/<nyckel>/ (görs
   om av sig själv när imagen ändrats – /usr/share/goblincakes/qmlcache.py). Ett fönster som ser gammalt/trasigt ut
   efter en uppdatering: ta bort ~/.cache/goblincakes/qml-src och öppna fönstret igen (det är bara en kopia).
+- Fönstren delar sin startkod: /usr/share/goblincakes/goblinapp.py (QML-kopian, färgvalet, säsongsloggan). Startar
+  inget av fönstren (Config, Goblin AI, GoblinShare …) och felet nämner goblinapp: kör t.ex. `goblincakes-config` i en
+  terminal och läs felet – det gäller alla fönster samtidigt. Storleken sköts av qml/Goblin/Zoom.qml (inget
+  QT_SCALE_FACTOR): 94 % i startstorlek, lite större maximerat, ca 17 % större på en 1440p-skärm.
 - Inställningar: ~/.config/goblincakes/ (en fil per program). Tillstånd och flaggor: ~/.local/state/goblincakes/.
   Data: ~/.local/share/goblincakes/.
 - Hjälpprogrammen /usr/libexec/goblincakes-* går att köra för hand för att se vad de svarar.
