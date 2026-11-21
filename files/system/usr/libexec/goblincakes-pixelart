@@ -348,7 +348,7 @@ def cmd_list():
     data, items = load_list()
     print(f"Barnlägets pixelart – {OUT}\n")
     for it in items.values():
-        done = [SOURCE_NAMES[s].split(" ")[0] for s in SOURCES if paths(s, it)[1].is_file()]
+        done = [SOURCE_NAMES[s].rsplit(" (", 1)[0] for s in SOURCES if paths(s, it)[1].is_file()]
         print(f"  {it['id']:<12} {it['name']:<24} {it['size'][0]}×{it['size'][1]:<5} "
               + ("ritad av " + " och ".join(done) if done else "inte ritad"))
     print("\n  goblin pixelart ai saturnus · goblin pixelart chatgpt saturnus · goblin pixelart jämför")
