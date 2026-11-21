@@ -29,7 +29,7 @@ Allt om frugans laptop: `~/.local/share/goblincakes/frugans-laptop.md` på anvä
 - README: bara funktioner av allmänt intresse – inget om användarens dator (skärmar, mus, tangentbord), inga självklarheter.
 
 ## När användaren hälsar ("hej" o.d.) i en ny session
-Billigt (användarens beslut 14 nov): **ett** anrop, `tools/hej.sh` (pull, Pågår ur senast-gjort.txt, Fedora-kollen M17) – läs inget annat. Svara kort på svenska: vilket steg hen är på (första ej avbockade i Status), Fedora-läget (står det "FINNS" → säg till och fråga om hoppet, annars bara "inget nytt") och det som väntar på hen. Hela steglistan bara när hen ber om den.
+Billigt (användarens beslut 14 nov): **ett** anrop, `tools/hej.sh` (pull, Pågår ur senast-gjort.txt, Att göra, testlistorna, Fedora-kollen M17) – läs inget annat. Svara kort på svenska: vilket steg hen är på (första ej avbockade i Status), Fedora-läget (står det "FINNS" → säg till och fråga om hoppet, annars bara "inget nytt") och **alltid sist en kort numrerad lista "Att göra"**: Pågår-raderna (nästa steg var), de ej avbockade i Att göra (en kort rad var) och antalet väntande testlistor.
 - **Påminnelse (9 nov, användaren bad om det):** frugans laptop (Lenovo Legion Y520) har trasig skärm – fråga kort om hen har beställt skärmen (modellen är redan utläst, 9 nov); köpställen och bytessteg (frugans-laptop.md, "Reparationer") först när hen svarar. Ta bort raden när skärmen är beställd.
 
 ## Konventioner i koden

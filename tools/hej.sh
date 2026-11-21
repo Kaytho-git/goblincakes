@@ -1,6 +1,6 @@
 #!/bin/bash
 # Allt Claude behöver när användaren säger "hej" – i ett enda anrop (billigare).
-# Bara läsning: git pull, Pågår-delen av senast-gjort.txt och Fedora-kollen (M17).
+# Bara läsning: git pull, Pågår-delen av senast-gjort.txt, Att göra i CLAUDE.md, testlistorna och Fedora-kollen (M17).
 cd "$(dirname "$0")/.." || exit 1
 
 echo "== git"
@@ -10,6 +10,12 @@ git status --short | head -5
 
 echo "== senast-gjort.txt (Pågår)"
 [ -f senast-gjort.txt ] && sed -n '/^## Pågår/,/^## /{/^## Kvar/d;p}' senast-gjort.txt
+
+echo "== Att göra (CLAUDE.md, ej avbockat)"
+sed -n '/^## Att göra/,/^## /{/^- \[ \]/p}' CLAUDE.md | sed 's/ *(grep[^)]*)//g' | cut -c1-140
+
+echo "== Testlistor som väntar"
+ls ~/.local/share/goblincakes/testlistor/*.md 2>/dev/null | wc -l
 
 echo "== Fedora (M17)"
 # Jämför receptens image-version med nästa Fedora-tagg hos Universal Blue
