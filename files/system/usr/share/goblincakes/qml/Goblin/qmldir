@@ -23,3 +23,4 @@ TabBar 1.0 TabBar.qml
 PageHeader 1.0 PageHeader.qml
 Footer 1.0 Footer.qml
 Zoom 1.0 Zoom.qml
+singleton Type 1.0 Type.qml

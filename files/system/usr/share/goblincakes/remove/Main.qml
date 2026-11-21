@@ -200,7 +200,7 @@ Window {
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 16
+                                font.pixelSize: G.Type.body
                                 elide: Text.ElideRight
                             }
                             Text {
@@ -210,7 +210,7 @@ Window {
                                       + (card.modelData.others.length ? " (även " + card.modelData.others.join(", ") + ")" : "")
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                                 wrapMode: Text.WordWrap
                                 maximumLineCount: 3
                                 elide: Text.ElideRight
@@ -298,7 +298,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                             elide: Text.ElideRight
                         }
                         Text {
@@ -308,7 +308,7 @@ Window {
                                 : "Avinstallerat · paket " + row.modelData.package
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                             elide: Text.ElideRight
                         }
                     }
@@ -318,7 +318,7 @@ Window {
                         text: "Återställ"
                         color: row.checked ? "#E6ECF5" : "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.small
                     }
                     CheckSquare {
                         id: rowCheck
@@ -354,7 +354,7 @@ Window {
             text: win.summary
             color: "#E6ECF5"
             font.family: "IBM Plex Sans"
-            font.pixelSize: 16
+            font.pixelSize: G.Type.body
             wrapMode: Text.WordWrap
             lineHeight: 1.3
         }
@@ -364,7 +364,7 @@ Window {
             text: win.lastLine
             color: win.page === "done" && !win.ok ? "#DC464C" : "#8B98AD"
             font.family: "IBM Plex Mono"
-            font.pixelSize: 13
+            font.pixelSize: G.Type.small
             wrapMode: Text.WrapAnywhere
         }
         // A thin running line while rpm-ostree works
@@ -407,7 +407,7 @@ Window {
             }
             color: "#8B98AD"
             font.family: "IBM Plex Sans"
-            font.pixelSize: 15
+            font.pixelSize: G.Type.body
             elide: Text.ElideRight
         }
 

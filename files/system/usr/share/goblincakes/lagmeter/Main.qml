@@ -63,7 +63,7 @@ Window {
             text: g.name
             color: "#8B98AD"
             font.family: "Chakra Petch"
-            font.pixelSize: 13
+            font.pixelSize: G.Type.small
             font.letterSpacing: 1
         }
         Text {
@@ -71,7 +71,7 @@ Window {
             text: g.value
             color: "#E6ECF5"
             font.family: "IBM Plex Mono"
-            font.pixelSize: 13
+            font.pixelSize: G.Type.small
         }
         Canvas {
             id: canvas
@@ -176,7 +176,7 @@ Window {
             color: "#8B98AD"
             elide: Text.ElideRight
             font.family: "IBM Plex Sans"
-            font.pixelSize: 13
+            font.pixelSize: G.Type.small
         }
 
         Graph {
@@ -221,7 +221,7 @@ Window {
             color: "#8B98AD"
             elide: Text.ElideRight
             font.family: "IBM Plex Sans"
-            font.pixelSize: 13
+            font.pixelSize: G.Type.small
         }
         Row {
             id: buttons
@@ -240,7 +240,7 @@ Window {
             text: "Röd linje = laggar nu (Meta+Shift+L). Fråga sedan Goblin AI: \"varför laggade det?\""
             color: "#5A6A85"
             font.family: "IBM Plex Sans"
-            font.pixelSize: 12
+            font.pixelSize: G.Type.small
         }
     }
 }
