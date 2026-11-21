@@ -27,6 +27,10 @@ Ord: felsöka, fungerar inte, syns inte, trasig, slutat, system, atomiskt, rollb
 - Står det FINNS INTE vid en sökväg i kontrollen: den filen eller det programmet saknas – jämför stavningen
   med de som finns (`ls`), det är oftast felet.
 - Tillbaka till förra systemet efter en dålig uppdatering: `rpm-ostree rollback` och starta om.
+- "'lazy_import' object is not callable" i ett av GOBLINCAKES fönster = Python 3.15 (Fedora 45) + PySide6: koden
+  skriver `modul.Namn` på ett namn Python importerar lat (t.ex. `concurrent.futures.ThreadPoolExecutor`). Det sitter i
+  imagens kod (/usr, skrivskyddat) – du kan inte laga det. Skicka vidare till Claude med fönstrets namn, vad man
+  klickade på och felraden. (GoblinAmps GENRER rättades så 21 nov; tools/check.py stoppar nya.)
 
 ## Toppfältet: widgeten Spelas nu
 Ord: toppfält, toppfältet, panel, widget, spelas nu, nowplaying, batteri, laddning, mus, musen, headset, tangentbord, handkontroll, musik, discord röst, steam nedladdning, kakans steg
