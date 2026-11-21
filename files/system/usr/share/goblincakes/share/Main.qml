@@ -841,7 +841,7 @@ Window {
                 Rectangle {
                     G.Light {}
                     visible: win.peers.length === 0
-                    width: parent.width
+                    width: Math.min(parent.width, 760)   // a readable line, not the whole page (granskning #11, norm 1: löptext)
                     height: emptyCol.height + 48
                     color: "#0B1018"
                     border.width: 1
