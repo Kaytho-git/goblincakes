@@ -523,7 +523,7 @@ Window {
                             color: "#8B98AD"
                             font.family: "Chakra Petch"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 10
+                            font.pixelSize: 11   // norm 3: at least 11
                             font.letterSpacing: 1
                         }
                     }
@@ -1192,7 +1192,7 @@ Window {
             id: pickFoot
             visible: win.pickMode && win.videos.length > 0
             anchors { left: parent.left; bottom: parent.bottom; leftMargin: 24; bottomMargin: 20 }
-            width: 400 - 16
+            width: list.width - 16
             height: 50
             color: "#0B1018"
             border.width: 1
@@ -1219,7 +1219,7 @@ Window {
             FastWheel { flick: list }
             visible: win.videos.length > 0
             anchors { left: parent.left; top: pickBar.bottom; bottom: win.pickMode ? pickFoot.top : parent.bottom; leftMargin: 24; topMargin: 10; bottomMargin: win.pickMode ? 10 : 20 }
-            width: 400
+            width: Math.max(400, Math.min(520, videosPage.width * 0.26))   // grows a little with the window (granskning #7)
             clip: true
             spacing: 8
             boundsBehavior: Flickable.StopAtBounds
@@ -2192,7 +2192,7 @@ Window {
                 color: "#8B98AD"
                 font.family: "Chakra Petch"
                 font.weight: Font.DemiBold
-                font.pixelSize: 10
+                font.pixelSize: 11   // norm 3: at least 11
                 font.letterSpacing: 1
             }
         }
