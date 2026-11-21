@@ -1407,8 +1407,7 @@ Window {
         // Left of the big box on a lying screen, a row above it on a standing one (win.portrait).
 
         // A box: a header in small capitals with a mark in the accent and a note to the right, the content under it
-        component Panel: Rectangle {
-            G.Light {}
+        component Panel: G.Frame {   // the shared frame (qml/Goblin) with a heading – granskning #22
             id: panel
             property string title
             property string mark
@@ -1417,8 +1416,6 @@ Window {
             signal noteClicked()
             default property alias content: panelBody.data
             color: "#0E1420"
-            border.width: 1
-            border.color: "#1E2A40"
             clip: true
             Item {
                 id: panelHead
