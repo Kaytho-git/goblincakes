@@ -10,10 +10,13 @@ Window {
     G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
 
-    width: 1320
-    height: 860
-    minimumWidth: 980
-    minimumHeight: 640
+    // The layout is in units, drawn at G.Zoom's zoom (docs/ux/norm.md 2, 22 Nov – before: 0.9, and the settings and
+    // stats up to 70 % bigger in a big window; now the pages stay centred and the text grows a little)
+    G.Zoom { id: zoomer; win: win; startW: 1320; startH: 860 }
+    width: zoomer.startWidth
+    height: zoomer.startHeight
+    minimumWidth: zoomer.px(980)
+    minimumHeight: zoomer.px(620)
     visible: true
     title: "GoblinRecorder" // the desktop adds nothing when the title is the program name
     color: "#07090D"
@@ -24,8 +27,6 @@ Window {
     readonly property var videos: JSON.parse(backend.videos)
     property string tab: "videos" // videos | settings | wowstats | cs2stats
     readonly property bool micOff: cfg.capture === "wow" && cfg.cs2Capture === "game" // no game records your voice
-    // a big window (full screen): the settings bigger instead of small text spread out (22 Oct, the user)
-    readonly property real zoom: Math.max(1, Math.min(1.7, width / 1320))
     property var selected: null
     // The video player is made at the first film that plays or is sought (22 Oct): Qt's media
     // player loads FFmpeg (and CUDA with Nvidia) – ~150 MB for a window that mostly lies in the
@@ -987,7 +988,7 @@ Window {
         id: recordPanel
         visible: win.tab === "settings"
         anchors { right: parent.right; top: header.bottom; bottom: parent.bottom }
-        width: 268 * win.zoom
+        width: 268
         color: "#0B1018"
         Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom } width: 1; color: "#1E2A40" }
 
@@ -995,7 +996,7 @@ Window {
             id: recordFlick
             FastWheel { flick: recordFlick }
             anchors { fill: parent; leftMargin: 1 }
-            contentHeight: recordColumn.height * win.zoom + 48
+            contentHeight: recordColumn.height + 48
             clip: true
             boundsBehavior: Flickable.StopAtBounds
 
@@ -1003,9 +1004,7 @@ Window {
             id: recordColumn
             x: 23
             y: 24
-            transformOrigin: Item.TopLeft
-            scale: win.zoom
-            width: (recordPanel.width - 48) / win.zoom
+            width: recordPanel.width - 48
             spacing: 12
 
             SectionTitle { text: "SPELAS IN" }
@@ -2354,9 +2353,8 @@ Window {
         FastWheel { flick: wowPage }
         visible: win.tab === "wowstats"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
-        contentHeight: wowCol.height * zoom + 64
+        contentHeight: wowCol.height + 64
         // a big window (full screen) makes everything bigger instead of a narrow strip to the left
-        readonly property real zoom: Math.max(1, Math.min(1.7, width / 1180))
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         readonly property var d: win.wowData
@@ -2378,11 +2376,9 @@ Window {
 
         Column {
             id: wowCol
-            x: 40
+            x: G.Norm.pageX(wowPage.width, 1100, 40)   // centred, at most 1100 (norm 1)
             y: 28
-            transformOrigin: Item.TopLeft
-            scale: wowPage.zoom
-            width: Math.min(1100, (wowPage.width - 80) / wowPage.zoom)
+            width: G.Norm.pageWidth(wowPage.width, 1100, 40)
             spacing: 14
 
             Column {
@@ -2840,9 +2836,8 @@ Window {
         FastWheel { flick: cs2Page }
         visible: win.tab === "cs2stats"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
-        contentHeight: cs2Col.height * zoom + 64
+        contentHeight: cs2Col.height + 64
         // a big window (full screen) makes everything bigger instead of a narrow strip to the left
-        readonly property real zoom: Math.max(1, Math.min(1.7, width / 1180))
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         readonly property var d: win.cs2Data
@@ -2850,11 +2845,9 @@ Window {
 
         Column {
             id: cs2Col
-            x: 40
+            x: G.Norm.pageX(cs2Page.width, 1100, 40)   // centred, at most 1100 (norm 1)
             y: 28
-            transformOrigin: Item.TopLeft
-            scale: cs2Page.zoom
-            width: Math.min(1100, (cs2Page.width - 80) / cs2Page.zoom)
+            width: G.Norm.pageWidth(cs2Page.width, 1100, 40)
             spacing: 14
 
             // your real numbers (Valve's servers) or PRIVAT – each with its own seasons
@@ -3197,7 +3190,7 @@ Window {
         FastWheel { flick: settingsView }
         visible: win.tab === "settings"
         anchors { left: parent.left; right: recordPanel.left; top: header.bottom; bottom: parent.bottom }
-        contentHeight: settingsCol.height * win.zoom + 64
+        contentHeight: settingsCol.height + 64
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
@@ -3205,9 +3198,7 @@ Window {
             id: settingsCol
             x: 40
             y: 30
-            transformOrigin: Item.TopLeft
-            scale: win.zoom
-            width: (settingsView.width - 80) / win.zoom
+            width: settingsView.width - 80
             spacing: 14
 
             SectionTitle { text: "WARCRAFT LOGS" }
@@ -3781,8 +3772,8 @@ Window {
         readonly property point at: win.tipItem ? win.tipItem.mapToItem(win.contentItem, 0, 0) : Qt.point(0, 0)
         width: Math.min(360, tipLabel.implicitWidth + 24)
         height: tipLabel.implicitHeight + 16
-        x: Math.max(8, Math.min(win.width - width - 8, at.x))
-        y: win.tipItem && at.y + win.tipItem.height + 6 + height > win.height - 8
+        x: Math.max(8, Math.min(win.contentItem.width - width - 8, at.x))
+        y: win.tipItem && at.y + win.tipItem.height + 6 + height > win.contentItem.height - 8
            ? at.y - height - 6 : at.y + (win.tipItem ? win.tipItem.height : 0) + 6
         z: 100
         color: "#0E1420"
