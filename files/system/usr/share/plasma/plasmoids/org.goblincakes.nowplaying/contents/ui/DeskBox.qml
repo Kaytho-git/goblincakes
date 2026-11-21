@@ -26,7 +26,9 @@ Rectangle {
 
     implicitWidth: Math.round(300 * s)
     implicitHeight: Math.round(48 * s)
-    color: glass ? Qt.rgba(0.043, 0.063, 0.094, area.hot ? 0.74 : 0.62) : "#0B1018"
+    // the glass 76 % (62 % until 22 Nov: the small grey text was hard to read over a light wallpaper – granskning #13)
+    color: glass ? Qt.rgba(0.043, 0.063, 0.094, area.hot ? 0.84 : 0.76) : "#0B1018"
+    readonly property color dimText: glass ? "#A9B4C6" : "#8B98AD"
     border.width: glass ? 0 : 1
     border.color: area.hot ? "#2A3852" : "#1E2A40"
     Rectangle {
@@ -67,7 +69,7 @@ Rectangle {
             Text {
                 width: parent.width
                 text: box.label
-                color: "#8B98AD"
+                color: box.dimText
                 font.family: "IBM Plex Sans"
                 font.pixelSize: Math.max(9, Math.round(11 * box.s))
                 font.letterSpacing: 1
@@ -77,7 +79,7 @@ Rectangle {
             Text {
                 width: parent.width
                 text: box.text
-                color: box.dim ? "#8B98AD" : "#E6ECF5"
+                color: box.dim ? box.dimText : "#E6ECF5"
                 font.family: "IBM Plex Sans"
                 font.pixelSize: Math.max(9, Math.round(14 * box.s))
                 elide: Text.ElideRight

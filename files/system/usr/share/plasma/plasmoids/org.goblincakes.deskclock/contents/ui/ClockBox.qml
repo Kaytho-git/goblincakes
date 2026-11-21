@@ -44,7 +44,7 @@ Rectangle {
     signal kakanClicked()
 
     readonly property color frost: "#E6ECF5"
-    readonly property color dimText: "#8B98AD"
+    readonly property color dimText: glass ? "#A9B4C6" : "#8B98AD"   // lighter on the glass (granskning #13, 22 Nov)
 
     function level(percent) {
         // 24 Oct, the user's choice (the top bar): orange 11–49 %, red at 10 % and below – otherwise muted as in the mockup
@@ -56,7 +56,7 @@ Rectangle {
 
     implicitWidth: content.implicitWidth + Math.round(44 * box.s)
     implicitHeight: content.implicitHeight + Math.round(20 * box.s)
-    color: glass ? Qt.rgba(0.043, 0.063, 0.094, 0.62) : "#0B1018"
+    color: glass ? Qt.rgba(0.043, 0.063, 0.094, 0.76) : "#0B1018"   // 62 % until 22 Nov (granskning #13)
     border.width: glass ? 0 : 1
     border.color: "#1E2A40"
     Rectangle {
