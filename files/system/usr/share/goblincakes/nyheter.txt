@@ -1,3 +1,4 @@
+2026-11-22  Goblin AI: maximerat ligger samtalet och skrivraden i en kolumn mitt i rutan i stället för över hela skärmen. I ett litet fönster rullar flikarna fram med hjulet eller pilen, verktygsraden bryts på två rader och välkomsttexten går att rulla – inget ritas längre ovanpå något annat.
 2026-11-22  Config, Avinstallera program, GoblinShare och GoblinRecorder: i ett litet fönster hamnar knapparna uppe till höger under titeln i stället för ovanpå den, och flikarna som inte får plats rullar fram med hjulet eller pilen. Hela fliken går att klicka. Maximerat ligger innehållet i en kolumn mitt på skärmen i stället för att sträckas ut över hela bredden.
 2026-11-21  GoblinAmp: att leta i GENRER och Liknande fungerar igen efter bytet till Fedora 45.
 2026-11-21  Bildlänkarna i Goblin AI:s terminal fungerar nu även när filnamnet har mellanslag, t.ex. "Bild vid sjön.png".

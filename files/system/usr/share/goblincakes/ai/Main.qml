@@ -11,7 +11,7 @@ Window {
 
     width: 1320 * uiScale
     height: 860 * uiScale
-    minimumWidth: 980 * uiScale
+    minimumWidth: 1000 * uiScale
     minimumHeight: 600 * uiScale
     visible: !startQuick && !startHidden  // started for the quick box only: the window comes with the answer
     onActiveChanged: backend.setWindowActive(active)
@@ -1893,6 +1893,26 @@ Window {
                 id: tabBar
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 1 }
                 height: 44
+                // The tabs scroll sideways when they don't fit beside "+ Ny chatt" (hid behind it in a small window,
+                // 22 Nov – as G.TabBar in the other windows): the wheel, a drag or the arrows
+                readonly property bool overflow: tabRow.width > width - tabActions.width - 20
+                readonly property bool moreLeft: overflow && tabFlick.contentX > 1
+                readonly property bool moreRight: overflow && tabFlick.contentX < tabRow.width - tabFlick.width - 1
+                function nudge(dx) {
+                    tabFlick.contentX = Math.max(0, Math.min(Math.max(0, tabRow.width - tabFlick.width), tabFlick.contentX + dx));
+                }
+                onOverflowChanged: if (!overflow) tabFlick.contentX = 0
+                Flickable {
+                    id: tabFlick
+                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom; right: tabActions.left
+                              leftMargin: tabBar.moreLeft ? 28 : 0; rightMargin: tabBar.overflow ? 36 : 8 }
+                    contentWidth: tabRow.width
+                    contentHeight: height
+                    clip: tabBar.overflow
+                    interactive: tabBar.overflow
+                    flickableDirection: Flickable.HorizontalFlick
+                    boundsBehavior: Flickable.StopAtBounds
+                    Behavior on contentX { enabled: !tabFlick.dragging; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                 Row {
                     id: tabRow
                     height: parent.height
@@ -1905,6 +1925,11 @@ Window {
                             id: tab
                             required property var modelData
                             readonly property bool on: win.view === modelData.v
+                            // the chosen tab scrolled into view when the tabs don't fit
+                            onOnChanged: if (on && tabBar.overflow) Qt.callLater(() => {
+                                if (x < tabFlick.contentX) tabBar.nudge(x - tabFlick.contentX);
+                                else if (x + width > tabFlick.contentX + tabFlick.width) tabBar.nudge(x + width - tabFlick.contentX - tabFlick.width);
+                            })
                             width: tabContent.width + 32
                             height: tabRow.height
                             Row {
@@ -1983,7 +2008,46 @@ Window {
                         }
                     }
                 }
+                }
+                WheelHandler {
+                    target: tabFlick
+                    enabled: tabBar.overflow
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                    onWheel: event => {
+                        const d = event.pixelDelta.x !== 0 ? event.pixelDelta.x
+                                : event.pixelDelta.y !== 0 ? event.pixelDelta.y
+                                : (event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y) / 120 * 80;
+                        tabBar.nudge(-d);
+                    }
+                }
+                Repeater {
+                    model: ["left", "right"]
+                    Item {
+                        id: tabArrow
+                        required property string modelData
+                        readonly property bool isLeft: modelData === "left"
+                        visible: isLeft ? tabBar.moreLeft : tabBar.moreRight
+                        x: isLeft ? 0 : tabFlick.x + tabFlick.width
+                        width: 28
+                        height: tabBar.height - 2
+                        Text {
+                            anchors.centerIn: parent
+                            text: tabArrow.isLeft ? "‹" : "›"
+                            color: tabArrowArea.containsMouse ? "#E6ECF5" : "#8B98AD"
+                            font.family: "IBM Plex Sans"
+                            font.pixelSize: 20
+                        }
+                        MouseArea {
+                            id: tabArrowArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: tabBar.nudge((tabArrow.isLeft ? -1 : 1) * Math.max(100, tabFlick.width * 0.6))
+                        }
+                    }
+                }
                 Row {
+                    id: tabActions
                     anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
                     spacing: 14
                     Text {
@@ -2663,6 +2727,9 @@ Window {
             id: chatArea
             visible: win.view === "chat"
             anchors.fill: viewArea
+            // The conversation and the input in a centred column of at most 960 (docs/ux/norm.md 1, 22 Nov) –
+            // maximized they ran over ~1 500 px. side(m): the margin m in a narrow window, more in a wide one.
+            function side(m) { return Math.max(m, (width - G.Norm.reading) / 2 + m - 24) }
 
             // The teacher's chats (project "Lärläge"): back to the lesson
             FlatButton {
@@ -2674,61 +2741,71 @@ Window {
                 onClicked: { win.view = "learn"; win.learnSetup = false; win.reloadModule(); }
             }
 
-            // Empty: welcome + examples – above the (empty) chat list, which took the clicks (30 Oct)
-            Column {
+            // Empty: welcome + examples – above the (empty) chat list, which took the clicks (30 Oct). In its own
+            // scrolling area above the input: in a small window it ran in under the input (22 Nov)
+            Flickable {
+                id: welcomeFlick
+                FastWheel { flick: welcomeFlick }
                 z: 2
                 visible: chatModel.count === 0 && !backend.busy
-                anchors.centerIn: parent
-                anchors.verticalCenterOffset: -60
-                spacing: 18
-                width: Math.min(560, parent.width - 80)
+                anchors { left: parent.left; right: parent.right; top: parent.top; bottom: ownButtons.top }
+                contentHeight: Math.max(height, welcomeCol.height + 48)
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                Column {
+                    id: welcomeCol
+                    x: (welcomeFlick.width - width) / 2
+                    y: Math.max(24, (welcomeFlick.height - height) / 2 - 30)
+                    spacing: 18
+                    width: Math.min(560, welcomeFlick.width - 80)
 
-                Image {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    source: logoUrl
-                    sourceSize.width: 72
-                    sourceSize.height: 72
-                }
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: win.project ? win.project.name.toUpperCase() : "VAD KAN JAG HJÄLPA DIG MED?"
-                    color: "#E6ECF5"
-                    font.family: "Chakra Petch"
-                    font.weight: Font.Bold
-                    font.pixelSize: 24
-                    font.letterSpacing: 3
-                }
-                Text {
-                    width: parent.width
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.WordWrap
-                    text: win.project
-                          ? "Ny chatt i projektet" + (win.project.files.length ? " – " + win.project.files.length + " fasta filer följer med" : "")
-                            + ({ "local-only": " · bara lokal AI", "local-first": " · lokal AI först", "cloud-first": " · molnet först",
-                                 "cloud-only": " · bara molnet" }[win.project.order] || "") + "."
-                          : "Fråga vad du vill, be om hjälp med datorn, eller bifoga en textfil som ska rättas. Kommandon körs bara när du trycker Kör."
-                    color: "#8B98AD"
-                    font.family: "IBM Plex Sans"
-                    font.pixelSize: 14
-                }
-                Flow {
-                    width: parent.width
-                    visible: !win.project
-                    spacing: 10
-                    Repeater {
-                        model: win.examples
-                        FlatButton {
-                            required property string modelData
-                            small: true
-                            text: modelData
-                            // A try at once (the user: "tryck på dom för att testa funktionen"); the file one picks the file first
-                            onClicked: {
-                                if (modelData.indexOf("fil") >= 0) {
-                                    input.text = modelData;
-                                    input.forceActiveFocus();
-                                    openDialog.open();
-                                } else {
-                                    win.send(modelData);
+                    Image {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        source: logoUrl
+                        sourceSize.width: 72
+                        sourceSize.height: 72
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: win.project ? win.project.name.toUpperCase() : "VAD KAN JAG HJÄLPA DIG MED?"
+                        color: "#E6ECF5"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.Bold
+                        font.pixelSize: 24
+                        font.letterSpacing: 3
+                    }
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        text: win.project
+                              ? "Ny chatt i projektet" + (win.project.files.length ? " – " + win.project.files.length + " fasta filer följer med" : "")
+                                + ({ "local-only": " · bara lokal AI", "local-first": " · lokal AI först", "cloud-first": " · molnet först",
+                                     "cloud-only": " · bara molnet" }[win.project.order] || "") + "."
+                              : "Fråga vad du vill, be om hjälp med datorn, eller bifoga en textfil som ska rättas. Kommandon körs bara när du trycker Kör."
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: 14
+                    }
+                    Flow {
+                        width: parent.width
+                        visible: !win.project
+                        spacing: 10
+                        Repeater {
+                            model: win.examples
+                            FlatButton {
+                                required property string modelData
+                                small: true
+                                text: modelData
+                                // A try at once (the user: "tryck på dom för att testa funktionen"); the file one picks the file first
+                                onClicked: {
+                                    if (modelData.indexOf("fil") >= 0) {
+                                        input.text = modelData;
+                                        input.forceActiveFocus();
+                                        openDialog.open();
+                                    } else {
+                                        win.send(modelData);
+                                    }
                                 }
                             }
                         }
@@ -2740,8 +2817,8 @@ Window {
                 id: messagesView
                 FastWheel { flick: messagesView }
                 anchors { left: parent.left; right: parent.right; top: parent.top; bottom: ownButtons.top }
-                anchors.leftMargin: 40
-                anchors.rightMargin: 40
+                anchors.leftMargin: chatArea.side(40)
+                anchors.rightMargin: chatArea.side(40)
                 topMargin: 32
                 bottomMargin: 24
                 spacing: 22
@@ -3989,7 +4066,7 @@ Window {
             // As words like the rest of the input (26 Oct); also /<namn>
             Flow {
                 id: ownButtons
-                anchors { left: parent.left; right: parent.right; bottom: inputBar.top; leftMargin: 24; rightMargin: 24; bottomMargin: items.length ? 12 : 0 }
+                anchors { left: parent.left; right: parent.right; bottom: inputBar.top; leftMargin: chatArea.side(24); rightMargin: chatArea.side(24); bottomMargin: items.length ? 12 : 0 }
                 property var items: JSON.parse(backend.daily)
                 height: items.length ? implicitHeight : 0
                 spacing: 22
@@ -4009,7 +4086,7 @@ Window {
             // The buttons are words above the line, ❯ and a blinking block, ↑/↓, Ctrl+R, /commands.
             Item {
                 id: inputBar
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 24 }
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: chatArea.side(24); rightMargin: chatArea.side(24); bottomMargin: 24 }
                 height: inputCol.height
 
                 Column {
@@ -4021,8 +4098,9 @@ Window {
                         width: parent.width
                         height: tools.height
 
-                        Row {
+                        Flow {   // onto a second line in a small window instead of past the edge (22 Nov)
                             id: tools
+                            width: parent.width
                             spacing: 22
                             TextAction {
                                 visible: !win.pictureMode && backend.canSearch
@@ -4078,7 +4156,9 @@ Window {
                         }
                         Text {
                             anchors.right: parent.right
-                            visible: win.pictureMode || !backend.stoppable
+                            // gives way when the tools need the room (they drew on top of each other in a small window)
+                            visible: (win.pictureMode || !backend.stoppable) && tools.childrenRect.height < 30
+                                     && tools.childrenRect.width + 24 + implicitWidth <= parent.width
                             text: win.historySearch ? "↑↓ välj · enter tar · ctrl+r äldre · esc avbryter"
                                 : win.pictureMode ? (backend.canDraw ? "enter ritar" : "enter öppnar chatgpt") + " · shift+enter ny rad"
                                 : "/ kommandon · ↑ tidigare · ctrl+r sök"
