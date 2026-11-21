@@ -116,7 +116,7 @@ class Terminals(QObject):
         "" when it is no picture file. Relative paths from Claude Code's folder in the tab, else the shell's."""
         if path.startswith("file://"):
             path = unquote(path[7:])
-        path = os.path.expanduser(path)
+        path = os.path.expanduser(path.replace("\\ ", " "))   # "Månskensdröm\ vid\ sjön.png" from the shell
         if not path.lower().endswith(IMAGE_TYPES):
             return ""
         if not os.path.isabs(path):

@@ -65,6 +65,20 @@ let size = fontSize;        // Ctrl+Shift+plus/minus: every tab, new ones too
 // click = the picture big over the terminal. ptyterm.imageUrl says whether it is a picture file (relative paths
 // from Claude Code's folder, else the shell's) and gives its file:// address.
 const IMAGE = /(?:file:\/\/)?(?:~|\.{1,2})?\/?(?:[\p{L}\p{N}_.+@%=-]+\/)*[\p{L}\p{N}_.+@%=-]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif|ico)(?!\.?[\p{L}\p{N}_\/])/giu;
+// A path with spaces in a name (21 Nov, "Månskensdröm vid sjön.png" got no link): IMAGE stops at a space, so
+// from every place a path starts (/, ~/, ./, file://) also try the shortest run up to a picture ending. Becomes
+// a link only when the file exists, so ordinary words before a slash never do. "\ " (escaped space) works too.
+const PATH_START = /(?<=^|[\s"'`(\[])(?:file:\/\/|~|\.{1,2})?\//gu;
+const SPACED = /[^\n"'`<>|]{0,300}?\.(?:png|jpe?g|gif|webp|svg|bmp|avif|ico)(?![\p{L}\p{N}_\/])/iuy;
+function spacedPaths(text) {
+  const out = [];
+  for (const m of text.matchAll(PATH_START)) {
+    SPACED.lastIndex = m.index;
+    const t = SPACED.exec(text);
+    if (t && t[0].includes(" ")) out.push({ index: m.index, 0: t[0] });
+  }
+  return out;
+}
 const known = new Map();    // "id\npath" → {url, at}: provideLinks runs on every mouse move over a row
 let peekTimer = 0;
 
@@ -101,7 +115,7 @@ function imageLinks(term, sid, y, callback) {
     }
   }
   const found = [], seen = new Set();
-  for (const v of [glued, apart]) for (const m of v.text.matchAll(IMAGE)) {
+  for (const v of [glued, apart]) for (const m of [...v.text.matchAll(IMAGE), ...spacedPaths(v.text)]) {
     const start = v.pos[m.index], end = v.pos[m.index + m[0].length - 1];
     if (!start || !end || start.y > y || end.y < y) continue;
     const key = start.x + "," + start.y + "," + end.x + "," + end.y;
@@ -117,7 +131,12 @@ function imageLinks(term, sid, y, callback) {
       hover: ev => showPeek(url, f.path, ev),
       leave: hidePeek
     });
-    if (--left === 0) callback(links.length ? links : undefined);
+    if (--left > 0) return;
+    // "sjön.png" inside "/…/Månskensdröm vid sjön.png": keep the longer link
+    const inside = (a, b) => a !== b && (a.range.start.y > b.range.start.y || (a.range.start.y === b.range.start.y && a.range.start.x >= b.range.start.x))
+      && (a.range.end.y < b.range.end.y || (a.range.end.y === b.range.end.y && a.range.end.x <= b.range.end.x));
+    const kept = links.filter(a => !links.some(b => inside(a, b)));
+    callback(kept.length ? kept : undefined);
   }));
 }
 

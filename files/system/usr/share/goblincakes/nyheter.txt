@@ -1,3 +1,4 @@
+2026-11-21  Bildlänkarna i Goblin AI:s terminal fungerar nu även när filnamnet har mellanslag, t.ex. "Bild vid sjön.png".
 2026-11-20  Namnet du ger din AI i Goblin AI → Inställningar → Namn syns nu överallt – även på dashboarden, AI-kartan, i rösten och i notiserna – och utan eget namn står det Goblin AI. Rösten väcks med samma namn.
 2026-11-20  Exemplen i lärläget och i Goblin AI använder nu det neutrala namnet Goblin.
 2026-11-20  Goblin AI gör enkla kommandon direkt utan att tänka: skriv t.ex. "pausa", "nästa låt", "höj volymen", "starta wow" eller "vad är klockan" så händer det på en gång – även när du spelar. Allt annat svarar Kakan på som vanligt.
