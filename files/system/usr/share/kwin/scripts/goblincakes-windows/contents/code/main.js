@@ -346,7 +346,18 @@ function ampAdded(window) {
         });
     };
     if (xy.length === 2 && !isNaN(xy[0]) && !isNaN(xy[1]) && fits(xy[0], xy[1])) {
-        window.frameGeometry = { x: xy[0], y: xy[1], width: geo.width, height: geo.height };
+        // wholly on the screen its middle is on – a place saved on a wider screen layout left part of it outside
+        // (granskning #18, 22 Nov)
+        let x = xy[0], y = xy[1];
+        workspace.screens.forEach(function (s) {
+            const g = s.geometry;
+            if (x + geo.width / 2 >= g.x && x + geo.width / 2 < g.x + g.width
+                && y + geo.height / 2 >= g.y && y + geo.height / 2 < g.y + g.height) {
+                x = Math.max(g.x, Math.min(x, g.x + g.width - geo.width));
+                y = Math.max(g.y, Math.min(y, g.y + g.height - geo.height));
+            }
+        });
+        window.frameGeometry = { x: x, y: y, width: geo.width, height: geo.height };
     } else if (playlist) {
         const player = workspace.windowList().filter(function (w) {
             return w.resourceClass === AMP && String(w.caption) !== AMP_PLAYLIST;
