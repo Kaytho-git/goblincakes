@@ -91,7 +91,7 @@ Window {
 
     component FlatField: G.FlatField { height: 40; fontSize: 14 }
 
-    component FlatButton: G.FlatButton { minWidth: 96; padding: 32; normalHeight: 34; fontSize: 13 }   // shared (qml/Goblin)
+    component FlatButton: G.FlatButton { minWidth: 96; padding: 32; normalHeight: 32; fontSize: 13 }   // shared (qml/Goblin) – 32 = the norm's compact button (granskning #19)
 
     component ToggleSwitch: G.ToggleSwitch {}
 
@@ -452,7 +452,7 @@ Window {
             logoSize: 60
             topMargin: 26
             tabsGap: 15
-            sideMargin: 40
+            sideMargin: 48   // the norm's margin (40 until 22 Nov)
             title: "GOBLINSHARE"
             subtitle: !win.st.running ? (win.st.on || win.st.starting ? "Startar …" : "Avstängt – ingen på nätverket ser dig")
                     : win.st.error ? win.st.error
@@ -554,9 +554,9 @@ Window {
 
             Column {
                 id: devCol
-                x: G.Norm.pageX(devFlick.width, G.Norm.page, 40)   // the centred page (norm 1)
+                x: G.Norm.pageX(devFlick.width, G.Norm.page)   // the centred page (norm 1)
                 y: 28
-                width: G.Norm.pageWidth(devFlick.width, G.Norm.page, 40)
+                width: G.Norm.pageWidth(devFlick.width, G.Norm.page)
                 spacing: 22
 
                 // Files from Dolphin / goblin share skicka, waiting for a device
@@ -1035,8 +1035,8 @@ Window {
         ListView {
             id: histList
             visible: !!win.st.running && win.tab === "history"
-            x: G.Norm.pageX(stage.width, G.Norm.page, 40)   // the centred page (norm 1)
-            width: G.Norm.pageWidth(stage.width, G.Norm.page, 40)
+            x: G.Norm.pageX(stage.width, G.Norm.page)   // the centred page (norm 1)
+            width: G.Norm.pageWidth(stage.width, G.Norm.page)
             anchors { top: header.bottom; topMargin: 24; bottom: parent.bottom; bottomMargin: 20 }
             model: win.history
             spacing: 8
@@ -1144,9 +1144,9 @@ Window {
             FastWheel { flick: setFlick }
             Column {
                 id: setCol
-                x: G.Norm.pageX(setFlick.width, G.Norm.page, 40)   // the page's left edge, at most 760 wide
+                x: G.Norm.pageX(setFlick.width, G.Norm.page)   // the page's left edge, at most 760 wide
                 y: 28
-                width: Math.min(760, G.Norm.pageWidth(setFlick.width, G.Norm.page, 40))
+                width: Math.min(760, G.Norm.pageWidth(setFlick.width, G.Norm.page))
                 spacing: 14
 
                 SectionTitle { text: "DITT NAMN" }

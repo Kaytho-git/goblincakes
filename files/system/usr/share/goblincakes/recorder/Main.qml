@@ -444,7 +444,7 @@ Window {
         }
     }
 
-    component FlatButton: G.FlatButton { minWidth: 96; padding: 32; normalHeight: 34; fontSize: 13 }   // shared (qml/Goblin)
+    component FlatButton: G.FlatButton { minWidth: 96; padding: 32; normalHeight: 32; fontSize: 13 }   // shared (qml/Goblin) – 32 = the norm's compact button (granskning #19)
 
     component ToggleSwitch: G.ToggleSwitch {}
 
@@ -840,7 +840,7 @@ Window {
         logoSize: 60
         topMargin: 28
         tabsGap: 30
-        sideMargin: 40
+        sideMargin: 48   // the norm's margin (40 until 22 Nov)
         maxWidth: 100000   // the recordings page (a list and the film) uses the whole window, so the header does too
         title: "GOBLINRECORDER"
         subtitle: win.stateLine()
@@ -2376,9 +2376,9 @@ Window {
 
         Column {
             id: wowCol
-            x: G.Norm.pageX(wowPage.width, 1100, 40)   // centred, at most 1100 (norm 1)
+            x: G.Norm.pageX(wowPage.width, 1100)   // centred, at most 1100 (norm 1)
             y: 28
-            width: G.Norm.pageWidth(wowPage.width, 1100, 40)
+            width: G.Norm.pageWidth(wowPage.width, 1100)
             spacing: 14
 
             Column {
@@ -2845,9 +2845,9 @@ Window {
 
         Column {
             id: cs2Col
-            x: G.Norm.pageX(cs2Page.width, 1100, 40)   // centred, at most 1100 (norm 1)
+            x: G.Norm.pageX(cs2Page.width, 1100)   // centred, at most 1100 (norm 1)
             y: 28
-            width: G.Norm.pageWidth(cs2Page.width, 1100, 40)
+            width: G.Norm.pageWidth(cs2Page.width, 1100)
             spacing: 14
 
             // your real numbers (Valve's servers) or PRIVAT – each with its own seasons
