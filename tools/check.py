@@ -4,6 +4,7 @@ first job in .github/workflows/build.yml – an error stops the build before any
 
 Errors (exit code 1):
   1. syntax: every Python, shell (bash -n) and JSON file in the repo
+     1b. no `module.name` on a name Python 3.15 imports lazily (concurrent.futures.ThreadPoolExecutor)
   2. QML: every window's QML file compiles offscreen (needs PySide6; skipped with a warning without it)
   3. the copies are equal: lock screen + logout (look-and-feel and plasma-shell), the three
      Chrome/Brave/Chromium policy files, fitTileToWindow in the KWin script and tile/apply.js
@@ -74,6 +75,66 @@ def check_syntax():
             except (ValueError, UnicodeDecodeError) as e:
                 errors.append(f"JSON: {rel(p)}: {e}")
     print(f"  syntax: {py} Python, {sh} skal, {js} JSON")
+
+
+# 1b. Lazy names (21 Nov) -------------------------------------------------------------------------
+# Python 3.15 (Fedora 45) imports some of the standard library's names lazily ("lazy from .thread import
+# ThreadPoolExecutor"). With PySide6 loaded, `concurrent.futures.ThreadPoolExecutor` then gives the unloaded
+# stand-in: "'lazy_import' object is not callable" (GoblinAmp's GENRER). `from M import name` works.
+# The names are read from this machine's Python; the known ones are added for the build's older Python.
+KNOWN_LAZY = {"concurrent.futures": {"ThreadPoolExecutor", "ProcessPoolExecutor", "InterpreterPoolExecutor"}}
+def lazy_names():
+    """{module: names it imports lazily at its top} – read with Python's own parser (is_lazy, 3.15+)."""
+    import ast
+    import sysconfig
+    found = {m: set(v) for m, v in KNOWN_LAZY.items()}
+    stdlib = Path(sysconfig.get_paths()["stdlib"])
+    for p in stdlib.rglob("*.py"):
+        parts = p.relative_to(stdlib).parts
+        if parts[0] in ("site-packages", "test", "idlelib") or "tests" in parts:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+            if "lazy " not in text:
+                continue
+            tree = ast.parse(text)
+        except (OSError, SyntaxError, ValueError):
+            continue
+        mod = ".".join(parts)[:-3].removesuffix(".__init__")
+        for node in tree.body:   # only the module's own names, not ones inside a function or an if
+            if isinstance(node, (ast.Import, ast.ImportFrom)) and getattr(node, "is_lazy", 0):
+                for a in node.names:
+                    name = a.asname or (a.name if isinstance(node, ast.ImportFrom) else a.name.split(".")[0])
+                    if name.isidentifier() and not name.startswith("_"):
+                        found.setdefault(mod, set()).add(name)
+    return found
+
+
+def check_lazy():
+    lazy, hits = lazy_names(), 0
+    for p in files():
+        if not (p.suffix == ".py" or (not p.suffix and "python" in shebang(p))) or p == Path(__file__).resolve():
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for mod, names in lazy.items():
+            if mod.split(".")[-1] not in text:
+                continue
+            parent, _, last = mod.rpartition(".")
+            refs = {mod} | set(re.findall(rf"^\s*import\s+{re.escape(mod)}\s+as\s+(\w+)", text, re.M))
+            if parent:
+                refs |= {a or last for a in re.findall(
+                    rf"^\s*from\s+{re.escape(parent)}\s+import\s+.*\b{re.escape(last)}\b(?:\s+as\s+(\w+))?", text, re.M)}
+            pat = re.compile(r"(?<![\w.])(" + "|".join(map(re.escape, refs)) + r")\.(" + "|".join(map(re.escape, names)) + r")\b")
+            for n, line in enumerate(text.splitlines(), 1):
+                code = line.split("#", 1)[0]
+                for m in pat.finditer(code):
+                    hits += 1
+                    errors.append(f"Lat import: {rel(p)}:{n}: {m.group(0)} – skriv `from {mod} import {m.group(2)}` "
+                                  "(Python 3.15 + PySide6 ger \"'lazy_import' object is not callable\")")
+    print(f"  lata importer: {sum(map(len, lazy.values()))} namn i {len(lazy)} moduler, {hits} fel")
 
 
 # 2. QML ------------------------------------------------------------------------------------------
@@ -241,6 +302,7 @@ def main():
     print("GOBLINCAKES-kontrollen (tools/check.py)")
     changed = changed_since(base)
     check_syntax()
+    check_lazy()
     check_qml()
     check_copies()
     check_learn(changed)
