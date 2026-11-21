@@ -12,8 +12,15 @@ echo "== senast-gjort.txt (Pågår)"
 [ -f senast-gjort.txt ] && sed -n '/^## Pågår/,/^## /{/^## Kvar/d;p}' senast-gjort.txt
 
 echo "== Fedora (M17)"
-for i in kinoite-main kinoite-nvidia; do
-  skopeo inspect --no-tags "docker://ghcr.io/ublue-os/$i:latest" 2>/dev/null |
-    python3 -c 'import json,sys; l=json.load(sys.stdin)["Labels"]; print(sys.argv[1], l.get("org.opencontainers.image.version"))' "$i" ||
-    echo "$i: kunde inte läsas"
+# Jämför receptens image-version med nästa Fedora-tagg hos Universal Blue
+# (:latest kan ligga kvar på en äldre version, därför inte den).
+for r in recipes/recipe.yml recipes/recipe-nvidia.yml; do
+  bas=$(sed -n 's|^base-image: ghcr.io/ublue-os/||p' "$r")
+  v=$(sed -n 's/^image-version: *//p' "$r")
+  n=$((v + 1))
+  if skopeo inspect --no-tags "docker://ghcr.io/ublue-os/$bas:$n" >/dev/null 2>&1; then
+    echo "$bas: recepten $v, Fedora $n FINNS – fråga om hoppet"
+  else
+    echo "$bas: recepten $v, inget nytt"
+  fi
 done
