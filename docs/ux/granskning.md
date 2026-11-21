@@ -112,6 +112,6 @@ Storlek: liten = < 1 timme, medel = en session, stor = flera sessioner. "Opus?" 
 4. **Goblin AI läsbredd och trånga lägen** (#4): det fönster användaren har uppe mest.
 5. **Gemensam skala med skärmfaktor** (#5): grunden för 1440p och för att fönstren ska ha samma storlek. Den största punkten, så den görs sist av de fem eller av Fable.
 
-Före/efter-skisserna för de fem: artifact **"UX topp 5"** (länken står i commit-meddelandet och i svaret till användaren 22 nov).
+Före/efter-skisserna för de fem: artifact **"UX topp 5"**, https://claude.ai/artifact/QuDtpBUe3V5i4D9Jf5h5CU
 
 **Ordning för steg C:** 1 → 2 → 3 (de bygger på varandra och ger mest för minst), sedan 4, 6, 8–11 (små, fristående) och sist 5 med 12, 14 och 24.
