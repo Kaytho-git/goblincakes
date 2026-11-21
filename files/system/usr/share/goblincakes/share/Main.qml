@@ -251,7 +251,7 @@ Window {
                         text: !cw.peer ? "Syns inte i nätverket just nu" : cw.phone ? "Telefon – kan bara ta emot" : "GOBLINCAKES"
                         color: !cw.peer ? "#5C6880" : cw.phone ? "#8B98AD" : cw.tone
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.label
                     }
                 }
             }
@@ -351,7 +351,7 @@ Window {
                         selectionColor: m.out && !m.failed ? "#0B1018" : accent.color
                         selectedTextColor: m.out && !m.failed ? "#E6ECF5" : accent.on
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                         onLinkActivated: link => Qt.openUrlExternally(link)
                         onSelectedTextChanged: if (selectedText !== "") copySel.restart()
                         Timer { id: copySel; interval: 350; onTriggered: if (body.selectedText !== "") backend.copyText(body.selectedText) }
@@ -368,7 +368,7 @@ Window {
                           : m.failed ? " · ✗ " + (m.modelData.why || "skickades inte") : " · ✓")
                     color: m.failed ? accent.errorBright : "#5C6880"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 11
+                    font.pixelSize: G.Type.meta
                 }
             }
         }
@@ -395,7 +395,7 @@ Window {
                     color: "#E6ECF5"
                     selectionColor: accent.color
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 14
+                    font.pixelSize: G.Type.body
                     wrapMode: TextEdit.Wrap
                     selectByMouse: true
                     onCursorRectangleChanged: if (cursorRectangle.y + cursorRectangle.height > inputFlick.contentY + inputFlick.height)
@@ -411,7 +411,7 @@ Window {
                     text: cw.phone ? "Skriv till telefonen …" : "Skriv ett meddelande …"
                     color: "#5C6880"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 14
+                    font.pixelSize: G.Type.small
                 }
             }
             FlatButton {
@@ -482,7 +482,7 @@ Window {
                     text: "Synlig på nätverket"
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 13
+                    font.pixelSize: G.Type.small
                     leftPadding: 10
                 }
                 ToggleSwitch {
@@ -521,7 +521,7 @@ Window {
             }
             Note {
                 width: parent.width
-                font.pixelSize: 15
+                font.pixelSize: G.Type.tab
                 text: "GoblinShare skickar filer, mappar och meddelanden direkt mellan datorerna i huset – utan konto, " +
                       "utan internet och krypterat. Andra GOBLINCAKES-datorer syns av sig själva. Telefoner (iPhone och " +
                       "Android) med den kostnadsfria appen LocalSend kan få filer härifrån.\n\n" +
@@ -572,7 +572,7 @@ Window {
                         text: "Att skicka – " + win.stagedText() + ". Klicka på den som ska få " + (win.staged.length === 1 ? "den." : "dem.")
                         color: "#E6ECF5"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                         elide: Text.ElideRight
                     }
                     FlatButton {
@@ -611,7 +611,7 @@ Window {
                                     color: accent.text
                                     font.family: "Chakra Petch"
                                     font.weight: Font.DemiBold
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.label
                                     font.letterSpacing: 1
                                 }
                                 Text {
@@ -619,7 +619,7 @@ Window {
                                     text: ord.modelData.text
                                     color: "#E6ECF5"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 15
+                                    font.pixelSize: G.Type.tab
                                     wrapMode: Text.Wrap
                                     maximumLineCount: 4
                                     elide: Text.ElideRight
@@ -685,7 +685,7 @@ Window {
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
                                 font.weight: Font.Medium
-                                font.pixelSize: 16
+                                font.pixelSize: G.Type.body
                                 width: parent.width
                                 elide: Text.ElideRight
                             }
@@ -742,7 +742,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.Medium
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                             wrapMode: Text.Wrap
                         }
                         Note {
@@ -795,14 +795,14 @@ Window {
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
                                         font.weight: Font.Medium
-                                        font.pixelSize: 14
+                                        font.pixelSize: G.Type.body
                                     }
                                     Text {
                                         width: parent.width - x - stateText.width - 20
                                         text: tr.modelData.count > 1 ? win.plural(tr.modelData.count, "fil", "filer") : tr.modelData.name
                                         color: "#8B98AD"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 14
+                                        font.pixelSize: G.Type.body
                                         elide: Text.ElideMiddle
                                     }
                                     Text {
@@ -813,7 +813,7 @@ Window {
                                             : tr.modelData.state
                                         color: tr.failed ? accent.errorBright : tr.modelData.state === "klart" ? "#3FB950" : "#8B98AD"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                     }
                                 }
                                 ProgressLine {
@@ -855,7 +855,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.Medium
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                         }
                         Note {
                             width: parent.width
@@ -929,7 +929,7 @@ Window {
                                             text: win.kindText(card.modelData)
                                             color: card.modelData.goblincakes ? card.tone : "#8B98AD"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 12
+                                            font.pixelSize: G.Type.label
                                             elide: Text.ElideRight
                                         }
                                     }
@@ -939,7 +939,7 @@ Window {
                                     text: card.modelData.ip + (card.modelData.ago > 0 ? " · sedd för " + Math.round(card.modelData.ago / 60) + " min sedan" : "")
                                     color: "#5C6880"
                                     font.family: "IBM Plex Mono"
-                                    font.pixelSize: 11
+                                    font.pixelSize: G.Type.meta
                                 }
                             }
                             // Drop / click hint, or the buttons
@@ -950,7 +950,7 @@ Window {
                                 color: accent.text
                                 font.family: "IBM Plex Sans"
                                 font.weight: Font.Medium
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Row {
                                 visible: !win.staged.length && !drop.containsDrag
@@ -977,7 +977,7 @@ Window {
                                             color: accent.on
                                             font.family: "IBM Plex Sans"
                                             font.weight: Font.Bold
-                                            font.pixelSize: 11
+                                            font.pixelSize: G.Type.meta
                                         }
                                     }
                                 }
@@ -998,7 +998,7 @@ Window {
                                     text: "Ta emot utan att fråga"
                                     color: card.modelData.trusted ? "#E6ECF5" : "#8B98AD"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.small
                                 }
                             }
                             MouseArea { // the trust row
@@ -1050,7 +1050,7 @@ Window {
                     visible: !win.history.length
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Inget skickat eller mottaget än."
-                    font.pixelSize: 15
+                    font.pixelSize: G.Type.body
                 }
                 Row {
                     visible: win.history.length > 0
@@ -1082,7 +1082,7 @@ Window {
                             color: h.modelData.dir === "in" ? accent.text : "#E6ECF5"
                             font.family: "Chakra Petch"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.label
                             font.letterSpacing: 1
                         }
                         Text {
@@ -1091,7 +1091,7 @@ Window {
                                   + (h.failed ? " · " + (h.modelData.why || h.modelData.state) : "")
                             color: h.failed ? accent.errorBright : "#5C6880"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.label
                         }
                     }
                     Text {
@@ -1099,7 +1099,7 @@ Window {
                         text: h.isText ? h.modelData.text : (h.modelData.files || []).join(", ")
                         color: "#C9D3E3"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.small
                         wrapMode: Text.Wrap
                         maximumLineCount: h.isText ? 6 : 2
                         elide: Text.ElideRight
@@ -1180,7 +1180,7 @@ Window {
                             text: win.st.folder || ""
                             color: "#C9D3E3"
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.meta
                             elide: Text.ElideMiddle
                         }
                     }
@@ -1206,7 +1206,7 @@ Window {
                             text: trustRow.modelData.alias + (trustRow.modelData.ip ? "" : "  (inte här nu)")
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                             elide: Text.ElideRight
                         }
                         FlatButton { small: true; text: "Sluta lita på"; onClicked: backend.trust(trustRow.modelData.fingerprint, false) }
@@ -1228,7 +1228,7 @@ Window {
                         text: win.st.sshBusy ? "Ändrar … (skriv lösenordet)" : "Tillåt hjälp via terminal på den här datorn"
                         color: "#E6ECF5"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                     }
                 }
                 Note {
@@ -1256,7 +1256,7 @@ Window {
                             text: pairRow.modelData.alias + (pairRow.modelData.here ? "" : "  (inte här nu)")
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                             elide: Text.ElideRight
                         }
                         Text {
@@ -1265,7 +1265,7 @@ Window {
                             text: "ssh " + pairRow.modelData.host + " <kommando>"
                             color: accent.text
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                             elide: Text.ElideRight
                         }
                         FlatButton { small: true; text: "Glöm"; onClicked: backend.sshForget(pairRow.modelData.fingerprint) }
@@ -1285,7 +1285,7 @@ Window {
                     width: parent.width
                     color: "#5C6880"
                     font.family: "IBM Plex Mono"
-                    font.pixelSize: 11
+                    font.pixelSize: G.Type.meta
                     text: "port " + win.st.port + " (TCP + UDP) · " + (win.st.protocol || "").toUpperCase() + " · fingeravtryck " +
                           (win.st.fingerprint || "").slice(0, 16) + "…"
                 }
@@ -1392,7 +1392,7 @@ Window {
                                 color: "#E6ECF5"
                                 selectionColor: accent.color
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 14
+                                font.pixelSize: G.Type.body
                                 wrapMode: TextEdit.Wrap
                                 selectByMouse: true
                                 Keys.onReturnPressed: e => {
@@ -1443,7 +1443,7 @@ Window {
                 text: win.note
                 color: "#E6ECF5"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: 14
+                font.pixelSize: G.Type.body
             }
         }
     }
