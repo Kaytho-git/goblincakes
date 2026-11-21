@@ -803,12 +803,8 @@ def cached_qml(path):
 
 
 def main():
-    own_scale = "QT_SCALE_FACTOR" not in os.environ
-    if own_scale:
-        os.environ["QT_SCALE_FACTOR"] = "0.9"   # 90 % as GOBLINCAKES' other windows
+    # The scale is G.Zoom in the QML (docs/ux/norm.md 2, 22 Nov) – no QT_SCALE_FACTOR any more
     app = QApplication(sys.argv[:1])
-    if own_scale:
-        del os.environ["QT_SCALE_FACTOR"]
     app.setApplicationName("goblin-dashboard")
     app.setApplicationDisplayName("GOBLINCAKES Dashboard")
     app.setDesktopFileName("goblin-dashboard")

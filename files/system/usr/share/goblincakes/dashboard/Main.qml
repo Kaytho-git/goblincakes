@@ -18,6 +18,9 @@ Window {
     flags: Qt.Window | Qt.FramelessWindowHint
     width: 1920
     height: 1080
+    // Drawn at 94 % × the screen factor (a 1440p screen ≈ 17 % bigger), full screen so never growing
+    // (docs/ux/norm.md 2, 22 Nov – before QT_SCALE_FACTOR 0.9: the same pixels on every screen)
+    G.Zoom { id: zoomer; win: win; growing: false }
 
     // ── What is shown (read from the backend as JSON) ─────────
     property var apps: []
@@ -737,9 +740,9 @@ Window {
                     onClicked: mouse => {
                         if (mouse.button === Qt.RightButton) {
                             // the small menu under the chip (10 Nov, the user's wish: close a program from here)
-                            const at = mapToItem(null, 0, height);
+                            const at = mapToItem(win.contentItem, 0, height);
                             win.winMenu = {id: modelData.id, name: modelData.name,
-                                           x: Math.min(at.x, win.width - 220), y: at.y + 4};
+                                           x: Math.min(at.x, win.contentItem.width - 220), y: at.y + 4};
                         } else {
                             win.winMenu = null;
                             backend.activate(modelData.id);

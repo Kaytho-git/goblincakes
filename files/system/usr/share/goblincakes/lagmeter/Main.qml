@@ -7,10 +7,12 @@ import QtQuick.Window
 Window {
     G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: root
-    width: 470
-    height: 690
-    minimumWidth: 380
-    minimumHeight: 520
+    // The layout is in units, drawn at G.Zoom's zoom (docs/ux/norm.md 2, 22 Nov – before QT_SCALE_FACTOR 0.9)
+    G.Zoom { id: zoomer; win: root; startW: 470; startH: 690 }
+    width: zoomer.startWidth
+    height: zoomer.startHeight
+    minimumWidth: zoomer.px(380)
+    minimumHeight: zoomer.px(520)
     visible: true
     title: "Lagmätning"
     color: "#07090D"

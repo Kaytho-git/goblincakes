@@ -7,11 +7,14 @@
 import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
+import "../qml/Goblin" as G
 
 Window {
     id: root
-    width: 420
-    height: column.implicitHeight + 28
+    // Drawn at 94 % × the screen factor, never growing (docs/ux/norm.md 2, 22 Nov – before QT_SCALE_FACTOR 0.9)
+    G.Zoom { id: zoomer; win: root; growing: false }
+    width: zoomer.px(420)
+    height: Math.ceil((column.implicitHeight + 28) * zoomer.zoom)
     visible: false
     color: "#0B1018"
     title: Qt.application.displayName   // the AI's name (goblincakes-voice sets it)
