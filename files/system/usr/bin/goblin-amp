@@ -784,6 +784,12 @@ class Amp(QObject):
         self._call("set-property", PLAYER, "Volume", "d", f"{max(0.0, min(1.0, volume)):.3f}")
 
     @Slot()
+    def sharpText(self):
+        """After a file dialog: Qt's own text again (KDE's dialog style switches to native text – CLAUDE.md)."""
+        from PySide6.QtQuick import QQuickWindow  # noqa: PLC0415
+        QQuickWindow.setTextRenderType(QQuickWindow.TextRenderType.QtTextRendering)
+
+    @Slot()
     def toggleShuffle(self):
         if self._uses_local():
             self.local.set_shuffle(not self.local.shuffle)

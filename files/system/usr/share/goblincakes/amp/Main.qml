@@ -2172,6 +2172,7 @@ Window {
 
     FileDialog {
         id: filesDialog
+        onVisibleChanged: amp.sharpText()
         title: "Lägg till musik"
         fileMode: FileDialog.OpenFiles
         nameFilters: ["Musik (*.mp3 *.flac *.ogg *.oga *.opus *.m4a *.aac *.wav *.wma *.ape *.wv *.aif *.aiff *.mka *.mpc)",
@@ -2180,17 +2181,20 @@ Window {
     }
     FolderDialog {
         id: folderDialog
+        onVisibleChanged: amp.sharpText()
         title: "Lägg till en mapp med musik"
         onAccepted: amp.localAddPaths(JSON.stringify([String(selectedFolder)]))
     }
     FolderDialog {
         id: musicDirDialog
+        onVisibleChanged: amp.sharpText()
         title: "Välj musikmapp"
         currentFolder: "file://" + (win.loc.musicPath || "")
         onAccepted: amp.chooseMusicDir(String(selectedFolder))
     }
     FileDialog {
         id: importDialog
+        onVisibleChanged: amp.sharpText()
         title: "Öppna en spellista (t.ex. från Winamp)"
         fileMode: FileDialog.OpenFiles
         nameFilters: ["Spellistor (*.m3u *.m3u8 *.pls)"]
