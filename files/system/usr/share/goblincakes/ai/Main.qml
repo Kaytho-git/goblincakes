@@ -9,10 +9,14 @@ Window {
     G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
 
-    width: 1320 * uiScale
-    height: 860 * uiScale
-    minimumWidth: 1000 * uiScale
-    minimumHeight: 600 * uiScale
+    // A 1440p screen draws a little bigger – the same rule as G.Zoom in the other windows (docs/ux/norm.md 2,
+    // 22 Nov): 1 + 0.5 × (height/1080 − 1), at most 1.3; 1 when Plasma or the user already scales
+    readonly property real screenFactor: Math.abs(Screen.devicePixelRatio - 1) > 0.01 ? 1
+        : Math.max(1, Math.min(1.3, 1 + 0.5 * (Screen.height / 1080 - 1)))
+    width: 1320 * uiScale * screenFactor
+    height: 860 * uiScale * screenFactor
+    minimumWidth: 1000 * uiScale * screenFactor
+    minimumHeight: 600 * uiScale * screenFactor
     visible: !startQuick && !startHidden  // started for the quick box only: the window comes with the answer
     onActiveChanged: backend.setWindowActive(active)
     onVisibleChanged: backend.setWindowVisible(visible)
@@ -1212,14 +1216,14 @@ Window {
     // (1 Nov–5 Nov it followed the screen only: 104 % always, which felt bigger the smaller the window was.)
     Item {
         id: zoomRoot
-        readonly property real startW: 1320 * uiScale
-        readonly property real startH: 860 * uiScale
+        readonly property real startW: 1320 * uiScale * win.screenFactor
+        readonly property real startH: 860 * uiScale * win.screenFactor
         readonly property real fullW: Math.max(startW + 1, Screen.desktopAvailableWidth)
         readonly property real fullH: Math.max(startH + 1, Screen.desktopAvailableHeight)
         readonly property real grown: (Math.max(0, Math.min(1, (win.width - startW) / (fullW - startW)))
                                        + Math.max(0, Math.min(1, (win.height - startH) / (fullH - startH)))) / 2
         // uiScale 0.8 = no QT_SCALE_FACTOR of the user's own (goblin-ai main()); with one, relative to it
-        readonly property real zoom: (0.94 + 0.10 * grown) * uiScale / 0.8   // 94 % → 104 % (the user's second try)
+        readonly property real zoom: (0.94 + 0.10 * grown) * uiScale / 0.8 * win.screenFactor   // 94 % → 104 % (the user's second try) × the screen
         width: win.width / zoom
         height: win.height / zoom
         scale: zoom
