@@ -58,24 +58,14 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - ISO, Ianseo, Kakans roll, lokal AI och GoblinRecorder: grep "Beslut per funktion".
 
 ## Status (klart och vad som är provat: grep "Statuslistan" och "Klart-listan" i anteckningarna)
-**Testas på riktig installation, inte i VM:en.** Klart: Steg 1, 3, 4, 5, 6 och allt annat byggt utom det som står nedan.
+**Testas på riktig installation, inte i VM:en.** Klart: Steg 1, 3, 4, 5, 6 och allt annat byggt utom det som står nedan. Byggt med bara testlista kvar står inte i Att göra – `/testa` visar dem.
 - [ ] Notis om ny Fedora-version – alla tre på 45; notisen gick på frugans laptop, knappen ej provad
 
 ## Att göra (detaljer: grep på namnet, eller "Att göra – detaljerna")
-- [ ] **GOBLINCAKES Dashboard** – byggd och provad 14 nov; kvar testlistorna `dashboard-notiser.md` och `dashboard-sken-kvot.md` (grep "Dashboard – bygget").
-- [ ] **Kakans kunskapsminne** – del 1+2 byggd 18 nov (kunskap.py, Tillåt/Nej-kort, flik Kunskap), testlista `kunskapsminne.md`; resten av planen (betydelsesökning, komprimering, ihop med Claude) väntar (grep "Kunskapsminnet – bygget").
+- [ ] **Kakans kunskapsminne, resten** – del 1+2 klar 18 nov; kvar betydelsesökning, komprimering, ihop med Claude – väntar på användaren (grep "Kunskapsminnet – bygget").
 - [ ] **Epics launcher i Config** – väntar på paketformatet (grep "Beredskapsplan").
 - [ ] **Offhand – WoW över två skärmar** – nästa: prova i Forever (grep "Offhand").
-- [ ] **Barnläge** – byggt 13 nov, testlista `barnlage.md` (grep "Barnläge").
-- [ ] **RetroDECK i barnläget** – byggt 14 nov (valfritt i Config), testlista `barnlage-retrodeck.md` (grep "RetroDECK i barnläget").
-- [ ] **Barnläget i pixelart** – Kakans bilder inbyggda överallt 14 nov (bara offscreen-provat); användaren provar på riktigt (grep "Pixelart").
 - [ ] **A Boy to the Rescue** (barnspelet, `games/barnspelet/`) – bana 1 djungeln klar och i barnläget 15 nov; bana 2 snö klar (användaren bygger banan); bana 3 sand byggd 15 nov – användaren bygger och provar (arbetsgången: grep "Arbetssättet för banorna") (grep "Barnspelet – planen").
-- [ ] **Blizzard-data i dashboarden** – karaktärsbild, M+, raidprogress, PvP + ramen WoW-läget (Köp token), byggt 18 nov, testlista `dashboard-blizzard.md` (grep "Blizzard-data i dashboarden").
-- [ ] **BYGGEN: commits + egna GitHub-repon** – commit-listan per bygge och Config → Dashboard → GITHUB, byggt 18 nov, testlista `dashboard-github.md` (grep "BYGGEN för allas repon").
-- [ ] **Bilder i Goblin AI:s terminal** – bildvägar blir länkar (hovra/klick), byggt 17 nov, testlista `terminal-bilder.md` (grep "Bildvägar som länkar").
-- [ ] **GoblinUp** – skal över WowUp i dashboarden + `goblin tillägg` + Kakan, byggt 18 nov, testlista `goblinup.md` (grep "GoblinUp – bygget").
-- [ ] **Skrivna kommandon utan AI** – "pausa", "starta wow" i Goblin AI görs direkt (röstens kommandon), byggt 20 nov, testlista `skrivna-kommandon.md` (grep "Skrivna kommandon utan AI").
-- [ ] **AI:ns namn** – Goblin AI som standard, eget namn (Inställningar → Namn) överallt + väckordet, byggt 20 nov, testlista `ai-namnet.md` (grep "AI:ns namn – Goblin AI").
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer
