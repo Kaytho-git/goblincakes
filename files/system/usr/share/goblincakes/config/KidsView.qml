@@ -144,9 +144,9 @@ Flickable {
 
     Column {
         id: kidsCol
-        x: 48
+        x: G.Norm.pageX(kidsView.width)
         y: 32
-        width: kidsView.width - 96
+        width: G.Norm.pageWidth(kidsView.width)
         spacing: 30
 
         Body {

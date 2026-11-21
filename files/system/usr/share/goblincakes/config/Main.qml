@@ -427,19 +427,60 @@ Window {
     // Drag the handle, or click the track to jump there (the mouse wheel works as well).
     component FlatScrollBar: G.FlatScrollBar { trackClick: true }
 
-    // ── Header ───────────────────────────────────────────────
+    // ── Header (G.PageHeader: the version moves under the title when narrow; norm 1) ──
 
-    Item {
+    G.PageHeader {
         id: header
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        height: 176 + (backend.live ? 52 : 0)
+        logo: logoUrl
+        rightOnTop: true
+        title: win.tab === "system" ? "FÖRINSTALLERAT"
+               : win.tab === "update"
+               ? (win.updateState === "running" ? "UPPDATERAR…" : win.updateState === "done" ? "UPPDATERAT" : "UPPDATERA")
+               : win.tab === "graphics" ? "GRAFIK"
+               : win.tab === "windows" ? "FÖNSTER"
+               : win.tab === "dashboard" ? "DASHBOARD"
+               : win.tab === "kids" ? "BARNLÄGE"
+               : win.tab === "tweaks" ? "INSTÄLLNINGAR"
+               : win.page === "choose" ? "VÄLJ DINA PROGRAM"
+               : win.page === "install" ? (win.chosenCount === 0 ? "AVINSTALLERAR…" : "INSTALLERAR…") : "KLART"
+        subtitle: win.tab === "system"
+                  ? "Programmen som följer med GOBLINCAKES. Dölj det du inte använder – det finns kvar och fungerar, men syns inte i AppGrid."
+                  : win.tab === "update"
+                  ? (win.updateState === "running" ? "Du kan använda datorn under tiden. Stäng inte fönstret."
+                  : win.updateState === "done" ? (win.updateOk ? "Allt är uppdaterat." : "Klart, men något gick inte – se listan nedan.")
+                  : "Systemet, program, VS Code, Discord, AppImages, GE-Proton och firmware – samma som goblin update.")
+                  : win.tab === "windows"
+                  ? "Hur fönstren ligger på skärmarna – egna rutor och vilket program som öppnas var. Byt layout med Meta+Ctrl+1–9."
+                  : win.tab === "dashboard"
+                  ? "GOBLINCAKES Dashboard: vyerna, vad ramarna till vänster och höger visar och vilka program som ligger längst ner."
+                  : win.tab === "kids"
+                  ? "En sandlåda för barnen i din egen session: bara spelen och programmen du väljer här, en skärm, PIN-kod för att gå ut."
+                  : win.tab === "graphics"
+                  ? "Drivrutiner för ditt grafikkort. Den gamla varianten finns kvar i startmenyn om något går fel."
+                  : win.tab === "tweaks"
+                  ? "Prestanda, spel, ljud, system och utseende. Slå på det du vill ha – allt går att slå av igen."
+                  : win.page === "choose"
+                  ? "Kryssa i det du vill ha. Allt går att lägga till senare – sök på GOBLINCAKES Config i AppGrid."
+                  : win.page === "install"
+                  ? "Du kan använda datorn under tiden. Stäng inte fönstret."
+                  : win.failedCount === 0 ? (win.chosenCount === 0 ? "Klart – programmen är avinstallerade."
+                  : "Allt är installerat. Programmen finns i AppGrid.")
+                  : win.failedCount + " program gick inte – tryck Tillbaka för att försöka igen."
+
+        // Which GOBLINCAKES is running
+        actions: Text {
+            text: backend.version
+            color: "#8B98AD"
+            font.family: "IBM Plex Mono"
+            font.pixelSize: 13
+        }
 
         // From the USB stick (live): what differs from the installed GOBLINCAKES
-        Rectangle {
+        below: Rectangle {
             visible: backend.live
-            anchors { left: parent.left; right: parent.right; leftMargin: 48; rightMargin: 48
-                      bottom: parent.bottom; bottomMargin: 56 }
-            height: liveNote.implicitHeight + 20
+            width: parent.width
+            height: visible ? liveNote.implicitHeight + 20 : 0
             color: "#0E1420"
             border.color: accent.color
             border.width: 1
@@ -455,124 +496,13 @@ Window {
             }
         }
 
-        Row {
-            anchors { left: parent.left; leftMargin: 48; top: parent.top; topMargin: 30 }
-            spacing: 22
-
-            Image {
-                anchors.verticalCenter: parent.verticalCenter
-                source: logoUrl
-                sourceSize.width: 64
-                sourceSize.height: 64
-            }
-
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 6
-                Text {
-                    text: win.tab === "system" ? "FÖRINSTALLERAT"
-                        : win.tab === "update"
-                          ? (win.updateState === "running" ? "UPPDATERAR…" : win.updateState === "done" ? "UPPDATERAT" : "UPPDATERA")
-                        : win.tab === "graphics" ? "GRAFIK"
-                        : win.tab === "windows" ? "FÖNSTER"
-                        : win.tab === "dashboard" ? "DASHBOARD"
-                        : win.tab === "kids" ? "BARNLÄGE"
-                        : win.tab === "tweaks" ? "INSTÄLLNINGAR"
-                        : win.page === "choose" ? "VÄLJ DINA PROGRAM"
-                        : win.page === "install" ? (win.chosenCount === 0 ? "AVINSTALLERAR…" : "INSTALLERAR…") : "KLART"
-                    color: "#E6ECF5"
-                    font.family: "Chakra Petch"
-                    font.weight: Font.Bold
-                    font.pixelSize: 30
-                    font.letterSpacing: 4
-                }
-                Text {
-                    text: win.tab === "system"
-                        ? "Programmen som följer med GOBLINCAKES. Dölj det du inte använder – det finns kvar och fungerar, men syns inte i AppGrid."
-                        : win.tab === "update"
-                        ? (win.updateState === "running" ? "Du kan använda datorn under tiden. Stäng inte fönstret."
-                           : win.updateState === "done" ? (win.updateOk ? "Allt är uppdaterat." : "Klart, men något gick inte – se listan nedan.")
-                           : "Systemet, program, VS Code, Discord, AppImages, GE-Proton och firmware – samma som goblin update.")
-                        : win.tab === "windows"
-                        ? "Hur fönstren ligger på skärmarna – egna rutor och vilket program som öppnas var. Byt layout med Meta+Ctrl+1–9."
-                        : win.tab === "dashboard"
-                        ? "GOBLINCAKES Dashboard: vyerna, vad ramarna till vänster och höger visar och vilka program som ligger längst ner."
-                        : win.tab === "kids"
-                        ? "En sandlåda för barnen i din egen session: bara spelen och programmen du väljer här, en skärm, PIN-kod för att gå ut."
-                        : win.tab === "graphics"
-                        ? "Drivrutiner för ditt grafikkort. Den gamla varianten finns kvar i startmenyn om något går fel."
-                        : win.tab === "tweaks"
-                        ? "Prestanda, spel, ljud, system och utseende. Slå på det du vill ha – allt går att slå av igen."
-                        : win.page === "choose"
-                        ? "Kryssa i det du vill ha. Allt går att lägga till senare – sök på GOBLINCAKES Config i AppGrid."
-                        : win.page === "install"
-                        ? "Du kan använda datorn under tiden. Stäng inte fönstret."
-                        : win.failedCount === 0 ? (win.chosenCount === 0 ? "Klart – programmen är avinstallerade."
-                                                   : "Allt är installerat. Programmen finns i AppGrid.")
-                        : win.failedCount + " program gick inte – tryck Tillbaka för att försöka igen."
-                    color: "#8B98AD"
-                    font.family: "IBM Plex Sans"
-                    font.pixelSize: 15
-                }
-            }
-        }
-
-        // Which GOBLINCAKES is running
-        Text {
-            anchors { right: parent.right; rightMargin: 48; top: parent.top; topMargin: 30 }
-            text: backend.version
-            color: "#8B98AD"
-            font.family: "IBM Plex Mono"
-            font.pixelSize: 13
-        }
-
-        // Tabs
-        Row {
-            anchors { left: parent.left; leftMargin: 48; bottom: parent.bottom }
-            spacing: 22   // 32 until Barnläge made the eighth tab (13 Nov)
-
-            Repeater {
-                model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "INSTÄLLNINGAR" }, { "id": "windows", "label": "FÖNSTER" }, { "id": "dashboard", "label": "DASHBOARD" }, { "id": "kids", "label": "BARNLÄGE" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
-
-                Item {
-                    id: tabItem
-                    required property var modelData
-                    readonly property bool active: win.tab === modelData.id
-                    width: tabLabel.implicitWidth
-                    height: 44
-
-                    Text {
-                        id: tabLabel
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: tabItem.modelData.label
-                        color: tabItem.active || tabArea.containsMouse ? "#E6ECF5" : "#8B98AD"
-                        font.family: "Chakra Petch"
-                        font.weight: Font.DemiBold
-                        font.pixelSize: 15
-                        font.letterSpacing: 2.5
-                    }
-                    Rectangle {
-                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                        height: 2
-                        color: accent.color
-                        visible: tabItem.active
-                    }
-                    MouseArea {
-                        id: tabArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: win.tab = tabItem.modelData.id
-                    }
-                }
-            }
-        }
-
-        Rectangle {
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            height: 1
-            color: "#1E2A40"
-            z: -1
+        // The tabs scroll sideways when they don't fit, the whole tab is clickable (G.TabBar)
+        tabs: G.TabBar {
+            width: parent.width
+            gap: 22   // 32 until Barnläge made the eighth tab (13 Nov)
+            model: [{ "id": "apps", "label": "PROGRAM" }, { "id": "system", "label": "FÖRINSTALLERAT" }, { "id": "tweaks", "label": "INSTÄLLNINGAR" }, { "id": "windows", "label": "FÖNSTER" }, { "id": "dashboard", "label": "DASHBOARD" }, { "id": "kids", "label": "BARNLÄGE" }, { "id": "graphics", "label": "GRAFIK" }, { "id": "update", "label": "UPPDATERA" }]
+            current: win.tab
+            onSelected: id => win.tab = id
         }
     }
 
@@ -589,9 +519,9 @@ Window {
 
         Column {
             id: sections
-            x: 48
+            x: G.Norm.pageX(chooser.width)   // the centred page (norm 1)
             y: 32
-            width: chooser.width - 96
+            width: G.Norm.pageWidth(chooser.width)
             spacing: 12
 
             // ── Terminal: Ghostty (standard), Konsole or Kitty, same GOBLINCAKES look ──
@@ -1050,9 +980,9 @@ Window {
 
         Column {
             id: rows
-            x: 48
+            x: G.Norm.pageX(progressView.width)   // the centred page (norm 1)
             y: 32
-            width: progressView.width - 96
+            width: G.Norm.pageWidth(progressView.width)
             spacing: 10
 
             Repeater {
@@ -1189,9 +1119,9 @@ Window {
 
         Column {
             id: tweakRows
-            x: 48
+            x: G.Norm.pageX(tweaksView.width)   // the centred page (norm 1)
             y: 32
-            width: tweaksView.width - 96
+            width: G.Norm.pageWidth(tweaksView.width)
             spacing: 12
 
             Repeater {
@@ -2002,9 +1932,9 @@ Window {
 
         Column {
             id: dashCol
-            x: 48
+            x: G.Norm.pageX(dashView.width)   // the centred page (norm 1)
             y: 32
-            width: dashView.width - 96
+            width: G.Norm.pageWidth(dashView.width)
             spacing: 22
 
             Text {
@@ -3838,9 +3768,9 @@ Window {
 
         Column {
             id: gfxCol
-            x: 48
+            x: G.Norm.pageX(graphicsView.width)   // the centred page (norm 1)
             y: 32
-            width: graphicsView.width - 96
+            width: G.Norm.pageWidth(graphicsView.width)
             spacing: 14
 
             Text {
@@ -4262,9 +4192,9 @@ Window {
 
         Column {
             id: sysCol
-            x: 48
+            x: G.Norm.pageX(systemView.width)   // the centred page (norm 1)
             y: 32
-            width: systemView.width - 96
+            width: G.Norm.pageWidth(systemView.width)
             spacing: 10
 
             FlatField {
@@ -4363,9 +4293,9 @@ Window {
 
         Column {
             id: updCol
-            x: 48
+            x: G.Norm.pageX(updateView.width)   // the centred page (norm 1)
             y: 32
-            width: updateView.width - 96
+            width: G.Norm.pageWidth(updateView.width)
             spacing: 14
 
             // Before the first run: what it does
@@ -4630,22 +4560,15 @@ Window {
     FlatScrollBar { flick: systemView }
     FlatScrollBar { flick: dashView }
 
-    // ── Footer ───────────────────────────────────────────────
+    // ── Footer (G.Footer: the text and the buttons at the page's edges; norm 1) ──
 
-    Rectangle {
+    G.Footer {
         id: footer
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        height: 84
-        color: "#0B1018"
 
-        Rectangle {
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            height: 1
-            color: "#1E2A40"
-        }
-
-        Text {
-            anchors { left: parent.left; leftMargin: 48; verticalCenter: parent.verticalCenter }
+        info: Text {
+            width: parent.width
+            elide: Text.ElideRight
             visible: win.tab !== "apps" || win.page === "choose"
             text: win.tab === "system" ? "Gäller direkt och bara för dig. Avinstallera helt med knappen till höger."
                 : win.tab === "update"
@@ -4665,94 +4588,91 @@ Window {
             font.pixelSize: 15
         }
 
-        Row {
-            anchors { right: parent.right; rightMargin: 48; verticalCenter: parent.verticalCenter }
-            spacing: 12
-
+        actions: [
             FlatButton {
                 visible: win.tab === "apps" && win.page === "choose"
                 text: "Hoppa över"
                 onClicked: win.finish()
-            }
+            },
             FlatButton {
                 visible: win.tab === "apps" && win.page === "choose"
                 primary: true
                 enabledState: win.chosenCount > 0 || win.removeCount > 0
                 text: win.removeCount === 0 ? "Installera" : win.chosenCount === 0 ? "Avinstallera" : "Verkställ"
                 onClicked: win.startInstall()
-            }
+            },
             FlatButton {
                 visible: win.tab === "apps" && win.page === "done"
                 text: "Tillbaka"
                 onClicked: win.goBack()
-            }
+            },
             FlatButton {
                 visible: win.tab === "apps" && win.page !== "choose"
                 primary: true
                 enabledState: win.page === "done"
                 text: "Klar"
                 onClicked: win.finish()
-            }
+            },
             FlatButton {
                 visible: win.tab === "windows" && !!windowsView.layout
                 text: "Använd"
                 onClicked: { windowsView.status = "Ordnar fönstren…"; backend.useLayout(windowsView.layout.name, false); }
-            }
+            },
             FlatButton {
                 visible: win.tab === "windows" && !!windowsView.layout
                 primary: true
                 text: "Öppna hela layouten"
                 onClicked: { windowsView.status = "Ordnar fönstren och startar programmen…"; backend.useLayout(windowsView.layout.name, true); }
-            }
+            },
             FlatButton {
                 visible: win.tab === "dashboard"
                 text: "Öppna dashboarden"
                 onClicked: backend.openDashboard()
-            }
+            },
             FlatButton {
                 visible: win.tab === "kids"
                 primary: true
                 enabledState: kidsView.canStart
                 text: "Starta barnläget"
                 onClicked: { backend.startKids(); win.finish(); }
-            }
+            },
             FlatButton {
                 visible: win.tab === "system"
                 text: "Avinstallera program…"
                 onClicked: backend.openRemover()
-            }
+            },
             FlatButton {
                 visible: win.tab === "update" && win.poweroffRunning
                 text: "Avbryt avstängningen"
                 onClicked: backend.cancelPoweroff()
-            }
+            },
             FlatButton {
                 // Waits for a version being built, updates everything, turns the computer off (24 Oct, the user's wish)
                 visible: win.tab === "update" && win.updateState !== "running" && !win.poweroffRunning
                 text: "Uppdatera och stäng av"
                 onClicked: backend.startPoweroff()
-            }
+            },
             FlatButton {
                 visible: win.tab === "update" && win.updateState === "idle" && !win.poweroffRunning
                 primary: !win.checkFound && !win.checkStaged
                 enabledState: win.checkState !== "checking"
                 text: win.checkState === "checking" ? "Kollar…" : "Kolla efter uppdateringar"
                 onClicked: { win.checkState = "checking"; backend.checkUpdates(); }
-            }
+            },
             FlatButton {
                 // Only when there is something to update (a check found it), or again after a run
                 visible: win.tab === "update" && !win.poweroffRunning && (win.updateState === "done" || (win.updateState === "idle" && win.checkFound))
                 primary: !(win.updateState === "done" && win.updateReboot)
                 text: win.updateState === "done" ? "Uppdatera igen" : "Uppdatera allt"
                 onClicked: win.startUpdate("")
-            }
+            },
             FlatButton {
                 visible: win.tab === "update" && ((win.updateState === "done" && win.updateReboot)
                                                    || (win.updateState === "idle" && win.checkStaged))
                 primary: true
                 text: "Starta om nu"
                 onClicked: backend.reboot()
-            }
+            },
             FlatButton {
                 visible: win.tab !== "apps"
                 primary: win.tab !== "update" && win.tab !== "kids"
@@ -4761,6 +4681,6 @@ Window {
                 text: "Stäng"
                 onClicked: win.finish()
             }
-        }
+        ]
     }
 }

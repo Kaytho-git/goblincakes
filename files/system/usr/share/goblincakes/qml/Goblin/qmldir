@@ -18,3 +18,7 @@ SectionTitle 1.0 SectionTitle.qml
 Note 1.0 Note.qml
 Monogram 1.0 Monogram.qml
 ClaudeMap 1.0 ClaudeMap.qml
+singleton Norm 1.0 Norm.qml
+TabBar 1.0 TabBar.qml
+PageHeader 1.0 PageHeader.qml
+Footer 1.0 Footer.qml

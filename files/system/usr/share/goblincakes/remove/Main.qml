@@ -14,7 +14,7 @@ Window {
     minimumWidth: 760
     minimumHeight: 560
     visible: true
-    title: "Avinstallera program – GOBLINCAKES"
+    title: "Avinstallera program"   // KDE adds " — <the program's name>" itself
     color: "#07090D"
 
     readonly property var lists: JSON.parse(backend.programs)
@@ -107,99 +107,27 @@ Window {
 
     component Note: G.Note {}
 
-    // ── Header ───────────────────────────────────────────────
+    // ── Header (G.PageHeader: the right side moves under the title when narrow; norm 1) ──
 
-    Item {
+    G.PageHeader {
         id: header
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        height: 176
-
-        Row {
-            anchors { left: parent.left; leftMargin: 48; top: parent.top; topMargin: 30 }
-            spacing: 22
-
-            Image {
-                anchors.verticalCenter: parent.verticalCenter
-                source: logoUrl
-                sourceSize.width: 64
-                sourceSize.height: 64
-            }
-
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 6
-                Text {
-                    text: win.page === "working" ? "ARBETAR…"
-                        : win.page === "done" ? (win.ok ? "KLART" : "NÅGOT GICK FEL")
-                        : win.tab === "removed" ? "AVINSTALLERADE" : "AVINSTALLERA PROGRAM"
-                    color: "#E6ECF5"
-                    font.family: "Chakra Petch"
-                    font.weight: Font.Bold
-                    font.pixelSize: 30
-                    font.letterSpacing: 4
-                }
-                Text {
-                    text: win.page === "working" ? "Stäng inte fönstret. Systemet frågar kanske efter ditt lösenord."
-                        : win.page === "done" ? (win.ok ? "Ändringarna gäller efter en omstart – fram till dess ser allt ut som förut."
-                                                       : "Allt gick inte igenom – se meddelandet nedan. Det som gick bra gäller efter en omstart.")
-                        : win.tab === "removed" ? "Kryssa i det du vill ha tillbaka. Det kommer tillbaka efter en omstart."
-                        : "Kryssa i det du inte vill ha. Det försvinner efter en omstart och går att få tillbaka."
-                    color: "#8B98AD"
-                    font.family: "IBM Plex Sans"
-                    font.pixelSize: 15
-                }
-            }
-        }
-
-        // Tabs
-        Row {
-            anchors { left: parent.left; leftMargin: 48; bottom: parent.bottom }
-            spacing: 32
+        logo: logoUrl
+        title: win.page === "working" ? "ARBETAR…"
+             : win.page === "done" ? (win.ok ? "KLART" : "NÅGOT GICK FEL")
+             : win.tab === "removed" ? "AVINSTALLERADE" : "AVINSTALLERA PROGRAM"
+        subtitle: win.page === "working" ? "Stäng inte fönstret. Systemet frågar kanske efter ditt lösenord."
+                : win.page === "done" ? (win.ok ? "Ändringarna gäller efter en omstart – fram till dess ser allt ut som förut."
+                                               : "Allt gick inte igenom – se meddelandet nedan. Det som gick bra gäller efter en omstart.")
+                : win.tab === "removed" ? "Kryssa i det du vill ha tillbaka. Det kommer tillbaka efter en omstart."
+                : "Kryssa i det du inte vill ha. Det försvinner efter en omstart och går att få tillbaka."
+        tabs: G.TabBar {
+            width: parent.width
             visible: win.page === "choose"
-
-            Repeater {
-                model: [{ "id": "apps", "label": "PROGRAM" },
-                        { "id": "removed", "label": "AVINSTALLERADE" + (win.removed.length ? " (" + win.removed.length + ")" : "") }]
-
-                Item {
-                    id: tabItem
-                    required property var modelData
-                    readonly property bool active: win.tab === modelData.id
-                    width: tabLabel.implicitWidth
-                    height: 44
-
-                    Text {
-                        id: tabLabel
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: tabItem.modelData.label
-                        color: tabItem.active || tabArea.containsMouse ? "#E6ECF5" : "#8B98AD"
-                        font.family: "Chakra Petch"
-                        font.weight: Font.DemiBold
-                        font.pixelSize: 15
-                        font.letterSpacing: 2.5
-                    }
-                    Rectangle {
-                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                        height: 2
-                        color: accent.color
-                        visible: tabItem.active
-                    }
-                    MouseArea {
-                        id: tabArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: win.tab = tabItem.modelData.id
-                    }
-                }
-            }
-        }
-
-        Rectangle {
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            height: 1
-            color: "#1E2A40"
-            z: -1
+            model: [{ "id": "apps", "label": "PROGRAM" },
+                    { "id": "removed", "label": "AVINSTALLERADE" + (win.removed.length ? " (" + win.removed.length + ")" : "") }]
+            current: win.tab
+            onSelected: id => win.tab = id
         }
     }
 
@@ -216,9 +144,9 @@ Window {
 
         Column {
             id: appsColumn
-            x: 48
+            x: G.Norm.pageX(appsView.width)   // the centred page (norm 1)
             y: 32
-            width: appsView.width - 96
+            width: G.Norm.pageWidth(appsView.width)
             spacing: 14
             readonly property int columns: Math.max(1, Math.floor((width + 16) / 340))
 
@@ -324,9 +252,9 @@ Window {
 
         Column {
             id: removedColumn
-            x: 48
+            x: G.Norm.pageX(removedView.width)
             y: 32
-            width: removedView.width - 96
+            width: G.Norm.pageWidth(removedView.width)
             spacing: 12
 
             Note {
@@ -413,7 +341,9 @@ Window {
 
     Column {
         visible: win.page !== "choose"
-        anchors { left: parent.left; leftMargin: 48; right: parent.right; rightMargin: 48; top: header.bottom; topMargin: 40 }
+        x: G.Norm.pageX(parent.width)
+        width: G.Norm.pageWidth(parent.width)
+        anchors { top: header.bottom; topMargin: 40 }
         spacing: 16
 
         Text {
@@ -456,22 +386,14 @@ Window {
         }
     }
 
-    // ── Footer ───────────────────────────────────────────────
+    // ── Footer (G.Footer: text and buttons at the page's edges) ──
 
-    Rectangle {
+    G.Footer {
         id: footer
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        height: 84
-        color: "#0B1018"
 
-        Rectangle {
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            height: 1
-            color: "#1E2A40"
-        }
-
-        Text {
-            anchors { left: parent.left; leftMargin: 48; verticalCenter: parent.verticalCenter }
+        info: Text {
+            width: parent.width
             visible: win.page === "choose"
             text: {
                 const parts = [];
@@ -484,35 +406,33 @@ Window {
             color: "#8B98AD"
             font.family: "IBM Plex Sans"
             font.pixelSize: 15
+            elide: Text.ElideRight
         }
 
-        Row {
-            anchors { right: parent.right; rightMargin: 48; verticalCenter: parent.verticalCenter }
-            spacing: 12
-
+        actions: [
             FlatButton {
                 visible: win.page === "done"
                 text: "Tillbaka"
                 onClicked: win.back()
-            }
+            },
             FlatButton {
                 visible: win.page !== "working"
                 text: "Stäng"
                 onClicked: Qt.quit()
-            }
+            },
             FlatButton {
                 visible: win.page === "choose"
                 primary: true
                 enabledState: win.removeCount + win.restoreCount > 0
                 text: "Verkställ"
                 onClicked: win.apply()
-            }
+            },
             FlatButton {
                 visible: win.page === "done"
                 primary: true
                 text: "Starta om nu"
                 onClicked: backend.reboot()
             }
-        }
+        ]
     }
 }
