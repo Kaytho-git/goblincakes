@@ -9,10 +9,12 @@ Window {
     G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
 
-    width: 1180
-    height: 800
-    minimumWidth: 760
-    minimumHeight: 560
+    // The layout is in units; G.Zoom draws them at 94 % (× the screen, a little bigger maximized – norm 2)
+    G.Zoom { id: zoomer; win: win; startW: 1180; startH: 800 }
+    width: zoomer.startWidth
+    height: zoomer.startHeight
+    minimumWidth: zoomer.px(760)
+    minimumHeight: zoomer.px(560)
     visible: true
     title: "Avinstallera program"   // KDE adds " — <the program's name>" itself
     color: "#07090D"

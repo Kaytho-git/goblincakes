@@ -9,10 +9,13 @@ Window {
     G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
 
-    width: 1080
-    height: 720
-    minimumWidth: 800
-    minimumHeight: 560
+    // The layout is in units, drawn at G.Zoom's zoom (docs/ux/norm.md 2, 22 Nov – before: 0.9 and everything up
+    // to 60 % bigger in a big window; now the page stays centred and the text grows a little, as in Config)
+    G.Zoom { id: zoomer; win: win; startW: 1080; startH: 720 }
+    width: zoomer.startWidth
+    height: zoomer.startHeight
+    minimumWidth: zoomer.px(760)
+    minimumHeight: zoomer.px(540)
     visible: !chatOnly   // goblin-share --chat: only the chat window
     title: "GoblinShare"
     color: "#07090D"
@@ -44,8 +47,6 @@ Window {
     property string codeWhy: ""     // … and why the last code didn't work
     readonly property var help: (st.ssh || {}).help || null   // Be om hjälp here: the code / who is in
     function mmss(n) { return Math.floor(n / 60) + ":" + ("0" + (n % 60)).slice(-2) }
-    // A big (maximized) window: everything bigger instead of small text spread out – as GoblinRecorder
-    readonly property real zoom: Math.max(1, Math.min(1.6, Math.min(width / 1080, height / 720)))
 
     function size(n) { return backend.size(String(n || 0)) }
     function plural(n, one, many) { return n + " " + (n === 1 ? one : many) }
@@ -161,10 +162,11 @@ Window {
         property var messages: []
         property string raw: ""
         property string note: ""
-        width: 460
-        height: 640
-        minimumWidth: 360
-        minimumHeight: 420
+        G.Zoom { id: cwZoom; win: cw; startW: 460; startH: 640 }
+        width: cwZoom.startWidth
+        height: cwZoom.startHeight
+        minimumWidth: cwZoom.px(360)
+        minimumHeight: cwZoom.px(420)
         title: alias + " – GoblinShare"
         color: "#07090D"
 
@@ -436,13 +438,10 @@ Window {
         }
     }
 
-    // Everything below is drawn at 1080×720 and scaled up with the window (win.zoom)
+    // Everything below (G.Zoom scales the window's content)
     Item {
         id: stage
-        width: win.width / win.zoom
-        height: win.height / win.zoom
-        scale: win.zoom
-        transformOrigin: Item.TopLeft
+        anchors.fill: parent
 
         // ── Header (G.PageHeader: the buttons move under the title when narrow; norm 1) ──
 

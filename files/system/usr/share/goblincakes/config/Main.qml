@@ -8,28 +8,13 @@ Window {
     G.Backdrop {}   // Stil: Levande – the soft background (qml/Goblin)
     id: win
 
-    // Everything is drawn at "zoom": 94 % at the start size or smaller, 104 % maximized, evenly between (5 Nov, the
-    // user: the same as Goblin AI). The sizes below are the layout's own units; the window gets them × the start zoom.
-    readonly property real startZoom: 0.94
-    readonly property real startW: 1180 * startZoom
-    readonly property real startH: 800 * startZoom
-    readonly property real grown: (Math.max(0, Math.min(1, (width - startW) / Math.max(1, Screen.desktopAvailableWidth - startW)))
-                                   + Math.max(0, Math.min(1, (height - startH) / Math.max(1, Screen.desktopAvailableHeight - startH)))) / 2
-    readonly property real zoom: startZoom + 0.10 * grown
-    function fitZoom() {
-        contentItem.transformOrigin = Item.TopLeft;
-        contentItem.scale = zoom;
-        contentItem.width = width / zoom;
-        contentItem.height = height / zoom;
-    }
-    onWidthChanged: Qt.callLater(fitZoom)     // after the window has given contentItem its own size
-    onHeightChanged: Qt.callLater(fitZoom)
-    onZoomChanged: Qt.callLater(fitZoom)
-
-    width: startW
-    height: startH
-    minimumWidth: 760 * startZoom
-    minimumHeight: 560 * startZoom
+    // Everything is drawn at G.Zoom's zoom (docs/ux/norm.md 2, 22 Nov): 94 % at the start size, 104 % maximized
+    // (the user 5 Nov), × the screen factor on a 1440p screen. The sizes below are the layout's own units.
+    G.Zoom { id: zoomer; win: win; startW: 1180; startH: 800 }
+    width: zoomer.startWidth
+    height: zoomer.startHeight
+    minimumWidth: zoomer.px(760)
+    minimumHeight: zoomer.px(560)
     visible: true
     title: "GOBLINCAKES Config"
     color: "#07090D"
@@ -86,7 +71,7 @@ Window {
             backend.refreshAnticheat();
     }
     Component.onCompleted: {
-        fitZoom();
+        zoomer.fit();
         if (tab === "system")
             backend.refreshSystemApps();
         if (tab === "graphics")
