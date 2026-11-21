@@ -3,6 +3,8 @@
 // centred page (Norm). When the right group doesn't fit beside the title it moves down under it – the two never
 // draw on top of each other (before: two groups anchored left and right, overlapping in a narrow window).
 //   below: [ … ]   – something between the title and the tabs (Config's USB note)
+//   badge: [ … ]   – beside the title (GoblinRecorder's "● SPELAR IN")
+//   subtitleLines  – 2: the subtitle wraps onto a second line before it shortens
 //   minWidth       – the narrowest the header can be without anything overlapping (for minimumWidth)
 import QtQuick
 
@@ -16,6 +18,7 @@ Item {
     property int titleSize: 30
     property real titleSpacing: 4
     property int subtitleSize: 15
+    property int subtitleLines: 1
     property int topMargin: 30
     property int sideMargin: Norm.margin
     property int maxWidth: Norm.page
@@ -23,13 +26,14 @@ Item {
     property int tabsGap: 37            // … space between the title block and the tabs
     property alias actions: rightSlot.data
     property alias below: belowSlot.data
+    property alias badge: badgeSlot.data
     property alias tabs: tabSlot.data
     readonly property alias page: pageItem
     property int tabsHeight: 44         // kept even when the tabs are hidden, so the page doesn't jump
     // the title (not the subtitle – it shortens) and the right group side by side, or the group under the title
     readonly property bool wrapped: rightSlot.width > 0
-                                    && logoSize + 22 + titleText.implicitWidth + 32 + rightSlot.width > pageItem.width
-    readonly property real minWidth: 2 * sideMargin + Math.max(logoSize + 22 + Math.min(titleText.implicitWidth, 420),
+                                    && logoSize + 22 + titleRow.implicitWidth + 32 + rightSlot.width > pageItem.width
+    readonly property real minWidth: 2 * sideMargin + Math.max(logoSize + 22 + Math.min(titleRow.implicitWidth, 420),
                                                                logoSize + 22 + rightSlot.width)
 
     implicitHeight: topMargin + leftRow.height + (wrapped ? 12 + rightSlot.height : 0)
@@ -57,22 +61,33 @@ Item {
             Column {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6
-                Text {
-                    id: titleText
-                    width: Math.min(implicitWidth, pageItem.width - head.logoSize - 22)
-                    text: head.title
-                    color: "#E6ECF5"
-                    font.family: "Chakra Petch"
-                    font.weight: Font.Bold
-                    font.pixelSize: head.titleSize
-                    font.letterSpacing: head.titleSpacing
-                    elide: Text.ElideRight
+                Row {
+                    id: titleRow
+                    spacing: 14
+                    Text {
+                        id: titleText
+                        width: Math.min(implicitWidth, pageItem.width - head.logoSize - 22 - (badgeSlot.width > 0 ? badgeSlot.width + 14 : 0))
+                        text: head.title
+                        color: "#E6ECF5"
+                        font.family: "Chakra Petch"
+                        font.weight: Font.Bold
+                        font.pixelSize: head.titleSize
+                        font.letterSpacing: head.titleSpacing
+                        elide: Text.ElideRight
+                    }
+                    Row {
+                        id: badgeSlot
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
                 }
                 Text {
                     visible: text !== ""
                     // beside the right group: up to it; under it: the whole page
-                    width: Math.min(implicitWidth, pageItem.width - head.logoSize - 22
-                                    - (head.wrapped || rightSlot.width === 0 ? 0 : rightSlot.width + 32))
+                    readonly property real room: pageItem.width - head.logoSize - 22
+                                                 - (head.wrapped || rightSlot.width === 0 ? 0 : rightSlot.width + 32)
+                    width: Math.min(implicitWidth, room)
+                    wrapMode: head.subtitleLines > 1 ? Text.WordWrap : Text.NoWrap
+                    maximumLineCount: head.subtitleLines
                     text: head.subtitle
                     color: head.subtitleColor
                     font.family: "IBM Plex Sans"

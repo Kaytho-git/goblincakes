@@ -830,83 +830,53 @@ Window {
         }
     }
 
-    // ── Header ───────────────────────────────────────────────
+    // ── Header (G.PageHeader: the status and buttons move under the title when narrow; norm 1) ──
 
-    Item {
+    G.PageHeader {
         id: header
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        height: 168
+        logo: logoUrl
+        logoSize: 60
+        topMargin: 28
+        tabsGap: 30
+        sideMargin: 40
+        maxWidth: 100000   // the recordings page (a list and the film) uses the whole window, so the header does too
+        title: "GOBLINRECORDER"
+        subtitle: win.stateLine()
+        subtitleLines: 2
 
-        Row {
-            anchors { left: parent.left; leftMargin: 40; top: parent.top; topMargin: 28 }
-            spacing: 20
-
-            Image {
-                anchors.verticalCenter: parent.verticalCenter
-                source: logoUrl
-                sourceSize.width: 60
-                sourceSize.height: 60
+        badge: Rectangle { // red while recording
+            visible: !!win.st.current
+            width: recText.implicitWidth + 24
+            height: 26
+            color: "#3A1418"
+            border.width: 1
+            border.color: "#E5534B"
+            Text {
+                id: recText
+                anchors.centerIn: parent
+                text: "● SPELAR IN"
+                color: "#E5534B"
+                font.family: "Chakra Petch"
+                font.weight: Font.Bold
+                font.pixelSize: 12
+                font.letterSpacing: 1.5
             }
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 6
-                Row {
-                    spacing: 14
-                    Text {
-                        text: "GOBLINRECORDER"
-                        color: "#E6ECF5"
-                        font.family: "Chakra Petch"
-                        font.weight: Font.Bold
-                        font.pixelSize: 30
-                        font.letterSpacing: 4
-                    }
-                    Rectangle { // red while recording
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: !!win.st.current
-                        width: recText.implicitWidth + 24
-                        height: 26
-                        color: "#3A1418"
-                        border.width: 1
-                        border.color: "#E5534B"
-                        Text {
-                            id: recText
-                            anchors.centerIn: parent
-                            text: "● SPELAR IN"
-                            color: "#E5534B"
-                            font.family: "Chakra Petch"
-                            font.weight: Font.Bold
-                            font.pixelSize: 12
-                            font.letterSpacing: 1.5
-                        }
-                        SequentialAnimation on opacity {
-                            running: !!win.st.current
-                            loops: Animation.Infinite
-                            NumberAnimation { to: 0.45; duration: 700 }
-                            NumberAnimation { to: 1; duration: 700 }
-                        }
-                    }
-                }
-                Text { // wraps before the status and buttons to the right (it ran in under them)
-                    width: Math.min(implicitWidth, header.width - 40 - 60 - 20 - statusCol.width - 40 - 32)
-                    text: win.stateLine()
-                    color: "#8B98AD"
-                    font.family: "IBM Plex Sans"
-                    font.pixelSize: 15
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: 2
-                    elide: Text.ElideRight
-                }
+            SequentialAnimation on opacity {
+                running: !!win.st.current
+                loops: Animation.Infinite
+                NumberAnimation { to: 0.45; duration: 700 }
+                NumberAnimation { to: 1; duration: 700 }
             }
         }
 
-        // Status and the OBS button, top right
-        Column {
+        // Status and the OBS button, top right (under the title when the window is narrow)
+        actions: Column {
             id: statusCol
-            anchors { right: parent.right; rightMargin: 40; top: parent.top; topMargin: 26 }
             spacing: 12
 
             Row {
-                anchors.right: parent.right
+                x: header.wrapped ? 0 : parent.width - width   // right-aligned beside the title, left under it
                 spacing: 22
                 StatusChip {
                     label: "WoW"
@@ -932,7 +902,7 @@ Window {
                 }
             }
             Row {
-                anchors.right: parent.right
+                x: header.wrapped ? 0 : parent.width - width   // right-aligned beside the title, left under it
                 spacing: 10
                 FlatButton {
                     visible: !win.st.service
@@ -978,67 +948,36 @@ Window {
             }
         }
 
-        Row {
-            anchors { left: parent.left; leftMargin: 40; bottom: parent.bottom }
-            spacing: 32
-            Repeater {
+        tabs: Item {
+            width: parent.width
+            height: 44
+
+            G.TabBar {
+                anchors { left: parent.left; right: statsRow.left; rightMargin: 16 }
+                gap: 32
                 model: [{ "id": "videos", "label": "INSPELNINGAR" + (win.videos.length ? " (" + win.videos.length + ")" : "") },
                         { "id": "settings", "label": "INSTÄLLNINGAR" }]
-                Item {
-                    id: tabItem
-                    required property var modelData
-                    readonly property bool active: win.tab === modelData.id
-                    width: tabLabel.implicitWidth
-                    height: 44
-                    Text {
-                        id: tabLabel
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: tabItem.modelData.label
-                        color: tabItem.active || tabArea.containsMouse ? "#E6ECF5" : "#8B98AD"
-                        font.family: "Chakra Petch"
-                        font.weight: Font.DemiBold
-                        font.pixelSize: 15
-                        font.letterSpacing: 2.5
-                    }
-                    Rectangle {
-                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                        height: 2
-                        color: accent.color
-                        visible: tabItem.active
-                    }
-                    MouseArea {
-                        id: tabArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: win.tab = tabItem.modelData.id
+                current: win.tab
+                onSelected: id => win.tab = id
+            }
+
+            // WoW Stats and CS2 Stats (22 Oct, the user's wish: at the top of the window)
+            Row {
+                id: statsRow
+                anchors { right: parent.right; bottom: parent.bottom; bottomMargin: 5 }
+                spacing: 8
+                Repeater {
+                    model: [{ id: "wowstats", t: "WoW Stats", sub: "Dina parses per boss och dungeon, kills, item level – från dina inspelningar" },
+                            { id: "cs2stats", t: "CS2 Stats", sub: "Ditt snitt, utveckling, kartor och vapen – från dina lästa demos" }]
+                    Choice {
+                        required property var modelData
+                        text: modelData.t
+                        sub: modelData.sub
+                        chosen: win.tab === modelData.id
+                        onPicked: win.tab = win.tab === modelData.id ? "videos" : modelData.id
                     }
                 }
             }
-        }
-
-        // WoW Stats and CS2 Stats (22 Oct, the user's wish: at the top of the window)
-        Row {
-            anchors { right: parent.right; rightMargin: 40; bottom: parent.bottom; bottomMargin: 5 }
-            spacing: 8
-            Repeater {
-                model: [{ id: "wowstats", t: "WoW Stats", sub: "Dina parses per boss och dungeon, kills, item level – från dina inspelningar" },
-                        { id: "cs2stats", t: "CS2 Stats", sub: "Ditt snitt, utveckling, kartor och vapen – från dina lästa demos" }]
-                Choice {
-                    required property var modelData
-                    text: modelData.t
-                    sub: modelData.sub
-                    chosen: win.tab === modelData.id
-                    onPicked: win.tab = win.tab === modelData.id ? "videos" : modelData.id
-                }
-            }
-        }
-
-        Rectangle {
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            height: 1
-            color: "#1E2A40"
-            z: -1
         }
     }
 
