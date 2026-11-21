@@ -132,12 +132,20 @@ Window {
         }
     }
 
+    // A page of at most 1240, centred; the four graphs share the height that is left (granskning #10, 22 Nov –
+    // maximized they stayed 112 high with the rest of the window empty)
     Column {
-        anchors.fill: parent
-        anchors.margins: 16
+        id: page
+        x: G.Norm.pageX(parent.width, G.Norm.page, G.Norm.marginNarrow)
+        y: 16
+        width: G.Norm.pageWidth(parent.width, G.Norm.page, G.Norm.marginNarrow)
+        height: parent.height - 32
         spacing: 10
+        readonly property real graphHeight: Math.max(112, (height - titleRow.height - infoLine.height - topLine.height
+                                                           - buttons.height - hint.height - 8 * spacing) / 4)
 
         Row {
+            id: titleRow
             width: parent.width
             spacing: 10
             Rectangle {
@@ -161,6 +169,7 @@ Window {
             }
         }
         Text {
+            id: infoLine
             width: parent.width
             text: (root.d.game ? root.d.game : "inget spel") + "  ·  ping mot " + (root.d.server || "–")
                   + (root.d.started ? "  ·  sedan " + root.d.started : "")
@@ -172,6 +181,7 @@ Window {
 
         Graph {
             width: parent.width
+            height: page.graphHeight
             name: "PING"
             key: "ping"; key2: "ping_home"
             value: root.num(root.last("ping"), "ms") + "  ·  router " + root.num(root.last("ping_home"), "ms")
@@ -179,6 +189,7 @@ Window {
         }
         Graph {
             width: parent.width
+            height: page.graphHeight
             name: "PROCESSOR"
             key: "cpu"; key2: "cpu_max"; fixed: true
             value: root.num(root.last("cpu"), "%") + "  ·  kärna " + root.num(root.last("cpu_max"), "%")
@@ -186,6 +197,7 @@ Window {
         }
         Graph {
             width: parent.width
+            height: page.graphHeight
             name: "GRAFIKKORT"
             key: "gpu"; fixed: true
             value: root.num(root.last("gpu"), "%") + "  ·  " + root.num(root.last("gpu_mhz"), "MHz")
@@ -194,6 +206,7 @@ Window {
         }
         Graph {
             width: parent.width
+            height: page.graphHeight
             name: "DISK"
             key: "disk_read_mb"; key2: "disk_write_mb"; floor: 50
             value: "läser " + root.num(root.last("disk_read_mb"), "") + "  ·  skriver "
@@ -201,6 +214,7 @@ Window {
                    + root.num((root.last("swap_mb") || 0) / 1024, "GB")
         }
         Text {
+            id: topLine
             width: parent.width
             text: "Mest processor: " + ((root.last("top") || []).map(function (p) { return p[0] + " " + p[1] + " %" })
                                         .join(", ") || "–")
@@ -210,6 +224,8 @@ Window {
             font.pixelSize: 13
         }
         Row {
+            id: buttons
+            anchors.right: parent.right
             spacing: 10
             FlatButton { text: "Laggar nu"; primary: true; onClicked: meter.mark() }
             FlatButton {
@@ -218,6 +234,7 @@ Window {
             }
         }
         Text {
+            id: hint
             width: parent.width
             wrapMode: Text.WordWrap
             text: "Röd linje = laggar nu (Meta+Shift+L). Fråga sedan Goblin AI: \"varför laggade det?\""
