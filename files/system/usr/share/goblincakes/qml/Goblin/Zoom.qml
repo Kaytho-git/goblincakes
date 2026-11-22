@@ -37,14 +37,24 @@ QtObject {
     function fit() {
         if (!win || !win.contentItem)
             return;
+        const w = win.width / zoom, h = win.height / zoom;
         win.contentItem.transformOrigin = Item.TopLeft;
-        win.contentItem.scale = zoom;
-        win.contentItem.width = win.width / zoom;
-        win.contentItem.height = win.height / zoom;
+        if (win.contentItem.scale !== zoom) win.contentItem.scale = zoom;
+        if (Math.abs(win.contentItem.width - w) > 0.01) win.contentItem.width = w;
+        if (Math.abs(win.contentItem.height - h) > 0.01) win.contentItem.height = h;
     }
     onZoomChanged: Qt.callLater(fit)
     property Connections _w: Connections {
         target: z.win
+        function onWidthChanged() { Qt.callLater(z.fit) }
+        function onHeightChanged() { Qt.callLater(z.fit) }
+        function onVisibleChanged() { Qt.callLater(z.fit) }
+    }
+    // Qt sets the content back to the window's size on every resize event – also when the size stays the same
+    // (Dashboard: made hidden at 1920×1080, then showFullScreen on a 1080p screen → no widthChanged, the
+    // content stayed 1920 wide at 94 % = a black strip right and below, 22 Nov). Fit again when that happens.
+    property Connections _c: Connections {
+        target: z.win ? z.win.contentItem : null
         function onWidthChanged() { Qt.callLater(z.fit) }
         function onHeightChanged() { Qt.callLater(z.fit) }
     }
