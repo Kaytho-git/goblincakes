@@ -59,7 +59,6 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 
 ## Status (klart och vad som är provat: grep "Statuslistan" och "Klart-listan" i anteckningarna)
 **Testas på riktig installation, inte i VM:en.** Klart: Steg 1, 3, 4, 5, 6 och allt annat byggt utom det som står nedan. Byggt med bara testlista kvar står inte i Att göra – `/testa` visar dem.
-- [ ] Notis om ny Fedora-version – alla tre på 45; notisen gick på frugans laptop, knappen ej provad
 
 ## Att göra (detaljer: grep på namnet, eller "Att göra – detaljerna")
 - [ ] **Kakans kunskapsminne, resten** – del 1+2 klar 18 nov; kvar betydelsesökning, komprimering, ihop med Claude – väntar på användaren (grep "Kunskapsminnet – bygget").
