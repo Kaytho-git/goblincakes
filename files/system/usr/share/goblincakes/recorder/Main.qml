@@ -433,7 +433,7 @@ Window {
                 color: "#E6ECF5"
                 font.family: "IBM Plex Sans"
                 font.weight: Font.Medium
-                font.pixelSize: 15
+                font.pixelSize: G.Type.body
             }
             Note { width: parent.width; text: row.sub }
         }
@@ -515,7 +515,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 15
+                            font.pixelSize: G.Type.tab
                         }
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -523,7 +523,7 @@ Window {
                             color: "#8B98AD"
                             font.family: "Chakra Petch"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 11   // norm 3: at least 11
+                            font.pixelSize: G.Type.meta   // norm 3: at least 11
                             font.letterSpacing: 1
                         }
                     }
@@ -535,7 +535,7 @@ Window {
             color: "#8B98AD"
             font.family: "Chakra Petch"
             font.weight: Font.DemiBold
-            font.pixelSize: 11
+            font.pixelSize: G.Type.meta
             font.letterSpacing: 1
         }
         Flow {
@@ -564,7 +564,7 @@ Window {
                         color: parent.modelData.k >= 2 ? "#E5CC80" : "#E6ECF5"
                         font.family: "IBM Plex Sans"
                         font.weight: Font.DemiBold
-                        font.pixelSize: 11
+                        font.pixelSize: G.Type.meta
                     }
                 }
             }
@@ -582,7 +582,7 @@ Window {
                     color: "#8B98AD"
                     font.family: "Chakra Petch"
                     font.weight: Font.DemiBold
-                    font.pixelSize: 11
+                    font.pixelSize: G.Type.meta
                     font.letterSpacing: 1
                 }
             }
@@ -603,7 +603,7 @@ Window {
                         text: modelData
                         color: index ? "#8B98AD" : "#E6ECF5"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.small
                     }
                 }
             }
@@ -621,7 +621,7 @@ Window {
                        + " · noscope " + (ds.s.noscopes || 0) : "")
             color: "#8B98AD"
             font.family: "IBM Plex Sans"
-            font.pixelSize: 12
+            font.pixelSize: G.Type.small
         }
         Text {
             width: parent.width
@@ -632,7 +632,7 @@ Window {
                   + [part("fullköp", b.full), part("halvköp", b.force), part("eco", b.eco)].filter(x => x).join(" · ")
             color: "#8B98AD"
             font.family: "IBM Plex Sans"
-            font.pixelSize: 12
+            font.pixelSize: G.Type.label
         }
         Column { // over time: ADR in the last matches with a read demo, this one in the accent colour
             visible: ds.trend.length > 1
@@ -642,7 +642,7 @@ Window {
                 color: "#8B98AD"
                 font.family: "Chakra Petch"
                 font.weight: Font.DemiBold
-                font.pixelSize: 11
+                font.pixelSize: G.Type.meta
                 font.letterSpacing: 1
             }
             Row {
@@ -678,7 +678,7 @@ Window {
                       + (avg("cp") !== null ? " · sikte " + win.num(avg("cp").toFixed(1)) + "°" : "")
                 color: "#8B98AD"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: 12
+                font.pixelSize: G.Type.small
             }
         }
         FlatButton { // Goblin AI reads the numbers itself (its ```cs2 tool) and coaches
@@ -710,7 +710,7 @@ Window {
             color: "#E6ECF5"
             font.family: "IBM Plex Sans"
             font.weight: Font.Medium
-            font.pixelSize: 15
+            font.pixelSize: G.Type.body
         }
         ToggleSwitch {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -738,7 +738,7 @@ Window {
             text: chip.label
             color: "#8B98AD"
             font.family: "IBM Plex Sans"
-            font.pixelSize: 13
+            font.pixelSize: G.Type.small
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
@@ -746,7 +746,7 @@ Window {
             color: "#E6ECF5"
             font.family: "IBM Plex Sans"
             font.weight: Font.Medium
-            font.pixelSize: 13
+            font.pixelSize: G.Type.small
         }
     }
 
@@ -819,7 +819,7 @@ Window {
             color: "#E6ECF5"
             font.family: "IBM Plex Sans"
             font.weight: Font.Medium
-            font.pixelSize: 14
+            font.pixelSize: G.Type.body
         }
         MouseArea {
             id: chArea
@@ -860,7 +860,7 @@ Window {
                 color: "#E5534B"
                 font.family: "Chakra Petch"
                 font.weight: Font.Bold
-                font.pixelSize: 12
+                font.pixelSize: G.Type.label
                 font.letterSpacing: 1.5
             }
             SequentialAnimation on opacity {
@@ -930,7 +930,7 @@ Window {
                         text: "Starta OBS när spelet startar"
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.small
                     }
                     ToggleSwitch {
                         anchors.verticalCenter: parent.verticalCenter
@@ -1039,7 +1039,7 @@ Window {
                     text: "Från nivå  +"
                     color: "#E6ECF5"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 14
+                    font.pixelSize: G.Type.body
                 }
                 FlatField {
                     id: mplusMin
@@ -1203,7 +1203,7 @@ Window {
                 text: pickFoot.n ? pickFoot.n + " markerade · " + win.size(win.pickedBytes()) : "Klicka på inspelningarna"
                 color: pickFoot.n ? "#E6ECF5" : "#8B98AD"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: 13
+                font.pixelSize: G.Type.small
             }
             Row {
                 anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
@@ -1286,7 +1286,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                             elide: Text.ElideRight
                         }
                         Rectangle {
@@ -1304,7 +1304,7 @@ Window {
                                 color: win.resultColor(card.modelData)
                                 font.family: "Chakra Petch"
                                 font.weight: Font.Bold
-                                font.pixelSize: 11
+                                font.pixelSize: G.Type.meta
                                 font.letterSpacing: 1
                             }
                         }
@@ -1313,7 +1313,7 @@ Window {
                         text: card.modelData.difficulty + " · " + win.when(card.modelData.started)
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.label
                     }
                     Text {
                         width: parent.width
@@ -1326,7 +1326,7 @@ Window {
                               + (card.cs2match ? (card.open ? " ▴" : " ▾") : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.small
                     }
                     Text { // the raid's average item level in the fight (Warcraft Logs), and yours
                         visible: !!card.modelData.avgIlvl
@@ -1334,7 +1334,7 @@ Window {
                               + (card.modelData.ilvl ? " · din " + card.modelData.ilvl : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.small
                     }
                 }
                 }
@@ -1379,7 +1379,7 @@ Window {
                         color: accent.on
                         font.family: "IBM Plex Sans"
                         font.weight: Font.Bold
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                     }
                 }
 
@@ -1405,7 +1405,7 @@ Window {
                                     + "Ladda ner den i CS2: Watch → Your Matches – GoblinRecorder hittar den själv."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.small
                         }
                         Row {
                             spacing: 8
@@ -1447,14 +1447,14 @@ Window {
                                 color: clipRow.modelData.clip === "Alla kills" || clipRow.modelData.clip === "Kill" ? "#E6ECF5" : "#E5CC80"
                                 font.family: "IBM Plex Sans"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Text {
                                 anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
                                 text: win.clock(clipRow.modelData.duration) + " · " + win.size(clipRow.modelData.size)
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                             }
                             MouseArea {
                                 id: clipArea
@@ -1480,7 +1480,7 @@ Window {
                         text: win.statsBusy === card.modelData.path ? "Hämtar från Warcraft Logs …" : "Inga siffror från Warcraft Logs."
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.small
                         topPadding: 4
                         bottomPadding: 4
                     }
@@ -1498,7 +1498,7 @@ Window {
                                 color: "#8B98AD"
                                 font.family: "Chakra Petch"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 11
+                                font.pixelSize: G.Type.meta
                                 font.letterSpacing: 1
                             }
                         }
@@ -1527,7 +1527,7 @@ Window {
                                     color: "#8B98AD"
                                     font.family: "Chakra Petch"
                                     font.weight: Font.DemiBold
-                                    font.pixelSize: 11
+                                    font.pixelSize: G.Type.meta
                                     font.letterSpacing: 1
                                 }
                                 Repeater {
@@ -1557,7 +1557,7 @@ Window {
                                                 color: win.classColors[prow.modelData["class"]] || "#E6ECF5"
                                                 font.family: "IBM Plex Sans"
                                                 font.weight: prow.me ? Font.Bold : Font.DemiBold
-                                                font.pixelSize: 13
+                                                font.pixelSize: G.Type.small
                                                 elide: Text.ElideRight
                                             }
                                             Text {
@@ -1566,7 +1566,7 @@ Window {
                                                 text: prow.modelData.spec
                                                 color: "#8B98AD"
                                                 font.family: "IBM Plex Sans"
-                                                font.pixelSize: 11
+                                                font.pixelSize: G.Type.meta
                                                 elide: Text.ElideRight
                                             }
                                         }
@@ -1585,7 +1585,7 @@ Window {
                                                     color: none ? "#8B98AD" : win.parseColor(modelData)
                                                     font.family: "IBM Plex Mono"
                                                     font.weight: Font.DemiBold
-                                                    font.pixelSize: 13
+                                                    font.pixelSize: G.Type.small
                                                     // the parse: the place among the same spec, as on Warcraft Logs' hover
                                                     HoverTip {
                                                         tip: index === 0 ? win.rankTip(prow.modelData) : ""
@@ -1599,7 +1599,7 @@ Window {
                                                 text: win.amount(prow.modelData.dps)
                                                 color: prow.modelData.role === "healers" ? "#8B98AD" : "#E6ECF5"
                                                 font.family: "IBM Plex Mono"
-                                                font.pixelSize: 13
+                                                font.pixelSize: G.Type.small
                                             }
                                             Text {
                                                 width: statsCol.cols[4]
@@ -1607,7 +1607,7 @@ Window {
                                                 text: win.amount(prow.modelData.hps)
                                                 color: prow.modelData.role === "healers" ? "#E6ECF5" : "#8B98AD"
                                                 font.family: "IBM Plex Mono"
-                                                font.pixelSize: 13
+                                                font.pixelSize: G.Type.small
                                             }
                                             Text {
                                                 width: statsCol.cols[5] - 8
@@ -1615,7 +1615,7 @@ Window {
                                                 text: prow.modelData.deaths || ""
                                                 color: "#E5534B"
                                                 font.family: "IBM Plex Mono"
-                                                font.pixelSize: 13
+                                                font.pixelSize: G.Type.small
                                             }
                                         }
                                     }
@@ -1634,7 +1634,7 @@ Window {
                               + (win.statsBusy === card.modelData.path ? " · uppdaterar …" : "") : ""
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.small
                     }
                 }
             }
@@ -1795,7 +1795,7 @@ Window {
                                 text: (mark.modelData.kind === "death" ? "☠ " : "") + mark.modelData.text + "  " + win.clock(mark.modelData.t)
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                             }
                         }
                     }
@@ -1836,7 +1836,7 @@ Window {
                     text: win.clock(player.position / 1000) + " / " + win.clock(playerPane.dur)
                     color: "#E6ECF5"
                     font.family: "IBM Plex Mono"
-                    font.pixelSize: 13
+                    font.pixelSize: G.Type.label
                 }
                 Text {
                     height: 40
@@ -1846,7 +1846,7 @@ Window {
                     color: "#8B98AD"
                     font.family: "Chakra Petch"
                     font.weight: Font.DemiBold
-                    font.pixelSize: 12
+                    font.pixelSize: G.Type.label
                     font.letterSpacing: 2
                 }
                 Repeater {
@@ -1969,7 +1969,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "Chakra Petch"
                             font.weight: Font.Bold
-                            font.pixelSize: 15
+                            font.pixelSize: G.Type.tab
                             font.letterSpacing: 2
                         }
                         Note {
@@ -2019,7 +2019,7 @@ Window {
                                 color: "#E6ECF5"
                                 selectionColor: accent.color
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                         }
                     }
@@ -2183,7 +2183,7 @@ Window {
                     anchors { left: parent.right; leftMargin: 4; verticalCenter: parent.verticalCenter }
                     text: tile.dir === 1 ? "▲" : "▼"
                     color: (tile.dir === 1) !== tile.lowerBetter ? "#3FB950" : "#E5534B"
-                    font.pixelSize: 11
+                    font.pixelSize: G.Type.meta
                 }
             }
             Text {
@@ -2192,7 +2192,7 @@ Window {
                 color: "#8B98AD"
                 font.family: "Chakra Petch"
                 font.weight: Font.DemiBold
-                font.pixelSize: 11   // norm 3: at least 11
+                font.pixelSize: G.Type.meta   // norm 3: at least 11
                 font.letterSpacing: 1
             }
         }
@@ -2231,7 +2231,7 @@ Window {
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                         text: arrow === 1 ? "▲" : "▼"
                         color: arrow === 1 ? "#3FB950" : "#E5534B"
-                        font.pixelSize: 9
+                        font.pixelSize: G.Type.meta
                     }
                     color: trow.colors[index] || (trow.heading || index ? "#8B98AD" : "#E6ECF5")
                     elide: Text.ElideRight
@@ -2272,7 +2272,7 @@ Window {
                 color: "#8B98AD"
                 font.family: "Chakra Petch"
                 font.weight: Font.DemiBold
-                font.pixelSize: 11
+                font.pixelSize: G.Type.meta
                 font.letterSpacing: 1
             }
             Rectangle { // a ring with an i (22 Oct, the user: the ⓘ character looked like a squiggle)
@@ -2436,7 +2436,7 @@ Window {
                             color: specArea.containsMouse || wowChar.menuOpen ? accent.text : "#8B98AD"
                             font.family: "Chakra Petch"
                             font.weight: Font.Medium
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                         }
                     }
                     Text {
@@ -2445,7 +2445,7 @@ Window {
                               + (wowPage.d.role ? " · parse på " + wowPage.metric : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.label
                     }
                 }
                 MouseArea {
@@ -2483,14 +2483,14 @@ Window {
                                     color: parent.chosen ? accent.text : "#E6ECF5"
                                     font.family: "IBM Plex Sans"
                                     font.weight: Font.Medium
-                                    font.pixelSize: 14
+                                    font.pixelSize: G.Type.body
                                 }
                                 Text {
                                     anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
                                     text: parent.modelData.pulls + " pulls/nycklar"
                                     color: "#8B98AD"
                                     font.family: "IBM Plex Mono"
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.meta
                                 }
                                 MouseArea {
                                     id: rowArea
@@ -2579,7 +2579,7 @@ Window {
                                     color: accent.on
                                     font.family: "IBM Plex Sans"
                                     font.weight: Font.Bold
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.small
                                 }
                             }
                             Text {
@@ -2592,7 +2592,7 @@ Window {
                                       + "  ·  " + missRow.modelData.player.split("-")[0]
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Text {
                                 anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
@@ -2602,7 +2602,7 @@ Window {
                                            timed: "I TID", depleted: "FÖR SENT" })[missRow.modelData.result]
                                 color: missRow.modelData.result === "kill" || missRow.modelData.result === "timed" ? "#3FB950" : "#E5534B"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                             }
                             MouseArea {
                                 id: missArea
@@ -2734,7 +2734,7 @@ Window {
             Note {
                 visible: !!wowPage.d.missing
                 width: parent.width
-                font.pixelSize: 12
+                font.pixelSize: G.Type.small
                 text: wowPage.d.missing + " kills/nycklar saknar siffror än – tjänsten hämtar loggen själv när den finns i Warcraft Logs."
             }
 
@@ -2914,7 +2914,7 @@ Window {
                               + (cs2Page.d.compare ? " · pilarna: senaste " + cs2Page.d.compareTo + " mot " + cs2Page.d.compare + " före" : "")
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.label
                     }
                 }
                 FlatButton {
@@ -3172,7 +3172,7 @@ Window {
                                           + (mrow.m.path ? "" : "Filmen är borttagen – siffrorna finns kvar.")
                                     color: "#8B98AD"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.small
                                 }
                             }
                         }
@@ -3331,7 +3331,7 @@ Window {
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.weight: Font.Medium
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                     }
                     Repeater {
                         model: [{ "fps": 60, "sub": "Mjukast – som du ser spelet" },
@@ -3363,7 +3363,7 @@ Window {
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.weight: Font.Medium
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                     }
                     Repeater {
                         model: [{ "id": "best", "name": "Bäst" }, { "id": "high", "name": "Hög" },
@@ -3416,7 +3416,7 @@ Window {
                 color: "#E6ECF5"
                 font.family: "IBM Plex Sans"
                 font.weight: Font.Medium
-                font.pixelSize: 15
+                font.pixelSize: G.Type.body
             }
             Repeater { // one choice per game (24 Oct, the user's wish – before only WoW's, CS2 followed it)
                 model: [{ "key": "capture", "game": "WoW", "only": "wow" }, { "key": "cs2Capture", "game": "CS2", "only": "game" }]
@@ -3431,7 +3431,7 @@ Window {
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.weight: Font.Medium
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                     }
                     Repeater {
                         model: [{ "id": "all", "name": "Allt", "sub": captureRow.modelData.game + ", Discord och din röst – på tre ljudspår (Allt, "
@@ -3457,7 +3457,7 @@ Window {
                     color: "#E6ECF5"
                     font.family: "IBM Plex Sans"
                     font.weight: Font.Medium
-                    font.pixelSize: 15
+                    font.pixelSize: G.Type.body
                 }
                 ToggleSwitch {
                     on: win.cfg.mic !== false
@@ -3472,7 +3472,7 @@ Window {
                 color: "#E6ECF5"
                 font.family: "IBM Plex Sans"
                 font.weight: Font.Medium
-                font.pixelSize: 15
+                font.pixelSize: G.Type.body
             }
             Row {
                 spacing: 12
@@ -3495,7 +3495,7 @@ Window {
                 color: "#E6ECF5"
                 font.family: "IBM Plex Sans"
                 font.weight: Font.Medium
-                font.pixelSize: 15
+                font.pixelSize: G.Type.body
             }
             Row {
                 spacing: 12
@@ -3531,7 +3531,7 @@ Window {
                         text: win.cfg.folder
                         color: "#E6ECF5"
                         font.family: "IBM Plex Mono"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.small
                         elide: Text.ElideMiddle
                     }
                 }
@@ -3703,7 +3703,7 @@ Window {
                     text: "Text i rutan"
                     color: "#E6ECF5"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 15
+                    font.pixelSize: G.Type.body
                 }
                 FlatField {
                     id: overlayText
@@ -3727,7 +3727,7 @@ Window {
                     text: "Döljer i"
                     color: "#E6ECF5"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 15
+                    font.pixelSize: G.Type.body
                 }
                 Repeater {
                     model: [{ "id": "wow", "name": "WoW" }, { "id": "cs2", "name": "CS2" }]
@@ -3787,7 +3787,7 @@ Window {
             text: win.tipText
             color: "#E6ECF5"
             font.family: "IBM Plex Sans"
-            font.pixelSize: 13
+            font.pixelSize: G.Type.small
             wrapMode: Text.WordWrap
             lineHeight: 1.15
         }
@@ -3819,7 +3819,7 @@ Window {
                     color: "#E6ECF5"
                     font.family: "Chakra Petch"
                     font.weight: Font.Bold
-                    font.pixelSize: 16
+                    font.pixelSize: G.Type.body
                     font.letterSpacing: 2
                 }
                 Note {
@@ -3838,7 +3838,7 @@ Window {
                         text: "Kom ihåg mitt val (ändras i Inställningar)"
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.small
                     }
                 }
                 Row {
@@ -3879,7 +3879,7 @@ Window {
                     color: "#E6ECF5"
                     font.family: "Chakra Petch"
                     font.weight: Font.Bold
-                    font.pixelSize: 16
+                    font.pixelSize: G.Type.body
                     font.letterSpacing: 2
                     wrapMode: Text.WordWrap
                 }
@@ -3913,7 +3913,7 @@ Window {
             text: win.note
             color: "#E6ECF5"
             font.family: "IBM Plex Sans"
-            font.pixelSize: 14
+            font.pixelSize: G.Type.body
         }
     }
 }
