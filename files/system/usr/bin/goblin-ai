@@ -940,6 +940,7 @@ class Backend(QObject):
             self._cwd = goblinai.read_cwd(cwd_file, self._cwd)
             Path(cwd_file).unlink(missing_ok=True)
             out = bytes(p.readAllStandardOutput()).decode(errors="replace").strip()
+            out = goblinai.sys_tools().hide_text(out)   # keys never reach the AI (22 Nov)
             if timed_out:
                 out += f"\n(stoppat efter {cmdlevel.AUTO_TIMEOUT} s)"
             if plan and plan["trash"]:

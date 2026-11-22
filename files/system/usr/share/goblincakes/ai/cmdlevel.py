@@ -427,8 +427,9 @@ READ = {
                      "lspci", "lsusb", "lsmod", "modinfo", "findmnt", "blkid", "vmstat", "iostat", "mpstat", "lsof",
                      "ps", "pgrep", "pidof", "printenv", "locale", "glxinfo", "vulkaninfo", "eglinfo", "wayland-info",
                      "xdpyinfo", "lshw", "hwinfo", "dmidecode", "upower", "kreadconfig6", "kreadconfig5", "xdg-user-dir",
-                     "last", "lastlog", "w", "who", "users", "pw-dump", "zramctl", "tracepath", "dig", "host", "getent",
-                     "ping", "nslookup"], NO_RULE),
+                     "last", "lastlog", "w", "who", "users", "pw-dump", "zramctl", "getent"], NO_RULE),
+    # the network: only to known places, or a name/address could carry text out (22 Nov – see _net)
+    **dict.fromkeys(["ping", "tracepath", "dig", "host", "nslookup"], lambda a: _net(a)),
     "ss": deny("KD", ("--kill", "--diag")),
     "inxi": deny("U", ("--update",)),
     "sensors": deny("s", ("--set",)),
@@ -512,8 +513,74 @@ GLOB_OK = {"ls", "cat", "head", "tail", "wc", "stat", "du", "grep", "egrep", "fg
            "md5sum", "sha1sum", "sha256sum", "sha512sum", "strings", "readlink", "realpath", "lsattr", "getfacl", "echo", "test", "["}
 
 
+# ── Keys and the network (22 Nov, the security review) ───────────────────
+# A "read" command runs at once and Goblin AI sees what it printed: a key file must be allowed first, and a ping/
+# dig/host to a name or address nobody knows could carry a key out in the name itself (DNS) without a Tillåt.
+BARE_KEY = re.compile(r"^(?:id_(?:rsa|dsa|ecdsa|ed25519)(?:_sk)?|.+\.(?:pem|key|p12|pfx|kdbx)|\.netrc|\.git-credentials"
+                      r"|(?:ai|ianseo)\.env)$", re.I)
+KNOWN_DOMAINS = ("google.com", "google.se", "cloudflare.com", "one.one.one.one", "quad9.net", "github.com", "ghcr.io",
+                 "githubusercontent.com", "fedoraproject.org", "flathub.org", "ublue.it", "blizzard.com", "battle.net",
+                 "steampowered.com", "steamcontent.com", "valvesoftware.com", "steamserver.net", "discord.com", "discord.gg",
+                 "warcraftlogs.com", "raider.io", "curseforge.com", "wowup.io", "anthropic.com", "claude.ai", "openai.com",
+                 "chatgpt.com", "ollama.com", "spotify.com", "youtube.com", "twitch.tv", "epicgames.com", "microsoft.com",
+                 "apple.com", "nvidia.com", "amd.com", "kde.org", "localsend.org", "ianseo.net", "svt.se", "aftonbladet.se")
+OPEN_RESOLVERS = {"1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4", "9.9.9.9", "149.112.112.112", "2606:4700:4700::1111",
+                  "2001:4860:4860::8888"}
+RECORD_TYPES = {"A", "AAAA", "MX", "TXT", "NS", "CNAME", "SOA", "PTR", "SRV", "ANY", "CAA", "IN"}
+
+
+def key_file(arg):
+    """The argument names a file with keys or passwords (the file tools' own list)."""
+    import systools
+    if "/" in arg:
+        try:
+            real = os.path.realpath(arg.split("=", 1)[-1])
+        except (OSError, ValueError):
+            real = arg
+        return bool(systools.KEY_FILES.search(arg) or systools.KEY_FILES.search(real))
+    return bool(BARE_KEY.match(arg))
+
+
+def _known_place(word):
+    import ipaddress
+    word = word.lstrip("@").rstrip(".").lower()
+    if word == "localhost" or word.endswith((".local", ".lan", ".home")) and word.count(".") == 1:
+        return True
+    try:
+        ip = ipaddress.ip_address(word)
+        return ip.is_private or ip.is_loopback or ip.is_link_local or word in OPEN_RESOLVERS
+    except ValueError:
+        pass
+    return any(word == d or word.endswith("." + d) for d in KNOWN_DOMAINS)
+
+
+def _net(args):
+    """ping/tracepath/dig/host/nslookup: only reading when every place named is known (above)."""
+    if has_opt(args, "pf", ("--pattern",)):
+        return "med -p eller -f (egen text i paketen, flod eller frågor ur en fil)"
+    with_value = {"-c", "-i", "-W", "-w", "-s", "-t", "-l", "-m", "-I", "-q", "-Q", "-b", "-p", "-y", "-k", "-4", "-6"}
+    skip = False
+    for a in args:
+        if skip:
+            skip = False
+            continue
+        if a.startswith("-") or a.startswith("+"):
+            skip = a in with_value
+            continue
+        if re.fullmatch(r"\d+(?:\.\d+)?", a) or a.upper() in RECORD_TYPES or _known_place(a):
+            continue
+        return f"till {a} – en okänd adress (kan skicka ut text i namnet)"
+    return ""
+
+
 def read_reason(words, redirs):
     """Why this simple command is not only reading, or "" when it is."""
+    for w in words[1:]:
+        if key_file(w["t"]):
+            return f"läser {os.path.basename(w['t'].rstrip('/')) or w['t']}, som har nycklar eller lösenord"
+    for _fd, op, target in redirs:
+        if op == "<" and key_file(target):
+            return f"läser {os.path.basename(target)}, som har nycklar eller lösenord"
     for fd, op, target in redirs:
         if op in (">&", "<&") and re.fullmatch(r"[0-2-]", target):
             continue

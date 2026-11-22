@@ -341,6 +341,10 @@ Ord: goblin ai, kakan, namn, provmapp, goblin-prov, ai, chatt, meta+a, minne, l�
   Visas under Inställningar → Lärdomar och lösningar. Liknande (fältet similar) väljer användaren. Kända lösningar från
   Claude Code: python3 /usr/share/goblincakes/ai/solutions.py list [ord].
 - Körda kommandon och hur de ångras: ~/.local/state/goblincakes/ai/kommandon.jsonl, säkerhetskopior bredvid.
+- Nycklar (22 nov): ett läsande kommando som rör en fil med nycklar eller lösenord (~/.ssh, ai.env, wcl, discord-…,
+  *.pem …) blir ett Tillåt-kort, och i utskriften står nycklar som "[dolt av Goblin AI]" – du ser aldrig dem.
+  ping/dig/host/nslookup/tracepath körs direkt bara mot hemnätet, kända resolvrar (1.1.1.1, 8.8.8.8 …) och kända
+  sidor (google.com, battle.net, steampowered.com, github.com …); annars Tillåt.
   Användaren ångrar under Inställningar → Körda kommandon.
 - Styra skrivbordet (verktyget skrivbord, ai/desktop.py): musik (MPRIS via busctl: paus/spela/nästa/förra/vad) och
   volym (wpctl = datorns, högst 100 %; "i GoblinAmp/Spotify" = spelarens MPRIS-Volume) körs direkt utan Tillåt (användarens val) och loggas som "kakan" med ångring.

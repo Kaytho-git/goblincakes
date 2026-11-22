@@ -320,14 +320,17 @@ def system_errors(query=""):
 # ```leta (24 Oct): the AI looks around the computer itself – finds files, reads logs and settings, searches
 # for text, a program's journal and a service's status. Only reads, never runs anything the AI wrote: a fixed
 # set of commands, every path checked against SECRET first, so keys and passwords never reach the AI.
-SECRET = re.compile(
+# KEY_FILES = files with keys and passwords – also what makes a ```bash "read" command ask Tillåt (cmdlevel,
+# 22 Nov); SECRET adds what the file tools never read (/proc, /sys, /dev), which plain commands may.
+KEY_FILES = re.compile(
     r"/\.ssh(?:/|$)|/\.gnupg(?:/|$)|/\.password-store|/keyrings?(?:/|$)|kwallet|/\.netrc$|/\.aws(?:/|$)|"
     r"/\.docker/config\.json$|/\.git-credentials$|/\.pki(?:/|$)|\.(?:pem|key|p12|pfx|kdbx|enc)$|"
     r"/id_(?:rsa|dsa|ecdsa|ed25519)(?:_sk)?$|"  # private keys outside ~/.ssh too (~/.ollama/id_ed25519)
     r"/goblincakes/(?:ai|ianseo)\.env$|/goblincakes/(?:wcl|spotify|youtube|lastfm|discord-\w+|chrome-nycklar)|"
     r"cookies|login data|logins\.json|key[34]\.db|cert9\.db|web data|token|secret|passw|"
-    r"^/etc/(?:shadow|gshadow|sudoers)|^/proc/|^/sys/|^/dev/|^/run/user/\d+/(?:gnupg|keyring)",
+    r"^/etc/(?:shadow|gshadow|sudoers)|^/run/user/\d+/(?:gnupg|keyring)",
     re.I)
+SECRET = re.compile(KEY_FILES.pattern + r"|^/proc/|^/sys/|^/dev/", re.I)
 FIND_PLACES = [HOME, Path("/etc"), Path("/var/log"), Path("/usr/share/goblincakes"), Path("/usr/lib/systemd"),
                Path("/usr/libexec"), Path("/usr/bin"), Path("/tmp")]
 
@@ -386,6 +389,21 @@ def hide(line):
     """A key's value hidden – marked so no AI takes it for what the file says (7 Nov: `key = preset.key,` became
     `key = ***,` and Haiku and Sonnet both said the Lua was broken). Code (a name with dots) is no key."""
     return SECRET_VALUE.sub(lambda m: m.group(0) if not_secret(m.group(1), m.group(2)) else m.group(1) + HIDDEN, line)
+
+
+# Keys that look like keys wherever they stand (a private key's block, the services' own key shapes) – 22 Nov
+PEM_BLOCK = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\Z)", re.S)
+KEY_SHAPE = re.compile(r"\b(?:sk-ant-[\w-]{20,}|sk-(?:proj-)?[A-Za-z0-9_-]{32,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{30,}"
+                       r"|AIza[0-9A-Za-z_-]{35}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|tvly-[A-Za-z0-9_-]{20,}"
+                       r"|xai-[A-Za-z0-9]{30,}|pplx-[A-Za-z0-9]{30,}|sk-or-v1-[a-f0-9]{40,})")
+
+
+def hide_text(text):
+    """A command's whole output before Goblin AI sees it (and the card shows it): private key blocks, things
+    shaped like the services' keys and key = value lines hidden (22 Nov – the bash cards had no hiding)."""
+    text = PEM_BLOCK.sub(HIDDEN, text)
+    text = KEY_SHAPE.sub(HIDDEN, text)
+    return "\n".join(hide(line) for line in text.split("\n"))
 
 
 PLAIN_NAME = re.compile(r"^[A-Za-z_]{1,40}$")  # specKey, preset – letters only: a name in code, not a key
