@@ -327,6 +327,10 @@ Ord: goblin ai, kakan, namn, provmapp, goblin-prov, ai, chatt, meta+a, minne, l�
 - Följdfrågor (9 nov): en kort fråga direkt efter ett svar med **Källor:** (från nätet) söks igen – follow_up_of() och
   follow_up_query() i goblinai.py skriver om den med samtalets ämne (steget "Förstår följdfrågan" visar sökfrågan;
   "ingen ny sökning behövs" = modellen svarade INGEN). Söker hon på fel sak: titta på den raden i stegen.
+  Efter ett svar från Warcraft Logs (länken under Källor) söks inte på nätet: en kort följdfråga med strids-ord
+  (skada, dog, dps, defensiv, cooldown, kick, wipe, kill, tank, lust, först, vem …) hämtar samma pull igen via länken
+  (own_fight/wcl_link_before/PULL_WORDS i goblinai.py; den ligger kvar i wowtools._fights = 1 hämtning). Verktygets
+  data sparas inte i chatten – därför hämtas den igen.
 - Chattar, minne och lärdomar: ~/.local/share/goblincakes/ai/. Nycklar: ~/.config/goblincakes/ai.env – visa aldrig.
 - Lärdomar och kända lösningar (kind "solution") i ~/.local/share/goblincakes/ai/lardomar.json, i kategorier, inget tak.
   Visas under Inställningar → Lärdomar och lösningar. Liknande (fältet similar) väljer användaren. Kända lösningar från

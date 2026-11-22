@@ -1,3 +1,4 @@
+2026-11-22  Goblin AI: Kakan kommer ihåg pullen när du ställer följdfrågor om Warcraft Logs ("vem tog mest skada?" efter "varför dog vi på …?") – hon hämtar samma pull igen i stället för att söka på nätet.
 2026-11-22  GoblinRecorder: fuskkollen letar också efter triggerbot (skott som går av i samma ögonblick som fienden kliver in i siktet). CS2 Stats har fått rutan CLUTCH 1V5.
 2026-11-22  GoblinRecorder: Inferno-matcher får TTD, sikte och fuskkoll igen (kartan saknades i det nyaste kartpaketet). Äldre kartpaket sparas som reserv och byts ut när ett nytt har samma kartor.
 2026-11-22  GoblinRecorder: fuskkoll i CS2 Stats – när demon läses jämförs alla tio spelare (sikte genom väggar, omänskligt snabba reaktioner, blixtsnabba ryck mot huvudet). Misstänkta får namnet i orange eller rött, och skälen syns när du håller musen över namnet. Fråga också Kakan: "var det fuskare i senaste matchen?"

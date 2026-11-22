@@ -2567,7 +2567,15 @@ def own_fight(question, tools, messages=None):
     boss = max((b for b in bosses if b in low), key=len, default="")
     if not boss and KEY_Q.search(low) and not PARSE_WORDS.search(low) and "warcraftlogs" in tools:
         return "warcraftlogs", "senaste nyckeln"
-    if not boss and messages and FOLLOW_UP.search(low):
+    pull = re.search(r"\b(?:pull|försök|forsok)\s*(\d+)", low)
+    if not boss and messages and not pull and "warcraftlogs" in tools and len(low) <= FOLLOW_UP_CHARS \
+            and PULL_WORDS.search(low) and not re.search(r"parse|median|ilvl|item level|förmåga|formaga|ability|mekanik|alla\s+boss", low):
+        # "vem tog mest skada?" after "varför dog vi på Ula'tek?" (22 Nov): the tool's data isn't kept in the chat,
+        # so the same pull again – the link from the answer before (kept in _fights: one fetch, under a second)
+        link = wcl_link_before(messages)
+        if link:
+            return "warcraftlogs", link
+    if not boss and messages and (FOLLOW_UP.search(low) or pull):
         # "ge mig länken till loggen" after a question about Ula'tek: the boss from the question before
         # (25 Oct: the latest report – a Mythic+ – was linked instead)
         earlier = [m["content"].casefold() for m in messages if m["role"] == "user" and isinstance(m["content"], str)
@@ -2580,8 +2588,23 @@ def own_fight(question, tools, messages=None):
         return "wowstats", "allt"
     if "warcraftlogs" not in tools or re.search(r"förmåga|formaga|ability|mekanik|alla\s+boss", low):
         return None  # an ability or every boss: the AI says what (see WCL_PROMPT)
-    pull = re.search(r"\b(?:pull|försök|forsok)\s*(\d+)", low)
     return "warcraftlogs", boss + (f" pull {pull.group(1)}" if pull else "")
+
+
+# A follow-up about the pull itself – only these words fetch it again (the user 22 Nov: a new topic like "när gick
+# senaste OS i bågskytte?" shouldn't get Ula'tek's log with "svara utifrån det här")
+PULL_WORDS = re.compile(r"skada|\bdog\b|\bdö|död|dps|\bheal|helad|läkning|defensiv|cooldown|\bcds?\b|interrupt|\bkick"
+                        r"|\bcc\b|\bstun|wipe|\bkill|\btank|\blust|bloodlust|heroism|\bförst|\bsist|\bvem\b", re.I)
+WCL_LINK = re.compile(r"https://www\.warcraftlogs\.com/reports/[A-Za-z0-9]{16}(?:#fight=\d+)?")
+
+
+def wcl_link_before(messages):
+    """The Warcraft Logs pull the answer just before was about (its link under Källor), or ""."""
+    answer = next((m["content"] for m in reversed(messages) if m.get("role") == "assistant"
+                   and isinstance(m.get("content"), str)), "")
+    parts = SOURCES_PART.split(answer, maxsplit=1)
+    links = WCL_LINK.findall(parts[1]) if len(parts) > 1 else []
+    return links[0] if links else ""
 
 
 def own_game_question(question, tools):
@@ -2773,8 +2796,14 @@ def follow_up_of(messages, asked):
             answer = None
             if len(pairs) == 3:
                 break
-    # Only when the answer just before came from the web – a chat about the computer or a recipe isn't searched
-    return pairs if pairs and "**Källor:**" in pairs[-1][1] else []
+    # Only when the answer just before came from the web – a chat about the computer or a recipe isn't searched.
+    # Warcraft Logs' link under Källor isn't the web (22 Nov: "vem tog mest skada?" after Ula'tek was searched
+    # and found boss guides and "Bossen Park Apartments" – own_fight fetches the pull again instead)
+    if not pairs or "**Källor:**" not in pairs[-1][1]:
+        return []
+    sources = pairs[-1][1].split("**Källor:**", 1)[1]
+    web = [u for u in re.findall(r"\]\((https?://[^)\s]+)\)", sources) if "warcraftlogs.com/reports/" not in u]
+    return pairs if web else []
 
 
 def follow_up_query(pairs, question, keys, project=None, choice=""):
