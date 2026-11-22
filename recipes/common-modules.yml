@@ -165,6 +165,7 @@ modules:
         - ananicy-cpp.service
         - switcheroo-control.service      # tells KDE about a second graphics card
         - goblincakes-variant-sync.service # after the ISO install: fetch the Nvidia variant if chosen
+        - goblincakes-share-ssh-boot.service # GoblinShare's SSH server only during a help, not from start
     user:
       enabled:
         - goblincakes-updates.timer       # the green update arrow in the top bar

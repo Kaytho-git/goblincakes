@@ -578,6 +578,11 @@ Ord: goblinshare, share, dela, skicka fil, ta emot, localsend, airdrop, filer ti
   root-delen `goblincakes-tweak set share-ssh on|off`: /etc/ssh/sshd_config.d/10-goblincakes-share.conf = bara nycklar,
   ingen root; sshd och brandväggens ssh-tjänst tillbaka som de var vid av, minnet i /etc/goblincakes/share-ssh).
   Nyckeln ligger i ~/.ssh/authorized_keys bara de sekunder det tar att logga in (expiry-time, kommentar goblinshare:…).
+  SSH-servern körs bara under en hjälp (22 nov): Be om hjälp startar goblincakes-share-sshd.service (som startar sshd,
+  bara om 10-goblincakes-share.conf finns; polkit-regeln 50-goblincakes-share-ssh.rules = administratörer utan
+  lösenord), och den stoppas när hjälpen är slut. sshd är alltså "inactive"/"disabled" mellan hjälperna – inget fel.
+  Startade den inte: "SSH-servern startade inte" i fönstret → `systemctl status goblincakes-share-sshd sshd`,
+  `id -nG` (wheel?), slå av och på "Tillåt hjälp via terminal". Hade datorn en egen sshd innan rörs den inte.
   Kolla: `goblin share terminal` (listan/ansluten?), `systemctl status sshd`, `ssh -v <namn> true`.
   "Permission denied (publickey)" = ingen terminal öppen (eller koden inte använd) – be om en ny kod. "REMOTE HOST
   IDENTIFICATION HAS CHANGED" = den andra datorn ominstallerad → Glöm i Inställningar och anslut med ny kod.

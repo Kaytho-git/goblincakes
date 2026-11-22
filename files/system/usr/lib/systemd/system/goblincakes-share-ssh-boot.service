@@ -1,0 +1,14 @@
+[Unit]
+Description=GOBLINCAKES GoblinShare: the SSH server not from start, only during a help
+Documentation=file:///usr/libexec/goblincakes-tweak
+# Computers that switched "Hjälp via terminal" on before 22 Nov had sshd started at every boot. Only when
+# GoblinShare turned sshd on ("sshd" in its note) – someone's own SSH server is left alone.
+After=sshd.service
+ConditionPathExists=/etc/goblincakes/share-ssh
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'if grep -qx sshd /etc/goblincakes/share-ssh && systemctl is-enabled --quiet sshd.service; then systemctl disable --now sshd.service; fi'
+
+[Install]
+WantedBy=multi-user.target

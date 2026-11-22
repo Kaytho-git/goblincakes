@@ -380,8 +380,10 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
         esac ;;
 
     share-ssh)
-        # GoblinShare → Inställningar → "Tillåt hjälp via terminal på den här datorn" (4 Nov): sshd on, with keys only
-        # (GoblinShare puts a key in ~/.ssh/authorized_keys for 2 min after the right help code) and no root login. Not in
+        # GoblinShare → Inställningar → "Tillåt hjälp via terminal på den här datorn" (4 Nov): sshd allowed, with keys only
+        # (GoblinShare puts a key in ~/.ssh/authorized_keys for 2 min after the right help code) and no root login.
+        # Since 22 Nov sshd runs only during a help: GoblinShare starts goblincakes-share-sshd.service (polkit rule
+        # 50-goblincakes-share-ssh.rules) – unless the computer ran sshd before ("sshd" not in $mark), then as before. Not in
         # tweaks.json – the GoblinShare window runs it. Off = sshd and the firewall back as they were (only
         # what we changed, kept in $mark); GoblinShare then removes its keys.
         conf=/etc/ssh/sshd_config.d/10-goblincakes-share.conf
@@ -410,11 +412,17 @@ sys.exit(0 if any(wanted & set(d.get("requested-packages", [])) for d in json.lo
                         rm -f "$conf" "$mark"
                         echo "SSH-servern godtog inte inställningarna: ${why:-okänt fel}" >&2; exit 1
                     fi
-                    systemctl enable --now sshd.service >/dev/null 2>&1
-                    systemctl reload-or-restart sshd.service
+                    if grep -qx sshd "$mark"; then
+                        # Ours: not from start, GoblinShare starts it for a help (22 Nov)
+                        systemctl disable sshd.service >/dev/null 2>&1 || true
+                        systemctl try-reload-or-restart sshd.service >/dev/null 2>&1 || true
+                    else
+                        systemctl reload-or-restart sshd.service
+                    fi
                 else
                     [ -e "$conf" ] || exit 0
                     rm -f "$conf"
+                    systemctl stop goblincakes-share-sshd.service >/dev/null 2>&1 || true
                     if grep -qx sshd "$mark" 2>/dev/null; then
                         systemctl disable --now sshd.service >/dev/null 2>&1 || true
                     else

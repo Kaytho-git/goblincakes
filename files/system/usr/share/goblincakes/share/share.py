@@ -458,6 +458,7 @@ class Share:
         self.udp = None
         self.stop = threading.Event()
         self.paused = False     # not on a home network: nothing on the network (check_network, 22 Nov)
+        self.sshd_up = False    # we started the SSH server for a help: stopped when it is over (22 Nov)
 
     # ---------------------------------------------------------- who we are
     def alias(self):
@@ -1254,6 +1255,11 @@ class Share:
         """Be om hjälp → the code (or an error when "Hjälp via terminal" is off)."""
         if not sshlink.allowed_here():
             return None, "Hjälp via terminal är av – slå på den först"
+        if sshlink.server_ours():   # the SSH server only during a help (22 Nov)
+            why = sshlink.server(True)
+            if why:
+                return None, why
+            self.sshd_up = True
         with self.lock:
             code = f"{secrets.randbelow(1000000):06d}"
             self.help = {"code": code, "until": time.time() + HELP_SECONDS, "tries": 0, "state": "kod",
@@ -1338,6 +1344,12 @@ class Share:
             with self.lock:
                 h = self.help
             if not h:
+                # The help is over (code gone, left, Avsluta, too many tries): the SSH server off again (22 Nov)
+                if self.sshd_up and not sshlink.sessions():
+                    self.sshd_up = False
+                    why = sshlink.server(False)
+                    if why:
+                        print("hjälp:", why, file=sys.stderr)
                 continue
             now = time.time()
             if h["state"] == "kod":
@@ -1774,6 +1786,8 @@ class Share:
         if self.cfg.get("sshPaired"):
             self.write_ssh()
         self.check_ssh_allowed()
+        # Left on (from before 22 Nov, or the service stopped mid-help): off again when no help is going on
+        self.sshd_up = sshlink.allowed_here() and sshlink.server_ours() and sshlink.server_running()
         self.check_network()
         threading.Thread(target=self.net_watch, daemon=True).start()
         threading.Thread(target=self.help_watch, daemon=True).start()
@@ -1794,6 +1808,8 @@ class Share:
 
     def shutdown(self):
         self.stop.set()
+        if self.sshd_up and not sshlink.sessions():
+            sshlink.server(False)
         if self.http:
             threading.Thread(target=self.http.shutdown, daemon=True).start()
         SOCK.unlink(missing_ok=True)

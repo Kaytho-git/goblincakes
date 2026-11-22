@@ -1,0 +1,14 @@
+[Unit]
+Description=GOBLINCAKES GoblinShare: the SSH server during a help (Be om hjälp)
+Documentation=file:///usr/share/goblincakes/share/share.py
+# GoblinShare's keys-only settings (goblincakes-tweak share-ssh on) – without them Fedora's own sshd settings
+# would let passwords in, so the polkit rule (50-goblincakes-share-ssh.rules) can't start sshd without them
+ConditionPathExists=/etc/ssh/sshd_config.d/10-goblincakes-share.conf
+ConditionPathExists=/etc/goblincakes/share-ssh
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/systemctl start sshd.service
+# sshd.service has KillMode=process: someone inside stays inside – GoblinShare ends the sessions itself
+ExecStop=/usr/bin/systemctl stop sshd.service

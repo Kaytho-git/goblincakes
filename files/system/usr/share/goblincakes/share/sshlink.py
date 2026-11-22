@@ -55,6 +55,42 @@ def allowed_here():
     return MARK.exists()
 
 
+# The SSH server only during a help (22 Nov): GoblinShare starts it at Be om hjälp and stops it when the help is
+# over – through goblincakes-share-sshd.service (polkit 50-goblincakes-share-ssh.rules lets administrators, also
+# from the user service). Only when GoblinShare turned sshd on ("sshd" in MARK); someone's own SSH server stays.
+SYSTEMCTL = os.environ.get("GOBLINCAKES_SYSTEMCTL") or "systemctl"
+SERVER_UNIT = "goblincakes-share-sshd.service"
+
+
+def server_ours():
+    try:
+        return "sshd" in MARK.read_text().split()
+    except OSError:
+        return False
+
+
+def server_running():
+    try:
+        return subprocess.run([SYSTEMCTL, "is-active", "--quiet", "sshd.service"], timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def server(on):
+    """Start (restart: the unit may still say active from last time) or stop it → "" or why not."""
+    try:
+        r = subprocess.run([SYSTEMCTL, "--no-ask-password", "restart" if on else "stop", SERVER_UNIT],
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return f"SSH-servern {'startade' if on else 'stannade'} inte: {e}"
+    if r.returncode != 0:
+        said = (r.stderr or r.stdout).strip().splitlines()
+        return f"SSH-servern {'startade' if on else 'stannade'} inte" + (f": {said[-1]}" if said else "")
+    if on and not server_running():
+        return "SSH-servern startade inte – slå av och på \"Tillåt hjälp via terminal\" i Inställningar"
+    return ""
+
+
 def set_allowed(on):
     """Runs the root part (polkit asks for the password) – from the window or a terminal, not the service:
     a user service has no session, so polkit can't ask there. → "" or why not."""
