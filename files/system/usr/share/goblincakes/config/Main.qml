@@ -754,11 +754,10 @@ Window {
                         Repeater {
                             model: section.apps
 
-                            Rectangle {
+                            G.Card {   // the shared program card (qml/Goblin, granskning #15)
                                 id: card
                                 required property var modelData
                                 readonly property bool installed: modelData.installed
-                                readonly property bool checked: !!win.chosen[modelData.id]
                                 readonly property bool removable: !!modelData.removable
                                 readonly property bool removing: !!win.removing[modelData.id]
                                 readonly property bool browser: !!modelData.browser
@@ -770,69 +769,24 @@ Window {
 
                                 width: (sections.width - 16 * (section.columns - 1)) / section.columns
                                 height: 112 + 48 * ((browser ? 1 : 0) + (canAutostart ? 1 : 0) + (canFullscreen ? 1 : 0))
-                                color: cardArea.containsMouse && (!installed || removable) ? "#111A2A" : "#0E1420"
-                                border.width: 1
-                                border.color: removing ? accent.error : checked ? accent.color
-                                    : cardArea.containsMouse && (!installed || removable) ? "#2A3852" : "#1E2A40"
+                                title: modelData.name
+                                description: removing ? "Avinstalleras när du trycker på knappen nere till höger. Inställningarna sparas."
+                                    : installed && removable ? "Installerad – ta bort krysset för att avinstallera"
+                                    : installed ? "Redan installerad" : modelData.desc
+                                descriptionColor: removing ? accent.errorBright : "#8B98AD"
+                                checked: !!win.chosen[modelData.id] || (installed && !removing)
+                                selected: removing || !!win.chosen[modelData.id]
+                                tone: removing ? accent.error : accent.color
+                                interactive: !installed || removable
                                 // Stays bright when installed if a switch is still in use (or it is hovered/being removed)
-                                opacity: installed && !removing && !(removable && cardArea.containsMouse)
+                                opacity: installed && !removing && !(removable && hovered)
                                          && !browser && !canAutostart && !canFullscreen ? 0.55 : 1
-
-                                Monogram {
-                                    id: mono
-                                    name: card.modelData.name
-                                    anchors { left: parent.left; leftMargin: 18; top: parent.top; topMargin: 20 }
-                                }
-
-                                Column {
-                                    anchors {
-                                        left: mono.right; leftMargin: 16
-                                        right: check.left; rightMargin: 14
-                                        top: parent.top; topMargin: 18
-                                    }
-                                    spacing: 5
-
-                                    Text {
-                                        width: parent.width
-                                        text: card.modelData.name
-                                        color: "#E6ECF5"
-                                        font.family: "IBM Plex Sans"
-                                        font.weight: Font.DemiBold
-                                        font.pixelSize: G.Type.body
-                                        elide: Text.ElideRight
-                                    }
-                                    Text {
-                                        width: parent.width
-                                        text: card.removing ? "Avinstalleras när du trycker på knappen nere till höger. Inställningarna sparas."
-                                            : card.installed && card.removable ? "Installerad – ta bort krysset för att avinstallera"
-                                            : card.installed ? "Redan installerad" : card.modelData.desc
-                                        color: card.removing ? accent.errorBright : "#8B98AD"
-                                        font.family: "IBM Plex Sans"
-                                        font.pixelSize: G.Type.small
-                                        wrapMode: Text.WordWrap
-                                        maximumLineCount: 3
-                                        elide: Text.ElideRight
-                                        lineHeight: 1.15
-                                    }
-                                }
-
-                                CheckSquare {
-                                    id: check
-                                    anchors { right: parent.right; rightMargin: 18; top: parent.top; topMargin: 20 }
-                                    checked: card.checked || (card.installed && !card.removing)
-                                }
-
-                                MouseArea {
-                                    id: cardArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: card.installed && !card.removable ? Qt.ArrowCursor : Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (!card.installed)
-                                            win.toggle(card.modelData.id);
-                                        else if (card.removable)
-                                            win.toggleRemove(card.modelData.id);
-                                    }
+                                icon: Monogram { name: card.modelData.name }
+                                onClicked: {
+                                    if (!card.installed)
+                                        win.toggle(card.modelData.id);
+                                    else if (card.removable)
+                                        win.toggleRemove(card.modelData.id);
                                 }
 
                                 // Switches at the bottom of the card, each on its own row

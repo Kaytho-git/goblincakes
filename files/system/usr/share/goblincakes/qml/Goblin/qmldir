@@ -24,3 +24,4 @@ PageHeader 1.0 PageHeader.qml
 Footer 1.0 Footer.qml
 Zoom 1.0 Zoom.qml
 singleton Type 1.0 Type.qml
+Card 1.0 Card.qml

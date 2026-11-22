@@ -1,3 +1,4 @@
+2026-11-22  Texten i GOBLINCAKES egna fönster har samma storlekar överallt (sex storlekar i stället för tolv) – på några ställen är den lite större än förut, de minsta texterna har blivit läsbara.
 2026-11-22  Lagmätaren maximerad: graferna fyller höjden. Skrivbordsraden i Levande syns bättre över en ljus bakgrundsbild. GoblinAmp hamnar alltid helt på skärmen. GoblinRecorders lista blir bredare i ett stort fönster.
 2026-11-22  GOBLINCAKES egna fönster har nu samma textstorlek överallt och blir lite större på en 1440p-skärm. GoblinShare och GoblinRecorder blir inte längre jättestora när de maximeras – texten växer lite och innehållet ligger mitt på skärmen.
 2026-11-22  Goblin AI: maximerat ligger samtalet och skrivraden i en kolumn mitt i rutan i stället för över hela skärmen. I ett litet fönster rullar flikarna fram med hjulet eller pilen, verktygsraden bryts på två rader och välkomsttexten går att rulla – inget ritas längre ovanpå något annat.

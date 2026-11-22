@@ -166,74 +166,24 @@ Window {
                 Repeater {
                     model: win.apps
 
-                    Rectangle {
-                        G.Light { hovered: cardArea.containsMouse }
+                    G.Card {   // the shared program card (qml/Goblin, granskning #15) – red when ticked: this one goes
                         id: card
                         required property var modelData
-                        readonly property bool checked: !!win.toRemove[modelData.package]
-
                         width: (appsColumn.width - 16 * (appsColumn.columns - 1)) / appsColumn.columns
-                        height: 112
-                        color: cardArea.containsMouse ? "#111A2A" : "#0E1420"
-                        border.width: 1
-                        border.color: checked ? accent.error : cardArea.containsMouse ? "#2A3852" : "#1E2A40"
-
-                        AppIcon {
-                            id: icon
+                        title: modelData.name
+                        description: (modelData.hidden ? "Dold i appmenyn · " : "")
+                                     + (modelData.comment || modelData.package)
+                                     + (modelData.others.length ? " (även " + modelData.others.join(", ") + ")" : "")
+                        checked: !!win.toRemove[modelData.package]
+                        tickColor: accent.error
+                        tickMark: "#E6ECF5"
+                        tone: accent.error
+                        icon: AppIcon {
                             icon: card.modelData.icon
                             name: card.modelData.name
                             hasIcon: card.modelData.hasIcon
-                            anchors { left: parent.left; leftMargin: 18; top: parent.top; topMargin: 20 }
                         }
-
-                        Column {
-                            anchors {
-                                left: icon.right; leftMargin: 16
-                                right: check.left; rightMargin: 14
-                                top: parent.top; topMargin: 18
-                            }
-                            spacing: 5
-
-                            Text {
-                                width: parent.width
-                                text: card.modelData.name
-                                color: "#E6ECF5"
-                                font.family: "IBM Plex Sans"
-                                font.weight: Font.DemiBold
-                                font.pixelSize: G.Type.body
-                                elide: Text.ElideRight
-                            }
-                            Text {
-                                width: parent.width
-                                text: (card.modelData.hidden ? "Dold i appmenyn · " : "")
-                                      + (card.modelData.comment || card.modelData.package)
-                                      + (card.modelData.others.length ? " (även " + card.modelData.others.join(", ") + ")" : "")
-                                color: "#8B98AD"
-                                font.family: "IBM Plex Sans"
-                                font.pixelSize: G.Type.small
-                                wrapMode: Text.WordWrap
-                                maximumLineCount: 3
-                                elide: Text.ElideRight
-                                lineHeight: 1.15
-                            }
-                        }
-
-                        // Red when ticked: this one goes
-                        CheckSquare {
-                            id: check
-                            anchors { right: parent.right; rightMargin: 18; top: parent.top; topMargin: 20 }
-                            checked: card.checked
-                            color: checked ? accent.error : "transparent"
-                            mark: "#E6ECF5"
-                        }
-
-                        MouseArea {
-                            id: cardArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: win.toRemove = win.flip(win.toRemove, card.modelData.package)
-                        }
+                        onClicked: win.toRemove = win.flip(win.toRemove, card.modelData.package)
                     }
                 }
             }
