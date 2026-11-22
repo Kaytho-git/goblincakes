@@ -43,7 +43,7 @@ jobs:
             description: "Samma sak med Nvidias drivrutiner från start, för Nvidia GTX 16xx/RTX 20xx eller nyare. Installerar utan internet."
     steps:
       - name: Gör plats på byggmaskinen
-        uses: jlumbroso/free-disk-space@v1.3.1
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1 (locked to the commit, 22 Nov)
         with:
           tool-cache: true
           android: true
