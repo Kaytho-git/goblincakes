@@ -129,7 +129,8 @@ def average_text(ms):
 
 
 CHEAT_NOTE = """Fuskkollen (GOBLINCAKES egen, ur demon) letar tecken: siktet följer fiender bakom väggar/rök, reaktioner
-under 150 ms, blixtsnabba ryck rakt på fienden före en träff, kills genom rök/vägg. Varje spelare jämförs med de andra i
+under 150 ms, blixtsnabba ryck rakt på fienden före en träff, skott inom 31 ms när fienden går in i ett stilla sikte
+(triggerbot, bara med minst 15 sådana skott), kills genom rök/vägg. Varje spelare jämförs med de andra i
 samma match. "hög" = två tecken eller fler, "medel" = ett, "låg" = inget. Det är bara en misstanke, aldrig ett bevis –
 säg det till användaren, och kalla ingen fuskare. Bannlysningar syns senare på Leetify/csstats.gg."""
 
@@ -152,6 +153,7 @@ def cheat_text(v):
             lines.append(f"- {p['name']}{' (du)' if p.get('me') else ''}: {p.get('suspect') or 'kunde inte mätas'} misstanke"
                          f" · sikte bakom väggar {w} av tiden · reaktioner under 150 ms {p.get('fastReact', '–')} av "
                          f"{p.get('cleanReact', '–')} · snäpp {p.get('snapKills', '–')} av {p.get('snapChecked', '–')} kills · "
+                         f"triggerskott (inom 31 ms in i stilla sikte) {p.get('triggerQuick', '–')} av {p.get('triggerHeld', '–')} · "
                          f"kills genom rök/vägg {(p.get('smokeKills') or 0) + (p.get('wallKills') or 0)} av {p.get('kills', '–')}"
                          + (" – " + "; ".join(p["suspectWhy"]) if p.get("suspectWhy") else ""))
     return "\n".join(lines)

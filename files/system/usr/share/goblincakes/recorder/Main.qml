@@ -3000,7 +3000,7 @@ Window {
                 width: parent.width
                 spacing: 6
                 Repeater {
-                    model: [1, 2, 3, 4]
+                    model: [1, 2, 3, 4, 5]  // 1v5 too (22 Nov, the user: an ace isn't a 1v5 – csstats doesn't show it)
                     StatTile {
                         required property int modelData
                         readonly property var c: (cs2Page.d.clutchVs || {})[String(modelData)] || [0, 0]

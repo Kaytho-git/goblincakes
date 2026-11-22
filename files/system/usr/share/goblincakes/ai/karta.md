@@ -500,7 +500,8 @@ Ord: goblinrecorder, recorder, inspelning, spela in, obs, film, raid, mythic, m+
   Gick det inte: en .failed bredvid (nytt försök efter ett dygn). Egen demo (record) saknar motståndarnas namn.
 - Fuskkollen (22 nov): när demon läses får alla tio spelare en misstankenivå (recorder `cs2_suspicion`, sparas i
   matchens .json `demoPlayers` → suspect låg/medel/hög/None + suspectWhy). Tecken: siktet följer dolda fiender, reaktioner
-  under 150 ms, snäpp före första träffen, kills genom rök/vägg – jämfört med de andra i matchen. None = kartans väggar
+  under 150 ms, snäpp före första träffen, triggerskott (skott inom 31 ms när fienden går in i ett stilla sikte, minst 15
+  sådana skott), kills genom rök/vägg – jämfört med de andra i matchen. Kartans väggar: nyaste awpy-release som har kartan. None = kartans väggar
   saknas (då inga siktessiffror heller). Läs om en gammal match: `python3.14 -I /usr/share/goblincakes/recorder/recorder.py
   cs2-recheck <match.json>` (ändrar bara demoPlayers). Kakan: verktyget cs2 med `fusk`. Bara misstanke, aldrig bevis.
 - Leetify: tjänsten slår upp Premier/Competitive-matcher hos Leetify (3 min–48 h efter matchen, nyckeln

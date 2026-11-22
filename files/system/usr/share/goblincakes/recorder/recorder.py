@@ -1640,6 +1640,15 @@ CLEAN_BEFORE = TICKRATE // 2
 FAST_REACT_MS = 150     # people need ~200 ms or more from seeing to shooting
 SNAP_BEFORE = 8         # ticks before a kill to look for a snap
 SNAP_DEG = 15.0         # degrees in one tick (960°/s) – on the user's demos no one went over 10 just before a hit
+# Triggerbot (22 Nov, the user suspected one): a first shot while the crosshair is on an enemy who walked into it (it moved
+# < TRIGGER_STILL_DEG the TRIGGER_STILL_TICKS before) – fired within TRIGGER_QUICK_TICKS (31 ms) of him arriving = quick.
+# A human needs ~150 ms; one who hears steps may pre-fire, so it takes many such shots (SUSPECT_TRIGGER_MIN).
+ON_MIN_DEG = 0.8
+HEAD_R, BODY_R = 5.0, 13.0          # units: what counts as "on him"
+CHEST, DUCK_CHEST = 40.0, 10.0
+TRIGGER_STILL_TICKS = 8
+TRIGGER_STILL_DEG = 2.0
+TRIGGER_QUICK_TICKS = 2
 
 
 def _deg(u, v):
@@ -1896,6 +1905,10 @@ def cs2_demo_aim(dem, raw, a, me):
     # the cheat check (cs2_suspicion): following hidden enemies, reactions without a shot just before, snaps at kills
     tracks, wall_ticks, clean_react, steps, alive = {}, set(), [], {}, [0]
     last_view = [None, None]  # tick, view
+    # triggerbot: your first shots while on an enemy who walked into a still crosshair – how long had you been on him?
+    first_shots = {f["tick"] for f in raw["fires"] if f["who"] == me and f.get("n") == 0
+                   and not NO_SHOT_STATS.search(str(f["weapon"]))}
+    on_since, views, trigger = {}, {}, [0, 0]  # enemy → first tick on him; tick → view; [quick, held]
     # each kill's first hit on him (within 3 s): a snap is the crosshair jumping onto him just before it
     my_kills = []
     for dth in raw["deaths"]:
@@ -1909,6 +1922,8 @@ def cs2_demo_aim(dem, raw, a, me):
         if not mine or not mine[6]:
             seen_at.clear()
             tracks.clear()
+            on_since.clear()
+            views.clear()
             last_view[0] = None
             return
         x, y, z, pitch, yaw, duck, alive_now, team = mine[:8]
@@ -1921,6 +1936,9 @@ def cs2_demo_aim(dem, raw, a, me):
         if last_view[0] == tick - 1:  # how far the crosshair moved since the tick before
             steps[tick] = _deg(view, last_view[1])
         last_view[0], last_view[1] = tick, view
+        views[tick] = view
+        views.pop(tick - TRIGGER_STILL_TICKS - 1, None)
+        now_on = set()
         for sid, (ex, ey, ez, _p, _y, educk, ealive, eteam) in rows.items():
             if sid == me or not ealive or eteam in (team, 0, 1) or ex != ex or ey != ey or ez != ez:
                 continue  # NaN: a player the server didn't send you (a demo you recorded yourself)
@@ -1928,6 +1946,13 @@ def cs2_demo_aim(dem, raw, a, me):
             d = math.dist(eye, head) or 1.0
             cosang = sum(view[i] * (head[i] - eye[i]) / d for i in range(3))
             angle = math.degrees(math.acos(max(-1.0, min(1.0, cosang))))
+            if angle <= max(ON_MIN_DEG, math.degrees(math.atan(HEAD_R / d))):
+                now_on.add(sid)
+            elif angle < 15:  # the body (chest height)
+                chest = (ex, ey, ez + CHEST - DUCK_CHEST * educk)
+                dc = math.dist(eye, chest) or 1.0
+                if _deg(view, tuple((chest[i] - eye[i]) / dc for i in range(3))) <= max(ON_MIN_DEG, math.degrees(math.atan(BODY_R / dc))):
+                    now_on.add(sid)
             if angle > AIM_FOV:
                 tracks.pop(sid, None)
                 continue
@@ -1962,6 +1987,16 @@ def cs2_demo_aim(dem, raw, a, me):
                         clean_react.append(react[-1])
             seen_at[sid] = tick
             fight.add(tick)
+        for sid in list(on_since):
+            if sid not in now_on:
+                del on_since[sid]
+        if tick in first_shots and now_on:
+            before = views.get(tick - TRIGGER_STILL_TICKS)
+            if before is not None and _deg(before, view) < TRIGGER_STILL_DEG:  # he walked into your crosshair
+                trigger[1] += 1
+                trigger[0] += min(tick - on_since.get(sid, tick) for sid in now_on) <= TRIGGER_QUICK_TICKS
+        for sid in now_on:
+            on_since.setdefault(sid, tick)
 
     rows, cur = {}, None
     c = cols
@@ -1982,6 +2017,7 @@ def cs2_demo_aim(dem, raw, a, me):
             "wallTrack": round(len(wall_ticks) / TICKRATE, 1), "aliveSec": round(alive[0] / TICKRATE),
             "fastReact": sum(r < FAST_REACT_MS for r in clean_react), "cleanReact": len(clean_react),
             "snapKills": sum(st >= SNAP_DEG for st in snaps), "snapChecked": len(snaps),
+            "triggerQuick": trigger[0], "triggerHeld": trigger[1],
             **cs2_demo_shots(raw, me, fight)}
 
 
@@ -2043,7 +2079,7 @@ def cs2_demo_shots(raw, me, fight=None):
 
 PLAYER_KEYS = ("kills", "deaths", "assists", "kd", "adr", "kast", "hs", "entryWon", "entryLost", "trades",
                "clutchWon", "clutches", "ttd", "cp", "reaction", "firstShot", "spray", "strafe",
-               "wallTrack", "aliveSec", "fastReact", "cleanReact", "snapKills", "snapChecked")
+               "wallTrack", "aliveSec", "fastReact", "cleanReact", "snapKills", "snapChecked", "triggerQuick", "triggerHeld")
 # When a sign counts (22 Nov, from the user's own 7 demos – 40 players with numbers: following hidden enemies 0.5–3.7 %
 # of the time alive, at most 12 % reactions under 150 ms, no jump over 10° per tick just before a first hit)
 SUSPECT_MIN_ALIVE = 120   # seconds alive before following through walls is judged
@@ -2053,6 +2089,9 @@ SUSPECT_FAST = 0.25       # reactions under FAST_REACT_MS
 SUSPECT_FAST_MIN = 15     # … out of at least this many clean ones
 SUSPECT_SNAP = 0.2        # kills that began with a snap …
 SUSPECT_SNAP_MIN = 3      # … at least this many
+SUSPECT_TRIGGER = 0.5     # quick shots into a still crosshair (the user's Premier friends: 20–29 %) …
+SUSPECT_TRIGGER_MIN = 15  # … out of at least this many (the user's decision: enough shots, else no sign)
+SUSPECT_TRIGGER_X = 2.0   # … and this many times the others' median
 
 
 def _pct(x):
@@ -2069,6 +2108,7 @@ def cs2_suspicion(players):
     wall = [share(p, "wallTrack", "aliveSec", SUSPECT_MIN_ALIVE) for p in players]
     fast = [share(p, "fastReact", "cleanReact", SUSPECT_FAST_MIN) for p in players]
     snap = [share(p, "snapKills", "snapChecked", SUSPECT_SNAP_MIN) for p in players]
+    trig = [share(p, "triggerQuick", "triggerHeld", SUSPECT_TRIGGER_MIN) for p in players]
 
     def others(xs, i):
         rest = [x for j, x in enumerate(xs) if j != i and x is not None]
@@ -2087,11 +2127,16 @@ def cs2_suspicion(players):
         sn = snap[i]
         if sn is not None and sn >= SUSPECT_SNAP and p["snapKills"] >= SUSPECT_SNAP_MIN:
             why.append(f"{p['snapKills']} av {p['snapChecked']} kills började med ett blixtsnabbt ryck rakt på fienden")
+        tq, ot = trig[i], others(trig, i)
+        if tq is not None and tq >= SUSPECT_TRIGGER and (not ot or tq >= SUSPECT_TRIGGER_X * ot):
+            why.append(f"{p['triggerQuick']} av {p['triggerHeld']} skott kom inom 31 ms efter att fienden gick in i ett stilla "
+                       f"sikte – som en triggerbot; människor behöver oftast 150 ms (de andra i matchen: "
+                       f"{_pct(ot) if ot is not None else '–'})")
         signs = len(why)
         through = (p.get("smokeKills") or 0) + (p.get("wallKills") or 0)
         if signs and (p.get("kills") or 0) >= 5 and through >= max(3, 0.3 * p["kills"]):
             why.append(f"{through} av {p['kills']} kills genom rök eller vägg")
-        measured = any(x is not None for x in (w, f, sn))
+        measured = any(x is not None for x in (w, f, sn, tq))
         p["suspect"] = ("hög" if signs >= 2 else "medel" if signs else "låg") if measured else None
         p["suspectWhy"] = why
     return players
@@ -2328,7 +2373,7 @@ def cs2_demo_recheck(meta_path):
             + (", ".join(flagged) if flagged else "ingen misstänkt" if measured else "kunde inte mätas (kartans väggar saknas)")}
 
 
-SUSPECT_KEYS = ("wallTrack", "aliveSec", "fastReact", "cleanReact", "snapKills", "snapChecked")
+SUSPECT_KEYS = ("wallTrack", "aliveSec", "fastReact", "cleanReact", "snapKills", "snapChecked", "triggerQuick", "triggerHeld")
 
 
 # ---------------------------------------------------------------- videos
