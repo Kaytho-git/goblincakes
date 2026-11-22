@@ -640,6 +640,7 @@ def wcl_pull(query=""):
     try:
         rep, fight, player = find_fight(r, query)
         data, stats = fight_data_stats(r, rep, fight)
+        data = {**data, "pulldeaths": pull_deaths(r, rep, fight)}
     except ToolError:
         raise
     except Exception as e:  # noqa: BLE001 – the API or the network
@@ -682,6 +683,8 @@ def pull_text(rep, fight, player, data, stats, compact=False):
                        if any(not f.get("kill") for f in same) else ""))
     if player and not compact:
         out.append(f"Användarens karaktär: {player.split('-')[0]}")
+    if not compact:
+        out.append(summary_text(fight, data, stats, same, result))
 
     def table(key):
         v = data.get(key) or {}
@@ -750,12 +753,69 @@ def pull_text(rep, fight, player, data, stats, compact=False):
             out.append(f"- {p['name']} ({ROLE_WORD.get(p['role'], p['role'])}, {p['spec']} {p['class']}): DPS {short(p['dps'])} · HPS {short(p['hps'])}"
                        f" · dödsfall {p['deaths']}{parse}")
     if len(same) > 1:
-        out.append(f"\nAlla pulls på {fight['name']} i rapporten (nr – resultat – tid):")
+        out.append(f"\nAlla pulls på {fight['name']} i rapporten (nr – resultat – tid – hur många spelare som dog):")
         for i, f in enumerate(same, 1):
-            res = "KILL" if f.get("kill") else f"{f.get('bossPercentage', 0):.1f} % fas {f.get('lastPhase') or '?'}"
+            res = "KILL" if f.get("kill") else f"wipe vid {f.get('bossPercentage', 0):.1f} % bossliv fas {f.get('lastPhase') or '?'}"
             mark = "  ← den här" if f is fight else ""
-            out.append(f"- {i} – {res} – {mmss(f['endTime'] - f['startTime'])}{mark}")
+            died = (data.get("pulldeaths") or {}).get(f["id"])
+            out.append(f"- {i} – {res} – {mmss(f['endTime'] - f['startTime'])}"
+                       + (f" – {died} dog" if died is not None else "") + mark)
     return "\n".join(out)
+
+
+def up_at(windows, who, t):
+    """The defensives up on a player at a time (ms into the pull)."""
+    return sorted({f"{n} ({k}{', från ' + src if k != 'egen' and src != who else ''})"
+                   for a, b, n, k, src in windows.get(who, []) if a - 300 <= t <= b + 300})
+
+
+def summary_text(fight, data, stats, same, result):
+    """A few plain lines first (22 Nov: qwen3.5 put Drõw's Vampiric Blood from the cooldown list "uppe vid
+    dödsfallen" – Drõw didn't die; the details are ~9 000 characters, a small model holds on to the top better)."""
+    deaths = sorted((((data.get("deaths") or {}).get("data") or {}).get("entries") or []),
+                    key=lambda d: d.get("timestamp", 0))
+    windows = data.get("windows") or {}
+    names = [p["name"] for p in stats.get("players") or []]
+    dead = []
+    for d in deaths[:8]:
+        t = d.get("timestamp", 0) - fight["startTime"]
+        up = up_at(windows, d["name"], t)
+        dead.append(f"{d['name']} {mmss(t)} (uppe vid döden: {', '.join(up) if up else 'ingen defensiv'})")
+    alive = len([n for n in names if n not in {d["name"] for d in deaths}])
+    line = f"SAMMANFATTNING (läs först): {result}. "
+    line += (f"{len(deaths)} dödsfall: " + "; ".join(dead) + (f" … och {len(deaths) - 8} till" if len(deaths) > 8 else "")
+             + "." if deaths else "Ingen dog.")
+    if names:
+        line += f" Överlevde: {alive} av {len(names)} spelare."
+    others = data.get("pulldeaths") or {}
+    rest = [f"pull {i} {'KILL' if f.get('kill') else 'wipe'} – {others[f['id']]} dog" for i, f in enumerate(same, 1)
+            if f is not fight and f["id"] in others]
+    if rest:
+        line += " Andra pulls på bossen: " + ", ".join(rest) + "."
+    return line
+
+
+_pull_deaths = {}  # (report, the boss's pulls and their ends) → {fight id: players who died}
+
+
+def pull_deaths(r, rep, fight):
+    """How many players died in each pull on the boss – one fetch for all of them."""
+    same = [f for f in rep["fights"] if f["encounterID"] == fight["encounterID"]]
+    if len(same) < 2 or fight.get("keystoneLevel"):
+        return {}
+    key = (rep["code"], tuple((f["id"], f["endTime"]) for f in same))
+    if key not in _pull_deaths:
+        try:
+            got = r.wcl_query("query($c:String,$f:[Int]){ reportData { report(code:$c) { t: table(dataType: Deaths, "
+                              "fightIDs:$f) } } }", {"c": rep["code"], "f": [f["id"] for f in same]})
+            entries = ((got["reportData"]["report"].get("t") or {}).get("data") or {}).get("entries") or []
+        except Exception:  # noqa: BLE001 – only the count is missing
+            return {}
+        per = {}
+        for e in entries:
+            per.setdefault(e.get("fight"), set()).add(e.get("name"))
+        _pull_deaths[key] = {f["id"]: len(per.get(f["id"], ())) for f in same}  # 0 = nobody died
+    return _pull_deaths[key]
 
 
 def defensive_text(fight, data, stats, deaths, where, compact):
@@ -763,8 +823,7 @@ def defensive_text(fight, data, stats, deaths, where, compact):
     out = []
     windows, cds = data.get("windows") or {}, data.get("cooldowns") or []
     roles = {p["name"]: p["role"] for p in stats.get("players") or []}
-    up = lambda who, t: sorted({f"{n} ({k}{', från ' + src if k != 'egen' and src != who else ''})"  # noqa: E731
-                                for a, b, n, k, src in windows.get(who, []) if a - 300 <= t <= b + 300})
+    up = lambda who, t: up_at(windows, who, t)  # noqa: E731
     if deaths:
         out.append("\nDefensiver vid dödsfallen (UPPE VID DÖDEN = det enda som skyddade just då; ANVÄNT TIDIGARE = egna "
                    "defensiver/heals tidigare i " + ("nyckeln" if fight.get("keystoneLevel") else "pullen")

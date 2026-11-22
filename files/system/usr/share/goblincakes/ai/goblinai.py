@@ -2632,7 +2632,16 @@ def own_table(question, pull):
     me = re.search(r"Användarens karaktär: (\S+)", pull)
     if not who and me and re.search(r"\b(?:jag|mig|min|mina)\b", low):
         who = me.group(1)
-    return spec + (f" spelare: {who}" if who else "")
+    window = ""
+    if who and spec == "skada tagen" and re.search(r"innan|före|\bdog\b|döden|\bdött|\bsista\b", low):
+        # "vad träffade Tuborayray innan hen dog?" – the 10 s before the death, not the whole pull (22 Nov: the
+        # last seconds' 2.2 M was called the whole pull's; it was 11.1 M)
+        died = re.search(r"^- (\d+):(\d\d)(?: \[[^\]]*\])? " + re.escape(who) + r" \(", pull, re.M)
+        if died:
+            t = int(died.group(1)) * 60 + int(died.group(2))
+            a, b = max(0, t - 10), t + 1
+            window = f" tid: {a // 60}:{a % 60:02d}-{b // 60}:{b % 60:02d}"
+    return spec + (f" spelare: {who}" if who else "") + window
 
 
 WCL_LINK = re.compile(r"https://www\.warcraftlogs\.com/reports/[A-Za-z0-9]{16}(?:#fight=\d+)?")
@@ -3817,6 +3826,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             sources.append({"title": "Warcraft Logs", "url": url, "content": ""})
     sources = list({s["url"]: s for s in reversed(sources)}.values())[::-1]  # the same page once (two wiki parts)
     if sources:
+        # her own "**Källa:** [Warcraft Logs](…)" at the end – ours comes below (22 Nov: two Källor lines)
+        answer = re.sub(r"(?:\n\s*(?:\*\*)?Käll(?:or|a):(?:\*\*)?[^\n]*)+\s*$", "", answer.rstrip())
         answer = answer.rstrip() + "\n\n**Källor:** " + " · ".join(
             f"[{s['title'][:60].replace('[', '(').replace(']', ')')}]({s['url']})" for s in sources[:SOURCES_MAX])
     local = local_sources()
