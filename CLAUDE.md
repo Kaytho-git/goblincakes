@@ -61,7 +61,7 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 **Testas på riktig installation, inte i VM:en.** Klart: Steg 1, 3, 4, 5, 6 och allt annat byggt utom det som står nedan. Byggt med bara testlista kvar står inte i Att göra – `/testa` visar dem.
 
 ## Att göra (detaljer: grep på namnet, eller "Att göra – detaljerna")
-- [ ] **Kakans kunskapsminne, resten** – del 1+2 klar 18 nov; kvar betydelsesökning, komprimering, ihop med Claude – väntar på användaren (grep "Kunskapsminnet – bygget").
+- [ ] **Kakans kunskapsminne, resten** – del 1+2 klar 18 nov; kvar betydelsesökning och ihop med Claude – vänta tills minnet använts ett tag (grep "Kunskapsminnet – bygget").
 - [ ] **Epics launcher i Config** – väntar på paketformatet (grep "Beredskapsplan").
 - [ ] **Offhand – WoW över två skärmar** – nästa: prova i Forever (grep "Offhand").
 - [ ] **A Boy to the Rescue** (barnspelet, `games/barnspelet/`) – bana 1 djungeln klar och i barnläget 15 nov; bana 2 snö klar (användaren bygger banan); bana 3 sand byggd 15 nov – användaren bygger och provar (arbetsgången: grep "Arbetssättet för banorna") (grep "Barnspelet – planen").
