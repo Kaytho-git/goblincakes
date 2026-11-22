@@ -3651,7 +3651,7 @@ Window {
         property string appId
         property string label
         property bool dragging: false
-        parent: win.contentItem
+        parent: zoomer.layer
         z: 100
         visible: dragging
         width: ghostText.implicitWidth + 24

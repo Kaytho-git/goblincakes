@@ -5,8 +5,11 @@
 //                   to change after trying a real 1440p screen.
 //   growth        – 1.00 at the start size → 1 + grow (1.10) maximized, evenly between (Config's formula since 5 Nov)
 // The window draws its layout in units: `G.Zoom { id: zoomer; win: win; startW: 1180; startH: 800 }`, then
-// `width: zoomer.startWidth; height: zoomer.startHeight; minimumWidth: zoomer.px(760) …`. It scales win.contentItem
-// (as Config did with fitZoom) – so no child may use win.width/win.height for layout; use the root item's size.
+// `width: zoomer.startWidth; height: zoomer.startHeight; minimumWidth: zoomer.px(760) …`. It moves the window's items
+// into a scaled layer (`zoomer.layer`, also items added later) – so no child may use win.width/win.height for layout;
+// use the root item's size, and map/parent to zoomer.layer, not win.contentItem.
+// Why a layer: Qt 6.11 hit-tests hover as if a scaled win.contentItem were unscaled (clicks are right) – at 94 % the
+// hover landed to the right of the word and lit its neighbour (22 Nov, measured in a test window).
 // No QT_SCALE_FACTOR in the window's program any more (it made devicePixelRatio 0.9).
 import QtQuick
 import QtQuick.Window
@@ -34,14 +37,32 @@ QtObject {
            + Math.max(0, Math.min(1, (win.height - startHeight) / Math.max(1, scr.desktopAvailableHeight - startHeight)))) / 2
     readonly property real zoom: startZoom * (1 + grow * grown)
 
+    // The scaled layer the window's items are moved into
+    property Item layer: Item {
+        objectName: "zoomLayer"
+        transformOrigin: Item.TopLeft
+    }
+    function adopt() {
+        const c = win ? win.contentItem : null;
+        if (!c)
+            return;
+        if (layer.parent !== c)
+            layer.parent = c;
+        const kids = c.children.slice();
+        for (let i = 0; i < kids.length; i++)
+            if (kids[i] !== layer)
+                kids[i].parent = layer;
+    }
+
     function fit() {
         if (!win || !win.contentItem)
             return;
+        adopt();
         const w = win.width / zoom, h = win.height / zoom;
-        win.contentItem.transformOrigin = Item.TopLeft;
-        if (win.contentItem.scale !== zoom) win.contentItem.scale = zoom;
-        if (Math.abs(win.contentItem.width - w) > 0.01) win.contentItem.width = w;
-        if (Math.abs(win.contentItem.height - h) > 0.01) win.contentItem.height = h;
+        if (win.contentItem.scale !== 1) win.contentItem.scale = 1;
+        if (layer.scale !== zoom) layer.scale = zoom;
+        if (Math.abs(layer.width - w) > 0.01) layer.width = w;
+        if (Math.abs(layer.height - h) > 0.01) layer.height = h;
     }
     onZoomChanged: Qt.callLater(fit)
     property Connections _w: Connections {
@@ -50,13 +71,10 @@ QtObject {
         function onHeightChanged() { Qt.callLater(z.fit) }
         function onVisibleChanged() { Qt.callLater(z.fit) }
     }
-    // Qt sets the content back to the window's size on every resize event – also when the size stays the same
-    // (Dashboard: made hidden at 1920×1080, then showFullScreen on a 1080p screen → no widthChanged, the
-    // content stayed 1920 wide at 94 % = a black strip right and below, 22 Nov). Fit again when that happens.
+    // Items added to the window later (parent: win.contentItem) go into the layer too
     property Connections _c: Connections {
         target: z.win ? z.win.contentItem : null
-        function onWidthChanged() { Qt.callLater(z.fit) }
-        function onHeightChanged() { Qt.callLater(z.fit) }
+        function onChildrenChanged() { z.adopt() }
     }
     Component.onCompleted: fit()
 }

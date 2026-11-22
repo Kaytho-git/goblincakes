@@ -3791,11 +3791,11 @@ Window {
     Rectangle {
         id: tipBox
         visible: win.tipText !== "" && !!win.tipItem && win.tipItem.visible
-        readonly property point at: win.tipItem ? win.tipItem.mapToItem(win.contentItem, 0, 0) : Qt.point(0, 0)
+        readonly property point at: win.tipItem ? win.tipItem.mapToItem(zoomer.layer, 0, 0) : Qt.point(0, 0)
         width: Math.min(360, tipLabel.implicitWidth + 24)
         height: tipLabel.implicitHeight + 16
-        x: Math.max(8, Math.min(win.contentItem.width - width - 8, at.x))
-        y: win.tipItem && at.y + win.tipItem.height + 6 + height > win.contentItem.height - 8
+        x: Math.max(8, Math.min(zoomer.layer.width - width - 8, at.x))
+        y: win.tipItem && at.y + win.tipItem.height + 6 + height > zoomer.layer.height - 8
            ? at.y - height - 6 : at.y + (win.tipItem ? win.tipItem.height : 0) + 6
         z: 100
         color: "#0E1420"

@@ -750,9 +750,9 @@ Window {
                     onClicked: mouse => {
                         if (mouse.button === Qt.RightButton) {
                             // the small menu under the chip (10 Nov, the user's wish: close a program from here)
-                            const at = mapToItem(win.contentItem, 0, height);
+                            const at = mapToItem(zoomer.layer, 0, height);
                             win.winMenu = {id: modelData.id, name: modelData.name,
-                                           x: Math.min(at.x, win.contentItem.width - 220), y: at.y + 4};
+                                           x: Math.min(at.x, zoomer.layer.width - 220), y: at.y + 4};
                         } else {
                             win.winMenu = null;
                             backend.activate(modelData.id);

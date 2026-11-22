@@ -1,5 +1,5 @@
 // The tabs of a page (docs/ux/norm.md 4 and 6, 22 Nov): Chakra Petch in capitals, an accent line under the chosen
-// one. Only the word is the click area and lights up under the mouse (22 Nov, the user's choice: with the gaps
+// one. Only the text itself (its box, not above/below) is the click area and lights up under the mouse (22 Nov, the user's choice: with the gaps
 // included, the neighbour lit up when the mouse was just left of a tab and two looked chosen). When the tabs don't fit they scroll sideways: the mouse wheel, a drag, or
 // the arrow at the edge (the tabs stop before it, so it works on Levande's soft background too). The chosen tab is scrolled into view.
 //   model: [{ id, label }] · current: the chosen id · selected(id) when one is clicked
@@ -87,9 +87,11 @@ Item {
                     }
                     MouseArea {
                         id: area
+                        // exactly the text's box – nothing beside, above or below it lights up (the user, 22 Nov)
                         x: label.x
-                        width: label.implicitWidth - bar.letterSpacing  // the word, not the gap
-                        height: parent.height
+                        y: label.y
+                        width: label.implicitWidth - bar.letterSpacing
+                        height: label.height
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: bar.selected(tab.modelData.id)
