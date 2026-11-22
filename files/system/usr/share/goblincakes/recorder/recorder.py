@@ -1629,6 +1629,23 @@ MAX_SPEED = {"ak47": 215, "m4a1": 225, "m4a1_silencer": 225, "famas": 220, "gali
 STILL = 0.34
 
 
+# The cheat check (22 Nov, the user's wish – "we were fairly sure we met cheaters"): signs in the demo, for
+# everyone in the match, never a verdict. Tuned on the user's own demos (docs/anteckningar.md "CS2 fuskkollen").
+WALL_DEG = 4.0          # the crosshair this close to a hidden enemy's head …
+WALL_MIN_DIST = 200.0   # … not someone right behind a thin corner
+WALL_GAP = 4            # ticks the crosshair may slip off and still be the same following
+TRACK_TICKS = TICKRATE // 4  # … for a quarter of a second at least …
+TRACK_MOVE = 6.0        # … while he moved this many degrees across your screen (you had to follow him)
+CLEAN_BEFORE = TICKRATE // 2
+FAST_REACT_MS = 150     # people need ~200 ms or more from seeing to shooting
+SNAP_BEFORE = 8         # ticks before a kill to look for a snap
+SNAP_DEG = 15.0         # degrees in one tick (960°/s) – on the user's demos no one went over 10 just before a hit
+
+
+def _deg(u, v):
+    return math.degrees(math.acos(max(-1.0, min(1.0, u[0] * v[0] + u[1] * v[1] + u[2] * v[2]))))
+
+
 def cs2_map_mesh(map_name):
     """awpy's collision geometry for the map (a download the first time), or None."""
     os.environ["AWPY_DATA_DIR"] = str(AWPY_DIR)
@@ -1811,7 +1828,8 @@ def _seg_dist(a, b, c):
 
 def cs2_demo_aim(dem, raw, a, me):
     """{"ttd": ms (median), "cp": degrees (mean – 15 Nov, compared with Leetify on two Premier matches:
-    the median came out ~5° for everyone, the mean is close to Leetify's level), and how many encounters each} or {}."""
+    the median came out ~5° for everyone, the mean is close to Leetify's level), and how many encounters each} or {}.
+    Also the cheat check's raw numbers (cs2_suspicion): wallTrack, fastReact/cleanReact, snapKills/snapChecked, aliveSec."""
     official = raw["map"] and not raw["map"].startswith("workshop/")
     mesh = (cs2_map_mesh(raw["map"]) if official else None) or cs2_workshop_mesh(raw.get("addons", ""), raw["map"])
     if not mesh:
@@ -1849,18 +1867,34 @@ def cs2_demo_aim(dem, raw, a, me):
             my_hits.setdefault(h["victim"], []).append(h["tick"])
     my_fires = sorted(f["tick"] for f in raw["fires"] if f["who"] == me and not NO_SHOT_STATS.search(f["weapon"]))
     seen_at, cp, ttd, react, fight = {}, [], [], [], set()
+    # the cheat check (cs2_suspicion): following hidden enemies, reactions without a shot just before, snaps at kills
+    tracks, wall_ticks, clean_react, steps, alive = {}, set(), [], {}, [0]
+    last_view = [None, None]  # tick, view
+    # each kill's first hit on him (within 3 s): a snap is the crosshair jumping onto him just before it
+    my_kills = []
+    for dth in raw["deaths"]:
+        if dth["killer"] == me and dth["victim"] not in (me, ""):
+            hits = [h["tick"] for h in raw["hurts"] if h["attacker"] == me and h["victim"] == dth["victim"]
+                    and dth["tick"] - 3 * TICKRATE <= h["tick"] <= dth["tick"]]
+            my_kills.append(min(hits) if hits else dth["tick"])
 
     def tick_done(tick, rows):
         mine = rows.get(me)
         if not mine or not mine[6]:
             seen_at.clear()
+            tracks.clear()
+            last_view[0] = None
             return
-        x, y, z, pitch, yaw, duck, alive, team = mine[:8]
+        x, y, z, pitch, yaw, duck, alive_now, team = mine[:8]
         if x != x or pitch != pitch:
             return
+        alive[0] += 1
         eye = (x, y, z + EYE - DUCK * duck)
         pr, yr = math.radians(pitch), math.radians(yaw)
         view = (math.cos(pr) * math.cos(yr), math.cos(pr) * math.sin(yr), -math.sin(pr))
+        if last_view[0] == tick - 1:  # how far the crosshair moved since the tick before
+            steps[tick] = _deg(view, last_view[1])
+        last_view[0], last_view[1] = tick, view
         for sid, (ex, ey, ez, _p, _y, educk, ealive, eteam) in rows.items():
             if sid == me or not ealive or eteam in (team, 0, 1) or ex != ex or ey != ey or ez != ez:
                 continue  # NaN: a player the server didn't send you (a demo you recorded yourself)
@@ -1868,10 +1902,24 @@ def cs2_demo_aim(dem, raw, a, me):
             d = math.dist(eye, head) or 1.0
             cosang = sum(view[i] * (head[i] - eye[i]) / d for i in range(3))
             angle = math.degrees(math.acos(max(-1.0, min(1.0, cosang))))
-            if angle > AIM_FOV or not vc.is_visible(eye, head):
+            if angle > AIM_FOV:
+                tracks.pop(sid, None)
                 continue
-            if any(t0 <= tick <= t1 and _seg_dist(eye, head, c) < SMOKE_RADIUS for t0, t1, c in smokes):
+            if not vc.is_visible(eye, head) or any(t0 <= tick <= t1 and _seg_dist(eye, head, c) < SMOKE_RADIUS
+                                                   for t0, t1, c in smokes):
+                # hidden: is the crosshair following him through the wall/smoke?
+                if angle <= WALL_DEG and d >= WALL_MIN_DIST:
+                    bearing = tuple((head[i] - eye[i]) / d for i in range(3))
+                    tr = tracks.get(sid)
+                    if not tr or tick - tr[2] > WALL_GAP:
+                        tr = tracks[sid] = [tick, bearing, tick]
+                    tr[2] = tick
+                    if tick - tr[0] >= TRACK_TICKS and _deg(tr[1], bearing) >= TRACK_MOVE:
+                        wall_ticks.update(range(tr[0], tick + 1))
+                else:
+                    tracks.pop(sid, None)
                 continue
+            tracks.pop(sid, None)
             if tick - seen_at.get(sid, -10 ** 9) > AIM_GAP:  # a new encounter
                 cp.append(angle)
                 # your hit on him – in a demo you recorded yourself the other team has no names: any nameless hit
@@ -1883,6 +1931,9 @@ def cs2_demo_aim(dem, raw, a, me):
                 i = bisect.bisect_left(my_fires, tick)
                 if i < len(my_fires) and my_fires[i] <= tick + TTD_WINDOW:
                     react.append((my_fires[i] - tick) * 1000 / TICKRATE)
+                    # clean = no shot of yours in the half second before (spraying/prefiring is not a reaction)
+                    if not (i > 0 and my_fires[i - 1] >= tick - CLEAN_BEFORE):
+                        clean_react.append(react[-1])
             seen_at[sid] = tick
             fight.add(tick)
 
@@ -1898,9 +1949,13 @@ def cs2_demo_aim(dem, raw, a, me):
                                        _float(c["duck_amount"][i]), _flag(c["is_alive"][i]), _int(c["team_num"][i]))
     if cur is not None:
         tick_done(cur, rows)
+    snaps = [max((steps.get(t, 0.0) for t in range(k - SNAP_BEFORE, k + 1)), default=0.0) for k in my_kills]
     return {"ttd": round(statistics.median(ttd)) if ttd else None, "ttdCount": len(ttd),
             "cp": round(statistics.fmean(cp), 1) if cp else None, "cpCount": len(cp),
             "reaction": round(statistics.median(react)) if react else None, "reactionCount": len(react),
+            "wallTrack": round(len(wall_ticks) / TICKRATE, 1), "aliveSec": round(alive[0] / TICKRATE),
+            "fastReact": sum(r < FAST_REACT_MS for r in clean_react), "cleanReact": len(clean_react),
+            "snapKills": sum(st >= SNAP_DEG for st in snaps), "snapChecked": len(snaps),
             **cs2_demo_shots(raw, me, fight)}
 
 
@@ -1961,7 +2016,59 @@ def cs2_demo_shots(raw, me, fight=None):
 
 
 PLAYER_KEYS = ("kills", "deaths", "assists", "kd", "adr", "kast", "hs", "entryWon", "entryLost", "trades",
-               "clutchWon", "clutches", "ttd", "cp", "reaction", "firstShot", "spray", "strafe")
+               "clutchWon", "clutches", "ttd", "cp", "reaction", "firstShot", "spray", "strafe",
+               "wallTrack", "aliveSec", "fastReact", "cleanReact", "snapKills", "snapChecked")
+# When a sign counts (22 Nov, from the user's own 7 demos – 40 players with numbers: following hidden enemies 0.5–3.7 %
+# of the time alive, at most 12 % reactions under 150 ms, no jump over 10° per tick just before a first hit)
+SUSPECT_MIN_ALIVE = 120   # seconds alive before following through walls is judged
+SUSPECT_WALL = 0.045      # … this share of the time alive, and at least …
+SUSPECT_WALL_X = 2.0      # … this many times the others' median
+SUSPECT_FAST = 0.25       # reactions under FAST_REACT_MS
+SUSPECT_FAST_MIN = 15     # … out of at least this many clean ones
+SUSPECT_SNAP = 0.2        # kills that began with a snap …
+SUSPECT_SNAP_MIN = 3      # … at least this many
+
+
+def _pct(x):
+    return f"{100 * x:.1f}".rstrip("0").rstrip(".").replace(".", ",") + " %"
+
+
+def cs2_suspicion(players):
+    """Each player's suspect level – "hög" (two signs or more), "medel" (one), "låg" (none), None (nothing could be
+    measured: no map geometry) – and the reasons in plain Swedish, each compared with the others in the match.
+    Never a verdict: a good player can trip one sign; it takes several for "hög"."""
+    def share(p, part, whole, least):
+        return p[part] / p[whole] if p.get(part) is not None and (p.get(whole) or 0) >= least else None
+
+    wall = [share(p, "wallTrack", "aliveSec", SUSPECT_MIN_ALIVE) for p in players]
+    fast = [share(p, "fastReact", "cleanReact", SUSPECT_FAST_MIN) for p in players]
+    snap = [share(p, "snapKills", "snapChecked", SUSPECT_SNAP_MIN) for p in players]
+
+    def others(xs, i):
+        rest = [x for j, x in enumerate(xs) if j != i and x is not None]
+        return statistics.median(rest) if rest else None
+
+    for i, p in enumerate(players):
+        why = []
+        w, ow = wall[i], others(wall, i)
+        if w is not None and w >= SUSPECT_WALL and (ow is None or w >= SUSPECT_WALL_X * ow):
+            why.append(f"siktet följde fiender bakom väggar eller rök i {p['wallTrack']:g} s".replace(".", ",")
+                       + f" ({_pct(w)} av tiden vid liv; de andra i matchen: {_pct(ow) if ow is not None else '–'})")
+        f, of = fast[i], others(fast, i)
+        if f is not None and f >= SUSPECT_FAST:
+            why.append(f"{p['fastReact']} av {p['cleanReact']} reaktioner under {FAST_REACT_MS} ms – människor behöver "
+                       f"oftast 200 ms eller mer (de andra i matchen: {_pct(of) if of is not None else '–'})")
+        sn = snap[i]
+        if sn is not None and sn >= SUSPECT_SNAP and p["snapKills"] >= SUSPECT_SNAP_MIN:
+            why.append(f"{p['snapKills']} av {p['snapChecked']} kills började med ett blixtsnabbt ryck rakt på fienden")
+        signs = len(why)
+        through = (p.get("smokeKills") or 0) + (p.get("wallKills") or 0)
+        if signs and (p.get("kills") or 0) >= 5 and through >= max(3, 0.3 * p["kills"]):
+            why.append(f"{through} av {p['kills']} kills genom rök eller vägg")
+        measured = any(x is not None for x in (w, f, sn))
+        p["suspect"] = ("hög" if signs >= 2 else "medel" if signs else "låg") if measured else None
+        p["suspectWhy"] = why
+    return players
 
 
 def cs2_demo_players(dem, raw, me, my_stats):
@@ -1974,6 +2081,7 @@ def cs2_demo_players(dem, raw, me, my_stats):
         team = (first.get(sid) or [0])[0]
         if team not in (2, 3):  # spectators, GOTV
             continue
+        kills = [d for d in raw["deaths"] if d["killer"] == sid and d["victim"] not in (sid, "")]
         if sid == me:
             st = my_stats
         else:
@@ -1989,9 +2097,10 @@ def cs2_demo_players(dem, raw, me, my_stats):
             except Exception:  # noqa: BLE001 – one player's numbers; the others still count
                 continue
         out.append({"name": name, "me": sid == me, "team": "mine" if team == my_team else "theirs",
-                    **{k: st.get(k) for k in PLAYER_KEYS}})
+                    **{k: st.get(k) for k in PLAYER_KEYS},
+                    "smokeKills": sum(d["smoke"] for d in kills), "wallKills": sum(d["wall"] for d in kills)})
     out.sort(key=lambda p: (p["team"] != "mine", -(p.get("adr") or 0), -(p.get("kills") or 0)))
-    return out
+    return cs2_suspicion(out)
 
 
 def cs2_demo_fits(meta, a):
@@ -2147,6 +2256,46 @@ def cs2_demo_run(dem, meta_path=None):
         a["server"] = raw.get("server", "")
         return {"match": meta["file"], "text": cs2_demo_apply(meta["path"], dem, a, offset)}
     return {"error": why} if meta_path else {"match": None, "why": why}
+
+
+def cs2_demo_recheck(meta_path):
+    """A match read before the cheat check (22 Nov, the user: "gör det" on the demos still on disk): its demo is read
+    again for everyone's numbers – only demoPlayers changes (your numbers, the clips and the video stay as they are).
+    {"match": file, "text": …} or {"error": …}."""
+    if not demoparser_ok():
+        return {"error": "demoparser2 saknas."}
+    meta_path = Path(meta_path).with_suffix(".json")
+    data = json.loads(meta_path.read_text())
+    dem = data.get("demoFile")
+    if not dem or not Path(dem).is_file():
+        return {"error": "Demon finns inte kvar."}
+    try:
+        raw = cs2_demo_load(dem)
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"Kunde inte läsa demon: {e}"}
+    me = cs2_demo_me(raw, data.get("steamid", ""), data.get("player", ""))
+    if not me:
+        return {"error": f"Hittar inte {data.get('player') or 'dig'} i demon."}
+    raw["map"] = raw.get("map") or data.get("map", "")
+    a = cs2_demo_analyse(raw, me)
+    mine = dict(data.get("demoStats") or a["stats"])
+    try:
+        aim = cs2_demo_aim(dem, raw, a, me)
+        mine.update({k: aim.get(k) for k in SUSPECT_KEYS})
+    except Exception:  # noqa: BLE001 – no map geometry: the others' numbers still count
+        pass
+    players = cs2_demo_players(dem, raw, me, mine)
+    data = json.loads(meta_path.read_text())  # again: the service may have written meanwhile
+    data["demoPlayers"] = players
+    meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    cs2_history_add([data])
+    flagged = [f"{p['name']} ({p['suspect']})" for p in players if p.get("suspect") in ("medel", "hög")]
+    measured = any(p.get("suspect") for p in players)
+    return {"match": data.get("file"), "text": f"{data.get('name', '')} {data.get('score', '')}: "
+            + (", ".join(flagged) if flagged else "ingen misstänkt" if measured else "kunde inte mätas (kartans väggar saknas)")}
+
+
+SUSPECT_KEYS = ("wallTrack", "aliveSec", "fastReact", "cleanReact", "snapKills", "snapChecked")
 
 
 # ---------------------------------------------------------------- videos
@@ -4034,5 +4183,7 @@ def cs2_demo_process(dem, meta_path=None):
         return {"error": f"Kunde inte läsa demon: {e}"}
 
 
+if __name__ == "__main__" and len(sys.argv) > 2 and sys.argv[1] == "cs2-recheck":
+    print(json.dumps(cs2_demo_recheck(sys.argv[2]), ensure_ascii=False))
 if __name__ == "__main__" and len(sys.argv) > 2 and sys.argv[1] == "cs2-demo":
     print(json.dumps(cs2_demo_run(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None), ensure_ascii=False))

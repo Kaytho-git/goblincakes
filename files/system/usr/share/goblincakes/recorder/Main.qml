@@ -3157,16 +3157,37 @@ Window {
                                         TableRow {
                                             required property var modelData
                                             cols: teamCol.cols
-                                            tip: modelData.me ? "Du – bara dina siffror räknas i snitten" + ((modelData.leetifyKeys || []).length ? ". TTD, sikte, spray och counter-strafe är Leetifys värden (de andra nio: GOBLINCAKES egen mätning)" : "") : ""
+                                            readonly property bool suspect: modelData.suspect === "medel" || modelData.suspect === "hög"
+                                            tip: (modelData.me ? "Du – bara dina siffror räknas i snitten" + ((modelData.leetifyKeys || []).length ? ". TTD, sikte, spray och counter-strafe är Leetifys värden (de andra nio: GOBLINCAKES egen mätning)" : "") : "")
+                                                 + (suspect ? (modelData.me ? "\n" : "") + "Fuskkollen: " + modelData.suspect + " misstanke – " + modelData.suspectWhy.join("; ") + ". Bara en misstanke, inget bevis." : "")
                                             cells: [modelData.name, modelData.kills + "–" + modelData.deaths + "–" + modelData.assists,
                                                     win.num(modelData.adr), win.pct(modelData.kast), win.pct(modelData.hs),
                                                     win.ms(modelData.ttd), modelData.cp ? win.num(modelData.cp) + "°" : null,
                                                     win.ms(modelData.reaction), win.pct(modelData.firstShot), win.pct(modelData.spray),
                                                     win.pct(modelData.strafe)]
-                                            colors: [modelData.me ? accent.text : null]
+                                            // the cheat check (recorder.cs2_suspicion): the name red for "hög", orange for "medel"
+                                            colors: [modelData.suspect === "hög" ? "#E5534B" : modelData.suspect === "medel" ? "#D29922" : modelData.me ? accent.text : null]
                                         }
                                     }
                                 }
+                            }
+                            // the cheat check's verdict on the whole match – signs, never proof (22 Nov, the user's wish)
+                            Text {
+                                readonly property var players: mrow.m.players || []
+                                readonly property var flagged: players.filter(p => p.suspect === "medel" || p.suspect === "hög")
+                                readonly property bool measured: players.some(p => !!p.suspect)
+                                readonly property bool checked: players.some(p => p.suspect !== undefined)
+                                visible: checked
+                                width: mrow.width
+                                topPadding: 4
+                                wrapMode: Text.WordWrap
+                                text: !measured ? "Fuskkoll: kunde inte göras på den här kartan (kartans väggar saknas)."
+                                    : flagged.length ? "Fuskkoll: " + flagged.map(p => p.name + " (" + p.suspect + " misstanke)").join(", ")
+                                                       + " – håll musen över namnet för skälen. Bara en misstanke, inget bevis."
+                                    : "Fuskkoll: ingen spelare stack ut (sikte genom väggar, reaktionstid, snäpp)."
+                                color: flagged.length ? "#E6ECF5" : "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: G.Type.small
                             }
                             Row {
                                 spacing: 10

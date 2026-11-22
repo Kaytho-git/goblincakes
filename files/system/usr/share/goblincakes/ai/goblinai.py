@@ -1312,7 +1312,9 @@ senaste 10
 Siffrorna gäller matcher på Valves servrar (Premier/Competitive). Frågar användaren om matcherna på
 privata servrar (kompisarnas server, workshop), lägg till `privat`, t.ex. `privat senaste 10`.
 Du får då användarens egna siffror ur GoblinRecorders lästa demos: senaste matchen, snittet, match för match
-och ungefärliga riktvärden."""
+och ungefärliga riktvärden.
+Frågar användaren om fuskare i en match (wallhack, aimbot, "var de fusk?"), skriv `fusk` (eller `fusk Mirage`
+för den kartans senaste match) – då får du fuskkollen för alla tio spelare."""
 
 CS2_GUIDE = """
 Coacha utifrån användarens CS2-siffror:
@@ -1760,9 +1762,10 @@ def tools_for(keys, project, messages):
         tools["cs2"] = tool("Läser dina CS2-siffror", CS2_PROMPT, CS2_GUIDE, lambda q: (cs2_tools().cs2_stats(q), []), "cs2",
                             "När användaren frågar om sina CS2-matcher, sin statistik, sitt snitt eller vad hen ska träna "
                             "på: egna siffror ur GoblinRecorders lästa demos (Valves servrar: Premier/Competitive) – "
-                            "senaste matchen, snittet, match för match, riktvärden.",
+                            "senaste matchen, snittet, match för match, riktvärden. `fusk` = fuskkollen för alla tio "
+                            "spelare (misstanke, inget bevis).",
                             "`senaste`, antal matcher (`senaste 20`) eller en karta (`Mirage`); lägg till `privat` för "
-                            "matcher på privata servrar")
+                            "matcher på privata servrar; `fusk` (ev. med karta) för fuskkollen")
     if list(Path.home().glob("Games/WoW/*/AddOns")):
         tools["wowapi"] = tool("Slår upp i WoW:s API", WOWAPI_PROMPT, ainame.say(WOWAPI_GUIDE.replace("PROVA_I_SPELET", wow_try())), lambda q: (wow_api().lookup(q), []),
                                "wowapi", "WoW:s egna funktioner, händelser och ramar för spelet just nu (spelets lista + "

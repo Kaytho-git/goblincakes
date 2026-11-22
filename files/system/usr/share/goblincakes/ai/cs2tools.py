@@ -128,8 +128,37 @@ def average_text(ms):
     return "\n".join(lines)
 
 
+CHEAT_NOTE = """Fuskkollen (GOBLINCAKES egen, ur demon) letar tecken: siktet följer fiender bakom väggar/rök, reaktioner
+under 150 ms, blixtsnabba ryck rakt på fienden före en träff, kills genom rök/vägg. Varje spelare jämförs med de andra i
+samma match. "hög" = två tecken eller fler, "medel" = ett, "låg" = inget. Det är bara en misstanke, aldrig ett bevis –
+säg det till användaren, och kalla ingen fuskare. Bannlysningar syns senare på Leetify/csstats.gg."""
+
+
+def cheat_text(v):
+    """The cheat check for one match (recorder.cs2_suspicion, kept in demoPlayers)."""
+    ps = v.get("demoPlayers") or []
+    if not any("suspect" in p for p in ps):
+        return "Fuskkollen har inte körts på den här matchen (demon lästes före 22 nov och finns inte kvar)."
+    if not any(p.get("suspect") for p in ps):
+        return "Fuskkollen kunde inte mätas på den här kartan (kartans väggar saknas i awpy)."
+    lines = []
+    for team, title in (("theirs", "MOTSTÅNDARNA"), ("mine", "DITT LAG")):
+        lines.append(title + ":")
+        for p in ps:
+            if p.get("team") != team:
+                continue
+            w = f"{100 * p['wallTrack'] / p['aliveSec']:.1f} %".replace(".", ",") \
+                if p.get("wallTrack") is not None and p.get("aliveSec") else "–"
+            lines.append(f"- {p['name']}{' (du)' if p.get('me') else ''}: {p.get('suspect') or 'kunde inte mätas'} misstanke"
+                         f" · sikte bakom väggar {w} av tiden · reaktioner under 150 ms {p.get('fastReact', '–')} av "
+                         f"{p.get('cleanReact', '–')} · snäpp {p.get('snapKills', '–')} av {p.get('snapChecked', '–')} kills · "
+                         f"kills genom rök/vägg {(p.get('smokeKills') or 0) + (p.get('wallKills') or 0)} av {p.get('kills', '–')}"
+                         + (" – " + "; ".join(p["suspectWhy"]) if p.get("suspectWhy") else ""))
+    return "\n".join(lines)
+
+
 def cs2_stats(query):
-    """The text for the AI: `senaste`, `senaste 20` / `20`, or a map name (its latest match)."""
+    """The text for the AI: `senaste`, `senaste 20` / `20`, or a map name (its latest match); `fusk` = the cheat check."""
     q = (query or "").lower()
     private = "privat" in q
     ms = matches(private)
@@ -146,6 +175,9 @@ def cs2_stats(query):
             latest = v
             break
     recent = ms[-max(1, count):]
+    if "fusk" in q:
+        return "\n\n".join(["FUSKKOLLEN – " + ("SENASTE MATCHEN" if latest is ms[-1] else "MATCHEN") + ": " + _title(latest),
+                             cheat_text(latest), CHEAT_NOTE])
     return "\n\n".join([
         "SENASTE MATCHEN" if latest is ms[-1] else "MATCHEN", match_text(latest),
         average_text(recent),

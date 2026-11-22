@@ -1,3 +1,4 @@
+2026-11-22  GoblinRecorder: fuskkoll i CS2 Stats – när demon läses jämförs alla tio spelare (sikte genom väggar, omänskligt snabba reaktioner, blixtsnabba ryck mot huvudet). Misstänkta får namnet i orange eller rött, och skälen syns när du håller musen över namnet. Fråga också Kakan: "var det fuskare i senaste matchen?"
 2026-11-22  Musen markerar rätt i GOBLINCAKES egna fönster igen – i förminskat läge tändes ibland saken bredvid. Flikarna lyser och går att klicka bara på själva ordet.
 2026-11-22  Dashboard fyller hela skärmen igen (den slutade en bit före höger- och nederkanten)
 2026-11-22  Goblin AI: samtalet och skrivraden går över hela fönstrets bredd igen, som förut.

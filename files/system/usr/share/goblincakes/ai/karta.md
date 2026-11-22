@@ -498,6 +498,11 @@ Ord: goblinrecorder, recorder, inspelning, spela in, obs, film, raid, mythic, m+
   ~/.cache/goblincakes/awpy/ (Valves kartor); workshop-kartor görs ur kartans .vpk med Source 2 Viewer
   (~/.cache/goblincakes/source2viewer/, hämtas första gången) → ~/.cache/goblincakes/awpy/workshop/<id>-*.mesh.
   Gick det inte: en .failed bredvid (nytt försök efter ett dygn). Egen demo (record) saknar motståndarnas namn.
+- Fuskkollen (22 nov): när demon läses får alla tio spelare en misstankenivå (recorder `cs2_suspicion`, sparas i
+  matchens .json `demoPlayers` → suspect låg/medel/hög/None + suspectWhy). Tecken: siktet följer dolda fiender, reaktioner
+  under 150 ms, snäpp före första träffen, kills genom rök/vägg – jämfört med de andra i matchen. None = kartans väggar
+  saknas (då inga siktessiffror heller). Läs om en gammal match: `python3.14 -I /usr/share/goblincakes/recorder/recorder.py
+  cs2-recheck <match.json>` (ändrar bara demoPlayers). Kakan: verktyget cs2 med `fusk`. Bara misstanke, aldrig bevis.
 - Leetify: tjänsten slår upp Premier/Competitive-matcher hos Leetify (3 min–48 h efter matchen, nyckeln
   ~/.config/goblincakes/leetify.key – visa den aldrig). Hittad = officiell i CS2 Stats + Leetifys TTD/sikte/spray/
   counter-strafe (L i rutan); inte hittad efter 48 h = PRIVAT. För hand: `goblincakes-recorder leetify`;
