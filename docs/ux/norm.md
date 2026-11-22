@@ -28,7 +28,7 @@ Problemen A–C har **samma rot**. Sett både på bild och i koden:
 | Sort | Maxbredd (enheter) | Fönster |
 |---|---|---|
 | Inställningar/formulär | **1 240** | Config, Avinstallera, GoblinShare, GoblinRecorders INSTÄLLNINGAR, Goblin AI:s INSTÄLLNINGAR |
-| Chatt/läsning | **960** för samtalet och inmatningen (verktygsraden följer inmatningen) | Goblin AI SVAR/CHATTAR |
+| Chatt/läsning | ingen: samtalet och inmatningen fyller bredden från vänsterkanten (användaren 22 nov – den centrerade spalten på 960 såg sämre ut) | Goblin AI SVAR/CHATTAR |
 | Lista + detalj | listan 300–420 (växer med fönstret, 24 % av bredden), detaljen fyller resten. Detaljens text och knappar följer läsbredden 960 | GoblinRecorder INSPELNINGAR |
 | Mätare | graferna fyller bredden upp till 1 240, höjden delas lika på graferna | lagmätaren |
 | Helskärm | ingen (egen layout) | Dashboard |

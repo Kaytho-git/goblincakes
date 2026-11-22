@@ -2741,9 +2741,9 @@ Window {
             id: chatArea
             visible: win.view === "chat"
             anchors.fill: viewArea
-            // The conversation and the input in a centred column of at most 960 (docs/ux/norm.md 1, 22 Nov) –
-            // maximized they ran over ~1 500 px. side(m): the margin m in a narrow window, more in a wide one.
-            function side(m) { return Math.max(m, (width - G.Norm.reading) / 2 + m - 24) }
+            // The conversation and the input fill the width from the left edge (the user 22 Nov: the centred
+            // column of 960 looked worse – docs/ux/norm.md 1, the exception for Goblin AI). side(m): the margin m.
+            function side(m) { return m }
 
             // The teacher's chats (project "Lärläge"): back to the lesson
             FlatButton {
