@@ -26,6 +26,10 @@ both Android and iPhones. Only the standard library (+ the `openssl` command for
     terminal    (4 Nov) help on another GOBLINCAKES computer: it presses Be om hjälp and reads out a code;
                 POST /api/goblincakes/v1/ssh with our public key + the code → a short-lived key there →
                 our Terminal (ssh) is in while it is open. The keys and ~/.ssh files: sshlink.py.
+    home only   (22 Nov) the home network is known by its router's hardware (MAC) address (homeNetworks in
+                share.json; the first start remembers the network it is on). On any other network – a café,
+                a hotel – GoblinShare pauses: no answer on the network at all, no announcing, no looking.
+                "Det här är mitt hemnät" in the window / `goblin share hemma` adds the router it is on now.
 
 The service (/usr/libexec/goblincakes-share run, user service goblincakes-share) owns everything; the
 window (goblin-share) and `goblin share` talk to it over a Unix socket: one JSON line in, one out.
@@ -275,6 +279,46 @@ def interfaces():
     return found
 
 
+def routers():
+    """The hardware (MAC) addresses of the routers this computer goes out through – how GoblinShare tells
+    the home network from a café's (22 Nov). [] = no router (no network, or a cable straight to another
+    computer); "?" = a router whose address isn't known yet (just connected). GOBLINCAKES_SHARE_ROUTER
+    (comma list, "none") stands in for tests."""
+    fake = os.environ.get("GOBLINCAKES_SHARE_ROUTER")
+    if fake is not None:
+        return [] if fake.strip() in ("", "none") else sorted({m.strip().lower() for m in fake.split(",") if m.strip()})
+    gateways = []
+    try:
+        for line in Path("/proc/net/route").read_text().splitlines()[1:]:
+            f = line.split()
+            # the default route (destination 0) with a gateway (flag 2), not the VPN's/containers' own
+            if len(f) > 3 and f[1] == "00000000" and int(f[3], 16) & 2 and not f[0].startswith(SKIP_IFACES):
+                gateways.append((f[0], socket.inet_ntoa(struct.pack("<I", int(f[2], 16)))))
+    except (OSError, ValueError):
+        return []
+    table = {}
+    for attempt in range(2):
+        try:
+            for line in Path("/proc/net/arp").read_text().splitlines()[1:]:
+                f = line.split()
+                if len(f) >= 6 and int(f[2], 16) & 2 and f[3] != "00:00:00:00:00:00":
+                    table[(f[5], f[0])] = f[3].lower()
+        except (OSError, ValueError):
+            pass
+        missing = [g for g in gateways if g not in table]
+        if not missing or attempt:
+            break
+        for _, ip in missing:   # one empty packet makes the kernel look the router up
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.sendto(b"", (ip, 9))
+                s.close()
+            except OSError:
+                pass
+        time.sleep(0.5)
+    return sorted({table.get(g, "?") for g in gateways})
+
+
 def private(addr):
     a = [int(x) for x in addr.split(".")]
     return a[0] == 10 or (a[0] == 172 and 16 <= a[1] <= 31) or (a[0] == 192 and a[1] == 168)
@@ -413,6 +457,7 @@ class Share:
         self.http = None
         self.udp = None
         self.stop = threading.Event()
+        self.paused = False     # not on a home network: nothing on the network (check_network, 22 Nov)
 
     # ---------------------------------------------------------- who we are
     def alias(self):
@@ -670,6 +715,8 @@ class Share:
 
     # ---------------------------------------------------------- discovery
     def announce(self, announce=True):
+        if self.paused:
+            return False
         msg = json.dumps(self.info(announce=announce)).encode()
         sent = False
         for _, addr, _ in interfaces() or [("", "0.0.0.0", "")]:
@@ -716,6 +763,8 @@ class Share:
                         if interfaces() != last_ifaces:   # wifi changed, cable in: join again
                             break
                         continue
+                    if self.paused:   # not at home: nobody here is answered
+                        continue
                     try:
                         msg = json.loads(data)
                     except ValueError:
@@ -748,6 +797,8 @@ class Share:
     def sweep(self):
         """The protocol's HTTP discovery: register with every address in the local network (routers that
         stop multicast, a phone whose app was asleep when we announced) – they learn about us too."""
+        if self.paused:
+            return
         self.last_sweep = time.time()
         hosts = []
         for _, addr, mask in interfaces():
@@ -798,6 +849,47 @@ class Share:
             new_accent = accent_color()
             if new_accent != self.accent:
                 self.accent = new_accent
+
+    # ---------------------------------------------------------- home network only (22 Nov)
+    def check_network(self):
+        """Paused or not, after the router(s) the computer goes out through now."""
+        macs = routers()
+        real = [m for m in macs if m != "?"]
+        with self.lock:
+            home = self.cfg.get("homeNetworks")
+            if home is None and real:   # the first start since 22 Nov: the network it is on is home
+                self.cfg["homeNetworks"] = home = [{"mac": m, "t": int(time.time())} for m in real]
+                save_config(self.cfg)
+            known = {h.get("mac") for h in home or [] if isinstance(h, dict)}
+            paused = bool(macs) and not any(m in known for m in real)
+            changed, self.paused = paused != self.paused, paused
+            if changed and paused:
+                self.peers.clear()
+        if changed:
+            print("hemnät:", "nej – pausad" if paused else "ja", macs, file=sys.stderr)
+            if not paused and self.udp:
+                self.scan(sweep=True)
+
+    def net_watch(self):
+        while not self.stop.wait(10):
+            try:
+                self.check_network()
+            except Exception as e:  # noqa: BLE001 – the watch must keep going
+                print("hemnät:", e, file=sys.stderr)
+
+    def home_here(self):
+        """"Det här är mitt hemnät": the router(s) it is on now are home too. → "" or why not."""
+        real = [m for m in routers() if m != "?"]
+        if not real:
+            return "Hittar ingen router att komma ihåg – är datorn ansluten till ett nätverk?"
+        with self.lock:
+            home = [h for h in (self.cfg.get("homeNetworks") or []) if isinstance(h, dict)]
+            have = {h.get("mac") for h in home}
+            home += [{"mac": m, "t": int(time.time())} for m in real if m not in have]
+            self.cfg["homeNetworks"] = home[-20:]
+            save_config(self.cfg)
+        self.check_network()
+        return ""
 
     # ---------------------------------------------------------- receiving
     def prepare_upload(self, ip, body):
@@ -1395,6 +1487,8 @@ class Share:
             peers = sorted(self.peers.values(), key=lambda p: (p["deviceModel"] != MODEL, p["alias"].lower()))
             out = {
                 "running": True,
+                "paused": self.paused,
+                "homeNetworks": len(self.cfg.get("homeNetworks") or []),
                 "alias": self.alias(),
                 "aliasSet": bool((self.cfg.get("alias") or "").strip()),
                 "fingerprint": self.fingerprint,
@@ -1456,6 +1550,9 @@ class Share:
         if op == "scan":
             self.scan(sweep=bool(req.get("sweep", True)))
             return {"ok": True}
+        if op == "home_here":
+            why = self.home_here()
+            return {"ok": not why, "error": why}
         if op == "send":
             jid, err = self.send(str(req.get("to", "")), paths=req.get("paths") or [])
             return {"ok": bool(jid), "id": jid, "error": err}
@@ -1654,6 +1751,8 @@ class Share:
             request_queue_size = 64
 
             def finish_request(self, request, client_address):
+                if share.paused:   # not on a home network: no answer at all, not even who we are (22 Nov)
+                    return
                 # The TLS handshake in the request's own thread: a slow phone can't hold up the others
                 if ctx:
                     request.settimeout(15)
@@ -1675,6 +1774,8 @@ class Share:
         if self.cfg.get("sshPaired"):
             self.write_ssh()
         self.check_ssh_allowed()
+        self.check_network()
+        threading.Thread(target=self.net_watch, daemon=True).start()
         threading.Thread(target=self.help_watch, daemon=True).start()
         threading.Thread(target=self.housekeeping, daemon=True).start()
         while not self.stop.is_set():

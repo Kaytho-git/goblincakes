@@ -559,6 +559,11 @@ Ord: goblinshare, share, dela, skicka fil, ta emot, localsend, airdrop, filer ti
   routern stoppar det; brandväggen: `firewall-cmd --list-ports` (Fedoras zon släpper in 1025–65535, annars
   öppnas 53317 när GoblinShare slås på); ett annat program på porten (LocalSend själv) = felrad i fönstret.
   Telefonen syns bara medan LocalSend-appen är öppen. "Leta igen" frågar också hela /24-nätet direkt.
+- Bara på hemnätet (22 nov): hemnätet känns igen på routerns MAC-adress (homeNetworks i share.json; första starten
+  sparar nätverket den är på). På ett annat nätverk är GoblinShare PAUSAD: svarar inte alls på porten, annonserar och
+  letar inte – fönstret visar "Pausad – inte på ett hemnät", `goblin share status` raden PAUSAD. Hemma men pausad =
+  ny router (eller routern byttes av operatören) → "Det här är mitt hemnät" i fönstret eller `goblin share hemma`.
+  Routern den ser: `ip route show default` + `ip neigh show <routerns adress>`.
 - `goblin share lista` (enheterna), `goblin share status`, `goblin share till <namn> <fil>`, `goblin share text <namn> <text>`.
 - Hjälp via terminal (ssh, 4 nov): den som behöver hjälp trycker **Be om hjälp** i GoblinShare (`goblin share hjälp`)
   och läser upp en 6-siffrig kod (10 min, 5 försök, en gång). Hjälparen trycker Terminal på hens ruta och skriver koden

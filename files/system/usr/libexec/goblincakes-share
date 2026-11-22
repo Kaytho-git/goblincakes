@@ -11,6 +11,8 @@
     goblincakes-share orders                  the orders that came here (start <nr> [chatgpt] = Goblin AI
                                               takes it, or the ChatGPT app draws it)
     goblincakes-share scan                    looks for devices again (multicast + the local network)
+    goblincakes-share hemma                   the network it is on now is a home network (GoblinShare is
+                                              paused on all others – 22 Nov)
     goblincakes-share hjälp [avsluta]         Be om hjälp: a code to read out to the one helping (waits;
                                               Ctrl+C = out). "Hjälp via terminal" is switched on if needed
     goblincakes-share terminal <namn> [kod]   a terminal on that computer with the code it shows (ssh); while
@@ -223,6 +225,11 @@ def main(argv):
         return terminal(argv)
     if cmd in ("hjälp", "hjalp", "help-me"):
         return help_here(argv)
+    if cmd in ("hemma", "home"):
+        need_service()
+        r = S.call("home_here") or {}
+        print(r.get("error") or "Det här nätverket är nu ett hemnät – GoblinShare syns här.")
+        return 0 if r.get("ok") else 1
     if cmd == "scan":
         need_service()
         S.call("scan", sweep=True)
@@ -240,6 +247,8 @@ def main(argv):
               f"(port {st['port']}, {st['protocol'].upper()})")
         if st["error"]:
             print("FEL:", st["error"])
+        if st.get("paused"):
+            print("PAUSAD – inte på ett hemnät, ingen här ser dig. Hemma med ny router? goblin share hemma")
         print(f"Tar emot till {st['folder']}")
         print(f"{len(st['peers'])} enhet(er) syns.")
         for t in st["transfers"]:

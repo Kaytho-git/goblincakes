@@ -1,3 +1,4 @@
+2026-11-22  GoblinShare syns bara på hemnätet. På ett annat nätverk (kafé, hotell, någon annans wifi) pausar den av sig själv – ingen där ser datorn eller kan skicka något – och startar igen hemma. Byter du router: tryck "Det här är mitt hemnät" i GoblinShare.
 2026-11-22  Goblin AI: Kakan kan hämta tabeller ur Warcraft Logs – vem som tog mest skada, vad som träffade någon precis innan hen dog, hur många kicks någon hade, vem som healade mest, buffar och casts – för hela pullen eller en viss tid.
 2026-11-22  Goblin AI: Kakan kommer ihåg pullen när du ställer följdfrågor om Warcraft Logs ("vem tog mest skada?" efter "varför dog vi på …?") – hon hämtar samma pull igen i stället för att söka på nätet.
 2026-11-22  GoblinRecorder: fuskkollen letar också efter triggerbot (skott som går av i samma ögonblick som fienden kliver in i siktet). CS2 Stats har fått rutan CLUTCH 1V5.

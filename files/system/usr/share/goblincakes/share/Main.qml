@@ -459,6 +459,7 @@ Window {
             title: "GOBLINSHARE"
             subtitle: !win.st.running ? (win.st.on || win.st.starting ? "Startar …" : "Avstängt – ingen på nätverket ser dig")
                     : win.st.error ? win.st.error
+                    : win.st.paused ? "Pausad – inte på ett hemnät, ingen här ser dig"
                     : "Andra ser dig som " + win.st.alias + (win.st.addresses && win.st.addresses.length
                       ? " · " + win.st.addresses.join(", ") : " · inget nätverk")
             subtitleColor: win.st.error ? accent.errorBright : "#8B98AD"
@@ -468,14 +469,14 @@ Window {
                 spacing: 14
                 FlatButton { // someone helps on this computer: a code to read out (4 Nov)
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: !!win.st.running && !win.help
+                    visible: !!win.st.running && !win.help && !win.st.paused
                     text: win.st.sshBusy ? "Slår på …" : "Be om hjälp"
                     enabledState: !win.st.sshBusy
                     onClicked: { win.tab = "devices"; backend.helpStart(); }
                 }
                 FlatButton {
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: !!win.st.running
+                    visible: !!win.st.running && !win.st.paused
                     text: win.st.sweeping ? "Letar …" : "Leta igen"
                     enabledState: !win.st.sweeping
                     onClicked: backend.scan()
@@ -561,6 +562,43 @@ Window {
                 y: 28
                 width: G.Norm.pageWidth(devFlick.width, G.Norm.page)
                 spacing: 22
+
+                // Not on a home network (a café, a hotel): paused until home again (22 Nov)
+                Rectangle {
+                    G.Light {}
+                    visible: !!win.st.paused
+                    width: parent.width
+                    height: pausedText.implicitHeight + 40
+                    color: "#0E1420"
+                    border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px
+                    border.color: accent.color
+                    Column {
+                        id: pausedText
+                        anchors { left: parent.left; leftMargin: 20; right: homeButton.left; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                        spacing: 6
+                        Text {
+                            text: "PAUSAD – INTE PÅ ETT HEMNÄT"
+                            color: "#E6ECF5"
+                            font.family: "Chakra Petch"
+                            font.weight: Font.DemiBold
+                            font.pixelSize: G.Type.body
+                            font.letterSpacing: 1
+                        }
+                        Note {
+                            width: parent.width
+                            text: "Datorn är på ett nätverk som inte är hemma (till exempel ett kafé eller ett hotell). " +
+                                  "Där syns GoblinShare inte och tar inte emot något – den startar av sig själv när du är hemma igen.\n" +
+                                  "Är du hemma och har bytt router? Tryck på knappen."
+                        }
+                    }
+                    FlatButton {
+                        id: homeButton
+                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                        text: "Det här är mitt hemnät"
+                        onClicked: backend.homeHere()
+                    }
+                }
 
                 // Files from Dolphin / goblin share skicka, waiting for a device
                 Rectangle {
@@ -843,12 +881,12 @@ Window {
                     }
                 }
 
-                SectionTitle { text: win.staged.length ? "VEM SKA FÅ " + (win.staged.length === 1 ? "DEN" : "DEM") + "?" : "PÅ NÄTVERKET" }
+                SectionTitle { visible: !win.st.paused; text: win.staged.length ? "VEM SKA FÅ " + (win.staged.length === 1 ? "DEN" : "DEM") + "?" : "PÅ NÄTVERKET" }
 
                 // No one found yet
                 Rectangle {
                     G.Light {}
-                    visible: win.peers.length === 0
+                    visible: win.peers.length === 0 && !win.st.paused
                     width: Math.min(parent.width, 760)   // a readable line, not the whole page (granskning #11, norm 1: löptext)
                     height: emptyCol.height + 48
                     color: "#0B1018"

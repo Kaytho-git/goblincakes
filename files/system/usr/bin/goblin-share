@@ -117,6 +117,11 @@ class Backend(QObject):
         subprocess.Popen([sys.executable, str(HELPER), "off"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     @Slot()
+    def homeHere(self):   # "Det här är mitt hemnät" (22 Nov)
+        S.call("home_here", timeout=3)
+        self.poll()
+
+    @Slot()
     def scan(self):
         S.call("scan", sweep=True, timeout=1)
         self.poll()
