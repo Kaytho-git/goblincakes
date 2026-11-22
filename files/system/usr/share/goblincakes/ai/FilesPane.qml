@@ -196,6 +196,7 @@ Item {
         Rectangle {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
             height: 1
+            antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
             color: "#1A2438"
         }
     }

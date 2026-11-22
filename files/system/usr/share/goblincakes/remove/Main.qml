@@ -229,6 +229,7 @@ Window {
                     height: 76
                     color: rowArea.containsMouse && !restoring ? "#111A2A" : "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: checked ? accent.color : rowArea.containsMouse && !restoring ? "#2A3852" : "#1E2A40"
                     opacity: restoring ? 0.6 : 1
 

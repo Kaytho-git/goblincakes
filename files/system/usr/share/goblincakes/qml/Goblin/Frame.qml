@@ -11,6 +11,7 @@ Rectangle {
     readonly property bool moving: typeof look !== "undefined" && !!look && look.motion === true
     color: "#0B1018"
     border.width: 1
+    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
     border.color: "#1E2A40"
     Behavior on color { enabled: frame.moving; ColorAnimation { duration: 160 } }
     Behavior on border.color { enabled: frame.moving; ColorAnimation { duration: 160 } }

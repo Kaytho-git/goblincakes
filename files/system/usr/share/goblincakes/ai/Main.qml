@@ -74,6 +74,7 @@ Window {
         height: 24
         color: "#0B1018"
         border.width: 1
+        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
         border.color: "#1E2A40"
         Text {
             id: hintText
@@ -92,6 +93,7 @@ Window {
         height: 16
         color: "transparent"
         border.width: 1
+        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
         border.color: tag === "SNABBAST" ? "#2A3852" : accent.color
         Text {
             id: tagText
@@ -1029,6 +1031,7 @@ Window {
             height: quickCol.height + 28
             color: "#0B1018"
             border.width: 2
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: accent.color
 
             Column {
@@ -1379,6 +1382,7 @@ Window {
             height: Math.min(codeText.implicitHeight + 24, maxHeight)
             color: "#07090D"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: "#1A2438"
             clip: true
             Flickable {
@@ -1458,6 +1462,7 @@ Window {
                 Rectangle {
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 1 }
                     height: 1
+                    antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
                     color: "#1A2438"
                 }
             }
@@ -1583,6 +1588,7 @@ Window {
                     height: width
                     color: "#12203A"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: kakanBox.thinking ? accent.color : "#1E2A40"
                     // While she works the frame pulses in the accent
                     SequentialAnimation on border.color {
@@ -1888,6 +1894,7 @@ Window {
             height: zoomRoot.height - y - win.gap
             color: "#0B1018"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: "#1E2A40"
 
             Item {
@@ -2072,6 +2079,7 @@ Window {
                 Rectangle {
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                     height: 1
+                    antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
                     color: "#1A2438"
                 }
             }
@@ -2347,6 +2355,7 @@ Window {
                 Rectangle {
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                     height: 1
+                    antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
                     color: "#1A2438"
                 }
             }
@@ -2469,6 +2478,7 @@ Window {
                     height: 40
                     color: "#07090D"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: chatsSearch.activeFocus ? accent.color : "#1E2A40"
                     TextInput {
                         id: chatsSearch
@@ -2529,6 +2539,7 @@ Window {
                         Rectangle {
                             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                             height: 1
+                            antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
                             color: "#1A2438"
                         }
                         Text {
@@ -2602,6 +2613,7 @@ Window {
             height: reserveCol.height + 44
             color: "#0B1018"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: accent.color
             Column {
                 id: reserveCol
@@ -2680,6 +2692,7 @@ Window {
             height: folderMenuCol.height + 2
             color: "#0B1018"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: accent.color
             Column {
                 id: folderMenuCol
@@ -2951,6 +2964,7 @@ Window {
                             height: 18
                             color: "transparent"
                             border.width: 1
+                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                             border.color: accent.color
                             Text {
                                 id: serviceTag
@@ -3119,6 +3133,7 @@ Window {
                                     height: segItem.s.type === "text" ? 0 : cardCol.height + 32
                                     color: "#0E1420"
                                     border.width: 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: segItem.s.type === "blocked" ? accent.error
                                         : segItem.s.state === "running" ? accent.color : "#1E2A40"
 
@@ -3202,6 +3217,7 @@ Window {
                                             height: Math.min(diffCol.implicitHeight + 24, 320)
                                             color: "#07090D"
                                             border.width: 1
+                                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                             border.color: "#1A2438"
                                             clip: true
                                             Flickable {
@@ -3740,6 +3756,7 @@ Window {
                             Rectangle {
                                 width: parent.width
                                 height: 1
+                                antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
                                 color: "#1E2A40"
                             }
                             Text {
@@ -3986,6 +4003,7 @@ Window {
                                 height: 30
                                 color: "#07090D"
                                 border.width: 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: whyInput.activeFocus ? accent.color : "#1E2A40"
                                 TextInput {
                                     id: whyInput
@@ -4172,6 +4190,7 @@ Window {
                     Rectangle {
                         width: parent.width
                         height: 1
+                        antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
                         color: input.activeFocus || win.pictureMode ? accent.color : "#1E2A40"
                     }
 
@@ -4276,6 +4295,7 @@ Window {
                     Rectangle {
                         width: parent.width
                         height: 1
+                        antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
                         color: input.activeFocus || win.pictureMode ? accent.color : "#1E2A40"
                     }
                 }
@@ -4293,6 +4313,7 @@ Window {
                 x: inputBar.x
                 color: "#0B1018"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: "#2A3852"
 
                 ListView {
@@ -4365,6 +4386,7 @@ Window {
                 x: Math.max(24, Math.min(inputBar.x + shotButton.x, chatArea.width - width - 24))
                 color: "#0B1018"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: "#2A3852"
                 Column {
                     id: shotMenuCol
@@ -4433,6 +4455,7 @@ Window {
                 x: Math.max(24, Math.min(inputBar.x + modelButton.x, chatArea.width - width - 24))
                 color: "#0B1018"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: "#2A3852"
                 Keys.onEscapePressed: visible = false
 
@@ -4545,6 +4568,7 @@ Window {
             height: pickCol.implicitHeight + 22
             color: chosen ? "#12203A" : pickArea.containsMouse ? "#111A2A" : "#0E1420"
             border.width: chosen ? 2 : 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: chosen ? accent.color : "#1E2A40"
             Column {
                 id: pickCol
@@ -4672,6 +4696,7 @@ Window {
                         height: 38
                         color: "#07090D"
                         border.width: 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: ownGoal.activeFocus ? accent.color : "#1E2A40"
                         TextInput {
                             id: ownGoal
@@ -4958,6 +4983,7 @@ Window {
                                 height: taskCol.height + 32
                                 color: "#0E1420"
                                 border.width: 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: modelData.done ? "#3FB950" : win.testTask === modelData.id ? "#D29922" : "#1E2A40"
                                 Column {
                                     id: taskCol
@@ -4986,6 +5012,7 @@ Window {
                                         height: Math.max(140, Math.min(360, editor.contentHeight + 24))
                                         color: "#07090D"
                                         border.width: 1
+                                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                         border.color: editor.activeFocus ? accent.color : "#1E2A40"
                                         Text {
                                             anchors { right: parent.right; top: parent.top; margins: 6 }
@@ -5163,6 +5190,7 @@ Window {
                     height: 36
                     color: "#07090D"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: projName.activeFocus ? accent.color : "#1E2A40"
                     TextInput {
                         id: projName
@@ -5192,6 +5220,7 @@ Window {
                     height: 140
                     color: "#07090D"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: projInstr.activeFocus ? accent.color : "#1E2A40"
                     Flickable {
                         id: instrFlick
@@ -5405,6 +5434,7 @@ Window {
             Rectangle {
                 anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
                 width: 1
+                antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
                 color: "#1A2438"
             }
             Column {
@@ -5511,6 +5541,7 @@ Window {
                     height: nameCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
 
                     Column {
@@ -5543,6 +5574,7 @@ Window {
                                 height: 30
                                 color: "#07090D"
                                 border.width: 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: nameInput.activeFocus ? accent.color : "#1E2A40"
                                 TextInput {
                                     id: nameInput
@@ -5611,6 +5643,7 @@ Window {
                     height: avatarCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
 
                     Column {
@@ -5634,6 +5667,7 @@ Window {
                                 height: 72
                                 color: "#07090D"
                                 border.width: 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: "#1E2A40"
                                 Image {
                                     visible: backend.avatar !== ""
@@ -5673,6 +5707,7 @@ Window {
                                 height: 30
                                 color: "#07090D"
                                 border.width: 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: avatarInput.activeFocus ? accent.color : "#1E2A40"
                                 TextInput {
                                     id: avatarInput
@@ -5725,6 +5760,7 @@ Window {
                                 height: 72
                                 color: "#07090D"
                                 border.width: 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: "#1E2A40"
                                 Image {
                                     visible: backend.avatarThinking !== ""
@@ -5792,6 +5828,7 @@ Window {
                     height: memCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
                     property var items: JSON.parse(backend.memory)
 
@@ -5866,6 +5903,7 @@ Window {
                                     height: 30
                                     color: "#07090D"
                                     border.width: 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: memInput.activeFocus ? accent.color : "#1E2A40"
                                     TextInput {
                                         id: memInput
@@ -5908,6 +5946,7 @@ Window {
                     height: heartCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
                     property var items: JSON.parse(backend.lessons)
                     property var categories: JSON.parse(backend.lessonCategories)
@@ -6072,6 +6111,7 @@ Window {
                                                             height: 24
                                                             color: current ? accent.color : (catChoiceArea.containsMouse ? "#12203A" : "transparent")
                                                             border.width: 1
+                                                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                                             border.color: current ? accent.color : "#1E2A40"
                                                             Text {
                                                                 id: catChoiceText
@@ -6102,6 +6142,7 @@ Window {
                                                         height: lessonEdit.contentHeight + 12
                                                         color: lessonEdit.activeFocus ? "#07090D" : "transparent"
                                                         border.width: lessonEdit.activeFocus ? 1 : 0
+                                                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                                         border.color: accent.color
                                                         TextEdit {
                                                             id: lessonEdit
@@ -6154,6 +6195,7 @@ Window {
                     height: knowCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
                     property var items: JSON.parse(backend.knowledge)
                     property var denied: JSON.parse(backend.knowledgeDenied)
@@ -6385,6 +6427,7 @@ Window {
                     height: cmdLogCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
                     property var items: JSON.parse(backend.commandLog)
                     property var undoing: JSON.parse(backend.undoing)
@@ -6436,6 +6479,7 @@ Window {
                                         anchors.verticalCenter: parent.verticalCenter
                                         color: backend.autorun ? accent.color : "transparent"
                                         border.width: 1
+                                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                         border.color: backend.autorun ? accent.color : "#5C6880"
                                         Text {
                                             anchors.centerIn: parent
@@ -6571,6 +6615,7 @@ Window {
                     height: ownToolsCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
 
                     Column {
@@ -6644,6 +6689,7 @@ Window {
                     height: mcpCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
 
                     Column {
@@ -6708,6 +6754,7 @@ Window {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     color: !mcpRow.s.off ? accent.color : "transparent"
                                                     border.width: 1
+                                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                                     border.color: !mcpRow.s.off ? accent.color : "#5C6880"
                                                     Text {
                                                         anchors.centerIn: parent
@@ -6770,6 +6817,7 @@ Window {
                                                     y: 2
                                                     color: mcpTool.modelData.on ? accent.color : "transparent"
                                                     border.width: 1
+                                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                                     border.color: mcpTool.modelData.on ? accent.color : "#5C6880"
                                                     Text {
                                                         anchors.centerIn: parent
@@ -6819,6 +6867,7 @@ Window {
                                     height: 30
                                     color: "#07090D"
                                     border.width: 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: githubInput.activeFocus ? accent.color : "#1E2A40"
                                     TextInput {
                                         id: githubInput
@@ -6878,6 +6927,7 @@ Window {
                                 height: Math.max(60, mcpPaste.contentHeight + 16)
                                 color: "#07090D"
                                 border.width: 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: mcpPaste.activeFocus ? accent.color : "#1E2A40"
                                 TextEdit {
                                     id: mcpPaste
@@ -6923,6 +6973,7 @@ Window {
                     height: dailyCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
                     property var items: JSON.parse(backend.daily)
                     readonly property var picks: JSON.parse(backend.modelChoices).filter(i => i.name !== "")
@@ -7049,6 +7100,7 @@ Window {
                                     height: 30
                                     color: "#07090D"
                                     border.width: 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: dailyName.activeFocus ? accent.color : "#1E2A40"
                                     TextInput {
                                         id: dailyName
@@ -7075,6 +7127,7 @@ Window {
                                     height: 30
                                     color: "#07090D"
                                     border.width: 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: dailyInput.activeFocus ? accent.color : "#1E2A40"
                                     TextInput {
                                         id: dailyInput
@@ -7134,6 +7187,7 @@ Window {
                     height: localCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: win.localStatus.installed ? accent.color : "#1E2A40"
 
                     Column {
@@ -7214,6 +7268,7 @@ Window {
                                     height: 40
                                     color: chosen ? "#12203A" : placeArea.containsMouse ? "#111A2A" : "transparent"
                                     border.width: chosen ? 2 : 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: chosen ? accent.color : "#2A3852"
                                     opacity: modelData.writable ? 1 : 0.4
                                     Text {
@@ -7315,6 +7370,7 @@ Window {
                                     height: roleCol.height + 24
                                     color: "#0B1018"
                                     border.width: 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: current && have.indexOf(current) >= 0 ? accent.color : "#1E2A40"
                                     Column {
                                         id: roleCol
@@ -7351,6 +7407,7 @@ Window {
                                                     height: 30
                                                     color: chosen ? "#12203A" : optionArea.containsMouse ? "#111A2A" : "transparent"
                                                     border.width: chosen ? 2 : 1
+                                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                                     border.color: chosen ? accent.color : "#2A3852"
                                                     Text {
                                                         id: optionText
@@ -7435,6 +7492,7 @@ Window {
                                     height: 30
                                     color: "#07090D"
                                     border.width: 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: otherModel.activeFocus ? accent.color : "#1E2A40"
                                     TextInput {
                                         id: otherModel
@@ -7516,6 +7574,7 @@ Window {
                     height: helperCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
 
                     Column {
@@ -7605,6 +7664,7 @@ Window {
                                 height: 30
                                 color: "#07090D"
                                 border.width: win.helpers.chosen === "egen" ? 2 : 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: helperInput.activeFocus || win.helpers.chosen === "egen" ? accent.color : "#1E2A40"
                                 TextInput {
                                     id: helperInput
@@ -7644,6 +7704,7 @@ Window {
                     height: imageCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: win.imageStatus.installed ? accent.color : "#1E2A40"
 
                     Column {
@@ -7709,6 +7770,7 @@ Window {
                                     height: 40
                                     color: chosen ? "#12203A" : imagePlaceArea.containsMouse ? "#111A2A" : "transparent"
                                     border.width: chosen ? 2 : 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: chosen ? accent.color : "#2A3852"
                                     opacity: modelData.writable ? 1 : 0.4
                                     Text {
@@ -7767,6 +7829,7 @@ Window {
                                     height: imageModelCol.height + 24
                                     color: "#0B1018"
                                     border.width: used ? 2 : 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: used ? accent.color : modelData.ready ? "#2A3852" : "#1E2A40"
                                     Column {
                                         id: imageModelCol
@@ -7805,6 +7868,7 @@ Window {
                                                     height: 30
                                                     color: chosen ? "#12203A" : variantArea.containsMouse ? "#111A2A" : "transparent"
                                                     border.width: chosen ? 2 : 1
+                                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                                     border.color: chosen ? accent.color : "#2A3852"
                                                     Text {
                                                         id: variantText
@@ -7912,6 +7976,7 @@ Window {
                     height: voiceCol.height + 36
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: win.voiceStatus.installed ? accent.color : "#1E2A40"
                     Component.onCompleted: backend.refreshVoice()
 
@@ -8019,6 +8084,7 @@ Window {
                                 height: 40
                                 color: "#0B1018"
                                 border.width: 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: "#1E2A40"
                                 Text {
                                     anchors { left: parent.left; leftMargin: 14; right: forgetBtn.left; rightMargin: 10
@@ -8064,6 +8130,7 @@ Window {
                         height: provCol.height + 36
                         color: "#0E1420"
                         border.width: 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: modelData.hasKey ? accent.color : "#1E2A40"
 
                         Column {
@@ -8109,6 +8176,7 @@ Window {
                                     height: 30
                                     color: "#07090D"
                                     border.width: 1
+                                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                     border.color: keyInput.activeFocus ? accent.color : "#1E2A40"
                                     TextInput {
                                         id: keyInput
@@ -8187,6 +8255,7 @@ Window {
                 height: quotaCol.height + 2
                 color: "#0B1018"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: "#1E2A40"
                 MouseArea { anchors.fill: parent }  // a click in the box doesn't close it
                 Item {
@@ -8228,6 +8297,7 @@ Window {
                         Rectangle {
                             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                             height: 1
+                            antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
                             color: "#1A2438"
                         }
                     }
@@ -8338,6 +8408,7 @@ Window {
             height: 38
             color: "#12203A"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: "#2A3852"
             opacity: 0
             visible: opacity > 0

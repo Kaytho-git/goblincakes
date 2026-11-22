@@ -19,6 +19,7 @@ Rectangle {
     height: size
     color: checked ? accent.color : "transparent"
     border.width: checked ? 0 : 1
+    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
     border.color: "#2A3852"
     Canvas {
         anchors.fill: parent

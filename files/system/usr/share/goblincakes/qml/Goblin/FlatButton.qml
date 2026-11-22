@@ -36,6 +36,7 @@ Rectangle {
          : primary ? (hovered ? accent.hover : accent.color)
          : hovered ? (danger ? "#3A1418" : "#1A2438") : "transparent"
     border.width: primary ? 0 : 1
+    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
     border.color: danger && !dangerFill && hovered ? accent.error : borderColor
     // Levande: the colours fade (140 ms) and the button is pressed down 1 px while held
     Behavior on color { enabled: btn.moving; ColorAnimation { duration: 140 } }

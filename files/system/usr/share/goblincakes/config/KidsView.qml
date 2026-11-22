@@ -124,6 +124,7 @@ Flickable {
         height: 26
         color: smallArea.containsMouse ? "#12203A" : "transparent"
         border.width: 1
+        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
         border.color: warn ? accent.errorBright : "#2A3852"
         Text {
             id: smallText
@@ -179,6 +180,7 @@ Flickable {
                         height: 320
                         color: "#0E1420"
                         border.width: 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: "#1E2A40"
                         MouseArea { id: cardArea; anchors.fill: parent; hoverEnabled: true }
                         Rectangle {
@@ -261,6 +263,7 @@ Flickable {
                     height: 320
                     color: addArea.containsMouse ? "#0E1420" : "transparent"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: kidsView.adding ? accent.color : "#1E2A40"
                     Text {
                         anchors.centerIn: parent
@@ -302,6 +305,7 @@ Flickable {
                             height: 44
                             color: rowArea.containsMouse ? "#12203A" : "#0E1420"
                             border.width: 1
+                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                             border.color: "#1E2A40"
                             Image {
                                 id: rowIcon
@@ -364,6 +368,7 @@ Flickable {
                         height: 44
                         color: on ? "#12203A" : rdArea.containsMouse ? "#0E1420" : "transparent"
                         border.width: on ? 2 : 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: on ? accent.color : "#1E2A40"
                         Text {
                             id: rdText
@@ -452,6 +457,7 @@ Flickable {
                             height: 56
                             color: rrowArea.containsMouse ? "#12203A" : "#0E1420"
                             border.width: 1
+                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                             border.color: on ? accent.color : "#1E2A40"
                             G.CheckSquare {
                                 x: 10
@@ -571,6 +577,7 @@ Flickable {
                         width: 200; height: 124
                         color: "#0E1420"
                         border.width: 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: "#1E2A40"
                         Image {
                             anchors.fill: parent
@@ -593,6 +600,7 @@ Flickable {
                     width: 200; height: 124
                     color: picAddArea.containsMouse ? "#0E1420" : "transparent"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
                     Text {
                         anchors.centerIn: parent
@@ -637,6 +645,7 @@ Flickable {
                         height: 44
                         color: on ? "#12203A" : musArea.containsMouse ? "#0E1420" : "transparent"
                         border.width: on ? 2 : 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: on ? accent.color : "#1E2A40"
                         Text {
                             id: musText
@@ -677,6 +686,7 @@ Flickable {
                         height: 44
                         color: on ? "#12203A" : volArea.containsMouse ? "#0E1420" : "transparent"
                         border.width: on ? 2 : 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: on ? accent.color : "#1E2A40"
                         Text {
                             id: volText

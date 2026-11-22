@@ -8,6 +8,7 @@ Rectangle {
     height: 48
     color: "#12203A"
     border.width: 1
+    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
     border.color: "#1E2A40"
     Light {}
     Text {

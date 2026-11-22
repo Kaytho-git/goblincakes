@@ -315,6 +315,7 @@ Window {
                     height: body.height + 20
                     color: m.out ? (m.failed ? "#3A1418" : accent.color) : "#0E1420"
                     border.width: m.out && !m.failed ? 0 : 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: m.failed ? accent.error : bubbleArea.containsMouse ? "#2A3852" : "#1E2A40"
                     opacity: m.modelData.state === "skickar" ? 0.7 : 1
                     MouseArea { // click on the edge = copy all (the text itself: see below)
@@ -381,6 +382,7 @@ Window {
             height: Math.min(140, Math.max(46, input.contentHeight + 24))
             color: "#0B1018"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: input.activeFocus ? accent.color : "#2A3852"
             Flickable {
                 id: inputFlick
@@ -432,6 +434,7 @@ Window {
             height: 34
             color: "#12203A"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: accent.color
             z: 3
             Text { id: cwNote; anchors.centerIn: parent; text: cw.note; color: "#E6ECF5"; font.family: "IBM Plex Sans"; font.pixelSize: 13 }
@@ -566,6 +569,7 @@ Window {
                     height: 64
                     color: accent.dim
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: accent.color
                     Text {
                         anchors { left: parent.left; leftMargin: 20; right: stagedCancel.left; rightMargin: 20; verticalCenter: parent.verticalCenter }
@@ -601,6 +605,7 @@ Window {
                             height: ordCol.height + 32
                             color: "#0E1420"
                             border.width: 1
+                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                             border.color: ord.modelData.state === "väntar" ? accent.color : "#1E2A40"
                             Column {
                                 id: ordCol
@@ -674,6 +679,7 @@ Window {
                         height: reqCol.height + 36
                         color: "#0E1420"
                         border.width: 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: accent.color
                         Column {
                             id: reqCol
@@ -718,6 +724,7 @@ Window {
                     height: helpCol.height + 40
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: accent.color
                     Column {
                         id: helpCol
@@ -783,6 +790,7 @@ Window {
                             height: 66
                             color: "#0B1018"
                             border.width: 1
+                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                             border.color: "#1E2A40"
                             Column {
                                 anchors { left: parent.left; leftMargin: 18; right: trButton.left; rightMargin: 18; verticalCenter: parent.verticalCenter }
@@ -845,6 +853,7 @@ Window {
                     height: emptyCol.height + 48
                     color: "#0B1018"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
                     Column {
                         id: emptyCol
@@ -881,6 +890,7 @@ Window {
                             height: 186
                             color: hot ? "#12203A" : "#0E1420"
                             border.width: drop.containsDrag || (win.staged.length && cardArea.containsMouse) ? 2 : 1
+                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                             border.color: drop.containsDrag || (win.staged.length && cardArea.containsMouse) ? accent.color : "#1E2A40"
 
                             Rectangle { // the device's own accent colour (another GOBLINCAKES computer)
@@ -1070,6 +1080,7 @@ Window {
                 height: hCol.height + 28
                 color: "#0B1018"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: "#1E2A40"
                 Column {
                     id: hCol
@@ -1173,6 +1184,7 @@ Window {
                         height: 34
                         color: "#07090D"
                         border.width: 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: "#2A3852"
                         Text {
                             anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
@@ -1310,6 +1322,7 @@ Window {
                 height: codeCol.height + 48
                 color: "#0E1420"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: "#1E2A40"
                 MouseArea { anchors.fill: parent }
                 Column {
@@ -1366,6 +1379,7 @@ Window {
                 height: textCol.height + 48
                 color: "#0E1420"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: "#1E2A40"
                 MouseArea { anchors.fill: parent }
                 Column {
@@ -1378,6 +1392,7 @@ Window {
                         height: 150
                         color: "#07090D"
                         border.width: 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: textEdit.activeFocus ? accent.color : "#2A3852"
                         Flickable {
                             id: textFlick
@@ -1435,6 +1450,7 @@ Window {
             height: 40
             color: "#12203A"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: accent.color
             z: 11
             Text {

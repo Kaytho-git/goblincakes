@@ -108,6 +108,7 @@ Item {
                 height: 24
                 color: modelData.on ? "#12203A" : chipArea.containsMouse ? "#0E1420" : "transparent"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: modelData.on ? accent.color : "#1E2A40"
                 Text {
                     id: chipText

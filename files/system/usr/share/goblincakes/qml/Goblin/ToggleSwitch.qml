@@ -12,6 +12,7 @@ Rectangle {
     height: 26
     color: on ? accent.color : "transparent"
     border.width: on ? 0 : 1
+    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
     border.color: "#2A3852"
     opacity: enabledState ? 1 : 0.35
     Behavior on color { enabled: sw.moving; ColorAnimation { duration: 140 } }

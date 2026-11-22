@@ -36,6 +36,7 @@ Item {
         y: 1
         width: Math.max(0, parent.width - 2)
         height: 1
+        antialiasing: true   // a 1-unit line at 90–94 % is < 1 px – without this it can vanish (22 Nov)
         color: Qt.rgba(0.902, 0.925, 0.961, 0.05)
     }
     // The accent line in the top edge under the mouse
@@ -58,6 +59,7 @@ Item {
             height: light.height + 2 * out
             color: "transparent"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: accent.color
             opacity: light.lit ? [0.28, 0.14, 0.06][index] : 0
             Behavior on opacity { enabled: light.moving; NumberAnimation { duration: 160 } }

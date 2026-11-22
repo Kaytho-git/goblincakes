@@ -1,3 +1,4 @@
+2026-11-22  Ramarna i GOBLINCAKES egna fönster ritas hela – på vissa ställen saknades en kant (t.ex. överkanten på dashboardens knappar uppe till vänster). Dashboardens högerspalt går inte längre att rulla några pixlar.
 2026-11-22  Texten i GOBLINCAKES egna fönster har samma storlekar överallt (sex storlekar i stället för tolv) – på några ställen är den lite större än förut, de minsta texterna har blivit läsbara.
 2026-11-22  Lagmätaren maximerad: graferna fyller höjden. Skrivbordsraden i Levande syns bättre över en ljus bakgrundsbild. GoblinAmp hamnar alltid helt på skärmen. GoblinRecorders lista blir bredare i ett stort fönster.
 2026-11-22  GOBLINCAKES egna fönster har nu samma textstorlek överallt och blir lite större på en 1440p-skärm. GoblinShare och GoblinRecorder blir inte längre jättestora när de maximeras – texten växer lite och innehållet ligger mitt på skärmen.

@@ -251,10 +251,9 @@ Window {
         id: fc
         property var frames: []
         property int firstOrder: 0         // where its frames come in the dashboard's opening (G.Rise)
-        readonly property int gap: 16
         // the frames' own heights, PROJEKT left out
-        readonly property real fixed: {
-            let h = Math.max(0, fcRepeater.count - 1) * gap;
+        readonly property real framesHeight: {
+            let h = 0;
             for (let i = 0; i < fcRepeater.count; i++) {
                 const l = fcRepeater.itemAt(i);
                 if (l && l.item && l.modelData !== "projects")
@@ -262,6 +261,12 @@ Window {
             }
             return h;
         }
+        // 16 between the frames – less (down to 6) when that makes them fit, so the column doesn't scroll a few
+        // pixels and cut the last frame's bottom edge (22 Nov, the user). PROJEKT takes the room that is left anyway.
+        readonly property bool hasProjects: frames.indexOf("projects") >= 0
+        readonly property real gap: hasProjects || fcRepeater.count < 2 ? 16
+            : Math.max(6, Math.min(16, (height - framesHeight) / (fcRepeater.count - 1)))
+        readonly property real fixed: framesHeight + Math.max(0, fcRepeater.count - 1) * gap
         contentHeight: fcColumn.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -355,6 +360,7 @@ Window {
                 visible: !img.visible
                 color: "#12203A"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: "#1E2A40"
                 Text {
                     anchors.centerIn: parent
@@ -410,6 +416,7 @@ Window {
         height: 56
         color: on || cardArea.containsMouse ? "#12203A" : "#0E1420"
         border.width: on ? 2 : 1
+        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
         border.color: on ? accent.color : "#1E2A40"
         Column {
             anchors { left: parent.left; leftMargin: 12; right: rightText.left; rightMargin: card.live ? 80 : 8; verticalCenter: parent.verticalCenter }
@@ -573,6 +580,7 @@ Window {
         height: 36
         color: on ? accent.dim : topArea.containsMouse ? "#1A2438" : "transparent"
         border.width: 1
+        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
         border.color: on ? accent.color : warn ? "#F06B6B" : "#1E2A40"
         Glyph {
             anchors.centerIn: parent
@@ -639,6 +647,7 @@ Window {
                         height: 36
                         color: on ? accent.dim : trayArea.containsMouse ? "#1A2438" : "transparent"
                         border.width: 1
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: on ? accent.color : "#1E2A40"
                         Glyph {
                             anchors.centerIn: parent
@@ -713,6 +722,7 @@ Window {
                 height: 44
                 color: chipArea.containsMouse ? accent.dim : "#0E1420"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: index === 0 || chipArea.containsMouse ? accent.color : "#1E2A40"
                 opacity: modelData.min ? 0.6 : 1
                 Row {
@@ -767,6 +777,7 @@ Window {
             height: 44
             color: customizeArea.containsMouse ? "#1A2438" : "transparent"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: "#1E2A40"
             Row {
                 id: customizeRow
@@ -1143,6 +1154,7 @@ Window {
                     height: 30
                     color: win.adding ? accent.dim : addArea.containsMouse ? "#1A2438" : "transparent"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: win.adding || addArea.containsMouse ? accent.color : "#1E2A40"
                     Glyph {
                         anchors.centerIn: parent
@@ -1193,6 +1205,7 @@ Window {
                     height: projFrame.rowHeight
                     color: on || hovered ? "#12203A" : "#0E1420"
                     border.width: on ? 2 : 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: on ? accent.color : "#1E2A40"
                     opacity: modelData.exists ? 1 : 0.5
                     Glyph {
@@ -1462,6 +1475,7 @@ Window {
                     height: csInner.implicitHeight + 20
                     color: win.mid === "cs2" || csArea.containsMouse ? "#12203A" : "#0E1420"
                     border.width: win.mid === "cs2" ? 2 : 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: win.mid === "cs2" ? accent.color : "#1E2A40"
                     Column {
                         id: csInner
@@ -1520,6 +1534,7 @@ Window {
                     height: buildInner.implicitHeight + 20
                     color: win.mid === "builds" || buildArea.containsMouse ? "#12203A" : "#0E1420"
                     border.width: win.mid === "builds" ? 2 : 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: win.mid === "builds" ? accent.color : "#1E2A40"
                     Column {
                         id: buildInner
@@ -1673,6 +1688,7 @@ Window {
             G.Rise { order: leftCol.frames.length; trigger: win.opened }
             color: "#0E1420"
             border.width: 1
+            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
             border.color: "#1E2A40"
             clip: true
 
@@ -1728,6 +1744,7 @@ Window {
                                 height: 38
                                 color: suggestArea.containsMouse ? accent.dim : "#0B1018"
                                 border.width: 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: suggestArea.containsMouse ? accent.color : "#1E2A40"
                                 Text {
                                     id: suggestText
@@ -1938,6 +1955,7 @@ Window {
                             height: 32
                             color: on ? accent.dim : groupArea.containsMouse ? "#1A2438" : "transparent"
                             border.width: 1
+                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                             border.color: on ? accent.color : "#1E2A40"
                             Text {
                                 id: chipText
@@ -1986,6 +2004,7 @@ Window {
                             readonly property bool marked: cell.index === win.sel && search.text !== ""
                             color: (cellArea.containsMouse && !win.living) || marked ? "#12203A" : "transparent"
                             border.width: marked ? 1 : 0
+                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                             border.color: accent.color
                         }
                         AppIcon {
@@ -2472,6 +2491,7 @@ Window {
                     height: Math.min(560, Math.max(420, charView.height))
                     color: "#12203A"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1A2438"
                     Image {
                         anchors.fill: parent
@@ -3256,6 +3276,7 @@ Window {
                         height: 40
                         color: chosen ? "#12203A" : upRowArea.containsMouse ? "#101A2C" : "transparent"
                         border.width: chosen ? 1 : 0
+                        antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                         border.color: accent.color
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#141C2C"; visible: !parent.chosen }
                         Row {
@@ -3373,6 +3394,7 @@ Window {
                     visible: !!win.upRow && !win.upHits
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#1E2A40"
                     Column {
                         anchors { left: parent.left; leftMargin: 16; right: upDetailButtons.left; rightMargin: 16; verticalCenter: parent.verticalCenter }
@@ -3418,6 +3440,7 @@ Window {
                     height: upMenuColumn.implicitHeight + 12
                     color: "#0E1420"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: "#2A3852"
                     function openAt(p, row) {
                         upMenu.row = row;
@@ -3552,6 +3575,7 @@ Window {
                 height: 40
                 color: "#0B1018"
                 border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                 border.color: accent.color
                 Text {
                     id: noteText
@@ -3611,6 +3635,7 @@ Window {
                             height: 10
                             color: parent.on ? accent.color : "transparent"
                             border.width: parent.on ? 0 : 1
+                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                             border.color: "#5C6880"
                         }
                         Text {
@@ -3807,6 +3832,7 @@ Window {
                             height: 84
                             color: "#12203A"
                             border.width: 1
+                            antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                             border.color: "#1E2A40"
                             Glyph {
                                 anchors.centerIn: parent
@@ -3905,6 +3931,7 @@ Window {
                                 color: modelData.main ? (mediaArea.containsMouse ? accent.hover : accent.color)
                                                       : (mediaArea.containsMouse ? "#1A2438" : "transparent")
                                 border.width: modelData.main ? 0 : 1
+                                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                                 border.color: "#1E2A40"
                                 Glyph {
                                     anchors.centerIn: parent
@@ -4107,6 +4134,7 @@ Window {
                     height: 52
                     color: "transparent"
                     border.width: 1
+                    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
                     border.color: win.mid === "apps" ? accent.color : "#1E2A40"
                     Grid {
                         anchors.centerIn: parent

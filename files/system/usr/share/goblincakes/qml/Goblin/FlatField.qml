@@ -20,6 +20,7 @@ Rectangle {
     height: 44
     color: "#07090D"
     border.width: 1
+    antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
     border.color: input.activeFocus ? accent.color : "#2A3852"
     Behavior on border.color { enabled: fieldBox.moving; ColorAnimation { duration: 140 } }
     TextInput {
