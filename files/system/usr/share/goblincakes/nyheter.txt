@@ -1,3 +1,4 @@
+2026-11-22  Flikarna i Config m.fl. lyser och går att klicka bara på själva ordet – musen mellan två flikar tänder inte längre grannen.
 2026-11-22  Dashboard fyller hela skärmen igen (den slutade en bit före höger- och nederkanten)
 2026-11-22  Goblin AI: samtalet och skrivraden går över hela fönstrets bredd igen, som förut.
 2026-11-22  Ramarna i GOBLINCAKES egna fönster ritas hela – på vissa ställen saknades en kant (t.ex. överkanten på dashboardens knappar uppe till vänster). Dashboardens högerspalt går inte längre att rulla några pixlar.

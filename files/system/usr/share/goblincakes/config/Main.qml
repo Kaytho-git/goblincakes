@@ -483,7 +483,7 @@ Window {
             }
         }
 
-        // The tabs scroll sideways when they don't fit, the whole tab is clickable (G.TabBar)
+        // The tabs scroll sideways when they don't fit, the word is clickable (G.TabBar)
         tabs: G.TabBar {
             width: parent.width
             gap: 22   // 32 until Barnläge made the eighth tab (13 Nov)

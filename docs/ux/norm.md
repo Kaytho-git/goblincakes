@@ -89,7 +89,7 @@ Textfärger: `#E6ECF5` (text), `#8B98AD` (sekundär), accent enligt regeln. Seku
 |---|---|
 | Sidmarginal (vänster/höger om sidan) | **48** i fönster ≥ 900 enheter breda, **24** under det (lagmätaren, halv skärm på 1080p med Goblin AI:s sidospalt). GoblinRecorder och GoblinShare har 40 och byter till 48 |
 | Rubriken | logga 64, titel `title`, undertitel `body` sekundär, 32 överst; högergruppen i linje med titelns överkant |
-| Flikraden | höjd 44, mellanrum 24 (Config har 22), klickytan = hela fliken **inklusive** mellanrummet (12 på var sida) |
+| Flikraden | höjd 44, mellanrum 24 (Config har 22), klickytan och markeringen = bara ordet, inte mellanrummet (användaren 22 nov) |
 | Avstånd mellan block i en vy | 32 (avsnitt), 12 (rader/kort i en lista) |
 | Knapp | **44** normal (minst 150 bred, padding 48, `body`), **32** kompakt för verktygsrader och rubrikens högergrupp (minst 96, padding 24, `small`), **28** liten (som i dag). GoblinRecorder/GoblinShare 34 → 32 |
 | Fält | 44 (32 i kompakta rader) |
@@ -117,7 +117,7 @@ Nya komponenter i samma anda som `G.FlatButton`: ett fönster använder dem och 
 | `G.Zoom { win: win; startW; startH }` | räknar `tillväxt`, sätter `contentItem.scale/width/height` (Configs `fitZoom`), exponerar `zoom` | `fitZoom` i Config, `zoom` i GoblinShare/GoblinRecorder, `QT_SCALE_FACTOR` i fyra fönster |
 | `G.Page { maxWidth: 1240 }` | en centrerad yta med sidmarginal och maxbredd, `contentItem`-barn läggs i den | `anchors { left; right; leftMargin: 48 … }` i varje vy |
 | `G.PageHeader { logo; title; subtitle; right: [ … ] }` | logga + titel + undertitel till vänster och högergruppen till höger. **Bryter om**: när det inte får plats på en rad hamnar högergruppen under titeln. `implicitWidth` = det minsta som behövs | rubrikerna i Config, Avinstallera, GoblinShare, GoblinRecorder |
-| `G.TabBar { model; current }` | flikarna enligt 4, rullar i sidled när de inte får plats (pilar/tona ut i kanten, hjulet rullar), hela fliken klickbar | flikraderna i alla fem (även Goblin AI:s) |
+| `G.TabBar { model; current }` | flikarna enligt 4, rullar i sidled när de inte får plats (pilar/tona ut i kanten, hjulet rullar), bara ordet klickbart | flikraderna i alla fem (även Goblin AI:s) |
 | `G.Footer { left; right }` | fotlinje över hela bredden, knappar i sidans kanter | fötterna i Config och Avinstallera |
 | `G.Card` | kort med ram, hover, vald-läge och klick på hela kortet, ikon/monogram, titel, beskrivning med elide och hovringsruta | Configs och Avinstalleras kort, `CardSwitch` |
 | `G.CardGrid { minCardWidth: 300; maxColumns: 4 }` | kolumnregeln i 1 | `floor((w+16)/340)` på tre ställen |
