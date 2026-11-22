@@ -1,3 +1,4 @@
+2026-11-22  Config: stänger du Config mitt i bytet mellan Skrivbord och Dashboard blir bytet ändå klart – förut kunde toppfältet och dockan komma tillbaka medan Meta och resten stod kvar på dashboarden.
 2026-11-22  GoblinShare: hjälp via terminal håller inte längre datorns SSH-server igång hela tiden – den startar när du trycker Be om hjälp och stängs när hjälpen är slut.
 2026-11-22  Goblin AI: Kakan frågar om lov innan hon läser filer med nycklar eller lösenord, och nycklar som syns i det hon kör döljs för henne. Ping och liknande till okända adresser kräver också Tillåt.
 2026-11-22  GoblinShare syns bara på hemnätet. På ett annat nätverk (kafé, hotell, någon annans wifi) pausar den av sig själv – ingen där ser datorn eller kan skicka något – och startar igen hemma. Byter du router: tryck "Det här är mitt hemnät" i GoblinShare.

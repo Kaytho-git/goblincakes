@@ -163,7 +163,7 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
   dashboarden (/usr/share/dbus-1/services/org.goblincakes.dashboard.service, egen enhet
   dbus-:1.x-org.goblincakes.dashboard@N.service) om den inte kör. Meta gör inget → kolla att åtgärden har Meta:
   `busctl --user call org.kde.kglobalaccel /kglobalaccel org.kde.KGlobalAccel shortcut as 4 kwin "GOBLINCAKES Dashboard" KWin "GOBLINCAKES: visa eller göm dashboarden"`
-  (ska ge 16777250) och att startmenyn inte har den; lagas med `/usr/libexec/goblincakes-desktop-layout login`.
+  (ska ge 16777250) och att startmenyn inte har den; lagas med `/usr/libexec/goblincakes-desktop-layout login`. Ett avbrutet byte står som `switching` i desktop-layout.json – `login` gör det klart (Config kör bytet i egen enhet, `systemd-run`).
 - Inställningar: ~/.config/goblincakes/dashboard.json (`views` = vyerna [{name, left, right, mid}], `view` = den som
   visas, `apps` = egna program nederst – saknas den används dockans fästa program). Ändras i GOBLINCAKES Config →
   DASHBOARD (eller knappen Anpassa i dashboarden); dashboarden läser om dem varje gång den visas. Projekten = samma lista som Goblin AI:s PROJEKT → MAPPAR

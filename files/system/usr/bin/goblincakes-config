@@ -595,7 +595,11 @@ class Config(QObject):
             proc.deleteLater()
         proc.readyReadStandardOutput.connect(read)
         proc.finished.connect(finished)
-        proc.start(DESKTOP_LAYOUT, ["set", name])
+        # In a unit of its own (systemd-run): Config closed in the middle of a switch no longer kills it half-way
+        # (22 Nov – Meta and the saved layout stayed on Dashboard). --pipe gives Config its lines while it lives.
+        proc.start("systemd-run", ["--user", "--pipe", "--wait", "--collect", "--quiet",
+                                   f"--unit=goblincakes-desktop-layout-{os.getpid()}-{int(datetime.now().timestamp())}",
+                                   DESKTOP_LAYOUT, "set", name])
 
     @Property(str, notify=desktopLayoutChanged)
     def rowHiding(self):

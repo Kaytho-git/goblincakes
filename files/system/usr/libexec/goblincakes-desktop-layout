@@ -345,6 +345,8 @@ def to_dashboard(state, keep_dock=False):
     # After a new layout version (apply) the dock is the standard one: the saved apps are kept
     if dock and not (keep_dock and state.get("dock")):
         state["dock"] = dock
+    state["switching"] = "dashboard"
+    save(state)   # the dock's apps saved before it goes – an interrupted switch is finished at login
     backup()
     say("Tar bort toppfältet och dockan…")
     had_row = plasma(FIND + 'var n = 0; panels().forEach(function (p) { if (isRow(p)) n++; }); print(n);')
@@ -359,6 +361,7 @@ def to_dashboard(state, keep_dock=False):
            + ("" if had_tray and had_tray.strip() not in ("", "0") else ADD_TRAY))
     state["layout"] = "dashboard"
     meta_dashboard(state)
+    state.pop("switching", None)
     save(state)
     hint()
     start_hidden()
@@ -378,6 +381,8 @@ def to_classic(state):
     if not LAYOUT_JS.exists():
         print(f"Hittar inte {LAYOUT_JS}", file=sys.stderr)
         return 1
+    state["switching"] = "classic"
+    save(state)
     backup()
     say("Lägger tillbaka toppfältet och dockan…")
     dock = state.get("dock") or {}
@@ -402,6 +407,7 @@ def to_classic(state):
     plasma(script)
     state["layout"] = "classic"
     meta_back(state)
+    state.pop("switching", None)
     save(state)
     say("Ordnar systemfältet…")
     trim_tray()
@@ -456,7 +462,28 @@ def open_tray():
     return 0
 
 
+class Quiet:
+    """stdout/stderr that never stops the helper: Config reads them through systemd-run --pipe – closed in the
+    middle of a switch, the writes fail and the switch goes on (22 Nov: Config closed a second after "Skrivbord",
+    the helper died with it – the top bar and the dock came back, Meta and the saved layout stayed on Dashboard)."""
+    def __init__(self, stream):
+        self.stream = stream
+
+    def write(self, text):
+        try:
+            return self.stream.write(text)
+        except (OSError, ValueError):
+            return len(text)
+
+    def flush(self):
+        try:
+            self.stream.flush()
+        except (OSError, ValueError):
+            pass
+
+
 def main(argv):
+    sys.stdout, sys.stderr = Quiet(sys.stdout), Quiet(sys.stderr)
     cmd = argv[1] if len(argv) > 1 else "status"
     state = load()
     if cmd == "status":
@@ -467,6 +494,9 @@ def main(argv):
     if cmd == "apply":
         return to_dashboard(state, keep_dock=True) if current() == "dashboard" else 0
     if cmd == "login":
+        if state.get("switching") in ("dashboard", "classic"):
+            # a switch that was stopped half-way (logged out, killed): finished now, the saved dock kept
+            return to_dashboard(state, keep_dock=True) if state["switching"] == "dashboard" else to_classic(state)
         if current() == "dashboard":
             # the row's height follows the boxes (smaller 11 Nov) – a row made before keeps its old height otherwise
             plasma(FIND + 'panels().forEach(function (p) { if (isRow(p) && p.height !== %d) p.height = %d; });'
@@ -492,6 +522,7 @@ def main(argv):
         state.pop("layout", None)
         state.pop("dock", None)
         state.pop("rowHiding", None)
+        state.pop("switching", None)
         save(state)
         return 0
     print("Använd: goblincakes-desktop-layout status | set dashboard|classic | apply | login | forget | row [hidden|empty] | tray", file=sys.stderr)
