@@ -38,7 +38,7 @@ Item {
             color: tool.on ? "#E6ECF5" : toolArea.containsMouse ? accent.text : tool.dim ? "#5C6880" : "#8B98AD"
             font.family: "IBM Plex Sans"
             font.weight: Font.DemiBold
-            font.pixelSize: 10
+            font.pixelSize: G.Type.meta
             font.letterSpacing: 1
         }
         MouseArea {
@@ -96,7 +96,7 @@ Item {
     FontMetrics {   // the code's character width – wrapped rows start after the line numbers
         id: mono
         font.family: "IBM Plex Mono"
-        font.pixelSize: 12
+        font.pixelSize: G.Type.meta
     }
     Connections {
         target: fileView
@@ -116,7 +116,7 @@ Item {
                 text: fileView.root ? fileView.name : "Ingen mapp"
                 color: "#E6ECF5"
                 font.family: "IBM Plex Mono"
-                font.pixelSize: 11
+                font.pixelSize: G.Type.meta
                 elide: Text.ElideMiddle
                 width: Math.min(implicitWidth, parent.width - branchText.width - 8)
             }
@@ -125,7 +125,7 @@ Item {
                 text: fileView.isGit ? (fileView.branch || "git") + (fileView.changedCount ? " · " + fileView.changedCount + " ändrade" : "") : ""
                 color: "#5C6880"
                 font.family: "IBM Plex Mono"
-                font.pixelSize: 10
+                font.pixelSize: G.Type.meta
                 anchors.baseline: parent.children[0].baseline
             }
         }
@@ -164,7 +164,7 @@ Item {
             text: pane.current
             color: pane.file.mark ? pane.markColour(pane.file.mark) : "#E6ECF5"
             font.family: "IBM Plex Mono"
-            font.pixelSize: 11
+            font.pixelSize: G.Type.meta
             elide: Text.ElideLeft
         }
         Row {
@@ -238,7 +238,7 @@ Item {
                      : row.modelData.mark && row.modelData.mark !== "•" ? pane.markColour(row.modelData.mark)
                      : row.modelData.dir ? "#C7D0DD" : "#E6ECF5"
                 font.family: "IBM Plex Mono"
-                font.pixelSize: 11
+                font.pixelSize: G.Type.meta
                 font.strikeout: row.modelData.mark === "D"
             }
             Text {
@@ -248,7 +248,7 @@ Item {
                 color: row.modelData.mark === "•" ? "#E2C04A" : pane.markColour(row.modelData.mark)
                 font.family: "IBM Plex Mono"
                 font.weight: Font.DemiBold
-                font.pixelSize: 11
+                font.pixelSize: G.Type.meta
             }
             MouseArea {
                 id: rowArea
@@ -268,7 +268,7 @@ Item {
               : pane.onlyChanged ? "Inget ändrat sedan senaste commit." : "Mappen är tom."
         color: "#8B98AD"
         font.family: "IBM Plex Sans"
-        font.pixelSize: 12
+        font.pixelSize: G.Type.small
     }
 
     // ── a file ──
@@ -280,7 +280,7 @@ Item {
         text: pane.file.note || ""
         color: "#8B98AD"
         font.family: "IBM Plex Sans"
-        font.pixelSize: 11
+        font.pixelSize: G.Type.meta
     }
     Flickable {
         id: code
@@ -306,7 +306,7 @@ Item {
             selectionColor: Qt.rgba(accent.color.r, accent.color.g, accent.color.b, 0.4)
             selectedTextColor: "#FFFFFF"
             font.family: "IBM Plex Mono"
-            font.pixelSize: 12
+            font.pixelSize: G.Type.meta
         }
     }
     G.FlatScrollBar { flick: code; margin: 2 }

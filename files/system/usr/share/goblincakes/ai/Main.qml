@@ -80,7 +80,7 @@ Window {
             anchors.centerIn: parent
             color: "#E6ECF5"
             font.family: "IBM Plex Sans"
-            font.pixelSize: 12
+            font.pixelSize: G.Type.small
         }
     }
 
@@ -100,7 +100,7 @@ Window {
             color: parent.tag === "SNABBAST" ? "#8B98AD" : accent.text
             font.family: "Chakra Petch"
             font.weight: Font.DemiBold
-            font.pixelSize: 10
+            font.pixelSize: G.Type.meta
             font.letterSpacing: 1
         }
     }
@@ -124,7 +124,7 @@ Window {
                     color: stepRow.modelData.state === "fel" || stepRow.modelData.state === "stopp" ? accent.errorBright
                          : stepRow.modelData.state === "run" ? accent.text : "#8B98AD"
                     font.family: "IBM Plex Mono"
-                    font.pixelSize: 13
+                    font.pixelSize: G.Type.small
                     SequentialAnimation on opacity {
                         running: stepRow.modelData.state === "run"
                         loops: Animation.Infinite
@@ -142,7 +142,7 @@ Window {
                     maximumLineCount: 2
                     elide: Text.ElideRight
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 13
+                    font.pixelSize: G.Type.small
                 }
             }
         }
@@ -1056,7 +1056,7 @@ Window {
                                             : "enter frågar · ↑ tidigare · tab modell · esc stänger"
                         color: "#5C6880"
                         font.family: "IBM Plex Mono"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.meta
                     }
                 }
 
@@ -1104,7 +1104,7 @@ Window {
                     visible: text !== ""
                     color: accent.errorBright
                     font.family: "IBM Plex Mono"
-                    font.pixelSize: 12
+                    font.pixelSize: G.Type.meta
                 }
                 // What was copied: goes along with the question (× = not)
                 Row {
@@ -1128,7 +1128,7 @@ Window {
                               : "📋  Urklipp följer med: " + (quick.clip.text || "").replace(/\s+/g, " ")
                         color: "#8B98AD"
                         font.family: "IBM Plex Mono"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.small
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
@@ -1163,7 +1163,7 @@ Window {
                             text: "Hämtar modellerna…"
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Repeater {
                             model: quick.picks
@@ -1182,7 +1182,7 @@ Window {
                                     color: qp.chosen ? accent.text : "#E6ECF5"
                                     font.family: "IBM Plex Sans"
                                     font.weight: qp.chosen ? Font.DemiBold : Font.Normal
-                                    font.pixelSize: 14
+                                    font.pixelSize: G.Type.body
                                     ModelTag {
                                         id: qpTag
                                         tag: qp.modelData.tag || ""
@@ -1193,7 +1193,7 @@ Window {
                                         text: qp.modelData.group ? qp.modelData.group + " · " + qp.modelData.note : ""
                                         color: "#8B98AD"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 12
+                                        font.pixelSize: G.Type.small
                                     }
                                 }
                                 MouseArea {
@@ -1283,7 +1283,7 @@ Window {
                               + (simOld.modelData.kind === "avoid" ? "👎 " : simOld.modelData.kind === "solution" ? "🔧 " : "♥ ") + simOld.modelData.lesson
                         color: "#E6ECF5"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.small
                     }
                     Text {
                         width: parent.width
@@ -1291,7 +1291,7 @@ Window {
                         text: "Frågan då: " + simOld.modelData.question
                         color: "#5C6880"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.small
                     }
                     Flow {
                         width: parent.width
@@ -1350,7 +1350,7 @@ Window {
                  : actArea.containsMouse && enabledState ? "#E6ECF5" : "#8B98AD"
             opacity: enabledState ? 1 : 0.4
             font.family: "IBM Plex Mono"
-            font.pixelSize: 13
+            font.pixelSize: G.Type.small
             font.underline: actArea.containsMouse && enabledState
             MouseArea {
                 id: actArea
@@ -1366,7 +1366,7 @@ Window {
             color: "#8B98AD"
             font.family: "Chakra Petch"
             font.weight: Font.DemiBold
-            font.pixelSize: 12
+            font.pixelSize: G.Type.label
             font.letterSpacing: 2
         }
 
@@ -1398,7 +1398,7 @@ Window {
                     color: "#E6ECF5"
                     selectionColor: accent.color
                     font.family: "IBM Plex Mono"
-                    font.pixelSize: 13
+                    font.pixelSize: G.Type.small
                 }
             }
         }
@@ -1427,7 +1427,7 @@ Window {
                     text: panel.mark
                     color: accent.text
                     font.family: "IBM Plex Mono"
-                    font.pixelSize: 13
+                    font.pixelSize: G.Type.label
                 }
                 Text {
                     anchors { left: panelMark.right; leftMargin: 8; right: panelNote.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
@@ -1436,7 +1436,7 @@ Window {
                     color: "#E6ECF5"
                     font.family: "Chakra Petch"
                     font.weight: Font.DemiBold
-                    font.pixelSize: 12
+                    font.pixelSize: G.Type.label
                     font.letterSpacing: 2
                 }
                 Text {
@@ -1445,7 +1445,7 @@ Window {
                     text: panel.note
                     color: panel.noteLink ? (panelNoteArea.containsMouse ? "#E6ECF5" : accent.text) : "#8B98AD"
                     font.family: "IBM Plex Mono"
-                    font.pixelSize: 11
+                    font.pixelSize: G.Type.meta
                     MouseArea {
                         id: panelNoteArea
                         anchors { fill: parent; margins: -6 }
@@ -1475,7 +1475,7 @@ Window {
             color: "#8B98AD"
             font.family: "Chakra Petch"
             font.weight: Font.DemiBold
-            font.pixelSize: 10
+            font.pixelSize: G.Type.meta
             font.letterSpacing: 2
         }
 
@@ -1514,7 +1514,7 @@ Window {
                 elide: Text.ElideRight
                 color: prow.dim ? (prowArea.containsMouse ? accent.text : "#8B98AD") : "#E6ECF5"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: 13
+                font.pixelSize: G.Type.small
             }
             Text {
                 id: prowNote
@@ -1524,7 +1524,7 @@ Window {
                 text: (prow.tag ? "<font color=\"" + accent.text + "\">" + prow.tag + "</font>  " : "") + prow.note
                 color: "#8B98AD"
                 font.family: "IBM Plex Mono"
-                font.pixelSize: 11
+                font.pixelSize: G.Type.meta
             }
             MouseArea {
                 id: prowArea
@@ -1539,7 +1539,7 @@ Window {
                 visible: prow.gear && (prowArea.containsMouse || prowGearArea.containsMouse)
                 text: "⚙"
                 color: prowGearArea.containsMouse ? "#E6ECF5" : "#8B98AD"
-                font.pixelSize: 14
+                font.pixelSize: G.Type.small
                 MouseArea {
                     id: prowGearArea
                     anchors { fill: parent; margins: -6 }
@@ -1636,7 +1636,7 @@ Window {
                             value: kakanLines.lines[index]
                             color: index === 2 && kakanBox.thinking ? accent.text : "#8B98AD"
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 11
+                            font.pixelSize: G.Type.meta
                         }
                     }
                     // Which code runs (448e525 had it under the name; the new layout lost it, 1 Nov)
@@ -1648,7 +1648,7 @@ Window {
                         text: backend.version
                         color: "#5C6880"
                         font.family: "IBM Plex Mono"
-                        font.pixelSize: 10
+                        font.pixelSize: G.Type.meta
                     }
                 }
             }
@@ -1782,7 +1782,7 @@ Window {
                             text: "/" + cmdBoxRow.modelData.name
                             color: accent.text
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.meta
                         }
                         Text {
                             anchors { left: cmdBoxName.right; leftMargin: 8; right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
@@ -1790,7 +1790,7 @@ Window {
                             elide: Text.ElideRight
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.meta
                         }
                         MouseArea {
                             id: cmdBoxArea
@@ -1871,7 +1871,7 @@ Window {
                             text: backend.modelsLoading ? "Hämtar modellerna …" : "Lägg till en tjänst eller lokal AI under Inställningar."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.small
                         }
                     }
                 }
@@ -1946,7 +1946,7 @@ Window {
                                     text: tab.modelData.mark
                                     color: tab.on ? accent.text : "#8B98AD"
                                     font.family: "IBM Plex Mono"
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.label
                                 }
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
@@ -1954,7 +1954,7 @@ Window {
                                     color: tab.on || tabArea.containsMouse ? "#E6ECF5" : "#8B98AD"
                                     font.family: "Chakra Petch"
                                     font.weight: Font.DemiBold
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.label
                                     font.letterSpacing: 2
                                 }
                             }
@@ -1988,7 +1988,7 @@ Window {
                                 text: "%"
                                 color: quotaBox.visible ? accent.text : "#8B98AD"
                                 font.family: "IBM Plex Mono"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.label
                             }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -1996,7 +1996,7 @@ Window {
                                 color: quotaBox.visible || quotaTabArea.containsMouse ? "#E6ECF5" : "#8B98AD"
                                 font.family: "Chakra Petch"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.label
                                 font.letterSpacing: 2
                             }
                         }
@@ -2058,7 +2058,7 @@ Window {
                         text: "svarar nu: <font color=\"" + accent.text + "\">" + win.modelName(backend.model) + "</font>"
                         color: "#8B98AD"
                         font.family: "IBM Plex Mono"
-                        font.pixelSize: 11
+                        font.pixelSize: G.Type.meta
                     }
                     FlatButton {
                         anchors.verticalCenter: parent.verticalCenter
@@ -2209,7 +2209,7 @@ Window {
                                 text: termTab.title
                                 color: termTab.on ? "#E6ECF5" : "#8B98AD"
                                 font.family: "IBM Plex Mono"
-                                font.pixelSize: 11
+                                font.pixelSize: G.Type.meta
                             }
                             MouseArea {
                                 id: termTabArea
@@ -2249,7 +2249,7 @@ Window {
                             text: "+"
                             color: termPlus.containsMouse ? accent.text : "#8B98AD"
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                         }
                         MouseArea {
                             id: termPlus
@@ -2277,7 +2277,7 @@ Window {
                         color: mapToggle.on ? "#E6ECF5" : mapToggleArea.containsMouse ? accent.text : "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.weight: Font.DemiBold
-                        font.pixelSize: 11
+                        font.pixelSize: G.Type.meta
                         font.letterSpacing: 1
                     }
                     Rectangle {
@@ -2319,7 +2319,7 @@ Window {
                         color: zoomRoot.filesOpen ? "#E6ECF5" : filesToggleArea.containsMouse ? accent.text : "#8B98AD"
                         font.family: "IBM Plex Sans"
                         font.weight: Font.DemiBold
-                        font.pixelSize: 11
+                        font.pixelSize: G.Type.meta
                         font.letterSpacing: 1
                     }
                     Rectangle {
@@ -2342,7 +2342,7 @@ Window {
                     text: "ctrl+shift+c/v kopiera/klistra · högerklick · ctrl+shift+t/w ny/stäng"
                     color: "#5C6880"
                     font.family: "IBM Plex Mono"
-                    font.pixelSize: 10
+                    font.pixelSize: G.Type.meta
                 }
                 Rectangle {
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
@@ -2404,7 +2404,7 @@ Window {
                     text: "Inga terminaler öppna"
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 14
+                    font.pixelSize: G.Type.small
                 }
                 FlatButton {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -2419,7 +2419,7 @@ Window {
                 text: "Terminalen gick inte att starta (QtWebEngine saknas?)"
                 color: "#8B98AD"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: 14
+                font.pixelSize: G.Type.small
             }
         }
 
@@ -2478,7 +2478,7 @@ Window {
                         selectionColor: accent.color
                         selectedTextColor: accent.on
                         font.family: "IBM Plex Mono"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.small
                         clip: true
                         onTextChanged: chatsView.query = text
                         Text {
@@ -2538,7 +2538,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: chatRow.active ? Font.DemiBold : Font.Normal
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                         }
                         Text {
                             id: chatWhen
@@ -2546,7 +2546,7 @@ Window {
                             text: chatRow.modelData.when || ""
                             color: "#8B98AD"
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 11
+                            font.pixelSize: G.Type.meta
                         }
                         MouseArea {
                             id: chatArea2
@@ -2582,7 +2582,7 @@ Window {
                 text: chatsView.query ? "Ingen chatt med de orden." : "Inga chattar än."
                 color: "#8B98AD"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: 14
+                font.pixelSize: G.Type.small
             }
         }
 
@@ -2629,7 +2629,7 @@ Window {
                           + "Du kan ändra det när du vill i Inställningar → Skicka vidare."
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 14
+                    font.pixelSize: G.Type.small
                     lineHeight: 1.15
                 }
                 Row {
@@ -2701,7 +2701,7 @@ Window {
                     text: folderMenu.folder.path || ""
                     color: "#5C6880"
                     font.family: "IBM Plex Mono"
-                    font.pixelSize: 10
+                    font.pixelSize: G.Type.meta
                 }
                 PanelRow { height: 36; text: "Öppna i VS Code"; note: "som vanligt"; onClicked: folderMenu.run("code") }
                 PanelRow { visible: hasWeb; height: 36; text: "Claude Code här"; note: "i TERMINAL"; onClicked: folderMenu.here(backend.claudeCommand()) }
@@ -2786,7 +2786,7 @@ Window {
                               : "Fråga vad du vill, be om hjälp med datorn, eller bifoga en textfil som ska rättas. Kommandon körs bara när du trycker Kör."
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body   // running text (norm 3)
                     }
                     Flow {
                         width: parent.width
@@ -2868,14 +2868,14 @@ Window {
                                 color: accent.text
                                 font.family: "Chakra Petch"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.label
                                 font.letterSpacing: 2
                             }
                             G.FadeText {   // Stil: Levande – fades over to what she does next
                                 value: backend.status || "tänker …"
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Mono"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.label
                             }
                         }
                         StepList {
@@ -2933,7 +2933,7 @@ Window {
                             color: msgItem.m.role === "assistant" ? accent.text : msgItem.m.role === "error" ? accent.errorBright : "#E6ECF5"
                             font.family: "Chakra Petch"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.label
                             font.letterSpacing: 2
                         }
                         Text {
@@ -2942,7 +2942,7 @@ Window {
                             text: msgItem.m.time || ""
                             color: "#8B98AD"
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 11
+                            font.pixelSize: G.Type.meta
                         }
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
@@ -2960,7 +2960,7 @@ Window {
                                 text: msgItem.m.service || ""
                                 color: accent.text
                                 font.family: "IBM Plex Mono"
-                                font.pixelSize: 11
+                                font.pixelSize: G.Type.meta
                             }
                         }
                     }
@@ -2983,7 +2983,7 @@ Window {
                                 color: accent.text
                                 font.family: "Chakra Petch"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 11
+                                font.pixelSize: G.Type.meta
                                 font.letterSpacing: 2
                             }
                             TextEdit {
@@ -2996,7 +2996,7 @@ Window {
                                 color: "#B8C2D3"
                                 selectionColor: accent.color
                                 font.family: "IBM Plex Mono"
-                                font.pixelSize: 15
+                                font.pixelSize: G.Type.body
                             }
                             Flow {
                                 visible: !!msgItem.m.images && msgItem.m.images.length > 0
@@ -3024,7 +3024,7 @@ Window {
                                 text: "📎  " + msgItem.m.file
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Mono"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                         }
                     }
@@ -3039,7 +3039,7 @@ Window {
                         wrapMode: Text.WordWrap
                         color: "#E8A0A4"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                     }
 
                     // The answer: text, command cards, new file versions, code
@@ -3064,7 +3064,7 @@ Window {
                                       + stepsBox.steps.reduce((a, s) => a + (s.secs || 0), 0).toLocaleString(Qt.locale("sv_SE"), "f", 1) + " s"
                                 color: stepsArea.containsMouse ? "#E6ECF5" : "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: stepsArea
                                     anchors.fill: parent
@@ -3104,7 +3104,7 @@ Window {
                                     color: "#E6ECF5"
                                     selectionColor: accent.color
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 15
+                                    font.pixelSize: G.Type.body
                                     // web → browser, folder → file manager, goblin-show: → the file selected in its folder
                                     onLinkActivated: link => link.startsWith("goblin-show:")
                                                      ? backend.showInFolder(decodeURIComponent(link.slice(12)))
@@ -3156,7 +3156,7 @@ Window {
                                                 text: "DET HÄR ÄR FEL  ·  enligt " + win.ai
                                                 color: "#5C6880"
                                                 font.family: "IBM Plex Sans"
-                                                font.pixelSize: 11
+                                                font.pixelSize: G.Type.meta
                                                 font.letterSpacing: 1
                                             }
                                             Text {
@@ -3166,7 +3166,7 @@ Window {
                                                 text: segItem.s.wrong || ""
                                                 color: "#C9D3E2"
                                                 font.family: "IBM Plex Sans"
-                                                font.pixelSize: 14
+                                                font.pixelSize: G.Type.small
                                             }
                                         }
                                         Text {
@@ -3174,7 +3174,7 @@ Window {
                                             text: "DET HÄR ÄNDRAS  ·  enligt kommandot"
                                             color: "#5C6880"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 11
+                                            font.pixelSize: G.Type.meta
                                             font.letterSpacing: 1
                                         }
                                         // What the command does in plain Swedish (explain.py); the code only when asked for
@@ -3186,7 +3186,7 @@ Window {
                                             text: segItem.s.explain || ""
                                             color: "#E6ECF5"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 15
+                                            font.pixelSize: G.Type.body
                                             lineHeight: 1.15
                                         }
                                         FlatButton {
@@ -3219,7 +3219,7 @@ Window {
                                                         text: segItem.s.diffFile || ""
                                                         color: "#8B98AD"
                                                         font.family: "IBM Plex Sans"
-                                                        font.pixelSize: 12
+                                                        font.pixelSize: G.Type.small
                                                         bottomPadding: 6
                                                     }
                                                     Repeater {
@@ -3239,7 +3239,7 @@ Window {
                                                                 text: (modelData[0] === " " ? "  " : modelData[0] + " ") + modelData[1]
                                                                 color: modelData[0] === "-" ? "#E8A0A4" : modelData[0] === "+" ? "#A6E3B8" : "#8B98AD"
                                                                 font.family: "IBM Plex Mono"
-                                                                font.pixelSize: 13
+                                                                font.pixelSize: G.Type.small
                                                             }
                                                         }
                                                     }
@@ -3255,7 +3255,7 @@ Window {
                                                 text: "SÅ HÄR SKA DET BLI  ·  enligt " + win.ai
                                                 color: "#5C6880"
                                                 font.family: "IBM Plex Sans"
-                                                font.pixelSize: 11
+                                                font.pixelSize: G.Type.meta
                                                 font.letterSpacing: 1
                                             }
                                             Text {
@@ -3265,7 +3265,7 @@ Window {
                                                 text: segItem.s.result || ""
                                                 color: "#C9D3E2"
                                                 font.family: "IBM Plex Sans"
-                                                font.pixelSize: 14
+                                                font.pixelSize: G.Type.small
                                             }
                                         }
                                         CodeBox {
@@ -3289,7 +3289,7 @@ Window {
                                                 color: "#8B98AD"
                                                 font.family: "IBM Plex Sans"
                                                 font.italic: true
-                                                font.pixelSize: 13
+                                                font.pixelSize: G.Type.small
                                             }
                                             Column {
                                                 visible: ["new", "waiting", "running"].indexOf(segItem.s.state) >= 0
@@ -3299,7 +3299,7 @@ Window {
                                                     text: segItem.s.progress || "Ritar bilden…"
                                                     color: "#E6ECF5"
                                                     font.family: "IBM Plex Sans"
-                                                    font.pixelSize: 14
+                                                    font.pixelSize: G.Type.body
                                                 }
                                                 Rectangle {
                                                     width: Math.min(parent.width, 360)
@@ -3348,7 +3348,7 @@ Window {
                                                 elide: Text.ElideMiddle
                                                 color: "#5C6880"
                                                 font.family: "IBM Plex Sans"
-                                                font.pixelSize: 12
+                                                font.pixelSize: G.Type.small
                                             }
                                             Flow {
                                                 visible: segItem.s.state === "done"
@@ -3374,7 +3374,7 @@ Window {
                                                 text: segItem.s.error || ""
                                                 color: accent.errorBright
                                                 font.family: "IBM Plex Sans"
-                                                font.pixelSize: 13
+                                                font.pixelSize: G.Type.small
                                             }
                                             Row {
                                                 visible: segItem.s.state === "error"
@@ -3401,7 +3401,7 @@ Window {
                                             }
                                             color: "#C9D3E3"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 14
+                                            font.pixelSize: G.Type.body
                                         }
                                         FlatButton {
                                             visible: (segItem.s.type === "memory" || segItem.s.type === "forget")
@@ -3422,7 +3422,7 @@ Window {
                                             color: "#E6ECF5"
                                             font.family: "IBM Plex Sans"
                                             font.weight: Font.DemiBold
-                                            font.pixelSize: 14
+                                            font.pixelSize: G.Type.body
                                         }
                                         Text {
                                             visible: segItem.s.type === "knowledge"
@@ -3432,7 +3432,7 @@ Window {
                                             text: segItem.s.type === "knowledge" ? (segItem.s.facts || "") : ""
                                             color: "#C9D3E3"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 14
+                                            font.pixelSize: G.Type.body
                                         }
                                         Text {
                                             visible: segItem.s.type === "knowledge"
@@ -3442,7 +3442,7 @@ Window {
                                             text: segItem.s.type === "knowledge" ? "Källa: " + (segItem.s.source ? segItem.s.source + " – " : "") + (segItem.s.url || "") : ""
                                             color: knowSrc.containsMouse ? accent.text : "#8B98AD"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                             font.underline: knowSrc.containsMouse
                                             MouseArea {
                                                 id: knowSrc
@@ -3462,7 +3462,7 @@ Window {
                                                   : "Kolla att fakta stämmer med källan (klicka för att öppna den). Inget sparas förrän du trycker Tillåt."
                                             color: segItem.s.state === "error" ? accent.errorBright : "#8B98AD"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                         Row {
                                             visible: segItem.s.type === "knowledge" && (segItem.s.state === "new" || segItem.s.state === "error")
@@ -3500,7 +3500,7 @@ Window {
                                                     + "Tecken: " + (segItem.s.question || segItem.s.problem || "") + "\n" + (segItem.s.lesson || "")
                                             color: "#C9D3E3"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 14
+                                            font.pixelSize: G.Type.body
                                         }
                                         FlatButton {
                                             visible: segItem.s.type === "solved" && segItem.s.state === "saved"
@@ -3528,7 +3528,7 @@ Window {
                                                   : "Skärmbilden är skickad."
                                             color: segItem.s.state === "error" ? accent.errorBright : "#C9D3E3"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 14
+                                            font.pixelSize: G.Type.body
                                         }
                                         Row {
                                             visible: segItem.s.type === "shot" && (segItem.s.state === "new" || segItem.s.state === "error")
@@ -3568,7 +3568,7 @@ Window {
                                                   + ". Det körs inte – sådant gör du och Claude."
                                             color: "#E6ECF5"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 14
+                                            font.pixelSize: G.Type.small
                                         }
 
                                         // Command: Tillåt / Nej (changes) or Kör / Hoppa över (reads, when not run at once), then the output
@@ -3577,7 +3577,7 @@ Window {
                                             text: segItem.s.note || ""
                                             color: "#8B98AD"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                         Row {
                                             visible: segItem.s.type === "command" && segItem.s.state === "new"
@@ -3618,7 +3618,7 @@ Window {
                                                 text: "Kör… " + (segItem.s.started ? Math.max(0, Math.floor(parent.now - segItem.s.started)) + " s" : "")
                                                 color: "#E6ECF5"
                                                 font.family: "IBM Plex Sans"
-                                                font.pixelSize: 14
+                                                font.pixelSize: G.Type.body
                                             }
                                             Rectangle {
                                                 width: Math.min(parent.width, 360)
@@ -3645,7 +3645,7 @@ Window {
                                                   + (segItem.s.level === "change" ? "  ·  ångra under Inställningar → Körda kommandon" : "")
                                             color: "#8B98AD"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                         // A program the card installed: start it from here (it's in the app menu too)
                                         Row {
@@ -3666,7 +3666,7 @@ Window {
                                                 text: "Finns nu också i appmenyn"
                                                 color: "#8B98AD"
                                                 font.family: "IBM Plex Sans"
-                                                font.pixelSize: 13
+                                                font.pixelSize: G.Type.small
                                             }
                                         }
                                         CodeBox {
@@ -3714,7 +3714,7 @@ Window {
                                             text: "Sparad i " + (segItem.s.savedTo || "") + (segItem.s.canOverwrite ? " (den gamla finns kvar som .bak)" : "")
                                             color: "#8B98AD"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
 
                                         FlatButton {
@@ -3746,7 +3746,7 @@ Window {
                                 text: receiptBox.r ? (receiptBox.open ? "▾ " : "▸ ") + "Kvitto: " + receiptBox.r.line : ""
                                 color: receiptArea.containsMouse ? "#E6ECF5" : "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: receiptArea
                                     anchors.fill: parent
@@ -3770,7 +3770,7 @@ Window {
                                         text: receiptRow.modelData.ok ? "✓" : "✗"
                                         color: receiptRow.modelData.ok ? "#8B98AD" : accent.errorBright
                                         font.family: "IBM Plex Mono"
-                                        font.pixelSize: 12
+                                        font.pixelSize: G.Type.meta
                                     }
                                     Text {
                                         width: receiptBox.width - 22
@@ -3780,7 +3780,7 @@ Window {
                                         maximumLineCount: 2
                                         elide: Text.ElideRight
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 12
+                                        font.pixelSize: G.Type.meta
                                     }
                                 }
                             }
@@ -3793,7 +3793,7 @@ Window {
                                        : receiptBox.r.state === "no" ? accent.errorBright : "#E6ECF5"
                                 font.family: "IBM Plex Sans"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                             }
                         }
 
@@ -3805,7 +3805,7 @@ Window {
                                 text: "Kopiera svaret"
                                 color: copyArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: copyArea
                                     anchors.fill: parent
@@ -3818,7 +3818,7 @@ Window {
                                 text: "Spara som…"
                                 color: pdfArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: pdfArea
                                     anchors.fill: parent
@@ -3836,7 +3836,7 @@ Window {
                                 text: "Skicka till ChatGPT"
                                 color: chatgptArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: chatgptArea
                                     anchors.fill: parent
@@ -3852,7 +3852,7 @@ Window {
                                 text: "Skicka till " + backend.helperName
                                 color: claudeArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: claudeArea
                                     anchors.fill: parent
@@ -3866,7 +3866,7 @@ Window {
                                 text: "Fråga " + backend.helperName
                                 color: claudeAskArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: claudeAskArea
                                     anchors.fill: parent
@@ -3881,7 +3881,7 @@ Window {
                                 text: "Laga"
                                 color: lagaArea.containsMouse ? "#E6ECF5" : accent.text
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: lagaArea
                                     anchors.fill: parent
@@ -3896,7 +3896,7 @@ Window {
                                 text: "Försök igen med " + (msgItem.m.reserveName || "")
                                 color: reserveArea.containsMouse ? "#E6ECF5" : accent.text
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: reserveArea
                                     anchors.fill: parent
@@ -3910,7 +3910,7 @@ Window {
                                 text: "Spara som bild"
                                 color: reportArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: reportArea
                                     anchors.fill: parent
@@ -3930,7 +3930,7 @@ Window {
                                 color: state_ !== "" && state_ !== "busy" ? accent.errorBright
                                        : heartArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 HoverHint {
                                     shown: heartArea.containsMouse && heartText.state_ !== "busy"
                                     text: heartText.state_ !== "" ? "Ångra" : "Bra svar – gör likadant nästa gång"
@@ -3952,7 +3952,7 @@ Window {
                                 color: state_ !== "" && state_ !== "busy" ? "#F0883E"
                                        : thumbArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                                 HoverHint {
                                     shown: thumbArea.containsMouse && parent.state_ !== "busy"
                                     text: parent.state_ !== "" ? "Ångra" : "Dåligt svar – gör inte så här igen"
@@ -3995,7 +3995,7 @@ Window {
                                     maximumLength: 400
                                     color: "#E6ECF5"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.small
                                     onAccepted: { backend.thumbDown(msgItem.index, text); text = ""; whyRow.visible = false; }
                                     Keys.onEscapePressed: whyRow.visible = false
                                     Text {
@@ -4004,7 +4004,7 @@ Window {
                                         text: "Vad var fel? (går att hoppa över)"
                                         color: "#5C6880"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                     }
                                 }
                             }
@@ -4032,7 +4032,7 @@ Window {
                                     text: "↻ " + modelData[1]
                                     color: rwArea.containsMouse ? "#E6ECF5" : "#5C6880"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.small
                                     MouseArea {
                                         id: rwArea
                                         anchors.fill: parent
@@ -4052,7 +4052,7 @@ Window {
                                   + "   (ändra eller ta bort under Inställningar → Lärdomar)"
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.small
                         }
                         SimilarBox {
                             width: parent.width
@@ -4165,7 +4165,7 @@ Window {
                                 : "/ kommandon · ↑ tidigare · ctrl+r sök"
                             color: "#5C6880"
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.meta
                         }
                     }
 
@@ -4196,13 +4196,13 @@ Window {
                                   : "📎  " + (win.attachment !== "" ? backend.fileName(win.attachment) : "")
                             color: "#E6ECF5"
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "×"
                             color: "#8B98AD"
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                             MouseArea {
                                 anchors.fill: parent
                                 anchors.margins: -6
@@ -4241,7 +4241,7 @@ Window {
                                 selectionColor: accent.color
                                 selectedTextColor: accent.on
                                 font.family: "IBM Plex Mono"
-                                font.pixelSize: 15
+                                font.pixelSize: G.Type.body
                                 Keys.onPressed: event => win.inputKey(event)
                                 onTextChanged: {
                                     win.popupIndex = 0;
@@ -4327,7 +4327,7 @@ Window {
                             text: cmdRow.modelData.label
                             color: cmdRow.chosen ? accent.text : "#E6ECF5"
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Text {
                             anchors { left: cmdLabel.right; leftMargin: 12; right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
@@ -4335,7 +4335,7 @@ Window {
                             text: cmdRow.modelData.note
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.meta
                         }
                         MouseArea {
                             id: cmdArea
@@ -4390,13 +4390,13 @@ Window {
                                     text: shotItem.modelData.name
                                     color: "#E6ECF5"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 14
+                                    font.pixelSize: G.Type.small
                                 }
                                 Text {
                                     text: shotItem.modelData.note
                                     color: "#8B98AD"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.small
                                 }
                             }
                             MouseArea {
@@ -4452,7 +4452,7 @@ Window {
                         text: "Hämtar modellerna…"
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.small
                     }
                     delegate: Column {
                         id: row
@@ -4468,7 +4468,7 @@ Window {
                             leftPadding: 14
                             topPadding: 12
                             bottomPadding: 4
-                            font.pixelSize: 11
+                            font.pixelSize: G.Type.meta
                         }
                         Rectangle {
                             width: parent.width
@@ -4493,7 +4493,7 @@ Window {
                                         color: row.chosen ? accent.text : "#E6ECF5"
                                         font.family: "IBM Plex Sans"
                                         font.weight: row.chosen ? Font.DemiBold : Font.Normal
-                                        font.pixelSize: 14
+                                        font.pixelSize: G.Type.body
                                     }
                                     ModelTag { id: rowTag; tag: row.modelData.tag || ""; anchors.verticalCenter: parent.verticalCenter }
                                 }
@@ -4503,7 +4503,7 @@ Window {
                                     text: row.modelData.note
                                     color: "#8B98AD"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.small
                                 }
                             }
                             Text {
@@ -4511,7 +4511,7 @@ Window {
                                 anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
                                 text: "✓"
                                 color: accent.text
-                                font.pixelSize: 15
+                                font.pixelSize: G.Type.body
                             }
                             MouseArea {
                                 id: pickArea
@@ -4561,14 +4561,14 @@ Window {
                         color: "#E6ECF5"
                         font.family: "IBM Plex Sans"
                         font.weight: Font.DemiBold
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                     }
                     Text {
                         visible: pick.badge !== ""
                         text: pick.badge
                         color: "#D29922"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 11
+                        font.pixelSize: G.Type.meta
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
@@ -4578,7 +4578,7 @@ Window {
                     text: pick.sub
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 12
+                    font.pixelSize: G.Type.small
                 }
             }
             MouseArea {
@@ -4624,7 +4624,7 @@ Window {
                         text: "Välj vad du vill kunna – ett färdigt mål, några spår eller ditt eget mål med egna ord. Du skriver koden själv; den körs på en avskild övningsdator och kontrolleras automatiskt. Läraren (Goblin AI) förklarar, ger ledtrådar och granskar – men gör inte jobbet åt dig."
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 14
+                        font.pixelSize: G.Type.body
                     }
                     Label { text: "VAD VILL DU KUNNA?" }
                     Flow {
@@ -4664,7 +4664,7 @@ Window {
                         text: "AI-läge = lektionerna är inte skrivna än: läraren lär ut fritt, utan färdiga uppgifter och kontroller."
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.small
                     }
                     Label { text: "ELLER BESKRIV DITT MÅL" }
                     Rectangle {
@@ -4680,14 +4680,14 @@ Window {
                             clip: true
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.small
                             Text {
                                 visible: ownGoal.text === ""
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "T.ex. \"en hemsida där guilden kan anmäla sig till raider\""
                                 color: "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 14
+                                font.pixelSize: G.Type.small
                             }
                         }
                     }
@@ -4711,7 +4711,7 @@ Window {
                         text: "Van = korta sammanfattningar och de svårare uppgifterna. I varje moment kan du också testa dig direkt (\"Jag kan redan det här\") och hoppa över det du kan."
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.small
                     }
                     Label { text: "LÄRAREN" }
                     Row {
@@ -4736,7 +4736,7 @@ Window {
                               : "Svårare frågor kan gå till molntjänsterna (Claude m.fl.) – din kod skickas då dit."
                         color: !win.localStatus.installed && win.pickOrder === "local-only" ? accent.errorBright : "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: G.Type.small
                     }
                     Row {
                         spacing: 10
@@ -4790,7 +4790,7 @@ Window {
                             text: win.course ? win.course.done + " av " + win.course.plan.length + " moment klara · " + win.course.level : ""
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.label
                         }
                         Rectangle {
                             width: parent.width
@@ -4839,7 +4839,7 @@ Window {
                                 color: "#5C6880"
                                 font.family: "Chakra Petch"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 11
+                                font.pixelSize: G.Type.meta
                                 font.letterSpacing: 2
                             }
                             Rectangle {
@@ -4855,7 +4855,7 @@ Window {
                                           + planItem.modelData.title + (planItem.modelData.locked ? "  🔒" : "")
                                     color: planItem.modelData.done ? "#8B98AD" : "#E6ECF5"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.small
                                 }
                                 MouseArea {
                                     id: planArea
@@ -4891,14 +4891,14 @@ Window {
                                   + ": lektionerna är inte skrivna än – fråga läraren, så lär den ut fritt."
                             color: "#D29922"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Text {
                             visible: !win.learnModule || !win.learnModule.id
                             text: win.course && win.course.plan.length ? "Välj ett moment till vänster." : "Det här målet har inga färdiga lektioner än – fråga läraren."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                         }
                         Row {
                             visible: !!(win.learnModule && win.learnModule.id)
@@ -4916,7 +4916,7 @@ Window {
                                 text: "Klar ✓"
                                 color: "#3FB950"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.label
                             }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -4924,7 +4924,7 @@ Window {
                                 text: "Säkerhetsmoment – kan inte hoppas över"
                                 color: "#D29922"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                             }
                         }
                         Text {
@@ -4935,7 +4935,7 @@ Window {
                             text: win.learnModule ? win.learnModule.lesson : ""
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                             lineHeight: 1.2
                             onLinkActivated: link => Qt.openUrlExternally(link)
                         }
@@ -4971,7 +4971,7 @@ Window {
                                         color: taskCard.modelData.done ? "#3FB950" : "#E6ECF5"
                                         font.family: "IBM Plex Sans"
                                         font.weight: Font.DemiBold
-                                        font.pixelSize: 15
+                                        font.pixelSize: G.Type.body
                                     }
                                     Text {
                                         width: parent.width
@@ -4979,7 +4979,7 @@ Window {
                                         text: taskCard.modelData.prompt
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 14
+                                        font.pixelSize: G.Type.body
                                     }
                                     Rectangle {
                                         width: parent.width
@@ -4992,7 +4992,7 @@ Window {
                                             text: taskCard.modelData.file
                                             color: "#5C6880"
                                             font.family: "IBM Plex Mono"
-                                            font.pixelSize: 11
+                                            font.pixelSize: G.Type.meta
                                         }
                                         Flickable {
                                             id: editFlick
@@ -5009,7 +5009,7 @@ Window {
                                                 color: "#E6ECF5"
                                                 selectionColor: accent.color
                                                 font.family: "IBM Plex Mono"
-                                                font.pixelSize: 13
+                                                font.pixelSize: G.Type.small
                                                 tabStopDistance: 4 * fontMetrics.averageCharacterWidth
                                                 FontMetrics { id: fontMetrics; font.family: "IBM Plex Mono"; font.pixelSize: 13 }
                                                 Keys.onTabPressed: event => { insert(cursorPosition, taskCard.modelData.file.endsWith(".gd") ? "\t" : "  "); event.accepted = true; }
@@ -5070,7 +5070,7 @@ Window {
                                         text: win.learnBusyText
                                         color: "#8B98AD"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 12
+                                        font.pixelSize: G.Type.small
                                     }
                                     Text {
                                         visible: !!taskCard.run
@@ -5080,7 +5080,7 @@ Window {
                                         color: taskCard.run && taskCard.run.ok ? "#3FB950" : accent.errorBright
                                         font.family: "IBM Plex Sans"
                                         font.weight: Font.Medium
-                                        font.pixelSize: 14
+                                        font.pixelSize: G.Type.body
                                     }
                                     CodeBox {
                                         visible: !!taskCard.run && (taskCard.run.output || "") !== ""
@@ -5097,7 +5097,7 @@ Window {
                                             text: "Ledtråd " + (index + 1) + ": " + modelData
                                             color: "#D29922"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                     }
                                     Text {
@@ -5107,7 +5107,7 @@ Window {
                                         wrapMode: Text.WordWrap
                                         color: "#8B98AD"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 12
+                                        font.pixelSize: G.Type.small
                                     }
                                     CodeBox {
                                         visible: taskCard.modelData.solution !== ""
@@ -5154,7 +5154,7 @@ Window {
                     text: "Allt här gäller bara chattarna i projektet. Ändringar sparas direkt."
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 14
+                    font.pixelSize: G.Type.body
                 }
 
                 Label { text: "NAMN" }
@@ -5172,7 +5172,7 @@ Window {
                         text: win.project ? win.project.name : ""
                         color: "#E6ECF5"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 15
+                        font.pixelSize: G.Type.body
                         onEditingFinished: if (text.trim() && win.project && text.trim() !== win.project.name)
                             win.editProject(p => { p.name = text.trim(); })
                     }
@@ -5185,7 +5185,7 @@ Window {
                     text: "Det AI:n alltid ska veta i projektet, t.ex. \"WoW Retail, aktuellt API, Lua\" eller \"Ianseo med PHP 8.3 och MariaDB\"."
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 13
+                    font.pixelSize: G.Type.small
                 }
                 Rectangle {
                     width: parent.width
@@ -5208,7 +5208,7 @@ Window {
                             color: "#E6ECF5"
                             selectionColor: accent.color
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                             onActiveFocusChanged: if (!activeFocus && win.project && text !== win.project.instructions)
                                 win.editProject(p => { p.instructions = text; })
                         }
@@ -5240,7 +5240,7 @@ Window {
                                                     : "Bara lokalt kräver lokal AI – installera den under Inställningar → Lokal AI."
                     color: win.localStatus.installed ? "#8B98AD" : accent.errorBright
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 13
+                    font.pixelSize: G.Type.small
                 }
 
                 Label { text: "LOKALA MODELLER"; visible: (win.localStatus.models || []).length > 0 }
@@ -5259,7 +5259,7 @@ Window {
                             text: roleFlow.modelData.name
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         FlatButton {
                             small: true
@@ -5287,7 +5287,7 @@ Window {
                     text: "Följer med varje fråga i projektet (textfiler: kod, anteckningar, dokumentation). Läses om varje gång, så ändringar syns direkt."
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 13
+                    font.pixelSize: G.Type.small
                 }
                 Repeater {
                     model: win.project ? win.project.files : []
@@ -5301,7 +5301,7 @@ Window {
                             text: modelData
                             color: "#E6ECF5"
                             font.family: "IBM Plex Mono"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         FlatButton {
                             small: true
@@ -5336,7 +5336,7 @@ Window {
                         text: "Kräver en Tavily-nyckel (Inställningar). Gäller aldrig Bara lokalt."
                         color: "#8B98AD"
                         font.family: "IBM Plex Sans"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.small
                     }
                 }
 
@@ -5348,7 +5348,7 @@ Window {
                         text: win.project && win.project.folder ? win.project.folder : "Ingen – filkorten frågar var de ska sparas"
                         color: win.project && win.project.folder ? "#E6ECF5" : "#8B98AD"
                         font.family: win.project && win.project.folder ? "IBM Plex Mono" : "IBM Plex Sans"
-                        font.pixelSize: 13
+                        font.pixelSize: G.Type.small
                     }
                     FlatButton {
                         small: true
@@ -5430,7 +5430,7 @@ Window {
                 elide: Text.ElideRight
                 color: "#5C6880"
                 font.family: "IBM Plex Mono"
-                font.pixelSize: 10
+                font.pixelSize: G.Type.meta
             }
         }
 
@@ -5492,7 +5492,7 @@ Window {
                     text: "Goblin AI använder gratisnivåerna hos Gemini och OpenRouter – en gratis nyckel räcker, men fler gör att Goblin AI kan byta när en tjänst har slut på gratisfrågor. Tjänsterna märkta betald (Claude, OpenAI, DeepSeek, Grok, Perplexity, Mistral) kostar per fråga och används bara om du lägger in en nyckel – då före gratistjänsterna. Tjänsterna används i den här ordningen."
                     color: "#8B98AD"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 14
+                    font.pixelSize: G.Type.body
                 }
                 Text {
                     width: parent.width
@@ -5500,7 +5500,7 @@ Window {
                     text: "Obs: på gratisnivåerna får tjänsterna oftast använda frågorna för att förbättra sina AI:er. Skriv inga lösenord eller annat hemligt."
                     color: "#E6ECF5"
                     font.family: "IBM Plex Sans"
-                    font.pixelSize: 14
+                    font.pixelSize: G.Type.small
                 }
 
                 // ── The AI's own name (16 Oct) ──
@@ -5524,7 +5524,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                         }
                         Text {
                             width: parent.width
@@ -5534,7 +5534,7 @@ Window {
                                   : "Ge din AI ett eget namn, så kallar den sig det i alla chattar."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Row {
                             spacing: 10
@@ -5552,7 +5552,7 @@ Window {
                                     maximumLength: 30
                                     color: "#E6ECF5"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.small
                                     onAccepted: { backend.setAiName(text); text = ""; }
                                     Text {
                                         visible: nameInput.text === ""
@@ -5560,7 +5560,7 @@ Window {
                                         text: backend.aiName || "Goblin AI"
                                         color: "#5C6880"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                     }
                                 }
                             }
@@ -5587,7 +5587,7 @@ Window {
                                 text: "Är en"
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: [["hon", "Hon"], ["han", "Han"], ["hen", "Hen"], ["", "Inget valt"]]
@@ -5624,7 +5624,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                         }
                         Row {
                             width: parent.width
@@ -5663,7 +5663,7 @@ Window {
                                       + (backend.aiName || "Goblin AI") + " den – tryck sedan \"Använd som avatar\" under bilden."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                         }
                         Row {
@@ -5681,7 +5681,7 @@ Window {
                                     clip: true
                                     color: "#E6ECF5"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.small
                                     onAccepted: avatarDraw.clicked()
                                     Text {
                                         visible: avatarInput.text === ""
@@ -5689,7 +5689,7 @@ Window {
                                         text: "T.ex. en goblin som bakar cupcakes"
                                         color: "#5C6880"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                     }
                                 }
                             }
@@ -5754,7 +5754,7 @@ Window {
                                           + " arbetar, i stället för texten om vad " + (backend.aiName || "Goblin AI") + " gör."
                                     color: "#8B98AD"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.small
                                 }
                                 Row {
                                     spacing: 10
@@ -5808,7 +5808,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
@@ -5826,7 +5826,7 @@ Window {
                                       + "Minnet skickas med varje fråga – även till tjänster på nätet när de används, så skriv inget hemligt."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: memCard.items
@@ -5842,7 +5842,7 @@ Window {
                                         text: "• " + memRow.modelData.text
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 14
+                                        font.pixelSize: G.Type.small
                                     }
                                     Text {
                                         text: "×"
@@ -5875,7 +5875,7 @@ Window {
                                         maximumLength: 300
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                         onAccepted: if (text.trim() !== "") { backend.addMemory(text); text = ""; }
                                         Text {
                                             visible: memInput.text === ""
@@ -5883,7 +5883,7 @@ Window {
                                             text: "T.ex. Spelar WoW som Goblin på Stormscale (EU)"
                                             color: "#5C6880"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                     }
                                 }
@@ -5933,7 +5933,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
@@ -5953,7 +5953,7 @@ Window {
                                       + "🔧 = kända lösningar: problem som lösts (sparas när du sagt att det fungerar, eller av Claude) – de följer med när samma tecken kommer igen."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Row {
                                 visible: lessonCard.items.length > 1
@@ -5973,7 +5973,7 @@ Window {
                                     }
                                     color: "#8B98AD"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.small
                                 }
                             }
                             Text {
@@ -5981,7 +5981,7 @@ Window {
                                 text: "Inga lärdomar än."
                                 color: "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             // One row per category with lessons – only the opened one shows them
                             Repeater {
@@ -6002,7 +6002,7 @@ Window {
                                         color: catHead.containsMouse ? accent.text : "#E6ECF5"
                                         font.family: "IBM Plex Sans"
                                         font.weight: Font.DemiBold
-                                        font.pixelSize: 14
+                                        font.pixelSize: G.Type.body
                                         MouseArea {
                                             id: catHead
                                             anchors.fill: parent
@@ -6041,14 +6041,14 @@ Window {
                                                       + (lessonRow.modelData.used ? "  ·  använd " + lessonRow.modelData.used + " ggr" : "")
                                                     color: "#5C6880"
                                                     font.family: "IBM Plex Sans"
-                                                    font.pixelSize: 12
+                                                    font.pixelSize: G.Type.small
                                                 }
                                                 // Byt kategori: the choices open under the line
                                                 Text {
                                                     text: lessonCard.choosing === lessonRow.modelData.id ? "▾ Byt kategori" : "▸ Byt kategori"
                                                     color: catSwitch.containsMouse ? accent.text : "#5C6880"
                                                     font.family: "IBM Plex Sans"
-                                                    font.pixelSize: 12
+                                                    font.pixelSize: G.Type.small
                                                     MouseArea {
                                                         id: catSwitch
                                                         anchors.fill: parent
@@ -6079,7 +6079,7 @@ Window {
                                                                 text: catChoice.modelData.name
                                                                 color: catChoice.current ? accent.on : "#E6ECF5"
                                                                 font.family: "IBM Plex Sans"
-                                                                font.pixelSize: 12
+                                                                font.pixelSize: G.Type.small
                                                             }
                                                             MouseArea {
                                                                 id: catChoiceArea
@@ -6111,7 +6111,7 @@ Window {
                                                             selectByMouse: true
                                                             color: "#E6ECF5"
                                                             font.family: "IBM Plex Sans"
-                                                            font.pixelSize: 14
+                                                            font.pixelSize: G.Type.small
                                                             Keys.onReturnPressed: event => { focus = false; event.accepted = true; }
                                                             onActiveFocusChanged: if (!activeFocus && text.trim() !== "" && text !== lessonRow.modelData.lesson)
                                                                                       backend.editLesson(lessonRow.modelData.id, text)
@@ -6173,7 +6173,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
@@ -6192,7 +6192,7 @@ Window {
                                       + "Nekade förslag föreslås inte igen. Delas av alla chattar."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             FlatButton {
                                 small: true
@@ -6204,7 +6204,7 @@ Window {
                                 text: "Inget sparat än."
                                 color: "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: knowCard.items
@@ -6224,7 +6224,7 @@ Window {
                                                   + (knowRow.modelData.updated ? "  ·  " + knowRow.modelData.updated : "")
                                             color: knowHead.containsMouse ? accent.text : "#E6ECF5"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 14
+                                            font.pixelSize: G.Type.small
                                             MouseArea {
                                                 id: knowHead
                                                 anchors.fill: parent
@@ -6256,7 +6256,7 @@ Window {
                                             text: "Ta bort hela ämnet?"
                                             color: "#C9D3E3"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                         FlatButton {
                                             small: true
@@ -6288,7 +6288,7 @@ Window {
                                                     text: entryRow.modelData.facts
                                                     color: "#C9D3E3"
                                                     font.family: "IBM Plex Sans"
-                                                    font.pixelSize: 13
+                                                    font.pixelSize: G.Type.small
                                                 }
                                                 Text {
                                                     width: parent.width
@@ -6299,7 +6299,7 @@ Window {
                                                           : "Skrivet för hand"
                                                     color: entrySrc.containsMouse ? accent.text : "#5C6880"
                                                     font.family: "IBM Plex Sans"
-                                                    font.pixelSize: 12
+                                                    font.pixelSize: G.Type.small
                                                     font.underline: entrySrc.containsMouse && !!entryRow.modelData.url
                                                     MouseArea {
                                                         id: entrySrc
@@ -6321,7 +6321,7 @@ Window {
                                 color: knowDen.containsMouse ? accent.text : "#8B98AD"
                                 font.family: "IBM Plex Sans"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                                 MouseArea {
                                     id: knowDen
                                     anchors.fill: parent
@@ -6349,12 +6349,12 @@ Window {
                                             text: denRow.modelData.title + "  ·  " + denRow.modelData.date + "  ·  " + denRow.modelData.url
                                             color: "#5C6880"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 12
+                                            font.pixelSize: G.Type.small
                                         }
                                         Text {
                                             text: "×"
                                             color: denX.containsMouse ? accent.errorBright : "#8B98AD"
-                                            font.pixelSize: 16
+                                            font.pixelSize: G.Type.body
                                             MouseArea {
                                                 id: denX
                                                 anchors.fill: parent
@@ -6404,7 +6404,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
@@ -6422,7 +6422,7 @@ Window {
                                       + "och gamla värden, så att de går att ångra här. Sådant som inte går att ångra (radera för gott, formatera diskar, byta system …) körs aldrig."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Item {
                                 width: autorunRow.width
@@ -6442,14 +6442,14 @@ Window {
                                             visible: backend.autorun
                                             text: "✓"
                                             color: accent.on
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                     }
                                     Text {
                                         text: "Kör kommandon som bara läser direkt (av = du trycker Kör på varje)"
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 14
+                                        font.pixelSize: G.Type.body
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                 }
@@ -6464,7 +6464,7 @@ Window {
                                 text: "Inget kört än."
                                 color: "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: cmdLogCard.items.slice(0, cmdLogCard.shown)
@@ -6482,7 +6482,7 @@ Window {
                                               + (logRow.e.undone ? "  ·  ångrat " + logRow.e.undone : "")
                                         color: logRow.e.exit && logRow.e.exit !== 0 ? "#E8A0A4" : "#5C6880"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 12
+                                        font.pixelSize: G.Type.meta
                                     }
                                     Text {
                                         width: parent.width
@@ -6492,7 +6492,7 @@ Window {
                                         text: logRow.e.code
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Mono"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                     }
                                     Text {
                                         visible: !!logRow.e.hint && !logRow.e.undone
@@ -6501,7 +6501,7 @@ Window {
                                         text: "Ångra: " + (logRow.e.hint || "")
                                         color: "#8B98AD"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 12
+                                        font.pixelSize: G.Type.meta
                                     }
                                     // Ångra: shows what will run first, then "Ångra nu" runs it (that click is the Tillåt)
                                     Text {
@@ -6511,7 +6511,7 @@ Window {
                                         text: logRow.e.undo || ""
                                         color: "#8B98AD"
                                         font.family: "IBM Plex Mono"
-                                        font.pixelSize: 12
+                                        font.pixelSize: G.Type.meta
                                     }
                                     Row {
                                         visible: !!logRow.e.undo && !logRow.e.undone
@@ -6547,7 +6547,7 @@ Window {
                                         text: logRow.e.undo_out || ""
                                         color: "#5C6880"
                                         font.family: "IBM Plex Mono"
-                                        font.pixelSize: 12
+                                        font.pixelSize: G.Type.meta
                                     }
                                 }
                             }
@@ -6585,7 +6585,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
@@ -6602,7 +6602,7 @@ Window {
                                 text: (backend.aiName || "Goblin AI") + " använder dem själv när frågan behöver det. Verktygen som har ett eget /kommando (t.ex. /wiki, /wcl, /sök) står under KOMMANDON."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: ownToolsCard.items
@@ -6616,7 +6616,7 @@ Window {
                                         color: accent.text
                                         font.family: "IBM Plex Sans"
                                         font.weight: Font.DemiBold
-                                        font.pixelSize: 14
+                                        font.pixelSize: G.Type.body
                                     }
                                     Text {
                                         width: parent.width
@@ -6624,7 +6624,7 @@ Window {
                                         text: ownToolRow.modelData.text
                                         color: "#8B98AD"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                     }
                                 }
                             }
@@ -6658,7 +6658,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
@@ -6676,14 +6676,14 @@ Window {
                                       + "Verktyg som bara läser körs direkt, de som ändrar något ger ett Tillåt-kort. Slå bara på de verktyg du behöver – varje verktyg tar plats i den lokala AI:ns minne."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Text {
                                 visible: backend.mcpBusy
                                 text: "Startar servern och hämtar verktygen …"
                                 color: accent.text
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: mcpCard.items
@@ -6714,7 +6714,7 @@ Window {
                                                         visible: !mcpRow.s.off
                                                         text: "✓"
                                                         color: accent.on
-                                                        font.pixelSize: 13
+                                                        font.pixelSize: G.Type.small
                                                     }
                                                 }
                                                 Text {
@@ -6722,7 +6722,7 @@ Window {
                                                     color: "#E6ECF5"
                                                     font.family: "IBM Plex Sans"
                                                     font.weight: Font.DemiBold
-                                                    font.pixelSize: 14
+                                                    font.pixelSize: G.Type.body
                                                     anchors.verticalCenter: parent.verticalCenter
                                                 }
                                             }
@@ -6750,7 +6750,7 @@ Window {
                                         text: mcpRow.s.where + (mcpRow.s.when ? "  ·  verktygen hämtade " + mcpRow.s.when : mcpRow.s.error ? "  ·  gick inte: " + mcpRow.s.error : "  ·  verktygen hämtas vid nästa fråga")
                                         color: "#5C6880"
                                         font.family: "IBM Plex Mono"
-                                        font.pixelSize: 12
+                                        font.pixelSize: G.Type.meta
                                     }
                                     Repeater {
                                         model: mcpRow.s.tools
@@ -6776,7 +6776,7 @@ Window {
                                                         visible: mcpTool.modelData.on
                                                         text: "✓"
                                                         color: accent.on
-                                                        font.pixelSize: 11
+                                                        font.pixelSize: G.Type.meta
                                                     }
                                                 }
                                                 Text {
@@ -6785,7 +6785,7 @@ Window {
                                                     text: mcpTool.modelData.name + (mcpTool.modelData.readonly ? "" : "  (Tillåt)") + "  –  " + mcpTool.modelData.description
                                                     color: mcpTool.modelData.on ? "#E6ECF5" : "#8B98AD"
                                                     font.family: "IBM Plex Sans"
-                                                    font.pixelSize: 13
+                                                    font.pixelSize: G.Type.small
                                                 }
                                             }
                                             MouseArea {
@@ -6804,7 +6804,7 @@ Window {
                                 text: "GitHub (GitHubs officiella server, bara läsning): byggen, commits, filer och issues i dina repon. Skapa en token med bara läsrätt (Fine-grained: Contents, Issues, Actions, Metadata – Read-only) och klistra in den."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Row {
                                 visible: !mcpCard.hasGithub
@@ -6828,7 +6828,7 @@ Window {
                                         clip: true
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Mono"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                         onAccepted: { backend.addGithub(text); text = ""; }
                                         Text {
                                             visible: githubInput.text === ""
@@ -6836,7 +6836,7 @@ Window {
                                             text: "Klistra in GitHub-token här"
                                             color: "#5C6880"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                     }
                                 }
@@ -6855,7 +6855,7 @@ Window {
                                 text: "Webbläsaren (Microsofts Playwright-server): en egen webbläsare i en container, utan dina inloggningar – " + win.ai + " kan öppna sidor, klicka och fylla i. Öppna och läsa går direkt, klicka och skriva kräver Tillåt. Hämtar ca 1 GB första gången."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             FlatButton {
                                 visible: !mcpCard.hasBrowser
@@ -6871,7 +6871,7 @@ Window {
                                 text: "Annan server: klistra in raden ur serverns README (\"namn\": {\"command\": \"docker\", …} – docker blir podman) och tryck Lägg till, eller skriv in den i mcp.json. Den går att använda direkt. Ta bara servrar från kända avsändare."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Rectangle {
                                 width: parent.width
@@ -6886,7 +6886,7 @@ Window {
                                     color: "#E6ECF5"
                                     selectByMouse: true
                                     font.family: "IBM Plex Mono"
-                                    font.pixelSize: 12
+                                    font.pixelSize: G.Type.meta
                                     Text {
                                         visible: mcpPaste.text === ""
                                         text: "\"namn\": { \"command\": \"podman\", \"args\": [\"run\", \"-i\", \"--rm\", \"…\"] }"
@@ -6937,7 +6937,7 @@ Window {
                             text: "Hämtar modellerna…"
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 12
+                            font.pixelSize: G.Type.small
                         }
                         Flow {
                             width: parent.width
@@ -6974,7 +6974,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
@@ -6992,7 +6992,7 @@ Window {
                                       + "t.ex. Ducks: \"Senaste om Anaheim Ducks: ställning, senaste och nästa match\". Skriv länkar i instruktionen så läses de sidorna när du trycker. Välj en modell som kan söka på nätet (en tjänst i molnet med Tavily-nyckel)."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: dailyCard.items
@@ -7013,7 +7013,7 @@ Window {
                                             textFormat: Text.StyledText
                                             color: "#E6ECF5"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 14
+                                            font.pixelSize: G.Type.body
                                         }
                                         FlatButton {
                                             id: modelChip
@@ -7058,7 +7058,7 @@ Window {
                                         maximumLength: 20
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                         KeyNavigation.tab: dailyInput
                                         Text {
                                             visible: dailyName.text === ""
@@ -7066,7 +7066,7 @@ Window {
                                             text: "Namn, t.ex. Ducks"
                                             color: "#5C6880"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                     }
                                 }
@@ -7084,7 +7084,7 @@ Window {
                                         maximumLength: 300
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                         onAccepted: dailyAdd.clicked()
                                         Text {
                                             visible: dailyInput.text === ""
@@ -7092,7 +7092,7 @@ Window {
                                             text: "Instruktion, t.ex. Senaste om Anaheim Ducks"
                                             color: "#5C6880"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                     }
                                 }
@@ -7150,7 +7150,7 @@ Window {
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 16
+                                font.pixelSize: G.Type.body
                             }
                             Text {
                                 text: !win.local.status ? "Kollar…"
@@ -7160,7 +7160,7 @@ Window {
                                     : (win.localStatus.running ? "Igång" : "Startar…") + " · Ollama " + win.localStatus.version
                                 color: win.localStatus.installed ? accent.text : "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                         }
                         Text {
@@ -7170,7 +7170,7 @@ Window {
                                   + "Snabbast med ett grafikkort med mycket minne. Modellen släpps ur grafikminnet när ett spel startar."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Text {
                             width: parent.width
@@ -7185,7 +7185,7 @@ Window {
                             }
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
 
                         // Where it goes: when installing or moving
@@ -7201,7 +7201,7 @@ Window {
                                       + "en annan disk än systemets går bra (den måste vara inkopplad när du använder lokal AI)."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: win.local.places || []
@@ -7223,7 +7223,7 @@ Window {
                                               + (placeRow.modelData.writable ? "" : "  ·  går inte att skriva till")
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                     }
                                     MouseArea {
                                         id: placeArea
@@ -7287,7 +7287,7 @@ Window {
                                          "cloud-only": "Bara molnet: den lokala AI:n används inte." })[win.localStatus.order] || ""
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
 
                             Label { text: "VAD VILL DU ANVÄNDA DEN TILL?" }
@@ -7298,7 +7298,7 @@ Window {
                                       + "(det som inte ryms läggs i vanliga minnet) – inget går sönder, så välj det du vill."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: (win.local.recommend || {}).roles || []
@@ -7327,7 +7327,7 @@ Window {
                                             color: "#E6ECF5"
                                             font.family: "IBM Plex Sans"
                                             font.weight: Font.DemiBold
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                         Text {
                                             width: parent.width
@@ -7335,7 +7335,7 @@ Window {
                                             text: roleRow.modelData.text
                                             color: "#8B98AD"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 12
+                                            font.pixelSize: G.Type.small
                                         }
                                         Flow {
                                             width: parent.width
@@ -7362,7 +7362,7 @@ Window {
                                                               + (roleRow.have.indexOf(optionChip.modelData.model) >= 0 ? " ✓" : "")
                                                         color: optionChip.modelData.recommended ? accent.text : "#E6ECF5"
                                                         font.family: "IBM Plex Sans"
-                                                        font.pixelSize: 12
+                                                        font.pixelSize: G.Type.small
                                                     }
                                                     MouseArea {
                                                         id: optionArea
@@ -7385,7 +7385,7 @@ Window {
                                             visible: text !== ""
                                             color: "#5C6880"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 12
+                                            font.pixelSize: G.Type.small
                                         }
                                         FlatButton {
                                             small: true
@@ -7418,7 +7418,7 @@ Window {
                                               + ((win.localStatus.loaded || []).indexOf(modelData.name) >= 0 ? "  ·  i minnet" : "")
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Mono"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                     }
                                     FlatButton {
                                         small: true
@@ -7443,7 +7443,7 @@ Window {
                                         clip: true
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Mono"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                         onAccepted: if (text.trim()) { backend.pullLocal(text, ""); text = ""; }
                                         Text {
                                             visible: otherModel.text === ""
@@ -7451,7 +7451,7 @@ Window {
                                             text: "Annan modell, t.ex. gpt-oss:20b"
                                             color: "#5C6880"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                     }
                                 }
@@ -7479,7 +7479,7 @@ Window {
                                       + (((win.local.recommend || {}).roles || [{}])[0].model || "gemma4") + ")."
                                 color: "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                             }
                         }
 
@@ -7503,7 +7503,7 @@ Window {
                             text: win.localText
                             color: win.localError ? accent.errorBright : "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                     }
                 }
@@ -7529,7 +7529,7 @@ Window {
                             color: "#E6ECF5"
                             font.family: "IBM Plex Sans"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 16
+                            font.pixelSize: G.Type.body
                         }
                         Text {
                             width: parent.width
@@ -7540,7 +7540,7 @@ Window {
                                   + "använder kvoten på ditt abonnemang. Bara \"skicka\" sparar rapporten utan att starta något."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Flow {
                             width: parent.width
@@ -7570,7 +7570,7 @@ Window {
                                   + "Aldrig i ett Privat-projekt, aldrig bilder."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Flow {
                             visible: !!win.reserveInfo.helper
@@ -7596,7 +7596,7 @@ Window {
                             text: "Ett annat AI-program i terminalen: skriv kommandot – uppgiften läggs sist. Tomt = inget eget."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Row {
                             spacing: 10
@@ -7613,7 +7613,7 @@ Window {
                                     clip: true
                                     color: "#E6ECF5"
                                     font.family: "IBM Plex Mono"
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.small
                                     text: win.helpers.command || ""
                                     onAccepted: backend.setHelperCommand(text)
                                     Text {
@@ -7622,7 +7622,7 @@ Window {
                                         text: "t.ex. aider"
                                         color: "#5C6880"
                                         font.family: "IBM Plex Mono"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                     }
                                 }
                             }
@@ -7660,7 +7660,7 @@ Window {
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 16
+                                font.pixelSize: G.Type.body
                             }
                             Text {
                                 text: win.imageStatus.installed === undefined ? "Kollar…"
@@ -7670,7 +7670,7 @@ Window {
                                     : win.imageStatus.model ? "Ritar på din dator" : "Ingen modell hämtad"
                                 color: win.imageStatus.installed ? accent.text : "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                         }
                         Text {
@@ -7682,7 +7682,7 @@ Window {
                                   + "Inget ligger kvar i grafikminnet mellan bilderna. Bilderna sparas i Bilder/Goblin AI (eller projektets mapp)."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
 
                         Column {
@@ -7696,7 +7696,7 @@ Window {
                                 text: "Programmet tar 40 MB, en bildmodell 7–15 GB."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: win.local.places || []
@@ -7716,7 +7716,7 @@ Window {
                                         text: imagePlaceRow.modelData.label + "  ·  " + win.gb(imagePlaceRow.modelData.free) + " ledigt"
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Sans"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                     }
                                     MouseArea {
                                         id: imagePlaceArea
@@ -7750,7 +7750,7 @@ Window {
                                       + "på din dator (det som inte ryms läggs i vanliga minnet) – inget går sönder, så välj det du vill."
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Repeater {
                                 model: win.imageStatus.models || []
@@ -7781,7 +7781,7 @@ Window {
                                             color: "#E6ECF5"
                                             font.family: "IBM Plex Sans"
                                             font.weight: Font.DemiBold
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                         Text {
                                             width: parent.width
@@ -7789,7 +7789,7 @@ Window {
                                             text: imageModelRow.modelData.text
                                             color: "#8B98AD"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 12
+                                            font.pixelSize: G.Type.small
                                         }
                                         Flow {
                                             width: parent.width
@@ -7815,7 +7815,7 @@ Window {
                                                               + (variantChip.modelData.file === imageModelRow.modelData.file && imageModelRow.modelData.ready ? " ✓" : "")
                                                         color: variantChip.modelData.recommended ? accent.text : "#E6ECF5"
                                                         font.family: "IBM Plex Sans"
-                                                        font.pixelSize: 12
+                                                        font.pixelSize: G.Type.small
                                                     }
                                                     MouseArea {
                                                         id: variantArea
@@ -7876,7 +7876,7 @@ Window {
                                 text: "Plats: " + (win.imageStatus.dir || "") + " · stable-diffusion.cpp " + (win.imageStatus.version || "")
                                 color: "#5C6880"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: G.Type.small
                             }
                         }
 
@@ -7899,7 +7899,7 @@ Window {
                             text: win.imageText
                             color: win.imageError ? accent.errorBright : "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                     }
                 }
@@ -7929,7 +7929,7 @@ Window {
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
                                 font.weight: Font.DemiBold
-                                font.pixelSize: 16
+                                font.pixelSize: G.Type.body
                             }
                             Text {
                                 text: win.voiceStatus.installed === undefined ? "Kollar…"
@@ -7937,7 +7937,7 @@ Window {
                                     : win.voiceStatus.running ? "Igång – håll F8 och prata" : "Installerad men inte igång"
                                 color: win.voiceStatus.installed ? accent.text : "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                         }
                         Text {
@@ -7950,7 +7950,7 @@ Window {
                                   + "inget skickas iväg."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Flow {
                             width: parent.width
@@ -7984,7 +7984,7 @@ Window {
                                 text: "Tar bort taligenkänningen och rösterna (~1 GB). Det inlärda finns kvar."
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             FlatButton {
                                 small: true
@@ -8006,7 +8006,7 @@ Window {
                                     + " ihåg det hon hörde och spelar rätt direkt nästa gång."
                             color: "#8B98AD"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                         Repeater {
                             model: win.voiceStatus.learned || []
@@ -8028,7 +8028,7 @@ Window {
                                           + (learnedRow.modelData.n > 1 ? "   · " + learnedRow.modelData.n + " gånger" : "")
                                     color: "#E6ECF5"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.small
                                 }
                                 FlatButton {
                                     id: forgetBtn
@@ -8046,7 +8046,7 @@ Window {
                             text: win.voiceText
                             color: win.voiceError ? accent.errorBright : "#E6ECF5"
                             font.family: "IBM Plex Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.small
                         }
                     }
                 }
@@ -8080,13 +8080,13 @@ Window {
                                     color: "#E6ECF5"
                                     font.family: "IBM Plex Sans"
                                     font.weight: Font.DemiBold
-                                    font.pixelSize: 16
+                                    font.pixelSize: G.Type.body
                                 }
                                 Text {
                                     text: prov.modelData.hasKey ? "Inställd" : "Inte inställd"
                                     color: prov.modelData.hasKey ? accent.text : "#8B98AD"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 13
+                                    font.pixelSize: G.Type.small
                                 }
                             }
                             Text {
@@ -8095,7 +8095,7 @@ Window {
                                 text: prov.modelData.how
                                 color: "#8B98AD"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                             Row {
                                 spacing: 10
@@ -8118,7 +8118,7 @@ Window {
                                         clip: true
                                         color: "#E6ECF5"
                                         font.family: "IBM Plex Mono"
-                                        font.pixelSize: 13
+                                        font.pixelSize: G.Type.small
                                         onAccepted: backend.setKey(prov.modelData.id, text)
                                         Text {
                                             visible: keyInput.text === ""
@@ -8126,7 +8126,7 @@ Window {
                                             text: "Klistra in nyckeln här"
                                             color: "#5C6880"
                                             font.family: "IBM Plex Sans"
-                                            font.pixelSize: 13
+                                            font.pixelSize: G.Type.small
                                         }
                                     }
                                 }
@@ -8149,7 +8149,7 @@ Window {
                                 text: win.keyResults[prov.modelData.id] || ""
                                 color: "#E6ECF5"
                                 font.family: "IBM Plex Sans"
-                                font.pixelSize: 13
+                                font.pixelSize: G.Type.small
                             }
                         }
                     }
@@ -8209,14 +8209,14 @@ Window {
                             color: "#E6ECF5"
                             font.family: "Chakra Petch"
                             font.weight: Font.DemiBold
-                            font.pixelSize: 13
+                            font.pixelSize: G.Type.label
                             font.letterSpacing: 2
                         }
                         Text {
                             anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
                             text: "✕"
                             color: quotaClose.containsMouse ? "#E6ECF5" : "#8B98AD"
-                            font.pixelSize: 14
+                            font.pixelSize: G.Type.body
                             MouseArea {
                                 id: quotaClose
                                 anchors { fill: parent; margins: -8 }
@@ -8249,7 +8249,7 @@ Window {
                                     text: quotaItem.modelData.name + (quotaItem.modelData.plan ? "  ·  " + quotaItem.modelData.plan : "")
                                     color: "#E6ECF5"
                                     font.family: "IBM Plex Sans"
-                                    font.pixelSize: 14
+                                    font.pixelSize: G.Type.small
                                 }
                                 Text {
                                     anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
@@ -8257,7 +8257,7 @@ Window {
                                     text: quotaItem.modelData.error || ""
                                     color: "#8B98AD"
                                     font.family: "IBM Plex Mono"
-                                    font.pixelSize: 11
+                                    font.pixelSize: G.Type.meta
                                 }
                             }
                             Repeater {
@@ -8277,14 +8277,14 @@ Window {
                                                   + (quotaRow.modelData.resets ? "  ·  " + quotaBox.resetText(quotaRow.modelData.resets) : "")
                                             color: "#8B98AD"
                                             font.family: "IBM Plex Mono"
-                                            font.pixelSize: 11
+                                            font.pixelSize: G.Type.meta
                                         }
                                         G.Count {   // Stil: Levande – counts to the new number
                                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                             value: quotaRow.modelData.percent; suffix: "%"
                                             color: quotaRow.modelData.percent >= 90 ? accent.errorBright : "#E6ECF5"
                                             font.family: "IBM Plex Mono"
-                                            font.pixelSize: 12
+                                            font.pixelSize: G.Type.meta
                                         }
                                     }
                                     Rectangle {
@@ -8312,7 +8312,7 @@ Window {
                                     text: "ERBJUDANDE  ·  " + modelData.text
                                     color: accent.text
                                     font.family: "IBM Plex Mono"
-                                    font.pixelSize: 11
+                                    font.pixelSize: G.Type.meta
                                 }
                             }
                         }
@@ -8348,7 +8348,7 @@ Window {
                 text: toast.text
                 color: "#E6ECF5"
                 font.family: "IBM Plex Sans"
-                font.pixelSize: 13
+                font.pixelSize: G.Type.small
             }
             Timer {
                 id: hideTimer
