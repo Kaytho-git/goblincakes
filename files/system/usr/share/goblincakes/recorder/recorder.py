@@ -1646,6 +1646,23 @@ def _deg(u, v):
     return math.degrees(math.acos(max(-1.0, min(1.0, u[0] * v[0] + u[1] * v[1] + u[2] * v[2]))))
 
 
+def cs2_awpy_prune():
+    """Keeps the newest release, and for each map the newest release that has it as its backup (22 Nov, the user:
+    "spara äldre versionen som backup … byt ut dom när det kommer ny version"); the rest goes (~100–140 MB each)."""
+    versions = sorted((d for d in AWPY_DIR.iterdir() if d.is_dir() and d.name.isdigit()), key=lambda d: int(d.name)) \
+        if AWPY_DIR.is_dir() else []
+    keep, seen = set(versions[-1:]), set()
+    for d in reversed(versions):
+        maps = {m.stem for m in (d / "geometry").glob("*.mesh")}
+        if maps - seen:
+            keep.add(d)
+        seen |= maps
+    for d in versions:
+        if d not in keep:
+            shutil.rmtree(d, ignore_errors=True)
+    return sorted(d.name for d in keep)
+
+
 def cs2_map_mesh(map_name):
     """awpy's collision geometry for the map (a download the first time), or None."""
     os.environ["AWPY_DATA_DIR"] = str(AWPY_DIR)
@@ -1659,9 +1676,18 @@ def cs2_map_mesh(map_name):
                 return data.mesh_path(map_name, version=int(data.latest_version()))
             except (OSError, ValueError):
                 pass
+            finally:
+                cs2_awpy_prune()
         return data.mesh_path(map_name)
     except (OSError, ValueError, FileNotFoundError):
-        return None
+        pass
+    # Not in the newest release: the newest one we have that has it (22 Nov – awpy-data's releases from 19 Nov
+    # have no de_inferno; Inferno hasn't changed in years, the user: "den har inte ändrats på många år")
+    for version in reversed(data.local_versions()):
+        mesh = AWPY_DIR / version / "geometry" / f"{map_name}.mesh"
+        if mesh.is_file():
+            return mesh
+    return None
 
 
 
@@ -2279,14 +2305,21 @@ def cs2_demo_recheck(meta_path):
     raw["map"] = raw.get("map") or data.get("map", "")
     a = cs2_demo_analyse(raw, me)
     mine = dict(data.get("demoStats") or a["stats"])
+    aim = {}
     try:
         aim = cs2_demo_aim(dem, raw, a, me)
         mine.update({k: aim.get(k) for k in SUSPECT_KEYS})
     except Exception:  # noqa: BLE001 – no map geometry: the others' numbers still count
         pass
+    # read when the map's walls were missing (Inferno after 19 Nov): your TTD, sikte, shots as a normal read gives them
+    fill = mine.get("cp") is None and aim.get("cp") is not None
+    if fill:
+        mine.update(aim)
     players = cs2_demo_players(dem, raw, me, mine)
     data = json.loads(meta_path.read_text())  # again: the service may have written meanwhile
     data["demoPlayers"] = players
+    if fill and data.get("demoStats"):
+        data["demoStats"].update(aim)
     meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
     cs2_history_add([data])
     flagged = [f"{p['name']} ({p['suspect']})" for p in players if p.get("suspect") in ("medel", "hög")]
