@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -623,6 +624,11 @@ def cd_text(c):
 
 def wcl_pull(query=""):
     r = recorder()
+    table = re.search(r"(?:tabell|table)\s*:\s*(.+)$", query, re.I)
+    if table:  # like an ability: the link may come before or after
+        link = re.compile(r"\S*warcraftlogs\.com/reports/\S+|\b[A-Za-z0-9]{16}\b")
+        links = " ".join(link.findall(table.group(1)))
+        return wcl_table(r, f"{query[:table.start()]} {links}".strip(), " ".join(link.sub(" ", table.group(1)).split()))
     ability = re.search(r"(?:förmåga|formaga|ability|mekanik)\s*:?\s*(.+)$", query, re.I)
     if ability:  # the link may come before or after the name
         link = re.compile(r"\S*warcraftlogs\.com/reports/\S+|\b[A-Za-z0-9]{16}\b")
@@ -736,10 +742,13 @@ def pull_text(rep, fight, player, data, stats, compact=False):
     out += defensive_text(fight, data, stats, deaths[:limit], where, compact)
     players = stats.get("players") or []
     if players:
-        out.append("\nSpelarna (roll – spec klass – DPS – HPS – dödsfall" + (" – parse" if stats.get("ranked") else "") + "):")
+        # With words, not bare numbers between dashes (22 Nov: qwen3.5 read Schjoo's 352 DPS as 352 k and
+        # Razerharanir's 932 HPS as "932 k, störst healer", and left out the tanks)
+        out.append("\nSpelarna (DPS = skada gjord per sekund, HPS = healing per sekund – inte skada tagen):")
         for p in players:
-            parse = f" – {p['parse']:.0f}" if p.get("parse") is not None else ""
-            out.append(f"- {p['name']} – {p['role']} – {p['spec']} {p['class']} – {short(p['dps'])} – {short(p['hps'])} – {p['deaths']}{parse}")
+            parse = f" · parse {p['parse']:.0f}" if p.get("parse") is not None else ""
+            out.append(f"- {p['name']} ({ROLE_WORD.get(p['role'], p['role'])}, {p['spec']} {p['class']}): DPS {short(p['dps'])} · HPS {short(p['hps'])}"
+                       f" · dödsfall {p['deaths']}{parse}")
     if len(same) > 1:
         out.append(f"\nAlla pulls på {fight['name']} i rapporten (nr – resultat – tid):")
         for i, f in enumerate(same, 1):
@@ -1008,6 +1017,167 @@ def wcl_ability(r, boss_query, wanted):
             out.append(f"\nSkada på {enemies[0]['name']} under hela pullen: "
                        + ", ".join(f"{w} {short(v)}" for w, v in done[:20]))
     return "\n".join(out)
+
+
+# `<boss> tabell: <vad> [spelare: X] [tid: 3:24-3:29]` (22 Nov, the user: "Kakan kan hämta det som bes om" – "vem tog
+# mest skada?" wasn't in the pull's data, and the whole log (~175 000 events a pull) doesn't fit her memory, so
+# Warcraft Logs adds it up and she asks for the table she needs). The order matters: "skada tagen" before "skada".
+TABLE_KINDS = (
+    (r"skada\s*tagen|tagen\s*skada|tog\s*skada|damage\s*taken|\btaken\b", "DamageTaken", "skada tagen"),
+    (r"skada|damage|\bdps\b", "DamageDone", "skada gjord"),
+    (r"heal|läkning|lakning|\bhps\b", "Healing", "healing"),
+    (r"debuff", "Debuffs", "debuffar"),
+    (r"buff", "Buffs", "buffar"),
+    (r"interrupt|kick|avbr", "Interrupts", "interrupts"),
+    (r"dispel", "Dispels", "dispels"),
+    (r"död|dod|death", "Deaths", "dödsfall"),
+    (r"cast", "Casts", "casts"),
+)
+TABLE_ROWS = 20
+ROLE_WORD = {"tanks": "tank", "healers": "healer"}
+_tables = {}  # (report, fight, end, kind, player, start, end) → the table: a pull that has ended doesn't change
+
+
+def table_request(text):
+    """"skada tagen spelare: Tuborayray tid: 3:24-3:29" → (kind, label, player, (start ms, end ms) or None)."""
+    tid = re.search(r"\btid\s*:?\s*(\d+):(\d\d)\s*[-–]\s*(\d+):(\d\d)", text, re.I)
+    window = None
+    if tid:
+        a, b, c, d = (int(x) for x in tid.groups())
+        window = ((a * 60 + b) * 1000, (c * 60 + d) * 1000)
+        text = text[:tid.start()] + text[tid.end():]
+    who = re.search(r"\bspelare\s*:?\s*(.+?)\s*$", text, re.I)
+    player = who.group(1).strip(" \"'.,") if who else ""
+    what = text[:who.start()] if who else text
+    kind = next(((k, label) for pattern, k, label in TABLE_KINDS if re.search(pattern, what, re.I)), None)
+    if not kind:
+        raise ToolError("okänd tabell – välj en av: " + ", ".join(label for _, _, label in TABLE_KINDS)
+                        + " (+ `spelare: <namn>` och/eller `tid: m:ss-m:ss`)")
+    return kind[0], kind[1], player, window
+
+
+def wcl_table(r, boss_query, request):
+    """One of Warcraft Logs' tables for a pull – per player, or one player's per ability; a time window if asked."""
+    kind, label, wanted, window = table_request(request)
+    try:
+        rep, fight, _ = find_fight(r, boss_query or "senaste")
+        code = rep["code"]
+        _, actors = report_names(r, code)
+        players = {a["name"]: a for a in actors.values() if a.get("type") == "Player"}
+        player = None
+        if wanted:
+            fold = lambda s: "".join(c for c in unicodedata.normalize("NFKD", s.casefold())  # noqa: E731
+                                     if not unicodedata.combining(c))  # "Drow" = Drõw, "akii" = Akíí
+            player = next((a for n, a in players.items() if fold(n) == fold(wanted)), None)
+            start_of = [a for n, a in players.items() if fold(n).startswith(fold(wanted))]
+            player = player or (start_of[0] if len(start_of) == 1 else None)  # "Tubo" = Tuborayray
+            if not player:
+                near = difflib.get_close_matches(wanted, list(players), n=6, cutoff=0.5)
+                raise ToolError(f"ingen spelare som heter \"{wanted}\" i rapporten"
+                                + (f" – menade du: {', '.join(near)}?" if near else f" (spelarna: {', '.join(sorted(players))})"))
+        start, end = fight["startTime"], fight["endTime"]
+        if window:
+            start, end = start + window[0], min(end, start + window[1])
+            if end <= start:
+                raise ToolError(f"tiden ligger utanför pullen (den är {mmss(fight['endTime'] - fight['startTime'])} lång)")
+        key = (code, fight["id"], fight["endTime"], kind, player and player["id"], start, end)
+        if key not in _tables:
+            args = f"dataType: {kind}, fightIDs:$f, startTime:$s, endTime:$e"
+            if kind in ("DamageTaken", "Debuffs"):
+                args += ", hostilityType: Friendlies"
+            if kind in ("DamageTaken", "DamageDone", "Healing", "Casts"):
+                args += ", viewBy: " + ("Ability" if player else "Source")
+            if player and kind not in ("Interrupts", "Dispels", "Deaths"):
+                args += f", sourceID: {int(player['id'])}"
+            got = r.wcl_query("query($c:String,$f:[Int],$s:Float,$e:Float){ reportData { report(code:$c) {"
+                              f" t: table({args}) roles: playerDetails(fightIDs:$f) }} }} }}",
+                              {"c": code, "f": [fight["id"]], "s": start, "e": end})["reportData"]["report"]
+            if len(_tables) > 60:
+                _tables.clear()
+            _tables[key] = ((got.get("t") or {}).get("data") or {}, (got.get("roles") or {}).get("data") or {})
+        data, roles = _tables[key]
+    except ToolError:
+        raise
+    except Exception as e:  # noqa: BLE001 – the API or the network
+        raise api_error(e) from None
+    role = {}
+    for group, name in (("tanks", "tank"), ("healers", "healer"), ("dps", "dps")):
+        for p in (roles.get("playerDetails") or {}).get(group) or []:
+            role[p.get("name")] = name
+    who = lambda n: f"{n} ({role[n]})" if n in role else n  # noqa: E731
+    span = (f", {mmss(window[0])}–{mmss(min(window[1], fight['endTime'] - fight['startTime']))} in i pullen"
+            if window else ", hela pullen")
+    same = [f for f in rep["fights"] if f["encounterID"] == fight["encounterID"]]
+    out = [f"Warcraft Logs-tabell: {fight['name']}, pull {same.index(fight) + 1} av {len(same)} "
+           f"({'KILL' if fight.get('kill') else 'wipe'}, {mmss(fight['endTime'] - fight['startTime'])} lång) – {label}"
+           f"{' för ' + who(player['name']) if player else ' – hela raiden, per buff/debuff' if kind in ('Buffs', 'Debuffs') else ' i ordning' if kind == 'Deaths' else ' per spelare'}{span}.",
+           f"Länk: https://www.warcraftlogs.com/reports/{code}#fight={fight['id']}"]
+    rows = table_rows(kind, data, player, who, fight)
+    if not rows:
+        return "\n".join(out + ["Inget i den här tabellen" + (" för spelaren" if player else "") + " (prova en annan tid eller tabell)."])
+    out += rows[:TABLE_ROWS]
+    if len(rows) > TABLE_ROWS:
+        out.append(f"… och {len(rows) - TABLE_ROWS} rader till.")
+    return "\n".join(out)
+
+
+def table_rows(kind, data, player, who, fight):
+    """The table as lines with words – 18 Nov/22 Nov: bare numbers between dashes were read in the wrong column."""
+    entries = data.get("entries") or []
+    if player and kind in ("DamageTaken", "DamageDone", "Healing", "Casts"):
+        merged = {}  # one player's: the same name (and source) twice = one row
+        for e in entries:
+            k = (e.get("name"), e.get("actorName") if kind == "DamageTaken" else None)
+            m = merged.setdefault(k, {**e, "total": 0, "hitCount": 0, "tickCount": 0})
+            for f in ("total", "hitCount", "tickCount"):
+                m[f] += e.get(f) or 0
+        entries = list(merged.values())
+    entries = sorted(entries, key=lambda e: -(e.get("total") or 0))
+    noun = {"DamageTaken": "skada tagen", "DamageDone": "skada gjord", "Healing": "healing", "Casts": "casts"}.get(kind)
+    if kind in ("DamageTaken", "DamageDone", "Healing", "Casts"):
+        num = (lambda v: f"{v:.0f}") if kind == "Casts" else short
+        out = []
+        for e in entries:
+            if player:  # one player's, per ability – what hit them / what they did, and from whom
+                hits = (e.get("hitCount") or 0) + (e.get("tickCount") or 0)
+                src = f" (från {e['actorName']})" if kind == "DamageTaken" and e.get("actorName") else ""
+                out.append(f"- {e.get('name', '?')}{src} – {noun} {num(e.get('total'))}"
+                           + (f" – {hits} träffar" if hits and kind != "Casts" else ""))
+            else:
+                merged = {}  # the same name twice (Lava Burst, Death Strike – two spell ids) = one
+                for a in e.get("abilities") or []:
+                    merged[a.get("name", "?")] = merged.get(a.get("name", "?"), 0) + (a.get("total") or 0)
+                top = [{"name": n, "total": v} for n, v in sorted(merged.items(), key=lambda kv: -kv[1])[:3]]
+                over = f" (overheal {short(e['overheal'])})" if kind == "Healing" and e.get("overheal") else ""
+                out.append(f"- {who(e.get('name', '?'))} – {noun} {num(e.get('total'))}{over}"
+                           + (" – mest: " + ", ".join(f"{a['name']} {num(a.get('total'))}" for a in top) if top else ""))
+        return out
+    if kind in ("Buffs", "Debuffs"):
+        auras = sorted(data.get("auras") or [], key=lambda a: -(a.get("totalUptime") or 0))
+        length = max(1, fight["endTime"] - fight["startTime"])
+        return [f"- {a.get('name', '?')} – uppe {mmss(a.get('totalUptime') or 0)} ({100 * (a.get('totalUptime') or 0) / length:.0f} % av pullen)"
+                f" – {a.get('totalUses') or 0} gånger" for a in auras]
+    if kind in ("Interrupts", "Dispels"):
+        groups = []
+        for e in entries:
+            groups += e.get("entries") if isinstance(e.get("entries"), list) else [e]
+        per, out = {}, []
+        for g in groups:
+            for d in g.get("details") or []:
+                if player and d.get("name") != player["name"]:
+                    continue
+                per[d.get("name")] = per.get(d.get("name"), 0) + (d.get("total") or 0)
+            if kind == "Interrupts" and not player:
+                out.append(f"- fiendens {g.get('name', '?')}: påbörjad {g.get('spellsBegun', 0)} gånger, avbruten "
+                           f"{g.get('spellsInterrupted', 0)}, gick igenom {g.get('spellsCompleted', 0)}")
+        word = "interrupts (kicks)" if kind == "Interrupts" else "dispels"
+        return [f"- {who(n)} – {word} {v}" for n, v in sorted(per.items(), key=lambda kv: -kv[1])] + out
+    if kind == "Deaths":
+        deaths = sorted(data.get("entries") or [], key=lambda d: d.get("timestamp", 0))
+        return [f"- {mmss(d.get('timestamp', 0) - fight['startTime'])} {who(d.get('name', '?'))} – dog av "
+                f"{(d.get('killingBlow') or {}).get('name') or '?'}" for d in deaths
+                if not player or d.get("name") == player["name"]]
+    return []
 
 
 def _v(x):

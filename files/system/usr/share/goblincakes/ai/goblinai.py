@@ -22,6 +22,7 @@ import sys
 import tempfile
 import threading
 import time
+import unicodedata
 from datetime import date, datetime
 import urllib.error
 import urllib.parse
@@ -860,7 +861,14 @@ Frågar användaren om en viss förmåga, mekanik eller fiende ("vilka körde co
 `Ula'tek förmåga: Venomous Heart` (+ länken om du har den). Då får du varje gång den kom: vem som
 fick den, skadan av den, skadan på fienden, vem som dog och alla cooldowns runt den – även
 skade-cooldowns. Står namnet fel får du förslag – be då igen med rätt namn. Behöver du både alla
-bossar och en förmåga: be om dem efter varandra, ett block i taget."""
+bossar och en förmåga: be om dem efter varandra, ett block i taget.
+
+Saknas det du behöver i pullens data, be om en tabell ur loggen: `<boss> tabell: <vad>` (+ länken om du har
+den), och lägg till `spelare: <namn>` för en spelare (då per förmåga) och/eller `tid: m:ss-m:ss` (tid in i
+pullen). <vad> = skada tagen, skada gjord, healing, casts, buffar, debuffar, interrupts, dispels eller dödsfall.
+Exempel: "vem tog mest skada?" → `Ula'tek tabell: skada tagen`; "vad träffade Tuborayray innan hen dog 3:29?"
+→ `Ula'tek tabell: skada tagen spelare: Tuborayray tid: 3:19-3:29`; "hur många kicks hade Eyrea?" →
+`Ula'tek tabell: interrupts spelare: Eyrea`."""
 
 WCL_GUIDE = """
 Regler för svaret (viktigt):
@@ -877,6 +885,9 @@ Regler för svaret (viktigt):
   wipe. Frågar användaren varför ni dog eller wipade och pullen är en kill: nämn att de tidigare pullsen var
   wipes och be om en av dem (`<boss> pull N`) om användaren vill veta varför ni wipade.
 - Rollen (tank/healer/dps) står i datan – kalla ingen tank som inte står som tank.
+- "Tog skada" = skada tagen (det spelaren fick), "gjorde skada" = skada gjord (DPS). Är det oklart vilket som
+  menas: svara med båda. Skada tagen per spelare står inte i pullens data – hämta den själv med verktyget
+  warcraftlogs (`<boss> tabell: skada tagen`) innan du svarar. Be aldrig användaren hämta något – du gör det.
 Var konkret och vänlig – häng inte ut någon. Användarens karaktär står i datan."""
 
 KNOWLEDGE_PROMPT = """
@@ -1789,17 +1800,20 @@ def tools_for(keys, project, messages):
         every = isinstance(asked, str) and re.search(r"\b(?:alla|varje|samtliga)\b.{0,25}\bboss", asked, re.I)
 
         def wcl(q):  # the user asked for every boss but the AI forgot to say so → all of them anyway
-            forced = every and not re.search(r"\bpull\s*\d|förmåga|formaga|ability|mekanik", q, re.I)
+            forced = every and not re.search(r"\bpull\s*\d|förmåga|formaga|ability|mekanik|tabell|table", q, re.I)
             return wow_tools().wcl_pull(("alla " if forced else "") + q), []
         tools["warcraftlogs"] = tool(
             "Hämtar pullen från Warcraft Logs", WCL_PROMPT, WCL_GUIDE, wcl, "warcraftlogs",
             "När användaren frågar vad som hände i en pull, wipe, kill eller raidkväll (\"varför wipade vi?\", \"vem "
             "dog först?\", \"hur gick Kith'ix?\", \"hur gick nyckeln?\", en förmåga eller mekanik): dödsfall, skadan raiden tog, "
             "cooldowns med tider, interrupts, dispels, defensiver vid dödsfall och stora smällar, CC per spelare och alla "
-            "spelare med DPS/HPS från Warcraft Logs. Inte användarens egen parse "
+            "spelare med DPS/HPS från Warcraft Logs – och tabeller ur loggen (skada tagen/gjord, healing, casts, buffar, "
+            "per spelare eller för en tid). Inte användarens egen parse "
             "eller senaste boss (då wowstats). En ny länk = hämta igen.",
             "`senaste`, en boss (`Kith'ix`), `Kith'ix pull 3`, `senaste nyckeln` (Mythic+), en länk till rapporten; `alla` (+ länken) = varje boss i "
-            "rapporten; en förmåga/mekanik/fiende: `<boss> förmåga: <namn>` (t.ex. `Ula'tek förmåga: Venomous Heart`)")
+            "rapporten; en förmåga/mekanik/fiende: `<boss> förmåga: <namn>` (t.ex. `Ula'tek förmåga: Venomous Heart`); en tabell "
+            "ur loggen: `<boss> tabell: <skada tagen|skada gjord|healing|casts|buffar|debuffar|interrupts|dispels|dödsfall>` "
+            "+ ev. `spelare: <namn>` och `tid: m:ss-m:ss` (t.ex. `Ula'tek tabell: skada tagen`)")
     if ("sök" in tools or "wiki" in tools) and not report_only(messages):
         # Kakans kunskapsminne (18 Nov): a card under the answer, saved only when the user presses Tillåt
         tools["kunskap"] = tool("Föreslår att spara i kunskapsminnet", KUNSKAP_PROMPT, KUNSKAP_GUIDE, kunskap_run, "kunskap",
@@ -2594,7 +2608,33 @@ def own_fight(question, tools, messages=None):
 # A follow-up about the pull itself – only these words fetch it again (the user 22 Nov: a new topic like "när gick
 # senaste OS i bågskytte?" shouldn't get Ula'tek's log with "svara utifrån det här")
 PULL_WORDS = re.compile(r"skada|\bdog\b|\bdö|död|dps|\bheal|helad|läkning|defensiv|cooldown|\bcds?\b|interrupt|\bkick"
-                        r"|\bcc\b|\bstun|wipe|\bkill|\btank|\blust|bloodlust|heroism|\bförst|\bsist|\bvem\b", re.I)
+                        r"|\bcc\b|\bstun|wipe|\bkill|\btank|\blust|bloodlust|heroism|\bförst|\bsist|\bvem\b|dispel|buff|\bcast"
+                        r"|träffade|träffad", re.I)
+# A question that needs one of the log's tables (22 Nov) → `tabell: <vad>`, fetched with the pull (own_table)
+TABLE_Q = ((r"(?:tog|tagit|fick|får|fått)\b.{0,20}skada|skada\s+(?:\w+\s+)?(?:tog|fick|tagit|fått)\b|skada\s*tagen|damage\s*taken|träffade|träffad", "skada tagen"),
+           (r"\bkick|interrupt|avbr[öo]t", "interrupts"), (r"dispel", "dispels"),
+           (r"healade|healat|\bhealing|mest\s+heal|\bhps\b", "healing"), (r"debuff", "debuffar"), (r"\bbuff", "buffar"),
+           (r"\bcast", "casts"))
+
+
+def own_table(question, pull):
+    """`skada tagen spelare: Tuborayray` for "vad träffade Tuborayray?" – the table the question needs, with a player
+    named in it (or "jag/mig" = the user's character), from the players in the pull's text – or ""."""
+    if not isinstance(question, str):
+        return ""
+    low = question[:600].casefold()
+    spec = next((s for pattern, s in TABLE_Q if re.search(pattern, low)), "")
+    if not spec:
+        return ""
+    fold = lambda s: "".join(c for c in unicodedata.normalize("NFKD", s.casefold()) if not unicodedata.combining(c))  # noqa: E731
+    names = re.findall(r"^- (\S+) \((?:tank|healer|dps)\b", pull, re.M)
+    who = next((n for n in names if re.search(r"\b" + re.escape(fold(n)) + r"\b", fold(low))), "")
+    me = re.search(r"Användarens karaktär: (\S+)", pull)
+    if not who and me and re.search(r"\b(?:jag|mig|min|mina)\b", low):
+        who = me.group(1)
+    return spec + (f" spelare: {who}" if who else "")
+
+
 WCL_LINK = re.compile(r"https://www\.warcraftlogs\.com/reports/[A-Za-z0-9]{16}(?:#fight=\d+)?")
 
 
@@ -2650,6 +2690,12 @@ BROKEN = re.compile(r"\b(?:syns|visas|hörs|startar|fungerar|funkar|går|öppnas
 # The AI says it will look but doesn't (and asks "vill du att jag ska leta upp det?") – sent back once
 PROMISE = re.compile(r"\b(?:låt mig|jag (?:ska |kan |får )?(?:kolla|kollar|kontrollera|kontrollerar|titta|tittar|leta|letar|"
                      r"läsa|läser)\b|vill du att jag (?:ska )?(?:kolla|kontrollera|titta|leta|läsa))", re.I)
+
+
+# Offering to fetch instead of fetching (22 Nov): "Vill du att jag ska hämta den informationen?", "kan du fråga efter
+# **"tabell: skada tagen"**", "behöver jag hämta en tabell"
+OFFER_FETCH = re.compile(r"vill du att jag (?:ska )?hämta|ska jag hämta|behöver jag (?:att )?hämta|jag kan hämta"
+                         r"|(?:fråga|be) (?:efter|om) \W{0,4}(?:`|\*\*|\")?\W{0,3}(?:[\w' ]{0,30})tabell", re.I)
 
 
 # "Skriv ett peppmeddelande till min raidgrupp" is a text to write, not a question about the raids (25 Oct:
@@ -3436,6 +3482,20 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             text = ""
             if notice:
                 notice(f"{name} gick inte: {e}")
+        spec = own_table(asked.get("content"), text) if text and tool == "warcraftlogs" else ""
+        if spec:
+            # 22 Nov: qwen3.5 knew the table was needed but asked the user ("Vill du att jag ska hämta den?") twice
+            steps.start(f"{name}: {query} tabell: {spec}", tool=tool)
+            try:
+                extra, _ = tools[tool]["run"](f"{query} tabell: {spec}")
+                steps.done()
+                LAST.tools.append((tool, f"{query} tabell: {spec}"))
+                # first: the table the question is about (22 Nov: last, after the pull, "kicks" was read off the
+                # big hits – "4 kicks (stora smällar)")
+                text = (f"TABELLEN FRÅGAN GÄLLER (svara på frågan med den):\n{extra}\n\n"
+                        f"Pullens övriga data (bakgrund):\n{text}")
+            except Exception as e:  # noqa: BLE001 – the pull alone, she may ask for the table herself
+                steps.done("fel", e)
         if text:
             seen.append(text)
             used += 1
@@ -3446,8 +3506,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              f"[Goblin AI hämtade det här åt dig innan du svarar ({tool} {query}) – det här skrev eller "
                              f"klistrade användaren inte in. Det är användarens egen strid; svar från tidigare i samtalet "
                              f"gäller inte]\n\n{text}\n\n[Slut på datan]\n\nSå här svarar du med det:\n{tools[tool]['guide']}"
-                             f"\n\nAnvändarens fråga var: \"{question}\"\nSvara utifrån det här (behöver du en annan pull "
-                             "eller en förmåga: använd verktyget igen)."})
+                             f"\n\nAnvändarens fråga var: \"{question}\"\nSvara utifrån det här (behöver du en annan pull, "
+                             "en förmåga eller en tabell: använd verktyget igen)."})
     elif (not to_mcp and not report and own_system_question(asked.get("content"), tools)
           and not ("wowapi" in tools and named_addons(str(asked.get("content", ""))[:600]))):
         # About the computer: Goblin AI reads the named program's journal (or the errors) first –
@@ -3559,6 +3619,16 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             messages.append({"role": "user", "content":
                              "[Goblin AI] Du skrev att du ska kolla – gör det nu med ett verktyg i stället för att "
                              f"fråga eller vänta. Frågan var: \"{question}\"" + NUDGE_NOTE})
+            continue
+        if not request_ and not promised and "warcraftlogs" in tools and OFFER_FETCH.search(answer):
+            # "Vill du att jag ska hämta den informationen?" / "fråga efter tabell: skada tagen" (22 Nov, qwen3.5 –
+            # the table she knew she needed, handed to the user)
+            promised = True
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] Du erbjöd dig att hämta, eller bad användaren be om det – hämta det själv nu "
+                             "med verktyget warcraftlogs (t.ex. `<boss> tabell: skada tagen`, + `spelare: <namn>` eller "
+                             f"`tid: m:ss-m:ss`) och svara sedan. Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
         kind, why = ("", "") if request_ else repair_nudge(
             answer, messages, tools, any(t in ("sök", "sida") or t == "wowapi" and q.startswith("kolla")  # the check = found out

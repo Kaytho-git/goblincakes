@@ -331,6 +331,11 @@ Ord: goblin ai, kakan, namn, provmapp, goblin-prov, ai, chatt, meta+a, minne, l�
   (skada, dog, dps, defensiv, cooldown, kick, wipe, kill, tank, lust, först, vem …) hämtar samma pull igen via länken
   (own_fight/wcl_link_before/PULL_WORDS i goblinai.py; den ligger kvar i wowtools._fights = 1 hämtning). Verktygets
   data sparas inte i chatten – därför hämtas den igen.
+  Tabeller ur loggen (22 nov): `<boss> tabell: <skada tagen|skada gjord|healing|casts|buffar|debuffar|interrupts|
+  dispels|dödsfall> [spelare: X] [tid: m:ss-m:ss]` → wowtools.wcl_table (1 hämtning, sparas i _tables). Frågor med
+  vanliga ord ("tog mest skada", "träffade", "kicks", "healade") får tabellen hämtad direkt med pullen (own_table,
+  TABLE_Q i goblinai.py, tabellen först i datan); erbjuder hon sig att hämta i stället för att göra det skickar
+  OFFER_FETCH tillbaka henne en gång. Fel svar på en "vem/hur mycket"-fråga: titta i stegen om tabellen hämtades.
 - Chattar, minne och lärdomar: ~/.local/share/goblincakes/ai/. Nycklar: ~/.config/goblincakes/ai.env – visa aldrig.
 - Lärdomar och kända lösningar (kind "solution") i ~/.local/share/goblincakes/ai/lardomar.json, i kategorier, inget tak.
   Visas under Inställningar → Lärdomar och lösningar. Liknande (fältet similar) väljer användaren. Kända lösningar från
