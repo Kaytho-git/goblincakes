@@ -623,6 +623,13 @@ Ord: spelläge, gamemode, spel, prestanda, lagg, fps, wowup stängs, battle.net 
   förra läget tillbaka efteråt (0 tyst, 1 standard, 2 dammrensning, 4 kylning). Skrivbar via udev-regeln
   /usr/lib/udev/rules.d/60-goblincakes-ideapad-fan.rules. Av = ~/.config/goblincakes/fan-boost-off (reglaget "Fläktboost under spel").
   Kolla: `cat /sys/bus/platform/devices/VPC2004:*/fan_mode`, `ls -l` på den (ska vara rw för alla), journalen ovan ("Fläktboost på").
+- Fläktboost på andra bärbara (Acer, ASUS, HP …, bara där `/sys/firmware/acpi/platform_profile` finns och inte Lenovos fan_mode):
+  energiprofilen Prestanda (`powerprofilesctl set performance`; TuneD-profilen goblincakes-performance sätter platform_profile
+  performance = fläktar och effekt upp) medan ett spel kör, **bara med laddaren i** – urdragen = förra profilen tillbaka direkt,
+  i igen = upp igen. Valde användaren redan Prestanda rörs inget; bytte hen profil under spelet lämnas den. Samma reglage/av-fil.
+  Kolla: `powerprofilesctl get`, `cat /sys/firmware/acpi/platform_profile /sys/firmware/acpi/platform_profile_choices`,
+  `cat /sys/class/power_supply/*/online`, journalen ("Fläktboost på (energiprofil …)", "Energiprofilen tillbaka", "Laddaren urdragen").
+  Acer Nitro/Predator utan profiler: drivrutinen acer-wmi kan behöva `predator_v4=1` – inte inlagt (vänta på användarens beslut).
 - Kolla: `goblincakes-gameguard status` (/usr/libexec/), `journalctl --user -u goblincakes-gameguard -n 50`.
 Kontroll: `/usr/libexec/goblincakes-gameguard status`
 

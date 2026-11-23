@@ -161,9 +161,11 @@ for o in outputs:
         esac ;;
 
     fan-boost)
-        # Lenovo IdeaPad/Legion: Spelläge turns the fans' boost mode on during games (as
-        # Lenovo's Windows program does) – only shown where ideapad_laptop has fan_mode
-        if ! ls /sys/bus/platform/devices/VPC2004:*/fan_mode >/dev/null 2>&1; then
+        # Laptops: Spelläge turns the fans up during games – Lenovo IdeaPad/Legion through
+        # ideapad_laptop's fan_mode (as Lenovo's Windows program does), others (Acer, ASUS, HP …)
+        # through the power profile Prestanda = platform_profile performance, charger in only
+        if ! ls /sys/bus/platform/devices/VPC2004:*/fan_mode >/dev/null 2>&1 &&
+           ! { [ -e /sys/firmware/acpi/platform_profile ] && command -v powerprofilesctl >/dev/null; }; then
             [ "$cmd" = status ] && echo unavailable
             exit 0
         fi
