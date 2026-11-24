@@ -2327,6 +2327,8 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     if getattr(LAST, "knowledge_card", "") and getattr(LAST, "memory_moved", False):
         answer = MEMORY_BLOCK.sub("", answer).rstrip()  # sent to the card and a ```minne copy too: the card only (24 Nov)
     if getattr(LAST, "knowledge_card", ""):
+        # "Vill du att jag sparar detta i kunskapsminnet?" above the card – the card is the question (24 Nov)
+        answer = re.sub(r"\n{3,}", "\n\n", SAVE_OFFER.sub("", answer)).rstrip()
         answer += ("\n\nSpara i kunskapsminnet? Kolla källan – inget sparas förrän du trycker Tillåt:\n"
                    + LAST.knowledge_card)
     wrong = check_report(answer)
@@ -2881,6 +2883,9 @@ SAVE_ONLY = re.compile(r"^\W*(?:kan du\s+|snälla\s+)?(?:spara|kom\s+ihåg|lägg
                        r"(?:\s+i\s+(?:ditt\s+)?(?:kunskaps)?minnet)?(?:\s+(?:tack|är\s+du\s+snäll))?\W*$", re.I)
 MEMORY_BLOCK = re.compile(r"```(?:minne|kom ihåg|memory)[ \t]*\n(.*?)```\n?", re.S | re.I)
 PERSONAL = re.compile(r"\b(?:jag|mig|min|mitt|mina|vi|oss|vår|vårt|våra)\b", re.I)
+# Asked to save or remember – not as a file ("spara det som PDF" is spara_dokument)
+SAVE_ASK = re.compile(r"\b(?:spara|kom\s+ihåg|komma\s+ihåg)\b(?![^\n]{0,40}\b(?:pdf|dokument|fil|filen|bild|mapp|som)\b)",
+                      re.I)
 
 
 def earlier_sources(messages, asked):
@@ -2899,7 +2904,7 @@ WRITTEN_TITLE = re.compile(CARD_LABEL.format("rubrik") + r"(.+?)[*_ \t]*$", re.M
 WRITTEN_FACTS = re.compile(CARD_LABEL.format("fakta") + r"(.+?)(?=\n[ \t>*_-]*(?:rubrik|k[äa]lla)[*_ \t]*:|\n\s*\n|\Z)",
                            re.M | re.I | re.S)
 WRITTEN_URL = re.compile(CARD_LABEL.format("k[äa]lla") + r"[^\n]*?(https?://[^\s)>\]*]+)", re.M | re.I)
-SAVE_OFFER = re.compile(r"^[^\n]*\b(?:vill du att jag|ska jag)\b[^\n]*\bspar\w*[^\n]*\?[ \t*_]*$\n?", re.M | re.I)
+SAVE_OFFER = re.compile(r"^[^\n]*\b(?:vill du(?: att jag)?|ska jag)\b[^\n]*\bspar\w*[^\n]*\?[ \t*_]*$\n?", re.M | re.I)
 
 
 def written_card(answer):
@@ -3543,7 +3548,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "[Goblin AI tog reda på det här åt dig innan du svarar – det här skrev eller klistrade "
                              f"användaren inte in]\n\n{text}\n\n[Slut på det Goblin AI tog reda på]\n\n"
                              f"Användarens fråga var: \"{question}\"\n{REPAIR_COMPARE}"})
-    nudged = promised = looked = acted = claimed = judged = offed = stopped_fetching = moved = False
+    nudged = promised = looked = acted = claimed = judged = offed = stopped_fetching = moved = unsaved = False
     repeats = 0       # the same call again (7 Nov: qwen3.5 sent "musik vad" ten times and used up every step)
     repaired = set()  # the repair checks already sent back (repair_nudge)
     fight = own_fight(asked.get("content"), tools, messages)
@@ -3641,6 +3646,23 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "kunskapsminnet i stället: verktyget kunskap (spara_kunskap) med rubrik, fakta och en av de här "
                              "källorna: " + ", ".join(dict.fromkeys(p["url"] for p in pages))
                              + ". Skriv inget ```minne-block. Säg kort att förslaget ligger i kortet under svaret. "
+                             f"Frågan var: \"{question}\"" + NUDGE_NOTE})
+            continue
+        if (not request_ and not unsaved and LAST.kunskap_on and pages and not LAST.knowledge_card
+                and SAVE_ASK.search(typed_text[:600]) and not PERSONAL.search(typed_text[:600])
+                and not MEMORY_BLOCK.search(answer) and not any(t == "kunskap" for t, _ in LAST.tools)
+                and not (WRITTEN_TITLE.search(answer) and WRITTEN_FACTS.search(answer) and WRITTEN_URL.search(answer))):
+            # Asked to save facts from the web, and nothing to save: "Jag sparar detta faktum i minnet nu." – no block,
+            # no card (24 Nov, qwen3.5, 1 of 3) – once more, to the kunskap card
+            unsaved = True
+            steps.start("Kontrollerar svaret")
+            steps.done("fel", "sa att hon sparar men gjorde inget kort")
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] Användaren bad dig spara, men inget sparades – att skriva att du sparar gör "
+                             "ingenting. Föreslå det i kunskapsminnet nu: verktyget kunskap (spara_kunskap) med rubrik, "
+                             "fakta och en av de här källorna: " + ", ".join(dict.fromkeys(p["url"] for p in pages))
+                             + ". Säg sedan kort att förslaget ligger i kortet under svaret. "
                              f"Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
         if not request_ and not used and not nudged and own_game_question(asked.get("content"), tools):
