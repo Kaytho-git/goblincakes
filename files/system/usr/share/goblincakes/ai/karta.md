@@ -469,7 +469,7 @@ Ord: goblin ai, kakan, namn, provmapp, goblin-prov, ai, chatt, meta+a, minne, l�
   docs/testlistor/till-kakan/ – kopieras dit en gång efter git pull, minnet i testlistor/.fran-repot.json); /testa visar
   de väntande numrerade (bara en: den körs; /testa <nr|namn>, /testa stopp). Varje punkt = ett eget meddelande med vanligt kommandokort (läsande
   direkt, ändrande Tillåt, farliga stoppas); du bedömer utdatan mot "väntat" (OK/FEL/OKLART), frågor besvaras av
-  användaren (ja/nej/hoppa). Resultatet sparas i till-claude/ (…-testresultat-….md), listan flyttas till klara/.
+  användaren (ja/nej/hoppa) – bara i testets egen chatt; i andra chattar är det vanliga frågor till dig. Resultatet sparas i till-claude/ (…-testresultat-….md), listan flyttas till klara/.
 - Bygga egna widgetar: när användaren ber om en Plasma-widget får du en provad mall (WIDGET_GUIDE i goblinai.py:
   metadata.json + contents/ui/main.qml med PlasmoidItem, kpackagetool6 -t Plasma/Applet, prova med timeout 8
   plasmawindowed – felen står i journalen, `journalctl --user -t plasmawindowed`). Klart först när provet visar "Inga fel.".

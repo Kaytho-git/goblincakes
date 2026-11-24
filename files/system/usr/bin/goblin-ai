@@ -554,7 +554,9 @@ class Backend(QObject):
         text = text.strip()
         if self._busy or not (text or attachment):
             return
-        if text and self._test and self._test.get("waiting") == "ask":  # the answer to a test point's question
+        # The answer to a test point's question – only in the test's own chat: a point can say "ask in a new
+        # chat and come back", and that question went to the test as the answer (24 Nov, the user)
+        if text and self._test and self._test.get("waiting") == "ask" and self._id == self._test["chat"]:
             return self._test_answer(text)
         if text and self._plan and self._plan["waiting"] != "running" and not self._plan_q:
             return self._plan_answer(text)
@@ -1345,6 +1347,8 @@ class Backend(QObject):
 
     @Slot(str)
     def deleteConversation(self, conv_id):
+        if self._test and self._test["chat"] == conv_id:  # the test's chat is gone: stop it (else it waits forever)
+            self._test_finish(stopped=True)
         (DATA / f"{conv_id}.json").unlink(missing_ok=True)
         if conv_id == self._id:
             self._new_conversation()
@@ -3287,7 +3291,8 @@ class Backend(QObject):
             return self.notice.emit(f"Testlistan gick inte att läsa: {e}")
         if not data["items"]:
             return self.notice.emit(f"{path.name} har inga punkter (\"- \" först på raden).")
-        self._test = {"path": path, "data": data, "i": 0, "results": [], "index": -1, "waiting": ""}
+        self._test = {"path": path, "data": data, "i": 0, "results": [], "index": -1, "waiting": "",
+                      "chat": self._id}  # other chats are ordinary chats; back here (CHATTAR) it goes on
         self._test_post(f"**Testlista från Claude: {data['title']}** – {len(data['items'])} punkter. Läsande "
                         "kommandon körs direkt, ändrande väntar på Tillåt. /testa stopp avbryter.")
         self._test_next()
