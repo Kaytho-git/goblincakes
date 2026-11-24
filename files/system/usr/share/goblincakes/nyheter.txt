@@ -1,3 +1,4 @@
+2026-11-24  Goblin AI: frågar du om något som redan finns i Kakans kunskapsminne svarar hon ur minnet i stället för att söka på nätet igen, och hon säger inte längre att något är sparat innan du tryckt Tillåt.
 2026-11-24  Dashboarden: pausar du en YouTube-video ligger den kvar i Spelas nu (så att play startar den igen) – förut hoppade rutan tillbaka till GoblinAmp.
 2026-11-24  Goblin AI: Kakan sparar inte längre en "känd lösning" förrän du själv sagt att det fungerar, kollar kartan först när du trycker på en notis, och föreslår inte tjänster eller program som inte finns på datorn – hon får försöka igen eller säga ärligt att hon inte kan. Inga tomma svar.
 2026-11-24  Goblin AI: ber du Kakan spara något hon hittat på nätet ("spara det i minnet") kommer nu kortet för kunskapsminnet med källan, Tillåt och Nej – förut hamnade det ibland i hennes vanliga minne utan källa. "Spara det" efter ett svar söker inte heller på nätet igen.

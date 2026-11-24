@@ -1241,7 +1241,8 @@ def kunskap_run(query):
     again = bool(getattr(LAST, "knowledge_card", ""))
     LAST.knowledge_card = k.card(title, facts, src["url"], src.get("title") or "")
     return (("Klart – det nya kortet ersätter ditt förra (bara ett per svar). " if again else
-             "Klart – kortet läggs under ditt svar (skriv det inte själv) och sparas först när användaren trycker Tillåt. ")
+             "Klart – kortet läggs under ditt svar (skriv det inte själv) och sparas först när användaren trycker Tillåt – "
+             "skriv inte att det är sparat. ")
             + "Svara nu på frågan som vanligt – fråga inte om du ska spara det (kortet är frågan) och gör inget fler "
             "kunskapskort."), []
 
@@ -2338,6 +2339,9 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
         answer = written_card(answer)  # the card written as text: Goblin AI makes it (24 Nov)
     if getattr(LAST, "knowledge_card", "") and getattr(LAST, "memory_moved", False):
         answer = MEMORY_BLOCK.sub("", answer).rstrip()  # sent to the card and a ```minne copy too: the card only (24 Nov)
+    if getattr(LAST, "knowledge_card", "") or (getattr(LAST, "kunskap_on", False)
+                                               and SAVE_ASK.search(asked_text(last_user.get("content"))[:600])):
+        answer = without_saved_claims(answer)  # only Tillåt saves (24 Nov)
     if getattr(LAST, "knowledge_card", ""):
         # "Vill du att jag sparar detta i kunskapsminnet?" above the card – the card is the question (24 Nov)
         answer = re.sub(r"\n{3,}", "\n\n", SAVE_OFFER.sub("", answer)).rstrip()
@@ -2918,6 +2922,22 @@ WRITTEN_FACTS = re.compile(CARD_LABEL.format("fakta") + r"(.+?)(?=\n[ \t>*_-]*(?
                            re.M | re.I | re.S)
 WRITTEN_URL = re.compile(CARD_LABEL.format("k[äa]lla") + r"[^\n]*?(https?://[^\s)>\]*]+)", re.M | re.I)
 SAVE_OFFER = re.compile(r"^[^\n]*\b(?:vill du(?: att jag)?|ska jag)\b[^\n]*\bspar\w*[^\n]*\?[ \t*_]*$\n?", re.M | re.I)
+
+
+# "Jag har sparat fakta om OS-guldet … i kunskapsminnet." above the card and "det redan har sparas i kunskapsminnet!"
+# after it – before Tillåt (24 Nov, qwen3.5); nothing is saved until the user presses it
+SAVED_CLAIM = re.compile(r"\b(?:har|är|blev)\s+(?:(?:nu|redan|jag|det)\s+)*(?:sparat|sparats|sparad|sparas|lagt\s+(?:in|till))\b"
+                         r"|\bsparade\s+(?:jag|det)\b", re.I)
+
+
+def without_saved_claims(answer):
+    """Her sentences saying something is saved in the kunskapsminne – the card waits for Tillåt."""
+    def one(m):
+        text = m.group(0)
+        return "" if SAVED_CLAIM.search(text) and "kunskapsminn" in text.lower() else text
+    parts = re.split(r"(```.*?(?:```|\Z))", answer, flags=re.S)  # cards untouched
+    return re.sub(r"[ \t]{2,}", " ", "".join(p if p.startswith("```") else re.sub(r"[^.!?\n]+[.!?]*[ \t]*", one, p)
+                                           for p in parts)).strip()
 
 
 def written_card(answer):
@@ -3623,6 +3643,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                          + f"\nAnvändarens fråga var: \"{question}\""})
         if first:
             follow_query = ""  # the follow-up's forced search: the memory answers first
+            # Read, so no "påstod att hon läst" round: it told her she had read nothing and she searched anyway (24 Nov)
+            used = max(used, 1)
     if "sök" in tools and not typed and not api_asked and (forced or follow_query or (fresh_question(asked.get("content")) and not own and not chat_only)):
         # Goblin AI searches first, with the question itself (Tavily takes plain questions)
         query = follow_query or " ".join(asked_text(asked.get("content")).split())[:300]
@@ -3984,8 +4006,12 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                 messages.append({"role": "user", "content":
                                  "[Goblin AI kontrollerade ditt svar] Det här står inte i det du har läst: "
                                  + ", ".join(missing) + ". Skriv om svaret: ta bort det eller säg att du inte vet "
-                                 "(och vad som skulle behövas), eller läs mer med ett verktyg. Upprepa inte felet." + NUDGE_NOTE})
+                                 "(och vad som skulle behövas), eller läs mer med ett verktyg. Upprepa inte felet – skriv "
+                                 "bara det rättade svaret, utan att nämna kontrollen eller det som togs bort." + NUDGE_NOTE})
                 continue
+            # "jag kan inte verifiera något om "40"" – the number she was told to drop, quoted: no claim (24 Nov)
+            quoted = set(re.findall(r'["“”„]([^"“”„\n]{1,40})["“”]', answer))
+            missing = [m for m in missing if m not in quoted]
             if missing:
                 answer = answer.rstrip() + ("\n\n*Obs: " + ", ".join(missing) + " står inte i det Goblin AI läste – "
                                             "kan vara gissat.*")
