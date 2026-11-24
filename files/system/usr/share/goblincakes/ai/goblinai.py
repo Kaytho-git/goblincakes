@@ -1178,9 +1178,11 @@ def kunskap_mod():
 # Kakans kunskapsminne (18 Nov, the user: "hon ger källor, jag kollar, jag godkänner eller nekar"): she proposes,
 # Goblin AI checks the source against the pages she read in this answer, the card waits for Tillåt or Nej
 KUNSKAP_DESC = ("Föreslår att spara fakta i ditt kunskapsminne, så att du kan svara på följdfrågor om ämnet utan att söka "
-                "igen – även i ett annat samtal, en annan dag. Bara fakta från en sida du läst i just det här svaret "
+                "igen – även i ett annat samtal, en annan dag. Bara fakta från en sida du läst i det här svaret eller svaret innan "
                 "(sökningen, Wikipedia, las_sida) med den sidans adress som källa – aldrig gissningar eller egna slutsatser. "
-                "Använd det när användaren ber dig spara eller komma ihåg något, eller när ämnet är något hen frågar vidare om "
+                "Använd det när användaren ber dig spara eller komma ihåg fakta du hittat (\"spara det\", \"spara det i "
+                "minnet\") – inte ett ```minne-block, det är bara för sådant om användaren själv – eller när ämnet är "
+                "något hen frågar vidare om "
                 "(en händelse, en sak att laga, ett ämne att lära sig) – inte för sådant som ändras snabbt (väder, priser, "
                 "dagens resultat, nyheter). Användaren ser kortet och godkänner eller nekar. Högst ett kort per svar – "
                 "svara på frågan som vanligt också.")
@@ -1188,10 +1190,11 @@ KUNSKAP_PROMPT = """
 Föreslå att spara fakta i ditt kunskapsminne (användaren godkänner först) med ett ```kunskap-block:
 ```kunskap
 rubrik: Ämnet kort, t.ex. Bågskytte – OS Paris 2024
-källa: https://… (en sida du läst i det här svaret)
+källa: https://… (en sida du läst i det här svaret eller svaret innan)
 De viktigaste fakta från sidan, några korta meningar – bara det som står där.
 ```
-Bara när användaren ber dig spara/komma ihåg, eller ämnet är något hen frågar vidare om – inte väder, priser, nyheter."""
+Bara när användaren ber dig spara/komma ihåg, eller ämnet är något hen frågar vidare om – inte väder, priser, nyheter.
+"Spara det i minnet" om fakta från nätet = det här kortet, inte ett ```minne-block (det är bara om användaren själv)."""
 KUNSKAP_GUIDE = """
 Kortet läggs under ditt svar av sig självt (skriv det inte) och sparas bara om användaren trycker Tillåt. Svara på frågan
 som vanligt – fråga inte om du ska spara det (kortet är frågan)."""
@@ -1214,17 +1217,21 @@ def kunskap_run(query):
         title = " ".join(found_title.group(1).split()) if found_title else ""
         url = found_url.group(1) if found_url else ""
         facts = re.sub(r"^\s*(?:rubrik|k[äa]lla)\s*:.*(?:\n|$)", "", query, flags=re.M | re.I)
-    facts = facts.strip()
+    # Her "---" line and "fakta:" in front of the facts (24 Nov, qwen3.5) – not part of the facts
+    facts = re.sub(r"^\s*-{3,}\s*$\n?", "", facts.strip(), flags=re.M)
+    facts = re.sub(r"^[*_ \t]*fakta[*_ \t]*:[*_ \t]*", "", facts.strip(), flags=re.I).strip()
     url = url.strip().strip("<>()[]\"'`.,;")
     if not title or not facts:
         return "Inget kort gjort: rubrik och fakta behövs (och källan).", []
-    read = {k._url(s["url"]): s for s in getattr(LAST, "sources", []) if s.get("url")}
+    # The pages of this answer, and of the answer just before: "Spara det i minnet" as a message of its own (24 Nov)
+    read = {k._url(s["url"]): s for s in list(getattr(LAST, "earlier_sources", [])) + list(getattr(LAST, "sources", []))
+            if s.get("url")}
     if not read:
-        return ("Inget kort gjort: du har inte läst någon sida i det här svaret. Spara bara fakta från en sida du läst nu – "
-                "svara på frågan som vanligt."), []
+        return ("Inget kort gjort: du har inte läst någon sida i det här eller förra svaret. Spara bara fakta från en sida "
+                "du läst – svara på frågan som vanligt."), []
     src = read.get(k._url(url))
     if not src:
-        return ("Inget kort gjort: källan är ingen sida du läst i det här svaret. Använd adressen till en av dem: "
+        return ("Inget kort gjort: källan är ingen sida du läst i det här eller förra svaret. Använd adressen till en av dem: "
                 + ", ".join(s["url"] for s in list(read.values())[:5])), []
     if k.was_denied(title, src["url"]):
         return "Inget kort gjort: användaren har redan sagt nej till att spara det här. Föreslå det inte igen – svara som vanligt.", []
@@ -2114,8 +2121,8 @@ def tool_request(text, tools):
             return written
     for m in re.finditer(r"```([\w-]+)[ \t]*\n?(.*?)```", text, re.S):
         tool = TOOL_WORDS.get(m.group(1).lower()) or (m.group(1) if tools.get(m.group(1), {}).get("mcp") else None)
-        if tool == "byt" and tool in tools:  # the old/new text exactly, spaces and line breaks too
-            return tool, m.group(2).strip("\n")
+        if tool in ("byt", "kunskap") and tool in tools:  # the old/new text exactly, spaces and line breaks too –
+            return tool, m.group(2).strip("\n")  # and the kunskap card's rubrik:/källa: lines (24 Nov: one line = no card)
         if tool in tools:
             return tool, " ".join(m.group(2).split())
         first = (m.group(2).split() or [""])[0]
@@ -2224,7 +2231,8 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     Returns (answer, "service · model"); web sources are listed at the end of the answer.
     """
     LAST.tools, LAST.steps, LAST.done, LAST.cards, LAST.card_spans, LAST.cut_short = [], None, [], [], [], False
-    LAST.sources, LAST.knowledge_card, LAST.remembered = [], "", []  # kunskapsminnet (18 Nov)
+    LAST.sources, LAST.knowledge_card, LAST.remembered, LAST.earlier_sources = [], "", [], []  # kunskapsminnet (18 Nov)
+    LAST.memory_moved = LAST.kunskap_on = False  # sent from ```minne to the kunskap card; the card offered (24 Nov)
     messages = plan_chat(laga_chat(messages))  # /laga: she sees only the repair, not the hunt before it; /planering: the step
     LAST.laga = laga_on(messages)
     LAST.stop = steps.stop if steps else None  # request() closes the local AI's connection on STOPP
@@ -2314,6 +2322,10 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
                                     "gissad. Tryck Tillåt bara om du vill prova den, annars **Skicka till Claude**.*")
     # The kunskap card (18 Nov): only Goblin AI's checked one – her own ```kunskap copies in the text go
     answer = re.sub(r"```kunskap[ \t]*\n.*?```\n?", "", answer, flags=re.S).rstrip()
+    if not getattr(LAST, "knowledge_card", "") and getattr(LAST, "kunskap_on", False):
+        answer = written_card(answer)  # the card written as text: Goblin AI makes it (24 Nov)
+    if getattr(LAST, "knowledge_card", "") and getattr(LAST, "memory_moved", False):
+        answer = MEMORY_BLOCK.sub("", answer).rstrip()  # sent to the card and a ```minne copy too: the card only (24 Nov)
     if getattr(LAST, "knowledge_card", ""):
         answer += ("\n\nSpara i kunskapsminnet? Kolla källan – inget sparas förrän du trycker Tillåt:\n"
                    + LAST.knowledge_card)
@@ -2861,6 +2873,63 @@ def follow_up_of(messages, asked):
     return pairs if web else []
 
 
+# Kakans kunskapsminne (24 Nov, the test list: "Spara det i minnet" as a message of its own after an answer from the
+# web was searched again – the topic in a search found share news for "OS" – and went to the ordinary memory, with
+# Ångra, instead of the kunskap card). A save request alone isn't searched; the answer before has the facts and pages.
+SAVE_ONLY = re.compile(r"^\W*(?:kan du\s+|snälla\s+)?(?:spara|kom\s+ihåg|lägg\s+(?:in|till))"
+                       r"(?:\s+(?:det|detta|den|dem|dom|svaret|det\s+här|det\s+där))?"
+                       r"(?:\s+i\s+(?:ditt\s+)?(?:kunskaps)?minnet)?(?:\s+(?:tack|är\s+du\s+snäll))?\W*$", re.I)
+MEMORY_BLOCK = re.compile(r"```(?:minne|kom ihåg|memory)[ \t]*\n(.*?)```\n?", re.S | re.I)
+PERSONAL = re.compile(r"\b(?:jag|mig|min|mitt|mina|vi|oss|vår|vårt|våra)\b", re.I)
+
+
+def earlier_sources(messages, asked):
+    """The web pages under Källor in the answer just before the question – a kunskap card may cite one of them."""
+    i = next((n for n in range(len(messages) - 1, -1, -1) if messages[n] is asked), len(messages))
+    answer = next((m.get("content") for m in reversed(messages[:i]) if m["role"] == "assistant"), "")
+    if not isinstance(answer, str) or "**Källor:**" not in answer:
+        return []
+    part = answer.split("**Källor:**", 1)[1].split("**Hämtat från:**", 1)[0]
+    return [{"title": t, "url": u, "content": ""} for t, u in re.findall(r"\[([^\]]*)\]\((https?://[^)\s]+)\)", part)
+            if "warcraftlogs.com/reports/" not in u]
+
+
+CARD_LABEL = r"^[ \t>*_-]*{}[*_ \t]*:[*_ \t]*"
+WRITTEN_TITLE = re.compile(CARD_LABEL.format("rubrik") + r"(.+?)[*_ \t]*$", re.M | re.I)
+WRITTEN_FACTS = re.compile(CARD_LABEL.format("fakta") + r"(.+?)(?=\n[ \t>*_-]*(?:rubrik|k[äa]lla)[*_ \t]*:|\n\s*\n|\Z)",
+                           re.M | re.I | re.S)
+WRITTEN_URL = re.compile(CARD_LABEL.format("k[äa]lla") + r"[^\n]*?(https?://[^\s)>\]*]+)", re.M | re.I)
+SAVE_OFFER = re.compile(r"^[^\n]*\b(?:vill du att jag|ska jag)\b[^\n]*\bspar\w*[^\n]*\?[ \t*_]*$\n?", re.M | re.I)
+
+
+def written_card(answer):
+    """The kunskap card written as plain text (24 Nov, qwen3.5 after being sent to the card: "**Rubrik:** … **Fakta:** …
+    **Källa:** https://…" and "Vill du att jag sparat detta?") – made into the card by kunskap_run, which checks the
+    source like always. Returns the answer without those lines when the card was made, else the answer as it was."""
+    title, facts, url = WRITTEN_TITLE.search(answer), WRITTEN_FACTS.search(answer), WRITTEN_URL.search(answer)
+    if not (title and facts and url):
+        return answer
+    kunskap_run(json.dumps({"rubrik": title.group(1).strip(" *_"), "fakta": " ".join(facts.group(1).split()).strip(" *_"),
+                            "kalla": url.group(1)}, ensure_ascii=False))
+    if not getattr(LAST, "knowledge_card", ""):
+        return answer
+    start = min(title.start(), facts.start(), url.start())
+    end = max(title.end(), facts.end(), url.end())
+    end = answer.find("\n", end) if answer.find("\n", end) >= 0 else len(answer)
+    return re.sub(r"\n{3,}", "\n\n", SAVE_OFFER.sub("", answer[:start] + answer[end:])).strip()
+
+
+def web_facts_in_memory(answer, typed, read_text):
+    """Her ```minne block holds facts from what she read (the pages, the answer before), not something about the user:
+    the user's message says nothing about hen (jag/min/vi …) and most of the block's words are in the read text."""
+    if PERSONAL.search(typed[:600]):
+        return False
+    words = set(re.findall(r"\w{4,}", " ".join(m.group(1) for m in MEMORY_BLOCK.finditer(answer)).casefold()))
+    if not words:
+        return False
+    return len(words & set(re.findall(r"\w{4,}", read_text.casefold()))) >= max(2, len(words) * 0.4)
+
+
 def follow_up_query(pairs, question, keys, project=None, choice=""):
     """The follow-up as a search on its own ("bågskytte OS 2024 världsrekord"), or "" when no search is needed.
     Without the model (it failed): the first question's words in front – better than the follow-up alone."""
@@ -3232,6 +3301,8 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     # chat() adds the tools: as real tool calls, or their code block prompts to the system prompt
     sources, used, searched = [], 0, False
     LAST.sources = sources  # the pages read in this answer – a kunskap card may only cite one of them (18 Nov)
+    LAST.earlier_sources = earlier_sources(messages, asked)  # …or of the answer before ("Spara det i minnet", 24 Nov)
+    LAST.kunskap_on = "kunskap" in tools and not report_only(messages)
     question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:2000]
     # What the commands printed ("Så här gick det: …") is no question: a GitHub link on the page Kakan clicked to sent
     # the answer to GitHub, and a path in it to the computer's logs (28 Oct)
@@ -3379,7 +3450,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             steps.done("fel", e)
             api_asked = None
     follow = (follow_up_of(messages, asked) if "sök" in tools and not typed and not api_asked and not own
-              and not chat_only and not report else [])
+              and not chat_only and not report and not SAVE_ONLY.search(asked_text(asked.get("content"))) else [])
     follow_query = ""
     if follow:
         # A follow-up to an answer from the web: searched again, the topic from the chat put into the search (9 Nov)
@@ -3472,7 +3543,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "[Goblin AI tog reda på det här åt dig innan du svarar – det här skrev eller klistrade "
                              f"användaren inte in]\n\n{text}\n\n[Slut på det Goblin AI tog reda på]\n\n"
                              f"Användarens fråga var: \"{question}\"\n{REPAIR_COMPARE}"})
-    nudged = promised = looked = acted = claimed = judged = offed = stopped_fetching = False
+    nudged = promised = looked = acted = claimed = judged = offed = stopped_fetching = moved = False
     repeats = 0       # the same call again (7 Nov: qwen3.5 sent "musik vad" ten times and used up every step)
     repaired = set()  # the repair checks already sent back (repair_nudge)
     fight = own_fight(asked.get("content"), tools, messages)
@@ -3553,6 +3624,25 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         answer, service = ask_once(messages, keys, status, notice, project, choice, tools)
         steps.check()
         request_ = tool_request(answer, tools)
+        pages = list(LAST.earlier_sources) + list(sources)
+        if (not request_ and not moved and "kunskap" in tools and not report and pages and MEMORY_BLOCK.search(answer)
+                and web_facts_in_memory(answer, typed_text, "\n".join(
+                    [str(m.get("content", "")) for m in messages[:start] if m["role"] == "assistant"][-1:] + seen
+                    + [f"{p.get('title', '')} {p.get('content', '')}" for p in pages]))):
+            # Facts from the web in the ordinary memory (24 Nov): once more, to the kunskap card with the source – her
+            # own words and source, checked by kunskap_run. A second ```minne goes through (the user has Ångra).
+            moved = LAST.memory_moved = True
+            steps.start("Kontrollerar svaret")
+            steps.done("fel", "fakta från nätet i det vanliga minnet")
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] Det du skrev i ```minne är fakta från nätet – det vanliga minnet är bara för "
+                             "sådant om användaren själv (vem hen är, vad hen gillar, hur du ska jobba). Spara det i "
+                             "kunskapsminnet i stället: verktyget kunskap (spara_kunskap) med rubrik, fakta och en av de här "
+                             "källorna: " + ", ".join(dict.fromkeys(p["url"] for p in pages))
+                             + ". Skriv inget ```minne-block. Säg kort att förslaget ligger i kortet under svaret. "
+                             f"Frågan var: \"{question}\"" + NUDGE_NOTE})
+            continue
         if not request_ and not used and not nudged and own_game_question(asked.get("content"), tools):
             # About the user's own WoW/CS2/computer/team but no tool used: in a long chat gemma4 answered "enligt
             # Warcraft Logs dog <namn>" without reading anything (25 Oct) – once more, told to use one
@@ -4885,7 +4975,10 @@ Minne: du har ett minne som följer med i alla chattar. När användaren ber dig
 framöver – skriv ett kodblock märkt ```minne med en sak per rad, kort och i tredje person
 (t.ex. "Spelar WoW som Goblin på Stormscale (EU)."). Ber användaren dig glömma något, skriv ett
 kodblock märkt ```glöm med det som ska bort, en sak per rad. Säg kort i texten vad du sparade eller glömde.
-Spara inga lösenord, nycklar eller annat hemligt."""
+Spara inga lösenord, nycklar eller annat hemligt.
+Minnet är bara för sådant om användaren själv: vem hen är, vad hen gillar och hur du ska jobba åt hen. Fakta du
+hittat på nätet eller i Wikipedia (en händelse, ett resultat, hur något lagas) hör inte hit, även om användaren säger
+"spara det i minnet" – de går till kunskapsminnet med källan (verktyget kunskap / spara_kunskap, när det finns)."""
 
 
 def load_memory():

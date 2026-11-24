@@ -1,3 +1,4 @@
+2026-11-24  Goblin AI: ber du Kakan spara något hon hittat på nätet ("spara det i minnet") kommer nu kortet för kunskapsminnet med källan, Tillåt och Nej – förut hamnade det ibland i hennes vanliga minne utan källa. "Spara det" efter ett svar söker inte heller på nätet igen.
 2026-11-24  Goblin AI, /testa: det du skriver i en annan chatt medan en testlista körs blir en vanlig fråga till Kakan – testlistan väntar och fortsätter när du går tillbaka till testchatten under CHATTAR.
 2026-11-24  Flikarna i Config, Goblin AI, GoblinShare och GoblinRecorder rullar snabbare med hjulet när fönstret är litet – ett hack flyttar ungefär en flik.
 2026-11-24  Lagmätningen: Meta+Shift+L tar nu alltid fram graferna – förut kom de inte tillbaka om du stängt fönstret medan mätningen fortfarande gick.

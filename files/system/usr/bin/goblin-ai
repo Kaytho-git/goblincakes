@@ -2042,7 +2042,7 @@ class Backend(QObject):
         """The file itself in the text editor (written for people too)."""
         if not kunskap.FILE.exists():
             kunskap.DATA.mkdir(parents=True, exist_ok=True)
-            kunskap.FILE.write_text(kunskap.HEAD)
+            kunskap.FILE.write_text(kunskap.dump([]))  # the name filled in, not "{gen}" (24 Nov)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(kunskap.FILE)))
 
     # ── The memory: ```minne / ```glöm in an answer, the list in AI-tjänster ─────
