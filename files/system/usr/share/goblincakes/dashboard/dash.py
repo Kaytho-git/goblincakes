@@ -5,7 +5,7 @@
 
 apps()         the programs in the menu (the same folders as Goblin AI's `program`), with icon and group
 System         CPU/GPU/temperature/RAM/disk now, with the history since the window was opened
-player()       what is playing (MPRIS), music programs first; control() = previous/play-pause/next
+player()       what is playing (MPRIS): playing, then the last one that played, then music programs; control() = previous/play-pause/next
 quota()        what the quota widget saved (~/.cache/goblincakes/quota.json)
 projects()     the folders in Goblin AI's PROJEKT → MAPPAR (~/.config/goblincakes/ai-mappar.json – one list)
 browse(path)   the dashboard's own folder chooser (+ in PROJEKT); power() = the logout screen
@@ -589,8 +589,13 @@ def _prop(name, prop):
     return (busctl("get-property", name, "/org/mpris/MediaPlayer2", PLAYER, prop, timeout=2) or {}).get("data")
 
 
+_last_playing = ""  # the player that played last: a paused YouTube video stays shown instead of a paused music program
+
+
 def player():
-    """{name, app, status, title, artist, album, art, length s, position s} of the player to show, or {}."""
+    """{name, app, status, title, artist, album, art, length s, position s} of the player to show, or {}.
+    Playing first; when nothing plays, the one that played last (while it is still there), then music programs."""
+    global _last_playing
     names = [n.get("name", "") for n in busctl("list") or [] if n.get("name", "").startswith(MPRIS)]
     found = []
     for name in names:
@@ -601,7 +606,10 @@ def player():
     if not found:
         return {}
     music = lambda app: any(a in app.lower() for a in MUSIC_APPS)  # noqa: E731
-    name, app, status = sorted(found, key=lambda p: (p[2] != "Playing", not music(p[1]), p[2] != "Paused"))[0]
+    name, app, status = sorted(found, key=lambda p: (p[2] != "Playing", not (p[0] == _last_playing and p[2] == "Paused"),
+                                                     not music(p[1]), p[2] != "Paused"))[0]
+    if status == "Playing":
+        _last_playing = name
     meta = _prop(name, "Metadata") or {}
     get = lambda key: (meta.get(key) or {}).get("data")  # noqa: E731
     artists = get("xesam:artist") or []
