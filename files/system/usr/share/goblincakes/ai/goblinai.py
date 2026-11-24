@@ -1255,6 +1255,7 @@ BUILD_NOTE = ("(Ett bygge visar bara vilken commit som byggdes och om det gick �
 UPDATE_OFF = re.compile(r"(?:uppdater|update|bygge).{0,120}(?:st[äa]ng\w*\s+av|shut\s*down|power\s*off)"
                         r"|st[äa]ng\w*\s+av.{0,120}(?:uppdater|update|bygge)", re.I | re.S)
 
+CHECK_ROUNDS = 4  # "Kontrollerar svaret" rounds per question, at most (the review 25 Nov: no cap, 20-odd checks)
 STEP_LIMIT = 10  # tool uses per question (the work loop, 25 Oct; was 6) – and fewer when the local AI's memory fills up
 
 
@@ -3265,13 +3266,22 @@ def _says(pattern, text):
     return any(not NOT_YET.search(text[max(0, m.start() - 40):m.start()]) for m in pattern.finditer(text))
 
 
-def _question_of(display, index):
-    """The user's message the answer at index belongs to, as text ("" when there is none)."""
+def _asked_change(display, index):
+    """The user's message the answer at index belongs to asks for a change (or is /laga) – not a notice explained."""
     start = index
     while start > 0 and display[start - 1].get("role") == "assistant":
         start -= 1
     prev = display[start - 1] if start > 0 else {}
-    return str(prev.get("text") or "") if prev.get("role") == "user" else ""
+    text = str(prev.get("text") or "") if prev.get("role") == "user" else ""
+    if prev.get("laga"):
+        return True
+    return (bool(text) and not NOTICE_TURN.search(text) and not STATUS_Q.fullmatch(text.strip())
+            and change_allowed([{"role": "user", "content": text}]))
+
+
+# "Är wow uppdaterat?", "Har jag sparat bilden?" – one yes/no question about how things are, nothing asked of her
+STATUS_Q = re.compile(r"(?:är|har|funkar|fungerar|gick|går|kör|körs|finns|blev|syns|hörs)\b(?![^?]*\b(?:kan du|kan ni|"
+                      r"snälla|annars)\b)[^?\n]*\?", re.I)
 
 
 def _chain(display, index):
@@ -3357,10 +3367,11 @@ def receipt(display, index):
             verdict, state, kind = "Inte klart än – det som ska göras väntar på att du trycker Tillåt.", "no", "wait"
         elif last_fail > last_change and not any(e in ("read", "change", "self") for e in events[last_fail + 1:]):
             verdict, state, kind = "Säger att det är klart, men det senaste kommandot gav fel.", "no", "fail"
-        elif fixed and last_change < 0 and "unseen" not in events and not (
-                "skip" not in events and NOTICE_TURN.search(_question_of(display, index))):
-            # A notice explained ("Enligt byggstatus är felet löst – du behöver göra inget"): "löst" was the state of
-            # things, nothing was to be changed – no "Säger att det är fixat" and no round back (24 Nov)
+        elif fixed and last_change < 0 and "unseen" not in events and (
+                "skip" in events or _asked_change(display, index)):
+            # Only when a change was asked for: "Funkar rösten?" → "Ja, den fungerar nu", a notice explained ("felet är
+            # löst – du behöver göra inget") – "fungerar nu", "löst" was the state of things, and the round back told her
+            # to make a change nobody asked for (the review 25 Nov: 6 of 6 status questions)
             what = ("det som skulle ändra något kördes inte" if "skip" in events
                     else "inget har ändrats för den här frågan")
             verdict, state, kind = f"Säger att det är fixat, men {what}.", "no", "skipped" if "skip" in events else "nothing"
@@ -3487,6 +3498,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         steps.done(note="fel kvar" if "\nFEL:\n" in checked_addon else "inga fel")
         LAST.tools.append(("wowapi", "kolla"))
         LAST.done.append(("wowapi", "kolla", ""))
+        used += 1  # read for her – else "påstod att hon läst" and no number check (the review 25 Nov)
         messages.append({"role": "user", "content":
                          "[Goblin AI kontrollerade tillägget mot WoW efter ändringen – det här skrev användaren inte]\n\n"
                          f"{checked_addon}\n\n[Slut på kontrollen]\n\nStår det något under FEL: rätta just de raderna "
@@ -3609,13 +3621,20 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             steps.done()
             LAST.tools.append(("wowapi", name))
             LAST.done.append(("wowapi", name, text[:3000]))
+            used += 1
             messages.append({"role": "user", "content":
                              "[Goblin AI slog upp det här åt dig i WoW:s API (spelets lista just nu) innan du svarar – det "
                              f"här skrev användaren inte in]\n\n{text}\n\n[Slut]\n\nAnvändarens fråga var: \"{question}\""})
         except Exception as e:  # noqa: BLE001 – the AI may look it up itself
             steps.done("fel", e)
             api_asked = None
-    for step, fact in ([] if report else notice_now(asked_text(asked.get("content")))):
+    notes = [] if report else notice_now(asked_text(asked.get("content")))
+    # 3: everything the notice named works now – no "Vad som är fel / Kan jag laga det" (the voice notice 24 Nov:
+    # "Kan jag laga det: Ja – felet har redan lagats av sig själv")
+    notice_fine = bool(notes) and all(f.startswith(("Rösten fungerar nu", "Rösten är inte påslagen"))
+                                      or f.endswith("Inget är trasigt just nu.") for _, f in notes)
+    used += 1 if notes else 0  # read for her, as the tools (the review 25 Nov)
+    for step, fact in notes:
         # An old notice: how it is right now, before she answers (24 Nov)
         steps.start(step)
         steps.done(note=fact.split(":")[0][:60])
@@ -3797,11 +3816,21 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     able = ABILITY_ASK.search(str(asked.get("content", ""))[:600])
     if able:
         messages.append({"role": "user", "content": abilities(tools)})
+    rewrites = 0  # answers without a tool call so far – each one after the first was sent back by a check
     while True:
         steps.check()
         answer, service = ask_once(messages, keys, status, notice, project, choice, tools)
         steps.check()
         request_ = tool_request(answer, tools)
+        if not request_:
+            rewrites += 1
+            if rewrites > CHECK_ROUNDS:
+                # Sent back four times already: this answer as it is, said under it, not a fifth round (25 Nov)
+                steps.start("Kontrollerar svaret")
+                steps.done("fel", f"högst {CHECK_ROUNDS} kontrollrundor – svaret kontrollerades inte färdigt")
+                answer = answer.rstrip() + ("\n\n*Obs: Goblin AI hann inte kontrollera det här svaret färdigt – "
+                                            "kolla det som är viktigt själv.*")
+                break
         pages = list(LAST.earlier_sources) + list(sources)
         if (not request_ and not moved and "kunskap" in tools and not report and pages and MEMORY_BLOCK.search(answer)
                 and web_facts_in_memory(answer, typed_text, "\n".join(
@@ -3991,7 +4020,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             messages.append({"role": "assistant", "content": answer})
             messages.append({"role": "user", "content": f"[Goblin AI] {why} Frågan var: \"{question}\"" + NUDGE_NOTE})
             continue
-        if (not request_ and not judged and (used or LAST.tools) and not report and not asked.get("plan")
+        if (not request_ and not judged and (used or LAST.tools) and not report and not asked.get("plan") and not notice_fine
                 and (BROKEN.search(typed_text[:600]) or "search" in repaired or searched and REPAIR_ASK.search(typed_text))
                 and not VERDICT.search(answer) and not only_reading(answer)):
             # Something broke and she looked: the summary and whether she can fix it – else Skicka till Claude
