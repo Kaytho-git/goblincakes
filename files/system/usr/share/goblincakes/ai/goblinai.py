@@ -2944,6 +2944,67 @@ def web_facts_in_memory(answer, typed, read_text):
     return len(words & set(re.findall(r"\w{4,}", read_text.casefold()))) >= max(2, len(words) * 0.4)
 
 
+# A notice may be old (24 Nov: the voice and the demo reader were mended, and Kakan still told how to mend them – the
+# map's status check was there in what she read, and she passed it by). Goblin AI looks now, before she answers.
+NOTICE_TURN = re.compile(r"^Jag tryckte på en notis|^Efter uppdateringen till GOBLINCAKES")
+NOTICE_VOICE = re.compile(r"goblincakes-voice|\b\w+s röst\b|röstknapp|Goblin AI:s röst", re.I)  # Kakan's voice, not a Discord röstkanal
+NOTICE_AFTER = re.compile(r"Efter uppdateringen", re.I)
+
+
+def voice_now():
+    """The voice right now, in a sentence for her: working (the notice is old), needs mending, or not switched on."""
+    helper = Path(__file__).resolve().parents[2] / "libexec/goblincakes-voice"
+    helper = helper if helper.is_file() else Path("/usr/libexec/goblincakes-voice")
+    try:
+        state = json.loads(subprocess.run([str(helper), "status"], capture_output=True, text=True, timeout=20).stdout)
+        active = subprocess.run(["systemctl", "--user", "is-active", "goblincakes-voice"], capture_output=True,
+                                text=True, timeout=10).stdout.strip()
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return ""
+    if not state.get("installed"):
+        return "Rösten är inte påslagen (Inställningar → Röst) – det finns inget att laga."
+    if state.get("stale"):
+        return ("Rösten behöver lagas nu (miljön är gjord för en äldre Python): `goblin update --only voice` lagar den, "
+                "eller knappen Laga nu i röstens notis.")
+    if active == "active":
+        return ("Rösten fungerar nu: installerad, behöver inte lagas, och tjänsten goblincakes-voice kör. Notisen gäller "
+                "något som redan är lagat – säg det kort och föreslå inget kommando för rösten.")
+    return (f"Rösten är installerad och behöver inte lagas, men tjänsten goblincakes-voice är {active or 'okänd'}: läs "
+            "`journalctl --user -u goblincakes-voice -b` för varför.")
+
+
+def after_now(text):
+    """The check after an update run again now: what the notice named that works again, and what is broken now."""
+    try:
+        import aftercheck  # noqa: PLC0415
+        now = aftercheck.look()
+    except Exception:  # noqa: BLE001 – she reads systemfel herself then
+        return ""
+    lower = text.lower()
+    mended = [aftercheck.name(k) for k, r in now.items() if r["ok"] and aftercheck.name(k).lower() in lower]
+    broken = [f"{aftercheck.name(k)}: {r['text']}" for k, r in now.items() if not r["ok"] and not aftercheck.harmless(k)]
+    return ("Goblin AI körde kontrollen efter uppdateringen igen nu. "
+            + (f"Fungerar nu (var trasigt i notisen): {'; '.join(mended)} – säg att det redan är lagat och föreslå "
+               "inget för det. " if mended else "")
+            + (f"Trasigt just nu: {'; '.join(broken)}." if broken else "Inget är trasigt just nu."))
+
+
+def notice_now(text):
+    """[(step, fact)] for a notice about the voice or the check after an update – [] for other questions."""
+    if not isinstance(text, str) or not NOTICE_TURN.search(text):
+        return []
+    out = []
+    if NOTICE_VOICE.search(text[:1500]):
+        fact = voice_now()
+        if fact:
+            out.append(("Kollar rösten nu", fact))
+    if NOTICE_AFTER.search(text[:1500]):
+        fact = after_now(text[:1500])
+        if fact:
+            out.append(("Kör kontrollen efter uppdateringen igen", fact))
+    return out
+
+
 def follow_up_query(pairs, question, keys, project=None, choice=""):
     """The follow-up as a search on its own ("bågskytte OS 2024 världsrekord"), or "" when no search is needed.
     Without the model (it failed): the first question's words in front – better than the follow-up alone."""
@@ -2971,7 +3032,8 @@ SOURCE_NAMES = {"sport": "ESPN (lagens tabeller)", "wowstats": "dina WoW-siffror
                 "cs2": "dina CS2-demos (CS2 Stats)", "goblincakes": "kartan över GOBLINCAKES",
                 "systemfel": "datorns loggar och krascher", "wowfel": "BugSacks sparade fel",
                 "lagg": "lagmätningen (Meta+Shift+L)", "byggstatus": "GitHub (byggen och byggloggen)",
-                "wowapi": "WoW:s API (spelets lista och Blizzards dokumentation)"}
+                "wowapi": "WoW:s API (spelets lista och Blizzards dokumentation)",
+                "notis": "Goblin AI:s kontroll just nu (rösten / efter uppdateringen)"}
 
 
 def local_sources():
@@ -3463,6 +3525,15 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         except Exception as e:  # noqa: BLE001 – the AI may look it up itself
             steps.done("fel", e)
             api_asked = None
+    for step, fact in ([] if report else notice_now(asked_text(asked.get("content")))):
+        # An old notice: how it is right now, before she answers (24 Nov)
+        steps.start(step)
+        steps.done(note=fact.split(":")[0][:60])
+        LAST.done.append(("notis", step, fact))
+        messages.append({"role": "user", "content":
+                         f"[Goblin AI kollade det här nu, innan du svarar – det här skrev användaren inte in]\n\n{fact}"
+                         f"\n\nUtgå från det här, inte från notisens text – notisen kan vara gammal. "
+                         f"Användarens fråga var: \"{question}\""})
     follow = (follow_up_of(messages, asked) if "sök" in tools and not typed and not api_asked and not own
               and not chat_only and not report and not SAVE_ONLY.search(asked_text(asked.get("content"))) else [])
     follow_query = ""
