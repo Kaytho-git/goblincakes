@@ -909,7 +909,9 @@ def main(argv):
             f.write(f"{time.time():.1f} {text}\n")
         if started:
             subprocess.run(["systemctl", "--user", "start", UNIT])
-            open_window()
+        # The graphs come up also when measuring already runs (window closed with X/Esc, 24 Nov);
+        # an open window just comes forward (one window at a time)
+        open_window()
         notify("Laggar nu – noterat " + datetime.now().strftime("%H:%M:%S"),
                "Mätningen startade nu" if started else "Mätningen går")
     elif cmd == "status":
