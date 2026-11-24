@@ -3265,6 +3265,15 @@ def _says(pattern, text):
     return any(not NOT_YET.search(text[max(0, m.start() - 40):m.start()]) for m in pattern.finditer(text))
 
 
+def _question_of(display, index):
+    """The user's message the answer at index belongs to, as text ("" when there is none)."""
+    start = index
+    while start > 0 and display[start - 1].get("role") == "assistant":
+        start -= 1
+    prev = display[start - 1] if start > 0 else {}
+    return str(prev.get("text") or "") if prev.get("role") == "user" else ""
+
+
 def _chain(display, index):
     """The answers to one question: back from index to the user's message (the answers after commands follow on)."""
     start = index
@@ -3348,7 +3357,10 @@ def receipt(display, index):
             verdict, state, kind = "Inte klart än – det som ska göras väntar på att du trycker Tillåt.", "no", "wait"
         elif last_fail > last_change and not any(e in ("read", "change", "self") for e in events[last_fail + 1:]):
             verdict, state, kind = "Säger att det är klart, men det senaste kommandot gav fel.", "no", "fail"
-        elif fixed and last_change < 0 and "unseen" not in events:
+        elif fixed and last_change < 0 and "unseen" not in events and not (
+                "skip" not in events and NOTICE_TURN.search(_question_of(display, index))):
+            # A notice explained ("Enligt byggstatus är felet löst – du behöver göra inget"): "löst" was the state of
+            # things, nothing was to be changed – no "Säger att det är fixat" and no round back (24 Nov)
             what = ("det som skulle ändra något kördes inte" if "skip" in events
                     else "inget har ändrats för den här frågan")
             verdict, state, kind = f"Säger att det är fixat, men {what}.", "no", "skipped" if "skip" in events else "nothing"
