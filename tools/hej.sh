@@ -1,6 +1,6 @@
 #!/bin/bash
 # Allt Claude behöver när användaren säger "hej" – i ett enda anrop (billigare).
-# Bara läsning: git pull, Pågår-delen av senast-gjort.txt, Att göra i CLAUDE.md, testlistorna och Fedora-kollen (M17).
+# Bara läsning: git pull, Pågår-delen av senast-gjort.txt, Att göra i CLAUDE.md, testlistorna, Kakans omtag och Fedora-kollen (M17).
 cd "$(dirname "$0")/.." || exit 1
 
 echo "== git"
@@ -16,6 +16,9 @@ sed -n '/^## Att göra/,/^## /{/^- \[ \]/p}' CLAUDE.md | sed 's/ *(grep[^)]*)//g
 
 echo "== Testlistor som väntar"
 ls ~/.local/share/goblincakes/testlistor/*.md 2>/dev/null | wc -l
+
+echo "== Kakans omtag (kontroller som skickat tillbaka svar)"
+python3 files/system/usr/share/goblincakes/ai/omtag.py kort 2>/dev/null
 
 echo "== Fedora (M17)"
 # Jämför receptens image-version med nästa Fedora-tagg hos Universal Blue

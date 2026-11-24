@@ -820,6 +820,8 @@ class Backend(QObject):
         back = goblinai.receipt_back(self._display[index].get("receipt"), self._api)
         if back:
             self._receipt_told = True
+            goblinai.log_check("klart-kontrollen: " + str((self._display[index].get("receipt") or {}).get("kind", "")),
+                               goblinai.latest_said(self._api), self._display[index].get("service", ""))
             self._api.append({"role": "user", "content": back})
             self._ask()
 

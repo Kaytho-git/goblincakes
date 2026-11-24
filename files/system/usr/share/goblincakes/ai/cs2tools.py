@@ -182,6 +182,7 @@ def cs2_stats(query):
                              cheat_text(latest), CHEAT_NOTE])
     return "\n\n".join([
         "SENASTE MATCHEN" if latest is ms[-1] else "MATCHEN", match_text(latest),
-        average_text(recent),
+        average_text(recent) + (f"\n(Frågan gällde {count} matcher – bara {len(ms)} har läst demo än, så snittet "
+                                f"bygger på {len(ms)}.)" if count > len(ms) else ""),
         GUIDE,
     ])

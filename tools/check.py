@@ -9,6 +9,7 @@ Errors (exit code 1):
   3. the copies are equal: lock screen + logout (look-and-feel and plasma-shell), the three
      Chrome/Brave/Chromium policy files, fitTileToWindow in the KWin script and tile/apply.js
   4. tools/learn-validate.py – only when the course files changed and php/node/lua5.1 exist
+  4b. tools/kontroll-prov.py – Kakans kontroller with a fake model (known right answers must pass, wrong ones be caught)
 Warnings (never stop anything):
   5. the layout changed without a new LAYOUT_VERSION, systray.js without SYSTRAY_VERSION,
      the Chrome theme without a new version in its manifest
@@ -271,6 +272,20 @@ def check_learn(changed):
     print("  kurserna: learn-validate")
 
 
+def check_kakan():
+    """Kakans kontroller (tools/kontroll-prov.py): known questions and answers through the checks, a fake model."""
+    try:
+        r = subprocess.run([sys.executable, str(ROOT / "tools/kontroll-prov.py")], capture_output=True, text=True,
+                           timeout=300)
+    except subprocess.TimeoutExpired:
+        errors.append("Kontrollprovet (tools/kontroll-prov.py) tog över 5 minuter")
+        return
+    out = (r.stdout + r.stderr).strip().splitlines()
+    if r.returncode:
+        errors.append("Kakans kontroller (tools/kontroll-prov.py): " + " | ".join(out[-6:]))
+    print("  kakans kontroller: " + (out[-1] if out else "inget svar"))
+
+
 # 5. Warnings: versions to bump -------------------------------------------------------------------
 def value_at(ref, path, pattern):
     text = git("show", f"{ref}:{path}") if ref else (ROOT / path).read_text() if (ROOT / path).exists() else None
@@ -306,6 +321,7 @@ def main():
     check_qml()
     check_copies()
     check_learn(changed)
+    check_kakan()
     check_versions(base, changed)
     for w in warnings:
         print(("::warning::" if GH else "VARNING: ") + w)

@@ -1255,6 +1255,16 @@ BUILD_NOTE = ("(Ett bygge visar bara vilken commit som byggdes och om det gick �
 UPDATE_OFF = re.compile(r"(?:uppdater|update|bygge).{0,120}(?:st[äa]ng\w*\s+av|shut\s*down|power\s*off)"
                         r"|st[äa]ng\w*\s+av.{0,120}(?:uppdater|update|bygge)", re.I | re.S)
 
+def log_check(check, question="", model=""):
+    """A round back to her, in omtag.py's log – never stops the answer."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import omtag  # noqa: PLC0415
+        omtag.add(check, asked_text(question) if not isinstance(question, str) else question, model)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 CHECK_ROUNDS = 4  # "Kontrollerar svaret" rounds per question, at most (the review 25 Nov: no cap, 20-odd checks)
 STEP_LIMIT = 10  # tool uses per question (the work loop, 25 Oct; was 6) – and fewer when the local AI's memory fills up
 
@@ -3817,14 +3827,24 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
     if able:
         messages.append({"role": "user", "content": abilities(tools)})
     rewrites = 0  # answers without a tool call so far – each one after the first was sent back by a check
+    plain, mark, service = False, 0, ""
     while True:
         steps.check()
+        sent = str(messages[-1].get("content", "")) if messages else ""
+        if plain and messages[-1]["role"] == "user" and sent.startswith("[Goblin AI"):
+            # The answer before was sent back by a check: in the omtag log (25 Nov) – the step's note, else the nudge
+            new = [st for st in steps.items[mark:] if st.get("text") == "Kontrollerar svaret" and st.get("state") == "fel"]
+            log_check(new[-1].get("note") if new and new[-1].get("note") else re.sub(r"^\[Goblin AI[^\]]*\]\s*", "", sent)[:70],
+                      question, service)
         answer, service = ask_once(messages, keys, status, notice, project, choice, tools)
         steps.check()
+        mark = len(steps.items)
         request_ = tool_request(answer, tools)
+        plain = not request_
         if not request_:
             rewrites += 1
             if rewrites > CHECK_ROUNDS:
+                log_check(f"högst {CHECK_ROUNDS} kontrollrundor", question, service)
                 # Sent back four times already: this answer as it is, said under it, not a fifth round (25 Nov)
                 steps.start("Kontrollerar svaret")
                 steps.done("fel", f"högst {CHECK_ROUNDS} kontrollrundor – svaret kontrollerades inte färdigt")
@@ -4187,6 +4207,11 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         answer = answer.rstrip() + "\n\n**Källor:** " + " · ".join(
             f"[{s['title'][:60].replace('[', '(').replace(']', ')')}]({s['url']})" for s in sources[:SOURCES_MAX])
     local = local_sources()
+    if (getattr(LAST, "remembered", []) and any(t in ("sök", "sida", "wiki") for t, _ in LAST.tools)
+            and not re.search(r"(?:ur|från|i) (?:mitt|ditt) kunskapsminne", answer, re.I)):
+        # Read the memory, then searched the web and answered from that: the memory isn't where the answer came from
+        # ("Minnet innehöll fel information" … "Hämtat från: ditt kunskapsminne", 24 Nov)
+        local = [x for x in local if not x.startswith("ditt kunskapsminne")]
     if local:
         answer = answer.rstrip() + ("\n\n" if not sources else "\n") + "**Hämtat från:** " + " · ".join(local)
     typed_q = str(asked.get("content", ""))[:600]

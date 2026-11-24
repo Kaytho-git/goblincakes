@@ -1,3 +1,4 @@
+2026-11-25  Goblin AI: "Hämtat från" under svaret nämner inte längre kunskapsminnet när Kakan till slut svarade från nätet, och frågar du om fler CS2-matcher än det finns lästa demos för säger hon hur många snittet bygger på.
 2026-11-25  Goblin AI: Kakan får inte längre extra omtag när hon svarar på hur något står till ("funkar rösten?", "är wow uppdaterat?") eller förklarar en notis där allt redan fungerar – förut kunde Goblin AI be henne ändra något ingen bett om. Hon får högst fyra omtag per fråga.
 2026-11-24  Goblin AI: när Kakan förklarar en notis ("bygget gick inte, men nästa lyckades – du behöver inte göra något") kommer inte längre ett extra svar efteråt.
 2026-11-24  Goblin AI: frågar du om något som redan finns i Kakans kunskapsminne svarar hon ur minnet i stället för att söka på nätet igen, och hon säger inte längre att något är sparat innan du tryckt Tillåt.
