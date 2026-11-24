@@ -28,8 +28,19 @@ Item {
         else if (right > flick.contentX + flick.width)
             flick.contentX = Math.min(row.width - flick.width, right - flick.width);
     }
+    // From where the tabs are going, not where they are mid-slide: a fast wheel lost most of each step (24 Nov, the user)
+    property real goalX: 0
     function nudge(dx) {
-        flick.contentX = Math.max(0, Math.min(Math.max(0, row.width - flick.width), flick.contentX + dx));
+        const from = slide.running ? goalX : flick.contentX;
+        goalX = Math.max(0, Math.min(Math.max(0, row.width - flick.width), from + dx));
+        flick.contentX = goalX;
+    }
+    // One wheel notch ≈ one tab; a mouse's fine steps (8 per notch) add up to the same. Pixels only from a touchpad.
+    function wheelStep(event) {
+        const pad = event.device && event.device.type === PointerDevice.TouchPad;
+        if (pad && (event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0))
+            return event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.pixelDelta.y;
+        return (event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y) / 120 * 150;
     }
     onWidthChanged: if (!overflow) flick.contentX = 0
 
@@ -45,7 +56,7 @@ Item {
         interactive: bar.overflow
         flickableDirection: Flickable.HorizontalFlick
         boundsBehavior: Flickable.StopAtBounds
-        Behavior on contentX { enabled: !flick.dragging; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+        Behavior on contentX { enabled: !flick.dragging; NumberAnimation { id: slide; duration: 160; easing.type: Easing.OutCubic } }
 
         Row {
             id: row
@@ -105,12 +116,7 @@ Item {
     WheelHandler {
         enabled: bar.overflow
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: event => {
-            const d = event.pixelDelta.x !== 0 ? event.pixelDelta.x
-                    : event.pixelDelta.y !== 0 ? event.pixelDelta.y
-                    : (event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y) / 120 * 80;
-            bar.nudge(-d);
-        }
+        onWheel: event => bar.nudge(-bar.wheelStep(event))
     }
 
     // The arrows at the edges – only where there is more to see

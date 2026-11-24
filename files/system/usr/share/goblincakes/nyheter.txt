@@ -1,3 +1,4 @@
+2026-11-24  Flikarna i Config, Goblin AI, GoblinShare och GoblinRecorder rullar snabbare med hjulet när fönstret är litet – ett hack flyttar ungefär en flik.
 2026-11-24  Lagmätningen: Meta+Shift+L tar nu alltid fram graferna – förut kom de inte tillbaka om du stängt fönstret medan mätningen fortfarande gick.
 2026-11-24  Installationsskivan: i en virtuell maskin (VirtualBox, VMware m.fl.) hamnade man tillbaka på inloggningen i stället för på skrivbordet – nu startar den som vanligt.
 2026-11-23  Spelläge: fläktboosten under spel fungerar nu på fler bärbara datorer än Lenovo (till exempel Acer, ASUS och HP) – energiprofilen går upp till Prestanda medan spelet kör, bara när laddaren sitter i, och tillbaka när spelet stängs eller laddaren dras ur.

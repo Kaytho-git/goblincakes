@@ -1906,8 +1906,12 @@ Window {
                 readonly property bool overflow: tabRow.width > width - tabActions.width - 20
                 readonly property bool moreLeft: overflow && tabFlick.contentX > 1
                 readonly property bool moreRight: overflow && tabFlick.contentX < tabRow.width - tabFlick.width - 1
+                // From where the tabs are going, not mid-slide; one notch ≈ one tab (as G.TabBar, 24 Nov)
+                property real goalX: 0
                 function nudge(dx) {
-                    tabFlick.contentX = Math.max(0, Math.min(Math.max(0, tabRow.width - tabFlick.width), tabFlick.contentX + dx));
+                    const from = tabSlide.running ? goalX : tabFlick.contentX;
+                    goalX = Math.max(0, Math.min(Math.max(0, tabRow.width - tabFlick.width), from + dx));
+                    tabFlick.contentX = goalX;
                 }
                 onOverflowChanged: if (!overflow) tabFlick.contentX = 0
                 Flickable {
@@ -1920,7 +1924,7 @@ Window {
                     interactive: tabBar.overflow
                     flickableDirection: Flickable.HorizontalFlick
                     boundsBehavior: Flickable.StopAtBounds
-                    Behavior on contentX { enabled: !tabFlick.dragging; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                    Behavior on contentX { enabled: !tabFlick.dragging; NumberAnimation { id: tabSlide; duration: 160; easing.type: Easing.OutCubic } }
                 Row {
                     id: tabRow
                     height: parent.height
@@ -2022,9 +2026,10 @@ Window {
                     enabled: tabBar.overflow
                     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                     onWheel: event => {
-                        const d = event.pixelDelta.x !== 0 ? event.pixelDelta.x
-                                : event.pixelDelta.y !== 0 ? event.pixelDelta.y
-                                : (event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y) / 120 * 80;
+                        const pad = event.device && event.device.type === PointerDevice.TouchPad;
+                        const d = pad && (event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0)
+                                ? (event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.pixelDelta.y)
+                                : (event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y) / 120 * 150;
                         tabBar.nudge(-d);
                     }
                 }
