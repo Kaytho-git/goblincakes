@@ -2284,6 +2284,14 @@ def ask(messages, keys, status=None, notice=None, project=None, choice="", steps
     answer = re.sub(r"python3 \S*bytatext\.py", lambda _: f"python3 {Path(__file__).resolve().parent / 'bytatext.py'}",
                     answer)
     answer, cards = rein_in(answer, cards, messages)
+    if not solved_confirmed(messages):
+        # A ```löst block only when the user has said it works (24 Nov: after a notice she saved "Bygget har redan
+        # rättat felet … commit feaf0df" – a made-up known solution, saved at once as confirmed)
+        answer = SOLVED_BLOCK.sub("", answer).strip()
+    if not cards and not re.sub(r"\*Obs[^\n]*|\*\*(?:Källor|Hämtat från):\*\*[^\n]*", "", answer).strip():
+        # Nothing left once her made-up cards were taken out (18 Nov: only "Hämtat från" and the Obs line)
+        answer = (f"Jag fick inte ihop något svar den här gången – fråga igen, eller tryck **Skicka till Claude**.\n\n"
+                  + answer).strip()
     # Her own cards too: one at a time (2 Nov) – the first, the next after Tillåt
     for extra in re.findall(r"```bash\n[^`]*?bytatext\.py.*?\n```\n?", answer, flags=re.S)[1:]:
         answer = answer.replace(extra, "")
@@ -2435,7 +2443,8 @@ def rein_in(answer, cards, messages):
     cards = [c for c in cards if not any(c.strip("`\n").endswith(b.strip()) for b, _ in fake)]
     if fake:
         names = ", ".join(dict.fromkeys(n for _, miss in fake for n in miss))[:120]
-        notes.append(f"*Obs: {ainame.name()} skrev ett kort med kommandon som inte finns ({names}) – det togs bort, inget kördes.*")
+        notes.append(f"*Obs: {ainame.name()} skrev ett kort med det som inte finns på datorn ({names}) – det togs bort, "
+                     "inget kördes.*")
     failed = failed_card(messages)
     changing = lambda code: "bytatext.py" in code or cmd_level().level(code)[0] != "read"  # noqa: E731
     if failed or not change_allowed(messages):
@@ -3548,7 +3557,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "[Goblin AI tog reda på det här åt dig innan du svarar – det här skrev eller klistrade "
                              f"användaren inte in]\n\n{text}\n\n[Slut på det Goblin AI tog reda på]\n\n"
                              f"Användarens fråga var: \"{question}\"\n{REPAIR_COMPARE}"})
-    nudged = promised = looked = acted = claimed = judged = offed = stopped_fetching = moved = unsaved = False
+    nudged = promised = looked = acted = claimed = judged = offed = stopped_fetching = moved = unsaved = faked = False
     repeats = 0       # the same call again (7 Nov: qwen3.5 sent "musik vad" ten times and used up every step)
     repaired = set()  # the repair checks already sent back (repair_nudge)
     fight = own_fight(asked.get("content"), tools, messages)
@@ -3664,6 +3673,23 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              "fakta och en av de här källorna: " + ", ".join(dict.fromkeys(p["url"] for p in pages))
                              + ". Säg sedan kort att förslaget ligger i kortet under svaret. "
                              f"Frågan var: \"{question}\"" + NUDGE_NOTE})
+            continue
+        made_up = [] if request_ or faked else list(dict.fromkeys(
+            n for b in re.findall(r"```(?:bash|sh)\n(.*?)\n```", answer, re.S) if "bytatext.py" not in b
+            for n in cmd_level().missing_programs(b)))
+        if made_up:
+            # A card with things that aren't on the computer (24 Nov: pip, pip3, goblin-ai.service – the card was taken
+            # out and left a hole, once the whole answer): once more, to find the right way or say she can't
+            faked = True
+            steps.start("Kontrollerar svaret")
+            steps.done("fel", "kort med det som inte finns: " + ", ".join(made_up)[:80])
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] Ditt kort använder det här som inte finns på datorn: " + ", ".join(made_up)
+                             + ". Det kortet går inte att köra. Ta reda på rätt sätt med verktygen (kartan goblincakes "
+                             "först om det gäller GOBLINCAKES) – eller säg ärligt att du inte kan laga det (Kan jag laga "
+                             f"det: Nej) så att användaren kan trycka Skicka till Claude. Frågan var: \"{question}\""
+                             + NUDGE_NOTE})
             continue
         if not request_ and not used and not nudged and own_game_question(asked.get("content"), tools):
             # About the user's own WoW/CS2/computer/team but no tool used: in a long chat gemma4 answered "enligt
@@ -5491,6 +5517,22 @@ Orsak: <vad som var fel>
 Lösning: <vad som gjordes – kommandot, filen, inställningen>
 Bara när användaren har bekräftat att det är löst – inte för vanliga frågor och inte när du bara föreslagit
 något. Det sparas direkt, och nästa gång samma tecken kommer får du lösningen med. Säg kort att du sparade den."""
+
+
+SOLVED_BLOCK = re.compile(r"```(?:" + "|".join(SOLVED_WORDS) + r")[ \t]*\n.*?```\n?", re.S | re.I)
+# The user's own words say it works now – and not "funkar inte" (24 Nov: SOLVED_PROMPT's rule, now in the code)
+WORKS_NOW = re.compile(r"\b(?:funkar|fungerar|löst|löste|nu syns|syns nu|hjälpte|gick bra|gick det|klart nu|bra nu|"
+                       r"rätt nu|tack)\b", re.I)
+WORKS_NOT = re.compile(r"\b(?:funkar|fungerar|syns|gick|hjälpte|löst|löste)\s+(?:\w+\s+)?(?:inte|ej|aldrig)\b|"
+                       r"\b(?:inte|ej)\s+(?:\w+\s+)?(?:funkar|fungerar|löst|hjälpt)", re.I)
+
+
+def solved_confirmed(messages):
+    """The user's latest own message (not a command's output or Goblin AI's turn) says the problem is solved."""
+    said = next((asked_text(m.get("content")) for m in reversed(messages) if m["role"] == "user"
+                 and isinstance(m.get("content"), str) and not m["content"].startswith(OWN_TURNS + REPORT_TURNS)), "")
+    said = said[:600]
+    return bool(WORKS_NOW.search(said)) and not WORKS_NOT.search(said)
 
 
 def parse_solved(code):

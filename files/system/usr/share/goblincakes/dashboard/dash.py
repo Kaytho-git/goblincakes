@@ -112,7 +112,8 @@ def apps():
 def notice_question(app, summary, body, when):
     text = " – ".join(x for x in (summary, body) if x)
     return (f"Jag tryckte på en notis i dashboarden (från {app or 'okänt program'}, {when}):\n\"{text}\"\n\n"
-            "Kolla vad den innebär med dina verktyg (byggstatus för byggen, systemfel och loggen för krascher och "
+            "Kolla vad den innebär med dina verktyg (kartan goblincakes först om det gäller GOBLINCAKES egna delar – där "
+            "står kända fel och vad man gör, byggstatus för byggen, systemfel och loggen för krascher och "
             "systemmeddelanden) och förklara kort på vanlig svenska vad den betyder och om jag behöver göra något.")
 
 

@@ -266,8 +266,12 @@ def details(match):
     if items:
         out.append(f"Krascher de senaste {CRASH_DAYS} dygnen: {len(items)}")
         for c in items[-12:]:
+            # The command line too (24 Nov: "python3 ×2: okänt" – Claude Code's test commands in Goblin AI's terminal
+            # were taken for Goblin AI crashing); keys and passwords hidden
+            cmd = " ".join(hide(c["cmd"]).split())
             out.append(f"- {when(c['time'])} {c['name']} ({c['signal']})" + (f" · {c['tool']}" if c["tool"] else "")
-                       + (f" · startad från {c['unit']}" if c["unit"] else ""))
+                       + (f" · startad från {c['unit']}" if c["unit"] else "")
+                       + (f" · kommandot: {cmd[:160]}{'…' if len(cmd) > 160 else ''}" if cmd and cmd != c["exe"] else ""))
         frames, extras = stack(items[-1]["pid"])
         if frames:
             out.append(f"Senaste kraschen ({items[-1]['name']}), början av stacken:\n  " + "\n  ".join(frames))

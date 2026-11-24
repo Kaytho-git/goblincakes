@@ -1062,6 +1062,43 @@ SHELL_WORDS = {
 PREFIXES = {"sudo", "pkexec", "env", "nice", "ionice", "nohup", "timeout", "time", "stdbuf", "flatpak-spawn"}
 
 
+UNIT_VERBS = {"start", "stop", "restart", "reload", "try-restart", "reload-or-restart", "try-reload-or-restart",
+              "enable", "disable", "reenable", "status", "is-active", "is-enabled", "mask", "unmask", "kill"}
+
+
+def missing_parts(words):
+    """What a command names that isn't on the computer, though the program is (24 Nov, the crash notice:
+    `systemctl --user restart goblin-ai.service` – no such service, Goblin AI is a window; `python3 -m pip` – no pip):
+    ["goblin-ai.service – tjänsten finns inte", "pip – Python-modulen finns inte"]."""
+    out = []
+    if words[0] == "systemctl" and shutil.which("systemctl"):
+        user = "--user" in words
+        rest = [w for w in words[1:] if not w.startswith("-")]
+        if rest and rest[0] in UNIT_VERBS:
+            for unit in rest[1:]:
+                if "$" in unit or "*" in unit or "`" in unit or unit.endswith("@.service"):
+                    continue  # a variable, a pattern or a template: can't be known before it runs
+                name = unit if "." in unit else unit + ".service"
+                try:
+                    state = subprocess.run(["systemctl"] + (["--user"] if user else []) + ["show", "-p", "LoadState",
+                                           "--value", name], capture_output=True, text=True, timeout=5).stdout.strip()
+                except (OSError, subprocess.SubprocessError):
+                    continue
+                if state == "not-found":
+                    out.append(f"{name} – tjänsten finns inte")
+    if re.fullmatch(r"python3(?:\.\d+)?", words[0]) and "-m" in words[:-1] and shutil.which(words[0]):
+        module = words[words.index("-m") + 1].split(".")[0]
+        if re.fullmatch(r"[A-Za-z_]\w*", module):
+            try:
+                found = subprocess.run([words[0], "-c", f"import importlib.util,sys;sys.exit(importlib.util.find_spec({module!r}) is None)"],
+                                       capture_output=True, timeout=10).returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                found = True
+            if not found:
+                out.append(f"{module} – Python-modulen finns inte")
+    return out
+
+
 def missing_programs(code):
     """The first words of the block's commands that are no program, shell word or path to one: [] = all there.
     Heredoc text is skipped; a word with $ or a subshell counts as there (can't be known before it runs)."""
@@ -1093,6 +1130,9 @@ def missing_programs(code):
             if not words:
                 continue
             first = words[0]
+            for thing in missing_parts(words):  # a made-up service or Python module (24 Nov)
+                if thing not in missing:
+                    missing.append(thing)
             if first in SHELL_WORDS or "$" in first or "`" in first or first.endswith(")"):
                 continue
             path = Path(os.path.expanduser(first))

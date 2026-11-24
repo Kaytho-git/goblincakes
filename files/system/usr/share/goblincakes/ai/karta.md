@@ -324,6 +324,7 @@ Ord: goblin ai, kakan, namn, provmapp, goblin-prov, ai, chatt, meta+a, minne, l�
 - I terminalen: goblin ai = /usr/libexec/goblincakes-ai (prompt_toolkit, python3-prompt-toolkit i imagen; utan den en
   enkel rad). /app öppnar fönstret med samma samtal (goblin-ai --open <id>). Terminalens chattar sparas bland fönstrets.
   /projekt <namn> går in i ett projekt (projects.json), /projekt lämnar.
+- Kontroller på dina svar (24 nov): ett ```löst-block sparas bara när användarens senaste egna ord säger att det fungerar ("funkar nu", "löst", "tack" – inte "funkar inte"); annars tar Goblin AI bort det. Ett kort med något som inte finns (ett program, en systemd-tjänst – `systemctl show -p LoadState --value <tjänst>` = not-found – eller en Python-modul i `python3 -m`) skickas tillbaka till dig en gång; andra gången tas det bort ("Obs: … det som inte finns på datorn"). Blev inget kvar av svaret: "Jag fick inte ihop något svar …". Notiser från dashboarden ber dig läsa kartan först.
 - Följdfrågor (9 nov): en kort fråga direkt efter ett svar med **Källor:** (från nätet) söks igen – follow_up_of() och
   follow_up_query() i goblinai.py skriver om den med samtalets ämne (steget "Förstår följdfrågan" visar sökfrågan;
   "ingen ny sökning behövs" = modellen svarade INGEN). Söker hon på fel sak: titta på den raden i stegen.
