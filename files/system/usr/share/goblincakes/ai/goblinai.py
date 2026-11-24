@@ -1246,6 +1246,10 @@ def kunskap_run(query):
             "kunskapskort."), []
 
 
+# 24 Nov: "Bygget har redan rättat felet (commit feaf0df)" – a commit about the kunskapsminne, tied to the demo reader
+BUILD_NOTE = ("(Ett bygge visar bara vilken commit som byggdes och om det gick – inte vad som lagades. Säg att en commit "
+              "ändrade eller lagade något bara om det står i dess meddelande.)\n\n")
+
 # "uppdatera sen stäng av datorn", "stäng av datorn när uppdateringen är klar" (29 Oct)
 UPDATE_OFF = re.compile(r"(?:uppdater|update|bygge).{0,120}(?:st[äa]ng\w*\s+av|shut\s*down|power\s*off)"
                         r"|st[äa]ng\w*\s+av.{0,120}(?:uppdater|update|bygge)", re.I | re.S)
@@ -1715,7 +1719,7 @@ def tools_for(keys, project, messages):
                          "de vanliga sekunderna – ping till spelets server och routern, processor, grafikkort, minne, "
                          "disk, program som tog processorn, MangoHuds frametider. Före systemfel när det gäller lagg.",
                          "Tomt = senaste mätningen, `2` = näst senaste, `lista` = alla")
-    tools["byggstatus"] = tool("Läser byggstatus på GitHub", "", "", lambda q: (build_status().report(q), []),
+    tools["byggstatus"] = tool("Läser byggstatus på GitHub", "", "", lambda q: (BUILD_NOTE + build_status().report(q), []),
                                "byggstatus",
                                "GOBLINCAKES egna byggen på GitHub (build.yml = imagen, build-iso.yml = ISO:n): de "
                                "senaste – lyckades, misslyckades, pågår – vilka commits det senaste har med sig "
@@ -2989,6 +2993,60 @@ def after_now(text):
             + (f"Trasigt just nu: {'; '.join(broken)}." if broken else "Inget är trasigt just nu."))
 
 
+# Commits tied to what their message doesn't say (24 Nov: "Bygget har redan rättat felet (commit feaf0df)" – the
+# kunskapsminne; "ac5172a … använder nu python3.14 för CS2-demon" – the map's voice advice)
+COMMIT_ID = re.compile(r"(?<![\w/#=.-])(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])([0-9a-f]{7,40})(?![\w-])")
+COMMIT_LINE = re.compile(r"^(\s*)(?:-.*?commit\s+)?([0-9a-f]{7,40})\s+\"?([^\n]{3,}?)\"?(?:\s+\((?:push|schedule|"
+                         r"workflow_dispatch)[^)]*\).*)?$", re.M)
+# Build words that say nothing about what a commit changed
+COMMIT_PLAIN = {"bygge", "commi", "image", "lycka", "missl", "pågår", "klart", "vänta", "avbrö", "senas", "nästa",
+                "förra", "versi", "inneh", "sedan", "efter", "detta", "denna", "redan", "komme", "uppda", "gobli",
+                "förän", "ändri", "också", "inte", "bara", "även", "just", "vilke", "efter", "medan", "fortf", "fråga",
+                "sjäv", "själv", "start", "gjord", "finns", "gäller", "gälle", "push"}
+
+
+def commit_messages(text):
+    """{commit id: its message + its build's part of the report (status, failed step, reason, the commits it has
+    with it)} from what she read."""
+    own, block, current = {}, {}, None
+    for line in text.splitlines():
+        m = COMMIT_LINE.match(line)
+        if m:
+            cid, msg = m.group(2)[:7], m.group(3).strip(' "…')
+            own[cid] = max(own.get(cid, ""), msg, key=len)
+        if line.startswith("- "):
+            found = re.search(r"commit\s+([0-9a-f]{7,40})", line)
+            current = found.group(1)[:7] if found else None
+        elif not line.strip() or not line.startswith(" "):
+            current = None
+        if current:
+            block[current] = block.get(current, "") + "\n" + line
+    return {c: own[c] + block.get(c, "") for c in own}
+
+
+def commit_stems(text):
+    return {w[:5] for w in re.findall(r"[a-zåäö0-9][\w.-]{3,}", text.lower())}
+
+
+def commit_guesses(answer, read_text):
+    """[(commit id, its message or "")] – her sentences that say a commit did something its message doesn't name, or
+    name a commit that isn't in anything she read."""
+    known = commit_messages(read_text)
+    out = []
+    for line in re.split(r"(?<=[.!?])\s+|\n", re.sub(r"```.*?```", " ", answer, flags=re.S)):
+        for m in COMMIT_ID.finditer(line):
+            cid = m.group(1)[:7]
+            if cid not in known:
+                if m.group(1) not in read_text and cid not in read_text and (cid, "") not in out:
+                    out.append((cid, ""))
+                continue
+            claim = re.sub(r"\"[^\"]*\"|'[^']*'|“[^”]*”|„[^\"”]*[\"”]|\([^)]*\)|" + re.escape(m.group(1)), " ", line)
+            words = commit_stems(claim) - COMMIT_PLAIN
+            if words and not words & commit_stems(known[cid]) and (cid, known[cid]) not in out:
+                out.append((cid, known[cid]))
+    return out
+
+
 def notice_now(text):
     """[(step, fact)] for a notice about the voice or the check after an update – [] for other questions."""
     if not isinstance(text, str) or not NOTICE_TURN.search(text):
@@ -3629,6 +3687,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              f"användaren inte in]\n\n{text}\n\n[Slut på det Goblin AI tog reda på]\n\n"
                              f"Användarens fråga var: \"{question}\"\n{REPAIR_COMPARE}"})
     nudged = promised = looked = acted = claimed = judged = offed = stopped_fetching = moved = unsaved = faked = False
+    commit_sent = False  # a commit tied to what its message doesn't say: sent back once (24 Nov)
     repeats = 0       # the same call again (7 Nov: qwen3.5 sent "musik vad" ten times and used up every step)
     repaired = set()  # the repair checks already sent back (repair_nudge)
     fight = own_fight(asked.get("content"), tools, messages)
@@ -3762,6 +3821,27 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
                              f"det: Nej) så att användaren kan trycka Skicka till Claude. Frågan var: \"{question}\""
                              + NUDGE_NOTE})
             continue
+        guessed = [] if request_ or not COMMIT_ID.search(answer) else commit_guesses(
+            answer, "\n".join(str(m.get("content", "")) for m in messages if m["role"] == "user"
+                               and not str(m.get("content", "")).startswith("[Goblin AI] ")))  # not our own checks
+        if guessed and not commit_sent:
+            # A commit tied to what its message doesn't say (24 Nov) – once more: only what the message says
+            commit_sent = True
+            steps.start("Kontrollerar svaret")
+            steps.done("fel", "commit kopplad till något som inte står i dess meddelande: "
+                       + ", ".join(c for c, _ in guessed))
+            messages.append({"role": "assistant", "content": answer})
+            messages.append({"role": "user", "content":
+                             "[Goblin AI] " + " ".join(
+                                 f"Commit {c}:s meddelande är \"{msg[:160]}\" – det säger inget om det du kopplar den till."
+                                 if msg else f"Commit {c} finns inte i något du läst." for c, msg in guessed)
+                             + " Ett bygge säger inte vad som lagades. Skriv om svaret: säg bara vad som står i "
+                             "commitens meddelande, eller att du inte vet vilken commit (eller om något commit alls) "
+                             f"som ändrade det. Frågan var: \"{question}\"" + NUDGE_NOTE})
+            continue
+        if guessed:
+            answer = answer.rstrip() + ("\n\n*Obs: " + ", ".join(f"commit {c}" for c, _ in guessed) + " kopplas här "
+                                        "till något som inte står i commitens meddelande – kopplingen kan vara gissad.*")
         if not request_ and not used and not nudged and own_game_question(asked.get("content"), tools):
             # About the user's own WoW/CS2/computer/team but no tool used: in a long chat gemma4 answered "enligt
             # Warcraft Logs dog <namn>" without reading anything (25 Oct) – once more, told to use one
