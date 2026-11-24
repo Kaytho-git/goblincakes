@@ -3676,7 +3676,7 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
             continue
         made_up = [] if request_ or faked else list(dict.fromkeys(
             n for b in re.findall(r"```(?:bash|sh)\n(.*?)\n```", answer, re.S) if "bytatext.py" not in b
-            for n in cmd_level().missing_programs(b)))
+            for n in cmd_level().missing_programs(CALL_TAG.sub("\n", b))))  # qwen's </parameter> tags aren't commands
         if made_up:
             # A card with things that aren't on the computer (24 Nov: pip, pip3, goblin-ai.service – the card was taken
             # out and left a hole, once the whole answer): once more, to find the right way or say she can't

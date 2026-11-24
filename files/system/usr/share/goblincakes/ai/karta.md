@@ -113,7 +113,7 @@ Ord: efter uppdateringen, efterkontroll, gick sönder, slutade fungera, ny image
   (org.goblincakes.*), Ollama, GoblinRecorders CS2-demoläsare (demoparser2/awpy, bara med GoblinRecorder på). Resultatet sparas per image i ~/.local/state/goblincakes/efterkontroll.json.
 - Efter en ny image jämförs med förra imagen: bara det som fungerade före och är trasigt nu ger en notis
   ("Efter uppdateringen: N saker gick sönder", knappen Fråga + ditt namn). Allt bra = ingen notis.
-- "No module named 'demoparser2'" efter ny Fedora-version = demoparser2/awpy/pandas har färdiga paket per Python-version och bygget (install-demoparser.sh) föll tyst → inget i /usr/lib/goblincakes/demoparser. Läsaren körs med python3.14 (recorder `cs2_demo_process`); kolla `ls /usr/lib/goblincakes/demoparser`, `rpm -q python3.14`, byggloggen. Du kan inte rätta det på datorn (read-only) – skicka vidare. goblincakes-voice.service "inactive (success)" efter ny Fedora-version: läs `journalctl --user -u goblincakes-voice -b`. "pip misslyckades: No matching distribution" = rösten är trasig (paketen saknas för nya Pythonen; miljön görs med python3.14, finns den inte i imagen → skicka vidare). Bara "Inte lagad nu" = användaren har inte tryckt Laga nu – säg åt hen att köra goblin update.
+- "No module named 'demoparser2'" efter ny Fedora-version = demoparser2/awpy/pandas har färdiga paket per Python-version och bygget (install-demoparser.sh) föll tyst → inget i /usr/lib/goblincakes/demoparser. Läsaren körs med python3.14 (recorder `cs2_demo_process`); kolla `ls /usr/lib/goblincakes/demoparser`, `rpm -q python3.14`, byggloggen. Du kan inte rätta det på datorn (read-only) – skicka vidare. goblincakes-voice.service "inactive (success)" efter ny Fedora-version: läs `journalctl --user -u goblincakes-voice -b`. En notis om rösten: se avsnittet Din röst (röstknappen).
 - Var trasigt redan före = inte uppdateringens fel. Kända ofarliga fel (systemd-remount-fs, nvidia-settings-load)
   räknas inte.
 - Det som gått sönder rättas del för del (logg → orsak → rätta, t.ex. starta om tjänsten); det du inte kan rätta
@@ -701,13 +701,14 @@ Ord: lagg, laggar, ping, laggknappen, meta+shift+l, lagmätning, hackar, nätet,
 Kontroll: `/usr/libexec/goblincakes-lagmeter status`
 
 ## Din röst (röstknappen)
-Ord: röst, röstknappen, f8, prata, hör inte, hörde fel, uppläsning, rutan, whisper, piper, menade du, lärt
+Ord: röst, röstknappen, f8, prata, hör inte, hörde fel, uppläsning, rutan, whisper, piper, menade du, lärt, kakans röst, laga rösten, röstens notis, pip, onnxruntime, no matching distribution, stale, inactive
 - Håll F8 (musknapp 4 på G502 = F8) och prata, släpp när du är klar. Tjänsten goblincakes-voice
   (/usr/libexec/goblincakes-voice listen, /usr/lib/systemd/user/goblincakes-voice.service) startar bara om
   miljön finns: ~/.local/share/goblincakes-voice (venv med faster-whisper + Piper, kb-whisper-small, rösterna).
 - Uttal: Piper läser rent (inget filter); ord hon säger fel stavas om i SAY_AS i /usr/libexec/goblincakes-voice
   (t.ex. Goblin AI → "Gåbblinn ej-aj", GoblinAmp → "Gåbblinn-amp"). Prova: goblincakes-voice say "<text>".
   Kortkommandot heter "goblincakes-voice" i Systeminställningar → Genvägar. Inte F20–F23 (mikrofon av/pekplatta).
+- En notis om rösten (laga/pip/inactive): kolla FÖRST om den redan är lagad – `/usr/libexec/goblincakes-voice status` ("stale": false) och `systemctl --user is-active goblincakes-voice` (active) = rösten fungerar, notisen är gammal; säg det. Behöver den lagas: `goblin update --only voice` (bara röststeget) eller för hand `/usr/libexec/goblincakes-voice install` – inte `--only ollama` (det är den lokala AI:n, inte rösten). "pip misslyckades: No matching distribution" efter lagningen = rösten är trasig (paketen saknas för nya Pythonen; miljön görs med python3.14, finns den inte i imagen → skicka vidare). Bara "Inte lagad nu" = användaren har inte tryckt Laga nu – säg åt hen att köra `goblin update --only voice`.
 - Medan knappen hålls tystas bara mikrofonen mot Discord (dess PipeWire source-output), sedan på igen.
 - Tal → text (Whisper, ~1,5 s) → enkla kommandon direkt utan språkmodell (/usr/share/goblincakes/ai/voicecmd.py):
   musik (spela album/låt/artist/min spellista/senaste albumet på Spotify via GoblinAmps inloggning), volym, paus,
