@@ -1,0 +1,136 @@
+/* Config → Utseende → Firefox → Terminalstil (25 nov). Kopieras in i profilerna av
+   /usr/libexec/goblincakes-firefox-terminal (#2F6FED byts mot accentfärgen). Allt hänger på #navigator-toolbox:
+   byter Firefox namn på den slutar döljningen verka och raderna syns som vanligt
+   (aldrig fast dolda). Nödutgång: Firefox Felsökningsläge startar utan den här filen. */
+
+:root {
+  --gt-accent: var(--toolbar-field-border-color-focus, #2F6FED);
+  --gt-void: #07090D;
+  --gt-night: #0E1420;
+  --gt-deep: #12203A;
+  --gt-frost: #E6ECF5;
+  --gt-dim: #8B98AD;
+  --gt-line: #1E2A40;
+  --gt-font: "IBM Plex Mono", monospace;
+  --gt-nav-h: 40px;     /* adressraden (fast höjd, så att genvägarna kan ligga under den) */
+  --gt-show-delay: 120ms;
+  --gt-hide-delay: 300ms;
+  --tab-min-height: 28px !important;  /* den tunna flikraden */
+}
+
+/* ── Döljningen ──────────────────────────────────────────────────── */
+/* Flikraden ligger kvar som vanligt. Adressraden och genvägarna läggs över sidan
+   under flikraden och är genomskinliga tills musen är på flikraden/raderna, eller
+   adressraden har fokus (Ctrl+L, Ctrl+T) eller en meny från dem är öppen.
+   Opacity, inte visibility: annars går adressraden inte att ge fokus med Ctrl+L. */
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #navigator-toolbox {
+  position: relative !important;
+  z-index: 10 !important;
+  overflow: visible !important;   /* Firefox klipper annars det som fälls ner */
+  border-bottom: 1px solid var(--gt-line) !important;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #navigator-toolbox > :is(#nav-bar, #PersonalToolbar) {
+  position: absolute !important;
+  left: 0;
+  right: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 100ms ease var(--gt-hide-delay), transform 100ms ease var(--gt-hide-delay) !important;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #navigator-toolbox > #nav-bar {
+  top: 100%;
+  height: var(--gt-nav-h) !important;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #navigator-toolbox > #PersonalToolbar {
+  top: calc(100% + var(--gt-nav-h));
+}
+/* Linjen i accentfärg under det som fällts ner */
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #navigator-toolbox > #PersonalToolbar:not([collapsed="true"]),
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #navigator-toolbox:has(> #PersonalToolbar[collapsed="true"]) > #nav-bar {
+  border-bottom: 2px solid var(--gt-accent) !important;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen])
+  #navigator-toolbox:is(:hover, :focus-within, :has([open="true"], [open=""], [panelopen]))
+  > :is(#nav-bar, #PersonalToolbar) {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+  transition-delay: var(--gt-show-delay) !important;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen])
+  #navigator-toolbox:focus-within > :is(#nav-bar, #PersonalToolbar) {
+  transition-delay: 0ms !important;
+}
+
+/* ── Terminalutseendet ───────────────────────────────────────────── */
+#navigator-toolbox,
+#navigator-toolbox *,
+menupopup, menuitem, menu, menucaption, panel, panelview,
+.urlbarView, .urlbarView * {
+  font-family: var(--gt-font) !important;
+}
+#navigator-toolbox * { border-radius: 0 !important; }
+menupopup, panel {
+  --panel-border-radius: 0px !important;
+  --arrowpanel-border-radius: 0px !important;
+  --panel-background: var(--gt-night) !important;
+  --panel-border-color: var(--gt-line) !important;
+}
+menupopup menuitem, menupopup menu { border-radius: 0 !important; }
+
+#navigator-toolbox,
+#TabsToolbar, #nav-bar, #PersonalToolbar {
+  background: var(--gt-void) !important;
+  background-image: none !important;
+}
+#nav-bar, #PersonalToolbar { border-top: 1px solid var(--gt-line) !important; }
+
+/* Den tunna flikraden */
+#TabsToolbar, #tabbrowser-tabs { --tabstrip-min-height: var(--tab-min-height) !important; }
+#TabsToolbar .titlebar-button { padding-block: 0 !important; }
+#TabsToolbar toolbarbutton { --toolbarbutton-inner-padding: 4px !important; padding-block: 0 !important; }
+#TabsToolbar .tab-label { font-size: 12px !important; }
+
+/* Flikarna: [1] Titel */
+#tabbrowser-tabs { counter-reset: gt-tab; }
+.tabbrowser-tab { counter-increment: gt-tab; }
+.tabbrowser-tab .tab-label::before {
+  content: "[" counter(gt-tab) "] ";
+  color: var(--gt-dim);
+}
+.tabbrowser-tab[selected] .tab-label::before { color: var(--gt-accent); }
+.tabbrowser-tab .tab-background {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  margin-block: 0 !important;
+}
+.tabbrowser-tab[selected] .tab-background {
+  background: var(--gt-deep) !important;
+  border-bottom: 2px solid var(--gt-accent) !important;
+}
+.tabbrowser-tab:not([selected]) .tab-label { color: var(--gt-dim) !important; }
+
+/* Adressraden: goblin ❯ */
+#urlbar .urlbar-background {
+  background: var(--gt-void) !important;
+  border: 1px solid var(--gt-line) !important;
+  box-shadow: none !important;
+}
+#urlbar[focused] .urlbar-background { border-color: var(--gt-accent) !important; }
+#urlbar .urlbar-input-box::before {
+  content: "goblin ❯";
+  color: var(--gt-accent);
+  font-weight: 600;
+  margin-inline-end: 0.7ch;
+  align-self: center;
+  white-space: nowrap;
+}
+#urlbar .urlbar-input { caret-color: var(--gt-accent) !important; }
+
+/* Genvägarna: ~/namn */
+#PersonalToolbar .bookmark-item > .toolbarbutton-text::before {
+  content: "~/";
+  color: var(--gt-dim);
+}

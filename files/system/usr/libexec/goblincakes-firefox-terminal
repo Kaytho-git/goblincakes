@@ -1,0 +1,142 @@
+#!/usr/bin/python3
+"""GOBLINCAKES: Firefox i terminalstil (Config → Utseende → Firefox → Terminalstil, 25 Nov).
+
+    goblincakes-firefox-terminal on       switch on: our block into every Firefox profile
+    goblincakes-firefox-terminal off      switch off: our block out again (nothing else is touched)
+    goblincakes-firefox-terminal status   on | off
+    goblincakes-firefox-terminal sync     while on: write the block again where it differs – at every
+                                          login (goblincakes-refresh.sh) and after an accent change
+                                          (goblincakes-accent), so a fix in the image and a new accent
+                                          colour reach the profiles, and a new profile gets it too
+
+The CSS lives in /usr/share/goblincakes/firefox/terminal/ (userChrome.css: a thin tab row, the
+address bar and the bookmarks fold down under it on hover / Ctrl+L / Ctrl+T; userContent.css: the
+new tab page). It is copied – with #2F6FED swapped for the accent colour – between our own markers
+into each profile's chrome/userChrome.css and chrome/userContent.css. The accent's own block
+(goblincakes-accent) and anything the user wrote stay as they are. Firefox reads the files at start.
+No Firefox setting is changed (the policy already allows userChrome.css), so off = exactly as before.
+"""
+import os
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(os.environ.get("GOBLINCAKES_SHARE") or
+                            Path(__file__).resolve().parents[1] / "share/goblincakes")))
+import accent as A  # noqa: E402
+
+HOME = Path.home()
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config")
+ROOT = Path(os.environ.get("GOBLINCAKES_ROOT", "/"))  # the system files (tests: the repo)
+FLAG = CONFIG_HOME / "goblincakes/firefox-terminal"
+SRC = ROOT / "usr/share/goblincakes/firefox/terminal"
+FILES = ("userChrome.css", "userContent.css")
+FIREFOX_ROOTS = [HOME / ".var/app/org.mozilla.firefox/.mozilla/firefox",
+                 HOME / ".var/app/org.mozilla.firefox/config/mozilla/firefox",
+                 HOME / ".mozilla/firefox", CONFIG_HOME / "mozilla/firefox"]
+START = "/* GOBLINCAKES terminal – written by goblincakes-firefox-terminal, start */"
+END = "/* GOBLINCAKES terminal – end */"
+BLOCK = re.compile(r"\n?" + re.escape(START) + r".*?" + re.escape(END) + r"\n?", re.S)
+
+
+def profiles():
+    for root in FIREFOX_ROOTS:
+        if not root.is_dir():
+            continue
+        for d in sorted(root.iterdir()):
+            if d.is_dir() and (d / "prefs.js").exists():
+                yield d
+
+
+def block(name):
+    css = (SRC / name).read_text()
+    color = A.palette().get("color") or A.STANDARD
+    css = re.sub(re.escape(A.STANDARD), color, css, flags=re.I)
+    return f"{START}\n{css.rstrip()}\n{END}\n"
+
+
+def write(f, text):
+    try:
+        if f.read_text() == text:
+            return False
+    except OSError:
+        pass
+    f.parent.mkdir(parents=True, exist_ok=True)
+    tmp = f.with_name(f.name + ".goblincakes-tmp")
+    tmp.write_text(text)
+    tmp.replace(f)
+    return True
+
+
+def put_in(profile):
+    changed = 0
+    for name in FILES:
+        f = profile / "chrome" / name
+        try:
+            text = f.read_text()
+        except OSError:
+            text = ""
+        rest = BLOCK.sub("\n", text).strip("\n")
+        new = (rest + "\n\n" if rest else "") + block(name)
+        changed += write(f, new)
+    return changed
+
+
+def take_out(profile):
+    changed = 0
+    for name in FILES:
+        f = profile / "chrome" / name
+        try:
+            text = f.read_text()
+        except OSError:
+            continue
+        if START not in text:
+            continue
+        rest = BLOCK.sub("\n", text).strip("\n")
+        if rest:
+            changed += write(f, rest + "\n")
+        else:
+            f.unlink(missing_ok=True)
+            changed += 1
+            try:
+                f.parent.rmdir()   # only when nothing else is left in chrome/
+            except OSError:
+                pass
+    return changed
+
+
+def is_on():
+    return FLAG.exists()
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else "status"
+    if cmd == "status":
+        print("on" if is_on() else "off")
+        return 0
+    if cmd == "on":
+        if not all((SRC / n).exists() for n in FILES):
+            print(f"Hittar inte {SRC}", file=sys.stderr)
+            return 1
+        FLAG.parent.mkdir(parents=True, exist_ok=True)
+        FLAG.write_text("on\n")
+        n = sum(put_in(p) for p in profiles())
+        print(f"Terminalstil på ({n} filer skrivna) – starta om Firefox.")
+        return 0
+    if cmd == "off":
+        FLAG.unlink(missing_ok=True)
+        n = sum(take_out(p) for p in profiles())
+        print(f"Terminalstil av ({n} filer ändrade) – starta om Firefox.")
+        return 0
+    if cmd == "sync":
+        if not is_on() or not all((SRC / n).exists() for n in FILES):
+            return 0
+        for p in profiles():
+            put_in(p)
+        return 0
+    print(__doc__)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

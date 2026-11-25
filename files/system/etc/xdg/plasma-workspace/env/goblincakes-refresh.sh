@@ -209,6 +209,12 @@ if [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/accent" ]; then
     /usr/libexec/goblincakes-accent refresh >/dev/null 2>&1
 fi
 
+# Firefox i terminalstil (Config → Utseende → Firefox, 25 Nov): a fix in the image's CSS reaches the
+# profiles, and a profile made since gets it – only writes where the block differs
+if [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/goblincakes/firefox-terminal" ]; then
+    /usr/libexec/goblincakes-firefox-terminal sync >/dev/null 2>&1
+fi
+
 # Steam switches (goblin frames, MangoHud, the powerful graphics card) also in Steam's own
 # "start at login" entry – Steam writes it again from its menu entry when that is switched –
 # and Steam starts quietly in the system tray from there (-silent, 28 Oct)

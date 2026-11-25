@@ -127,6 +127,8 @@ esac
 # applied again on top of the colour scheme
 if [ "$RESET" = 1 ]; then
     [ -e "$CONFIG/goblincakes/accent" ] && /usr/libexec/goblincakes-accent set standard >/dev/null 2>&1
+    # Firefox i terminalstil (Config → Utseende → Firefox) off as well (the user's decision 25 Nov)
+    [ -e "$CONFIG/goblincakes/firefox-terminal" ] && /usr/libexec/goblincakes-firefox-terminal off >/dev/null 2>&1
 elif [ "$mode" != none ] && [ -e "$CONFIG/goblincakes/accent" ]; then
     /usr/libexec/goblincakes-accent apply >/dev/null 2>&1
 fi

@@ -83,6 +83,7 @@ ACCENT = os.environ.get("GOBLINCAKES_CONFIG_ACCENT", "/usr/libexec/goblincakes-a
 TILE = os.environ.get("GOBLINCAKES_CONFIG_TILE", "/usr/libexec/goblincakes-tile")
 DOCK = os.environ.get("GOBLINCAKES_CONFIG_DOCK", "/usr/libexec/goblincakes-dock")
 DESKTOP_LAYOUT = os.environ.get("GOBLINCAKES_CONFIG_DESKTOP_LAYOUT", "/usr/libexec/goblincakes-desktop-layout")
+FIREFOX_TERMINAL = os.environ.get("GOBLINCAKES_CONFIG_FIREFOX_TERMINAL", "/usr/libexec/goblincakes-firefox-terminal")
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "goblincakes"
 DONE_FILE = STATE / "config-done"
 OLD_DONE_FILE = STATE / "setup-done"  # from when the window was called GOBLINCAKES Setup
@@ -288,6 +289,7 @@ class Config(QObject):
     accentsChanged = Signal()  # Utseende: the colours, which one is chosen, busy
     dockChanged = Signal()     # Utseende: the dock's size and wave (goblincakes-dock get)
     desktopLayoutChanged = Signal()  # Utseende: Skrivbordets upplägg (goblincakes-desktop-layout)
+    firefoxTerminalChanged = Signal()  # Utseende: Firefox → Terminalstil (goblincakes-firefox-terminal)
     lookChanged = Signal()  # Utseende: Stil – Platt / Levande (accent.py, ~/.config/goblincakes/utseende)
     tilesLoaded = Signal(str)   # Fönster: goblincakes-tile json ("" = failed)
     dashboardLoaded = Signal(str)  # Dashboard: dash.py config ("" = failed)
@@ -600,6 +602,29 @@ class Config(QObject):
         proc.start("systemd-run", ["--user", "--pipe", "--wait", "--collect", "--quiet",
                                    f"--unit=goblincakes-desktop-layout-{os.getpid()}-{int(datetime.now().timestamp())}",
                                    DESKTOP_LAYOUT, "set", name])
+
+    # ── Utseende: Firefox → Terminalstil (goblincakes-firefox-terminal, 25 Nov) ──────
+
+    @Property(bool, notify=firefoxTerminalChanged)
+    def firefoxTerminal(self):
+        if not hasattr(self, "_firefox_terminal"):
+            code, out = run(FIREFOX_TERMINAL, ["status"])
+            self._firefox_terminal = code == 0 and out.strip() == "on"
+        return self._firefox_terminal
+
+    @Property(str, notify=firefoxTerminalChanged)
+    def firefoxTerminalStatus(self):
+        return getattr(self, "_firefox_terminal_status", "")
+
+    @Slot(bool)
+    def setFirefoxTerminal(self, on):
+        code, _ = run(FIREFOX_TERMINAL, ["on" if on else "off"])
+        if code == 0:
+            self._firefox_terminal = on
+            self._firefox_terminal_status = "Klart – starta om Firefox så syns det."
+        else:
+            self._firefox_terminal_status = "Det gick inte att ändra Firefox-profilerna."
+        self.firefoxTerminalChanged.emit()
 
     @Property(str, notify=desktopLayoutChanged)
     def rowHiding(self):
@@ -1259,6 +1284,13 @@ class Config(QObject):
     def resetLook(self):
         """The whole GOBLINCAKES look back (Inställningar), same as `goblin dock reset`."""
         QProcess.startDetached("sh", ["/usr/libexec/goblincakes-firstlogin", "--reset"])
+
+        def reread():   # the reset switches Firefox's terminal style off too: show it
+            if hasattr(self, "_firefox_terminal"):
+                del self._firefox_terminal
+            self._firefox_terminal_status = ""
+            self.firefoxTerminalChanged.emit()
+        QTimer.singleShot(8000, reread)
 
     # ── Uppdatera: `goblin update --gui` ──────────────────────
 

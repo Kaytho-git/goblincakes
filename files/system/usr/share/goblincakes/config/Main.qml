@@ -1643,6 +1643,70 @@ Window {
                 }
             }
 
+            // Firefox i terminalstil (goblincakes-firefox-terminal, 25 Nov): a thin tab row, the address bar and
+            // the bookmarks fold down on hover / Ctrl+L / Ctrl+T, IBM Plex Mono – Firefox reads it at start
+            Rectangle {
+                G.Light {}
+                id: firefoxRow
+                width: tweakRows.width
+                height: firefoxCol.height + 40
+                color: "#0E1420"
+                border.width: 1
+                antialiasing: true   // a 1-unit border at 90–94 % is < 1 px: without this a side vanishes (22 Nov)
+                border.color: "#1E2A40"
+
+                Column {
+                    id: firefoxCol
+                    anchors { left: parent.left; leftMargin: 22; right: parent.right; rightMargin: 22; top: parent.top; topMargin: 20 }
+                    spacing: 14
+                    Text {
+                        text: "Firefox"
+                        color: "#E6ECF5"
+                        font.family: "IBM Plex Sans"
+                        font.weight: Font.DemiBold
+                        font.pixelSize: G.Type.body
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: 14
+                        ToggleSwitch {
+                            id: firefoxSwitch
+                            anchors.verticalCenter: parent.verticalCenter
+                            on: backend.firefoxTerminal
+                            onToggled: backend.setFirefoxTerminal(!on)
+                        }
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - firefoxSwitch.width - 14
+                            spacing: 3
+                            Text {
+                                text: "Terminalstil"
+                                color: "#E6ECF5"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: G.Type.small
+                            }
+                            Text {
+                                width: parent.width
+                                text: "Bara en tunn flikrad syns – adressraden och bokmärkena fälls ner när musen är på flikraden, eller med Ctrl+L och Ctrl+T. Terminaltypsnitt, prompt i adressraden och en ny flik i terminalstil. Musen fungerar som vanligt. Gäller när Firefox startas om."
+                                color: "#8B98AD"
+                                font.family: "IBM Plex Sans"
+                                font.pixelSize: G.Type.small
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+                    Text {
+                        visible: backend.firefoxTerminalStatus !== ""
+                        width: parent.width
+                        text: backend.firefoxTerminalStatus
+                        color: "#8B98AD"
+                        font.family: "IBM Plex Sans"
+                        font.pixelSize: G.Type.small
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
             // The whole GOBLINCAKES look back (goblincakes-firstlogin --reset = `goblin dock reset`).
             // Other themes are fine – this is only the way back. Asks once before doing anything.
             Rectangle {

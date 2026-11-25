@@ -864,6 +864,12 @@ Ord: terminal, ghostty, konsole, kitty, terminalval
 Ord: webbläsare, chrome, firefox, brave, webapp, webbapp
 - Huvudwebbläsaren: Config → Program (/usr/libexec/goblincakes-browser). Webbappar får ikon av
   goblincakes-webapp-icon.
+- Firefox i terminalstil (Config → Utseende → Firefox → Terminalstil, `goblincakes-firefox-terminal
+  on|off|status|sync`): tunn flikrad, adressraden + bokmärkena fälls ner vid musen på flikraden / Ctrl+L /
+  Ctrl+T. CSS:en: /usr/share/goblincakes/firefox/terminal/, kopieras in mellan märkena "GOBLINCAKES terminal"
+  i varje profils chrome/userChrome.css + userContent.css (flagga ~/.config/goblincakes/firefox-terminal;
+  sync vid inloggning och accentbyte). Ser Firefox konstig ut (raderna borta, fel ny flik): `… off` +
+  starta om Firefox = exakt som förut. Firefox Felsökningsläge startar också utan den.
 
 ## Ljud
 Ord: ljud, pipewire, latens, mikrofon, headset, högtalare

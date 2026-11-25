@@ -312,6 +312,8 @@ def apply_firefox(pal):
                         pass
             continue
         write_if_changed(f, firefox_css(pal) + "\n" + rest)
+    # Firefox i terminalstil (Config → Utseende → Firefox): its new tab page has the colour written in
+    run([str(sys_path("/usr/libexec/goblincakes-firefox-terminal")), "sync"])
 
 
 # ── Discord (Vencord) ─────────────────────────────────────────────

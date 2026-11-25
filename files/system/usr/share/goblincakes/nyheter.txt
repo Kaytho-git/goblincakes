@@ -1,3 +1,4 @@
+2026-11-25  Config → Inställningar → Utseende → Firefox: Terminalstil – bara en tunn flikrad syns, adressraden och bokmärkena fälls ner när musen är på flikraden (eller med Ctrl+L / Ctrl+T), terminaltypsnitt och en ny flik i terminalstil. Musen fungerar som vanligt.
 2026-11-25  Goblin AI: frågar du "finns det uppdateringar till wow?" svarar Kakan om det finns en ny patch (den hämtar Battle.net) och vilka av dina tillägg som har uppdateringar – och frågar om hon ska uppdatera dem.
 2026-11-25  GoblinUp: hittar sökningen inget öppnas WowUps fönster på Get Addons – WowUp söker bara när du själv haft det öppet en stund, så sök där.
 2026-11-25  GoblinUp: knapparna (uppdatera, kolla, installera) går fort även när WowUp legat dolt i systemfältet länge – förut kunde de ta minuter eller ge upp.

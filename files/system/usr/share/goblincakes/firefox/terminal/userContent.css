@@ -1,0 +1,86 @@
+/* Ny flik som en terminal (Config → Utseende → Firefox, 25 nov; #2F6FED byts mot accentfärgen). Byter Firefox klassnamn blir sidan bara vanlig igen. */
+@-moz-document url("about:newtab"), url("about:home") {
+  :root, body {
+    --gt-accent: #2F6FED;
+    background: #07090D !important;
+    color: #E6ECF5 !important;
+    font-family: "IBM Plex Mono", monospace !important;
+  }
+  body * { font-family: "IBM Plex Mono", monospace !important; border-radius: 0 !important; }
+
+  /* Prompten överst */
+  .outer-wrapper::before {
+    content: "goblin@goblincakes:~$ ny-flik";
+    display: block;
+    color: #8B98AD;
+    padding: 24px 32px 0;
+    font-size: 14px;
+  }
+
+  /* Firefox-loggan bort */
+  .logo-and-wordmark-wrapper, .logo-and-wordmark { display: none !important; }
+
+  /* Sökrutan som en kommandorad */
+  .search-wrapper .search-inner-wrapper,
+  .search-handoff-button, .search-wrapper input {
+    background: #07090D !important;
+    border: 1px solid #1E2A40 !important;
+    box-shadow: none !important;
+    color: #E6ECF5 !important;
+  }
+  .search-wrapper:focus-within .search-handoff-button,
+  .search-wrapper input:focus { border-color: var(--gt-accent) !important; }
+
+  /* Genvägarna som en numrerad lista */
+  .top-sites-list {
+    counter-reset: gt-site;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    max-width: 640px;
+    margin-inline: auto !important;
+  }
+  .top-sites-list > .top-site-outer {
+    counter-increment: gt-site;
+    width: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .top-site-outer .top-site-inner > a,
+  .top-site-outer .top-site-button {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px;
+    padding: 6px 12px !important;
+    height: auto !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .top-site-outer .top-site-button::before {
+    content: counter(gt-site);
+    color: var(--gt-accent);
+    min-width: 2ch;
+    text-align: end;
+  }
+  .top-site-outer:hover .top-site-button,
+  .top-site-outer:focus-within .top-site-button { background: #12203A !important; }
+  .top-site-outer .tile {
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .top-site-outer .title {
+    text-align: start !important;
+    padding: 0 !important;
+    color: #E6ECF5 !important;
+    font-size: 14px !important;
+  }
+  .top-site-outer .title::before { content: "~/"; color: #8B98AD; }
+
+  /* Det som inte hör hemma i en terminal */
+  .ds-layout, .weather-widget, .weather, .personalize-button-wrapper { display: none !important; }
+}
