@@ -52,8 +52,13 @@
 :root:not([customizing], [inDOMFullscreen], [inFullscreen]) #navigator-toolbox:has(> #PersonalToolbar[collapsed="true"]) > #nav-bar {
   border-bottom: 2px solid var(--gt-accent) !important;
 }
+/* Sidornas frågor (mikrofon, kamera, notiser …) håller inte raderna framme – annars fastnar raderna
+   över sidan tills frågan är besvarad (Teams, 25 nov). Rutan syns ändå. Firefox 161 sätter open på
+   #notification-popup-box (mikrofon/kamera) eller på fliken (notiser). */
 :root:not([customizing], [inDOMFullscreen], [inFullscreen])
-  #navigator-toolbox:is(:hover, :focus-within, :has([open="true"], [open=""], [panelopen]))
+  #navigator-toolbox:is(:hover, :focus-within,
+    :has([open="true"]:not(#notification-popup-box, .tabbrowser-tab),
+         [open=""]:not(#notification-popup-box, .tabbrowser-tab), [panelopen]))
   > :is(#nav-bar, #PersonalToolbar) {
   opacity: 1;
   pointer-events: auto;

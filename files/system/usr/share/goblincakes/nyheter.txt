@@ -1,3 +1,4 @@
+2026-11-25  Firefox i terminalstil: när en sida frågar om mikrofon, kamera eller notiser (t.ex. Teams) fastnar inte längre adressraden och bokmärkena över sidan – frågan syns ändå och går att svara på.
 2026-11-25  Firefox i terminalstil: Ctrl+L (och Ctrl+T eller ett klick i adressraden) öppnar adressraden som en ruta överst i fönstret, i samma stil som Goblin AI:s snabbfråga (Meta+§) – sidan tonas ner bakom och förslagen kommer när du börjar skriva. Esc stänger.
 2026-11-25  Firefox i terminalstil: bokmärkena visar namnet igen (förut syns bara ~/).
 2026-11-25  Config → Inställningar → Utseende → Firefox: Terminalstil – bara en tunn flikrad syns, adressraden och bokmärkena fälls ner när musen är på flikraden (eller med Ctrl+L / Ctrl+T), terminaltypsnitt och en ny flik i terminalstil. Musen fungerar som vanligt.
