@@ -526,6 +526,7 @@ SEARCH_JS = r"""
     if (now !== before && ready(rows)) break; }
   await sleep(300);
   rows = [...document.querySelectorAll('.ag-center-cols-container .ag-row')].filter(r => title(r));
+  const none = !rows.length && [...document.querySelectorAll('app-get-addons .ag-overlay')].some(e => /no addons found/i.test(e.innerText));
 """
 
 
@@ -534,12 +535,14 @@ def do_search(page, client, text):
     got = run(page, SEARCH_JS + r"""
   return {hits: rows.slice(0, 25).map(r => ({name: title(r), line: cell(r, 'name'), downloads: cell(r, 'downloadCount'),
       author: cell(r, 'author'), provider: cell(r, 'providerName'), released: cell(r, 'releasedAt'),
-      installed: !r.querySelector('app-addon-install-button button:not(:disabled)')}))};""", timeout=60,
+      installed: !r.querySelector('app-addon-install-button button:not(:disabled)')})), none};""", timeout=60,
               client=cid, text=text)
     if not isinstance(got, dict) or got.get("why"):
         return {"ok": False, "why": "Hittar inte WowUps sökning – WowUp kan ha bytt utseende."}
     for h in got["hits"]:
         h["provider"] = PROVIDERS.get(h["provider"], h["provider"])
+    if got.get("none"):
+        return {"ok": True, "client": cid, "hits": [], "opened": show_for_search(), "note": SEARCH_NOTE}
     run(page, "await tab(0); return 1;")
     return {"ok": True, "client": cid, "hits": got["hits"]}
 
@@ -550,7 +553,7 @@ def do_install(page, client, text, name):
   const low = A.name.toLowerCase();
   const r = rows.find(x => title(x) === A.name) || rows.find(x => title(x).toLowerCase() === low)
          || rows.find(x => title(x).toLowerCase().startsWith(low + ' '));
-  if (!r) return {why: 'ingen'};
+  if (!r) return {why: none ? 'tom' : 'ingen'};
   const b = r.querySelector('app-addon-install-button button');
   if (!b) return {why: 'knapp'};
   if (b.disabled) return {done: 'redan'};
@@ -558,12 +561,40 @@ def do_install(page, client, text, name):
   for (let i = 0; i < 360; i++) { await sleep(500); if (!document.body.contains(b) || b.disabled) break; }
   for (let i = 0; i < 360 && document.body.contains(b) && /\d+\s*%/.test(b.innerText); i++) await sleep(500);
   return {done: 'ok'};""", timeout=400, client=cid, text=text, name=name)
+    if isinstance(got, dict) and got.get("why") == "tom":
+        return {"ok": False, "opened": show_for_search(), "why": SEARCH_NOTE}
     run(page, "await tab(0); return 1;")
     if not isinstance(got, dict) or got.get("why"):
         why = (got or {}).get("why") if isinstance(got, dict) else None
         return {"ok": False, "why": f"Hittar inte {name!r} i sökningen." if why == "ingen"
                 else "Hittar inte WowUps installationsknapp – WowUp kan ha bytt utseende."}
     return {"ok": True, "name": name, "result": "redan installerat" if got.get("done") == "redan" else "installerat"}
+
+
+# WowUps sökning (Get Addons, CurseForge via Overwolf) svarar "No addons found" när WowUp legat dolt länge – den fungerar
+# när användaren själv haft WowUp öppet en stund (reklamen synts). Fönstret kan öppnas härifrån, men då kommer ingen
+# reklam (25 nov) – så vid en tom sökning öppnas WowUp på Get Addons och användaren söker där.
+SEARCH_NOTE = "WowUp söker bara när du själv haft WowUp öppet en stund – sök i WowUps fönster (det öppnas nu)."
+
+
+def show_for_search():
+    """WowUps fönster fram, kvar på Get Addons med sökordet: som ett klick på ikonen i systemfältet, annars som Öppna."""
+    try:
+        out = subprocess.run(["busctl", "--user", "--json=short", "get-property", "org.kde.StatusNotifierWatcher",
+                              "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher",
+                              "RegisteredStatusNotifierItems"], capture_output=True, text=True, timeout=3).stdout
+        for item in json.loads(out).get("data", []):
+            svc, _, path = item.partition("/")
+            path = "/" + (path or "StatusNotifierItem")
+            got = subprocess.run(["busctl", "--user", "get-property", svc, path, "org.kde.StatusNotifierItem", "Id"],
+                                 capture_output=True, text=True, timeout=3).stdout
+            if "wowup" in got.lower():
+                if subprocess.run(["busctl", "--user", "call", svc, path, "org.kde.StatusNotifierItem", "Activate",
+                                   "ii", "0", "0"], capture_output=True, timeout=3).returncode == 0:
+                    return True
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return bool(open_window().get("ok"))
 
 
 def open_window():
@@ -662,6 +693,8 @@ def human(args):
         r = act("search", [client, text])
         if not r.get("ok"):
             return r.get("why", "Det gick inte.")
+        if r.get("note"):
+            return r["note"]
         return "\n".join(f"{h['name']} – {h['author']} · {h['provider']} · {h['downloads']}"
                          + (" (installerat)" if h["installed"] else "") for h in r["hits"][:10]) or "Inga träffar."
     if word in ("installera", "install"):

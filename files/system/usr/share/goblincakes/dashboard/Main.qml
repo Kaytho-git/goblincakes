@@ -3227,6 +3227,7 @@ Window {
                                  "ignore": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart"),
                                  "remove": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart"),
                                  "update-all": "Uppdaterat.", "update": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart"),
+                                 "search": win.wowupAct.note || "",
                                  "install": (win.wowupAct.name || "") + ": " + (win.wowupAct.result || "klart") })[win.wowupAct.what] || ""
                     }
                 }

@@ -1,3 +1,4 @@
+2026-11-25  GoblinUp: hittar sökningen inget öppnas WowUps fönster på Get Addons – WowUp söker bara när du själv haft det öppet en stund, så sök där.
 2026-11-25  GoblinUp: knapparna (uppdatera, kolla, installera) går fort även när WowUp legat dolt i systemfältet länge – förut kunde de ta minuter eller ge upp.
 2026-11-25  Goblin AI: en följdfråga söker på nätet även när svaret före kom ur Kakans kunskapsminne – förut kunde hon gissa i stället för att leta.
 2026-11-25  Config: Gwenview finns under Program (Media) – en snabb bildvisare som blir standard för bilder, och ÖPPNA I BILDVISAREN i Goblin AI:s terminal öppnar bilden där.

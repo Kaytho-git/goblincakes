@@ -674,6 +674,9 @@ Ord: goblinup, uppdatera tilläggen, uppdatera addons, nya tillägg, installera 
   datorn: WowUp startas med `--remote-debugging-port=9233 --remote-debugging-address=127.0.0.1 --disable-background-timer-throttling` (flaggan: utan den går GoblinUp väldigt långsamt när WowUp legat dolt > 5 min) (autostarten från Config,
   spelvakten, goblincakes-refresh.sh lägger till den i gamla autostartposter). Körs WowUp utan port startar hjälparen om
   det (SIGINT) med porten när en knapp trycks.
+- Sökningen (och installera, som söker först) fungerar bara en stund efter att användaren själv haft WowUp öppet
+  (CurseForge via Overwolf, reklamen ska ha synts). Annars svarar WowUp "No addons found": då öppnas WowUps fönster på
+  Get Addons och svaret säger att hen ska söka där – säg det, försök inte igen och gissa inte att tillägget inte finns.
 - Inget görs medan WoW körs (spelvakten stänger WowUp då). "Hittar inte WowUps knapp … WowUp kan ha bytt utseende" =
   en WowUp-uppdatering har ändrat fönstret: säg det och be användaren skicka till Claude – gissa inte.
 - Kolla: `goblincakes-wowup status`, `curl -s http://127.0.0.1:9233/json/version` (ska nämna WowUp),
