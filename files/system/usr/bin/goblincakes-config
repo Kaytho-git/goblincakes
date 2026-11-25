@@ -112,7 +112,7 @@ FLATPAK_APPS = [Path.home() / ".local/share/flatpak/exports/share/applications",
 # WowUp also gets its remote debugging port, only for this computer: GoblinUp in the dashboard and Kakan steer it
 # through it (18 Nov, goblincakes-wowup; the game guard starts it with the same line)
 AUTOSTART_ARGS = {"discord": "--start-minimized",
-                  "wowup": "--hidden --remote-debugging-port=9233 --remote-debugging-address=127.0.0.1",
+                  "wowup": "--hidden --remote-debugging-port=9233 --remote-debugging-address=127.0.0.1 --disable-background-timer-throttling",
                   "archon": "--run-on-startup"}
 # WowUp 2.24.1 shows its window maximized despite --hidden (24 Oct): goblincakes-start-hidden
 # minimizes its first window (the window class).

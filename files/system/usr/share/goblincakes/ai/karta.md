@@ -671,7 +671,7 @@ Ord: goblinup, uppdatera tilläggen, uppdatera addons, nya tillägg, installera 
 - Hjälparen /usr/libexec/goblincakes-wowup (status = JSON). Läser ~/.config/WowUpCf/addons.json (WowUp skriver den efter
   varje kontroll; clientType 0 = Retail, 10 = Forever; providerName Unknown = "utanför WowUp", t.ex. användarens egna
   tillägg som inte kommer från WowUp – de uppdateras inte härifrån). Styr via Chromes fjärrstyrningsport, bara för den här
-  datorn: WowUp startas med `--remote-debugging-port=9233 --remote-debugging-address=127.0.0.1` (autostarten från Config,
+  datorn: WowUp startas med `--remote-debugging-port=9233 --remote-debugging-address=127.0.0.1 --disable-background-timer-throttling` (flaggan: utan den går GoblinUp väldigt långsamt när WowUp legat dolt > 5 min) (autostarten från Config,
   spelvakten, goblincakes-refresh.sh lägger till den i gamla autostartposter). Körs WowUp utan port startar hjälparen om
   det (SIGINT) med porten när en knapp trycks.
 - Inget görs medan WoW körs (spelvakten stänger WowUp då). "Hittar inte WowUps knapp … WowUp kan ha bytt utseende" =

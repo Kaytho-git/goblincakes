@@ -40,7 +40,10 @@ HOME = Path.home()
 APPIMAGE = Path(os.environ.get("GOBLINCAKES_WOWUP_APPIMAGE", HOME / "AppImages/WowUp.AppImage"))
 ADDONS = Path(os.environ.get("GOBLINCAKES_WOWUP_ADDONS", HOME / ".config/WowUpCf/addons.json"))
 PORT = int(os.environ.get("GOBLINCAKES_WOWUP_PORT", "9233"))
-PORT_ARGS = [f"--remote-debugging-port={PORT}", "--remote-debugging-address=127.0.0.1"]
+# Utan timerbromsen: dolt i över 5 min körde Chromium sidans timers var ~20:e s (25 nov: 10 × 100 ms tog 200 s) och
+# GoblinUps knappar tog slut på tid. Med flaggan: 1,0 s, ingen märkbar processor.
+TIMER_ARG = "--disable-background-timer-throttling"
+PORT_ARGS = [f"--remote-debugging-port={PORT}", "--remote-debugging-address=127.0.0.1", TIMER_ARG]
 HIDDEN = "/usr/libexec/goblincakes-start-hidden"
 # WowUps clientType → vår id och namn (WowUp-CF 2.25: 0 = World of Warcraft, 10 = World of Warcraft: Forever)
 CLIENTS = {0: ("retail", "Retail"), 1: ("classic", "Classic"), 2: ("classic-era", "Classic Era"),

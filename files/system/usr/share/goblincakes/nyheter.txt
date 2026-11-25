@@ -1,3 +1,4 @@
+2026-11-25  GoblinUp: knapparna (uppdatera, kolla, installera) går fort även när WowUp legat dolt i systemfältet länge – förut kunde de ta minuter eller ge upp.
 2026-11-25  Goblin AI: en följdfråga söker på nätet även när svaret före kom ur Kakans kunskapsminne – förut kunde hon gissa i stället för att leta.
 2026-11-25  Config: Gwenview finns under Program (Media) – en snabb bildvisare som blir standard för bilder, och ÖPPNA I BILDVISAREN i Goblin AI:s terminal öppnar bilden där.
 2026-11-25  Goblin AI: "Hämtat från" under svaret nämner inte längre kunskapsminnet när Kakan till slut svarade från nätet, och frågar du om fler CS2-matcher än det finns lästa demos för säger hon hur många snittet bygger på.

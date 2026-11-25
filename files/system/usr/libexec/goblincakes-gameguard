@@ -120,6 +120,7 @@ def cmdline(pid):
 
 HIDDEN = Path(os.environ.get("GOBLINCAKES_START_HIDDEN", "/usr/libexec/goblincakes-start-hidden"))
 WOWUP_PORT = ["--remote-debugging-port=9233", "--remote-debugging-address=127.0.0.1"]   # = goblincakes-wowup
+WOWUP_TIMERS = "--disable-background-timer-throttling"   # = goblincakes-wowup TIMER_ARG (25 Nov: hidden WowUp's timers ran every ~20 s)
 
 
 def wowup_starter(pids):
@@ -143,6 +144,8 @@ def wowup_starter(pids):
                 # GoblinUp (18 Nov) steers WowUp through its remote debugging port – only for this computer
                 if not any(a.startswith("--remote-debugging-port") for a in argv):
                     argv += WOWUP_PORT
+                if WOWUP_TIMERS not in argv:
+                    argv.append(WOWUP_TIMERS)
                 if HIDDEN.name not in argv[0]:
                     if "--hidden" not in argv:
                         argv.append("--hidden")

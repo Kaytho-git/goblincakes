@@ -167,7 +167,10 @@ for _gc_f in "${XDG_CONFIG_HOME:-$HOME/.config}"/autostart/*.desktop; do
                 && sed -i 's|^Exec=|Exec=/usr/libexec/goblincakes-start-hidden wowupcf -- |' "$_gc_f"
             # GoblinUp (18 Nov): WowUp with its remote debugging port, only for this computer (goblincakes-wowup)
             grep -q '^X-GOBLINCAKES-Autostart=true' "$_gc_f" && ! grep -q -- '--remote-debugging-port' "$_gc_f" \
-                && sed -i 's|^Exec=.*|& --remote-debugging-port=9233 --remote-debugging-address=127.0.0.1|' "$_gc_f" ;;
+                && sed -i 's|^Exec=.*|& --remote-debugging-port=9233 --remote-debugging-address=127.0.0.1|' "$_gc_f"
+            # Without Chromium's timer brake (25 Nov: hidden WowUp ran GoblinUp's steps every ~20 s)
+            grep -q '^X-GOBLINCAKES-Autostart=true' "$_gc_f" && ! grep -q -- '--disable-background-timer-throttling' "$_gc_f" \
+                && sed -i 's|^Exec=.*|& --disable-background-timer-throttling|' "$_gc_f" ;;
     esac
 done
 
