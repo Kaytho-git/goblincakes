@@ -870,6 +870,8 @@ Ord: webbläsare, chrome, firefox, brave, webapp, webbapp
   i varje profils chrome/userChrome.css + userContent.css (flagga ~/.config/goblincakes/firefox-terminal;
   sync vid inloggning och accentbyte). Ser Firefox konstig ut (raderna borta, fel ny flik): `… off` +
   starta om Firefox = exakt som förut. Firefox Felsökningsläge startar också utan den.
+  Adressraden med fokus (Ctrl+L/Ctrl+T/klick) blir en ruta 50 px ner i Goblin AI-snabbfrågans stil;
+  Esc två gånger stänger den. Står den fel/syns inte: Firefox har bytt namn på adressradens delar.
 
 ## Ljud
 Ord: ljud, pipewire, latens, mikrofon, headset, högtalare

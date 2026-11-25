@@ -136,3 +136,97 @@ menupopup menuitem, menupopup menu { border-radius: 0 !important; }
   content: "~/";
   color: var(--gt-dim);
 }
+
+/* ── Ctrl+L-rutan (25 nov, användaren: "som när man trycker Meta+§") ──────────
+   När adressraden har fokus lossnar den ur raden och blir en ruta i snabbfrågans stil
+   (Goblin AI, Meta+§): 50 px ner, mitt i sidled, accentram, tangenttips överst,
+   goblin ❯ mellan två accentlinjer, förslagen under och sidan tonad bakom.
+   Firefox märker inte om fokus kom från Ctrl+L, Ctrl+T eller ett klick, så alla ger rutan.
+   Esc stänger förslagen, Esc igen lämnar adressraden (Firefox egen). Bygger på
+   #urlbar[focused], .urlbar-input-container (förslagslistan är förankrad i den) och
+   .urlbarView (popover) – byter Firefox dem blir det den vanliga raden igen. */
+:root {
+  --gt-box-w: min(680px, calc(100vw - 32px));
+  --gt-box-top: 50px;
+  --gt-box-bg: #0B1018;
+  --gt-box-help: #5C6880;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] {
+  position: fixed !important;
+  top: var(--gt-box-top) !important;
+  left: calc(50vw - var(--gt-box-w) / 2) !important;
+  width: var(--gt-box-w) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 34px 18px 14px !important;
+  box-sizing: border-box !important;
+  z-index: 100 !important;
+  visibility: visible !important;
+}
+/* Det övriga i raderna göms medan rutan är uppe (visibility: rutan ligger i #nav-bar) */
+:root:not([customizing], [inDOMFullscreen], [inFullscreen])
+  #navigator-toolbox:has(#urlbar[focused]) > :is(#nav-bar, #PersonalToolbar) {
+  visibility: hidden !important;
+  transform: none !important;
+  transition: none !important;
+  opacity: 1 !important;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbar-background {
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  background: var(--gt-box-bg) !important;
+  border: 2px solid var(--gt-accent) !important;
+  box-shadow: 0 0 0 200vmax rgba(7, 9, 13, 0.55) !important;  /* sidan tonas */
+  outline: none !important;
+  clip-path: none !important;   /* Firefox klipper bakgrunden till raden */
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbar-background::before {
+  content: "↑↓ förslag · enter öppnar · esc stänger";
+  position: absolute;
+  top: 10px;
+  right: 18px;
+  color: var(--gt-box-help);
+  font-family: var(--gt-font);
+  font-size: 11px;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbar-input-container {
+  height: auto !important;
+  min-height: 46px !important;
+  max-height: 46px !important;  /* hela pixlar, annars blir nedre linjen suddig */
+  padding: 0 !important;
+  border-block: 1px solid var(--gt-accent) !important;
+  background: transparent !important;
+  outline: none !important;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbar-input-box::before {
+  font-size: 18px;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbar-input {
+  font-size: 18px !important;
+  color: var(--gt-frost) !important;
+}
+/* Bara goblin ❯ och adressen, som i snabbfrågan */
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused]
+  :is(#remote-control-box, .searchmode-switcher, #trust-icon-container, #tracking-protection-icon-container,
+      #identity-box, #urlbar-label-box, #page-action-buttons, .urlbar-go-button, #urlbar-revert-button-container) {
+  display: none !important;
+}
+/* Förslagen direkt under rutan, lika breda */
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbarView {
+  width: var(--gt-box-w) !important;
+  margin: 0 !important;
+  position-area: none !important;
+  left: calc(50vw - var(--gt-box-w) / 2) !important;
+  top: calc(anchor(bottom) + 14px) !important;  /* under rutans nederkant (16 px ram + luft) */
+  background: var(--gt-box-bg) !important;
+  border: 2px solid var(--gt-accent) !important;
+  border-top: none !important;
+  box-shadow: none !important;
+}
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbarView-background {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
