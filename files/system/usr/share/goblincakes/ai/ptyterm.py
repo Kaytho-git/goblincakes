@@ -10,6 +10,7 @@ import pty
 import shlex
 import signal
 import struct
+import subprocess
 import termios
 from urllib.parse import unquote
 
@@ -246,6 +247,16 @@ class Terminals(QObject):
 
     @Slot(str)
     def openUrl(self, url):
+        # A picture goes to Gwenview when it is installed (25 Nov: ÖPPNA I BILDVISAREN opened an SVG in Firefox)
+        path = unquote(url[7:]) if url.startswith("file://") else ""
+        if path.lower().endswith(IMAGE_TYPES) and any(os.path.exists(d + "/app/org.kde.gwenview") for d in
+                                                      (os.path.expanduser("~/.local/share/flatpak"), "/var/lib/flatpak")):
+            try:
+                subprocess.Popen(["flatpak", "run", "org.kde.gwenview", path], start_new_session=True,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return
+            except OSError:
+                pass
         QDesktopServices.openUrl(QUrl(url))
 
     def close_all(self):

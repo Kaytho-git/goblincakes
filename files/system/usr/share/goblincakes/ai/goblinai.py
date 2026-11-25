@@ -2896,8 +2896,12 @@ def follow_up_of(messages, asked):
     # Only when the answer just before came from the web – a chat about the computer or a recipe isn't searched.
     # Warcraft Logs' link under Källor isn't the web (22 Nov: "vem tog mest skada?" after Ula'tek was searched
     # and found boss guides and "Bossen Park Apartments" – own_fight fetches the pull again instead)
-    if not pairs or "**Källor:**" not in pairs[-1][1]:
+    if not pairs:
         return []
+    # An answer from the kunskapsminne is facts from the web too (25 Nov, the test list: "fanns det några svenskar
+    # med?" after a memory answer wasn't searched and she made up a Swedish archer)
+    if "**Källor:**" not in pairs[-1][1]:
+        return pairs if re.search(r"\*\*Hämtat från:\*\*[^\n]*ditt kunskapsminne", pairs[-1][1]) else []
     sources = pairs[-1][1].split("**Källor:**", 1)[1]
     web = [u for u in re.findall(r"\]\((https?://[^)\s]+)\)", sources) if "warcraftlogs.com/reports/" not in u]
     return pairs if web else []

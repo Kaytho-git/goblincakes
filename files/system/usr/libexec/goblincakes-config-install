@@ -198,6 +198,23 @@ case $step in
         flatpak install --user --noninteractive --assumeyes flathub "$1"
         ;;
 
+    image-viewer)
+        # The app (its desktop file id) opens every picture it can show: double-click in Dolphin, the
+        # terminal's ÖPPNA I BILDVISAREN in Goblin AI (25 Nov: an SVG opened in Firefox, a PNG in Okular)
+        desktop="$1.desktop"
+        file=""
+        for dir in "$HOME/.local/share/flatpak/exports/share/applications" /var/lib/flatpak/exports/share/applications /usr/share/applications; do
+            [ -f "$dir/$desktop" ] && file="$dir/$desktop" && break
+        done
+        if [ -n "$file" ]; then
+            status "Gör programmet till standard för bilder…"
+            mimes=$(sed -n 's/^MimeType=//p' "$file" | tr ';' ' ')
+            # shellcheck disable=SC2086  # one argument per MIME type
+            [ -n "$mimes" ] && xdg-mime default "$desktop" $mimes >/dev/null 2>&1 || true
+            kbuildsycoca6 >/dev/null 2>&1 || true
+        fi
+        ;;
+
     gtk-theme)
         # GTK 3 programs from Flathub can't see the system's themes: give the user a copy
         # of the GOBLINCAKES theme and let the app (if given) read it and use it.

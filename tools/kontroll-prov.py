@@ -100,6 +100,17 @@ SAVED = [
 ]
 
 
+# Följdfrågor (follow_up_of): (chatten före, frågan, väntat antal frågor/svar-par – 0 = ingen följdfråga)
+WEB = "Paris 2024.\n\n**Källor:** [OS](https://example.org/os)"
+MEMORY = "Lim Sihyeon vann.\n\n**Hämtat från:** ditt kunskapsminne (Bågskytte OS Paris 2024)"
+FOLLOW = [
+    ([("när gick senaste OS i bågskytte?", WEB)], "blev det några världsrekord?", 1),
+    # 25 nov: svaret före kom ur kunskapsminnet – följdfrågan söktes inte och hon hittade på en svensk bågskytt
+    ([("när gick senaste OS i bågskytte?", WEB), ("vem vann damerna?", MEMORY)], "fanns det några svenskar med?", 2),
+    ([("vad är klockan?", "Den är 12.")], "och i Tokyo?", 0),
+    ([("hur mår datorn?", "Bra.\n\n**Hämtat från:** systemloggen")], "och nätet?", 0),
+]
+
 def run_ask(question, answers, patch):
     script, calls = list(answers), []
 
@@ -149,11 +160,17 @@ def main():
         got = g.without_saved_claims(text)
         if got != want:
             bad.append(f"without_saved_claims \"{text[:40]}\": \"{got}\"")
+    for chat, question, want in FOLLOW:
+        msgs = [m for q, a in chat for m in ({"role": "user", "content": q}, {"role": "assistant", "content": a})]
+        msgs.append({"role": "user", "content": question})
+        got = len(g.follow_up_of(msgs, msgs[-1]))
+        if got != want:
+            bad.append(f"follow_up_of \"{question}\": {got} par, väntat {want}")
     import omtag  # the omtag log got the rounds above (in the empty home)
     logged = [r["check"] for r in omtag.rows(1)]
     if not any(c.startswith("stod inte i det lästa") for c in logged) or not any("kontrollrundor" in c for c in logged):
         bad.append(f"omtag-loggen fick inte omtagen: {logged[:6]}")
-    total = len(ASK) + len(RECEIPT) + len(SAVED) + 1
+    total = len(ASK) + len(RECEIPT) + len(SAVED) + len(FOLLOW) + 1
     for b in bad:
         print("FEL: " + b)
     print(f"Kontrollprovet: {total - len(bad)} av {total} fall som väntat")
