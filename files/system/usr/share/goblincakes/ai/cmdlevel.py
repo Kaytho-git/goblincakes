@@ -371,8 +371,8 @@ def _goblin(args):
     if p[0] in {"anticheat", "eac"} and (len(p) == 1 or p[1:] in (["kolla"], ["check"])):
         return ""  # only the check; fixa/ångra change kernel arguments
     if p[0] in {"tillägg", "tillagg", "addons", "addon", "goblinup", "up"} and (
-            len(p) == 1 or p[1] in {"lista", "list", "status", "sök", "sok", "search"}):
-        return ""  # GoblinUp (18 Nov): the list and WowUp's search only read; kolla/uppdatera/installera get Tillåt
+            len(p) == 1 or p[1] in {"lista", "list", "status", "sök", "sok", "search", "uppdateringar", "patch"}):
+        return ""  # GoblinUp (18 Nov): the list, WowUp's search and the patch + list (25 Nov) only read; kolla/uppdatera/installera get Tillåt
     return "" if p[0] in {"screen", "tile", "discord", "frames"} and len(p) == 1 else f"goblin {p[0]}"
 
 

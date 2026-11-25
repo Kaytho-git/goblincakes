@@ -56,7 +56,14 @@ class FakeSys:
 
 # (namn, fråga, modellens svar i tur och ordning, {patchar}, väntat antal anrop, kontroller som ska slå till (delar av
 # stegets text), kontroller som INTE får slå till, text som ska finnas i svaret, text som inte får finnas)
+SEEN = []   # modellens meddelanden i senaste anropet
+WOW_FACT = ("WoW Retail: ny uppdatering finns – 12.1.7.71200 (du har 12.1.5.70961). Battle.net hämtar den när det är "
+            "igång.\nTillägg (Retail): 2 med uppdatering – BigWigs, LittleWigs")
 ASK = [
+    ("finns det uppdateringar till wow? – patchläget och tilläggen läses först", "finns det uppdateringar till wow?",
+     ["Ja, en ny patch (12.1.7) – Battle.net hämtar den när det är igång. Två tillägg har uppdatering: BigWigs och "
+      "LittleWigs. Ska jag uppdatera dem?"],
+     {"wow": WOW_FACT}, 1, [], ["påstod", "saknar sammanfattning"], ["Ska jag uppdatera dem?"], ["*Obs"]),
     ("röstnotis där allt fungerar – inget omtag", VOICE_NOTICE,
      ["Jag har kollat: rösten fungerar nu, notisen är gammal. Du behöver inte göra något."],
      {"voice": VOICE_OK}, 1, [], ["påstod", "saknar sammanfattning"], [], ["*Obs"]),
@@ -111,15 +118,30 @@ FOLLOW = [
     ([("hur mår datorn?", "Bra.\n\n**Hämtat från:** systemloggen")], "och nätet?", 0),
 ]
 
+# "Finns det uppdateringar till wow?" (WOW_UPDATES): (frågan, ska patchläget läsas)
+WOW_Q = [("finns det uppdateringar till wow?", True), ("är wow uppdaterat?", True),
+         ("behöver tilläggen uppdateras?", True), ("har det kommit en ny patch till wow?", True),
+         ("vad är senaste patchen i wow?", False), ("finns det uppdateringar till goblincakes?", False),
+         ("är datorn uppdaterad?", False)]
+# patch_state i goblincakes-wowup: spelets .build.info mot Blizzards lista (ny patch i Retail, Forever senaste)
+BUILD = ("Branch!STRING:0|Active!DEC:1|Build Key!HEX:16|Version!STRING:0|Product!STRING:0\n"
+         "eu|1|aaa|12.1.5.70961|wow\neu|1|fff|1.60.1.71091|wowf\n")
+VERSIONS = {"wow": "Region!STRING:0|BuildConfig!HEX:16|VersionsName!String:0\n## seqn = 1\nus|bbb|12.1.7.71200\n"
+                   "eu|bbb|12.1.7.71200\n",
+            "wowf": "Region!STRING:0|BuildConfig!HEX:16|VersionsName!String:0\neu|fff|1.60.1.71091\n"}
+PATCH_WANT = [("Retail", True, "12.1.7.71200"), ("Forever", False, "1.60.1.71091")]
+
 def run_ask(question, answers, patch):
     script, calls = list(answers), []
 
     def fake(messages, keys, status=None, notice=None, project=None, choice="", tools=None, *a, **k):
         calls.append(1)
+        SEEN[:] = [m.get("content") for m in messages if isinstance(m.get("content"), str)]
         return (script.pop(0) if script else "Slutsvar."), "låtsasmodell"
     g.ask_once = fake
     g.voice_now = lambda: patch.get("voice", "")
     g.after_now = lambda text: ""
+    g.wow_updates_now = lambda: patch.get("wow", "")
     memory = patch.get("memory")
     g.knowledge_for = lambda text: [(memory, True)] if memory else []
     g.kunskap_mod().as_text = lambda s: f"## {s['title']}\nSparad {s['date']} · Källa: {s['url']}\n{s['facts']}"
@@ -166,11 +188,25 @@ def main():
         got = len(g.follow_up_of(msgs, msgs[-1]))
         if got != want:
             bad.append(f"follow_up_of \"{question}\": {got} par, väntat {want}")
+    run_ask("finns det uppdateringar till wow?", ["Ok."], {"wow": WOW_FACT})
+    if not any(WOW_FACT in c and "Ska jag uppdatera dem?" in c for c in SEEN):
+        bad.append("finns det uppdateringar till wow?: patchläget och tilläggen nådde inte modellen")
+    for question, want in WOW_Q:
+        if bool(g.WOW_UPDATES.search(question)) != want:
+            bad.append(f"WOW_UPDATES \"{question}\": {not want}, väntat {want}")
+    import importlib.machinery
+    import importlib.util
+    loader = importlib.machinery.SourceFileLoader("wowup", str(ROOT / "files/system/usr/libexec/goblincakes-wowup"))
+    wowup = importlib.util.module_from_spec(importlib.util.spec_from_loader("wowup", loader))
+    loader.exec_module(wowup)
+    got = [(x["name"], x["new"], x["latest"]) for x in wowup.patch_state(BUILD, VERSIONS)]
+    if got != PATCH_WANT:
+        bad.append(f"patch_state: {got}, väntat {PATCH_WANT}")
     import omtag  # the omtag log got the rounds above (in the empty home)
     logged = [r["check"] for r in omtag.rows(1)]
     if not any(c.startswith("stod inte i det lästa") for c in logged) or not any("kontrollrundor" in c for c in logged):
         bad.append(f"omtag-loggen fick inte omtagen: {logged[:6]}")
-    total = len(ASK) + len(RECEIPT) + len(SAVED) + len(FOLLOW) + 1
+    total = len(ASK) + len(RECEIPT) + len(SAVED) + len(FOLLOW) + len(WOW_Q) + 3
     for b in bad:
         print("FEL: " + b)
     print(f"Kontrollprovet: {total - len(bad)} av {total} fall som väntat")

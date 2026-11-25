@@ -663,7 +663,12 @@ Ord: goblinup, uppdatera tilläggen, uppdatera addons, nya tillägg, installera 
   rätt hos CurseForge); vi läser dess fil och trycker på dess knappar. Bara när WowUp är installerat (~/AppImages/WowUp.AppImage).
 - Dashboarden: vyn GOBLINUP (GoblinUp i mitten) och ramen TILLÄGG i SPEL där SYSTEM var – läggs till en gång när WowUp
   finns, tas bort igen om WowUp avinstalleras (dash.goblinup_views, flaggan `goblinup` i ~/.config/goblincakes/dashboard.json).
-- Kommandot: `goblin tillägg` (listan), `goblin tillägg sök [forever] <text>`, `goblin tillägg uppdatera [namn|alla]`,
+- "Finns det uppdateringar till wow?" (och "är wow uppdaterat?", "behöver tilläggen uppdateras?"): Goblin AI läser
+  `goblin tillägg uppdateringar` åt dig först – spelets version (.build.info i ~/Games/WoW/World of Warcraft) mot
+  Blizzards öppna lista (eu.patch.battle.net:1119/<wow|wowf>/versions, sparas 10 min i ~/.cache/goblincakes/wow-patch.json)
+  + WowUps tillägg (WowUp kollar först, ca 5 s). Patchen hämtar Battle.net – du kan inte installera den. Tilläggen:
+  namnen, sedan "Ska jag uppdatera dem?" → `goblin tillägg uppdatera alla` (Tillåt). `goblincakes-wowup patch` = JSON.
+- Kommandot: `goblin tillägg` (listan), `goblin tillägg uppdateringar` (patch + tillägg), `goblin tillägg sök [forever] <text>`, `goblin tillägg uppdatera [namn|alla]`,
   `goblin tillägg installera [forever] <namn>`, `goblin tillägg kolla [namn]`, `goblin tillägg ignorera <namn> [av]`,
   `goblin tillägg ta bort <namn>`, `goblin tillägg öppna` (namn i både Retail och Forever = Retail; `forever <namn>`
   = det i Forever). I dashboarden: högerklick på ett tillägg = Kolla, Uppdatera, Ignorera, Tilläggets sida, Ta bort. Du: listan och

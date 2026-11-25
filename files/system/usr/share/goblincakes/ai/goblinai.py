@@ -1627,7 +1627,8 @@ DESK_FNS = [
     look_fn("goblin", "Kör ett goblin-kommando (GOBLINCAKES egna, se `goblin help`): de som bara visar något körs "
             "direkt (nyheter, screen, tile layouts, frames …) och `tile open <layout>` (fönsterlayouter); de som "
             "ändrar något (update, färg, dock reset …) blir ett Tillåt-kort åt användaren. WoW-tilläggen (GoblinUp, "
-            "WowUp gör jobbet): `tillägg` = listan och vilka som har uppdateringar (direkt), `tillägg sök <text>` "
+            "WowUp gör jobbet): `tillägg` = listan och vilka som har uppdateringar (direkt), `tillägg uppdateringar` = "
+            "spelets patch mot Blizzards senaste + tilläggen (direkt), `tillägg sök <text>` "
             "(direkt), `tillägg uppdatera alla` / `tillägg uppdatera <namn>` / `tillägg installera <namn>` / "
             "`tillägg kolla [namn]` / `tillägg ignorera <namn> [av]` / `tillägg ta bort <namn>` (Tillåt-kort). Inte medan WoW körs.",
             {"kommando": ("Kommandot utan `goblin`, t.ex. `nyheter 5`, `screen`, `tile open raid`, `update`", True)},
@@ -2990,6 +2991,36 @@ NOTICE_VOICE = re.compile(r"goblincakes-voice|\b\w+s röst\b|röstknapp|Goblin A
 NOTICE_AFTER = re.compile(r"Efter uppdateringen", re.I)
 
 
+# "Finns det uppdateringar till wow?" (25 Nov, the user: "ja en ny patch och ja fyra uppdateringar till dina installerade
+# addons, Ellesmere, BigWigs … ska jag uppdatera dom?") – the patch against Blizzard's list and WowUp's add-ons, read
+# before she answers. Not "vad är nytt i senaste patchen" (what's in it is the web).
+WOW_UPDATES = re.compile(
+    r"(?:finns|kommit|har)\b[^?\n]{0,30}\b(?:uppdatering(?:ar)?|ny(?:a)? patch(?:ar)?)\b[^?\n]{0,25}"
+    r"\b(?:wow|world of warcraft|warcraft|addons?|tillägg(?:en)?)\b"
+    r"|\b(?:är|behöver)\s+(?:wow|world of warcraft|tilläggen|addonsen|addons|mina (?:addons|tillägg))\b[^?\n]{0,20}"
+    r"\buppdater(?:at|ade|as|a)\b"
+    r"|\buppdateringar\s+(?:till|för|i|på)\s+(?:wow|world of warcraft|warcraft|mina (?:addons|tillägg)|addons|tilläggen)\b"
+    r"|\bny(?:a)? patch(?:ar)?\s+(?:till|i|för)\s+(?:wow|world of warcraft|warcraft)\b(?![^?\n]{0,20}\binnehåll)",
+    re.I)
+WOW_UPDATES_GUIDE = (
+    "Så här svarar du: kort och på svenska. Först spelet: finns en ny uppdatering, säg vilken version och att "
+    "Battle.net hämtar den när det är igång – du kan inte installera patchar. Sedan tilläggen: säg hur många som har "
+    "uppdatering och deras namn. Har något tillägg uppdatering: avsluta med frågan \"Ska jag uppdatera dem?\" – svarar "
+    "användaren ja kör du goblin-verktyget med `tillägg uppdatera alla` (det blir ett Tillåt-kort). Säg aldrig att något "
+    "är uppdaterat förrän det har körts. Är allt redan uppdaterat: säg det kort.")
+
+
+def wow_updates_now():
+    """The patch and the add-ons as text for her (goblincakes-wowup text uppdateringar) – "" when it couldn't run."""
+    helper = Path(__file__).resolve().parents[3] / "libexec/goblincakes-wowup"
+    helper = helper if helper.is_file() else Path("/usr/libexec/goblincakes-wowup")
+    try:
+        return subprocess.run([str(helper), "text", "uppdateringar"], capture_output=True, text=True,
+                              timeout=90).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
 def voice_now():
     """The voice right now, in a sentence for her: working (the notice is old), needs mending, or not switched on."""
     helper = Path(__file__).resolve().parents[2] / "libexec/goblincakes-voice"
@@ -3642,6 +3673,18 @@ def _ask(messages, keys, status=None, notice=None, project=None, choice="", step
         except Exception as e:  # noqa: BLE001 – the AI may look it up itself
             steps.done("fel", e)
             api_asked = None
+    if not report and not typed and WOW_UPDATES.search(asked_text(asked.get("content"))[:600]):
+        steps.start("Kollar WoW och tilläggen")
+        fact = wow_updates_now()
+        steps.done(note="" if fact else "gick inte")
+        if fact:
+            LAST.tools.append(("goblin", "tillägg uppdateringar"))
+            LAST.done.append(("goblin", "tillägg uppdateringar", fact))
+            used += 1
+            messages.append({"role": "user", "content":
+                             "[Goblin AI kollade spelets version och WoW-tilläggen åt dig nu, innan du svarar – det här "
+                             f"skrev användaren inte in]\n\n{fact}\n\n[Slut]\n\n{WOW_UPDATES_GUIDE}\n\n"
+                             f"Användarens fråga var: \"{question}\""})
     notes = [] if report else notice_now(asked_text(asked.get("content")))
     # 3: everything the notice named works now – no "Vad som är fel / Kan jag laga det" (the voice notice 24 Nov:
     # "Kan jag laga det: Ja – felet har redan lagats av sig själv")

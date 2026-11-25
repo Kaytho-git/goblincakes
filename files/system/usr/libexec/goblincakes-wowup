@@ -13,7 +13,9 @@ CurseForge), vi läser dess fil och trycker på dess knappar.
     goblincakes-wowup install <version> <text> <namn>   installera träffen med det namnet
     goblincakes-wowup connect                   se till att WowUp går att styra (startar om det med porten)
     goblincakes-wowup open                      visa WowUps eget fönster
-    goblincakes-wowup text [lista|kolla|uppdatera …|sök …|installera …|öppna]   samma som vanlig text (goblin tillägg)
+    goblincakes-wowup patch                     JSON: spelets version mot Blizzards senaste (Retail, Forever …)
+    goblincakes-wowup text [lista|uppdateringar|kolla|uppdatera …|sök …|installera …|öppna]   samma som vanlig text
+                                                (goblin tillägg; "uppdateringar" = patchläget + tilläggen)
 
 Läsa: ~/.config/WowUpCf/addons.json (WowUp skriver den efter varje kontroll). Styra: WowUp startas med
 Chromes fjärrstyrningsport, bara för den här datorn (127.0.0.1:9233) – Config skriver den i autostarten, spelvakten
@@ -145,6 +147,85 @@ def status():
             "connected": ok and target() is not None, "game": game_running(), "checked": checked,
             "updates": sum(c["updates"] for c in clients.values()),
             "clients": [clients[k] for k in sorted(clients)]}
+
+
+# ── Patchläget: spelets version mot Blizzards (25 nov, användaren: "finns det uppdateringar till wow?" → "ja en ny
+# patch och fyra uppdateringar till dina tillägg …"). Spelets .build.info (Build Key, Version, Branch = region) mot
+# Blizzards öppna versionslista (BuildConfig, VersionsName) – ingen inloggning. Patchen hämtar Battle.net själv. ──
+WOW_DIR = Path(os.environ.get("GOBLINCAKES_WOW_DIR", HOME / "Games/WoW/World of Warcraft"))  # goblincakes-wow-links
+PATCH_URL = "http://{region}.patch.battle.net:1119/{product}/versions"
+PATCH_CACHE = Path(os.environ.get("XDG_CACHE_HOME", HOME / ".cache")) / "goblincakes/wow-patch.json"
+PATCH_KEEP = 600   # s – samma fråga igen hämtar inte om
+PRODUCTS = {"wow": "Retail", "wowf": "Forever", "wow_classic": "Classic", "wow_classic_era": "Classic Era"}
+
+
+def bar_table(text):
+    """Blizzards |-tabeller (.build.info, versions): [{kolumn: värde}] – rubriken "Namn!TYP:n", ## = kommentar."""
+    lines = [l for l in text.splitlines() if l.strip() and not l.startswith("##")]
+    if not lines:
+        return []
+    cols = [c.split("!")[0] for c in lines[0].split("|")]
+    return [dict(zip(cols, l.split("|"))) for l in lines[1:]]
+
+
+def patch_state(build_info, versions):
+    """[{product, name, region, installed, latest, new}] – versions = {produkt: versionslistans text}; latest "" =
+    okänd (nätet svarade inte)."""
+    out = []
+    for row in bar_table(build_info):
+        product = row.get("Product", "")
+        if product not in PRODUCTS or row.get("Active", "1") == "0":
+            continue
+        region = (row.get("Branch") or "eu").lower()
+        latest = next((v for v in bar_table(versions.get(product, "")) if v.get("Region") == region), {})
+        new = bool(latest.get("BuildConfig")) and latest["BuildConfig"] != row.get("Build Key")
+        out.append({"product": product, "name": PRODUCTS[product], "region": region,
+                    "installed": row.get("Version", ""), "latest": latest.get("VersionsName", ""), "new": new})
+    return out
+
+
+def patch():
+    try:
+        build_info = (WOW_DIR / ".build.info").read_text(errors="replace")
+    except OSError:
+        return {"ok": False, "why": "Hittar inte WoW (~/Games/WoW/World of Warcraft/.build.info)."}
+    try:
+        cache = json.loads(PATCH_CACHE.read_text())
+        fresh = time.time() - cache.get("t", 0) < PATCH_KEEP
+    except (OSError, ValueError):
+        cache, fresh = {}, False
+    versions = cache.get("versions", {}) if fresh else {}
+    for row in bar_table(build_info):
+        product, region = row.get("Product", ""), (row.get("Branch") or "eu").lower()
+        if product in PRODUCTS and product not in versions:
+            try:
+                with urllib.request.urlopen(PATCH_URL.format(region=region, product=product), timeout=8) as r:
+                    versions[product] = r.read().decode(errors="replace")
+            except OSError:
+                versions[product] = ""
+    if not fresh and any(versions.values()):
+        try:
+            PATCH_CACHE.parent.mkdir(parents=True, exist_ok=True)
+            PATCH_CACHE.write_text(json.dumps({"t": time.time(), "versions": versions}))
+        except OSError:
+            pass
+    return {"ok": True, "games": patch_state(build_info, versions)}
+
+
+def patch_text():
+    r = patch()
+    if not r.get("ok"):
+        return r["why"]
+    lines = []
+    for g in r["games"]:
+        if not g["latest"]:
+            lines.append(f"WoW {g['name']}: du har {g['installed']} – Blizzards lista svarade inte, okänt om det finns en ny patch.")
+        elif g["new"]:
+            lines.append(f"WoW {g['name']}: ny uppdatering finns – {g['latest']} (du har {g['installed']}). "
+                         "Battle.net hämtar den när det är igång.")
+        else:
+            lines.append(f"WoW {g['name']}: {g['installed']} – senaste versionen.")
+    return "\n".join(lines) or "Hittar ingen WoW-version i .build.info."
 
 
 # ── Styra: Chromes fjärrstyrning (DevTools-protokollet) mot WowUps fönster ──
@@ -659,6 +740,25 @@ def human(args):
         when = time.strftime("%-d/%-m %H:%M", time.localtime(st["checked"])) if st["checked"] else "aldrig"
         lines.append(f"WowUp kollade senast {when}" + (" · WoW körs – WowUp vilar" if st["game"] else ""))
         return "\n".join(lines)
+    if word in ("uppdateringar", "patch", "läget"):
+        # Patchläget + tilläggen. WowUp kollar först (ca 5 s) om det går – annars dess senaste kontroll.
+        lines = [patch_text()]
+        st = status()
+        if st["installed"]:
+            fresh = "" if st["game"] else (act("check", []).get("why") or "")
+            st = status()
+            for c in st["clients"]:
+                upd = [r["name"] for r in c["rows"] if r["update"]]
+                lines.append(f"Tillägg ({c['name']}): " + (f"{len(upd)} med uppdatering – " + ", ".join(upd)
+                                                            if upd else "alla uppdaterade"))
+            when = time.strftime("%-d/%-m %H:%M", time.localtime(st["checked"])) if st["checked"] else "aldrig"
+            if st["game"]:
+                lines.append(f"WoW körs – WowUp vilar (kollade senast {when}); tilläggen uppdateras när spelet är stängt.")
+            elif fresh:
+                lines.append(f"WowUp kunde inte kolla nu ({fresh}) – listan är från {when}.")
+        else:
+            lines.append("WowUp är inte installerat – tilläggen kollas inte härifrån.")
+        return "\n".join(lines)
     if word in ("kolla", "check"):
         r = act("check", rest)
         if not r.get("ok"):
@@ -720,6 +820,8 @@ def main():
         print(human(sys.argv[2:]))
     elif what == "open":
         say(open_window())
+    elif what == "patch":
+        say(patch())
     elif what in ("check", "update-all", "update", "search", "install", "connect", "ignore", "remove"):
         say(act(what, sys.argv[2:]))
     else:

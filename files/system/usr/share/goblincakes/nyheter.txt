@@ -1,3 +1,4 @@
+2026-11-25  Goblin AI: frågar du "finns det uppdateringar till wow?" svarar Kakan om det finns en ny patch (den hämtar Battle.net) och vilka av dina tillägg som har uppdateringar – och frågar om hon ska uppdatera dem.
 2026-11-25  GoblinUp: hittar sökningen inget öppnas WowUps fönster på Get Addons – WowUp söker bara när du själv haft det öppet en stund, så sök där.
 2026-11-25  GoblinUp: knapparna (uppdatera, kolla, installera) går fort även när WowUp legat dolt i systemfältet länge – förut kunde de ta minuter eller ge upp.
 2026-11-25  Goblin AI: en följdfråga söker på nätet även när svaret före kom ur Kakans kunskapsminne – förut kunde hon gissa i stället för att leta.
