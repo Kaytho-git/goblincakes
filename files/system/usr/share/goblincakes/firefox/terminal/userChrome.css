@@ -36,7 +36,9 @@
   opacity: 0;
   pointer-events: none;
   transform: translateY(-4px);
-  transition: opacity 100ms ease var(--gt-hide-delay), transform 100ms ease var(--gt-hide-delay) !important;
+  transition: opacity 100ms ease var(--gt-hide-delay), transform 100ms ease var(--gt-hide-delay),
+              visibility 0s linear calc(var(--gt-hide-delay) + 150ms) !important;
+  /* visibility: när Ctrl+L-rutan stängs (Enter) blir raderna synliga först när de tonats bort – annars blinkar de */
 }
 :root:not([customizing], [inDOMFullscreen], [inFullscreen]) #navigator-toolbox > #nav-bar {
   top: 100%;
@@ -136,11 +138,16 @@ menupopup menuitem, menupopup menu { border-radius: 0 !important; }
   content: "~/";
   color: var(--gt-dim);
 }
+/* Firefox 161 ritar inte namnet (value) när ::before finns – skrivs ut här */
+#PersonalToolbar .bookmark-item > .toolbarbutton-text::after {
+  content: attr(value);
+  color: var(--gt-frost);
+}
 
 /* ── Ctrl+L-rutan (25 nov, användaren: "som när man trycker Meta+§") ──────────
    När adressraden har fokus lossnar den ur raden och blir en ruta i snabbfrågans stil
-   (Goblin AI, Meta+§): 50 px ner, mitt i sidled, accentram, tangenttips överst,
-   goblin ❯ mellan två accentlinjer, förslagen under och sidan tonad bakom.
+   (Goblin AI, Meta+§): 50 px ner, mitt i sidled, en rad lika hög som adressraden, accentram,
+   sidan tonad bakom; förslagen först när man börjar skriva (användaren 25 nov).
    Firefox märker inte om fokus kom från Ctrl+L, Ctrl+T eller ett klick, så alla ger rutan.
    Esc stänger förslagen, Esc igen lämnar adressraden (Firefox egen). Bygger på
    #urlbar[focused], .urlbar-input-container (förslagslistan är förankrad i den) och
@@ -149,7 +156,6 @@ menupopup menuitem, menupopup menu { border-radius: 0 !important; }
   --gt-box-w: min(680px, calc(100vw - 32px));
   --gt-box-top: 50px;
   --gt-box-bg: #0B1018;
-  --gt-box-help: #5C6880;
 }
 :root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] {
   position: fixed !important;
@@ -159,7 +165,7 @@ menupopup menuitem, menupopup menu { border-radius: 0 !important; }
   height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
-  padding: 34px 18px 14px !important;
+  padding: 2px 10px !important;  /* 2 px = ramen */
   box-sizing: border-box !important;
   z-index: 100 !important;
   visibility: visible !important;
@@ -182,29 +188,15 @@ menupopup menuitem, menupopup menu { border-radius: 0 !important; }
   outline: none !important;
   clip-path: none !important;   /* Firefox klipper bakgrunden till raden */
 }
-:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbar-background::before {
-  content: "↑↓ förslag · enter öppnar · esc stänger";
-  position: absolute;
-  top: 10px;
-  right: 18px;
-  color: var(--gt-box-help);
-  font-family: var(--gt-font);
-  font-size: 11px;
-}
 :root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbar-input-container {
-  height: auto !important;
-  min-height: 46px !important;
-  max-height: 46px !important;  /* hela pixlar, annars blir nedre linjen suddig */
+  height: 32px !important;
+  min-height: 0 !important;
   padding: 0 !important;
-  border-block: 1px solid var(--gt-accent) !important;
+  border: none !important;
   background: transparent !important;
   outline: none !important;
 }
-:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbar-input-box::before {
-  font-size: 18px;
-}
 :root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbar-input {
-  font-size: 18px !important;
   color: var(--gt-frost) !important;
 }
 /* Bara goblin ❯ och adressen, som i snabbfrågan */
@@ -213,13 +205,16 @@ menupopup menuitem, menupopup menu { border-radius: 0 !important; }
       #identity-box, #urlbar-label-box, #page-action-buttons, .urlbar-go-button, #urlbar-revert-button-container) {
   display: none !important;
 }
-/* Förslagen direkt under rutan, lika breda */
+/* Förslagen direkt under rutan, lika breda – först när man börjat skriva */
+:root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused]:not([usertyping]) .urlbarView {
+  visibility: hidden !important;  /* inte display: none – då blir #urlbar[open] kvar och raderna fastnar framme */
+}
 :root:not([customizing], [inDOMFullscreen], [inFullscreen]) #urlbar[focused] .urlbarView {
   width: var(--gt-box-w) !important;
   margin: 0 !important;
   position-area: none !important;
   left: calc(50vw - var(--gt-box-w) / 2) !important;
-  top: calc(anchor(bottom) + 14px) !important;  /* under rutans nederkant (16 px ram + luft) */
+  top: calc(anchor(bottom) + 2px) !important;  /* under rutans ram */
   background: var(--gt-box-bg) !important;
   border: 2px solid var(--gt-accent) !important;
   border-top: none !important;
