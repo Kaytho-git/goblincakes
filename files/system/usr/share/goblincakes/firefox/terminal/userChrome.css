@@ -91,6 +91,8 @@ menupopup menuitem, menupopup menu { border-radius: 0 !important; }
 #TabsToolbar .titlebar-button { padding-block: 0 !important; }
 #TabsToolbar toolbarbutton { --toolbarbutton-inner-padding: 4px !important; padding-block: 0 !important; }
 #TabsToolbar .tab-label { font-size: 12px !important; }
+/* "Lista alla flikar" bort (användaren 25 nov) – Alt+1…9, Ctrl+Tab och hjulet på flikraden räcker */
+#alltabs-button { display: none !important; }
 
 /* Flikarna: [1] Titel */
 #tabbrowser-tabs { counter-reset: gt-tab; }
