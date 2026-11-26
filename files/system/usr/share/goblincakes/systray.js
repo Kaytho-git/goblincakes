@@ -1,5 +1,5 @@
 // GOBLINCAKES: trims every system tray to network, volume and notifications,
-// like the design (battery appears on laptops only).
+// like the design (and the battery on laptops); what the user switched off stays off.
 // Run by goblincakes-firstlogin through plasmashell's evaluateScript, after
 // the panels exist – the tray's own settings aren't there while layout.js runs.
 var shown = [
@@ -37,10 +37,31 @@ var known = shown.concat([
 // one Plasma shows no notifications and Discord/Steam have nowhere to put their tray icon.
 var rowShown = ["org.kde.plasma.notifications", "org.kde.plasma.battery"];
 
+// The battery only on laptops (26 Nov): Plasma's battery widget also shows a wireless mouse's battery, so it
+// came up on desktops too (the mouse's battery is in Spelas nu anyway). The callers put
+// "var laptopBattery = true|false;" first (/sys/class/power_supply/BAT*) – without it the battery stays as before.
+var withBattery = typeof laptopBattery === "undefined" || laptopBattery;
+function battery(list) {
+    return withBattery ? list : list.filter(function (item) { return item !== "org.kde.plasma.battery"; });
+}
+function asList(value) {
+    return String(value || "").split(",").filter(function (item) { return item; });
+}
+
 var trimmed = 0;
 function trim(target, row) {
     target.currentConfigGroup = ["General"];
-    target.writeConfig("extraItems", row ? rowShown : shown);
+    // What the user switched off stays off (26 Nov: the battery came back with every new SYSTRAY_VERSION):
+    // goblincakesItems = what this script put in last time; one of those no longer in extraItems was taken
+    // out by the user. (The first run with this has no list yet – nothing counts as taken out.)
+    var before = asList(target.readConfig("extraItems"));
+    var ours = asList(target.readConfig("goblincakesItems"));
+    var wanted = battery(row ? rowShown : shown);
+    var items = wanted.filter(function (item) {
+        return ours.indexOf(item) < 0 || before.indexOf(item) >= 0;
+    });
+    target.writeConfig("extraItems", items);
+    target.writeConfig("goblincakesItems", wanted);
     target.writeConfig("knownItems", known);
     // Electron programs' own icons go behind the arrow: goblincakes-archon-tray shows its own in their place
     // (Archon purple 24 Oct; Raider.IO and WowUp 13 Nov – a left click on theirs did nothing). Plasma names

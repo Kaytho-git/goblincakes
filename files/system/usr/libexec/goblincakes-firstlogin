@@ -12,7 +12,7 @@ MARK="$HOME/.local/state/goblincakes/firstlogin-done"
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 # Bump SYSTRAY_VERSION when systray.js changes (a new tray widget, the top bar's task settings):
 # the tray is trimmed again once, without rebuilding the panels
-SYSTRAY_VERSION=8
+SYSTRAY_VERSION=9
 SYSTRAY_MARK="$HOME/.local/state/goblincakes/systray-done"
 RESET=0
 [ "${1:-}" = "--reset" ] && RESET=1
@@ -41,7 +41,10 @@ give_up() { # give_up <mark> <version> <what>: counts a failed try; true after t
 trim_systray() { # waits for the tray to exist, then trims it (systray.js)
     for _ in 1 2 3 4 5 6 7 8 9 10; do
         sleep 2
-        if plasma_js "$(cat /usr/share/goblincakes/systray.js)" >/dev/null 2>&1; then
+        # the battery only on laptops (systray.js): a BAT* power supply, not just a wireless mouse's
+        bat=false; for f in /sys/class/power_supply/BAT*; do [ -e "$f" ] && bat=true; done
+        if plasma_js "var laptopBattery = $bat;
+$(cat /usr/share/goblincakes/systray.js)" >/dev/null 2>&1; then
             mark_done "$SYSTRAY_MARK" "$SYSTRAY_VERSION"
             return 0
         fi

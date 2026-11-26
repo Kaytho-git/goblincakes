@@ -308,7 +308,9 @@ def trim_tray():
     """systray.js once the new tray exists (its settings only appear after it has started)."""
     if not SYSTRAY_JS.exists():
         return
-    script = SYSTRAY_JS.read_text()
+    # the battery only on laptops (systray.js): a BAT* power supply, not just a wireless mouse's
+    laptop = any(Path("/sys/class/power_supply").glob("BAT*"))
+    script = f"var laptopBattery = {'true' if laptop else 'false'};\n" + SYSTRAY_JS.read_text()
     for _ in range(10):
         time.sleep(2)
         if plasma(script) is not None:
