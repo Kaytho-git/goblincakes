@@ -773,6 +773,14 @@ Ord: discord, röstkanal, vencord, discord-tema
   …/app-<version>/Discord → Discord har skrivit sin egen sökväg; inloggningen (goblincakes-refresh.sh) byter den mot
   startskriptet ~/.local/share/discord-app/discord. Byt inte versionsnumret för hand: kolla att startskriptet finns
   och be användaren logga ut och in.
+- Startar inte alls, loggen för app-discord@autostart säger SEGV direkt vid start, och
+  ~/.local/share/discord-app/discord börjar inte med #! men innehåller texten GOBLINCAKES → rader har skjutits in
+  i Discords program. Kör `/usr/libexec/goblincakes-config-install discord-launcher` (lagar från och med imagen
+  efter 26 nov; äldre gör inget) och starta Discord igen. Rätt läge: `discord` är vårt lilla skript, Discords eget
+  program ligger bredvid som discord.bin.
+- `goblin update --only discord` eller Config säger "Discord kunde inte installeras" → kör
+  `~/.local/share/discord-app/updater_bootstrap --help` och jämför flaggorna med dem i
+  goblincakes-config-install (26 nov: --no-zenity hade bytt namn till --no-gui).
 Kontroll: `/usr/libexec/goblincakes-discord-voice`
 
 ## Ianseo

@@ -89,13 +89,30 @@ vulkan_layer() { # name
     done
 }
 
-discord_launcher() { # Discord's launcher script → with Nvidia, Discord through XWayland
+discord_launcher() { # our start script in Discord's place → with Nvidia, Discord through XWayland
     # (12 Oct: other people's streams stuttered on Wayland + Nvidia, smooth with XWayland).
     # Every start through the script (menu, ~/.local/bin/discord, our autostart) gets the flag.
-    [ -f "$1" ] && ! grep -q 'GOBLINCAKES' "$1" || return 0
-    sed -i '1a\
-# GOBLINCAKES: Discord through XWayland with Nvidia – on Wayland streams skip frames\
-[ -e /proc/driver/nvidia/version ] \&\& set -- --ozone-platform=x11 "$@"' "$1"
+    # Discord's own file is never edited: since 1.0.171 `discord` is a program, and two lines put
+    # into it made it crash at start (26 Nov). It moves to discord.bin and the script takes its name.
+    [ -f "$1" ] || return 0
+    if [ "$(head -c 2 "$1")" = '#!' ]; then
+        # Ours already, or Discord's old starter script that got the line (before 1.0.171)
+        ! grep -q 'GOBLINCAKES' "$1" || return 0
+    else
+        # The program with the lines put into it: exactly those two out again
+        LC_ALL=C sed -i '/^# GOBLINCAKES: Discord through XWayland with Nvidia/d
+            /^\[ -e \/proc\/driver\/nvidia\/version \] && set -- --ozone-platform=x11 "\$@"$/d' "$1"
+    fi
+    cat >"$1.goblincakes-new" <<'LAUNCHER'
+#!/bin/sh
+# GOBLINCAKES: Discord through XWayland with Nvidia – on Wayland streams skip frames.
+# Discord's own starter is discord.bin next to this file, untouched.
+[ -e /proc/driver/nvidia/version ] && set -- --ozone-platform=x11 "$@"
+exec "$(dirname "$(readlink -f "$0")")/discord.bin" "$@"
+LAUNCHER
+    chmod 755 "$1.goblincakes-new"
+    mv -f "$1" "$1.bin"
+    mv -f "$1.goblincakes-new" "$1"
 }
 
 check() {
@@ -570,7 +587,7 @@ DESKTOP
         # Discord's own Linux build in the home folder, not the Flatpak (11 Oct, the user's
         # choice): outside a sandbox Discord sees the games that run ("Playing …") and games'
         # Rich Presence reaches it. Since 1.0 (Oct 2026) Discord's .tar.gz is only a starter:
-        # the script `discord` + `updater_bootstrap`, which installs and updates Discord itself
+        # `discord` (a script, since 1.0.171 a program) + `updater_bootstrap`, which installs and updates Discord itself
         # in ~/.config/discord/app-<version>/ (and starts the newest; 0.08 s once installed).
         # The 0.0.x tarball had the whole program with Discord at the top – this step looked
         # for that and failed every time (11 Oct). The Flatpak's login and settings are moved
@@ -606,7 +623,7 @@ DESKTOP
         # Discord itself now, so the first start (and the login autostart) doesn't wait for it
         status "Installerar Discord…"
         mkdir -p "$conf"
-        "$dir/updater_bootstrap" --no-zenity "$conf" stable https://updates.discord.com/ >/dev/null 2>&1 \
+        "$dir/updater_bootstrap" --no-gui "$conf" stable https://updates.discord.com/ >/dev/null 2>&1 \
             || { status "Discord kunde inte installeras"; exit 1; }
         discord_launcher "$dir/discord"
         mkdir -p "$apps" "$HOME/.local/bin"
@@ -647,7 +664,7 @@ DESKTOP
         ;;
 
     discord-launcher)
-        # goblincakes-refresh.sh at login: a launcher from before 12 Oct gets the line too
+        # goblincakes-refresh.sh at login: Discord's own starter (or a broken one) gets our script
         discord_launcher "$HOME/.local/share/discord-app/discord"
         ;;
 
