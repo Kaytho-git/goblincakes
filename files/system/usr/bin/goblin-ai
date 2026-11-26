@@ -58,6 +58,7 @@ PICTURE_SIDE = 1600  # longest side sent to the AI – enough to read text, fewe
 # Own project folders (PROJEKT → MAPPAR, 1 Nov): opened in VS Code or Claude Code in the terminal
 FOLDERS = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "goblincakes" / "ai-mappar.json"
 QUOTA_CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "goblincakes" / "quota.json"
+QUOTA_HELPER = Path(__file__).resolve().parent.parent / "libexec/goblincakes-quota"  # fetches quota.json (the top bar's widget, the dashboard, us)
 
 
 def _load_folders():
@@ -2434,9 +2435,39 @@ class Backend(QObject):
     def refreshQuota(self):
         try:
             text = QUOTA_CACHE.read_text()
+            data = json.loads(text)
+        except (OSError, ValueError):
+            text, data = "{}", {}
+        if text != self._quota:
+            self._quota = text
+            self.quotaChanged.emit()
+        # 26 Nov (the user): the dashboard layout has no top bar, so no widget keeps the file fresh – older than
+        # 2 min → fetch it ourselves in the background (one at a time), read again when it is done
+        try:
+            age = time.time() - float(data.get("updated") or 0)
+        except (TypeError, ValueError, AttributeError):
+            age = 1e9
+        if age > 120 and QUOTA_HELPER.exists() and getattr(self, "_quota_proc", None) is None:
+            proc = QProcess(self)
+            proc.setStandardOutputFile(QProcess.nullDevice())
+            proc.setStandardErrorFile(QProcess.nullDevice())
+
+            def done(*_):
+                self._quota_proc = None
+                proc.deleteLater()
+                self.refreshQuota_read()
+            proc.finished.connect(done)
+            proc.errorOccurred.connect(lambda err: done() if err == QProcess.FailedToStart else None)
+            self._quota_proc = proc
+            proc.start(str(QUOTA_HELPER), [])
+            QTimer.singleShot(45000, lambda: proc.kill() if self._quota_proc is proc else None)
+
+    def refreshQuota_read(self):
+        try:
+            text = QUOTA_CACHE.read_text()
             json.loads(text)
         except (OSError, ValueError):
-            text = "{}"
+            return
         if text != self._quota:
             self._quota = text
             self.quotaChanged.emit()

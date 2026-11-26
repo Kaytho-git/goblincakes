@@ -1,4 +1,5 @@
 2026-11-27  Installationsskivan: installationen kunde stanna med ”installationen misslyckades” (kod 73) strax innan den var klar – lagat i nästa installationsskiva.
+2026-11-26  Goblin AI: kvoten (KVOT) visar nu färska siffror av sig själv – förut uppdaterades den bara när du tittat på kvoten i dashboarden.
 2026-11-26  Systemfältet: batteriikonen visas bara på bärbara datorer (på en vanlig dator visade den bara den trådlösa musens batteri, som redan syns vid klockan), och ikoner du själv stänger av i systemfältet kommer inte tillbaka när GOBLINCAKES uppdateras.
 2026-11-26  Goblin AI: Kakan hittar nu krascher som inte lämnar spår efter sig i datorns kraschlista – som när Discord kraschade direkt vid start – och läser tjänstens egen logg när en notis säger att något misslyckades. Program som stängs av vid utloggning räknas inte som krascher.
 2026-11-26  Discord kraschade direkt vid start, och installation och uppdatering svarade ”Discord kunde inte installeras”, efter Discords senaste ändring – lagat. En dator där det redan hänt lagas av sig själv vid nästa inloggning efter uppdateringen.

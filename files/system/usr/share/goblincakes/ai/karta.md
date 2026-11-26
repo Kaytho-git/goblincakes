@@ -171,7 +171,7 @@ Ord: dashboard, dashboarden, överblick, instrumentpanel, helskärm, öppna prog
 - Inställningar: ~/.config/goblincakes/dashboard.json (`views` = vyerna [{name, left, right, mid}], `view` = den som
   visas, `apps` = egna program nederst – saknas den används dockans fästa program). Ändras i GOBLINCAKES Config →
   DASHBOARD (eller knappen Anpassa i dashboarden); dashboarden läser om dem varje gång den visas. Projekten = samma lista som Goblin AI:s PROJEKT → MAPPAR
-  (~/.config/goblincakes/ai-mappar.json). Kvoten = ~/.cache/goblincakes/quota.json (kvot-widgetens fil).
+  (~/.config/goblincakes/ai-mappar.json). Kvoten = ~/.cache/goblincakes/quota.json (kvot-widgetens fil; Goblin AI hämtar den själv när den är äldre än 2 min).
 - 11 nov: ikonraden under loggan = nätverk, ljud, Bluetooth, urklipp, enheter + KVOT (mätare, röd vid ≥ 90 %, tryck =
   liten ruta) + strömknappen (D-Bus org.kde.LogoutPrompt /LogoutPrompt promptAll = avstängningsrutan). + bredvid
   PROJEKT = dashboardens egen mappväljare i mitten (`python3 dash.py browse [mapp]`; inte systemets dialog), ✕ på

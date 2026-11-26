@@ -515,6 +515,7 @@ Användaren vill fortsätta med Claude Code och har inga planer på att byta. De
 - Claude: `GET https://api.anthropic.com/api/oauth/usage`, `Authorization: Bearer <accessToken>` + `anthropic-beta: oauth-2025-04-20` → `five_hour`/`seven_day` {utilization, resets_at ISO}. Token förnyas aldrig av oss (refresh roterar → Claude Code utloggad); utgången = felrad.
 - Codex: `GET https://chatgpt.com/backend-api/wham/usage`, Bearer access_token + `ChatGPT-Account-Id` → `rate_limit.primary_window/secondary_window` {used_percent, reset_at epoch}. Reserv: senaste `rate_limits` i `~/.codex/sessions/*/*/*/*.jsonl` (resets_at passerad → 0 %).
 - Misslyckas en läsning behålls förra värdena med `stale` (tid för senast lyckade).
+- **Goblin AI hämtar själv (26 nov):** med upplägget Dashboard finns inget toppfält → ingen widget höll filen färsk; KVOT i Goblin AI ändrades bara efter dashboardens KVOT. `goblin-ai` `refreshQuota`: filen > 120 s → `QUOTA_HELPER` som QProcess i bakgrunden (en åt gången, dödas efter 45 s), `refreshQuota_read` när den är klar. Anropas vid start, klick på KVOT och var minut när fönstret är aktivt. Provat offscreen med åldrad fil (riktig hämtning 0,6 s, ny `updated` inläst, andra anropet startar ingen ny). Fönstret ej sett.
 - Provat på riktigt 28 okt: båda läses färskt, reservloggen, felvägen (CODEX_HOME fel → stale); widgeten som testkopia i toppfältet: staplarna, hovringsrutan (båda tjänsterna) och rutan vid klick (5 h + vecka) provade av användaren. Ej provat: orange/röd, utgången Claude-inloggning.
 
 
