@@ -3592,12 +3592,20 @@ def main():
     voice = "--voice" in sys.argv[1:]  # Kakan's voice: the same chat when the last question was recent
     # --open <id>: a saved chat, shown (/app in goblin ai in the terminal: the chat goes along, 26 Oct)
     conv = sys.argv[sys.argv.index("--open") + 1] if "--open" in sys.argv[1:-1] else ""
+    # --claude <folder>: Claude Code in a TERMINAL tab there, as a folder's menu → Claude Code här (26 Nov: a button
+    # on the user's MSD-TWO box)
+    claude_dir = sys.argv[sys.argv.index("--claude") + 1] if "--claude" in sys.argv[1:-1] else ""
+    if claude_dir:
+        claude_dir = str(Path(claude_dir).expanduser().resolve())
+        if not Path(claude_dir).is_dir():
+            print(f"Ingen mapp: {claude_dir}", file=sys.stderr)
+            return 2
     # Already open: bring that window (or the quick box) to the front instead
     probe = QLocalSocket()
     probe.connectToServer(SOCKET_NAME)
     if probe.waitForConnected(300):
         probe.write((b"voice:" if voice else b"ask:") + ask.encode() if ask else b"open:" + conv.encode() if conv
-                    else b"quick" if quick else b"show")
+                    else b"claude:" + claude_dir.encode() if claude_dir else b"quick" if quick else b"show")
         probe.waitForBytesWritten(300)
         return 0
     QLocalServer.removeServer(SOCKET_NAME)
@@ -3625,6 +3633,10 @@ def main():
         if wish.startswith(b"open:"):
             backend.conversationsChanged.emit()  # the chat was saved by the terminal: into the list too
             backend.openConversation(wish[5:].decode(errors="replace"))
+            backend.raiseWindow.emit()
+            return
+        if wish.startswith(b"claude:"):
+            backend.claudeTerminal.emit(wish[7:].decode(errors="replace"), backend.claudeCommand())
             backend.raiseWindow.emit()
             return
         (backend.quickShow if wish == b"quick" else backend.raiseWindow).emit()
@@ -3659,6 +3671,8 @@ def main():
         backend.askVoice(ask) if voice else backend.askNew(ask)
     elif conv:
         backend.openConversation(conv)
+    elif claude_dir:
+        backend.claudeTerminal.emit(claude_dir, backend.claudeCommand())
     return app.exec()
 
 
