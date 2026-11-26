@@ -1255,3 +1255,18 @@ raderna tas bort). goblincakes-refresh.sh kör `discord-launcher` på alla grafi
 Provat: kopior (ren, trasig, andra körningen, gammalt skript med/utan rad, argument genom länk – lagad fil = Discords original
 byte för byte), hel nyinstallation och lagning vid "finns redan" i låtsashemmapp, riktiga datorn (lagad för hand med samma skript;
 Discord startar via autostarttjänsten med flaggan). Inte provat: inloggning efter ny image.
+
+## systemfel: krascher utan kärndump (26 nov, Discord-notisen – Kakan sa "ofarligt")
+`systools.py`: `systemfel app-discord@autostart.service` sa "Inga krascher, inga fel" fast Discord dog 19:41 med SEGV.
+Orsaker: ingen kärndump (`code=killed`, coredumpctl tom), systemd:s rad är varning (prio 4, `journal_errors` läser -p3),
+varningsdelen läste bara de senaste 400 raderna sedan start (>1 000 efter 7 min), tjänsten jämfördes inte i kärndumparna.
+Rättat: `unit_crashes` (systemd-rader `Main process exited, code=killed|dumped, status=N/<CRASH_SIGNALS>`, `CRASH_DAYS`,
+system + egna journalen i ett anrop) slås ihop i `crashes()` (`"dump": False`; samma tjänst ±120 s som en kärndump = en),
+kärndumparna matchas även på tjänsten (`unescape_unit`, `unit_program`). **Dog medan tjänsten stoppades** (en
+`Stopping <unit>`-rad 0–120 s före) räknas inte: vid varje utloggning dör Discord/WowUp/Archon/Raider.IO med BUS/TRAP
+(23–25 nov, 4 utloggningar). `details`: stacken ur senaste *kärndumpen*; tjänstnamn i frågan → `unit_log` (`--unit` +
+`--user-unit` sedan start: systemd:s rader + programmets 12 senaste); varningsraderna = senaste 400 + 200 med `-g`.
+"Journalen: inga fel" → "inga rader på felnivå". `KNOWN` fick discord. Karta: Steam-avsnittet + Kontroll efter uppdatering.
+Provat på riktiga journalen: Discord 19:41 SIGSEGV syns (tjänst, "discord", översikten), utloggningarna borta, ghostty/
+wowup-cf med kärndump en gång var, voice/steam/plasmashell utan krascher, ~0,2 s. Ej provat: Kakan med nya verktyget
+(testlista `systemfel-krascher`).

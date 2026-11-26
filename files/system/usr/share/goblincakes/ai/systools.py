@@ -46,6 +46,7 @@ KNOWN = {
     "systemd-tmpfiles": "Skapar filer/mappar vid start. \"Failed to resolve group\" tidigt i starten är ofarligt av "
                         "samma skäl som för systemd-udevd (grupperna finns i /usr/lib/group).",
     "ollama": "GOBLINCAKES lokala AI (Ollama).",
+    "discord": "Discord – Discords egen Linux-version i ~/.local/share/discord-app (se kartan, avsnittet Discord).",
     "goblincakes": "En del av GOBLINCAKES själv.",
 }
 
@@ -102,22 +103,77 @@ def tool_version(path):
     return (m.group(1) or m.group(2)).replace("-x86_64", "") if m else ""
 
 
+def unescape_unit(unit):
+    """systemd's escaped unit name readable: 'app-raiderio\\x2dclient@autostart.service' → 'app-raiderio-client@…'."""
+    return re.sub(r"\\x([0-9a-fA-F]{2})", lambda m: chr(int(m.group(1), 16)), unit)
+
+
+def unit_program(unit):
+    """The program in a unit name: 'app-discord@autostart.service' → 'discord', 'app-appimage-wowup@…' → 'wowup'."""
+    name = re.sub(r"@.*$|\.(?:service|scope)$", "", unescape_unit(unit))
+    return re.sub(r"^app-(?:appimage-)?", "", name) or unit
+
+
+CRASH_SIGNALS = "SEGV|ABRT|BUS|ILL|FPE|TRAP|SYS"
+UNIT_CRASH = re.compile(rf"^(\S+): Main process exited, code=(?:killed|dumped), status=\d+/({CRASH_SIGNALS})\b")
+
+
+def unit_crashes(match=""):
+    """Crashes systemd saw in a service, core dump or not (26 Nov: Discord died with SEGV at start, code=killed –
+    coredumpctl had nothing, and the line is a warning, below journal_errors' -p3, so systemfel said "inga
+    krascher"). The system's and the user's own journal (journalctl without --user reads both)."""
+    items = []
+    stopping = collections.defaultdict(list)  # unit → when systemd began stopping it (logout, shutdown)
+    for d in journal([f"--since=-{CRASH_DAYS}d", "SYSLOG_IDENTIFIER=systemd", "-g", "^Stopping "]):
+        unit = text_of(d.get("MESSAGE"))[9:].split(" ", 1)[0].rstrip(".")
+        try:
+            stopping[unit].append(int(d["__REALTIME_TIMESTAMP"]) / 1e6)
+        except (KeyError, ValueError):
+            pass
+    grep = f"Main process exited, code=(killed|dumped), status=[0-9]+/({CRASH_SIGNALS})"
+    for d in journal([f"--since=-{CRASH_DAYS}d", "SYSLOG_IDENTIFIER=systemd", "-g", grep]):
+        m = UNIT_CRASH.match(text_of(d.get("MESSAGE")))
+        if not m:
+            continue
+        unit = unescape_unit(m.group(1))
+        name = unit_program(unit)
+        if match and match not in f"{name} {unit} {m.group(1)}".lower():
+            continue
+        try:
+            stamp = int(d["__REALTIME_TIMESTAMP"]) / 1e6
+        except (KeyError, ValueError):
+            continue
+        # Died while being stopped = not a crash: at every logout Discord, WowUp, Archon and Raider.IO
+        # (Electron, AppImages) end with SIGBUS/SIGTRAP after "Stopping …" (seen 23–25 Nov)
+        if any(0 <= stamp - t < 120 for t in stopping.get(m.group(1), ())):
+            continue
+        items.append({"name": name, "exe": "", "cmd": "", "time": stamp, "pid": "", "signal": "SIG" + m.group(2),
+                      "unit": unit, "tool": "", "dump": False})
+    return items
+
+
 def crashes(match=""):
+    """Core dumps (systemd-coredump) + services that died with a crash signal without one (unit_crashes)."""
     items = []
     for d in journal([f"MESSAGE_ID={COREDUMP_ID}", f"--since=-{CRASH_DAYS}d"]):
         exe, cmd = text_of(d.get("COREDUMP_EXE")), text_of(d.get("COREDUMP_CMDLINE"))
         name = text_of(d.get("COREDUMP_COMM")) or Path(exe).name
         if name.startswith("d3ddriverquery"):
             name = "d3ddriverquery64.exe"
-        if match and match not in f"{name} {exe} {cmd}".lower():
+        unit = unescape_unit(text_of(d.get("COREDUMP_USER_UNIT")) or text_of(d.get("COREDUMP_UNIT")))
+        if match and match not in f"{name} {exe} {cmd} {unit}".lower():
             continue
         try:
             stamp = int(d.get("COREDUMP_TIMESTAMP") or d["__REALTIME_TIMESTAMP"]) / 1e6
         except (KeyError, ValueError):
             continue
         items.append({"name": name, "exe": exe, "cmd": cmd, "time": stamp, "pid": text_of(d.get("COREDUMP_PID")),
-                      "signal": text_of(d.get("COREDUMP_SIGNAL_NAME")), "unit": text_of(d.get("COREDUMP_USER_UNIT"))
-                      or text_of(d.get("COREDUMP_UNIT")), "tool": tool_version(exe + " " + cmd.replace("\\", "/"))})
+                      "signal": text_of(d.get("COREDUMP_SIGNAL_NAME")), "unit": unit,
+                      "tool": tool_version(exe + " " + cmd.replace("\\", "/")), "dump": True})
+    # The same crash once: systemd's line for a service whose core dump is already in the list is left out
+    for c in unit_crashes(match):
+        if not any(d["unit"] == c["unit"] and abs(d["time"] - c["time"]) < 120 for d in items):
+            items.append(c)
     return sorted(items, key=lambda c: c["time"])
 
 
@@ -185,7 +241,8 @@ def journal_errors(match="", boot="-b"):
 def overview_journal(match=""):
     groups, examples, last = journal_errors(match)
     if not groups:
-        return "Journalen: inga fel sedan datorn startade" + (f" för \"{match}\"." if match else ".")
+        # "på felnivå": a crash is a warning (systemd's "Main process exited … SEGV") – the crashes are listed above
+        return "Journalen: inga rader på felnivå sedan datorn startade" + (f" för \"{match}\"." if match else ".")
     total = sum(groups.values())
     out = [f"Journalen sedan start: {total} felrader i {len(groups)} sorter (vanligast först):"]
     shown_notes = set()
@@ -271,12 +328,17 @@ def details(match):
             cmd = " ".join(hide(c["cmd"]).split())
             out.append(f"- {when(c['time'])} {c['name']} ({c['signal']})" + (f" · {c['tool']}" if c["tool"] else "")
                        + (f" · startad från {c['unit']}" if c["unit"] else "")
+                       + (" · ingen kärndump, systemd såg tjänsten dö" if not c["dump"] else "")
                        + (f" · kommandot: {cmd[:160]}{'…' if len(cmd) > 160 else ''}" if cmd and cmd != c["exe"] else ""))
-        frames, extras = stack(items[-1]["pid"])
+        dumped = [c for c in items if c["dump"]]
+        frames, extras = stack(dumped[-1]["pid"]) if dumped else ([], [])
         if frames:
-            out.append(f"Senaste kraschen ({items[-1]['name']}), början av stacken:\n  " + "\n  ".join(frames))
+            out.append(f"Senaste kärndumpen ({dumped[-1]['name']}), början av stacken:\n  " + "\n  ".join(frames))
+        elif dumped:
+            out.append("Senaste kärndumpen: ingen läsbar stack (vanligt för Windows-program under Proton).")
         else:
-            out.append("Senaste kraschen: ingen läsbar stack (vanligt för Windows-program under Proton).")
+            out.append("Ingen kärndump sparades – programmet kraschade ändå (signalen ovan). Tjänstens logg nedan "
+                       "visar vad det gjorde precis före.")
         if extras:
             out.append("Laddat i programmet: " + ", ".join(extras))
         names = collections.Counter(c["name"] for c in items)
@@ -286,8 +348,16 @@ def details(match):
     else:
         out.append(f"Inga krascher de senaste {CRASH_DAYS} dygnen.")
     out.append(overview_journal(match))
-    lines = []
-    for d in journal(["-b", "-n", "400", "-p4"])[-400:]:
+    if unit_log_text := unit_log(match):
+        out.append(unit_log_text)
+    # The latest 400 lines and the lines that name it (26 Nov: after 7 minutes there were over 1 000 warnings
+    # since the start, and Discord's crash at 19:41 was no longer among the latest 400)
+    seen, lines = set(), []
+    entries = journal(["-b", "-n", "400", "-p4"]) + journal(["-b", "-n", "200", "-p4", "-g", re.escape(match)])
+    for d in sorted(entries, key=lambda d: int(d.get("__REALTIME_TIMESTAMP") or 0)):
+        if d.get("__CURSOR") in seen:
+            continue
+        seen.add(d.get("__CURSOR"))
         who = text_of(d.get("SYSLOG_IDENTIFIER")) or text_of(d.get("_COMM"))
         msg = text_of(d.get("MESSAGE")).splitlines()[0][:200] if text_of(d.get("MESSAGE")) else ""
         if match in f"{who} {msg}".lower() and not CONTINUATION.match(msg):
@@ -295,6 +365,28 @@ def details(match):
     if lines:
         out.append("Senaste varningar/fel om det (journalen):\n" + "\n".join(lines[-15:]))
     return "\n".join(out)
+
+
+def unit_log(match):
+    """A service named in the question: its own journal since the start – systemd's lines (started, exited with
+    a signal, failed) all, the program's own last ones. "misslyckades" in a notice is never harmless until read."""
+    if not re.fullmatch(r"[\w.@:\\-]+\.(?:service|scope|timer|socket|path|mount)", match):
+        return ""
+    entries = (journal(["-b", "-n", "300", f"--unit={match}"])
+               + journal(["-b", "-n", "300", f"--user-unit={match}"]))
+    if not entries:
+        return f"Tjänstens logg ({match}): inga rader sedan datorn startade."
+    rows = []
+    for d in sorted(entries, key=lambda d: int(d.get("__REALTIME_TIMESTAMP") or 0)):
+        msg = text_of(d.get("MESSAGE")).splitlines()[0][:200] if text_of(d.get("MESSAGE")) else ""
+        if msg:
+            who = text_of(d.get("SYSLOG_IDENTIFIER")) or text_of(d.get("_COMM"))
+            rows.append((who == "systemd", f"  {when(int(d['__REALTIME_TIMESTAMP']) / 1e6)} {who}: {msg}"))
+    own = [r for i, (sysd, r) in enumerate(rows) if not sysd][-12:]
+    keep = [r for sysd, r in rows if sysd][-12:] + own
+    order = {r: i for i, (_, r) in enumerate(rows)}
+    return (f"Tjänstens logg ({match}) sedan start – systemd:s rader och programmets senaste:\n"
+            + "\n".join(sorted(set(keep), key=order.get)))
 
 
 def after_update():

@@ -114,6 +114,10 @@ Ord: efter uppdateringen, efterkontroll, gick sönder, slutade fungera, ny image
 - Efter en ny image jämförs med förra imagen: bara det som fungerade före och är trasigt nu ger en notis
   ("Efter uppdateringen: N saker gick sönder", knappen Fråga + ditt namn). Allt bra = ingen notis.
 - "No module named 'demoparser2'" efter ny Fedora-version = demoparser2/awpy/pandas har färdiga paket per Python-version och bygget (install-demoparser.sh) föll tyst → inget i /usr/lib/goblincakes/demoparser. Läsaren körs med python3.14 (recorder `cs2_demo_process`); kolla `ls /usr/lib/goblincakes/demoparser`, `rpm -q python3.14`, byggloggen. Du kan inte rätta det på datorn (read-only) – skicka vidare. goblincakes-voice.service "inactive (success)" efter ny Fedora-version: läs `journalctl --user -u goblincakes-voice -b`. En notis om rösten: se avsnittet Din röst (röstknappen).
+- En tjänst som "misslyckades" är aldrig ofarlig eller "ett tillfälligt fel vid start" förrän du läst dess
+  egen logg: systemfel med tjänstens namn (t.ex. `app-discord@autostart.service`) visar den. Står det
+  `code=killed` eller `code=dumped` med `status=…/SEGV` (ABRT, BUS, TRAP …) har programmet kraschat, även om
+  ingen kärndump finns och det ser lugnt ut nu (26 nov: Discord kraschade vid start – kallades ofarligt).
 - Var trasigt redan före = inte uppdateringens fel. Kända ofarliga fel (systemd-remount-fs, nvidia-settings-load)
   räknas inte.
 - Det som gått sönder rättas del för del (logg → orsak → rätta, t.ex. starta om tjänsten); det du inte kan rätta
@@ -754,7 +758,8 @@ Kontroll: `/usr/libexec/goblincakes-voice status`
 Ord: steam, proton, spel startar inte, goblin play, tv-läge, big picture, lutris, heroic
 - Steam finns i systemet. `goblin play <namn>` startar Steam-spel från terminalen (/usr/libexec/goblincakes-games),
   egna ord i ~/.config/goblincakes/game-aliases. TV-läge: `goblin tv`.
-- Krascher syns med verktyget systemfel (coredumps).
+- Krascher syns med verktyget systemfel: kärndumpar och tjänster som systemd såg dö med en kraschsignal (SEGV,
+  ABRT, BUS, TRAP …) – även utan kärndump. Dog den vid utloggning räknas det inte.
 - Steam vid inloggning väntar (högst 30 s) tills alla bibliotek i libraryfolders.vdf finns: /usr/libexec/goblincakes-steam-wait-libraries
   (ExecStartPre i /usr/lib/systemd/user/app-steam@autostart.service.d/). Shaderbearbetningen: ~/.local/share/Steam/logs/shader_log.txt
   ("Committed bucket … from 0" = börjar om från noll).
