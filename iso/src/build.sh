@@ -23,6 +23,15 @@ iso_variant=$(cat /usr/share/goblincakes/variant 2>/dev/null || echo base)  # ba
 mkdir -p "$(realpath /root)" /var/lib/rpm-state /var/tmp /var/cache /var/log
 chmod 1777 /var/tmp
 
+# /mnt is a link to var/mnt on atomic Fedora. Anaconda installs into /mnt/sysroot and runs
+# systemd-tmpfiles --root=/mnt/sysroot there – on Fedora 45 tmpfiles refuses a root behind a
+# link and the installation stops with code 73 (26 Nov, same fix as Bazzite #6325). Only the
+# live system: the installed GOBLINCAKES keeps its /mnt link.
+if [ -L /mnt ]; then
+    rm /mnt
+    mkdir -p /mnt
+fi
+
 # ── The image Anaconda installs: the same GOBLINCAKES, kept compressed (OCI layout) ──
 # Signatures can not be kept in an OCI folder; the installed system checks them on every update
 skopeo copy --retry-times 3 --remove-signatures "docker://$payload_image" "oci:$payload_dir:$payload_tag"
