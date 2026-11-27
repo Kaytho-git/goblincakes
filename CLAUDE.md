@@ -64,6 +64,7 @@ Källan: https://claude.ai/artifact/BqT4GjvtTacjAgiCnRKwqt – följ den exakt (
 - [ ] **Epics launcher i Config** – väntar på paketformatet (grep "Beredskapsplan").
 - [ ] **A Boy to the Rescue** (barnspelet, `games/barnspelet/`) – bana 1 djungeln klar och i barnläget 15 nov; bana 2 snö klar (användaren bygger banan); bana 3 sand byggd 15 nov – användaren bygger och provar (arbetsgången: grep "Arbetssättet för banorna") (grep "Barnspelet – planen").
 - [ ] **GoblinJump** (hoppspel med musen, Godot) – planerat 27 nov, byggs vid användarens dator; två frågor obesvarade (grep "GoblinJump – planen").
+- [ ] **Kakan pratar som en människa** – snabbt kallprat som leder till en uppgift; plan 27 nov, tre frågor obesvarade (grep "Kakan pratar som en människa").
 - [ ] **Engelsk version** (qsTr/gettext; 2–3 långa sessioner).
 
 ## Framtida idéer
