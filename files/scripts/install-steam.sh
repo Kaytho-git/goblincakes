@@ -21,6 +21,12 @@ dnf5 -y install \
     --enablerepo=rpmfusion-free --enablerepo=rpmfusion-free-updates \
     --enablerepo=rpmfusion-nonfree --enablerepo=rpmfusion-nonfree-updates \
     steam
+# Steam's 32-bit libzstd can pull libzstd up to a newer version than the zstd program in the
+# base image (27 Nov: library 1.6.0, program 1.5.7) – zstd then refuses to run and dracut
+# can't pack the initramfs. Bring the program up to the same version.
+if rpm -q zstd >/dev/null 2>&1; then
+    dnf5 -y upgrade zstd
+fi
 if [ ${#added[@]} -gt 0 ]; then
     dnf5 -y remove "${added[@]}"
 fi
