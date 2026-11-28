@@ -150,3 +150,14 @@ Minsta storlekarna gäller **efter** att rubrik och flikar fått bryta om eller 
 - Hur skarp texten blir med zoom på 1,17–1,22 (icke-heltal). Skärpan med 0,9 är provad på riktigt, men inte de nya värdena.
 - Ultrawide (3 440 × 1 440): maxbredden bör ge en lugn centrerad sida, men det är bara räknat, inte sett.
 - Plasma-skalning 125 % eller 150 % (vanligt på 1440p/4K): skärmfaktorn ska då bli 1. Det är bara läst i koden, inte provat.
+
+## 9. Användarens logik (regler från rättelser)
+
+Normen ovan styr utseende och storlek. Det här avsnittet gäller *var* saker hamnar och *hur* man tar sig fram, där det som är logiskt för Claude kan vara ologiskt för användaren (användaren 28 nov). Varje gång användaren rättar något sådant skrivs det in här som en regel med ett varför.
+
+**Arbetssättet före UI-ändringar:**
+- Visa först ett utkast som offscreen-skärmbild med en kort rad om flödet ("du klickar här, sedan händer det här"). Bygg klart först när användaren sagt ja. Gäller nya fönster och större ändringar. Småsaker beskrivs bara i planen.
+- UI-val som annars görs i tysthet (placering, ord på knappar, standardval, stegens ordning) står som egna punkter i planen.
+
+**Regler:**
+1. **Saker som hör ihop samlas på ett ställe**, inte där det råkar finnas plats. Varför: förr låg inställningar utspridda i olika fönster, och användaren fick leta och läsa överallt.
