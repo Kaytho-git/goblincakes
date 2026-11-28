@@ -1,3 +1,4 @@
+2026-11-28  Barnläget: trycker man flera gånger på knappen som startar barnläget öppnas det nu bara en gång – förut kunde flera starta samtidigt, och när man stängt det första var resten av datorn inte längre spärrad.
 2026-11-28  Skärmar: när du vrider en skärm (Meta+←/→/↑) läggs skärmarna nu intill varandra, med den liggande centrerad mot den stående – förut kunde det bli ett glapp så att musen fastnade på en skärm.
 2026-11-27  Installationsskivan: installationen kunde stanna med ”installationen misslyckades” (kod 73) strax innan den var klar – lagat i nästa installationsskiva.
 2026-11-26  Goblin AI: kvoten (KVOT) visar nu färska siffror av sig själv – förut uppdaterades den bara när du tittat på kvoten i dashboarden.

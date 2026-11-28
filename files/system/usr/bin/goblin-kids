@@ -26,6 +26,7 @@ import kids as K  # noqa: E402
 
 SERVICE = "org.goblincakes.kids"
 NOLOCK = os.environ.get("GOBLINCAKES_KIDS_NOLOCK") == "1"   # tests: the window only, nothing locked
+_LOCK_FD = None   # the one-at-a-time lock (main), open while Barnläge runs
 
 
 def use_accent(engine):
@@ -108,7 +109,26 @@ def main():
         if font:
             QFontDatabase.addApplicationFont(font)
 
-    # One Barnläge at a time
+    # One Barnläge at a time. A file lock first (28 Nov: the button box started three in the same second –
+    # none had its server up yet, so all three ran, and the first one closed removed the state file while two
+    # were left). The kernel drops the lock when the process ends, also after a crash.
+    import fcntl  # noqa: PLC0415
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/tmp/goblin-kids-{os.getuid()}")
+    runtime.mkdir(parents=True, exist_ok=True)
+    global _LOCK_FD  # noqa: PLW0603 – kept open as long as this Barnläge runs
+    _LOCK_FD = os.open(runtime / f"{name}.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(_LOCK_FD, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        # The other one may still be starting: show it once its server is up (up to ~10 s)
+        for _ in range(20):
+            sock = QLocalSocket()
+            sock.connectToServer(name)
+            if sock.waitForConnected(500):
+                sock.write(b"show\n")
+                sock.waitForBytesWritten(500)
+                break
+        return 0
     sock = QLocalSocket()
     sock.connectToServer(name)
     if sock.waitForConnected(300):
