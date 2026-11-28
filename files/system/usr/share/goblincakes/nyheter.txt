@@ -1,3 +1,4 @@
+2026-11-28  Skärmar: när du vrider en skärm (Meta+←/→/↑) läggs skärmarna nu intill varandra, med den liggande centrerad mot den stående – förut kunde det bli ett glapp så att musen fastnade på en skärm.
 2026-11-27  Installationsskivan: installationen kunde stanna med ”installationen misslyckades” (kod 73) strax innan den var klar – lagat i nästa installationsskiva.
 2026-11-26  Goblin AI: kvoten (KVOT) visar nu färska siffror av sig själv – förut uppdaterades den bara när du tittat på kvoten i dashboarden.
 2026-11-26  Systemfältet: batteriikonen visas bara på bärbara datorer (på en vanlig dator visade den bara den trådlösa musens batteri, som redan syns vid klockan), och ikoner du själv stänger av i systemfältet kommer inte tillbaka när GOBLINCAKES uppdateras.

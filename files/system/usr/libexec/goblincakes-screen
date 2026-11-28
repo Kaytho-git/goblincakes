@@ -15,7 +15,8 @@ names joined by |: its desktop id and StartupWMClass, Wayland and XWayland diffe
 goblincakes-windows when a window of the program opens – it can be moved afterwards.
 KDE's own window rules number screens in another order, hence our own.
 Rotation (the user's wish, 29 Oct) goes through kscreen-doctor; the direction is kept in
-~/.config/goblincakes/screen-portrait ("left" or "right").
+~/.config/goblincakes/screen-portrait ("left" or "right"). The same call lays the screens
+edge to edge, vertically centred (layout(), 28 Nov).
 """
 import configparser
 import importlib.machinery
@@ -130,9 +131,47 @@ def cmd_rotate(args):
     if not targets:
         print("Hittade inga skärmar.", file=sys.stderr)
         return 1
-    res = subprocess.run(["kscreen-doctor"] + [f"output.{name}.rotation.{rot}" for _, name, _ in targets],
-                         capture_output=True, text=True)
+    names = {name for _, name, _ in targets}
+    args_ = [f"output.{name}.rotation.{rot}" for name in names] + layout(names, rot)
+    res = subprocess.run(["kscreen-doctor"] + args_, capture_output=True, text=True)
     return res.returncode
+
+
+ROTATION = {"none": 1, "left": 2, "inverted": 4, "right": 8}
+
+
+def layout(rotated, rot, data=None):
+    """Positions that put the screens edge to edge after a rotation (28 Nov: rotating only
+    changed the width, so a gap opened between the screens and the mouse got stuck on one).
+    Same left-to-right order as now, each screen centred on the tallest one's height."""
+    if data is None:
+        try:
+            data = json.loads(subprocess.run(["kscreen-doctor", "-j"], capture_output=True,
+                                             text=True, timeout=5).stdout)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            return []
+    outs = [o for o in data.get("outputs", []) if o.get("enabled", True) and o.get("connected", True)]
+    if len(outs) < 2:
+        return []
+    boxes = []
+    for o in outs:
+        mode = next((m for m in o.get("modes", []) if m.get("id") == o.get("currentModeId")), {})
+        size = mode.get("size") or {}
+        w, h = size.get("width"), size.get("height")
+        if not w or not h:
+            return []
+        r = ROTATION[rot] if o.get("name") in rotated else o.get("rotation", 1)
+        if r in (2, 8):
+            w, h = h, w
+        scale = o.get("scale") or 1
+        boxes.append(((o.get("pos") or {}).get("x", 0), o["name"], round(w / scale), round(h / scale)))
+    boxes.sort()
+    tallest = max(b[3] for b in boxes)
+    result, x = [], 0
+    for _, name, w, h in boxes:
+        result.append(f"output.{name}.position.{x},{(tallest - h) // 2}")
+        x += w
+    return result
 
 
 def read_rules():
