@@ -1068,6 +1068,9 @@ def restore(state=None):
     """Everything back as it was: windows, shortcuts, the power button, the screen edges, the overlays. Safe to run twice."""
     state = state or read_state()
     if state is None:
+        # The shortcuts always back, also without the state file (28 Nov: three Barnlägen at once – the first one
+        # closed removed the file, the other two blocked the shortcuts again and could not unblock them)
+        block_shortcuts(False)
         return False
     _kwin("unloadScript", "s", KWIN_SCRIPT)
     kwin_load(KWIN_SCRIPT + "-off", "kwin-off.js", {"hidden": state.get("hidden") or [],
